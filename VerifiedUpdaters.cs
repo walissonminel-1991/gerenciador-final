@@ -64,7 +64,7 @@ internal static class VerifiedUpdaters
             TryVersion(entry.AvailableVersion, out var obsAvailable) && obsAvailable == new Version(32, 2, 2, 0))
         {
             return new("obs-x64-32.2.2", "OBS Studio", "32.2.2", Obs, ObsDigest,
-                "OBS Project", "", true, "https://obsproject.com/download");
+                "OBS Project Corporation", "", true, "https://obsproject.com/download");
         }
         return null;
     }
@@ -161,15 +161,16 @@ internal static class VerifiedUpdaters
                 if (!actual.Equals(digest, StringComparison.OrdinalIgnoreCase))
                     throw new CryptographicException("SHA-256 não corresponde ao arquivo oficial.");
             }
-            if (!VerifyAuthenticode(path, recipe.RequiredSigner))
-                throw new CryptographicException("Assinatura Authenticode inválida ou editor não esperado.");
+            if (!VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
+                throw new CryptographicException("Assinatura Authenticode inválida ou editor não esperado (" + issue + ").");
             return path;
         }
         throw new InvalidDataException("Excesso de redirecionamentos.");
     }
 
-    private static bool VerifyAuthenticode(string path, string signer)
+    private static bool VerifyAuthenticode(string path, string signer, out string issue)
     {
+        issue = "";
         // A verificação de cadeia e assinatura cabe ao Windows (WinVerifyTrust).
         var info = new WinTrustFileInfo { Size = (uint)Marshal.SizeOf<WinTrustFileInfo>(), FilePath = path };
         IntPtr pInfo = Marshal.AllocHGlobal(Marshal.SizeOf<WinTrustFileInfo>());
@@ -183,13 +184,22 @@ internal static class VerifiedUpdaters
                 StateAction = 0, ProviderFlags = 0x80
             };
             Guid action = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
-            if (WinVerifyTrust(IntPtr.Zero, ref action, ref data) != 0) return false;
+            int status = WinVerifyTrust(IntPtr.Zero, ref action, ref data);
+            if (status != 0)
+            {
+                issue = "WinVerifyTrust=0x" + status.ToString("X8");
+                return false;
+            }
             using var cert = new X509Certificate2(X509Certificate.CreateFromSignedFile(path));
             string name = cert.GetNameInfo(X509NameType.SimpleName, false);
+            issue = "editor=" + name;
             return name.Equals(signer, StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception ex) when (ex is CryptographicException or IOException or UnauthorizedAccessException)
-        { return false; }
+        {
+            issue = "validacao=" + ex.GetType().Name;
+            return false;
+        }
         finally { Marshal.DestroyStructure<WinTrustFileInfo>(pInfo); Marshal.FreeHGlobal(pInfo); }
     }
 
