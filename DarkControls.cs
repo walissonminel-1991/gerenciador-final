@@ -293,6 +293,12 @@ internal sealed class DarkProgramList : Control
             ItemActionClicked?.Invoke(item, "uninstall");
             return;
         }
+        if (item.IsUpdate && AppRowGeometry.UpdateButton(bounds).Contains(e.Location))
+        {
+            SelectIndex(index);
+            ItemActionClicked?.Invoke(item, "update-not-validated");
+            return;
+        }
         SelectIndex(index);
     }
 
