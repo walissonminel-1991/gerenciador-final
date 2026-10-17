@@ -477,7 +477,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.7 TESTE";
+        Text = "Gerenciador Final — v5.12.7.1 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -826,11 +826,14 @@ internal sealed partial class MainForm : Form
             if (item.IsUpdate)
             {
                 if (VerifiedUpdaters.Resolve(item) is not null)
-                    DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), "Atualizar", AppServices.Green);
+                    DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), "Atualizar", AppServices.Green,
+                        _programList.ActionVisual(item, "update"));
                 if (VerifiedUpdaters.GetOfficialPage(item) is not null)
-                    DrawRowButton(e.Graphics, AppRowGeometry.SiteButton(e.Bounds), "Site", AppServices.Gray);
+                    DrawRowButton(e.Graphics, AppRowGeometry.SiteButton(e.Bounds), "Site", AppServices.Gray,
+                        _programList.ActionVisual(item, "site"));
             }
-            DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red);
+            DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red,
+                _programList.ActionVisual(item, "uninstall"));
         }
     }
 
@@ -838,14 +841,34 @@ internal sealed partial class MainForm : Form
         => string.IsNullOrWhiteSpace(version) || version.Equals("Unknown", StringComparison.OrdinalIgnoreCase)
             ? "não informada" : version;
 
-    private static void DrawRowButton(Graphics graphics, Rectangle rect, string text, Color color)
+    private static void DrawRowButton(Graphics graphics, Rectangle rect, string text, Color color,
+        (bool Hovered, bool Pressed, float Pulse) visual)
     {
         if (rect.Width <= 0 || rect.Height <= 0) return;
-        using var path = ModernButton.RoundRect(rect, 7);
-        using var bg = new SolidBrush(color);
-        graphics.FillPath(bg, path);
+        // O relevo de 2 px e a mudança de tonalidade representam um clique real.
+        // A animação dura 160 ms e termina antes de qualquer janela externa abrir.
+        var drawRect = rect;
+        if (visual.Pressed) { drawRect.Offset(0, 2); drawRect.Height = Math.Max(12, drawRect.Height - 2); }
+        static Color Mix(Color a, Color b, float amount)
+        {
+            int Blend(int x, int y) => Math.Clamp((int)Math.Round(x + (y - x) * amount), 0, 255);
+            return Color.FromArgb(Blend(a.R, b.R), Blend(a.G, b.G), Blend(a.B, b.B));
+        }
+        Color fill = color;
+        if (visual.Pressed) fill = Mix(fill, Color.Black, 0.18F);
+        else if (visual.Hovered) fill = Mix(fill, Color.White, 0.10F);
+        float pulse = MathF.Sin(MathF.PI * visual.Pulse);
+        if (pulse > 0) fill = Mix(fill, Color.White, pulse * 0.08F);
+        using var path = ModernButton.RoundRect(drawRect, 7);
+        using (var bg = new SolidBrush(fill)) graphics.FillPath(bg, path);
+        if (visual.Hovered || visual.Pulse > 0)
+        {
+            using var outline = new Pen(Color.FromArgb(
+                65 + (int)(60 * pulse), 213, 233, 255), 1.1F);
+            graphics.DrawPath(outline, path);
+        }
         using var font = new Font("Segoe UI", 8.4F, FontStyle.Bold);
-        TextRenderer.DrawText(graphics, text, font, rect,
+        TextRenderer.DrawText(graphics, text, font, drawRect,
             Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
             TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
     }
@@ -1378,7 +1401,7 @@ internal sealed partial class MainForm : Form
             int uncertain = results.Count(x => Matching.IsUncertain(x.State));
             DiagnosticTrace.Write($"RUCKZUCK.COMPARACAO_OK programas={installed.Length} candidatos={candidates} indeterminados={uncertain}");
             Log($"Catálogo RuckZuck: {catalog.Count} pacotes; {candidates} candidato(s); {uncertain} correspondência(s) incerta(s), não exibidas como atualizações.");
-            Log("Importante: atualizações ainda não confirmadas e instalação automática desativada neste teste.");
+            Log("Atualização integrada disponível somente para pacotes oficiais com receita verificada; demais resultados são apenas candidatos.");
             Status($"Consulta concluída: {candidates} possíveis atualizações (RuckZuck, cobertura parcial)");
         }
         catch (OperationCanceledException)
