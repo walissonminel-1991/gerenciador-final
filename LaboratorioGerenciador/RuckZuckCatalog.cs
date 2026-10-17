@@ -16,7 +16,6 @@ internal sealed class RuckZuckCatalog : IDisposable
     internal RuckZuckCatalog()
     {
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal-Laboratorio", "0.1"));
-        _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
     internal async Task<IReadOnlyList<CatalogEntry>> GetCatalogAsync(CancellationToken token)
@@ -38,7 +37,7 @@ internal sealed class RuckZuckCatalog : IDisposable
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         using var document = JsonDocument.Parse(json);
         if (document.RootElement.ValueKind != JsonValueKind.Array)
-            throw new InvalidDataException("O catálogo não retornou uma lista de produtos.");
+            throw new InvalidDataException($"O catálogo não retornou uma lista de produtos (tipo={document.RootElement.ValueKind}).");
         var entries = JsonSerializer.Deserialize<List<CatalogJson>>(json, options) ?? [];
         return entries
             .Where(x => !string.IsNullOrWhiteSpace(x.ProductVersion) && !string.IsNullOrWhiteSpace(x.Manufacturer))
