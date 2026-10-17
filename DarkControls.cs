@@ -162,7 +162,8 @@ internal sealed class DarkVScrollBar : Control
 internal static class AppRowGeometry
 {
     public static Rectangle Checkbox(Rectangle bounds) => new(bounds.Left + 17, bounds.Top + 28, 20, 20);
-    public static Rectangle UpdateButton(Rectangle bounds) => new(bounds.Right - 234, bounds.Top + 20, 105, 36);
+    public static Rectangle UpdateButton(Rectangle bounds) => new(bounds.Right - 331, bounds.Top + 20, 103, 36);
+    public static Rectangle SiteButton(Rectangle bounds) => new(bounds.Right - 222, bounds.Top + 20, 88, 36);
     public static Rectangle UninstallButton(Rectangle bounds) => new(bounds.Right - 124, bounds.Top + 20, 112, 36);
 }
 
@@ -293,10 +294,18 @@ internal sealed class DarkProgramList : Control
             ItemActionClicked?.Invoke(item, "uninstall");
             return;
         }
-        if (item.IsUpdate && AppRowGeometry.UpdateButton(bounds).Contains(e.Location))
+        if (item.IsUpdate && VerifiedUpdaters.Resolve(item) is not null &&
+            AppRowGeometry.UpdateButton(bounds).Contains(e.Location))
         {
             SelectIndex(index);
-            ItemActionClicked?.Invoke(item, "update-not-validated");
+            ItemActionClicked?.Invoke(item, "update");
+            return;
+        }
+        if (item.IsUpdate && VerifiedUpdaters.GetOfficialPage(item) is not null &&
+            AppRowGeometry.SiteButton(bounds).Contains(e.Location))
+        {
+            SelectIndex(index);
+            ItemActionClicked?.Invoke(item, "site");
             return;
         }
         SelectIndex(index);
