@@ -1460,8 +1460,17 @@ internal sealed partial class MainForm : Form
     private void RenderTitle()
     {
         int updates = _installed.Count(x => x.IsUpdate);
+        string windowsStatus = _windowsUpdateCheckingMessage();
         _listTitle.Text = $"Aplicativos: {_installed.Count} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
-            (_multiSelectMode ? $"  ·  Marcados: {_checkedApps.Count}" : "");
+            windowsStatus + (_multiSelectMode ? $" · Marcados: {_checkedApps.Count}" : "");
+    }
+
+    private string _windowsUpdateCheckingMessage()
+    {
+        if (_windowsUpdateScanning) return " · Windows Update: consultando";
+        if (_windowsUpdateChecked) return $" · Windows Update: {_updateCatalog.Count}";
+        if (_windowsUpdateScanFailure is not null) return " · Windows Update: indisponível";
+        return "";
     }
 
     private void ApplyFilterAppearance()
