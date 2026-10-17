@@ -446,6 +446,7 @@ internal sealed partial class MainForm : Form
     private bool _multiSelectMode;
     private bool _catalogoVerificado; // Resultado local do RuckZuck (sem instalacao)
     private CancellationTokenSource? _consultaCatalogoCts;
+    private CancellationTokenSource? _installerDownloadCts;
     private int _catalogoGeneration; // Descarta resultados de consultas anteriores ao recarregamento local.
     private string _appFilter = "Todos";
     private readonly HashSet<ProgramEntry> _checkedApps = new();
@@ -528,6 +529,13 @@ internal sealed partial class MainForm : Form
                 e.Cancel = true;
                 _consultaCatalogoCts.Cancel();
                 Status("Cancelando a consulta. Tente fechar novamente em alguns instantes.");
+                return;
+            }
+            if (_installerDownloadCts is not null)
+            {
+                e.Cancel = true;
+                _installerDownloadCts.Cancel();
+                Status("Cancelando download. Tente fechar novamente em instantes.");
                 return;
             }
             e.Cancel = true;
@@ -718,6 +726,12 @@ internal sealed partial class MainForm : Form
 
     private async Task CheckUpdatesFromButtonAsync()
     {
+        if (_installerDownloadCts is not null)
+        {
+            _installerDownloadCts.Cancel();
+            Status("Cancelando download...");
+            return;
+        }
         if (_consultaCatalogoCts is not null)
         {
             _consultaCatalogoCts.Cancel();
@@ -1553,6 +1567,18 @@ internal sealed partial class MainForm : Form
             Status("Atualização automática indisponível para este programa.");
             return;
         }
+        if (recipe.Identifier == "obs-x64-32.2.2")
+        {
+            using var obsProcesses = new System.Collections.ObjectModel.Collection<Process>();
+            foreach (var process in Process.GetProcessesByName("obs64")) obsProcesses.Add(process);
+            bool running = obsProcesses.Count > 0;
+            foreach (var process in obsProcesses) process.Dispose();
+            if (running)
+            {
+                Status("Feche o OBS Studio antes de atualizar e clique em Atualizar novamente.");
+                return;
+            }
+        }
         string mode = recipe.Interactive ? "assistida (instalador oficial com opções)" : "silenciosa quando autorizada";
         string confirmation = "Atualizar " + entry.Name + "\n" +
             "Versão atual: " + entry.Version + "\n" +
@@ -1573,8 +1599,22 @@ internal sealed partial class MainForm : Form
             try
             {
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.INICIO receita=" + recipe.Identifier);
-                string file = await VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder,
-                    Status, CancellationToken.None);
+                using (var downloadCts = new CancellationTokenSource(TimeSpan.FromMinutes(8)))
+                {
+                    _installerDownloadCts = downloadCts;
+                    if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar download";
+                    try
+                    {
+                        _ = await VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder, Status, downloadCts.Token);
+                    }
+                    finally
+                    {
+                        _installerDownloadCts = null;
+                        if (!IsDisposed && _checkUpdatesButton is not null)
+                            _checkUpdatesButton.Text = "Verificar atualizações";
+                    }
+                }
+                string file = Path.Combine(folder, recipe.Identifier + ".exe");
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.ARQUIVO_VALIDADO receita=" + recipe.Identifier);
                 Status("Instalador verificado. Aguardando conclusão...");
                 int exit = await VerifiedUpdaters.LaunchAsync(recipe, file, Status);
@@ -1603,6 +1643,11 @@ internal sealed partial class MainForm : Form
                 await LoadInstalledAsync();
                 // Evitar confirmar sucesso apenas por resultado do RuckZuck.
                 Status(confirmed ? "Atualização verificada no Registro." : "Verificação de versão pendente.");
+            }
+            catch (OperationCanceledException)
+            {
+                Log("Download de atualização cancelado; nenhum instalador foi executado.");
+                Status("Download cancelado.");
             }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
             {
