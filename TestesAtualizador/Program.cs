@@ -35,6 +35,28 @@ Verify(VerifiedUpdaters.GetOfficialPage(Item("Plex", "1.112.0", "1.115.0", "Plex
 Verify(VerifiedUpdaters.TryVersion("12.0.40664", out var ver) && ver == new Version(12, 0, 40664, 0),
  "Normalizacao de versoes");
 Console.WriteLine($"{checkedCount}/{checkedCount} testes do motor autorizador aprovados");
+if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
+{
+    foreach (var recipe in new[] { x86, x64 })
+    {
+        if (recipe is null) throw new InvalidOperationException("Receita não encontrada.");
+        string directory = Path.Combine(Path.GetTempPath(), "GF-Trust-Test-" + Guid.NewGuid().ToString("N"));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        try
+        {
+            Console.WriteLine("ASSINATURA.TESTE_INICIO " + recipe.Identifier);
+            string file = await VerifiedUpdaters.DownloadAndVerifyAsync(recipe, directory,
+                msg => Console.WriteLine("ASSINATURA.ETAPA " + msg), timeout.Token);
+            Console.WriteLine("ASSINATURA.VALIDADA " + recipe.Identifier + " bytes=" + new FileInfo(file).Length);
+        }
+        finally
+        {
+            try { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+            catch { Console.WriteLine("AVISO: Limpeza temporária indisponível."); }
+        }
+    }
+}
+
 
 namespace GerenciadorAplicativos
 {
