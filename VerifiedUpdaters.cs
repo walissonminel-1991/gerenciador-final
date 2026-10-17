@@ -144,12 +144,18 @@ internal static class VerifiedUpdaters
             {
                 var buffer = new byte[128 * 1024];
                 long total = 0;
+                long reported = 0;
                 int n;
                 while ((n = await source.ReadAsync(buffer, cancel)) > 0)
                 {
                     total += n;
                     if (total > maxBytes) throw new InvalidDataException("Arquivo excede o limite de segurança.");
                     await dest.WriteAsync(buffer.AsMemory(0, n), cancel);
+                    if (total - reported >= 10 * 1024 * 1024)
+                    {
+                        reported = total;
+                        report("Baixando instalador oficial: " + (total / (1024 * 1024)).ToString("N0") + " MB");
+                    }
                 }
                 if (total < 50_000) throw new InvalidDataException("Arquivo recebido está incompleto.");
             }
