@@ -1569,9 +1569,8 @@ internal sealed partial class MainForm : Form
         }
         if (recipe.Identifier == "obs-x64-32.2.2")
         {
-            using var obsProcesses = new System.Collections.ObjectModel.Collection<Process>();
-            foreach (var process in Process.GetProcessesByName("obs64")) obsProcesses.Add(process);
-            bool running = obsProcesses.Count > 0;
+            var obsProcesses = Process.GetProcessesByName("obs64");
+            bool running = obsProcesses.Length > 0;
             foreach (var process in obsProcesses) process.Dispose();
             if (running)
             {
