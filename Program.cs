@@ -627,8 +627,8 @@ internal sealed partial class MainForm : Form
             return b;
         }
         _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 0, ToggleMultiSelection);
-        _bulkUpdateButton = MakeAction("Atualizar selecionados", AppServices.Blue, 1,
-            () => ShowUpdatesReadOnlyNotice());
+        _bulkUpdateButton = MakeAction("Abrir site oficial", AppServices.Blue, 1,
+            OpenOfficialPageForSelected);
         _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 2,
             () => _ = ExecuteAsync("Desinstalando selecionados...", UninstallCheckedAsync));
         _updateAllButton = MakeAction("Atualizar todos", AppServices.Green, 3,
@@ -636,7 +636,7 @@ internal sealed partial class MainForm : Form
         _updateAllButton.Enabled = false;
         _toolTips.SetToolTip(_updateAllButton, "A atualização automática está desativada no teste RuckZuck: somente a consulta foi validada.");
         _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 4, ClearMultiSelection);
-        _toolTips.SetToolTip(_bulkUpdateButton, "Desativado no teste: o catálogo RuckZuck fornece candidatos, não instalações validadas.");
+        _toolTips.SetToolTip(_bulkUpdateButton, "Abre a pagina oficial de um unico programa marcado. Nao instala automaticamente.");
         _toolTips.SetToolTip(_bulkUninstallButton, "Solicita confirmação e desinstala os programas marcados, um por vez.");
         root.Controls.Add(actions, 0, 1);
 
@@ -671,7 +671,7 @@ internal sealed partial class MainForm : Form
         {
             if (_busy) return;
             if (action == "update")
-                ShowUpdatesReadOnlyNotice();
+                OpenOfficialUpdatePage(item);
             else if (action == "uninstall")
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
         };
@@ -802,8 +802,9 @@ internal sealed partial class MainForm : Form
 
         if (!multiselect)
         {
+            if (item.IsUpdate && OfficialUpdates.GetPage(item.Name) is not null)
+                DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), "Site oficial", AppServices.Blue);
             DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red);
-            // Não exibir atualização individual até validar mecanismo de instalação.
         }
     }
 
@@ -1497,11 +1498,43 @@ internal sealed partial class MainForm : Form
             _selectManyButton.Enabled = !_busy;
         }
         if (_bulkUpdateButton is not null)
-            _bulkUpdateButton.Enabled = false; // Consultas não autorizam execução de instaladores.
+            _bulkUpdateButton.Enabled = !_busy && _multiSelectMode && _checkedApps.Count == 1 &&
+                _checkedApps.Any(x => x.IsUpdate && OfficialUpdates.GetPage(x.Name) is not null);
         if (_bulkUninstallButton is not null)
             _bulkUninstallButton.Enabled = !_busy && _multiSelectMode && _checkedApps.Count > 0;
         if (_clearSelectionButton is not null)
             _clearSelectionButton.Enabled = !_busy && _checkedApps.Count > 0;
+    }
+
+    private void OpenOfficialPageForSelected()
+    {
+        if (_busy || _checkedApps.Count != 1) return;
+        var entry = _checkedApps.Single();
+        if (entry.IsUpdate) OpenOfficialUpdatePage(entry);
+    }
+
+    private void OpenOfficialUpdatePage(ProgramEntry entry)
+    {
+        if (_busy || !entry.IsUpdate) return;
+        Uri? page = OfficialUpdates.GetPage(entry.Name);
+        if (page is null) return;
+        var choice = MessageBox.Show(this,
+            "Abrir a pagina oficial para orientar a atualizacao de:\n\n" + entry.Name +
+            "\n\n" + page.Host + "\n\n" +
+            "O programa NAO fara downloads ou instalacoes. Confira a versao correta no site antes de prosseguir.",
+            "Abrir site oficial do fabricante", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+        if (choice != DialogResult.Yes) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = page.AbsoluteUri, UseShellExecute = true });
+            Log("Pagina oficial de atualizacao aberta para consulta; nenhuma instalacao iniciada.");
+        }
+        catch (Exception ex)
+        {
+            Log($"Nao foi possivel abrir a pagina oficial ({ex.GetType().Name}).");
+            MessageBox.Show(this, "Nao foi possivel abrir o navegador para acessar o site oficial.",
+                "Site oficial indisponivel", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private Task UpgradeAllAsync() { ShowUpdatesReadOnlyNotice(); return Task.CompletedTask; }
