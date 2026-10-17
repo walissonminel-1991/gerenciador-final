@@ -1,0 +1,49 @@
+using GerenciadorAplicativos;
+int checkedCount = 0;
+void Verify(bool condition, string label)
+{
+    if (!condition) throw new InvalidOperationException("Falha: " + label);
+    checkedCount++;
+    Console.WriteLine("OK " + label);
+}
+ProgramEntry Item(string name, string installed, string available, string publisher = "Microsoft Corporation")
+    => new() { Name = name, Version = installed, AvailableVersion = available, Publisher = publisher, IsUpdate = true };
+var x64 = VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64) - 12.0.30501",
+ "12.0.30501.0", "12.0.40664.0"));
+var x86 = VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x86) - 12.0.30501",
+ "12.0.30501.0", "12.0.40664.0"));
+Verify(x64?.Identifier == "vc2013-x64" && x64.Download.Host == "aka.ms", "Visual C++ x64 autorizado");
+Verify(x86?.Identifier == "vc2013-x86" && x86.Download != x64!.Download, "Visual C++ x86 autorizado");
+Verify(x64!.Arguments.Contains("/quiet") && x64.Arguments.Contains("/norestart"), "Argumentos de instalacao controlados");
+Verify(VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64)",
+ "12.0.30501.0", "12.0.40664.0", "Fabricante desconhecido")) is null, "Recusar editor nao Microsoft");
+Verify(VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64)",
+ "12.0.30501.0", "12.0.40665.0")) is null, "Recusar versao sem receita");
+Verify(VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64)",
+ "12.0.40664.0", "12.0.40664.0")) is null, "Recusar pacote atualizado");
+var obs = VerifiedUpdaters.Resolve(Item("OBS Studio", "31.1.2", "32.2.2", "OBS Project"));
+Verify(obs?.Identifier == "obs-x64-32.2.2" && obs.Sha256?.Length == 64 && obs.Interactive,
+ "OBS instalador oficial e SHA-256 fixo");
+Verify(VerifiedUpdaters.Resolve(Item("OBS Studio", "31.1.2", "33.0.0", "OBS Project")) is null,
+ "Recusar versao OBS nao validada");
+Verify(VerifiedUpdaters.Resolve(Item("Microsoft .NET Runtime - 9.0.21 (x64)", "9.0.21", "10.0.13")) is null,
+ "Nao confundir runtimes paralelos");
+Verify(VerifiedUpdaters.GetOfficialPage(Item("Adobe Acrobat (64-bit)", "26.002.21931", "26.002.22031", "Adobe")) is not null,
+ "Site oficial Adobe como alternativa");
+Verify(VerifiedUpdaters.GetOfficialPage(Item("Plex", "1.112.0", "1.115.0", "Plex")) is not null,
+ "Site oficial Plex como alternativa");
+Verify(VerifiedUpdaters.TryVersion("12.0.40664", out var ver) && ver == new Version(12, 0, 40664, 0),
+ "Normalizacao de versoes");
+Console.WriteLine($"{checkedCount}/{checkedCount} testes do motor autorizador aprovados");
+
+namespace GerenciadorAplicativos
+{
+    internal sealed class ProgramEntry
+    {
+        public string Name { get; init; } = "";
+        public string Version { get; init; } = "";
+        public string Publisher { get; init; } = "";
+        public string AvailableVersion { get; init; } = "";
+        public bool IsUpdate { get; init; }
+    }
+}
