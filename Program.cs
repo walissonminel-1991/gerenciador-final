@@ -476,7 +476,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.6.3 TESTE";
+        Text = "Gerenciador Final — v5.12.7 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -675,18 +675,17 @@ internal sealed partial class MainForm : Form
         _programList.ForeColor = Ink;
         _programList.DrawItem += DrawProgramCard;
         _toolTips.SetToolTip(_programList,
-            "O botão Atualizar está indisponível até validarmos um instalador confiável para cada aplicativo. " +
-            "A consulta ao RuckZuck é somente de leitura. Desinstalações exigem confirmação.");
+            "Atualizar usa um instalador oficial verificado quando há integração validada. " +
+            "Site abre o fabricante somente quando solicitado. Desinstalar exige confirmação.");
         _programList.ItemActionClicked += (item, action) =>
         {
             if (_busy) return;
             if (action == "uninstall")
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
-            else if (action == "update-not-validated")
-            {
-                Status("Atualização não habilitada: falta um instalador verificado para este aplicativo.");
-                Log("Atualização de aplicativo de terceiros não iniciada: instalação ainda não validada.");
-            }
+            else if (action == "update")
+                _ = UpdateThirdPartyAsync(item);
+            else if (action == "site")
+                OpenOfficialSite(item);
         };
         _programList.ItemCheckboxClicked += item =>
         {
@@ -792,7 +791,7 @@ internal sealed partial class MainForm : Form
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 
         int left = e.Bounds.Left + 65 + prefix;
-        int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 150);
+        int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 355);
         TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
             new Rectangle(left, e.Bounds.Top + 8, width, 27), selected ? Accent : Ink,
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
@@ -804,14 +803,19 @@ internal sealed partial class MainForm : Form
             ? $"Resultado incerto (RuckZuck)  ·  Versão: {DisplayAppVersion(item.Version)}"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
-            new Rectangle(left, e.Bounds.Top + 36, Math.Max(20, e.Bounds.Width - left + e.Bounds.Left - 145), 25),
+            new Rectangle(left, e.Bounds.Top + 36, Math.Max(20, e.Bounds.Width - left + e.Bounds.Left - 350), 25),
             item.IsUpdate ? Color.FromArgb(133, 221, 176) : Muted,
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
 
         if (!multiselect)
         {
             if (item.IsUpdate)
-                DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), "Atualizar", AppServices.Gray);
+            {
+                if (VerifiedUpdaters.Resolve(item) is not null)
+                    DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), "Atualizar", AppServices.Green);
+                if (VerifiedUpdaters.GetOfficialPage(item) is not null)
+                    DrawRowButton(e.Graphics, AppRowGeometry.SiteButton(e.Bounds), "Site", AppServices.Gray);
+            }
             DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red);
         }
     }
@@ -1520,6 +1524,103 @@ internal sealed partial class MainForm : Form
             _bulkUninstallButton.Enabled = !_busy && _multiSelectMode && _checkedApps.Count > 0;
         if (_clearSelectionButton is not null)
             _clearSelectionButton.Enabled = !_busy && _checkedApps.Count > 0;
+    }
+
+    private void OpenOfficialSite(ProgramEntry entry)
+    {
+        if (_busy) return;
+        string? address = VerifiedUpdaters.GetOfficialPage(entry);
+        if (address is null) return;
+        try
+        {
+            // Endereço é estático no código e não vem de catálogos externos.
+            Process.Start(new ProcessStartInfo { FileName = address, UseShellExecute = true });
+            Log("Página oficial do fabricante aberta a pedido do usuário; nenhuma instalação iniciada.");
+        }
+        catch (Exception ex)
+        {
+            Status("Não foi possível abrir o site oficial.");
+            Log("Falha ao abrir navegador (" + ex.GetType().Name + ").");
+        }
+    }
+
+    private async Task UpdateThirdPartyAsync(ProgramEntry entry)
+    {
+        if (_busy) return;
+        VerifiedUpdateRecipe? recipe = VerifiedUpdaters.Resolve(entry);
+        if (recipe is null)
+        {
+            Status("Atualização automática indisponível para este programa.");
+            return;
+        }
+        string mode = recipe.Interactive ? "assistida (instalador oficial com opções)" : "silenciosa quando autorizada";
+        string confirmation = "Atualizar " + entry.Name + "\n" +
+            "Versão atual: " + entry.Version + "\n" +
+            "Versão proposta: " + recipe.Version + "\n\n" +
+            "Fonte oficial: " + recipe.Download.Host + "\n" +
+            "Instalação " + mode + ".\n\n" +
+            "O arquivo será conferido antes de executar. O Windows pode solicitar UAC. " +
+            "Salve seu trabalho antes de continuar. Nenhum programa será fechado automaticamente.\n\nContinuar?";
+        if (MessageBox.Show(this, confirmation, "Confirmar atualização",
+            MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+        {
+            Status("Atualização cancelada.");
+            return;
+        }
+        await ExecuteAsync("Preparando atualização de " + recipe.ProductName + "...", async () =>
+        {
+            string folder = Path.Combine(Path.GetTempPath(), "GerenciadorFinal-Update-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                DiagnosticTrace.Write("INSTALACAO_OFICIAL.INICIO receita=" + recipe.Identifier);
+                string file = await VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder,
+                    Status, CancellationToken.None);
+                DiagnosticTrace.Write("INSTALACAO_OFICIAL.ARQUIVO_VALIDADO receita=" + recipe.Identifier);
+                Status("Instalador verificado. Aguardando conclusão...");
+                int exit = await VerifiedUpdaters.LaunchAsync(recipe, file, Status);
+                DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM codigo=" + exit);
+                if (exit is not (0 or 3010))
+                {
+                    Log("Instalador não concluiu com sucesso (código " + exit + ").");
+                    Status("Instalação não concluída (código " + exit + ").");
+                    return;
+                }
+                await Task.Delay(1000);
+                var apps = await Task.Run(AppServices.GetInstalledPrograms);
+                bool confirmed = VerifiedUpdaters.IsInstalledVersionAtLeast(recipe.Identifier, recipe.Version, apps);
+                if (confirmed)
+                {
+                    Log("Atualização confirmada no Registro do Windows: " + recipe.ProductName + " " + recipe.Version);
+                    Status(exit == 3010 ? "Atualizado; reinicialização pode ser necessária." : "Atualização concluída e versão confirmada.");
+                    DiagnosticTrace.Write("INSTALACAO_OFICIAL.VERSAO_CONFIRMADA");
+                }
+                else
+                {
+                    Log("Instalador finalizado, mas a nova versão não foi confirmada no Registro. Verifique o fabricante.");
+                    Status("Instalador terminou; versão ainda não confirmada.");
+                    DiagnosticTrace.Write("INSTALACAO_OFICIAL.VERSAO_NAO_CONFIRMADA");
+                }
+                await LoadInstalledAsync();
+                // Evitar confirmar sucesso apenas por resultado do RuckZuck.
+                Status(confirmed ? "Atualização verificada no Registro." : "Verificação de versão pendente.");
+            }
+            catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+            {
+                Log("Autorização UAC cancelada; nenhum instalador concluído.");
+                Status("Atualização cancelada pelo Windows.");
+            }
+            catch (Exception ex)
+            {
+                DiagnosticTrace.Failure("INSTALACAO_OFICIAL.FALHA", ex);
+                Log("Falha de atualização: " + ex.GetType().Name + ". Nenhuma conclusão presumida.");
+                Status("Falha ao atualizar: " + ex.Message);
+            }
+            finally
+            {
+                try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+                catch (Exception) { Log("Aviso: não foi possível limpar a pasta temporária da atualização."); }
+            }
+        });
     }
 
     private async Task UninstallCheckedAsync() => await UninstallEntriesAsync(_checkedApps.ToArray());
