@@ -4,6 +4,14 @@ on:
   push:
     branches:
       - teste-completo-ruckzuck-v5.12.6
+    paths:
+      - 'Program.cs'
+      - 'GerenciadorAplicativos.csproj'
+      - 'RuckZuckCatalog.cs'
+      - 'RuckZuckModels.cs'
+      - 'Matching.cs'
+      - 'TestesMotor/**'
+      - 'TestesRede/**'
   workflow_dispatch:
 
 permissions:
