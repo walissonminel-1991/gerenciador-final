@@ -36,8 +36,23 @@ internal sealed class RuckZuckCatalog : IDisposable
         var json = await DownloadStringAsync(catalogUri, token, MaximumCatalogBytes);
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         using var document = JsonDocument.Parse(json);
-        if (document.RootElement.ValueKind != JsonValueKind.Array)
+        if (document.RootElement.ValueKind == JsonValueKind.String)
+        {
+            // Alguns servidores intermediários retornam uma lista JSON serializada como string JSON.
+            // Aceitar somente se o conteúdo decodificado for realmente um array JSON.
+            var inner = document.RootElement.GetString() ?? "";
+            var kind = inner.TrimStart().StartsWith("[", StringComparison.Ordinal) ? "lista" : "outro";
+            if (inner.Length > MaximumCatalogBytes || kind != "lista")
+                throw new InvalidDataException($"Resposta textual inesperada do catálogo (conteudo={kind}; comprimento={inner.Length}).");
+            using var nested = JsonDocument.Parse(inner);
+            if (nested.RootElement.ValueKind != JsonValueKind.Array)
+                throw new InvalidDataException($"Resposta interna do catálogo não é uma lista (tipo={nested.RootElement.ValueKind}).");
+            json = inner;
+        }
+        else if (document.RootElement.ValueKind != JsonValueKind.Array)
+        {
             throw new InvalidDataException($"O catálogo não retornou uma lista de produtos (tipo={document.RootElement.ValueKind}).");
+        }
         var entries = JsonSerializer.Deserialize<List<CatalogJson>>(json, options) ?? [];
         return entries
             .Where(x => !string.IsNullOrWhiteSpace(x.ProductVersion) && !string.IsNullOrWhiteSpace(x.Manufacturer))
