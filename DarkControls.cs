@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -420,15 +421,6 @@ internal sealed class DarkProgramList : Control
             _pulseProgress = 0;
             _feedbackTimer.Start();
         }
-        Invalidate();
-    }
-
-    protected override void OnMouseCaptureChanged(EventArgs e)
-    {
-        base.OnMouseCaptureChanged(e);
-        // Evita botão travado caso outra janela tome o foco durante um arraste.
-        _downItem = null;
-        _downAction = "";
         Invalidate();
     }
 
