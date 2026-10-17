@@ -58,6 +58,12 @@ jobs:
           dotnet run --project TestesAtualizador/TestesAtualizador.csproj --configuration Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Validar download e assinatura Microsoft no Windows CI
+        shell: pwsh
+        run: |
+          dotnet run --project TestesAtualizador/TestesAtualizador.csproj --configuration Release -- --verify-downloads
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Testes offline do comparador
         shell: pwsh
         run: |
