@@ -65,7 +65,6 @@ jobs:
 
       - name: Testar leitor real RuckZuck via .NET
         shell: pwsh
-        continue-on-error: true
         run: |
           dotnet run --project TestesRede/TestesRede.csproj --configuration Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -15,7 +15,7 @@ internal sealed class RuckZuckCatalog : IDisposable
 
     internal RuckZuckCatalog()
     {
-        _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal-Laboratorio", "0.1"));
+        _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal-Laboratorio", "0.1.1"));
     }
 
     internal async Task<IReadOnlyList<CatalogEntry>> GetCatalogAsync(CancellationToken token)

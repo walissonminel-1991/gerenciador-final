@@ -26,7 +26,7 @@ internal sealed class LabForm : Form
 
     public LabForm()
     {
-        Text = "Gerenciador Final — Laboratório de Provedores v0.1 (somente leitura)";
+        Text = "Gerenciador Final — Laboratório de Provedores v0.1.1 (somente leitura)";
         MinimumSize = new Size(990, 660);
         Size = new Size(1200, 780);
         StartPosition = FormStartPosition.CenterScreen;
