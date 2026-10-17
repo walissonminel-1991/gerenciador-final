@@ -37,7 +37,9 @@ Verify(VerifiedUpdaters.TryVersion("12.0.40664", out var ver) && ver == new Vers
 Console.WriteLine($"{checkedCount}/{checkedCount} testes do motor autorizador aprovados");
 if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 {
-    foreach (var recipe in new[] { x86, x64 })
+    var recipes = args.Contains("--verify-obs", StringComparer.OrdinalIgnoreCase)
+        ? new[] { obs } : new[] { x86, x64 };
+    foreach (var recipe in recipes)
     {
         if (recipe is null) throw new InvalidOperationException("Receita não encontrada.");
         string directory = Path.Combine(Path.GetTempPath(), "GF-Trust-Test-" + Guid.NewGuid().ToString("N"));
