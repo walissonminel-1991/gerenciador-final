@@ -521,6 +521,7 @@ internal sealed partial class MainForm
             return;
         }
         _windowsUpdateScanning = true;
+        RenderTitle();
         if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
         {
             _systemPanelTitle.Text = "Windows Update · consultando...";
@@ -536,6 +537,7 @@ internal sealed partial class MainForm
             _updateSelection.Clear();
             _windowsUpdateChecked = true;
             _windowsUpdateScanFailure = null;
+            RenderTitle();
             Log($"Windows Update: {_updateCatalog.Count} atualização(ões) de software encontrada(s).");
             DiagnosticTrace.Write($"WINDOWS_UPDATE.CONSULTA_OK quantidade={found.Count}");
             if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
@@ -548,6 +550,7 @@ internal sealed partial class MainForm
         {
             if (IsDisposed) return;
             _windowsUpdateScanFailure = ex.GetType().Name;
+            RenderTitle();
             DiagnosticTrace.Failure("WINDOWS_UPDATE.CONSULTA_FALHA", ex);
             Log("Windows Update: consulta indisponível (" + _windowsUpdateScanFailure + ").");
             if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
@@ -556,7 +559,11 @@ internal sealed partial class MainForm
                 _systemPanelSummary.Text = "O Windows Update não pôde ser consultado. Nenhuma instalação foi iniciada.";
             }
         }
-        finally { _windowsUpdateScanning = false; }
+        finally
+        {
+            _windowsUpdateScanning = false;
+            if (!IsDisposed) RenderTitle();
+        }
     }
 
     private void DrawWindowsUpdates()
