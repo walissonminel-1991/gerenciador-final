@@ -448,15 +448,13 @@ internal sealed partial class MainForm : Form
     private CancellationTokenSource? _consultaCatalogoCts;
     private string _appFilter = "Todos";
     private readonly HashSet<ProgramEntry> _checkedApps = new();
-    private Button? _bulkUpdateButton;
-    private Button? _updateAllButton;
+    private Button? _checkUpdatesButton;
     private Button? _bulkUninstallButton;
     private Button? _selectManyButton;
     private Button? _clearSelectionButton;
     private Button? _allFilterButton;
     private Button? _updatesFilterButton;
     private Button? _selectedFilterButton;
-    private Button? _uncertainFilterButton;
     private string _operationResult = "Pronto";
     private readonly Font _rowTitle = new("Segoe UI", 10F, FontStyle.Bold);
     private readonly Font _rowInfo = new("Segoe UI", 8.8F);
@@ -477,7 +475,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.6.1 TESTE";
+        Text = "Gerenciador Final — v5.12.6.2 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -548,7 +546,7 @@ internal sealed partial class MainForm : Form
         }, 1, 0);
         panel.Controls.Add(new Label
         {
-            Text = "Consulta de atualizações, desinstalação e manutenção do Windows em um só lugar.",
+            Text = "Programas, atualizações e manutenção do Windows em um só lugar.",
             Dock = DockStyle.Fill, Margin = new Padding(13, 0, 0, 0),
             ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft
         }, 1, 1);
@@ -600,22 +598,21 @@ internal sealed partial class MainForm : Form
         var refresh = CreateButton("Atualizar lista", AppServices.Blue, Color.White);
         refresh.Dock = DockStyle.Fill;
         refresh.Margin = new Padding(0, 6, 0, 6);
-        refresh.Click += async (_, _) => await ExecuteAsync("Atualizando lista de aplicativos...", RefreshCatalogAsync);
-        _toolTips.SetToolTip(refresh, "Atualiza os aplicativos do Windows. Para verificar novas versões, clique em 'Com atualização'.");
+        refresh.Click += async (_, _) => await ExecuteAsync("Atualizando lista local...", RefreshCatalogAsync);
+        _toolTips.SetToolTip(refresh, "Recarrega somente os programas instalados no Windows. Não consulta a internet.");
         _actionControls.Add(refresh);
         searchBar.Controls.Add(refresh, 3, 0);
         root.Controls.Add(searchBar, 0, 0);
 
         var actions = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
             BackColor = AppServices.Background, Margin = new Padding(0, 2, 0, 3)
         };
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 31));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 13));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 29));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 17));
         Button MakeAction(string title, Color color, int column, Action onClick)
         {
             var b = CreateButton(title, color, Color.White);
@@ -626,29 +623,28 @@ internal sealed partial class MainForm : Form
             _actionControls.Add(b);
             return b;
         }
-        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 0, ToggleMultiSelection);
-        _bulkUpdateButton = MakeAction("Abrir site oficial", AppServices.Blue, 1,
-            OpenOfficialPageForSelected);
+        // A consulta é uma ação explícita; não abre janelas de confirmação.
+        // Permanece clicável durante a busca para permitir cancelamento.
+        _checkUpdatesButton = MakeAction("Verificar atualizações", AppServices.Blue, 0, () => _ = CheckUpdatesFromButtonAsync());
+        _actionControls.Remove(_checkUpdatesButton);
+        _toolTips.SetToolTip(_checkUpdatesButton,
+            "Consulta HTTPS ao catálogo RuckZuck. A lista de aplicativos permanece neste computador; " +
+            "o provedor recebe dados normais de conexão como endereço IP. Cobertura parcial, sem instalação.");
+        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 1, ToggleMultiSelection);
         _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 2,
             () => _ = ExecuteAsync("Desinstalando selecionados...", UninstallCheckedAsync));
-        _updateAllButton = MakeAction("Atualizar todos", AppServices.Green, 3,
-            () => ShowUpdatesReadOnlyNotice());
-        _updateAllButton.Enabled = false;
-        _toolTips.SetToolTip(_updateAllButton, "A atualização automática está desativada no teste RuckZuck: somente a consulta foi validada.");
-        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 4, ClearMultiSelection);
-        _toolTips.SetToolTip(_bulkUpdateButton, "Abre a pagina oficial de um unico programa marcado. Nao instala automaticamente.");
+        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 3, ClearMultiSelection);
         _toolTips.SetToolTip(_bulkUninstallButton, "Solicita confirmação e desinstala os programas marcados, um por vez.");
         root.Controls.Add(actions, 0, 1);
 
         var heading = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 5, Margin = Padding.Empty
+            Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty
         };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 148));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 135));
         _listTitle.Dock = DockStyle.Fill;
         _listTitle.Font = new Font("Segoe UI", 11.5F, FontStyle.Bold);
         _listTitle.ForeColor = Ink;
@@ -656,8 +652,9 @@ internal sealed partial class MainForm : Form
         heading.Controls.Add(_listTitle, 0, 0);
         _allFilterButton = AddFilter(heading, "Todos", 1);
         _updatesFilterButton = AddFilter(heading, "Com atualização", 2);
-        _uncertainFilterButton = AddFilter(heading, "Incertos", 3);
-        _selectedFilterButton = AddFilter(heading, "Marcados", 4);
+        _selectedFilterButton = AddFilter(heading, "Marcados", 3);
+        _toolTips.SetToolTip(_updatesFilterButton, "Exibe candidatos encontrados na última verificação online. " +
+            "A cobertura do RuckZuck é parcial e pode diferir do WinGet.");
         root.Controls.Add(heading, 0, 2);
 
         _programList.Dock = DockStyle.Fill;
@@ -670,9 +667,7 @@ internal sealed partial class MainForm : Form
         _programList.ItemActionClicked += (item, action) =>
         {
             if (_busy) return;
-            if (action == "update")
-                OpenOfficialUpdatePage(item);
-            else if (action == "uninstall")
+            if (action == "uninstall")
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
         };
         _programList.ItemCheckboxClicked += item =>
@@ -704,41 +699,36 @@ internal sealed partial class MainForm : Form
         return root;
     }
 
+    private async Task CheckUpdatesFromButtonAsync()
+    {
+        if (_consultaCatalogoCts is not null)
+        {
+            _consultaCatalogoCts.Cancel();
+            Status("Cancelando consulta...");
+            return;
+        }
+        if (_busy) return;
+        await ExecuteAsync("Verificando possíveis atualizações...", LoadUpdatesAsync);
+        if (_catalogoVerificado && !IsDisposed)
+        {
+            _appFilter = "Com atualização";
+            RenderPrograms();
+        }
+    }
+
     private Button AddFilter(TableLayoutPanel heading, string title, int column)
     {
         var button = CreateSecondaryButton(title);
         button.Dock = DockStyle.Fill;
         button.Margin = new Padding(5, 4, 0, 5);
         button.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
-        button.Click += async (_, _) =>
+        button.Click += (_, _) =>
         {
-            if (title is "Com atualização" or "Incertos")
-            {
-                if (_catalogoVerificado)
-                {
-                    if (_busy) return;
-                    _appFilter = title;
-                    RenderPrograms();
-                    return;
-                }
-                // A consulta pode ser cancelada sem abrir console ou iniciar instaladores.
-                if (_consultaCatalogoCts is not null)
-                {
-                    _consultaCatalogoCts.Cancel();
-                    return;
-                }
-                if (_busy) return;
-                await ExecuteAsync("Consultando catálogo RuckZuck...", LoadUpdatesAsync);
-                if (_catalogoVerificado && !IsDisposed)
-                {
-                    _appFilter = title;
-                    RenderPrograms();
-                }
-                return;
-            }
             if (_busy) return;
             _appFilter = title == "Marcados" ? "Selecionados" : title;
             RenderPrograms();
+            if (title == "Com atualização" && !_catalogoVerificado)
+                Status("Clique em Verificar atualizações para consultar o catálogo online.");
         };
         heading.Controls.Add(button, column, 0);
         return button;
@@ -801,11 +791,7 @@ internal sealed partial class MainForm : Form
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
 
         if (!multiselect)
-        {
-            if (item.IsUpdate && OfficialUpdates.GetPage(item.Name) is not null)
-                DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), "Site oficial", AppServices.Blue);
             DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red);
-        }
     }
 
     private static string DisplayAppVersion(string version)
@@ -1263,7 +1249,8 @@ internal sealed partial class MainForm : Form
             _busy = false;
             _programList.ActionsEnabled = true;
             UpdateBulkButtons();
-            if (_updateAllButton is not null) _updateAllButton.Enabled = false;
+            if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
+                _checkUpdatesButton.Enabled = true;
             if (_repairNetworkButton is not null)
                 _repairNetworkButton.Enabled = GetSuggestedNetworkRepair(_lastNetworkScan) is not null;
             if (_installSelectedUpdates is not null)
@@ -1315,28 +1302,18 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_INICIO");
         RenderPrograms();
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_FIM");
-        Log($"Lista atualizada: {_installed.Count} programa(s). Clique em 'Com atualização' para consultar o catálogo RuckZuck.");
+        Log($"Lista local atualizada: {_installed.Count} programa(s). Nenhuma consulta online iniciada.");
         Status($"{_installed.Count} programas encontrados");
     }
 
     private async Task LoadUpdatesAsync()
     {
-        // Fonte RuckZuck: consulta HTTPS somente de leitura, sem scripts nem instalação.
-        // O catálogo nunca recebe nomes dos programas locais; a comparação acontece neste processo.
-        var confirmation = MessageBox.Show(this,
-            "O Gerenciador consultará por HTTPS o catálogo público do RuckZuck.\n\n" +
-            "A lista de aplicativos do computador NÃO será enviada ao serviço. O servidor recebe dados normais de conexão, como o endereço IP.\n\n" +
-            "Esta etapa apenas compara versões; não instala nem atualiza aplicativos. Continuar?",
-            "Consulta RuckZuck — somente leitura", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-        if (confirmation != DialogResult.Yes)
-        {
-            Status("Consulta não autorizada");
-            return;
-        }
+        // Ação explícita "Verificar atualizações"; nenhuma janela auxiliar.
+        // Apenas GET HTTPS, sem transmitir a lista local e sem executar instaladores.
         DiagnosticTrace.Write("RUCKZUCK.CONSULTA_SOLICITADA");
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         _consultaCatalogoCts = cancellation;
-        if (_updatesFilterButton is not null) _updatesFilterButton.Text = "Cancelar consulta";
+        if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar consulta";
         Log("Consultando catálogo RuckZuck por HTTPS (até 60 segundos). Sem linha de comando ou API COM.");
         try
         {
@@ -1355,9 +1332,9 @@ internal sealed partial class MainForm : Form
             int candidates = results.Count(x => x.State == MatchState.Candidate);
             int uncertain = results.Count(x => Matching.IsUncertain(x.State));
             DiagnosticTrace.Write($"RUCKZUCK.COMPARACAO_OK programas={installed.Length} candidatos={candidates} indeterminados={uncertain}");
-            Log($"Catálogo: {catalog.Count} entradas. {candidates} possível(is) atualização(ões); {uncertain} resultado(s) incerto(s). Use o filtro Incertos para revisar.");
+            Log($"Catálogo RuckZuck: {catalog.Count} pacotes; {candidates} candidato(s); {uncertain} correspondência(s) incerta(s), não exibidas como atualizações.");
             Log("Importante: atualizações ainda não confirmadas e instalação automática desativada neste teste.");
-            Status($"Consulta concluída: {candidates} possíveis atualizações · somente leitura");
+            Status($"Consulta concluída: {candidates} possíveis atualizações (RuckZuck, cobertura parcial)");
         }
         catch (OperationCanceledException)
         {
@@ -1376,7 +1353,7 @@ internal sealed partial class MainForm : Form
         finally
         {
             _consultaCatalogoCts = null;
-            if (_updatesFilterButton is not null) _updatesFilterButton.Text = "Com atualização";
+            if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Verificar atualizações";
         }
     }
 
@@ -1409,7 +1386,7 @@ internal sealed partial class MainForm : Form
             entry.PackageId = "";
             entry.Source = "";
         }
-        if (_appFilter is "Com atualização" or "Incertos") _appFilter = "Todos";
+        if (_appFilter == "Com atualização") _appFilter = "Todos";
         RenderPrograms();
     }
 
@@ -1422,7 +1399,6 @@ internal sealed partial class MainForm : Form
         filtered = _appFilter switch
         {
             "Com atualização" => filtered.Where(x => x.IsUpdate),
-            "Incertos" => filtered.Where(x => Matching.IsUncertain(x.ComparisonState)),
             "Selecionados" => filtered.Where(x => _checkedApps.Contains(x)),
             _ => filtered
         };
@@ -1435,8 +1411,6 @@ internal sealed partial class MainForm : Form
             : _appFilter == "Selecionados" ? "Nenhum aplicativo marcado."
             : _appFilter == "Com atualização" && _catalogoVerificado ? "Nenhuma possível atualização encontrada neste catálogo."
             : _appFilter == "Com atualização" ? "Possíveis atualizações ainda não verificadas."
-            : _appFilter == "Incertos" && _catalogoVerificado ? "Nenhuma correspondência incerta identificada."
-            : _appFilter == "Incertos" ? "Resultados incertos ainda não verificados."
             : "Nenhum aplicativo identificado neste filtro.";
         _emptyState.Visible = match.Length == 0;
         if (_emptyState.Visible) _emptyState.BringToFront();
@@ -1449,8 +1423,7 @@ internal sealed partial class MainForm : Form
     {
         int updates = _installed.Count(x => x.IsUpdate);
         int uncertain = _installed.Count(x => Matching.IsUncertain(x.ComparisonState));
-        _listTitle.Text = $"Aplicativos: {_installed.Count} · Possíveis: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
-            (_catalogoVerificado ? $" · Incertos: {uncertain}" : "") +
+        _listTitle.Text = $"Aplicativos: {_installed.Count} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
             (_multiSelectMode ? $"  ·  Marcados: {_checkedApps.Count}" : "");
     }
 
@@ -1459,7 +1432,7 @@ internal sealed partial class MainForm : Form
         foreach (var (button, name) in new[]
         {
             (_allFilterButton, "Todos"), (_updatesFilterButton, "Com atualização"),
-            (_uncertainFilterButton, "Incertos"), (_selectedFilterButton, "Selecionados")
+            (_selectedFilterButton, "Selecionados")
         })
         {
             if (button is null) continue;
@@ -1497,44 +1470,10 @@ internal sealed partial class MainForm : Form
             _selectManyButton.Text = _multiSelectMode ? "Sair da seleção" : "Selecionar vários";
             _selectManyButton.Enabled = !_busy;
         }
-        if (_bulkUpdateButton is not null)
-            _bulkUpdateButton.Enabled = !_busy && _multiSelectMode && _checkedApps.Count == 1 &&
-                _checkedApps.Any(x => x.IsUpdate && OfficialUpdates.GetPage(x.Name) is not null);
         if (_bulkUninstallButton is not null)
             _bulkUninstallButton.Enabled = !_busy && _multiSelectMode && _checkedApps.Count > 0;
         if (_clearSelectionButton is not null)
             _clearSelectionButton.Enabled = !_busy && _checkedApps.Count > 0;
-    }
-
-    private void OpenOfficialPageForSelected()
-    {
-        if (_busy || _checkedApps.Count != 1) return;
-        var entry = _checkedApps.Single();
-        if (entry.IsUpdate) OpenOfficialUpdatePage(entry);
-    }
-
-    private void OpenOfficialUpdatePage(ProgramEntry entry)
-    {
-        if (_busy || !entry.IsUpdate) return;
-        Uri? page = OfficialUpdates.GetPage(entry.Name);
-        if (page is null) return;
-        var choice = MessageBox.Show(this,
-            "Abrir a pagina oficial para orientar a atualizacao de:\n\n" + entry.Name +
-            "\n\n" + page.Host + "\n\n" +
-            "O programa NAO fara downloads ou instalacoes. Confira a versao correta no site antes de prosseguir.",
-            "Abrir site oficial do fabricante", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-        if (choice != DialogResult.Yes) return;
-        try
-        {
-            Process.Start(new ProcessStartInfo { FileName = page.AbsoluteUri, UseShellExecute = true });
-            Log("Pagina oficial de atualizacao aberta para consulta; nenhuma instalacao iniciada.");
-        }
-        catch (Exception ex)
-        {
-            Log($"Nao foi possivel abrir a pagina oficial ({ex.GetType().Name}).");
-            MessageBox.Show(this, "Nao foi possivel abrir o navegador para acessar o site oficial.",
-                "Site oficial indisponivel", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        }
     }
 
     private Task UpgradeAllAsync() { ShowUpdatesReadOnlyNotice(); return Task.CompletedTask; }
