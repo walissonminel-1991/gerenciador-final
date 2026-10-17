@@ -446,6 +446,7 @@ internal sealed partial class MainForm : Form
     private bool _multiSelectMode;
     private bool _catalogoVerificado; // Resultado local do RuckZuck (sem instalacao)
     private CancellationTokenSource? _consultaCatalogoCts;
+    private int _catalogoGeneration; // Descarta resultados de consultas anteriores ao recarregamento local.
     private string _appFilter = "Todos";
     private readonly HashSet<ProgramEntry> _checkedApps = new();
     private Button? _checkUpdatesButton;
@@ -475,7 +476,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.6.2 TESTE";
+        Text = "Gerenciador Final — v5.12.6.3 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -501,16 +502,27 @@ internal sealed partial class MainForm : Form
                 await RefreshDiskUsageAsync();
             if (_nav.SelectedIndex == 3)
                 await RefreshEnergyInfoAsync();
-            if (_nav.SelectedIndex != 4) _processTimer.Stop();
-            else if (_activeSystemView == "processes") _processTimer.Start();
+            if (_nav.SelectedIndex == 4 && _activeSystemView == "processes")
+                ShowCachedProcessesIfAvailable();
         };
         root.Controls.Add(_nav, 0, 1);
         root.Controls.Add(BuildOperationsPanel(), 0, 2);
-        // Cadastro local nao faz consultas externas durante a inicializacao.
-        Shown += async (_, _) => await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync);
+        // Abre imediatamente. Primeiro carrega a lista local e depois inicia consultas independentes,
+        // em segundo plano, sem janelas auxiliares e sem executar instaladores.
+        Shown += async (_, _) =>
+        {
+            await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync);
+            if (!IsDisposed && _installed.Count > 0)
+                BeginStartupChecks();
+        };
         FormClosing += (_, e) =>
         {
-            if (!_busy) return;
+            if (!_busy)
+            {
+                _consultaCatalogoCts?.Cancel();
+                _processTimer.Stop();
+                return;
+            }
             if (_consultaCatalogoCts is not null)
             {
                 e.Cancel = true;
@@ -663,7 +675,8 @@ internal sealed partial class MainForm : Form
         _programList.ForeColor = Ink;
         _programList.DrawItem += DrawProgramCard;
         _toolTips.SetToolTip(_programList,
-            "Desinstalação pelo desinstalador registrado. Atualizações do RuckZuck são somente leitura neste teste.");
+            "O botão Atualizar está indisponível até validarmos um instalador confiável para cada aplicativo. " +
+            "A consulta ao RuckZuck é somente de leitura. Desinstalações exigem confirmação.");
         _programList.ItemActionClicked += (item, action) =>
         {
             if (_busy) return;
@@ -708,7 +721,7 @@ internal sealed partial class MainForm : Form
             return;
         }
         if (_busy) return;
-        await ExecuteAsync("Verificando possíveis atualizações...", LoadUpdatesAsync);
+        await LoadUpdatesAsync();
         if (_catalogoVerificado && !IsDisposed)
         {
             _appFilter = "Com atualização";
@@ -791,7 +804,11 @@ internal sealed partial class MainForm : Form
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
 
         if (!multiselect)
+        {
+            if (item.IsUpdate)
+                DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), "Atualizar", AppServices.Gray);
             DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red);
+        }
     }
 
     private static string DisplayAppVersion(string version)
@@ -1291,6 +1308,8 @@ internal sealed partial class MainForm : Form
             DiagnosticTrace.Failure("REGISTRO_PROGRAMAS.FALHA", ex);
             throw;
         }
+        _catalogoGeneration++;
+        _consultaCatalogoCts?.Cancel();
         _installed.Clear();
         _installed.AddRange(items);
         _available.Clear();
@@ -1308,8 +1327,10 @@ internal sealed partial class MainForm : Form
 
     private async Task LoadUpdatesAsync()
     {
-        // Ação explícita "Verificar atualizações"; nenhuma janela auxiliar.
-        // Apenas GET HTTPS, sem transmitir a lista local e sem executar instaladores.
+        // HTTPS sob demanda ou na inicialização; sem terminal, sem scripts, sem instaladores.
+        if (_consultaCatalogoCts is not null || IsDisposed || _installed.Count == 0) return;
+        int generation = _catalogoGeneration;
+        ProgramEntry[] snapshot = _installed.ToArray();
         DiagnosticTrace.Write("RUCKZUCK.CONSULTA_SOLICITADA");
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         _consultaCatalogoCts = cancellation;
@@ -1321,10 +1342,11 @@ internal sealed partial class MainForm : Form
             var catalog = await provider.GetCatalogAsync(cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             DiagnosticTrace.Write($"RUCKZUCK.CATALOGO_RECEBIDO entradas={catalog.Count}");
-            var installed = _installed.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher)).ToArray();
+            var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher)).ToArray();
             var results = await Task.Run(() => Matching.Evaluate(installed, catalog), cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
-            if (results.Count != _installed.Count)
+            if (generation != _catalogoGeneration || IsDisposed) return;
+            if (results.Count != snapshot.Length)
                 throw new InvalidDataException("Resultado local não corresponde à quantidade de programas.");
             AplicarCandidatos(results);
             _catalogoVerificado = true;
@@ -1338,6 +1360,7 @@ internal sealed partial class MainForm : Form
         }
         catch (OperationCanceledException)
         {
+            if (generation != _catalogoGeneration || IsDisposed) return;
             InvalidarAtualizacoes();
             DiagnosticTrace.Write("RUCKZUCK.CONSULTA_CANCELADA");
             Log("Consulta cancelada/tempo esgotado. Lista local preservada.");
@@ -1346,6 +1369,7 @@ internal sealed partial class MainForm : Form
         catch (Exception ex)
         {
             DiagnosticTrace.Failure("RUCKZUCK.CONSULTA_FALHA", ex);
+            if (generation != _catalogoGeneration || IsDisposed) return;
             InvalidarAtualizacoes();
             Log($"Não foi possível consultar o RuckZuck ({ex.GetType().Name}). A lista local foi preservada.");
             Status("Catálogo indisponível; atualizações não verificadas");
@@ -1353,8 +1377,17 @@ internal sealed partial class MainForm : Form
         finally
         {
             _consultaCatalogoCts = null;
-            if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Verificar atualizações";
+            if (!IsDisposed && _checkUpdatesButton is not null)
+                _checkUpdatesButton.Text = "Verificar atualizações";
         }
+    }
+
+    private void BeginStartupChecks()
+    {
+        Log("Inicialização: consultando atualizações de aplicativos e Windows Update em segundo plano.");
+        BeginBackgroundProcessSampling();
+        _ = LoadUpdatesAsync();
+        _ = ScanWindowsUpdatesInBackgroundAsync();
     }
 
     private void AplicarCandidatos(IReadOnlyList<UpdateMatch> matches)
