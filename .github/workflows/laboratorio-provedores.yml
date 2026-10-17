@@ -7,6 +7,7 @@ on:
     paths:
       - 'LaboratorioGerenciador/**'
       - 'TestesMotor/**'
+      - 'TestesRede/**'
       - '.github/workflows/laboratorio-provedores.yml'
   workflow_dispatch:
 
@@ -61,6 +62,13 @@ jobs:
               } catch { Write-Host "GETCATALOG falha=$($_.Exception.GetType().Name)" }
             }
           } catch { Write-Host "GETURL falha=$($_.Exception.GetType().Name)" }
+
+      - name: Testar leitor real RuckZuck via .NET
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          dotnet run --project TestesRede/TestesRede.csproj --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Testar motor de comparacao
         shell: pwsh
