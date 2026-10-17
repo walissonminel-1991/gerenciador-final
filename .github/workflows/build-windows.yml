@@ -1,0 +1,44 @@
+
+name: Compilar Windows (sem assinatura)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Baixar fonte
+        uses: actions/checkout@v4
+
+      - name: Preparar SDK .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publicar para Windows x64 (self-contained)
+        shell: pwsh
+        run: |
+          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o "$env:GITHUB_WORKSPACE\Distribuicao"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "$env:GITHUB_WORKSPACE\Distribuicao\GerenciadorFinal.exe")) { throw 'GerenciadorFinal.exe ausente' }
+
+      - name: Gerar hashes SHA-256
+        shell: pwsh
+        run: |
+          Get-FileHash 'Distribuicao/GerenciadorFinal.exe','Distribuicao/GerenciadorFinal.dll' -Algorithm SHA256 | Format-Table -AutoSize
+
+      - name: Conservar artefato para testes (nao assinado)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gerenciador-final-unsigned-win-x64
+          path: Distribuicao/
+          retention-days: 7
+          if-no-files-found: error
