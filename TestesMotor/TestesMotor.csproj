@@ -8,6 +8,5 @@
   <ItemGroup>
     <Compile Include="../RuckZuckModels.cs" Link="Models.cs" />
     <Compile Include="../Matching.cs" Link="Matching.cs" />
-    <Compile Include="../OfficialUpdates.cs" Link="OfficialUpdates.cs" />
   </ItemGroup>
 </Project>
