@@ -63,7 +63,7 @@ internal sealed class ProgramEntry
     public string AvailableVersion { get; set; } = "";
     public string Source { get; set; } = "";
     public bool IsUpdate { get; set; }
-    public bool WingetOnly { get; set; }
+    public MatchState ComparisonState { get; set; } = MatchState.Unmatched;
 }
 
 internal sealed record CommandResult(int ExitCode, string StandardOutput, string StandardError);
@@ -444,8 +444,8 @@ internal sealed partial class MainForm : Form
     private bool _refreshingDisks;
     private bool _busy;
     private bool _multiSelectMode;
-    private bool _wingetVerificado; // Resultado de consulta RuckZuck, sem confirmação de instalação
-    private CancellationTokenSource? _consultaWingetCts;
+    private bool _catalogoVerificado; // Resultado local do RuckZuck (sem instalacao)
+    private CancellationTokenSource? _consultaCatalogoCts;
     private string _appFilter = "Todos";
     private readonly HashSet<ProgramEntry> _checkedApps = new();
     private Button? _bulkUpdateButton;
@@ -456,6 +456,7 @@ internal sealed partial class MainForm : Form
     private Button? _allFilterButton;
     private Button? _updatesFilterButton;
     private Button? _selectedFilterButton;
+    private Button? _uncertainFilterButton;
     private string _operationResult = "Pronto";
     private readonly Font _rowTitle = new("Segoe UI", 10F, FontStyle.Bold);
     private readonly Font _rowInfo = new("Segoe UI", 8.8F);
@@ -476,7 +477,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.6 TESTE";
+        Text = "Gerenciador Final — v5.12.6.1 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -507,15 +508,15 @@ internal sealed partial class MainForm : Form
         };
         root.Controls.Add(_nav, 0, 1);
         root.Controls.Add(BuildOperationsPanel(), 0, 2);
-        // Cadastro local nao depende do WinGet e nao inicia consultas externas ao abrir.
+        // Cadastro local nao faz consultas externas durante a inicializacao.
         Shown += async (_, _) => await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync);
         FormClosing += (_, e) =>
         {
             if (!_busy) return;
-            if (_consultaWingetCts is not null)
+            if (_consultaCatalogoCts is not null)
             {
                 e.Cancel = true;
-                _consultaWingetCts.Cancel();
+                _consultaCatalogoCts.Cancel();
                 Status("Cancelando a consulta. Tente fechar novamente em alguns instantes.");
                 return;
             }
@@ -585,7 +586,7 @@ internal sealed partial class MainForm : Form
         _search.BorderStyle = BorderStyle.FixedSingle;
         _search.BackColor = Color.FromArgb(19, 26, 34);
         _search.ForeColor = Ink;
-        _search.PlaceholderText = "Nome, versão, fornecedor ou ID WinGet";
+        _search.PlaceholderText = "Nome, versão ou fabricante";
         _search.Margin = new Padding(0, 7, 10, 7);
         _search.Dock = DockStyle.Fill;
         _search.TextChanged += (_, _) => RenderPrograms();
@@ -641,12 +642,13 @@ internal sealed partial class MainForm : Form
 
         var heading = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty
+            Dock = DockStyle.Fill, ColumnCount = 5, Margin = Padding.Empty
         };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 106));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 196));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 148));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
         _listTitle.Dock = DockStyle.Fill;
         _listTitle.Font = new Font("Segoe UI", 11.5F, FontStyle.Bold);
         _listTitle.ForeColor = Ink;
@@ -654,7 +656,8 @@ internal sealed partial class MainForm : Form
         heading.Controls.Add(_listTitle, 0, 0);
         _allFilterButton = AddFilter(heading, "Todos", 1);
         _updatesFilterButton = AddFilter(heading, "Com atualização", 2);
-        _selectedFilterButton = AddFilter(heading, "Marcados", 3);
+        _uncertainFilterButton = AddFilter(heading, "Incertos", 3);
+        _selectedFilterButton = AddFilter(heading, "Marcados", 4);
         root.Controls.Add(heading, 0, 2);
 
         _programList.Dock = DockStyle.Fill;
@@ -709,19 +712,26 @@ internal sealed partial class MainForm : Form
         button.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
         button.Click += async (_, _) =>
         {
-            if (title == "Com atualização")
+            if (title is "Com atualização" or "Incertos")
             {
-                // A consulta pode ser cancelada sem abrir console ou iniciar instaladores.
-                if (_consultaWingetCts is not null)
+                if (_catalogoVerificado)
                 {
-                    _consultaWingetCts.Cancel();
+                    if (_busy) return;
+                    _appFilter = title;
+                    RenderPrograms();
+                    return;
+                }
+                // A consulta pode ser cancelada sem abrir console ou iniciar instaladores.
+                if (_consultaCatalogoCts is not null)
+                {
+                    _consultaCatalogoCts.Cancel();
                     return;
                 }
                 if (_busy) return;
                 await ExecuteAsync("Consultando catálogo RuckZuck...", LoadUpdatesAsync);
-                if (_wingetVerificado && !IsDisposed)
+                if (_catalogoVerificado && !IsDisposed)
                 {
-                    _appFilter = "Com atualização";
+                    _appFilter = title;
                     RenderPrograms();
                 }
                 return;
@@ -780,6 +790,10 @@ internal sealed partial class MainForm : Form
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
         string details = item.IsUpdate
             ? $"Possível atualização (RuckZuck)  ·  {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
+            : item.ComparisonState == MatchState.DifferentMajor
+            ? $"Revisar: versoes principais diferentes · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} (coexistem)"
+            : Matching.IsUncertain(item.ComparisonState)
+            ? $"Resultado incerto (RuckZuck)  ·  Versão: {DisplayAppVersion(item.Version)}"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
             new Rectangle(left, e.Bounds.Top + 36, Math.Max(20, e.Bounds.Width - left + e.Bounds.Left - 230), 25),
@@ -1267,7 +1281,7 @@ internal sealed partial class MainForm : Form
         MessageBox.Show(this, ex.Message, "Gerenciador Final", MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
-    // O catálogo é sempre local. Uma falha de WinGet não bloqueia a listagem.
+    // O registro local independe de provedores de atualizacao.
     private async Task RefreshCatalogAsync()
     {
         DiagnosticTrace.Write("BOTAO_ATUALIZAR_LISTA.INICIO");
@@ -1292,7 +1306,7 @@ internal sealed partial class MainForm : Form
         _installed.Clear();
         _installed.AddRange(items);
         _available.Clear();
-        _wingetVerificado = false;
+        _catalogoVerificado = false;
         _checkedApps.Clear();
         _multiSelectMode = false;
         _programList.MultiSelectMode = false;
@@ -1320,9 +1334,9 @@ internal sealed partial class MainForm : Form
         }
         DiagnosticTrace.Write("RUCKZUCK.CONSULTA_SOLICITADA");
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        _consultaWingetCts = cancellation;
+        _consultaCatalogoCts = cancellation;
         if (_updatesFilterButton is not null) _updatesFilterButton.Text = "Cancelar consulta";
-        Log("Consultando catálogo RuckZuck por HTTPS (até 60 segundos). Sem WinGet ou API COM.");
+        Log("Consultando catálogo RuckZuck por HTTPS (até 60 segundos). Sem linha de comando ou API COM.");
         try
         {
             using var provider = new RuckZuckCatalog();
@@ -1335,12 +1349,12 @@ internal sealed partial class MainForm : Form
             if (results.Count != _installed.Count)
                 throw new InvalidDataException("Resultado local não corresponde à quantidade de programas.");
             AplicarCandidatos(results);
-            _wingetVerificado = true;
+            _catalogoVerificado = true;
             RenderPrograms();
             int candidates = results.Count(x => x.State == MatchState.Candidate);
-            int uncertain = results.Count(x => x.State is MatchState.Ambiguous or MatchState.NotComparable);
+            int uncertain = results.Count(x => Matching.IsUncertain(x.State));
             DiagnosticTrace.Write($"RUCKZUCK.COMPARACAO_OK programas={installed.Length} candidatos={candidates} indeterminados={uncertain}");
-            Log($"Catálogo: {catalog.Count} entradas. {candidates} possível(is) atualização(ões); {uncertain} resultado(s) incerto(s).");
+            Log($"Catálogo: {catalog.Count} entradas. {candidates} possível(is) atualização(ões); {uncertain} resultado(s) incerto(s). Use o filtro Incertos para revisar.");
             Log("Importante: atualizações ainda não confirmadas e instalação automática desativada neste teste.");
             Status($"Consulta concluída: {candidates} possíveis atualizações · somente leitura");
         }
@@ -1360,7 +1374,7 @@ internal sealed partial class MainForm : Form
         }
         finally
         {
-            _consultaWingetCts = null;
+            _consultaCatalogoCts = null;
             if (_updatesFilterButton is not null) _updatesFilterButton.Text = "Com atualização";
         }
     }
@@ -1372,27 +1386,29 @@ internal sealed partial class MainForm : Form
         {
             var item = _installed[i];
             var match = matches[i];
+            item.ComparisonState = match.State;
             item.IsUpdate = match.State == MatchState.Candidate && match.Catalog is not null;
-            item.AvailableVersion = item.IsUpdate ? match.Catalog!.ProductVersion : "";
+            item.AvailableVersion = match.Catalog?.ProductVersion ?? "";
             item.PackageId = ""; // Identificador de catálogo NÃO autoriza instalação.
             item.Source = item.IsUpdate ? "RuckZuck — candidato" : "";
-            item.WingetOnly = false;
+            // A correspondencia remota jamais autoriza instalar pacotes.
         }
         _checkedApps.RemoveWhere(entry => !_installed.Contains(entry));
     }
 
     private void InvalidarAtualizacoes()
     {
-        _wingetVerificado = false;
+        _catalogoVerificado = false;
         _available.Clear();
         foreach (var entry in _installed)
         {
             entry.IsUpdate = false;
+            entry.ComparisonState = MatchState.Unmatched;
             entry.AvailableVersion = "";
             entry.PackageId = "";
             entry.Source = "";
         }
-        if (_appFilter == "Com atualização") _appFilter = "Todos";
+        if (_appFilter is "Com atualização" or "Incertos") _appFilter = "Todos";
         RenderPrograms();
     }
 
@@ -1405,6 +1421,7 @@ internal sealed partial class MainForm : Form
         filtered = _appFilter switch
         {
             "Com atualização" => filtered.Where(x => x.IsUpdate),
+            "Incertos" => filtered.Where(x => Matching.IsUncertain(x.ComparisonState)),
             "Selecionados" => filtered.Where(x => _checkedApps.Contains(x)),
             _ => filtered
         };
@@ -1415,8 +1432,10 @@ internal sealed partial class MainForm : Form
         _programList.ScrollToTop();
         _emptyState.Text = query.Length > 0 ? "Nenhum aplicativo corresponde à pesquisa."
             : _appFilter == "Selecionados" ? "Nenhum aplicativo marcado."
-            : _appFilter == "Com atualização" && _wingetVerificado ? "Nenhuma possível atualização encontrada neste catálogo."
+            : _appFilter == "Com atualização" && _catalogoVerificado ? "Nenhuma possível atualização encontrada neste catálogo."
             : _appFilter == "Com atualização" ? "Possíveis atualizações ainda não verificadas."
+            : _appFilter == "Incertos" && _catalogoVerificado ? "Nenhuma correspondência incerta identificada."
+            : _appFilter == "Incertos" ? "Resultados incertos ainda não verificados."
             : "Nenhum aplicativo identificado neste filtro.";
         _emptyState.Visible = match.Length == 0;
         if (_emptyState.Visible) _emptyState.BringToFront();
@@ -1428,7 +1447,9 @@ internal sealed partial class MainForm : Form
     private void RenderTitle()
     {
         int updates = _installed.Count(x => x.IsUpdate);
-        _listTitle.Text = $"Aplicativos: {_installed.Count}  ·  Possíveis atualizações: {(_wingetVerificado ? updates.ToString() : "não verificadas")}" +
+        int uncertain = _installed.Count(x => Matching.IsUncertain(x.ComparisonState));
+        _listTitle.Text = $"Aplicativos: {_installed.Count} · Possíveis: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
+            (_catalogoVerificado ? $" · Incertos: {uncertain}" : "") +
             (_multiSelectMode ? $"  ·  Marcados: {_checkedApps.Count}" : "");
     }
 
@@ -1437,7 +1458,7 @@ internal sealed partial class MainForm : Form
         foreach (var (button, name) in new[]
         {
             (_allFilterButton, "Todos"), (_updatesFilterButton, "Com atualização"),
-            (_selectedFilterButton, "Selecionados")
+            (_uncertainFilterButton, "Incertos"), (_selectedFilterButton, "Selecionados")
         })
         {
             if (button is null) continue;
