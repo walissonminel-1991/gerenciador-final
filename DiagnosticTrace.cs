@@ -8,7 +8,7 @@ internal static class DiagnosticTrace
 {
     private static readonly object Gate = new();
     private static readonly UTF8Encoding NoBom = new(false);
-    private const string FileName = "GerenciadorFinal-Diagnostico-v5.12.6.3.log";
+    private const string FileName = "GerenciadorFinal-Diagnostico-v5.12.7.log";
     private static string? _logFile;
     private static string _lastFailure = "O arquivo de diagnostico nao foi iniciado.";
 
