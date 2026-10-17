@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using System.IO.Pipes;
 using System.Diagnostics;
 using System.Drawing;
@@ -21,6 +21,15 @@ internal static class Program
         if (args.Length == 4 && args[0] == "--worker")
             return WorkerHost.RunAsync(args[1], args[2], args[3]).GetAwaiter().GetResult();
 
+        if (!DiagnosticTrace.Start() || !DiagnosticTrace.Write("APP.INICIALIZACAO_INICIO"))
+        {
+            MessageBox.Show(
+                "Não foi possível criar e confirmar o registro de diagnóstico. " +
+                "O teste foi interrompido antes de iniciar a consulta de pacotes.\n\n" +
+                "Motivo técnico: " + DiagnosticTrace.LastFailure,
+                "Diagnóstico indisponível", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return 2;
+        }
         try
         {
             ApplicationConfiguration.Initialize();
@@ -29,10 +38,12 @@ internal static class Program
                 "Ocorreu um erro inesperado.\n\n" + e.Exception.Message,
                 "Gerenciador Final", MessageBoxButtons.OK, MessageBoxIcon.Error);
             Application.Run(new MainForm());
+            DiagnosticTrace.Write("APP.ENCERRAMENTO_NORMAL");
             return 0;
         }
         catch (Exception ex)
         {
+            DiagnosticTrace.Failure("APP.FALHA_NAO_TRATADA", ex);
             try { MessageBox.Show("Não foi possível iniciar o gerenciador.\n\n" + ex,
                     "Falha ao abrir", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             catch { }
@@ -61,13 +72,6 @@ internal sealed record DiskUsageInfo(string Root, string Label, long TotalBytes,
 
 internal static class AppServices
 {
-    public static string GetWingetExecutable()
-    {
-        string localAlias = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps", "winget.exe");
-        if (File.Exists(localAlias)) return localAlias;
-        return "winget.exe"; // Usa a resolução normal do Windows quando o alias está no PATH.
-    }
-
     // Somente consulta: nenhuma modificação no disco e nenhum privilégio elevado.
     // DriveInfo representa volumes locais (C:, D:...), não dispositivos físicos.
     public static List<DiskUsageInfo> GetLocalDiskUsage()
@@ -102,12 +106,10 @@ internal static class AppServices
     public static readonly Color Gray = Color.FromArgb(64, 80, 100);
     public static readonly Color Dark = Color.FromArgb(30, 39, 50);
 
-    private static Encoding GetCommandEncoding(string fileName)
+    private static Encoding GetCommandEncoding()
     {
         try
         {
-            string name = Path.GetFileName(fileName).ToLowerInvariant();
-            if (name == "winget.exe") return new UTF8Encoding(false);
             return Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage);
         }
         catch
@@ -118,7 +120,7 @@ internal static class AppServices
 
     public static async Task<CommandResult> RunCommandAsync(string fileName, IEnumerable<string> arguments, Action<string>? onLine = null, CancellationToken cancellationToken = default)
     {
-        Encoding commandEncoding = GetCommandEncoding(fileName);
+        Encoding commandEncoding = GetCommandEncoding();
         var psi = new ProcessStartInfo
         {
             FileName = fileName,
@@ -158,7 +160,7 @@ internal static class AppServices
             await Task.WhenAll(stdoutClosed.Task, stderrClosed.Task).WaitAsync(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
             return new CommandResult(process.ExitCode, stdout.ToString(), stderr.ToString());
         }
-        catch
+        catch (Exception)
         {
             try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
             throw;
@@ -218,78 +220,6 @@ internal static class AppServices
             .Select(g => g.First())
             .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
-    }
-
-    public static List<ProgramEntry> ParseWingetUpdates(string output)
-    {
-        var lines = output.Replace("\r", "").Split('\n');
-        int headerIndex = -1;
-        for (int i = 0; i < lines.Length; i++)
-        {
-            string line = lines[i];
-            bool hasId = Regex.IsMatch(line, @"(?<!\S)ID(?!\S)", RegexOptions.IgnoreCase);
-            bool hasVersion = line.Contains("Versão", StringComparison.OrdinalIgnoreCase) || line.Contains("Version", StringComparison.OrdinalIgnoreCase);
-            bool hasAvailable = line.Contains("Disponível", StringComparison.OrdinalIgnoreCase) || line.Contains("Available", StringComparison.OrdinalIgnoreCase);
-            if (hasId && hasVersion && hasAvailable) { headerIndex = i; break; }
-        }
-        if (headerIndex < 0) return new List<ProgramEntry>();
-
-        string header = lines[headerIndex];
-        string[] columns = Regex.Split(header.Trim(), @"\s{2,}").Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
-        if (columns.Length < 4) return new List<ProgramEntry>();
-        var starts = new List<int>();
-        int searchFrom = 0;
-        foreach (string col in columns)
-        {
-            int pos = header.IndexOf(col, searchFrom, StringComparison.OrdinalIgnoreCase);
-            if (pos < 0) return new List<ProgramEntry>();
-            starts.Add(pos);
-            searchFrom = pos + col.Length;
-        }
-
-        var result = new List<ProgramEntry>();
-        for (int i = headerIndex + 1; i < lines.Length; i++)
-        {
-            string line = lines[i];
-            if (string.IsNullOrWhiteSpace(line)) continue;
-            if (Regex.IsMatch(line.Trim(), @"^[-\s]+$")) continue;
-            // Após o último pacote o WinGet imprime totais e avisos, não linhas da tabela.
-            if (Regex.IsMatch(line.Trim(), @"^\d+\s+(atualiza|upgrade|pacote|package)", RegexOptions.IgnoreCase) ||
-                line.TrimStart().StartsWith("Os pacotes", StringComparison.OrdinalIgnoreCase) ||
-                line.TrimStart().StartsWith("The following", StringComparison.OrdinalIgnoreCase)) break;
-            if (line.TrimStart().StartsWith("Nenhum pacote", StringComparison.OrdinalIgnoreCase) ||
-                line.TrimStart().StartsWith("No installed package", StringComparison.OrdinalIgnoreCase)) continue;
-
-            var values = new string[starts.Count];
-            for (int c = 0; c < starts.Count; c++)
-            {
-                int start = starts[c];
-                int end = c + 1 < starts.Count ? starts[c + 1] : line.Length;
-                if (start >= line.Length) { values[c] = ""; continue; }
-                end = Math.Min(end, line.Length);
-                values[c] = line.Substring(start, Math.Max(0, end - start)).Trim();
-            }
-            if (values.Length < 4 || string.IsNullOrWhiteSpace(values[0]) || string.IsNullOrWhiteSpace(values[1])) continue;
-            string headingId = columns.FirstOrDefault(x => x.Equals("ID", StringComparison.OrdinalIgnoreCase)) ?? "ID";
-            int idIndex = Array.FindIndex(columns, x => x.Equals(headingId, StringComparison.OrdinalIgnoreCase));
-            int versionIndex = Array.FindIndex(columns, x => x.Equals("Versão", StringComparison.OrdinalIgnoreCase) || x.Equals("Version", StringComparison.OrdinalIgnoreCase));
-            int availableIndex = Array.FindIndex(columns, x => x.Equals("Disponível", StringComparison.OrdinalIgnoreCase) || x.Equals("Available", StringComparison.OrdinalIgnoreCase));
-            int sourceIndex = Array.FindIndex(columns, x => x.Equals("Origem", StringComparison.OrdinalIgnoreCase) || x.Equals("Source", StringComparison.OrdinalIgnoreCase));
-            if (idIndex < 0 || versionIndex < 0 || availableIndex < 0) continue;
-            if (string.IsNullOrWhiteSpace(values[availableIndex]) ||
-                string.IsNullOrWhiteSpace(values[idIndex]) ||
-                values[0].Length < 2) continue;
-            result.Add(new ProgramEntry
-            {
-                Name = values[0],
-                PackageId = values[idIndex],
-                Version = values[versionIndex],
-                AvailableVersion = values[availableIndex],
-                Source = sourceIndex >= 0 && sourceIndex < values.Length ? values[sourceIndex] : "",
-                IsUpdate = true
-            });
-        }
-        return result.GroupBy(x => x.PackageId, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
     }
 
     public static CleanupResult CleanDirectorySafely(string root, Action<string>? log = null)
@@ -514,9 +444,12 @@ internal sealed partial class MainForm : Form
     private bool _refreshingDisks;
     private bool _busy;
     private bool _multiSelectMode;
+    private bool _wingetVerificado; // Resultado de consulta RuckZuck, sem confirmação de instalação
+    private CancellationTokenSource? _consultaWingetCts;
     private string _appFilter = "Todos";
     private readonly HashSet<ProgramEntry> _checkedApps = new();
     private Button? _bulkUpdateButton;
+    private Button? _updateAllButton;
     private Button? _bulkUninstallButton;
     private Button? _selectManyButton;
     private Button? _clearSelectionButton;
@@ -543,7 +476,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.3";
+        Text = "Gerenciador Final — v5.12.6 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -574,24 +507,24 @@ internal sealed partial class MainForm : Form
         };
         root.Controls.Add(_nav, 0, 1);
         root.Controls.Add(BuildOperationsPanel(), 0, 2);
-        Shown += async (_, _) => await ExecuteAsync("Consultando programas e atualizações...", async () =>
-        {
-            await LoadInstalledAsync();
-            try { await LoadUpdatesAsync(); }
-            catch (Exception ex)
-            {
-                Log("Aviso: não foi possível verificar atualizações na inicialização: " + ex.Message);
-                Status("Programas carregados; atualização indisponível");
-            }
-        });
+        // Cadastro local nao depende do WinGet e nao inicia consultas externas ao abrir.
+        Shown += async (_, _) => await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync);
         FormClosing += (_, e) =>
         {
             if (!_busy) return;
+            if (_consultaWingetCts is not null)
+            {
+                e.Cancel = true;
+                _consultaWingetCts.Cancel();
+                Status("Cancelando a consulta. Tente fechar novamente em alguns instantes.");
+                return;
+            }
             e.Cancel = true;
             MessageBox.Show(this, "Aguarde a operação atual terminar antes de fechar o gerenciador.",
                 "Operação em andamento", MessageBoxButtons.OK, MessageBoxIcon.Information);
         };
         Log("Gerenciador Final iniciado. Operações e andamento ficam integrados à janela principal.");
+        Log("DIAGNÓSTICO DE TESTE: arquivo confirmado em " + DiagnosticTrace.LogFilePath);
     }
 
     private Control BuildHeader()
@@ -614,7 +547,7 @@ internal sealed partial class MainForm : Form
         }, 1, 0);
         panel.Controls.Add(new Label
         {
-            Text = "Atualizações, desinstalação e manutenção do Windows em um só lugar.",
+            Text = "Consulta de atualizações, desinstalação e manutenção do Windows em um só lugar.",
             Dock = DockStyle.Fill, Margin = new Padding(13, 0, 0, 0),
             ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft
         }, 1, 1);
@@ -666,8 +599,8 @@ internal sealed partial class MainForm : Form
         var refresh = CreateButton("Atualizar lista", AppServices.Blue, Color.White);
         refresh.Dock = DockStyle.Fill;
         refresh.Margin = new Padding(0, 6, 0, 6);
-        refresh.Click += async (_, _) => await ExecuteAsync("Consultando aplicativos e atualizações...", RefreshCatalogAsync);
-        _toolTips.SetToolTip(refresh, "Recarrega programas instalados e verifica atualizações no WinGet.");
+        refresh.Click += async (_, _) => await ExecuteAsync("Atualizando lista de aplicativos...", RefreshCatalogAsync);
+        _toolTips.SetToolTip(refresh, "Atualiza os aplicativos do Windows. Para verificar novas versões, clique em 'Com atualização'.");
         _actionControls.Add(refresh);
         searchBar.Controls.Add(refresh, 3, 0);
         root.Controls.Add(searchBar, 0, 0);
@@ -694,13 +627,15 @@ internal sealed partial class MainForm : Form
         }
         _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 0, ToggleMultiSelection);
         _bulkUpdateButton = MakeAction("Atualizar selecionados", AppServices.Blue, 1,
-            () => _ = ExecuteAsync("Atualizando selecionados...", UpgradeCheckedAsync));
+            () => ShowUpdatesReadOnlyNotice());
         _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 2,
             () => _ = ExecuteAsync("Desinstalando selecionados...", UninstallCheckedAsync));
-        MakeAction("Atualizar todos", AppServices.Green, 3,
-            () => _ = ExecuteAsync("Atualizando programas...", UpgradeAllAsync));
+        _updateAllButton = MakeAction("Atualizar todos", AppServices.Green, 3,
+            () => ShowUpdatesReadOnlyNotice());
+        _updateAllButton.Enabled = false;
+        _toolTips.SetToolTip(_updateAllButton, "A atualização automática está desativada no teste RuckZuck: somente a consulta foi validada.");
         _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 4, ClearMultiSelection);
-        _toolTips.SetToolTip(_bulkUpdateButton, "Atualiza somente os programas marcados que têm atualização identificada pelo WinGet.");
+        _toolTips.SetToolTip(_bulkUpdateButton, "Desativado no teste: o catálogo RuckZuck fornece candidatos, não instalações validadas.");
         _toolTips.SetToolTip(_bulkUninstallButton, "Solicita confirmação e desinstala os programas marcados, um por vez.");
         root.Controls.Add(actions, 0, 1);
 
@@ -728,12 +663,12 @@ internal sealed partial class MainForm : Form
         _programList.ForeColor = Ink;
         _programList.DrawItem += DrawProgramCard;
         _toolTips.SetToolTip(_programList,
-            "Clique nos botões de cada programa. Ative 'Selecionar vários' para marcar vários itens.");
+            "Desinstalação pelo desinstalador registrado. Atualizações do RuckZuck são somente leitura neste teste.");
         _programList.ItemActionClicked += (item, action) =>
         {
             if (_busy) return;
             if (action == "update")
-                _ = ExecuteAsync("Atualizando " + item.Name + "...", () => UpgradeEntriesAsync(new[] { item }));
+                ShowUpdatesReadOnlyNotice();
             else if (action == "uninstall")
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
         };
@@ -772,8 +707,26 @@ internal sealed partial class MainForm : Form
         button.Dock = DockStyle.Fill;
         button.Margin = new Padding(5, 4, 0, 5);
         button.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
-        button.Click += (_, _) =>
+        button.Click += async (_, _) =>
         {
+            if (title == "Com atualização")
+            {
+                // A consulta pode ser cancelada sem abrir console ou iniciar instaladores.
+                if (_consultaWingetCts is not null)
+                {
+                    _consultaWingetCts.Cancel();
+                    return;
+                }
+                if (_busy) return;
+                await ExecuteAsync("Consultando catálogo RuckZuck...", LoadUpdatesAsync);
+                if (_wingetVerificado && !IsDisposed)
+                {
+                    _appFilter = "Com atualização";
+                    RenderPrograms();
+                }
+                return;
+            }
+            if (_busy) return;
             _appFilter = title == "Marcados" ? "Selecionados" : title;
             RenderPrograms();
         };
@@ -826,7 +779,7 @@ internal sealed partial class MainForm : Form
             new Rectangle(left, e.Bounds.Top + 8, width, 27), selected ? Accent : Ink,
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
         string details = item.IsUpdate
-            ? $"Atualização disponível  ·  {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
+            ? $"Possível atualização (RuckZuck)  ·  {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
             new Rectangle(left, e.Bounds.Top + 36, Math.Max(20, e.Bounds.Width - left + e.Bounds.Left - 230), 25),
@@ -836,8 +789,7 @@ internal sealed partial class MainForm : Form
         if (!multiselect)
         {
             DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red);
-            if (item.IsUpdate && !string.IsNullOrWhiteSpace(item.PackageId))
-                DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), "Atualizar", AppServices.Blue);
+            // Não exibir atualização individual até validar mecanismo de instalação.
         }
     }
 
@@ -1296,6 +1248,7 @@ internal sealed partial class MainForm : Form
             _busy = false;
             _programList.ActionsEnabled = true;
             UpdateBulkButtons();
+            if (_updateAllButton is not null) _updateAllButton.Enabled = false;
             if (_repairNetworkButton is not null)
                 _repairNetworkButton.Enabled = GetSuggestedNetworkRepair(_lastNetworkScan) is not null;
             if (_installSelectedUpdates is not null)
@@ -1314,101 +1267,133 @@ internal sealed partial class MainForm : Form
         MessageBox.Show(this, ex.Message, "Gerenciador Final", MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
-    // A lista é sempre unificada. A consulta ao WinGet apenas marca atualizações.
+    // O catálogo é sempre local. Uma falha de WinGet não bloqueia a listagem.
     private async Task RefreshCatalogAsync()
     {
-        await LoadInstalledAsync();
-        try { await LoadUpdatesAsync(); }
-        catch (Exception ex)
-        {
-            Log("Aviso: falha na verificação do WinGet: " + ex.Message);
-            if (ex is System.ComponentModel.Win32Exception || ex is FileNotFoundException)
-                Log("WinGet não encontrado. Para usar atualizações de aplicativos, instale o aplicativo oficial 'Instalador de Aplicativos' da Microsoft Store. Consulte https://learn.microsoft.com/pt-br/windows/package-manager/winget/");
-            Status("Programas carregados; não foi possível verificar atualizações");
-        }
+        DiagnosticTrace.Write("BOTAO_ATUALIZAR_LISTA.INICIO");
+        try { await LoadInstalledAsync(); }
+        finally { DiagnosticTrace.Write("BOTAO_ATUALIZAR_LISTA.FIM"); }
     }
 
     private async Task LoadInstalledAsync()
     {
-        var items = await Task.Run(AppServices.GetInstalledPrograms);
+        DiagnosticTrace.Write("REGISTRO_PROGRAMAS.INICIO");
+        List<ProgramEntry> items;
+        try
+        {
+            items = await Task.Run(AppServices.GetInstalledPrograms);
+            DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count}");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticTrace.Failure("REGISTRO_PROGRAMAS.FALHA", ex);
+            throw;
+        }
         _installed.Clear();
         _installed.AddRange(items);
         _available.Clear();
+        _wingetVerificado = false;
         _checkedApps.Clear();
         _multiSelectMode = false;
         _programList.MultiSelectMode = false;
         _appFilter = "Todos";
+        DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_INICIO");
         RenderPrograms();
-        Log($"Lista atualizada: {_installed.Count} programa(s) encontrados. Consultando atualizações...");
+        DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_FIM");
+        Log($"Lista atualizada: {_installed.Count} programa(s). Clique em 'Com atualização' para consultar o catálogo RuckZuck.");
         Status($"{_installed.Count} programas encontrados");
     }
 
     private async Task LoadUpdatesAsync()
     {
-        Log("Consultando atualizações disponíveis pelo WinGet...");
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-        var result = await AppServices.RunCommandAsync(AppServices.GetWingetExecutable(),
-            new[] { "list", "--upgrade-available", "--include-unknown", "--accept-source-agreements", "--disable-interactivity" },
-            cancellationToken: timeout.Token);
-        var found = AppServices.ParseWingetUpdates(result.StandardOutput + "\n" + result.StandardError);
-        if (result.ExitCode != 0 && found.Count == 0)
+        // Fonte RuckZuck: consulta HTTPS somente de leitura, sem scripts nem instalação.
+        // O catálogo nunca recebe nomes dos programas locais; a comparação acontece neste processo.
+        var confirmation = MessageBox.Show(this,
+            "O Gerenciador consultará por HTTPS o catálogo público do RuckZuck.\n\n" +
+            "A lista de aplicativos do computador NÃO será enviada ao serviço. O servidor recebe dados normais de conexão, como o endereço IP.\n\n" +
+            "Esta etapa apenas compara versões; não instala nem atualiza aplicativos. Continuar?",
+            "Consulta RuckZuck — somente leitura", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+        if (confirmation != DialogResult.Yes)
         {
-            Log("WinGet não confirmou a consulta (código " + result.ExitCode + "): " +
-                (result.StandardError + " " + result.StandardOutput).Trim().TakeText(400));
-            Status("Não foi possível confirmar as atualizações");
+            Status("Consulta não autorizada");
             return;
         }
-        _available.Clear();
-        _available.AddRange(found);
-        MergeUpdatesIntoInstalled();
-        RenderPrograms();
-        Log($"Consulta concluída: {_available.Count} atualizações identificadas pelo WinGet (código {result.ExitCode}).");
-        Status($"{_installed.Count} programas · {_available.Count} atualizações identificadas");
+        DiagnosticTrace.Write("RUCKZUCK.CONSULTA_SOLICITADA");
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        _consultaWingetCts = cancellation;
+        if (_updatesFilterButton is not null) _updatesFilterButton.Text = "Cancelar consulta";
+        Log("Consultando catálogo RuckZuck por HTTPS (até 60 segundos). Sem WinGet ou API COM.");
+        try
+        {
+            using var provider = new RuckZuckCatalog();
+            var catalog = await provider.GetCatalogAsync(cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            DiagnosticTrace.Write($"RUCKZUCK.CATALOGO_RECEBIDO entradas={catalog.Count}");
+            var installed = _installed.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher)).ToArray();
+            var results = await Task.Run(() => Matching.Evaluate(installed, catalog), cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (results.Count != _installed.Count)
+                throw new InvalidDataException("Resultado local não corresponde à quantidade de programas.");
+            AplicarCandidatos(results);
+            _wingetVerificado = true;
+            RenderPrograms();
+            int candidates = results.Count(x => x.State == MatchState.Candidate);
+            int uncertain = results.Count(x => x.State is MatchState.Ambiguous or MatchState.NotComparable);
+            DiagnosticTrace.Write($"RUCKZUCK.COMPARACAO_OK programas={installed.Length} candidatos={candidates} indeterminados={uncertain}");
+            Log($"Catálogo: {catalog.Count} entradas. {candidates} possível(is) atualização(ões); {uncertain} resultado(s) incerto(s).");
+            Log("Importante: atualizações ainda não confirmadas e instalação automática desativada neste teste.");
+            Status($"Consulta concluída: {candidates} possíveis atualizações · somente leitura");
+        }
+        catch (OperationCanceledException)
+        {
+            InvalidarAtualizacoes();
+            DiagnosticTrace.Write("RUCKZUCK.CONSULTA_CANCELADA");
+            Log("Consulta cancelada/tempo esgotado. Lista local preservada.");
+            Status("Consulta cancelada ou tempo esgotado");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticTrace.Failure("RUCKZUCK.CONSULTA_FALHA", ex);
+            InvalidarAtualizacoes();
+            Log($"Não foi possível consultar o RuckZuck ({ex.GetType().Name}). A lista local foi preservada.");
+            Status("Catálogo indisponível; atualizações não verificadas");
+        }
+        finally
+        {
+            _consultaWingetCts = null;
+            if (_updatesFilterButton is not null) _updatesFilterButton.Text = "Com atualização";
+        }
     }
 
-    private void MergeUpdatesIntoInstalled()
+    private void AplicarCandidatos(IReadOnlyList<UpdateMatch> matches)
     {
-        // Não se deve associar pacotes diferentes por similaridade aproximada.
-        _installed.RemoveAll(entry => entry.WingetOnly);
+        _available.Clear();
+        for (int i = 0; i < _installed.Count; i++)
+        {
+            var item = _installed[i];
+            var match = matches[i];
+            item.IsUpdate = match.State == MatchState.Candidate && match.Catalog is not null;
+            item.AvailableVersion = item.IsUpdate ? match.Catalog!.ProductVersion : "";
+            item.PackageId = ""; // Identificador de catálogo NÃO autoriza instalação.
+            item.Source = item.IsUpdate ? "RuckZuck — candidato" : "";
+            item.WingetOnly = false;
+        }
+        _checkedApps.RemoveWhere(entry => !_installed.Contains(entry));
+    }
+
+    private void InvalidarAtualizacoes()
+    {
+        _wingetVerificado = false;
+        _available.Clear();
         foreach (var entry in _installed)
         {
             entry.IsUpdate = false;
-            entry.PackageId = "";
             entry.AvailableVersion = "";
+            entry.PackageId = "";
             entry.Source = "";
         }
-        var linked = new HashSet<ProgramEntry>();
-        foreach (var update in _available)
-        {
-            var named = _installed.Where(entry =>
-                string.Equals(entry.Name.Trim(), update.Name.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
-            ProgramEntry? match = null;
-            if (named.Count == 1 && !linked.Contains(named[0]))
-                match = named[0];
-            else if (named.Count > 1)
-            {
-                var versions = named.Where(entry =>
-                    !linked.Contains(entry) && string.Equals(entry.Version.Trim(), update.Version.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
-                if (versions.Count == 1) match = versions[0];
-            }
-            if (match is null)
-            {
-                // O WinGet pode listar aplicativos Microsoft Store que não estão no Registro.
-                _installed.Add(new ProgramEntry
-                {
-                    Name = update.Name, Version = update.Version, Publisher = "WinGet / Microsoft Store",
-                    PackageId = update.PackageId, AvailableVersion = update.AvailableVersion,
-                    Source = update.Source, IsUpdate = true, WingetOnly = true
-                });
-                continue;
-            }
-            linked.Add(match);
-            match.IsUpdate = true;
-            match.PackageId = update.PackageId;
-            match.AvailableVersion = update.AvailableVersion;
-            match.Source = update.Source;
-        }
-        _checkedApps.RemoveWhere(entry => !_installed.Contains(entry));
+        if (_appFilter == "Com atualização") _appFilter = "Todos";
+        RenderPrograms();
     }
 
     private void RenderPrograms()
@@ -1430,6 +1415,8 @@ internal sealed partial class MainForm : Form
         _programList.ScrollToTop();
         _emptyState.Text = query.Length > 0 ? "Nenhum aplicativo corresponde à pesquisa."
             : _appFilter == "Selecionados" ? "Nenhum aplicativo marcado."
+            : _appFilter == "Com atualização" && _wingetVerificado ? "Nenhuma possível atualização encontrada neste catálogo."
+            : _appFilter == "Com atualização" ? "Possíveis atualizações ainda não verificadas."
             : "Nenhum aplicativo identificado neste filtro.";
         _emptyState.Visible = match.Length == 0;
         if (_emptyState.Visible) _emptyState.BringToFront();
@@ -1441,7 +1428,7 @@ internal sealed partial class MainForm : Form
     private void RenderTitle()
     {
         int updates = _installed.Count(x => x.IsUpdate);
-        _listTitle.Text = $"Aplicativos: {_installed.Count}  ·  Atualizações: {updates}" +
+        _listTitle.Text = $"Aplicativos: {_installed.Count}  ·  Possíveis atualizações: {(_wingetVerificado ? updates.ToString() : "não verificadas")}" +
             (_multiSelectMode ? $"  ·  Marcados: {_checkedApps.Count}" : "");
     }
 
@@ -1489,56 +1476,25 @@ internal sealed partial class MainForm : Form
             _selectManyButton.Enabled = !_busy;
         }
         if (_bulkUpdateButton is not null)
-            _bulkUpdateButton.Enabled = !_busy && _multiSelectMode && _checkedApps.Any(x => x.IsUpdate && !string.IsNullOrWhiteSpace(x.PackageId));
+            _bulkUpdateButton.Enabled = false; // Consultas não autorizam execução de instaladores.
         if (_bulkUninstallButton is not null)
             _bulkUninstallButton.Enabled = !_busy && _multiSelectMode && _checkedApps.Count > 0;
         if (_clearSelectionButton is not null)
             _clearSelectionButton.Enabled = !_busy && _checkedApps.Count > 0;
     }
 
-    private async Task UpgradeAllAsync()
-        => await UpgradeEntriesAsync(_installed.Where(x => x.IsUpdate && !string.IsNullOrWhiteSpace(x.PackageId)).ToArray());
+    private Task UpgradeAllAsync() { ShowUpdatesReadOnlyNotice(); return Task.CompletedTask; }
+    private Task UpgradeCheckedAsync() { ShowUpdatesReadOnlyNotice(); return Task.CompletedTask; }
+    private Task UpgradeEntriesAsync(IReadOnlyCollection<ProgramEntry> _) { ShowUpdatesReadOnlyNotice(); return Task.CompletedTask; }
 
-    private async Task UpgradeCheckedAsync()
-        => await UpgradeEntriesAsync(_checkedApps.Where(x => x.IsUpdate && !string.IsNullOrWhiteSpace(x.PackageId)).ToArray());
-
-    private async Task UpgradeEntriesAsync(IReadOnlyCollection<ProgramEntry> apps)
+    private void ShowUpdatesReadOnlyNotice()
     {
-        ProgramEntry[] entries = apps.GroupBy(x => x.PackageId, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First()).ToArray();
-        if (entries.Length == 0)
-        {
-            Status("Nenhuma atualização selecionada");
-            return;
-        }
-        string names = string.Join("\n", entries.Take(8).Select(x => "• " + x.Name));
-        if (entries.Length > 8) names += $"\n... e mais {entries.Length - 8}.";
-        if (MessageBox.Show(this,
-            $"Atualizar {entries.Length} aplicativo(s) identificado(s) pelo WinGet?\n\n{names}\n\nInstaladores de terceiros podem solicitar interação ou UAC.",
-            "Confirmar atualizações", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
-        {
-            Status("Atualização cancelada");
-            return;
-        }
-        int success = 0, failures = 0;
-        foreach (var entry in entries)
-        {
-            Log("Atualizando: " + entry.Name + " [" + entry.PackageId + "]");
-            try
-            {
-                var result = await AppServices.RunCommandAsync(AppServices.GetWingetExecutable(),
-                    new[] { "upgrade", "--id", entry.PackageId, "--exact", "--include-unknown",
-                        "--accept-source-agreements", "--accept-package-agreements", "--disable-interactivity" },
-                    line => { if (!string.IsNullOrWhiteSpace(line) && !line.TrimStart().StartsWith("█"))
-                        Log("WinGet: " + line.TakeText(180)); });
-                if (result.ExitCode == 0) success++;
-                else { failures++; Log($"Falha/aviso ao atualizar {entry.Name}: código {result.ExitCode}."); }
-            }
-            catch (Exception ex) { failures++; Log("Falha ao atualizar " + entry.Name + ": " + ex.Message); }
-        }
-        Log($"Atualizações concluídas: {success} sucesso(s), {failures} aviso(s)/falha(s).");
-        await RefreshCatalogAsync();
-        Status($"Atualizações: {success} concluída(s), {failures} com aviso/falha");
+        Status("Instalação automática desativada neste teste");
+        MessageBox.Show(this,
+            "A integração RuckZuck está em fase de validação somente de leitura.\n\n" +
+            "As versões exibidas são possíveis atualizações, não autorizações para baixar ou instalar pacotes. " +
+            "A atualização automática será habilitada somente após validar fontes e instaladores.",
+            "Atualizações em validação", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private async Task UninstallCheckedAsync() => await UninstallEntriesAsync(_checkedApps.ToArray());
@@ -1565,38 +1521,26 @@ internal sealed partial class MainForm : Form
         {
             try
             {
-                if (!string.IsNullOrWhiteSpace(entry.PackageId))
+                // Usa somente o desinstalador registrado pelo próprio fabricante.
+                string command = !string.IsNullOrWhiteSpace(entry.UninstallString)
+                    ? entry.UninstallString : entry.QuietUninstallString;
+                if (!AppServices.TryParseUninstaller(command, out string exe, out string args))
                 {
-                    var result = await AppServices.RunCommandAsync(AppServices.GetWingetExecutable(),
-                        new[] { "uninstall", "--id", entry.PackageId, "--exact",
-                            "--accept-source-agreements", "--disable-interactivity" },
-                        line => { if (!string.IsNullOrWhiteSpace(line)) Log("WinGet: " + line.TakeText(180)); });
-                    if (result.ExitCode == 0) started++;
-                    else { failed++; Log($"Desinstalação de {entry.Name}: código {result.ExitCode}."); }
+                    failed++;
+                    Log("Sem desinstalador registrado: " + entry.Name);
+                    continue;
                 }
+                using Process? proc = Process.Start(new ProcessStartInfo
+                {
+                    FileName = exe, Arguments = args, UseShellExecute = true
+                });
+                if (proc is null) { failed++; Log("Não foi possível iniciar: " + entry.Name); }
                 else
                 {
-                    string command = !string.IsNullOrWhiteSpace(entry.UninstallString)
-                        ? entry.UninstallString : entry.QuietUninstallString;
-                    if (!AppServices.TryParseUninstaller(command, out string exe, out string args))
-                    {
-                        failed++;
-                        Log("Sem desinstalador registrado: " + entry.Name);
-                        continue;
-                    }
-                    using Process? proc = Process.Start(new ProcessStartInfo
-                    {
-                        FileName = exe, Arguments = args, UseShellExecute = true
-                    });
-                    if (proc is null) { failed++; Log("Não foi possível iniciar: " + entry.Name); }
-                    else
-                    {
-                        started++;
-                        Log("Desinstalador do fornecedor iniciado: " + entry.Name +
-                            ". Conclusão não pode ser confirmada automaticamente.");
-                        // Não iniciar vários desinstaladores de fornecedores simultaneamente.
-                        if (entries.Length > 1) await proc.WaitForExitAsync();
-                    }
+                    started++;
+                    Log("Desinstalador do fornecedor iniciado: " + entry.Name +
+                        ". Conclusão não pode ser confirmada automaticamente.");
+                    if (entries.Length > 1) await proc.WaitForExitAsync();
                 }
             }
             catch (Exception ex) { failed++; Log("Falha ao desinstalar " + entry.Name + ": " + ex.Message); }
