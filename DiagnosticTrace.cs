@@ -52,7 +52,7 @@ internal static class DiagnosticTrace
                                FileShare.ReadWrite, 4096, FileOptions.WriteThrough))
                     using (var writer = new StreamWriter(file, NoBom, bufferSize: 1024, leaveOpen: true))
                     {
-                        writer.WriteLine($"Gerenciador Final v5.12.6.0 | {DateTimeOffset.Now:O}");
+                        writer.WriteLine($"Gerenciador Final v5.12.7.0 | {DateTimeOffset.Now:O}");
                         writer.WriteLine("Registro local de etapas; sem nomes de aplicativos nem saida de comandos.");
                         writer.WriteLine("Ultima etapa nao determina a causa do alerta do antivirus.");
                         writer.Flush();
