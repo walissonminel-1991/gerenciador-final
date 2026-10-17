@@ -64,6 +64,12 @@ jobs:
           dotnet run --project TestesAtualizador/TestesAtualizador.csproj --configuration Release -- --verify-downloads
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Validar hash e assinatura do instalador oficial OBS no CI
+        shell: pwsh
+        run: |
+          dotnet run --project TestesAtualizador/TestesAtualizador.csproj --configuration Release -- --verify-downloads --verify-obs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Testes offline do comparador
         shell: pwsh
         run: |
