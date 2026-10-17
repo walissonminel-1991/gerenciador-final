@@ -174,6 +174,17 @@ internal sealed class DarkProgramList : Control
     private int _selectedIndex = -1;
     private int _scrollOffset;
     private int _itemHeight = 72;
+    // Pressão visual de 160 ms antes de abrir instaladores/navegador.
+    // Uma só animação leve por clique, sem formularios extras, sons ou arquivos.
+    private readonly System.Windows.Forms.Timer _feedbackTimer = new() { Interval = 16 };
+    private ProgramEntry? _hoverItem;
+    private string _hoverAction = "";
+    private ProgramEntry? _downItem;
+    private string _downAction = "";
+    private ProgramEntry? _pulseItem;
+    private string _pulseAction = "";
+    private long _pulseStart;
+    private float _pulseProgress;
 
     public event EventHandler? SelectedIndexChanged;
     public event DrawItemEventHandler? DrawItem;
@@ -182,9 +193,17 @@ internal sealed class DarkProgramList : Control
     private bool _multiSelectMode;
     private bool _actionsEnabled = true;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public bool MultiSelectMode { get => _multiSelectMode; set { _multiSelectMode = value; Invalidate(); } }
+    public bool MultiSelectMode
+    {
+        get => _multiSelectMode;
+        set { _multiSelectMode = value; ResetActionVisuals(); Invalidate(); }
+    }
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public bool ActionsEnabled { get => _actionsEnabled; set { _actionsEnabled = value; Invalidate(); } }
+    public bool ActionsEnabled
+    {
+        get => _actionsEnabled;
+        set { _actionsEnabled = value; if (!value) ResetActionVisuals(); Invalidate(); }
+    }
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public IReadOnlyList<ProgramEntry> Items => _items;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -211,12 +230,74 @@ internal sealed class DarkProgramList : Control
         _scrollbar.ValueChanged += (_, _) => { _scrollOffset = _scrollbar.Value; Invalidate(); };
         Controls.Add(_scrollbar);
         Resize += (_, _) => UpdateMetrics();
+        _feedbackTimer.Tick += (_, _) => AdvanceButtonAnimation();
+    }
+
+    private void ResetActionVisuals()
+    {
+        _feedbackTimer.Stop();
+        _hoverItem = _downItem = _pulseItem = null;
+        _hoverAction = _downAction = _pulseAction = "";
+        _pulseProgress = 0;
+        Cursor = Cursors.Default;
+    }
+
+    // Estado da interação usado exclusivamente para desenhar os botões da lista.
+    internal (bool Hovered, bool Pressed, float Pulse) ActionVisual(ProgramEntry item, string action)
+    {
+        bool hover = _actionsEnabled && ReferenceEquals(item, _hoverItem) && _hoverAction == action;
+        bool down = ReferenceEquals(item, _downItem) && _downAction == action && hover;
+        bool pulse = ReferenceEquals(item, _pulseItem) && _pulseAction == action;
+        return (hover, down || (pulse && _pulseProgress < 0.75F), pulse ? _pulseProgress : 0F);
+    }
+
+    private (ProgramEntry? Item, string Action) HitAction(Point point)
+    {
+        int contentWidth = ClientSize.Width - (_scrollbar.Visible ? _scrollbar.Width : 0);
+        if (!_actionsEnabled || _multiSelectMode || point.X < 0 || point.Y < 0 ||
+            point.X >= contentWidth || point.Y >= ClientSize.Height || _itemHeight <= 0)
+            return (null, "");
+        int index = (point.Y + _scrollOffset) / _itemHeight;
+        if (index < 0 || index >= _items.Count) return (null, "");
+        var item = _items[index];
+        var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
+        if (AppRowGeometry.UninstallButton(bounds).Contains(point)) return (item, "uninstall");
+        if (item.IsUpdate && VerifiedUpdaters.Resolve(item) is not null &&
+            AppRowGeometry.UpdateButton(bounds).Contains(point)) return (item, "update");
+        if (item.IsUpdate && VerifiedUpdaters.GetOfficialPage(item) is not null &&
+            AppRowGeometry.SiteButton(bounds).Contains(point)) return (item, "site");
+        return (null, "");
+    }
+
+    private void AdvanceButtonAnimation()
+    {
+        if (_pulseItem is null) { _feedbackTimer.Stop(); return; }
+        _pulseProgress = Math.Clamp((float)((Stopwatch.GetTimestamp() - _pulseStart) * 1000.0 /
+            Stopwatch.Frequency / 160.0), 0F, 1F);
+        Invalidate();
+        if (_pulseProgress < 1F) return;
+        var item = _pulseItem;
+        var action = _pulseAction;
+        _feedbackTimer.Stop();
+        _pulseItem = null;
+        _pulseAction = "";
+        _pulseProgress = 0;
+        Invalidate();
+        if (!IsDisposed && _actionsEnabled && !_multiSelectMode && _items.Contains(item))
+            ItemActionClicked?.Invoke(item, action);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) { _feedbackTimer.Stop(); _feedbackTimer.Dispose(); }
+        base.Dispose(disposing);
     }
 
     public void ScrollToTop() => _scrollbar.Value = 0;
 
     public void SetItems(IEnumerable<ProgramEntry> entries)
     {
+        ResetActionVisuals();
         ProgramEntry? prior = SelectedItem;
         _items.Clear();
         _items.AddRange(entries);
@@ -272,6 +353,28 @@ internal sealed class DarkProgramList : Control
         finally { e.Graphics.Clip = original; original.Dispose(); }
     }
 
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        var (item, action) = HitAction(e.Location);
+        if (!ReferenceEquals(item, _hoverItem) || _hoverAction != action)
+        {
+            _hoverItem = item;
+            _hoverAction = action;
+            Cursor = item is null ? Cursors.Default : Cursors.Hand;
+            Invalidate();
+        }
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        _hoverItem = null;
+        _hoverAction = "";
+        Cursor = Cursors.Default;
+        Invalidate();
+    }
+
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
@@ -280,7 +383,6 @@ internal sealed class DarkProgramList : Control
         int index = (e.Y + _scrollOffset) / _itemHeight;
         if (index < 0 || index >= _items.Count) return;
         var item = _items[index];
-        var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
         Focus();
         if (_multiSelectMode)
         {
@@ -288,27 +390,46 @@ internal sealed class DarkProgramList : Control
             ItemCheckboxClicked?.Invoke(item);
             return;
         }
-        if (AppRowGeometry.UninstallButton(bounds).Contains(e.Location))
-        {
-            SelectIndex(index);
-            ItemActionClicked?.Invoke(item, "uninstall");
-            return;
-        }
-        if (item.IsUpdate && VerifiedUpdaters.Resolve(item) is not null &&
-            AppRowGeometry.UpdateButton(bounds).Contains(e.Location))
-        {
-            SelectIndex(index);
-            ItemActionClicked?.Invoke(item, "update");
-            return;
-        }
-        if (item.IsUpdate && VerifiedUpdaters.GetOfficialPage(item) is not null &&
-            AppRowGeometry.SiteButton(bounds).Contains(e.Location))
-        {
-            SelectIndex(index);
-            ItemActionClicked?.Invoke(item, "site");
-            return;
-        }
+        var (hit, action) = HitAction(e.Location);
+        _downItem = hit;
+        _downAction = action;
+        _hoverItem = hit;
+        _hoverAction = action;
+        _feedbackTimer.Stop();
+        _pulseItem = null;
+        _pulseAction = "";
+        _pulseProgress = 0;
         SelectIndex(index);
+        Invalidate(); // Mostra o botão pressionado ANTES de executar a ação.
+    }
+
+    protected override void OnMouseUp(MouseEventArgs e)
+    {
+        base.OnMouseUp(e);
+        if (e.Button != MouseButtons.Left) return;
+        var (hit, action) = HitAction(e.Location);
+        bool click = hit is not null && ReferenceEquals(hit, _downItem) && action == _downAction;
+        _downItem = null;
+        _downAction = "";
+        if (click)
+        {
+            // Feedback perceptível mesmo para a ação que abre o navegador instantaneamente.
+            _pulseItem = hit;
+            _pulseAction = action;
+            _pulseStart = Stopwatch.GetTimestamp();
+            _pulseProgress = 0;
+            _feedbackTimer.Start();
+        }
+        Invalidate();
+    }
+
+    protected override void OnMouseCaptureChanged(EventArgs e)
+    {
+        base.OnMouseCaptureChanged(e);
+        // Evita botão travado caso outra janela tome o foco durante um arraste.
+        _downItem = null;
+        _downAction = "";
+        Invalidate();
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
