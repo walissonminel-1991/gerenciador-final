@@ -10,6 +10,18 @@ var cases = new (InstalledApp app, CatalogEntry[] catalog, MatchState expected)[
     (new("Exemplo Programa", "1.0", "Empresa Alfa"), [new("Exemplo Programa", "Exemplo Programa", "beta", "Empresa Alfa")], MatchState.NotComparable),
     (new("Exemplo Programa", "1.0", "Empresa Alfa"), [new("Exemplo Programa", "Exemplo Programa", "2.0", "Empresa Alfa"), new("Exemplo Programa", "Exemplo Programa", "3.0", "Empresa Alfa")], MatchState.Candidate),
     (new("Desconhecido", "", ""), [], MatchState.Unmatched),
+    (new("Microsoft .NET Runtime - 9.0.21 (x64)", "9.0.21.36604", "Microsoft Corporation"),
+        [new("Microsoft .NET Runtime (x64)", "Microsoft .NET Runtime 10 (x64)", "10.0.13.36604", "Microsoft Corporation")], MatchState.DifferentMajor),
+    (new("Microsoft .NET Runtime - 9.0.21 (x64)", "9.0.21", "Microsoft Corporation"),
+        [new("Microsoft .NET Runtime (x64)", "Microsoft .NET Runtime (x64)", "9.0.22", "Microsoft Corporation")], MatchState.Candidate),
+    (new("Microsoft Visual C++ 2013 Redistributable (x64) - 12.0.30501", "12.0.30501", "Microsoft Corporation"),
+        [new("Microsoft Visual C++ 2013 Redistributable (x86)", "Microsoft Visual C++ 2013 Redistributable (x86)", "12.0.40664", "Microsoft Corporation")], MatchState.Ambiguous),
+    (new("Microsoft Visual C++ 2013 Redistributable (x64) - 12.0.30501", "12.0.30501", "Microsoft Corporation"),
+        [new("Microsoft Visual C++ 2013 Redistributable (x64)", "Microsoft Visual C++ 2013 Redistributable (x64)", "12.0.40664", "Microsoft Corporation")], MatchState.Candidate),
+    (new("Adobe Acrobat (64-bit)", "26.002.21931", "Adobe"),
+        [new("Adobe Acrobat (64-bit)", "Adobe Acrobat (64-bit)", "26.002.22031", "Adobe")], MatchState.Candidate),
+    (new("OBS Studio", "31.1.2", "OBS Project"),
+        [new("OBS Studio", "OBS Studio", "32.2.2", "OBS Project")], MatchState.Candidate),
 };
 int failed = 0;
 foreach (var (app, catalog, expected) in cases)
@@ -20,4 +32,18 @@ foreach (var (app, catalog, expected) in cases)
     if (!passed) failed++;
 }
 Console.WriteLine($"{cases.Length - failed}/{cases.Length} casos aprovados");
+var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    { "helpx.adobe.com", "obsproject.com", "learn.microsoft.com", "www.plex.tv" };
+foreach (var name in new[] { "Adobe Acrobat (64-bit)", "OBS Studio", "Microsoft Visual C++ 2013 Redistributable (x64)", "Plex" })
+{
+    var link = OfficialUpdates.GetPage(name);
+    bool valid = link is not null && link.Scheme == Uri.UriSchemeHttps && allowedHosts.Contains(link.Host);
+    Console.WriteLine($"{(valid ? "OK" : "FALHA")} site oficial: {name}");
+    if (!valid) failed++;
+}
+if (OfficialUpdates.GetPage("Fabricante nao conhecido") is not null)
+{
+    Console.WriteLine("FALHA: link nao permitido");
+    failed++;
+}
 return failed == 0 ? 0 : 1;
