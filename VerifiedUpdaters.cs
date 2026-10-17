@@ -76,7 +76,9 @@ internal static class VerifiedUpdaters
         if (parts.Length < 2 || parts.Length > 4 || parts.Any(x => !int.TryParse(x, out int n) || n < 0))
             return false;
         string padded = string.Join(".", parts.Concat(Enumerable.Repeat("0", 4 - parts.Length)));
-        return Version.TryParse(padded, out version!);
+        if (!Version.TryParse(padded, out var parsed) || parsed is null) return false;
+        version = parsed;
+        return true;
     }
 
     internal static bool IsInstalledVersionAtLeast(string identifier, string version, IEnumerable<ProgramEntry> apps)
@@ -182,7 +184,7 @@ internal static class VerifiedUpdaters
             };
             Guid action = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
             if (WinVerifyTrust(IntPtr.Zero, ref action, ref data) != 0) return false;
-            using var cert = X509CertificateLoader.LoadCertificateFromFile(path);
+            using var cert = new X509Certificate2(X509Certificate.CreateFromSignedFile(path));
             string name = cert.GetNameInfo(X509NameType.SimpleName, false);
             return name.Equals(signer, StringComparison.OrdinalIgnoreCase);
         }
