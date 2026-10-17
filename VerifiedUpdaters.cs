@@ -64,7 +64,7 @@ internal static class VerifiedUpdaters
             TryVersion(entry.AvailableVersion, out var obsAvailable) && obsAvailable == new Version(32, 2, 2, 0))
         {
             return new("obs-x64-32.2.2", "OBS Studio", "32.2.2", Obs, ObsDigest,
-                "OBS Project Corporation", "", true, "https://obsproject.com/download");
+                "OBS Project, LLC", "", true, "https://obsproject.com/download");
         }
         return null;
     }
