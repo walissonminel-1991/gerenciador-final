@@ -682,6 +682,11 @@ internal sealed partial class MainForm : Form
             if (_busy) return;
             if (action == "uninstall")
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
+            else if (action == "update-not-validated")
+            {
+                Status("Atualização não habilitada: falta um instalador verificado para este aplicativo.");
+                Log("Atualização de aplicativo de terceiros não iniciada: instalação ainda não validada.");
+            }
         };
         _programList.ItemCheckboxClicked += item =>
         {
