@@ -26,6 +26,42 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Diagnosticar contrato publico RuckZuck (sem dados do computador)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          try {
+            $response = Invoke-WebRequest -Uri 'https://ruckzuck.tools/rest/v2/geturl' -MaximumRedirection 0 -TimeoutSec 25 -ErrorAction Stop
+            $body = [string]$response.Content
+            $value = $body.Trim()
+            $kind = if ($value.StartsWith('"')) { 'aspas-json-ou-texto' } elseif ($value.StartsWith('{')) { 'objeto-json' } elseif ($value.StartsWith('[')) { 'lista-json' } elseif ($value.StartsWith('https://')) { 'url-https' } else { 'outro' }
+            if ($value.StartsWith('"')) {
+              try { $value = $value | ConvertFrom-Json -ErrorAction Stop } catch { $value = $value.Trim('"') }
+            }
+            $allowed = $false
+            $hostKind = 'invalido'
+            try {
+              $uri = [uri]([string]$value)
+              if (-not $uri.IsAbsoluteUri) { $uri = [uri]('https://' + [string]$value) }
+              if ($uri.Scheme -eq 'https') {
+                if ($uri.Host -eq 'ruckzuck.tools' -or $uri.Host.EndsWith('.ruckzuck.tools')) {
+                  $allowed = $true; $hostKind='ruckzuck.tools'
+                } else { $hostKind='outro-dominio' }
+              }
+            } catch {}
+            Write-Host "GETURL status=$([int]$response.StatusCode) formato=$kind comprimento=$($body.Length) dominio=$hostKind"
+            if ($allowed) {
+              $catalogUri = 'https://' + $uri.Host + '/rest/v2/getcatalog'
+              try {
+                $c = Invoke-WebRequest -Uri $catalogUri -MaximumRedirection 0 -TimeoutSec 35 -ErrorAction Stop
+                $raw = [string]$c.Content
+                $trim = $raw.TrimStart()
+                $shape = if ($trim.StartsWith('[')) { 'lista-json' } elseif ($trim.StartsWith('{')) { 'objeto-json' } elseif ($trim.StartsWith('<')) { 'html-ou-xml' } else { 'outro' }
+                Write-Host "GETCATALOG status=$([int]$c.StatusCode) formato=$shape comprimento=$($raw.Length) tipo=$($c.Headers['Content-Type'])"
+              } catch { Write-Host "GETCATALOG falha=$($_.Exception.GetType().Name)" }
+            }
+          } catch { Write-Host "GETURL falha=$($_.Exception.GetType().Name)" }
+
       - name: Testar motor de comparacao
         shell: pwsh
         run: |
