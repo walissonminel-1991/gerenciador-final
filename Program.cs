@@ -512,7 +512,7 @@ internal sealed partial class MainForm : Form
         Shown += async (_, _) =>
         {
             await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync);
-            if (!IsDisposed && _installed.Count > 0)
+            if (!IsDisposed)
                 BeginStartupChecks();
         };
         FormClosing += (_, e) =>
