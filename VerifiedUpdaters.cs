@@ -32,7 +32,7 @@ internal static class VerifiedUpdaters
             return "https://helpx.adobe.com/acrobat/using/updating-acrobat.html";
         if (entry.Name.Equals("Plex", StringComparison.OrdinalIgnoreCase) ||
             entry.Name.StartsWith("Plex Media Server", StringComparison.OrdinalIgnoreCase))
-            return "https://www.plex.tv/media-server-downloads/";
+            return "https://www.plex.tv/pt-br/apps-devices/";
         if (entry.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase))
             return "https://obsproject.com/download";
         if (entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable", StringComparison.OrdinalIgnoreCase))
