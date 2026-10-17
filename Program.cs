@@ -774,7 +774,7 @@ internal sealed partial class MainForm : Form
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 
         int left = e.Bounds.Left + 65 + prefix;
-        int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 246);
+        int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 150);
         TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
             new Rectangle(left, e.Bounds.Top + 8, width, 27), selected ? Accent : Ink,
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
@@ -786,7 +786,7 @@ internal sealed partial class MainForm : Form
             ? $"Resultado incerto (RuckZuck)  ·  Versão: {DisplayAppVersion(item.Version)}"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
-            new Rectangle(left, e.Bounds.Top + 36, Math.Max(20, e.Bounds.Width - left + e.Bounds.Left - 230), 25),
+            new Rectangle(left, e.Bounds.Top + 36, Math.Max(20, e.Bounds.Width - left + e.Bounds.Left - 145), 25),
             item.IsUpdate ? Color.FromArgb(133, 221, 176) : Muted,
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
 
@@ -1422,7 +1422,6 @@ internal sealed partial class MainForm : Form
     private void RenderTitle()
     {
         int updates = _installed.Count(x => x.IsUpdate);
-        int uncertain = _installed.Count(x => Matching.IsUncertain(x.ComparisonState));
         _listTitle.Text = $"Aplicativos: {_installed.Count} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
             (_multiSelectMode ? $"  ·  Marcados: {_checkedApps.Count}" : "");
     }
@@ -1474,20 +1473,6 @@ internal sealed partial class MainForm : Form
             _bulkUninstallButton.Enabled = !_busy && _multiSelectMode && _checkedApps.Count > 0;
         if (_clearSelectionButton is not null)
             _clearSelectionButton.Enabled = !_busy && _checkedApps.Count > 0;
-    }
-
-    private Task UpgradeAllAsync() { ShowUpdatesReadOnlyNotice(); return Task.CompletedTask; }
-    private Task UpgradeCheckedAsync() { ShowUpdatesReadOnlyNotice(); return Task.CompletedTask; }
-    private Task UpgradeEntriesAsync(IReadOnlyCollection<ProgramEntry> _) { ShowUpdatesReadOnlyNotice(); return Task.CompletedTask; }
-
-    private void ShowUpdatesReadOnlyNotice()
-    {
-        Status("Instalação automática desativada neste teste");
-        MessageBox.Show(this,
-            "A integração RuckZuck está em fase de validação somente de leitura.\n\n" +
-            "As versões exibidas são possíveis atualizações, não autorizações para baixar ou instalar pacotes. " +
-            "A atualização automática será habilitada somente após validar fontes e instaladores.",
-            "Atualizações em validação", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private async Task UninstallCheckedAsync() => await UninstallEntriesAsync(_checkedApps.ToArray());
