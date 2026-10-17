@@ -53,11 +53,63 @@ internal sealed class RuckZuckCatalog : IDisposable
         {
             throw new InvalidDataException($"O catálogo não retornou uma lista de produtos (tipo={document.RootElement.ValueKind}).");
         }
-        var entries = JsonSerializer.Deserialize<List<CatalogJson>>(json, options) ?? [];
-        return entries
-            .Where(x => !string.IsNullOrWhiteSpace(x.ProductVersion) && !string.IsNullOrWhiteSpace(x.Manufacturer))
-            .Select(x => new CatalogEntry(x.ShortName ?? "", x.ProductName ?? "", x.ProductVersion ?? "", x.Manufacturer ?? ""))
-            .ToArray();
+        // Ler cada registro de maneira isolada: um item inconsistente não invalida todo o catálogo.
+        using var rows = JsonDocument.Parse(json);
+        var entries = new List<CatalogEntry>();
+        foreach (var item in rows.RootElement.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Object)
+            {
+                if (TryCreateEntry(item, out var result)) entries.Add(result);
+            }
+            else if (item.ValueKind == JsonValueKind.String)
+            {
+                var nestedText = item.GetString();
+                if (string.IsNullOrWhiteSpace(nestedText) || nestedText.Length > 8192 ||
+                    !nestedText.TrimStart().StartsWith("{", StringComparison.Ordinal)) continue;
+                try
+                {
+                    using var nestedRow = JsonDocument.Parse(nestedText);
+                    if (nestedRow.RootElement.ValueKind == JsonValueKind.Object &&
+                        TryCreateEntry(nestedRow.RootElement, out var result))
+                        entries.Add(result);
+                }
+                catch (JsonException) { /* Ignorar somente a entrada inválida. */ }
+            }
+        }
+        if (entries.Count == 0)
+            throw new InvalidDataException($"O catálogo não possui entradas reconhecíveis (registros={rows.RootElement.GetArrayLength()}).");
+        return entries;
+    }
+
+    private static bool TryCreateEntry(JsonElement item, out CatalogEntry result)
+    {
+        result = null!;
+        var shortName = ReadProperty(item, "ShortName") ?? "";
+        var productName = ReadProperty(item, "ProductName") ?? "";
+        var version = ReadProperty(item, "ProductVersion") ?? "";
+        var maker = ReadProperty(item, "Manufacturer") ?? "";
+        if (version.Length == 0 || maker.Length == 0 || (shortName.Length == 0 && productName.Length == 0))
+            return false;
+        result = new CatalogEntry(shortName, productName, version, maker);
+        return true;
+    }
+
+    private static string? ReadProperty(JsonElement obj, string name)
+    {
+        foreach (var field in obj.EnumerateObject())
+        {
+            if (!field.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) continue;
+            string? value = field.Value.ValueKind switch
+            {
+                JsonValueKind.String => field.Value.GetString(),
+                JsonValueKind.Number => field.Value.GetRawText(),
+                _ => null
+            };
+            value = value?.Trim();
+            return value is { Length: > 0 and <= 512 } ? value : null;
+        }
+        return null;
     }
 
     private static bool IsAllowedUri(Uri url)
