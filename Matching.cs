@@ -8,6 +8,7 @@ namespace GerenciadorAplicativos;
 internal static class Matching
 {
     private static readonly Regex Architecture = new(@"\s*(?:\((?:x64|x86|64.bit|32.bit)\)|\b(?:x64|x86|64.bit|32.bit)\b)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex AnyArchitecture = new(@"(?<![a-z0-9])(?:x64|x86|64[\s-]?bit|32[\s-]?bit)(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex TrailingVersion = new(@"\s+v?\d+(?:\.\d+){1,3}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex VersionPattern = new(@"^v?\d+(?:\.\d+){0,3}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex NonLetters = new(@"[^a-z0-9]+", RegexOptions.Compiled);
@@ -17,6 +18,8 @@ internal static class Matching
     {
         var s = (value ?? "").Trim();
         s = Architecture.Replace(s, "");
+        s = TrailingVersion.Replace(s, "");
+        s = AnyArchitecture.Replace(s, "");
         s = TrailingVersion.Replace(s, "");
         return Normalize(s);
     }
@@ -50,6 +53,28 @@ internal static class Matching
         return s.Trim();
     }
 
+    private static string GetArchitecture(string? name)
+    {
+        var m = AnyArchitecture.Match(name ?? "");
+        if (!m.Success) return "";
+        string value = m.Value.ToLowerInvariant();
+        return value is "x64" or "64bit" or "64-bit" or "64 bit" ? "x64" : "x86";
+    }
+
+    private static bool IsSideBySideRuntime(string name)
+    {
+        var n = NormalizeName(name);
+        return n.Contains("net runtime", StringComparison.Ordinal) ||
+               n.Contains("asp net core", StringComparison.Ordinal) ||
+               n.Contains("net sdk", StringComparison.Ordinal) ||
+               n.Contains("desktop runtime", StringComparison.Ordinal) ||
+               n.Contains("net hosting", StringComparison.Ordinal) ||
+               n.Contains("net framework", StringComparison.Ordinal);
+    }
+
+    internal static bool IsUncertain(MatchState state) =>
+        state is MatchState.Ambiguous or MatchState.NotComparable or MatchState.DifferentMajor;
+
     internal static int? CompareVersions(string? installed, string? available)
     {
         var a = (installed ?? "").Trim();
@@ -80,10 +105,29 @@ internal static class Matching
                 continue;
             }
 
-            var matches = nameMatches.Where(x => NormalizePublisher(x.Manufacturer) == publisher).ToArray();
-            if (matches.Length == 0)
+            var samePublisher = nameMatches.Where(x => NormalizePublisher(x.Manufacturer) == publisher).ToArray();
+            if (samePublisher.Length == 0)
             {
                 output.Add(new(app, null, MatchState.Unmatched));
+                continue;
+            }
+            string installedArch = GetArchitecture(app.Name);
+            bool isRuntime = IsSideBySideRuntime(app.Name);
+            bool requiresExactArch = isRuntime ||
+                (name.Contains("visual c", StringComparison.Ordinal) && name.Contains("redistributable", StringComparison.Ordinal));
+            var matches = samePublisher.Where(x =>
+            {
+                string shortArch = GetArchitecture(x.ShortName);
+                string productArch = GetArchitecture(x.ProductName);
+                if (shortArch.Length > 0 && productArch.Length > 0 && shortArch != productArch) return false;
+                string availableArch = productArch.Length > 0 ? productArch : shortArch;
+                if (requiresExactArch && (installedArch.Length == 0 || availableArch.Length == 0))
+                    return false;
+                return installedArch.Length == 0 || availableArch.Length == 0 || installedArch == availableArch;
+            }).ToArray();
+            if (matches.Length == 0)
+            {
+                output.Add(new(app, null, MatchState.Ambiguous));
                 continue;
             }
             // Produtos com identificações distintas ou revisões incomparáveis são ambíguos.
@@ -109,6 +153,10 @@ internal static class Matching
             var state = versionComparison switch
             {
                 null => MatchState.NotComparable,
+                < 0 when isRuntime &&
+                    Version.TryParse(app.Version.TrimStart('v', 'V'), out var installedVersion) &&
+                    Version.TryParse(newest.ProductVersion.TrimStart('v', 'V'), out var availableVersion) &&
+                    installedVersion.Major != availableVersion.Major => MatchState.DifferentMajor,
                 < 0 => MatchState.Candidate,
                 _ => MatchState.EqualOrNewer
             };
