@@ -48,7 +48,9 @@ jobs:
           if (-not $main.Contains('DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton')) { throw 'Botao atualizar ausente' }
           if (-not $systemUi.Contains('_processTimer.Start();')) { throw 'Amostragem automatica ausente' }
           if (-not $systemUi.Contains('WindowsUpdateClient.ScanAsync()')) { throw 'Consulta oficial do Windows Update ausente' }
-          if (-not $logic.Contains('update-not-validated')) { throw 'Acao sem instalador nao esta protegida' }
+          if (-not $logic.Contains('VerifiedUpdaters.Resolve(item) is not null')) { throw 'Acao Atualizar sem autorizacao de receita' }
+          if (-not $main.Contains('VerifiedUpdaters.DownloadAndVerifyAsync')) { throw 'Motor de validacao de instaladores nao integrado' }
+          if (-not $main.Contains('VerifiedUpdaters.GetOfficialPage')) { throw 'Opcao de site oficial ausente' }
 
       - name: Testar receitas de atualizacao oficiais e isolamento
         shell: pwsh
