@@ -1,0 +1,32 @@
+# .NET / Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+TestResults/
+
+# Builds, installers and caches
+Distribuicao/
+Instalador/
+Instalador-Teste/
+.cache/
+artifacts/
+*.nupkg
+*.snupkg
+
+# Chaves, certificados privados e segredos — NÃO versionar
+*.pfx
+*.p12
+*.p8
+*.key
+*.pem
+*.secrets.json
+.env
+.env.*
+
+# Logs temporários
+*.log
+*.tmp
+Desktop.ini
+Thumbs.db
