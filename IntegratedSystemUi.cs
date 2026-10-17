@@ -23,7 +23,11 @@ internal sealed partial class MainForm
     private readonly ProcessHistorySampler _processSampler = new();
     private readonly System.Windows.Forms.Timer _processTimer = new() { Interval = 5000 };
     private bool _processSampling;
-    private string _activeSystemView = "";
+    private SystemInfoSnapshot? _latestProcessSnapshot;
+    private bool _windowsUpdateScanning;
+    private bool _windowsUpdateChecked;
+    private string? _windowsUpdateScanFailure;
+    private string _activeSystemView = "processes";
 
     private Control BuildIntegratedSystemPanel()
     {
@@ -42,7 +46,7 @@ internal sealed partial class MainForm
         };
         for (int i = 0; i < 4; i++) actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
         AddIntegratedAction(actions, 0, "Processos", "Histórico recente de CPU e RAM, atualizado a cada 5 s.", AppServices.Blue,
-            async () => { _activeSystemView = "processes"; _processTimer.Start(); await RefreshProcessHistoryAsync(); });
+            async () => { _activeSystemView = "processes"; ShowCachedProcessesIfAvailable(); await RefreshProcessHistoryAsync(); });
         AddIntegratedAction(actions, 1, "Inicialização", "Ative ou desative entradas do seu usuário de modo reversível.", AppServices.Gray,
             async () => { _activeSystemView = "startup"; await RefreshStartupEntriesAsync(); });
         AddIntegratedAction(actions, 2, "Windows Update", "Procure, selecione e instale atualizações oficiais.", AppServices.Green,
@@ -125,8 +129,7 @@ internal sealed partial class MainForm
 
         _processTimer.Tick += async (_, _) =>
         {
-            if (_activeSystemView != "processes" || _processSampling || _busy || IsDisposed || _nav.SelectedIndex != 4)
-                return;
+            if (_processSampling || IsDisposed) return;
             await RefreshProcessHistoryAsync();
         };
         FormClosed += (_, _) => _processTimer.Dispose();
@@ -135,8 +138,7 @@ internal sealed partial class MainForm
 
     private void SetSystemView(string view)
     {
-        _activeSystemView = view;
-        if (view != "processes") _processTimer.Stop();
+        _activeSystemView = view; // Amostragem segue em memória para ter histórico ao abrir a aba.
         if (_systemDetails is null || _installSelectedUpdates is null) return;
         bool showInstall = view == "update";
         _systemDetails.RowStyles[2].Height = showInstall ? 43 : 0;
@@ -480,18 +482,81 @@ internal sealed partial class MainForm
         return card;
     }
 
+    // Inicializa as amostras de CPU/RAM independentemente da aba visível.
+    private void BeginBackgroundProcessSampling()
+    {
+        if (IsDisposed) return;
+        _processTimer.Start();
+        _ = RefreshProcessHistoryAsync();
+        Log("Monitor de processos iniciado automaticamente (somente memória, a cada 5 segundos).");
+    }
+
+    private void ShowCachedProcessesIfAvailable()
+    {
+        if (_latestProcessSnapshot is not null && !IsDisposed)
+            ShowIntegratedSnapshot(_latestProcessSnapshot);
+    }
+
     private async Task ScanWindowsUpdatesAsync()
     {
-        await ExecuteAsync("Procurando atualizações do Windows...", async () =>
+        await ScanWindowsUpdatesInBackgroundAsync();
+    }
+
+    private async Task ScanWindowsUpdatesInBackgroundAsync(bool force = false)
+    {
+        if (IsDisposed) return;
+        if (_windowsUpdateScanning)
         {
-            _systemPanelTitle.Text = "Windows Update · procurando...";
-            _systemPanelSummary.Text = "A pesquisa pode demorar alguns minutos e requer Internet. Não instala nada nesta etapa.";
-            _updateCatalog = await WindowsUpdateClient.ScanAsync();
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
+            {
+                _systemPanelTitle.Text = "Windows Update · consultando...";
+                _systemPanelSummary.Text = "Busca automática em andamento. Nenhuma atualização será instalada sem confirmação.";
+            }
+            return;
+        }
+        if (_windowsUpdateChecked && !force)
+        {
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
+                DrawWindowsUpdates();
+            return;
+        }
+        _windowsUpdateScanning = true;
+        if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
+        {
+            _systemPanelTitle.Text = "Windows Update · consultando...";
+            _systemPanelSummary.Text = "Consulta oficial do Windows em segundo plano; pode demorar alguns minutos.";
+        }
+        Log("Windows Update: consulta iniciada automaticamente, sem instalar atualizações.");
+        try
+        {
+            // A API Windows Update Agent roda numa thread STA própria e não bloqueia a janela.
+            var found = await WindowsUpdateClient.ScanAsync();
+            if (IsDisposed) return;
+            _updateCatalog = found;
             _updateSelection.Clear();
-            DrawWindowsUpdates();
-            Status($"{_updateCatalog.Count} atualizações do Windows disponíveis");
-            Log($"Windows Update Agent: {_updateCatalog.Count} atualizações de software encontradas.");
-        });
+            _windowsUpdateChecked = true;
+            _windowsUpdateScanFailure = null;
+            Log($"Windows Update: {_updateCatalog.Count} atualização(ões) de software encontrada(s).");
+            DiagnosticTrace.Write($"WINDOWS_UPDATE.CONSULTA_OK quantidade={found.Count}");
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
+            {
+                DrawWindowsUpdates();
+                Status($"Windows Update: {found.Count} atualizações disponíveis");
+            }
+        }
+        catch (Exception ex)
+        {
+            if (IsDisposed) return;
+            _windowsUpdateScanFailure = ex.GetType().Name;
+            DiagnosticTrace.Failure("WINDOWS_UPDATE.CONSULTA_FALHA", ex);
+            Log("Windows Update: consulta indisponível (" + _windowsUpdateScanFailure + ").");
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
+            {
+                _systemPanelTitle.Text = "Windows Update · consulta indisponível";
+                _systemPanelSummary.Text = "O Windows Update não pôde ser consultado. Nenhuma instalação foi iniciada.";
+            }
+        }
+        finally { _windowsUpdateScanning = false; }
     }
 
     private void DrawWindowsUpdates()
@@ -585,18 +650,20 @@ internal sealed partial class MainForm
 
     private async Task RefreshProcessHistoryAsync()
     {
-        if (_processSampling || _busy || _activeSystemView != "processes") return;
+        if (_processSampling || IsDisposed) return;
         _processSampling = true;
         try
         {
             var snapshot = await Task.Run(_processSampler.TakeSample);
-            if (_activeSystemView == "processes" && !IsDisposed)
+            if (IsDisposed) return;
+            _latestProcessSnapshot = snapshot;
+            if (_activeSystemView == "processes" && _nav.SelectedIndex == 4)
             {
                 ShowIntegratedSnapshot(snapshot);
                 Status("Histórico de processos atualizado");
             }
         }
-        catch (Exception ex) { Log("Histórico de processos: " + ex.Message); }
+        catch (Exception ex) { if (!IsDisposed) Log("Histórico de processos: " + ex.GetType().Name); }
         finally { _processSampling = false; }
     }
 }
