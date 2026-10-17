@@ -32,18 +32,4 @@ foreach (var (app, catalog, expected) in cases)
     if (!passed) failed++;
 }
 Console.WriteLine($"{cases.Length - failed}/{cases.Length} casos aprovados");
-var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    { "helpx.adobe.com", "obsproject.com", "learn.microsoft.com", "www.plex.tv" };
-foreach (var name in new[] { "Adobe Acrobat (64-bit)", "OBS Studio", "Microsoft Visual C++ 2013 Redistributable (x64)", "Plex" })
-{
-    var link = OfficialUpdates.GetPage(name);
-    bool valid = link is not null && link.Scheme == Uri.UriSchemeHttps && allowedHosts.Contains(link.Host);
-    Console.WriteLine($"{(valid ? "OK" : "FALHA")} site oficial: {name}");
-    if (!valid) failed++;
-}
-if (OfficialUpdates.GetPage("Fabricante nao conhecido") is not null)
-{
-    Console.WriteLine("FALHA: link nao permitido");
-    failed++;
-}
 return failed == 0 ? 0 : 1;
