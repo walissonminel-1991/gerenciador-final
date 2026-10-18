@@ -1531,7 +1531,7 @@ internal sealed partial class MainForm : Form
                 Log($"Fonte oficial {diagnostic.Provider}: {diagnostic.Status}, {diagnostic.Milliseconds} ms.");
             DiagnosticTrace.Write($"MULTIFONTES.CONSULTA_OK instalados={installed.Length} candidatos={candidates} " +
                 $"fontes_oficiais={officialCandidates} incertos={uncertain} ruckzuck_entradas={rz.Count} " +
-                $"ruckzuck_ms={rz.NetworkMs} total_ms={watch.ElapsedMilliseconds}");
+                $"ruckzuck_ms={rz.NetworkMs} comparacao_ms={rz.CompareMs} total_ms={watch.ElapsedMilliseconds}");
             Log("Instalação automática permanece limitada a instaladores oficiais com receitas verificadas.");
             Status($"Consulta concluída: {candidates} possíveis atualizações · múltiplas fontes");
         }
