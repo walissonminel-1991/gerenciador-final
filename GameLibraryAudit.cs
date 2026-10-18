@@ -10,7 +10,12 @@ internal sealed record GameLibraryEntry(string Platform, string GameId,
     string DisplayName, string Library);
 internal sealed record GameLibraryReport(int Steam, int Epic,
     int ManifestsChecked, int Unreadable, bool Partial,
-    IReadOnlyList<GameLibraryEntry> Examples);
+    IReadOnlyList<GameLibraryEntry> Examples)
+{
+    // Nomes verificados em manifestos locais: protege jogos ativos na auditoria
+    // de residuos. Os exemplos visuais permanecem limitados a 12 entradas.
+    internal IReadOnlyCollection<string> ActiveNames { get; init; } = Array.Empty<string>();
+}
 
 internal static class GameLibraryAudit
 {
@@ -95,6 +100,7 @@ internal static class GameLibraryAudit
         bool partial = false;
         var examples = new List<GameLibraryEntry>();
         var unique = new HashSet<string>(Comparison);
+        var activeNames = new HashSet<string>(Comparison);
         string? main = ReadSteamRoot();
         if (!string.IsNullOrWhiteSpace(main))
         {
@@ -126,6 +132,7 @@ internal static class GameLibraryAudit
                         string id = Path.GetFileNameWithoutExtension(filename)["appmanifest_".Length..];
                         if (!Regex.IsMatch(id, @"^\d{1,12}$") || !unique.Add("steam:" + id)) continue;
                         steam++;
+                        activeNames.Add(name);
                         if (examples.Count < 12) examples.Add(new("Steam", id, name, library));
                     }
                 }
@@ -150,6 +157,7 @@ internal static class GameLibraryAudit
                     if (!TryReadEpicManifest(File.ReadAllText(filename), out string name, out string id) ||
                         !unique.Add("epic:" + id)) continue;
                     epic++;
+                    activeNames.Add(name);
                     if (examples.Count < 12) examples.Add(new("Epic Games", id, name, epicRoot));
                 }
             }
@@ -157,6 +165,6 @@ internal static class GameLibraryAudit
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { unreadable++; partial = true; }
         return new(steam, epic, Math.Min(seen, ManifestLimit),
-            unreadable, partial, examples);
+            unreadable, partial, examples) { ActiveNames = activeNames.ToArray() };
     }
 }
