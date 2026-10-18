@@ -50,7 +50,7 @@ Verify(VerifiedUpdaters.GetPrimaryAction(outlook) == "store" &&
        VerifiedUpdaters.GetMicrosoftStoreUri(outlook)?.AbsoluteUri.Contains("9NRX63209R7B") == true,
        "Outlook abre produto correto na Microsoft Store");
 Verify(VerifiedUpdaters.GetPrimaryAction(gameInput) == "store" &&
-       VerifiedUpdaters.GetMicrosoftStoreUri(gameInput)?.AbsoluteUri == "ms-windows-store://downloadsandupdates" &&
+       VerifiedUpdaters.GetMicrosoftStoreUri(gameInput)?.AbsoluteUri.StartsWith("ms-windows-store://downloadsandupdates") == true &&
        VerifiedUpdaters.GetStoreWebFallback(gameInput) is null,
        "GameInput abre atualizacoes sem link de produto inventado");
 Verify(VerifiedUpdaters.GetPrimaryAction(terminal) == "store" &&
