@@ -62,6 +62,7 @@ on:
   pull_request:
     branches:
       - main
+      - teste-precisao-residuos-v5.13.3
   workflow_dispatch:
 
 permissions:
