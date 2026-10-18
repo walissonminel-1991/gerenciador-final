@@ -8,5 +8,7 @@
   <ItemGroup>
     <Compile Include="../UninstallResiduals.cs" Link="UninstallResiduals.cs" />
     <Compile Include="../AdvancedUninstallCleaner.cs" Link="AdvancedUninstallCleaner.cs" />
+    <Compile Include="../UninstallRuleCatalog.cs" Link="UninstallRuleCatalog.cs" />
+    <EmbeddedResource Include="../CatalogoDesinstalacao.json" LogicalName="GerenciadorFinal.UninstallCatalog" />
   </ItemGroup>
 </Project>
