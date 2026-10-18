@@ -6,8 +6,8 @@ void Verify(bool condition, string label)
     checkedCount++;
     Console.WriteLine("OK " + label);
 }
-ProgramEntry Item(string name, string installed, string available, string publisher = "Microsoft Corporation")
-    => new() { Name = name, Version = installed, AvailableVersion = available, Publisher = publisher, IsUpdate = true };
+ProgramEntry Item(string name, string installed, string available, string publisher = "Microsoft Corporation", string source = "")
+    => new() { Name = name, Version = installed, AvailableVersion = available, Publisher = publisher, Source = source, IsUpdate = true };
 var x64 = VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64) - 12.0.30501",
  "12.0.30501.0", "12.0.40664.0"));
 var x86 = VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x86) - 12.0.30501",
@@ -43,10 +43,36 @@ Verify(VerifiedUpdaters.GetPrimaryAction(Item("Aplicativo sem fabricante confirm
  "Candidato sem pagina nao executa download");
 Verify(VerifiedUpdaters.GetPrimaryAction(new ProgramEntry { Name = "OBS Studio", IsUpdate = false }) is null,
  "Programa atualizado nao possui acao");
+var outlook = Item("Outlook for Windows", "1.2025.416.400", "1.2026.812.100");
+var gameInput = Item("Microsoft GameInput", "3.5.270.0", "3.5.283");
+var terminal = Item("Windows Terminal", "1.24.12741.0", "1.25.2733.0", "Microsoft Corporation", "GitHub oficial");
+Verify(VerifiedUpdaters.GetPrimaryAction(outlook) == "store" &&
+       VerifiedUpdaters.GetMicrosoftStoreUri(outlook)?.AbsoluteUri.Contains("9NRX63209R7B") == true,
+       "Outlook abre produto correto na Microsoft Store");
+Verify(VerifiedUpdaters.GetPrimaryAction(gameInput) == "store" &&
+       VerifiedUpdaters.GetMicrosoftStoreUri(gameInput)?.AbsoluteUri == "ms-windows-store://downloadsandupdates" &&
+       VerifiedUpdaters.GetStoreWebFallback(gameInput) is null,
+       "GameInput abre atualizacoes sem link de produto inventado");
+Verify(VerifiedUpdaters.GetPrimaryAction(terminal) == "store" &&
+       VerifiedUpdaters.GetMicrosoftStoreUri(terminal)?.AbsoluteUri.Contains("9N0DX20HK701") == true,
+       "Windows Terminal prefere Store e atualizacoes continuas");
+Verify(VerifiedUpdaters.GetMicrosoftStoreUri(Item("Windows Terminal", "1.0", "2.0", "Desconhecido")) is null,
+       "Proibir spoof de fabricante Microsoft");
+var npp = VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial"));
+Verify(npp?.Identifier == "notepadpp-x64-8.9.8.1" && npp.Sha256?.Length == 64 &&
+       npp.RequiredSigner == "Notepad++", "Notepad++: receita fixada com digest e editor");
+Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Desconhecido", "GitHub oficial")) is null,
+       "Notepad++: rejeitar editor desconhecido");
+Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.2", "Don HO", "GitHub oficial")) is null,
+       "Notepad++: rejeitar versao nao aprovada");
+Verify(VerifiedUpdaters.Resolve(Item("Notepad++ (x86)", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial")) is null,
+       "Notepad++: nao instalar pacote x64 no cadastro x86");
 Console.WriteLine($"{checkedCount}/{checkedCount} testes do motor autorizador aprovados");
 if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 {
-    var recipes = args.Contains("--verify-obs", StringComparer.OrdinalIgnoreCase)
+    var recipes = args.Contains("--verify-npp", StringComparer.OrdinalIgnoreCase)
+        ? new[] { npp }
+        : args.Contains("--verify-obs", StringComparer.OrdinalIgnoreCase)
         ? new[] { obs } : new[] { x86, x64 };
     foreach (var recipe in recipes)
     {
