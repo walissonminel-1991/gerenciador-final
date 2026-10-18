@@ -17,12 +17,13 @@ internal static class HistoricalResidualAudit
         public string? Id { get; set; }
         public string? Name { get; set; }
         public List<string>? InstalledNames { get; set; }
+        public List<string>? ActiveDependents { get; set; }
         public List<string>? Folders { get; set; }
         public List<string>? Registry { get; set; }
         public string? Warn { get; set; }
     }
     internal sealed record Rule(string Id, string Name, string[] InstalledNames,
-        string[] Folders, string[] Registry, string Warn);
+        string[] ActiveDependents, string[] Folders, string[] Registry, string Warn);
 
     private static readonly Lazy<IReadOnlyList<Rule>> RulesHolder =
         new(ReadCatalog, LazyThreadSafetyMode.ExecutionAndPublication);
@@ -58,17 +59,21 @@ internal static class HistoricalResidualAudit
             if (string.IsNullOrWhiteSpace(raw.Id) ||
                 string.IsNullOrWhiteSpace(raw.Name) ||
                 raw.InstalledNames is not { Count: > 0 and <= 8 } ||
+                raw.ActiveDependents is { Count: > 8 } ||
                 raw.Folders is null || raw.Registry is null ||
                 !seen.Add(raw.Id) ||
                 raw.InstalledNames.Any(n => string.IsNullOrWhiteSpace(n) ||
                     n.Length > 70 || n.Contains('*')) ||
+                (raw.ActiveDependents?.Any(n => string.IsNullOrWhiteSpace(n) ||
+                    n.Length > 70 || n.Contains('*')) ?? false) ||
                 raw.Folders.Count + raw.Registry.Count == 0 ||
                 raw.Folders.Count > 8 || raw.Registry.Count > 8 ||
                 raw.Folders.Any(f => !AllowedFolderIdentifier(f)) ||
                 raw.Registry.Any(k => !AllowedRegistryIdentifier(k)))
                 throw new InvalidDataException("Regra historica insegura.");
             rules.Add(new(raw.Id, raw.Name, raw.InstalledNames.ToArray(),
-                raw.Folders.ToArray(), raw.Registry.ToArray(), raw.Warn ?? ""));
+                raw.ActiveDependents?.ToArray() ?? [], raw.Folders.ToArray(),
+                raw.Registry.ToArray(), raw.Warn ?? ""));
         }
         return rules;
     }
@@ -176,9 +181,11 @@ internal static class HistoricalResidualAudit
 
     internal static bool IsRuleInstalled(Rule rule, IReadOnlyCollection<ProgramEntry> inventory)
     {
-        return inventory.Any(app => rule.InstalledNames.Any(alias =>
-            app.Name.Equals(alias, StringComparison.OrdinalIgnoreCase) ||
-            app.Name.StartsWith(alias + " (", StringComparison.OrdinalIgnoreCase)));
+        // Uma integracao pode continuar ativa por meio de outro aplicativo.
+        // A presenca de qualquer dependente impede sinalizar um vestigio.
+        return inventory.Any(app => rule.InstalledNames.Concat(rule.ActiveDependents)
+            .Any(alias => app.Name.Equals(alias, StringComparison.OrdinalIgnoreCase) ||
+                app.Name.StartsWith(alias + " (", StringComparison.OrdinalIgnoreCase)));
     }
 
     internal static IReadOnlyList<ResidualAuditReport> Inspect(

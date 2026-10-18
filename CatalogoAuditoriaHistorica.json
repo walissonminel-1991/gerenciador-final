@@ -17,7 +17,7 @@
       "registry": [
         "HKLM32\\SOFTWARE\\Origin"
       ],
-      "warn": "Origin Cloud Saves may contain game progress; EA app may still rely on these files."
+      "warn": "Os dados do Origin podem conter jogos salvos e ainda ser usados pelo EA app."
     },
     {
       "id": "utorrent-web",
@@ -31,7 +31,7 @@
         "StartMenu\\uTorrent Web"
       ],
       "registry": [],
-      "warn": "Start Menu links must be examined individually before deletion."
+      "warn": "Atalhos antigos devem ser revisados individualmente antes de qualquer exclusao."
     },
     {
       "id": "vivaldi",
@@ -46,7 +46,11 @@
         "HKCU\\Software\\Vivaldi\\NativeMessagingHosts",
         "HKCU\\Software\\Vivaldi\\NativeMessagingHosts\\me.proton.pass.nm"
       ],
-      "warn": "The Proton Pass native messaging host may still be needed by another installed component."
+      "warn": "O componente Proton Pass pode continuar em uso. Nao remova estas chaves por conta propria.",
+      "activeDependents": [
+        "Proton Pass",
+        "Proton Pass for Windows"
+      ]
     }
   ]
 }

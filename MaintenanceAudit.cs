@@ -209,11 +209,11 @@ internal static class MaintenanceAudit
             findings.Add(new("Hardware", "Dispositivos com problema",
                 $"{device.WithProblems} dispositivos atualmente presentes têm códigos de problema no Windows."));
         if (historical is { NotPresent: > 0 })
-            findings.Add(new("Hardware", "Registros PnP históricos",
-                $"{historical.NotPresent} instâncias PCI/USB do Registro não aparecem no " +
-                "inventário de dispositivos presentes. Podem ser periféricos guardados, " +
-                "instâncias antigas ou componentes ainda necessários. " +
-                "Não representam necessariamente pacotes de drivers removíveis."));
+            findings.Add(new("Hardware", "Instâncias PnP não confirmadas",
+                $"{historical.NotPresent} instâncias PCI/USB/USBSTOR do Registro não foram " +
+                "confirmadas como presentes no retrato atual do Windows. " +
+                "Esse valor não é o total de dispositivos desconectados, " +
+                "nem identifica pacotes de drivers obsoletos. Não remova nada."));
         if (inspectDevices && !device.Supported)
             findings.Add(new("Hardware", "Consulta parcial",
                 "O Windows não disponibilizou a informação completa dos dispositivos PnP."));
