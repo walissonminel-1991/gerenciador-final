@@ -138,6 +138,56 @@ finally
 }
 Check(AdvancedUninstallCleaner.Inspect(new[] { sumatra, notepad }).Count == 0,
     "Modo profundo não apresenta programa ainda instalado");
+Console.WriteLine("Testes do catálogo de desinstalação embarcado.");
+var rules = UninstallRuleCatalog.Rules;
+Check(rules.Count == 6, "Seis políticas específicas validadas e incorporadas ao executável");
+Check(rules.Any(x => x.Id == "sumatrapdf" && x.RegistryKeys.Single() == @"Software\SumatraPDF"),
+    "Política SumatraPDF tem HKCU exclusivo");
+Check(rules.Any(x => x.Id == "obs" && x.Folders.Count == 1 && x.RegistryKeys.Count == 0),
+    "OBS possui perfil próprio sem remover Registro não comprovado");
+Check(rules.Any(x => x.Id == "vlc" && x.Folders.Count == 1),
+    "Nova cobertura de resíduos VLC");
+Check(AdvancedUninstallCleaner.StillInstalled(new ProgramEntry { Name = "7-Zip" },
+    new[] { new ProgramEntry { Name = "7-Zip 26.04 (x64)" } }),
+    "Nunca remover configuração 7-Zip enquanto variante instalada");
+Check(AdvancedUninstallCleaner.StillInstalled(new ProgramEntry { Name = "OBS Studio" },
+    new[] { new ProgramEntry { Name = "OBS Studio 32.2.2" } }),
+    "Não apagar perfil OBS enquanto variante do aplicativo está presente");
+Check(!AdvancedUninstallCleaner.StillInstalled(new ProgramEntry { Name = "SumatraPDF" },
+    Array.Empty<ProgramEntry>()), "SumatraPDF desinstalado pode ser analisado");
+Check(AdvancedUninstallCleaner.StillInstalled(new ProgramEntry { Name = "Program Unknown" },
+    Array.Empty<ProgramEntry>()), "Aplicativo fora do catálogo bloqueado por padrão");
+Check(!UninstallRuleCatalog.NameMatches("7-Zippy Browser", "7-Zip*"),
+    "Correspondência por prefixo não captura aplicativos homônimos");
+Check(UninstallRuleCatalog.NameMatches("Notepad++ (64-bit x64)", "Notepad++*"),
+    "Cobrir variantes reais do Notepad++");
+
+void InvalidCatalog(string path, string key = "")
+{
+    string json = System.Text.Json.JsonSerializer.Serialize(new
+    {
+        schema = 1,
+        rules = new[] { new {
+            id = "app", displayName = "App Test", installedNames = new[] { "App Test" },
+            folders = new [] { path }, registryKeys = key.Length == 0 ? Array.Empty<string>() : new[] { key }
+        } }
+    });
+    try
+    {
+        UninstallRuleCatalog.Parse(json);
+        throw new Exception("FALHA: catálogo inseguro aceito: " + path);
+    }
+    catch (InvalidDataException) { passed++; }
+}
+InvalidCatalog("Roaming\\..");
+InvalidCatalog("Local\\Microsoft");
+InvalidCatalog("Roaming\\App\\Documents");
+InvalidCatalog("Windows\\System32");
+InvalidCatalog("Local\\App", @"Software\Microsoft");
+InvalidCatalog("Local\\App", @"Software\Google");
+InvalidCatalog("Local\\App", @"Software\Microsoft\Windows");
+Console.WriteLine("7 políticas maliciosas de catálogo recusadas.");
+
 
 Console.WriteLine($"{passed}/{passed} testes de varredura e limpeza pós-desinstalacao aprovados.");
 namespace GerenciadorAplicativos
