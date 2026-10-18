@@ -31,5 +31,32 @@ foreach (var (app, catalog, expected) in cases)
     Console.WriteLine($"{(passed ? "OK" : "FALHA")} {app.Name}: esperado={expected} obtido={actual}");
     if (!passed) failed++;
 }
-Console.WriteLine($"{cases.Length - failed}/{cases.Length} casos aprovados");
+// Regressão observada: a instalação de Visual C++ registrou 12.0.40664,
+// mas a entrada 12.0.30501 continuou existente. Ela não deve sugerir reinstalação.
+var installedVc = new[]
+{
+    new InstalledApp("Microsoft Visual C++ 2013 Redistributable (x64) - 12.0.30501", "12.0.30501.0", "Microsoft Corporation"),
+    new InstalledApp("Microsoft Visual C++ 2013 Redistributable (x64) - 12.0.40664", "12.0.40664.0", "Microsoft Corporation"),
+    new InstalledApp("Microsoft Visual C++ 2013 Redistributable (x86) - 12.0.30501", "12.0.30501.0", "Microsoft Corporation")
+};
+var vcCatalog = new[]
+{
+    new CatalogEntry("Microsoft Visual C++ 2013 Redistributable (x64)", "Microsoft Visual C++ 2013 Redistributable (x64)", "12.0.40664.0", "Microsoft Corporation"),
+    new CatalogEntry("Microsoft Visual C++ 2013 Redistributable (x86)", "Microsoft Visual C++ 2013 Redistributable (x86)", "12.0.40664.0", "Microsoft Corporation")
+};
+var checkedVc = Matching.Evaluate(installedVc, vcCatalog);
+var expectedVc = new[] { MatchState.SupersededRegistration, MatchState.EqualOrNewer, MatchState.Candidate };
+for (int i = 0; i < expectedVc.Length; i++)
+{
+    bool passed = checkedVc[i].State == expectedVc[i];
+    Console.WriteLine($"{(passed ? "OK" : "FALHA")} Visual C++ arquitetura/registro item={i} esperado={expectedVc[i]} obtido={checkedVc[i].State}");
+    if (!passed) failed++;
+}
+var newerOnly = Matching.Evaluate([installedVc[0]], vcCatalog);
+if (newerOnly[0].State != MatchState.Candidate)
+{
+    Console.WriteLine("FALHA: registro sem versão recente deixou de oferecer atualização necessária.");
+    failed++;
+}
+Console.WriteLine($"{cases.Length + expectedVc.Length + 1 - failed}/{cases.Length + expectedVc.Length + 1} casos aprovados");
 return failed == 0 ? 0 : 1;
