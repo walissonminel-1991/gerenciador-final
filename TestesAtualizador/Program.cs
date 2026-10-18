@@ -28,8 +28,9 @@ Verify(VerifiedUpdaters.Resolve(Item("OBS Studio", "31.1.2", "33.0.0", "OBS Proj
  "Recusar versao OBS nao validada");
 Verify(VerifiedUpdaters.Resolve(Item("Microsoft .NET Runtime - 9.0.21 (x64)", "9.0.21", "10.0.13")) is null,
  "Nao confundir runtimes paralelos");
-Verify(VerifiedUpdaters.GetOfficialPage(Item("Adobe Acrobat (64-bit)", "26.002.21931", "26.002.22031", "Adobe")) is not null,
- "Site oficial Adobe como alternativa");
+Verify(VerifiedUpdaters.GetOfficialPage(Item("Adobe Acrobat (64-bit)", "26.002.21931", "26.002.22031", "Adobe")) ==
+ "https://helpx.adobe.com/br/acrobat/desktop/get-set-up/access-the-app/update-manual.html",
+ "Adobe Acrobat: pagina oficial correta de atualizacao em portugues");
 Verify(VerifiedUpdaters.GetOfficialPage(Item("Plex", "1.112.0", "1.115.0", "Plex")) is not null,
  "Site oficial Plex como alternativa");
 Verify(VerifiedUpdaters.TryVersion("12.0.40664", out var ver) && ver == new Version(12, 0, 40664, 0),
