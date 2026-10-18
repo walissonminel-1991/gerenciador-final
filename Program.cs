@@ -209,7 +209,7 @@ internal static class AppServices
                             Name = name,
                             Version = Convert.ToString(child.GetValue("DisplayVersion"))?.Trim() ?? "",
                             Publisher = Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "",
-                            UninstallString = Convert.ToString(child.GetValue("UninstallString")) ?? "",
+                            UninstallString = systemComponent ? "" : Convert.ToString(child.GetValue("UninstallString")) ?? "",
                             QuietUninstallString = systemComponent ? "" :
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
                             InventoryOnly = systemComponent
@@ -774,7 +774,7 @@ internal sealed partial class MainForm : Form
         _programList.ItemActionClicked += (item, action) =>
         {
             if (_busy) return;
-            if (action == "uninstall")
+            if (action == "uninstall" && !item.InventoryOnly)
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
             else if (action == "update")
                 _ = UpdateThirdPartyAsync(item);
@@ -783,7 +783,7 @@ internal sealed partial class MainForm : Form
         };
         _programList.ItemCheckboxClicked += item =>
         {
-            if (_busy || !_multiSelectMode) return;
+            if (_busy || !_multiSelectMode || item.InventoryOnly) return;
             if (!_checkedApps.Add(item)) _checkedApps.Remove(item);
             _programList.Invalidate();
             RenderTitle();
