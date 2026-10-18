@@ -733,6 +733,8 @@ jobs:
           $reconciler = Get-Content InventoryReconciler.cs -Raw
           $testsMsix = Get-Content TestesMsix/Program.cs -Raw
           $testsRegistry = Get-Content TestesResiduos/Program.cs -Raw
+          $matcher = Get-Content Matching.cs -Raw
+          $official = Get-Content OfficialReleaseSources.cs -Raw
           if (-not $program.Contains('ScanAllInstalledApps()') -or
               -not $program.Contains('ScanInstalledPrograms()') -or
               -not $program.Contains('GetInstalledPrograms() =>')) {
@@ -750,6 +752,12 @@ jobs:
           if (-not $msix.Contains('RecipeEligible: false') -or
               -not $program.Contains('app.RecipeEligible')) {
             throw 'Inventario generico nao pode conceder receita automatica'
+          }
+          if (-not $program.Contains('VerifiedMsixIdentity = app.RecipeEligible') -or
+              -not $program.Contains('x.VerifiedMsixIdentity') -or
+              -not $matcher.Contains('if (!app.EligibleForUpdates)') -or
+              -not $official.Contains('app.EligibleForUpdates && recipe.Matches(app)')) {
+            throw 'Identidade generica nao pode virar atualizacao falsa'
           }
           if (-not $program.Contains('InventoryId = registryIdentity') -or
               -not $reconciler.Contains('candidate.InventoryId.Trim()')) {
