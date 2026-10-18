@@ -27,6 +27,42 @@ Check(StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 0, 0)).Size ==
       StartupWindowSizing.PreferredSize,
     "Ter tamanho inicial seguro quando o monitor ainda nao puder ser consultado");
 
+// Catálogo histórico: Origem, Vivaldi e uTorrent não podem ser limpos
+// automaticamente, e não devem aparecer como resíduos com produto instalado.
+Check(HistoricalResidualAudit.Rules.Count == 3,
+    "Três famílias históricas para auditoria não destrutiva");
+Check(HistoricalResidualAudit.Rules.Any(r => r.Id == "origin-legacy" &&
+    r.Registry.Contains(@"HKLM32\SOFTWARE\Origin") &&
+    r.Folders.Contains(@"Local\Origin")),
+    "Origem: pasta de cache/saves e chave HKLM32 identificadas sem permissão de apagar");
+Check(HistoricalResidualAudit.Rules.Any(r => r.Id == "vivaldi" &&
+    r.Registry.Contains(@"HKCU\Software\Vivaldi\NativeMessagingHosts\me.proton.pass.nm")),
+    "Proton Pass native messaging considerado integração potencialmente ativa");
+Check(HistoricalResidualAudit.Rules.Any(r => r.Id == "utorrent-web" &&
+    r.Folders.Contains(@"StartMenu\uTorrent Web")),
+    "Atalhos uTorrent Web reconhecidos no menu Iniciar");
+var originRule = HistoricalResidualAudit.Rules.Single(r => r.Id == "origin-legacy");
+Check(HistoricalResidualAudit.IsRuleInstalled(originRule,
+        new[] { new ProgramEntry { Name = "EA app" } }),
+    "Evitar tratar cache/saves Origin como lixo se EA app ainda está instalado");
+Check(!HistoricalResidualAudit.IsRuleInstalled(originRule,
+        new[] { new ProgramEntry { Name = "Vivaldi" } }),
+    "Programas diferentes não bloqueiam revisão histórica de Origin");
+var installedHistorical = new[] {
+    new ProgramEntry { Name = "Origin" },
+    new ProgramEntry { Name = "uTorrent Web" },
+    new ProgramEntry { Name = "Vivaldi" }
+};
+Check(HistoricalResidualAudit.Inspect(installedHistorical).Count == 0,
+    "Não listar sobras de produtos que ainda constem instalados");
+try
+{
+    HistoricalResidualAudit.Parse("""{"schema":1,"rules":[{"id":"insecure","name":"Global","installedNames":["Global"],"folders":["Local\\Microsoft"],"registry":["HKLM32\\SOFTWARE\\Microsoft"]}]}""");
+    throw new Exception("FALHA: regra genérica de sistema aceita");
+}
+catch (InvalidDataException) { passed++; }
+Console.WriteLine("OK Catálogo recusa chave de sistema e diretórios genéricos");
+
 // Auditoria ampliada: detectar dados remanescentes sem autorizar exclusão.
 Check(ResidualAudit.CanonicalName(new ProgramEntry
     { Name = "DroidCam Client", Publisher = "Dev47Apps" }) == "DroidCam",
