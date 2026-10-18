@@ -84,9 +84,9 @@ internal static class Matching
             !Version.TryParse(b.TrimStart('v', 'V'), out var y)) return null;
         // 1.2, 1.2.0 e 1.2.0.0 representam a mesma versão.
         // Version.CompareTo trata campos ausentes como -1 e gerava falso positivo.
-        var installed = new Version(x.Major, x.Minor, Math.Max(x.Build, 0), Math.Max(x.Revision, 0));
+        var parsedInstalled = new Version(x.Major, x.Minor, Math.Max(x.Build, 0), Math.Max(x.Revision, 0));
         var target = new Version(y.Major, y.Minor, Math.Max(y.Build, 0), Math.Max(y.Revision, 0));
-        return installed.CompareTo(target);
+        return parsedInstalled.CompareTo(target);
     }
 
     private static bool SameVisualCpp2013Family(InstalledApp installed, InstalledApp other)
