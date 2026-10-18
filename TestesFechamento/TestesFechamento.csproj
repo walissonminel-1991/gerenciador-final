@@ -7,5 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../UpdateProcessCoordinator.cs" Link="UpdateProcessCoordinator.cs" />
+    <Compile Include="../InstallerLockScanner.cs" Link="InstallerLockScanner.cs" />
+    <Compile Include="../UpdateBlockingPreflight.cs" Link="UpdateBlockingPreflight.cs" />
   </ItemGroup>
 </Project>
