@@ -79,6 +79,9 @@ internal static class HistoricalResidualAudit
         return parts.Length == 2 &&
             parts[0] is "Local" or "Roaming" or "StartMenu" &&
             parts[1].Length is >= 4 and <= 60 &&
+            !new[] { "Microsoft", "Windows", "Programs", "Packages", "Temp",
+                "Shared", "Common", "Cache", "Drivers", "System", "Startup" }
+                .Contains(parts[1], StringComparer.OrdinalIgnoreCase) &&
             parts[1].All(c => char.IsAsciiLetterOrDigit(c) ||
                 c is ' ' or '+' or '-' or '_' or '.');
     }
