@@ -6,7 +6,7 @@ namespace GerenciadorAplicativos;
 // Encerra SOMENTE processos de aplicativos explicitamente autorizados na receita.
 // Nunca usa taskkill, shell, encerramento por árvore ou processos de outros usuários.
 // A opção forçada é apresentada APÓS tentativa de fechamento normal e novo consentimento.
-internal enum UpdateProcessTarget { WindowsTerminal, ObsStudio }
+internal enum UpdateProcessTarget { WindowsTerminal, ObsStudio, MicrosoftEdge }
 
 internal static class UpdateProcessCoordinator
 {
@@ -14,6 +14,7 @@ internal static class UpdateProcessCoordinator
     {
         UpdateProcessTarget.WindowsTerminal => "WindowsTerminal",
         UpdateProcessTarget.ObsStudio => "obs64",
+        UpdateProcessTarget.MicrosoftEdge => "msedge",
         _ => throw new ArgumentOutOfRangeException(nameof(target))
     };
 
@@ -21,6 +22,7 @@ internal static class UpdateProcessCoordinator
     {
         UpdateProcessTarget.WindowsTerminal => "Windows Terminal",
         UpdateProcessTarget.ObsStudio => "OBS Studio",
+        UpdateProcessTarget.MicrosoftEdge => "Microsoft Edge",
         _ => throw new ArgumentOutOfRangeException(nameof(target))
     };
 
@@ -32,9 +34,12 @@ internal static class UpdateProcessCoordinator
         try { path = Path.GetFullPath(file.Replace('/', '\\')); }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         { return false; }
-        string windowsApps = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps") +
+        string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        string windowsApps = Path.Combine(programFiles, "WindowsApps") +
             Path.DirectorySeparatorChar;
+        string edgePath = Path.Combine(programFiles, "Microsoft", "Edge", "Application", "msedge.exe");
+        string edgeX86Path = Path.Combine(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe");
         return target switch
         {
             UpdateProcessTarget.WindowsTerminal =>
@@ -44,6 +49,9 @@ internal static class UpdateProcessCoordinator
             UpdateProcessTarget.ObsStudio =>
                 path.Contains(@"\obs-studio\", StringComparison.OrdinalIgnoreCase) &&
                 path.EndsWith(@"\bin\64bit\obs64.exe", StringComparison.OrdinalIgnoreCase),
+            UpdateProcessTarget.MicrosoftEdge =>
+                path.Equals(edgePath, StringComparison.OrdinalIgnoreCase) ||
+                path.Equals(edgeX86Path, StringComparison.OrdinalIgnoreCase),
             _ => false
         };
     }
@@ -106,9 +114,15 @@ internal static class UpdateProcessCoordinator
                     ". Feche o aplicativo manualmente e tente novamente.");
                 return false;
             }
-            if (!confirm(name + " está aberto. Salve seu trabalho antes de continuar.\n\n" +
-                "O Gerenciador Final pode tentar fechar o aplicativo normalmente e depois instalar a atualização.\n\n" +
-                "Deseja continuar?"))
+            string firstQuestion = target == UpdateProcessTarget.MicrosoftEdge
+                ? "O Microsoft Edge está aberto e pode manter arquivos do OBS Studio em uso.\n\n" +
+                  "Para evitar que o instalador do OBS fique preso em Repetir, salve suas abas, formulários " +
+                  "e downloads antes de continuar.\n\n" +
+                  "Deseja permitir que o Gerenciador Final feche o Microsoft Edge normalmente?"
+                : name + " está aberto. Salve seu trabalho antes de continuar.\n\n" +
+                  "O Gerenciador Final pode tentar fechar o aplicativo normalmente e depois instalar a atualização.\n\n" +
+                  "Deseja continuar?";
+            if (!confirm(firstQuestion))
             {
                 report("Atualização cancelada sem fechar " + name + ".");
                 return false;
