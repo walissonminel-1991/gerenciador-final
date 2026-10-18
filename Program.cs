@@ -902,7 +902,7 @@ internal sealed partial class MainForm : Form
         TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
             new Rectangle(left, e.Bounds.Top + 8, width, 27), selected ? Accent : Ink,
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
-        bool checkStore = item.IsUpdate && VerifiedUpdaters.GetMicrosoftStoreUri(item) is not null;
+        bool checkStore = item.IsUpdate && VerifiedUpdaters.GetPrimaryAction(item) == "store";
         string details = item.IsUpdate && checkStore
             ? $"Versão em catálogo ({item.Source}); confira na Store · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
             : item.IsUpdate
@@ -1849,7 +1849,7 @@ internal sealed partial class MainForm : Form
         Version? before = WindowsTerminalUpdater.CurrentUserVersion();
         if (before is null)
         {
-            Status("Pacote Microsoft Store do Terminal nao foi identificado. Utilize Ver na Store.");
+            Status("Terminal MSIX nao identificado. Confira a instalacao na Store ou no site oficial.");
             Log("Atualizacao GitHub bloqueada: identidade Microsoft.WindowsTerminal nao encontrada no inventario MSIX.");
             return;
         }
