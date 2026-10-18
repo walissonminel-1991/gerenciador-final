@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO.Compression;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
@@ -21,6 +22,11 @@ internal static class VerifiedUpdaters
     private const string NppDigest = "26f3bcced788fadbac4e7e577b430ea2ce6060cf3bcad993ef4612ecd7d743da";
     private static readonly Version NppVersion = new(8, 9, 8, 1);
     private static readonly Uri Npp64 = new("https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.9.8.1/npp.8.9.8.1.Installer.x64.exe");
+    // Integridade fixada conforme manifesto Microsoft/winget-pkgs da versão 3.5.283.
+    private const string GameInputDigest = "B5988CB8FF9D7009B6DDF6AD4E3FF87E91B00CC17FFCD5D628DABC21C208F100";
+    private static readonly Version GameInputTarget = new(3, 5, 283, 0);
+    private static readonly Uri GameInputPackage =
+        new("https://globalcdn.nuget.org/packages/microsoft.gameinput.3.5.283.nupkg");
     private static readonly Uri Vc64 = new("https://aka.ms/highdpimfc2013x64enu");
     private static readonly Uri Vc86 = new("https://aka.ms/highdpimfc2013x86enu");
     private static readonly Uri Obs = new("https://github.com/obsproject/obs-studio/releases/download/32.2.2/OBS-Studio-32.2.2-Windows-x64-Installer.exe");
@@ -32,8 +38,7 @@ internal static class VerifiedUpdaters
     internal static Uri? GetMicrosoftStoreUri(ProgramEntry entry)
     {
         if (!entry.IsUpdate || !IsMicrosoft(entry.Publisher)) return null;
-        if (entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase))
-            return new Uri("ms-windows-store://downloadsandupdates");
+        // Microsoft GameInput NAO possui pagina de aplicativo na Store.
         if (entry.Name.Equals("Outlook for Windows", StringComparison.OrdinalIgnoreCase) ||
             entry.Name.Equals("Outlook para Windows", StringComparison.OrdinalIgnoreCase))
             return new Uri("ms-windows-store://pdp/?ProductId=9NRX63209R7B");
@@ -103,6 +108,17 @@ internal static class VerifiedUpdaters
     internal static VerifiedUpdateRecipe? Resolve(ProgramEntry entry)
     {
         if (!entry.IsUpdate || string.IsNullOrWhiteSpace(entry.AvailableVersion)) return null;
+
+        if (entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase) &&
+            Matching.NormalizePublisher(entry.Publisher) == "microsoft" &&
+            entry.Source == "Catálogo WinGet" &&
+            TryVersion(entry.Version, out var gameInstalled) && gameInstalled < GameInputTarget &&
+            TryVersion(entry.AvailableVersion, out var gameAvailable) && gameAvailable == GameInputTarget)
+        {
+            return new("gameinput-x64-3.5.283", "Microsoft GameInput", "3.5.283.0",
+                GameInputPackage, GameInputDigest, "Microsoft Corporation", "/passive /norestart", false,
+                "https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-nuget");
+        }
 
         if (IsMicrosoft(entry.Publisher) &&
             entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable", StringComparison.OrdinalIgnoreCase) &&
@@ -176,6 +192,7 @@ internal static class VerifiedUpdaters
                 "obs-x64-32.2.2" => entry.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase),
                 "notepadpp-x64-8.9.8.1" => entry.Name.Equals("Notepad++ (64-bit x64)", StringComparison.OrdinalIgnoreCase) ||
                                                entry.Name.Equals("Notepad++ (x64)", StringComparison.OrdinalIgnoreCase),
+                "gameinput-x64-3.5.283" => entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase),
                 _ => false
             };
             if (belongs && TryVersion(entry.Version, out var installed) && installed >= target)
@@ -191,6 +208,10 @@ internal static class VerifiedUpdaters
         string host = uri.Host.ToLowerInvariant();
         if (id.StartsWith("vc2013-", StringComparison.Ordinal))
             return host is "aka.ms" or "download.microsoft.com" or "download.visualstudio.microsoft.com";
+        if (id == "gameinput-x64-3.5.283")
+            return host == "globalcdn.nuget.org" &&
+                   uri.AbsolutePath.Equals("/packages/microsoft.gameinput.3.5.283.nupkg",
+                       StringComparison.OrdinalIgnoreCase);
         if (id.StartsWith("obs-", StringComparison.Ordinal) ||
             id.StartsWith("notepadpp-", StringComparison.Ordinal))
             return host is "github.com" or "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
@@ -202,10 +223,11 @@ internal static class VerifiedUpdaters
     {
         if (!IsAllowedRemoteUri(recipe.Download, recipe.Identifier)) throw new InvalidDataException("Endereço não autorizado.");
         Directory.CreateDirectory(directory);
-        string path = Path.Combine(directory, recipe.Identifier + ".exe");
+        bool gameInput = recipe.Identifier == "gameinput-x64-3.5.283";
+        string path = Path.Combine(directory, recipe.Identifier + (gameInput ? ".nupkg" : ".exe"));
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(8) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GerenciadorFinal/5.12.14.0");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("GerenciadorFinal/5.12.15.0");
         Uri target = recipe.Download;
         const long maxBytes = 260L * 1024 * 1024;
         for (int redirect = 0; redirect <= 7; redirect++)
@@ -252,6 +274,26 @@ internal static class VerifiedUpdaters
                 string actual = Convert.ToHexString(await SHA256.HashDataAsync(file, cancel));
                 if (!actual.Equals(digest, StringComparison.OrdinalIgnoreCase))
                     throw new CryptographicException("SHA-256 não corresponde ao arquivo oficial.");
+            }
+            if (gameInput)
+            {
+                // Nunca executar nupkg/ZIP diretamente. Extrair APENAS o MSI no
+                // caminho conhecido, apos validar o SHA publicado no winget-pkgs.
+                string msi = Path.Combine(directory, recipe.Identifier + ".msi");
+                using (var archive = ZipFile.OpenRead(path))
+                {
+                    if (archive.Entries.Count is < 1 or > 300)
+                        throw new InvalidDataException("Pacote NuGet com estrutura inesperada.");
+                    var entries = archive.Entries.Where(entry =>
+                        entry.FullName.Replace('\\', '/')
+                            .Equals("redist/GameInputRedist.msi", StringComparison.OrdinalIgnoreCase)).ToArray();
+                    if (entries.Length != 1 || entries[0].Length < 50_000 || entries[0].Length > 80L * 1024 * 1024)
+                        throw new InvalidDataException("Redistribuível oficial GameInput ausente ou inválido.");
+                    entries[0].ExtractToFile(msi);
+                }
+                if (!VerifyAuthenticode(msi, recipe.RequiredSigner, out string msiIssue))
+                    throw new CryptographicException("MSI Microsoft sem assinatura válida (" + msiIssue + ").");
+                return msi;
             }
             if (!VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
                 throw new CryptographicException("Assinatura Authenticode inválida ou editor não esperado (" + issue + ").");
@@ -330,12 +372,16 @@ internal static class VerifiedUpdaters
         if (recipe.Identifier == "obs-x64-32.2.2" &&
             Process.GetProcessesByName("obs64").Any())
             throw new InvalidOperationException("Feche o OBS Studio antes de instalar a atualização.");
+        bool isMsi = recipe.Identifier == "gameinput-x64-3.5.283";
+        if (isMsi && !verifiedFile.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Instalador GameInput não é um MSI verificado.");
         report(recipe.Interactive
             ? "Abrindo instalador oficial para você concluir as opções necessárias..."
             : "Executando atualização oficial. O Windows pode solicitar autorização UAC...");
         using var process = Process.Start(new ProcessStartInfo
         {
-            FileName = verifiedFile, Arguments = recipe.Arguments,
+            FileName = isMsi ? "msiexec.exe" : verifiedFile,
+            Arguments = isMsi ? $"/i \"{verifiedFile}\" {recipe.Arguments}" : recipe.Arguments,
             UseShellExecute = true, Verb = "runas", WorkingDirectory = Path.GetDirectoryName(verifiedFile)!
         }) ?? throw new InvalidOperationException("Instalador não foi iniciado.");
         await process.WaitForExitAsync();
