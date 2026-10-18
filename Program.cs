@@ -2390,7 +2390,7 @@ internal sealed partial class MainForm : Form
         var games = await gamesTask;
         DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} steam={games.Steam} epic={games.Epic} parcial={report.Devices.Partial || games.Partial}");
         Log($"DIAGNÓSTICO COMPLETO: {report.Installed} programas; " +
-            $"{report.Recognized} associados às {18} famílias de receitas específicas; " +
+            $"{report.Recognized} associados ao catálogo de receitas específicas; " +
             $"{report.WithPublisher} com fabricante registrado e " +
             $"{report.WithVersion} com versão registrada; " +
             $"{report.UsableUninstallers} desinstaladores localizados; " +
