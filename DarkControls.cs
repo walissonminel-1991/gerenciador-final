@@ -683,6 +683,13 @@ internal sealed class DarkTabHost : UserControl
     private sealed class TabStrip : Control
     {
         private readonly DarkTabHost _host;
+        private readonly System.Windows.Forms.Timer _feedbackTimer = new() { Interval = 16 };
+        private int _hotTab = -1;
+        private int _pressedTab = -1;
+        private int _pulseTab = -1;
+        private long _pulseStart;
+        private float _pulseProgress = 1F;
+        private const double PulseMs = 145;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int TabWidth { get; set; } = 176;
         public TabStrip(DarkTabHost host)
@@ -694,6 +701,35 @@ internal sealed class DarkTabHost : UserControl
             TabStop = true;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
+            _feedbackTimer.Tick += (_, _) =>
+            {
+                _pulseProgress = Math.Clamp((float)((Stopwatch.GetTimestamp() - _pulseStart) *
+                    1000.0 / Stopwatch.Frequency / PulseMs), 0F, 1F);
+                Invalidate();
+                if (_pulseProgress < 1F) return;
+                _feedbackTimer.Stop();
+                int next = _pulseTab;
+                _pulseTab = -1;
+                if (!IsDisposed && next >= 0) _host.SelectTab(next);
+                Invalidate();
+            };
+        }
+
+        private int HitTab(Point point)
+        {
+            if (point.X < 0 || point.Y < 0 || point.Y >= Height) return -1;
+            int index = point.X / TabAreaWidth;
+            return index >= 0 && index < _host._pages.Count ? index : -1;
+        }
+
+        private void StartTabFeedback(int index)
+        {
+            if (index < 0 || index >= _host._pages.Count) return;
+            _pulseTab = index;
+            _pulseProgress = 0F;
+            _pulseStart = Stopwatch.GetTimestamp();
+            _feedbackTimer.Start();
+            Invalidate();
         }
 
         private int TabAreaWidth => Math.Max(80, Math.Min(TabWidth, (Width - 2) / Math.Max(1, _host._pages.Count)));
@@ -708,9 +744,25 @@ internal sealed class DarkTabHost : UserControl
                 int left = i * w + 3;
                 var bounds = new Rectangle(left, 3, Math.Max(10, w - 6), Height - 9);
                 bool active = _host.SelectedIndex == i;
+                bool down = i == _pressedTab || (i == _pulseTab && _pulseProgress < 0.65F);
+                float glow = i == _pulseTab ? MathF.Sin(_pulseProgress * MathF.PI) : 0F;
+                if (down) { bounds.Offset(0, 2); bounds.Height -= 2; }
+                Color baseFill = active ? Color.FromArgb(43, 66, 89) : Color.FromArgb(33, 42, 53);
+                if (down) baseFill = Color.FromArgb(25, 35, 46);
+                else if (i == _hotTab) baseFill = Color.FromArgb(52, 69, 86);
+                if (glow > 0)
+                    baseFill = Color.FromArgb(
+                        Math.Min(255, baseFill.R + (int)(9 * glow)),
+                        Math.Min(255, baseFill.G + (int)(18 * glow)),
+                        Math.Min(255, baseFill.B + (int)(23 * glow)));
                 using var path = ModernButton.RoundRect(bounds, 8);
-                using var brush = new SolidBrush(active ? Color.FromArgb(43, 66, 89) : Color.FromArgb(33, 42, 53));
+                using var brush = new SolidBrush(baseFill);
                 e.Graphics.FillPath(brush, path);
+                if (i == _hotTab || i == _pulseTab)
+                {
+                    using var outline = new Pen(Color.FromArgb(90 + (int)(50 * glow), 91, 157, 213), 1F);
+                    e.Graphics.DrawPath(outline, path);
+                }
                 if (active)
                 {
                     using var accent = new SolidBrush(Color.FromArgb(59, 155, 231));
@@ -723,12 +775,43 @@ internal sealed class DarkTabHost : UserControl
             }
         }
 
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            int tab = HitTab(e.Location);
+            if (_hotTab == tab) return;
+            _hotTab = tab;
+            Cursor = tab >= 0 ? Cursors.Hand : Cursors.Default;
+            Invalidate();
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            _hotTab = -1;
+            _pressedTab = -1;
+            Cursor = Cursors.Default;
+            Invalidate();
+        }
+
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
             if (e.Button != MouseButtons.Left) return;
             Focus();
-            _host.SelectTab(e.X / TabAreaWidth);
+            _pressedTab = HitTab(e.Location);
+            Invalidate();
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+            if (e.Button != MouseButtons.Left) return;
+            int clicked = HitTab(e.Location);
+            bool valid = _pressedTab >= 0 && clicked == _pressedTab;
+            _pressedTab = -1;
+            if (valid) StartTabFeedback(clicked);
+            Invalidate();
         }
 
         protected override bool IsInputKey(Keys keyData)
@@ -739,10 +822,19 @@ internal sealed class DarkTabHost : UserControl
 
         protected override void OnKeyDown(KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Left) _host.SelectTab((_host.SelectedIndex - 1 + _host._pages.Count) % _host._pages.Count);
-            else if (e.KeyCode == Keys.Right) _host.SelectTab((_host.SelectedIndex + 1) % _host._pages.Count);
+            if (_host._pages.Count == 0) return;
+            if (e.KeyCode == Keys.Left)
+                StartTabFeedback((_host.SelectedIndex - 1 + _host._pages.Count) % _host._pages.Count);
+            else if (e.KeyCode == Keys.Right)
+                StartTabFeedback((_host.SelectedIndex + 1) % _host._pages.Count);
             else { base.OnKeyDown(e); return; }
             e.Handled = true;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { _feedbackTimer.Stop(); _feedbackTimer.Dispose(); }
+            base.Dispose(disposing);
         }
     }
 }
