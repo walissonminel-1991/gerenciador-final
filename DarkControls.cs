@@ -263,9 +263,14 @@ internal sealed class DarkProgramList : Control
         var item = _items[index];
         var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
         if (!item.InventoryOnly && AppRowGeometry.UninstallButton(bounds).Contains(point)) return (item, "uninstall");
+        if (item.IsUpdate && AppRowGeometry.UpdateButton(bounds).Contains(point))
+        {
+            string? primaryAction = VerifiedUpdaters.GetPrimaryAction(item);
+            if (primaryAction is not null) return (item, primaryAction);
+        }
+        // O botao secundario Site so aparece quando Atualizar e seguro e direto.
         if (item.IsUpdate && VerifiedUpdaters.Resolve(item) is not null &&
-            AppRowGeometry.UpdateButton(bounds).Contains(point)) return (item, "update");
-        if (item.IsUpdate && VerifiedUpdaters.GetOfficialPage(item) is not null &&
+            VerifiedUpdaters.GetOfficialPage(item) is not null &&
             AppRowGeometry.SiteButton(bounds).Contains(point)) return (item, "site");
         return (null, "");
     }
