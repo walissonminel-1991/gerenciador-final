@@ -73,7 +73,7 @@ jobs:
           $deep = Get-Content AdvancedUninstallCleaner.cs -Raw
           if (-not $ui.Contains('Limpeza profunda (avançado)')) { throw 'Opção avançada não encontrada' }
           if (-not $ui.Contains('Desinstalação profunda — confirmar exclusão')) { throw 'Confirmação separada ausente' }
-          if (-not $ui.Contains('UninstallResiduals.StillInstalled(item.App, fresh)')) { throw 'Deve revalidar instalação' }
+          if (-not $ui.Contains('AdvancedUninstallCleaner.StillInstalled(item.App, fresh)')) { throw 'Deve revalidar instalação' }
           if (-not $deep.Contains('Registry.CurrentUser')) { throw 'Escopo HKCU ausente' }
           if ($deep.Contains('Registry.LocalMachine') -or $deep.Contains('Registry.ClassesRoot')) {
             throw 'Não é permitido apagar HKLM nem classes compartilhadas'
