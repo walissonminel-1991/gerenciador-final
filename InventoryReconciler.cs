@@ -23,9 +23,32 @@ internal static class InventoryReconciler
         var output = new List<ProgramEntry>();
         foreach (ProgramEntry candidate in candidates)
         {
-            // Registro de aplicativos tem identificador por visão/hive/subchave.
-            // Identidades desconhecidas não podem ser colapsadas por nome.
             string id = candidate.InventoryId.Trim();
+            // Em algumas versões, HKCU\\Software\\...\\Uninstall é uma visão
+            // compartilhada: Registry32 e Registry64 apontam à MESMA chave.
+            // Colapsar somente quando chave E metadados forem idênticos.
+            // HKLM mantém x86/x64 separados em qualquer hipótese.
+            if (id.StartsWith("CurrentUser|Registry", StringComparison.OrdinalIgnoreCase))
+            {
+                string key = id[(id.IndexOf('|', id.IndexOf('|') + 1) + 1)..];
+                bool mirrored = output.Any(previous =>
+                {
+                    string other = previous.InventoryId;
+                    if (!other.StartsWith("CurrentUser|Registry", StringComparison.OrdinalIgnoreCase))
+                        return false;
+                    int divider = other.IndexOf('|', other.IndexOf('|') + 1);
+                    return divider >= 0 &&
+                        other[(divider + 1)..].Equals(key, StringComparison.OrdinalIgnoreCase) &&
+                        previous.Name.Equals(candidate.Name, StringComparison.OrdinalIgnoreCase) &&
+                        previous.Version.Equals(candidate.Version, StringComparison.OrdinalIgnoreCase) &&
+                        previous.Publisher.Equals(candidate.Publisher, StringComparison.OrdinalIgnoreCase) &&
+                        previous.UninstallString.Equals(candidate.UninstallString, StringComparison.OrdinalIgnoreCase) &&
+                        previous.QuietUninstallString.Equals(candidate.QuietUninstallString, StringComparison.OrdinalIgnoreCase) &&
+                        previous.InstallLocation.Equals(candidate.InstallLocation, StringComparison.OrdinalIgnoreCase) &&
+                        previous.InventoryOnly == candidate.InventoryOnly;
+                });
+                if (mirrored) continue;
+            }
             if (id.Length > 0 && !seen.Add(id)) continue;
             output.Add(candidate);
         }
