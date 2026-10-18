@@ -32,6 +32,16 @@ internal sealed class OfficialReleaseSources : IDisposable
     // Não tentamos inferir URLs a partir da lista de programas do usuário.
     private static readonly Recipe[] Known =
     [
+        new("edge-stable", "Microsoft", "Microsoft Edge",
+            "https://edgeupdates.microsoft.com/api/products?view=enterprise",
+            "https://www.microsoft.com/edge", EdgeStable, "__EDGE_STABLE__"),
+        new("proton-pass-desktop", "Proton", "Proton Pass",
+            "https://raw.githubusercontent.com/ProtonMail/WebClients/main/applications/pass-desktop/CHANGELOG.md",
+            "https://proton.me/pass/download", ProtonPass, "__PROTON_CHANGELOG__"),
+        new("windows-terminal", "GitHub oficial", "Windows Terminal",
+            "https://api.github.com/repos/microsoft/terminal/releases/latest",
+            "https://github.com/microsoft/terminal/releases",
+            WindowsTerminal, "tag_name"),
         new("firefox-stable", "Mozilla", "Firefox",
             "https://product-details.mozilla.org/1.0/firefox_versions.json",
             "https://www.firefox.com/", Firefox, "LATEST_FIREFOX_VERSION"),
@@ -67,6 +77,16 @@ internal sealed class OfficialReleaseSources : IDisposable
         var maker = Matching.NormalizePublisher(app.Publisher);
         return allowed.Any(x => maker == x);
     }
+    private static bool EdgeStable(InstalledApp a) =>
+        Publisher(a, "microsoft") &&
+        a.Name.Equals("Microsoft Edge", StringComparison.OrdinalIgnoreCase);
+    private static bool ProtonPass(InstalledApp a) =>
+        Publisher(a, "proton ag", "proton", "proton technologies ag") &&
+        a.Name.Equals("Proton Pass", StringComparison.OrdinalIgnoreCase);
+    private static bool WindowsTerminal(InstalledApp a) =>
+        Publisher(a, "microsoft") &&
+        (a.Name.Equals("Windows Terminal", StringComparison.OrdinalIgnoreCase) ||
+         a.Name.Equals("Terminal do Windows", StringComparison.OrdinalIgnoreCase));
     private static bool Firefox(InstalledApp a) =>
         Publisher(a, "mozilla", "mozilla corporation", "mozilla foundation") &&
         Regex.IsMatch(a.Name, @"^(Mozilla )?Firefox(\s*\(x64[^)]*\))?$", RegexOptions.IgnoreCase) &&
@@ -106,7 +126,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         {
             Timeout = TimeSpan.FromSeconds(14)
         };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.10"));
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.11"));
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return client;
     }
@@ -119,7 +139,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         };
         if (_ownsHttp)
         {
-            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.10"));
+            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.11"));
             _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
     }
@@ -191,7 +211,9 @@ internal sealed class OfficialReleaseSources : IDisposable
         if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)
             throw new HttpRequestException("Limite de solicitações ou acesso negado.");
         if (!response.IsSuccessStatusCode) throw new HttpRequestException("Consulta indisponível.");
-        if (response.Content.Headers.ContentLength is > 128 * 1024)
+        long maximumBytes = recipe.Id == "edge-stable" ? 4 * 1024 * 1024 :
+            recipe.Id == "proton-pass-desktop" ? 128 * 1024 : 128 * 1024;
+        if (response.Content.Headers.ContentLength > maximumBytes)
             throw new InvalidDataException("Resposta excessivamente grande.");
         using var body = await response.Content.ReadAsStreamAsync(token);
         using var bounded = new MemoryStream();
@@ -199,19 +221,68 @@ internal sealed class OfficialReleaseSources : IDisposable
         int read;
         while ((read = await body.ReadAsync(buffer, token)) != 0)
         {
-            if (bounded.Length + read > 128 * 1024) throw new InvalidDataException("Resposta acima do limite.");
+            if (bounded.Length + read > maximumBytes) throw new InvalidDataException("Resposta acima do limite.");
             bounded.Write(buffer, 0, read);
         }
         bounded.Position = 0;
-        using var doc = await JsonDocument.ParseAsync(bounded, cancellationToken: token);
-        if (doc.RootElement.ValueKind != JsonValueKind.Object ||
-            !doc.RootElement.TryGetProperty(recipe.JsonProperty, out var property) ||
-            property.ValueKind != JsonValueKind.String)
-            throw new InvalidDataException("Versão não localizada na resposta.");
-        string tag = NormalizeOfficialVersionTag(recipe.Id, property.GetString() ?? "");
+        string tag;
+        if (recipe.JsonProperty == "__PROTON_CHANGELOG__")
+        {
+            using var reader = new StreamReader(bounded);
+            string changelog = await reader.ReadToEndAsync(token);
+            // Não interpretar arquivos executáveis ou nomes de branches como versões.
+            // Apenas o primeiro cabeçalho de versão estável do desktop é relevante.
+            var match = Regex.Match(changelog, @"(?m)^### Version (\d{1,4}(?:\.\d{1,6}){1,3})\s*$");
+            if (!match.Success) throw new InvalidDataException("Versão desktop não identificada.");
+            tag = match.Groups[1].Value;
+        }
+        else
+        {
+            using var doc = await JsonDocument.ParseAsync(bounded, cancellationToken: token);
+            if (recipe.JsonProperty == "__EDGE_STABLE__")
+                tag = ParseEdgeStableVersion(doc.RootElement);
+            else
+            {
+                if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+                    !doc.RootElement.TryGetProperty(recipe.JsonProperty, out var property) ||
+                    property.ValueKind != JsonValueKind.String)
+                    throw new InvalidDataException("Versão não localizada na resposta.");
+                tag = NormalizeOfficialVersionTag(recipe.Id, property.GetString() ?? "");
+            }
+        }
         if (!Regex.IsMatch(tag, @"^\d{1,4}(?:\.\d{1,6}){1,3}$"))
             throw new InvalidDataException("Versão não estável ou não comparável.");
         return tag;
+    }
+
+    // Seleção estrita: Microsoft Edge Stable, Windows, arquitetura correspondente.
+    // Beta, Dev, Canary, EdgeUpdate e Extended Stable não se misturam com Stable.
+    internal static string ParseEdgeStableVersion(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Array) throw new InvalidDataException("Catálogo Edge inválido.");
+        string arch = Environment.Is64BitOperatingSystem ? "x64" : "x86";
+        string? latest = null;
+        foreach (var product in root.EnumerateArray())
+        {
+            if (!product.TryGetProperty("Product", out var name) ||
+                !string.Equals(name.GetString(), "Stable", StringComparison.OrdinalIgnoreCase) ||
+                !product.TryGetProperty("Releases", out var releases) ||
+                releases.ValueKind != JsonValueKind.Array) continue;
+            foreach (var release in releases.EnumerateArray())
+            {
+                if (!release.TryGetProperty("Platform", out var platform) ||
+                    platform.GetString() != "Windows" ||
+                    !release.TryGetProperty("Architecture", out var architecture) ||
+                    !string.Equals(architecture.GetString(), arch, StringComparison.OrdinalIgnoreCase) ||
+                    !release.TryGetProperty("ProductVersion", out var versionElement) ||
+                    versionElement.ValueKind != JsonValueKind.String) continue;
+                string version = versionElement.GetString() ?? "";
+                if (!Regex.IsMatch(version, @"^\d{1,4}(?:\.\d{1,6}){3}$")) continue;
+                if (latest is null || Matching.CompareVersions(latest, version) is < 0)
+                    latest = version;
+            }
+        }
+        return latest ?? throw new InvalidDataException("Versão Edge Stable não encontrada.");
     }
 
     // Alguns fabricantes publicam tags próprias. Apenas os padrões
@@ -232,7 +303,9 @@ internal sealed class OfficialReleaseSources : IDisposable
         url.Scheme == Uri.UriSchemeHttps && url.IsDefaultPort &&
         string.IsNullOrEmpty(url.UserInfo) && url.AbsolutePath.StartsWith("/", StringComparison.Ordinal) &&
         (url.Host.Equals("api.github.com", StringComparison.OrdinalIgnoreCase) ||
-         url.Host.Equals("product-details.mozilla.org", StringComparison.OrdinalIgnoreCase));
+         url.Host.Equals("product-details.mozilla.org", StringComparison.OrdinalIgnoreCase) ||
+         url.Host.Equals("edgeupdates.microsoft.com", StringComparison.OrdinalIgnoreCase) ||
+         url.Host.Equals("raw.githubusercontent.com", StringComparison.OrdinalIgnoreCase));
 
     internal static void ClearCacheForTests() => Cache.Clear();
     public void Dispose() { if (_ownsHttp) _http.Dispose(); }
