@@ -140,12 +140,15 @@ internal static class WindowsTerminalUpdater
         });
         XDocument doc = XDocument.Load(xml);
         var identity = doc.Descendants().FirstOrDefault(x => x.Name.LocalName == "Identity");
-        if (identity is null ||
-            identity.Attribute("Name")?.Value != PackageName ||
-            identity.Attribute("Version")?.Value != TargetVersion ||
-            !(identity.Attribute("Publisher")?.Value.StartsWith(
-                "CN=Microsoft Corporation", StringComparison.OrdinalIgnoreCase) ?? false))
-            throw new InvalidDataException("Identidade do MSIX nao corresponde ao Windows Terminal Stable da Microsoft.");
+        string name = identity?.Attribute("Name")?.Value ?? "(ausente)";
+        string version = identity?.Attribute("Version")?.Value ?? "(ausente)";
+        string publisher = identity?.Attribute("Publisher")?.Value ?? "(ausente)";
+        if (name != PackageName || version != TargetVersion ||
+            !publisher.StartsWith("CN=Microsoft Corporation", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException(
+                "Manifesto do pacote oficial: name=" + name +
+                " version=" + version + " publisher=" + publisher +
+                ". Receita deve corresponder exatamente.");
     }
 
     internal static async Task DeployAsync(string verifiedBundle, Action<string> report)
