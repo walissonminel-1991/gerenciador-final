@@ -141,7 +141,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         {
             Timeout = TimeSpan.FromSeconds(14)
         };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.12"));
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.14"));
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return client;
     }
@@ -154,7 +154,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         };
         if (_ownsHttp)
         {
-            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.12"));
+            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.14"));
             _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
     }
@@ -221,8 +221,13 @@ internal sealed class OfficialReleaseSources : IDisposable
     {
         Uri url = new(recipe.Endpoint);
         if (!IsAllowedUrl(url)) throw new InvalidDataException("Endereço não autorizado.");
+        // Proton pode ficar bloqueado por 14s; limite local de 5s sem atrasar demais outras fontes.
+        using var quickTimeout = recipe.Id == "proton-pass-desktop"
+            ? CancellationTokenSource.CreateLinkedTokenSource(token) : null;
+        quickTimeout?.CancelAfter(TimeSpan.FromSeconds(5));
+        CancellationToken requestToken = quickTimeout?.Token ?? token;
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, requestToken);
         if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)
             throw new HttpRequestException("Limite de solicitações ou acesso negado.");
         if (!response.IsSuccessStatusCode) throw new HttpRequestException("Consulta indisponível.");
@@ -230,11 +235,11 @@ internal sealed class OfficialReleaseSources : IDisposable
             recipe.Id == "proton-pass-desktop" ? 128 * 1024 : 128 * 1024;
         if (response.Content.Headers.ContentLength > maximumBytes)
             throw new InvalidDataException("Resposta excessivamente grande.");
-        using var body = await response.Content.ReadAsStreamAsync(token);
+        using var body = await response.Content.ReadAsStreamAsync(requestToken);
         using var bounded = new MemoryStream();
         var buffer = new byte[4096];
         int read;
-        while ((read = await body.ReadAsync(buffer, token)) != 0)
+        while ((read = await body.ReadAsync(buffer, requestToken)) != 0)
         {
             if (bounded.Length + read > maximumBytes) throw new InvalidDataException("Resposta acima do limite.");
             bounded.Write(buffer, 0, read);
@@ -244,7 +249,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         if (recipe.JsonProperty == "__PROTON_CHANGELOG__")
         {
             using var reader = new StreamReader(bounded);
-            string changelog = await reader.ReadToEndAsync(token);
+            string changelog = await reader.ReadToEndAsync(requestToken);
             // Não interpretar arquivos executáveis ou nomes de branches como versões.
             // Apenas o primeiro cabeçalho de versão estável do desktop é relevante.
             var match = Regex.Match(changelog, @"(?m)^### Version (\d{1,4}(?:\.\d{1,6}){1,3})\s*$");
@@ -253,7 +258,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         }
         else
         {
-            using var doc = await JsonDocument.ParseAsync(bounded, cancellationToken: token);
+            using var doc = await JsonDocument.ParseAsync(bounded, cancellationToken: requestToken);
             if (recipe.JsonProperty == "__EDGE_STABLE__")
                 tag = ParseEdgeStableVersion(doc.RootElement);
             else if (recipe.JsonProperty == "__WINGET_VERSIONS__")
