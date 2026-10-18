@@ -9,7 +9,7 @@ internal sealed class ResidualAuditDialog : Form
 {
     private ResidualAuditDialog(ResidualAuditReport report)
     {
-        Text = "Revisão após desinstalação";
+        Text = report.Historical ? "Revisão de resíduos antigos" : "Revisão após desinstalação";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         ShowInTaskbar = false;
@@ -30,11 +30,14 @@ internal sealed class ResidualAuditDialog : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
 
-        string intro = report.UninstallConfirmed
-            ? $"A remoção de {report.Product} foi confirmada. A análise encontrou " +
-              "possíveis dados remanescentes, que NÃO serão excluídos automaticamente."
-            : $"{report.Product} ainda aparece instalado ou possui registros associados. " +
-              "Os itens abaixo são apenas informativos. Nenhuma exclusão será autorizada.";
+        string intro = report.Historical
+            ? "Foram detectados possíveis vestígios históricos. A ausência do aplicativo no " +
+              "inventário não comprova que esses itens são dispensáveis. Nenhum item será apagado."
+            : report.UninstallConfirmed
+                ? $"A remoção de {report.Product} foi confirmada. A análise encontrou " +
+                  "possíveis dados remanescentes, que NÃO serão excluídos automaticamente."
+                : $"{report.Product} ainda aparece instalado ou possui registros associados. " +
+                  "Os itens abaixo são apenas informativos. Nenhuma exclusão será autorizada.";
 
         layout.Controls.Add(new Label
         {
@@ -84,6 +87,19 @@ internal sealed class ResidualAuditDialog : Form
         Controls.Add(layout);
         AcceptButton = close;
         CancelButton = close;
+    }
+
+    internal static void ShowHistoricalResults(IWin32Window owner,
+        IReadOnlyList<ResidualAuditReport> historical)
+    {
+        if (historical.Count == 0) return;
+        // Uma única janela para todos os produtos, sem caixas pop-up sucessivas.
+        var details = historical.SelectMany(report => report.Findings.Select(f =>
+            new ResidualAuditFinding(f.Location, report.Product + " — " + f.Kind,
+                f.Items, f.Evidence))).ToArray();
+        var merged = new ResidualAuditReport("Revisão histórica", false,
+            details, Array.Empty<string>(), Historical: true);
+        ShowResults(owner, merged);
     }
 
     internal static void ShowResults(IWin32Window owner, ResidualAuditReport report)
