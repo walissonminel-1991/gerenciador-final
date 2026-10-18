@@ -76,6 +76,69 @@ finally
     try { Directory.Delete(temp, true); }
     catch (IOException) { Console.WriteLine("AVISO: limpeza somente da area de teste indisponivel"); }
 }
+
+Console.WriteLine("Testes avançados: exclusão direta irreversível somente em diretórios explicitamente autorizados.");
+string testBase = Path.Combine(Path.GetTempPath(), "GF-DeepTest-" + Guid.NewGuid().ToString("N"));
+string knownRoot = Path.Combine(testBase, "OwnedApp");
+string sibling = Path.Combine(testBase, "SharedData");
+Directory.CreateDirectory(knownRoot);
+Directory.CreateDirectory(sibling);
+try
+{
+    string owned = Path.Combine(knownRoot, "prefs.ini");
+    string backup = Path.Combine(knownRoot, "sessions", "backup.dat");
+    Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
+    File.WriteAllText(owned, "preferencias do aplicativo");
+    File.WriteAllText(backup, "backup privado");
+    string shared = Path.Combine(sibling, "other-user-data.txt");
+    File.WriteAllText(shared, "preservar");
+    var notAllowed = AdvancedUninstallCleaner.DeleteApprovedTree(knownRoot, new[] { sibling });
+    Check(notAllowed.Files == 0 && notAllowed.Skipped > 0 && File.Exists(owned),
+        "Não excluir dados fora da lista explícita de diretórios");
+    var erased = AdvancedUninstallCleaner.DeleteApprovedTree(knownRoot, new[] { knownRoot });
+    Check(erased.Files == 2 && erased.Directories == 2 &&
+          !Directory.Exists(knownRoot), "Apagar pasta própria, preferências e backups com autorização");
+    Check(File.Exists(shared), "Não tocar dados compartilhados ou diretórios vizinhos");
+    var other = AdvancedUninstallCleaner.DeleteApprovedTree(testBase, new[] { knownRoot });
+    Check(other.Files == 0 && Directory.Exists(testBase),
+        "Não aceitar pasta ancestral para apagar todo o perfil");
+}
+finally
+{
+    try { Directory.Delete(testBase, recursive: true); }
+    catch (IOException) { Console.WriteLine("AVISO: lixo restrito ao teste."); }
+}
+// Exercício real de HKCU em chave criada somente para os testes do runner.
+string keyName = "GF_Test_" + Guid.NewGuid().ToString("N");
+string testKey = @"Software\" + keyName;
+try
+{
+    using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(testKey))
+    {
+        if (key is null) throw new Exception("HKCU temporário indisponível");
+        key.SetValue("Confirmacao", "Apenas teste");
+        using var nested = key.CreateSubKey("SubKey");
+        nested?.SetValue("Preferencias", "ficticias");
+    }
+    Check(!AdvancedUninstallCleaner.DeleteApprovedRegistryKey(testKey,
+          new[] { @"Software\SumatraPDF" }), "Não excluir chaves HKCU fora da allowlist");
+    Check(!AdvancedUninstallCleaner.DeleteApprovedRegistryKey(@"Software",
+          new[] { @"Software" }), "Nunca excluir raiz Software do usuário");
+    using (var stillThere = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(testKey))
+        Check(stillThere is not null, "Registro desconhecido permanece intacto");
+    Check(AdvancedUninstallCleaner.DeleteApprovedRegistryKey(testKey, new[] { testKey }),
+        "Remover subchave HKCU exclusiva após permissão explícita");
+    using (var removedKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(testKey))
+        Check(removedKey is null, "Confirmar chave e valores removidos do Registro");
+}
+finally
+{
+    try { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(testKey, false); }
+    catch (ArgumentException) { }
+}
+Check(AdvancedUninstallCleaner.Inspect(new[] { sumatra, notepad }).Count == 0,
+    "Modo profundo não apresenta programa ainda instalado");
+
 Console.WriteLine($"{passed}/{passed} testes de varredura e limpeza pós-desinstalacao aprovados.");
 namespace GerenciadorAplicativos
 {
