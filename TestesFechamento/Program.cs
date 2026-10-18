@@ -33,6 +33,21 @@ Check(!UpdateProcessCoordinator.IsAllowedExecutablePath(UpdateProcessTarget.ObsS
     @"C:\Program Files\OBS Studio\Chrome.exe"), "Nao encerrar outros processos");
 Check(!UpdateProcessCoordinator.IsAllowedExecutablePath(UpdateProcessTarget.ObsStudio,
     @"C:\Users\Public\obs64.exe"), "Nao encerrar OBS falso sem diretorio validado");
+Check(UpdateProcessCoordinator.ProcessName(UpdateProcessTarget.MicrosoftEdge) == "msedge",
+    "O único navegador tratado é Microsoft Edge");
+string edgeX86 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+    "Microsoft", "Edge", "Application", "msedge.exe");
+string edgeX64 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+    "Microsoft", "Edge", "Application", "msedge.exe");
+Check(UpdateProcessCoordinator.IsAllowedExecutablePath(UpdateProcessTarget.MicrosoftEdge, edgeX86) &&
+    UpdateProcessCoordinator.IsAllowedExecutablePath(UpdateProcessTarget.MicrosoftEdge, edgeX64),
+    "Identificar somente o executável oficial Edge nas instalações padrão");
+Check(!UpdateProcessCoordinator.IsAllowedExecutablePath(UpdateProcessTarget.MicrosoftEdge,
+    Path.Combine(Path.GetTempPath(), "msedge.exe")), "Não fechar Edge falso na pasta temporária");
+Check(!UpdateProcessCoordinator.IsAllowedExecutablePath(UpdateProcessTarget.MicrosoftEdge,
+    @"C:\Program Files\Microsoft\Edge\Application\other.exe"), "Não encerrar outros aplicativos Microsoft");
+Check(!UpdateProcessCoordinator.IsAllowedExecutablePath(UpdateProcessTarget.MicrosoftEdge,
+    @"C:\Windows\System32\msedge.exe"), "Não confiar apenas no nome do processo");
 Check(!UpdateProcessCoordinator.IsAllowedExecutablePath(UpdateProcessTarget.WindowsTerminal, null),
     "Caminho sem informacao nao concede permissao");
 Console.WriteLine($"{checks}/{checks} testes de encerramento seguro aprovados; nenhum processo foi encerrado.");
