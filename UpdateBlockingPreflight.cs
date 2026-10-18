@@ -8,6 +8,7 @@ internal static class UpdateBlockingPreflight
     {
         "obs-x64-32.2.2" => UpdateProcessTarget.ObsStudio,
         "notepadpp-x64-8.9.8.1" => UpdateProcessTarget.NotepadPlusPlus,
+        "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" => UpdateProcessTarget.SumatraPdf,
         _ => null
     };
 
@@ -21,6 +22,7 @@ internal static class UpdateBlockingPreflight
             case "firefox": target = UpdateProcessTarget.MozillaFirefox; return true;
             case "obs64": target = UpdateProcessTarget.ObsStudio; return true;
             case "notepad++": target = UpdateProcessTarget.NotepadPlusPlus; return true;
+            case "sumatrapdf": target = UpdateProcessTarget.SumatraPdf; return true;
             default: target = default; return false;
         }
     }
@@ -29,6 +31,7 @@ internal static class UpdateBlockingPreflight
     {
         "obs-x64-32.2.2" => InstallerLockScanner.ObsResources(),
         "notepadpp-x64-8.9.8.1" => InstallerLockScanner.NotepadResources(),
+        "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" => InstallerLockScanner.SumatraResources(),
         _ => []
     };
 
