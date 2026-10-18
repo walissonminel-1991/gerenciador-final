@@ -188,7 +188,15 @@ Check(!BroadResidualDiscovery.EligibleName("Microsoft") &&
       !BroadResidualDiscovery.EligibleName("Documents") &&
       !BroadResidualDiscovery.EligibleName("Downloads") &&
       !BroadResidualDiscovery.EligibleName("Common Files") &&
-      !BroadResidualDiscovery.EligibleName("Package Cache"),
+      !BroadResidualDiscovery.EligibleName("Package Cache") &&
+      !BroadResidualDiscovery.EligibleName("Windows Defender") &&
+      !BroadResidualDiscovery.EligibleName("Windows PowerShell") &&
+      !BroadResidualDiscovery.EligibleName("Classes") &&
+      !BroadResidualDiscovery.EligibleName("RegisteredApplications") &&
+      !BroadResidualDiscovery.EligibleName("dotnet") &&
+      !BroadResidualDiscovery.EligibleName("D3DSCache") &&
+      !BroadResidualDiscovery.EligibleName("1D0EC6DE-4A80-4CC3-A335-E6E41C951198") &&
+      !BroadResidualDiscovery.EligibleName("613238"),
     "Nomes do Windows e diretorios pessoais sao bloqueados");
 Check(BroadResidualDiscovery.NormalizeName("SampleOldTool.lnk") == "SampleOldTool" &&
       BroadResidualDiscovery.NormalizeName("SampleOldTool (x64)") == "SampleOldTool",
@@ -215,18 +223,38 @@ var classified = BroadResidualDiscovery.Classify(oldEvidence, new[]
     new ProgramEntry { Name = "OBS Studio", Publisher = "OBS Project" },
     new ProgramEntry { Name = "EA app", Publisher = "Electronic Arts" }
 });
-Check(classified.Count == 2 &&
-      classified.Any(x => x.Product == "LegacyEditor" && x.Findings.Count == 3) &&
-      classified.Any(x => x.Product == "SoloOrphan" && x.Findings.Count == 1),
-    "Identificar indícios antigos mesmo sem qualquer histórico do gerenciador");
+Check(classified.Count == 1 &&
+      classified.Any(x => x.Product == "LegacyEditor" && x.Findings.Count == 3),
+    "Indicios antigos exigem duas fontes diferentes e nenhum historico previo");
 Check(classified.All(x => x.Historical && !x.UninstallConfirmed),
     "Varredura geral nao se apresenta como desinstalacao comprovada");
 Check(classified.All(x => x.Product != "OBS Studio" && x.Product != "Microsoft" &&
       x.Product != "Origin"),
     "Ignorar aplicativos ativos, pastas protegidas e substituto EA app");
-Check(classified.Single(x => x.Product == "SoloOrphan").Findings[0].Evidence
-      .Contains("Apenas um local", StringComparison.Ordinal),
-    "Sinais de baixa confianca sao claramente diferenciados");
+Check(classified.All(x => x.Product != "SoloOrphan") &&
+      classified.Single().Findings[0].Evidence.Contains("não comprovam desinstalação", StringComparison.Ordinal),
+    "Uma pasta isolada e insuficiente; evidencia cruzada continua nao confirmada");
+Check(!BroadResidualDiscovery.HasIndependentResidueEvidence(new[] {
+    new BroadResidualEvidence("K-Lite Codec Pack", @"C:\Program Files\K-Lite Codec Pack", "Pasta", "ProgramFiles"),
+    new BroadResidualEvidence("K-Lite Codec Pack", @"C:\Start\K-Lite Codec Pack", "Atalho", "StartMenu")
+}) && !BroadResidualDiscovery.HasIndependentResidueEvidence(new[] {
+    new BroadResidualEvidence("Ferramenta", @"HKLM\SOFTWARE\Ferramenta", "Chave", "Registry"),
+    new BroadResidualEvidence("Ferramenta", @"HKLM32\SOFTWARE\Ferramenta", "Chave", "Registry")
+}), "Pastas e atalhos de software ativo, e espelhos do Registro, nao bastam");
+var auditedEvidence = new[] {
+    new BroadResidualEvidence("Netease", @"C:\AppData\Netease", "Dados locais", "AppData"),
+    new BroadResidualEvidence("Netease", @"C:\ProgramData\Netease", "Dados", "ProgramData"),
+    new BroadResidualEvidence("Netease", @"HKCU\Software\Netease", "Chave", "Registry"),
+    new BroadResidualEvidence("K-Lite Codec Pack", @"C:\Program Files\K-Lite Codec Pack", "Pasta", "ProgramFiles"),
+    new BroadResidualEvidence("K-Lite Codec Pack", @"C:\Start\K-Lite Codec Pack", "Atalho", "StartMenu"),
+    new BroadResidualEvidence("Classes", @"HKLM\SOFTWARE\Classes", "Chave", "Registry"),
+    new BroadResidualEvidence("Classes", @"C:\AppData\Classes", "Pasta", "AppData")
+};
+var audited = BroadResidualDiscovery.Classify(auditedEvidence, Array.Empty<ProgramEntry>());
+Check(audited.Count == 1 && audited[0].Product == "Netease" &&
+      audited[0].Findings.Count == 3 && audited[0].Historical &&
+      !audited[0].UninstallConfirmed,
+    "Relatorio real: Netease investigavel, componentes do Windows e apps possivelmente ativos excluidos");
 Console.WriteLine("OK Auditoria geral testa historico independente com provas de baixo risco");
 
 // Catálogo histórico: Origem, Vivaldi e uTorrent não podem ser limpos
