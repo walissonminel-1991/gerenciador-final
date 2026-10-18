@@ -6,7 +6,7 @@ namespace GerenciadorAplicativos;
 // Encerra SOMENTE processos de aplicativos explicitamente autorizados na receita.
 // Nunca usa taskkill, shell, encerramento por árvore ou processos de outros usuários.
 // A opção forçada é apresentada APÓS tentativa de fechamento normal e novo consentimento.
-internal enum UpdateProcessTarget { WindowsTerminal, ObsStudio, MicrosoftEdge }
+internal enum UpdateProcessTarget { WindowsTerminal, ObsStudio, MicrosoftEdge, BraveBrowser, GoogleChrome, MozillaFirefox }
 
 internal static class UpdateProcessCoordinator
 {
@@ -15,6 +15,9 @@ internal static class UpdateProcessCoordinator
         UpdateProcessTarget.WindowsTerminal => "WindowsTerminal",
         UpdateProcessTarget.ObsStudio => "obs64",
         UpdateProcessTarget.MicrosoftEdge => "msedge",
+        UpdateProcessTarget.BraveBrowser => "brave",
+        UpdateProcessTarget.GoogleChrome => "chrome",
+        UpdateProcessTarget.MozillaFirefox => "firefox",
         _ => throw new ArgumentOutOfRangeException(nameof(target))
     };
 
@@ -23,6 +26,9 @@ internal static class UpdateProcessCoordinator
         UpdateProcessTarget.WindowsTerminal => "Windows Terminal",
         UpdateProcessTarget.ObsStudio => "OBS Studio",
         UpdateProcessTarget.MicrosoftEdge => "Microsoft Edge",
+        UpdateProcessTarget.BraveBrowser => "Brave Browser",
+        UpdateProcessTarget.GoogleChrome => "Google Chrome",
+        UpdateProcessTarget.MozillaFirefox => "Mozilla Firefox",
         _ => throw new ArgumentOutOfRangeException(nameof(target))
     };
 
@@ -40,6 +46,12 @@ internal static class UpdateProcessCoordinator
             Path.DirectorySeparatorChar;
         string edgePath = Path.Combine(programFiles, "Microsoft", "Edge", "Application", "msedge.exe");
         string edgeX86Path = Path.Combine(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe");
+        string bravePath = Path.Combine(programFiles, "BraveSoftware", "Brave-Browser", "Application", "brave.exe");
+        string braveX86Path = Path.Combine(programFilesX86, "BraveSoftware", "Brave-Browser", "Application", "brave.exe");
+        string chromePath = Path.Combine(programFiles, "Google", "Chrome", "Application", "chrome.exe");
+        string chromeX86Path = Path.Combine(programFilesX86, "Google", "Chrome", "Application", "chrome.exe");
+        string firefoxPath = Path.Combine(programFiles, "Mozilla Firefox", "firefox.exe");
+        string firefoxX86Path = Path.Combine(programFilesX86, "Mozilla Firefox", "firefox.exe");
         return target switch
         {
             UpdateProcessTarget.WindowsTerminal =>
@@ -52,6 +64,15 @@ internal static class UpdateProcessCoordinator
             UpdateProcessTarget.MicrosoftEdge =>
                 path.Equals(edgePath, StringComparison.OrdinalIgnoreCase) ||
                 path.Equals(edgeX86Path, StringComparison.OrdinalIgnoreCase),
+            UpdateProcessTarget.BraveBrowser =>
+                path.Equals(bravePath, StringComparison.OrdinalIgnoreCase) ||
+                path.Equals(braveX86Path, StringComparison.OrdinalIgnoreCase),
+            UpdateProcessTarget.GoogleChrome =>
+                path.Equals(chromePath, StringComparison.OrdinalIgnoreCase) ||
+                path.Equals(chromeX86Path, StringComparison.OrdinalIgnoreCase),
+            UpdateProcessTarget.MozillaFirefox =>
+                path.Equals(firefoxPath, StringComparison.OrdinalIgnoreCase) ||
+                path.Equals(firefoxX86Path, StringComparison.OrdinalIgnoreCase),
             _ => false
         };
     }
@@ -114,11 +135,12 @@ internal static class UpdateProcessCoordinator
                     ". Feche o aplicativo manualmente e tente novamente.");
                 return false;
             }
-            string firstQuestion = target == UpdateProcessTarget.MicrosoftEdge
-                ? "O Microsoft Edge está aberto e pode manter arquivos do OBS Studio em uso.\n\n" +
-                  "Para evitar que o instalador do OBS fique preso em Repetir, salve suas abas, formulários " +
-                  "e downloads antes de continuar.\n\n" +
-                  "Deseja permitir que o Gerenciador Final feche o Microsoft Edge normalmente?"
+            string firstQuestion = target is UpdateProcessTarget.MicrosoftEdge or UpdateProcessTarget.BraveBrowser
+                or UpdateProcessTarget.GoogleChrome or UpdateProcessTarget.MozillaFirefox
+                ? "O Windows identificou que " + name +
+                  " está usando arquivos necessários para esta atualização.\n\n" +
+                  "Salve suas abas, downloads e formulários antes de continuar.\n\n" +
+                  "Deseja permitir que o Gerenciador Final feche " + name + " normalmente?"
                 : name + " está aberto. Salve seu trabalho antes de continuar.\n\n" +
                   "O Gerenciador Final pode tentar fechar o aplicativo normalmente e depois instalar a atualização.\n\n" +
                   "Deseja continuar?";
