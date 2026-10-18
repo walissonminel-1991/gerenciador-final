@@ -234,6 +234,10 @@ Check(BroadResidualDiscovery.NormalizeName("SampleOldTool.lnk") == "SampleOldToo
 Check(BroadResidualDiscovery.IsProtectedByInstalled("OBS Studio",
         new[] { new ProgramEntry { Name = "OBS Studio", Publisher = "OBS Project" } }),
     "Pastas de aplicativo ativo jamais sao listadas como residuos");
+Check(BroadResidualDiscovery.IsProtectedByInstalled("Outlook for Windows",
+        new[] { new ProgramEntry { Name = "Outlook for Windows", InventoryOnly = true,
+            InventorySource = "Aplicativo empacotado (MSIX)" } }),
+    "Aplicativos Store ativos devem bloquear falsos residuos apos unificar inventario");
 Check(BroadResidualDiscovery.IsProtectedByInstalled("Origin",
         new[] { new ProgramEntry { Name = "EA app", Publisher = "Electronic Arts" } }),
     "Origin pode conter saves ainda importantes para EA app");
