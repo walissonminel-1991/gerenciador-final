@@ -19,6 +19,23 @@ Check(!UninstallResiduals.IsSupported(new ProgramEntry
     "Recusar limpeza de software nao auditado");
 Check(!UninstallResiduals.StillInstalled(sumatra, Array.Empty<ProgramEntry>()),
     "Confirmar desinstalacao pelo Registro ausente");
+Check(ApplicationIdentityCatalog.IsStillInstalled("OBS Studio", "OBS Project",
+    new[] { (Name: "OBS Studio", Publisher: "OBS Project, LLC") }),
+    "Desinstalador confirma que uma variante com o mesmo ID continua instalada");
+Check(!ApplicationIdentityCatalog.IsStillInstalled("OBS Studio", "OBS Project",
+    new[] { (Name: "OBS Studio", Publisher: "Empresa Falsa") }),
+    "Fabricante falso não pode simular versão instalada");
+Check(UninstallResiduals.StillInstalled(notepad, new[]
+    { new ProgramEntry { Name = "Notepad++ (x64)", Publisher = "Don HO" } }),
+    "Resíduos preservados enquanto outra edição Notepad++ está instalada");
+Check(ApplicationIdentityCatalog.Resolve("SumatraPDF", "Krzysztof Kowalczyk")?.CleanupPolicy == "sumatrapdf",
+    "Identidade Sumatra conecta inventário/atualização/desinstalação");
+Check(ApplicationIdentityCatalog.Resolve("SumatraPDF", "Editor Falso") is null,
+    "Não existe permissão de limpeza por nome sem fabricante válido");
+Check(!ApplicationIdentityCatalog.IsStillInstalled("SumatraPDF", "Krzysztof Kowalczyk",
+    Array.Empty<(string Name, string Publisher)>()),
+    "Após remoção confirmada, consulta não reporta instalação fantasma");
+
 Check(UninstallResiduals.StillInstalled(sumatra, new[] { sumatra }),
     "Bloquear limpeza se Sumatra ainda instalado");
 Check(UninstallResiduals.StillInstalled(notepad, new[]
