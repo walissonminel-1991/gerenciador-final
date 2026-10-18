@@ -10,5 +10,7 @@
     <Compile Include="../AdvancedUninstallCleaner.cs" Link="AdvancedUninstallCleaner.cs" />
     <Compile Include="../UninstallRuleCatalog.cs" Link="UninstallRuleCatalog.cs" />
     <EmbeddedResource Include="../CatalogoDesinstalacao.json" LogicalName="GerenciadorFinal.UninstallCatalog" />
+    <Compile Include="../ApplicationIdentityCatalog.cs" Link="ApplicationIdentityCatalog.cs" />
+    <EmbeddedResource Include="../CatalogoIdentidades.json" LogicalName="GerenciadorFinal.ApplicationIdentityCatalog" />
   </ItemGroup>
 </Project>
