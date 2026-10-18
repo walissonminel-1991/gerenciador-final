@@ -293,6 +293,47 @@ Check(audited.Count == 1 && audited[0].Product == "Netease" &&
       !audited[0].UninstallConfirmed,
     "Relatorio real: Netease investigavel, componentes do Windows e apps possivelmente ativos excluidos");
 Console.WriteLine("OK Auditoria geral testa historico independente com provas de baixo risco");
+// Casos reproduzidos a partir da auditoria de outubro: sem acesso ao computador real.
+Check(BroadResidualDiscovery.IsSharedPublisherName("Opera Software") &&
+      BroadResidualDiscovery.IsSharedPublisherName("BANDAI NAMCO Entertainment") &&
+      BroadResidualDiscovery.IsSharedPublisherName("Crystal Dynamics") &&
+      BroadResidualDiscovery.IsSharedPublisherName("Western Digital") &&
+      !BroadResidualDiscovery.IsSharedPublisherName("MPC-HC"),
+    "Distinguir empresas e perfis compartilhados de aplicativos comuns");
+var contextualEvidence = new[]
+{
+    new BroadResidualEvidence("Netease", @"C:\\Program Files\\Netease", "Instalação", "ProgramFiles"),
+    new BroadResidualEvidence("Netease", @"C:\\ProgramData\\Netease", "Dados", "ProgramData"),
+    new BroadResidualEvidence("Netease", @"HKCU\\Software\\Netease", "Registro", "Registry"),
+    new BroadResidualEvidence("Opera Software", @"C:\\AppData\\Local\\Opera Software", "Dados", "AppData"),
+    new BroadResidualEvidence("Opera Software", @"HKCU\\Software\\Opera Software", "Registro", "Registry"),
+    new BroadResidualEvidence("Crystal Dynamics", @"C:\\AppData\\Roaming\\Crystal Dynamics", "Dados", "AppData"),
+    new BroadResidualEvidence("Crystal Dynamics", @"HKCU\\Software\\Crystal Dynamics", "Registro", "Registry"),
+    new BroadResidualEvidence("MPC-HC", @"C:\\AppData\\Roaming\\MPC-HC", "Dados", "AppData"),
+    new BroadResidualEvidence("MPC-HC", @"HKCU\\Software\\MPC-HC", "Registro", "Registry")
+};
+var contextual = BroadResidualDiscovery.Classify(contextualEvidence, Array.Empty<ProgramEntry>());
+Check(contextual.Count == 4 &&
+      contextual.Single(x => x.Product == "Netease").Findings.All(x =>
+          x.Kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)),
+    "Netease com Program Files nao pode ser tratado como residuo confirmado");
+Check(contextual.Where(x => x.Product is "Opera Software" or "Crystal Dynamics")
+    .All(x => x.Findings.All(f => f.Kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal))),
+    "Perfis e jogos de fabricantes recebem protecao contextual sem exclusao");
+Check(contextual.Single(x => x.Product == "MPC-HC").Findings.All(x =>
+      x.Kind.StartsWith("Vestígio não confirmado", StringComparison.Ordinal)),
+    "MPC-HC permanece como hipotese somente leitura");
+Check(contextual.SelectMany(x => x.Findings).All(x =>
+      x.Evidence.Contains("Somente leitura.", StringComparison.Ordinal)),
+    "Nenhuma categoria contextual autoriza apagar dados");
+Check(UninstallLaunchDiagnostics.Explain(2).Contains("não encontrou", StringComparison.Ordinal) &&
+      UninstallLaunchDiagnostics.Explain(1223).Contains("cancelada", StringComparison.Ordinal) &&
+      UninstallLaunchDiagnostics.Explain(740).Contains("elevação", StringComparison.Ordinal),
+    "Falhas reais de desinstalacao recebem orientacao em portugues sem executar comandos");
+Check(UninstallLaunchDiagnostics.NativeCode(new System.ComponentModel.Win32Exception(2)) == 2,
+    "Codigo Win32 do sistema registrado sem dados pessoais");
+Console.WriteLine("OK Classificacao contextual de residuos e falhas Win32");
+
 // Um jogo Steam/Epic pode existir somente como manifesto, sem entrada ARP.
 // Os testes abaixo usam evidencias inventadas e nao tocam no Windows.
 var gameEvidence = new[]

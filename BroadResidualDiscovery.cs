@@ -21,6 +21,25 @@ internal static class BroadResidualDiscovery
     private static readonly TimeSpan MaxElapsed = TimeSpan.FromSeconds(14);
     private static readonly StringComparer Comparer = StringComparer.OrdinalIgnoreCase;
 
+    // Chaves com nomes de empresas podem representar perfis compartilhados de
+    // vários jogos ainda instalados. A lista é de PROTEÇÃO, não de exclusão.
+    private static readonly HashSet<string> KnownSharedPublishers = new(Comparer)
+    {
+        "Aquiris", "BANDAI NAMCO Entertainment", "Colossal Order",
+        "Crystal Dynamics", "Eidos Montreal", "Guerrilla Games",
+        "nWay Inc", "Red Dot Games", "Sucker Punch Productions",
+        "Western Digital", "Opera Software", "Netease"
+    };
+
+    internal static bool IsSharedPublisherName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        string normalized = name.Trim();
+        return KnownSharedPublishers.Contains(normalized) ||
+            Regex.IsMatch(normalized, @"(?:\b(?:Games|Entertainment|Productions|Studios|Software|Interactive|Technologies|Corporation|Inc)\.?$)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    }
+
     private static readonly HashSet<string> Reserved = new(Comparer)
     {
         "Windows", "Microsoft", "System", "System32", "Temp", "Cache",
@@ -229,12 +248,23 @@ internal static class BroadResidualDiscovery
                     .DistinctBy(e => e.Location, Comparer)
                     .ToArray();
                 int sourceTypes = all.Select(e => e.RootGroup).Distinct(Comparer).Count();
-                string confidence =
-                    "Indícios em fontes diferentes; não comprovam desinstalação nem uso seguro para limpeza.";
+                // Um diretório em Program Files pode ser uma instalação real,
+                // inclusive portátil, sem UninstallString. Uma pasta com nome
+                // de fabricante pode guardar saves de vários jogos diferentes.
+                bool hasProgramFiles = all.Any(e => e.RootGroup == "ProgramFiles");
+                bool sharedPublisher = IsSharedPublisherName(group.First().Name);
+                string status = hasProgramFiles ? "Instalação não confirmada" :
+                    sharedPublisher ? "Dados compartilhados de fabricante" :
+                    "Vestígio não confirmado";
+                string explanation = hasProgramFiles
+                    ? "Há diretório de instalação. O aplicativo pode continuar presente sem registro de desinstalação. Não apagar."
+                    : sharedPublisher
+                    ? "Nome de fabricante; pode conter configurações e jogos salvos de títulos ainda instalados. Não apagar."
+                    : "Indícios em fontes diferentes; não comprovam desinstalação nem uso seguro para limpeza.";
                 var findings = all.Take(MaxEvidencePerGroup)
                     .Select(e => new ResidualAuditFinding(e.Location,
-                        "Vestígio não confirmado — " + e.Kind, 1,
-                        confidence + " Somente leitura.")).ToArray();
+                        status + " — " + e.Kind, 1,
+                        explanation + " Somente leitura.")).ToArray();
                 return new
                 {
                     Group = group.First().Name,
