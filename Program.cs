@@ -566,7 +566,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.18.2 TESTE";
+        Text = "Gerenciador Final — v5.12.19 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -1013,7 +1013,9 @@ internal sealed partial class MainForm : Form
             Tool("Cache de shaders DirectX", "Remove arquivos antigos do D3DSCache do usuário. Jogos podem recompilar shaders.", AppServices.Gray,
                 () => ConfirmThenRun("clean-directx-cache", "Remover arquivos antigos do cache D3DSCache? Jogos poderão recompilar os shaders e ficar temporariamente mais lentos na primeira execução.")),
             Tool("Resíduos de aplicativos", "Procura apenas arquivos reconhecidos de programas já desinstalados. Preserva dados pessoais.", AppServices.Gray,
-                () => ExecuteAsync("Verificando resíduos de aplicativos...", ReviewOldUninstallResiduesAsync))
+                () => ExecuteAsync("Verificando resíduos de aplicativos...", ReviewOldUninstallResiduesAsync)),
+            Tool("Limpeza profunda (avançado)", "Após a desinstalação, revisa e pode remover também preferências pessoais e chaves próprias do Registro. Irreversível.", AppServices.Orange,
+                () => ExecuteAsync("Inspecionando resíduos avançados...", ReviewDeepUninstallResiduesAsync))
         });
         var cleaningLayout = new TableLayoutPanel
         {
@@ -2218,6 +2220,61 @@ internal sealed partial class MainForm : Form
         await RefreshCatalogAsync();
         Status($"Desinstalação: {confirmed} confirmada(s), {failed} falha(s). " +
             "Os dados pessoais não são removidos na limpeza de resíduos.");
+    }
+
+    private async Task ReviewDeepUninstallResiduesAsync()
+    {
+        // Não é a limpeza padrão, não pode ser disparada automaticamente.
+        Status("Analisando somente pastas exclusivas e chaves próprias de aplicativos removidos...");
+        DiagnosticTrace.Write("DESINSTALACAO.PROFUNDA.CONSULTA_INICIO");
+        var installed = await Task.Run(AppServices.GetInstalledPrograms);
+        var candidates = await Task.Run(() => AdvancedUninstallCleaner.Inspect(installed));
+        DiagnosticTrace.Write("DESINSTALACAO.PROFUNDA.CONSULTA_FIM programas=" + candidates.Count);
+        if (candidates.Count == 0)
+        {
+            Log("Nenhum dado privado ou chave de Registro reconhecido para limpeza profunda.");
+            Status("Nenhum resíduo avançado reconhecido; outros vestígios não podem ser descartados.");
+            return;
+        }
+        foreach (var item in candidates)
+        {
+            var targets = item.Folders.Select(p => "• Pasta: " + p)
+                .Concat(item.RegistryKeys.Select(p => @"• Regedit: HKEY_CURRENT_USER\" + p));
+            string preview = string.Join("\n", targets.Take(5));
+            string warning =
+                "MODO AVANÇADO — AÇÃO IRREVERSÍVEL\n\n" +
+                item.App.Name + " não consta no Registro como instalado.\n\n" +
+                "A limpeza pode apagar preferências, histórico local, documentos, backups e plugins " +
+                "armazenados nas pastas exclusivas abaixo, além das chaves de Registro listadas:\n\n" +
+                preview +
+                $"\n\nArquivos identificados: {item.FileCount}. Itens especiais ignorados: {item.InaccessibleOrLinked}.\n" +
+                "As exclusões não passam pela Lixeira. Não há garantia de apagamento forense em SSD.\n" +
+                "Componentes compartilhados e outras contas serão preservados.\n\n" +
+                "DESEJA EXCLUIR ESSES DADOS PERMANENTEMENTE?";
+            if (DarkConfirmDialog.Confirm(this, warning,
+                "Desinstalação profunda — confirmar exclusão") != DialogResult.Yes)
+            {
+                DiagnosticTrace.Write("DESINSTALACAO.PROFUNDA.RECUSADA");
+                Log("Limpeza profunda de " + item.App.Name + " recusada. Nenhuma alteração.");
+                continue;
+            }
+            // Reconsulta independente, a confirmação não vale para apps reinstalados.
+            var fresh = await Task.Run(AppServices.GetInstalledPrograms);
+            if (UninstallResiduals.StillInstalled(item.App, fresh))
+            {
+                Status("O programa foi detectado novamente. Nenhum dado profundo será apagado.");
+                DiagnosticTrace.Write("DESINSTALACAO.PROFUNDA.REINSTALADO");
+                continue;
+            }
+            Status("Eliminando apenas dados exclusivos autorizados de " + item.App.Name + "...");
+            var result = await Task.Run(() => AdvancedUninstallCleaner.Clean(item, fresh));
+            DiagnosticTrace.Write($"DESINSTALACAO.PROFUNDA.RESULTADO arquivos={result.Files} pastas={result.Directories} chaves={result.RegistryKeys} ignorados={result.Skipped} falhas={result.Failed}");
+            Log($"Limpeza profunda de {item.App.Name}: {result.Files} arquivo(s), {result.Directories} pasta(s), " +
+                $"{result.RegistryKeys} chave(s) HKCU removidos; {result.Skipped} ignorados; {result.Failed} falhas.");
+            Status(result.Failed == 0 && result.Skipped == 0
+                ? "Limpeza profunda de alvos conhecidos concluída. Vestígios do sistema podem permanecer."
+                : "Limpeza profunda parcial. Dados protegidos ou inacessíveis foram preservados.");
+        }
     }
 
     private async Task ReviewOldUninstallResiduesAsync()
