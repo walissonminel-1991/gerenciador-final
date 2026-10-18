@@ -557,7 +557,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.7.3 TESTE";
+        Text = "Gerenciador Final — v5.12.8 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -819,7 +819,7 @@ internal sealed partial class MainForm : Form
             return;
         }
         if (_busy) return;
-        await LoadUpdatesAsync();
+        await LoadUpdatesAsync(forceRefresh: true);
         if (_catalogoVerificado && !IsDisposed)
         {
             _appFilter = "Com atualização";
@@ -1455,7 +1455,7 @@ internal sealed partial class MainForm : Form
         Status($"{_installed.Count} programas encontrados");
     }
 
-    private async Task LoadUpdatesAsync()
+    private async Task LoadUpdatesAsync(bool forceRefresh = false)
     {
         // HTTPS sob demanda ou na inicialização; sem terminal, sem scripts, sem instaladores.
         if (_consultaCatalogoCts is not null || IsDisposed || _installed.Count == 0) return;
@@ -1463,17 +1463,23 @@ internal sealed partial class MainForm : Form
         ProgramEntry[] snapshot = _installed.ToArray();
         DiagnosticTrace.Write("RUCKZUCK.CONSULTA_SOLICITADA");
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var totalTimer = Stopwatch.StartNew();
         _consultaCatalogoCts = cancellation;
         if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar consulta";
         Log("Consultando catálogo RuckZuck por HTTPS (até 60 segundos). Sem linha de comando ou API COM.");
         try
         {
             using var provider = new RuckZuckCatalog();
-            var catalog = await provider.GetCatalogAsync(cancellation.Token);
+            var networkTimer = Stopwatch.StartNew();
+            var catalog = await provider.GetCatalogAsync(cancellation.Token, forceRefresh);
+            networkTimer.Stop();
             cancellation.Token.ThrowIfCancellationRequested();
-            DiagnosticTrace.Write($"RUCKZUCK.CATALOGO_RECEBIDO entradas={catalog.Count}");
+            string source = provider.UsedMemoryCache ? "memoria" : "https";
+            DiagnosticTrace.Write($"RUCKZUCK.CATALOGO_RECEBIDO entradas={catalog.Count} fonte={source} duracao_ms={networkTimer.ElapsedMilliseconds}");
             var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher)).ToArray();
+            var compareTimer = Stopwatch.StartNew();
             var results = await Task.Run(() => Matching.Evaluate(installed, catalog), cancellation.Token);
+            compareTimer.Stop();
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
             if (results.Count != snapshot.Length)
@@ -1486,8 +1492,8 @@ internal sealed partial class MainForm : Form
             int stale = results.Count(x => x.State == MatchState.SupersededRegistration);
             if (stale > 0)
                 Log($"Visual C++: {stale} registro(s) antigo(s) com versão recente também instalada. Não será sugerida reinstalação.");
-            DiagnosticTrace.Write($"RUCKZUCK.COMPARACAO_OK programas={installed.Length} candidatos={candidates} indeterminados={uncertain}");
-            Log($"Catálogo RuckZuck: {catalog.Count} pacotes; {candidates} candidato(s); {uncertain} correspondência(s) incerta(s), não exibidas como atualizações.");
+            DiagnosticTrace.Write($"RUCKZUCK.COMPARACAO_OK programas={installed.Length} candidatos={candidates} indeterminados={uncertain} comparacao_ms={compareTimer.ElapsedMilliseconds} total_ms={totalTimer.ElapsedMilliseconds} fonte={source}");
+            Log($"RuckZuck ({(provider.UsedMemoryCache ? "cache em memória" : "HTTPS")}): {catalog.Count} pacotes; {candidates} candidato(s); {uncertain} incerto(s). Consulta {networkTimer.ElapsedMilliseconds} ms; comparação {compareTimer.ElapsedMilliseconds} ms.");
             Log("Atualização integrada disponível somente para pacotes oficiais com receita verificada; demais resultados são apenas candidatos.");
             Status($"Consulta concluída: {candidates} possíveis atualizações (RuckZuck, cobertura parcial)");
         }
