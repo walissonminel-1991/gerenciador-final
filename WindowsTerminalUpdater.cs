@@ -15,7 +15,9 @@ internal sealed record TerminalUpdateRecipe(string Version, Uri Download, string
 
 internal static class WindowsTerminalUpdater
 {
+    // O bundle publicado pela Microsoft usa 3001.x; a versao do aplicativo e 1.x.
     private const string TargetVersion = "1.25.2733.0";
+    private const string BundleTargetVersion = "3001.25.2733.0";
     private const string AssetDigest = "CCE6E9CC3C8457FA11CED1D2A7354888C7D6DB83C5ACE5D5891A52C95E3B21DA";
     private const string PackageName = "Microsoft.WindowsTerminal";
     private const string MicrosoftPublisherId = "8wekyb3d8bbwe";
@@ -143,7 +145,7 @@ internal static class WindowsTerminalUpdater
         string name = identity?.Attribute("Name")?.Value ?? "(ausente)";
         string version = identity?.Attribute("Version")?.Value ?? "(ausente)";
         string publisher = identity?.Attribute("Publisher")?.Value ?? "(ausente)";
-        if (name != PackageName || version != TargetVersion ||
+        if (name != PackageName || version != BundleTargetVersion ||
             !publisher.StartsWith("CN=Microsoft Corporation", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException(
                 "Manifesto do pacote oficial: name=" + name +
