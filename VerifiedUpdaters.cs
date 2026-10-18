@@ -35,6 +35,18 @@ internal static class VerifiedUpdaters
             return "https://www.plex.tv/pt-br/apps-devices/";
         if (entry.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase))
             return "https://obsproject.com/download";
+        if (entry.Source == "Mozilla" &&
+            entry.Name.Contains("Firefox", StringComparison.OrdinalIgnoreCase))
+            return "https://www.firefox.com/";
+        if (entry.Source == "GitHub oficial" &&
+            entry.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase))
+            return "https://notepad-plus-plus.org/downloads/";
+        if (entry.Source == "GitHub oficial" &&
+            entry.Name.Contains("PowerToys", StringComparison.OrdinalIgnoreCase))
+            return "https://learn.microsoft.com/windows/powertoys/";
+        if (entry.Source == "GitHub oficial" &&
+            entry.Name.StartsWith("PowerShell 7", StringComparison.OrdinalIgnoreCase))
+            return "https://github.com/PowerShell/PowerShell/releases";
         if (entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable", StringComparison.OrdinalIgnoreCase))
             return "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/";
         return null;
