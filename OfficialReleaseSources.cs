@@ -1,0 +1,252 @@
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+namespace GerenciadorAplicativos;
+
+// Motores SOMENTE LEITURA. Fontes oficiais fixas; nenhum script, instalador,
+// comando de terminal ou dado do computador é enviado nas consultas.
+internal sealed record OfficialRelease(InstalledApp Installed, string LatestVersion,
+    string Provider, string OfficialPage);
+internal sealed record ProviderDiagnostic(string Provider, string Status, long Milliseconds);
+internal sealed record ProviderScan(IReadOnlyList<OfficialRelease> Findings,
+    IReadOnlyList<ProviderDiagnostic> Diagnostics);
+
+internal sealed class OfficialReleaseSources : IDisposable
+{
+    private sealed record Recipe(string Id, string Provider, string Name, string Endpoint,
+        string Page, Func<InstalledApp, bool> Matches, string JsonProperty);
+    private sealed record CachedVersion(string Version, DateTimeOffset Expires);
+    private static readonly ConcurrentDictionary<string, CachedVersion> Cache = new();
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new();
+    private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(10);
+    private static readonly SemaphoreSlim GithubConcurrency = new(2, 2);
+    private static readonly HttpClient SharedClient = MakeClient();
+    private readonly HttpClient _http;
+    private readonly bool _ownsHttp;
+
+    // Nomes e fabricantes são verificados ANTES de qualquer requisição.
+    // Não tentamos inferir URLs a partir da lista de programas do usuário.
+    private static readonly Recipe[] Known =
+    [
+        new("firefox-stable", "Mozilla", "Firefox",
+            "https://product-details.mozilla.org/1.0/firefox_versions.json",
+            "https://www.firefox.com/", Firefox, "LATEST_FIREFOX_VERSION"),
+        new("obs", "GitHub oficial", "OBS Studio",
+            "https://api.github.com/repos/obsproject/obs-studio/releases/latest",
+            "https://obsproject.com/download", Obs, "tag_name"),
+        new("notepadpp", "GitHub oficial", "Notepad++",
+            "https://api.github.com/repos/notepad-plus-plus/notepad-plus-plus/releases/latest",
+            "https://notepad-plus-plus.org/downloads/", NotepadPlus, "tag_name"),
+        new("powertoys", "GitHub oficial", "PowerToys",
+            "https://api.github.com/repos/microsoft/PowerToys/releases/latest",
+            "https://learn.microsoft.com/windows/powertoys/", PowerToys, "tag_name"),
+        new("powershell", "GitHub oficial", "PowerShell 7",
+            "https://api.github.com/repos/PowerShell/PowerShell/releases/latest",
+            "https://github.com/PowerShell/PowerShell/releases", PowerShell7, "tag_name")
+    ];
+
+    private static bool Publisher(InstalledApp app, params string[] allowed)
+    {
+        var maker = Matching.NormalizePublisher(app.Publisher);
+        return allowed.Any(x => maker == x);
+    }
+    private static bool Firefox(InstalledApp a) =>
+        Publisher(a, "mozilla", "mozilla corporation", "mozilla foundation") &&
+        Regex.IsMatch(a.Name, @"^(Mozilla )?Firefox(\s*\(x64[^)]*\))?$", RegexOptions.IgnoreCase) &&
+        !a.Name.Contains("ESR", StringComparison.OrdinalIgnoreCase);
+    private static bool Obs(InstalledApp a) =>
+        a.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase) &&
+        Publisher(a, "obs project", "obs project llc", "obs");
+    private static bool NotepadPlus(InstalledApp a) =>
+        Regex.IsMatch(a.Name, @"^Notepad\+\+(?:\s*\((?:64-bit x64|32-bit x86|x64|x86)\))?$", RegexOptions.IgnoreCase) &&
+        Publisher(a, "notepad team", "notepad", "don ho");
+    private static bool PowerToys(InstalledApp a) =>
+        (a.Name.Equals("PowerToys", StringComparison.OrdinalIgnoreCase) ||
+         a.Name.Equals("Microsoft PowerToys", StringComparison.OrdinalIgnoreCase)) &&
+        Publisher(a, "microsoft");
+    private static bool PowerShell7(InstalledApp a) =>
+        Regex.IsMatch(a.Name, @"^PowerShell 7(?:-x64|-x86| \(x64\)| \(x86\))?$", RegexOptions.IgnoreCase) &&
+        Publisher(a, "microsoft");
+
+    private static HttpClient MakeClient()
+    {
+        var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            Timeout = TimeSpan.FromSeconds(14)
+        };
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.9"));
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        return client;
+    }
+    internal OfficialReleaseSources(HttpMessageHandler? handler = null)
+    {
+        _ownsHttp = handler is not null;
+        _http = handler is null ? SharedClient : new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(14)
+        };
+        if (_ownsHttp)
+        {
+            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.9"));
+            _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        }
+    }
+
+    internal async Task<ProviderScan> QueryAsync(IEnumerable<InstalledApp> installed,
+        CancellationToken token, bool forceRefresh = false)
+    {
+        var apps = installed.ToArray();
+        var applicable = Known.Select(recipe => (
+            Recipe: recipe,
+            Apps: apps.Where(recipe.Matches).ToArray()))
+            .Where(item => item.Apps.Length > 0).ToArray();
+        if (applicable.Length == 0) return new([], []);
+        var tasks = applicable.Select(async target =>
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                string version = await GetVersionAsync(target.Recipe, token, forceRefresh);
+                var findings = target.Apps.Select(app =>
+                    new OfficialRelease(app, version, target.Recipe.Provider,
+                        target.Recipe.Page)).ToArray();
+                return (Findings: findings,
+                    Diagnostic: new ProviderDiagnostic(target.Recipe.Id, "ok", clock.ElapsedMilliseconds));
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidDataException
+                or TaskCanceledException or IOException)
+            {
+                // Falha de uma fonte não invalida candidatos de outras fontes.
+                return (Findings: Array.Empty<OfficialRelease>(),
+                    Diagnostic: new ProviderDiagnostic(target.Recipe.Id, ex.GetType().Name, clock.ElapsedMilliseconds));
+            }
+        });
+        var results = await Task.WhenAll(tasks);
+        return new ProviderScan(results.SelectMany(x => x.Findings).ToArray(),
+            results.Select(x => x.Diagnostic).ToArray());
+    }
+
+    private async Task<string> GetVersionAsync(Recipe recipe, CancellationToken token, bool force)
+    {
+        if (!force && Cache.TryGetValue(recipe.Id, out var cached) &&
+            cached.Expires > DateTimeOffset.UtcNow) return cached.Version;
+        var gate = Gates.GetOrAdd(recipe.Id, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(token);
+        try
+        {
+            if (!force && Cache.TryGetValue(recipe.Id, out cached) &&
+                cached.Expires > DateTimeOffset.UtcNow) return cached.Version;
+            bool github = recipe.Endpoint.StartsWith("https://api.github.com/", StringComparison.Ordinal);
+            if (github) await GithubConcurrency.WaitAsync(token);
+            try
+            {
+                var value = await FetchVersionAsync(recipe, token);
+                Cache[recipe.Id] = new CachedVersion(value, DateTimeOffset.UtcNow.Add(Ttl));
+                return value;
+            }
+            finally { if (github) GithubConcurrency.Release(); }
+        }
+        finally { gate.Release(); }
+    }
+
+    private async Task<string> FetchVersionAsync(Recipe recipe, CancellationToken token)
+    {
+        Uri url = new(recipe.Endpoint);
+        if (!IsAllowedUrl(url)) throw new InvalidDataException("Endereço não autorizado.");
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+        if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)
+            throw new HttpRequestException("Limite de solicitações ou acesso negado.");
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException("Consulta indisponível.");
+        if (response.Content.Headers.ContentLength is > 128 * 1024)
+            throw new InvalidDataException("Resposta excessivamente grande.");
+        using var body = await response.Content.ReadAsStreamAsync(token);
+        using var bounded = new MemoryStream();
+        var buffer = new byte[4096];
+        int read;
+        while ((read = await body.ReadAsync(buffer, token)) != 0)
+        {
+            if (bounded.Length + read > 128 * 1024) throw new InvalidDataException("Resposta acima do limite.");
+            bounded.Write(buffer, 0, read);
+        }
+        bounded.Position = 0;
+        using var doc = await JsonDocument.ParseAsync(bounded, cancellationToken: token);
+        if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+            !doc.RootElement.TryGetProperty(recipe.JsonProperty, out var property) ||
+            property.ValueKind != JsonValueKind.String)
+            throw new InvalidDataException("Versão não localizada na resposta.");
+        string tag = (property.GetString() ?? "").Trim().TrimStart('v', 'V');
+        if (!Regex.IsMatch(tag, @"^\d{1,4}(?:\.\d{1,6}){1,3}$"))
+            throw new InvalidDataException("Versão não estável ou não comparável.");
+        return tag;
+    }
+
+    internal static bool IsAllowedUrl(Uri url) =>
+        url.Scheme == Uri.UriSchemeHttps && url.IsDefaultPort &&
+        string.IsNullOrEmpty(url.UserInfo) && url.AbsolutePath.StartsWith("/", StringComparison.Ordinal) &&
+        (url.Host.Equals("api.github.com", StringComparison.OrdinalIgnoreCase) ||
+         url.Host.Equals("product-details.mozilla.org", StringComparison.OrdinalIgnoreCase));
+
+    internal static void ClearCacheForTests() => Cache.Clear();
+    public void Dispose() { if (_ownsHttp) _http.Dispose(); }
+}
+
+internal static class MultiSourceMatcher
+{
+    // Uma fonte oficial só sobrepõe a comparação geral se nome, editor e
+    // versão forem comparáveis. Uma única linha instalada gera no máximo um candidato.
+    internal static IReadOnlyList<UpdateMatch> Merge(
+        IReadOnlyList<InstalledApp> installed,
+        IReadOnlyList<UpdateMatch>? ruckzuck,
+        IReadOnlyList<OfficialRelease> official)
+    {
+        if (ruckzuck is not null && ruckzuck.Count != installed.Count)
+            throw new InvalidDataException("Quantidade divergente entre instalada e resultado do catálogo.");
+        var byApp = new Dictionary<InstalledApp, OfficialRelease>(ReferenceEqualityComparer.Instance);
+        foreach (var release in official)
+        {
+            if (!installed.Any(x => ReferenceEquals(x, release.Installed))) continue;
+            if (Matching.CompareVersions("0.0", release.LatestVersion) is null) continue;
+            if (byApp.TryGetValue(release.Installed, out var current))
+            {
+                if (Matching.CompareVersions(current.LatestVersion, release.LatestVersion) is < 0)
+                    byApp[release.Installed] = release;
+            }
+            else byApp[release.Installed] = release;
+        }
+        var result = new UpdateMatch[installed.Count];
+        for (int i = 0; i < installed.Count; i++)
+        {
+            var app = installed[i];
+            var original = ruckzuck is null ?
+                new UpdateMatch(app, null, MatchState.Unmatched) : ruckzuck[i];
+            if (!byApp.TryGetValue(app, out var release))
+            {
+                result[i] = original;
+                continue;
+            }
+            int? delta = Matching.CompareVersions(app.Version, release.LatestVersion);
+            if (delta is null) { result[i] = original; continue; }
+            // Registros antigos do Visual C++ têm precedência sobre candidatos,
+            // mesmo que outras fontes venham a incluí-los.
+            if (original.State == MatchState.SupersededRegistration)
+            {
+                result[i] = original;
+                continue;
+            }
+            if (delta >= 0)
+            {
+                result[i] = new UpdateMatch(app, null, MatchState.EqualOrNewer, release.Provider);
+                continue;
+            }
+            var catalog = new CatalogEntry(app.Name, app.Name, release.LatestVersion, app.Publisher);
+            result[i] = new UpdateMatch(app, catalog, MatchState.Candidate, release.Provider);
+        }
+        return result;
+    }
+}
