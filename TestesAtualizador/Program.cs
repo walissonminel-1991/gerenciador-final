@@ -35,6 +35,14 @@ Verify(VerifiedUpdaters.GetOfficialPage(Item("Plex", "1.112.0", "1.115.0", "Plex
  "Site oficial Plex como alternativa");
 Verify(VerifiedUpdaters.TryVersion("12.0.40664", out var ver) && ver == new Version(12, 0, 40664, 0),
  "Normalizacao de versoes");
+Verify(VerifiedUpdaters.GetPrimaryAction(Item("OBS Studio", "31.1.2", "32.2.2", "OBS Project")) == "update",
+ "Acao Atualizar exige receita verificada");
+Verify(VerifiedUpdaters.GetPrimaryAction(Item("Adobe Acrobat (64-bit)", "26.002.21931", "26.002.22031", "Adobe")) == "site",
+ "Acao Site oficial sem receita");
+Verify(VerifiedUpdaters.GetPrimaryAction(Item("Aplicativo sem fabricante confirmado", "1.0", "2.0", "Desconhecido")) == "guide",
+ "Candidato sem pagina nao executa download");
+Verify(VerifiedUpdaters.GetPrimaryAction(new ProgramEntry { Name = "OBS Studio", IsUpdate = false }) is null,
+ "Programa atualizado nao possui acao");
 Console.WriteLine($"{checkedCount}/{checkedCount} testes do motor autorizador aprovados");
 if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 {
