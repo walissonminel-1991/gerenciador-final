@@ -137,7 +137,8 @@ jobs:
               throw "Política de limpeza ausente: $($rule.id)"
             }
           }
-          if (-not $program.Contains('CatalogIdentity = ApplicationIdentityCatalog.Resolve(')) {
+          if (-not $program.Contains('ApplicationIdentityCatalog.Resolve(name, publisher)') -or
+              -not $program.Contains('CatalogIdentity = known?.Id ?? ""')) {
             throw 'O inventario deve usar o banco central'
           }
           if (-not $program.Contains('entry.CatalogIdentity, entry.CatalogDisplayName')) {
