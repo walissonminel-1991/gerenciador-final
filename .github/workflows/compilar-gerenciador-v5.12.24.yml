@@ -253,7 +253,7 @@ jobs:
             throw 'Nao sugerir que um produto instalado deixou residuos'
           }
           if (-not $program.Contains('HistoricalResidualAudit.Inspect(updatedInventory)') -or
-              -not $program.Contains('ResidualAuditDialog.ShowHistoricalResults(this, historical)')) {
+              -not $program.Contains('ResidualAuditDialog.ShowHistoricalResults(this, allReports)')) {
             throw 'Revisao historica deve estar conectada ao botao de residuos'
           }
           if (-not $ui.Contains('Uma única janela')) {
