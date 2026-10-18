@@ -1,9 +1,9 @@
-name: Gerenciador Final v5.12.12.1.1 Protecao GameInput - Windows x64
+name: Gerenciador Final v5.12.12.1 Protecao GameInput - Windows x64
 
 on:
   push:
     branches:
-      - teste-protecao-v5.12.12.1.1
+      - teste-protecao-v5.12.12.1
     paths:
       - 'Program.cs'
       - 'GerenciadorAplicativos.csproj'
@@ -245,7 +245,7 @@ jobs:
           $n = [System.Xml.XmlNamespaceManager]::new($m.NameTable)
           $n.AddNamespace('asm', 'urn:schemas-microsoft-com:asm.v1')
           $identity = $m.SelectSingleNode('/asm:assembly/asm:assemblyIdentity', $n)
-          if ($null -eq $identity -or $identity.GetAttribute('version') -ne '5.12.12.1.1') { throw 'Manifesto inválido' }
+          if ($null -eq $identity -or $identity.GetAttribute('version') -ne '5.12.12.1') { throw 'Manifesto inválido' }
       - name: Publicar portatil Windows x64
         shell: pwsh
         run: |
