@@ -203,7 +203,7 @@ jobs:
           if (-not $code.Contains('redist/GameInputRedist.msi')) { throw 'MSI oficial nao identificado' }
           if (-not $code.Contains('VerifyAuthenticode(msi')) { throw 'MSI deve ser assinado digitalmente' }
           if (-not $code.Contains('host == "globalcdn.nuget.org"')) { throw 'Host do pacote deve ser restrito' }
-          if (-not $code.Contains('Matching.NormalizePublisher(entry.Publisher) == "microsoft"')) { throw 'Editor precisa ser Microsoft' }
+          if (-not $code.Contains('entry.Publisher.Trim().Equals("Microsoft Corporation"')) { throw 'Editor precisa ser Microsoft' }
           if (-not $main.Contains('VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status)')) {
             throw 'Somente instalador retornado pela validação deve ser executado'
           }
