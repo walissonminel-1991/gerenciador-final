@@ -132,12 +132,26 @@ internal static class UninstallResiduals
         // Voltar ao disco agora; nunca confiar em caminhos capturados antes do dialogo.
         ResidualCandidate? refreshed = InspectDirectory(policy.Product, candidate.Root, policy.KnownFileNames);
         if (refreshed is null) return new(0, 0, 0, 0);
+        return CleanCandidateFiles(refreshed, policy.KnownFileNames);
+    }
+
+    // Testável com pasta TEMP, mas a chamada de produção Clean() exige a política
+    // e os diretórios fixos previamente aprovados.
+    internal static ResidualCleanupResult CleanCandidateFiles(
+        ResidualCandidate refreshed, IReadOnlyCollection<string> allowedNames)
+    {
+        if (!SafeRoot(refreshed.Root)) return new(0, 0, 1, 0);
+        var recheck = InspectDirectory(refreshed.Product, refreshed.Root, allowedNames);
+        if (recheck is null) return new(0, 0, 0, 0);
         int removed = 0, errors = 0, directories = 0;
-        foreach (string file in refreshed.Files)
+        foreach (string file in recheck.Files)
         {
             try
             {
-                if (!PathComparer.Equals(Path.GetDirectoryName(file), candidate.Root)) { errors++; continue; }
+                if (!SafeRoot(recheck.Root) ||
+                    !PathComparer.Equals(Path.GetDirectoryName(file), recheck.Root) ||
+                    !allowedNames.Contains(Path.GetFileName(file), PathComparer))
+                { errors++; continue; }
                 if ((File.GetAttributes(file) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
                 { errors++; continue; }
                 File.Delete(file);
@@ -148,14 +162,13 @@ internal static class UninstallResiduals
         }
         try
         {
-            // Somente remove a pasta se estiver VAZIA; dados e subpastas são preservados.
-            if (SafeRoot(candidate.Root) && !Directory.EnumerateFileSystemEntries(candidate.Root).Any())
+            if (SafeRoot(recheck.Root) && !Directory.EnumerateFileSystemEntries(recheck.Root).Any())
             {
-                Directory.Delete(candidate.Root);
+                Directory.Delete(recheck.Root);
                 directories++;
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { errors++; }
-        return new(removed, directories, errors, refreshed.Preserved);
+        return new(removed, directories, errors, recheck.Preserved);
     }
 }
