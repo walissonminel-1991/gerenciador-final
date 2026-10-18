@@ -31,6 +31,16 @@ Check(additions.Count == 1 && additions[0].PackageName == "Microsoft.OutlookForW
 Check(LocalMsixInventory.MergeWithRegistry([outlook!],
     [new InstalledApp("Outlook para Windows", "1.2025.416.400", "Microsoft Corporation")]).Count == 0,
     "Não duplica Outlook localizado no Registro");
+Check(ProtectedApplications.IsProtectedName("Microsoft GameInput") &&
+      ProtectedApplications.IsProtectedName(" MICROSOFT GAMEINPUT "),
+    "GameInput protegido mesmo sem SystemComponent no Registro");
+Check(ProtectedApplications.IsInventoryOnly("Microsoft GameInput", false) &&
+      ProtectedApplications.IsInventoryOnly("Microsoft GameInput", true) &&
+      ProtectedApplications.IsInventoryOnly("Outro componente", true),
+    "Proteção independente da marca SystemComponent");
+Check(!ProtectedApplications.IsInventoryOnly("OBS Studio", false) &&
+      !ProtectedApplications.IsInventoryOnly("Microsoft GameInput Preview", false),
+    "Programas convencionais não são bloqueados indevidamente");
 var live = LocalMsixInventory.ReadCurrentUser();
 Console.WriteLine($"MSIX_CI status={live.Status} enumerados={live.Seen} reconhecidos={live.Items.Count}");
 Check(live.Status.Length > 0, "Inventário real tratado sem falhar aplicação");
