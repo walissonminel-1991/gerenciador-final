@@ -28,11 +28,17 @@ internal static class UpdateProcessCoordinator
     internal static bool IsAllowedExecutablePath(UpdateProcessTarget target, string? file)
     {
         if (string.IsNullOrWhiteSpace(file)) return false;
-        string path = file.Replace('/', '\\');
+        string path;
+        try { path = Path.GetFullPath(file.Replace('/', '\\')); }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        { return false; }
+        string windowsApps = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps") +
+            Path.DirectorySeparatorChar;
         return target switch
         {
             UpdateProcessTarget.WindowsTerminal =>
-                path.Contains(@"\WindowsApps\Microsoft.WindowsTerminal_", StringComparison.OrdinalIgnoreCase) &&
+                path.StartsWith(windowsApps + "Microsoft.WindowsTerminal_", StringComparison.OrdinalIgnoreCase) &&
                 path.Contains(@"__8wekyb3d8bbwe\", StringComparison.OrdinalIgnoreCase) &&
                 path.EndsWith(@"\WindowsTerminal.exe", StringComparison.OrdinalIgnoreCase),
             UpdateProcessTarget.ObsStudio =>
