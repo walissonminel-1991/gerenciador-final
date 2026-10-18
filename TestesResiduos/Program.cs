@@ -95,6 +95,25 @@ var distinctVersions = InventoryReconciler.DistinctRegistryEntries(installedSame
 Check(distinctVersions.Count == 3 &&
       distinctVersions.Count(x => x.Publisher == "Microsoft") == 2,
     "Inventário preserva x64/x86 e diferentes fabricantes; remove somente a mesma chave repetida");
+var sharedUserView = new[]
+{
+    new ProgramEntry { Name = "App Por Usuário", Version = "2.0",
+        Publisher = "Editora", InventoryId = "CurrentUser|Registry64|App_User",
+        UninstallString = @"C:\Program Files\App\uninstall.exe" },
+    new ProgramEntry { Name = "App Por Usuário", Version = "2.0",
+        Publisher = "Editora", InventoryId = "CurrentUser|Registry32|App_User",
+        UninstallString = @"C:\Program Files\App\uninstall.exe" }
+};
+Check(InventoryReconciler.DistinctRegistryEntries(sharedUserView).Count == 1,
+    "HKCU compartilhado entre Registry32/64 não gera duas linhas");
+Check(InventoryReconciler.DistinctRegistryEntries(new[]
+{
+    sharedUserView[0],
+    new ProgramEntry { Name = "App Por Usuário", Version = "2.0",
+        Publisher = "Editora", InventoryId = "CurrentUser|Registry32|App_User",
+        UninstallString = @"D:\Versao32\uninstall.exe" }
+}).Count == 2,
+    "HKCU 32/64 com comandos diferentes representa instalações distintas");
 Check(InventoryReconciler.IsSameRegisteredProgram(installedSameName[0], installedSameName[3]) &&
       !InventoryReconciler.IsSameRegisteredProgram(installedSameName[0], installedSameName[1]),
     "Identidade vem da chave real e não de nome/versão");
