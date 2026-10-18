@@ -564,7 +564,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.12.1 TESTE";
+        Text = "Gerenciador Final — v5.12.13 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -781,6 +781,8 @@ internal sealed partial class MainForm : Form
                 _ = UpdateThirdPartyAsync(item);
             else if (action == "site")
                 OpenOfficialSite(item);
+            else if (action == "guide")
+                ShowUpdateGuidance(item);
         };
         _programList.ItemCheckboxClicked += item =>
         {
@@ -916,10 +918,20 @@ internal sealed partial class MainForm : Form
         {
             if (item.IsUpdate)
             {
-                if (VerifiedUpdaters.Resolve(item) is not null)
-                    DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), "Atualizar", AppServices.Green,
-                        _programList.ActionVisual(item, "update"));
-                if (VerifiedUpdaters.GetOfficialPage(item) is not null)
+                string? primaryAction = VerifiedUpdaters.GetPrimaryAction(item);
+                if (primaryAction is not null)
+                {
+                    string label = primaryAction switch
+                    {
+                        "update" => "Atualizar",
+                        "site" => "Site oficial",
+                        _ => "Como fazer"
+                    };
+                    Color color = primaryAction == "update" ? AppServices.Green : AppServices.Gray;
+                    DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), label, color,
+                        _programList.ActionVisual(item, primaryAction));
+                }
+                if (primaryAction == "update" && VerifiedUpdaters.GetOfficialPage(item) is not null)
                     DrawRowButton(e.Graphics, AppRowGeometry.SiteButton(e.Bounds), "Site", AppServices.Gray,
                         _programList.ActionVisual(item, "site"));
             }
@@ -1723,6 +1735,16 @@ internal sealed partial class MainForm : Form
             _bulkUninstallButton.Enabled = !_busy && _multiSelectMode && _checkedApps.Count > 0;
         if (_clearSelectionButton is not null)
             _clearSelectionButton.Enabled = !_busy && _checkedApps.Count > 0;
+    }
+
+    private void ShowUpdateGuidance(ProgramEntry entry)
+    {
+        if (!entry.IsUpdate || _busy) return;
+        string message = entry.InventoryOnly
+            ? "Componente do Windows/Store: abra Configurações ou Microsoft Store e procure atualizações oficiais."
+            : "Sem instalador validado: abra o próprio aplicativo, procure Ajuda ou Configurações e use a função oficial de atualização.";
+        Log("Orientação para " + entry.Name + " · " + message);
+        Status("Orientações de atualização exibidas no histórico de operações.");
     }
 
     private void OpenOfficialSite(ProgramEntry entry)
