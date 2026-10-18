@@ -67,7 +67,7 @@ internal sealed class ProgramEntry
     public string InventoryId { get; init; } = "";
     public string MsiProductCode { get; init; } = "";
     public bool VerifiedMsixIdentity { get; init; }
-    // Entrada de inventário MSIX ou componente protegido: sem desinstalação direta.
+    // Entrada MSIX, jogo da biblioteca ou componente protegido: sem desinstalacao direta.
     public bool InventoryOnly { get; init; }
     public string AvailableVersion { get; set; } = "";
     public string Source { get; set; } = "";
@@ -78,7 +78,8 @@ internal sealed class ProgramEntry
 internal sealed record RegistryInventoryScan(IReadOnlyList<ProgramEntry> Items,
     int Inspected, int HiddenComponents, int UpdateEntries, int ReadFailures, int Duplicates);
 internal sealed record UnifiedInventoryScan(IReadOnlyList<ProgramEntry> Items,
-    RegistryInventoryScan Registry, LocalMsixResult Msix, int Added);
+    RegistryInventoryScan Registry, LocalMsixResult Msix, int Added,
+    GameLibraryReport Games, int GamesAdded);
 internal sealed record CommandResult(int ExitCode, string StandardOutput, string StandardError);
 internal sealed record CleanupResult(int FilesRemoved, int DirectoriesRemoved, int Failed, int ReparseSkipped, int Skipped, IReadOnlyList<string> Examples);
 internal sealed record DiskUsageInfo(string Root, string Label, long TotalBytes, long FreeBytes);
@@ -211,7 +212,20 @@ internal static class AppServices
                 CatalogDisplayName = verified?.Name ?? ""
             });
         }
-        return new UnifiedInventoryScan(result, registry, msix, additions.Count);
+        // Jogos podem estar instalados sem registro Win32: o manifesto da
+        // biblioteca e a identidade da instalacao, nunca uma receita executavel.
+        var games = GameLibraryAudit.Inspect();
+        var gameAdditions = GameLibraryAudit.UnregisteredGames(games, result);
+        foreach (var game in gameAdditions)
+            result.Add(new ProgramEntry
+            {
+                Name = game.DisplayName,
+                InventoryOnly = true,
+                InventorySource = "Biblioteca de jogos: " + game.Platform,
+                InventoryId = "GAME|" + game.Platform + "|" + game.GameId
+            });
+        return new UnifiedInventoryScan(result, registry, msix, additions.Count,
+            games, gameAdditions.Count);
     }
 
     // ARP x64/x86 para máquina e usuário atual. Usa nomes reais do Windows,
@@ -634,7 +648,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.13.4 TESTE";
+        Text = "Gerenciador Final — v5.13.5 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -996,6 +1010,8 @@ internal sealed partial class MainForm : Form
             ? $"Revisar: versões principais diferentes · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} (coexistem)"
             : Matching.IsUncertain(item.ComparisonState)
             ? $"Resultado incerto (RuckZuck)  ·  Versão: {DisplayAppVersion(item.Version)}"
+            : item.InventoryOnly && item.InventorySource.StartsWith("Biblioteca de jogos:", StringComparison.Ordinal)
+            ? $"Jogo da {item.InventorySource["Biblioteca de jogos:".Length..].Trim()} (somente leitura)"
             : item.InventoryOnly
             ? $"Versão: {DisplayAppVersion(item.Version)} · Componente Windows/Store (somente leitura)"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
@@ -1607,7 +1623,8 @@ internal sealed partial class MainForm : Form
             DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count} examinados={scan.Registry.Inspected} ocultos={scan.Registry.HiddenComponents} updates_arp={scan.Registry.UpdateEntries} erros={scan.Registry.ReadFailures} duplicados={scan.Registry.Duplicates}");
             DiagnosticTrace.Write($"MSIX.LEITURA status={scan.Msix.Status} enumerados={scan.Msix.Seen} " +
                 $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures}");
-            Log($"Inventário: {scan.Registry.Items.Count} programas Win32 e {scan.Added} aplicativos MSIX adicionais. " +
+            DiagnosticTrace.Write($"JOGOS.LEITURA steam={scan.Games.Steam} epic={scan.Games.Epic} adicionados={scan.GamesAdded} parciais={scan.Games.Partial}");
+            Log($"Inventário: {scan.Registry.Items.Count} programas Win32, {scan.Added} aplicativos MSIX e {scan.GamesAdded} jogos de bibliotecas adicionais. " +
                 $"{scan.Registry.HiddenComponents} componentes internos e {scan.Registry.UpdateEntries} atualizações individuais do Windows não foram incluídos.");
         }
         catch (Exception ex)
@@ -1640,10 +1657,10 @@ internal sealed partial class MainForm : Form
         int generation = _catalogoGeneration;
         ProgramEntry[] snapshot = _installed.ToArray();
         // Preservar o mesmo número e a mesma ordem das linhas para a UI.
-        // Pacotes MSIX sem identidade oficial verificada permanecem visíveis,
-        // mas não entram em RuckZuck, GitHub nem receitas de instalação.
+        // Entradas somente leitura (jogos e MSIX nao verificados) nao
+        // recebem candidatos nem receitas automáticas de atualização.
         var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher,
-            x.InventorySource != "Aplicativo empacotado (MSIX)" || x.VerifiedMsixIdentity)).ToArray();
+            !x.InventoryOnly || x.VerifiedMsixIdentity)).ToArray();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
         var watch = Stopwatch.StartNew();
         _consultaCatalogoCts = cancellation;
