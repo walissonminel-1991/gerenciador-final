@@ -7,9 +7,9 @@ namespace GerenciadorAplicativos;
 // Encontrar algo não prova que seja resíduo; exige política específica.
 internal sealed class ResidualAuditDialog : Form
 {
-    private ResidualAuditDialog(ResidualAuditReport report)
+    private ResidualAuditDialog(ResidualAuditReport report, string? groupedDetails = null)
     {
-        Text = report.Historical ? "Revisão de resíduos antigos" : "Revisão após desinstalação";
+        Text = report.Historical ? "Revisão de dados e instalações históricas" : "Revisão após desinstalação";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         ShowInTaskbar = false;
@@ -31,8 +31,8 @@ internal sealed class ResidualAuditDialog : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
 
         string intro = report.Historical
-            ? "Foram detectados possíveis vestígios históricos. A ausência do aplicativo no " +
-              "inventário não comprova que esses itens são dispensáveis. Nenhum item será apagado."
+            ? "A análise encontrou dados de fabricantes, possíveis instalações e vestígios sem confirmação. " +
+              "Eles podem pertencer a programas ou jogos ativos. Nenhum item será apagado."
             : report.UninstallConfirmed
                 ? $"A remoção de {report.Product} foi confirmada. A análise encontrou " +
                   "possíveis dados remanescentes, que NÃO serão excluídos automaticamente."
@@ -49,7 +49,7 @@ internal sealed class ResidualAuditDialog : Form
             Padding = new Padding(6, 2, 5, 2)
         }, 0, 0);
 
-        string details = string.Join("\r\n\r\n", report.Findings.Select((f, i) =>
+        string details = groupedDetails ?? string.Join("\r\n\r\n", report.Findings.Select((f, i) =>
             $"{i + 1}. {f.Kind}: {f.Location}\r\n" +
             $"   {f.Items} item(ns) encontrados — {f.Evidence}"));
         if (report.RelatedRegisteredPrograms.Count > 0)
@@ -93,13 +93,27 @@ internal sealed class ResidualAuditDialog : Form
         IReadOnlyList<ResidualAuditReport> historical)
     {
         if (historical.Count == 0) return;
-        // Uma única janela para todos os produtos, sem caixas pop-up sucessivas.
-        var details = historical.SelectMany(report => report.Findings.Select(f =>
-            new ResidualAuditFinding(f.Location, report.Product + " — " + f.Kind,
-                f.Items, f.Evidence))).ToArray();
+        // Exibir por produto e risco, sem repetir 29 vezes a mesma advertência.
+        // O relatório permanece somente leitura, SEM botões para apagar dados.
+        var sorted = historical.OrderBy(r => r.Product, StringComparer.CurrentCultureIgnoreCase).ToArray();
+        var grouped = string.Join("\r\n\r\n", sorted.Select(report =>
+        {
+            string kind = report.Findings.FirstOrDefault()?.Kind ?? "Verificação";
+            string category = kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)
+                ? "INSTALAÇÃO A CONFERIR"
+                : kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal)
+                ? "PERFIL DE FABRICANTE / JOGOS — PRESERVAR"
+                : report.Historical ? "DADOS HISTÓRICOS PARA REVISÃO" : "OUTROS DADOS";
+            string locations = string.Join("\r\n", report.Findings.Select(f => "  • " + f.Location));
+            string advisory = report.Findings.FirstOrDefault()?.Evidence ?? "";
+            return report.Product + " — " + category + "\r\n" + locations +
+                "\r\n  " + advisory;
+        }));
         var merged = new ResidualAuditReport("Revisão histórica", false,
-            details, Array.Empty<string>(), Historical: true);
-        ShowResults(owner, merged);
+            sorted.SelectMany(r => r.Findings).ToArray(),
+            Array.Empty<string>(), Historical: true);
+        using var window = new ResidualAuditDialog(merged, grouped);
+        window.ShowDialog(owner);
     }
 
     internal static void ShowResults(IWin32Window owner, ResidualAuditReport report)
