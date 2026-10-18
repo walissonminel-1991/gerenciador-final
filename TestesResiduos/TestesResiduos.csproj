@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../UninstallResiduals.cs" Link="UninstallResiduals.cs" />
+    <Compile Include="../AdvancedUninstallCleaner.cs" Link="AdvancedUninstallCleaner.cs" />
   </ItemGroup>
 </Project>
