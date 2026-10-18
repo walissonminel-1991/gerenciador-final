@@ -18,13 +18,14 @@ var shell = App("PowerShell 7-x64", "7.4.2", "Microsoft Corporation");
 var sevenzip = App("7-Zip 25.00 (x64)", "25.00", "Igor Pavlov");
 var desktop = App("GitHub Desktop", "3.5.0", "GitHub, Inc.");
 var sumatra = App("SumatraPDF", "3.5", "Krzysztof Kowalczyk");
-var thunderbird = App("Mozilla Thunderbird", "135.0", "Mozilla Corporation");
+var thunderbird = App("Mozilla Thunderbird (Release)", "135.0", "Mozilla Corporation");
 var fakeObs = App("OBS Studio", "31.1.2", "Editor Suspeito");
 var fakeSeven = App("7-Zip 25.00 (x64)", "25.00", "Editor Suspeito");
 var esr = App("Mozilla Firefox ESR", "115.0.0", "Mozilla Corporation");
 var thunderbirdEsr = App("Thunderbird ESR", "128.0", "Mozilla Corporation");
+var unknownThunderbird = App("Mozilla Thunderbird", "140.0", "Mozilla Corporation");
 var list = new[] {obs, firefox, notepad, powertoys, shell, sevenzip, desktop,
-    sumatra, thunderbird, fakeObs, fakeSeven, esr, thunderbirdEsr};
+    sumatra, thunderbird, fakeObs, fakeSeven, esr, thunderbirdEsr, unknownThunderbird};
 
 OfficialReleaseSources.ClearCacheForTests();
 var fixture = new Fixture();
@@ -67,7 +68,8 @@ using (var source = new OfficialReleaseSources(fixture))
     Assert(merged[1].State == MatchState.Candidate && merged[1].Provider == "Mozilla",
         "Firefox usa a fonte original da Mozilla");
     Assert(merged[9].State == MatchState.Unmatched && merged[10].State == MatchState.Unmatched &&
-        merged[11].State == MatchState.Unmatched && merged[12].State == MatchState.Unmatched,
+        merged[11].State == MatchState.Unmatched && merged[12].State == MatchState.Unmatched &&
+        merged[13].State == MatchState.Unmatched,
         "Pacotes não reconhecidos ou ESR não são falsos positivos");
     var duplicate = MultiSourceMatcher.Merge([obs], null,
         [new OfficialRelease(obs, "31.0.0", "Fonte A", ""),
