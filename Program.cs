@@ -557,7 +557,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.8 TESTE";
+        Text = "Gerenciador Final — v5.12.9 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -890,7 +890,7 @@ internal sealed partial class MainForm : Form
             new Rectangle(left, e.Bounds.Top + 8, width, 27), selected ? Accent : Ink,
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
         string details = item.IsUpdate
-            ? $"Possível atualização (RuckZuck)  ·  {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
+            ? $"Possível atualização ({item.Source})  ·  {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
             : item.ComparisonState == MatchState.SupersededRegistration
             ? $"Cadastro antigo do Visual C++ · versão {DisplayAppVersion(item.AvailableVersion)} também instalada"
             : item.ComparisonState == MatchState.DifferentMajor
@@ -1457,61 +1457,99 @@ internal sealed partial class MainForm : Form
 
     private async Task LoadUpdatesAsync(bool forceRefresh = false)
     {
-        // HTTPS sob demanda ou na inicialização; sem terminal, sem scripts, sem instaladores.
+        // Fontes HTTPS oficiais trabalham em paralelo: uma falha não apaga o resultado
+        // das outras. Não executam instaladores, comandos externos, WinGet ou COM.
         if (_consultaCatalogoCts is not null || IsDisposed || _installed.Count == 0) return;
         int generation = _catalogoGeneration;
         ProgramEntry[] snapshot = _installed.ToArray();
-        DiagnosticTrace.Write("RUCKZUCK.CONSULTA_SOLICITADA");
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        var totalTimer = Stopwatch.StartNew();
+        var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher)).ToArray();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
+        var watch = Stopwatch.StartNew();
         _consultaCatalogoCts = cancellation;
         if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar consulta";
-        Log("Consultando catálogo RuckZuck por HTTPS (até 60 segundos). Sem linha de comando ou API COM.");
+        DiagnosticTrace.Write("MULTIFONTES.CONSULTA_INICIO fontes=ruckzuck,github,mozilla");
+        Log("Consultando fontes oficiais por HTTPS em paralelo: RuckZuck, GitHub Releases e Mozilla.");
         try
         {
-            using var provider = new RuckZuckCatalog();
-            var networkTimer = Stopwatch.StartNew();
-            var catalog = await provider.GetCatalogAsync(cancellation.Token, forceRefresh);
-            networkTimer.Stop();
-            cancellation.Token.ThrowIfCancellationRequested();
-            string source = provider.UsedMemoryCache ? "memoria" : "https";
-            DiagnosticTrace.Write($"RUCKZUCK.CATALOGO_RECEBIDO entradas={catalog.Count} fonte={source} duracao_ms={networkTimer.ElapsedMilliseconds}");
-            var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher)).ToArray();
-            var compareTimer = Stopwatch.StartNew();
-            var results = await Task.Run(() => Matching.Evaluate(installed, catalog), cancellation.Token);
-            compareTimer.Stop();
+            using var primary = new RuckZuckCatalog();
+            using var official = new OfficialReleaseSources();
+            async Task<(IReadOnlyList<UpdateMatch>? Matches, int Count, bool Cached, long NetworkMs,
+                long CompareMs, string Error)> ReadRuckZuckAsync()
+            {
+                var timer = Stopwatch.StartNew();
+                try
+                {
+                    var catalog = await primary.GetCatalogAsync(cancellation.Token, forceRefresh);
+                    long networkMs = timer.ElapsedMilliseconds;
+                    var compute = Stopwatch.StartNew();
+                    var matches = await Task.Run(() => Matching.Evaluate(installed, catalog), cancellation.Token);
+                    compute.Stop();
+                    return (matches, catalog.Count, primary.UsedMemoryCache, networkMs,
+                        compute.ElapsedMilliseconds, "");
+                }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
+                catch (Exception ex) when (ex is HttpRequestException or InvalidDataException or
+                    System.Text.Json.JsonException or TaskCanceledException or IOException)
+                {
+                    return (null, 0, false, timer.ElapsedMilliseconds, 0, ex.GetType().Name);
+                }
+            }
+            var ruckTask = ReadRuckZuckAsync();
+            var officialTask = official.QueryAsync(installed, cancellation.Token, forceRefresh);
+            await Task.WhenAll(ruckTask, officialTask);
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
-            if (results.Count != snapshot.Length)
-                throw new InvalidDataException("Resultado local não corresponde à quantidade de programas.");
-            AplicarCandidatos(results);
+            var rz = await ruckTask;
+            var others = await officialTask;
+            var merged = await Task.Run(
+                () => MultiSourceMatcher.Merge(installed, rz.Matches, others.Findings), cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (generation != _catalogoGeneration || IsDisposed) return;
+            if (rz.Matches is null && others.Findings.Count == 0)
+            {
+                InvalidarAtualizacoes();
+                Log("Todas as fontes consultadas estavam indisponíveis ou não cobrem os programas reconhecidos.");
+                Status("Fontes indisponíveis; aplicativos preservados");
+                DiagnosticTrace.Write("MULTIFONTES.SEM_RESULTADOS");
+                return;
+            }
+            AplicarCandidatos(merged);
             _catalogoVerificado = true;
             RenderPrograms();
-            int candidates = results.Count(x => x.State == MatchState.Candidate);
-            int uncertain = results.Count(x => Matching.IsUncertain(x.State));
-            int stale = results.Count(x => x.State == MatchState.SupersededRegistration);
-            if (stale > 0)
-                Log($"Visual C++: {stale} registro(s) antigo(s) com versão recente também instalada. Não será sugerida reinstalação.");
-            DiagnosticTrace.Write($"RUCKZUCK.COMPARACAO_OK programas={installed.Length} candidatos={candidates} indeterminados={uncertain} comparacao_ms={compareTimer.ElapsedMilliseconds} total_ms={totalTimer.ElapsedMilliseconds} fonte={source}");
-            Log($"RuckZuck ({(provider.UsedMemoryCache ? "cache em memória" : "HTTPS")}): {catalog.Count} pacotes; {candidates} candidato(s); {uncertain} incerto(s). Consulta {networkTimer.ElapsedMilliseconds} ms; comparação {compareTimer.ElapsedMilliseconds} ms.");
-            Log("Atualização integrada disponível somente para pacotes oficiais com receita verificada; demais resultados são apenas candidatos.");
-            Status($"Consulta concluída: {candidates} possíveis atualizações (RuckZuck, cobertura parcial)");
+            int candidates = merged.Count(x => x.State == MatchState.Candidate);
+            int uncertain = merged.Count(x => Matching.IsUncertain(x.State));
+            int superseded = merged.Count(x => x.State == MatchState.SupersededRegistration);
+            int officialCandidates = merged.Count(x => x.State == MatchState.Candidate &&
+                x.Provider != "RuckZuck");
+            if (superseded > 0)
+                Log($"Visual C++: {superseded} registro(s) antigo(s) já atendidos por versões recentes.");
+            if (rz.Matches is null)
+                Log($"RuckZuck indisponível ({rz.Error}); outras fontes continuam utilizáveis.");
+            else
+                Log($"RuckZuck: {rz.Count} pacotes ({(rz.Cached ? "cache" : "HTTPS")}, {rz.NetworkMs} ms); comparação {rz.CompareMs} ms.");
+            foreach (var diagnostic in others.Diagnostics)
+                Log($"Fonte oficial {diagnostic.Provider}: {diagnostic.Status}, {diagnostic.Milliseconds} ms.");
+            DiagnosticTrace.Write($"MULTIFONTES.CONSULTA_OK instalados={installed.Length} candidatos={candidates} " +
+                $"fontes_oficiais={officialCandidates} incertos={uncertain} ruckzuck_entradas={rz.Count} " +
+                $"ruckzuck_ms={rz.NetworkMs} total_ms={watch.ElapsedMilliseconds}");
+            Log("Instalação automática permanece limitada a instaladores oficiais com receitas verificadas.");
+            Status($"Consulta concluída: {candidates} possíveis atualizações · múltiplas fontes");
         }
         catch (OperationCanceledException)
         {
             if (generation != _catalogoGeneration || IsDisposed) return;
             InvalidarAtualizacoes();
-            DiagnosticTrace.Write("RUCKZUCK.CONSULTA_CANCELADA");
-            Log("Consulta cancelada/tempo esgotado. Lista local preservada.");
+            DiagnosticTrace.Write("MULTIFONTES.CONSULTA_CANCELADA");
+            Log("Consulta cancelada ou esgotada; a lista local permanece disponível.");
             Status("Consulta cancelada ou tempo esgotado");
         }
         catch (Exception ex)
         {
-            DiagnosticTrace.Failure("RUCKZUCK.CONSULTA_FALHA", ex);
+            DiagnosticTrace.Failure("MULTIFONTES.CONSULTA_FALHA", ex);
             if (generation != _catalogoGeneration || IsDisposed) return;
             InvalidarAtualizacoes();
-            Log($"Não foi possível consultar o RuckZuck ({ex.GetType().Name}). A lista local foi preservada.");
-            Status("Catálogo indisponível; atualizações não verificadas");
+            Log("Falha geral na consulta multifontes (" + ex.GetType().Name + ").");
+            Status("Consulta não concluída; lista local preservada");
         }
         finally
         {
@@ -1540,7 +1578,7 @@ internal sealed partial class MainForm : Form
             item.IsUpdate = match.State == MatchState.Candidate && match.Catalog is not null;
             item.AvailableVersion = match.Catalog?.ProductVersion ?? "";
             item.PackageId = ""; // Identificador de catálogo NÃO autoriza instalação.
-            item.Source = item.IsUpdate ? "RuckZuck — candidato" : "";
+            item.Source = item.IsUpdate ? match.Provider : "";
             // A correspondencia remota jamais autoriza instalar pacotes.
         }
         _checkedApps.RemoveWhere(entry => !_installed.Contains(entry));
