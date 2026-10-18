@@ -20,14 +20,20 @@ internal static class AdvancedUninstallCleaner
 
     private static IEnumerable<ProductPolicy> KnownPolicies()
     {
-        var roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        yield return new(new ProgramEntry { Name = "SumatraPDF", Publisher = "Krzysztof Kowalczyk" },
-            [Path.Combine(roaming, "SumatraPDF"), Path.Combine(local, "SumatraPDF")],
-            [@"Software\SumatraPDF"]);
-        yield return new(new ProgramEntry { Name = "Notepad++ (64-bit x64)", Publisher = "Notepad++ Team" },
-            [Path.Combine(roaming, "Notepad++"), Path.Combine(local, "Notepad++")],
-            [@"Software\Notepad++"]);
+        // Cada regra vem do banco de dados embutido e validado em tempo de compilação.
+        // A ausência do catálogo bloqueia qualquer limpeza profunda.
+        foreach (var rule in UninstallRuleCatalog.Rules)
+            yield return new(
+                new ProgramEntry { Name = rule.DisplayName, Publisher = "Catálogo verificado" },
+                rule.Folders.ToArray(), rule.RegistryKeys.ToArray());
+    }
+
+    internal static bool StillInstalled(ProgramEntry candidate, IReadOnlyCollection<ProgramEntry> installed)
+    {
+        var rule = UninstallRuleCatalog.Rules.FirstOrDefault(x =>
+            x.DisplayName.Equals(candidate.Name, StringComparison.OrdinalIgnoreCase));
+        // Fail closed: nem mesmo uma limpeza manual pode contornar a falta da regra.
+        return rule is null || UninstallRuleCatalog.IsInstalled(rule, installed);
     }
 
     private static bool AllowedPath(string path, IEnumerable<string> policyFolders)
@@ -125,7 +131,7 @@ internal static class AdvancedUninstallCleaner
         var found = new List<DeepCleanItem>();
         foreach (var policy in KnownPolicies())
         {
-            if (UninstallResiduals.StillInstalled(policy.App, installed)) continue;
+            if (StillInstalled(policy.App, installed)) continue;
             var folders = new List<string>();
             var keys = new List<string>();
             long fileCount = 0;
@@ -239,7 +245,7 @@ internal static class AdvancedUninstallCleaner
     {
         var policy = KnownPolicies().FirstOrDefault(x =>
             x.App.Name.Equals(accepted.App.Name, StringComparison.OrdinalIgnoreCase));
-        if (policy is null || UninstallResiduals.StillInstalled(policy.App, currentInstalled))
+        if (policy is null || StillInstalled(policy.App, currentInstalled))
             return new(0, 0, 0, 1, 0);
         // Recalcular os alvos da política, nunca confiar cegamente na lista antiga.
         var current = Inspect(currentInstalled).FirstOrDefault(x =>
