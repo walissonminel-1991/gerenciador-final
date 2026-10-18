@@ -2,6 +2,13 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.3 TESTE — precisão no inventário de resíduos
+- Filtra namespaces compartilhados do Registro e componentes do Windows que estavam aparecendo como resíduos.
+- A auditoria geral só apresenta candidatos com evidências de dados de aplicativo cruzadas com outra fonte independente; um único caminho, atalho ou vista do Registro não basta.
+- Mantém candidatos como não confirmados, sem qualquer exclusão automática, e preserva a varredura histórica específica.
+- Testes com casos extraídos do diagnóstico v5.13.2, incluindo Netease, dotnet, Classes, Windows Defender e K-Lite.
+- Esta versão ainda exige validação da CI e testes no Windows real antes de aprovação.
+
 ## 5.12.3 — Instalador e distribuição
 - Preparação de instalador Inno Setup para Windows x64 com consentimento UAC.
 - Aplicativo .NET autocontido: não exige SDK no computador do usuário final.
