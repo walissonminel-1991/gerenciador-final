@@ -6,8 +6,8 @@ void Verify(bool condition, string label)
     checkedCount++;
     Console.WriteLine("OK " + label);
 }
-ProgramEntry Item(string name, string installed, string available, string publisher = "Microsoft Corporation", string source = "")
-    => new() { Name = name, Version = installed, AvailableVersion = available, Publisher = publisher, Source = source, IsUpdate = true };
+ProgramEntry Item(string name, string installed, string available, string publisher = "Microsoft Corporation", string source = "", bool inventoryOnly = false)
+    => new() { Name = name, Version = installed, AvailableVersion = available, Publisher = publisher, Source = source, IsUpdate = true, InventoryOnly = inventoryOnly };
 var x64 = VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64) - 12.0.30501",
  "12.0.30501.0", "12.0.40664.0"));
 var x86 = VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x86) - 12.0.30501",
@@ -45,7 +45,7 @@ Verify(VerifiedUpdaters.GetPrimaryAction(new ProgramEntry { Name = "OBS Studio",
  "Programa atualizado nao possui acao");
 var outlook = Item("Outlook for Windows", "1.2025.416.400", "1.2026.812.100");
 var gameInput = Item("Microsoft GameInput", "3.5.270.0", "3.5.283");
-var terminal = Item("Windows Terminal", "1.24.12741.0", "1.25.2733.0", "Microsoft Corporation", "GitHub oficial");
+var terminal = Item("Windows Terminal", "1.24.12741.0", "1.25.2733.0", "Microsoft Corporation", "GitHub oficial", true);
 Verify(VerifiedUpdaters.GetPrimaryAction(outlook) == "store" &&
        VerifiedUpdaters.GetMicrosoftStoreUri(outlook)?.AbsoluteUri.Contains("9NRX63209R7B") == true,
        "Outlook abre produto correto na Microsoft Store");
@@ -70,9 +70,31 @@ Verify(VerifiedUpdaters.Resolve(Item("Microsoft GameInput", "3.5.270.0", "4.0.30
 Verify(VerifiedUpdaters.Resolve(Item("Microsoft GameInput", "3.5.283.0", "3.5.283",
        "Microsoft Corporation", "Catálogo WinGet")) is null,
        "GameInput nao reinstala mesma versao");
-Verify(VerifiedUpdaters.GetPrimaryAction(terminal) == "store" &&
-       VerifiedUpdaters.GetMicrosoftStoreUri(terminal)?.AbsoluteUri.Contains("9N0DX20HK701") == true,
-       "Windows Terminal prefere Store e atualizacoes continuas");
+var terminalRecipe = WindowsTerminalUpdater.Resolve(terminal);
+Verify(VerifiedUpdaters.GetPrimaryAction(terminal) == "terminal" &&
+       terminalRecipe?.Sha256 == "CCE6E9CC3C8457FA11CED1D2A7354888C7D6DB83C5ACE5D5891A52C95E3B21DA" &&
+       terminalRecipe.Download.Host == "github.com",
+       "Windows Terminal: atualizar MSIX GitHub com hash fixo");
+Verify(WindowsTerminalUpdater.Resolve(Item("Windows Terminal", "1.24.12741.0", "1.25.2733.0",
+       "Fornecedor desconhecido", "GitHub oficial", true)) is null,
+       "Terminal: recusar fornecedor nao Microsoft");
+Verify(WindowsTerminalUpdater.Resolve(Item("Windows Terminal Preview", "1.24.12741.0", "1.25.2733.0",
+       "Microsoft Corporation", "GitHub oficial", true)) is null,
+       "Terminal: nao atualizar canal Preview");
+Verify(WindowsTerminalUpdater.Resolve(Item("Windows Terminal", "1.24.12741.0", "1.25.2733.0",
+       "Microsoft Corporation", "RuckZuck", true)) is null,
+       "Terminal: exigir GitHub oficial");
+Verify(WindowsTerminalUpdater.Resolve(Item("Windows Terminal", "1.24.12741.0", "1.26.0.0",
+       "Microsoft Corporation", "GitHub oficial", true)) is null,
+       "Terminal: bloquear nova versao nao auditada");
+Verify(WindowsTerminalUpdater.Resolve(Item("Windows Terminal", "1.25.2733.0", "1.25.2733.0",
+       "Microsoft Corporation", "GitHub oficial", true)) is null,
+       "Terminal: nao reinstalar versao ja atualizada");
+Verify(WindowsTerminalUpdater.Resolve(Item("Windows Terminal", "1.24.12741.0", "1.25.2733.0",
+       "Microsoft Corporation", "GitHub oficial", false)) is null,
+       "Terminal: somente pacote MSIX identificado no inventario");
+Verify(VerifiedUpdaters.GetMicrosoftStoreUri(terminal)?.AbsoluteUri.Contains("9N0DX20HK701") == true,
+       "Windows Terminal: preservar Store como alternativa");
 Verify(VerifiedUpdaters.GetMicrosoftStoreUri(Item("Windows Terminal", "1.0", "2.0", "Desconhecido")) is null,
        "Proibir spoof de fabricante Microsoft");
 var npp = VerifiedUpdaters.Resolve(Item("Notepad++ (64-bit x64)", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial"));
@@ -87,6 +109,25 @@ Verify(VerifiedUpdaters.Resolve(Item("Notepad++ (x86)", "8.9.5", "8.9.8.1", "Don
 Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial")) is null,
        "Notepad++: bloquear arquitetura nao identificada");
 Console.WriteLine($"{checkedCount}/{checkedCount} testes do motor autorizador aprovados");
+if (args.Contains("--verify-terminal", StringComparer.OrdinalIgnoreCase))
+{
+    if (terminalRecipe is null) throw new InvalidOperationException("Terminal sem receita.");
+    string folder = Path.Combine(Path.GetTempPath(), "GF-Terminal-Test-" + Guid.NewGuid().ToString("N"));
+    using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(4));
+    try
+    {
+        Console.WriteLine("TERMINAL.MSIX.TESTE_INICIO");
+        string bundle = await WindowsTerminalUpdater.DownloadAndVerifyAsync(terminalRecipe,
+            folder, Console.WriteLine, cts.Token);
+        Verify(new FileInfo(bundle).Length > 20_000_000, "Terminal pacote oficial MSIX verificado");
+        Console.WriteLine("TERMINAL.MSIX.VERIFICADO_SEM_INSTALACAO");
+    }
+    finally
+    {
+        try { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+        catch (IOException) { Console.WriteLine("AVISO: limpeza temporaria indisponivel."); }
+    }
+}
 if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 {
     var recipes = args.Contains("--verify-gameinput", StringComparer.OrdinalIgnoreCase)
@@ -126,5 +167,12 @@ namespace GerenciadorAplicativos
         public string AvailableVersion { get; init; } = "";
         public string Source { get; set; } = "";
         public bool IsUpdate { get; init; }
+        public bool InventoryOnly { get; init; }
+    }
+    internal sealed record LocalMsixApp(string Name, string Version, string Publisher, string PackageName);
+    internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen, string Status);
+    internal static class LocalMsixInventory
+    {
+        internal static LocalMsixResult ReadCurrentUser() => new([], 0, "ok");
     }
 }
