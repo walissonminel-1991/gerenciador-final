@@ -9,5 +9,7 @@
     <Compile Include="../RuckZuckModels.cs" Link="Models.cs" />
     <Compile Include="../Matching.cs" Link="Matching.cs" />
     <Compile Include="../OfficialReleaseSources.cs" Link="Sources.cs" />
+    <Compile Include="../ApplicationIdentityCatalog.cs" Link="ApplicationIdentityCatalog.cs" />
+    <EmbeddedResource Include="../CatalogoIdentidades.json" LogicalName="GerenciadorFinal.ApplicationIdentityCatalog" />
   </ItemGroup>
 </Project>
