@@ -262,7 +262,7 @@ internal sealed class DarkProgramList : Control
         if (index < 0 || index >= _items.Count) return (null, "");
         var item = _items[index];
         var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
-        if (AppRowGeometry.UninstallButton(bounds).Contains(point)) return (item, "uninstall");
+        if (!item.InventoryOnly && AppRowGeometry.UninstallButton(bounds).Contains(point)) return (item, "uninstall");
         if (item.IsUpdate && VerifiedUpdaters.Resolve(item) is not null &&
             AppRowGeometry.UpdateButton(bounds).Contains(point)) return (item, "update");
         if (item.IsUpdate && VerifiedUpdaters.GetOfficialPage(item) is not null &&
@@ -388,7 +388,7 @@ internal sealed class DarkProgramList : Control
         if (_multiSelectMode)
         {
             SelectIndex(index);
-            ItemCheckboxClicked?.Invoke(item);
+            if (!item.InventoryOnly) ItemCheckboxClicked?.Invoke(item);
             return;
         }
         var (hit, action) = HitAction(e.Location);
@@ -440,7 +440,7 @@ internal sealed class DarkProgramList : Control
     {
         if (_multiSelectMode && _actionsEnabled && e.KeyCode == Keys.Space && SelectedItem is ProgramEntry current)
         {
-            ItemCheckboxClicked?.Invoke(current);
+            if (!current.InventoryOnly) ItemCheckboxClicked?.Invoke(current);
             e.Handled = true;
             return;
         }
