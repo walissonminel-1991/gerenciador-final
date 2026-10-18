@@ -13,6 +13,8 @@
     <Compile Include="../ApplicationIdentityCatalog.cs" Link="ApplicationIdentityCatalog.cs" />
     <Compile Include="../StartupWindowSizing.cs" Link="StartupWindowSizing.cs" />
     <Compile Include="../ResidualAudit.cs" Link="ResidualAudit.cs" />
+    <Compile Include="../HistoricalResidualAudit.cs" Link="HistoricalResidualAudit.cs" />
+    <EmbeddedResource Include="../CatalogoAuditoriaHistorica.json" LogicalName="GerenciadorFinal.HistoricalOrphanCatalog" />
     <EmbeddedResource Include="../CatalogoIdentidades.json" LogicalName="GerenciadorFinal.ApplicationIdentityCatalog" />
   </ItemGroup>
 </Project>
