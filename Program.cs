@@ -62,6 +62,7 @@ internal sealed class ProgramEntry
     public string InstallLocation { get; init; } = "";
     public string PackageId { get; set; } = "";
     public string CatalogIdentity { get; set; } = "";
+    public string CatalogDisplayName { get; set; } = "";
     // Entrada de inventário MSIX ou componente protegido: sem desinstalação direta.
     public bool InventoryOnly { get; init; }
     public string AvailableVersion { get; set; } = "";
@@ -214,6 +215,8 @@ internal static class AppServices
                             Publisher = Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "",
                             CatalogIdentity = ApplicationIdentityCatalog.Resolve(name,
                                 Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "")?.Id ?? "",
+                            CatalogDisplayName = ApplicationIdentityCatalog.Resolve(name,
+                                Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "")?.Name ?? "",
                             UninstallString = inventoryOnly ? "" : Convert.ToString(child.GetValue("UninstallString")) ?? "",
                             QuietUninstallString = inventoryOnly ? "" :
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
@@ -1496,7 +1499,8 @@ internal sealed partial class MainForm : Form
                     Version = x.Version,
                     Publisher = x.Publisher,
                     InventoryOnly = true,
-                    CatalogIdentity = ApplicationIdentityCatalog.Resolve(x.Name, x.Publisher)?.Id ?? ""
+                    CatalogIdentity = ApplicationIdentityCatalog.Resolve(x.Name, x.Publisher)?.Id ?? "",
+                    CatalogDisplayName = ApplicationIdentityCatalog.Resolve(x.Name, x.Publisher)?.Name ?? ""
                 }));
                 return (Items: records, Msix: msix, Added: additions.Count);
             });
@@ -1700,7 +1704,7 @@ internal sealed partial class MainForm : Form
         string query = _search.Text.Trim();
         IEnumerable<ProgramEntry> filtered = _installed.Where(entry => query.Length == 0 ||
             string.Join(" ", entry.Name, entry.Version, entry.Publisher, entry.PackageId, entry.AvailableVersion,
-                entry.CatalogIdentity)
+                entry.CatalogIdentity, entry.CatalogDisplayName)
                 .Contains(query, StringComparison.CurrentCultureIgnoreCase));
         filtered = _appFilter switch
         {
