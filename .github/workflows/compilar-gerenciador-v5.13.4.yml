@@ -327,7 +327,7 @@ jobs:
               -not $tests.Contains('bibliotecas pessoais')) {
             throw 'Falta teste de exclusao das bibliotecas pessoais'
           }
-          if (-not $ui.Contains('BroadResidualDiscovery.Inspect(updatedInventory)') -or
+          if (-not $ui.Contains('BroadResidualDiscovery.Inspect(updatedInventory,') -or
               -not $ui.Contains('RESIDUOS_GERAIS.CONSULTA_FIM')) {
             throw 'A varredura deve estar disponivel no botao Residuos de aplicativos'
           }
