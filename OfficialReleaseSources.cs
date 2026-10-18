@@ -141,7 +141,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         {
             Timeout = TimeSpan.FromSeconds(14)
         };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.14"));
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.21"));
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return client;
     }
@@ -154,7 +154,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         };
         if (_ownsHttp)
         {
-            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.14"));
+            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.21"));
             _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
     }
@@ -165,7 +165,9 @@ internal sealed class OfficialReleaseSources : IDisposable
         var apps = installed.ToArray();
         var applicable = Known.Select(recipe => (
             Recipe: recipe,
-            Apps: apps.Where(recipe.Matches).ToArray()))
+            Apps: apps.Where(app => recipe.Matches(app) &&
+                ApplicationIdentityCatalog.MatchesOfficialSource(
+                    app.Name, app.Publisher, recipe.Id)).ToArray()))
             .Where(item => item.Apps.Length > 0).ToArray();
         if (applicable.Length == 0) return new([], []);
         var tasks = applicable.Select(async target =>
