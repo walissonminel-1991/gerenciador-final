@@ -35,6 +35,9 @@ internal sealed class OfficialReleaseSources : IDisposable
         new("firefox-stable", "Mozilla", "Firefox",
             "https://product-details.mozilla.org/1.0/firefox_versions.json",
             "https://www.firefox.com/", Firefox, "LATEST_FIREFOX_VERSION"),
+        new("thunderbird-stable", "Mozilla", "Thunderbird",
+            "https://product-details.mozilla.org/1.0/thunderbird_versions.json",
+            "https://www.thunderbird.net/", Thunderbird, "LATEST_THUNDERBIRD_VERSION"),
         new("obs", "GitHub oficial", "OBS Studio",
             "https://api.github.com/repos/obsproject/obs-studio/releases/latest",
             "https://obsproject.com/download", Obs, "tag_name"),
@@ -46,7 +49,17 @@ internal sealed class OfficialReleaseSources : IDisposable
             "https://learn.microsoft.com/windows/powertoys/", PowerToys, "tag_name"),
         new("powershell", "GitHub oficial", "PowerShell 7",
             "https://api.github.com/repos/PowerShell/PowerShell/releases/latest",
-            "https://github.com/PowerShell/PowerShell/releases", PowerShell7, "tag_name")
+            "https://github.com/PowerShell/PowerShell/releases", PowerShell7, "tag_name"),
+        new("sevenzip", "GitHub oficial", "7-Zip",
+            "https://api.github.com/repos/ip7z/7zip/releases/latest",
+            "https://www.7-zip.org/download.html", SevenZip, "tag_name"),
+        new("github-desktop", "GitHub oficial", "GitHub Desktop",
+            "https://api.github.com/repos/desktop/desktop/releases/latest",
+            "https://desktop.github.com/", GitHubDesktop, "tag_name"),
+        new("sumatrapdf", "GitHub oficial", "SumatraPDF",
+            "https://api.github.com/repos/sumatrapdfreader/sumatrapdf/releases/latest",
+            "https://www.sumatrapdfreader.org/download-free-pdf-viewer",
+            SumatraPdf, "tag_name")
     ];
 
     private static bool Publisher(InstalledApp app, params string[] allowed)
@@ -58,6 +71,21 @@ internal sealed class OfficialReleaseSources : IDisposable
         Publisher(a, "mozilla", "mozilla corporation", "mozilla foundation") &&
         Regex.IsMatch(a.Name, @"^(Mozilla )?Firefox(\s*\(x64[^)]*\))?$", RegexOptions.IgnoreCase) &&
         !a.Name.Contains("ESR", StringComparison.OrdinalIgnoreCase);
+    private static bool Thunderbird(InstalledApp a) =>
+        Publisher(a, "mozilla") &&
+        Regex.IsMatch(a.Name, @"^(Mozilla )?Thunderbird(?:\s*\(x64[^)]*\))?$", RegexOptions.IgnoreCase) &&
+        !a.Name.Contains("ESR", StringComparison.OrdinalIgnoreCase);
+    private static bool SevenZip(InstalledApp a) =>
+        Publisher(a, "igor pavlov") &&
+        Regex.IsMatch(a.Name, @"^7-Zip\s+\d{2}\.\d{1,2}(?:\s+\((?:x64|x86)\))?$",
+            RegexOptions.IgnoreCase);
+    private static bool GitHubDesktop(InstalledApp a) =>
+        Publisher(a, "github") &&
+        a.Name.Equals("GitHub Desktop", StringComparison.OrdinalIgnoreCase);
+    private static bool SumatraPdf(InstalledApp a) =>
+        Publisher(a, "krzysztof kowalczyk", "sumatrapdf", "sumatrapdf reader") &&
+        Regex.IsMatch(a.Name, @"^SumatraPDF(?:\s*\((?:x64|x86|64-bit|32-bit)\))?$",
+            RegexOptions.IgnoreCase);
     private static bool Obs(InstalledApp a) =>
         a.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase) &&
         Publisher(a, "obs project", "obs project llc", "obs");
@@ -78,7 +106,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         {
             Timeout = TimeSpan.FromSeconds(14)
         };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.9"));
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.10"));
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return client;
     }
@@ -91,7 +119,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         };
         if (_ownsHttp)
         {
-            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.9"));
+            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.10"));
             _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
     }
@@ -180,10 +208,24 @@ internal sealed class OfficialReleaseSources : IDisposable
             !doc.RootElement.TryGetProperty(recipe.JsonProperty, out var property) ||
             property.ValueKind != JsonValueKind.String)
             throw new InvalidDataException("Versão não localizada na resposta.");
-        string tag = (property.GetString() ?? "").Trim().TrimStart('v', 'V');
+        string tag = NormalizeOfficialVersionTag(recipe.Id, property.GetString() ?? "");
         if (!Regex.IsMatch(tag, @"^\d{1,4}(?:\.\d{1,6}){1,3}$"))
             throw new InvalidDataException("Versão não estável ou não comparável.");
         return tag;
+    }
+
+    // Alguns fabricantes publicam tags próprias. Apenas os padrões
+    // conhecidos abaixo são normalizados; prereleases e rótulos novos são rejeitados.
+    internal static string NormalizeOfficialVersionTag(string sourceId, string value)
+    {
+        string tag = value.Trim();
+        if (sourceId == "github-desktop" &&
+            tag.StartsWith("release-", StringComparison.OrdinalIgnoreCase))
+            tag = tag["release-".Length..];
+        if (sourceId == "sumatrapdf" &&
+            tag.EndsWith("rel", StringComparison.OrdinalIgnoreCase))
+            tag = tag[..^3];
+        return tag.TrimStart('v', 'V');
     }
 
     internal static bool IsAllowedUrl(Uri url) =>
