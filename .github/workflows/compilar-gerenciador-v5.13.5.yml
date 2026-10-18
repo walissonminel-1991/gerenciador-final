@@ -112,6 +112,10 @@ jobs:
               -not $game.Contains('UnregisteredGames(')) {
             throw 'Apenas exemplos da biblioteca estao sendo inventariados'
           }
+          if (-not $game.Contains('if (!SafeFile(filename)) { unreadable++; partial = true; continue; }') -or
+              -not $game.Contains('if (name is null) { unreadable++; partial = true; continue; }')) {
+            throw 'Manifestos ilegíveis ou invalidos nao podem declarar inventario completo'
+          }
           if (-not $app.Contains('GameLibraryAudit.UnregisteredGames(games, result)') -or
               -not $app.Contains('InventoryOnly = true') -or
               -not $app.Contains('Biblioteca de jogos: ') -or
