@@ -125,7 +125,7 @@ jobs:
           if (-not $verified.Contains('GetPrimaryAction(ProgramEntry entry)')) { throw 'Politica de acoes ausente' }
           if (-not $verified.Contains('return "guide"')) { throw 'Falta orientacao para programas sem pagina oficial' }
           if (-not $main.Contains('ShowUpdateGuidance(item);')) { throw 'Acao de orientacao nao integrada' }
-          if (-not $main.Contains('primaryAction == "update"')) { throw 'Botao secundario deve aparecer somente com receita validada' }
+          if (-not $main.Contains('primaryAction is "update" or "terminal"')) { throw 'Botao secundario deve aparecer somente com receita validada' }
           if (-not $control.Contains('VerifiedUpdaters.GetPrimaryAction(item)')) { throw 'Hit test da acao principal inconsistente' }
           if (-not $verified.Contains('if (Resolve(entry) is not null) return "update"')) { throw 'Atualizar sem verificacao de receita' }
 
