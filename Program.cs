@@ -634,7 +634,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.13.3 TESTE";
+        Text = "Gerenciador Final — v5.13.4 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -2532,8 +2532,12 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write("RESIDUOS_GERAIS.CONSULTA_INICIO");
         // Independe de ter observado a instalação ou a remoção do programa.
         // Todas as fontes são somente leitura, com tempo e quantidade limitados.
-        var broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory));
-        DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
+        // Jogos detectados apenas por manifestos Steam/Epic nao pertencem ao ARP.
+        // Proteger seus dados ativos antes de sugerir vestigios historicos.
+        var gameInventory = await Task.Run(GameLibraryAudit.Inspect);
+        var broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory,
+            gameInventory.ActiveNames, gameInventory.Partial));
+        DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
         // Manter resultados com caminhos identificados pelas receitas específicas primeiro,
         // impedindo várias caixas de diálogo para o mesmo aplicativo histórico.
         var historicalNames = new HashSet<string>(historical.Select(r => r.Product),
