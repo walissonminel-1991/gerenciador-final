@@ -145,20 +145,19 @@ internal static class ApplicationIdentityCatalog
         return found;
     }
 
-    internal static bool MatchesOfficialSource(InstalledApp app, string sourceId)
-        => Resolve(app.Name, app.Publisher) is { OfficialSource: not null } rule &&
+    internal static bool MatchesOfficialSource(string name, string publisher, string sourceId)
+        => Resolve(name, publisher) is { OfficialSource: not null } rule &&
            rule.OfficialSource.Equals(sourceId, StringComparison.OrdinalIgnoreCase);
 
-    internal static bool IsStillInstalled(ProgramEntry before, IReadOnlyCollection<ProgramEntry> inventory)
+    internal static bool IsStillInstalled(string name, string publisher,
+        IEnumerable<(string Name, string Publisher)> installed)
     {
-        var rule = Resolve(before.Name, before.Publisher);
+        var rule = Resolve(name, publisher);
         if (rule is null)
-            // Unknown programs are still uninstalled by their own recorded uninstaller,
-            // but matching names block false "removed" status.
-            return inventory.Any(p => p.Name.Equals(before.Name, StringComparison.OrdinalIgnoreCase));
-        return inventory.Any(p =>
+            return installed.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        return installed.Any(p =>
             Resolve(p.Name, p.Publisher)?.Id.Equals(rule.Id, StringComparison.OrdinalIgnoreCase) == true ||
-            (rule.Names.Any(n => NameMatches(p.Name, n)) &&
+            (rule.Names.Any(alias => NameMatches(p.Name, alias)) &&
              string.IsNullOrWhiteSpace(p.Publisher)));
     }
 }
