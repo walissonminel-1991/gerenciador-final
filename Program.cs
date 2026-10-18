@@ -2236,9 +2236,9 @@ internal sealed partial class MainForm : Form
         {
             int count = candidates.Sum(x => x.Files.Count);
             if (DarkConfirmDialog.Confirm(this,
-                $"O aplicativo {app.Name} não está mais instalado.\\n\\n" +
-                $"Há {count} arquivo(s) residuais reconhecidos nas antigas pastas de instalação.\\n\\n" +
-                "Deseja remover somente esses arquivos?\\n" +
+                $"O aplicativo {app.Name} não está mais instalado.\n\n" +
+                $"Há {count} arquivo(s) residuais reconhecidos nas antigas pastas de instalação.\n\n" +
+                "Deseja remover somente esses arquivos?\n" +
                 "Documentos, plugins e configurações pessoais permanecerão intocados.",
                 "Limpeza de resíduos de aplicativos") != DialogResult.Yes)
             {
