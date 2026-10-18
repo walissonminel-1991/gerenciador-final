@@ -1,12 +1,31 @@
 using GerenciadorAplicativos;
 
 int passed = 0;
+var largeDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1920, 1400));
+var regularDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1920, 1040));
+var shiftedDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(-1920, 40, 1920, 1080));
+var smallDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1024, 720));
 void Check(bool result, string what)
 {
     if (!result) throw new Exception("FALHA: " + what);
     Console.WriteLine("OK " + what);
     passed++;
 }
+
+Check(largeDesktop.Size == new System.Drawing.Size(1250, 1160),
+    "Abrir com o dimensionamento vertical aprovado na captura");
+Check(regularDesktop.Size == new System.Drawing.Size(1250, 1040) &&
+      regularDesktop.Y == 0 && regularDesktop.X == 335,
+    "Respeitar altura da area de trabalho com barra de tarefas");
+Check(shiftedDesktop.Left >= -1920 && shiftedDesktop.Right <= 0 &&
+      shiftedDesktop.Top >= 40 && shiftedDesktop.Bottom <= 1120,
+    "Centralizar em monitor com origem e posicao deslocadas");
+Check(smallDesktop.Width == 1024 && smallDesktop.Height == 720 &&
+      StartupWindowSizing.AllowedMinimum(smallDesktop).Width <= smallDesktop.Width,
+    "Nao iniciar fora de monitores menores");
+Check(StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 0, 0)).Size ==
+      StartupWindowSizing.PreferredSize,
+    "Ter tamanho inicial seguro quando o monitor ainda nao puder ser consultado");
 
 var sumatra = new ProgramEntry { Name = "SumatraPDF", Publisher = "Krzysztof Kowalczyk" };
 var notepad = new ProgramEntry { Name = "Notepad++ (64-bit x64)", Publisher = "Notepad++ Team" };
