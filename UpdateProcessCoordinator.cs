@@ -6,7 +6,7 @@ namespace GerenciadorAplicativos;
 // Encerra SOMENTE processos de aplicativos explicitamente autorizados na receita.
 // Nunca usa taskkill, shell, encerramento por árvore ou processos de outros usuários.
 // A opção forçada é apresentada APÓS tentativa de fechamento normal e novo consentimento.
-internal enum UpdateProcessTarget { WindowsTerminal, ObsStudio, MicrosoftEdge, BraveBrowser, GoogleChrome, MozillaFirefox }
+internal enum UpdateProcessTarget { WindowsTerminal, ObsStudio, MicrosoftEdge, BraveBrowser, GoogleChrome, MozillaFirefox, NotepadPlusPlus }
 
 internal static class UpdateProcessCoordinator
 {
@@ -18,6 +18,7 @@ internal static class UpdateProcessCoordinator
         UpdateProcessTarget.BraveBrowser => "brave",
         UpdateProcessTarget.GoogleChrome => "chrome",
         UpdateProcessTarget.MozillaFirefox => "firefox",
+        UpdateProcessTarget.NotepadPlusPlus => "notepad++",
         _ => throw new ArgumentOutOfRangeException(nameof(target))
     };
 
@@ -29,6 +30,7 @@ internal static class UpdateProcessCoordinator
         UpdateProcessTarget.BraveBrowser => "Brave Browser",
         UpdateProcessTarget.GoogleChrome => "Google Chrome",
         UpdateProcessTarget.MozillaFirefox => "Mozilla Firefox",
+        UpdateProcessTarget.NotepadPlusPlus => "Notepad++",
         _ => throw new ArgumentOutOfRangeException(nameof(target))
     };
 
@@ -52,6 +54,7 @@ internal static class UpdateProcessCoordinator
         string chromeX86Path = Path.Combine(programFilesX86, "Google", "Chrome", "Application", "chrome.exe");
         string firefoxPath = Path.Combine(programFiles, "Mozilla Firefox", "firefox.exe");
         string firefoxX86Path = Path.Combine(programFilesX86, "Mozilla Firefox", "firefox.exe");
+        string nppPath = Path.Combine(programFiles, "Notepad++", "notepad++.exe");
         return target switch
         {
             UpdateProcessTarget.WindowsTerminal =>
@@ -73,6 +76,8 @@ internal static class UpdateProcessCoordinator
             UpdateProcessTarget.MozillaFirefox =>
                 path.Equals(firefoxPath, StringComparison.OrdinalIgnoreCase) ||
                 path.Equals(firefoxX86Path, StringComparison.OrdinalIgnoreCase),
+            UpdateProcessTarget.NotepadPlusPlus =>
+                path.Equals(nppPath, StringComparison.OrdinalIgnoreCase),
             _ => false
         };
     }
