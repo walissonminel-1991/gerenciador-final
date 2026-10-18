@@ -718,7 +718,7 @@ jobs:
           $source = Get-Content Program.cs -Raw
           $guard = Get-Content ProtectedApplications.cs -Raw
           $test = Get-Content TestesMsix/Program.cs -Raw
-          if (-not $source.Contains('InventoryOnly = inventoryOnly')) { throw 'Inventário desprotegido' }
+          if (-not $source.Contains('InventoryOnly = protectedApp')) { throw 'Inventário desprotegido' }
           if (-not $source.Contains('entries.Any(x => x.InventoryOnly || ProtectedApplications.IsProtectedName(x.Name))')) {
             throw 'Falta segunda barreira na desinstalação'
           }
