@@ -648,7 +648,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.13.6 TESTE";
+        Text = "Gerenciador Final — v5.13.7 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -2239,6 +2239,14 @@ internal sealed partial class MainForm : Form
             {
                 string command = !string.IsNullOrWhiteSpace(entry.UninstallString)
                     ? entry.UninstallString : entry.QuietUninstallString;
+                if (MaintenanceAudit.CheckUninstaller(command, false) == "missing")
+                {
+                    failed++;
+                    Log("O desinstalador registrado não existe no caminho informado para " +
+                        entry.Name + ". Nenhuma exclusão será tentada.");
+                    DiagnosticTrace.Write("DESINSTALACAO.ARQUIVO_AUSENTE");
+                    continue;
+                }
                 if (!AppServices.TryParseUninstaller(command, out string exe, out string args))
                 {
                     failed++;
@@ -2313,6 +2321,14 @@ internal sealed partial class MainForm : Form
                     Log("Auditoria adicional: nenhum local específico reconhecido para " + entry.Name +
                         ". Isso não comprova ausência de outros vestígios.");
                 }
+            }
+            catch (Win32Exception ex)
+            {
+                failed++;
+                Log("Falha ao iniciar desinstalação de " + entry.Name + ": " +
+                    UninstallLaunchDiagnostics.Explain(ex.NativeErrorCode));
+                DiagnosticTrace.Write($"DESINSTALACAO.INICIO_FALHA codigo_win32={ex.NativeErrorCode}");
+                DiagnosticTrace.Failure("DESINSTALACAO.FALHA", ex);
             }
             catch (Exception ex)
             {
@@ -2558,7 +2574,9 @@ internal sealed partial class MainForm : Form
         var gameInventory = inventorySnapshot.Games;
         var broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory,
             gameInventory.ActiveNames, gameInventory.Partial));
-        DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
+        int installCandidates = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)));
+        int publisherData = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal)));
+        DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
         // Manter resultados com caminhos identificados pelas receitas específicas primeiro,
         // impedindo várias caixas de diálogo para o mesmo aplicativo histórico.
         var historicalNames = new HashSet<string>(historical.Select(r => r.Product),
@@ -2567,7 +2585,7 @@ internal sealed partial class MainForm : Form
             .ToArray();
         if (allReports.Length > 0)
         {
-            Log($"Análise de resíduos: {allReports.Length} grupos com indícios. " +
+            Log($"Auditoria de dados e instalações: {allReports.Length} grupos para revisão (não são lixo confirmado). " +
                 $"Verificados {broad.EntriesSeen} nomes em {broad.RootsChecked} origens." +
                 (broad.Incomplete ? " Análise PARCIAL: limites de proteção alcançados." : ""));
             ResidualAuditDialog.ShowHistoricalResults(this, allReports);
@@ -2579,7 +2597,7 @@ internal sealed partial class MainForm : Form
         }
         Status(broad.Incomplete
             ? "Análise parcial concluída. Alguns locais não puderam ser examinados; nenhum dado incerto foi apagado."
-            : "Análise concluída. Possíveis vestígios foram apresentados sem apagar dados incertos.");
+            : "Análise concluída. Instalações e perfis foram classificados sem exclusões.");
     }
 
     private static string SimpleConfirmation(string task) => task switch
