@@ -343,6 +343,12 @@ internal sealed class ModernButton : Button
 {
     private bool _hot;
     private bool _pressed;
+    private readonly System.Windows.Forms.Timer _visualTimer = new() { Interval = 16 };
+    private long _visualStart;
+    private float _visualProgress = 1F;
+    private bool _pendingClick;
+    private bool _dispatchingClick;
+    private const double FeedbackMs = 145;
     // Estas propriedades sao definidas pelo codigo da interface em tempo de execucao.
     // No .NET 10, propriedades publicas de controles precisam declarar sua
     // politica de serializacao para satisfazer o analisador WFO1000.
@@ -360,6 +366,20 @@ internal sealed class ModernButton : Button
         FlatAppearance.BorderSize = 0;
         UseVisualStyleBackColor = false;
         TabStop = true;
+        _visualTimer.Tick += (_, _) =>
+        {
+            _visualProgress = Math.Clamp((float)((Stopwatch.GetTimestamp() - _visualStart) * 1000.0 /
+                Stopwatch.Frequency / FeedbackMs), 0F, 1F);
+            Invalidate();
+            if (_visualProgress < 1F) return;
+            _visualTimer.Stop();
+            if (!_pendingClick) return;
+            _pendingClick = false;
+            if (IsDisposed || !Enabled) return;
+            _dispatchingClick = true;
+            try { base.OnClick(EventArgs.Empty); }
+            finally { _dispatchingClick = false; }
+        };
     }
 
     internal static GraphicsPath RoundRect(Rectangle box, int radius)
@@ -382,15 +402,22 @@ internal sealed class ModernButton : Button
         e.Graphics.Clear(Parent?.BackColor ?? Color.FromArgb(21, 27, 35));
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         Rectangle rect = new Rectangle(2, 2, ClientSize.Width - 5, ClientSize.Height - 5);
+        bool animatedPress = _pendingClick && _visualProgress < 0.64F;
+        bool depressed = _pressed || animatedPress;
+        if (depressed) { rect.Offset(0, 2); rect.Height = Math.Max(3, rect.Height - 2); }
+        float flash = _pendingClick ? MathF.Sin(_visualProgress * MathF.PI) : 0F;
         Color fill = BackColor;
         if (!Enabled) fill = Color.FromArgb(47, 56, 66);
-        else if (_pressed) fill = Blend(fill, Color.Black, 0.10F);
-        else if (_hot) fill = Blend(fill, Color.White, 0.06F);
+        else if (depressed) fill = Blend(fill, Color.Black, 0.17F);
+        else if (_hot) fill = Blend(fill, Color.White, 0.09F);
+        if (Enabled && flash > 0F) fill = Blend(fill, Color.White, flash * 0.10F);
         using var shape = RoundRect(rect, CornerRadius);
         using (var brush = new SolidBrush(fill)) e.Graphics.FillPath(brush, shape);
-        if (OutlineColor != Color.Transparent)
+        if (OutlineColor != Color.Transparent || _hot || _pendingClick)
         {
-            using var pen = new Pen(OutlineColor, 1F);
+            var outlineColor = OutlineColor != Color.Transparent ? OutlineColor :
+                Color.FromArgb(65 + (int)(70 * flash), 116, 175, 227);
+            using var pen = new Pen(outlineColor, 1F);
             e.Graphics.DrawPath(pen, shape);
         }
         if (Focused && ShowFocusCues)
@@ -398,7 +425,8 @@ internal sealed class ModernButton : Button
             using var outline = new Pen(Color.FromArgb(128, 188, 253), 2F);
             e.Graphics.DrawPath(outline, shape);
         }
-        var content = new Rectangle(12, 3, Math.Max(1, ClientSize.Width - 24), Math.Max(1, ClientSize.Height - 6));
+        var content = new Rectangle(12, 3 + (depressed ? 2 : 0),
+            Math.Max(1, ClientSize.Width - 24), Math.Max(1, ClientSize.Height - 6));
         TextRenderer.DrawText(e.Graphics, Text, Font, content,
             Enabled ? ForeColor : Color.FromArgb(164, 176, 190),
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
@@ -410,11 +438,63 @@ internal sealed class ModernButton : Button
         int Chan(int a, int b) => (int)(a + (b - a) * amount);
         return Color.FromArgb(Chan(first.R, second.R), Chan(first.G, second.G), Chan(first.B, second.B));
     }
-    protected override void OnMouseEnter(EventArgs e) { _hot = true; Invalidate(); base.OnMouseEnter(e); }
-    protected override void OnMouseLeave(EventArgs e) { _hot = false; _pressed = false; Invalidate(); base.OnMouseLeave(e); }
-    protected override void OnMouseDown(MouseEventArgs e) { _pressed = true; Invalidate(); base.OnMouseDown(e); }
-    protected override void OnMouseUp(MouseEventArgs e) { _pressed = false; Invalidate(); base.OnMouseUp(e); }
-    protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+    // Mesmo clique em botões de navegação e manutenção: animação ANTES do evento.
+    // Evita que um navegador ou caixa modal oculta a reação ao clique.
+    protected override void OnClick(EventArgs e)
+    {
+        if (_dispatchingClick) { base.OnClick(e); return; }
+        if (!Enabled || IsDisposed || _pendingClick) return;
+        _pendingClick = true;
+        _visualStart = Stopwatch.GetTimestamp();
+        _visualProgress = 0F;
+        _visualTimer.Start();
+        Invalidate();
+    }
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        _hot = true;
+        Cursor = Cursors.Hand;
+        Invalidate();
+        base.OnMouseEnter(e);
+    }
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        _hot = false;
+        _pressed = false;
+        Cursor = Cursors.Default;
+        Invalidate();
+        base.OnMouseLeave(e);
+    }
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Left && Enabled) _pressed = true;
+        Invalidate();
+        base.OnMouseDown(e);
+    }
+    protected override void OnMouseUp(MouseEventArgs e)
+    {
+        _pressed = false;
+        Invalidate();
+        base.OnMouseUp(e);
+    }
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        if (!Enabled)
+        {
+            _visualTimer.Stop();
+            _pendingClick = false;
+            _pressed = false;
+            _visualProgress = 1F;
+        }
+        Invalidate();
+        base.OnEnabledChanged(e);
+    }
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) { _visualTimer.Stop(); _visualTimer.Dispose(); }
+        base.Dispose(disposing);
+    }
 }
 
 internal sealed partial class MainForm : Form
@@ -477,7 +557,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.7.1 TESTE";
+        Text = "Gerenciador Final — v5.12.7.2 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -1601,20 +1681,11 @@ internal sealed partial class MainForm : Form
                 return;
             }
         }
-        string mode = recipe.Interactive ? "assistida (instalador oficial com opções)" : "silenciosa quando autorizada";
-        string confirmation = "Atualizar " + entry.Name + "\n" +
-            "Versão atual: " + entry.Version + "\n" +
-            "Versão proposta: " + recipe.Version + "\n\n" +
-            "Fonte oficial: " + recipe.Download.Host + "\n" +
-            "Instalação " + mode + ".\n\n" +
-            "O arquivo será conferido antes de executar. O Windows pode solicitar UAC. " +
-            "Salve seu trabalho antes de continuar. Nenhum programa será fechado automaticamente.\n\nContinuar?";
-        if (MessageBox.Show(this, confirmation, "Confirmar atualização",
-            MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
-        {
-            Status("Atualização cancelada.");
-            return;
-        }
+        // O clique explícito em "Atualizar" autoriza preparar a atualização escolhida.
+        // Sem caixa de diálogo redundante. UAC e janelas legítimas dos instaladores continuam.
+        Status("Atualizando " + recipe.ProductName + ": preparando instalador oficial verificado...");
+        Log("Atualização solicitada diretamente na lista: " + recipe.ProductName +
+            " (" + recipe.Identifier + "). Origem e assinatura serão conferidas antes da execução.");
         await ExecuteAsync("Preparando atualização de " + recipe.ProductName + "...", async () =>
         {
             string folder = Path.Combine(Path.GetTempPath(), "GerenciadorFinal-Update-" + Guid.NewGuid().ToString("N"));
