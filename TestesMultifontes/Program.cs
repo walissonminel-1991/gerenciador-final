@@ -24,6 +24,27 @@ var fakeSeven = App("7-Zip 25.00 (x64)", "25.00", "Editor Suspeito");
 var esr = App("Mozilla Firefox ESR", "115.0.0", "Mozilla Corporation");
 var thunderbirdEsr = App("Thunderbird ESR", "128.0", "Mozilla Corporation");
 var unknownThunderbird = App("Mozilla Thunderbird", "140.0", "Mozilla Corporation");
+Assert(ApplicationIdentityCatalog.RuleCount == 18,
+    "Catálogo unificado reconhece 18 famílias verificadas");
+Assert(ApplicationIdentityCatalog.Rules.Count(r => r.OfficialSource is not null) == 14,
+    "Quatorze fontes oficiais referenciam identidade estável");
+Assert(ApplicationIdentityCatalog.Resolve("OBS Studio", "OBS Project")?.Id == "obs" &&
+    ApplicationIdentityCatalog.Resolve("OBS Studio", "OBS Project, LLC")?.Id == "obs",
+    "Mesmo ID para versões de fabricante oficial do OBS");
+Assert(ApplicationIdentityCatalog.Resolve("OBS Studio", "Editor Suspeito") is null,
+    "Nome idêntico de fabricante falso nunca concede identidade");
+Assert(ApplicationIdentityCatalog.Resolve("Windows Terminal Preview", "Microsoft Corporation") is null,
+    "Terminal Preview não é confundido com canal estável");
+Assert(ApplicationIdentityCatalog.Resolve("Mozilla Firefox ESR", "Mozilla Corporation") is null,
+    "Firefox ESR não pode compartilhar ID do Firefox estável");
+Assert(ApplicationIdentityCatalog.Resolve("7-Zippy Browser", "Igor Pavlov") is null,
+    "Prefixos parecidos não autorizam fonte do 7-Zip");
+Assert(ApplicationIdentityCatalog.Resolve("Notepad++ (64-bit x64)", "Notepad++ Team")?.CleanupPolicy == "notepadpp",
+    "Mesma identidade conecta atualizações e limpeza profunda");
+Assert(ApplicationIdentityCatalog.MatchesOfficialSource(obs.Name, obs.Publisher, "obs") &&
+    !ApplicationIdentityCatalog.MatchesOfficialSource(obs.Name, obs.Publisher, "sumatrapdf"),
+    "Fonte oficial não pode atualizar produto de outra família");
+
 var list = new[] {obs, firefox, notepad, powertoys, shell, sevenzip, desktop,
     sumatra, thunderbird, fakeObs, fakeSeven, esr, thunderbirdEsr, unknownThunderbird};
 
