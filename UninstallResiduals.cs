@@ -42,7 +42,16 @@ internal static class UninstallResiduals
     // Se mesmo aplicativo ainda aparece no Registro não apagar nada.
     internal static bool StillInstalled(ProgramEntry original, IReadOnlyCollection<ProgramEntry> installed)
     {
-        // Também evita apagar uma segunda arquitetura ou variante ainda instalada.
+        // Mesmo ID em todas as etapas: se uma variante continua instalada,
+        // o software NÃO está removido e nenhum resíduo pode ser apagado.
+        var identity = ApplicationIdentityCatalog.Resolve(original.Name, original.Publisher);
+        if (identity is not null &&
+            (ApplicationIdentityCatalog.IsStillInstalled(original.Name, original.Publisher,
+                installed.Select(p => (p.Name, p.Publisher))) ||
+             installed.Any(p => identity.Names.Any(n =>
+                 ApplicationIdentityCatalog.NameMatches(p.Name, n)))))
+            return true;
+        // Fallback conservador para instalações não classificadas.
         if (original.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase))
             return installed.Any(p => p.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase));
         if (original.Name.Equals("SumatraPDF", StringComparison.OrdinalIgnoreCase))
