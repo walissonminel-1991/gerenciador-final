@@ -20,6 +20,11 @@ internal static class VerifiedUpdaters
     private static readonly Version VcTarget = new(12, 0, 40664, 0);
     private const string ObsDigest = "c3a0b880adbe64dc4bcb68f93016916ab5b55ae43fd227115287bf80257d92dc";
     private const string NppDigest = "26f3bcced788fadbac4e7e577b430ea2ce6060cf3bcad993ef4612ecd7d743da";
+    private const string SumatraX64Digest = "1EEE71CCCD2EA6E94D5BCEA54EE2F759844DA3E1A0EE2F6045035B1D17B94381";
+    private const string SumatraX86Digest = "E232308A77E2293BAFE4AC4079DDB8EF00CA10DE43B9477CA55F17A03419770B";
+    private static readonly Version SumatraTarget = new(3, 6, 1, 0);
+    private static readonly Uri SumatraX64 = new("https://www.sumatrapdfreader.org/dl/rel/3.6.1/SumatraPDF-3.6.1-64-install.exe");
+    private static readonly Uri SumatraX86 = new("https://www.sumatrapdfreader.org/dl/rel/3.6.1/SumatraPDF-3.6.1-install.exe");
     private static readonly Version NppVersion = new(8, 9, 8, 1);
     private static readonly Uri Npp64 = new("https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.9.8.1/npp.8.9.8.1.Installer.x64.exe");
     // Integridade fixada conforme manifesto Microsoft/winget-pkgs da versão 3.5.283.
@@ -147,15 +152,112 @@ internal static class VerifiedUpdaters
              entry.Name.Equals("Notepad++ (x64)", StringComparison.OrdinalIgnoreCase)) &&
             (entry.Publisher.Equals("Don HO", StringComparison.OrdinalIgnoreCase) ||
              entry.Publisher.Equals("Notepad++", StringComparison.OrdinalIgnoreCase) ||
-             entry.Publisher.Equals("Notepad Team", StringComparison.OrdinalIgnoreCase)) &&
+             entry.Publisher.Equals("Notepad Team", StringComparison.OrdinalIgnoreCase) ||
+             entry.Publisher.Equals("Notepad++ Team", StringComparison.OrdinalIgnoreCase)) &&
             TryVersion(entry.Version, out var nppInstalled) && nppInstalled < NppVersion &&
             TryVersion(entry.AvailableVersion, out var nppAvailable) && nppAvailable == NppVersion)
         {
             return new("notepadpp-x64-8.9.8.1", "Notepad++", "8.9.8.1", Npp64, NppDigest,
                 "Notepad++", "", true, "https://notepad-plus-plus.org/downloads/");
         }
+        if (entry.Name.Equals("SumatraPDF", StringComparison.OrdinalIgnoreCase) &&
+            entry.Source == "GitHub oficial" &&
+            (entry.Publisher.Equals("Krzysztof Kowalczyk", StringComparison.OrdinalIgnoreCase) ||
+             entry.Publisher.Equals("SumatraPDF", StringComparison.OrdinalIgnoreCase) ||
+             entry.Publisher.Equals("SumatraPDF Reader", StringComparison.OrdinalIgnoreCase)) &&
+            TryVersion(entry.Version, out var sumInstalled) && sumInstalled < SumatraTarget &&
+            TryVersion(entry.AvailableVersion, out var sumAvailable) && sumAvailable == SumatraTarget)
+        {
+            var detected = DetectSumatraInstallation(entry);
+            if (detected is not null)
+                return CreateSumatraRecipe(entry, detected.Value.IsX64, detected.Value.AllUsers);
+        }
         return null;
     }
+
+    // Valida local e arquitetura PE real: nunca converte uma instalação x86 em x64
+    // nem altera a instalação por usuário para instalação global.
+    internal static (bool IsX64, bool AllUsers)? DetectSumatraInstallation(ProgramEntry entry)
+    {
+        string? executable = FindSumatraExecutable(entry);
+        if (executable is null) return null;
+        ushort machine = GetPortableExecutableMachine(executable);
+        if (machine is not (0x8664 or 0x014C)) return null;
+        string directory = Path.GetDirectoryName(executable)!;
+        string global = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "SumatraPDF");
+        string global32 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "SumatraPDF");
+        string local = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SumatraPDF");
+        bool allUsers = directory.Equals(global, StringComparison.OrdinalIgnoreCase) ||
+                        directory.Equals(global32, StringComparison.OrdinalIgnoreCase);
+        if (!allUsers && !directory.Equals(local, StringComparison.OrdinalIgnoreCase)) return null;
+        return (machine == 0x8664, allUsers);
+    }
+
+    private static string? FindSumatraExecutable(ProgramEntry entry)
+    {
+        string[] roots =
+        {
+            entry.InstallLocation.Trim().Trim('"'),
+            ExtractExecutableDirectory(entry.UninstallString),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SumatraPDF"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "SumatraPDF"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "SumatraPDF")
+        };
+        foreach (string root in roots.Where(x => !string.IsNullOrWhiteSpace(x)))
+        {
+            try
+            {
+                string file = Path.Combine(Path.GetFullPath(root), "SumatraPDF.exe");
+                if (File.Exists(file) &&
+                    (File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0)
+                    return file;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { }
+        }
+        return null;
+    }
+
+    private static string ExtractExecutableDirectory(string command)
+    {
+        var value = command.Trim();
+        if (value.StartsWith('"'))
+        {
+            int closing = value.IndexOf('"', 1);
+            if (closing > 1) value = value.Substring(1, closing - 1);
+        }
+        else
+        {
+            int exe = value.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+            if (exe >= 0) value = value.Substring(0, exe + 4);
+        }
+        if (!value.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return "";
+        return Path.GetDirectoryName(value) ?? "";
+    }
+
+    private static ushort GetPortableExecutableMachine(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new BinaryReader(stream);
+            if (stream.Length < 256 || reader.ReadUInt16() != 0x5A4D) return 0;
+            stream.Position = 0x3C;
+            int offset = reader.ReadInt32();
+            if (offset < 64 || offset > stream.Length - 6) return 0;
+            stream.Position = offset;
+            return reader.ReadUInt32() == 0x00004550 ? reader.ReadUInt16() : (ushort)0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return 0; }
+    }
+
+    // Testável sem precisar escrever no Registro do Windows.
+    internal static VerifiedUpdateRecipe CreateSumatraRecipe(ProgramEntry entry, bool x64, bool allUsers)
+        => new(x64 ? "sumatrapdf-x64-3.6.1" : "sumatrapdf-x86-3.6.1",
+            "SumatraPDF", "3.6.1", x64 ? SumatraX64 : SumatraX86,
+            x64 ? SumatraX64Digest : SumatraX86Digest,
+            "Krzysztof Kowalczyk", allUsers ? "-install -all-users" : "-install",
+            true, "https://www.sumatrapdfreader.org/download-free-pdf-viewer");
 
     // Um candidato sempre recebe uma acao explicita, mas apenas receitas locais
     // assinadas e verificadas autorizam iniciar um instalador.
@@ -193,6 +295,8 @@ internal static class VerifiedUpdaters
                 "obs-x64-32.2.2" => entry.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase),
                 "notepadpp-x64-8.9.8.1" => entry.Name.Equals("Notepad++ (64-bit x64)", StringComparison.OrdinalIgnoreCase) ||
                                                entry.Name.Equals("Notepad++ (x64)", StringComparison.OrdinalIgnoreCase),
+                "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" =>
+                    entry.Name.Equals("SumatraPDF", StringComparison.OrdinalIgnoreCase),
                 "gameinput-x64-3.5.283" => entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase),
                 _ => false
             };
@@ -213,6 +317,10 @@ internal static class VerifiedUpdaters
             return host == "globalcdn.nuget.org" &&
                    uri.AbsolutePath.Equals("/packages/microsoft.gameinput.3.5.283.nupkg",
                        StringComparison.OrdinalIgnoreCase);
+        if (id.StartsWith("sumatrapdf-", StringComparison.Ordinal))
+            return host == "www.sumatrapdfreader.org" &&
+                   (uri.AbsolutePath.Equals("/dl/rel/3.6.1/SumatraPDF-3.6.1-64-install.exe", StringComparison.Ordinal) ||
+                    uri.AbsolutePath.Equals("/dl/rel/3.6.1/SumatraPDF-3.6.1-install.exe", StringComparison.Ordinal));
         if (id.StartsWith("obs-", StringComparison.Ordinal) ||
             id.StartsWith("notepadpp-", StringComparison.Ordinal))
             return host is "github.com" or "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
@@ -228,7 +336,7 @@ internal static class VerifiedUpdaters
         string path = Path.Combine(directory, recipe.Identifier + (gameInput ? ".nupkg" : ".exe"));
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(8) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GerenciadorFinal/5.12.15.0");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("GerenciadorFinal/5.12.18.1");
         Uri target = recipe.Download;
         const long maxBytes = 260L * 1024 * 1024;
         for (int redirect = 0; redirect <= 7; redirect++)
