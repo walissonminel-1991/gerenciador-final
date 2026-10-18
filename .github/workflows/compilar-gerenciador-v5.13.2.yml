@@ -586,7 +586,7 @@ jobs:
           if (-not $code.Contains('SumatraX64Digest') -or -not $code.Contains('SumatraX86Digest')) {
             throw 'Hashes oficiais da versao 3.6.1 ausentes'
           }
-          if (-not $inventory.Contains('InstallLocation = inventoryOnly ?')) {
+          if (-not $inventory.Contains('InstallLocation = protectedApp ? "" :')) {
             throw 'Local de instalacao nao integrado'
           }
 
