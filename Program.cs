@@ -648,7 +648,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.13.5 TESTE";
+        Text = "Gerenciador Final — v5.13.6 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -2449,7 +2449,7 @@ internal sealed partial class MainForm : Form
         await Task.WhenAll(maintenanceTask, gamesTask);
         var report = await maintenanceTask;
         var games = await gamesTask;
-        DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} steam={games.Steam} epic={games.Epic} parcial={report.Devices.Partial || games.Partial}");
+        DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} pnp_sem_correspondencia={report.HistoricalPnP?.NotPresent ?? 0} steam={games.Steam} epic={games.Epic} parcial={report.Devices.Partial || games.Partial}");
         Log($"DIAGNÓSTICO COMPLETO: {report.Installed} programas; " +
             $"{report.Recognized} associados ao catálogo de receitas específicas; " +
             $"{report.WithPublisher} com fabricante registrado e " +
@@ -2472,8 +2472,9 @@ internal sealed partial class MainForm : Form
             if (report.HistoricalPnP is { } oldDevices)
             {
                 Log($"REGISTRO PnP: {oldDevices.Registered} instâncias PCI/USB/USBSTOR " +
-                    $"enumeradas; {oldDevices.NotPresent} sem correspondência entre dispositivos presentes. " +
-                    "Isso NÃO comprova drivers antigos dispensáveis.");
+                    $"enumeradas; {oldDevices.NotPresent} sem correspondência no retrato WMI atual. " +
+                    "Essa contagem é diferente de dispositivos desconectados e NÃO " +
+                    "representa quantidade de drivers antigos ou removíveis.");
                 foreach (string group in oldDevices.Buses)
                     Log("  Origem de registros históricos: " + group);
                 if (oldDevices.Partial)
@@ -2493,7 +2494,7 @@ internal sealed partial class MainForm : Form
                report.HistoricalPnP is null || report.HistoricalPnP.Partial
             ? "Diagnóstico parcial: consulte as informações e limitações no registro."
             : $"Diagnóstico: {report.MissingUninstallers} desinstaladores ausentes; " +
-              $"{report.HistoricalPnP.NotPresent} registros PCI/USB históricos para revisão.");
+              $"{report.HistoricalPnP.NotPresent} instâncias PnP sem confirmação (não são drivers).");
     }
 
     private async Task ReviewOldUninstallResiduesAsync()
