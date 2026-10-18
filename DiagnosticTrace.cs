@@ -8,7 +8,7 @@ internal static class DiagnosticTrace
 {
     private static readonly object Gate = new();
     private static readonly UTF8Encoding NoBom = new(false);
-    private const string FileName = "GerenciadorFinal-Diagnostico-v5.12.7.1.log";
+    private const string FileName = "GerenciadorFinal-Diagnostico-v5.12.7.2.log";
     private static string? _logFile;
     private static string _lastFailure = "O arquivo de diagnostico nao foi iniciado.";
 
@@ -52,7 +52,7 @@ internal static class DiagnosticTrace
                                FileShare.ReadWrite, 4096, FileOptions.WriteThrough))
                     using (var writer = new StreamWriter(file, NoBom, bufferSize: 1024, leaveOpen: true))
                     {
-                        writer.WriteLine($"Gerenciador Final v5.12.7.1 | {DateTimeOffset.Now:O}");
+                        writer.WriteLine($"Gerenciador Final v5.12.7.2 | {DateTimeOffset.Now:O}");
                         writer.WriteLine("Registro local de etapas; sem nomes de aplicativos nem saida de comandos.");
                         writer.WriteLine("Ultima etapa nao determina a causa do alerta do antivirus.");
                         writer.Flush();
