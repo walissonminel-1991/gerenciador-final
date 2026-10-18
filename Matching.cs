@@ -115,6 +115,11 @@ internal static class Matching
         var output = new List<UpdateMatch>();
         foreach (var app in installedRows)
         {
+            if (!app.EligibleForUpdates)
+            {
+                output.Add(new(app, null, MatchState.Unmatched));
+                continue;
+            }
             var name = NormalizeName(app.Name);
             var publisher = NormalizePublisher(app.Publisher);
             if (name.Length == 0 || publisher.Length == 0 || !byName.TryGetValue(name, out var nameMatches))
@@ -179,7 +184,7 @@ internal static class Matching
                 _ => MatchState.EqualOrNewer
             };
             if (state == MatchState.Candidate &&
-                installedRows.Any(other =>
+                installedRows.Any(other => other.EligibleForUpdates &&
                     SameVisualCpp2013Family(app, other) &&
                     other != app &&
                     CompareVersions(other.Version, newest.ProductVersion) is >= 0))
