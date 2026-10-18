@@ -23,6 +23,34 @@ Check(LocalMsixInventory.Recognize("Microsoft.WindowsTerminal",
 Check(LocalMsixInventory.Recognize("Microsoft.OutlookForWindows",
     "fakepublisher", 1, 2026, 812, 100) is null,
     "Outlook falso é rejeitado");
+// Ampliação: reconhecer aplicativos genuinamente listados pelo Windows,
+ // sem permitir receitas baseadas apenas no título exibido pelo pacote.
+var generic = LocalMsixInventory.Describe("Contoso.Reader", "otherpublisher",
+    "Leitor de documentos", "Contoso Ltda.", false, false, true, 3, 2, 1, 0);
+Check(generic is { Name: "Leitor de documentos", Version: "3.2.1.0",
+    RecipeEligible: false }, "MSIX genérico identificado sem necessidade de constar no catálogo");
+Check(LocalMsixInventory.Describe("Contoso.Runtime", "otherpublisher",
+    "Runtime Contoso", "Contoso", true, false, true, 1, 0, 0, 0) is null,
+    "Dependência framework não deve poluir lista de aplicativos");
+Check(LocalMsixInventory.Describe("Contoso.Lang", "otherpublisher",
+    "Pacote de idioma", "Contoso", false, true, true, 1, 0, 0, 0) is null,
+    "Pacote de recursos MSIX não é um aplicativo autônomo");
+Check(LocalMsixInventory.Describe("Contoso.Service", "otherpublisher",
+    "Serviço auxiliar", "Contoso", false, false, false, 1, 0, 0, 0) is null,
+    "Pacote sem aplicativo visível não é contado como programa");
+Check(LocalMsixInventory.Describe("Contoso.App", "otherpublisher",
+    "ms-resource:AppName", "Contoso", false, false, true, 1, 0, 0, 0) is null,
+    "Identificador de recurso não resolvido não vira aplicativo fictício");
+Check(LocalMsixInventory.Describe("Microsoft.WindowsTerminal", "fakepublisher",
+    "Windows Terminal", "Microsoft Corporation", false, false, true, 2, 0, 0, 0)
+    is { RecipeEligible: false },
+    "Nome de pacote conhecido sem editor verificado NÃO recebe permissão de receita");
+Check(LocalMsixInventory.MergeWithRegistry([generic!],
+    [new InstalledApp("Leitor de documentos", "3.2.1.0", "Outra Empresa")]).Count == 1,
+    "Apps com nome igual e fabricantes diferentes são preservados");
+Check(LocalMsixInventory.MergeWithRegistry([generic!],
+    [new InstalledApp("Leitor de documentos", "3.2.1.0", "Contoso Ltda.")]).Count == 0,
+    "Não exibir duplicata Win32/MSIX de mesmo programa e fabricante");
 var additions = LocalMsixInventory.MergeWithRegistry(
     [terminal!, outlook!],
     [new InstalledApp("Terminal do Windows", "1.24.12741.0", "Microsoft Corporation")]);
