@@ -192,7 +192,7 @@ internal static class MaintenanceAudit
         if (device.WithProblems > 0)
             findings.Add(new("Hardware", "Dispositivos com problema",
                 $"{device.WithProblems} dispositivos atualmente presentes têm códigos de problema no Windows."));
-        if (!device.Supported)
+        if (inspectDevices && !device.Supported)
             findings.Add(new("Hardware", "Consulta parcial",
                 "O Windows não disponibilizou a informação completa dos dispositivos PnP."));
         return new(inventory.Installed, inventory.Recognized, inventory.Available,
