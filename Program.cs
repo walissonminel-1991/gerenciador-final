@@ -579,7 +579,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.13.0 TESTE";
+        Text = "Gerenciador Final — v5.13.1 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -1256,7 +1256,7 @@ internal sealed partial class MainForm : Form
         root.Controls.Add(heading, 0, 0);
         var previewRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, BackColor = PanelBackground };
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
-        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
+        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 248));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var previewButton = CreateSecondaryButton("Analisar limpeza");
         previewButton.Dock = DockStyle.Fill;
@@ -1269,6 +1269,7 @@ internal sealed partial class MainForm : Form
         fullAudit.Margin = new Padding(0, 5, 8, 5);
         fullAudit.Click += async (_, _) =>
             await ExecuteAsync("Analisando instalações e dispositivos...", RunMaintenanceAuditAsync);
+        fullAudit.AccessibleName = "Diagnóstico completo";
         _toolTips.SetToolTip(fullAudit, "Revisa o inventário, os desinstaladores, " +
             "os registros de hardware desconectado e dispositivos com problemas. Não remove nada.");
         _actionControls.Add(fullAudit);
@@ -2389,7 +2390,9 @@ internal sealed partial class MainForm : Form
         var games = await gamesTask;
         DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} steam={games.Steam} epic={games.Epic} parcial={report.Devices.Partial || games.Partial}");
         Log($"DIAGNÓSTICO COMPLETO: {report.Installed} programas; " +
-            $"{report.Recognized} identificados pelo catálogo; " +
+            $"{report.Recognized} associados às {18} famílias de receitas específicas; " +
+            $"{report.WithPublisher} com fabricante registrado e " +
+            $"{report.WithVersion} com versão registrada; " +
             $"{report.UsableUninstallers} desinstaladores localizados; " +
             $"{report.MissingUninstallers} caminhos de desinstalação ausentes; " +
             $"{report.UnverifiableUninstallers} comandos não verificáveis.");
@@ -2405,16 +2408,31 @@ internal sealed partial class MainForm : Form
                 $"{report.Devices.WithProblems} presentes com código de problema.");
             foreach (string group in report.Devices.Categories)
                 Log("  Classe PnP: " + group);
+            if (report.HistoricalPnP is { } oldDevices)
+            {
+                Log($"REGISTRO PnP: {oldDevices.Registered} instâncias PCI/USB/USBSTOR " +
+                    $"enumeradas; {oldDevices.NotPresent} sem correspondência entre dispositivos presentes. " +
+                    "Isso NÃO comprova drivers antigos dispensáveis.");
+                foreach (string group in oldDevices.Buses)
+                    Log("  Origem de registros históricos: " + group);
+                if (oldDevices.Partial)
+                    Log($"Acesso parcial ao Registro PnP: {oldDevices.ReadErrors} erro(s). " +
+                        "Algumas instâncias podem não ter sido examinadas.");
+            }
+            else
+                Log("A comparação histórica do Registro PnP não foi possível; " +
+                    "o total de drivers antigos permanece desconhecido.");
         }
         else
             Log("Consulta PnP indisponível ou parcial. Não é possível concluir sobre drivers antigos.");
         foreach (var issue in report.Concerns)
             Log("Revisar: " + issue.Category + " — " + issue.Name + ": " + issue.Description);
         Log("Nenhum driver, arquivo de instalação ou chave de Registro foi removido pelo diagnóstico.");
-        Status(report.Devices.Partial || games.Partial
-            ? "Diagnóstico parcial: consulte informações indisponíveis no registro."
-            : $"Diagnóstico concluído: {report.MissingUninstallers} desinstaladores ausentes e " +
-              $"{report.Devices.Disconnected} dispositivos desconectados para revisão.");
+        Status(report.Devices.Partial || games.Partial ||
+               report.HistoricalPnP is null || report.HistoricalPnP.Partial
+            ? "Diagnóstico parcial: consulte as informações e limitações no registro."
+            : $"Diagnóstico: {report.MissingUninstallers} desinstaladores ausentes; " +
+              $"{report.HistoricalPnP.NotPresent} registros PCI/USB históricos para revisão.");
     }
 
     private async Task ReviewOldUninstallResiduesAsync()
