@@ -108,6 +108,36 @@ Verify(VerifiedUpdaters.Resolve(Item("Notepad++ (x86)", "8.9.5", "8.9.8.1", "Don
        "Notepad++: nao instalar pacote x64 no cadastro x86");
 Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial")) is null,
        "Notepad++: bloquear arquitetura nao identificada");
+Verify(VerifiedUpdaters.GetPrimaryAction(Item("Notepad++ (64-bit x64)", "8.8.8", "8.9.8.1",
+       "Notepad++ Team", "GitHub oficial")) == "update",
+       "Notepad++ Team x64 deve apresentar botao Atualizar");
+Verify(VerifiedUpdaters.Resolve(Item("Notepad++ (64-bit x64)", "8.8.8", "8.9.8.1",
+       "Editor desconhecido", "GitHub oficial")) is null,
+       "Notepad++: publisher desconhecido nao ativa botao");
+var sumX64 = VerifiedUpdaters.CreateSumatraRecipe(Item("SumatraPDF", "3.5", "3.6.1",
+    "Krzysztof Kowalczyk", "GitHub oficial"), x64: true, allUsers: false);
+var sumX86 = VerifiedUpdaters.CreateSumatraRecipe(Item("SumatraPDF", "3.5", "3.6.1",
+    "Krzysztof Kowalczyk", "GitHub oficial"), x64: false, allUsers: true);
+Verify(sumX64.Identifier == "sumatrapdf-x64-3.6.1" &&
+       sumX64.Sha256?.Length == 64 && sumX64.RequiredSigner == "Krzysztof Kowalczyk" &&
+       sumX64.Download.Host == "www.sumatrapdfreader.org" &&
+       sumX64.Arguments == "-install",
+       "SumatraPDF x64: instalador oficial por usuario com SHA e assinatura");
+Verify(sumX86.Identifier == "sumatrapdf-x86-3.6.1" &&
+       sumX86.Arguments.Contains("-all-users") && sumX86.Download != sumX64.Download,
+       "SumatraPDF x86: preservar arquitetura e escopo global");
+Verify(VerifiedUpdaters.Resolve(Item("SumatraPDF", "3.5", "3.6.1",
+       "Empresa desconhecida", "GitHub oficial")) is null,
+       "SumatraPDF: impedir fabricante falso");
+Verify(VerifiedUpdaters.Resolve(Item("SumatraPDF", "3.5", "3.6.2",
+       "Krzysztof Kowalczyk", "GitHub oficial")) is null,
+       "SumatraPDF: nao aceitar versao de destino nao auditada");
+Verify(VerifiedUpdaters.Resolve(Item("SumatraPDF", "3.5", "3.6.1",
+       "Krzysztof Kowalczyk", "RuckZuck")) is null,
+       "SumatraPDF: so permitir candidatos de fonte oficial");
+Verify(VerifiedUpdaters.Resolve(Item("SumatraPDF", "3.6.1", "3.6.1",
+       "Krzysztof Kowalczyk", "GitHub oficial")) is null,
+       "SumatraPDF: evitar reinstalar versao ja atualizada");
 Console.WriteLine($"{checkedCount}/{checkedCount} testes do motor autorizador aprovados");
 if (args.Contains("--verify-terminal", StringComparer.OrdinalIgnoreCase))
 {
@@ -130,7 +160,9 @@ if (args.Contains("--verify-terminal", StringComparer.OrdinalIgnoreCase))
 }
 if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 {
-    var recipes = args.Contains("--verify-gameinput", StringComparer.OrdinalIgnoreCase)
+    var recipes = args.Contains("--verify-sumatra", StringComparer.OrdinalIgnoreCase)
+        ? new[] { sumX64, sumX86 }
+        : args.Contains("--verify-gameinput", StringComparer.OrdinalIgnoreCase)
         ? new[] { gameRecipe }
         : args.Contains("--verify-npp", StringComparer.OrdinalIgnoreCase)
         ? new[] { npp }
@@ -168,6 +200,8 @@ namespace GerenciadorAplicativos
         public string Source { get; set; } = "";
         public bool IsUpdate { get; init; }
         public bool InventoryOnly { get; init; }
+        public string InstallLocation { get; init; } = "";
+        public string UninstallString { get; init; } = "";
     }
     internal sealed record LocalMsixApp(string Name, string Version, string Publisher, string PackageName);
     internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen, string Status);
