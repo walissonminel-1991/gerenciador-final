@@ -564,7 +564,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.17 TESTE";
+        Text = "Gerenciador Final — v5.12.17.1 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -1986,6 +1986,21 @@ internal sealed partial class MainForm : Form
                         Status("Atualização interrompida: o OBS Studio precisa estar fechado.");
                         return;
                     }
+                    // O instalador OBS pode encontrar DLLs OBS em uso por Edge.
+                    // Nada é fechado silenciosamente: Edge recebe aviso separado.
+                    DiagnosticTrace.Write("OBS.APLICATIVO_PRINCIPAL_FECHADO");
+                    bool closedEdge = await UpdateProcessCoordinator.EnsureClosedAsync(
+                        UpdateProcessTarget.MicrosoftEdge,
+                        question => DarkConfirmDialog.Confirm(this, question,
+                            "Microsoft Edge pode bloquear a instalação do OBS") == DialogResult.Yes,
+                        message => { Status(message); Log(message); });
+                    if (!closedEdge)
+                    {
+                        DiagnosticTrace.Write("OBS.EDGE_ABERTO_OU_FECHAMENTO_RECUSADO");
+                        Status("Atualização não iniciada: feche o Microsoft Edge e tente novamente.");
+                        return;
+                    }
+                    DiagnosticTrace.Write("OBS.PREPARACAO_CONCLUIDA");
                 }
                 Status("Instalador verificado. Aguardando conclusão...");
                 int exit = await VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status);
@@ -1993,7 +2008,9 @@ internal sealed partial class MainForm : Form
                 if (exit is not (0 or 3010))
                 {
                     Log("Instalador não concluiu com sucesso (código " + exit + ").");
-                    Status("Instalação não concluída (código " + exit + ").");
+                    Status(recipe.Identifier == "obs-x64-32.2.2"
+                        ? "Instalação do OBS cancelada ou bloqueada. Confira outros aplicativos usando arquivos do OBS."
+                        : "Instalação não concluída (código " + exit + ").");
                     return;
                 }
                 await Task.Delay(1000);
