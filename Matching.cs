@@ -85,8 +85,22 @@ internal static class Matching
         return x.CompareTo(y);
     }
 
+    private static bool SameVisualCpp2013Family(InstalledApp installed, InstalledApp other)
+    {
+        const string prefix = "Microsoft Visual C++ 2013 Redistributable";
+        return installed.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+               other.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+               NormalizePublisher(installed.Publisher) == "microsoft" &&
+               NormalizePublisher(other.Publisher) == "microsoft" &&
+               GetArchitecture(installed.Name) is "x86" or "x64" &&
+               GetArchitecture(installed.Name) == GetArchitecture(other.Name);
+    }
+
     internal static IReadOnlyList<UpdateMatch> Evaluate(IEnumerable<InstalledApp> installed, IEnumerable<CatalogEntry> catalog)
     {
+        // O registro do Windows pode preservar entradas antigas do Visual C++ após
+        // instalar o redistribuível atualizado. Não oferecer reinstalação em ciclo.
+        var installedRows = installed.ToArray();
         var byName = catalog
             .Where(x => !string.IsNullOrWhiteSpace(x.ProductVersion))
             .SelectMany(x => new[] { NormalizeName(x.ShortName), NormalizeName(x.ProductName) }
@@ -95,7 +109,7 @@ internal static class Matching
             .ToDictionary(x => x.Key, x => x.Select(v => v.item).Distinct().ToArray());
 
         var output = new List<UpdateMatch>();
-        foreach (var app in installed)
+        foreach (var app in installedRows)
         {
             var name = NormalizeName(app.Name);
             var publisher = NormalizePublisher(app.Publisher);
@@ -160,6 +174,16 @@ internal static class Matching
                 < 0 => MatchState.Candidate,
                 _ => MatchState.EqualOrNewer
             };
+            if (state == MatchState.Candidate &&
+                installedRows.Any(other =>
+                    SameVisualCpp2013Family(app, other) &&
+                    other != app &&
+                    CompareVersions(other.Version, newest.ProductVersion) is >= 0))
+            {
+                // Mantemos o registro antigo visível em "Todos", mas não afirmamos
+                // que exista uma atualização pendente para a arquitetura atendida.
+                state = MatchState.SupersededRegistration;
+            }
             output.Add(new(app, newest, state));
         }
         return output;
