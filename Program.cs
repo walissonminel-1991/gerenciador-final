@@ -2238,7 +2238,8 @@ internal sealed partial class MainForm : Form
     private async Task ReviewDeepUninstallResiduesAsync()
     {
         // Não é a limpeza padrão, não pode ser disparada automaticamente.
-        Status("Analisando somente pastas exclusivas e chaves próprias de aplicativos removidos...");
+        Status("Analisando catálogo com " + UninstallRuleCatalog.Count +
+            " regras de aplicativos para limpeza avançada...");
         DiagnosticTrace.Write("DESINSTALACAO.PROFUNDA.CONSULTA_INICIO");
         var installed = await Task.Run(AppServices.GetInstalledPrograms);
         var candidates = await Task.Run(() => AdvancedUninstallCleaner.Inspect(installed));
@@ -2273,7 +2274,7 @@ internal sealed partial class MainForm : Form
             }
             // Reconsulta independente, a confirmação não vale para apps reinstalados.
             var fresh = await Task.Run(AppServices.GetInstalledPrograms);
-            if (UninstallResiduals.StillInstalled(item.App, fresh))
+            if (AdvancedUninstallCleaner.StillInstalled(item.App, fresh))
             {
                 Status("O programa foi detectado novamente. Nenhum dado profundo será apagado.");
                 DiagnosticTrace.Write("DESINSTALACAO.PROFUNDA.REINSTALADO");
