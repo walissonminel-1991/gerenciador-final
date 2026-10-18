@@ -564,7 +564,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.16 TESTE";
+        Text = "Gerenciador Final — v5.12.17 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -1883,6 +1883,19 @@ internal sealed partial class MainForm : Form
                     }
                 }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.MSIX_VALIDADO");
+                // O fechamento e a confirmacao acontecem APOS verificar o pacote
+                // e ANTES de acionar o mecanismo de instalacao do Windows.
+                bool closed = await UpdateProcessCoordinator.EnsureClosedAsync(
+                    UpdateProcessTarget.WindowsTerminal,
+                    question => DarkConfirmDialog.Confirm(this, question, "Fechar Windows Terminal para atualizar") == DialogResult.Yes,
+                    message => { Status(message); Log(message); });
+                if (!closed)
+                {
+                    DiagnosticTrace.Write("TERMINAL_GITHUB.FECHAMENTO_RECUSADO_OU_INSEGURO");
+                    Status("Atualização interrompida: Windows Terminal precisa estar fechado.");
+                    return;
+                }
+                DiagnosticTrace.Write("TERMINAL_GITHUB.PROCESSOS_VERIFICADOS_FECHADOS");
                 await WindowsTerminalUpdater.DeployAsync(bundle, Status);
                 DiagnosticTrace.Write("TERMINAL_GITHUB.INSTALADOR_CONCLUIDO");
                 Version? installed = WindowsTerminalUpdater.CurrentUserVersion();
@@ -1932,17 +1945,6 @@ internal sealed partial class MainForm : Form
             Status("Atualização automática indisponível para este programa.");
             return;
         }
-        if (recipe.Identifier == "obs-x64-32.2.2")
-        {
-            var obsProcesses = Process.GetProcessesByName("obs64");
-            bool running = obsProcesses.Length > 0;
-            foreach (var process in obsProcesses) process.Dispose();
-            if (running)
-            {
-                Status("Feche o OBS Studio antes de atualizar e clique em Atualizar novamente.");
-                return;
-            }
-        }
         // O clique explícito em "Atualizar" autoriza preparar a atualização escolhida.
         // Sem caixa de diálogo redundante. UAC e janelas legítimas dos instaladores continuam.
         Status("Atualizando " + recipe.ProductName + ": preparando instalador oficial verificado...");
@@ -1972,6 +1974,19 @@ internal sealed partial class MainForm : Form
                     }
                 }
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.ARQUIVO_VALIDADO receita=" + recipe.Identifier);
+                if (recipe.Identifier == "obs-x64-32.2.2")
+                {
+                    bool closedObs = await UpdateProcessCoordinator.EnsureClosedAsync(
+                        UpdateProcessTarget.ObsStudio,
+                        question => DarkConfirmDialog.Confirm(this, question, "Fechar OBS Studio para atualizar") == DialogResult.Yes,
+                        message => { Status(message); Log(message); });
+                    if (!closedObs)
+                    {
+                        DiagnosticTrace.Write("INSTALACAO_OFICIAL.FECHAMENTO_RECUSADO");
+                        Status("Atualização interrompida: o OBS Studio precisa estar fechado.");
+                        return;
+                    }
+                }
                 Status("Instalador verificado. Aguardando conclusão...");
                 int exit = await VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status);
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM codigo=" + exit);
