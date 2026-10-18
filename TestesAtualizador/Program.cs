@@ -49,10 +49,27 @@ var terminal = Item("Windows Terminal", "1.24.12741.0", "1.25.2733.0", "Microsof
 Verify(VerifiedUpdaters.GetPrimaryAction(outlook) == "store" &&
        VerifiedUpdaters.GetMicrosoftStoreUri(outlook)?.AbsoluteUri.Contains("9NRX63209R7B") == true,
        "Outlook abre produto correto na Microsoft Store");
-Verify(VerifiedUpdaters.GetPrimaryAction(gameInput) == "store" &&
-       VerifiedUpdaters.GetMicrosoftStoreUri(gameInput)?.AbsoluteUri.StartsWith("ms-windows-store://downloadsandupdates") == true &&
+gameInput.Source = "Catálogo WinGet";
+var gameRecipe = VerifiedUpdaters.Resolve(gameInput);
+Verify(VerifiedUpdaters.GetMicrosoftStoreUri(gameInput) is null &&
        VerifiedUpdaters.GetStoreWebFallback(gameInput) is null,
-       "GameInput abre atualizacoes sem link de produto inventado");
+       "GameInput não existe como produto da Microsoft Store");
+Verify(VerifiedUpdaters.GetPrimaryAction(gameInput) == "update" &&
+       gameRecipe?.Identifier == "gameinput-x64-3.5.283" &&
+       gameRecipe.Sha256 == "B5988CB8FF9D7009B6DDF6AD4E3FF87E91B00CC17FFCD5D628DABC21C208F100",
+       "GameInput autoriza somente pacote Microsoft NuGet fixado em SHA-256");
+Verify(VerifiedUpdaters.Resolve(Item("Microsoft GameInput", "3.5.270.0", "3.5.283",
+       "Fornecedor de Jogos", "Catálogo WinGet")) is null,
+       "GameInput rejeita fabricante nao Microsoft");
+Verify(VerifiedUpdaters.Resolve(Item("Microsoft GameInput", "3.5.270.0", "3.5.283",
+       "Microsoft Corporation", "RuckZuck")) is null,
+       "GameInput exige correspondencia de fonte Microsoft oficial");
+Verify(VerifiedUpdaters.Resolve(Item("Microsoft GameInput", "3.5.270.0", "4.0.300",
+       "Microsoft Corporation", "Catálogo WinGet")) is null,
+       "GameInput nao instala versao nao auditada");
+Verify(VerifiedUpdaters.Resolve(Item("Microsoft GameInput", "3.5.283.0", "3.5.283",
+       "Microsoft Corporation", "Catálogo WinGet")) is null,
+       "GameInput nao reinstala mesma versao");
 Verify(VerifiedUpdaters.GetPrimaryAction(terminal) == "store" &&
        VerifiedUpdaters.GetMicrosoftStoreUri(terminal)?.AbsoluteUri.Contains("9N0DX20HK701") == true,
        "Windows Terminal prefere Store e atualizacoes continuas");
@@ -72,7 +89,9 @@ Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Don HO", 
 Console.WriteLine($"{checkedCount}/{checkedCount} testes do motor autorizador aprovados");
 if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 {
-    var recipes = args.Contains("--verify-npp", StringComparer.OrdinalIgnoreCase)
+    var recipes = args.Contains("--verify-gameinput", StringComparer.OrdinalIgnoreCase)
+        ? new[] { gameRecipe }
+        : args.Contains("--verify-npp", StringComparer.OrdinalIgnoreCase)
         ? new[] { npp }
         : args.Contains("--verify-obs", StringComparer.OrdinalIgnoreCase)
         ? new[] { obs } : new[] { x86, x64 };
@@ -105,7 +124,7 @@ namespace GerenciadorAplicativos
         public string Version { get; init; } = "";
         public string Publisher { get; init; } = "";
         public string AvailableVersion { get; init; } = "";
-        public string Source { get; init; } = "";
+        public string Source { get; set; } = "";
         public bool IsUpdate { get; init; }
     }
 }
