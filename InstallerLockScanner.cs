@@ -131,9 +131,14 @@ internal static class InstallerLockScanner
                         return new LockedProcess(p.Process.ProcessId, display, system);
                     })
                     .ToArray();
-                return reboot == 0
-                    ? new(true, found, "Consulta concluída.")
-                    : new(false, found, "O Windows informou necessidade de reinicialização.");
+                // RM_REBOOT_REASON_DETECTED_SELF (0x10) é esperado nos testes
+                // quando o próprio processo segura o arquivo. Retornar o PID,
+                // sem autorizar seu fechamento; o preflight vai bloqueá-lo.
+                bool selfOnly = reboot == 0x10 &&
+                    found.Length > 0 && found.All(p => p.ProcessId == Environment.ProcessId);
+                return reboot == 0 || selfOnly
+                    ? new(true, found, selfOnly ? "Recurso utilizado pelo próprio processo." : "Consulta concluída.")
+                    : new(false, found, "Windows requer intervenção/reinício (motivo " + reboot + ").");
             }
             return new(false, [], "Lista de bloqueios mudou durante a consulta.");
         }
