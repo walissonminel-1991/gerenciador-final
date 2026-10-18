@@ -12,6 +12,7 @@ on:
       - 'HistoricalResidualAudit.cs'
       - 'BroadResidualDiscovery.cs'
       - 'MaintenanceAudit.cs'
+      - 'GameLibraryAudit.cs'
       - 'CatalogoAuditoriaHistorica.json'
       - 'GerenciadorAplicativos.csproj'
       - 'RuckZuckCatalog.cs'
@@ -186,6 +187,7 @@ jobs:
         shell: pwsh
         run: |
           $source = Get-Content MaintenanceAudit.cs -Raw
+          $games = Get-Content GameLibraryAudit.cs -Raw
           $ui = Get-Content Program.cs -Raw
           $tests = Get-Content TestesResiduos/Program.cs -Raw
           if (-not $source.Contains('Win32_PnPEntity') -or
@@ -212,6 +214,20 @@ jobs:
           }
           if (-not $ui.Contains('DIAGNOSTICO_COMPLETO.FIM')) {
             throw 'Falta telemetria local por contadores, sem dados pessoais'
+          }
+          if (-not $games.Contains('appmanifest_*.acf') -or
+              -not $games.Contains('EpicGamesLauncher') -or
+              -not $games.Contains('TryReadEpicManifest') -or
+              -not $ui.Contains('GameLibraryAudit.Inspect')) {
+            throw 'Falta reconhecimento de jogos anteriores Steam e Epic'
+          }
+          if ($games.Contains('File.Delete(') -or $games.Contains('Process.Start(') -or
+              $games.Contains('Directory.Delete(')) {
+            throw 'Motor de jogos não pode executar ações destrutivas'
+          }
+          if (-not $tests.Contains('Steam pode possuir vários discos') -or
+              -not $tests.Contains('Manifesto Epic sem identificador')) {
+            throw 'Faltam testes contra jogos inventados'
           }
           if (-not $tests.Contains('GPU PCI desconectada') -or
               -not $tests.Contains('Hardware presente ou status desconhecido') -or
