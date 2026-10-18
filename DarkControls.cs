@@ -763,11 +763,7 @@ internal sealed class DarkTabHost : UserControl
                     using var outline = new Pen(Color.FromArgb(90 + (int)(50 * glow), 91, 157, 213), 1F);
                     e.Graphics.DrawPath(outline, path);
                 }
-                if (active)
-                {
-                    using var accent = new SolidBrush(Color.FromArgb(59, 155, 231));
-                    e.Graphics.FillRectangle(accent, bounds.X + 12, bounds.Bottom - 4, bounds.Width - 24, 3);
-                }
+                // A própria cor da aba ativa indica a seleção; sem sublinhado redundante.
                 var labelColor = active ? Color.FromArgb(170, 216, 255) : Color.FromArgb(164, 179, 193);
                 TextRenderer.DrawText(e.Graphics, _host._pages[i].Title, Font, bounds, labelColor,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
