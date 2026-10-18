@@ -27,6 +27,26 @@ Check(StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 0, 0)).Size ==
       StartupWindowSizing.PreferredSize,
     "Ter tamanho inicial seguro quando o monitor ainda nao puder ser consultado");
 
+// Jogos têm manifestos próprios; não usar ARP para inventar desinstaladores.
+Check(GameLibraryAudit.ParseSteamName("\"AppState\"\n{\n\"appid\" \"123\"\n\"name\" \"Jogo de Teste\"\n}") == "Jogo de Teste",
+    "Manifesto Steam possui nome detectável sem API online");
+Check(GameLibraryAudit.ParseSteamName("invalid text") is null &&
+      GameLibraryAudit.ParseSteamName(new string('x', 260000)) is null,
+    "Manifestos Steam suspeitos/longos não são aceitos");
+var libs = GameLibraryAudit.ParseSteamLibraryFolders(
+    "\"path\" \"D:\\\\SteamLibrary\"\n\"path\" \"E:\\\\Jogos Steam\"\n\"path\" \"D:\\\\SteamLibrary\"");
+Check(libs.Count == 2 && libs[0] == @"D:\SteamLibrary",
+    "Steam pode possuir vários discos de biblioteca sem varredura global");
+Check(GameLibraryAudit.TryReadEpicManifest(
+    """{"DisplayName":"Jogo do Epic","AppName":"SomeAppId","InstallLocation":"D:\\Epic"}""",
+    out string epicName, out string epicId) &&
+    epicName == "Jogo do Epic" && epicId == "SomeAppId",
+    "Epic Games é reconhecido por manifesto local validado");
+Check(!GameLibraryAudit.TryReadEpicManifest("""{"DisplayName":"Incomplete"}""",
+    out _, out _),
+    "Manifesto Epic sem identificador não deve ser inventado");
+Console.WriteLine("OK Bibliotecas de jogos somente leitura");
+
 // Auditoria realista de uma máquina antiga: apps sem desinstalador válido,
 // drivers PnP desconectados por trocas de hardware e falsos positivos críticos.
 Check(MaintenanceAudit.CheckUninstaller("MsiExec.exe /X{ABC123}", false) == "available",
