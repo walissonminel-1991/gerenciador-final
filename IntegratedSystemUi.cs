@@ -466,9 +466,9 @@ internal sealed partial class MainForm
         {
             if (_busy) return;
             string verb = item.Enabled ? "desativar" : "reativar";
-            if (MessageBox.Show(this, $"Deseja {verb} '{item.Name}' na inicialização do Windows?\n\n" +
-                "A opção será reversível nesta mesma lista. Alterações afetarão o próximo login. O programa não será desinstalado.",
-                "Confirmar inicialização", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            if (DarkConfirmDialog.Confirm(this,
+                $"Deseja {verb} '{item.Name}' na inicialização do Windows?",
+                "Confirmar inicialização") != DialogResult.Yes) return;
             await ExecuteAsync("Alterando inicialização...", async () =>
             {
                 await Task.Run(() => StartupManager.Toggle(item));
@@ -636,10 +636,9 @@ internal sealed partial class MainForm
                 "Windows Update", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (MessageBox.Show(this,
-            $"Baixar e instalar {selected.Length} atualização(ões) selecionada(s) pelo Windows Update?\n\n" +
-            "O Windows poderá solicitar autorização de administrador (UAC). Alguns pacotes exigem reinicialização, mas o programa NÃO reiniciará o computador automaticamente.\n\nContinue apenas depois de salvar seu trabalho.",
-            "Confirmar Windows Update", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        if (DarkConfirmDialog.Confirm(this,
+            $"Deseja instalar {selected.Length} atualização(ões) do Windows? Algumas podem exigir reinicialização.",
+            "Confirmar Windows Update") != DialogResult.Yes) return;
         await ExecuteAsync("Instalando atualizações do Windows...", async () =>
         {
             // O trabalhador já existente solicita UAC e mostra as mensagens na janela principal.
