@@ -162,6 +162,7 @@ internal static class VerifiedUpdaters
     internal static string? GetPrimaryAction(ProgramEntry entry)
     {
         if (!entry.IsUpdate) return null;
+        if (WindowsTerminalUpdater.Resolve(entry) is not null) return "terminal";
         if (GetMicrosoftStoreUri(entry) is not null) return "store";
         if (Resolve(entry) is not null) return "update";
         if (GetOfficialPage(entry) is not null) return "site";
