@@ -579,7 +579,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.23 TESTE";
+        Text = "Gerenciador Final — v5.12.24 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -1053,7 +1053,7 @@ internal sealed partial class MainForm : Form
                 AppServices.Gray,
                 () => ConfirmThenRun("clean-directx-cache", "Remover arquivos antigos do cache D3DSCache? Jogos poderão recompilar os shaders e ficar temporariamente mais lentos na primeira execução.")),
             Tool("Resíduos de aplicativos",
-                "Procura sobras conhecidas de programas removidos e só limpa com autorização.",
+                "Investiga vestígios antigos em pastas, atalhos e Registro, sem apagar dados incertos.",
                 AppServices.Gray,
                 () => ExecuteAsync("Verificando resíduos de aplicativos...", ReviewOldUninstallResiduesAsync)),
             Tool("Limpeza avançada",
@@ -2416,17 +2416,33 @@ internal sealed partial class MainForm : Form
         var updatedInventory = await Task.Run(AppServices.GetInstalledPrograms);
         var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory));
         DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)}");
-        if (historical.Count > 0)
+        Status("Analisando locais comuns de aplicativos e Registro, sem alterar arquivos...");
+        DiagnosticTrace.Write("RESIDUOS_GERAIS.CONSULTA_INICIO");
+        // Independe de ter observado a instalação ou a remoção do programa.
+        // Todas as fontes são somente leitura, com tempo e quantidade limitados.
+        var broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory));
+        DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
+        // Manter resultados com caminhos identificados pelas receitas específicas primeiro,
+        // impedindo várias caixas de diálogo para o mesmo aplicativo histórico.
+        var historicalNames = new HashSet<string>(historical.Select(r => r.Product),
+            StringComparer.OrdinalIgnoreCase);
+        var allReports = historical.Concat(broad.Reports.Where(r => !historicalNames.Contains(r.Product)))
+            .ToArray();
+        if (allReports.Length > 0)
         {
-            Log($"Auditoria histórica: {historical.Count} aplicativo(s) e " +
-                $"{historical.Sum(x => x.Findings.Count)} local(is) para revisão. Nenhum deles foi apagado.");
-            ResidualAuditDialog.ShowHistoricalResults(this, historical);
+            Log($"Análise de resíduos: {allReports.Length} grupos com indícios. " +
+                $"Verificados {broad.EntriesSeen} nomes em {broad.RootsChecked} origens." +
+                (broad.Incomplete ? " Análise PARCIAL: limites de proteção alcançados." : ""));
+            ResidualAuditDialog.ShowHistoricalResults(this, allReports);
         }
         else
         {
-            Log("Auditoria histórica: nenhum dos locais específicos do catálogo foi encontrado.");
+            Log("Nenhum indício reconhecido nos locais analisados. Isso NÃO comprova ausência total de vestígios." +
+                (broad.Incomplete ? " Análise parcial devido a limites de acesso ou tempo." : ""));
         }
-        Status("Revisão concluída. Dados históricos, saves, caches e chaves desconhecidas foram preservados.");
+        Status(broad.Incomplete
+            ? "Análise parcial concluída. Alguns locais não puderam ser examinados; nenhum dado incerto foi apagado."
+            : "Análise concluída. Possíveis vestígios foram apresentados sem apagar dados incertos.");
     }
 
     private static string SimpleConfirmation(string task) => task switch
