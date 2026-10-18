@@ -76,6 +76,33 @@ internal static class InstallerLockScanner
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
     }
 
+    internal static string[] SumatraResources()
+    {
+        string[] roots =
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SumatraPDF"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "SumatraPDF"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "SumatraPDF")
+        };
+        var files = new List<string>();
+        foreach (string root in roots)
+        {
+            if (!Directory.Exists(root)) continue;
+            try
+            {
+                files.AddRange(Directory.EnumerateFiles(root, "*",
+                    new EnumerationOptions { RecurseSubdirectories = true,
+                        IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint })
+                    .Where(path => path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ||
+                                   path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                    .Take(MaxResources - files.Count));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            if (files.Count >= MaxResources) break;
+        }
+        return files.ToArray();
+    }
+
     internal static LockInspection Inspect(IEnumerable<string> resources)
     {
         string[] files = resources
