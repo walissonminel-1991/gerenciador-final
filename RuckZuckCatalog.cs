@@ -12,8 +12,8 @@ internal sealed class RuckZuckCatalog : IDisposable
     // Cache somente em memoria: reduz duas solicitações HTTPS e não deixa arquivos no computador.
     // Instalações e decisões de segurança continuam consultando o Registro atual.
     private static readonly SemaphoreSlim CacheGate = new(1, 1);
-    private static IReadOnlyList<CatalogEntry>? _memoryCatalog;
-    private static DateTimeOffset _memoryExpires;
+    private sealed record CacheSnapshot(IReadOnlyList<CatalogEntry> Entries, DateTimeOffset Expires);
+    private static CacheSnapshot? _memoryCache;
     private static readonly TimeSpan MemoryTtl = TimeSpan.FromMinutes(10);
     internal bool UsedMemoryCache { get; private set; }
 
@@ -31,24 +31,23 @@ internal sealed class RuckZuckCatalog : IDisposable
     {
         token.ThrowIfCancellationRequested();
         UsedMemoryCache = false;
-        if (!forceRefresh && _memoryCatalog is { } cached && DateTimeOffset.UtcNow < _memoryExpires)
+        if (!forceRefresh && _memoryCache is { } cached && DateTimeOffset.UtcNow < cached.Expires)
         {
             UsedMemoryCache = true;
-            return cached;
+            return cached.Entries;
         }
         await CacheGate.WaitAsync(token);
         try
         {
             // Outra consulta pode ter preenchido o cache enquanto aguardávamos a trava.
-            if (!forceRefresh && _memoryCatalog is { } existing && DateTimeOffset.UtcNow < _memoryExpires)
+            if (!forceRefresh && _memoryCache is { } existing && DateTimeOffset.UtcNow < existing.Expires)
             {
                 UsedMemoryCache = true;
-                return existing;
+                return existing.Entries;
             }
             var catalog = await DownloadCatalogAsync(token);
             token.ThrowIfCancellationRequested();
-            _memoryCatalog = catalog;
-            _memoryExpires = DateTimeOffset.UtcNow.Add(MemoryTtl);
+            _memoryCache = new CacheSnapshot(catalog, DateTimeOffset.UtcNow.Add(MemoryTtl));
             return catalog;
         }
         finally { CacheGate.Release(); }
@@ -57,8 +56,7 @@ internal sealed class RuckZuckCatalog : IDisposable
     // Exercita cache/requisição nos testes sem acessar a rede.
     internal static void ClearCacheForTests()
     {
-        _memoryCatalog = null;
-        _memoryExpires = default;
+        _memoryCache = null;
     }
 
     private async Task<IReadOnlyList<CatalogEntry>> DownloadCatalogAsync(CancellationToken token)
