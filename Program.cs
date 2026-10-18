@@ -373,6 +373,11 @@ internal sealed class ModernButton : Button
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public Color OutlineColor { get; set; } = Color.Transparent;
 
+    // Somente cartões de ferramentas podem quebrar títulos em duas linhas.
+    // Demais botões da interface mantêm o desenho/feedback já validado.
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public bool AllowMultilineText { get; set; }
+
     public ModernButton()
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
@@ -442,10 +447,12 @@ internal sealed class ModernButton : Button
         }
         var content = new Rectangle(12, 3 + (depressed ? 2 : 0),
             Math.Max(1, ClientSize.Width - 24), Math.Max(1, ClientSize.Height - 6));
+        var captionFlags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+            TextFormatFlags.NoPrefix |
+            (AllowMultilineText ? TextFormatFlags.WordBreak :
+                TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
         TextRenderer.DrawText(e.Graphics, Text, Font, content,
-            Enabled ? ForeColor : Color.FromArgb(164, 176, 190),
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-            TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
+            Enabled ? ForeColor : Color.FromArgb(164, 176, 190), captionFlags);
     }
 
     private static Color Blend(Color first, Color second, float amount)
@@ -572,7 +579,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.21 TESTE";
+        Text = "Gerenciador Final — v5.12.21.1 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -1004,31 +1011,49 @@ internal sealed partial class MainForm : Form
         _nav.AddTab("Reparo e rede", repair);
         _nav.AddTab("Planos de energia", performance);
         _nav.AddTab("Inicialização e sistema", system);
+        // Cores de impacto: azul = rotina, cinza = baixo impacto/inspeção,
+        // âmbar = atenção, vermelho = interrupção sensível ou remoção definitiva.
         var cleaningActions = CreateToolsFlow(new[]
         {
-            Tool("Temporários do usuário", "Preserva arquivos recentes, protegidos ou em uso.", AppServices.Blue,
+            Tool("Temporários do usuário",
+                "Remove temporários antigos, preservando arquivos recentes, protegidos e em uso.",
+                AppServices.Blue,
                 () => ConfirmThenRun("clean-user-temp", "Limpar arquivos temporários antigos do usuário?")),
-            Tool("Temporários do Windows", "Arquivos ativos do Windows e do antivírus serão mantidos.", AppServices.Orange,
+            Tool("Temporários do Windows",
+                "Remove temporários antigos do Windows. Arquivos ativos são preservados.",
+                AppServices.Orange,
                 () => ConfirmThenRun("clean-windows-temp", "Limpar arquivos temporários antigos do Windows? O UAC solicitará autorização.")),
-            Tool("Cache do Windows Update", "Interrompe serviços de atualização temporariamente.", AppServices.Red,
+            Tool("Cache do Windows Update",
+                "Remove downloads antigos de atualizações; interrompe serviços temporariamente.",
+                AppServices.Red,
                 () => ConfirmThenRun("clear-update-cache", "Essa operação interrompe temporariamente serviços de atualização e remove downloads antigos. Continuar?")),
-            Tool("Esvaziar Lixeira", "Exclusão permanente dos itens da Lixeira.", AppServices.Orange,
+            Tool("Esvaziar Lixeira",
+                "Apaga permanentemente os itens da Lixeira. Não é possível desfazer.",
+                AppServices.Red,
                 () => ExecuteAsync("Esvaziando Lixeira...", EmptyRecycleBinAsync)),
-            Tool("Limpeza de Disco automática", "Executa a limpeza do Windows sem abrir janela extra.", AppServices.Blue,
+            Tool("Limpeza de Disco automática",
+                "Executa a limpeza nativa do Windows, sem abrir outra janela.",
+                AppServices.Blue,
                 () => ConfirmThenRun("cleanmgr-auto", "Executar a Limpeza de Disco automaticamente? O Windows pode solicitar autorização.")),
-            Tool("Cache de shaders DirectX", "Remove arquivos antigos do D3DSCache do usuário. Jogos podem recompilar shaders.", AppServices.Gray,
+            Tool("Cache de shaders DirectX",
+                "Remove cache gráfico antigo. Jogos podem precisar recompilar shaders.",
+                AppServices.Gray,
                 () => ConfirmThenRun("clean-directx-cache", "Remover arquivos antigos do cache D3DSCache? Jogos poderão recompilar os shaders e ficar temporariamente mais lentos na primeira execução.")),
-            Tool("Resíduos de aplicativos", "Procura apenas arquivos reconhecidos de programas já desinstalados. Preserva dados pessoais.", AppServices.Gray,
+            Tool("Resíduos de aplicativos",
+                "Procura sobras conhecidas de programas removidos e só limpa com autorização.",
+                AppServices.Gray,
                 () => ExecuteAsync("Verificando resíduos de aplicativos...", ReviewOldUninstallResiduesAsync)),
-            Tool("Limpeza profunda (avançado)", "Após a desinstalação, revisa e pode remover também preferências pessoais e chaves próprias do Registro. Irreversível.", AppServices.Orange,
-                () => ExecuteAsync("Inspecionando resíduos avançados...", ReviewDeepUninstallResiduesAsync))
+            Tool("Limpeza avançada",
+                "Revisa dados e chaves do Registro de apps removidos. Exige confirmação.",
+                AppServices.Orange,
+                () => ExecuteAsync("Verificando resíduos para limpeza avançada...", ReviewDeepUninstallResiduesAsync))
         }, compact: true);
         var cleaningLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
-        cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 292));
+        cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 342));
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         cleaningLayout.Controls.Add(cleaningActions, 0, 0);
         cleaningLayout.Controls.Add(BuildDiskPanel(), 0, 1);
@@ -1038,9 +1063,11 @@ internal sealed partial class MainForm : Form
         void AdjustCleaningCards()
         {
             int available = Math.Max(0, cleaning.ClientSize.Width - 30);
-            int columns = Math.Max(1, available / 280);
+            int columns = Math.Clamp(available / 280, 1, 4);
             int rows = (8 + columns - 1) / columns;
-            float height = Math.Min(430, Math.Max(292, 22 + rows * 128));
+            // Cada cartão compacto tem 146 px + margens: textos não são cortados.
+            // Em telas menores, a área adapta-se mantendo a barra escura interna.
+            float height = Math.Min(520, Math.Max(342, 22 + rows * 160));
             if (Math.Abs(cleaningLayout.RowStyles[0].Height - height) > 1)
                 cleaningLayout.RowStyles[0].Height = height;
         }
@@ -1097,6 +1124,11 @@ internal sealed partial class MainForm : Form
     private void AddTools(Panel page, IEnumerable<ToolInfo> tools)
         => page.Controls.Add(CreateToolsFlow(tools));
 
+    private static string ToolCaption(string name, bool compact) =>
+        compact && name == "Limpeza de Disco automática"
+            ? "Limpeza de Disco\nautomática"
+            : name;
+
     private Control CreateToolsFlow(IEnumerable<ToolInfo> tools, bool compact = false)
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, BackColor = AppServices.Background };
@@ -1107,7 +1139,7 @@ internal sealed partial class MainForm : Form
         {
             var card = new Panel
             {
-                Size = new Size(compact ? 268 : 286, 116),
+                Size = new Size(compact ? 268 : 286, compact ? 146 : 116),
                 BackColor = PanelBackground,
                 Margin = compact ? new Padding(3, 4, 9, 8) : new Padding(3, 4, 13, 10),
                 Padding = new Padding(8)
@@ -1122,13 +1154,17 @@ internal sealed partial class MainForm : Form
                 Margin = Padding.Empty,
                 Padding = Padding.Empty
             };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, compact ? 58 : 48));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            var button = CreateButton(tool.Name, tool.Color, Color.White);
+            var button = CreateButton(ToolCaption(tool.Name, compact), tool.Color, Color.White);
+            if (compact && button is ModernButton modernButton)
+                modernButton.AllowMultilineText = true;
             button.Dock = DockStyle.Fill;
             button.Margin = Padding.Empty;
-            button.MinimumSize = new Size(0, 44);
+            button.MinimumSize = new Size(0, compact ? 54 : 44);
+            button.AccessibleName = tool.Name;
+            button.AccessibleDescription = tool.Description;
             _toolTips.SetToolTip(button, tool.Description);
             _actionControls.Add(button);
             if (tool.Name == "Reparar rede")
@@ -1148,12 +1184,13 @@ internal sealed partial class MainForm : Form
                 Dock = DockStyle.Fill,
                 AutoEllipsis = false,
                 ForeColor = Muted,
-                Font = new Font("Segoe UI", 8.6F),
+                Font = new Font("Segoe UI", compact ? 8.5F : 8.6F),
                 Text = tool.Description,
-                Padding = new Padding(3, 8, 3, 0),
+                Padding = new Padding(3, compact ? 6 : 8, 3, 0),
                 TextAlign = ContentAlignment.TopLeft
             };
 
+            _toolTips.SetToolTip(description, tool.Description);
             layout.Controls.Add(button, 0, 0);
             layout.Controls.Add(description, 0, 1);
             card.Controls.Add(layout);
@@ -2249,13 +2286,13 @@ internal sealed partial class MainForm : Form
         // Não é a limpeza padrão, não pode ser disparada automaticamente.
         Status("Analisando catálogo com " + UninstallRuleCatalog.Count +
             " regras de aplicativos para limpeza avançada...");
-        DiagnosticTrace.Write("DESINSTALACAO.PROFUNDA.CONSULTA_INICIO");
+        DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_INICIO");
         var installed = await Task.Run(AppServices.GetInstalledPrograms);
         var candidates = await Task.Run(() => AdvancedUninstallCleaner.Inspect(installed));
-        DiagnosticTrace.Write("DESINSTALACAO.PROFUNDA.CONSULTA_FIM programas=" + candidates.Count);
+        DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_FIM programas=" + candidates.Count);
         if (candidates.Count == 0)
         {
-            Log("Nenhum dado privado ou chave de Registro reconhecido para limpeza profunda.");
+            Log("Limpeza avançada: nenhum dado ou chave do Registro conhecido encontrado.");
             Status("Nenhum resíduo avançado reconhecido; outros vestígios não podem ser descartados.");
             return;
         }
@@ -2275,28 +2312,28 @@ internal sealed partial class MainForm : Form
                 "Componentes compartilhados e outras contas serão preservados.\n\n" +
                 "DESEJA EXCLUIR ESSES DADOS PERMANENTEMENTE?";
             if (DarkConfirmDialog.Confirm(this, warning,
-                "Desinstalação profunda — confirmar exclusão") != DialogResult.Yes)
+                "Limpeza avançada — confirmar exclusão") != DialogResult.Yes)
             {
-                DiagnosticTrace.Write("DESINSTALACAO.PROFUNDA.RECUSADA");
-                Log("Limpeza profunda de " + item.App.Name + " recusada. Nenhuma alteração.");
+                DiagnosticTrace.Write("LIMPEZA_AVANCADA.RECUSADA");
+                Log("Limpeza avançada de " + item.App.Name + " recusada. Nenhuma alteração.");
                 continue;
             }
             // Reconsulta independente, a confirmação não vale para apps reinstalados.
             var fresh = await Task.Run(AppServices.GetInstalledPrograms);
             if (AdvancedUninstallCleaner.StillInstalled(item.App, fresh))
             {
-                Status("O programa foi detectado novamente. Nenhum dado profundo será apagado.");
-                DiagnosticTrace.Write("DESINSTALACAO.PROFUNDA.REINSTALADO");
+                Status("O programa foi detectado novamente. Nenhum dado será apagado.");
+                DiagnosticTrace.Write("LIMPEZA_AVANCADA.REINSTALADO");
                 continue;
             }
             Status("Eliminando apenas dados exclusivos autorizados de " + item.App.Name + "...");
             var result = await Task.Run(() => AdvancedUninstallCleaner.Clean(item, fresh));
-            DiagnosticTrace.Write($"DESINSTALACAO.PROFUNDA.RESULTADO arquivos={result.Files} pastas={result.Directories} chaves={result.RegistryKeys} ignorados={result.Skipped} falhas={result.Failed}");
-            Log($"Limpeza profunda de {item.App.Name}: {result.Files} arquivo(s), {result.Directories} pasta(s), " +
+            DiagnosticTrace.Write($"LIMPEZA_AVANCADA.RESULTADO arquivos={result.Files} pastas={result.Directories} chaves={result.RegistryKeys} ignorados={result.Skipped} falhas={result.Failed}");
+            Log($"Limpeza avançada de {item.App.Name}: {result.Files} arquivo(s), {result.Directories} pasta(s), " +
                 $"{result.RegistryKeys} chave(s) HKCU removidos; {result.Skipped} ignorados; {result.Failed} falhas.");
             Status(result.Failed == 0 && result.Skipped == 0
-                ? "Limpeza profunda de alvos conhecidos concluída. Vestígios do sistema podem permanecer."
-                : "Limpeza profunda parcial. Dados protegidos ou inacessíveis foram preservados.");
+                ? "Limpeza avançada concluída para alvos conhecidos. Outros vestígios podem permanecer."
+                : "Limpeza avançada parcial. Dados protegidos ou inacessíveis foram preservados.");
         }
     }
 
