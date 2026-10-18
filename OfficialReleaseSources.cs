@@ -165,7 +165,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         var apps = installed.ToArray();
         var applicable = Known.Select(recipe => (
             Recipe: recipe,
-            Apps: apps.Where(app => recipe.Matches(app) &&
+            Apps: apps.Where(app => app.EligibleForUpdates && recipe.Matches(app) &&
                 ApplicationIdentityCatalog.MatchesOfficialSource(
                     app.Name, app.Publisher, recipe.Id)).ToArray()))
             .Where(item => item.Apps.Length > 0).ToArray();
