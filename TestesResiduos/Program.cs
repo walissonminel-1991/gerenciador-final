@@ -78,6 +78,37 @@ Check(HistoricalDeviceAudit.Compare(Array.Empty<string>(), activePnp,
     "Acesso parcial não declara que computador está livre de registros antigos");
 Console.WriteLine("OK Históricos PnP somente leitura: diferenças sem exclusão");
 
+// Inventário ARP não depende de receitas e não combina arquiteturas
+// ou instalações apenas porque nomes e versões coincidem.
+var installedSameName = new[]
+{
+    new ProgramEntry { Name = "Visual C++ Runtime", Version = "14.0",
+        Publisher = "Microsoft", InventoryId = "LocalMachine|Registry64|{A0000000-0000-0000-0000-000000000001}" },
+    new ProgramEntry { Name = "Visual C++ Runtime", Version = "14.0",
+        Publisher = "Microsoft", InventoryId = "LocalMachine|Registry32|{A0000000-0000-0000-0000-000000000002}" },
+    new ProgramEntry { Name = "Visual C++ Runtime", Version = "14.0",
+        Publisher = "Outra Empresa", InventoryId = "CurrentUser|Registry64|Runtime" },
+    new ProgramEntry { Name = "Visual C++ Runtime", Version = "14.0",
+        Publisher = "Microsoft", InventoryId = "LocalMachine|Registry64|{A0000000-0000-0000-0000-000000000001}" }
+};
+var distinctVersions = InventoryReconciler.DistinctRegistryEntries(installedSameName);
+Check(distinctVersions.Count == 3 &&
+      distinctVersions.Count(x => x.Publisher == "Microsoft") == 2,
+    "Inventário preserva x64/x86 e diferentes fabricantes; remove somente a mesma chave repetida");
+Check(InventoryReconciler.IsSameRegisteredProgram(installedSameName[0], installedSameName[3]) &&
+      !InventoryReconciler.IsSameRegisteredProgram(installedSameName[0], installedSameName[1]),
+    "Identidade vem da chave real e não de nome/versão");
+Check(InventoryReconciler.ProductCodeFromRegistryKey(
+      "{A0000000-0000-0000-0000-000000000001}") ==
+      "{A0000000-0000-0000-0000-000000000001}" &&
+      InventoryReconciler.ProductCodeFromRegistryKey("Program.Random") is null,
+    "MSI ProductCode validado sem adivinhar IDs de executáveis");
+Check(InventoryReconciler.DistinctRegistryEntries(new[]
+    { new ProgramEntry { Name = "Programa sem ID" },
+      new ProgramEntry { Name = "Programa sem ID" } }).Count == 2,
+    "Falta de identificação não autoriza unir instalações distintas");
+Console.WriteLine("OK Identidade ARP independente de catálogos e receitas");
+
 // Auditoria realista de uma máquina antiga: apps sem desinstalador válido,
 // drivers PnP desconectados por trocas de hardware e falsos positivos críticos.
 Check(MaintenanceAudit.CheckUninstaller("MsiExec.exe /X{ABC123}", false) == "available",
@@ -472,6 +503,9 @@ namespace GerenciadorAplicativos
         public string InstallLocation { get; init; } = "";
         public string CatalogDisplayName { get; init; } = "";
         public string CatalogIdentity { get; init; } = "";
+        public string InventoryId { get; init; } = "";
+        public string InventorySource { get; init; } = "";
+        public string MsiProductCode { get; init; } = "";
         public string UninstallString { get; init; } = "";
         public string QuietUninstallString { get; init; } = "";
         public bool InventoryOnly { get; init; }
