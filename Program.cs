@@ -566,7 +566,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.18.1 TESTE";
+        Text = "Gerenciador Final — v5.12.18.2 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -2070,8 +2070,6 @@ internal sealed partial class MainForm : Form
     {
         var entries = apps.ToArray();
         if (entries.Length == 0) { Status("Nenhum aplicativo marcado"); return; }
-        // Segunda barreira: nunca executar o desinstalador de componentes protegidos,
-        // mesmo que uma entrada antiga venha de uma seleção anterior.
         if (entries.Any(x => x.InventoryOnly || ProtectedApplications.IsProtectedName(x.Name)))
         {
             Status("Componente do Windows protegido contra desinstalação");
@@ -2084,12 +2082,13 @@ internal sealed partial class MainForm : Form
             $"Deseja desinstalar {entries.Length} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
             "Confirmar desinstalação") != DialogResult.Yes)
         { Status("Desinstalação cancelada"); return; }
-        int started = 0, failed = 0;
+
+        int started = 0, failed = 0, confirmed = 0;
+        var completed = new List<ProgramEntry>();
         foreach (ProgramEntry entry in entries)
         {
             try
             {
-                // Usa somente o desinstalador registrado pelo próprio fabricante.
                 string command = !string.IsNullOrWhiteSpace(entry.UninstallString)
                     ? entry.UninstallString : entry.QuietUninstallString;
                 if (!AppServices.TryParseUninstaller(command, out string exe, out string args))
@@ -2102,19 +2101,121 @@ internal sealed partial class MainForm : Form
                 {
                     FileName = exe, Arguments = args, UseShellExecute = true
                 });
-                if (proc is null) { failed++; Log("Não foi possível iniciar: " + entry.Name); }
+                if (proc is null)
+                {
+                    failed++;
+                    Log("Não foi possível iniciar: " + entry.Name);
+                    continue;
+                }
+                started++;
+                Status("Aguardando desinstalação de " + entry.Name + "...");
+                DiagnosticTrace.Write("DESINSTALACAO.FORNECEDOR_INICIADO");
+                using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+                try
+                {
+                    await proc.WaitForExitAsync(timeout.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Alguns fornecedores continuam em outros processos. Não inferir sucesso.
+                    Log("O desinstalador continua trabalhando. Confira depois em Atualizar lista.");
+                    DiagnosticTrace.Write("DESINSTALACAO.AGUA_RETORNO_PENDENTE");
+                    continue;
+                }
+                // Código de saída não basta: confirmar remoção no Registro.
+                bool removed = false;
+                for (int retry = 0; retry < 7; retry++)
+                {
+                    var inventory = await Task.Run(AppServices.GetInstalledPrograms);
+                    if (!UninstallResiduals.StillInstalled(entry, inventory))
+                    {
+                        removed = true;
+                        break;
+                    }
+                    if (retry < 6) await Task.Delay(500);
+                }
+                if (removed)
+                {
+                    completed.Add(entry);
+                    confirmed++;
+                    DiagnosticTrace.Write("DESINSTALACAO.REGISTRO_AUSENTE");
+                    Log("Desinstalação confirmada no Registro: " + entry.Name);
+                }
                 else
                 {
-                    started++;
-                    Log("Desinstalador do fornecedor iniciado: " + entry.Name +
-                        ". Conclusão não pode ser confirmada automaticamente.");
-                    if (entries.Length > 1) await proc.WaitForExitAsync();
+                    failed++;
+                    DiagnosticTrace.Write("DESINSTALACAO.REGISTRO_AINDA_PRESENTE");
+                    Log("O aplicativo ainda aparece instalado: " + entry.Name +
+                        ". Nenhuma limpeza de resíduos foi permitida.");
                 }
             }
-            catch (Exception ex) { failed++; Log("Falha ao desinstalar " + entry.Name + ": " + ex.Message); }
+            catch (Exception ex)
+            {
+                failed++;
+                Log("Falha ao desinstalar " + entry.Name + ": " + ex.GetType().Name);
+                DiagnosticTrace.Failure("DESINSTALACAO.FALHA", ex);
+            }
+        }
+
+        // Executar somente depois de confirmar a remoção. Uma consulta sem
+        // resíduos ou sem receita conhecida jamais deve apagar arquivos.
+        foreach (var item in completed)
+        {
+            if (!UninstallResiduals.IsSupported(item))
+            {
+                Log("Registro removido; limpeza automática de resíduos não disponível para " + item.Name + ".");
+                continue;
+            }
+            Status("Verificando resíduos de " + item.Name + "...");
+            DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_CONSULTA_INICIO");
+            var found = await Task.Run(() => UninstallResiduals.Inspect(item));
+            DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_CONSULTA_FIM candidatos=" + found.Sum(x => x.Files.Count));
+            if (found.Count == 0)
+            {
+                Log("Nenhum resíduo executável reconhecido encontrado para " + item.Name +
+                    ". Configurações pessoais são preservadas.");
+                continue;
+            }
+            int detected = found.Sum(x => x.Files.Count);
+            int untouched = found.Sum(x => x.Preserved);
+            string description = string.Join("\n", found.Take(3).Select(x =>
+                "• " + x.Product + ": " + x.Files.Count + " arquivo(s) na pasta de instalação"));
+            string question = $"Desinstalação de {item.Name} confirmada.\n\n" +
+                $"Foram encontrados {detected} arquivo(s) residuais de instalação:\n" +
+                description +
+                $"\n\nDeseja limpar somente esses arquivos?\n" +
+                $"Configurações, documentos, plugins e outros dados ({untouched} item(ns) não reconhecido(s)) serão preservados.";
+            if (DarkConfirmDialog.Confirm(this, question, "Limpar resíduos após desinstalação") != DialogResult.Yes)
+            {
+                Log("Limpeza de resíduos recusada. Nenhum arquivo adicional removido.");
+                DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_RECUSADO");
+                continue;
+            }
+            // Revalidar imediatamente a remoção; caso outra instalação tenha surgido, não limpar.
+            if (UninstallResiduals.StillInstalled(item, await Task.Run(AppServices.GetInstalledPrograms)))
+            {
+                Log("O aplicativo voltou a constar no Registro; resíduos preservados.");
+                DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_ABORTADO_REINSTALACAO");
+                continue;
+            }
+            int filesRemoved = 0, foldersRemoved = 0, errors = 0, preserved = 0;
+            foreach (var candidate in found)
+            {
+                var outcome = await Task.Run(() => UninstallResiduals.Clean(item, candidate));
+                filesRemoved += outcome.RemovedFiles;
+                foldersRemoved += outcome.RemovedDirectories;
+                errors += outcome.Failed;
+                preserved += outcome.Preserved;
+            }
+            DiagnosticTrace.Write($"DESINSTALACAO.RESIDUOS_LIMPEZA arquivos={filesRemoved} pastas={foldersRemoved} falhas={errors} preservados={preserved}");
+            Log($"Resíduos de {item.Name}: removidos {filesRemoved} arquivo(s) e {foldersRemoved} pasta(s) vazia(s); " +
+                $"preservados {preserved} item(ns); falhas {errors}.");
+            Status(errors == 0 ? "Limpeza de resíduos concluída com segurança."
+                               : "Limpeza parcial: alguns arquivos requerem permissões ou estão em uso.");
         }
         await RefreshCatalogAsync();
-        Status($"Desinstalação: {started} concluída(s)/iniciada(s), {failed} falha(s)");
+        Status($"Desinstalação: {confirmed} confirmada(s), {failed} falha(s). " +
+            "Os dados pessoais não são removidos na limpeza de resíduos.");
     }
 
     private static string SimpleConfirmation(string task) => task switch
