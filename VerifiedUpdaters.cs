@@ -318,9 +318,18 @@ internal static class VerifiedUpdaters
                    uri.AbsolutePath.Equals("/packages/microsoft.gameinput.3.5.283.nupkg",
                        StringComparison.OrdinalIgnoreCase);
         if (id.StartsWith("sumatrapdf-", StringComparison.Ordinal))
-            return host == "www.sumatrapdfreader.org" &&
-                   (uri.AbsolutePath.Equals("/dl/rel/3.6.1/SumatraPDF-3.6.1-64-install.exe", StringComparison.Ordinal) ||
-                    uri.AbsolutePath.Equals("/dl/rel/3.6.1/SumatraPDF-3.6.1-install.exe", StringComparison.Ordinal));
+        {
+            // O site oficial redireciona somente para seu subdominio de arquivos.
+            // Ambos os destinos precisam corresponder ao executavel esperado.
+            bool x64 = id == "sumatrapdf-x64-3.6.1";
+            bool x86 = id == "sumatrapdf-x86-3.6.1";
+            string suffix = x64 ? "SumatraPDF-3.6.1-64-install.exe" : "SumatraPDF-3.6.1-install.exe";
+            return (x64 || x86) &&
+                   ((host == "www.sumatrapdfreader.org" &&
+                     uri.AbsolutePath.Equals("/dl/rel/3.6.1/" + suffix, StringComparison.Ordinal)) ||
+                    (host == "files.sumatrapdfreader.org" &&
+                     uri.AbsolutePath.Equals("/software/sumatrapdf/rel/3.6.1/" + suffix, StringComparison.Ordinal)));
+        }
         if (id.StartsWith("obs-", StringComparison.Ordinal) ||
             id.StartsWith("notepadpp-", StringComparison.Ordinal))
             return host is "github.com" or "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
