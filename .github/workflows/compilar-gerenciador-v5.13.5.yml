@@ -121,6 +121,13 @@ jobs:
           if (-not $app.Contains('!x.InventoryOnly || x.VerifiedMsixIdentity')) {
             throw 'Jogos sem receita nao podem participar do motor de atualizacoes'
           }
+          if (-not $app.Contains('var inventorySnapshot = await Task.Run(AppServices.ScanAllInstalledApps);') -or
+              -not $app.Contains('var gameInventory = inventorySnapshot.Games;')) {
+            throw 'Auditoria historica nao reutiliza inventario Win32/MSIX/Steam/Epic'
+          }
+          if ($app.Contains('var updatedInventory = await Task.Run(AppServices.GetInstalledPrograms);')) {
+            throw 'Auditoria nao deve voltar a ignorar MSIX ou repetir a leitura de jogos'
+          }
           if (-not $test.Contains('Deduplicar mesma identidade por plataforma')) {
             throw 'Teste da deduplicacao Steam Epic e ARP nao esta presente'
           }
