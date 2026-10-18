@@ -33,7 +33,21 @@ internal static class BroadResidualDiscovery
         "Diagnostics", "NativeImages", "Fonts", "Templates",
         "Documents", "Pictures", "Images", "Music", "Videos", "Downloads",
         "Desktop", "Saved Games", "Contacts", "Favorites",
-        "Searches", "Links", "Public", "Users", "Default", "All Users"
+        "Searches", "Links", "Public", "Users", "Default", "All Users",
+        // Infraestrutura do Windows, SDKs, stores de drivers e namespaces de
+        // Registro compartilhados nao constituem residuos de aplicativos.
+        "Classes", "Clients", "Policies", "RegisteredApplications",
+        "Wow6432Node", "Accessibility", "Accessories",
+        "Administrative Tools", "Maintenance", "System Tools",
+        "Windows Defender", "Windows Mail", "Windows NT",
+        "Windows Photo Viewer", "Windows PowerShell", "Windows Sidebar",
+        "Internet Explorer", "MSBuild", "NuGet", "Reference Assemblies",
+        "PackageManagement", "ODBC", "MozillaPlugins", "Khronos",
+        "Icaros", "AGEIA Technologies", "D3DSCache", "CrashDumps",
+        "CrashReportClient", "DWriteCore", "ConnectedDevicesPlatform",
+        "Comms", "ASP.NET", "dotnet", "Intel", "OneDrive",
+        "Setup", "Backup", "DefaultUserEnvironment", "Applogon",
+        "DeviceInfo", "Downloaded Installations", "OverwolfPersist"
     };
 
     // Somente os diretórios controlados pela própria ferramenta; nunca executar
@@ -68,7 +82,8 @@ internal static class BroadResidualDiscovery
     {
         if (string.IsNullOrWhiteSpace(rawName)) return false;
         string name = rawName.Trim();
-        if (name.Length is < 4 or > 70 || name is "." or ".." || Reserved.Contains(name))
+        if (name.Length is < 4 or > 70 || name is "." or ".." || Reserved.Contains(name) ||
+            Guid.TryParse(name, out _) || Regex.IsMatch(name, @"^\d+$"))
             return false;
         if (name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
             name.StartsWith("~", StringComparison.Ordinal))
@@ -175,6 +190,20 @@ internal static class BroadResidualDiscovery
             System.Security.SecurityException) { restricted++; incomplete = true; }
     }
 
+    // Nenhuma pista isolada autoriza uma afirmacao de desinstalacao. Para
+    // exibir um candidato geral, cruzamos dados de usuario/aplicativo e outra
+    // fonte de natureza diferente. Diretorio + atalho, ou duas chaves nas
+    // visoes do Registro, pode significar software AINDA instalado.
+    internal static bool HasIndependentResidueEvidence(IEnumerable<BroadResidualEvidence> candidates)
+    {
+        var sources = candidates.Select(e => e.RootGroup)
+            .ToHashSet(Comparer);
+        return sources.Count >= 2 &&
+            (sources.Contains("AppData") || sources.Contains("ProgramData")) &&
+            (sources.Contains("Registry") || sources.Contains("StartMenu") ||
+             sources.Contains("ProgramFiles"));
+    }
+
     // Classificação independente do ambiente: o mesmo algoritmo pode ser testado
     // em dados fictícios, sem acessar o Registro do usuário nem excluir nada.
     internal static IReadOnlyList<ResidualAuditReport> Classify(
@@ -183,19 +212,19 @@ internal static class BroadResidualDiscovery
     {
         return raw.Where(e => EligibleName(e.Name))
             .GroupBy(e => NormalizedCompare(e.Name), Comparer)
-            .Where(group => !IsProtectedByInstalled(group.First().Name, installed))
+            .Where(group => !IsProtectedByInstalled(group.First().Name, installed) &&
+                HasIndependentResidueEvidence(group))
             .Select(group =>
             {
                 var all = group
                     .DistinctBy(e => e.Location, Comparer)
                     .ToArray();
                 int sourceTypes = all.Select(e => e.RootGroup).Distinct(Comparer).Count();
-                string confidence = sourceTypes >= 2 ?
-                    "Indícios em locais diferentes; ainda não comprova que sejam resíduos." :
-                    "Apenas um local; pode pertencer a um aplicativo ativo ou compartilhado.";
+                string confidence =
+                    "Indícios em fontes diferentes; não comprovam desinstalação nem uso seguro para limpeza.";
                 var findings = all.Take(MaxEvidencePerGroup)
                     .Select(e => new ResidualAuditFinding(e.Location,
-                        "Possível vestígio — " + e.Kind, 1,
+                        "Vestígio não confirmado — " + e.Kind, 1,
                         confidence + " Somente leitura.")).ToArray();
                 return new
                 {
