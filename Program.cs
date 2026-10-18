@@ -1011,7 +1011,9 @@ internal sealed partial class MainForm : Form
             Tool("Limpeza de Disco automática", "Executa a limpeza do Windows sem abrir janela extra.", AppServices.Blue,
                 () => ConfirmThenRun("cleanmgr-auto", "Executar a Limpeza de Disco automaticamente? O Windows pode solicitar autorização.")),
             Tool("Cache de shaders DirectX", "Remove arquivos antigos do D3DSCache do usuário. Jogos podem recompilar shaders.", AppServices.Gray,
-                () => ConfirmThenRun("clean-directx-cache", "Remover arquivos antigos do cache D3DSCache? Jogos poderão recompilar os shaders e ficar temporariamente mais lentos na primeira execução."))
+                () => ConfirmThenRun("clean-directx-cache", "Remover arquivos antigos do cache D3DSCache? Jogos poderão recompilar os shaders e ficar temporariamente mais lentos na primeira execução.")),
+            Tool("Resíduos de aplicativos", "Procura apenas arquivos reconhecidos de programas já desinstalados. Preserva dados pessoais.", AppServices.Gray,
+                () => ExecuteAsync("Verificando resíduos de aplicativos...", ReviewOldUninstallResiduesAsync))
         });
         var cleaningLayout = new TableLayoutPanel
         {
@@ -2216,6 +2218,52 @@ internal sealed partial class MainForm : Form
         await RefreshCatalogAsync();
         Status($"Desinstalação: {confirmed} confirmada(s), {failed} falha(s). " +
             "Os dados pessoais não são removidos na limpeza de resíduos.");
+    }
+
+    private async Task ReviewOldUninstallResiduesAsync()
+    {
+        Status("Conferindo instalações removidas e arquivos residuais conhecidos...");
+        var installed = await Task.Run(AppServices.GetInstalledPrograms);
+        var orphans = await Task.Run(() => UninstallResiduals.FindPreviouslyUninstalled(installed));
+        DiagnosticTrace.Write("DESINSTALACAO.REVISAO_ANTIGA programas=" + orphans.Count);
+        if (orphans.Count == 0)
+        {
+            Log("Nenhum resíduo executável conhecido encontrado de aplicativos já removidos.");
+            Status("Nenhum resíduo seguro para limpeza encontrado. Dados e configurações preservados.");
+            return;
+        }
+        foreach (var (app, candidates) in orphans)
+        {
+            int count = candidates.Sum(x => x.Files.Count);
+            if (DarkConfirmDialog.Confirm(this,
+                $"O aplicativo {app.Name} não está mais instalado.\\n\\n" +
+                $"Há {count} arquivo(s) residuais reconhecidos nas antigas pastas de instalação.\\n\\n" +
+                "Deseja remover somente esses arquivos?\\n" +
+                "Documentos, plugins e configurações pessoais permanecerão intocados.",
+                "Limpeza de resíduos de aplicativos") != DialogResult.Yes)
+            {
+                Log("Limpeza de resíduos antigos recusada para " + app.Name);
+                continue;
+            }
+            if (UninstallResiduals.StillInstalled(app, await Task.Run(AppServices.GetInstalledPrograms)))
+            {
+                Log("Registro de instalação detectado novamente; limpeza cancelada.");
+                continue;
+            }
+            int removed = 0, failed = 0, kept = 0, emptyFolders = 0;
+            foreach (var candidate in candidates)
+            {
+                var result = await Task.Run(() => UninstallResiduals.Clean(app, candidate));
+                removed += result.RemovedFiles;
+                failed += result.Failed;
+                kept += result.Preserved;
+                emptyFolders += result.RemovedDirectories;
+            }
+            DiagnosticTrace.Write($"DESINSTALACAO.REVISAO_LIMPEZA arquivos={removed} falhas={failed} preservados={kept}");
+            Log($"Resíduos antigos de {app.Name}: {removed} arquivo(s) e {emptyFolders} pasta(s) vazia(s) removidos; " +
+                $"{kept} item(ns) preservado(s); {failed} falha(s).");
+        }
+        Status("Revisão concluída. Documentos, preferências e arquivos desconhecidos foram preservados.");
     }
 
     private static string SimpleConfirmation(string task) => task switch
