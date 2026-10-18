@@ -2413,8 +2413,8 @@ internal sealed partial class MainForm : Form
         // NUNCA autoriza exclusão de chaves HKLM/HKCU, saves ou integrações.
         Status("Verificando vestígios antigos sem modificar o computador...");
         DiagnosticTrace.Write("RESIDUOS_HISTORICOS.CONSULTA_INICIO");
-        var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(
-            await Task.Run(AppServices.GetInstalledPrograms)));
+        var updatedInventory = await Task.Run(AppServices.GetInstalledPrograms);
+        var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory));
         DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)}");
         if (historical.Count > 0)
         {
