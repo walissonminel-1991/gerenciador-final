@@ -18,12 +18,40 @@ internal static class VerifiedUpdaters
 {
     private static readonly Version VcTarget = new(12, 0, 40664, 0);
     private const string ObsDigest = "c3a0b880adbe64dc4bcb68f93016916ab5b55ae43fd227115287bf80257d92dc";
+    private const string NppDigest = "26f3bcced788fadbac4e7e577b430ea2ce6060cf3bcad993ef4612ecd7d743da";
+    private static readonly Version NppVersion = new(8, 9, 8, 1);
+    private static readonly Uri Npp64 = new("https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.9.8.1/npp.8.9.8.1.Installer.x64.exe");
     private static readonly Uri Vc64 = new("https://aka.ms/highdpimfc2013x64enu");
     private static readonly Uri Vc86 = new("https://aka.ms/highdpimfc2013x86enu");
     private static readonly Uri Obs = new("https://github.com/obsproject/obs-studio/releases/download/32.2.2/OBS-Studio-32.2.2-Windows-x64-Installer.exe");
 
     private static bool IsMicrosoft(string? publisher) =>
         (publisher ?? "").Contains("Microsoft", StringComparison.OrdinalIgnoreCase);
+
+    // IDs oficiais conhecidos; GameInput nao tem pagina individual confirmada.
+    internal static Uri? GetMicrosoftStoreUri(ProgramEntry entry)
+    {
+        if (!entry.IsUpdate || !IsMicrosoft(entry.Publisher)) return null;
+        if (entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase))
+            return new Uri("ms-windows-store://downloadsandupdates");
+        if (entry.Name.Equals("Outlook for Windows", StringComparison.OrdinalIgnoreCase) ||
+            entry.Name.Equals("Outlook para Windows", StringComparison.OrdinalIgnoreCase))
+            return new Uri("ms-windows-store://pdp/?ProductId=9NRX63209R7B");
+        if (entry.Name.Equals("Windows Terminal", StringComparison.OrdinalIgnoreCase) ||
+            entry.Name.Equals("Terminal do Windows", StringComparison.OrdinalIgnoreCase))
+            return new Uri("ms-windows-store://pdp/?ProductId=9N0DX20HK701");
+        return null;
+    }
+
+    internal static string? GetStoreWebFallback(ProgramEntry entry)
+    {
+        if (GetMicrosoftStoreUri(entry) is null) return null;
+        if (entry.Name.StartsWith("Outlook", StringComparison.OrdinalIgnoreCase))
+            return "https://apps.microsoft.com/detail/9NRX63209R7B";
+        if (entry.Name.Contains("Terminal", StringComparison.OrdinalIgnoreCase))
+            return "https://apps.microsoft.com/detail/9N0DX20HK701";
+        return null;
+    }
 
     internal static string? GetOfficialPage(ProgramEntry entry)
     {
@@ -98,6 +126,18 @@ internal static class VerifiedUpdaters
             return new("obs-x64-32.2.2", "OBS Studio", "32.2.2", Obs, ObsDigest,
                 "OBS Project, LLC", "", true, "https://obsproject.com/download");
         }
+        if (entry.Source == "GitHub oficial" &&
+            entry.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase) &&
+            (entry.Publisher.Equals("Don HO", StringComparison.OrdinalIgnoreCase) ||
+             entry.Publisher.Equals("Notepad++", StringComparison.OrdinalIgnoreCase) ||
+             entry.Publisher.Equals("Notepad Team", StringComparison.OrdinalIgnoreCase)) &&
+            !entry.Name.Contains("x86", StringComparison.OrdinalIgnoreCase) &&
+            TryVersion(entry.Version, out var nppInstalled) && nppInstalled < NppVersion &&
+            TryVersion(entry.AvailableVersion, out var nppAvailable) && nppAvailable == NppVersion)
+        {
+            return new("notepadpp-x64-8.9.8.1", "Notepad++", "8.9.8.1", Npp64, NppDigest,
+                "Notepad++", "", true, "https://notepad-plus-plus.org/downloads/");
+        }
         return null;
     }
 
@@ -106,6 +146,7 @@ internal static class VerifiedUpdaters
     internal static string? GetPrimaryAction(ProgramEntry entry)
     {
         if (!entry.IsUpdate) return null;
+        if (GetMicrosoftStoreUri(entry) is not null) return "store";
         if (Resolve(entry) is not null) return "update";
         if (GetOfficialPage(entry) is not null) return "site";
         return "guide";
@@ -133,6 +174,7 @@ internal static class VerifiedUpdaters
                 "vc2013-x64" => entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable (x64)", StringComparison.OrdinalIgnoreCase),
                 "vc2013-x86" => entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable (x86)", StringComparison.OrdinalIgnoreCase),
                 "obs-x64-32.2.2" => entry.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase),
+                "notepadpp-x64-8.9.8.1" => entry.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase),
                 _ => false
             };
             if (belongs && TryVersion(entry.Version, out var installed) && installed >= target)
@@ -148,7 +190,8 @@ internal static class VerifiedUpdaters
         string host = uri.Host.ToLowerInvariant();
         if (id.StartsWith("vc2013-", StringComparison.Ordinal))
             return host is "aka.ms" or "download.microsoft.com" or "download.visualstudio.microsoft.com";
-        if (id.StartsWith("obs-", StringComparison.Ordinal))
+        if (id.StartsWith("obs-", StringComparison.Ordinal) ||
+            id.StartsWith("notepadpp-", StringComparison.Ordinal))
             return host is "github.com" or "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
         return false;
     }
@@ -161,7 +204,7 @@ internal static class VerifiedUpdaters
         string path = Path.Combine(directory, recipe.Identifier + ".exe");
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(8) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GerenciadorFinal/5.12.13.1");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("GerenciadorFinal/5.12.14.0");
         Uri target = recipe.Download;
         const long maxBytes = 260L * 1024 * 1024;
         for (int redirect = 0; redirect <= 7; redirect++)
