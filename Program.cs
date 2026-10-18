@@ -564,7 +564,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.15 TESTE";
+        Text = "Gerenciador Final — v5.12.16 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -779,6 +779,8 @@ internal sealed partial class MainForm : Form
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
             else if (action == "update")
                 _ = UpdateThirdPartyAsync(item);
+            else if (action == "terminal")
+                _ = UpdateWindowsTerminalAsync(item);
             else if (action == "site")
                 OpenOfficialSite(item);
             else if (action == "guide")
@@ -929,15 +931,16 @@ internal sealed partial class MainForm : Form
                     string label = primaryAction switch
                     {
                         "update" => "Atualizar",
+                        "terminal" => "Atualizar",
                         "site" => "Site oficial",
                         "store" => "Ver na Store",
                         _ => "Como fazer"
                     };
-                    Color color = primaryAction == "update" ? AppServices.Green : AppServices.Gray;
+                    Color color = primaryAction is "update" or "terminal" ? AppServices.Green : AppServices.Gray;
                     DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), label, color,
                         _programList.ActionVisual(item, primaryAction));
                 }
-                if (primaryAction == "update" && VerifiedUpdaters.GetOfficialPage(item) is not null)
+                if (primaryAction is "update" or "terminal" && VerifiedUpdaters.GetOfficialPage(item) is not null)
                     DrawRowButton(e.Graphics, AppRowGeometry.SiteButton(e.Bounds), "Site", AppServices.Gray,
                         _programList.ActionVisual(item, "site"));
             }
@@ -1832,6 +1835,92 @@ internal sealed partial class MainForm : Form
             Status("Não foi possível abrir o site oficial.");
             Log("Falha ao abrir navegador (" + ex.GetType().Name + ").");
         }
+    }
+
+    private async Task UpdateWindowsTerminalAsync(ProgramEntry entry)
+    {
+        if (_busy) return;
+        TerminalUpdateRecipe? recipe = WindowsTerminalUpdater.Resolve(entry);
+        if (recipe is null)
+        {
+            Status("Esta versao do Windows Terminal nao possui pacote GitHub validado.");
+            return;
+        }
+        Version? before = WindowsTerminalUpdater.CurrentUserVersion();
+        if (before is null)
+        {
+            Status("Pacote Microsoft Store do Terminal nao foi identificado. Utilize Ver na Store.");
+            Log("Atualizacao GitHub bloqueada: identidade Microsoft.WindowsTerminal nao encontrada no inventario MSIX.");
+            return;
+        }
+        if (!Version.TryParse(recipe.Version, out var targetVersion) || before >= targetVersion)
+        {
+            Status("O Windows Terminal ja possui a versao selecionada.");
+            return;
+        }
+        string previousFilter = _appFilter;
+        await ExecuteAsync("Preparando atualizacao oficial do Windows Terminal...", async () =>
+        {
+            string folder = Path.Combine(Path.GetTempPath(), "GerenciadorFinal-Terminal-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                DiagnosticTrace.Write("TERMINAL_GITHUB.INICIO");
+                string bundle;
+                using (var downloadCts = new CancellationTokenSource(TimeSpan.FromMinutes(6)))
+                {
+                    _installerDownloadCts = downloadCts;
+                    if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar download";
+                    try
+                    {
+                        bundle = await WindowsTerminalUpdater.DownloadAndVerifyAsync(
+                            recipe, folder, Status, downloadCts.Token);
+                    }
+                    finally
+                    {
+                        _installerDownloadCts = null;
+                        if (!IsDisposed && _checkUpdatesButton is not null)
+                            _checkUpdatesButton.Text = "Verificar atualizacoes";
+                    }
+                }
+                DiagnosticTrace.Write("TERMINAL_GITHUB.MSIX_VALIDADO");
+                await WindowsTerminalUpdater.DeployAsync(bundle, Status);
+                DiagnosticTrace.Write("TERMINAL_GITHUB.INSTALADOR_CONCLUIDO");
+                Version? installed = WindowsTerminalUpdater.CurrentUserVersion();
+                bool confirmed = installed is not null && installed >= targetVersion;
+                if (!confirmed)
+                {
+                    Status("O Windows concluiu a operacao, mas a versao nova nao foi confirmada.");
+                    Log("Windows Terminal: instalacao nao confirmada; nenhum sucesso presumido.");
+                    DiagnosticTrace.Write("TERMINAL_GITHUB.VERSAO_NAO_CONFIRMADA");
+                    return;
+                }
+                DiagnosticTrace.Write("TERMINAL_GITHUB.VERSAO_CONFIRMADA");
+                Log("Windows Terminal " + installed + " confirmado pelo identificador MSIX Microsoft.WindowsTerminal.");
+                await LoadInstalledAsync();
+                await LoadUpdatesAsync();
+                _appFilter = _catalogoVerificado ? previousFilter : "Todos";
+                RenderPrograms();
+                Status("Windows Terminal atualizado com sucesso. Lista de aplicativos renovada.");
+            }
+            catch (OperationCanceledException)
+            {
+                Status("Download do Terminal cancelado.");
+                Log("Download cancelado; nenhum pacote foi instalado.");
+            }
+            catch (Exception ex)
+            {
+                DiagnosticTrace.Failure("TERMINAL_GITHUB.FALHA", ex);
+                Log("Windows Terminal: falha no pacote ou instalacao " + ex.GetType().Name +
+                    ". Feche o Terminal e tente novamente; se persistir, utilize a Microsoft Store.");
+                Status("Nao foi possivel concluir a atualizacao do Windows Terminal.");
+            }
+            finally
+            {
+                try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+                catch (IOException) { Log("Nao foi possivel remover o pacote MSIX temporario."); }
+                catch (UnauthorizedAccessException) { Log("Sem permissao para remover o pacote MSIX temporario."); }
+            }
+        });
     }
 
     private async Task UpdateThirdPartyAsync(ProgramEntry entry)
