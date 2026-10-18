@@ -564,7 +564,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.17.1 TESTE";
+        Text = "Gerenciador Final — v5.12.18 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -1974,33 +1974,24 @@ internal sealed partial class MainForm : Form
                     }
                 }
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.ARQUIVO_VALIDADO receita=" + recipe.Identifier);
-                if (recipe.Identifier == "obs-x64-32.2.2")
+                // Fluxo compartilhado por instaladores que substituem arquivos em uso.
+                // Restart Manager identifica processos pelos ARQUIVOS bloqueados,
+                // nunca pelo simples fato de um navegador estar aberto.
+                if (UpdateBlockingPreflight.MainProcessFor(recipe.Identifier) is not null)
                 {
-                    bool closedObs = await UpdateProcessCoordinator.EnsureClosedAsync(
-                        UpdateProcessTarget.ObsStudio,
-                        question => DarkConfirmDialog.Confirm(this, question, "Fechar OBS Studio para atualizar") == DialogResult.Yes,
-                        message => { Status(message); Log(message); });
-                    if (!closedObs)
-                    {
-                        DiagnosticTrace.Write("INSTALACAO_OFICIAL.FECHAMENTO_RECUSADO");
-                        Status("Atualização interrompida: o OBS Studio precisa estar fechado.");
-                        return;
-                    }
-                    // O instalador OBS pode encontrar DLLs OBS em uso por Edge.
-                    // Nada é fechado silenciosamente: Edge recebe aviso separado.
-                    DiagnosticTrace.Write("OBS.APLICATIVO_PRINCIPAL_FECHADO");
-                    bool closedEdge = await UpdateProcessCoordinator.EnsureClosedAsync(
-                        UpdateProcessTarget.MicrosoftEdge,
+                    DiagnosticTrace.Write("INSTALACAO_OFICIAL.PREFLIGHT_INICIO");
+                    bool ready = await UpdateBlockingPreflight.ReadyAsync(
+                        recipe.Identifier,
                         question => DarkConfirmDialog.Confirm(this, question,
-                            "Microsoft Edge pode bloquear a instalação do OBS") == DialogResult.Yes,
+                            "Preparar atualização com segurança") == DialogResult.Yes,
                         message => { Status(message); Log(message); });
-                    if (!closedEdge)
+                    if (!ready)
                     {
-                        DiagnosticTrace.Write("OBS.EDGE_ABERTO_OU_FECHAMENTO_RECUSADO");
-                        Status("Atualização não iniciada: feche o Microsoft Edge e tente novamente.");
+                        DiagnosticTrace.Write("INSTALACAO_OFICIAL.PREFLIGHT_BLOQUEADO");
+                        Status("Atualização não iniciada: há arquivos em uso ou fechamento não autorizado.");
                         return;
                     }
-                    DiagnosticTrace.Write("OBS.PREPARACAO_CONCLUIDA");
+                    DiagnosticTrace.Write("INSTALACAO_OFICIAL.PREFLIGHT_APROVADO");
                 }
                 Status("Instalador verificado. Aguardando conclusão...");
                 int exit = await VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status);
