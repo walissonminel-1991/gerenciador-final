@@ -46,6 +46,36 @@ Check(!GameLibraryAudit.TryReadEpicManifest("""{"DisplayName":"Incomplete"}""",
     out _, out _),
     "Manifesto Epic sem identificador não deve ser inventado");
 Console.WriteLine("OK Bibliotecas de jogos somente leitura");
+// Um inventario de jogos tem todas as entradas, ainda que so 12 sejam
+// mostradas como exemplos no diagnostico. Registrar sem gerar desinstaladores.
+var sourceGames = new GameLibraryReport(3, 1, 5, 0, false,
+    new[] { new GameLibraryEntry("Steam", "1", "BioShock Infinite", @"D:\\Steam") })
+{
+    ActiveNames = new[] { "BioShock Infinite", "Outro Jogo", "Game com ARP" },
+    AllGames = new[] {
+        new GameLibraryEntry("Steam", "1", "BioShock Infinite", @"D:\\Steam"),
+        new GameLibraryEntry("Steam", "1", "BioShock Infinite", @"D:\\Steam"),
+        new GameLibraryEntry("Steam", "2", "Outro Jogo", @"E:\\Steam"),
+        new GameLibraryEntry("Epic Games", "epic-1", "Outro Jogo", @"D:\\Epic"),
+        new GameLibraryEntry("Steam", "3", "Game com ARP", @"D:\\Steam")
+    }
+};
+Check(sourceGames.Examples.Count == 1 && sourceGames.AllGames.Count == 5,
+    "Inventario guarda todos os manifestos e separa os exemplos da interface");
+var mergedGames = GameLibraryAudit.UnregisteredGames(sourceGames,
+    new[] { new ProgramEntry { Name = "Game com ARP", InventorySource = "Registro: Computador" } });
+Check(mergedGames.Count == 3 &&
+      mergedGames.Count(x => x.DisplayName == "Outro Jogo") == 2 &&
+      mergedGames.Count(x => x.DisplayName == "BioShock Infinite") == 1,
+    "Deduplicar mesma identidade por plataforma sem fundir instalacoes em lojas diferentes");
+Check(GameLibraryAudit.UnregisteredGames(sourceGames, new[] {
+    new ProgramEntry { Name = "BioShock   Infinite" },
+    new ProgramEntry { Name = "Outro Jogo", InventorySource = "Aplicativo empacotado (MSIX)" },
+    new ProgramEntry { Name = "Game com ARP" }
+}).Count == 0,
+    "Programas Win32/MSIX existentes impedem duplicacao de jogos pela biblioteca");
+Console.WriteLine("OK Inventario de jogos sem acao de desinstalacao ficticia");
+
 
 // Dispositivos antigos que ainda constam no Registro, mas não no snapshot
 // PnP presente, devem ser relatados, NUNCA apagados.
@@ -204,6 +234,10 @@ Check(BroadResidualDiscovery.NormalizeName("SampleOldTool.lnk") == "SampleOldToo
 Check(BroadResidualDiscovery.IsProtectedByInstalled("OBS Studio",
         new[] { new ProgramEntry { Name = "OBS Studio", Publisher = "OBS Project" } }),
     "Pastas de aplicativo ativo jamais sao listadas como residuos");
+Check(BroadResidualDiscovery.IsProtectedByInstalled("Outlook for Windows",
+        new[] { new ProgramEntry { Name = "Outlook for Windows", InventoryOnly = true,
+            InventorySource = "Aplicativo empacotado (MSIX)" } }),
+    "Aplicativos Store ativos devem bloquear falsos residuos apos unificar inventario");
 Check(BroadResidualDiscovery.IsProtectedByInstalled("Origin",
         new[] { new ProgramEntry { Name = "EA app", Publisher = "Electronic Arts" } }),
     "Origin pode conter saves ainda importantes para EA app");

@@ -15,6 +15,7 @@ internal sealed record GameLibraryReport(int Steam, int Epic,
     // Nomes verificados em manifestos locais: protege jogos ativos na auditoria
     // de residuos. Os exemplos visuais permanecem limitados a 12 entradas.
     internal IReadOnlyCollection<string> ActiveNames { get; init; } = Array.Empty<string>();
+    internal IReadOnlyList<GameLibraryEntry> AllGames { get; init; } = Array.Empty<GameLibraryEntry>();
 }
 
 internal static class GameLibraryAudit
@@ -69,7 +70,7 @@ internal static class GameLibraryAudit
             return dir is not null && (dir.Attributes & FileAttributes.ReparsePoint) == 0;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-            NotSupportedException) { return false; }
+            NotSupportedException or System.Security.SecurityException or ArgumentException) { return false; }
     }
 
     internal static bool TryReadEpicManifest(string json,
@@ -94,6 +95,23 @@ internal static class GameLibraryAudit
         catch (JsonException) { return false; }
     }
 
+    // A mesma instalacao pode aparecer no Registro/MSIX e no manifesto da loja.
+    // Mesclar apenas nomes canonicos iguais, sem inventar versoes, comandos
+    // de desinstalacao ou presumir que jogos de lojas diferentes sao iguais.
+    internal static IReadOnlyList<GameLibraryEntry> UnregisteredGames(
+        GameLibraryReport library, IReadOnlyCollection<ProgramEntry> alreadyRegistered)
+    {
+        static string Key(string name) => Regex.Replace(name.Trim().ToUpperInvariant(),
+            @"[^\p{L}\p{Nd}]+", " ").Trim();
+        var registeredNames = alreadyRegistered.Select(x => Key(x.Name))
+            .Where(x => x.Length >= 2).ToHashSet(Comparison);
+        return library.AllGames
+            .Where(game => game.DisplayName.Length is >= 2 and <= 150 &&
+                !registeredNames.Contains(Key(game.DisplayName)))
+            .DistinctBy(game => game.Platform + "|" + game.GameId, Comparison)
+            .ToArray();
+    }
+
     internal static GameLibraryReport Inspect()
     {
         int steam = 0, epic = 0, seen = 0, unreadable = 0;
@@ -101,6 +119,7 @@ internal static class GameLibraryAudit
         var examples = new List<GameLibraryEntry>();
         var unique = new HashSet<string>(Comparison);
         var activeNames = new HashSet<string>(Comparison);
+        var allGames = new List<GameLibraryEntry>();
         string? main = ReadSteamRoot();
         if (!string.IsNullOrWhiteSpace(main))
         {
@@ -111,7 +130,7 @@ internal static class GameLibraryAudit
                 if (SafeFile(libraryConfig))
                     libraryPaths.AddRange(ParseSteamLibraryFolders(File.ReadAllText(libraryConfig)));
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
             { unreadable++; partial = true; }
             foreach (string library in libraryPaths.Distinct(Comparison).Take(25))
             {
@@ -126,17 +145,19 @@ internal static class GameLibraryAudit
                         "appmanifest_*.acf", SearchOption.TopDirectoryOnly))
                     {
                         if (++seen > ManifestLimit) { partial = true; break; }
-                        if (!SafeFile(filename)) { unreadable++; continue; }
+                        if (!SafeFile(filename)) { unreadable++; partial = true; continue; }
                         string? name = ParseSteamName(File.ReadAllText(filename));
-                        if (name is null) continue;
+                        if (name is null) { unreadable++; partial = true; continue; }
                         string id = Path.GetFileNameWithoutExtension(filename)["appmanifest_".Length..];
                         if (!Regex.IsMatch(id, @"^\d{1,12}$") || !unique.Add("steam:" + id)) continue;
                         steam++;
                         activeNames.Add(name);
-                        if (examples.Count < 12) examples.Add(new("Steam", id, name, library));
+                        var game = new GameLibraryEntry("Steam", id, name, library);
+                        allGames.Add(game);
+                        if (examples.Count < 12) examples.Add(game);
                     }
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
                 { unreadable++; partial = true; }
             }
         }
@@ -153,18 +174,25 @@ internal static class GameLibraryAudit
                     "*.item", SearchOption.TopDirectoryOnly))
                 {
                     if (++seen > ManifestLimit) { partial = true; break; }
-                    if (!SafeFile(filename)) { unreadable++; continue; }
-                    if (!TryReadEpicManifest(File.ReadAllText(filename), out string name, out string id) ||
-                        !unique.Add("epic:" + id)) continue;
+                    if (!SafeFile(filename)) { unreadable++; partial = true; continue; }
+                    if (!TryReadEpicManifest(File.ReadAllText(filename), out string name, out string id))
+                    { unreadable++; partial = true; continue; }
+                    if (!unique.Add("epic:" + id)) continue;
                     epic++;
                     activeNames.Add(name);
-                    if (examples.Count < 12) examples.Add(new("Epic Games", id, name, epicRoot));
+                    var game = new GameLibraryEntry("Epic Games", id, name, epicRoot);
+                    allGames.Add(game);
+                    if (examples.Count < 12) examples.Add(game);
                 }
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         { unreadable++; partial = true; }
         return new(steam, epic, Math.Min(seen, ManifestLimit),
-            unreadable, partial, examples) { ActiveNames = activeNames.ToArray() };
+            unreadable, partial, examples)
+        {
+            ActiveNames = activeNames.ToArray(),
+            AllGames = allGames.ToArray()
+        };
     }
 }
