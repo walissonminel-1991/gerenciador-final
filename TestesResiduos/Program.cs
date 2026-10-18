@@ -27,6 +27,54 @@ Check(StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 0, 0)).Size ==
       StartupWindowSizing.PreferredSize,
     "Ter tamanho inicial seguro quando o monitor ainda nao puder ser consultado");
 
+// Auditoria ampliada: detectar dados remanescentes sem autorizar exclusão.
+Check(ResidualAudit.CanonicalName(new ProgramEntry
+    { Name = "DroidCam Client", Publisher = "Dev47Apps" }) == "DroidCam",
+    "Normalizar nome específico DroidCam sem incluir componentes genéricos");
+Check(ResidualAudit.CanonicalName(new ProgramEntry
+    { Name = "Windows Driver", Publisher = "Microsoft Corporation" }) is null,
+    "Recusar pastas com nome genérico de componente de sistema");
+var droidcam = new ProgramEntry { Name = "DroidCam Client", Publisher = "Dev47Apps" };
+var drivers = new ProgramEntry
+    { Name = "DroidCam Audio & Video Drivers (X64)", Publisher = "Dev47Apps" };
+Check(ResidualAudit.FindRelatedRegistrations(droidcam, new[] { drivers }).Length == 1,
+    "Informar drivers DroidCam ainda registrados, sem classificá-los como lixo");
+Check(ResidualAudit.FindRelatedRegistrations(droidcam, Array.Empty<ProgramEntry>()).Length == 0,
+    "Não inventar drivers quando não constam no inventário");
+var droidReport = ResidualAudit.Inspect(droidcam, new[] { drivers });
+Check(droidReport.RelatedRegisteredPrograms.Count == 1 &&
+      droidReport.Findings.All(f => f.Items >= 0),
+    "Auditoria DroidCam não apaga componentes e mantém evidências limitadas");
+string auditFolder = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    "GF-Audit-Test-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(auditFolder);
+try
+{
+    File.WriteAllText(Path.Combine(auditFolder, "leftover.txt"), "simulado");
+    File.WriteAllText(Path.Combine(auditFolder, "settings.ini"), "simulado");
+    var ghost = new ProgramEntry
+    {
+        Name = "GF-Audit-Test Client", Publisher = "Test Publisher",
+        InstallLocation = auditFolder
+    };
+    Check(ResidualAudit.SafeAuditRoot(auditFolder), "Somente ler dentro de diretório subordinado autorizado");
+    var report = ResidualAudit.Inspect(ghost, Array.Empty<ProgramEntry>());
+    Check(report.UninstallConfirmed && report.Findings.Any(x =>
+        x.Location == auditFolder && x.Items == 2), "Encontrar dois resíduos onde catálogo antigo não tinha receita");
+    Check(File.Exists(Path.Combine(auditFolder, "leftover.txt")),
+        "Auditoria adicional não exclui sequer arquivos claramente encontrados");
+    Check(!ResidualAudit.SafeAuditRoot(Environment.GetFolderPath(
+        Environment.SpecialFolder.LocalApplicationData)),
+        "Não varrer raiz genérica AppData");
+    Check(!ResidualAudit.SafeAuditRoot(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages")),
+        "Proibir área compartilhada Packages");
+}
+finally
+{
+    Directory.Delete(auditFolder, true);
+}
 var sumatra = new ProgramEntry { Name = "SumatraPDF", Publisher = "Krzysztof Kowalczyk" };
 var notepad = new ProgramEntry { Name = "Notepad++ (64-bit x64)", Publisher = "Notepad++ Team" };
 Check(UninstallResiduals.IsSupported(sumatra), "Sumatra conhecido");
@@ -232,5 +280,6 @@ namespace GerenciadorAplicativos
     {
         public string Name { get; init; } = "";
         public string Publisher { get; init; } = "";
+        public string InstallLocation { get; init; } = "";
     }
 }
