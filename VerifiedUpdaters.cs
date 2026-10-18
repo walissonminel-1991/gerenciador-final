@@ -161,7 +161,7 @@ internal static class VerifiedUpdaters
         string path = Path.Combine(directory, recipe.Identifier + ".exe");
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(8) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GerenciadorFinal/5.12.13");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("GerenciadorFinal/5.12.13.1");
         Uri target = recipe.Download;
         const long maxBytes = 260L * 1024 * 1024;
         for (int redirect = 0; redirect <= 7; redirect++)
