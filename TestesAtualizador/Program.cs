@@ -69,6 +69,7 @@ namespace GerenciadorAplicativos
         public string Version { get; init; } = "";
         public string Publisher { get; init; } = "";
         public string AvailableVersion { get; init; } = "";
+        public string Source { get; init; } = "";
         public bool IsUpdate { get; init; }
     }
 }
