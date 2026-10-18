@@ -27,6 +27,53 @@ Check(StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 0, 0)).Size ==
       StartupWindowSizing.PreferredSize,
     "Ter tamanho inicial seguro quando o monitor ainda nao puder ser consultado");
 
+// Auditoria realista de uma máquina antiga: apps sem desinstalador válido,
+// drivers PnP desconectados por trocas de hardware e falsos positivos críticos.
+Check(MaintenanceAudit.CheckUninstaller("MsiExec.exe /X{ABC123}", false) == "available",
+    "O serviço oficial MSI é reconhecido sem executar nada");
+Check(MaintenanceAudit.CheckUninstaller("", false) == "absent",
+    "Entrada sem desinstalador aparece na avaliação");
+Check(MaintenanceAudit.CheckUninstaller("", true) == "protected",
+    "Componentes protegidos não são tratados como desinstaladores ausentes");
+var missingExecutable = Path.Combine(Path.GetTempPath(),
+    "GF-CI-No-Uninstaller-" + Guid.NewGuid().ToString("N"), "uninstall.exe");
+Check(MaintenanceAudit.CheckUninstaller('"' + missingExecutable + '"', false) == "missing",
+    "Caminho absoluto removido pode ser identificado sem apagar entrada de Registro");
+Check(MaintenanceAudit.CheckUninstaller("uninstall.exe /S", false) == "unknown",
+    "Comandos relativos não são sinalizados indevidamente como arquivos ausentes");
+var brokenInventory = new[]
+{
+    new ProgramEntry { Name = "Antigo Editor", UninstallString = '"' + missingExecutable + '"',
+        CatalogIdentity = "antigo-editor" },
+    new ProgramEntry { Name = "Microsoft Store Runtime", InventoryOnly = true },
+    new ProgramEntry { Name = "Outra Ferramenta", UninstallString = "msiexec.exe /X {GUID}" }
+};
+var maintenance = MaintenanceAudit.Inspect(brokenInventory, inspectDevices: false);
+Check(maintenance.Installed == 3 && maintenance.Recognized == 1 &&
+      maintenance.MissingUninstallers == 1 && maintenance.UsableUninstallers == 1,
+    "Problemas de uninstall não impedem inventário de itens instalados e protegidos");
+Check(maintenance.Concerns.Count == 1 &&
+      maintenance.Concerns[0].Name == "Antigo Editor" &&
+      maintenance.Concerns[0].Description.Contains("não remova o Registro"),
+    "Falhas de registro recebem explicação segura em vez de remoção agressiva");
+Check(MaintenanceAudit.ReviewDisconnectedDevice(false, "Display",
+      @"PCI\VEN_10DE&DEV_1234", "Placa de vídeo anterior"),
+    "GPU PCI desconectada é candidata a revisão de hardware");
+Check(MaintenanceAudit.ReviewDisconnectedDevice(false, "Net",
+      @"PCI\VEN_8086&DEV_5678", "Adaptador anterior"),
+    "Rede PCI desconectada é candidata a revisão de hardware");
+Check(!MaintenanceAudit.ReviewDisconnectedDevice(true, "Display",
+      @"PCI\VEN_10DE&DEV_1234", "GPU atual") &&
+      !MaintenanceAudit.ReviewDisconnectedDevice(null, "Display",
+      @"PCI\VEN_10DE&DEV_1234", "GPU incerta"),
+    "Hardware presente ou status desconhecido não é classificado como antigo");
+Check(!MaintenanceAudit.ReviewDisconnectedDevice(false, "System",
+      @"ROOT\SYSTEM\0000", "Componente do Windows") &&
+      !MaintenanceAudit.ReviewDisconnectedDevice(false, "SoftwareDevice",
+      @"SWD\PRINTENUM\0000", "Impressora virtual"),
+    "Dispositivos ROOT e software virtual nunca viram drivers antigos automaticamente");
+Console.WriteLine("OK Auditoria de inventário e hardware somente leitura");
+
 // Visão geral: independe de quando o programa foi instalado ou desinstalado.
 Check(BroadResidualDiscovery.Roots().Count >= 7,
     "Varredura cobre AppData local/roaming/locallow, ProgramData, ProgramFiles e atalhos");
@@ -372,5 +419,9 @@ namespace GerenciadorAplicativos
         public string Publisher { get; init; } = "";
         public string InstallLocation { get; init; } = "";
         public string CatalogDisplayName { get; init; } = "";
+        public string CatalogIdentity { get; init; } = "";
+        public string UninstallString { get; init; } = "";
+        public string QuietUninstallString { get; init; } = "";
+        public bool InventoryOnly { get; init; }
     }
 }
