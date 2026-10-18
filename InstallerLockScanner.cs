@@ -56,6 +56,20 @@ internal static class InstallerLockScanner
         return [];
     }
 
+    internal static string[] NotepadResources()
+    {
+        string root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Notepad++");
+        if (!Directory.Exists(root)) return [];
+        try
+        {
+            return Directory.EnumerateFiles(root, "*", SearchOption.TopDirectoryOnly)
+                .Where(f => f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                            f.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                .Take(MaxResources).ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
+    }
+
     internal static LockInspection Inspect(IEnumerable<string> resources)
     {
         string[] files = resources
@@ -80,14 +94,16 @@ internal static class InstallerLockScanner
             uint needed = 0, count = 0, reboot = 0;
             rc = RmGetList(session, out needed, ref count, null, out reboot);
             if (rc == 0 && needed == 0)
-                return new(true, [], reboot == 0 ? "Sem bloqueios conhecidos." : "Reinicialização pode ser necessária.");
+                return reboot == 0
+                    ? new(true, [], "Sem bloqueios conhecidos.")
+                    : new(false, [], "Reinicialização do Windows pode ser necessária.");
             if (rc != ErrorMoreData && rc != 0)
                 return new(false, [], "Falha ao consultar arquivos em uso (" + rc + ").");
             for (int attempt = 0; attempt < 3; attempt++)
             {
                 if (needed > 512) return new(false, [], "Limite seguro de processos excedido.");
                 count = Math.Max(needed, 1);
-                var entries = new RmProcessInfo[count];
+                var entries = new RmProcessInfo[(int)count];
                 rc = RmGetList(session, out needed, ref count, entries, out reboot);
                 if (rc == ErrorMoreData) continue;
                 if (rc != 0) return new(false, [], "Falha ao consultar processos (" + rc + ").");
@@ -109,7 +125,9 @@ internal static class InstallerLockScanner
                         return new LockedProcess(p.Process.ProcessId, display, system);
                     })
                     .ToArray();
-                return new(true, found, reboot == 0 ? "Consulta concluída." : "Pode ser necessário reiniciar o Windows.");
+                return reboot == 0
+                    ? new(true, found, "Consulta concluída.")
+                    : new(false, found, "O Windows informou necessidade de reinicialização.");
             }
             return new(false, [], "Lista de bloqueios mudou durante a consulta.");
         }
