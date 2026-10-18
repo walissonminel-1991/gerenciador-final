@@ -3,7 +3,7 @@ name: Gerenciador Final v5.13.5 Inventario Windows Ampliado - Windows x64
 on:
   push:
     branches:
-      - teste-precisao-residuos-v5.13.5
+      - teste-inventario-jogos-v5.13.5
     paths:
       - 'Program.cs'
       - 'StartupWindowSizing.cs'
