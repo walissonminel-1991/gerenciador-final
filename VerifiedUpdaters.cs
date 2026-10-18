@@ -29,7 +29,7 @@ internal static class VerifiedUpdaters
     {
         if (!entry.IsUpdate) return null;
         if (entry.Name.StartsWith("Adobe Acrobat", StringComparison.OrdinalIgnoreCase))
-            return "https://helpx.adobe.com/acrobat/using/updating-acrobat.html";
+            return "https://helpx.adobe.com/br/acrobat/desktop/get-set-up/access-the-app/update-manual.html";
         if (entry.Name.Equals("Plex", StringComparison.OrdinalIgnoreCase) ||
             entry.Name.StartsWith("Plex Media Server", StringComparison.OrdinalIgnoreCase))
             return "https://www.plex.tv/pt-br/apps-devices/";
