@@ -564,7 +564,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.14 TESTE";
+        Text = "Gerenciador Final — v5.12.14.1 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -735,8 +735,8 @@ internal sealed partial class MainForm : Form
         _checkUpdatesButton = MakeAction("Verificar atualizações", AppServices.Blue, 0, () => _ = CheckUpdatesFromButtonAsync());
         _actionControls.Remove(_checkUpdatesButton);
         _toolTips.SetToolTip(_checkUpdatesButton,
-            "Consulta HTTPS ao catálogo RuckZuck. A lista de aplicativos permanece neste computador; " +
-            "o provedor recebe dados normais de conexão como endereço IP. Cobertura parcial, sem instalação.");
+            "Consulta HTTPS a fontes oficiais e RuckZuck. Não instala nem atualiza nada; " +
+            "as fontes recebem dados normais de conexão. Os resultados são candidatos, não garantias.");
         _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 1, ToggleMultiSelection);
         _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 2,
             () => _ = ExecuteAsync("Desinstalando selecionados...", UninstallCheckedAsync));
@@ -758,10 +758,10 @@ internal sealed partial class MainForm : Form
         _listTitle.TextAlign = ContentAlignment.MiddleLeft;
         heading.Controls.Add(_listTitle, 0, 0);
         _allFilterButton = AddFilter(heading, "Todos", 1);
-        _updatesFilterButton = AddFilter(heading, "Com atualização", 2);
+        _updatesFilterButton = AddFilter(heading, "Com atualização", 2, "Possíveis");
         _selectedFilterButton = AddFilter(heading, "Marcados", 3);
-        _toolTips.SetToolTip(_updatesFilterButton, "Exibe candidatos encontrados na última verificação online. " +
-            "A cobertura do RuckZuck é parcial e pode diferir do WinGet.");
+        _toolTips.SetToolTip(_updatesFilterButton, "Mostra possíveis atualizações indicadas por catálogos externos. " +
+            "A Microsoft Store pode não oferecer a mesma versão neste momento.");
         root.Controls.Add(heading, 0, 2);
 
         _programList.Dock = DockStyle.Fill;
@@ -838,9 +838,9 @@ internal sealed partial class MainForm : Form
         }
     }
 
-    private Button AddFilter(TableLayoutPanel heading, string title, int column)
+    private Button AddFilter(TableLayoutPanel heading, string title, int column, string? visibleTitle = null)
     {
-        var button = CreateSecondaryButton(title);
+        var button = CreateSecondaryButton(visibleTitle ?? title);
         button.Dock = DockStyle.Fill;
         button.Margin = new Padding(5, 4, 0, 5);
         button.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
@@ -900,7 +900,10 @@ internal sealed partial class MainForm : Form
         TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
             new Rectangle(left, e.Bounds.Top + 8, width, 27), selected ? Accent : Ink,
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
-        string details = item.IsUpdate
+        bool checkStore = item.IsUpdate && VerifiedUpdaters.GetMicrosoftStoreUri(item) is not null;
+        string details = item.IsUpdate && checkStore
+            ? $"Versão em catálogo ({item.Source}); confira na Store · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
+            : item.IsUpdate
             ? $"Possível atualização ({item.Source})  ·  {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
             : item.ComparisonState == MatchState.SupersededRegistration
             ? $"Cadastro antigo do Visual C++ · versão {DisplayAppVersion(item.AvailableVersion)} também instalada"
@@ -927,7 +930,7 @@ internal sealed partial class MainForm : Form
                     {
                         "update" => "Atualizar",
                         "site" => "Site oficial",
-                        "store" => "Microsoft Store",
+                        "store" => "Ver na Store",
                         _ => "Como fazer"
                     };
                     Color color = primaryAction == "update" ? AppServices.Green : AppServices.Gray;
@@ -1779,10 +1782,13 @@ internal sealed partial class MainForm : Form
         try
         {
             Process.Start(new ProcessStartInfo { FileName = destination.AbsoluteUri, UseShellExecute = true });
-            Log(entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase)
-                ? "Área de downloads e atualizações da Microsoft Store aberta para verificar componentes. Nenhuma instalação presumida."
-                : "Página do aplicativo na Microsoft Store aberta. A instalação ou atualização é concluída pela Store.");
-            Status("Microsoft Store aberta: confira o botão Atualizar ou Obter.");
+            bool gameInput = entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase);
+            Log(gameInput
+                ? "Microsoft Store aberta em Atualizações e downloads. Clique em Verificar se há atualizações. O GameInput pode ser atualizado pelo Windows."
+                : "Página oficial aberta. Se mostrar Abrir, não há atualização oferecida pela Store nesta página agora. O catálogo pode indicar uma versão ainda não distribuída.");
+            Status(gameInput
+                ? "Store aberta: clique em Verificar se há atualizações."
+                : "Store aberta: Atualizar instala; Abrir indica que não há atualização oferecida nesta página.");
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
         {
