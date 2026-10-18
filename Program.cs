@@ -59,6 +59,7 @@ internal sealed class ProgramEntry
     public string Publisher { get; init; } = "";
     public string UninstallString { get; init; } = "";
     public string QuietUninstallString { get; init; } = "";
+    public string InstallLocation { get; init; } = "";
     public string PackageId { get; set; } = "";
     // Entrada de inventário MSIX ou componente protegido: sem desinstalação direta.
     public bool InventoryOnly { get; init; }
@@ -213,6 +214,7 @@ internal static class AppServices
                             UninstallString = inventoryOnly ? "" : Convert.ToString(child.GetValue("UninstallString")) ?? "",
                             QuietUninstallString = inventoryOnly ? "" :
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
+                            InstallLocation = inventoryOnly ? "" : Convert.ToString(child.GetValue("InstallLocation"))?.Trim() ?? "",
                             InventoryOnly = inventoryOnly
                         });
                     }
@@ -564,7 +566,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.18 TESTE";
+        Text = "Gerenciador Final — v5.12.18.1 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
