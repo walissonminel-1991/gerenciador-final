@@ -12,6 +12,7 @@
     <EmbeddedResource Include="../CatalogoDesinstalacao.json" LogicalName="GerenciadorFinal.UninstallCatalog" />
     <Compile Include="../ApplicationIdentityCatalog.cs" Link="ApplicationIdentityCatalog.cs" />
     <Compile Include="../StartupWindowSizing.cs" Link="StartupWindowSizing.cs" />
+    <Compile Include="../ResidualAudit.cs" Link="ResidualAudit.cs" />
     <EmbeddedResource Include="../CatalogoIdentidades.json" LogicalName="GerenciadorFinal.ApplicationIdentityCatalog" />
   </ItemGroup>
 </Project>
