@@ -195,26 +195,45 @@ internal static class VerifiedUpdaters
 
     private static string? FindSumatraExecutable(ProgramEntry entry)
     {
-        string[] roots =
+        string local = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SumatraPDF");
+        string global = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "SumatraPDF");
+        string global32 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "SumatraPDF");
+        var allowed = new[] { local, global, global32 }
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        string registryRoot = !string.IsNullOrWhiteSpace(entry.InstallLocation)
+            ? entry.InstallLocation.Trim().Trim('"')
+            : ExtractExecutableDirectory(entry.UninstallString);
+        if (!string.IsNullOrWhiteSpace(registryRoot))
         {
-            entry.InstallLocation.Trim().Trim('"'),
-            ExtractExecutableDirectory(entry.UninstallString),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SumatraPDF"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "SumatraPDF"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "SumatraPDF")
-        };
-        foreach (string root in roots.Where(x => !string.IsNullOrWhiteSpace(x)))
-        {
+            // Se o registro indica um caminho personalizado, não cair silenciosamente
+            // em outro SumatraPDF por coincidência.
             try
             {
-                string file = Path.Combine(Path.GetFullPath(root), "SumatraPDF.exe");
-                if (File.Exists(file) &&
-                    (File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0)
-                    return file;
+                string normalized = Path.GetFullPath(registryRoot).TrimEnd(Path.DirectorySeparatorChar);
+                if (!allowed.Any(x => x.Equals(normalized, StringComparison.OrdinalIgnoreCase)))
+                    return null;
+                return VerifiedSumatraPath(normalized);
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                return null;
+            }
         }
-        return null;
+        // Alguns instaladores omitem InstallLocation: só aceitar quando houver
+        // exatamente uma instalação padrão, nunca decidir entre duas variantes.
+        var located = allowed.Select(VerifiedSumatraPath).Where(x => x is not null).ToArray();
+        return located.Length == 1 ? located[0] : null;
+    }
+
+    private static string? VerifiedSumatraPath(string directory)
+    {
+        try
+        {
+            if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) return null;
+            string file = Path.Combine(directory, "SumatraPDF.exe");
+            return File.Exists(file) && (File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0 ? file : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
     }
 
     private static string ExtractExecutableDirectory(string command)
