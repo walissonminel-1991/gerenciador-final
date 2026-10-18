@@ -182,7 +182,7 @@ internal sealed class OfficialReleaseSources : IDisposable
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidDataException
-                or TaskCanceledException or IOException)
+                or OperationCanceledException or IOException)
             {
                 // Falha de uma fonte não invalida candidatos de outras fontes.
                 return (Findings: Array.Empty<OfficialRelease>(),
