@@ -579,7 +579,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.22 TESTE";
+        Text = "Gerenciador Final — v5.12.23 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -2375,9 +2375,8 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write("DESINSTALACAO.REVISAO_ANTIGA programas=" + orphans.Count);
         if (orphans.Count == 0)
         {
-            Log("Nenhum resíduo executável conhecido encontrado de aplicativos já removidos.");
-            Status("Nenhum resíduo seguro para limpeza encontrado. Dados e configurações preservados.");
-            return;
+            Log("Nenhum resíduo executável com receita de exclusão encontrado. Ampliando a auditoria histórica.");
+            Status("Verificando vestígios históricos somente para leitura...");
         }
         foreach (var (app, candidates) in orphans)
         {
@@ -2410,7 +2409,24 @@ internal sealed partial class MainForm : Form
             Log($"Resíduos antigos de {app.Name}: {removed} arquivo(s) e {emptyFolders} pasta(s) vazia(s) removidos; " +
                 $"{kept} item(ns) preservado(s); {failed} falha(s).");
         }
-        Status("Revisão concluída. Documentos, preferências e arquivos desconhecidos foram preservados.");
+        // A análise histórica cobre produtos que já desapareceram do inventário.
+        // NUNCA autoriza exclusão de chaves HKLM/HKCU, saves ou integrações.
+        Status("Verificando vestígios antigos sem modificar o computador...");
+        DiagnosticTrace.Write("RESIDUOS_HISTORICOS.CONSULTA_INICIO");
+        var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(
+            await Task.Run(AppServices.GetInstalledPrograms)));
+        DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)}");
+        if (historical.Count > 0)
+        {
+            Log($"Auditoria histórica: {historical.Count} aplicativo(s) e " +
+                $"{historical.Sum(x => x.Findings.Count)} local(is) para revisão. Nenhum deles foi apagado.");
+            ResidualAuditDialog.ShowHistoricalResults(this, historical);
+        }
+        else
+        {
+            Log("Auditoria histórica: nenhum dos locais específicos do catálogo foi encontrado.");
+        }
+        Status("Revisão concluída. Dados históricos, saves, caches e chaves desconhecidas foram preservados.");
     }
 
     private static string SimpleConfirmation(string task) => task switch
