@@ -61,6 +61,7 @@ internal sealed class ProgramEntry
     public string QuietUninstallString { get; init; } = "";
     public string InstallLocation { get; init; } = "";
     public string PackageId { get; set; } = "";
+    public string CatalogIdentity { get; set; } = "";
     // Entrada de inventário MSIX ou componente protegido: sem desinstalação direta.
     public bool InventoryOnly { get; init; }
     public string AvailableVersion { get; set; } = "";
@@ -211,6 +212,8 @@ internal static class AppServices
                             Name = name,
                             Version = Convert.ToString(child.GetValue("DisplayVersion"))?.Trim() ?? "",
                             Publisher = Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "",
+                            CatalogIdentity = ApplicationIdentityCatalog.Resolve(name,
+                                Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "")?.Id ?? "",
                             UninstallString = inventoryOnly ? "" : Convert.ToString(child.GetValue("UninstallString")) ?? "",
                             QuietUninstallString = inventoryOnly ? "" :
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
@@ -566,7 +569,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.20 TESTE";
+        Text = "Gerenciador Final — v5.12.21 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -1492,7 +1495,8 @@ internal sealed partial class MainForm : Form
                     Name = x.Name,
                     Version = x.Version,
                     Publisher = x.Publisher,
-                    InventoryOnly = true
+                    InventoryOnly = true,
+                    CatalogIdentity = ApplicationIdentityCatalog.Resolve(x.Name, x.Publisher)?.Id ?? ""
                 }));
                 return (Items: records, Msix: msix, Added: additions.Count);
             });
@@ -1695,7 +1699,8 @@ internal sealed partial class MainForm : Form
     {
         string query = _search.Text.Trim();
         IEnumerable<ProgramEntry> filtered = _installed.Where(entry => query.Length == 0 ||
-            string.Join(" ", entry.Name, entry.Version, entry.Publisher, entry.PackageId, entry.AvailableVersion)
+            string.Join(" ", entry.Name, entry.Version, entry.Publisher, entry.PackageId, entry.AvailableVersion,
+                entry.CatalogIdentity)
                 .Contains(query, StringComparison.CurrentCultureIgnoreCase));
         filtered = _appFilter switch
         {
