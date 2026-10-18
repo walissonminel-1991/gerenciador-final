@@ -579,7 +579,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.21.2 TESTE";
+        Text = "Gerenciador Final — v5.12.22 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -2224,6 +2224,23 @@ internal sealed partial class MainForm : Form
                     Log("O aplicativo ainda aparece instalado: " + entry.Name +
                         ". Nenhuma limpeza de resíduos foi permitida.");
                 }
+                // A auditoria é separada das políticas que podem apagar arquivos.
+                // Mesmo sem receita de limpeza, mostra locais específicos e possíveis
+                // componentes relacionados, sempre SEM tocar no disco ou Registro.
+                var currentInventory = await Task.Run(AppServices.GetInstalledPrograms);
+                var audit = await Task.Run(() => ResidualAudit.Inspect(entry, currentInventory));
+                DiagnosticTrace.Write($"DESINSTALACAO.AUDITORIA encontrados={audit.Findings.Count} relacionados={audit.RelatedRegisteredPrograms.Count} removido={audit.UninstallConfirmed}");
+                if (audit.Findings.Count > 0 || audit.RelatedRegisteredPrograms.Count > 0)
+                {
+                    Log($"Auditoria de {entry.Name}: {audit.Findings.Count} local(is) possível(is) e " +
+                        $"{audit.RelatedRegisteredPrograms.Count} componente(s) relacionado(s) ainda registrado(s).");
+                    ResidualAuditDialog.ShowResults(this, audit);
+                }
+                else
+                {
+                    Log("Auditoria adicional: nenhum local específico reconhecido para " + entry.Name +
+                        ". Isso não comprova ausência de outros vestígios.");
+                }
             }
             catch (Exception ex)
             {
@@ -2291,7 +2308,7 @@ internal sealed partial class MainForm : Form
         }
         await RefreshCatalogAsync();
         Status($"Desinstalação: {confirmed} confirmada(s), {failed} falha(s). " +
-            "Os dados pessoais não são removidos na limpeza de resíduos.");
+            "Auditoria adicional concluída; possíveis resíduos desconhecidos não foram apagados.");
     }
 
     private async Task ReviewDeepUninstallResiduesAsync()
