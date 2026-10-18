@@ -557,7 +557,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.7.2 TESTE";
+        Text = "Gerenciador Final — v5.12.7.3 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -1080,6 +1080,7 @@ internal sealed partial class MainForm : Form
             }
             button.Click += async (_, _) =>
             {
+                if (_busy) return;
                 try { await tool.Action(); }
                 catch (Exception ex) { ReportError(ex); }
             };
@@ -1345,6 +1346,7 @@ internal sealed partial class MainForm : Form
         _actionControls.Add(button);
         button.Click += async (_, _) =>
         {
+            if (_busy) return;
             try { await action(); }
             catch (Exception ex) { ReportError(ex); }
         };
@@ -1372,7 +1374,8 @@ internal sealed partial class MainForm : Form
         _busy = true;
         _programList.ActionsEnabled = false;
         UpdateBulkButtons();
-        foreach (Control c in _actionControls) c.Enabled = false;
+        // Não desabilitar todos os botões: isso causava piscadas no painel Reparo e rede.
+        // O bloqueio de operações paralelas é realizado por _busy no manipulador do clique.
         _search.Enabled = false;
         _progress.Visible = true;
         _progress.Style = ProgressBarStyle.Marquee; // Sem percentual inventado para comandos externos.
@@ -1388,7 +1391,6 @@ internal sealed partial class MainForm : Form
             _progress.Visible = false;
             _status.Text = _operationResult;
             _search.Enabled = true;
-            foreach (Control c in _actionControls) c.Enabled = true;
             _busy = false;
             _programList.ActionsEnabled = true;
             UpdateBulkButtons();
@@ -1776,9 +1778,9 @@ internal sealed partial class MainForm : Form
         if (entries.Length == 0) { Status("Nenhum aplicativo marcado"); return; }
         string preview = string.Join("\n", entries.Take(8).Select(x => "• " + x.Name));
         if (entries.Length > 8) preview += $"\n... e mais {entries.Length - 8}.";
-        if (MessageBox.Show(this,
-            $"Desinstalar {entries.Length} aplicativo(s)?\n\n{preview}\n\nEsta ação pode remover dados e abrir instaladores de terceiros. Confirme somente se reconhece os programas.",
-            "Confirmar desinstalação", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+        if (DarkConfirmDialog.Confirm(this,
+            $"Deseja desinstalar {entries.Length} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
+            "Confirmar desinstalação") != DialogResult.Yes)
         { Status("Desinstalação cancelada"); return; }
         int started = 0, failed = 0;
         foreach (ProgramEntry entry in entries)
@@ -1813,10 +1815,23 @@ internal sealed partial class MainForm : Form
         Status($"Desinstalação: {started} concluída(s)/iniciada(s), {failed} falha(s)");
     }
 
+    private static string SimpleConfirmation(string task) => task switch
+    {
+        "clean-user-temp" => "Deseja limpar os arquivos temporários antigos do usuário?",
+        "clean-windows-temp" => "Deseja limpar os arquivos temporários antigos do Windows?",
+        "clear-update-cache" => "Deseja limpar o cache do Windows Update? A consulta de atualizações ficará temporariamente indisponível.",
+        "cleanmgr-auto" => "Deseja executar a Limpeza de Disco do Windows?",
+        "clean-directx-cache" => "Deseja limpar o cache antigo de shaders DirectX? Alguns jogos podem recompilar os arquivos.",
+        "windows-repair" => "Deseja verificar e reparar os arquivos do Windows? Esta operação pode demorar.",
+        "network-reset" => "Deseja redefinir a rede? A conexão pode ser interrompida.",
+        "create-restore-point" => "Deseja criar um ponto de restauração?",
+        _ => "Deseja executar esta operação?"
+    };
+
     private async Task ConfirmThenRun(string task, string question)
     {
         if (_busy) return;
-        if (MessageBox.Show(this, question, "Confirmar operação", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+        if (DarkConfirmDialog.Confirm(this, SimpleConfirmation(task), "Confirmar operação") != DialogResult.Yes)
         { Log("Operação cancelada pelo usuário."); return; }
         if (task is "clean-user-temp" or "clean-directx-cache")
         {
@@ -1891,8 +1906,8 @@ internal sealed partial class MainForm : Form
 
     private Task EmptyRecycleBinAsync()
     {
-        if (MessageBox.Show(this, "Excluir permanentemente os itens da Lixeira?",
-            "Esvaziar Lixeira", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+        if (DarkConfirmDialog.Confirm(this, "Deseja esvaziar a Lixeira? Os arquivos serão excluídos permanentemente.",
+            "Esvaziar Lixeira") != DialogResult.Yes)
         { Status("Operação cancelada"); return Task.CompletedTask; }
         int result = NativeMethods.SHEmptyRecycleBin(Handle, null, 0x1 | 0x2 | 0x4);
         Log(result == 0 ? "Lixeira esvaziada." : "O Windows retornou código " + result + ".");
