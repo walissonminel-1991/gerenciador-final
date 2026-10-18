@@ -77,7 +77,7 @@ jobs:
           if (-not $control.Contains('protected override void OnMouseUp(MouseEventArgs e)')) { throw 'Falta evento de soltar o botao' }
           if (-not $control.Contains('private void AdvanceButtonAnimation()')) { throw 'Falta animacao de clique' }
           if (-not $control.Contains('ActionVisual(ProgramEntry item, string action)')) { throw 'Falta feedback de estado de cada botao' }
-          if (-not $main.Contains('_programList.ActionVisual(item, "update")')) { throw 'Falta animacao do botao Atualizar' }
+          if (-not $main.Contains('_programList.ActionVisual(item, primaryAction)')) { throw 'Falta animacao da acao principal' }
           if (-not $main.Contains('_programList.ActionVisual(item, "site")')) { throw 'Falta animacao do botao Site' }
           if (-not $main.Contains('visual.Pressed')) { throw 'Falta movimento visual de pressao' }
 
