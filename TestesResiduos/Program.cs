@@ -47,6 +47,37 @@ Check(!GameLibraryAudit.TryReadEpicManifest("""{"DisplayName":"Incomplete"}""",
     "Manifesto Epic sem identificador não deve ser inventado");
 Console.WriteLine("OK Bibliotecas de jogos somente leitura");
 
+// Dispositivos antigos que ainda constam no Registro, mas não no snapshot
+// PnP presente, devem ser relatados, NUNCA apagados.
+var activePnp = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    @"PCI\VEN_10DE&DEV_ACTIVE\6&1234",
+    @"USB\VID_ACTIVE&PID_0001\ACTIVE"
+};
+var registryHistory = new[]
+{
+    @"PCI\VEN_10DE&DEV_ACTIVE\6&1234",
+    @"PCI\VEN_10DE&DEV_OLDGPU\6&4321",
+    @"PCI\VEN_8086&DEV_OLDNIC\3&1111",
+    @"USB\VID_ACTIVE&PID_0001\ACTIVE",
+    @"USB\VID_OLD&PID_3000\OLD",
+    @"pci\ven_10de&dev_oldgpu\6&4321"
+};
+var historicalPnp = HistoricalDeviceAudit.Compare(registryHistory, activePnp, 3, 0, false);
+Check(historicalPnp.Registered == 5 && historicalPnp.NotPresent == 3,
+    "Comparação encontra hardware histórico não presente e remove duplicações de maiúsculas");
+Check(historicalPnp.Buses.Contains("PCI: 2") &&
+      historicalPnp.Buses.Contains("USB: 1"),
+    "Registros por barramento agrupados sem expor IDs de hardware");
+Check(HistoricalDeviceAudit.Compare(registryHistory,
+    new HashSet<string>(registryHistory, StringComparer.OrdinalIgnoreCase),
+    3, 0, false).NotPresent == 0,
+    "Todos os dispositivos presentes não são falsamente considerados antigos");
+Check(HistoricalDeviceAudit.Compare(Array.Empty<string>(), activePnp,
+    0, 2, true).Partial,
+    "Acesso parcial não declara que computador está livre de registros antigos");
+Console.WriteLine("OK Históricos PnP somente leitura: diferenças sem exclusão");
+
 // Auditoria realista de uma máquina antiga: apps sem desinstalador válido,
 // drivers PnP desconectados por trocas de hardware e falsos positivos críticos.
 Check(MaintenanceAudit.CheckUninstaller("MsiExec.exe /X{ABC123}", false) == "available",
