@@ -468,6 +468,7 @@ namespace GerenciadorAplicativos
     {
         public string Name { get; init; } = "";
         public string Publisher { get; init; } = "";
+        public string Version { get; init; } = "";
         public string InstallLocation { get; init; } = "";
         public string CatalogDisplayName { get; init; } = "";
         public string CatalogIdentity { get; init; } = "";
