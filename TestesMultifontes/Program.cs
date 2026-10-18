@@ -191,9 +191,9 @@ Assert(OfficialReleaseSources.IsAllowedUrl(new Uri("https://edgeupdates.microsof
     !OfficialReleaseSources.IsAllowedUrl(new Uri("http://raw.githubusercontent.com/")),
     "Novos domínios somente HTTPS com origem exata");
 OfficialReleaseSources.ClearCacheForTests();
-using (var sources = new OfficialReleaseSources(new Fixture()))
+using (var wingetSource = new OfficialReleaseSources(new Fixture()))
 {
-    var dirResults = await sources.QueryAsync([gameInput, outlook, wrongGame, wrongOutlook], CancellationToken.None);
+    var dirResults = await wingetSource.QueryAsync([gameInput, outlook, wrongGame, wrongOutlook], CancellationToken.None);
     Assert(dirResults.Findings.Count == 2 && dirResults.Diagnostics.Count == 2,
         "Somente GameInput e Outlook Microsoft reconhecidos");
     Assert(dirResults.Findings.First(x => ReferenceEquals(x.Installed, gameInput)).LatestVersion == "3.5.283",
