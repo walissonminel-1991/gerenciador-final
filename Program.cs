@@ -66,6 +66,7 @@ internal sealed class ProgramEntry
     public string InventorySource { get; init; } = "";
     public string InventoryId { get; init; } = "";
     public string MsiProductCode { get; init; } = "";
+    public bool VerifiedMsixIdentity { get; init; }
     // Entrada de inventário MSIX ou componente protegido: sem desinstalação direta.
     public bool InventoryOnly { get; init; }
     public string AvailableVersion { get; set; } = "";
@@ -205,6 +206,7 @@ internal static class AppServices
                 InventoryOnly = true,
                 InventorySource = "Aplicativo empacotado (MSIX)",
                 InventoryId = "MSIX|" + app.PackageName,
+                VerifiedMsixIdentity = app.RecipeEligible,
                 CatalogIdentity = verified?.Id ?? "",
                 CatalogDisplayName = verified?.Name ?? ""
             });
@@ -1637,7 +1639,11 @@ internal sealed partial class MainForm : Form
         if (_consultaCatalogoCts is not null || IsDisposed || _installed.Count == 0) return;
         int generation = _catalogoGeneration;
         ProgramEntry[] snapshot = _installed.ToArray();
-        var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher)).ToArray();
+        // Preservar o mesmo número e a mesma ordem das linhas para a UI.
+        // Pacotes MSIX sem identidade oficial verificada permanecem visíveis,
+        // mas não entram em RuckZuck, GitHub nem receitas de instalação.
+        var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher,
+            x.InventorySource != "Aplicativo empacotado (MSIX)" || x.VerifiedMsixIdentity)).ToArray();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
         var watch = Stopwatch.StartNew();
         _consultaCatalogoCts = cancellation;
