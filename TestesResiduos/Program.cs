@@ -256,6 +256,34 @@ Check(audited.Count == 1 && audited[0].Product == "Netease" &&
       !audited[0].UninstallConfirmed,
     "Relatorio real: Netease investigavel, componentes do Windows e apps possivelmente ativos excluidos");
 Console.WriteLine("OK Auditoria geral testa historico independente com provas de baixo risco");
+// Um jogo Steam/Epic pode existir somente como manifesto, sem entrada ARP.
+// Os testes abaixo usam evidencias inventadas e nao tocam no Windows.
+var gameEvidence = new[]
+{
+    new BroadResidualEvidence("BioShock Infinite", @"C:\\FakeLocal\\BioShock Infinite", "Dados", "AppData"),
+    new BroadResidualEvidence("BioShock Infinite", @"HKCU\\Software\\BioShock Infinite", "Chave", "Registry"),
+    new BroadResidualEvidence("Editor Sem Registro", @"C:\\FakeLocal\\Editor Sem Registro", "Dados", "AppData"),
+    new BroadResidualEvidence("Editor Sem Registro", @"HKCU\\Software\\Editor Sem Registro", "Chave", "Registry")
+};
+var withoutGameManifest = BroadResidualDiscovery.Classify(gameEvidence,
+    Array.Empty<ProgramEntry>());
+Check(withoutGameManifest.Count == 2,
+    "Sem manifesto de jogo ativo as duas identidades seguem como hipoteses");
+var withGameManifest = BroadResidualDiscovery.Classify(gameEvidence,
+    Array.Empty<ProgramEntry>(), new[] { "BIOSHOCK  INFINITE" });
+Check(withGameManifest.Count == 1 &&
+      withGameManifest[0].Product == "Editor Sem Registro",
+    "Jogo ativo via Steam/Epic nao e falso residuo; outro aplicativo continua investigavel");
+Check(BroadResidualDiscovery.Classify(gameEvidence, Array.Empty<ProgramEntry>(),
+    new[] { "BioShock Infinite", "Editor Sem Registro" }).Count == 0,
+    "Proteger todos os jogos conhecidos, nao so os 12 exemplos da interface");
+var gamesOnly = new GameLibraryReport(42, 0, 42, 0, false,
+    Array.Empty<GameLibraryEntry>()) { ActiveNames = new[] { "BioShock Infinite" } };
+Check(gamesOnly.Examples.Count == 0 && gamesOnly.ActiveNames.Count == 1,
+    "Inventario completo de jogos e independente dos exemplos visuais");
+Console.WriteLine("OK Jogos ativos nao sao confundidos com residuos historicos");
+
+
 
 // Catálogo histórico: Origem, Vivaldi e uTorrent não podem ser limpos
 // automaticamente, e não devem aparecer como resíduos com produto instalado.
