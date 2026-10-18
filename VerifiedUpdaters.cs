@@ -101,6 +101,16 @@ internal static class VerifiedUpdaters
         return null;
     }
 
+    // Um candidato sempre recebe uma acao explicita, mas apenas receitas locais
+    // assinadas e verificadas autorizam iniciar um instalador.
+    internal static string? GetPrimaryAction(ProgramEntry entry)
+    {
+        if (!entry.IsUpdate) return null;
+        if (Resolve(entry) is not null) return "update";
+        if (GetOfficialPage(entry) is not null) return "site";
+        return "guide";
+    }
+
     internal static bool TryVersion(string? value, out Version version)
     {
         version = new Version(0, 0, 0, 0);
