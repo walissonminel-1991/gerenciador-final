@@ -47,6 +47,18 @@ internal static class VerifiedUpdaters
         if (entry.Source == "GitHub oficial" &&
             entry.Name.StartsWith("PowerShell 7", StringComparison.OrdinalIgnoreCase))
             return "https://github.com/PowerShell/PowerShell/releases";
+        if (entry.Source == "Mozilla" &&
+            entry.Name.Contains("Thunderbird", StringComparison.OrdinalIgnoreCase))
+            return "https://www.thunderbird.net/";
+        if (entry.Source == "GitHub oficial" &&
+            entry.Name.StartsWith("7-Zip ", StringComparison.OrdinalIgnoreCase))
+            return "https://www.7-zip.org/download.html";
+        if (entry.Source == "GitHub oficial" &&
+            entry.Name.Equals("GitHub Desktop", StringComparison.OrdinalIgnoreCase))
+            return "https://desktop.github.com/";
+        if (entry.Source == "GitHub oficial" &&
+            entry.Name.StartsWith("SumatraPDF", StringComparison.OrdinalIgnoreCase))
+            return "https://www.sumatrapdfreader.org/download-free-pdf-viewer";
         if (entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable", StringComparison.OrdinalIgnoreCase))
             return "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/";
         return null;
