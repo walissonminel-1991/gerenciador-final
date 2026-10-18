@@ -93,7 +93,7 @@ internal sealed class ResidualAuditDialog : Form
         IReadOnlyList<ResidualAuditReport> historical)
     {
         if (historical.Count == 0) return;
-        // Exibir por produto e risco, sem repetir 29 vezes a mesma advertência.
+        // Uma única janela, por produto e risco, sem repetir cada advertência.
         // O relatório permanece somente leitura, SEM botões para apagar dados.
         var sorted = historical.OrderBy(r => r.Product, StringComparer.CurrentCultureIgnoreCase).ToArray();
         var grouped = string.Join("\r\n\r\n", sorted.Select(report =>
