@@ -891,8 +891,10 @@ internal sealed partial class MainForm : Form
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
         string details = item.IsUpdate
             ? $"Possível atualização (RuckZuck)  ·  {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
+            : item.ComparisonState == MatchState.SupersededRegistration
+            ? $"Cadastro antigo do Visual C++ · versão {DisplayAppVersion(item.AvailableVersion)} também instalada"
             : item.ComparisonState == MatchState.DifferentMajor
-            ? $"Revisar: versoes principais diferentes · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} (coexistem)"
+            ? $"Revisar: versões principais diferentes · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} (coexistem)"
             : Matching.IsUncertain(item.ComparisonState)
             ? $"Resultado incerto (RuckZuck)  ·  Versão: {DisplayAppVersion(item.Version)}"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
@@ -1481,6 +1483,9 @@ internal sealed partial class MainForm : Form
             RenderPrograms();
             int candidates = results.Count(x => x.State == MatchState.Candidate);
             int uncertain = results.Count(x => Matching.IsUncertain(x.State));
+            int stale = results.Count(x => x.State == MatchState.SupersededRegistration);
+            if (stale > 0)
+                Log($"Visual C++: {stale} registro(s) antigo(s) com versão recente também instalada. Não será sugerida reinstalação.");
             DiagnosticTrace.Write($"RUCKZUCK.COMPARACAO_OK programas={installed.Length} candidatos={candidates} indeterminados={uncertain}");
             Log($"Catálogo RuckZuck: {catalog.Count} pacotes; {candidates} candidato(s); {uncertain} correspondência(s) incerta(s), não exibidas como atualizações.");
             Log("Atualização integrada disponível somente para pacotes oficiais com receita verificada; demais resultados são apenas candidatos.");
@@ -1688,6 +1693,7 @@ internal sealed partial class MainForm : Form
         Status("Atualizando " + recipe.ProductName + ": preparando instalador oficial verificado...");
         Log("Atualização solicitada diretamente na lista: " + recipe.ProductName +
             " (" + recipe.Identifier + "). Origem e assinatura serão conferidas antes da execução.");
+        string previousFilter = _appFilter;
         await ExecuteAsync("Preparando atualização de " + recipe.ProductName + "...", async () =>
         {
             string folder = Path.Combine(Path.GetTempPath(), "GerenciadorFinal-Update-" + Guid.NewGuid().ToString("N"));
@@ -1736,8 +1742,16 @@ internal sealed partial class MainForm : Form
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.VERSAO_NAO_CONFIRMADA");
                 }
                 await LoadInstalledAsync();
-                // Evitar confirmar sucesso apenas por resultado do RuckZuck.
-                Status(confirmed ? "Atualização verificada no Registro." : "Verificação de versão pendente.");
+                // O catálogo é consultado novamente, sem exigir clique em Verificar.
+                // A visualização anterior volta depois da consulta, evitando lista vazia.
+                Log("Atualizando automaticamente a lista de versões disponíveis...");
+                await LoadUpdatesAsync();
+                _appFilter = _catalogoVerificado ? previousFilter : "Todos";
+                RenderPrograms();
+                Status(confirmed
+                    ? (_catalogoVerificado ? "Atualização confirmada; lista de atualizações renovada."
+                        : "Atualização confirmada; catálogo remoto temporariamente indisponível.")
+                    : "Instalador finalizado; confira a versão no Registro.");
             }
             catch (OperationCanceledException)
             {
