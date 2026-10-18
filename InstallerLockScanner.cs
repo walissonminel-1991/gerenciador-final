@@ -39,7 +39,13 @@ internal static class InstallerLockScanner
                 foreach (string folder in folders)
                 {
                     if (!Directory.Exists(folder)) continue;
-                    foreach (string file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+                    foreach (string file in Directory.EnumerateFiles(folder, "*",
+                        new EnumerationOptions
+                        {
+                            RecurseSubdirectories = true,
+                            IgnoreInaccessible = true,
+                            AttributesToSkip = FileAttributes.ReparsePoint
+                        }))
                     {
                         if (!file.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) &&
                             !file.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
