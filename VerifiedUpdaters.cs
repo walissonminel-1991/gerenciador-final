@@ -127,11 +127,11 @@ internal static class VerifiedUpdaters
                 "OBS Project, LLC", "", true, "https://obsproject.com/download");
         }
         if (entry.Source == "GitHub oficial" &&
-            entry.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase) &&
+            (entry.Name.Equals("Notepad++ (64-bit x64)", StringComparison.OrdinalIgnoreCase) ||
+             entry.Name.Equals("Notepad++ (x64)", StringComparison.OrdinalIgnoreCase)) &&
             (entry.Publisher.Equals("Don HO", StringComparison.OrdinalIgnoreCase) ||
              entry.Publisher.Equals("Notepad++", StringComparison.OrdinalIgnoreCase) ||
              entry.Publisher.Equals("Notepad Team", StringComparison.OrdinalIgnoreCase)) &&
-            !entry.Name.Contains("x86", StringComparison.OrdinalIgnoreCase) &&
             TryVersion(entry.Version, out var nppInstalled) && nppInstalled < NppVersion &&
             TryVersion(entry.AvailableVersion, out var nppAvailable) && nppAvailable == NppVersion)
         {
@@ -174,7 +174,8 @@ internal static class VerifiedUpdaters
                 "vc2013-x64" => entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable (x64)", StringComparison.OrdinalIgnoreCase),
                 "vc2013-x86" => entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable (x86)", StringComparison.OrdinalIgnoreCase),
                 "obs-x64-32.2.2" => entry.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase),
-                "notepadpp-x64-8.9.8.1" => entry.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase),
+                "notepadpp-x64-8.9.8.1" => entry.Name.Equals("Notepad++ (64-bit x64)", StringComparison.OrdinalIgnoreCase) ||
+                                               entry.Name.Equals("Notepad++ (x64)", StringComparison.OrdinalIgnoreCase),
                 _ => false
             };
             if (belongs && TryVersion(entry.Version, out var installed) && installed >= target)
