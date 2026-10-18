@@ -380,7 +380,10 @@ internal static class VerifiedUpdaters
             : "Executando atualização oficial. O Windows pode solicitar autorização UAC...");
         using var process = Process.Start(new ProcessStartInfo
         {
-            FileName = isMsi ? "msiexec.exe" : verifiedFile,
+            // Caminho System32 absoluto: nenhum executável homônimo vindo do pacote ou PATH.
+            FileName = isMsi
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "msiexec.exe")
+                : verifiedFile,
             Arguments = isMsi ? $"/i \"{verifiedFile}\" {recipe.Arguments}" : recipe.Arguments,
             UseShellExecute = true, Verb = "runas", WorkingDirectory = Path.GetDirectoryName(verifiedFile)!
         }) ?? throw new InvalidOperationException("Instalador não foi iniciado.");
