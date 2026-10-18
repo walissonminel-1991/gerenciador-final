@@ -124,7 +124,16 @@ internal static class UninstallRuleCatalog
     }
 
     internal static bool IsInstalled(UninstallCatalogRule rule, IReadOnlyCollection<ProgramEntry> inventory)
-        => inventory.Any(program => rule.InstalledNames.Any(name => NameMatches(program.Name, name)));
+    {
+        var identity = ApplicationIdentityCatalog.Rules.FirstOrDefault(i =>
+            rule.Id.Equals(i.CleanupPolicy, StringComparison.OrdinalIgnoreCase));
+        // A identificação normalizada é a mesma usada na verificação de atualizações.
+        // Falha no catálogo não autoriza exclusão: nomes conhecidos permanecem verificados.
+        return inventory.Any(program =>
+            rule.InstalledNames.Any(name => NameMatches(program.Name, name)) ||
+            (identity is not null && ApplicationIdentityCatalog.Resolve(
+                program.Name, program.Publisher)?.Id == identity.Id));
+    }
 
     internal static bool NameMatches(string installedName, string alias)
     {
