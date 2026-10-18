@@ -198,8 +198,9 @@ internal static class AppServices
                         string name = Convert.ToString(child.GetValue("DisplayName"))?.Trim() ?? "";
                         if (string.IsNullOrWhiteSpace(name)) continue;
                         bool systemComponent = Convert.ToInt32(child.GetValue("SystemComponent") ?? 0) == 1;
-                        if (systemComponent && !name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase))
+                        if (systemComponent && !ProtectedApplications.IsProtectedName(name))
                             continue;
+                        bool inventoryOnly = ProtectedApplications.IsInventoryOnly(name, systemComponent);
                         string releaseType = Convert.ToString(child.GetValue("ReleaseType")) ?? "";
                         if (releaseType.Equals("Update", StringComparison.OrdinalIgnoreCase) ||
                             releaseType.Equals("Security Update", StringComparison.OrdinalIgnoreCase) ||
@@ -209,10 +210,10 @@ internal static class AppServices
                             Name = name,
                             Version = Convert.ToString(child.GetValue("DisplayVersion"))?.Trim() ?? "",
                             Publisher = Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "",
-                            UninstallString = systemComponent ? "" : Convert.ToString(child.GetValue("UninstallString")) ?? "",
-                            QuietUninstallString = systemComponent ? "" :
+                            UninstallString = inventoryOnly ? "" : Convert.ToString(child.GetValue("UninstallString")) ?? "",
+                            QuietUninstallString = inventoryOnly ? "" :
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
-                            InventoryOnly = systemComponent
+                            InventoryOnly = inventoryOnly
                         });
                     }
                     catch { /* Ignora entradas de registro incompletas. */ }
@@ -563,7 +564,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.12 TESTE";
+        Text = "Gerenciador Final — v5.12.12.1 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -1864,6 +1865,14 @@ internal sealed partial class MainForm : Form
     {
         var entries = apps.ToArray();
         if (entries.Length == 0) { Status("Nenhum aplicativo marcado"); return; }
+        // Segunda barreira: nunca executar o desinstalador de componentes protegidos,
+        // mesmo que uma entrada antiga venha de uma seleção anterior.
+        if (entries.Any(x => x.InventoryOnly || ProtectedApplications.IsProtectedName(x.Name)))
+        {
+            Status("Componente do Windows protegido contra desinstalação");
+            Log("Desinstalação impedida: item de inventário protegido.");
+            return;
+        }
         string preview = string.Join("\n", entries.Take(8).Select(x => "• " + x.Name));
         if (entries.Length > 8) preview += $"\n... e mais {entries.Length - 8}.";
         if (DarkConfirmDialog.Confirm(this,
