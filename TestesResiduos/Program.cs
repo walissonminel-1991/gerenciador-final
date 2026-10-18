@@ -96,6 +96,9 @@ var registryHistory = new[]
 var historicalPnp = HistoricalDeviceAudit.Compare(registryHistory, activePnp, 3, 0, false);
 Check(historicalPnp.Registered == 5 && historicalPnp.NotPresent == 3,
     "Comparação encontra hardware histórico não presente e remove duplicações de maiúsculas");
+var wmiSnapshot = new DeviceAudit(0, 0, 162, true, false, [], activePnp);
+Check(wmiSnapshot.Disconnected == 0 && historicalPnp.NotPresent == 3,
+    "Dispositivos desconectados e instancias do Registro sem correspondencia sao medidas diferentes");
 Check(historicalPnp.Buses.Contains("PCI: 2") &&
       historicalPnp.Buses.Contains("USB: 1"),
     "Registros por barramento agrupados sem expor IDs de hardware");
@@ -330,6 +333,14 @@ Check(HistoricalResidualAudit.Rules.Any(r => r.Id == "origin-legacy" &&
 Check(HistoricalResidualAudit.Rules.Any(r => r.Id == "vivaldi" &&
     r.Registry.Contains(@"HKCU\Software\Vivaldi\NativeMessagingHosts\me.proton.pass.nm")),
     "Proton Pass native messaging considerado integração potencialmente ativa");
+var vivaldi = HistoricalResidualAudit.Rules.Single(r => r.Id == "vivaldi");
+Check(vivaldi.ActiveDependents.Contains("Proton Pass") &&
+      HistoricalResidualAudit.IsRuleInstalled(vivaldi,
+          new[] { new ProgramEntry { Name = "Proton Pass", Publisher = "Proton AG" } }),
+    "Host de mensagens do Vivaldi protegido enquanto Proton Pass permanecer instalado");
+Check(!HistoricalResidualAudit.IsRuleInstalled(vivaldi,
+          new[] { new ProgramEntry { Name = "Brave" } }),
+    "Outro navegador sem dependente ativo nao mascara a revisao historica de Vivaldi");
 Check(HistoricalResidualAudit.Rules.Any(r => r.Id == "utorrent-web" &&
     r.Folders.Contains(@"StartMenu\uTorrent Web")),
     "Atalhos uTorrent Web reconhecidos no menu Iniciar");
