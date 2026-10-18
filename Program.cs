@@ -566,7 +566,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.19 TESTE";
+        Text = "Gerenciador Final — v5.12.20 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -1016,17 +1016,30 @@ internal sealed partial class MainForm : Form
                 () => ExecuteAsync("Verificando resíduos de aplicativos...", ReviewOldUninstallResiduesAsync)),
             Tool("Limpeza profunda (avançado)", "Após a desinstalação, revisa e pode remover também preferências pessoais e chaves próprias do Registro. Irreversível.", AppServices.Orange,
                 () => ExecuteAsync("Inspecionando resíduos avançados...", ReviewDeepUninstallResiduesAsync))
-        });
+        }, compact: true);
         var cleaningLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
-        cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 272));
+        cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 292));
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         cleaningLayout.Controls.Add(cleaningActions, 0, 0);
         cleaningLayout.Controls.Add(BuildDiskPanel(), 0, 1);
         cleaning.Controls.Add(cleaningLayout);
+        // Antes: altura 272px fixa ocultava os dois últimos botões.
+        // Quatro cartões por linha em janelas grandes e altura dinâmica em menores.
+        void AdjustCleaningCards()
+        {
+            int available = Math.Max(0, cleaning.ClientSize.Width - 30);
+            int columns = Math.Max(1, available / 280);
+            int rows = (8 + columns - 1) / columns;
+            float height = Math.Min(430, Math.Max(292, 22 + rows * 128));
+            if (Math.Abs(cleaningLayout.RowStyles[0].Height - height) > 1)
+                cleaningLayout.RowStyles[0].Height = height;
+        }
+        cleaning.Resize += (_, _) => AdjustCleaningCards();
+        AdjustCleaningCards();
         // Fluxo simples para uso cotidiano: DISM repara a imagem; em seguida SFC
         // verifica e tenta reparar os arquivos protegidos. Consultas separadas
         // continuam no diagnóstico do computador, sem alterações automáticas.
@@ -1078,7 +1091,7 @@ internal sealed partial class MainForm : Form
     private void AddTools(Panel page, IEnumerable<ToolInfo> tools)
         => page.Controls.Add(CreateToolsFlow(tools));
 
-    private Control CreateToolsFlow(IEnumerable<ToolInfo> tools)
+    private Control CreateToolsFlow(IEnumerable<ToolInfo> tools, bool compact = false)
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, BackColor = AppServices.Background };
         var flow = host.Content;
@@ -1088,9 +1101,9 @@ internal sealed partial class MainForm : Form
         {
             var card = new Panel
             {
-                Size = new Size(286, 116),
+                Size = new Size(compact ? 268 : 286, 116),
                 BackColor = PanelBackground,
-                Margin = new Padding(3, 4, 13, 10),
+                Margin = compact ? new Padding(3, 4, 9, 8) : new Padding(3, 4, 13, 10),
                 Padding = new Padding(8)
             };
 
