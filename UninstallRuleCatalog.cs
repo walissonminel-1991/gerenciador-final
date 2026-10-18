@@ -92,7 +92,11 @@ internal static class UninstallRuleCatalog
         string[] segments = value.Split('\\');
         // Por enquanto, somente UMA subpasta exclusiva em AppData Local/Roaming.
         // Nunca AppData inteiro, Program Files, Windows, ProgramData nem raiz do usuario.
-        if (segments.Length != 2 || segments[1] is "." or ".." || segments[1].Length < 2 ||
+        if (segments.Length != 2 || segments[1] is "." or ".." ||
+            new[] { "Microsoft", "Windows", "Google", "Mozilla", "Programs", "Packages",
+                    "Common", "Temp", "Cache", "Start Menu", "System", "Shared" }
+                .Contains(segments[1], StringComparer.OrdinalIgnoreCase) ||
+            segments[1].Length < 2 ||
             segments[1].Any(c => !(char.IsAsciiLetterOrDigit(c) || c is ' ' or '_' or '-' or '+' or '.')))
             throw new InvalidDataException("Diretorio fora dos locais seguros.");
         var knownFolder = segments[0] switch
@@ -110,6 +114,9 @@ internal static class UninstallRuleCatalog
         var parts = key.Split('\\');
         // HKCU\Software\Produto diretamente. Nao subchaves compartilhadas ou hive completo.
         if (parts.Length != 2 || parts[0] != "Software" ||
+            new[] { "Microsoft", "Windows", "Policies", "Classes", "Mozilla", "Google",
+                    "WOW6432Node", "Common", "Shared" }
+                .Contains(parts[1], StringComparer.OrdinalIgnoreCase) ||
             parts[1].Length < 2 || parts[1] is "." or ".." ||
             parts[1].Any(c => !(char.IsAsciiLetterOrDigit(c) || c is ' ' or '_' or '-' or '+' or '.')))
             throw new InvalidDataException("Registro fora da allowlist do usuario.");
