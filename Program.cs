@@ -63,6 +63,9 @@ internal sealed class ProgramEntry
     public string PackageId { get; set; } = "";
     public string CatalogIdentity { get; set; } = "";
     public string CatalogDisplayName { get; set; } = "";
+    public string InventorySource { get; init; } = "";
+    public string InventoryId { get; init; } = "";
+    public string MsiProductCode { get; init; } = "";
     // Entrada de inventário MSIX ou componente protegido: sem desinstalação direta.
     public bool InventoryOnly { get; init; }
     public string AvailableVersion { get; set; } = "";
@@ -71,6 +74,8 @@ internal sealed class ProgramEntry
     public MatchState ComparisonState { get; set; } = MatchState.Unmatched;
 }
 
+internal sealed record RegistryInventoryScan(IReadOnlyList<ProgramEntry> Items,
+    int Inspected, int HiddenComponents, int UpdateEntries, int ReadFailures, int Duplicates);
 internal sealed record CommandResult(int ExitCode, string StandardOutput, string StandardError);
 internal sealed record CleanupResult(int FilesRemoved, int DirectoriesRemoved, int Failed, int ReparseSkipped, int Skipped, IReadOnlyList<string> Examples);
 internal sealed record DiskUsageInfo(string Root, string Label, long TotalBytes, long FreeBytes);
@@ -172,9 +177,15 @@ internal static class AppServices
         }
     }
 
-    public static List<ProgramEntry> GetInstalledPrograms()
+    public static List<ProgramEntry> GetInstalledPrograms() =>
+        ScanInstalledPrograms().Items.ToList();
+
+    // ARP x64/x86 para máquina e usuário atual. Usa nomes reais do Windows,
+    // INDEPENDENTE do catálogo de atualizações. Nunca executa uninstallers.
+    internal static RegistryInventoryScan ScanInstalledPrograms()
     {
-        var items = new List<ProgramEntry>();
+        var entries = new List<ProgramEntry>();
+        int inspected = 0, hidden = 0, updates = 0, failures = 0;
         var views = Environment.Is64BitOperatingSystem
             ? new[] { RegistryView.Registry64, RegistryView.Registry32 }
             : new[] { RegistryView.Registry32 };
@@ -183,58 +194,68 @@ internal static class AppServices
             (RegistryHive.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
             (RegistryHive.CurrentUser, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")
         };
-
         foreach (var (hive, subKey) in roots)
         foreach (var view in views)
         {
             try
             {
                 using var baseKey = RegistryKey.OpenBaseKey(hive, view);
-                using var uninstall = baseKey.OpenSubKey(subKey);
+                using var uninstall = baseKey.OpenSubKey(subKey, writable: false);
                 if (uninstall is null) continue;
-                foreach (string childName in uninstall.GetSubKeyNames())
+                foreach (string registryKey in uninstall.GetSubKeyNames())
                 {
+                    inspected++;
                     try
                     {
-                        using var child = uninstall.OpenSubKey(childName);
-                        if (child is null) continue;
+                        using var child = uninstall.OpenSubKey(registryKey, writable: false);
+                        if (child is null) { failures++; continue; }
                         string name = Convert.ToString(child.GetValue("DisplayName"))?.Trim() ?? "";
-                        if (string.IsNullOrWhiteSpace(name)) continue;
+                        if (string.IsNullOrWhiteSpace(name) || name.Length > 240) continue;
+                        string release = Convert.ToString(child.GetValue("ReleaseType")) ?? "";
+                        if (release.Equals("Update", StringComparison.OrdinalIgnoreCase) ||
+                            release.Equals("Security Update", StringComparison.OrdinalIgnoreCase) ||
+                            release.Equals("Hotfix", StringComparison.OrdinalIgnoreCase) ||
+                            release.Equals("Update Rollup", StringComparison.OrdinalIgnoreCase))
+                        { updates++; continue; }
                         bool systemComponent = Convert.ToInt32(child.GetValue("SystemComponent") ?? 0) == 1;
                         if (systemComponent && !ProtectedApplications.IsProtectedName(name))
-                            continue;
-                        bool inventoryOnly = ProtectedApplications.IsInventoryOnly(name, systemComponent);
-                        string releaseType = Convert.ToString(child.GetValue("ReleaseType")) ?? "";
-                        if (releaseType.Equals("Update", StringComparison.OrdinalIgnoreCase) ||
-                            releaseType.Equals("Security Update", StringComparison.OrdinalIgnoreCase) ||
-                            releaseType.Equals("Hotfix", StringComparison.OrdinalIgnoreCase)) continue;
-                        items.Add(new ProgramEntry
+                        { hidden++; continue; }
+                        bool protectedApp = ProtectedApplications.IsInventoryOnly(name, systemComponent);
+                        string publisher = Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "";
+                        UnifiedAppRule? known = ApplicationIdentityCatalog.Resolve(name, publisher);
+                        string scope = hive == RegistryHive.CurrentUser ? "Usuário atual" : "Computador";
+                        string architecture = view == RegistryView.Registry32 ? "32 bits" : "64 bits";
+                        // O identificador inclui a visão real: não unir instalações
+                        // diferentes só porque o nome e versão coincidem.
+                        string registryIdentity = $"{hive}|{view}|{registryKey}";
+                        entries.Add(new ProgramEntry
                         {
                             Name = name,
                             Version = Convert.ToString(child.GetValue("DisplayVersion"))?.Trim() ?? "",
-                            Publisher = Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "",
-                            CatalogIdentity = ApplicationIdentityCatalog.Resolve(name,
-                                Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "")?.Id ?? "",
-                            CatalogDisplayName = ApplicationIdentityCatalog.Resolve(name,
-                                Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "")?.Name ?? "",
-                            UninstallString = inventoryOnly ? "" : Convert.ToString(child.GetValue("UninstallString")) ?? "",
-                            QuietUninstallString = inventoryOnly ? "" :
+                            Publisher = publisher,
+                            CatalogIdentity = known?.Id ?? "",
+                            CatalogDisplayName = known?.Name ?? "",
+                            InventorySource = $"Registro: {scope} ({architecture})",
+                            InventoryId = registryIdentity,
+                            MsiProductCode = InventoryReconciler.ProductCodeFromRegistryKey(registryKey) ?? "",
+                            UninstallString = protectedApp ? "" :
+                                Convert.ToString(child.GetValue("UninstallString")) ?? "",
+                            QuietUninstallString = protectedApp ? "" :
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
-                            InstallLocation = inventoryOnly ? "" : Convert.ToString(child.GetValue("InstallLocation"))?.Trim() ?? "",
-                            InventoryOnly = inventoryOnly
+                            InstallLocation = protectedApp ? "" :
+                                Convert.ToString(child.GetValue("InstallLocation"))?.Trim() ?? "",
+                            InventoryOnly = protectedApp
                         });
                     }
-                    catch { /* Ignora entradas de registro incompletas. */ }
+                    catch (Exception) { failures++; }
                 }
             }
-            catch { /* Uma visão do registro pode não estar disponível. */ }
+            catch (Exception) { failures++; }
         }
-
-        return items
-            .GroupBy(x => $"{x.Name.Trim().ToLowerInvariant()}|{x.Version.Trim().ToLowerInvariant()}")
-            .Select(g => g.First())
-            .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
+        var distinct = InventoryReconciler.DistinctRegistryEntries(entries);
+        return new RegistryInventoryScan(distinct.OrderBy(x => x.Name,
+            StringComparer.CurrentCultureIgnoreCase).ToArray(),
+            inspected, hidden, updates, failures, entries.Count - distinct.Count);
     }
 
     public static CleanupResult CleanDirectorySafely(string root, Action<string>? log = null)
@@ -579,7 +600,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.13.1 TESTE";
+        Text = "Gerenciador Final — v5.13.2 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -1549,7 +1570,8 @@ internal sealed partial class MainForm : Form
         {
             var scan = await Task.Run(() =>
             {
-                var records = AppServices.GetInstalledPrograms();
+                var registry = AppServices.ScanInstalledPrograms();
+                var records = registry.Items.ToList();
                 var msix = LocalMsixInventory.ReadCurrentUser();
                 var present = records.Select(x =>
                     new InstalledApp(x.Name, x.Version, x.Publisher)).ToArray();
@@ -1560,16 +1582,24 @@ internal sealed partial class MainForm : Form
                     Version = x.Version,
                     Publisher = x.Publisher,
                     InventoryOnly = true,
-                    CatalogIdentity = ApplicationIdentityCatalog.Resolve(x.Name, x.Publisher)?.Id ?? "",
-                    CatalogDisplayName = ApplicationIdentityCatalog.Resolve(x.Name, x.Publisher)?.Name ?? ""
+                    InventorySource = "Aplicativo empacotado (MSIX)",
+                    InventoryId = "MSIX|" + x.PackageName,
+                    // Um MSIX desconhecido NUNCA recebe receita por similaridade.
+                    CatalogIdentity = x.RecipeEligible
+                        ? ApplicationIdentityCatalog.Resolve(x.Name, x.Publisher)?.Id ?? ""
+                        : "",
+                    CatalogDisplayName = x.RecipeEligible
+                        ? ApplicationIdentityCatalog.Resolve(x.Name, x.Publisher)?.Name ?? ""
+                        : ""
                 }));
-                return (Items: records, Msix: msix, Added: additions.Count);
+                return (Items: records, Msix: msix, Added: additions.Count, Registry: registry);
             });
             items = scan.Items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
-            DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count}");
+            DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count} examinados={scan.Registry.Inspected} ocultos={scan.Registry.HiddenComponents} updates_arp={scan.Registry.UpdateEntries} erros={scan.Registry.ReadFailures} duplicados={scan.Registry.Duplicates}");
             DiagnosticTrace.Write($"MSIX.LEITURA status={scan.Msix.Status} enumerados={scan.Msix.Seen} " +
-                $"reconhecidos={scan.Msix.Items.Count} adicionados={scan.Added}");
-            Log($"Inventário local: {scan.Added} aplicativo(s) MSIX reconhecido(s) adicionado(s).");
+                $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures}");
+            Log($"Inventário: {scan.Registry.Items.Count} programas Win32 e {scan.Added} aplicativos MSIX adicionais. " +
+                $"{scan.Registry.HiddenComponents} componentes internos e {scan.Registry.UpdateEntries} atualizações individuais do Windows não foram incluídos.");
         }
         catch (Exception ex)
         {
@@ -1765,7 +1795,8 @@ internal sealed partial class MainForm : Form
         string query = _search.Text.Trim();
         IEnumerable<ProgramEntry> filtered = _installed.Where(entry => query.Length == 0 ||
             string.Join(" ", entry.Name, entry.Version, entry.Publisher, entry.PackageId, entry.AvailableVersion,
-                entry.CatalogIdentity, entry.CatalogDisplayName)
+                entry.CatalogIdentity, entry.CatalogDisplayName, entry.InventorySource,
+                entry.MsiProductCode)
                 .Contains(query, StringComparison.CurrentCultureIgnoreCase));
         filtered = _appFilter switch
         {
