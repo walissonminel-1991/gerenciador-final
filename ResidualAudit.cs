@@ -8,7 +8,7 @@ namespace GerenciadorAplicativos;
 internal sealed record ResidualAuditFinding(string Location, string Kind, int Items, string Evidence);
 internal sealed record ResidualAuditReport(
     string Product, bool UninstallConfirmed, IReadOnlyList<ResidualAuditFinding> Findings,
-    IReadOnlyList<string> RelatedRegisteredPrograms);
+    IReadOnlyList<string> RelatedRegisteredPrograms, bool Historical = false);
 
 internal static class ResidualAudit
 {
