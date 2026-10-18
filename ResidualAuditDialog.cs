@@ -1,0 +1,96 @@
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace GerenciadorAplicativos;
+
+// Resultado de varredura de possíveis sobras, sem botões de exclusão.
+// Encontrar algo não prova que seja resíduo; exige política específica.
+internal sealed class ResidualAuditDialog : Form
+{
+    private ResidualAuditDialog(ResidualAuditReport report)
+    {
+        Text = "Revisão após desinstalação";
+        StartPosition = FormStartPosition.CenterParent;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        ShowInTaskbar = false;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        BackColor = AppServices.Background;
+        ForeColor = Color.FromArgb(234, 242, 249);
+        Font = new Font("Segoe UI", 9.5F);
+        ClientSize = new Size(690, 475);
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+            Padding = new Padding(20, 16, 20, 14),
+            BackColor = AppServices.Background
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+
+        string intro = report.UninstallConfirmed
+            ? $"A remoção de {report.Product} foi confirmada. A análise encontrou " +
+              "possíveis dados remanescentes, que NÃO serão excluídos automaticamente."
+            : $"{report.Product} ainda aparece instalado ou possui registros associados. " +
+              "Os itens abaixo são apenas informativos. Nenhuma exclusão será autorizada.";
+
+        layout.Controls.Add(new Label
+        {
+            Dock = DockStyle.Fill,
+            Text = intro + "\n\nArquivos desconhecidos, drivers e chaves compartilhadas exigem análise individual.",
+            ForeColor = Color.FromArgb(226, 238, 249),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Font = new Font("Segoe UI", 10F),
+            Padding = new Padding(6, 2, 5, 2)
+        }, 0, 0);
+
+        string details = string.Join("\r\n\r\n", report.Findings.Select((f, i) =>
+            $"{i + 1}. {f.Kind}: {f.Location}\r\n" +
+            $"   {f.Items} item(ns) encontrados — {f.Evidence}"));
+        if (report.RelatedRegisteredPrograms.Count > 0)
+            details += "\r\n\r\nComponentes relacionados que ainda aparecem instalados:\r\n" +
+                string.Join("\r\n", report.RelatedRegisteredPrograms.Select(n => "• " + n)) +
+                "\r\nEsses componentes NÃO são classificados como resíduos.";
+        var text = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Multiline = true,
+            ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical,
+            WordWrap = true,
+            Text = details,
+            BackColor = Color.FromArgb(30, 39, 50),
+            ForeColor = Color.FromArgb(229, 237, 246),
+            BorderStyle = BorderStyle.FixedSingle,
+            Font = new Font("Segoe UI", 9.5F)
+        };
+        layout.Controls.Add(text, 0, 1);
+
+        var bar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft,
+            WrapContents = false, Padding = new Padding(0, 11, 0, 0)
+        };
+        var close = new ModernButton
+        {
+            Text = "Fechar", DialogResult = DialogResult.OK,
+            Size = new Size(120, 34), BackColor = AppServices.Blue,
+            ForeColor = Color.White
+        };
+        bar.Controls.Add(close);
+        layout.Controls.Add(bar, 0, 2);
+        Controls.Add(layout);
+        AcceptButton = close;
+        CancelButton = close;
+    }
+
+    internal static void ShowResults(IWin32Window owner, ResidualAuditReport report)
+    {
+        if (report.Findings.Count == 0 && report.RelatedRegisteredPrograms.Count == 0)
+            return;
+        using var window = new ResidualAuditDialog(report);
+        window.ShowDialog(owner);
+    }
+}
