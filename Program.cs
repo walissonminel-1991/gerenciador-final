@@ -579,14 +579,18 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.21.1 TESTE";
-        StartPosition = FormStartPosition.CenterScreen;
-        Size = new Size(1280, 860);
-        MinimumSize = new Size(970, 690);
+        Text = "Gerenciador Final — v5.12.21.2 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
         AutoScaleMode = AutoScaleMode.Dpi;
+        // Abre com o dimensionamento aprovado na v5.12.21.1, sem restaurar
+        // janelas pequenas de execuções anteriores e sem sair do monitor.
+        var display = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
+        Rectangle opening = StartupWindowSizing.Fit(display);
+        StartPosition = FormStartPosition.Manual;
+        MinimumSize = StartupWindowSizing.AllowedMinimum(opening);
+        Bounds = opening;
 
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(20, 16, 20, 16), BackColor = AppServices.Background };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
@@ -614,6 +618,15 @@ internal sealed partial class MainForm : Form
         // em segundo plano, sem janelas auxiliares e sem executar instaladores.
         Shown += async (_, _) =>
         {
+            // WinForms pode redimensionar a janela automaticamente em monitores DPI
+            // diferentes. Readequar apenas se necessário, sem cortar cartões.
+            Rectangle visibleArea = Screen.FromControl(this).WorkingArea;
+            if (!visibleArea.Contains(Bounds))
+            {
+                Rectangle fitted = StartupWindowSizing.Fit(visibleArea);
+                MinimumSize = StartupWindowSizing.AllowedMinimum(fitted);
+                Bounds = fitted;
+            }
             await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync);
             if (!IsDisposed)
                 BeginStartupChecks();
