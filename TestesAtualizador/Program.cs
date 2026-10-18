@@ -138,6 +138,49 @@ Verify(VerifiedUpdaters.Resolve(Item("SumatraPDF", "3.5", "3.6.1",
 Verify(VerifiedUpdaters.Resolve(Item("SumatraPDF", "3.6.1", "3.6.1",
        "Krzysztof Kowalczyk", "GitHub oficial")) is null,
        "SumatraPDF: evitar reinstalar versao ja atualizada");
+{
+    // Exercitar a rotina completa a partir de um executável PE simulado no
+    // diretório padrão do runner, sem executar código ou instalar programas.
+    string standardRoot = Path.Combine(Environment.GetFolderPath(
+        Environment.SpecialFolder.LocalApplicationData), "SumatraPDF");
+    if (Directory.Exists(standardRoot))
+        Console.WriteLine("AVISO: teste de arquitetura dispensado porque já existe pasta SumatraPDF.");
+    else
+    {
+        Directory.CreateDirectory(standardRoot);
+        string exe = Path.Combine(standardRoot, "SumatraPDF.exe");
+        try
+        {
+            var stub = new byte[512];
+            stub[0] = 0x4D; stub[1] = 0x5A;
+            stub[0x3C] = 0x80; // PE offset
+            stub[0x80] = 0x50; stub[0x81] = 0x45;
+            stub[0x84] = 0x64; stub[0x85] = 0x86; // AMD64
+            File.WriteAllBytes(exe, stub);
+            var installed = Item("SumatraPDF", "3.5", "3.6.1",
+                "Krzysztof Kowalczyk", "GitHub oficial");
+            installed.InstallLocation = standardRoot;
+            var actual64 = VerifiedUpdaters.Resolve(installed);
+            Verify(actual64?.Identifier == "sumatrapdf-x64-3.6.1" &&
+                   VerifiedUpdaters.GetPrimaryAction(installed) == "update",
+                   "SumatraPDF instalado x64: botão Atualizar habilitado com arquitetura PE");
+            stub[0x84] = 0x4C; stub[0x85] = 0x01; // I386
+            File.WriteAllBytes(exe, stub);
+            Verify(VerifiedUpdaters.Resolve(installed)?.Identifier == "sumatrapdf-x86-3.6.1",
+                   "SumatraPDF instalado x86: arquitetura original preservada");
+            stub[0x84] = 0; stub[0x85] = 0;
+            File.WriteAllBytes(exe, stub);
+            Verify(VerifiedUpdaters.Resolve(installed) is null,
+                   "Executável sem arquitetura comprovada não permite instalação");
+        }
+        finally
+        {
+            try { Directory.Delete(standardRoot, recursive: true); }
+            catch (IOException) { Console.WriteLine("AVISO: não foi possível remover simulação."); }
+        }
+    }
+}
+
 Console.WriteLine($"{checkedCount}/{checkedCount} testes do motor autorizador aprovados");
 if (args.Contains("--verify-terminal", StringComparer.OrdinalIgnoreCase))
 {
@@ -200,7 +243,7 @@ namespace GerenciadorAplicativos
         public string Source { get; set; } = "";
         public bool IsUpdate { get; init; }
         public bool InventoryOnly { get; init; }
-        public string InstallLocation { get; init; } = "";
+        public string InstallLocation { get; set; } = "";
         public string UninstallString { get; init; } = "";
     }
     internal sealed record LocalMsixApp(string Name, string Version, string Publisher, string PackageName);
