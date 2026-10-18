@@ -42,8 +42,25 @@ internal static class UninstallResiduals
     // Se mesmo aplicativo ainda aparece no Registro não apagar nada.
     internal static bool StillInstalled(ProgramEntry original, IReadOnlyCollection<ProgramEntry> installed)
     {
-        return installed.Any(p => p.Name.Equals(original.Name, StringComparison.OrdinalIgnoreCase) &&
-            p.Publisher.Equals(original.Publisher, StringComparison.OrdinalIgnoreCase));
+        // Também evita apagar uma segunda arquitetura ou variante ainda instalada.
+        if (original.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase))
+            return installed.Any(p => p.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase));
+        if (original.Name.Equals("SumatraPDF", StringComparison.OrdinalIgnoreCase))
+            return installed.Any(p => p.Name.Equals("SumatraPDF", StringComparison.OrdinalIgnoreCase));
+        return installed.Any(p => p.Name.Equals(original.Name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static IReadOnlyList<(ProgramEntry App, IReadOnlyList<ResidualCandidate> Files)> FindPreviouslyUninstalled(
+        IReadOnlyCollection<ProgramEntry> installed)
+    {
+        ProgramEntry[] known =
+        [
+            new() { Name = "SumatraPDF", Publisher = "Krzysztof Kowalczyk" },
+            new() { Name = "Notepad++ (64-bit x64)", Publisher = "Notepad++ Team" }
+        ];
+        return known.Where(p => !StillInstalled(p, installed))
+            .Select(p => (App: p, Files: Inspect(p)))
+            .Where(x => x.Files.Count > 0).ToArray();
     }
 
     internal static IReadOnlyList<ResidualCandidate> Inspect(ProgramEntry entry)
