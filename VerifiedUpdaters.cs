@@ -110,7 +110,7 @@ internal static class VerifiedUpdaters
         if (!entry.IsUpdate || string.IsNullOrWhiteSpace(entry.AvailableVersion)) return null;
 
         if (entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase) &&
-            Matching.NormalizePublisher(entry.Publisher) == "microsoft" &&
+            entry.Publisher.Trim().Equals("Microsoft Corporation", StringComparison.OrdinalIgnoreCase) &&
             entry.Source == "Catálogo WinGet" &&
             TryVersion(entry.Version, out var gameInstalled) && gameInstalled < GameInputTarget &&
             TryVersion(entry.AvailableVersion, out var gameAvailable) && gameAvailable == GameInputTarget)
