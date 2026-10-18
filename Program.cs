@@ -2382,13 +2382,22 @@ internal sealed partial class MainForm : Form
         Status("Conferindo instalações registradas e dispositivos do Windows...");
         DiagnosticTrace.Write("DIAGNOSTICO_COMPLETO.INICIO");
         var apps = await Task.Run(AppServices.GetInstalledPrograms);
-        var report = await Task.Run(() => MaintenanceAudit.Inspect(apps));
-        DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} parcial={report.Devices.Partial}");
+        var maintenanceTask = Task.Run(() => MaintenanceAudit.Inspect(apps));
+        var gamesTask = Task.Run(GameLibraryAudit.Inspect);
+        await Task.WhenAll(maintenanceTask, gamesTask);
+        var report = await maintenanceTask;
+        var games = await gamesTask;
+        DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} steam={games.Steam} epic={games.Epic} parcial={report.Devices.Partial || games.Partial}");
         Log($"DIAGNÓSTICO COMPLETO: {report.Installed} programas; " +
             $"{report.Recognized} identificados pelo catálogo; " +
             $"{report.UsableUninstallers} desinstaladores localizados; " +
             $"{report.MissingUninstallers} caminhos de desinstalação ausentes; " +
             $"{report.UnverifiableUninstallers} comandos não verificáveis.");
+        Log($"BIBLIOTECAS DE JOGOS: {games.Steam} título(s) Steam e " +
+            $"{games.Epic} título(s) Epic encontrados em manifestos existentes. " +
+            "Não são confundidos com programas Win32 desinstaláveis.");
+        if (games.Partial)
+            Log("A leitura de algumas bibliotecas de jogos foi limitada ou não autorizada.");
         if (report.Devices.Supported)
         {
             Log($"DISPOSITIVOS: {report.Devices.Queried} examinados; " +
@@ -2402,8 +2411,8 @@ internal sealed partial class MainForm : Form
         foreach (var issue in report.Concerns)
             Log("Revisar: " + issue.Category + " — " + issue.Name + ": " + issue.Description);
         Log("Nenhum driver, arquivo de instalação ou chave de Registro foi removido pelo diagnóstico.");
-        Status(report.Devices.Partial
-            ? "Diagnóstico parcial: algumas informações de hardware estão indisponíveis. Consulte o registro."
+        Status(report.Devices.Partial || games.Partial
+            ? "Diagnóstico parcial: consulte informações indisponíveis no registro."
             : $"Diagnóstico concluído: {report.MissingUninstallers} desinstaladores ausentes e " +
               $"{report.Devices.Disconnected} dispositivos desconectados para revisão.");
     }
