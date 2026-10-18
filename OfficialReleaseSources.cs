@@ -73,8 +73,8 @@ internal sealed class OfficialReleaseSources : IDisposable
         !a.Name.Contains("ESR", StringComparison.OrdinalIgnoreCase);
     private static bool Thunderbird(InstalledApp a) =>
         Publisher(a, "mozilla") &&
-        Regex.IsMatch(a.Name, @"^(Mozilla )?Thunderbird(?:\s*\(x64[^)]*\))?$", RegexOptions.IgnoreCase) &&
-        !a.Name.Contains("ESR", StringComparison.OrdinalIgnoreCase);
+        // Sem indicação de canal não diferenciar ESR de Stable.
+        Regex.IsMatch(a.Name, @"^(Mozilla )?Thunderbird\s*\((?:Release|Stable)\)$", RegexOptions.IgnoreCase);
     private static bool SevenZip(InstalledApp a) =>
         Publisher(a, "igor pavlov") &&
         Regex.IsMatch(a.Name, @"^7-Zip\s+\d{2}\.\d{1,2}(?:\s+\((?:x64|x86)\))?$",
