@@ -62,8 +62,7 @@ internal static class ResidualAudit
         if (head is null) return [];
         return current.Where(x =>
             !x.Name.Equals(previous.Name, StringComparison.OrdinalIgnoreCase) &&
-            x.Name.StartsWith(head + " ", StringComparison.OrdinalIgnoreCase) &&
-            !ProtectedApplications.IsProtectedName(x.Name))
+            x.Name.StartsWith(head + " ", StringComparison.OrdinalIgnoreCase))
             .Select(x => x.Name).Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToArray();
     }
 
