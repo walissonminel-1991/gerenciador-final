@@ -76,6 +76,8 @@ internal sealed class ProgramEntry
 
 internal sealed record RegistryInventoryScan(IReadOnlyList<ProgramEntry> Items,
     int Inspected, int HiddenComponents, int UpdateEntries, int ReadFailures, int Duplicates);
+internal sealed record UnifiedInventoryScan(IReadOnlyList<ProgramEntry> Items,
+    RegistryInventoryScan Registry, LocalMsixResult Msix, int Added);
 internal sealed record CommandResult(int ExitCode, string StandardOutput, string StandardError);
 internal sealed record CleanupResult(int FilesRemoved, int DirectoriesRemoved, int Failed, int ReparseSkipped, int Skipped, IReadOnlyList<string> Examples);
 internal sealed record DiskUsageInfo(string Root, string Label, long TotalBytes, long FreeBytes);
@@ -179,6 +181,36 @@ internal static class AppServices
 
     public static List<ProgramEntry> GetInstalledPrograms() =>
         ScanInstalledPrograms().Items.ToList();
+
+    internal static UnifiedInventoryScan ScanAllInstalledApps()
+    {
+        var registry = ScanInstalledPrograms();
+        var result = registry.Items.ToList();
+        var msix = LocalMsixInventory.ReadCurrentUser();
+        var present = registry.Items.Select(x =>
+            new InstalledApp(x.Name, x.Version, x.Publisher)).ToArray();
+        var additions = LocalMsixInventory.MergeWithRegistry(msix.Items, present);
+        foreach (var app in additions)
+        {
+            // MSIX visíveis sem regra oficial participam do inventário,
+            // mas não recebem permissão de atualização/desinstalação.
+            var verified = app.RecipeEligible
+                ? ApplicationIdentityCatalog.Resolve(app.Name, app.Publisher)
+                : null;
+            result.Add(new ProgramEntry
+            {
+                Name = app.Name,
+                Version = app.Version,
+                Publisher = app.Publisher,
+                InventoryOnly = true,
+                InventorySource = "Aplicativo empacotado (MSIX)",
+                InventoryId = "MSIX|" + app.PackageName,
+                CatalogIdentity = verified?.Id ?? "",
+                CatalogDisplayName = verified?.Name ?? ""
+            });
+        }
+        return new UnifiedInventoryScan(result, registry, msix, additions.Count);
+    }
 
     // ARP x64/x86 para máquina e usuário atual. Usa nomes reais do Windows,
     // INDEPENDENTE do catálogo de atualizações. Nunca executa uninstallers.
@@ -1568,32 +1600,7 @@ internal sealed partial class MainForm : Form
         List<ProgramEntry> items;
         try
         {
-            var scan = await Task.Run(() =>
-            {
-                var registry = AppServices.ScanInstalledPrograms();
-                var records = registry.Items.ToList();
-                var msix = LocalMsixInventory.ReadCurrentUser();
-                var present = records.Select(x =>
-                    new InstalledApp(x.Name, x.Version, x.Publisher)).ToArray();
-                var additions = LocalMsixInventory.MergeWithRegistry(msix.Items, present);
-                records.AddRange(additions.Select(x => new ProgramEntry
-                {
-                    Name = x.Name,
-                    Version = x.Version,
-                    Publisher = x.Publisher,
-                    InventoryOnly = true,
-                    InventorySource = "Aplicativo empacotado (MSIX)",
-                    InventoryId = "MSIX|" + x.PackageName,
-                    // Um MSIX desconhecido NUNCA recebe receita por similaridade.
-                    CatalogIdentity = x.RecipeEligible
-                        ? ApplicationIdentityCatalog.Resolve(x.Name, x.Publisher)?.Id ?? ""
-                        : "",
-                    CatalogDisplayName = x.RecipeEligible
-                        ? ApplicationIdentityCatalog.Resolve(x.Name, x.Publisher)?.Name ?? ""
-                        : ""
-                }));
-                return (Items: records, Msix: msix, Added: additions.Count, Registry: registry);
-            });
+            var scan = await Task.Run(AppServices.ScanAllInstalledApps);
             items = scan.Items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
             DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count} examinados={scan.Registry.Inspected} ocultos={scan.Registry.HiddenComponents} updates_arp={scan.Registry.UpdateEntries} erros={scan.Registry.ReadFailures} duplicados={scan.Registry.Duplicates}");
             DiagnosticTrace.Write($"MSIX.LEITURA status={scan.Msix.Status} enumerados={scan.Msix.Seen} " +
@@ -2413,7 +2420,7 @@ internal sealed partial class MainForm : Form
     {
         Status("Conferindo instalações registradas e dispositivos do Windows...");
         DiagnosticTrace.Write("DIAGNOSTICO_COMPLETO.INICIO");
-        var apps = await Task.Run(AppServices.GetInstalledPrograms);
+        var apps = await Task.Run(() => AppServices.ScanAllInstalledApps().Items);
         var maintenanceTask = Task.Run(() => MaintenanceAudit.Inspect(apps));
         var gamesTask = Task.Run(GameLibraryAudit.Inspect);
         await Task.WhenAll(maintenanceTask, gamesTask);
