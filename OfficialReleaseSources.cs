@@ -32,6 +32,14 @@ internal sealed class OfficialReleaseSources : IDisposable
     // Não tentamos inferir URLs a partir da lista de programas do usuário.
     private static readonly Recipe[] Known =
     [
+        new("gameinput-winget", "Catálogo WinGet", "Microsoft GameInput",
+            "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/m/Microsoft/GameInput",
+            "https://github.com/microsoft/winget-pkgs/tree/master/manifests/m/Microsoft/GameInput",
+            GameInput, "__WINGET_VERSIONS__"),
+        new("outlook-winget", "Catálogo WinGet", "Outlook for Windows",
+            "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/m/Microsoft/Outlook",
+            "https://github.com/microsoft/winget-pkgs/tree/master/manifests/m/Microsoft/Outlook",
+            Outlook, "__WINGET_VERSIONS__"),
         new("edge-stable", "Microsoft", "Microsoft Edge",
             "https://edgeupdates.microsoft.com/api/products?view=enterprise",
             "https://www.microsoft.com/edge", EdgeStable, "__EDGE_STABLE__"),
@@ -77,6 +85,13 @@ internal sealed class OfficialReleaseSources : IDisposable
         var maker = Matching.NormalizePublisher(app.Publisher);
         return allowed.Any(x => maker == x);
     }
+    private static bool GameInput(InstalledApp a) =>
+        a.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase) &&
+        Publisher(a, "microsoft");
+    private static bool Outlook(InstalledApp a) =>
+        (a.Name.Equals("Outlook for Windows", StringComparison.OrdinalIgnoreCase) ||
+         a.Name.Equals("Outlook para Windows", StringComparison.OrdinalIgnoreCase)) &&
+        Publisher(a, "microsoft");
     private static bool EdgeStable(InstalledApp a) =>
         Publisher(a, "microsoft") &&
         a.Name.Equals("Microsoft Edge", StringComparison.OrdinalIgnoreCase);
@@ -126,7 +141,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         {
             Timeout = TimeSpan.FromSeconds(14)
         };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.11"));
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.12"));
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return client;
     }
@@ -139,7 +154,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         };
         if (_ownsHttp)
         {
-            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.11"));
+            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.12"));
             _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
     }
@@ -241,6 +256,8 @@ internal sealed class OfficialReleaseSources : IDisposable
             using var doc = await JsonDocument.ParseAsync(bounded, cancellationToken: token);
             if (recipe.JsonProperty == "__EDGE_STABLE__")
                 tag = ParseEdgeStableVersion(doc.RootElement);
+            else if (recipe.JsonProperty == "__WINGET_VERSIONS__")
+                tag = ParseWinGetVersionDirectories(doc.RootElement);
             else
             {
                 if (doc.RootElement.ValueKind != JsonValueKind.Object ||
@@ -253,6 +270,29 @@ internal sealed class OfficialReleaseSources : IDisposable
         if (!Regex.IsMatch(tag, @"^\d{1,4}(?:\.\d{1,6}){1,3}$"))
             throw new InvalidDataException("Versão não estável ou não comparável.");
         return tag;
+    }
+
+    // Apenas diretórios de versão do repositório de manifestos comunitários Microsoft.
+    // Nenhum YAML ou URL de instalador é baixado/executado. Catálogo não é fonte de assinatura.
+    internal static string ParseWinGetVersionDirectories(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException("Índice WinGet não retornou uma lista.");
+        string? newest = null;
+        int seen = 0;
+        foreach (var item in root.EnumerateArray())
+        {
+            if (++seen > 1000) throw new InvalidDataException("Índice WinGet excessivamente grande.");
+            if (!item.TryGetProperty("type", out var kind) || kind.GetString() != "dir" ||
+                !item.TryGetProperty("name", out var name) || name.ValueKind != JsonValueKind.String)
+                continue;
+            string version = name.GetString() ?? "";
+            if (!Regex.IsMatch(version, @"^\d{1,4}(?:\.\d{1,6}){1,3}$"))
+                continue;
+            if (newest is null || Matching.CompareVersions(newest, version) is < 0)
+                newest = version;
+        }
+        return newest ?? throw new InvalidDataException("Nenhuma versão estável no índice WinGet.");
     }
 
     // Seleção estrita: Microsoft Edge Stable, Windows, arquitetura correspondente.
