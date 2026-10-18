@@ -564,7 +564,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.13.1 TESTE";
+        Text = "Gerenciador Final — v5.12.14 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -783,6 +783,8 @@ internal sealed partial class MainForm : Form
                 OpenOfficialSite(item);
             else if (action == "guide")
                 ShowUpdateGuidance(item);
+            else if (action == "store")
+                OpenMicrosoftStore(item);
         };
         _programList.ItemCheckboxClicked += item =>
         {
@@ -925,6 +927,7 @@ internal sealed partial class MainForm : Form
                     {
                         "update" => "Atualizar",
                         "site" => "Site oficial",
+                        "store" => "Microsoft Store",
                         _ => "Como fazer"
                     };
                     Color color = primaryAction == "update" ? AppServices.Green : AppServices.Gray;
@@ -1507,6 +1510,15 @@ internal sealed partial class MainForm : Form
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
         var watch = Stopwatch.StartNew();
         _consultaCatalogoCts = cancellation;
+        if (!_busy)
+        {
+            // Consulta somente leitura: duração incerta, indicar atividade sem inventar percentual.
+            _progress.Style = ProgressBarStyle.Marquee;
+            _progress.MarqueeAnimationSpeed = 28;
+            _progress.Visible = true;
+            Status("Verificando fontes oficiais de atualizações…");
+        }
+        RenderTitle();
         if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar consulta";
         DiagnosticTrace.Write("MULTIFONTES.CONSULTA_INICIO fontes=ruckzuck,github,mozilla");
         Log("Consultando fontes oficiais por HTTPS em paralelo: RuckZuck, GitHub Releases e Mozilla.");
@@ -1597,8 +1609,19 @@ internal sealed partial class MainForm : Form
         finally
         {
             _consultaCatalogoCts = null;
-            if (!IsDisposed && _checkUpdatesButton is not null)
-                _checkUpdatesButton.Text = "Verificar atualizações";
+            if (!IsDisposed)
+            {
+                if (!_busy)
+                {
+                    _progress.MarqueeAnimationSpeed = 0;
+                    _progress.Style = ProgressBarStyle.Blocks;
+                    _progress.Value = 0;
+                    _progress.Visible = false;
+                }
+                RenderTitle();
+                if (_checkUpdatesButton is not null)
+                    _checkUpdatesButton.Text = "Verificar atualizações";
+            }
         }
     }
 
@@ -1677,6 +1700,7 @@ internal sealed partial class MainForm : Form
         int updates = _installed.Count(x => x.IsUpdate);
         string windowsStatus = _windowsUpdateCheckingMessage();
         _listTitle.Text = $"Aplicativos: {_installed.Count} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
+            (_consultaCatalogoCts is not null ? " · Verificando..." : "") +
             windowsStatus + (_multiSelectMode ? $" · Marcados: {_checkedApps.Count}" : "");
     }
 
@@ -1745,6 +1769,45 @@ internal sealed partial class MainForm : Form
             : "Sem instalador validado: abra o próprio aplicativo, procure Ajuda ou Configurações e use a função oficial de atualização.";
         Log("Orientação para " + entry.Name + " · " + message);
         Status("Orientações de atualização exibidas no histórico de operações.");
+    }
+
+    private void OpenMicrosoftStore(ProgramEntry entry)
+    {
+        if (_busy) return;
+        Uri? destination = VerifiedUpdaters.GetMicrosoftStoreUri(entry);
+        if (destination is null) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = destination.AbsoluteUri, UseShellExecute = true });
+            Log(entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase)
+                ? "Área de downloads e atualizações da Microsoft Store aberta para verificar componentes. Nenhuma instalação presumida."
+                : "Página do aplicativo na Microsoft Store aberta. A instalação ou atualização é concluída pela Store.");
+            Status("Microsoft Store aberta: confira o botão Atualizar ou Obter.");
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+            string? fallback = VerifiedUpdaters.GetStoreWebFallback(entry);
+            try
+            {
+                if (fallback is null)
+                {
+                    Process.Start(new ProcessStartInfo { FileName = "ms-settings:windowsupdate", UseShellExecute = true });
+                    Log("Microsoft Store indisponível; abrindo Windows Update para componentes do sistema.");
+                    Status("Microsoft Store indisponível. Verifique as atualizações do Windows.");
+                }
+                else
+                {
+                    Process.Start(new ProcessStartInfo { FileName = fallback, UseShellExecute = true });
+                    Log("Link web oficial da Microsoft Store aberto como alternativa.");
+                    Status("Página oficial da Microsoft Store aberta no navegador.");
+                }
+            }
+            catch (Exception inner) when (inner is Win32Exception or InvalidOperationException)
+            {
+                Log("Microsoft Store indisponível: " + inner.GetType().Name);
+                Status("Não foi possível abrir a Microsoft Store.");
+            }
+        }
     }
 
     private void OpenOfficialSite(ProgramEntry entry)
