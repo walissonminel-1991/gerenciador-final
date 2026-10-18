@@ -70,7 +70,7 @@ internal static class GameLibraryAudit
             return dir is not null && (dir.Attributes & FileAttributes.ReparsePoint) == 0;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-            NotSupportedException) { return false; }
+            NotSupportedException or System.Security.SecurityException or ArgumentException) { return false; }
     }
 
     internal static bool TryReadEpicManifest(string json,
@@ -130,7 +130,7 @@ internal static class GameLibraryAudit
                 if (SafeFile(libraryConfig))
                     libraryPaths.AddRange(ParseSteamLibraryFolders(File.ReadAllText(libraryConfig)));
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
             { unreadable++; partial = true; }
             foreach (string library in libraryPaths.Distinct(Comparison).Take(25))
             {
@@ -145,9 +145,9 @@ internal static class GameLibraryAudit
                         "appmanifest_*.acf", SearchOption.TopDirectoryOnly))
                     {
                         if (++seen > ManifestLimit) { partial = true; break; }
-                        if (!SafeFile(filename)) { unreadable++; continue; }
+                        if (!SafeFile(filename)) { unreadable++; partial = true; continue; }
                         string? name = ParseSteamName(File.ReadAllText(filename));
-                        if (name is null) continue;
+                        if (name is null) { unreadable++; partial = true; continue; }
                         string id = Path.GetFileNameWithoutExtension(filename)["appmanifest_".Length..];
                         if (!Regex.IsMatch(id, @"^\d{1,12}$") || !unique.Add("steam:" + id)) continue;
                         steam++;
@@ -157,7 +157,7 @@ internal static class GameLibraryAudit
                         if (examples.Count < 12) examples.Add(game);
                     }
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
                 { unreadable++; partial = true; }
             }
         }
@@ -174,9 +174,10 @@ internal static class GameLibraryAudit
                     "*.item", SearchOption.TopDirectoryOnly))
                 {
                     if (++seen > ManifestLimit) { partial = true; break; }
-                    if (!SafeFile(filename)) { unreadable++; continue; }
-                    if (!TryReadEpicManifest(File.ReadAllText(filename), out string name, out string id) ||
-                        !unique.Add("epic:" + id)) continue;
+                    if (!SafeFile(filename)) { unreadable++; partial = true; continue; }
+                    if (!TryReadEpicManifest(File.ReadAllText(filename), out string name, out string id))
+                    { unreadable++; partial = true; continue; }
+                    if (!unique.Add("epic:" + id)) continue;
                     epic++;
                     activeNames.Add(name);
                     var game = new GameLibraryEntry("Epic Games", id, name, epicRoot);
@@ -185,7 +186,7 @@ internal static class GameLibraryAudit
                 }
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         { unreadable++; partial = true; }
         return new(steam, epic, Math.Min(seen, ManifestLimit),
             unreadable, partial, examples)
