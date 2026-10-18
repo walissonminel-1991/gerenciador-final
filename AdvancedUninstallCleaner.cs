@@ -49,6 +49,30 @@ internal static class AdvancedUninstallCleaner
         { return false; }
     }
 
+    private static bool SafeDescendant(string path, string root)
+    {
+        try
+        {
+            string basePath = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
+            string full = Path.GetFullPath(path);
+            if (!full.Equals(basePath, StringComparison.OrdinalIgnoreCase) &&
+                !full.StartsWith(basePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                return false;
+            DirectoryInfo? parent = Directory.Exists(full)
+                ? new DirectoryInfo(full)
+                : new FileInfo(full).Directory;
+            while (parent is not null && parent.FullName.Length >= basePath.Length)
+            {
+                if (parent.Exists && (parent.Attributes & FileAttributes.ReparsePoint) != 0) return false;
+                if (parent.FullName.Equals(basePath, StringComparison.OrdinalIgnoreCase)) return true;
+                parent = parent.Parent;
+            }
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+            or NotSupportedException) { return false; }
+    }
+
     private static bool OwnRegistryPath(string key, IEnumerable<string> allowed)
     {
         if (string.IsNullOrWhiteSpace(key) || !key.StartsWith(@"Software\", StringComparison.OrdinalIgnoreCase))
@@ -145,7 +169,8 @@ internal static class AdvancedUninstallCleaner
             while (pending.Count > 0)
             {
                 string dir = pending.Pop();
-                if (!AllowedPath(root, allowedRoots)) return new(0, 0, 0, 1, 0);
+                if (!AllowedPath(root, allowedRoots) || !SafeDescendant(dir, root))
+                    return new(0, 0, 0, 1, 0);
                 foreach (FileSystemInfo item in new DirectoryInfo(dir).EnumerateFileSystemInfos())
                 {
                     if ((item.Attributes & FileAttributes.ReparsePoint) != 0) continue;
@@ -165,7 +190,8 @@ internal static class AdvancedUninstallCleaner
         {
             try
             {
-                if (!AllowedPath(root, allowedRoots)) { failed++; break; }
+                if (!AllowedPath(root, allowedRoots) || !SafeDescendant(file, root))
+                { failed++; continue; }
                 var fi = new FileInfo(file);
                 if ((fi.Attributes & FileAttributes.ReparsePoint) != 0) { failed++; continue; }
                 fi.Delete(); deleted++;
@@ -176,7 +202,8 @@ internal static class AdvancedUninstallCleaner
         {
             try
             {
-                if (!AllowedPath(root, allowedRoots)) { failed++; break; }
+                if (!AllowedPath(root, allowedRoots) || !SafeDescendant(dir, root))
+                { failed++; continue; }
                 var di = new DirectoryInfo(dir);
                 if (di.Exists && (di.Attributes & FileAttributes.ReparsePoint) == 0 &&
                     !di.EnumerateFileSystemInfos().Any())
