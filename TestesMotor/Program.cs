@@ -58,5 +58,16 @@ if (newerOnly[0].State != MatchState.Candidate)
     Console.WriteLine("FALHA: registro sem versão recente deixou de oferecer atualização necessária.");
     failed++;
 }
+var notVerified = new InstalledApp("OBS Studio", "31.1.2", "OBS Project",
+    EligibleForUpdates: false);
+var blockedUpdate = Matching.Evaluate([notVerified],
+    [new CatalogEntry("OBS Studio", "OBS Studio", "32.2.2", "OBS Project")]);
+if (blockedUpdate.Count != 1 || blockedUpdate[0].State != MatchState.Unmatched)
+{
+    Console.WriteLine("FALHA: MSIX sem identidade verificada recebeu atualização");
+    failed++;
+}
+else
+    Console.WriteLine("OK Pacote não verificado continua listado sem atualização automática");
 Console.WriteLine($"{cases.Length + expectedVc.Length + 1 - failed}/{cases.Length + expectedVc.Length + 1} casos aprovados");
 return failed == 0 ? 0 : 1;
