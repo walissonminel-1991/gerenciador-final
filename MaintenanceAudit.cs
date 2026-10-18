@@ -9,11 +9,18 @@ namespace GerenciadorAplicativos;
 // dispositivos, instaladores MSI, chaves do Registro ou documentos do usuário.
 internal sealed record MaintenanceConcern(string Category, string Name, string Description);
 internal sealed record DeviceAudit(int Disconnected, int WithProblems,
-    int Queried, bool Supported, bool Partial, IReadOnlyList<string> Categories);
+    int Queried, bool Supported, bool Partial, IReadOnlyList<string> Categories,
+    IReadOnlySet<string>? PresentIds = null);
 internal sealed record MaintenanceReport(int Installed, int Recognized,
     int UsableUninstallers, int MissingUninstallers, int UnverifiableUninstallers,
     int CandidatesForInvestigation, DeviceAudit Devices,
-    IReadOnlyList<MaintenanceConcern> Concerns);
+    IReadOnlyList<MaintenanceConcern> Concerns)
+{
+    // Separar inventário real do Windows de reconhecimento de receitas específicas.
+    public int WithPublisher { get; init; }
+    public int WithVersion { get; init; }
+    public RegistryDeviceEvidence? HistoricalPnP { get; init; }
+}
 
 internal static class MaintenanceAudit
 {
@@ -119,6 +126,7 @@ internal static class MaintenanceAudit
         int count = 0, disconnected = 0, errors = 0;
         bool partial = false;
         Dictionary<string, int> categories = new(StringComparer.OrdinalIgnoreCase);
+        var activeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
             locator = Activator.CreateInstance(locatorType);
@@ -145,6 +153,7 @@ internal static class MaintenanceAudit
                     string id = Convert.ToString(Get("PNPDeviceID"), CultureInfo.CurrentCulture) ?? "";
                     object? rawPresent = Get("Present");
                     bool? present = rawPresent is bool b ? b : null;
+                    if (present == true && id.Length >= 6) activeIds.Add(id);
                     if (ReviewDisconnectedDevice(present, category, id, name))
                     {
                         disconnected++;
@@ -164,7 +173,8 @@ internal static class MaintenanceAudit
             }
             return new(disconnected, errors, Math.Min(count, MaxDevices), true, partial,
                 categories.OrderByDescending(kv => kv.Value)
-                    .Take(8).Select(kv => $"{kv.Key}: {kv.Value}").ToArray());
+                    .Take(8).Select(kv => $"{kv.Key}: {kv.Value}").ToArray(),
+                activeIds);
         }
         catch (Exception)
         {
@@ -184,6 +194,12 @@ internal static class MaintenanceAudit
     {
         var inventory = InspectPrograms(apps);
         DeviceAudit device = inspectDevices ? Devices() : new(0, 0, 0, false, false, []);
+        // Comparar instâncias antigas só com snapshot WMI utilizável; se WMI
+        // não estiver acessível, não rotular todas as instâncias como ausentes.
+        RegistryDeviceEvidence? historical = inspectDevices && device.Supported &&
+            !device.Partial && device.PresentIds is { Count: > 0 }
+            ? HistoricalDeviceAudit.Inspect(device.PresentIds)
+            : null;
         var findings = inventory.Concerns.ToList();
         if (device.Disconnected > 0)
             findings.Add(new("Hardware", "Dispositivos desconectados",
@@ -192,11 +208,25 @@ internal static class MaintenanceAudit
         if (device.WithProblems > 0)
             findings.Add(new("Hardware", "Dispositivos com problema",
                 $"{device.WithProblems} dispositivos atualmente presentes têm códigos de problema no Windows."));
+        if (historical is { NotPresent: > 0 })
+            findings.Add(new("Hardware", "Registros PnP históricos",
+                $"{historical.NotPresent} instâncias PCI/USB do Registro não aparecem no " +
+                "inventário de dispositivos presentes. Podem ser periféricos guardados, " +
+                "instâncias antigas ou componentes ainda necessários. " +
+                "Não representam necessariamente pacotes de drivers removíveis."));
         if (inspectDevices && !device.Supported)
             findings.Add(new("Hardware", "Consulta parcial",
                 "O Windows não disponibilizou a informação completa dos dispositivos PnP."));
+        if (historical is { Partial: true })
+            findings.Add(new("Hardware", "Registro parcialmente acessível",
+                "Algumas instâncias históricas do Registro não puderam ser comparadas."));
         return new(inventory.Installed, inventory.Recognized, inventory.Available,
             inventory.Missing, inventory.Unverifiable,
-            inventory.Missing + device.WithProblems, device, findings.Take(16).ToArray());
+            inventory.Missing + device.WithProblems, device, findings.Take(16).ToArray())
+        {
+            WithPublisher = apps.Count(a => !string.IsNullOrWhiteSpace(a.Publisher)),
+            WithVersion = apps.Count(a => !string.IsNullOrWhiteSpace(a.Version)),
+            HistoricalPnP = historical
+        };
     }
 }
