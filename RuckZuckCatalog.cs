@@ -7,7 +7,9 @@ namespace GerenciadorAplicativos;
 // Apenas GET: não envia a lista de aplicativos instalados, não executa scripts nem instaladores.
 internal sealed class RuckZuckCatalog : IDisposable
 {
+    private static readonly HttpClient SharedHttp = CreateSharedClient();
     private readonly HttpClient _http;
+    private readonly bool _ownsClient;
     private const int MaximumCatalogBytes = 25 * 1024 * 1024;
     // Cache somente em memoria: reduz duas solicitações HTTPS e não deixa arquivos no computador.
     // Instalações e decisões de segurança continuam consultando o Registro atual.
@@ -17,13 +19,26 @@ internal sealed class RuckZuckCatalog : IDisposable
     private static readonly TimeSpan MemoryTtl = TimeSpan.FromMinutes(10);
     internal bool UsedMemoryCache { get; private set; }
 
-    internal RuckZuckCatalog(HttpMessageHandler? handler = null)
+    private static HttpClient CreateSharedClient()
     {
-        _http = new HttpClient(handler ?? new HttpClientHandler { AllowAutoRedirect = false })
+        // Pool HTTPS reutilizado entre consultas, evita novo handshake TLS a cada clique.
+        var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
         {
             Timeout = TimeSpan.FromSeconds(55)
         };
-        _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.8"));
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.8"));
+        return client;
+    }
+
+    internal RuckZuckCatalog(HttpMessageHandler? handler = null)
+    {
+        _ownsClient = handler is not null;
+        _http = handler is null ? SharedHttp : new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(55)
+        };
+        if (_ownsClient)
+            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.8"));
     }
 
     internal async Task<IReadOnlyList<CatalogEntry>> GetCatalogAsync(
@@ -183,7 +198,10 @@ internal sealed class RuckZuckCatalog : IDisposable
         return System.Text.Encoding.UTF8.GetString(memory.ToArray());
     }
 
-    public void Dispose() => _http.Dispose();
+    public void Dispose()
+    {
+        if (_ownsClient) _http.Dispose();
+    }
 
     internal sealed class CatalogJson
     {
