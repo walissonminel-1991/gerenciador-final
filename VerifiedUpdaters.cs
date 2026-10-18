@@ -47,6 +47,14 @@ internal static class VerifiedUpdaters
         if (entry.Source == "GitHub oficial" &&
             entry.Name.StartsWith("PowerShell 7", StringComparison.OrdinalIgnoreCase))
             return "https://github.com/PowerShell/PowerShell/releases";
+        if (entry.Source == "Microsoft" && entry.Name.Equals("Microsoft Edge", StringComparison.OrdinalIgnoreCase))
+            return "https://www.microsoft.com/edge";
+        if (entry.Source == "GitHub oficial" &&
+            (entry.Name.Equals("Windows Terminal", StringComparison.OrdinalIgnoreCase) ||
+             entry.Name.Equals("Terminal do Windows", StringComparison.OrdinalIgnoreCase)))
+            return "https://github.com/microsoft/terminal/releases";
+        if (entry.Source == "Proton" && entry.Name.Equals("Proton Pass", StringComparison.OrdinalIgnoreCase))
+            return "https://proton.me/pass/download";
         if (entry.Source == "Mozilla" &&
             entry.Name.Contains("Thunderbird", StringComparison.OrdinalIgnoreCase))
             return "https://www.thunderbird.net/";
