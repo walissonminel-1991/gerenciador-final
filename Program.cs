@@ -2542,7 +2542,10 @@ internal sealed partial class MainForm : Form
         // NUNCA autoriza exclusão de chaves HKLM/HKCU, saves ou integrações.
         Status("Verificando vestígios antigos sem modificar o computador...");
         DiagnosticTrace.Write("RESIDUOS_HISTORICOS.CONSULTA_INICIO");
-        var updatedInventory = await Task.Run(AppServices.GetInstalledPrograms);
+        // Usar uma unica fotografia atual de Win32, MSIX e bibliotecas de jogos.
+        // Assim aplicativos Store ou jogos ativos nao viram falsos vestigios.
+        var inventorySnapshot = await Task.Run(AppServices.ScanAllInstalledApps);
+        var updatedInventory = inventorySnapshot.Items;
         var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory));
         DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)}");
         Status("Analisando locais comuns de aplicativos e Registro, sem alterar arquivos...");
@@ -2551,7 +2554,7 @@ internal sealed partial class MainForm : Form
         // Todas as fontes são somente leitura, com tempo e quantidade limitados.
         // Jogos detectados apenas por manifestos Steam/Epic nao pertencem ao ARP.
         // Proteger seus dados ativos antes de sugerir vestigios historicos.
-        var gameInventory = await Task.Run(GameLibraryAudit.Inspect);
+        var gameInventory = inventorySnapshot.Games;
         var broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory,
             gameInventory.ActiveNames, gameInventory.Partial));
         DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
