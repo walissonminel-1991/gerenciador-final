@@ -269,7 +269,8 @@ internal sealed class DarkProgramList : Control
             if (primaryAction is not null) return (item, primaryAction);
         }
         // O botao secundario Site so aparece quando Atualizar e seguro e direto.
-        if (item.IsUpdate && VerifiedUpdaters.Resolve(item) is not null &&
+        if (item.IsUpdate &&
+            (VerifiedUpdaters.Resolve(item) is not null || WindowsTerminalUpdater.Resolve(item) is not null) &&
             VerifiedUpdaters.GetOfficialPage(item) is not null &&
             AppRowGeometry.SiteButton(bounds).Contains(point)) return (item, "site");
         return (null, "");
