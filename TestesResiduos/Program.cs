@@ -27,6 +27,60 @@ Check(StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 0, 0)).Size ==
       StartupWindowSizing.PreferredSize,
     "Ter tamanho inicial seguro quando o monitor ainda nao puder ser consultado");
 
+// Visão geral: independe de quando o programa foi instalado ou desinstalado.
+Check(BroadResidualDiscovery.Roots().Count >= 7,
+    "Varredura cobre AppData local/roaming/locallow, ProgramData, ProgramFiles e atalhos");
+Check(BroadResidualDiscovery.Roots().All(r =>
+    !r.Path.Contains("\\Documents\\", StringComparison.OrdinalIgnoreCase) &&
+    !r.Path.Contains("\\Downloads\\", StringComparison.OrdinalIgnoreCase) &&
+    !r.Path.Contains("\\Pictures\\", StringComparison.OrdinalIgnoreCase) &&
+    !r.Path.Contains("\\Music\\", StringComparison.OrdinalIgnoreCase)),
+    "Varredura geral nao acessa bibliotecas pessoais");
+Check(!BroadResidualDiscovery.EligibleName("Microsoft") &&
+      !BroadResidualDiscovery.EligibleName("Documents") &&
+      !BroadResidualDiscovery.EligibleName("Downloads") &&
+      !BroadResidualDiscovery.EligibleName("Common Files") &&
+      !BroadResidualDiscovery.EligibleName("Package Cache"),
+    "Nomes do Windows e diretorios pessoais sao bloqueados");
+Check(BroadResidualDiscovery.NormalizeName("SampleOldTool.lnk") == "SampleOldTool" &&
+      BroadResidualDiscovery.NormalizeName("SampleOldTool (x64)") == "SampleOldTool",
+    "Reconhecer atalhos e variantes de arquitetura sem confundir instalacoes");
+Check(BroadResidualDiscovery.IsProtectedByInstalled("OBS Studio",
+        new[] { new ProgramEntry { Name = "OBS Studio", Publisher = "OBS Project" } }),
+    "Pastas de aplicativo ativo jamais sao listadas como residuos");
+Check(BroadResidualDiscovery.IsProtectedByInstalled("Origin",
+        new[] { new ProgramEntry { Name = "EA app", Publisher = "Electronic Arts" } }),
+    "Origin pode conter saves ainda importantes para EA app");
+Check(!BroadResidualDiscovery.IsProtectedByInstalled("LegacyEditor", Array.Empty<ProgramEntry>()),
+    "Aplicativo antigo sem registro pode continuar sendo investigado");
+var oldEvidence = new[] {
+    new BroadResidualEvidence("LegacyEditor", @"C:\FakeData\LegacyEditor", "Dados locais", "AppData"),
+    new BroadResidualEvidence("LegacyEditor", @"HKCU\Software\LegacyEditor", "Chave", "Registry"),
+    new BroadResidualEvidence("LegacyEditor", @"C:\FakeStart\LegacyEditor.lnk", "Atalho", "StartMenu"),
+    new BroadResidualEvidence("OBS Studio", @"C:\FakeData\OBS Studio", "Dados locais", "AppData"),
+    new BroadResidualEvidence("Microsoft", @"C:\FakeData\Microsoft", "Dados locais", "AppData"),
+    new BroadResidualEvidence("SoloOrphan", @"C:\FakeData\SoloOrphan", "Dados locais", "AppData"),
+    new BroadResidualEvidence("Origin", @"C:\FakeData\Origin", "Dados locais", "AppData")
+};
+var classified = BroadResidualDiscovery.Classify(oldEvidence, new[]
+{
+    new ProgramEntry { Name = "OBS Studio", Publisher = "OBS Project" },
+    new ProgramEntry { Name = "EA app", Publisher = "Electronic Arts" }
+});
+Check(classified.Count == 2 &&
+      classified.Any(x => x.Product == "LegacyEditor" && x.Findings.Count == 3) &&
+      classified.Any(x => x.Product == "SoloOrphan" && x.Findings.Count == 1),
+    "Identificar indícios antigos mesmo sem qualquer histórico do gerenciador");
+Check(classified.All(x => x.Historical && !x.UninstallConfirmed),
+    "Varredura geral nao se apresenta como desinstalacao comprovada");
+Check(classified.All(x => x.Product != "OBS Studio" && x.Product != "Microsoft" &&
+      x.Product != "Origin"),
+    "Ignorar aplicativos ativos, pastas protegidas e substituto EA app");
+Check(classified.Single(x => x.Product == "SoloOrphan").Findings[0].Evidence
+      .Contains("Apenas um local", StringComparison.Ordinal),
+    "Sinais de baixa confianca sao claramente diferenciados");
+Console.WriteLine("OK Auditoria geral testa historico independente com provas de baixo risco");
+
 // Catálogo histórico: Origem, Vivaldi e uTorrent não podem ser limpos
 // automaticamente, e não devem aparecer como resíduos com produto instalado.
 Check(HistoricalResidualAudit.Rules.Count == 3,
