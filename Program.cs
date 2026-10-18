@@ -564,7 +564,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.14.1 TESTE";
+        Text = "Gerenciador Final — v5.12.15 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -1866,13 +1866,14 @@ internal sealed partial class MainForm : Form
             try
             {
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.INICIO receita=" + recipe.Identifier);
+                string verifiedInstaller;
                 using (var downloadCts = new CancellationTokenSource(TimeSpan.FromMinutes(8)))
                 {
                     _installerDownloadCts = downloadCts;
                     if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar download";
                     try
                     {
-                        _ = await VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder, Status, downloadCts.Token);
+                        verifiedInstaller = await VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder, Status, downloadCts.Token);
                     }
                     finally
                     {
@@ -1881,10 +1882,9 @@ internal sealed partial class MainForm : Form
                             _checkUpdatesButton.Text = "Verificar atualizações";
                     }
                 }
-                string file = Path.Combine(folder, recipe.Identifier + ".exe");
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.ARQUIVO_VALIDADO receita=" + recipe.Identifier);
                 Status("Instalador verificado. Aguardando conclusão...");
-                int exit = await VerifiedUpdaters.LaunchAsync(recipe, file, Status);
+                int exit = await VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status);
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM codigo=" + exit);
                 if (exit is not (0 or 3010))
                 {
