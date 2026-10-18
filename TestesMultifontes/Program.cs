@@ -116,6 +116,19 @@ Assert(!OfficialReleaseSources.IsAllowedUrl(new Uri("http://api.github.com/repos
 Assert(Matching.CompareVersions("1.2", "1.2.0.0") == 0,
     "Normalização de versões preservada");
 Console.WriteLine($"{tests}/{tests} testes de motores múltiplos aprovados");
+if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
+{
+    // Usa SOMENTE GETs HTTPS de dados públicos; nenhum programa instalado é consultado no CI.
+    OfficialReleaseSources.ClearCacheForTests();
+    using var source = new OfficialReleaseSources();
+    var live = await source.QueryAsync([obs, firefox, notepad, powertoys, shell],
+        new CancellationTokenSource(TimeSpan.FromSeconds(25)).Token, true);
+    foreach (var item in live.Diagnostics)
+        Console.WriteLine($"FONTE_AO_VIVO {item.Provider} status={item.Status} tempo_ms={item.Milliseconds}");
+    Console.WriteLine($"FONTE_AO_VIVO_TOTAL resultados={live.Findings.Count}");
+    if (live.Findings.Count < 1)
+        throw new Exception("Nenhum provedor oficial disponível no teste ao vivo.");
+}
 
 internal sealed class Fixture(bool failMozilla = false, bool badTags = false, int delay = 0) : HttpMessageHandler
 {
