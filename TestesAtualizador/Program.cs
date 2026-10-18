@@ -58,7 +58,7 @@ Verify(VerifiedUpdaters.GetPrimaryAction(terminal) == "store" &&
        "Windows Terminal prefere Store e atualizacoes continuas");
 Verify(VerifiedUpdaters.GetMicrosoftStoreUri(Item("Windows Terminal", "1.0", "2.0", "Desconhecido")) is null,
        "Proibir spoof de fabricante Microsoft");
-var npp = VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial"));
+var npp = VerifiedUpdaters.Resolve(Item("Notepad++ (64-bit x64)", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial"));
 Verify(npp?.Identifier == "notepadpp-x64-8.9.8.1" && npp.Sha256?.Length == 64 &&
        npp.RequiredSigner == "Notepad++", "Notepad++: receita fixada com digest e editor");
 Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Desconhecido", "GitHub oficial")) is null,
@@ -67,6 +67,8 @@ Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.2", "Don HO", 
        "Notepad++: rejeitar versao nao aprovada");
 Verify(VerifiedUpdaters.Resolve(Item("Notepad++ (x86)", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial")) is null,
        "Notepad++: nao instalar pacote x64 no cadastro x86");
+Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial")) is null,
+       "Notepad++: bloquear arquitetura nao identificada");
 Console.WriteLine($"{checkedCount}/{checkedCount} testes do motor autorizador aprovados");
 if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 {
