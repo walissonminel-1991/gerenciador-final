@@ -140,6 +140,10 @@ Assert(Matching.CompareVersions("1.2", "1.2.0.0") == 0,
 var edge = App("Microsoft Edge", "155.0.4283.60", "Microsoft Corporation");
 var terminal = App("Windows Terminal", "1.24.12741.0", "Microsoft Corporation");
 var proton = App("Proton Pass", "1.37.0", "Proton AG");
+var gameInput = App("Microsoft GameInput", "3.5.270.0", "Microsoft Corporation");
+var outlook = App("Outlook for Windows", "1.2025.416.400", "Microsoft Corporation");
+var wrongGame = App("Microsoft GameInput Preview", "3.5.270.0", "Microsoft Corporation");
+var wrongOutlook = App("Outlook for Windows", "1.2025.416.400", "Outro Fornecedor");
 var wrongEdge = App("Microsoft Edge Beta", "155.0.4283.60", "Microsoft Corporation");
 var wrongProton = App("Proton Pass", "1.37.0", "Fornecedor Desconhecido");
 var wrongTerminal = App("Windows Terminal Preview", "1.24.12741.0", "Microsoft Corporation");
@@ -186,6 +190,25 @@ Assert(OfficialReleaseSources.IsAllowedUrl(new Uri("https://edgeupdates.microsof
     !OfficialReleaseSources.IsAllowedUrl(new Uri("https://edgeupdates.microsoft.com.evil.org/")) &&
     !OfficialReleaseSources.IsAllowedUrl(new Uri("http://raw.githubusercontent.com/")),
     "Novos domínios somente HTTPS com origem exata");
+OfficialReleaseSources.ClearCacheForTests();
+using (var sources = new OfficialReleaseSources(new Fixture()))
+{
+    var dirResults = await sources.QueryAsync([gameInput, outlook, wrongGame, wrongOutlook], CancellationToken.None);
+    Assert(dirResults.Findings.Count == 2 && dirResults.Diagnostics.Count == 2,
+        "Somente GameInput e Outlook Microsoft reconhecidos");
+    Assert(dirResults.Findings.First(x => ReferenceEquals(x.Installed, gameInput)).LatestVersion == "3.5.283",
+        "GameInput lê versão mais recente do índice Microsoft winget-pkgs");
+    Assert(dirResults.Findings.First(x => ReferenceEquals(x.Installed, outlook)).LatestVersion == "1.2026.812.100",
+        "Outlook lê versão mais recente do índice Microsoft winget-pkgs");
+    var union = MultiSourceMatcher.Merge([gameInput, outlook], null, dirResults.Findings);
+    Assert(union.Count(x => x.State == MatchState.Candidate) == 2,
+        "GameInput e Outlook entram sem executar WinGet");
+}
+using (var doc = System.Text.Json.JsonDocument.Parse("[{\"name\":\".validation\",\"type\":\"dir\"},{\"name\":\"3.5.283\",\"type\":\"dir\"},{\"name\":\"9999.9999\",\"type\":\"file\"}]"))
+{
+    Assert(OfficialReleaseSources.ParseWinGetVersionDirectories(doc.RootElement) == "3.5.283",
+        "Somente diretórios numéricos participam da ordenação");
+}
 Console.WriteLine($"{tests}/{tests} testes de motores múltiplos aprovados");
 if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
 {
@@ -193,7 +216,7 @@ if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
     OfficialReleaseSources.ClearCacheForTests();
     using var source = new OfficialReleaseSources();
     var live = await source.QueryAsync([obs, firefox, notepad, powertoys, shell, sevenzip,
-        desktop, sumatra, thunderbird, edge, terminal, proton],
+        desktop, sumatra, thunderbird, edge, terminal, proton, gameInput, outlook],
         new CancellationTokenSource(TimeSpan.FromSeconds(25)).Token, true);
     foreach (var item in live.Diagnostics)
         Console.WriteLine($"FONTE_AO_VIVO {item.Provider} status={item.Status} tempo_ms={item.Milliseconds}");
@@ -217,6 +240,13 @@ internal sealed class Fixture(bool failMozilla = false, bool badTags = false, in
             uri.Host != "product-details.mozilla.org" &&
             uri.Host != "edgeupdates.microsoft.com" &&
             uri.Host != "raw.githubusercontent.com")) throw new Exception("Host não aprovado");
+        if (uri.Host == "api.github.com" && uri.AbsolutePath.Contains("/microsoft/winget-pkgs/contents/"))
+        {
+            string versions = uri.AbsolutePath.EndsWith("GameInput", StringComparison.OrdinalIgnoreCase)
+                ? "[{\"name\":\"3.5.270\",\"type\":\"dir\"},{\"name\":\"3.5.283\",\"type\":\"dir\"}]"
+                : "[{\"name\":\"1.2026.720.100\",\"type\":\"dir\"},{\"name\":\"1.2026.812.100\",\"type\":\"dir\"}]";
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(versions) };
+        }
         if (uri.Host == "edgeupdates.microsoft.com")
         {
             if (failEdge) return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
