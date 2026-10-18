@@ -182,7 +182,7 @@ jobs:
           if (-not $main.Contains('(_consultaCatalogoCts is not null ? " · Verificando..."')) { throw 'Status de consulta ausente' }
           if (-not $main.Contains('_progress.Style = ProgressBarStyle.Marquee')) { throw 'Barra de progresso ausente' }
           if (-not $main.Contains('_progress.Visible = false')) { throw 'Barra de progresso sem encerramento' }
-          if (-not $recipes.Contains('ms-windows-store://downloadsandupdates')) { throw 'GameInput deve abrir atualizacoes da Store' }
+          if ($recipes.Contains('ms-windows-store://downloadsandupdates')) { throw 'GameInput nao existe na Store' }
           if (-not $recipes.Contains('9NRX63209R7B') -or -not $recipes.Contains('9N0DX20HK701')) { throw 'IDs da Microsoft Store ausentes' }
           if (-not $sources.Contains('TimeSpan.FromSeconds(5)')) { throw 'Timeout Proton ausente' }
           if (-not $geometry.Contains('GetPrimaryAction(item)')) { throw 'Clique contextual nao implementado' }
