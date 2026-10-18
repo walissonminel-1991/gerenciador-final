@@ -137,6 +137,55 @@ Assert(OfficialReleaseSources.NormalizeOfficialVersionTag("sumatrapdf", "3.6.1re
     "Etiquetas de versões não autorizam prereleases");
 Assert(Matching.CompareVersions("1.2", "1.2.0.0") == 0,
     "Normalização de versões preservada");
+var edge = App("Microsoft Edge", "155.0.4283.60", "Microsoft Corporation");
+var terminal = App("Windows Terminal", "1.24.12741.0", "Microsoft Corporation");
+var proton = App("Proton Pass", "1.37.0", "Proton AG");
+var wrongEdge = App("Microsoft Edge Beta", "155.0.4283.60", "Microsoft Corporation");
+var wrongProton = App("Proton Pass", "1.37.0", "Fornecedor Desconhecido");
+var wrongTerminal = App("Windows Terminal Preview", "1.24.12741.0", "Microsoft Corporation");
+OfficialReleaseSources.ClearCacheForTests();
+var expandedFixture = new Fixture();
+using (var extraSource = new OfficialReleaseSources(expandedFixture))
+{
+    var expanded = await extraSource.QueryAsync(
+        [edge, terminal, proton, wrongEdge, wrongProton, wrongTerminal], CancellationToken.None);
+    Assert(expanded.Findings.Count == 3 && expanded.Diagnostics.Count == 3 &&
+        expanded.Diagnostics.All(x => x.Status == "ok"),
+        "Edge, Terminal e Proton reconhecidos com exclusão dos canais errados");
+    Assert(expanded.Findings.First(x => ReferenceEquals(x.Installed, edge)).LatestVersion == "155.0.4283.62",
+        "Edge recebe Stable Windows da arquitetura correta; não Beta ou Mac");
+    Assert(expanded.Findings.First(x => ReferenceEquals(x.Installed, terminal)).LatestVersion == "1.25.2733.0",
+        "Windows Terminal Stable preserva todos os componentes da versão");
+    Assert(expanded.Findings.First(x => ReferenceEquals(x.Installed, proton)).LatestVersion == "1.42.0",
+        "Proton Pass lê changelog oficial desktop e não aplicativo de navegador");
+    Assert(expandedFixture.Requests == 3, "Três fontes extras consultadas somente uma vez");
+    var cachedExtra = await extraSource.QueryAsync([edge, terminal, proton], CancellationToken.None);
+    Assert(cachedExtra.Findings.Count == 3 && expandedFixture.Requests == 3,
+        "Edge/Terminal/Proton compartilham cache em memória");
+    var mergedExtras = MultiSourceMatcher.Merge([edge, terminal, proton], null, expanded.Findings);
+    Assert(mergedExtras.Count(x => x.State == MatchState.Candidate) == 3,
+        "As três fontes adicionam candidatos sem simular WinGet");
+}
+OfficialReleaseSources.ClearCacheForTests();
+using (var extraSource = new OfficialReleaseSources(new Fixture(failEdge:true)))
+{
+    var found = await extraSource.QueryAsync([edge, terminal, proton], CancellationToken.None);
+    Assert(found.Findings.Count == 2 &&
+        found.Diagnostics.Any(x => x.Provider == "edge-stable" && x.Status != "ok"),
+        "Falha do serviço Edge não apaga outras fontes");
+}
+OfficialReleaseSources.ClearCacheForTests();
+using (var extraSource = new OfficialReleaseSources(new Fixture(failProton:true)))
+{
+    var found = await extraSource.QueryAsync([edge, terminal, proton], CancellationToken.None);
+    Assert(found.Findings.Count == 2 && found.Diagnostics.Any(x => x.Provider == "proton-pass-desktop" && x.Status != "ok"),
+        "Falha no changelog Proton não apaga Microsoft/GitHub");
+}
+Assert(OfficialReleaseSources.IsAllowedUrl(new Uri("https://edgeupdates.microsoft.com/api/products?view=enterprise")) &&
+    OfficialReleaseSources.IsAllowedUrl(new Uri("https://raw.githubusercontent.com/ProtonMail/WebClients/main/applications/pass-desktop/CHANGELOG.md")) &&
+    !OfficialReleaseSources.IsAllowedUrl(new Uri("https://edgeupdates.microsoft.com.evil.org/")) &&
+    !OfficialReleaseSources.IsAllowedUrl(new Uri("http://raw.githubusercontent.com/")),
+    "Novos domínios somente HTTPS com origem exata");
 Console.WriteLine($"{tests}/{tests} testes de motores múltiplos aprovados");
 if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
 {
@@ -144,7 +193,7 @@ if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
     OfficialReleaseSources.ClearCacheForTests();
     using var source = new OfficialReleaseSources();
     var live = await source.QueryAsync([obs, firefox, notepad, powertoys, shell, sevenzip,
-        desktop, sumatra, thunderbird],
+        desktop, sumatra, thunderbird, edge, terminal, proton],
         new CancellationTokenSource(TimeSpan.FromSeconds(25)).Token, true);
     foreach (var item in live.Diagnostics)
         Console.WriteLine($"FONTE_AO_VIVO {item.Provider} status={item.Status} tempo_ms={item.Milliseconds}");
@@ -153,7 +202,8 @@ if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
         throw new Exception("Nenhum provedor oficial disponível no teste ao vivo.");
 }
 
-internal sealed class Fixture(bool failMozilla = false, bool badTags = false, int delay = 0) : HttpMessageHandler
+internal sealed class Fixture(bool failMozilla = false, bool badTags = false, int delay = 0,
+    bool failEdge = false, bool failProton = false) : HttpMessageHandler
 {
     private int _requests;
     public int Requests => Volatile.Read(ref _requests);
@@ -164,7 +214,27 @@ internal sealed class Fixture(bool failMozilla = false, bool badTags = false, in
         if (delay > 0) await Task.Delay(delay, token);
         var uri = request.RequestUri ?? throw new Exception("URI vazia");
         if (uri.Scheme != "https" || (uri.Host != "api.github.com" &&
-            uri.Host != "product-details.mozilla.org")) throw new Exception("Host não aprovado");
+            uri.Host != "product-details.mozilla.org" &&
+            uri.Host != "edgeupdates.microsoft.com" &&
+            uri.Host != "raw.githubusercontent.com")) throw new Exception("Host não aprovado");
+        if (uri.Host == "edgeupdates.microsoft.com")
+        {
+            if (failEdge) return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            string correctArch = Environment.Is64BitOperatingSystem ? "x64" : "x86";
+            string edgeJson = "[{\"Product\":\"Beta\",\"Releases\":[{\"Platform\":\"Windows\",\"Architecture\":\"" +
+                correctArch + "\",\"ProductVersion\":\"999.0.0.0\"}]},{\"Product\":\"Stable\",\"Releases\":[" +
+                "{\"Platform\":\"MacOS\",\"Architecture\":\"universal\",\"ProductVersion\":\"999.0.0.0\"}," +
+                "{\"Platform\":\"Windows\",\"Architecture\":\"" + correctArch +
+                "\",\"ProductVersion\":\"155.0.4283.62\"}]}]";
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(edgeJson) };
+        }
+        if (uri.Host == "raw.githubusercontent.com")
+        {
+            if (failProton) return new HttpResponseMessage(HttpStatusCode.NotFound);
+            return new HttpResponseMessage(HttpStatusCode.OK) {
+                Content = new StringContent("# Proton Pass desktop\n\n### Version 1.42.0\n- official desktop\n")
+            };
+        }
         if (failMozilla && uri.Host == "product-details.mozilla.org")
             return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
         string body = uri.Host == "product-details.mozilla.org"
@@ -183,6 +253,8 @@ internal sealed class Fixture(bool failMozilla = false, bool badTags = false, in
             ? "{\"tag_name\":\"release-3.6.6\"}"
             : uri.AbsolutePath.Contains("sumatrapdfreader/sumatrapdf")
             ? "{\"tag_name\":\"3.6.1rel\"}"
+            : uri.AbsolutePath.Contains("microsoft/terminal")
+            ? "{\"tag_name\":\"v1.25.2733.0\"}"
             : "{\"tag_name\":\"v7.5.2\"}";
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };
     }
