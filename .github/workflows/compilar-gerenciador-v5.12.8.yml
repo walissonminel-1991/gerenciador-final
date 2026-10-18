@@ -157,7 +157,7 @@ jobs:
           $n = [System.Xml.XmlNamespaceManager]::new($m.NameTable)
           $n.AddNamespace('asm', 'urn:schemas-microsoft-com:asm.v1')
           $identity = $m.SelectSingleNode('/asm:assembly/asm:assemblyIdentity', $n)
-          if ($null -eq $identity -or $identity.GetAttribute('version') -ne '5.12.8') { throw 'Manifesto inválido' }
+          if ($null -eq $identity -or $identity.GetAttribute('version') -ne '5.12.8.0') { throw 'Manifesto inválido' }
       - name: Publicar portatil Windows x64
         shell: pwsh
         run: |
