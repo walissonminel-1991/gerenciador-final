@@ -7,18 +7,61 @@ namespace GerenciadorAplicativos;
 // Apenas GET: não envia a lista de aplicativos instalados, não executa scripts nem instaladores.
 internal sealed class RuckZuckCatalog : IDisposable
 {
-    private readonly HttpClient _http = new(new HttpClientHandler { AllowAutoRedirect = false })
-    {
-        Timeout = TimeSpan.FromSeconds(55)
-    };
+    private readonly HttpClient _http;
     private const int MaximumCatalogBytes = 25 * 1024 * 1024;
+    // Cache somente em memoria: reduz duas solicitações HTTPS e não deixa arquivos no computador.
+    // Instalações e decisões de segurança continuam consultando o Registro atual.
+    private static readonly SemaphoreSlim CacheGate = new(1, 1);
+    private static IReadOnlyList<CatalogEntry>? _memoryCatalog;
+    private static DateTimeOffset _memoryExpires;
+    private static readonly TimeSpan MemoryTtl = TimeSpan.FromMinutes(10);
+    internal bool UsedMemoryCache { get; private set; }
 
-    internal RuckZuckCatalog()
+    internal RuckZuckCatalog(HttpMessageHandler? handler = null)
     {
-        _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.6"));
+        _http = new HttpClient(handler ?? new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            Timeout = TimeSpan.FromSeconds(55)
+        };
+        _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.8"));
     }
 
-    internal async Task<IReadOnlyList<CatalogEntry>> GetCatalogAsync(CancellationToken token)
+    internal async Task<IReadOnlyList<CatalogEntry>> GetCatalogAsync(
+        CancellationToken token, bool forceRefresh = false)
+    {
+        token.ThrowIfCancellationRequested();
+        UsedMemoryCache = false;
+        if (!forceRefresh && _memoryCatalog is { } cached && DateTimeOffset.UtcNow < _memoryExpires)
+        {
+            UsedMemoryCache = true;
+            return cached;
+        }
+        await CacheGate.WaitAsync(token);
+        try
+        {
+            // Outra consulta pode ter preenchido o cache enquanto aguardávamos a trava.
+            if (!forceRefresh && _memoryCatalog is { } existing && DateTimeOffset.UtcNow < _memoryExpires)
+            {
+                UsedMemoryCache = true;
+                return existing;
+            }
+            var catalog = await DownloadCatalogAsync(token);
+            token.ThrowIfCancellationRequested();
+            _memoryCatalog = catalog;
+            _memoryExpires = DateTimeOffset.UtcNow.Add(MemoryTtl);
+            return catalog;
+        }
+        finally { CacheGate.Release(); }
+    }
+
+    // Exercita cache/requisição nos testes sem acessar a rede.
+    internal static void ClearCacheForTests()
+    {
+        _memoryCatalog = null;
+        _memoryExpires = default;
+    }
+
+    private async Task<IReadOnlyList<CatalogEntry>> DownloadCatalogAsync(CancellationToken token)
     {
         var location = await DownloadStringAsync(new Uri("https://ruckzuck.tools/rest/v2/geturl"), token, 4096);
         location = location.Trim().Trim('"');
@@ -36,23 +79,24 @@ internal sealed class RuckZuckCatalog : IDisposable
         var json = await DownloadStringAsync(catalogUri, token, MaximumCatalogBytes);
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         using var document = JsonDocument.Parse(json);
-        if (document.RootElement.ValueKind == JsonValueKind.String)
+        JsonDocument? innerDocument = null;
+        try
         {
-            // O endpoint também pode retornar JSON encapsulado em uma string JSON.
-            var inner = document.RootElement.GetString() ?? "";
-            if (inner.Length > MaximumCatalogBytes ||
-                !inner.TrimStart().StartsWith("[", StringComparison.Ordinal))
-                throw new InvalidDataException("Resposta textual do catálogo não contém lista JSON válida.");
-            using var nested = JsonDocument.Parse(inner);
-            if (nested.RootElement.ValueKind != JsonValueKind.Array)
-                throw new InvalidDataException("Resposta interna do catálogo não contém lista JSON.");
-            json = inner;
-        }
-        else if (document.RootElement.ValueKind != JsonValueKind.Array)
-            throw new InvalidDataException($"O catálogo não retornou uma lista de produtos (tipo={document.RootElement.ValueKind}).");
-        using var rows = JsonDocument.Parse(json);
-        var entries = new List<CatalogEntry>();
-        foreach (var item in rows.RootElement.EnumerateArray())
+            JsonElement rows = document.RootElement;
+            if (rows.ValueKind == JsonValueKind.String)
+            {
+                // Alguns espelhos retornam JSON como string; uma segunda leitura só nesse caso.
+                var inner = rows.GetString() ?? "";
+                if (inner.Length > MaximumCatalogBytes ||
+                    !inner.TrimStart().StartsWith("[", StringComparison.Ordinal))
+                    throw new InvalidDataException("Resposta textual do catálogo não contém lista JSON válida.");
+                innerDocument = JsonDocument.Parse(inner);
+                rows = innerDocument.RootElement;
+            }
+            if (rows.ValueKind != JsonValueKind.Array)
+                throw new InvalidDataException($"O catálogo não retornou uma lista de produtos (tipo={rows.ValueKind}).");
+            var entries = new List<CatalogEntry>();
+            foreach (var item in rows.EnumerateArray())
         {
             if (item.ValueKind == JsonValueKind.Object)
             {
@@ -73,9 +117,11 @@ internal sealed class RuckZuckCatalog : IDisposable
                 catch (JsonException) { /* Ignora somente registro inválido. */ }
             }
         }
-        if (entries.Count == 0)
-            throw new InvalidDataException($"O catálogo não possui entradas reconhecíveis (registros={rows.RootElement.GetArrayLength()}).");
-        return entries;
+            if (entries.Count == 0)
+                throw new InvalidDataException($"O catálogo não possui entradas reconhecíveis (registros={rows.GetArrayLength()}).");
+            return entries.ToArray();
+        }
+        finally { innerDocument?.Dispose(); }
     }
 
     private static bool TryCreateEntry(JsonElement item, out CatalogEntry result)
