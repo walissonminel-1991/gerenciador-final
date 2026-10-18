@@ -60,6 +60,8 @@ internal sealed class ProgramEntry
     public string UninstallString { get; init; } = "";
     public string QuietUninstallString { get; init; } = "";
     public string PackageId { get; set; } = "";
+    // Entrada de inventário MSIX ou componente protegido: sem desinstalação direta.
+    public bool InventoryOnly { get; init; }
     public string AvailableVersion { get; set; } = "";
     public string Source { get; set; } = "";
     public bool IsUpdate { get; set; }
@@ -195,7 +197,9 @@ internal static class AppServices
                         if (child is null) continue;
                         string name = Convert.ToString(child.GetValue("DisplayName"))?.Trim() ?? "";
                         if (string.IsNullOrWhiteSpace(name)) continue;
-                        if (Convert.ToInt32(child.GetValue("SystemComponent") ?? 0) == 1) continue;
+                        bool systemComponent = Convert.ToInt32(child.GetValue("SystemComponent") ?? 0) == 1;
+                        if (systemComponent && !name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase))
+                            continue;
                         string releaseType = Convert.ToString(child.GetValue("ReleaseType")) ?? "";
                         if (releaseType.Equals("Update", StringComparison.OrdinalIgnoreCase) ||
                             releaseType.Equals("Security Update", StringComparison.OrdinalIgnoreCase) ||
@@ -206,7 +210,9 @@ internal static class AppServices
                             Version = Convert.ToString(child.GetValue("DisplayVersion"))?.Trim() ?? "",
                             Publisher = Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "",
                             UninstallString = Convert.ToString(child.GetValue("UninstallString")) ?? "",
-                            QuietUninstallString = Convert.ToString(child.GetValue("QuietUninstallString")) ?? ""
+                            QuietUninstallString = systemComponent ? "" :
+                                Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
+                            InventoryOnly = systemComponent
                         });
                     }
                     catch { /* Ignora entradas de registro incompletas. */ }
@@ -557,7 +563,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.11 TESTE";
+        Text = "Gerenciador Final — v5.12.12 TESTE";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1280, 860);
         MinimumSize = new Size(970, 690);
@@ -897,6 +903,8 @@ internal sealed partial class MainForm : Form
             ? $"Revisar: versões principais diferentes · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} (coexistem)"
             : Matching.IsUncertain(item.ComparisonState)
             ? $"Resultado incerto (RuckZuck)  ·  Versão: {DisplayAppVersion(item.Version)}"
+            : item.InventoryOnly
+            ? $"Versão: {DisplayAppVersion(item.Version)} · Componente Windows/Store (somente leitura)"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
             new Rectangle(left, e.Bounds.Top + 36, Math.Max(20, e.Bounds.Width - left + e.Bounds.Left - 350), 25),
@@ -914,8 +922,9 @@ internal sealed partial class MainForm : Form
                     DrawRowButton(e.Graphics, AppRowGeometry.SiteButton(e.Bounds), "Site", AppServices.Gray,
                         _programList.ActionVisual(item, "site"));
             }
-            DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red,
-                _programList.ActionVisual(item, "uninstall"));
+            if (!item.InventoryOnly)
+                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red,
+                    _programList.ActionVisual(item, "uninstall"));
         }
     }
 
@@ -1430,8 +1439,27 @@ internal sealed partial class MainForm : Form
         List<ProgramEntry> items;
         try
         {
-            items = await Task.Run(AppServices.GetInstalledPrograms);
+            var scan = await Task.Run(() =>
+            {
+                var records = AppServices.GetInstalledPrograms();
+                var msix = LocalMsixInventory.ReadCurrentUser();
+                var present = records.Select(x =>
+                    new InstalledApp(x.Name, x.Version, x.Publisher)).ToArray();
+                var additions = LocalMsixInventory.MergeWithRegistry(msix.Items, present);
+                records.AddRange(additions.Select(x => new ProgramEntry
+                {
+                    Name = x.Name,
+                    Version = x.Version,
+                    Publisher = x.Publisher,
+                    InventoryOnly = true
+                }));
+                return (Items: records, Msix: msix, Added: additions.Count);
+            });
+            items = scan.Items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
             DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count}");
+            DiagnosticTrace.Write($"MSIX.LEITURA status={scan.Msix.Status} enumerados={scan.Msix.Seen} " +
+                $"reconhecidos={scan.Msix.Items.Count} adicionados={scan.Added}");
+            Log($"Inventário local: {scan.Added} aplicativo(s) MSIX reconhecido(s) adicionado(s).");
         }
         catch (Exception ex)
         {
