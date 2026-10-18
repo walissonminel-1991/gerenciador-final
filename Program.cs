@@ -579,7 +579,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.12.24 TESTE";
+        Text = "Gerenciador Final — v5.13.0 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -1254,8 +1254,9 @@ internal sealed partial class MainForm : Form
         _actionControls.Add(_refreshDisksButton);
         heading.Controls.Add(_refreshDisksButton, 2, 0);
         root.Controls.Add(heading, 0, 0);
-        var previewRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, BackColor = PanelBackground };
-        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 184));
+        var previewRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, BackColor = PanelBackground };
+        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
+        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var previewButton = CreateSecondaryButton("Analisar limpeza");
         previewButton.Dock = DockStyle.Fill;
@@ -1263,12 +1264,21 @@ internal sealed partial class MainForm : Form
         previewButton.Click += async (_, _) => await ShowCleanupPreviewAsync();
         _actionControls.Add(previewButton);
         previewRow.Controls.Add(previewButton, 0, 0);
-        _cleanupPreview.Text = "Calcular espaço elegível sem apagar arquivos.";
+        var fullAudit = CreateSecondaryButton("Diagnóstico completo");
+        fullAudit.Dock = DockStyle.Fill;
+        fullAudit.Margin = new Padding(0, 5, 8, 5);
+        fullAudit.Click += async (_, _) =>
+            await ExecuteAsync("Analisando instalações e dispositivos...", RunMaintenanceAuditAsync);
+        _toolTips.SetToolTip(fullAudit, "Revisa o inventário, os desinstaladores, " +
+            "os registros de hardware desconectado e dispositivos com problemas. Não remove nada.");
+        _actionControls.Add(fullAudit);
+        previewRow.Controls.Add(fullAudit, 1, 0);
+        _cleanupPreview.Text = "Analisar espaço e dispositivos sem apagar dados.";
         _cleanupPreview.Dock = DockStyle.Fill;
         _cleanupPreview.ForeColor = Muted;
         _cleanupPreview.TextAlign = ContentAlignment.MiddleLeft;
         _cleanupPreview.AutoEllipsis = true;
-        previewRow.Controls.Add(_cleanupPreview, 1, 0);
+        previewRow.Controls.Add(_cleanupPreview, 2, 0);
         root.Controls.Add(previewRow, 0, 1);
         _diskSummary.Text = "Consulte o espaço livre e ocupado das unidades locais.";
         _diskSummary.Dock = DockStyle.Fill;
@@ -2365,6 +2375,37 @@ internal sealed partial class MainForm : Form
                 ? "Limpeza avançada concluída para alvos conhecidos. Outros vestígios podem permanecer."
                 : "Limpeza avançada parcial. Dados protegidos ou inacessíveis foram preservados.");
         }
+    }
+
+    private async Task RunMaintenanceAuditAsync()
+    {
+        Status("Conferindo instalações registradas e dispositivos do Windows...");
+        DiagnosticTrace.Write("DIAGNOSTICO_COMPLETO.INICIO");
+        var apps = await Task.Run(AppServices.GetInstalledPrograms);
+        var report = await Task.Run(() => MaintenanceAudit.Inspect(apps));
+        DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} parcial={report.Devices.Partial}");
+        Log($"DIAGNÓSTICO COMPLETO: {report.Installed} programas; " +
+            $"{report.Recognized} identificados pelo catálogo; " +
+            $"{report.UsableUninstallers} desinstaladores localizados; " +
+            $"{report.MissingUninstallers} caminhos de desinstalação ausentes; " +
+            $"{report.UnverifiableUninstallers} comandos não verificáveis.");
+        if (report.Devices.Supported)
+        {
+            Log($"DISPOSITIVOS: {report.Devices.Queried} examinados; " +
+                $"{report.Devices.Disconnected} desconectados (NÃO significa driver inútil); " +
+                $"{report.Devices.WithProblems} presentes com código de problema.");
+            foreach (string group in report.Devices.Categories)
+                Log("  Classe PnP: " + group);
+        }
+        else
+            Log("Consulta PnP indisponível ou parcial. Não é possível concluir sobre drivers antigos.");
+        foreach (var issue in report.Concerns)
+            Log("Revisar: " + issue.Category + " — " + issue.Name + ": " + issue.Description);
+        Log("Nenhum driver, arquivo de instalação ou chave de Registro foi removido pelo diagnóstico.");
+        Status(report.Devices.Partial
+            ? "Diagnóstico parcial: algumas informações de hardware estão indisponíveis. Consulte o registro."
+            : $"Diagnóstico concluído: {report.MissingUninstallers} desinstaladores ausentes e " +
+              $"{report.Devices.Disconnected} dispositivos desconectados para revisão.");
     }
 
     private async Task ReviewOldUninstallResiduesAsync()
