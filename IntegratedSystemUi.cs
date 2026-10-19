@@ -20,10 +20,9 @@ internal sealed partial class MainForm
     private Button? _installSelectedUpdates;
     private readonly HashSet<string> _updateSelection = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<WinUpdateChoice> _updateCatalog = Array.Empty<WinUpdateChoice>();
-    private readonly ProcessHistorySampler _processSampler = new();
+    private readonly ProcessMonitorSampler _processSampler = new();
     private readonly System.Windows.Forms.Timer _processTimer = new() { Interval = 5000 };
     private bool _processSampling;
-    private SystemInfoSnapshot? _latestProcessSnapshot;
     private bool _windowsUpdateScanning;
     private bool _windowsUpdateChecked;
     private string? _windowsUpdateScanFailure;
@@ -113,6 +112,7 @@ internal sealed partial class MainForm
         _systemPanelCards.Resize += (_, _) => ResizeIntegratedCards();
         var contentHost = new Panel { Dock = DockStyle.Fill, BackColor = PanelBackground, Margin = Padding.Empty };
         contentHost.Controls.Add(_systemPanelCards);
+        contentHost.Controls.Add(BuildProcessMonitorView());
         _hardwareGrid = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3,
@@ -125,11 +125,17 @@ internal sealed partial class MainForm
         contentHost.Controls.Add(_hardwareGrid);
         _systemPanelCards.BringToFront();
         details.Controls.Add(contentHost, 0, 3);
+        SetSystemView("processes");
         root.Controls.Add(details, 0, 1);
 
         _processTimer.Tick += async (_, _) =>
         {
             if (_processSampling || IsDisposed) return;
+            // Nenhuma consulta continua em alta frequencia quando a janela
+            // esta oculta na bandeja ou quando outra aba esta selecionada.
+            bool visible = Visible && !IsInTray && _nav.SelectedIndex == 5 &&
+                           _activeSystemView == "processes";
+            _processTimer.Interval = visible ? 2000 : 5000;
             await RefreshProcessHistoryAsync();
         };
         FormClosed += (_, _) => _processTimer.Dispose();
@@ -141,11 +147,17 @@ internal sealed partial class MainForm
         _activeSystemView = view; // Amostragem segue em memória para ter histórico ao abrir a aba.
         if (_systemDetails is null || _installSelectedUpdates is null) return;
         bool showInstall = view == "update";
+        bool showProcesses = view == "processes";
+        _systemDetails.RowStyles[1].Height = showProcesses ? 43 : 30;
         _systemDetails.RowStyles[2].Height = showInstall ? 43 : 0;
+        _processTimer.Interval = showProcesses && _nav.SelectedIndex == 5 &&
+            Visible && !IsInTray ? 2000 : 5000;
         _installSelectedUpdates.Visible = showInstall;
         if (_exportHardwareButton is not null) _exportHardwareButton.Visible = view == "hardware" && _hardwareGroups.Count > 0;
         if (_hardwareGrid is not null) _hardwareGrid.Visible = view == "hardware";
-        if (_systemPanelCards is not null) _systemPanelCards.Visible = view != "hardware";
+        if (_processMonitorView is not null) _processMonitorView.Visible = showProcesses;
+        if (_systemPanelCards is not null)
+            _systemPanelCards.Visible = view != "hardware" && !showProcesses;
         _systemDetails.PerformLayout();
     }
 
@@ -494,13 +506,13 @@ internal sealed partial class MainForm
         if (IsDisposed) return;
         _processTimer.Start();
         _ = RefreshProcessHistoryAsync();
-        Log("Monitor de processos iniciado automaticamente (somente memória, a cada 5 segundos).");
+        Log("Monitor de processos iniciado (somente leitura; 2 s na aba Processos e 5 s em segundo plano).");
     }
 
     private void ShowCachedProcessesIfAvailable()
     {
-        if (_latestProcessSnapshot is not null && !IsDisposed)
-            ShowIntegratedSnapshot(_latestProcessSnapshot);
+        if (_lastMonitorSnapshot is not null && !IsDisposed)
+            ShowProcessMonitorSnapshot(_lastMonitorSnapshot);
     }
 
     private async Task ScanWindowsUpdatesAsync()
@@ -668,11 +680,11 @@ internal sealed partial class MainForm
         {
             var snapshot = await Task.Run(_processSampler.TakeSample);
             if (IsDisposed) return;
-            _latestProcessSnapshot = snapshot;
+            _lastMonitorSnapshot = snapshot;
             if (_activeSystemView == "processes" && _nav.SelectedIndex == 5)
             {
-                ShowIntegratedSnapshot(snapshot);
-                Status("Histórico de processos atualizado");
+                ShowProcessMonitorSnapshot(snapshot);
+                // Status nao muda continuamente: evita piscar a area REGISTRO.
             }
         }
         catch (Exception ex) { if (!IsDisposed) Log("Histórico de processos: " + ex.GetType().Name); }
