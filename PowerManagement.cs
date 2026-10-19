@@ -202,18 +202,18 @@ internal sealed partial class MainForm
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1,
-            Padding = new Padding(12, 12, 12, 12), Margin = Padding.Empty,
+            Padding = new Padding(8, 6, 8, 6), Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 238));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 104));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 203));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 85));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
             BackColor = AppServices.Background };
-        header.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        header.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
         header.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         header.Controls.Add(new Label { Text = "PLANOS DE ENERGIA", Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", 13F, FontStyle.Bold), ForeColor = Ink,
@@ -234,10 +234,10 @@ internal sealed partial class MainForm
         root.Controls.Add(grid, 0, 1);
 
         var hibernate = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 2,
-            BackColor = PanelBackground, Padding = new Padding(14, 12, 14, 10), Margin = new Padding(5, 5, 5, 0) };
+            BackColor = PanelBackground, Padding = new Padding(11, 7, 11, 7), Margin = new Padding(3, 3, 3, 0) };
         hibernate.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         hibernate.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
-        hibernate.RowStyles.Add(new RowStyle(SizeType.Absolute, 35));
+        hibernate.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         hibernate.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         hibernate.Controls.Add(new Label { Text = "HIBERNAÇÃO", Dock = DockStyle.Fill, ForeColor = Ink,
             Font = new Font("Segoe UI", 10.5F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
@@ -275,11 +275,11 @@ internal sealed partial class MainForm
     private Control PowerCard(string key, string title, string description, Color accent)
     {
         var card = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1,
-            BackColor = PanelBackground, Padding = new Padding(14, 9, 14, 9), Margin = new Padding(5, 5, 5, 5) };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 37));
+            BackColor = PanelBackground, Padding = new Padding(9, 6, 9, 5), Margin = new Padding(3, 3, 3, 4) };
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 39));
         card.Controls.Add(new Label { Text = title, Dock = DockStyle.Fill, ForeColor = Ink,
             Font = new Font("Segoe UI", 11F, FontStyle.Bold),
             AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
