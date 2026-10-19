@@ -23,6 +23,14 @@ Check(shiftedDesktop.Left >= -1920 && shiftedDesktop.Right <= 0 &&
 Check(smallDesktop.Width == 875 && smallDesktop.Height == 720 &&
       StartupWindowSizing.AllowedMinimum(smallDesktop).Width <= smallDesktop.Width,
     "Nao iniciar fora de monitores menores");
+var compactWindowArea = new System.Drawing.Rectangle(0, 0, 1366, 720);
+var compactWindow = StartupWindowSizing.Fit(compactWindowArea);
+Check(compactWindow.Width == 875 && compactWindow.Height == 674 &&
+      (long)compactWindow.Width * compactWindow.Height <=
+          3L * compactWindowArea.Width * compactWindowArea.Height / 5L,
+    "Em 1366x768, a janela ocupa no maximo 60 por cento da area util");
+Check(!StartupWindowSizing.ApplyAreaLimit(new System.Drawing.Rectangle(0, 0, 1024, 720)),
+    "Abaixo de 1366x768, a janela pode ocupar area maior para permitir uso");
 var referenceDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1440, 852));
 Check(referenceDesktop.Size == new System.Drawing.Size(875, 745) &&
       referenceDesktop.X == 282 && referenceDesktop.Y == 53,
