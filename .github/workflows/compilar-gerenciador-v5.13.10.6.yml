@@ -378,8 +378,9 @@ jobs:
               -not $maintenance.Contains('!device.Partial')) {
             throw 'Histórico PnP não pode ser comparado contra consulta WMI incompleta'
           }
-          if (-not $ui.Contains('previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 248))')) {
-            throw 'Botão Diagnóstico completo continua cortado'
+          if (-not $ui.Contains('previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 204))') -or
+              -not $ui.Contains('AllowMultilineText = true')) {
+            throw 'Botão Diagnóstico completo precisa de 204 px e texto multilinha'
           }
           if (-not $ui.Contains('REGISTRO PnP:') -or
               -not $ui.Contains('WithPublisher') -or
