@@ -24,3 +24,9 @@ Para reduzir o risco de dano, o projeto não se propõe a desligar serviços de
 segurança, desativar integridade do Windows, apagar registros de diagnóstico
 ou aplicar em massa ajustes de Registro e inicialização para “otimização”.
 As ações administrativas disponíveis são específicas, visíveis e confirmadas.
+
+## Integração nativa de proteção (v5.13.10.15 TESTE)
+
+A consulta no Diagnóstico completo usa `WscGetSecurityProviderHealth` da biblioteca oficial `wscapi.dll`. Apresenta somente o estado agregado de proteção antivírus e firewall que o próprio Windows informa. Não identifica especificamente AVG, não executa varredura, não cria mecanismos de antivírus, não altera proteções nem substitui solução existente. `S_FALSE`, erros e estados não monitorados são classificados como indeterminados, nunca como evidência de infecção.
+
+O AVG CyberCapture bloqueou uma compilação portátil anterior e a encaminhou para análise. Enquanto não houver parecer, **não tentar contornar o bloqueio, desativar o AVG, adicionar exceções globais ou distribuir a versão como aprovada**. Assinatura, dependências, proveniência e relatórios de falso positivo exigem verificação independente.
