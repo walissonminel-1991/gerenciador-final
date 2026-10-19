@@ -674,7 +674,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.11 TESTE";
+        Text = "Gerenciador Final — v5.13.10.12 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -882,13 +882,12 @@ internal sealed partial class MainForm : Form
 
         var searchBar = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty,
+            Dock = DockStyle.Fill, ColumnCount = 3, Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
-        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 134));
         searchBar.Controls.Add(new Label
         {
             Text = "Pesquisar:", Dock = DockStyle.Fill, ForeColor = Muted,
@@ -908,24 +907,17 @@ internal sealed partial class MainForm : Form
         clear.Click += (_, _) => _search.Clear();
         _toolTips.SetToolTip(clear, "Apaga apenas o texto da pesquisa.");
         searchBar.Controls.Add(clear, 2, 0);
-        var refresh = CreateButton("Atualizar lista", AppServices.Blue, Color.White);
-        refresh.Dock = DockStyle.Fill;
-        refresh.Margin = new Padding(0, 3, 0, 3);
-        refresh.Click += async (_, _) => await ExecuteAsync("Atualizando lista local...", RefreshCatalogAsync);
-        _toolTips.SetToolTip(refresh, "Recarrega somente os programas instalados no Windows. Não consulta a internet.");
-        _actionControls.Add(refresh);
-        searchBar.Controls.Add(refresh, 3, 0);
+        // A pesquisa contém apenas o campo e Limpar; recarregar o catálogo é
+        // uma operação de gerenciamento e fica junto das demais ações.
         root.Controls.Add(searchBar, 0, 0);
 
         var actions = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 1,
             BackColor = AppServices.Background, Margin = new Padding(0, 2, 0, 2)
         };
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 206));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 161));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 196));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132));
+        foreach (int width in new[] { 142, 206, 161, 196, 132 })
+            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, width));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Button MakeAction(string title, Color color, int column, Action onClick)
         {
@@ -939,29 +931,40 @@ internal sealed partial class MainForm : Form
             _actionControls.Add(b);
             return b;
         }
-        // A consulta é uma ação explícita; não abre janelas de confirmação.
-        // Permanece clicável durante a busca para permitir cancelamento.
-        _checkUpdatesButton = MakeAction("Verificar atualizações", AppServices.Blue, 0, () => _ = CheckUpdatesFromButtonAsync());
+        var refresh = MakeAction("Atualizar lista", AppServices.Blue, 0,
+            () => _ = ExecuteAsync("Atualizando lista local...", RefreshCatalogAsync));
+        _toolTips.SetToolTip(refresh,
+            "Atualiza apenas o inventário local de programas. Não consulta a internet.");
+
+        // Verificar atualizações é distinto de recarregar a lista local.
+        // Permanece clicável durante a consulta para permitir cancelamento.
+        _checkUpdatesButton = MakeAction("Verificar atualizações", AppServices.Blue, 1,
+            () => _ = CheckUpdatesFromButtonAsync());
         _actionControls.Remove(_checkUpdatesButton);
         _toolTips.SetToolTip(_checkUpdatesButton,
             "Consulta HTTPS a fontes oficiais e RuckZuck. Não instala nem atualiza nada; " +
             "as fontes recebem dados normais de conexão. Os resultados são candidatos, não garantias.");
-        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 1, ToggleMultiSelection);
-        _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 2,
+        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 2, ToggleMultiSelection);
+        _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 3,
             () => _ = ExecuteAsync("Desinstalando selecionados...", UninstallCheckedAsync));
-        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 3, ClearMultiSelection);
+        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 4, ClearMultiSelection);
         _toolTips.SetToolTip(_bulkUninstallButton, "Solicita confirmação e desinstala os programas marcados, um por vez.");
         root.Controls.Add(actions, 0, 1);
-        // Em 800x600 o limite universal de 60% resulta numa janela
-        // naturalmente estreita. Distribuir as quatro acoes em duas
-        // linhas em vez de perder botoes para fora da area visivel.
+        // Distribuir os cinco comandos em duas linhas somente quando
+        // necessário; a busca permanece numa faixa separada, sem botões
+        // deslocados para o canto direito.
         bool? lastCompactActions = null;
         void FitActionRows()
         {
-            int threshold = (int)Math.Ceiling(735d * Math.Max(1, root.DeviceDpi) / 96d);
-            bool compact = root.ClientSize.Width < threshold;
+            double scale = Math.Max(1.0, root.DeviceDpi / 96d);
+            bool compact = root.ClientSize.Width < (int)Math.Ceiling(870 * scale);
             if (lastCompactActions == compact) return;
             lastCompactActions = compact;
+            var buttons = new Button[]
+            {
+                refresh, _checkUpdatesButton, _selectManyButton,
+                _bulkUninstallButton, _clearSelectionButton
+            };
             root.SuspendLayout();
             actions.SuspendLayout();
             try
@@ -969,41 +972,41 @@ internal sealed partial class MainForm : Form
                 actions.RowStyles.Clear();
                 if (compact)
                 {
-                    root.RowStyles[1].Height = 68;
+                    root.RowStyles[1].Height = (int)Math.Ceiling(76 * scale);
                     actions.RowCount = 2;
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-                    for (int i = 0; i < 4; i++)
+                    for (int i = 0; i < 6; i++)
                     {
                         actions.ColumnStyles[i].SizeType = SizeType.Percent;
-                        actions.ColumnStyles[i].Width = 25;
+                        actions.ColumnStyles[i].Width = 100F / 6F;
                     }
-                    actions.ColumnStyles[4].SizeType = SizeType.Percent;
-                    actions.ColumnStyles[4].Width = 0;
-                    Button[] buttons = { _checkUpdatesButton, _selectManyButton,
-                        _bulkUninstallButton, _clearSelectionButton };
+                    // Primeira linha: atualizar, verificar e selecionar.
+                    // Segunda linha: desinstalar selecionados e limpar seleção.
+                    for (int i = 0; i < buttons.Length; i++)
+                        actions.SetColumnSpan(buttons[i], 1);
                     for (int i = 0; i < buttons.Length; i++)
                     {
-                        actions.SetColumnSpan(buttons[i], 2);
+                        int span = i < 3 ? 2 : 3;
                         actions.SetCellPosition(buttons[i],
-                            new TableLayoutPanelCellPosition((i % 2) * 2, i / 2));
+                            new TableLayoutPanelCellPosition(
+                                i < 3 ? i * 2 : (i - 3) * 3, i < 3 ? 0 : 1));
+                        actions.SetColumnSpan(buttons[i], span);
                     }
                 }
                 else
                 {
-                    root.RowStyles[1].Height = 44;
+                    root.RowStyles[1].Height = (int)Math.Ceiling(44 * scale);
                     actions.RowCount = 1;
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                    int[] widths = { 206, 161, 196, 132 };
-                    for (int i = 0; i < 4; i++)
+                    int[] widths = { 142, 206, 161, 196, 132 };
+                    for (int i = 0; i < 5; i++)
                     {
                         actions.ColumnStyles[i].SizeType = SizeType.Absolute;
-                        actions.ColumnStyles[i].Width = widths[i];
+                        actions.ColumnStyles[i].Width = (int)Math.Ceiling(widths[i] * scale);
                     }
-                    actions.ColumnStyles[4].SizeType = SizeType.Percent;
-                    actions.ColumnStyles[4].Width = 100;
-                    Button[] buttons = { _checkUpdatesButton, _selectManyButton,
-                        _bulkUninstallButton, _clearSelectionButton };
+                    actions.ColumnStyles[5].SizeType = SizeType.Percent;
+                    actions.ColumnStyles[5].Width = 100;
                     for (int i = 0; i < buttons.Length; i++)
                     {
                         actions.SetColumnSpan(buttons[i], 1);
