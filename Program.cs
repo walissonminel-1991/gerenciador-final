@@ -1334,9 +1334,15 @@ internal sealed partial class MainForm : Form
             var button = CreateButton(tool.Name, tool.Color, Color.White);
             if (button is ModernButton modernButton)
                 modernButton.AllowMultilineText = false;
-            button.Dock = DockStyle.Fill;
+            // Um titulo curto nao precisa ocupar todo o cartao.
+            // Largura proporcional ao texto, mantendo espaco clicavel.
+            int preferredButtonWidth = TextRenderer.MeasureText(
+                tool.Name, button.Font).Width + 24;
+            button.Dock = DockStyle.None;
+            button.Anchor = AnchorStyles.Left | AnchorStyles.Top;
+            button.Size = new Size(Math.Clamp(preferredButtonWidth, 112, 215), 30);
             button.Margin = Padding.Empty;
-            button.MinimumSize = new Size(0, 30);
+            button.MinimumSize = new Size(0, 29);
             button.AccessibleName = tool.Name;
             button.AccessibleDescription = tool.Description;
             _toolTips.SetToolTip(button, tool.Description);
