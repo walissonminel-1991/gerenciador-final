@@ -52,6 +52,20 @@ internal static class LayoutTests
                 nav.SelectTab(tab);
                 Application.DoEvents();
 
+                // Somente a pagina pode rolar quando o conteudo ultrapassar
+                // seu viewport; ferramentas e discos embutidos jamais mostram
+                // uma segunda barra vertical.
+                foreach (var flow in Descendants(form).OfType<DarkScrollableFlow>())
+                {
+                    if (flow.EmbeddedInPage && flow.HasVerticalScrollbar)
+                        throw new Exception($"Rolagem duplicada: {name} aba={tab}");
+                    if (flow.IsPageViewport && flow.Visible &&
+                        flow.Content.Controls.Count == 1 &&
+                        flow.Content.Controls[0].Height <= flow.ClientSize.Height &&
+                        flow.HasVerticalScrollbar)
+                        throw new Exception($"Rolagem fantasma: {name} aba={tab}");
+                }
+
                 var allButtons = Descendants(form).OfType<Button>()
                     .Where(b => b.Visible).ToArray();
                 // A aba Energia so habilita seus comandos depois de consultar
@@ -114,6 +128,11 @@ internal static class LayoutTests
         if (programList.ItemHeight > 70)
             throw new Exception("Lista de programas ainda usa linhas excessivamente altas.");
         nav.SelectTab(4);
+        Application.DoEvents();
+        var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
+            .Where(flow => flow.IsPageViewport).ToArray();
+        if (pageViewports.Length != 4)
+            throw new Exception($"Esperadas quatro paginas com rolagem controlada; encontradas {pageViewports.Length}");
         var systemCards = Descendants(form).OfType<DarkScrollableFlow>()
             .SelectMany(flow => flow.Content.Controls.Cast<Control>());
         if (systemCards.Any(c => c is TableLayoutPanel panel &&
