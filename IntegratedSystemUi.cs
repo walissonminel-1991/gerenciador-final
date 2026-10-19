@@ -34,9 +34,9 @@ internal sealed partial class MainForm
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, BackColor = AppServices.Background,
-            ColumnCount = 1, RowCount = 2, Padding = new Padding(8, 8, 8, 6)
+            ColumnCount = 1, RowCount = 2, Padding = new Padding(5, 5, 5, 4)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 73));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var actions = new TableLayoutPanel
@@ -68,12 +68,12 @@ internal sealed partial class MainForm
         var details = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, BackColor = PanelBackground,
-            ColumnCount = 1, RowCount = 4, Padding = new Padding(12, 9, 12, 10),
-            Margin = new Padding(4, 5, 4, 0)
+            ColumnCount = 1, RowCount = 4, Padding = new Padding(8, 6, 8, 5),
+            Margin = new Padding(2, 2, 2, 0)
         };
         _systemDetails = details;
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 31));
+        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         details.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         details.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
@@ -155,10 +155,10 @@ internal sealed partial class MainForm
         var card = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, BackColor = PanelBackground,
-            ColumnCount = 1, RowCount = 2, Margin = new Padding(4, 4, 8, 9),
-            Padding = new Padding(7, 5, 7, 4)
+            ColumnCount = 1, RowCount = 2, Margin = new Padding(2, 2, 3, 4),
+            Padding = new Padding(4, 3, 4, 2)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var button = CreateButton(caption, color, Color.White);
         button.Dock = DockStyle.Fill;
@@ -178,8 +178,8 @@ internal sealed partial class MainForm
         card.Controls.Add(new Label
         {
             Text = description, Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 8.2F), TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(2, 3, 2, 0)
+            Font = new Font("Segoe UI", 8.1F), TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(1, 1, 1, 0)
         }, 0, 1);
         parent.Controls.Add(card, column, 0);
     }
@@ -382,23 +382,23 @@ internal sealed partial class MainForm
     {
         var panel = new TableLayoutPanel
         {
-            Width = 390, Height = 133, RowCount = 2, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 3, 13, 11),
-            Padding = new Padding(12, 8, 12, 7)
+            Width = 390, Height = 104, RowCount = 2, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
+            Padding = new Padding(9, 5, 9, 4)
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var title = new Label
         {
             Text = entry.Title, Dock = DockStyle.Fill,
             ForeColor = Ink, Font = new Font("Segoe UI", 9.6F, FontStyle.Bold),
-            AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft
+            AutoEllipsis = false, TextAlign = ContentAlignment.MiddleLeft
         };
         var detail = new Label
         {
             Text = entry.Description, Dock = DockStyle.Fill,
             ForeColor = Muted, Font = new Font("Segoe UI", 8.7F),
-            AutoEllipsis = true, TextAlign = ContentAlignment.TopLeft,
+            AutoEllipsis = false, TextAlign = ContentAlignment.TopLeft,
             Padding = new Padding(0, 4, 0, 0)
         };
         _toolTips.SetToolTip(title, entry.Title);
@@ -443,17 +443,17 @@ internal sealed partial class MainForm
     {
         var card = new TableLayoutPanel
         {
-            Width = 390, Height = 144, RowCount = 3, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 3, 13, 11),
-            Padding = new Padding(10, 8, 10, 8)
+            Width = 390, Height = 123, RowCount = 3, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
+            Padding = new Padding(8, 5, 8, 5)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
         var name = new Label { Text = item.Name, Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 9.6F, FontStyle.Bold), AutoEllipsis = true };
+            Font = new Font("Segoe UI", 9.6F, FontStyle.Bold), AutoEllipsis = false };
         var desc = new Label { Text = item.Details, Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 8.3F), AutoEllipsis = true };
+            Font = new Font("Segoe UI", 8.3F), AutoEllipsis = false };
         _toolTips.SetToolTip(desc, item.Details);
         card.Controls.Add(name, 0, 0);
         card.Controls.Add(desc, 0, 1);
@@ -584,15 +584,15 @@ internal sealed partial class MainForm
     {
         var card = new TableLayoutPanel
         {
-            Width = 390, Height = 144, RowCount = 3, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 3, 13, 11),
-            Padding = new Padding(11, 7, 11, 7)
+            Width = 390, Height = 125, RowCount = 3, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
+            Padding = new Padding(8, 5, 8, 5)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
         card.Controls.Add(new Label { Text = update.Title, Dock = DockStyle.Fill,
-            ForeColor = Ink, Font = new Font("Segoe UI", 9.3F, FontStyle.Bold), AutoEllipsis = true }, 0, 0);
+            ForeColor = Ink, Font = new Font("Segoe UI", 9.3F, FontStyle.Bold), AutoEllipsis = false }, 0, 0);
         var details = new Label { Text = (update.Kb.Length > 0 ? update.Kb + " · " : "") +
             (update.Downloaded ? "Baixada" : "Download necessário") +
             (update.EulaAccepted ? " · Licença já aceita" : " · Licença pendente"),
