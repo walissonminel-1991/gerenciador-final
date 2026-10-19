@@ -167,6 +167,11 @@ internal sealed partial class MainForm
         return panel;
     }
 
+    // Permite exercitar o monitor no runner Windows sem iniciar servicos
+    // nem depender do consumo real do PC do usuario.
+    internal void PreviewProcessSnapshotForTests(ProcessMonitorSnapshot snapshot) =>
+        ShowProcessMonitorSnapshot(snapshot);
+
     private void ShowProcessMonitorSnapshot(ProcessMonitorSnapshot snapshot)
     {
         _lastMonitorSnapshot = snapshot;
