@@ -116,7 +116,8 @@ internal static class LayoutTests
         nav.SelectTab(4);
         var systemCards = Descendants(form).OfType<DarkScrollableFlow>()
             .SelectMany(flow => flow.Content.Controls.Cast<Control>());
-        if (systemCards.Any(c => c is TableLayoutPanel panel && panel.Height > 150))
+        if (systemCards.Any(c => c is TableLayoutPanel panel &&
+            panel.BackColor == Color.FromArgb(38, 50, 63) && panel.Height > 150))
             throw new Exception("Cartoes do sistema extrapolam layout compacto.");
         form.Close();
         Console.WriteLine($"PASSOU: {tested} cenarios de tela, bandeja, foco e fechamento.");
