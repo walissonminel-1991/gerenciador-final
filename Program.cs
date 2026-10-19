@@ -2231,8 +2231,8 @@ internal sealed partial class MainForm : Form
         if (entries.Length == 0) { Status("Nenhum aplicativo marcado"); return; }
         if (entries.Any(x => !ActionableInventory.CanUninstall(x)))
         {
-            Status("Componente do Windows protegido contra desinstalação");
-            Log("Desinstalação impedida: item de inventário protegido.");
+            Status("Desinstalação indisponível para um ou mais itens selecionados.");
+            Log("Desinstalação bloqueada: item protegido ou instalador não encontrado.");
             return;
         }
         string preview = string.Join("\n", entries.Take(8).Select(x => "• " + x.Name));
