@@ -12,17 +12,21 @@ void Check(bool result, string what)
     passed++;
 }
 
-Check(largeDesktop.Size == new System.Drawing.Size(1250, 980),
-    "Limitar altura inicial em monitores grandes sem distorcer a interface");
-Check(regularDesktop.Size == new System.Drawing.Size(1250, 980) &&
-      regularDesktop.Y == 30 && regularDesktop.X == 335,
+Check(largeDesktop.Size == new System.Drawing.Size(875, 745),
+    "Dimensao inicial compacta mesmo em monitores grandes");
+Check(regularDesktop.Size == new System.Drawing.Size(875, 745) &&
+      regularDesktop.Y == 147 && regularDesktop.X == 522,
     "Respeitar altura da area de trabalho com barra de tarefas");
 Check(shiftedDesktop.Left >= -1920 && shiftedDesktop.Right <= 0 &&
       shiftedDesktop.Top >= 40 && shiftedDesktop.Bottom <= 1120,
     "Centralizar em monitor com origem e posicao deslocadas");
-Check(smallDesktop.Width == 1024 && smallDesktop.Height == 720 &&
+Check(smallDesktop.Width == 875 && smallDesktop.Height == 720 &&
       StartupWindowSizing.AllowedMinimum(smallDesktop).Width <= smallDesktop.Width,
     "Nao iniciar fora de monitores menores");
+var referenceDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1440, 852));
+Check(referenceDesktop.Size == new System.Drawing.Size(875, 745) &&
+      referenceDesktop.X == 282 && referenceDesktop.Y == 53,
+    "Referencia 1440x900: janela compacta e centralizada na area util");
 Check(StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 0, 0)).Size ==
       StartupWindowSizing.PreferredSize,
     "Ter tamanho inicial seguro quando o monitor ainda nao puder ser consultado");
