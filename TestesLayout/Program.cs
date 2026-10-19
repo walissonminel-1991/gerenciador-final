@@ -23,6 +23,9 @@ internal static class LayoutTests
             !form.HasCustomCaption)
             throw new Exception("Barra da janela nao pode mostrar botao de maximizar.");
         form.Show();
+        // O Win32 deve compor controles filhos antes de exibir cada quadro.
+        if ((GetWindowLong(form.Handle, -20) & 0x02000000) == 0)
+            throw new Exception("Composicao da janela nao habilitada; risco de efeito quebra-cabeca.");
         var surface = form.Controls.OfType<TableLayoutPanel>().Single();
         surface.Dock = DockStyle.None;
         var nav = Descendants(form).OfType<DarkTabHost>().First();
@@ -124,6 +127,10 @@ internal static class LayoutTests
         // Layout util em espaco limitado: os itens e botoes devem permanecer
         // focaveis mesmo quando as paginas fazem rolagem.
         nav.SelectTab(0);
+        var commandButtons = Descendants(form).OfType<ModernButton>()
+            .Where(x => x.Visible && !x.IsDisposed).ToArray();
+        if (commandButtons.Any(x => x.Text.Contains('\n')))
+            throw new Exception("Botoes ainda carregam quebra de linha forcada.");
         var programList = Descendants(form).OfType<DarkProgramList>().Single();
         if (programList.ItemHeight > 70)
             throw new Exception("Lista de programas ainda usa linhas excessivamente altas.");
@@ -141,6 +148,9 @@ internal static class LayoutTests
         form.Close();
         Console.WriteLine($"PASSOU: {tested} cenarios de tela, bandeja, foco e fechamento.");
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    private static extern int GetWindowLong(IntPtr handle, int index);
 
     private static void TestStartupBounds()
     {
