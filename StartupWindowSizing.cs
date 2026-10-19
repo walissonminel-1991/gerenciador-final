@@ -71,10 +71,10 @@ internal static class StartupWindowSizing
     {
         if (available <= 0) return (0, 0);
         float scale = Math.Clamp(dpi / 96F, 1F, 1.5F);
-        int header = Math.Min((int)Math.Round(66F * scale),
-            Math.Max(42, (int)Math.Round(available * .14F)));
+        int header = Math.Min((int)Math.Round(54F * scale),
+            Math.Max(42, (int)Math.Round(available * .13F)));
         int preferredLog = Math.Max((int)Math.Round(130F * scale),
-            (int)Math.Round(available * .235F));
+            (int)Math.Round(available * .195F));
         int minimumTools = Math.Min((int)Math.Round(180F * scale),
             (int)Math.Round(available * .43F));
         int room = Math.Max(45, available - header - minimumTools);
