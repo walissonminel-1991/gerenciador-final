@@ -674,7 +674,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.8 TESTE";
+        Text = "Gerenciador Final — v5.13.10.9 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -684,15 +684,15 @@ internal sealed partial class MainForm : Form
             ControlStyles.AllPaintingInWmPaint, true);
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
-        // Abre com a dimensao compacta da referencia visual 1440x900,
-        // sem ocupar quase todo o monitor nem restaurar tamanhos antigos.
+        // Abre proporcionalmente a area util em qualquer resolucao.
+        // Nunca exceder 60% e nao restaurar tamanhos antigos.
         var display = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
         Rectangle opening = StartupWindowSizing.Fit(display);
         StartPosition = FormStartPosition.Manual;
         _diagnoseWindowLifecycle = startServices;
         InitializeWindowChrome();
         MinimumSize = StartupWindowSizing.AllowedMinimum(opening);
-        MaximumSize = StartupWindowSizing.LimitSize(StartupWindowSizing.PreferredSize, display);
+        MaximumSize = StartupWindowSizing.MaximumSizeFor(display);
         Bounds = opening;
 
         var root = new TableLayoutPanel { Dock = DockStyle.None, ColumnCount = 1, RowCount = 3, Padding = new Padding(12, 7, 12, 7), BackColor = AppServices.Background };
@@ -700,22 +700,17 @@ internal sealed partial class MainForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 130));
         Controls.Add(root);
-        // Ao maximizar em ultrawide/4K/8K, os botoes nao ocupam centenas de
-        // pixels extras: centraliza a superficie com largura/altura limitadas.
-        // DPI aumenta o espaco fisico necessario para o mesmo tamanho logico.
+        // A superficie interna acompanha toda a janela calculada. O limite
+        // antigo de 875x745 encolhia TAMBEM o conteudo mesmo em 2560x1440,
+        // causando area vazia ou controles minimos em monitores grandes.
+        // A tipografia continua no DPI do sistema; nao escala com resolucao.
         void CenterWorkspace()
         {
             if (root.IsDisposed) return;
-            double scale = Math.Max(1d, DeviceDpi / 96d);
-            int preferredWidth = (int)Math.Ceiling(StartupWindowSizing.PreferredSize.Width * scale);
-            int preferredHeight = (int)Math.Ceiling(StartupWindowSizing.PreferredSize.Height * scale);
-            int heightAvailable = Math.Max(1, ClientSize.Height - (_caption?.Height ?? 0));
-            int width = Math.Max(1, Math.Min(ClientSize.Width, preferredWidth));
-            int height = Math.Max(1, Math.Min(heightAvailable, preferredHeight));
+            int caption = _caption?.Height ?? 0;
             var bounds = new Rectangle(
-                Math.Max(0, (ClientSize.Width - width) / 2),
-                (_caption?.Height ?? 0) + Math.Max(0, (heightAvailable - height) / 2),
-                width, height);
+                0, caption, Math.Max(1, ClientSize.Width),
+                Math.Max(1, ClientSize.Height - caption));
             if (root.Bounds != bounds) root.Bounds = bounds;
         }
         Resize += (_, _) => CenterWorkspace();
@@ -756,7 +751,7 @@ internal sealed partial class MainForm : Form
             var area = Screen.FromControl(this).WorkingArea;
             var fitting = StartupWindowSizing.Fit(area);
             var minimum = StartupWindowSizing.AllowedMinimum(fitting);
-            var maximum = StartupWindowSizing.LimitSize(StartupWindowSizing.PreferredSize, area);
+            var maximum = StartupWindowSizing.MaximumSizeFor(area);
             if (MinimumSize != minimum) MinimumSize = minimum;
             if (MaximumSize != maximum) MaximumSize = maximum;
             var visible = StartupWindowSizing.KeepVisible(Bounds, area);
