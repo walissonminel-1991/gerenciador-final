@@ -654,7 +654,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10 TESTE";
+        Text = "Gerenciador Final — v5.13.10.1 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -693,29 +693,50 @@ internal sealed partial class MainForm : Form
         root.Controls.Add(BuildOperationsPanel(), 0, 2);
         void FitWorkspace()
         {
-            float scale = DeviceDpi / 96F;
-            // Em telas baixas o registro cede espaco as acoes, mantendo status e progresso.
-            float logHeight = root.ClientSize.Height / scale < 950 ? 80 * scale : 200 * scale;
+            float scale = Math.Max(1F, DeviceDpi / 96F);
+            // Preserva a navegacao e a regiao de trabalho em alturas pequenas e
+            // em escalas de 125%-300%, reduzindo primeiro cabecalho e registro.
+            float available = Math.Max(1, root.ClientSize.Height - root.Padding.Vertical);
+            float headerHeight = Math.Min(66F * scale, Math.Max(40F, available * .16F));
+            float targetLog = available / scale < 950F ? 80F * scale : 200F * scale;
+            float contentReserve = Math.Max(100F, available * .40F);
+            float logLimit = Math.Max(26F, available - headerHeight - (42F * scale) - contentReserve);
+            float logHeight = Math.Min(targetLog, logLimit);
+            if (Math.Abs(root.RowStyles[0].Height - headerHeight) > 1)
+                root.RowStyles[0].Height = headerHeight;
             if (Math.Abs(root.RowStyles[2].Height - logHeight) > 1)
                 root.RowStyles[2].Height = logHeight;
         }
+        void RestoreWithinMonitor()
+        {
+            if (IsDisposed) return;
+            var area = Screen.FromControl(this).WorkingArea;
+            var fitting = StartupWindowSizing.Fit(area);
+            var minimum = StartupWindowSizing.AllowedMinimum(fitting);
+            if (MinimumSize != minimum) MinimumSize = minimum;
+            var visible = StartupWindowSizing.KeepVisible(Bounds, area);
+            if (Bounds != visible) Bounds = visible;
+        }
         root.SizeChanged += (_, _) => FitWorkspace();
-        DpiChanged += (_, _) => FitWorkspace();
+        DpiChanged += (_, _) => { RestoreWithinMonitor(); FitWorkspace(); };
+        ResizeEnd += (_, _) => RestoreWithinMonitor();
+        EventHandler monitorChanged = (_, _) =>
+        {
+            if (!IsHandleCreated || IsDisposed) return;
+            try
+            {
+                BeginInvoke((Action)(() => { RestoreWithinMonitor(); FitWorkspace(); }));
+            }
+            catch (InvalidOperationException) { /* Janela ja encerrada. */ }
+        };
+        SystemEvents.DisplaySettingsChanged += monitorChanged;
+        FormClosed += (_, _) => SystemEvents.DisplaySettingsChanged -= monitorChanged;
         FitWorkspace();
         // Abre imediatamente. Primeiro carrega a lista local e depois inicia consultas independentes,
         // em segundo plano, sem janelas auxiliares e sem executar instaladores.
         Shown += async (_, _) =>
         {
-            if (!startServices) { FitWorkspace(); return; }
-            // WinForms pode redimensionar a janela automaticamente em monitores DPI
-            // diferentes. Readequar apenas se necessário, sem cortar cartões.
-            Rectangle visibleArea = Screen.FromControl(this).WorkingArea;
-            if (!visibleArea.Contains(Bounds))
-            {
-                Rectangle fitted = StartupWindowSizing.Fit(visibleArea);
-                MinimumSize = StartupWindowSizing.AllowedMinimum(fitted);
-                Bounds = fitted;
-            }
+            RestoreWithinMonitor();
             FitWorkspace();
             if (!startServices) return;
             await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync);
