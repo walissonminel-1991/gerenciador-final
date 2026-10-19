@@ -16,7 +16,7 @@ internal sealed partial class MainForm
         int columns = usable >= 740 ? 2 : 1;
         int rows = Math.Max(1, (Math.Max(1, count) + columns - 1) / columns);
         float scale = Math.Max(1f, DeviceDpi / 96f);
-        int fixedRows = (int)Math.Ceiling(36 + 36 + 20 + 12 + 4 + 6);
+        int fixedRows = 36 + 36 + 20 + 12 + 4 + 6;
         int cards = rows * (111 + 7);
         return (int)Math.Ceiling((fixedRows + cards) * scale);
     }
