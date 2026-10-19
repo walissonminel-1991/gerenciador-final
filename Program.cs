@@ -656,7 +656,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.5 TESTE";
+        Text = "Gerenciador Final — v5.13.10.6 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -1215,8 +1215,8 @@ internal sealed partial class MainForm : Form
         {
             int cardsHeight = ToolsHeight(cleaningActions, width);
             cleaningLayout.RowStyles[0].Height = cardsHeight;
-            return cardsHeight + (int)Math.Ceiling(214 * DeviceDpi / 96d);
-        }));
+            return cardsHeight + DiskPanelHeight(width);
+        }, trackCleaning: true));
         // Fluxo simples para uso cotidiano: DISM repara a imagem; em seguida SFC
         // verifica e tenta reparar os arquivos protegidos. Consultas separadas
         // continuam no diagnóstico do computador, sem alterações automáticas.
@@ -1251,21 +1251,21 @@ internal sealed partial class MainForm : Form
             Margin = Padding.Empty, BackColor = AppServices.Background };
         // Proporções responsivas: em janelas menores os cartões usam a rolagem escura.
         repairLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 342));
-        repairLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 44));
+        repairLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         repairLayout.Controls.Add(repairActions, 0, 0);
         repairLayout.Controls.Add(BuildNetworkResultPanel(), 0, 1);
         repair.Controls.Add(ScrollablePage(repairLayout, width =>
         {
             int cardsHeight = ToolsHeight(repairActions, width);
             repairLayout.RowStyles[0].Height = cardsHeight;
-            return cardsHeight + (int)Math.Ceiling(175 * DeviceDpi / 96d);
+            return cardsHeight + (int)Math.Ceiling(152 * DeviceDpi / 96d);
         }));
         performance.Controls.Add(ScrollablePage(BuildEnergyPanel(),
-            _ => (int)Math.Ceiling(415 * DeviceDpi / 96d)));
+            _ => (int)Math.Ceiling(405 * DeviceDpi / 96d)));
         // Painéis nativos do gerenciador: nenhum atalho para Task Manager,
         // MSConfig, Configurações, Windows Update ou MSInfo32.
         system.Controls.Add(ScrollablePage(BuildIntegratedSystemPanel(),
-            _ => (int)Math.Ceiling(415 * DeviceDpi / 96d)));
+            _ => (int)Math.Ceiling(365 * DeviceDpi / 96d)));
     }
 
     private sealed record ToolInfo(string Name, string Description, Color Color, Func<Task> Action);
@@ -1282,7 +1282,11 @@ internal sealed partial class MainForm : Form
 
     private Control CreateToolsFlow(IEnumerable<ToolInfo> tools, bool compact = false)
     {
-        var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = AppServices.Background };
+        var host = new DarkScrollableFlow
+        {
+            Dock = DockStyle.Fill, Margin = Padding.Empty,
+            EmbeddedInPage = true, BackColor = AppServices.Background
+        };
         var flow = host.Content;
         flow.Padding = new Padding(7);
         flow.BackColor = AppServices.Background;
@@ -1380,17 +1384,17 @@ internal sealed partial class MainForm : Form
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1,
-            Margin = new Padding(12, 0, 12, 8), Padding = new Padding(12, 8, 12, 8),
+            Margin = new Padding(7, 0, 7, 4), Padding = new Padding(9, 6, 9, 6),
             BackColor = PanelBackground
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 224));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 196));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 173));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 155));
         heading.Controls.Add(new Label
         {
             Text = "ESPAÇO EM DISCO", Dock = DockStyle.Fill,
@@ -1410,15 +1414,15 @@ internal sealed partial class MainForm : Form
         _refreshDisksButton = CreateSecondaryButton("Atualizar discos");
         _refreshDisksButton.Dock = DockStyle.Fill;
         _refreshDisksButton.Margin = new Padding(5, 4, 0, 4);
-        _refreshDisksButton.MinimumSize = new Size(150, 30);
+        _refreshDisksButton.MinimumSize = new Size(0, 25);
         _refreshDisksButton.Click += async (_, _) => await RefreshDiskUsageAsync();
         _toolTips.SetToolTip(_refreshDisksButton, "Reconsultar o espaço livre e ocupado de cada unidade local.");
         _actionControls.Add(_refreshDisksButton);
         heading.Controls.Add(_refreshDisksButton, 2, 0);
         root.Controls.Add(heading, 0, 0);
         var previewRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, BackColor = PanelBackground };
-        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
-        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 248));
+        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 159));
+        previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 204));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var previewButton = CreateSecondaryButton("Analisar limpeza");
         previewButton.Dock = DockStyle.Fill;
@@ -1440,7 +1444,7 @@ internal sealed partial class MainForm : Form
         _cleanupPreview.Dock = DockStyle.Fill;
         _cleanupPreview.ForeColor = Muted;
         _cleanupPreview.TextAlign = ContentAlignment.MiddleLeft;
-        _cleanupPreview.AutoEllipsis = true;
+        _cleanupPreview.AutoEllipsis = false;
         previewRow.Controls.Add(_cleanupPreview, 2, 0);
         root.Controls.Add(previewRow, 0, 1);
         _diskSummary.Text = "Consulte o espaço livre e ocupado das unidades locais.";
@@ -1449,8 +1453,9 @@ internal sealed partial class MainForm : Form
         _diskSummary.Font = new Font("Segoe UI", 8.6F);
         _diskSummary.TextAlign = ContentAlignment.MiddleLeft;
         root.Controls.Add(_diskSummary, 0, 2);
+        _diskCards.EmbeddedInPage = true;
         _diskCards.Dock = DockStyle.Fill;
-        _diskCards.Content.Padding = new Padding(1, 8, 1, 4);
+        _diskCards.Content.Padding = new Padding(1, 4, 1, 2);
         _diskCards.Margin = Padding.Empty;
         _diskCards.BackColor = PanelBackground;
         _diskCards.Content.BackColor = PanelBackground;
@@ -1471,13 +1476,13 @@ internal sealed partial class MainForm : Form
         string name = string.IsNullOrWhiteSpace(disk.Label) ? "Disco local" : disk.Label;
         var card = new TableLayoutPanel
         {
-            Size = new Size(350, 124), RowCount = 4, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Padding = new Padding(13, 7, 13, 9),
-            Margin = new Padding(0, 0, 14, 12)
+            Size = new Size(350, 111), RowCount = 4, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Padding = new Padding(10, 5, 10, 6),
+            Margin = new Padding(0, 0, 10, 7)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         card.Controls.Add(new Label
         {
@@ -1552,6 +1557,7 @@ internal sealed partial class MainForm : Form
                 ResizeDiskCards();
             }
             finally { _diskCards.Content.ResumeLayout(true); }
+            _relayoutCleaning?.Invoke();
         }
         catch (Exception ex)
         {
