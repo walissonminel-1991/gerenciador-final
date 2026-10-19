@@ -162,15 +162,17 @@ internal sealed class DarkVScrollBar : Control
 
 internal static class AppRowGeometry
 {
-    public static Rectangle Checkbox(Rectangle bounds) => new(bounds.Left + 17, bounds.Top + 28, 20, 20);
-    public static Rectangle UpdateButton(Rectangle bounds) => new(bounds.Right - 350, bounds.Top + 20, 122, 36);
-    public static Rectangle SiteButton(Rectangle bounds) => new(bounds.Right - 222, bounds.Top + 20, 88, 36);
-    public static Rectangle UninstallButton(Rectangle bounds) => new(bounds.Right - 124, bounds.Top + 20, 112, 36);
+    public static Rectangle Checkbox(Rectangle bounds) => new(bounds.Left + 17, bounds.Top + 23, 18, 18);
+    public static Rectangle UpdateButton(Rectangle bounds) => new(bounds.Right - 318, bounds.Top + 16, 112, 33);
+    public static Rectangle SiteButton(Rectangle bounds) => new(bounds.Right - 200, bounds.Top + 16, 80, 33);
+    public static Rectangle UninstallButton(Rectangle bounds) => new(bounds.Right - 115, bounds.Top + 16, 103, 33);
 }
 
 internal sealed class DarkProgramList : Control
 {
     private readonly List<ProgramEntry> _items = new();
+    private readonly ToolTip _itemTips = new() { InitialDelay = 450, AutoPopDelay = 12000 };
+    private int _tipRow = -1;
     private readonly DarkVScrollBar _scrollbar = new();
     private int _selectedIndex = -1;
     private int _scrollOffset;
@@ -296,7 +298,7 @@ internal sealed class DarkProgramList : Control
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _feedbackTimer.Stop(); _feedbackTimer.Dispose(); }
+        if (disposing) { _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _itemTips.Dispose(); }
         base.Dispose(disposing);
     }
 
@@ -308,6 +310,7 @@ internal sealed class DarkProgramList : Control
         ProgramEntry? prior = SelectedItem;
         _items.Clear();
         _items.AddRange(entries);
+        _tipRow = -1;
         int oldSelected = _selectedIndex;
         _selectedIndex = prior is null ? -1 : _items.FindIndex(x => ReferenceEquals(x, prior));
         UpdateMetrics();
@@ -363,6 +366,17 @@ internal sealed class DarkProgramList : Control
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        int index = _itemHeight > 0 ? (e.Y + _scrollOffset) / _itemHeight : -1;
+        if (index != _tipRow)
+        {
+            _tipRow = index;
+            string text = index >= 0 && index < _items.Count
+                ? _items[index].Name + "\nVersão atual: " + _items[index].Version +
+                  "\nDisponível: " + _items[index].AvailableVersion +
+                  "\nFonte: " + _items[index].Source
+                : "";
+            _itemTips.SetToolTip(this, text);
+        }
         var (item, action) = HitAction(e.Location);
         if (!ReferenceEquals(item, _hoverItem) || _hoverAction != action)
         {
@@ -378,6 +392,8 @@ internal sealed class DarkProgramList : Control
         base.OnMouseLeave(e);
         _hoverItem = null;
         _hoverAction = "";
+        _tipRow = -1;
+        _itemTips.SetToolTip(this, "");
         Cursor = Cursors.Default;
         Invalidate();
     }
@@ -584,7 +600,11 @@ internal sealed class DarkScrollableFlow : UserControl
         _viewport.MouseWheel += (_, e) => _scroll.Value -= Math.Sign(e.Delta) * 85;
         _flow.MouseWheel += (_, e) => _scroll.Value -= Math.Sign(e.Delta) * 85;
         Resize += (_, _) => Reflow();
-        VisibleChanged += (_, _) => Reflow();
+        VisibleChanged += (_, _) =>
+        {
+            if (FindForm() is MainForm form && form.IsTrayTransitioning) return;
+            Reflow();
+        };
         DpiChangedAfterParent += (_, _) => Reflow();
     }
 
@@ -678,7 +698,7 @@ internal sealed class DarkTabHost : UserControl
         int eachTab = ClientSize.Width / Math.Max(1, _pages.Count);
         // Em janelas estreitas, as legendas passam a duas linhas, sem
         // reticencias que escondam o nome de uma funcionalidade.
-        int height = eachTab < 192 ? 55 : StripHeight;
+        int height = eachTab < 192 ? 49 : 39;
         int scaledStrip = (int)Math.Ceiling(height * Math.Max(1, DeviceDpi) / 96d);
         _strip.Bounds = new Rectangle(0, 0, Math.Max(0, ClientSize.Width), Math.Min(scaledStrip, Math.Max(0, ClientSize.Height)));
         int contentTop = _strip.Bottom;
