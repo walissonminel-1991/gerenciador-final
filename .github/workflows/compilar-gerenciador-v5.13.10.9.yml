@@ -332,10 +332,10 @@ jobs:
         run: |
           $source = Get-Content Program.cs -Raw
           $sizing = Get-Content StartupWindowSizing.cs -Raw
-          if (-not $sizing.Contains('InitialWidthRatio = 0.70') -or
-              -not $sizing.Contains('InitialHeightRatio = 0.82') -or
-              -not $sizing.Contains('MaximumWidthRatio = 0.72') -or
-              -not $sizing.Contains('MaximumHeightRatio = 0.83') -or
+          if (-not $sizing.Contains('InitialWidthPercent = 70') -or
+              -not $sizing.Contains('InitialHeightPercent = 82') -or
+              -not $sizing.Contains('MaximumWidthPercent = 72') -or
+              -not $sizing.Contains('MaximumHeightPercent = 83') -or
               -not $source.Contains('StartupWindowSizing.MaximumSizeFor(display)')) {
             throw 'Janela nao respeita a regra universal de no maximo 60 por cento da area util'
           }
