@@ -675,7 +675,11 @@ internal sealed class DarkTabHost : UserControl
     {
         if (IsDisposed) return;
         // Altura proporcional ao DPI; todas as abas permanecem acessiveis.
-        int scaledStrip = (int)Math.Ceiling(StripHeight * Math.Max(1, DeviceDpi) / 96d);
+        int eachTab = ClientSize.Width / Math.Max(1, _pages.Count);
+        // Em janelas estreitas, as legendas passam a duas linhas, sem
+        // reticencias que escondam o nome de uma funcionalidade.
+        int height = eachTab < 192 ? 55 : StripHeight;
+        int scaledStrip = (int)Math.Ceiling(height * Math.Max(1, DeviceDpi) / 96d);
         _strip.Bounds = new Rectangle(0, 0, Math.Max(0, ClientSize.Width), Math.Min(scaledStrip, Math.Max(0, ClientSize.Height)));
         int contentTop = _strip.Bottom;
         _content.Bounds = new Rectangle(0, contentTop, Math.Max(0, ClientSize.Width), Math.Max(0, ClientSize.Height - contentTop));
@@ -799,9 +803,19 @@ internal sealed class DarkTabHost : UserControl
                 }
                 // A própria cor da aba ativa indica a seleção; sem sublinhado redundante.
                 var labelColor = active ? Color.FromArgb(170, 216, 255) : Color.FromArgb(164, 179, 193);
-                TextRenderer.DrawText(e.Graphics, _host._pages[i].Title, Font, bounds, labelColor,
+                string caption = _host._pages[i].Title;
+                bool narrow = w < (int)Math.Ceiling(192 * Math.Max(1, DeviceDpi) / 96d);
+                if (narrow)
+                    caption = caption switch
+                    {
+                        "Limpeza e desempenho" => "Limpeza e\ndesempenho",
+                        "Planos de energia" => "Planos de\nenergia",
+                        "Inicialização e sistema" => "Inicialização\ne sistema",
+                        _ => caption
+                    };
+                TextRenderer.DrawText(e.Graphics, caption, Font, bounds, labelColor,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                    TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
             }
         }
 
