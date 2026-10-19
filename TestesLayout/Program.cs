@@ -19,7 +19,9 @@ internal static class LayoutTests
 
         Console.WriteLine("Criando janela de teste, sem iniciar os servicos");
         using var form = new MainForm(startServices: false);
-        form.MaximumSize = new Size(4096, 4096);
+        if (form.MaximizeBox || form.FormBorderStyle != FormBorderStyle.None ||
+            !form.HasCustomCaption)
+            throw new Exception("Barra da janela nao pode mostrar botao de maximizar.");
         form.Show();
         var surface = form.Controls.OfType<TableLayoutPanel>().Single();
         surface.Dock = DockStyle.None;
@@ -82,8 +84,18 @@ internal static class LayoutTests
             tested++;
         }
         if (tested != 22) throw new Exception($"Esperados 22 cenarios; encontrados {tested}");
+        // Provar no runner Windows que o botao Minimizar oculta a janela
+        // e que Abrir restaura, sem encerrar a coleta nem criar janelas.
+        form.MinimizeToTray();
+        Application.DoEvents();
+        if (form.Visible || form.ShowInTaskbar || !form.IsInTray || !form.HasActiveTrayIcon)
+            throw new Exception("Minimizar nao transferiu corretamente para a bandeja.");
+        form.RestoreFromTray();
+        Application.DoEvents();
+        if (!form.Visible || !form.ShowInTaskbar || form.IsInTray || form.HasActiveTrayIcon)
+            throw new Exception("Abrir nao restaurou corretamente a janela.");
         form.Close();
-        Console.WriteLine($"PASSOU: {tested} resolucoes, 5 abas, acessibilidade por foco, janela na area util.");
+        Console.WriteLine($"PASSOU: {tested} cenarios de tela, bandeja, foco e fechamento.");
     }
 
     private static void TestStartupBounds()
@@ -94,6 +106,21 @@ internal static class LayoutTests
         if (reference.Size != new Size(875, 745) ||
             reference.X != 282 || reference.Y != 53)
             throw new Exception("1440x900 deve abrir em 875x745, centralizado e fora da barra de tarefas.");
+        var wxga = new Rectangle(0, 0, 1366, 720);
+        var wxgaWindow = StartupWindowSizing.Fit(wxga);
+        if ((long)wxgaWindow.Width * wxgaWindow.Height >
+            (long)wxga.Width * wxga.Height * 3 / 5)
+            throw new Exception("1366x768 excedeu 60% da area util.");
+        if (wxgaWindow.Width != 875 || wxgaWindow.Height != 674)
+            throw new Exception("1366x768 deve limitar somente a altura, sem ampliar botoes.");
+        var lowResolution = new Rectangle(0, 0, 1024, 720);
+        if (StartupWindowSizing.ApplyAreaLimit(lowResolution) ||
+            StartupWindowSizing.Fit(lowResolution).Size != new Size(875, 720))
+            throw new Exception("A regra de 60% nao pode bloquear resolucoes antigas.");
+        var huge = StartupWindowSizing.KeepVisible(
+            new Rectangle(0, 0, 2000, 2000), wxga);
+        if ((long)huge.Width * huge.Height > (long)wxga.Width * wxga.Height * 3 / 5)
+            throw new Exception("Trocar de monitor nao pode ultrapassar 60%.");
         var large = StartupWindowSizing.Fit(new Rectangle(0, 0, 7680, 4272));
         if (large.Size != reference.Size)
             throw new Exception("8K nao pode ampliar os botoes ou a janela inicial.");
@@ -103,6 +130,10 @@ internal static class LayoutTests
             // deslocada, como ocorre em um monitor secundario.
             var workArea = new Rectangle(100, 64, resolution.Width, resolution.Height - 48);
             Rectangle opening = StartupWindowSizing.Fit(workArea);
+            if (StartupWindowSizing.ApplyAreaLimit(workArea) &&
+                (long)opening.Width * opening.Height >
+                    3L * workArea.Width * workArea.Height / 5L)
+                throw new Exception($"Area acima de 60%: {name} {opening}");
             if (!workArea.Contains(opening) ||
                 opening.Width > workArea.Width || opening.Height > workArea.Height)
                 throw new Exception($"Janela inicial fora da tela: {name} {opening}");
