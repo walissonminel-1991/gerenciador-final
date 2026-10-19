@@ -75,6 +75,44 @@ Check(GameLibraryAudit.UnregisteredGames(sourceGames, new[] {
 }).Count == 0,
     "Programas Win32/MSIX existentes impedem duplicacao de jogos pela biblioteca");
 Console.WriteLine("OK Inventario de jogos sem acao de desinstalacao ficticia");
+ 
+// A aba de aplicativos é uma lista de AÇÕES. O inventário técnico completo
+// continua disponível aos diagnósticos e à comparação de atualizações.
+var systemOnly = new ProgramEntry { Name = "Bloco de notas", InventoryOnly = true };
+var gameOnly = new ProgramEntry { Name = "BioShock Infinite", InventoryOnly = true,
+    InventorySource = "Biblioteca de jogos: Steam" };
+var staleApp = new ProgramEntry { Name = "Jogo removido",
+    UninstallString = "\"Z:\\GF-Teste-Desinstalador-Ausente\\uninstall.exe\"" };
+var regular = new ProgramEntry { Name = "Programa MSI", UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000001}" };
+var quiet = new ProgramEntry { Name = "Outra instalação MSI",
+    UninstallString = "", QuietUninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000002}" };
+var protectedWin32 = new ProgramEntry { Name = "Microsoft GameInput",
+    UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000003}" };
+Check(!ActionableInventory.CanUninstall(systemOnly) &&
+      !ActionableInventory.CanUninstall(gameOnly) &&
+      !ActionableInventory.CanUninstall(staleApp) &&
+      !ActionableInventory.CanUninstall(protectedWin32),
+    "Nao exibir botao Desinstalar em MSIX, jogos, comandos ausentes ou componentes protegidos");
+Check(ActionableInventory.CanUninstall(regular) && ActionableInventory.CanUninstall(quiet),
+    "Reconhecer desinstalacao MSI normal e silenciosa como operacoes disponiveis");
+regular.CanUninstall = ActionableInventory.CanUninstall(regular);
+quiet.CanUninstall = ActionableInventory.CanUninstall(quiet);
+Check(ActionableInventory.VisibleCount(new[] { systemOnly, gameOnly, staleApp, regular, quiet, protectedWin32 }) == 2,
+    "Lista principal mostra apenas dois aplicativos realmente desinstalaveis");
+systemOnly.IsUpdate = true;
+Check(ActionableInventory.ShouldShow(systemOnly) && !systemOnly.CanUninstall &&
+      ActionableInventory.VisibleCount(new[] { systemOnly, gameOnly, staleApp, regular, quiet, protectedWin32 }) == 3,
+    "Atualizacao na Store permanece visivel mesmo quando nao ha desinstalador");
+systemOnly.IsUpdate = false;
+gameOnly.IsUpdate = true;
+Check(ActionableInventory.ShouldShow(gameOnly) && !ActionableInventory.CanUninstall(gameOnly),
+    "Um jogo somente leitura pode aparecer se uma atualizacao for identificada sem liberar desinstalacao");
+gameOnly.IsUpdate = false;
+regular.IsUpdate = true;
+Check(ActionableInventory.VisibleCount(new[] { systemOnly, gameOnly, staleApp, regular, quiet, protectedWin32 }) == 2,
+    "Uma atualizacao nao duplica a linha de programa que ja tem desinstalador");
+Console.WriteLine("OK Filtro de programas acionaveis preserva inventario completo sem comandos artificiais");
+
 
 
 // Dispositivos antigos que ainda constam no Registro, mas não no snapshot
@@ -670,5 +708,7 @@ namespace GerenciadorAplicativos
         public string UninstallString { get; init; } = "";
         public string QuietUninstallString { get; init; } = "";
         public bool InventoryOnly { get; init; }
+        public bool CanUninstall { get; set; }
+        public bool IsUpdate { get; set; }
     }
 }
