@@ -629,7 +629,7 @@ internal sealed partial class MainForm : Form
     private readonly Label _listTitle = new();
     private readonly Label _itemHint = new();
     private readonly ProgressBar _progress = new();
-    private readonly DarkTabHost _nav = new(210);
+    private readonly DarkTabHost _nav = new();
     private readonly List<ProgramEntry> _installed = new();
     private readonly List<ProgramEntry> _available = new();
     private readonly List<Control> _actionControls = new();
