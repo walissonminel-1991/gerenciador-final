@@ -17,19 +17,23 @@ internal static class LayoutTests
         Console.WriteLine("Exibindo janela");
         form.Show();
         Console.WriteLine("Janela exibida");
+        var surface = form.Controls.OfType<TableLayoutPanel>().Single();
+        surface.Dock = DockStyle.None;
         var nav = Descendants(form).OfType<DarkTabHost>().First();
         Directory.CreateDirectory("LayoutCaptures");
         foreach (var size in new[] { new Size(1250, 1160), new Size(1250, 852), new Size(970, 840) })
         {
-            form.Size = size;
+            // O desktop do runner e 1024x768. Validar a superficie real do app
+            // em tamanhos virtuais, sem o limite externo imposto ao Form pelo Windows.
+            surface.Size = new Size(size.Width - 16, size.Height - 39);
             Application.DoEvents();
             foreach (int tab in new[] { 1, 2, 3, 4, 0, 1, 2 })
             {
                 nav.SelectTab(tab);
                 Application.DoEvents();
-                using (var shot = new Bitmap(form.Width, form.Height))
+                using (var shot = new Bitmap(surface.Width, surface.Height))
                 {
-                    form.DrawToBitmap(shot, new Rectangle(Point.Empty, form.Size));
+                    surface.DrawToBitmap(shot, new Rectangle(Point.Empty, surface.Size));
                     shot.Save($"LayoutCaptures/{size.Width}x{size.Height}-aba{tab}-inicio.png");
                 }
                 var buttons = Descendants(form).OfType<Button>().Where(b => b.Visible && b.Enabled).ToArray();
@@ -49,8 +53,8 @@ internal static class LayoutTests
                     Application.DoEvents();
                     if (!FullyVisible(button)) throw new Exception($"Botao inacessivel: {size} aba={tab} {button.Text}");
                 }
-                using var bitmap = new Bitmap(form.Width, form.Height);
-                form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.Size));
+                using var bitmap = new Bitmap(surface.Width, surface.Height);
+                surface.DrawToBitmap(bitmap, new Rectangle(Point.Empty, surface.Size));
                 bitmap.Save($"LayoutCaptures/{size.Width}x{size.Height}-aba{tab}.png");
                 Console.WriteLine($"OK {size} aba={tab}: {buttons.Length} botoes acessiveis");
             }
@@ -60,7 +64,7 @@ internal static class LayoutTests
     static bool FullyVisible(Control control)
     {
         Rectangle bounds = control.RectangleToScreen(control.ClientRectangle);
-        for (Control? parent = control.Parent; parent != null; parent = parent.Parent)
+        for (Control? parent = control.Parent; parent != null && parent is not Form; parent = parent.Parent)
             if (!parent.RectangleToScreen(parent.ClientRectangle).Contains(bounds))
             {
                 Console.WriteLine($"CLIP {control.Text} tela={bounds} pai={parent.GetType().Name} area={parent.RectangleToScreen(parent.ClientRectangle)} bounds={parent.Bounds}");

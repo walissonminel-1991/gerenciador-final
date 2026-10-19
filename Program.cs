@@ -695,11 +695,11 @@ internal sealed partial class MainForm : Form
         {
             float scale = DeviceDpi / 96F;
             // Em telas baixas o registro cede espaco as acoes, mantendo status e progresso.
-            float logHeight = ClientSize.Height / scale < 950 ? 80 * scale : 200 * scale;
+            float logHeight = root.ClientSize.Height / scale < 950 ? 80 * scale : 200 * scale;
             if (Math.Abs(root.RowStyles[2].Height - logHeight) > 1)
                 root.RowStyles[2].Height = logHeight;
         }
-        ClientSizeChanged += (_, _) => FitWorkspace();
+        root.SizeChanged += (_, _) => FitWorkspace();
         DpiChanged += (_, _) => FitWorkspace();
         FitWorkspace();
         // Abre imediatamente. Primeiro carrega a lista local e depois inicia consultas independentes,
