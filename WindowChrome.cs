@@ -14,6 +14,9 @@ internal sealed partial class MainForm
     private Icon? _windowIcon;
     private Panel? _caption;
     private bool _hiddenInTray;
+    private bool _trayTransitioning;
+    private IntPtr _trayHandleBeforeHide;
+    internal bool IsTrayTransitioning => _trayTransitioning;
     private bool _exitWhenIdle;
 
     internal bool IsInTray => _hiddenInTray;
@@ -116,9 +119,12 @@ internal sealed partial class MainForm
             _windowIcon?.Dispose();
             _windowIcon = null;
         };
+        // Nunca alternar ShowInTaskbar apos o Form criar Handle. O WinForms
+        // pode destruir e recriar o HWND ao trocar essa propriedade e repintar
+        // centenas de controles em cascata, parecendo fechar e abrir sozinho.
         Resize += (_, _) =>
         {
-            if (!IsDisposed && IsHandleCreated &&
+            if (!IsDisposed && IsHandleCreated && !_trayTransitioning &&
                 WindowState == FormWindowState.Minimized)
                 BeginInvoke((Action)MinimizeToTray);
         };
@@ -161,22 +167,35 @@ internal sealed partial class MainForm
     internal void MinimizeToTray()
     {
         if (IsDisposed || _hiddenInTray || _trayIcon is null) return;
-        _hiddenInTray = true;
-        _trayIcon.Visible = true;
-        ShowInTaskbar = false;
-        Hide();
+        _trayTransitioning = true;
+        try
+        {
+            _trayHandleBeforeHide = IsHandleCreated ? Handle : IntPtr.Zero;
+            _hiddenInTray = true;
+            // Hide retira a janela da barra de tarefas naturalmente.
+            // NUNCA alterar ShowInTaskbar aqui: evita RecreateHandle().
+            Hide();
+            _trayIcon.Visible = true;
+        }
+        finally { _trayTransitioning = false; }
     }
 
     internal void RestoreFromTray()
     {
-        if (IsDisposed) return;
-        _hiddenInTray = false;
-        ShowInTaskbar = true;
-        WindowState = FormWindowState.Normal;
-        Show();
-        if (_trayIcon is not null) _trayIcon.Visible = false;
+        if (IsDisposed || (!_hiddenInTray && Visible)) return;
+        _trayTransitioning = true;
+        try
+        {
+            _hiddenInTray = false;
+            if (WindowState != FormWindowState.Normal)
+                WindowState = FormWindowState.Normal;
+            Show();
+            if (_trayIcon is not null) _trayIcon.Visible = false;
+            if (_trayHandleBeforeHide != IntPtr.Zero && Handle != _trayHandleBeforeHide)
+                DiagnosticTrace.Write("JANELA.HANDLE_ALTERADO apos restaurar bandeja");
+        }
+        finally { _trayTransitioning = false; }
         Activate();
-        BringToFront();
     }
 
     private void RequestTrayExit()
