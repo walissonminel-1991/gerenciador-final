@@ -36,7 +36,7 @@ internal sealed partial class MainForm
             Dock = DockStyle.Fill, BackColor = AppServices.Background,
             ColumnCount = 1, RowCount = 2, Padding = new Padding(5, 5, 5, 4)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 73));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 61));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var actions = new TableLayoutPanel
@@ -177,9 +177,18 @@ internal sealed partial class MainForm
         card.Controls.Add(button, 0, 0);
         card.Controls.Add(new Label
         {
-            Text = description, Dock = DockStyle.Fill, ForeColor = Muted,
+            // Descricao completa acessivel no tooltip; aqui exibimos um
+            // resumo curto que cabe integralmente sem truncar palavras.
+            Text = caption switch
+            {
+                "Processos" => "CPU e RAM · 5 s",
+                "Inicialização" => "Entradas reversíveis",
+                "Windows Update" => "Atualizações oficiais",
+                _ => "CPU, GPU, RAM e discos"
+            },
+            Dock = DockStyle.Fill, ForeColor = Muted,
             Font = new Font("Segoe UI", 8.1F), TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(1, 1, 1, 0)
+            Padding = new Padding(1, 0, 1, 0)
         }, 0, 1);
         parent.Controls.Add(card, column, 0);
     }
