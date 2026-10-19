@@ -674,7 +674,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.15 TESTE";
+        Text = "Gerenciador Final — v5.13.10.16 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -730,8 +730,12 @@ internal sealed partial class MainForm : Form
                 await RefreshDiskUsageAsync();
             if (_nav.SelectedIndex == 4)
                 await RefreshEnergyInfoAsync();
+            UpdateProcessSamplingCadence();
             if (_nav.SelectedIndex == 5 && _activeSystemView == "processes")
+            {
                 ShowCachedProcessesIfAvailable();
+                _ = RefreshProcessHistoryAsync();
+            }
         };
         root.Controls.Add(_nav, 0, 1);
         root.Controls.Add(BuildOperationsPanel(), 0, 2);
@@ -2051,8 +2055,31 @@ internal sealed partial class MainForm : Form
     {
         Log("Inicialização: consultando atualizações de aplicativos e Windows Update em segundo plano.");
         BeginBackgroundProcessSampling();
-        _ = LoadUpdatesAsync();
-        _ = ScanWindowsUpdatesInBackgroundAsync();
+        _ = RunStaggeredStartupChecksAsync();
+    }
+
+    private async Task RunStaggeredStartupChecksAsync()
+    {
+        // Evita disputar CPU, disco e APIs do Windows na abertura do PC FRACO:
+        // primeiro consultas HTTPS; em seguida Windows Update (WUA/COM).
+        try
+        {
+            await LoadUpdatesAsync();
+            if (IsDisposed || Disposing) return;
+            await Task.Delay(TimeSpan.FromSeconds(3));
+            if (!IsDisposed && !Disposing)
+                await ScanWindowsUpdatesInBackgroundAsync();
+        }
+        catch (Exception ex)
+        {
+            // Consultas sao auxiliares. Erros nao devem encerrar a janela.
+            if (!IsDisposed && !Disposing)
+            {
+                DiagnosticTrace.Failure("INICIALIZACAO.CONSULTAS_FALHA", ex);
+                Log("Inicialização: uma consulta não pôde ser concluída (" +
+                    ex.GetType().Name + ").");
+            }
+        }
     }
 
     private void AplicarCandidatos(IReadOnlyList<UpdateMatch> matches)
