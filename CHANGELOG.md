@@ -2,6 +2,16 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.2 TESTE — consistencia de interface e registro
+- Corrige o registro excessivamente baixo e reserva espaco real para diagnosticos em qualquer altura util.
+- Usa largura e altura preferidas limitadas em telas 4K/8K; nao dimensiona fontes ou botoes de acordo com a resolucao nominal.
+- Quebra os nomes das abas em duas linhas quando necessario, em vez de truncar o nome das funcionalidades.
+- Ajusta o resumo da aba Aplicativos ao espaco, preservando a informacao completa em uma dica acessivel.
+- Botoes de acoes de aplicativos permitem duas linhas para nao ocultar seus titulos.
+- Testes com 21 resolucoes e simulacoes geometricas para 100%, 125%, 150% e 200% de DPI.
+- A auditoria historica permanece informativa e somente leitura. GOG.com, McAfee, Microvirt e MPC-HC nao sao candidatos a exclusao automatica.
+- Continuam necessarios testes visuais no equipamento real, principalmente 800x600 e DPI alto.
+
 ## 5.13.10.1 TESTE — resolucoes, DPI e multiplos monitores
 - Matriz de verificacao automatizada com as 21 resolucoes fornecidas: 16:9, ultrawide, 4:3 e 16:10, incluindo 800x600 e 8K.
 - A janela inicial permanece inteiramente dentro da area util de cada monitor; o tamanho minimo deixa de impor 970x690 em monitores maiores.
