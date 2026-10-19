@@ -12,10 +12,10 @@ void Check(bool result, string what)
     passed++;
 }
 
-Check(largeDesktop.Size == new System.Drawing.Size(1250, 1160),
-    "Abrir com o dimensionamento vertical aprovado na captura");
-Check(regularDesktop.Size == new System.Drawing.Size(1250, 1040) &&
-      regularDesktop.Y == 0 && regularDesktop.X == 335,
+Check(largeDesktop.Size == new System.Drawing.Size(1250, 980),
+    "Limitar altura inicial em monitores grandes sem distorcer a interface");
+Check(regularDesktop.Size == new System.Drawing.Size(1250, 980) &&
+      regularDesktop.Y == 30 && regularDesktop.X == 335,
     "Respeitar altura da area de trabalho com barra de tarefas");
 Check(shiftedDesktop.Left >= -1920 && shiftedDesktop.Right <= 0 &&
       shiftedDesktop.Top >= 40 && shiftedDesktop.Bottom <= 1120,
