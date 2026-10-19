@@ -654,7 +654,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.1 TESTE";
+        Text = "Gerenciador Final — v5.13.10.2 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -693,19 +693,14 @@ internal sealed partial class MainForm : Form
         root.Controls.Add(BuildOperationsPanel(), 0, 2);
         void FitWorkspace()
         {
-            float scale = Math.Max(1F, DeviceDpi / 96F);
-            // Preserva a navegacao e a regiao de trabalho em alturas pequenas e
-            // em escalas de 125%-300%, reduzindo primeiro cabecalho e registro.
-            float available = Math.Max(1, root.ClientSize.Height - root.Padding.Vertical);
-            float headerHeight = Math.Min(66F * scale, Math.Max(40F, available * .16F));
-            float targetLog = available / scale < 950F ? 80F * scale : 200F * scale;
-            float contentReserve = Math.Max(100F, available * .40F);
-            float logLimit = Math.Max(26F, available - headerHeight - (42F * scale) - contentReserve);
-            float logHeight = Math.Min(targetLog, logLimit);
-            if (Math.Abs(root.RowStyles[0].Height - headerHeight) > 1)
-                root.RowStyles[0].Height = headerHeight;
-            if (Math.Abs(root.RowStyles[2].Height - logHeight) > 1)
-                root.RowStyles[2].Height = logHeight;
+            // A area do registro nao pode virar uma unica linha quando a
+            // janela e reduzida ou quando o Windows altera o DPI.
+            var rows = StartupWindowSizing.WorkspaceRows(
+                root.ClientSize.Height - root.Padding.Vertical, DeviceDpi);
+            if (Math.Abs(root.RowStyles[0].Height - rows.Header) > 1)
+                root.RowStyles[0].Height = rows.Header;
+            if (Math.Abs(root.RowStyles[2].Height - rows.Log) > 1)
+                root.RowStyles[2].Height = rows.Log;
         }
         void RestoreWithinMonitor()
         {
@@ -865,6 +860,8 @@ internal sealed partial class MainForm : Form
             var b = CreateButton(title, color, Color.White);
             b.Dock = DockStyle.Fill;
             b.Margin = new Padding(0, 4, 8, 5);
+            if (b is ModernButton modern) modern.AllowMultilineText = true;
+            _toolTips.SetToolTip(b, title);
             b.Click += (_, _) => onClick();
             actions.Controls.Add(b, column, 0);
             _actionControls.Add(b);
@@ -893,6 +890,8 @@ internal sealed partial class MainForm : Form
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 135));
         _listTitle.Dock = DockStyle.Fill;
+        _listTitle.AutoEllipsis = true;
+        _listTitle.SizeChanged += (_, _) => RenderTitle();
         _listTitle.Font = new Font("Segoe UI", 11.5F, FontStyle.Bold);
         _listTitle.ForeColor = Ink;
         _listTitle.TextAlign = ContentAlignment.MiddleLeft;
@@ -1320,8 +1319,8 @@ internal sealed partial class MainForm : Form
             card.Controls.Add(layout);
             flow.Controls.Add(card);
         }
-        // Os cartoes passam de quatro colunas para tres, duas ou uma sem
-        // exceder a largura disponivel, mesmo apos alteracoes de DPI.
+        // Tipografia e botoes mantem o mesmo tamanho de desenho em monitores
+        // grandes; apenas a quantidade de colunas e a largura se adaptam.
         bool fittingCards = false;
         void FitCards()
         {
@@ -1928,9 +1927,18 @@ internal sealed partial class MainForm : Form
         int updates = _installed.Count(x => x.IsUpdate && ActionableInventory.ShouldShow(x));
         int displayed = ActionableInventory.VisibleCount(_installed);
         string windowsStatus = _windowsUpdateCheckingMessage();
-        _listTitle.Text = $"Aplicativos: {displayed} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
+        string full = $"Aplicativos: {displayed} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
             (_consultaCatalogoCts is not null ? " · Verificando..." : "") +
             windowsStatus + (_multiSelectMode ? $" · Marcados: {_checkedApps.Count}" : "");
+        // Cabeçalho permanece de uma linha sem sobrepor os tres filtros.
+        // Todas as informacoes podem ser lidas pelo tooltip da legenda.
+        int width = _listTitle.ClientSize.Width;
+        _listTitle.Text = width < 240
+            ? $"{displayed} apps · {(_catalogoVerificado ? updates.ToString() : "—")} possíveis"
+            : width < 480
+            ? $"Aplicativos: {displayed} · Atualizações: {(_catalogoVerificado ? updates.ToString() : "—")}"
+            : full;
+        _toolTips.SetToolTip(_listTitle, full);
     }
 
     private string _windowsUpdateCheckingMessage()
