@@ -223,12 +223,50 @@ internal static class BroadResidualDiscovery
              sources.Contains("ProgramFiles"));
     }
 
+    // Um programa portatil pode estar ativo sem uma entrada ARP. Reconhecer
+    // apenas nomes de processos EM EXECUCAO; nenhuma ausencia e interpretada
+    // como prova de desinstalacao.
+    internal static bool IsRunningProduct(string product,
+        IReadOnlyCollection<string> runningNames)
+    {
+        string target = NormalizedCompare(product);
+        return target.Length >= 4 && runningNames.Any(name =>
+        {
+            string candidate = NormalizedCompare(name);
+            // Ex.: MPC-HC e mpc-hc64.exe (sem ler caminhos privados).
+            candidate = Regex.Replace(candidate, @"(?:\s(?:64|32|X64|X86)|(?<=\p{L})(?:64|32))$", "");
+            return candidate == target ||
+                candidate.StartsWith(target + " ", StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    internal static IReadOnlyCollection<string> ReadRunningProcessNames()
+    {
+        var names = new HashSet<string>(Comparer);
+        try
+        {
+            foreach (Process process in Process.GetProcesses())
+            {
+                using (process)
+                {
+                    try { names.Add(process.ProcessName); }
+                    catch (Exception ex) when (ex is InvalidOperationException or
+                        System.ComponentModel.Win32Exception) { /* processo saiu */ }
+                }
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or
+            System.ComponentModel.Win32Exception) { /* leitura parcial */ }
+        return names;
+    }
+
     // Classificação independente do ambiente: o mesmo algoritmo pode ser testado
     // em dados fictícios, sem acessar o Registro do usuário nem excluir nada.
     internal static IReadOnlyList<ResidualAuditReport> Classify(
         IEnumerable<BroadResidualEvidence> raw,
         IReadOnlyCollection<ProgramEntry> installed,
-        IReadOnlyCollection<string>? activeGameNames = null)
+        IReadOnlyCollection<string>? activeGameNames = null,
+        IReadOnlyCollection<string>? runningProcessNames = null)
     {
         // Jogos Steam/Epic podem estar instalados sem entradas ARP. Nunca
         // classificar suas pastas ou preferencias como vestigios de remocao.
@@ -241,6 +279,8 @@ internal static class BroadResidualDiscovery
             .GroupBy(e => NormalizedCompare(e.Name), Comparer)
             .Where(group => !IsProtectedByInstalled(group.First().Name, installed) &&
                 !protectedGames.Contains(NormalizedCompare(group.First().Name)) &&
+                !IsRunningProduct(group.First().Name,
+                    runningProcessNames ?? Array.Empty<string>()) &&
                 HasIndependentResidueEvidence(group))
             .Select(group =>
             {
@@ -311,7 +351,8 @@ internal static class BroadResidualDiscovery
             InspectRegistryHive(hive, view, identifier, found, ref entries,
                 ref restricted, ref incomplete, clock);
         }
-        var reports = Classify(found, installed, activeGameNames);
+        var reports = Classify(found, installed, activeGameNames,
+            ReadRunningProcessNames());
         if (reports.Count >= MaxReportGroups || gameInventoryPartial) incomplete = true;
         return new(reports, rootsChecked, entries, restricted, incomplete);
     }
