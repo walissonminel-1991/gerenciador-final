@@ -134,6 +134,20 @@ internal static class LayoutTests
         var programList = Descendants(form).OfType<DarkProgramList>().Single();
         if (programList.ItemHeight > 70)
             throw new Exception("Lista de programas ainda usa linhas excessivamente altas.");
+        nav.SelectTab(3);
+        Application.DoEvents();
+        var activateButtons = Descendants(form).OfType<ModernButton>()
+            .Where(b => b.Text == "Ativar" && b.Parent is TableLayoutPanel).ToArray();
+        if (activateButtons.Length != 3 ||
+            activateButtons.Any(b => b.Width > 130 || b.Height > 33))
+            throw new Exception("Botoes Ativar ainda demasiadamente largos.");
+        nav.SelectTab(2);
+        Application.DoEvents();
+        var repairTools = Descendants(form).OfType<ModernButton>()
+            .Where(b => b.Text is "Analisar rede" or "Reparar rede" or
+                "Criar ponto de restauração").ToArray();
+        if (repairTools.Length != 3 || repairTools.Any(b => b.Width > 215))
+            throw new Exception("Botoes de ferramentas ainda ocupam cartoes inteiros.");
         nav.SelectTab(4);
         Application.DoEvents();
         var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
