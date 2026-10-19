@@ -1590,10 +1590,10 @@ internal sealed partial class MainForm : Form
         fullAudit.Dock = DockStyle.Fill;
         fullAudit.Margin = new Padding(0, 5, 8, 5);
         fullAudit.Click += async (_, _) =>
-            await ExecuteAsync("Analisando instalações e dispositivos...", RunMaintenanceAuditAsync);
+            await ExecuteAsync("Analisando instalações, dispositivos e proteção...", RunMaintenanceAuditAsync);
         fullAudit.AccessibleName = "Diagnóstico completo";
-        _toolTips.SetToolTip(fullAudit, "Revisa o inventário, os desinstaladores, " +
-            "os registros de hardware desconectado e dispositivos com problemas. Não remove nada.");
+        _toolTips.SetToolTip(fullAudit, "Revisa inventário, dispositivos e situação geral do antivírus " +
+            "e firewall pelo Centro de Segurança do Windows. Somente leitura.");
         _actionControls.Add(fullAudit);
         previewRow.Controls.Add(fullAudit, 1, 0);
         _cleanupPreview.Text = "Analisar espaço e dispositivos sem apagar dados.";
@@ -2746,9 +2746,13 @@ internal sealed partial class MainForm : Form
         var apps = await Task.Run(() => AppServices.ScanAllInstalledApps().Items);
         var maintenanceTask = Task.Run(() => MaintenanceAudit.Inspect(apps));
         var gamesTask = Task.Run(GameLibraryAudit.Inspect);
-        await Task.WhenAll(maintenanceTask, gamesTask);
+        // Consulta agregada via API oficial do Windows, sem subprocessos,
+        // privilegiamento ou chamadas a APIs privadas do AVG.
+        var securityTask = Task.Run(SecurityCenterHealth.Capture);
+        await Task.WhenAll(maintenanceTask, gamesTask, securityTask);
         var report = await maintenanceTask;
         var games = await gamesTask;
+        var security = await securityTask;
         DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} pnp_sem_correspondencia={report.HistoricalPnP?.NotPresent ?? 0} steam={games.Steam} epic={games.Epic} parcial={report.Devices.Partial || games.Partial}");
         Log($"DIAGNÓSTICO COMPLETO: {report.Installed} programas; " +
             $"{report.Recognized} associados ao catálogo de receitas específicas; " +
@@ -2789,6 +2793,17 @@ internal sealed partial class MainForm : Form
             Log("Consulta PnP indisponível ou parcial. Não é possível concluir sobre drivers antigos.");
         foreach (var issue in report.Concerns)
             Log("Revisar: " + issue.Category + " — " + issue.Name + ": " + issue.Description);
+        foreach (var health in security)
+        {
+            var level = health.Level switch
+            {
+                SecurityHealthLevel.Ok => "OK",
+                SecurityHealthLevel.Attention => "ATENÇÃO",
+                _ => "INDETERMINADO"
+            };
+            Log($"SEGURANÇA [{level}]: {health.Category} — {health.Description}");
+        }
+        Log("Diagnóstico de proteção: leitura do Centro de Segurança. Não substitui AVG ou Defender.");
         Log("Nenhum driver, arquivo de instalação ou chave de Registro foi removido pelo diagnóstico.");
         Status(report.Devices.Partial || games.Partial ||
                report.HistoricalPnP is null || report.HistoricalPnP.Partial
