@@ -41,10 +41,14 @@ internal static class LayoutTests
                 nav.SelectTab(tab);
                 Application.DoEvents();
 
-                var buttons = Descendants(form).OfType<Button>()
-                    .Where(b => b.Visible && b.Enabled).ToArray();
-                if (buttons.Length == 0)
-                    throw new Exception($"Nenhum botao ativo: {name} {resolution} aba={tab}");
+                var allButtons = Descendants(form).OfType<Button>()
+                    .Where(b => b.Visible).ToArray();
+                // A aba Energia so habilita seus comandos depois de consultar
+                // o Windows. No teste isolado sem servicos eles devem continuar
+                // visiveis, mas desabilitados por seguranca.
+                if (allButtons.Length == 0)
+                    throw new Exception($"Nenhum botao apresentado: {name} {resolution} aba={tab}");
+                var buttons = allButtons.Where(b => b.Enabled).ToArray();
 
                 // Navegacao somente: nao clicar nem executar comandos destrutivos.
                 foreach (var button in buttons)
