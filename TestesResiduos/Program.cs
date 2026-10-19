@@ -136,6 +136,21 @@ Check(ActionableInventory.VisibleCount(new[] { systemOnly, gameOnly, staleApp, r
     "Uma atualizacao nao duplica a linha de programa que ja tem desinstalador");
 Console.WriteLine("OK Filtro de programas acionaveis preserva inventario completo sem comandos artificiais");
 
+var inventorySummary = ActionableInventory.Summarize(new[]
+    { systemOnly, gameOnly, staleApp, regular, quiet, protectedWin32 });
+Check(inventorySummary.Total == 6 && inventorySummary.Actionable == 2 &&
+      inventorySummary.WithoutAction == 4 && inventorySummary.Uninstallable == 2 &&
+      inventorySummary.Updates == 1,
+    "Resumo distingue inventario completo e acoes sem duplicar programa atualizavel e desinstalavel");
+systemOnly.IsUpdate = true;
+var storeSummary = ActionableInventory.Summarize(new[] { systemOnly, regular });
+Check(storeSummary.Total == 2 && storeSummary.Actionable == 2 &&
+      storeSummary.Uninstallable == 1 && storeSummary.Updates == 2 && storeSummary.WithoutAction == 0,
+    "Resumo inclui atualizacao sem desinstalador sem contar como desinstalavel");
+systemOnly.IsUpdate = false;
+Check(ActionableInventory.Summarize(Array.Empty<ProgramEntry>()) == new InventoryActionSummary(0, 0, 0, 0),
+    "Inventario vazio possui contadores zerados sem consultas ao sistema");
+
 
 
 // Dispositivos antigos que ainda constam no Registro, mas não no snapshot

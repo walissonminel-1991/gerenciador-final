@@ -2,6 +2,14 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.17 TESTE — consolidacao antes dos testes nos computadores
+- Verificacao de caminhos de desinstalacao movida para o mesmo trabalho em segundo plano do inventario, antes de entregar o snapshot a interface.
+- Resumo acessivel e dica do contador distinguem inventario completo, itens com acao, sem acao, desinstalaveis e atualizacoes, sem duplicar itens com duas acoes.
+- Confirmacao posterior de instalacao exige editor reconhecido e recusa entradas somente leitura; nome e versao isolados nao confirmam sucesso.
+- Novos casos de regressao para contadores, fabricante divergente, arquitetura Visual C++, receita desconhecida e versao antiga.
+- Roadmap de consolidacao com checkpoints verificaveis; validacao nos dois computadores permanece separada.
+- Nao comprova resolucao do AVG, ganho de desempenho real ou cobertura universal. Correlacao de arquitetura/escopo na confirmacao posterior de todos os instaladores permanece pendente.
+
 ## 5.13.10.16 TESTE — PC FRACO e procedencia verificavel
 - A amostragem do monitor usa 2 s somente na aba Processos, 12 s nas demais abas e 20 s ao minimizar para a bandeja; a coleta continua na bandeja.
 - A primeira coleta de processos aguarda o intervalo do timer, sem competir imediatamente com o inventario inicial; ao abrir Processos ou restaurar a janela, atualiza sob demanda.

@@ -674,7 +674,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.16 TESTE";
+        Text = "Gerenciador Final — v5.13.10.17 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -1885,7 +1885,15 @@ internal sealed partial class MainForm : Form
         List<ProgramEntry> items;
         try
         {
-            var scan = await Task.Run(AppServices.ScanAllInstalledApps);
+            var scan = await Task.Run(() =>
+            {
+                var result = AppServices.ScanAllInstalledApps();
+                // Verificar caminhos pode envolver disco lento ou indisponivel.
+                // Resolver antes de entregar o snapshot a thread da interface.
+                foreach (var item in result.Items)
+                    item.CanUninstall = ActionableInventory.CanUninstall(item);
+                return result;
+            });
             items = scan.Items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
             DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count} examinados={scan.Registry.Inspected} ocultos={scan.Registry.HiddenComponents} updates_arp={scan.Registry.UpdateEntries} erros={scan.Registry.ReadFailures} duplicados={scan.Registry.Duplicates}");
             DiagnosticTrace.Write($"MSIX.LEITURA status={scan.Msix.Status} enumerados={scan.Msix.Seen} " +
@@ -1901,10 +1909,8 @@ internal sealed partial class MainForm : Form
         }
         _catalogoGeneration++;
         _consultaCatalogoCts?.Cancel();
-        // Resolvemos os desinstaladores uma única vez por leitura local.
+        // Os desinstaladores ja foram resolvidos em segundo plano.
         // Não ocultar do inventário os programas sem ação; somente da lista.
-        foreach (var item in items)
-            item.CanUninstall = ActionableInventory.CanUninstall(item);
         _installed.Clear();
         _installed.AddRange(items);
         DiagnosticTrace.Write($"APLICATIVOS.ACOES inventario={items.Count} desinstalaveis={items.Count(x => x.CanUninstall)} ocultos_sem_acao={items.Count(x => !x.CanUninstall)}");
@@ -2151,10 +2157,11 @@ internal sealed partial class MainForm : Form
 
     private void RenderTitle()
     {
-        int updates = _installed.Count(x => x.IsUpdate && ActionableInventory.ShouldShow(x));
-        int displayed = ActionableInventory.VisibleCount(_installed);
+        var summary = ActionableInventory.Summarize(_installed);
+        int updates = summary.Updates;
+        int displayed = summary.Actionable;
         string windowsStatus = _windowsUpdateCheckingMessage();
-        string full = $"Aplicativos: {displayed} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
+        string full = $"Inventário completo: {summary.Total} · Com ação: {displayed} · Sem ação disponível: {summary.WithoutAction} · Desinstaláveis: {summary.Uninstallable} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
             (_consultaCatalogoCts is not null ? " · Verificando..." : "") +
             windowsStatus + (_multiSelectMode ? $" · Marcados: {_checkedApps.Count}" : "");
         // Cabeçalho permanece de uma linha sem sobrepor os tres filtros.
@@ -2167,6 +2174,7 @@ internal sealed partial class MainForm : Form
             ? $"Aplicativos: {displayed}"
             : $"Aplicativos: {displayed} · Atualizações: {count}";
         _toolTips.SetToolTip(_listTitle, full);
+        _listTitle.AccessibleDescription = full;
     }
 
     private string _windowsUpdateCheckingMessage()

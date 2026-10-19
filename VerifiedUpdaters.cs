@@ -307,6 +307,10 @@ internal static class VerifiedUpdaters
         if (!TryVersion(version, out var target)) return false;
         foreach (var entry in apps)
         {
+            // A confirmacao posterior nao pode aceitar apenas nome/versao:
+            // outro editor ou uma entrada somente leitura nao comprova instalacao.
+            if (entry.InventoryOnly || !MatchesInstalledPublisher(identifier, entry.Publisher))
+                continue;
             bool belongs = identifier switch
             {
                 "vc2013-x64" => entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable (x64)", StringComparison.OrdinalIgnoreCase),
@@ -323,6 +327,21 @@ internal static class VerifiedUpdaters
                 return true;
         }
         return false;
+    }
+
+    private static bool MatchesInstalledPublisher(string identifier, string publisher)
+    {
+        string[] allowed = identifier switch
+        {
+            "vc2013-x64" or "vc2013-x86" or "gameinput-x64-3.5.283" =>
+                ["Microsoft Corporation", "Microsoft"],
+            "obs-x64-32.2.2" => ["OBS Project", "OBS Project, LLC"],
+            "notepadpp-x64-8.9.8.1" => ["Don HO", "Notepad++", "Notepad Team", "Notepad++ Team"],
+            "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" =>
+                ["Krzysztof Kowalczyk", "SumatraPDF", "SumatraPDF Reader"],
+            _ => []
+        };
+        return allowed.Contains(publisher.Trim(), StringComparer.OrdinalIgnoreCase);
     }
 
     private static bool IsAllowedRemoteUri(Uri uri, string id)

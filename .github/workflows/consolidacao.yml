@@ -1,0 +1,61 @@
+name: Consolidacao v5.13.10.17 - regressoes offline Windows
+on:
+  push:
+    branches: [teste-consolidacao-v5.13.10.17]
+    paths-ignore: ['docs/**', '**.md']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compilar aplicacao
+        shell: pwsh
+        run: |
+          dotnet build GerenciadorAplicativos.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Regressoes de inventario, atualizacoes, residuos e seguranca
+        shell: pwsh
+        run: |
+          $projects = @('TestesMotor', 'TestesAtualizador', 'TestesCatalogo', 'TestesMultifontes', 'TestesMsix', 'TestesFechamento', 'TestesResiduos', 'TestesSeguranca')
+          foreach ($project in $projects) {
+            Write-Output "INICIO $project"
+            dotnet run --project "$project/$project.csproj" -c Release
+            if ($LASTEXITCODE -ne 0) { throw "Falhou: $project" }
+            Write-Output "APROVADO $project"
+          }
+      - name: Layout, bandeja e monitoramento
+        shell: pwsh
+        run: |
+          dotnet run --project TestesLayout/TestesLayout.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Guardar capturas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Layout-consolidacao-v5.13.10.17
+          path: LayoutCaptures/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Preparar pacote para validacao futura
+        shell: pwsh
+        run: |
+          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o Distribuicao-v5.13.10.17
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./TestesManifesto/Testar-Ativacao.ps1 -ExecutablePath './Distribuicao-v5.13.10.17/GerenciadorFinal.exe'
+          $folder = 'Distribuicao-v5.13.10.17'
+          Get-ChildItem $folder -File | Sort-Object Name | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+          } | Set-Content (Join-Path $folder 'SHA256SUMS.txt') -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GerenciadorFinal-v5.13.10.17-TESTE-NAO-ASSINADO
+          path: Distribuicao-v5.13.10.17/
+          if-no-files-found: error
+          retention-days: 7

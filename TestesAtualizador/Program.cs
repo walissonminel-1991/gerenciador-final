@@ -182,6 +182,29 @@ Verify(VerifiedUpdaters.Resolve(Item("SumatraPDF", "3.6.1", "3.6.1",
 }
 
 Console.WriteLine($"{checkedCount}/{checkedCount} testes do motor autorizador aprovados");
+Verify(VerifiedUpdaters.IsInstalledVersionAtLeast("vc2013-x64", "12.0.40664",
+    new[] { Item("Microsoft Visual C++ 2013 Redistributable (x64)", "12.0.40664.0", "") }),
+    "Pos-instalacao confirma produto, editor, arquitetura e versao equivalente");
+Verify(!VerifiedUpdaters.IsInstalledVersionAtLeast("vc2013-x64", "12.0.40664",
+    new[] { Item("Microsoft Visual C++ 2013 Redistributable (x86)", "12.0.40664.0", "") }),
+    "Pos-instalacao x86 nao confirma atualizacao x64");
+foreach (var publisher in new[] { "", "Outra Empresa", "Microsoft Tools Unofficial" })
+    Verify(!VerifiedUpdaters.IsInstalledVersionAtLeast("vc2013-x64", "12.0.40664",
+        new[] { Item("Microsoft Visual C++ 2013 Redistributable (x64)", "12.0.40664.0", "", publisher) }),
+        "Pos-instalacao recusa editor ausente ou divergente: " + publisher);
+Verify(!VerifiedUpdaters.IsInstalledVersionAtLeast("obs-x64-32.2.2", "32.2.2",
+    new[] { Item("OBS Studio", "32.2.2", "", "OBS Project", inventoryOnly: true) }),
+    "Entrada somente leitura nao comprova instalacao executada");
+Verify(!VerifiedUpdaters.IsInstalledVersionAtLeast("obs-x64-32.2.2", "32.2.2",
+    new[] { Item("OBS Studio", "31.1.2", "", "OBS Project") }),
+    "Versao antiga apos instalador nao significa sucesso");
+Verify(VerifiedUpdaters.IsInstalledVersionAtLeast("obs-x64-32.2.2", "32.2.2",
+    new[] { Item("OBS Studio", "32.2.3", "", "OBS Project, LLC") }),
+    "Versao posterior do mesmo produto e editor e reconhecida");
+Verify(!VerifiedUpdaters.IsInstalledVersionAtLeast("receita-desconhecida", "1.0",
+    new[] { Item("OBS Studio", "32.2.2", "", "OBS Project") }),
+    "Receita desconhecida nao confirma instalacao");
+Console.WriteLine($"{checkedCount}/{checkedCount} testes incluindo confirmacao posterior aprovados");
 if (args.Contains("--verify-terminal", StringComparer.OrdinalIgnoreCase))
 {
     if (terminalRecipe is null) throw new InvalidOperationException("Terminal sem receita.");
