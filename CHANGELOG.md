@@ -2,6 +2,17 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.12 TESTE — descricoes da ultima aba e Atualizar lista na area correta
+- A aba Inicializacao e sistema volta a exibir as quatro descricoes completas, em texto legivel abaixo dos botoes (Processos, Inicializacao, Windows Update e Este computador), com aviso acessivel e tooltip.
+- Amplia a altura reservada aos comandos para evitar que suas descricoes fiquem ocultas por falta de espaco.
+- Corrige seis verificacoes com indice de aba antigo no painel integrado: depois de incluir DRIVERS, o Sistema passou a ser a sexta aba (indice 5), evitando deixar de exibir resultados atualizados de Processos e Windows Update.
+- A opcao Atualizar lista sai da faixa de pesquisa e passa a integrar os cinco comandos de Aplicativos, antes de Verificar atualizacoes.
+- Em janelas estreitas, os cinco comandos sao distribuidos em duas linhas proporcionais (tres em cima e dois embaixo), sem abreviar nomes.
+- O campo de pesquisa mantem apenas Pesquisar, filtro textual e Limpar; Atualizar lista permanece uma leitura local, enquanto Verificar atualizacoes realiza consulta online.
+- Testes automatizados cobrem as descricoes de cada comando nas 22 resolucoes da matriz, visibilidade das legendas, posicao de Atualizar lista, distribuicao responsiva dos cinco comandos e ausencia de indices antigos da ultima aba.
+- Nao modifica acoes de drivers, politicas de limpeza, inventario ou o tratamento conservador de residuos de GOG.com, McAfee e Microvirt (somente leitura).
+- Versao ainda sujeita a avaliacao presencial no PC FRACO.
+
 ## 5.13.10.11 TESTE — sexta aba DRIVERS e navegacao uniforme
 - Insere a aba DRIVERS imediatamente depois de Aplicativos; e uma area apenas visual com Inventario, Atualizacao/instalacao e Historico/reversao como funcionalidades futuras.
 - Nenhum driver e consultado, instalado, removido ou alterado pela aba provisoria. Nenhuma funcao de manutencao existente foi modificada.
