@@ -1315,14 +1315,16 @@ internal sealed partial class MainForm : Form
             BackColor = AppServices.Background
         };
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 342));
-        cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 275));
         cleaningLayout.Controls.Add(cleaningActions, 0, 0);
         cleaningLayout.Controls.Add(BuildDiskPanel(), 0, 1);
         cleaning.Controls.Add(ScrollablePage(cleaningLayout, width =>
         {
             int cardsHeight = ToolsHeight(cleaningActions, width);
+            int diskHeight = DiskPanelHeight(width);
             cleaningLayout.RowStyles[0].Height = cardsHeight;
-            return cardsHeight + DiskPanelHeight(width);
+            cleaningLayout.RowStyles[1].Height = diskHeight;
+            return cardsHeight + diskHeight;
         }, trackCleaning: true));
         // Fluxo simples para uso cotidiano: DISM repara a imagem; em seguida SFC
         // verifica e tenta reparar os arquivos protegidos. Consultas separadas
