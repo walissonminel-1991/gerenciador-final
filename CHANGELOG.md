@@ -2,6 +2,15 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.3 TESTE — janela inicial compacta como a referencia 1440x900
+- Substitui o tamanho inicial de 1250x980 pela dimensao de referencia 875x745: em monitores grandes, a janela deixa espaco livre ao redor.
+- Abre centralizada dentro da area util do monitor; em telas pequenas limita ao espaco disponivel, sem perder navegacao, rolamento ou o registro.
+- Mantem fontes, botoes e proporcoes visuais do layout atual sem ampliar a interface com a resolucao fisica (4K, 5K, 8K).
+- Mantem suporte a redimensionamento manual, troca de monitor e escalonamento DPI existente.
+- Acrescenta validacao explicita da referencia 1440x900, alem das 21 resolucoes anteriores.
+- Ajusta os testes de regressao que ainda exigiam indevidamente a abertura em dimensoes grandes.
+- Esta e uma compilacao de teste; a avaliacao visual no Windows real continua necessaria.
+
 ## 5.13.10.2 TESTE — consistencia de interface e registro
 - Corrige o registro excessivamente baixo e reserva espaco real para diagnosticos em qualquer altura util.
 - Usa largura e altura preferidas limitadas em telas 4K/8K; nao dimensiona fontes ou botoes de acordo com a resolucao nominal.
