@@ -656,7 +656,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.6 TESTE";
+        Text = "Gerenciador Final — v5.13.10.7 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -811,7 +811,7 @@ internal sealed partial class MainForm : Form
         panel.Controls.Add(new Label
         {
             Text = "GERENCIADOR FINAL", Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 17F, FontStyle.Bold), ForeColor = Ink,
+            Font = new Font("Segoe UI", 15.5F, FontStyle.Bold), ForeColor = Ink,
             Margin = new Padding(13, 0, 0, 0), TextAlign = ContentAlignment.MiddleLeft
         }, 1, 0);
         panel.Controls.Add(new Label
@@ -842,10 +842,10 @@ internal sealed partial class MainForm : Form
             Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
-        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 106));
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 98));
-        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 156));
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 134));
         searchBar.Controls.Add(new Label
         {
             Text = "Pesquisar:", Dock = DockStyle.Fill, ForeColor = Muted,
@@ -876,19 +876,20 @@ internal sealed partial class MainForm : Form
 
         var actions = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
-            BackColor = AppServices.Background, Margin = new Padding(0, 2, 0, 3)
+            Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
+            BackColor = AppServices.Background, Margin = new Padding(0, 2, 0, 2)
         };
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 31));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 29));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 17));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 206));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 161));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 196));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Button MakeAction(string title, Color color, int column, Action onClick)
         {
             var b = CreateButton(title, color, Color.White);
             b.Dock = DockStyle.Fill;
             b.Margin = new Padding(0, 2, 5, 2);
-            if (b is ModernButton modern) modern.AllowMultilineText = true;
+            if (b is ModernButton modern) modern.AllowMultilineText = false;
             _toolTips.SetToolTip(b, title);
             b.Click += (_, _) => onClick();
             actions.Controls.Add(b, column, 0);
@@ -914,13 +915,13 @@ internal sealed partial class MainForm : Form
             Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty
         };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 135));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 124));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 106));
         _listTitle.Dock = DockStyle.Fill;
         _listTitle.AutoEllipsis = false;
         _listTitle.SizeChanged += (_, _) => RenderTitle();
-        _listTitle.Font = new Font("Segoe UI", 11.5F, FontStyle.Bold);
+        _listTitle.Font = new Font("Segoe UI", 10.0F, FontStyle.Bold);
         _listTitle.ForeColor = Ink;
         _listTitle.TextAlign = ContentAlignment.MiddleLeft;
         heading.Controls.Add(_listTitle, 0, 0);
@@ -1011,7 +1012,7 @@ internal sealed partial class MainForm : Form
     {
         var button = CreateSecondaryButton(visibleTitle ?? title);
         button.Dock = DockStyle.Fill;
-        button.Margin = new Padding(5, 4, 0, 5);
+        button.Margin = new Padding(4, 3, 0, 3);
         button.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
         button.Click += (_, _) =>
         {
@@ -1294,7 +1295,7 @@ internal sealed partial class MainForm : Form
         {
             var card = new Panel
             {
-                Size = new Size(244, 124),
+                Size = new Size(244, 111),
                 BackColor = PanelBackground,
                 Margin = new Padding(3, 3, 5, 6),
                 Padding = new Padding(6)
@@ -1309,15 +1310,15 @@ internal sealed partial class MainForm : Form
                 Margin = Padding.Empty,
                 Padding = Padding.Empty
             };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 39));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            var button = CreateButton(ToolCaption(tool.Name, compact), tool.Color, Color.White);
+            var button = CreateButton(tool.Name, tool.Color, Color.White);
             if (button is ModernButton modernButton)
-                modernButton.AllowMultilineText = true;
+                modernButton.AllowMultilineText = false;
             button.Dock = DockStyle.Fill;
             button.Margin = Padding.Empty;
-            button.MinimumSize = new Size(0, 36);
+            button.MinimumSize = new Size(0, 30);
             button.AccessibleName = tool.Name;
             button.AccessibleDescription = tool.Description;
             _toolTips.SetToolTip(button, tool.Description);
@@ -1974,8 +1975,8 @@ internal sealed partial class MainForm : Form
         // Preferir informacao essencial completa. Os detalhes adicionais,
         // inclusive o Windows Update, ficam acessiveis na dica integral.
         string count = _catalogoVerificado ? updates.ToString() : "—";
-        _listTitle.Text = width < 265
-            ? $"Apps: {displayed} · Atual.: {count}"
+        _listTitle.Text = width < 220
+            ? $"Aplicativos: {displayed}"
             : $"Aplicativos: {displayed} · Atualizações: {count}";
         _toolTips.SetToolTip(_listTitle, full);
     }
