@@ -8,6 +8,17 @@ internal sealed partial class MainForm
     // Mantem a rolagem somente na pagina. O painel de discos exige uma
     // segunda medicao depois que o Windows entrega as unidades locais.
     private Action? _relayoutCleaning;
+    private Action? _relayoutRepair;
+
+    // O painel de rede reserva espaco para as linhas efetivamente exibidas.
+    // Antes do primeiro diagnostico nao precisa ocupar 205 px vazios.
+    private int NetworkResultHeight()
+    {
+        int lines = string.IsNullOrWhiteSpace(_networkDetails.Text) ? 0 :
+            Math.Min(7, _networkDetails.Text.Split('\n').Length);
+        int logical = Math.Max(96, 83 + lines * 16);
+        return (int)Math.Ceiling(logical * Math.Max(1d, DeviceDpi / 96d));
+    }
 
     private int DiskPanelHeight(int width)
     {
@@ -24,7 +35,7 @@ internal sealed partial class MainForm
     // A pagina inteira rola quando necessario, mas nunca acrescenta barras
     // independentes a conjuntos de ferramentas e a unidades.
     private Control ScrollablePage(Control content, Func<int, int> minimumHeight,
-        bool trackCleaning = false)
+        bool trackCleaning = false, bool trackRepair = false)
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty,
             IsPageViewport = true, BackColor = AppServices.Background };
@@ -58,6 +69,7 @@ internal sealed partial class MainForm
         };
         host.DpiChangedAfterParent += (_, _) => Arrange();
         if (trackCleaning) _relayoutCleaning = Arrange;
+        if (trackRepair) _relayoutRepair = Arrange;
         Arrange();
         return host;
     }
