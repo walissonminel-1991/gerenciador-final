@@ -1682,6 +1682,7 @@ internal sealed partial class MainForm : Form
                 _ = RefreshDiskUsageAsync();
             if (_nav.SelectedIndex == 3)
                 _ = RefreshEnergyInfoAsync();
+            ExitAfterCurrentOperation();
         }
     }
 
