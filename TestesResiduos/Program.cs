@@ -413,6 +413,19 @@ Check(BroadResidualDiscovery.Classify(protectedHistory, new[]
     { new ProgramEntry { Name = "GOG Galaxy", Publisher = "GOG.com" } })
     .All(r => r.Product != "GOG.com"),
     "Perfil GOG nao aparece como residuo quando fabricante ainda esta registrado");
+Check(BroadResidualDiscovery.IsRunningProduct("MPC-HC", new[] { "mpc-hc64" }) &&
+      BroadResidualDiscovery.IsRunningProduct("MPC-HC", new[] { "MPC-HC" }) &&
+      !BroadResidualDiscovery.IsRunningProduct("McAfee", new[] { "mpc-hc64" }),
+    "Reconhecer MPC-HC ativo mesmo sem registro de desinstalacao e sem confundir fabricantes");
+Check(BroadResidualDiscovery.Classify(protectedHistory,
+        Array.Empty<ProgramEntry>(), null, new[] { "mpc-hc64" })
+    .All(report => report.Product != "MPC-HC"),
+    "MPC-HC em execucao nao deve ser mostrado como vestigio de remocao");
+Check(BroadResidualDiscovery.Classify(protectedHistory, Array.Empty<ProgramEntry>())
+    .Any(report => report.Product == "MPC-HC" &&
+        !report.UninstallConfirmed),
+    "Ausencia de processo nao prova desinstalacao; apenas manter revisao informativa");
+
 
 
 // Um jogo Steam/Epic pode existir somente como manifesto, sem entrada ARP.
