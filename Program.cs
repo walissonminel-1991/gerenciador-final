@@ -674,10 +674,14 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.7 TESTE";
+        Text = "Gerenciador Final — v5.13.10.8 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
+        // Buffering somente na janela principal: sem compositar toda a
+        // hierarquia nativa de TextBox/FlowLayout (custo no PC FRACO).
+        SetStyle(ControlStyles.OptimizedDoubleBuffer |
+            ControlStyles.AllPaintingInWmPaint, true);
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
         // Abre com a dimensao compacta da referencia visual 1440x900,
@@ -771,7 +775,11 @@ internal sealed partial class MainForm : Form
             catch (InvalidOperationException) { /* Janela ja encerrada. */ }
         };
         SystemEvents.DisplaySettingsChanged += monitorChanged;
-        FormClosed += (_, _) => SystemEvents.DisplaySettingsChanged -= monitorChanged;
+        FormClosed += (_, _) =>
+        {
+            SystemEvents.DisplaySettingsChanged -= monitorChanged;
+            _log.FlushPending();
+        };
         FitWorkspace();
         // Abre imediatamente. Primeiro carrega a lista local e depois inicia consultas independentes,
         // em segundo plano, sem janelas auxiliares e sem executar instaladores.
@@ -780,7 +788,10 @@ internal sealed partial class MainForm : Form
             RestoreWithinMonitor();
             FitWorkspace();
             if (!startServices) return;
-            await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync);
+            // Na abertura, a lista ainda esta vazia: nao animar barra de
+            // progresso nem alternar Enabled/Visible de dezenas de controles.
+            await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync,
+                quietStartup: true);
             if (!IsDisposed)
                 BeginStartupChecks();
         };
@@ -1683,31 +1694,37 @@ internal sealed partial class MainForm : Form
         _toolTips.SetToolTip(_status, text);
     }
 
-    private async Task ExecuteAsync(string description, Func<Task> work)
+    private async Task ExecuteAsync(string description, Func<Task> work,
+        bool quietStartup = false)
     {
         if (_busy) return;
         _busy = true;
-        _programList.ActionsEnabled = false;
-        UpdateBulkButtons();
-        // Não desabilitar todos os botões: isso causava piscadas no painel Reparo e rede.
-        // O bloqueio de operações paralelas é realizado por _busy no manipulador do clique.
-        _search.Enabled = false;
-        _progress.Visible = true;
-        _progress.Style = ProgressBarStyle.Marquee; // Sem percentual inventado para comandos externos.
-        _progress.MarqueeAnimationSpeed = 24;
+        if (!quietStartup)
+        {
+            _programList.ActionsEnabled = false;
+            UpdateBulkButtons();
+            // Somente operações explícitas exibem o progresso animado.
+            _search.Enabled = false;
+            _progress.Visible = true;
+            _progress.Style = ProgressBarStyle.Marquee;
+            _progress.MarqueeAnimationSpeed = 24;
+        }
         _status.Text = description;
         try { await work(); }
         catch (Exception ex) { ReportError(ex); }
         finally
         {
-            _progress.MarqueeAnimationSpeed = 0;
-            _progress.Style = ProgressBarStyle.Blocks;
-            _progress.Value = 0;
-            _progress.Visible = false;
+            if (!quietStartup)
+            {
+                _progress.MarqueeAnimationSpeed = 0;
+                _progress.Style = ProgressBarStyle.Blocks;
+                _progress.Value = 0;
+                _progress.Visible = false;
+                _search.Enabled = true;
+                _programList.ActionsEnabled = true;
+            }
             _status.Text = _operationResult;
-            _search.Enabled = true;
             _busy = false;
-            _programList.ActionsEnabled = true;
             UpdateBulkButtons();
             if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
                 _checkUpdatesButton.Enabled = true;
