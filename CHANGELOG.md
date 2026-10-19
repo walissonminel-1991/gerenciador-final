@@ -2,6 +2,17 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.13 TESTE — monitor de processos semelhante ao Gerenciador de Tarefas
+- Substitui cartoes de CPU por tabela de processos com CPU instantanea, RAM, PID e entrada/saida em KB/s; colunas ordenaveis e filtro por nome/PID.
+- CPU de processos usa diferenca de TotalProcessorTime normalizada pela quantidade de processadores logicos; CPU total usa GetSystemTimes; RAM total usa GlobalMemoryStatusEx; trafego total de rede usa contadores de adaptadores ativos.
+- GetProcessIoCounters informa bytes de leitura/escrita acumulados e suas taxas. Esse numero nao e disco fisico: nao inferir consumo de disco nem rede por processo.
+- Primeira amostra e acesso negado exibem valor indisponivel em vez de inventar zero. Processos que terminam nao interrompem o monitor.
+- Atualiza a cada 2 segundos somente quando a aba Processos esta visivel; em segundo plano e na bandeja passa para 5 segundos; nenhuma operacao pode encerrar processos.
+- Tabela WinForms com pintura dupla e atualizacao incremental de celulas (sem apagar todas as linhas quando a ordem nao muda), com filtro preservado e scroll restaurado.
+- Botao Tarefas do Windows abre Task Manager nativo para informacoes que nao sao medidas pelo Gerenciador Final.
+- Ampliados testes de layout e testes de amostras CPU/E/S, memoria, PID, ordenacao, filtro, refresh sem remontagem e dados sinteticos. Preservadas regras de seguranca e residuos.
+- Nenhum codigo ou elemento grafico proprietario do Task Manager foi copiado.
+
 ## 5.13.10.12 TESTE — descricoes da ultima aba e Atualizar lista na area correta
 - A aba Inicializacao e sistema volta a exibir as quatro descricoes completas, em texto legivel abaixo dos botoes (Processos, Inicializacao, Windows Update e Este computador), com aviso acessivel e tooltip.
 - Amplia a altura reservada aos comandos para evitar que suas descricoes fiquem ocultas por falta de espaco.
