@@ -1215,7 +1215,7 @@ internal sealed partial class MainForm : Form
         {
             int cardsHeight = ToolsHeight(cleaningActions, width);
             cleaningLayout.RowStyles[0].Height = cardsHeight;
-            return cardsHeight + (int)Math.Ceiling(248 * DeviceDpi / 96d);
+            return cardsHeight + (int)Math.Ceiling(214 * DeviceDpi / 96d);
         }));
         // Fluxo simples para uso cotidiano: DISM repara a imagem; em seguida SFC
         // verifica e tenta reparar os arquivos protegidos. Consultas separadas
@@ -1258,14 +1258,14 @@ internal sealed partial class MainForm : Form
         {
             int cardsHeight = ToolsHeight(repairActions, width);
             repairLayout.RowStyles[0].Height = cardsHeight;
-            return cardsHeight + (int)Math.Ceiling(220 * DeviceDpi / 96d);
+            return cardsHeight + (int)Math.Ceiling(175 * DeviceDpi / 96d);
         }));
         performance.Controls.Add(ScrollablePage(BuildEnergyPanel(),
-            _ => (int)Math.Ceiling(490 * DeviceDpi / 96d)));
+            _ => (int)Math.Ceiling(415 * DeviceDpi / 96d)));
         // Painéis nativos do gerenciador: nenhum atalho para Task Manager,
         // MSConfig, Configurações, Windows Update ou MSInfo32.
         system.Controls.Add(ScrollablePage(BuildIntegratedSystemPanel(),
-            _ => (int)Math.Ceiling(460 * DeviceDpi / 96d)));
+            _ => (int)Math.Ceiling(415 * DeviceDpi / 96d)));
     }
 
     private sealed record ToolInfo(string Name, string Description, Color Color, Func<Task> Action);
