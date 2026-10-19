@@ -522,12 +522,30 @@ internal sealed class ModernButton : Button
         }
         var content = new Rectangle(12, 3 + (depressed ? 2 : 0),
             Math.Max(1, ClientSize.Width - 24), Math.Max(1, ClientSize.Height - 6));
-        var captionFlags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-            TextFormatFlags.NoPrefix |
-            (AllowMultilineText ? TextFormatFlags.WordBreak :
-                TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
-        TextRenderer.DrawText(e.Graphics, Text, Font, content,
-            Enabled ? ForeColor : Color.FromArgb(164, 176, 190), captionFlags);
+        // Diminuir a fonte quando necessario, sem cortar palavras.
+        // A segunda linha so e permitida como ultimo recurso em janelas antigas.
+        Font? fitted = null;
+        Font drawFont = Font;
+        try
+        {
+            int available = Math.Max(8, content.Width - 3);
+            while (!AllowMultilineText && drawFont.SizeInPoints > 7.0F &&
+                TextRenderer.MeasureText(e.Graphics, Text, drawFont,
+                    new Size(int.MaxValue, content.Height),
+                    TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width > available)
+            {
+                float nextSize = Math.Max(7.0F, drawFont.SizeInPoints - 0.4F);
+                fitted?.Dispose();
+                fitted = new Font(Font.FontFamily, nextSize, Font.Style);
+                drawFont = fitted;
+            }
+            var captionFlags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding |
+                (AllowMultilineText ? TextFormatFlags.WordBreak : TextFormatFlags.SingleLine);
+            TextRenderer.DrawText(e.Graphics, Text, drawFont, content,
+                Enabled ? ForeColor : Color.FromArgb(164, 176, 190), captionFlags);
+        }
+        finally { fitted?.Dispose(); }
     }
 
     private static Color Blend(Color first, Color second, float amount)
