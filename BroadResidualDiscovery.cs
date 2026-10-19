@@ -141,6 +141,21 @@ internal static class BroadResidualDiscovery
                 candidate.StartsWith(full + " ", StringComparison.OrdinalIgnoreCase))
                 return true;
         }
+        // Alias conservador de instalacao: o componente continua presente
+        // sob outro nome no ARP. Especialmente MPC-HC distribuido com K-Lite,
+        // Microvirt sob MEmu e dados GOG.com usados pelo GOG Galaxy.
+        // O alias so PROTEGE dados: nunca autoriza limpeza ou desinstalacao.
+        bool protectsAlias = candidate switch
+        {
+            "GOG COM" => names.Any(n => n.StartsWith("GOG GALAXY", StringComparison.OrdinalIgnoreCase)),
+            "MICROVIRT" => names.Any(n => n == "MEMU" ||
+                n.StartsWith("MEMU PLAY", StringComparison.OrdinalIgnoreCase)),
+            "MPC HC" => names.Any(n =>
+                n.StartsWith("K LITE CODEC PACK", StringComparison.OrdinalIgnoreCase) ||
+                n.StartsWith("MEDIA PLAYER CLASSIC HOME CINEMA", StringComparison.OrdinalIgnoreCase)),
+            _ => false
+        };
+        if (protectsAlias) return true;
         // EA app replaces Origin. The historical cache may contain cloud saves.
         if (candidate == "ORIGIN" &&
             installed.Any(p => p.Name.Equals("EA app", StringComparison.OrdinalIgnoreCase)
