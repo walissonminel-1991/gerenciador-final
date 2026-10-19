@@ -1,4 +1,4 @@
-name: Gerenciador Final v5.13.10.15 Layout Responsivo - Windows x64
+name: Gerenciador Final v5.13.10.15 Seguranca Windows - Windows x64
 
 on:
   push:
@@ -56,6 +56,9 @@ on:
       - 'ProcessMonitorUi.cs'
       - 'ResponsiveLayout.cs'
       - 'SafetyDiagnosticsUi.cs'
+      - 'SecurityCenterHealth.cs'
+      - 'TestesSeguranca/**'
+      - 'SECURITY.md'
       - 'AdvancedFeatures.cs'
       - 'DiagnosticTrace.cs'
       - 'app.manifest'
