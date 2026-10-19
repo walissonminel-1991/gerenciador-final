@@ -2,6 +2,19 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.6 TESTE — controle de rolagem e informacoes sem cortes
+- Corrige rolagem fantasma provocada pela margem tecnica de 3 pixels no componente de pagina.
+- Os cartoes de limpeza, reparo e discos deixam de ter barras internas ao serem incorporados numa pagina; se o conteudo for maior, apenas a pagina rola.
+- A altura do painel de discos e calculada conforme a quantidade de unidades, atualizada quando a leitura termina, sem comprimir cartoes.
+- Reparo e energia ocupam menos altura e evitam a barra externa quando a pagina cabe na area visivel.
+- Botoes de disco e margens do painel de limpeza foram reduzidos sem remover funcionalidades; os limites de seguranca permanecem os mesmos.
+- Os quatro atalhos da aba Inicializacao e sistema usam legendas curtas que cabem; as explicacoes completas ficam em dicas de acessibilidade.
+- Resumo de aplicativos mostra sempre quantidade e atualizacoes, sem cortar a legenda apos o primeiro numero.
+- Testes automatizados em 21 resolucoes e na referencia 1440x900 checam se existe rolagem duplicada ou fantasma.
+- Bandeja, ausencia de maximizar, limite de 60 por cento e diagnostico local permanecem inalterados.
+- GOG.com, McAfee, Microvirt e MPC-HC permanecem classificados de modo conservador e so leitura, sem exclusao automatica.
+- Aprovacao final depende da verificacao visual real, especialmente ao alternar de aba e revisar varias unidades de disco.
+
 ## 5.13.10.5 TESTE — bandeja fluida, mais informacao por tela e diagnostico
 - Nao alternar ShowInTaskbar ao minimizar/restaurar: Hide e Show preservam o mesmo HWND e evitam repintura por recriacao.
 - Suspende reorganizacoes de paginas e barras de rolagem durante transicoes de bandeja; amostragem de processos e consultas continuam ativas.
