@@ -8,10 +8,15 @@ internal static class LayoutTests
     static void Main()
     {
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+        using var deadline = new System.Threading.Timer(_ => Environment.FailFast("Timeout no teste de layout"), null, 90000, Timeout.Infinite);
         Application.EnableVisualStyles();
+        Console.WriteLine("Criando janela");
         using var form = new MainForm(startServices: false);
         form.MaximumSize = new Size(4096, 4096);
+        Console.WriteLine("Exibindo janela");
         form.Show();
+        Console.WriteLine("Janela exibida");
         var nav = Descendants(form).OfType<DarkTabHost>().First();
         Directory.CreateDirectory("LayoutCaptures");
         foreach (var size in new[] { new Size(1250, 1160), new Size(1250, 852), new Size(970, 840) })
