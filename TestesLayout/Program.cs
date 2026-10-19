@@ -15,6 +15,7 @@ internal static class LayoutTests
         Application.EnableVisualStyles();
 
         TestStartupBounds();
+        TestWorkspaceProportions();
 
         Console.WriteLine("Criando janela de teste, sem iniciar os servicos");
         using var form = new MainForm(startServices: false);
@@ -30,8 +31,12 @@ internal static class LayoutTests
         {
             // O runner Windows pode ter desktop fisico de 1024x768. Usamos uma
             // superficie virtual na resolucao alvo, sem mudar o monitor do runner.
-            var screen = new Size(resolution.Width, Math.Max(480, resolution.Height - 48));
-            surface.Size = new Size(screen.Width - 16, screen.Height - 39);
+            // Testar a janela real, que nao ocupa 8K inteiro: a resolucao
+            // alta aumenta espaco no monitor, nao fontes e botoes da UI.
+            var monitor = new Rectangle(0, 0, resolution.Width,
+                Math.Max(300, resolution.Height - 48));
+            var opening = StartupWindowSizing.Fit(monitor);
+            surface.Size = new Size(opening.Width - 16, opening.Height - 39);
             Application.DoEvents();
 
             bool capture = resolution.Width <= 1366 &&
@@ -97,12 +102,30 @@ internal static class LayoutTests
             Rectangle recovered = StartupWindowSizing.KeepVisible(outside, workArea);
             if (!workArea.Contains(recovered))
                 throw new Exception($"Nao recuperou a janela apos troca de monitor: {name}");
+            // Tamanhos de janela sao limitados: nunca escalar a interface
+            // proporcionalmente a resolucao nominal de 4K/5K/8K.
+            if (opening.Width > 1250 || opening.Height > 980)
+                throw new Exception($"Janela cresceu com a resolucao: {name}");
             // Ao mover para monitor menor, o tamanho e limitado sem alterar os
             // limites das janelas ja validas.
             if (StartupWindowSizing.KeepVisible(opening, workArea) != opening)
                 throw new Exception($"Posicao valida alterada: {name}");
             Console.WriteLine($"Fit OK {name}: {resolution.Width}x{resolution.Height}");
         }
+    }
+
+    private static void TestWorkspaceProportions()
+    {
+        foreach (int dpi in new[] { 96, 120, 144, 192 })
+        foreach (int height in new[] { 480, 560, 680, 900, 1100 })
+        {
+            var (header, log) = StartupWindowSizing.WorkspaceRows(height, dpi);
+            if (header <= 0 || log < 95 || height - header - log < 140)
+                throw new Exception($"Layout sem registro legivel ou area de ferramentas: {height} dpi={dpi}, header={header}, log={log}");
+            if (dpi == 96 && height >= 560 && log < 130)
+                throw new Exception($"Registro demasiadamente fino: {height}, log={log}");
+        }
+        Console.WriteLine("OK: proporcoes de registro/cabecalho em 100%, 125%, 150% e 200%.");
     }
 
     static bool FullyVisible(Control control)
