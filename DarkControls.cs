@@ -846,7 +846,9 @@ internal sealed class DarkTabHost : UserControl
         private int HitTab(Point point)
         {
             if (point.X < 0 || point.Y < 0 || point.Y >= Height) return -1;
-            int index = point.X / TabAreaWidth;
+            int relative = point.X - TabOffset;
+            if (relative < 0 || relative >= TabAreaWidth * _host._pages.Count) return -1;
+            int index = relative / TabAreaWidth;
             return index >= 0 && index < _host._pages.Count ? index : -1;
         }
 
@@ -863,8 +865,9 @@ internal sealed class DarkTabHost : UserControl
         // Sem largura minima rigida: em areas estreitas as cinco abas continuam
         // clicaveis, e a dica mostra o titulo integral mesmo com reticencias.
         private int TabAreaWidth => Math.Max(1, Math.Min(
-            (int)Math.Ceiling(TabWidth * Math.Max(1, DeviceDpi) / 96d),
+            (int)Math.Ceiling(196d * Math.Max(1, DeviceDpi) / 96d),
             Math.Max(1, (Width - 2) / Math.Max(1, _host._pages.Count))));
+        private int TabOffset => Math.Max(0, (Width - TabAreaWidth * _host._pages.Count) / 2);
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -873,7 +876,7 @@ internal sealed class DarkTabHost : UserControl
             int w = TabAreaWidth;
             for (int i = 0; i < _host._pages.Count; i++)
             {
-                int left = i * w + 3;
+                int left = TabOffset + i * w + 3;
                 var bounds = new Rectangle(left, 3, Math.Max(10, w - 6), Height - 9);
                 bool active = _host.SelectedIndex == i;
                 bool down = i == _pressedTab || (i == _pulseTab && _pulseProgress < 0.65F);
