@@ -644,6 +644,8 @@ internal sealed partial class MainForm : Form
         base.OnHandleCreated(e);
         try
         {
+            if (_diagnoseWindowLifecycle)
+                DiagnosticTrace.Write("JANELA.HANDLE_CRIADO");
             int dark = 1;
             if (NativeMethods.DwmSetWindowAttribute(Handle, 20, ref dark, sizeof(int)) != 0)
                 NativeMethods.DwmSetWindowAttribute(Handle, 19, ref dark, sizeof(int));
@@ -665,6 +667,7 @@ internal sealed partial class MainForm : Form
         var display = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
         Rectangle opening = StartupWindowSizing.Fit(display);
         StartPosition = FormStartPosition.Manual;
+        _diagnoseWindowLifecycle = startServices;
         InitializeWindowChrome();
         MinimumSize = StartupWindowSizing.AllowedMinimum(opening);
         MaximumSize = StartupWindowSizing.LimitSize(StartupWindowSizing.PreferredSize, display);
@@ -1569,8 +1572,8 @@ internal sealed partial class MainForm : Form
     {
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1,
             Padding = new Padding(0, 2, 0, 0), BackColor = AppServices.Background };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 8));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 4));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var top = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
@@ -1579,7 +1582,7 @@ internal sealed partial class MainForm : Form
             Font = new Font("Segoe UI", 9.5F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
         _status.Text = "Pronto";
         _status.Dock = DockStyle.Fill;
-        _status.AutoEllipsis = true;
+        _status.AutoEllipsis = false;
         _status.ForeColor = Muted;
         _status.TextAlign = ContentAlignment.MiddleRight;
         top.Controls.Add(_status, 1, 0);
@@ -1604,6 +1607,7 @@ internal sealed partial class MainForm : Form
         ForeColor = Color.FromArgb(221, 235, 252),
         OutlineColor = Color.FromArgb(85, 112, 137),
         Font = new Font("Segoe UI", 9.2F, FontStyle.Bold),
+        AllowMultilineText = true,
         Cursor = Cursors.Hand,
         CornerRadius = 10
     };
@@ -1612,6 +1616,7 @@ internal sealed partial class MainForm : Form
     {
         Text = text, BackColor = background, ForeColor = foreground,
         Font = new Font("Segoe UI", 9.3F, FontStyle.Bold),
+        AllowMultilineText = true,
         Cursor = Cursors.Hand,
         CornerRadius = 10
     };
@@ -1644,6 +1649,7 @@ internal sealed partial class MainForm : Form
         if (InvokeRequired) { BeginInvoke(new Action<string>(Status), text); return; }
         _operationResult = text;
         _status.Text = text;
+        _toolTips.SetToolTip(_status, text);
     }
 
     private async Task ExecuteAsync(string description, Func<Task> work)
