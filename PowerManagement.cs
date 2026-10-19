@@ -205,10 +205,10 @@ internal sealed partial class MainForm
             Padding = new Padding(8, 6, 8, 6), Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 203));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 85));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 53));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 172));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
@@ -281,8 +281,8 @@ internal sealed partial class MainForm
         card.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         card.RowStyles.Add(new RowStyle(SizeType.Absolute, 39));
         card.Controls.Add(new Label { Text = title, Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-            AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+            Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+            AutoEllipsis = false, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
         card.Controls.Add(new Label { Text = description, Dock = DockStyle.Fill, ForeColor = Muted,
             Font = new Font("Segoe UI", 9F), TextAlign = ContentAlignment.TopLeft }, 0, 1);
         var badge = new Label { Text = "Consultando...", Dock = DockStyle.Fill, ForeColor = Muted,
