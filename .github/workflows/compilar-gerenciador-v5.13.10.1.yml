@@ -336,7 +336,7 @@ jobs:
           }
           if (-not $source.Contains('Bounds = opening;') -or
               -not $source.Contains('StartupWindowSizing.Fit(display)') -or
-              -not $source.Contains('StartupWindowSizing.Fit(visibleArea)')) {
+              -not $source.Contains('StartupWindowSizing.KeepVisible(Bounds, area)')) {
             throw 'Janela nao respeita tamanho inicial e area util do monitor'
           }
           if (-not $source.Contains('Screen.FromControl(this).WorkingArea')) {
