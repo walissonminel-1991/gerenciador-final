@@ -2,6 +2,17 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.11 TESTE — sexta aba DRIVERS e navegacao uniforme
+- Insere a aba DRIVERS imediatamente depois de Aplicativos; e uma area apenas visual com Inventario, Atualizacao/instalacao e Historico/reversao como funcionalidades futuras.
+- Nenhum driver e consultado, instalado, removido ou alterado pela aba provisoria. Nenhuma funcao de manutencao existente foi modificada.
+- As seis abas distribuem-se uniformemente em toda a largura disponivel, com margens laterais simetricas de ate 12 pixels e pequenas separacoes iguais entre botoes.
+- Titulos completos sao desenhados em uma linha sempre que possivel; em janelas estreitas, usam quebra de linha natural para preservar o texto.
+- Ajusta os indices internos de Limpeza, Reparo, Planos de energia e Sistema para evitar carregamento da pagina errada apos inserir DRIVERS.
+- A pagina provisoria possui tres cartoes informativos, reorganizados em uma, duas ou tres colunas conforme a largura disponivel. Sem botoes que prometam funcionalidades inexistentes.
+- Aumenta a bateria de testes de layout para 22 cenarios x 6 abas = 132 combinacoes, verificando margens simetricas, largura uniforme, hit-test de todas as abas e ausencia de acao na pagina DRIVERS.
+- Testa 12 ciclos de bandeja sem recriar janela, 150 linhas de Registro em um lote e sete escalas simuladas de DPI alem dos testes funcionais e de seguranca ja existentes.
+- Mantem o limite de ate 60% da area util como teto, podendo ocupar menos quando adequado. A aparencia final ainda requer conferencias no Windows real e no PC FRACO.
+
 ## 5.13.10.10 TESTE — densidade visual consistente em 1920x1080 e 2560x1440
 - Preserva a janela proporcional e o teto de 60% da area util nas 21 resolucoes.
 - Alinha a configuracao DPI do executavel e dos testes no modo PerMonitorV2; trocar de monitor ou escala 100/125/150% deve manter textos com escala nativa do Windows.
