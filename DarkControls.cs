@@ -576,6 +576,18 @@ internal sealed class DarkScrollableFlow : UserControl
     private readonly DarkVScrollBar _scroll;
     private bool _arranging;
 
+    // Um unico scroll pertence a pagina externa. Componentes embutidos
+    // mostram todo o conteudo, em vez de instalar barras independentes.
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    internal bool EmbeddedInPage { get; set; }
+
+    // Evita o scroll fantasma de 3 px da folga utilizada pelos cartoes.
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    internal bool IsPageViewport { get; set; }
+
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    internal bool HasVerticalScrollbar => _scroll.Visible;
+
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public FlowLayoutPanel Content => _flow;
 
@@ -593,7 +605,10 @@ internal sealed class DarkScrollableFlow : UserControl
         Controls.Add(_viewport);
         Controls.Add(_scroll);
         _scroll.BringToFront();
-        _scroll.ValueChanged += (_, _) => _flow.Top = -_scroll.Value;
+        _scroll.ValueChanged += (_, _) =>
+        {
+            if (!EmbeddedInPage) _flow.Top = -_scroll.Value;
+        };
         _viewport.Resize += (_, _) => Reflow();
         _flow.ControlAdded += (_, e) => { if (e.Control is not null) TrackFocus(e.Control); Reflow(); };
         _flow.ControlRemoved += (_, _) => Reflow();
@@ -653,10 +668,20 @@ internal sealed class DarkScrollableFlow : UserControl
         try
         {
             _flow.Width = width;
-            int totalHeight = MeasureContentHeight(width);
+            int measured = MeasureContentHeight(width);
+            int totalHeight = IsPageViewport ? Math.Max(0, measured - 3) : measured;
             _flow.Height = Math.Max(totalHeight, height);
-            _scroll.SetMetrics(totalHeight, height);
-            _flow.Top = -_scroll.Value;
+            if (EmbeddedInPage)
+            {
+                _scroll.SetMetrics(0, height);
+                _scroll.Visible = false;
+                _flow.Top = 0;
+            }
+            else
+            {
+                _scroll.SetMetrics(totalHeight, height);
+                _flow.Top = -_scroll.Value;
+            }
             _flow.Left = 0;
             _flow.PerformLayout();
         }
