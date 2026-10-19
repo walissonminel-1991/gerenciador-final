@@ -824,7 +824,6 @@ internal sealed class DarkTabHost : UserControl
         private long _pulseStart;
         private float _pulseProgress = 1F;
         private const double PulseMs = 145;
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public TabStrip(DarkTabHost host)
         {
             _host = host;
