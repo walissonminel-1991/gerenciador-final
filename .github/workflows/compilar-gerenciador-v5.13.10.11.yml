@@ -106,7 +106,7 @@ jobs:
           }
           if (-not $driver.Contains('nenhuma instalação, remoção ou alteração') -or
               -not $tabs.Contains('TabEdgeMargin') -or
-              -not $tests.Contains('132 combinacoes resolucao/aba')) {
+              -not $tests.Contains('expectedCombinations = 132')) {
             throw 'Regressao da navegacao responsiva ou do aviso do modulo futuro'
           }
       - name: Verificar compilacao Release sem publicar antes dos testes
