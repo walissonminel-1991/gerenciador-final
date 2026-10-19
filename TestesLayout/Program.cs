@@ -34,16 +34,16 @@ internal static class LayoutTests
         var log = Descendants(form).OfType<DarkLogView>().Single();
         _ = log.RenderedText; // Drenar mensagens do construtor, se houver.
         int flushesBefore = log.BatchFlushCount;
-        for (int i = 0; i < 70; i++)
+        for (int i = 0; i < 150; i++)
             log.AppendText($"Lote de diagnostico {i:D2}\n");
         if (log.BatchFlushCount != flushesBefore)
             throw new Exception("Registro redesenhou antes de consolidar a rajada.");
         string allLines = log.RenderedText;
         if (log.BatchFlushCount != flushesBefore + 1 || !allLines.Contains("Lote de diagnostico 00") ||
-            !allLines.Contains("Lote de diagnostico 69") ||
-            allLines.Split("Lote de diagnostico ").Length != 71)
+            !allLines.Contains("Lote de diagnostico 149") ||
+            allLines.Split("Lote de diagnostico ").Length != 151)
             throw new Exception("Registro perdeu linhas ou redesenhou por mensagem.");
-        Console.WriteLine("OK: 70 linhas em uma pintura do Registro.");
+        Console.WriteLine("OK: 150 linhas em uma pintura do Registro.");
         var nav = Descendants(form).OfType<DarkTabHost>().First();
         string[] expectedTitles =
         {
@@ -59,7 +59,8 @@ internal static class LayoutTests
             c.Name == "DriversPlaceholder")
             ?? throw new Exception("Pagina DRIVERS ausente.");
         if (!placeholder.Visible ||
-            Descendants(placeholder).Count(c => c.Name.StartsWith("DriversPreviewCard")) != 3 ||
+            Descendants(placeholder).Count(c =>
+                c.Name is "DriversPreviewCard0" or "DriversPreviewCard1" or "DriversPreviewCard2") != 3 ||
             Descendants(placeholder).OfType<Button>().Any())
             throw new Exception("DRIVERS precisa exibir tres paineis informativos sem acoes.");
         if (!Descendants(placeholder).OfType<Label>().Any(c =>
@@ -205,7 +206,7 @@ internal static class LayoutTests
         IntPtr originalHandle = form.Handle;
         int originalTab = nav.SelectedIndex;
         var duration = System.Diagnostics.Stopwatch.StartNew();
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < 12; i++)
         {
             form.MinimizeToTray();
             Application.DoEvents();
@@ -222,7 +223,7 @@ internal static class LayoutTests
                 throw new Exception("Restaurar recriou o HWND ou perdeu o layout selecionado.");
         }
         duration.Stop();
-        Console.WriteLine($"OK: 6 ciclos de bandeja, HWND estavel, {duration.ElapsedMilliseconds} ms no runner");
+        Console.WriteLine($"OK: 12 ciclos de bandeja, HWND estavel, {duration.ElapsedMilliseconds} ms no runner");
         // Layout util em espaco limitado: os itens e botoes devem permanecer
         // focaveis mesmo quando as paginas fazem rolagem.
         nav.SelectTab(0);
