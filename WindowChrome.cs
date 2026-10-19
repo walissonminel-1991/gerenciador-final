@@ -186,6 +186,7 @@ internal sealed partial class MainForm
             // NUNCA alterar ShowInTaskbar aqui: evita RecreateHandle().
             Hide();
             _trayIcon.Visible = true;
+            UpdateProcessSamplingCadence();
         }
         finally { _trayTransitioning = false; }
     }
@@ -208,12 +209,16 @@ internal sealed partial class MainForm
             }
             finally { ResumeLayout(true); }
             Show();
+            UpdateProcessSamplingCadence();
             if (_trayIcon is not null) _trayIcon.Visible = false;
             if (_trayHandleBeforeHide != IntPtr.Zero && Handle != _trayHandleBeforeHide)
                 DiagnosticTrace.Write("JANELA.HANDLE_ALTERADO apos restaurar bandeja");
         }
         finally { _trayTransitioning = false; }
         Activate();
+        // Mostrar dados recentes rapidamente, sem forcar reconstruir a janela.
+        if (_nav.SelectedIndex == 5 && _activeSystemView == "processes")
+            _ = RefreshProcessHistoryAsync();
     }
 
     private void RequestTrayExit()
