@@ -789,7 +789,16 @@ jobs:
           $logic = Get-Content DarkControls.cs -Raw
           if (-not $main.Contains('BeginStartupChecks();')) { throw 'Inicializacao automatica ausente' }
           if (-not $main.Contains('ScanWindowsUpdatesInBackgroundAsync();')) { throw 'Windows Update nao e iniciado automaticamente' }
-          if (-not $main.Contains('_ = LoadUpdatesAsync();')) { throw 'RuckZuck nao e iniciado automaticamente' }
+          if (-not $main.Contains('RunStaggeredStartupChecksAsync()') -or
+              -not $main.Contains('await LoadUpdatesAsync();') -or
+              -not $main.Contains('await ScanWindowsUpdatesInBackgroundAsync();')) {
+            throw 'Consultas automaticas escalonadas ausentes'
+          }
+          $appPos = $main.IndexOf('await LoadUpdatesAsync();')
+          $wuPos = $main.IndexOf('await ScanWindowsUpdatesInBackgroundAsync();', $appPos)
+          if ($appPos -lt 0 -or $wuPos -le $appPos) {
+            throw 'Windows Update deve aguardar a consulta de aplicativos no PC FRACO'
+          }
           if (-not $main.Contains('DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton')) { throw 'Botao atualizar ausente' }
           if (-not $systemUi.Contains('_processTimer.Start();')) { throw 'Amostragem automatica ausente' }
           if (-not $systemUi.Contains('WindowsUpdateClient.ScanAsync()')) { throw 'Consulta oficial do Windows Update ausente' }
