@@ -2,44 +2,50 @@ using System.Drawing;
 
 namespace GerenciadorAplicativos;
 
-// A resolucao do monitor NAO define o tamanho da interface. Preferimos uma
-// janela compacta e legivel, como a captura aprovada em 1440x900; apenas
-// limitamos seu tamanho se a area util do monitor nao comportar o padrao.
-// Nao persiste posicao, tamanho, DPI nem configuracao do usuario no disco.
+// A janela acompanha a area util do monitor em todas as resolucoes.
+// Inicial: aprox. 57,4% da area; limite absoluto: 59,76%.
+// Nao multiplica fontes por resolucao: quem controla tipografia e o DPI do Windows.
+// Nao grava tamanho, DPI ou posicao no disco.
 internal static class StartupWindowSizing
 {
+    // Utilizado APENAS se o Windows ainda nao informou uma area valida.
     internal static readonly Size PreferredSize = new(875, 745);
-    // 800x600 e a menor resolucao solicitada. Em areas uteis menores (barra
-    // de tarefas, DPI, monitores remotos), reduzimos o minimo sem bloquear a tela.
     internal static readonly Size NormalMinimum = new(800, 600);
 
-    // A regra de 60% refere-se a AREA da janela, nao a cada dimensao
-    // isoladamente. Abaixo de 1366x768, priorizamos a usabilidade.
+    private const double InitialWidthRatio = 0.70;
+    private const double InitialHeightRatio = 0.82;
+    private const double MaximumWidthRatio = 0.72;
+    private const double MaximumHeightRatio = 0.83;
+
+    // A regra agora e universal, inclusive em 800x600 e monitores antigos.
     internal static bool ApplyAreaLimit(Rectangle workingArea) =>
-        workingArea.Width >= 1366 && workingArea.Height >= 600;
+        workingArea.Width > 0 && workingArea.Height > 0;
+
+    internal static Size MaximumSizeFor(Rectangle workingArea)
+    {
+        if (!ApplyAreaLimit(workingArea)) return PreferredSize;
+        return new Size(
+            Math.Max(1, (int)Math.Floor(workingArea.Width * MaximumWidthRatio)),
+            Math.Max(1, (int)Math.Floor(workingArea.Height * MaximumHeightRatio)));
+    }
 
     internal static Size LimitSize(Size requested, Rectangle workingArea)
     {
-        if (workingArea.Width <= 0 || workingArea.Height <= 0)
-            return requested;
-        int width = Math.Min(Math.Max(1, requested.Width), workingArea.Width);
-        int height = Math.Min(Math.Max(1, requested.Height), workingArea.Height);
-        if (ApplyAreaLimit(workingArea))
-        {
-            // Incluir a barra de tarefas na referencia? Nao: usar a area util
-            // resulta em um limite ainda mais conservador.
-            long areaLimit = 3L * workingArea.Width * workingArea.Height / 5L;
-            if ((long)width * height > areaLimit)
-                height = Math.Max(1, (int)(areaLimit / width));
-        }
-        return new Size(width, height);
+        if (!ApplyAreaLimit(workingArea)) return requested;
+        Size maximum = MaximumSizeFor(workingArea);
+        return new Size(
+            Math.Clamp(requested.Width, 1, maximum.Width),
+            Math.Clamp(requested.Height, 1, maximum.Height));
     }
 
     internal static Rectangle Fit(Rectangle workingArea)
     {
-        if (workingArea.Width <= 0 || workingArea.Height <= 0)
+        if (!ApplyAreaLimit(workingArea))
             return new Rectangle(0, 0, PreferredSize.Width, PreferredSize.Height);
-        Size size = LimitSize(PreferredSize, workingArea);
+        Size size = LimitSize(new Size(
+            Math.Max(1, (int)Math.Floor(workingArea.Width * InitialWidthRatio)),
+            Math.Max(1, (int)Math.Floor(workingArea.Height * InitialHeightRatio))),
+            workingArea);
         return new Rectangle(
             workingArea.Left + (workingArea.Width - size.Width) / 2,
             workingArea.Top + (workingArea.Height - size.Height) / 2,
@@ -50,18 +56,15 @@ internal static class StartupWindowSizing
         Math.Min(NormalMinimum.Width, Math.Max(1, planned.Width)),
         Math.Min(NormalMinimum.Height, Math.Max(1, planned.Height)));
 
-    // Preserva o tamanho desejado sempre que possivel. Ao trocar para um
-    // monitor menor, reduz a janela e a reposiciona dentro da area visivel.
+    // Troca de monitor ou DPI: preservar quando couber, limitar em qualquer
+    // resolucao e reposicionar sem jamais passar dos 60% da area util.
     internal static Rectangle KeepVisible(Rectangle desired, Rectangle workingArea)
     {
-        if (workingArea.Width <= 0 || workingArea.Height <= 0)
-            return desired;
+        if (!ApplyAreaLimit(workingArea)) return desired;
         Size limited = LimitSize(desired.Size, workingArea);
-        int width = limited.Width;
-        int height = limited.Height;
-        int x = Math.Clamp(desired.Left, workingArea.Left, workingArea.Right - width);
-        int y = Math.Clamp(desired.Top, workingArea.Top, workingArea.Bottom - height);
-        return new Rectangle(x, y, width, height);
+        int x = Math.Clamp(desired.Left, workingArea.Left, workingArea.Right - limited.Width);
+        int y = Math.Clamp(desired.Top, workingArea.Top, workingArea.Bottom - limited.Height);
+        return new Rectangle(x, y, limited.Width, limited.Height);
     }
 
     // Em qualquer resolucao, o rodape de diagnostico continua legivel.
