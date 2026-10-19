@@ -668,11 +668,30 @@ internal sealed partial class MainForm : Form
         MinimumSize = StartupWindowSizing.AllowedMinimum(opening);
         Bounds = opening;
 
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(20, 16, 20, 16), BackColor = AppServices.Background };
+        var root = new TableLayoutPanel { Dock = DockStyle.None, ColumnCount = 1, RowCount = 3, Padding = new Padding(20, 16, 20, 16), BackColor = AppServices.Background };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 200));
         Controls.Add(root);
+        // Ao maximizar em ultrawide/4K/8K, os botoes nao ocupam centenas de
+        // pixels extras: centraliza a superficie com largura/altura limitadas.
+        // DPI aumenta o espaco fisico necessario para o mesmo tamanho logico.
+        void CenterWorkspace()
+        {
+            if (root.IsDisposed) return;
+            double scale = Math.Max(1d, DeviceDpi / 96d);
+            int preferredWidth = (int)Math.Ceiling(StartupWindowSizing.PreferredSize.Width * scale);
+            int preferredHeight = (int)Math.Ceiling(StartupWindowSizing.PreferredSize.Height * scale);
+            int width = Math.Max(1, Math.Min(ClientSize.Width, preferredWidth));
+            int height = Math.Max(1, Math.Min(ClientSize.Height, preferredHeight));
+            var bounds = new Rectangle(
+                Math.Max(0, (ClientSize.Width - width) / 2),
+                Math.Max(0, (ClientSize.Height - height) / 2), width, height);
+            if (root.Bounds != bounds) root.Bounds = bounds;
+        }
+        Resize += (_, _) => CenterWorkspace();
+        DpiChanged += (_, _) => CenterWorkspace();
+        CenterWorkspace();
         root.Controls.Add(BuildHeader(), 0, 0);
 
         _nav.Dock = DockStyle.Fill;
