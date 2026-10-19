@@ -654,7 +654,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.3 TESTE";
+        Text = "Gerenciador Final — v5.13.10.4 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -665,7 +665,9 @@ internal sealed partial class MainForm : Form
         var display = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
         Rectangle opening = StartupWindowSizing.Fit(display);
         StartPosition = FormStartPosition.Manual;
+        InitializeWindowChrome();
         MinimumSize = StartupWindowSizing.AllowedMinimum(opening);
+        MaximumSize = StartupWindowSizing.LimitSize(StartupWindowSizing.PreferredSize, display);
         Bounds = opening;
 
         var root = new TableLayoutPanel { Dock = DockStyle.None, ColumnCount = 1, RowCount = 3, Padding = new Padding(20, 16, 20, 16), BackColor = AppServices.Background };
@@ -682,11 +684,13 @@ internal sealed partial class MainForm : Form
             double scale = Math.Max(1d, DeviceDpi / 96d);
             int preferredWidth = (int)Math.Ceiling(StartupWindowSizing.PreferredSize.Width * scale);
             int preferredHeight = (int)Math.Ceiling(StartupWindowSizing.PreferredSize.Height * scale);
+            int heightAvailable = Math.Max(1, ClientSize.Height - (_caption?.Height ?? 0));
             int width = Math.Max(1, Math.Min(ClientSize.Width, preferredWidth));
-            int height = Math.Max(1, Math.Min(ClientSize.Height, preferredHeight));
+            int height = Math.Max(1, Math.Min(heightAvailable, preferredHeight));
             var bounds = new Rectangle(
                 Math.Max(0, (ClientSize.Width - width) / 2),
-                Math.Max(0, (ClientSize.Height - height) / 2), width, height);
+                (_caption?.Height ?? 0) + Math.Max(0, (heightAvailable - height) / 2),
+                width, height);
             if (root.Bounds != bounds) root.Bounds = bounds;
         }
         Resize += (_, _) => CenterWorkspace();
@@ -727,7 +731,9 @@ internal sealed partial class MainForm : Form
             var area = Screen.FromControl(this).WorkingArea;
             var fitting = StartupWindowSizing.Fit(area);
             var minimum = StartupWindowSizing.AllowedMinimum(fitting);
+            var maximum = StartupWindowSizing.LimitSize(StartupWindowSizing.PreferredSize, area);
             if (MinimumSize != minimum) MinimumSize = minimum;
+            if (MaximumSize != maximum) MaximumSize = maximum;
             var visible = StartupWindowSizing.KeepVisible(Bounds, area);
             if (Bounds != visible) Bounds = visible;
         }
