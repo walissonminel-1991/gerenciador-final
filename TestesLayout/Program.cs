@@ -136,6 +136,27 @@ internal static class LayoutTests
                             resolution + " aba=" + tab + " colunas=" + firstRowCount);
                 }
 
+                // Nao deixar cartes enormes quando a largura permite
+                // duas ou tres linhas e nao sacrificar textos em PC FRACO.
+                if ((tab == 2 || tab == 3) && resolution == new Size(1440, 900))
+                {
+                    int count = tab == 2 ? 8 : 5;
+                    var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
+                        .Single(x => x.EmbeddedInPage && x.Content.Controls.Count == count);
+                    var cards = toolFlow.Content.Controls.OfType<Panel>().ToArray();
+                    if (cards.Length != count || cards.Any(x => x.Height > 116))
+                        throw new Exception("Cartoes ainda excessivamente altos em 1440x900: aba " + tab);
+                    foreach (Panel card in cards)
+                    {
+                        var label = Descendants(card).OfType<Label>().Single();
+                        int required = TextRenderer.MeasureText(label.Text, label.Font,
+                            new Size(Math.Max(90, label.ClientSize.Width -
+                                label.Padding.Horizontal), 800),
+                            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
+                        if (label.Height - label.Padding.Vertical + 4 < required)
+                            throw new Exception("Texto de ferramenta cortado em 1440x900: " + label.Text);
+                    }
+                }
                 if (tab == 0)
                 {
                     var commands = Descendants(form).OfType<TableLayoutPanel>()
@@ -173,7 +194,7 @@ internal static class LayoutTests
                             StringComparison.Ordinal)).OrderBy(label => label.Name).ToArray();
                     var expectedDescriptions = new[]
                     {
-                        "Histórico recente de CPU e RAM, atualizado a cada 5 s.",
+                        "CPU, memória e E/S por processo. Atualiza a cada 2 s com a aba aberta.",
                         "Ative ou desative entradas do seu usuário de modo reversível.",
                         "Procure, selecione e instale atualizações oficiais.",
                         "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos."
@@ -184,6 +205,15 @@ internal static class LayoutTests
                         throw new Exception("Descricoes dos quatro botoes do Sistema ausentes ou comprimidas.");
                     if (descriptions.Any(x => !x.Visible))
                         throw new Exception("Descricoes do Sistema ocultas na aba selecionada.");
+                    foreach (var label in descriptions)
+                    {
+                        int heightNeeded = TextRenderer.MeasureText(label.Text,
+                            label.Font, new Size(Math.Max(80, label.ClientSize.Width -
+                                label.Padding.Horizontal), 800),
+                            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
+                        if (label.ClientSize.Height - label.Padding.Vertical + 4 < heightNeeded)
+                            throw new Exception($"Descricao cortada no Sistema: {name} / {label.Name}, altura={label.Height}, texto={heightNeeded}");
+                    }
                 }
 
                 // Somente a pagina pode rolar quando o conteudo ultrapassar
@@ -289,6 +319,12 @@ internal static class LayoutTests
         nav.SelectTab(5);
         Application.DoEvents();
         TestProcessGrid(form);
+        var monitorGrid = Descendants(form).OfType<FlickerFreeProcessGrid>().Single();
+        if (monitorGrid.ColumnHeadersHeight > 30 ||
+            monitorGrid.RowTemplate.Height > 26 ||
+            monitorGrid.ColumnHeadersDefaultCellStyle.SelectionBackColor !=
+                monitorGrid.ColumnHeadersDefaultCellStyle.BackColor)
+            throw new Exception("Monitor continua com cabecalho destacado ou linhas muito altas.");
         var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
             .Where(flow => flow.IsPageViewport).ToArray();
         if (pageViewports.Length != 4)
