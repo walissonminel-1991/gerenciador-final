@@ -36,7 +36,7 @@ internal sealed partial class MainForm
             Dock = DockStyle.Fill, BackColor = AppServices.Background,
             ColumnCount = 1, RowCount = 2, Padding = new Padding(5, 5, 5, 4)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 61));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 103));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var actions = new TableLayoutPanel
@@ -161,6 +161,7 @@ internal sealed partial class MainForm
         card.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var button = CreateButton(caption, color, Color.White);
+        button.AccessibleDescription = description;
         button.Dock = DockStyle.Fill;
         button.Margin = Padding.Empty;
         _actionControls.Add(button);
@@ -177,18 +178,14 @@ internal sealed partial class MainForm
         card.Controls.Add(button, 0, 0);
         card.Controls.Add(new Label
         {
-            // Descricao completa acessivel no tooltip; aqui exibimos um
-            // resumo curto que cabe integralmente sem truncar palavras.
-            Text = caption switch
-            {
-                "Processos" => "CPU e RAM · 5 s",
-                "Inicialização" => "Entradas reversíveis",
-                "Windows Update" => "Atualizações oficiais",
-                _ => "CPU, GPU, RAM e discos"
-            },
+            Name = "SystemActionDescription" + column,
+            Text = description,
             Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 8.1F), TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(1, 0, 1, 0)
+            AutoEllipsis = false,
+            Font = new Font("Segoe UI", 9F),
+            TextAlign = ContentAlignment.TopLeft,
+            Padding = new Padding(1, 5, 1, 1),
+            AccessibleDescription = description
         }, 0, 1);
         parent.Controls.Add(card, column, 0);
     }
@@ -516,7 +513,7 @@ internal sealed partial class MainForm
         if (IsDisposed) return;
         if (_windowsUpdateScanning)
         {
-            if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
             {
                 _systemPanelTitle.Text = "Windows Update · consultando...";
                 _systemPanelSummary.Text = "Busca automática em andamento. Nenhuma atualização será instalada sem confirmação.";
@@ -525,13 +522,13 @@ internal sealed partial class MainForm
         }
         if (_windowsUpdateChecked && !force)
         {
-            if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
                 DrawWindowsUpdates();
             return;
         }
         _windowsUpdateScanning = true;
         RenderTitle();
-        if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
+        if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
         {
             _systemPanelTitle.Text = "Windows Update · consultando...";
             _systemPanelSummary.Text = "Consulta oficial do Windows em segundo plano; pode demorar alguns minutos.";
@@ -549,7 +546,7 @@ internal sealed partial class MainForm
             RenderTitle();
             Log($"Windows Update: {_updateCatalog.Count} atualização(ões) de software encontrada(s).");
             DiagnosticTrace.Write($"WINDOWS_UPDATE.CONSULTA_OK quantidade={found.Count}");
-            if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
             {
                 DrawWindowsUpdates();
                 Status($"Windows Update: {found.Count} atualizações disponíveis");
@@ -562,7 +559,7 @@ internal sealed partial class MainForm
             RenderTitle();
             DiagnosticTrace.Failure("WINDOWS_UPDATE.CONSULTA_FALHA", ex);
             Log("Windows Update: consulta indisponível (" + _windowsUpdateScanFailure + ").");
-            if (_activeSystemView == "update" && _nav.SelectedIndex == 4)
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
             {
                 _systemPanelTitle.Text = "Windows Update · consulta indisponível";
                 _systemPanelSummary.Text = "O Windows Update não pôde ser consultado. Nenhuma instalação foi iniciada.";
@@ -672,7 +669,7 @@ internal sealed partial class MainForm
             var snapshot = await Task.Run(_processSampler.TakeSample);
             if (IsDisposed) return;
             _latestProcessSnapshot = snapshot;
-            if (_activeSystemView == "processes" && _nav.SelectedIndex == 4)
+            if (_activeSystemView == "processes" && _nav.SelectedIndex == 5)
             {
                 ShowIntegratedSnapshot(snapshot);
                 Status("Histórico de processos atualizado");
