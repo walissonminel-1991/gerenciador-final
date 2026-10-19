@@ -563,8 +563,16 @@ jobs:
           if (-not $source.Contains('Limpeza de Disco\nautomática')) {
             throw 'Titulo longo de Limpeza de Disco sem segunda linha'
           }
-          if (-not $source.Contains('compact ? 146 : 146')) { throw 'Card não ganhou altura para descricao' }
-          if (-not $source.Contains('compact ? 58 : 48')) { throw 'Botao nao comporta duas linhas' }
+          if (-not $source.Contains('Size = new Size(244, 124)')) {
+            throw 'Cartoes compactos fora da medida validada de 244x124'
+          }
+          if (-not $source.Contains('layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 39))') -or
+              -not $source.Contains('modernButton.AllowMultilineText = true')) {
+            throw 'Botao compacto deve manter quebra de linha e altura minima adequada'
+          }
+          if (-not $source.Contains('button.AccessibleDescription = tool.Description')) {
+            throw 'Descricao completa precisa estar acessivel no botao'
+          }
           if (-not $source.Contains('ToolsHeight(cleaningActions, width)')) {
             throw 'Pagina precisa medir a altura real da grade'
           }
