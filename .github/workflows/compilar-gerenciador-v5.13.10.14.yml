@@ -667,8 +667,10 @@ jobs:
           if (-not $source.Contains('var button = CreateButton(tool.Name, tool.Color, Color.White)')) {
             throw 'Titulo completo da ferramenta deve usar uma linha sem quebra forçada'
           }
-          if (-not $source.Contains('Size = new Size(244, 111)')) {
-            throw 'Cartoes compactos fora da medida validada de 244x111'
+          if (-not $source.Contains('Size = new Size(244, 90)') -or
+              -not $source.Contains('TextRenderer.MeasureText(description.Text') -or
+              -not $source.Contains('card.Height != cardHeight')) {
+            throw 'Cartoes devem dimensionar a altura a partir do texto e largura atuais'
           }
           if (-not $source.Contains('layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 33))') -or
               -not $source.Contains('modernButton.AllowMultilineText = false')) {
