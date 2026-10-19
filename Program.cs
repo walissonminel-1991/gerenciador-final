@@ -34,9 +34,13 @@ internal static class Program
         {
             ApplicationConfiguration.Initialize();
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-            Application.ThreadException += (_, e) => MessageBox.Show(
-                "Ocorreu um erro inesperado.\n\n" + e.Exception.Message,
-                "Gerenciador Final", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Application.ThreadException += (_, e) =>
+            {
+                DiagnosticTrace.Failure("APP.FALHA_INTERFACE", e.Exception);
+                MessageBox.Show(
+                    "Ocorreu um erro inesperado.\n\n" + e.Exception.Message,
+                    "Gerenciador Final", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            };
             Application.Run(new MainForm());
             DiagnosticTrace.Write("APP.ENCERRAMENTO_NORMAL");
             return 0;
@@ -650,7 +654,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.13.8 TESTE";
+        Text = "Gerenciador Final — v5.13.9 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;

@@ -62,6 +62,11 @@ internal static class DiagnosticTrace
                         writer.WriteLine($"Gerenciador Final {VersionLabel} | {DateTimeOffset.Now:O}");
                         writer.WriteLine("Registro local de etapas; sem nomes de aplicativos nem saida de comandos.");
                         writer.WriteLine("Ultima etapa nao determina a causa do alerta do antivirus.");
+                        // Dados tecnicos locais para comparar ambientes; sem identificadores pessoais.
+                        writer.WriteLine($"AMBIENTE Windows={Environment.OSVersion.Version} " +
+                            $"sistema={System.Runtime.InteropServices.RuntimeInformation.OSArchitecture} " +
+                            $"processo={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture} " +
+                            $"runtime={Environment.Version}");
                         writer.Flush();
                         file.Flush(flushToDisk: true);
                     }
