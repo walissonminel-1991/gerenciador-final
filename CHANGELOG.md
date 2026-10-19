@@ -2,6 +2,17 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.8 TESTE — pintura leve e Registro estavel para computadores antigos
+- Remove WS_EX_COMPOSITED aplicado indiscriminadamente a toda a janela; o estilo pode gerar custo alto de repintura em GPUs integradas e maquinas sem placa dedicada.
+- Usa buffering somente na janela principal, mantendo a estrutura nativa e a transicao oculta/visivel pela bandeja.
+- Prepara o layout antes de Show() ao restaurar a bandeja, evitando exibir uma arvore suspensa que precisaria ser remontada.
+- Na abertura, executa o inventario sem animar o progresso ou alternar estados de dezenas de controles; operacoes solicitadas pelo usuario continuam com progresso e bloqueios.
+- Agrupa mensagens consecutivas do Registro em lotes de 85 ms, sem descartar linhas; a fila existe apenas em memoria.
+- Recalcula barra do Registro so quando ha mudanca de metricas, limitando invalidacoes em cascata.
+- Teste no Windows verifica composicao global desativada, 70 linhas preservadas em um unico lote, 21 resolucoes e 6 transicoes para a bandeja.
+- Nao altera a classificacao conservadora de residuos, os limites de exclusao nem a deteccao de drivers. Os registros historicos permanecem somente leitura.
+- A aprovacao depende de observacao no PC de laboratorio, alem de verificacao posterior no PC FRACO.
+
 ## 5.13.10.7 TESTE — pintura unica, botoes proporcionais e sinais de programa ativo
 - A janela utiliza WS_EX_COMPOSITED para compor todos os controles antes de apresenta-los; a restauracao evita reorganizacoes intermediarias enquanto esta oculta.
 - Nomes das cinco abas passam a ser desenhados em linha unica com tipografia ajustada somente quando necessario, sem reticencias.
