@@ -14,6 +14,7 @@ internal sealed partial class MainForm
     private Icon? _windowIcon;
     private Panel? _caption;
     private bool _hiddenInTray;
+    private bool _exitWhenIdle;
 
     internal bool IsInTray => _hiddenInTray;
     internal bool HasActiveTrayIcon => _trayIcon?.Visible == true;
@@ -117,7 +118,8 @@ internal sealed partial class MainForm
         };
         Resize += (_, _) =>
         {
-            if (!IsDisposed && WindowState == FormWindowState.Minimized)
+            if (!IsDisposed && IsHandleCreated &&
+                WindowState == FormWindowState.Minimized)
                 BeginInvoke((Action)MinimizeToTray);
         };
     }
@@ -180,10 +182,25 @@ internal sealed partial class MainForm
     private void RequestTrayExit()
     {
         if (IsDisposed) return;
-        // Preserva politica existente: cancelar primeiro downloads/consultas
-        // em andamento; nao interromper uma instalacao no meio.
-        if (_busy) RestoreFromTray();
+        if (_busy)
+        {
+            // Sair significa ENCERRAR, mas so depois que a operacao atual
+            // terminar ou cancelar de forma segura. Nenhum processo e morto.
+            _exitWhenIdle = true;
+            _consultaCatalogoCts?.Cancel();
+            _installerDownloadCts?.Cancel();
+            if (_trayIcon is not null)
+                _trayIcon.Text = "Gerenciador Final — encerrando após operação";
+            return;
+        }
         Close();
+    }
+
+    private void ExitAfterCurrentOperation()
+    {
+        if (!_exitWhenIdle || IsDisposed || _busy) return;
+        _exitWhenIdle = false;
+        if (IsHandleCreated) BeginInvoke((Action)Close);
     }
 
     // Bloqueia mesmo uma tentativa por atalhos do Windows/WM_SYSCOMMAND.
