@@ -61,6 +61,6 @@ internal static class SecurityCenterHealth
     public static IReadOnlyList<SecurityHealthResult> Capture() =>
     [
         Read(Antivirus, "Protecao antivirus"),
-        Read(Firewall, "Firewall do Windows")
+        Read(Firewall, "Protecao de firewall")
     ];
 }
