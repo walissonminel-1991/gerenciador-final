@@ -2,11 +2,13 @@ using System.Drawing;
 
 namespace GerenciadorAplicativos;
 
-// Trabalha sempre em pixels fisicos da area util do monitor (sem barra de tarefas).
+// A resolucao do monitor NAO define o tamanho da interface. Preferimos uma
+// janela compacta e legivel, como a captura aprovada em 1440x900; apenas
+// limitamos seu tamanho se a area util do monitor nao comportar o padrao.
 // Nao persiste posicao, tamanho, DPI nem configuracao do usuario no disco.
 internal static class StartupWindowSizing
 {
-    internal static readonly Size PreferredSize = new(1250, 980);
+    internal static readonly Size PreferredSize = new(875, 745);
     // 800x600 e a menor resolucao solicitada. Em areas uteis menores (barra
     // de tarefas, DPI, monitores remotos), reduzimos o minimo sem bloquear a tela.
     internal static readonly Size NormalMinimum = new(800, 600);
