@@ -72,6 +72,26 @@ internal static class LayoutTests
                 nav.SelectTab(tab);
                 Application.DoEvents();
 
+                // Em monitores largos, nao comprimir oito ferramentas numa
+                // linha de cinco nem cinco comandos de rede numa unica linha.
+                if ((resolution == new Size(1920, 1080) ||
+                     resolution == new Size(2560, 1440)) && (tab == 1 || tab == 2))
+                {
+                    int expected = tab == 1 ? 4 : 3;
+                    int toolCount = tab == 1 ? 8 : 5;
+                    var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
+                        .FirstOrDefault(x => x.EmbeddedInPage &&
+                            x.Content.Controls.Count == toolCount);
+                    if (toolFlow is null)
+                        throw new Exception("Cartoes de ferramentas indisponiveis.");
+                    var row = toolFlow.Content.Controls.Cast<Control>().ToArray();
+                    int firstTop = row.Min(c => c.Top);
+                    int firstRowCount = row.Count(c => c.Top == firstTop);
+                    if (firstRowCount > expected)
+                        throw new Exception("Ferramentas excessivamente comprimidas: " +
+                            resolution + " aba=" + tab + " colunas=" + firstRowCount);
+                }
+
                 if (resolution == new Size(800, 600) && tab == 0)
                 {
                     var actions = Descendants(form).OfType<TableLayoutPanel>()
