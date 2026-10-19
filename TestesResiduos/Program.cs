@@ -371,6 +371,37 @@ Check(UninstallLaunchDiagnostics.Explain(2).Contains("não encontrou", StringCom
 Check(UninstallLaunchDiagnostics.NativeCode(new System.ComponentModel.Win32Exception(2)) == 2,
     "Codigo Win32 do sistema registrado sem dados pessoais");
 Console.WriteLine("OK Classificacao contextual de residuos e falhas Win32");
+// Casos observados na varredura real: classificacao SOMENTE LEITURA,
+// sem inferir que software, jogos ou dados pessoais foram desinstalados.
+var protectedHistory = new[]
+{
+    new BroadResidualEvidence("GOG.com", @"C:\FakeLocal\GOG.com", "Dados", "AppData"),
+    new BroadResidualEvidence("GOG.com", @"C:\FakeProgramData\GOG.com", "Dados", "ProgramData"),
+    new BroadResidualEvidence("GOG.com", @"HKCU\Software\GOG.com", "Chave", "Registry"),
+    new BroadResidualEvidence("McAfee", @"C:\FakeRoaming\McAfee", "Dados", "AppData"),
+    new BroadResidualEvidence("McAfee", @"C:\FakeProgramData\McAfee", "Dados", "ProgramData"),
+    new BroadResidualEvidence("McAfee", @"HKLM32\Software\McAfee", "Chave", "Registry"),
+    new BroadResidualEvidence("Microvirt", @"C:\FakeLocal\Microvirt", "Dados", "AppData"),
+    new BroadResidualEvidence("Microvirt", @"C:\Program Files\Microvirt", "Instalacao", "ProgramFiles"),
+    new BroadResidualEvidence("MPC-HC", @"C:\FakeRoaming\MPC-HC", "Dados", "AppData"),
+    new BroadResidualEvidence("MPC-HC", @"HKCU\Software\MPC-HC", "Chave", "Registry")
+};
+var protectedReview = BroadResidualDiscovery.Classify(protectedHistory, Array.Empty<ProgramEntry>());
+Check(protectedReview.Count == 4 &&
+      protectedReview.All(r => r.Historical && !r.UninstallConfirmed &&
+          r.Findings.All(f => f.Evidence.Contains("Somente leitura.", StringComparison.Ordinal))),
+    "GOG.com, McAfee, Microvirt e MPC-HC permanecem em revisao sem exclusao");
+Check(protectedReview.Single(r => r.Product == "Microvirt").Findings.All(f =>
+        f.Kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)) &&
+      protectedReview.Where(r => r.Product is "GOG.com" or "McAfee" or "MPC-HC")
+        .SelectMany(r => r.Findings).All(f =>
+            f.Kind.StartsWith("Vestígio não confirmado", StringComparison.Ordinal)),
+    "Microvirt pode estar instalado e dados historicos nao sao lixo confirmado");
+Check(BroadResidualDiscovery.Classify(protectedHistory, new[]
+    { new ProgramEntry { Name = "GOG Galaxy", Publisher = "GOG.com" } })
+    .All(r => r.Product != "GOG.com"),
+    "Perfil GOG nao aparece como residuo quando fabricante ainda esta registrado");
+
 
 // Um jogo Steam/Epic pode existir somente como manifesto, sem entrada ARP.
 // Os testes abaixo usam evidencias inventadas e nao tocam no Windows.
