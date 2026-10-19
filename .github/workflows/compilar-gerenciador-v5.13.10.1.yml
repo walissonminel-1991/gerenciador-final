@@ -3,7 +3,7 @@ name: Gerenciador Final v5.13.10.1 Layout Responsivo - Windows x64
 on:
   push:
     branches:
-      - teste-layout-v5.13.10.1.1
+      - teste-layout-v5.13.10.1
     paths:
       - 'Program.cs'
       - 'StartupWindowSizing.cs'
