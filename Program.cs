@@ -674,7 +674,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.10 TESTE";
+        Text = "Gerenciador Final — v5.13.10.11 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -720,16 +720,17 @@ internal sealed partial class MainForm : Form
 
         _nav.Dock = DockStyle.Fill;
         _nav.AddTab("Aplicativos", BuildProgramsPanel());
+        _nav.AddTab("DRIVERS", BuildDriversPlaceholder());
         AddToolsPages();
         _nav.SelectedIndexChanged += async (_, _) =>
         {
             if (!startServices) return;
-            // Navegação plana: Aplicativos, Limpeza, Reparo, Desempenho, Sistema.
-            if (_nav.SelectedIndex == 1)
+            // Navegação: Aplicativos, DRIVERS, Limpeza, Reparo, Energia, Sistema.
+            if (_nav.SelectedIndex == 2)
                 await RefreshDiskUsageAsync();
-            if (_nav.SelectedIndex == 3)
+            if (_nav.SelectedIndex == 4)
                 await RefreshEnergyInfoAsync();
-            if (_nav.SelectedIndex == 4 && _activeSystemView == "processes")
+            if (_nav.SelectedIndex == 5 && _activeSystemView == "processes")
                 ShowCachedProcessesIfAvailable();
         };
         root.Controls.Add(_nav, 0, 1);
@@ -1826,9 +1827,9 @@ internal sealed partial class MainForm : Form
                 _repairNetworkButton.Enabled = GetSuggestedNetworkRepair(_lastNetworkScan) is not null;
             if (_installSelectedUpdates is not null)
                 _installSelectedUpdates.Enabled = _activeSystemView == "update" && _updateSelection.Count > 0;
-            if (_nav.SelectedIndex == 1)
+            if (_nav.SelectedIndex == 2)
                 _ = RefreshDiskUsageAsync();
-            if (_nav.SelectedIndex == 3)
+            if (_nav.SelectedIndex == 4)
                 _ = RefreshEnergyInfoAsync();
             ExitAfterCurrentOperation();
         }
