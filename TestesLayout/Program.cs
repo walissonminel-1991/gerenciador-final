@@ -45,6 +45,26 @@ internal static class LayoutTests
             throw new Exception("Registro perdeu linhas ou redesenhou por mensagem.");
         Console.WriteLine("OK: 70 linhas em uma pintura do Registro.");
         var nav = Descendants(form).OfType<DarkTabHost>().First();
+        string[] expectedTitles =
+        {
+            "Aplicativos", "DRIVERS", "Limpeza e desempenho",
+            "Reparo e rede", "Planos de energia", "Inicialização e sistema"
+        };
+        if (nav.TabCount != 6 || !nav.TabTitles.SequenceEqual(expectedTitles))
+            throw new Exception("A ordem das seis abas principais foi alterada.");
+        // DRIVERS e uma area de planejamento, sem comandos falsos.
+        nav.SelectTab(1);
+        Application.DoEvents();
+        Control placeholder = Descendants(form).SingleOrDefault(c =>
+            c.Name == "DriversPlaceholder")
+            ?? throw new Exception("Pagina DRIVERS ausente.");
+        if (!placeholder.Visible ||
+            Descendants(placeholder).Count(c => c.Name.StartsWith("DriversPreviewCard")) != 3 ||
+            Descendants(placeholder).OfType<Button>().Any())
+            throw new Exception("DRIVERS precisa exibir tres paineis informativos sem acoes.");
+        if (!Descendants(placeholder).OfType<Label>().Any(c =>
+                c.Text.Contains("nenhuma instalação, remoção ou alteração")))
+            throw new Exception("Aviso de modulo futuro ausente.");
         Directory.CreateDirectory("LayoutCaptures");
 
         int tested = 0;
@@ -67,18 +87,40 @@ internal static class LayoutTests
             bool capture = (resolution.Width <= 1366 &&
                 (resolution.Height <= 800 || resolution == new Size(1280, 1024))) ||
                 resolution == new Size(1440, 900);
-            foreach (int tab in new[] { 0, 1, 2, 3, 4 })
+            // 21 resolucoes, seis abas e verificacao de margens, simetria,
+            // cliques e foco (antes eram apenas cinco abas).
+            for (int tab = 0; tab < 6; tab++)
             {
                 nav.SelectTab(tab);
                 Application.DoEvents();
+                var bounds = nav.NavigationBounds;
+                if (bounds.Length != 6 ||
+                    bounds.Any(b => b.Width < 1 || b.Height < 1))
+                    throw new Exception("Nao ha seis botoes de navegacao visiveis.");
+                int firstMargin = bounds[0].Left;
+                int lastMargin = nav.ClientSize.Width - bounds[^1].Right;
+                if (firstMargin > 18 || lastMargin > 18 ||
+                    Math.Abs(firstMargin - lastMargin) > 3)
+                    throw new Exception($"Abas desalinhadas: {name} esquerda={firstMargin} direita={lastMargin}");
+                if (bounds.Max(b => b.Width) - bounds.Min(b => b.Width) > 1)
+                    throw new Exception($"Abas nao estao uniformes em {name}.");
+                for (int i = 0; i < bounds.Length; i++)
+                {
+                    if (i > 0 && bounds[i].Left <= bounds[i - 1].Right)
+                        throw new Exception("Abas encostadas ou sobrepostas.");
+                    Point center = new(bounds[i].Left + bounds[i].Width / 2,
+                        bounds[i].Top + bounds[i].Height / 2);
+                    if (nav.NavigationHitTest(center) != i)
+                        throw new Exception($"Hit-test incorreto: {name}, aba {i}");
+                }
 
                 // Em monitores largos, nao comprimir oito ferramentas numa
                 // linha de cinco nem cinco comandos de rede numa unica linha.
                 if ((resolution == new Size(1920, 1080) ||
-                     resolution == new Size(2560, 1440)) && (tab == 1 || tab == 2))
+                     resolution == new Size(2560, 1440)) && (tab == 2 || tab == 3))
                 {
-                    int expected = tab == 1 ? 4 : 3;
-                    int toolCount = tab == 1 ? 8 : 5;
+                    int expected = tab == 2 ? 4 : 3;
+                    int toolCount = tab == 2 ? 8 : 5;
                     var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
                         .FirstOrDefault(x => x.EmbeddedInPage &&
                             x.Content.Controls.Count == toolCount);
@@ -123,10 +165,14 @@ internal static class LayoutTests
 
                 var allButtons = Descendants(form).OfType<Button>()
                     .Where(b => b.Visible).ToArray();
-                // A aba Energia so habilita seus comandos depois de consultar
-                // o Windows. No teste isolado sem servicos eles devem continuar
-                // visiveis, mas desabilitados por seguranca.
-                if (allButtons.Length == 0)
+                // DRIVERS nao possui operacoes reais: nenhum botao dentro da
+                // pagina deve permitir instalacao, remocao ou diagnostico.
+                if (tab == 1)
+                {
+                    if (Descendants(placeholder).OfType<Button>().Any())
+                        throw new Exception("DRIVERS ganhou uma acao prematura.");
+                }
+                else if (allButtons.Length == 0)
                     throw new Exception($"Nenhum botao apresentado: {name} {resolution} aba={tab}");
                 var buttons = allButtons.Where(b => b.Enabled).ToArray();
 
@@ -153,6 +199,7 @@ internal static class LayoutTests
             tested++;
         }
         if (tested != 22) throw new Exception($"Esperados 22 cenarios; encontrados {tested}");
+        Console.WriteLine($"OK: {tested * 6} combinacoes resolucao/aba validadas.");
         // Provar no runner Windows que o botao Minimizar oculta a janela
         // e que Abrir restaura, sem encerrar a coleta nem criar janelas.
         IntPtr originalHandle = form.Handle;
@@ -186,21 +233,21 @@ internal static class LayoutTests
         var programList = Descendants(form).OfType<DarkProgramList>().Single();
         if (programList.ItemHeight > 70)
             throw new Exception("Lista de programas ainda usa linhas excessivamente altas.");
-        nav.SelectTab(3);
+        nav.SelectTab(4);
         Application.DoEvents();
         var activateButtons = Descendants(form).OfType<ModernButton>()
             .Where(b => b.Text == "Ativar" && b.Parent is TableLayoutPanel).ToArray();
         if (activateButtons.Length != 3 ||
             activateButtons.Any(b => b.Width > 130 || b.Height > 33))
             throw new Exception("Botoes Ativar ainda demasiadamente largos.");
-        nav.SelectTab(2);
+        nav.SelectTab(3);
         Application.DoEvents();
         var repairTools = Descendants(form).OfType<ModernButton>()
             .Where(b => b.Text is "Analisar rede" or "Reparar rede" or
                 "Criar ponto de restauração").ToArray();
         if (repairTools.Length != 3 || repairTools.Any(b => b.Width > 215))
             throw new Exception("Botoes de ferramentas ainda ocupam cartoes inteiros.");
-        nav.SelectTab(4);
+        nav.SelectTab(5);
         Application.DoEvents();
         var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
             .Where(flow => flow.IsPageViewport).ToArray();
@@ -288,7 +335,7 @@ internal static class LayoutTests
 
     private static void TestWorkspaceProportions()
     {
-        foreach (int dpi in new[] { 96, 120, 144, 192 })
+        foreach (int dpi in new[] { 96, 120, 144, 168, 192, 240, 288 })
         foreach (int height in new[] { 480, 560, 680, 900, 1100 })
         {
             var (header, log) = StartupWindowSizing.WorkspaceRows(height, dpi);
