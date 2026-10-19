@@ -27,6 +27,11 @@ internal static class LayoutTests
             {
                 nav.SelectTab(tab);
                 Application.DoEvents();
+                using (var shot = new Bitmap(form.Width, form.Height))
+                {
+                    form.DrawToBitmap(shot, new Rectangle(Point.Empty, form.Size));
+                    shot.Save($"LayoutCaptures/{size.Width}x{size.Height}-aba{tab}-inicio.png");
+                }
                 var buttons = Descendants(form).OfType<Button>().Where(b => b.Visible && b.Enabled).ToArray();
                 if (tab == 1)
                 {
@@ -56,7 +61,11 @@ internal static class LayoutTests
     {
         Rectangle bounds = control.RectangleToScreen(control.ClientRectangle);
         for (Control? parent = control.Parent; parent != null; parent = parent.Parent)
-            if (!parent.RectangleToScreen(parent.ClientRectangle).Contains(bounds)) return false;
+            if (!parent.RectangleToScreen(parent.ClientRectangle).Contains(bounds))
+            {
+                Console.WriteLine($"CLIP {control.Text} tela={bounds} pai={parent.GetType().Name} area={parent.RectangleToScreen(parent.ClientRectangle)} bounds={parent.Bounds}");
+                return false;
+            }
         return bounds.Width > 0 && bounds.Height > 0;
     }
     static IEnumerable<Control> Descendants(Control root)
