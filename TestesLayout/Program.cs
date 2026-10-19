@@ -199,8 +199,10 @@ internal static class LayoutTests
             }
             tested++;
         }
-        if (tested != 22) throw new Exception($"Esperados 22 cenarios; encontrados {tested}");
-        Console.WriteLine($"OK: {tested * 6} combinacoes resolucao/aba validadas.");
+        const int expectedCombinations = 132;
+        if (tested != 22 || tested * nav.TabCount != expectedCombinations)
+            throw new Exception($"Esperadas 132 combinacoes; encontradas {tested * nav.TabCount}.");
+        Console.WriteLine($"OK: {expectedCombinations} combinacoes resolucao/aba validadas.");
         // Provar no runner Windows que o botao Minimizar oculta a janela
         // e que Abrir restaura, sem encerrar a coleta nem criar janelas.
         IntPtr originalHandle = form.Handle;
