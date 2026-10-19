@@ -5,9 +5,26 @@ namespace GerenciadorAplicativos;
 
 internal sealed partial class MainForm
 {
-    // A pagina inteira rola: nunca destinar toda a altura aos cartoes e
-    // deixar acoes posteriores em uma linha de altura zero.
-    private Control ScrollablePage(Control content, Func<int, int> minimumHeight)
+    // Mantem a rolagem somente na pagina. O painel de discos exige uma
+    // segunda medicao depois que o Windows entrega as unidades locais.
+    private Action? _relayoutCleaning;
+
+    private int DiskPanelHeight(int width)
+    {
+        int count = _diskCards.Content.Controls.Count;
+        int usable = width - 45;
+        int columns = usable >= 740 ? 2 : 1;
+        int rows = Math.Max(1, (Math.Max(1, count) + columns - 1) / columns);
+        float scale = Math.Max(1f, DeviceDpi / 96f);
+        int fixedRows = (int)Math.Ceiling(36 + 36 + 20 + 12 + 4 + 6);
+        int cards = rows * (111 + 7);
+        return (int)Math.Ceiling((fixedRows + cards) * scale);
+    }
+
+    // A pagina inteira rola quando necessario, mas nunca acrescenta barras
+    // independentes a conjuntos de ferramentas e a unidades.
+    private Control ScrollablePage(Control content, Func<int, int> minimumHeight,
+        bool trackCleaning = false)
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty,
             IsPageViewport = true, BackColor = AppServices.Background };
@@ -40,6 +57,7 @@ internal sealed partial class MainForm
             Arrange();
         };
         host.DpiChangedAfterParent += (_, _) => Arrange();
+        if (trackCleaning) _relayoutCleaning = Arrange;
         Arrange();
         return host;
     }
