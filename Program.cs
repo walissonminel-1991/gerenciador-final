@@ -654,14 +654,14 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.2 TESTE";
+        Text = "Gerenciador Final — v5.13.10.3 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
-        // Abre com o dimensionamento aprovado na v5.12.21.1, sem restaurar
-        // janelas pequenas de execuções anteriores e sem sair do monitor.
+        // Abre com a dimensao compacta da referencia visual 1440x900,
+        // sem ocupar quase todo o monitor nem restaurar tamanhos antigos.
         var display = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
         Rectangle opening = StartupWindowSizing.Fit(display);
         StartPosition = FormStartPosition.Manual;
