@@ -9,6 +9,18 @@ namespace GerenciadorAplicativos;
 // auxiliar, persistencia em disco ou consulta extra e criada por este modulo.
 internal sealed partial class MainForm
 {
+    // Composicao unica dos controles filhos: evita quadros intermediarios
+    // quando o inventario chega e quando Show() restaura a bandeja.
+    // Nao altera o HWND nem a coleta em segundo plano.
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            CreateParams parameters = base.CreateParams;
+            parameters.ExStyle |= 0x02000000; // WS_EX_COMPOSITED
+            return parameters;
+        }
+    }
     private NotifyIcon? _trayIcon;
     private ContextMenuStrip? _trayMenu;
     private Icon? _windowIcon;
@@ -194,9 +206,16 @@ internal sealed partial class MainForm
         try
         {
             _hiddenInTray = false;
-            if (WindowState != FormWindowState.Normal)
-                WindowState = FormWindowState.Normal;
-            Show();
+            // A repintura ocorre apenas depois que toda a estrutura estiver
+            // pronta. WS_EX_COMPOSITED evita a montagem progressiva.
+            SuspendLayout();
+            try
+            {
+                if (WindowState != FormWindowState.Normal)
+                    WindowState = FormWindowState.Normal;
+                Show();
+            }
+            finally { ResumeLayout(false); }
             if (_trayIcon is not null) _trayIcon.Visible = false;
             if (_trayHandleBeforeHide != IntPtr.Zero && Handle != _trayHandleBeforeHide)
                 DiagnosticTrace.Write("JANELA.HANDLE_ALTERADO apos restaurar bandeja");
