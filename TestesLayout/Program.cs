@@ -135,19 +135,54 @@ internal static class LayoutTests
                             resolution + " aba=" + tab + " colunas=" + firstRowCount);
                 }
 
-                if (resolution == new Size(800, 600) && tab == 0)
+                if (tab == 0)
                 {
-                    var actions = Descendants(form).OfType<TableLayoutPanel>()
+                    var commands = Descendants(form).OfType<TableLayoutPanel>()
                         .FirstOrDefault(panel => panel.Controls.OfType<Button>()
                             .Any(button => button.Text == "Verificar atualizações"));
-                    if (actions is null || actions.RowCount != 2)
-                        throw new Exception("800x600 precisa de duas linhas para quatro acoes.");
-                    foreach (Button button in actions.Controls.OfType<Button>())
+                    string[] expectedCommands = { "Atualizar lista", "Verificar atualizações",
+                        "Selecionar vários", "Desinstalar selecionados", "Limpar seleção" };
+                    if (commands is null ||
+                        !commands.Controls.OfType<Button>()
+                            .Select(button => button.Text).SequenceEqual(expectedCommands))
+                        throw new Exception("Os cinco comandos de Aplicativos nao estao juntos.");
+                    var search = Descendants(form).OfType<TableLayoutPanel>()
+                        .FirstOrDefault(panel => panel.Controls.OfType<TextBox>()
+                            .Any(t => t.PlaceholderText.Contains("Nome, versão")));
+                    if (search is null || search.Controls.OfType<Button>()
+                        .Any(button => button.Text == "Atualizar lista"))
+                        throw new Exception("Atualizar lista nao deve aparecer junto da pesquisa.");
+                    bool expectCompact = commands.ClientSize.Width <
+                        (int)Math.Ceiling(870d * Math.Max(1, commands.DeviceDpi) / 96d);
+                    if (commands.RowCount != (expectCompact ? 2 : 1))
+                        throw new Exception("Acoes com numero incorreto de linhas: " + resolution);
+                    foreach (Button button in commands.Controls.OfType<Button>())
                     {
-                        if (actions.GetRow(button) < 0 || actions.GetRow(button) > 1 ||
-                            actions.GetColumn(button) < 0 || button.Right > actions.ClientSize.Width + 2)
-                            throw new Exception("Acao cortada no tamanho compacto: " + button.Text);
+                        if (commands.GetRow(button) < 0 ||
+                            commands.GetRow(button) >= commands.RowCount ||
+                            commands.GetColumn(button) < 0 ||
+                            button.Right > commands.ClientSize.Width + 2)
+                            throw new Exception("Acao cortada: " + name + " / " + button.Text);
                     }
+                }
+                if (tab == 5)
+                {
+                    var descriptions = Descendants(form).OfType<Label>()
+                        .Where(label => label.Name.StartsWith("SystemActionDescription",
+                            StringComparison.Ordinal)).OrderBy(label => label.Name).ToArray();
+                    var expectedDescriptions = new[]
+                    {
+                        "Histórico recente de CPU e RAM, atualizado a cada 5 s.",
+                        "Ative ou desative entradas do seu usuário de modo reversível.",
+                        "Procure, selecione e instale atualizações oficiais.",
+                        "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos."
+                    };
+                    if (descriptions.Length != 4 ||
+                        !descriptions.Select(x => x.Text).SequenceEqual(expectedDescriptions) ||
+                        descriptions.Any(x => x.Height < 35 || x.Width < 60))
+                        throw new Exception("Descricoes dos quatro botoes do Sistema ausentes ou comprimidas.");
+                    if (descriptions.Any(x => !x.Visible))
+                        throw new Exception("Descricoes do Sistema ocultas na aba selecionada.");
                 }
 
                 // Somente a pagina pode rolar quando o conteudo ultrapassar
