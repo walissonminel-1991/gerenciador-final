@@ -654,7 +654,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.4 TESTE";
+        Text = "Gerenciador Final — v5.13.10.5 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -670,10 +670,10 @@ internal sealed partial class MainForm : Form
         MaximumSize = StartupWindowSizing.LimitSize(StartupWindowSizing.PreferredSize, display);
         Bounds = opening;
 
-        var root = new TableLayoutPanel { Dock = DockStyle.None, ColumnCount = 1, RowCount = 3, Padding = new Padding(20, 16, 20, 16), BackColor = AppServices.Background };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+        var root = new TableLayoutPanel { Dock = DockStyle.None, ColumnCount = 1, RowCount = 3, Padding = new Padding(12, 7, 12, 7), BackColor = AppServices.Background };
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 200));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 130));
         Controls.Add(root);
         // Ao maximizar em ultrawide/4K/8K, os botoes nao ocupam centenas de
         // pixels extras: centraliza a superficie com largura/altura limitadas.
@@ -798,8 +798,8 @@ internal sealed partial class MainForm : Form
         var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Margin = Padding.Empty };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 5));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 35));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         panel.Controls.Add(new Panel
         {
             Dock = DockStyle.Fill, BackColor = AppServices.Blue,
@@ -826,12 +826,12 @@ internal sealed partial class MainForm : Form
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
-            Padding = new Padding(4, 11, 4, 5), Margin = Padding.Empty,
+            Padding = new Padding(4, 5, 4, 3), Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 57));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 35));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var searchBar = new TableLayoutPanel
@@ -852,19 +852,19 @@ internal sealed partial class MainForm : Form
         _search.BackColor = Color.FromArgb(19, 26, 34);
         _search.ForeColor = Ink;
         _search.PlaceholderText = "Nome, versão ou fabricante";
-        _search.Margin = new Padding(0, 7, 10, 7);
+        _search.Margin = new Padding(0, 3, 8, 3);
         _search.Dock = DockStyle.Fill;
         _search.TextChanged += (_, _) => RenderPrograms();
         searchBar.Controls.Add(_search, 1, 0);
         var clear = CreateSecondaryButton("Limpar");
         clear.Dock = DockStyle.Fill;
-        clear.Margin = new Padding(0, 6, 10, 6);
+        clear.Margin = new Padding(0, 3, 8, 3);
         clear.Click += (_, _) => _search.Clear();
         _toolTips.SetToolTip(clear, "Apaga apenas o texto da pesquisa.");
         searchBar.Controls.Add(clear, 2, 0);
         var refresh = CreateButton("Atualizar lista", AppServices.Blue, Color.White);
         refresh.Dock = DockStyle.Fill;
-        refresh.Margin = new Padding(0, 6, 0, 6);
+        refresh.Margin = new Padding(0, 3, 0, 3);
         refresh.Click += async (_, _) => await ExecuteAsync("Atualizando lista local...", RefreshCatalogAsync);
         _toolTips.SetToolTip(refresh, "Recarrega somente os programas instalados no Windows. Não consulta a internet.");
         _actionControls.Add(refresh);
@@ -884,7 +884,7 @@ internal sealed partial class MainForm : Form
         {
             var b = CreateButton(title, color, Color.White);
             b.Dock = DockStyle.Fill;
-            b.Margin = new Padding(0, 4, 8, 5);
+            b.Margin = new Padding(0, 2, 5, 2);
             if (b is ModernButton modern) modern.AllowMultilineText = true;
             _toolTips.SetToolTip(b, title);
             b.Click += (_, _) => onClick();
@@ -915,7 +915,7 @@ internal sealed partial class MainForm : Form
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 135));
         _listTitle.Dock = DockStyle.Fill;
-        _listTitle.AutoEllipsis = true;
+        _listTitle.AutoEllipsis = false;
         _listTitle.SizeChanged += (_, _) => RenderTitle();
         _listTitle.Font = new Font("Segoe UI", 11.5F, FontStyle.Bold);
         _listTitle.ForeColor = Ink;
@@ -929,7 +929,7 @@ internal sealed partial class MainForm : Form
         root.Controls.Add(heading, 0, 2);
 
         _programList.Dock = DockStyle.Fill;
-        _programList.ItemHeight = 78;
+        _programList.ItemHeight = 67;
         _programList.BackColor = PanelBackground;
         _programList.ForeColor = Ink;
         _programList.DrawItem += DrawProgramCard;
@@ -1054,18 +1054,18 @@ internal sealed partial class MainForm : Form
             if (marked) TextRenderer.DrawText(e.Graphics, "✓", _rowInfo, box, Color.White,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         }
-        var mark = new Rectangle(e.Bounds.X + 17 + prefix, e.Bounds.Y + 19, 36, 36);
+        var mark = new Rectangle(e.Bounds.X + 18 + prefix, e.Bounds.Y + 18, 31, 31);
         using (var markBrush = new SolidBrush(item.IsUpdate ? Color.FromArgb(23, 97, 151) : Color.FromArgb(54, 67, 81)))
             e.Graphics.FillEllipse(markBrush, mark);
         string initial = string.IsNullOrWhiteSpace(item.Name) ? "?" : item.Name.Trim()[0].ToString().ToUpperInvariant();
         TextRenderer.DrawText(e.Graphics, initial, _rowMark, mark, item.IsUpdate ? Accent : Ink,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 
-        int left = e.Bounds.Left + 65 + prefix;
-        int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 355);
+        int left = e.Bounds.Left + 58 + prefix;
+        int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 320);
         TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
-            new Rectangle(left, e.Bounds.Top + 8, width, 27), selected ? Accent : Ink,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
+            new Rectangle(left, e.Bounds.Top + 5, width, 29), selected ? Accent : Ink,
+            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
         bool checkStore = item.IsUpdate && VerifiedUpdaters.GetPrimaryAction(item) == "store";
         string details = item.IsUpdate && checkStore
             ? $"Versão em catálogo ({item.Source}); confira na Store · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
@@ -1083,9 +1083,9 @@ internal sealed partial class MainForm : Form
             ? $"Versão: {DisplayAppVersion(item.Version)} · Componente Windows/Store (somente leitura)"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
-            new Rectangle(left, e.Bounds.Top + 36, Math.Max(20, e.Bounds.Width - left + e.Bounds.Left - 350), 25),
+            new Rectangle(left, e.Bounds.Top + 34, Math.Max(20, e.Bounds.Width - left + e.Bounds.Left - 320), 28),
             item.IsUpdate ? Color.FromArgb(133, 221, 176) : Muted,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter);
+            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
 
         if (!multiselect)
         {
@@ -1281,16 +1281,16 @@ internal sealed partial class MainForm : Form
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = AppServices.Background };
         var flow = host.Content;
-        flow.Padding = new Padding(12);
+        flow.Padding = new Padding(7);
         flow.BackColor = AppServices.Background;
         foreach (ToolInfo tool in tools)
         {
             var card = new Panel
             {
-                Size = new Size(compact ? 268 : 286, compact ? 146 : 146),
+                Size = new Size(244, 124),
                 BackColor = PanelBackground,
-                Margin = compact ? new Padding(3, 4, 9, 8) : new Padding(3, 4, 13, 10),
-                Padding = new Padding(8)
+                Margin = new Padding(3, 3, 5, 6),
+                Padding = new Padding(6)
             };
 
             var layout = new TableLayoutPanel
@@ -1302,15 +1302,15 @@ internal sealed partial class MainForm : Form
                 Margin = Padding.Empty,
                 Padding = Padding.Empty
             };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, compact ? 58 : 48));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 39));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             var button = CreateButton(ToolCaption(tool.Name, compact), tool.Color, Color.White);
-            if (compact && button is ModernButton modernButton)
+            if (button is ModernButton modernButton)
                 modernButton.AllowMultilineText = true;
             button.Dock = DockStyle.Fill;
             button.Margin = Padding.Empty;
-            button.MinimumSize = new Size(0, compact ? 54 : 44);
+            button.MinimumSize = new Size(0, 36);
             button.AccessibleName = tool.Name;
             button.AccessibleDescription = tool.Description;
             _toolTips.SetToolTip(button, tool.Description);
@@ -1334,7 +1334,7 @@ internal sealed partial class MainForm : Form
                 ForeColor = Muted,
                 Font = new Font("Segoe UI", compact ? 8.5F : 8.6F),
                 Text = tool.Description,
-                Padding = new Padding(3, compact ? 6 : 8, 3, 0),
+                Padding = new Padding(2, 5, 2, 0),
                 TextAlign = ContentAlignment.TopLeft
             };
 
@@ -1356,8 +1356,8 @@ internal sealed partial class MainForm : Form
                 double scale = Math.Max(1d, host.DeviceDpi / 96d);
                 int viewport = Math.Max(1, host.ClientSize.Width - (int)Math.Ceiling(16 * scale));
                 int usable = Math.Max(1, viewport - flow.Padding.Horizontal);
-                int desired = (int)Math.Ceiling((compact ? 268 : 286) * scale);
-                int margin = (int)Math.Ceiling((compact ? 12 : 16) * scale);
+                int desired = (int)Math.Ceiling(244 * scale);
+                int margin = (int)Math.Ceiling(8 * scale);
                 int columns = Math.Max(1, usable / Math.Max(1, desired + margin));
                 int cardWidth = Math.Max(1, Math.Min(desired, usable / columns - margin));
                 foreach (Control card in flow.Controls)
@@ -1959,10 +1959,10 @@ internal sealed partial class MainForm : Form
         // Cabeçalho permanece de uma linha sem sobrepor os tres filtros.
         // Todas as informacoes podem ser lidas pelo tooltip da legenda.
         int width = _listTitle.ClientSize.Width;
-        _listTitle.Text = width < 240
-            ? $"{displayed} apps · {(_catalogoVerificado ? updates.ToString() : "—")} possíveis"
-            : width < 480
-            ? $"Aplicativos: {displayed} · Atualizações: {(_catalogoVerificado ? updates.ToString() : "—")}"
+        _listTitle.Text = width < 180
+            ? $"{displayed} aplicativos"
+            : width < 430
+            ? $"{displayed} aplicativos · {(_catalogoVerificado ? updates.ToString() : "—")} atualizações"
             : full;
         _toolTips.SetToolTip(_listTitle, full);
     }
