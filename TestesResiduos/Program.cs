@@ -413,6 +413,18 @@ Check(BroadResidualDiscovery.Classify(protectedHistory, new[]
     { new ProgramEntry { Name = "GOG Galaxy", Publisher = "GOG.com" } })
     .All(r => r.Product != "GOG.com"),
     "Perfil GOG nao aparece como residuo quando fabricante ainda esta registrado");
+Check(BroadResidualDiscovery.IsProtectedByInstalled("MPC-HC",
+          new[] { new ProgramEntry { Name = "K-Lite Codec Pack Full" } }) &&
+      BroadResidualDiscovery.IsProtectedByInstalled("Microvirt",
+          new[] { new ProgramEntry { Name = "MEmu Play" } }) &&
+      BroadResidualDiscovery.IsProtectedByInstalled("GOG.com",
+          new[] { new ProgramEntry { Name = "GOG GALAXY" } }),
+    "Alias de software presente protege MPC-HC, Microvirt e GOG sem limpeza");
+Check(!BroadResidualDiscovery.IsProtectedByInstalled("MPC-HC",
+          new[] { new ProgramEntry { Name = "Windows Terminal" } }) &&
+      !BroadResidualDiscovery.IsProtectedByInstalled("Microvirt",
+          new[] { new ProgramEntry { Name = "WinRAR" } }),
+    "Alias nao pode vincular fabricantes a outros aplicativos");
 Check(BroadResidualDiscovery.IsRunningProduct("MPC-HC", new[] { "mpc-hc64" }) &&
       BroadResidualDiscovery.IsRunningProduct("MPC-HC", new[] { "MPC-HC" }) &&
       !BroadResidualDiscovery.IsRunningProduct("McAfee", new[] { "mpc-hc64" }),
