@@ -696,7 +696,7 @@ internal sealed class DarkTabHost : UserControl
     private readonly TabStrip _strip;
     private readonly Panel _content;
     private int _selectedIndex = -1;
-    private const int StripHeight = 42;
+    private const int StripHeight = 35;
 
     public event EventHandler? SelectedIndexChanged;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -723,7 +723,7 @@ internal sealed class DarkTabHost : UserControl
         int eachTab = ClientSize.Width / Math.Max(1, _pages.Count);
         // Em janelas estreitas, as legendas passam a duas linhas, sem
         // reticencias que escondam o nome de uma funcionalidade.
-        int height = eachTab < 192 ? 49 : 39;
+        int height = eachTab < 140 ? 43 : 35;
         int scaledStrip = (int)Math.Ceiling(height * Math.Max(1, DeviceDpi) / 96d);
         _strip.Bounds = new Rectangle(0, 0, Math.Max(0, ClientSize.Width), Math.Min(scaledStrip, Math.Max(0, ClientSize.Height)));
         int contentTop = _strip.Bottom;
@@ -776,7 +776,7 @@ internal sealed class DarkTabHost : UserControl
             _host = host;
             BackColor = Color.FromArgb(21, 27, 35);
             ForeColor = Color.FromArgb(237, 243, 250);
-            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            Font = new Font("Segoe UI", 8.8F, FontStyle.Bold);
             TabStop = true;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
@@ -849,18 +849,30 @@ internal sealed class DarkTabHost : UserControl
                 // A própria cor da aba ativa indica a seleção; sem sublinhado redundante.
                 var labelColor = active ? Color.FromArgb(170, 216, 255) : Color.FromArgb(164, 179, 193);
                 string caption = _host._pages[i].Title;
-                bool narrow = w < (int)Math.Ceiling(192 * Math.Max(1, DeviceDpi) / 96d);
-                if (narrow)
-                    caption = caption switch
+                // A versao anterior forçava duas linhas mesmo com largura
+                // suficiente. Priorizar o titulo INTEGRAL em uma linha;
+                // reduzir apenas a fonte da aba, nunca usar reticencias.
+                Font chosen = Font;
+                Font? fitted = null;
+                try
+                {
+                    int available = Math.Max(12, bounds.Width - 7);
+                    while (TextRenderer.MeasureText(e.Graphics, caption, chosen,
+                        new Size(int.MaxValue, 32), TextFormatFlags.NoPadding |
+                        TextFormatFlags.NoPrefix).Width > available &&
+                        chosen.SizeInPoints > 7.1F)
                     {
-                        "Limpeza e desempenho" => "Limpeza e\ndesempenho",
-                        "Planos de energia" => "Planos de\nenergia",
-                        "Inicialização e sistema" => "Inicialização\ne sistema",
-                        _ => caption
-                    };
-                TextRenderer.DrawText(e.Graphics, caption, Font, bounds, labelColor,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                        float nextSize = Math.Max(7.0F, chosen.SizeInPoints - 0.35F);
+                        fitted?.Dispose();
+                        fitted = new Font(Font.FontFamily, nextSize, FontStyle.Bold);
+                        chosen = fitted;
+                    }
+                    TextRenderer.DrawText(e.Graphics, caption, chosen, bounds, labelColor,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                        TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix |
+                        TextFormatFlags.NoPadding);
+                }
+                finally { fitted?.Dispose(); }
             }
         }
 
