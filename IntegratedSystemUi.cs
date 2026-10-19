@@ -35,7 +35,7 @@ internal sealed partial class MainForm
             Dock = DockStyle.Fill, BackColor = AppServices.Background,
             ColumnCount = 1, RowCount = 2, Padding = new Padding(5, 5, 5, 4)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 103));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var actions = new TableLayoutPanel
@@ -44,7 +44,7 @@ internal sealed partial class MainForm
             Margin = Padding.Empty, BackColor = AppServices.Background
         };
         for (int i = 0; i < 4; i++) actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        AddIntegratedAction(actions, 0, "Processos", "Histórico recente de CPU e RAM, atualizado a cada 5 s.", AppServices.Blue,
+        AddIntegratedAction(actions, 0, "Processos", "CPU, memória e E/S por processo. Atualiza a cada 2 s com a aba aberta.", AppServices.Blue,
             async () => { _activeSystemView = "processes"; ShowCachedProcessesIfAvailable(); await RefreshProcessHistoryAsync(); });
         AddIntegratedAction(actions, 1, "Inicialização", "Ative ou desative entradas do seu usuário de modo reversível.", AppServices.Gray,
             async () => { _activeSystemView = "startup"; await RefreshStartupEntriesAsync(); });
@@ -67,12 +67,12 @@ internal sealed partial class MainForm
         var details = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, BackColor = PanelBackground,
-            ColumnCount = 1, RowCount = 4, Padding = new Padding(8, 6, 8, 5),
+            ColumnCount = 1, RowCount = 4, Padding = new Padding(8, 4, 8, 4),
             Margin = new Padding(2, 2, 2, 0)
         };
         _systemDetails = details;
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 31));
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
+        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
         details.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         details.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
@@ -97,7 +97,7 @@ internal sealed partial class MainForm
         _systemPanelSummary.Dock = DockStyle.Fill;
         _systemPanelSummary.Font = new Font("Segoe UI", 9F);
         _systemPanelSummary.ForeColor = Muted;
-        _systemPanelSummary.TextAlign = ContentAlignment.TopLeft;
+        _systemPanelSummary.TextAlign = ContentAlignment.MiddleLeft;
         details.Controls.Add(_systemPanelSummary, 0, 1);
         _installSelectedUpdates = CreateButton("Baixar e instalar selecionadas (0)", AppServices.Green, Color.White);
         _installSelectedUpdates.Dock = DockStyle.Fill;
@@ -127,6 +127,10 @@ internal sealed partial class MainForm
         details.Controls.Add(contentHost, 0, 3);
         SetSystemView("processes");
         root.Controls.Add(details, 0, 1);
+        root.SizeChanged += (_, _) => FitSystemActionsHeight(root, actions);
+        details.SizeChanged += (_, _) => FitSystemSummaryHeight();
+        FitSystemActionsHeight(root, actions);
+        FitSystemSummaryHeight();
 
         _processTimer.Tick += async (_, _) =>
         {
@@ -148,8 +152,8 @@ internal sealed partial class MainForm
         if (_systemDetails is null || _installSelectedUpdates is null) return;
         bool showInstall = view == "update";
         bool showProcesses = view == "processes";
-        _systemDetails.RowStyles[1].Height = showProcesses ? 43 : 30;
-        _systemDetails.RowStyles[2].Height = showInstall ? 43 : 0;
+        _systemDetails.RowStyles[2].Height = showInstall ? 38 : 0;
+        FitSystemSummaryHeight();
         _processTimer.Interval = showProcesses && _nav.SelectedIndex == 5 &&
             Visible && !IsInTray ? 2000 : 5000;
         _installSelectedUpdates.Visible = showInstall;
@@ -167,10 +171,10 @@ internal sealed partial class MainForm
         var card = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, BackColor = PanelBackground,
-            ColumnCount = 1, RowCount = 2, Margin = new Padding(2, 2, 3, 4),
-            Padding = new Padding(4, 3, 4, 2)
+            ColumnCount = 1, RowCount = 2, Margin = new Padding(2, 1, 3, 2),
+            Padding = new Padding(4, 2, 4, 2)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var button = CreateButton(caption, color, Color.White);
         button.AccessibleDescription = description;
@@ -196,10 +200,48 @@ internal sealed partial class MainForm
             AutoEllipsis = false,
             Font = new Font("Segoe UI", 9F),
             TextAlign = ContentAlignment.TopLeft,
-            Padding = new Padding(1, 5, 1, 1),
+            Padding = new Padding(1, 2, 1, 0),
             AccessibleDescription = description
         }, 0, 1);
         parent.Controls.Add(card, column, 0);
+    }
+
+    private void FitSystemActionsHeight(TableLayoutPanel root, TableLayoutPanel actions)
+    {
+        if (root.IsDisposed || actions.IsDisposed || root.ClientSize.Width < 1) return;
+        int width = Math.Max(88,
+            (root.ClientSize.Width - root.Padding.Horizontal) / 4 - 23);
+        int minHeight = (int)Math.Ceiling(82d * Math.Max(1d, DeviceDpi / 96d));
+        int height = minHeight;
+        foreach (var card in actions.Controls.OfType<TableLayoutPanel>())
+        {
+            var label = card.Controls.OfType<Label>().FirstOrDefault();
+            if (label is null) continue;
+            int measured = TextRenderer.MeasureText(label.Text, label.Font,
+                new Size(width, 800),
+                TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
+            int required = (int)card.RowStyles[0].Height + measured +
+                card.Margin.Vertical + card.Padding.Vertical + label.Padding.Vertical + 3;
+            height = Math.Max(height, required);
+        }
+        if (Math.Abs(root.RowStyles[0].Height - height) >= 1)
+            root.RowStyles[0].Height = height;
+    }
+
+    private void FitSystemSummaryHeight()
+    {
+        if (_systemDetails is null || _systemDetails.IsDisposed ||
+            _systemPanelSummary.IsDisposed) return;
+        int width = Math.Max(180, _systemDetails.ClientSize.Width -
+            _systemDetails.Padding.Horizontal - 10);
+        int measured = TextRenderer.MeasureText(_systemPanelSummary.Text,
+            _systemPanelSummary.Font, new Size(width, 200),
+            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
+        int height = Math.Clamp(measured + 4,
+            (int)Math.Ceiling(26d * Math.Max(1d, DeviceDpi / 96d)),
+            (int)Math.Ceiling(78d * Math.Max(1d, DeviceDpi / 96d)));
+        if (Math.Abs(_systemDetails.RowStyles[1].Height - height) >= 1)
+            _systemDetails.RowStyles[1].Height = height;
     }
 
     private void ReplaceSystemCards(IEnumerable<Control> cards)
