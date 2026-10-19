@@ -13,16 +13,37 @@ internal static class StartupWindowSizing
     // de tarefas, DPI, monitores remotos), reduzimos o minimo sem bloquear a tela.
     internal static readonly Size NormalMinimum = new(800, 600);
 
+    // A regra de 60% refere-se a AREA da janela, nao a cada dimensao
+    // isoladamente. Abaixo de 1366x768, priorizamos a usabilidade.
+    internal static bool ApplyAreaLimit(Rectangle workingArea) =>
+        workingArea.Width >= 1366 && workingArea.Height >= 600;
+
+    internal static Size LimitSize(Size requested, Rectangle workingArea)
+    {
+        if (workingArea.Width <= 0 || workingArea.Height <= 0)
+            return requested;
+        int width = Math.Min(Math.Max(1, requested.Width), workingArea.Width);
+        int height = Math.Min(Math.Max(1, requested.Height), workingArea.Height);
+        if (ApplyAreaLimit(workingArea))
+        {
+            // Incluir a barra de tarefas na referencia? Nao: usar a area util
+            // resulta em um limite ainda mais conservador.
+            long areaLimit = 3L * workingArea.Width * workingArea.Height / 5L;
+            if ((long)width * height > areaLimit)
+                height = Math.Max(1, (int)(areaLimit / width));
+        }
+        return new Size(width, height);
+    }
+
     internal static Rectangle Fit(Rectangle workingArea)
     {
         if (workingArea.Width <= 0 || workingArea.Height <= 0)
             return new Rectangle(0, 0, PreferredSize.Width, PreferredSize.Height);
-        int width = Math.Min(PreferredSize.Width, workingArea.Width);
-        int height = Math.Min(PreferredSize.Height, workingArea.Height);
+        Size size = LimitSize(PreferredSize, workingArea);
         return new Rectangle(
-            workingArea.Left + (workingArea.Width - width) / 2,
-            workingArea.Top + (workingArea.Height - height) / 2,
-            width, height);
+            workingArea.Left + (workingArea.Width - size.Width) / 2,
+            workingArea.Top + (workingArea.Height - size.Height) / 2,
+            size.Width, size.Height);
     }
 
     internal static Size AllowedMinimum(Rectangle planned) => new(
@@ -35,8 +56,9 @@ internal static class StartupWindowSizing
     {
         if (workingArea.Width <= 0 || workingArea.Height <= 0)
             return desired;
-        int width = Math.Min(Math.Max(1, desired.Width), workingArea.Width);
-        int height = Math.Min(Math.Max(1, desired.Height), workingArea.Height);
+        Size limited = LimitSize(desired.Size, workingArea);
+        int width = limited.Width;
+        int height = limited.Height;
         int x = Math.Clamp(desired.Left, workingArea.Left, workingArea.Right - width);
         int y = Math.Clamp(desired.Top, workingArea.Top, workingArea.Bottom - height);
         return new Rectangle(x, y, width, height);
