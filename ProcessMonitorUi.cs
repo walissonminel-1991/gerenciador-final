@@ -36,8 +36,8 @@ internal sealed partial class MainForm
         _processMonitorView = panel;
         var toolbar = new TableLayoutPanel
         {
-            Dock = DockStyle.Top, Height = 37, RowCount = 1, ColumnCount = 3,
-            Margin = Padding.Empty, Padding = new Padding(2, 2, 1, 5)
+            Dock = DockStyle.Top, Height = 31, RowCount = 1, ColumnCount = 3,
+            Margin = Padding.Empty, Padding = new Padding(2, 1, 1, 2)
         };
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -83,10 +83,10 @@ internal sealed partial class MainForm
             CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
             ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None,
             EnableHeadersVisualStyles = false,
-            ColumnHeadersHeight = 33,
+            ColumnHeadersHeight = 28,
             ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
             RowHeadersVisible = false,
-            RowTemplate = { Height = 28 },
+            RowTemplate = { Height = 25 },
             AllowUserToAddRows = false,
             AllowUserToDeleteRows = false,
             AllowUserToResizeRows = false,
@@ -110,6 +110,8 @@ internal sealed partial class MainForm
             {
                 BackColor = Color.FromArgb(29, 40, 51),
                 ForeColor = Ink,
+                SelectionBackColor = Color.FromArgb(29, 40, 51),
+                SelectionForeColor = Ink,
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 Alignment = DataGridViewContentAlignment.MiddleLeft
             }
@@ -186,7 +188,8 @@ internal sealed partial class MainForm
             ? (snapshot.NetworkBytesPerSecond.Value / 1024d).ToString("N1", CultureInfo.CurrentCulture) + " KB/s"
             : "calculando";
         _systemPanelSummary.Text =
-            $"{snapshot.ProcessCount} processos · CPU total: {totalCpu} · Memória em uso: {memory} · Rede total: {network}. E/S = leitura + escrita, não necessariamente disco físico.";
+            $"{snapshot.ProcessCount} processos · CPU: {totalCpu} · RAM: {memory} · Rede total: {network} · E/S não equivale a disco físico.";
+        FitSystemSummaryHeight();
         RefreshProcessTable();
     }
 
