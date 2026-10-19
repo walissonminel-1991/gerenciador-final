@@ -13,7 +13,7 @@ internal sealed partial class MainForm
     {
         int count = _diskCards.Content.Controls.Count;
         int usable = width - 45;
-        int columns = usable >= 740 ? 2 : 1;
+        int columns = usable >= 1050 ? 3 : usable >= 740 ? 2 : 1;
         int rows = Math.Max(1, (Math.Max(1, count) + columns - 1) / columns);
         float scale = Math.Max(1f, DeviceDpi / 96f);
         int fixedRows = 36 + 36 + 20 + 12 + 4 + 6;
