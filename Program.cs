@@ -69,6 +69,8 @@ internal sealed class ProgramEntry
     public bool VerifiedMsixIdentity { get; init; }
     // Entrada MSIX, jogo da biblioteca ou componente protegido: sem desinstalacao direta.
     public bool InventoryOnly { get; init; }
+    // Atualizada pelo inventario local; nao fornece autorizacao para executar comandos.
+    public bool CanUninstall { get; set; }
     public string AvailableVersion { get; set; } = "";
     public string Source { get; set; } = "";
     public bool IsUpdate { get; set; }
@@ -648,7 +650,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Gerenciador Final — v5.13.7 TESTE";
+        Text = "Gerenciador Final — v5.13.8 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -872,7 +874,7 @@ internal sealed partial class MainForm : Form
         _programList.ItemActionClicked += (item, action) =>
         {
             if (_busy) return;
-            if (action == "uninstall" && !item.InventoryOnly)
+            if (action == "uninstall" && item.CanUninstall)
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
             else if (action == "update")
                 _ = UpdateThirdPartyAsync(item);
@@ -887,7 +889,7 @@ internal sealed partial class MainForm : Form
         };
         _programList.ItemCheckboxClicked += item =>
         {
-            if (_busy || !_multiSelectMode || item.InventoryOnly) return;
+            if (_busy || !_multiSelectMode || !item.CanUninstall) return;
             if (!_checkedApps.Add(item)) _checkedApps.Remove(item);
             _programList.Invalidate();
             RenderTitle();
@@ -1043,7 +1045,7 @@ internal sealed partial class MainForm : Form
                     DrawRowButton(e.Graphics, AppRowGeometry.SiteButton(e.Bounds), "Site", AppServices.Gray,
                         _programList.ActionVisual(item, "site"));
             }
-            if (!item.InventoryOnly)
+            if (item.CanUninstall)
                 DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red,
                     _programList.ActionVisual(item, "uninstall"));
         }
@@ -1634,8 +1636,13 @@ internal sealed partial class MainForm : Form
         }
         _catalogoGeneration++;
         _consultaCatalogoCts?.Cancel();
+        // Resolvemos os desinstaladores uma única vez por leitura local.
+        // Não ocultar do inventário os programas sem ação; somente da lista.
+        foreach (var item in items)
+            item.CanUninstall = ActionableInventory.CanUninstall(item);
         _installed.Clear();
         _installed.AddRange(items);
+        DiagnosticTrace.Write($"APLICATIVOS.ACOES inventario={items.Count} desinstalaveis={items.Count(x => x.CanUninstall)} ocultos_sem_acao={items.Count(x => !x.CanUninstall)}");
         _available.Clear();
         _catalogoVerificado = false;
         _checkedApps.Clear();
@@ -1645,8 +1652,8 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_INICIO");
         RenderPrograms();
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_FIM");
-        Log($"Lista local atualizada: {_installed.Count} programa(s). Nenhuma consulta online iniciada.");
-        Status($"{_installed.Count} programas encontrados");
+        Log($"Inventário local: {_installed.Count} registros; {ActionableInventory.VisibleCount(_installed)} com desinstalação disponível. A lista exibida mostra somente ações.");
+        Status($"{ActionableInventory.VisibleCount(_installed)} aplicativos com ação disponíveis antes da consulta online");
     }
 
     private async Task LoadUpdatesAsync(bool forceRefresh = false)
@@ -1823,11 +1830,12 @@ internal sealed partial class MainForm : Form
     private void RenderPrograms()
     {
         string query = _search.Text.Trim();
-        IEnumerable<ProgramEntry> filtered = _installed.Where(entry => query.Length == 0 ||
+        IEnumerable<ProgramEntry> filtered = _installed.Where(entry =>
+            ActionableInventory.ShouldShow(entry) && (query.Length == 0 ||
             string.Join(" ", entry.Name, entry.Version, entry.Publisher, entry.PackageId, entry.AvailableVersion,
                 entry.CatalogIdentity, entry.CatalogDisplayName, entry.InventorySource,
                 entry.MsiProductCode)
-                .Contains(query, StringComparison.CurrentCultureIgnoreCase));
+                .Contains(query, StringComparison.CurrentCultureIgnoreCase)));
         filtered = _appFilter switch
         {
             "Com atualização" => filtered.Where(x => x.IsUpdate),
@@ -1843,7 +1851,9 @@ internal sealed partial class MainForm : Form
             : _appFilter == "Selecionados" ? "Nenhum aplicativo marcado."
             : _appFilter == "Com atualização" && _catalogoVerificado ? "Nenhuma possível atualização encontrada neste catálogo."
             : _appFilter == "Com atualização" ? "Possíveis atualizações ainda não verificadas."
-            : "Nenhum aplicativo identificado neste filtro.";
+            : _consultaCatalogoCts is not null
+                ? "Consultando atualizações para encontrar outros aplicativos disponíveis..."
+                : "Nenhum aplicativo com desinstalação ou atualização disponível.";
         _emptyState.Visible = match.Length == 0;
         if (_emptyState.Visible) _emptyState.BringToFront();
         RenderTitle();
@@ -1853,9 +1863,10 @@ internal sealed partial class MainForm : Form
 
     private void RenderTitle()
     {
-        int updates = _installed.Count(x => x.IsUpdate);
+        int updates = _installed.Count(x => x.IsUpdate && ActionableInventory.ShouldShow(x));
+        int displayed = ActionableInventory.VisibleCount(_installed);
         string windowsStatus = _windowsUpdateCheckingMessage();
-        _listTitle.Text = $"Aplicativos: {_installed.Count} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
+        _listTitle.Text = $"Aplicativos: {displayed} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
             (_consultaCatalogoCts is not null ? " · Verificando..." : "") +
             windowsStatus + (_multiSelectMode ? $" · Marcados: {_checkedApps.Count}" : "");
     }
@@ -2218,10 +2229,10 @@ internal sealed partial class MainForm : Form
     {
         var entries = apps.ToArray();
         if (entries.Length == 0) { Status("Nenhum aplicativo marcado"); return; }
-        if (entries.Any(x => x.InventoryOnly || ProtectedApplications.IsProtectedName(x.Name)))
+        if (entries.Any(x => !ActionableInventory.CanUninstall(x)))
         {
-            Status("Componente do Windows protegido contra desinstalação");
-            Log("Desinstalação impedida: item de inventário protegido.");
+            Status("Desinstalação indisponível para um ou mais itens selecionados.");
+            Log("Desinstalação bloqueada: item protegido ou instalador não encontrado.");
             return;
         }
         string preview = string.Join("\n", entries.Take(8).Select(x => "• " + x.Name));
@@ -2237,7 +2248,9 @@ internal sealed partial class MainForm : Form
         {
             try
             {
-                string command = !string.IsNullOrWhiteSpace(entry.UninstallString)
+                // O comando principal pode ter desaparecido enquanto a variante
+                // silenciosa ainda existe; utilizar apenas a alternativa verificada.
+                string command = MaintenanceAudit.CheckUninstaller(entry.UninstallString, false) == "available"
                     ? entry.UninstallString : entry.QuietUninstallString;
                 if (MaintenanceAudit.CheckUninstaller(command, false) == "missing")
                 {

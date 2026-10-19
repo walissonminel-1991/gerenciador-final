@@ -16,6 +16,8 @@
     <Compile Include="../HistoricalResidualAudit.cs" Link="HistoricalResidualAudit.cs" />
     <Compile Include="../BroadResidualDiscovery.cs" Link="BroadResidualDiscovery.cs" />
     <Compile Include="../MaintenanceAudit.cs" Link="MaintenanceAudit.cs" />
+    <Compile Include="../ProtectedApplications.cs" Link="ProtectedApplications.cs" />
+    <Compile Include="../ActionableInventory.cs" Link="ActionableInventory.cs" />
     <Compile Include="../UninstallLaunchDiagnostics.cs" Link="UninstallLaunchDiagnostics.cs" />
     <Compile Include="../InventoryReconciler.cs" Link="InventoryReconciler.cs" />
     <Compile Include="../HistoricalDeviceAudit.cs" Link="HistoricalDeviceAudit.cs" />
