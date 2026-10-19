@@ -84,6 +84,19 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Testar layout real em janelas grandes e pequenas
+        shell: pwsh
+        run: |
+          dotnet run --project TestesLayout/TestesLayout.csproj --configuration Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Guardar capturas do layout
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Layout-v5.13.10
+          path: LayoutCaptures/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Validar protecao de jogos ativos e cobertura alem dos 12 exemplos
         shell: pwsh
         run: |
@@ -260,7 +273,7 @@ jobs:
           if ($json.rules.Count -lt 6) { throw 'Cobertura minima do catalogo nao atingida' }
           if (-not $proj.Contains('GerenciadorFinal.UninstallCatalog')) { throw 'Catalogo nao esta embutido' }
           if (-not $source.Contains('compact: true')) { throw 'Cartoes em quatro colunas ausentes' }
-          if (-not $source.Contains('void AdjustCleaningCards()')) { throw 'Layout responsivo ausente' }
+          if (-not $source.Contains('ScrollablePage(cleaningLayout, width =>')) { throw 'Layout responsivo ausente' }
           if (-not $source.Contains('AdvancedUninstallCleaner.StillInstalled(item.App, fresh)')) {
             throw 'Nao pode apagar dados de programas reinstalados'
           }
@@ -1026,19 +1039,6 @@ jobs:
           $n.AddNamespace('asm', 'urn:schemas-microsoft-com:asm.v1')
           $identity = $m.SelectSingleNode('/asm:assembly/asm:assemblyIdentity', $n)
           if ($null -eq $identity -or $identity.GetAttribute('version') -ne '5.13.10.0') { throw 'Manifesto inválido' }
-      - name: Testar layout real em janelas grandes e pequenas
-        shell: pwsh
-        run: |
-          dotnet run --project TestesLayout/TestesLayout.csproj --configuration Release
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Guardar capturas do layout
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Layout-v5.13.10
-          path: LayoutCaptures/
-          if-no-files-found: ignore
-          retention-days: 7
       - name: Publicar portatil Windows x64
         shell: pwsh
         run: |
