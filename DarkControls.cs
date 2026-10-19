@@ -506,6 +506,7 @@ internal sealed class DarkLogView : UserControl
     private readonly System.Text.StringBuilder _pending = new();
     private bool _syncing;
     private bool _syncScheduled;
+    internal int BatchFlushCount { get; private set; }
     internal string RenderedText
     {
         get { FlushPending(); return _editor.Text; }
@@ -559,6 +560,7 @@ internal sealed class DarkLogView : UserControl
         if (IsDisposed || _editor.IsDisposed || _pending.Length == 0) return;
         string batch = _pending.ToString();
         _pending.Clear();
+        BatchFlushCount++;
         _editor.AppendText(batch);
         _editor.SelectionStart = _editor.TextLength;
         _editor.ScrollToCaret();
