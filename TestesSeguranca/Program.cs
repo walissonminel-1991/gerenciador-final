@@ -16,7 +16,7 @@ foreach (var (hr, state) in new[] {(1, 2), (unchecked((int)0x80004005), 0), (0, 
 var results = SecurityCenterHealth.Capture();
 Check(results.Count == 2, "antivirus e firewall devem ser consultados");
 Check(results[0].Category == "Protecao antivirus" &&
-      results[1].Category == "Firewall do Windows", "categorias");
+      results[1].Category == "Protecao de firewall", "categorias");
 Check(results.All(x => Enum.IsDefined(x.Level) && x.Description.Length > 0),
     "retorno sempre seguro");
 Console.WriteLine("OK: consulta agregada WSC somente leitura e mapeamento conservador.");
