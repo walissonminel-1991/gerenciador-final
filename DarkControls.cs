@@ -750,6 +750,11 @@ internal sealed class DarkTabHost : UserControl
     public event EventHandler? SelectedIndexChanged;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public int SelectedIndex => _selectedIndex;
+    internal int TabCount => _pages.Count;
+    internal string[] TabTitles => _pages.Select(item => item.Title).ToArray();
+    internal Rectangle[] NavigationBounds => Enumerable.Range(0, _pages.Count)
+        .Select(index => _strip.GetButtonBounds(index)).ToArray();
+    internal int NavigationHitTest(Point point) => _strip.HitTestForLayout(point);
 
     public DarkTabHost(int tabWidth = 176)
     {
@@ -770,9 +775,10 @@ internal sealed class DarkTabHost : UserControl
         if (IsDisposed) return;
         // Altura proporcional ao DPI; todas as abas permanecem acessiveis.
         int eachTab = ClientSize.Width / Math.Max(1, _pages.Count);
-        // Em janelas estreitas, as legendas passam a duas linhas, sem
-        // reticencias que escondam o nome de uma funcionalidade.
-        int height = eachTab < 140 ? 43 : 35;
+        // Seis abas igualmente distribuídas. Quando necessário, títulos
+        // longos podem ocupar duas linhas, sem serem abreviados.
+        double scale = Math.Max(1, DeviceDpi / 96d);
+        int height = eachTab < 145 * scale ? 44 : 35;
         int scaledStrip = (int)Math.Ceiling(height * Math.Max(1, DeviceDpi) / 96d);
         _strip.Bounds = new Rectangle(0, 0, Math.Max(0, ClientSize.Width), Math.Min(scaledStrip, Math.Max(0, ClientSize.Height)));
         int contentTop = _strip.Bottom;
@@ -862,12 +868,21 @@ internal sealed class DarkTabHost : UserControl
             Invalidate();
         }
 
-        // Sem largura minima rigida: em areas estreitas as cinco abas continuam
-        // clicaveis, e a dica mostra o titulo integral mesmo com reticencias.
-        private int TabAreaWidth => Math.Max(1, Math.Min(
-            (int)Math.Ceiling(196d * Math.Max(1, DeviceDpi) / 96d),
-            Math.Max(1, (Width - 2) / Math.Max(1, _host._pages.Count))));
-        private int TabOffset => Math.Max(0, (Width - TabAreaWidth * _host._pages.Count) / 2);
+        // Seis abas dividem a largura disponivel igualmente. A margem lateral
+        // e limitada a 12 pixels, evitando corredores vazios em telas grandes.
+        private int TabEdgeMargin => Math.Clamp(Width / 160, 3, 12);
+        private int TabAreaWidth => Math.Max(1,
+            (Width - 2 * TabEdgeMargin) / Math.Max(1, _host._pages.Count));
+        private int TabOffset => Math.Max(0,
+            (Width - TabAreaWidth * _host._pages.Count) / 2);
+        internal Rectangle GetButtonBounds(int index)
+        {
+            if (index < 0 || index >= _host._pages.Count) return Rectangle.Empty;
+            int w = TabAreaWidth;
+            return new Rectangle(TabOffset + index * w + 3, 3,
+                Math.Max(1, w - 6), Math.Max(1, Height - 9));
+        }
+        internal int HitTestForLayout(Point point) => HitTab(point);
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -876,8 +891,7 @@ internal sealed class DarkTabHost : UserControl
             int w = TabAreaWidth;
             for (int i = 0; i < _host._pages.Count; i++)
             {
-                int left = TabOffset + i * w + 3;
-                var bounds = new Rectangle(left, 3, Math.Max(10, w - 6), Height - 9);
+                var bounds = GetButtonBounds(i);
                 bool active = _host.SelectedIndex == i;
                 bool down = i == _pressedTab || (i == _pulseTab && _pulseProgress < 0.65F);
                 float glow = i == _pulseTab ? MathF.Sin(_pulseProgress * MathF.PI) : 0F;
@@ -919,10 +933,13 @@ internal sealed class DarkTabHost : UserControl
                         fitted = new Font(Font.FontFamily, nextSize, FontStyle.Bold);
                         chosen = fitted;
                     }
+                    bool wrap = TextRenderer.MeasureText(e.Graphics, caption, chosen,
+                        new Size(int.MaxValue, 32),
+                        TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width > available;
                     TextRenderer.DrawText(e.Graphics, caption, chosen, bounds, labelColor,
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                        TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix |
-                        TextFormatFlags.NoPadding);
+                        (wrap ? TextFormatFlags.WordBreak : TextFormatFlags.SingleLine) |
+                        TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
                 }
                 finally { fitted?.Dispose(); }
             }
