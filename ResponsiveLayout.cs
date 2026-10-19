@@ -30,7 +30,11 @@ internal sealed partial class MainForm
             finally { arranging = false; }
         }
         host.SizeChanged += (_, _) => Arrange();
-        host.VisibleChanged += (_, _) => Arrange();
+        host.VisibleChanged += (_, _) =>
+        {
+            if (IsTrayTransitioning) return;
+            Arrange();
+        };
         host.DpiChangedAfterParent += (_, _) => Arrange();
         Arrange();
         return host;
