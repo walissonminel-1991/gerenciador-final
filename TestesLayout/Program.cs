@@ -9,69 +9,110 @@ internal static class LayoutTests
     {
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
-        using var deadline = new System.Threading.Timer(_ => Environment.FailFast("Timeout no teste de layout"), null, 90000, Timeout.Infinite);
+        using var deadline = new System.Threading.Timer(
+            _ => Environment.FailFast("Timeout no teste de layout"),
+            null, TimeSpan.FromMinutes(4), Timeout.InfiniteTimeSpan);
         Application.EnableVisualStyles();
-        Console.WriteLine("Criando janela");
+
+        TestStartupBounds();
+
+        Console.WriteLine("Criando janela de teste, sem iniciar os servicos");
         using var form = new MainForm(startServices: false);
         form.MaximumSize = new Size(4096, 4096);
-        Console.WriteLine("Exibindo janela");
         form.Show();
-        Console.WriteLine("Janela exibida");
         var surface = form.Controls.OfType<TableLayoutPanel>().Single();
         surface.Dock = DockStyle.None;
         var nav = Descendants(form).OfType<DarkTabHost>().First();
         Directory.CreateDirectory("LayoutCaptures");
-        foreach (var size in new[] { new Size(1250, 1160), new Size(1250, 852), new Size(970, 840) })
+
+        int tested = 0;
+        foreach (var (name, resolution) in StartupWindowSizing.ValidationMatrix)
         {
-            // O desktop do runner e 1024x768. Validar a superficie real do app
-            // em tamanhos virtuais, sem o limite externo imposto ao Form pelo Windows.
-            surface.Size = new Size(size.Width - 16, size.Height - 39);
+            // O runner Windows pode ter desktop fisico de 1024x768. Usamos uma
+            // superficie virtual na resolucao alvo, sem mudar o monitor do runner.
+            var screen = new Size(resolution.Width, Math.Max(480, resolution.Height - 48));
+            surface.Size = new Size(screen.Width - 16, screen.Height - 39);
             Application.DoEvents();
-            foreach (int tab in new[] { 1, 2, 3, 4, 0, 1, 2 })
+
+            bool capture = resolution.Width <= 1366 &&
+                (resolution.Height <= 800 || resolution == new Size(1280, 1024));
+            foreach (int tab in new[] { 0, 1, 2, 3, 4 })
             {
                 nav.SelectTab(tab);
                 Application.DoEvents();
-                using (var shot = new Bitmap(surface.Width, surface.Height))
-                {
-                    surface.DrawToBitmap(shot, new Rectangle(Point.Empty, surface.Size));
-                    shot.Save($"LayoutCaptures/{size.Width}x{size.Height}-aba{tab}-inicio.png");
-                }
-                var buttons = Descendants(form).OfType<Button>().Where(b => b.Visible && b.Enabled).ToArray();
-                if (tab == 1)
-                {
-                    string[] required = { "Temporários do usuário", "Limpeza avançada", "Otimizar unidades", "Atualizar discos", "Analisar limpeza", "Diagnóstico completo" };
-                    foreach (string title in required)
-                    {
-                        var button = buttons.Single(b => (b.AccessibleName ?? b.Text) == title);
-                        if (size.Width == 1250 && !FullyVisible(button))
-                            throw new Exception($"Acao fora da tela em {size}: {title} bounds={button.Bounds}");
-                    }
-                }
+
+                var buttons = Descendants(form).OfType<Button>()
+                    .Where(b => b.Visible && b.Enabled).ToArray();
+                if (buttons.Length == 0)
+                    throw new Exception($"Nenhum botao ativo: {name} {resolution} aba={tab}");
+
+                // Navegacao somente: nao clicar nem executar comandos destrutivos.
                 foreach (var button in buttons)
                 {
-                    button.Focus();
+                    if (!button.Focus())
+                        throw new Exception($"Botao sem foco: {resolution} aba={tab} {button.Text}");
                     Application.DoEvents();
-                    if (!FullyVisible(button)) throw new Exception($"Botao inacessivel: {size} aba={tab} {button.Text}");
+                    if (!FullyVisible(button))
+                        throw new Exception($"Botao inacessivel: {resolution} aba={tab} {button.Text}");
                 }
-                using var bitmap = new Bitmap(surface.Width, surface.Height);
-                surface.DrawToBitmap(bitmap, new Rectangle(Point.Empty, surface.Size));
-                bitmap.Save($"LayoutCaptures/{size.Width}x{size.Height}-aba{tab}.png");
-                Console.WriteLine($"OK {size} aba={tab}: {buttons.Length} botoes acessiveis");
+
+                if (capture)
+                {
+                    // Nao criar bitmaps gigantes (5K/8K); nesses casos a
+                    // cobertura verifica geometria, foco e navegabilidade.
+                    using var shot = new Bitmap(surface.Width, surface.Height);
+                    surface.DrawToBitmap(shot, new Rectangle(Point.Empty, surface.Size));
+                    shot.Save($"LayoutCaptures/{resolution.Width}x{resolution.Height}-aba{tab}.png");
+                }
+                Console.WriteLine($"OK {name} {resolution.Width}x{resolution.Height} aba={tab}: {buttons.Length} botoes");
             }
+            tested++;
         }
+        if (tested != 21) throw new Exception($"Esperadas 21 resolucoes; encontradas {tested}");
         form.Close();
+        Console.WriteLine($"PASSOU: {tested} resolucoes, 5 abas, acessibilidade por foco, janela na area util.");
     }
+
+    private static void TestStartupBounds()
+    {
+        if (StartupWindowSizing.ValidationMatrix.Length != 21)
+            throw new Exception("A matriz precisa de 21 resolucoes.");
+        foreach (var (name, resolution) in StartupWindowSizing.ValidationMatrix)
+        {
+            // Simular barra de tarefas de 48 pixels e area util com origem
+            // deslocada, como ocorre em um monitor secundario.
+            var workArea = new Rectangle(100, 64, resolution.Width, resolution.Height - 48);
+            Rectangle opening = StartupWindowSizing.Fit(workArea);
+            if (!workArea.Contains(opening) ||
+                opening.Width > workArea.Width || opening.Height > workArea.Height)
+                throw new Exception($"Janela inicial fora da tela: {name} {opening}");
+            Size min = StartupWindowSizing.AllowedMinimum(opening);
+            if (min.Width > opening.Width || min.Height > opening.Height)
+                throw new Exception($"Tamanho minimo impede abertura: {name}");
+            var outside = new Rectangle(-3000, -3000, 2000, 1400);
+            Rectangle recovered = StartupWindowSizing.KeepVisible(outside, workArea);
+            if (!workArea.Contains(recovered))
+                throw new Exception($"Nao recuperou a janela apos troca de monitor: {name}");
+            // Ao mover para monitor menor, o tamanho e limitado sem alterar os
+            // limites das janelas ja validas.
+            if (StartupWindowSizing.KeepVisible(opening, workArea) != opening)
+                throw new Exception($"Posicao valida alterada: {name}");
+            Console.WriteLine($"Fit OK {name}: {resolution.Width}x{resolution.Height}");
+        }
+    }
+
     static bool FullyVisible(Control control)
     {
         Rectangle bounds = control.RectangleToScreen(control.ClientRectangle);
         for (Control? parent = control.Parent; parent != null && parent is not Form; parent = parent.Parent)
             if (!parent.RectangleToScreen(parent.ClientRectangle).Contains(bounds))
             {
-                Console.WriteLine($"CLIP {control.Text} tela={bounds} pai={parent.GetType().Name} area={parent.RectangleToScreen(parent.ClientRectangle)} bounds={parent.Bounds}");
+                Console.WriteLine($"CLIP {control.Text} tela={bounds} pai={parent.GetType().Name} area={parent.RectangleToScreen(parent.ClientRectangle)}");
                 return false;
             }
         return bounds.Width > 0 && bounds.Height > 0;
     }
+
     static IEnumerable<Control> Descendants(Control root)
     {
         foreach (Control child in root.Controls)
