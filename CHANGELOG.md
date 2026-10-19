@@ -2,7 +2,7 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
-## 5.13.10.13 TESTE — monitor de processos semelhante ao Gerenciador de Tarefas
+## 5.13.10.14 TESTE — monitor de processos semelhante ao Gerenciador de Tarefas
 - Substitui cartoes de CPU por tabela de processos com CPU instantanea, RAM, PID e entrada/saida em KB/s; colunas ordenaveis e filtro por nome/PID.
 - CPU de processos usa diferenca de TotalProcessorTime normalizada pela quantidade de processadores logicos; CPU total usa GetSystemTimes; RAM total usa GlobalMemoryStatusEx; trafego total de rede usa contadores de adaptadores ativos.
 - GetProcessIoCounters informa bytes de leitura/escrita acumulados e suas taxas. Esse numero nao e disco fisico: nao inferir consumo de disco nem rede por processo.
