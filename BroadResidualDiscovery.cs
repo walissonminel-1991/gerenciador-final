@@ -275,6 +275,46 @@ internal static class BroadResidualDiscovery
         return names;
     }
 
+    // Outro sinal de aplicativo portatil presente: Windows App Paths pode
+    // registrar um executavel mesmo sem entrada de desinstalacao. So proteger
+    // quando o arquivo referenciado ainda existir. Somente leitura e sem
+    // executar o binario; entradas antigas apontando para arquivos ausentes
+    // nao sao consideradas instalacao.
+    internal static IReadOnlyCollection<string> ReadRegisteredExecutableNames()
+    {
+        var names = new HashSet<string>(Comparer);
+        foreach (var (hive, view) in new[]
+        {
+            (RegistryHive.CurrentUser, RegistryView.Default),
+            (RegistryHive.LocalMachine, RegistryView.Registry64),
+            (RegistryHive.LocalMachine, RegistryView.Registry32)
+        })
+        {
+            try
+            {
+                using RegistryKey baseKey = RegistryKey.OpenBaseKey(hive, view);
+                using RegistryKey? paths = baseKey.OpenSubKey(
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths", false);
+                if (paths is null) continue;
+                foreach (string executable in paths.GetSubKeyNames().Take(1200))
+                {
+                    if (!executable.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    using RegistryKey? entry = paths.OpenSubKey(executable, false);
+                    string rawPath = entry?.GetValue(null) as string ?? "";
+                    if (rawPath.Length == 0 || rawPath.Length > 1024) continue;
+                    string path = Environment.ExpandEnvironmentVariables(rawPath).Trim('"');
+                    if (File.Exists(path))
+                        names.Add(Path.GetFileNameWithoutExtension(executable));
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                System.Security.SecurityException or ArgumentException)
+            { /* leitura parcial; nenhuma ausencia sera tratada como desinstalacao */ }
+        }
+        return names;
+    }
+
     // Classificação independente do ambiente: o mesmo algoritmo pode ser testado
     // em dados fictícios, sem acessar o Registro do usuário nem excluir nada.
     internal static IReadOnlyList<ResidualAuditReport> Classify(
@@ -366,8 +406,10 @@ internal static class BroadResidualDiscovery
             InspectRegistryHive(hive, view, identifier, found, ref entries,
                 ref restricted, ref incomplete, clock);
         }
-        var reports = Classify(found, installed, activeGameNames,
-            ReadRunningProcessNames());
+        var liveEvidence = ReadRunningProcessNames()
+            .Concat(ReadRegisteredExecutableNames())
+            .Distinct(Comparer).ToArray();
+        var reports = Classify(found, installed, activeGameNames, liveEvidence);
         if (reports.Count >= MaxReportGroups || gameInventoryPartial) incomplete = true;
         return new(reports, rootsChecked, entries, restricted, incomplete);
     }
