@@ -72,6 +72,21 @@ internal static class LayoutTests
                 nav.SelectTab(tab);
                 Application.DoEvents();
 
+                if (resolution == new Size(800, 600) && tab == 0)
+                {
+                    var actions = Descendants(form).OfType<TableLayoutPanel>()
+                        .FirstOrDefault(panel => panel.Controls.OfType<Button>()
+                            .Any(button => button.Text == "Verificar atualizações"));
+                    if (actions is null || actions.RowCount != 2)
+                        throw new Exception("800x600 precisa de duas linhas para quatro acoes.");
+                    foreach (Button button in actions.Controls.OfType<Button>())
+                    {
+                        if (actions.GetRow(button) < 0 || actions.GetRow(button) > 1 ||
+                            actions.GetColumn(button) < 0 || button.Right > actions.ClientSize.Width + 2)
+                            throw new Exception("Acao cortada no tamanho compacto: " + button.Text);
+                    }
+                }
+
                 // Somente a pagina pode rolar quando o conteudo ultrapassar
                 // seu viewport; ferramentas e discos embutidos jamais mostram
                 // uma segunda barra vertical.
