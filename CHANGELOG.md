@@ -2,6 +2,18 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.7 TESTE — pintura unica, botoes proporcionais e sinais de programa ativo
+- A janela utiliza WS_EX_COMPOSITED para compor todos os controles antes de apresenta-los; a restauracao evita reorganizacoes intermediarias enquanto esta oculta.
+- Nomes das cinco abas passam a ser desenhados em linha unica com tipografia ajustada somente quando necessario, sem reticencias.
+- Reduz alturas de abas e dos cartoes de ferramentas, libera largura na pesquisa, evita esticar botoes de acoes ate preencher todo o espaco.
+- Remove a quebra manual no nome Limpeza de Disco automatica; tipografia dos botoes se ajusta ao espaco, sem truncar o titulo.
+- Os contadores da aba Aplicativos usam os nomes completos quando couberem, eliminando as abreviacoes 'Apps' e 'Atual.' na abertura normal.
+- A revisao historica cruza tambem nomes de processos em execucao, inclusive programas portateis como MPC-HC, sem concluir remocao pela ausencia de processo.
+- O reconhecimento adicional nao apaga dados e nao confunde executaveis inativos, saves ou pastas remanescentes com prova de desinstalacao.
+- Testes verificam estilo nativo de composicao, seis restauracoes com HWND estavel, botoes sem quebras, matriz de resolucoes e verificacoes de residuos somente leitura.
+- GOG.com, McAfee e Microvirt foram informados como desinstalados no computador de teste; MPC-HC permanece ativo segundo o usuario. A ferramenta continua exigindo evidencias locais e nao transfere esse estado individual para outros computadores.
+- A avaliacao de fluidez real no computador permanece necessaria.
+
 ## 5.13.10.6 TESTE — controle de rolagem e informacoes sem cortes
 - Corrige rolagem fantasma provocada pela margem tecnica de 3 pixels no componente de pagina.
 - Os cartoes de limpeza, reparo e discos deixam de ter barras internas ao serem incorporados numa pagina; se o conteudo for maior, apenas a pagina rola.
