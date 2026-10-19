@@ -6,7 +6,7 @@ namespace GerenciadorAplicativos;
 // Nao persiste posicao, tamanho, DPI nem configuracao do usuario no disco.
 internal static class StartupWindowSizing
 {
-    internal static readonly Size PreferredSize = new(1250, 1160);
+    internal static readonly Size PreferredSize = new(1250, 980);
     // 800x600 e a menor resolucao solicitada. Em areas uteis menores (barra
     // de tarefas, DPI, monitores remotos), reduzimos o minimo sem bloquear a tela.
     internal static readonly Size NormalMinimum = new(800, 600);
@@ -38,6 +38,24 @@ internal static class StartupWindowSizing
         int x = Math.Clamp(desired.Left, workingArea.Left, workingArea.Right - width);
         int y = Math.Clamp(desired.Top, workingArea.Top, workingArea.Bottom - height);
         return new Rectangle(x, y, width, height);
+    }
+
+    // Em qualquer resolucao, o rodape de diagnostico continua legivel.
+    // Os tamanhos sao em pixels da superficie disponivel, nao da resolucao
+    // nominal do monitor; 4K/8K nao fazem a interface expandir sem limite.
+    internal static (int Header, int Log) WorkspaceRows(int available, int dpi)
+    {
+        if (available <= 0) return (0, 0);
+        float scale = Math.Clamp(dpi / 96F, 1F, 1.5F);
+        int header = Math.Min((int)Math.Round(66F * scale),
+            Math.Max(42, (int)Math.Round(available * .14F)));
+        int preferredLog = Math.Max((int)Math.Round(130F * scale),
+            (int)Math.Round(available * .235F));
+        int minimumTools = Math.Min((int)Math.Round(180F * scale),
+            (int)Math.Round(available * .43F));
+        int room = Math.Max(45, available - header - minimumTools);
+        int log = Math.Max(45, Math.Min(preferredLog, room));
+        return (header, log);
     }
 
     internal static readonly (string Name, Size Resolution)[] ValidationMatrix =
