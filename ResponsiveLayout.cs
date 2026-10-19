@@ -10,7 +10,7 @@ internal sealed partial class MainForm
     private Control ScrollablePage(Control content, Func<int, int> minimumHeight)
     {
         var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty,
-            BackColor = AppServices.Background };
+            IsPageViewport = true, BackColor = AppServices.Background };
         host.Content.Padding = Padding.Empty;
         host.Content.WrapContents = false;
         content.Dock = DockStyle.None;
@@ -23,7 +23,11 @@ internal sealed partial class MainForm
             arranging = true;
             try
             {
-                int width = Math.Max(1, host.ClientSize.Width - (int)Math.Ceiling(16 * host.DeviceDpi / 96d));
+                // Evita barras que surgiam so porque o quadro interno tinha
+                // 3 px de margem tecnica. A largura usa o espaco efetivo,
+                // mas nao desativa a rolagem quando o conteudo ultrapassa.
+                int scrollbar = (int)Math.Ceiling(14d * host.DeviceDpi / 96d);
+                int width = Math.Max(1, host.ClientSize.Width - scrollbar);
                 content.Size = new Size(width, Math.Max(host.ClientSize.Height, minimumHeight(width)));
                 host.Reflow();
             }
