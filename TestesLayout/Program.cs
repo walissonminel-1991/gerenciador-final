@@ -86,14 +86,38 @@ internal static class LayoutTests
         if (tested != 22) throw new Exception($"Esperados 22 cenarios; encontrados {tested}");
         // Provar no runner Windows que o botao Minimizar oculta a janela
         // e que Abrir restaura, sem encerrar a coleta nem criar janelas.
-        form.MinimizeToTray();
-        Application.DoEvents();
-        if (form.Visible || form.ShowInTaskbar || !form.IsInTray || !form.HasActiveTrayIcon)
-            throw new Exception("Minimizar nao transferiu corretamente para a bandeja.");
-        form.RestoreFromTray();
-        Application.DoEvents();
-        if (!form.Visible || !form.ShowInTaskbar || form.IsInTray || form.HasActiveTrayIcon)
-            throw new Exception("Abrir nao restaurou corretamente a janela.");
+        IntPtr originalHandle = form.Handle;
+        int originalTab = nav.SelectedIndex;
+        var duration = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 0; i < 6; i++)
+        {
+            form.MinimizeToTray();
+            Application.DoEvents();
+            // ShowInTaskbar permanece true para nao destruir o HWND.
+            // A janela oculta desaparece da barra de tarefas por Hide().
+            if (form.Visible || !form.ShowInTaskbar || !form.IsInTray ||
+                !form.HasActiveTrayIcon || form.Handle != originalHandle)
+                throw new Exception("Minimizar recriou a janela ou falhou na bandeja.");
+            form.RestoreFromTray();
+            Application.DoEvents();
+            if (!form.Visible || !form.ShowInTaskbar || form.IsInTray ||
+                form.HasActiveTrayIcon || form.Handle != originalHandle ||
+                nav.SelectedIndex != originalTab)
+                throw new Exception("Restaurar recriou o HWND ou perdeu o layout selecionado.");
+        }
+        duration.Stop();
+        Console.WriteLine($"OK: 6 ciclos de bandeja, HWND estavel, {duration.ElapsedMilliseconds} ms no runner");
+        // Layout util em espaco limitado: os itens e botoes devem permanecer
+        // focaveis mesmo quando as paginas fazem rolagem.
+        nav.SelectTab(0);
+        var programList = Descendants(form).OfType<DarkProgramList>().Single();
+        if (programList.ItemHeight > 70)
+            throw new Exception("Lista de programas ainda usa linhas excessivamente altas.");
+        nav.SelectTab(4);
+        var systemCards = Descendants(form).OfType<DarkScrollableFlow>()
+            .SelectMany(flow => flow.Content.Controls.Cast<Control>());
+        if (systemCards.Any(c => c is TableLayoutPanel panel && panel.Height > 150))
+            throw new Exception("Cartoes do sistema extrapolam layout compacto.");
         form.Close();
         Console.WriteLine($"PASSOU: {tested} cenarios de tela, bandeja, foco e fechamento.");
     }
