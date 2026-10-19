@@ -72,7 +72,7 @@ internal sealed class DarkVScrollBar : Control
         int available = Math.Max(1, Height - margin * 2);
         if (_contentSize <= 0 || _contentSize <= _pageSize)
             return new Rectangle(margin, margin, Math.Max(2, Width - margin * 2), available);
-        int size = Math.Clamp((int)Math.Round(available * (_pageSize / (double)_contentSize)), 25, available);
+        int size = Math.Clamp((int)Math.Round(available * (_pageSize / (double)_contentSize)), Math.Min(25, available), available);
         int travel = available - size;
         int pos = MaximumValue == 0 ? 0 : (int)Math.Round(travel * (_value / (double)MaximumValue));
         return new Rectangle(margin, margin + pos, Math.Max(2, Width - margin * 2), size);
