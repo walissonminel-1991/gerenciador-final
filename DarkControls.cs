@@ -49,12 +49,18 @@ internal sealed class DarkVScrollBar : Control
 
     public void SetMetrics(int contentSize, int pageSize)
     {
-        _contentSize = Math.Max(0, contentSize);
-        _pageSize = Math.Max(1, pageSize);
-        bool needed = _contentSize > _pageSize;
-        Visible = needed;
+        int nextContent = Math.Max(0, contentSize);
+        int nextPage = Math.Max(1, pageSize);
+        bool needed = nextContent > nextPage;
+        // Nao redesenhar barra se a metrica e a visibilidade nao mudaram.
+        // Evita cintilacao na area de registro a cada evento de texto.
+        if (_contentSize == nextContent && _pageSize == nextPage && Visible == needed)
+            return;
+        _contentSize = nextContent;
+        _pageSize = nextPage;
+        if (Visible != needed) Visible = needed;
         ChangeValue(_value);
-        Invalidate();
+        if (needed) Invalidate();
     }
 
     private void ChangeValue(int next)
@@ -496,7 +502,14 @@ internal sealed class DarkLogView : UserControl
 
     private readonly TextBox _editor = new();
     private readonly DarkVScrollBar _scroll = new();
+    private readonly System.Windows.Forms.Timer _renderTimer = new() { Interval = 85 };
+    private readonly System.Text.StringBuilder _pending = new();
     private bool _syncing;
+    private bool _syncScheduled;
+    internal string RenderedText
+    {
+        get { FlushPending(); return _editor.Text; }
+    }
 
     public DarkLogView()
     {
@@ -527,11 +540,26 @@ internal sealed class DarkLogView : UserControl
         _editor.MouseWheel += (_, _) => ScheduleSync();
         _editor.KeyUp += (_, _) => ScheduleSync();
         Resize += (_, _) => ScheduleSync();
+        _renderTimer.Tick += (_, _) => FlushPending();
     }
 
+    // Mensagens consecutivas chegam a cada poucos milissegundos no arranque.
+    // Apresenta-las juntas evita varios ScrollToCaret e dezenas de repinturas.
+    // A fila existe so em memoria; nao interfere no arquivo DiagnosticTrace.
     public void AppendText(string text)
     {
-        _editor.AppendText(text);
+        if (IsDisposed || string.IsNullOrEmpty(text)) return;
+        _pending.Append(text);
+        if (!_renderTimer.Enabled) _renderTimer.Start();
+    }
+
+    internal void FlushPending()
+    {
+        _renderTimer.Stop();
+        if (IsDisposed || _editor.IsDisposed || _pending.Length == 0) return;
+        string batch = _pending.ToString();
+        _pending.Clear();
+        _editor.AppendText(batch);
         _editor.SelectionStart = _editor.TextLength;
         _editor.ScrollToCaret();
         SyncMetrics();
@@ -539,8 +567,17 @@ internal sealed class DarkLogView : UserControl
 
     private void ScheduleSync()
     {
-        if (IsDisposed || !IsHandleCreated) return;
-        try { BeginInvoke(new Action(SyncMetrics)); } catch (InvalidOperationException) { }
+        if (IsDisposed || !IsHandleCreated || _syncScheduled) return;
+        _syncScheduled = true;
+        try
+        {
+            BeginInvoke((Action)(() =>
+            {
+                _syncScheduled = false;
+                if (!IsDisposed && !_renderTimer.Enabled) SyncMetrics();
+            }));
+        }
+        catch (InvalidOperationException) { _syncScheduled = false; }
     }
 
     private void SyncMetrics()
@@ -564,6 +601,16 @@ internal sealed class DarkLogView : UserControl
         int current = SendMessage(_editor.Handle, EM_GETFIRSTVISIBLELINE, IntPtr.Zero, IntPtr.Zero).ToInt32();
         int delta = target - current;
         if (delta != 0) SendMessage(_editor.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)delta);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _renderTimer.Stop();
+            _renderTimer.Dispose();
+        }
+        base.Dispose(disposing);
     }
 }
 
