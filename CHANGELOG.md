@@ -2,6 +2,13 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.16 TESTE — PC FRACO e procedencia verificavel
+- A amostragem do monitor usa 2 s somente na aba Processos, 12 s nas demais abas e 20 s ao minimizar para a bandeja; a coleta continua na bandeja.
+- A primeira coleta de processos aguarda o intervalo do timer, sem competir imediatamente com o inventario inicial; ao abrir Processos ou restaurar a janela, atualiza sob demanda.
+- Consulta de atualizacoes de aplicativos precede a consulta do Windows Update, com pausa curta; ambas continuam somente leitura e sem instalacao automatica.
+- O artefato inclui hashes SHA-256 para o executavel e seus arquivos principais; facilita confirmar a integridade, mas nao substitui assinatura digital ou avaliacao do AVG.
+- Nenhuma protecao e desativada, nenhuma exclusao antivirus criada e nenhuma deteccao e contornada. Ganhos de desempenho devem ser verificados no PC FRACO.
+
 ## 5.13.10.15 TESTE — monitor de processos semelhante ao Gerenciador de Tarefas
 - Substitui cartoes de CPU por tabela de processos com CPU instantanea, RAM, PID e entrada/saida em KB/s; colunas ordenaveis e filtro por nome/PID.
 - CPU de processos usa diferenca de TotalProcessorTime normalizada pela quantidade de processadores logicos; CPU total usa GetSystemTimes; RAM total usa GlobalMemoryStatusEx; trafego total de rede usa contadores de adaptadores ativos.
