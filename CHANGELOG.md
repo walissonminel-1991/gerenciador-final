@@ -2,6 +2,17 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.9 TESTE — proporcao universal de ate 60% da area da tela
+- Substitui a janela inicial fixa de 875x745 por dimensoes proporcionais a area util real do monitor, independentemente da resolucao (inclusive 800x600 e 8K).
+- A abertura utiliza cerca de 57,4% da area util (70% da largura e 82% da altura); o limite de redimensionamento usa no maximo 59,76% (72% da largura e 83% da altura).
+- O conteudo interno agora acompanha todo o espaco da janela, sem o teto de 875x745 escalonado por DPI que mantinha a interface pequena em 2560x1440.
+- Mantem os tamanhos de fonte controlados pelo DPI do Windows: a janela cresce sem multiplicar artificialmente textos e botoes.
+- Ao trocar de monitor ou DPI, limita novamente o tamanho e reposiciona a janela dentro da area util, sem salvar configuracoes no disco.
+- Nao permite maximizar. Continua com minimizar para bandeja, menu Abrir/Sair e operacoes de leitura em andamento.
+- Testes de 21 resolucoes + 1440x900 e de monitores 125% verificam limite de area, minimo de aproveitamento de 55% e centragem.
+- A interface visual final continua sujeita a capturas e validacao nos computadores de laboratorio e PC FRACO.
+- Nenhuma alteracao em limpeza, atualizacao, catalogo, instaladores, drivers ou registros historicos.
+
 ## 5.13.10.8 TESTE — pintura leve e Registro estavel para computadores antigos
 - Remove WS_EX_COMPOSITED aplicado indiscriminadamente a toda a janela; o estilo pode gerar custo alto de repintura em GPUs integradas e maquinas sem placa dedicada.
 - Usa buffering somente na janela principal, mantendo a estrutura nativa e a transicao oculta/visivel pela bandeja.
