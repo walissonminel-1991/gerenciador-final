@@ -16,6 +16,7 @@ internal static class LayoutTests
 
         TestStartupBounds();
         TestWorkspaceProportions();
+        TestMonitorMathAndSampling();
 
         Console.WriteLine("Criando janela de teste, sem iniciar os servicos");
         using var form = new MainForm(startServices: false);
@@ -287,6 +288,7 @@ internal static class LayoutTests
             throw new Exception("Botoes de ferramentas ainda ocupam cartoes inteiros.");
         nav.SelectTab(5);
         Application.DoEvents();
+        TestProcessGrid(form);
         var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
             .Where(flow => flow.IsPageViewport).ToArray();
         if (pageViewports.Length != 4)
@@ -302,6 +304,83 @@ internal static class LayoutTests
 
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
     private static extern int GetWindowLong(IntPtr handle, int index);
+
+
+    private static void TestMonitorMathAndSampling()
+    {
+        double halfCpu = ProcessMonitorSampler.CpuPercent(
+            TimeSpan.FromSeconds(1), 1, 2);
+        if (Math.Abs(halfCpu - 50) > 0.0001 ||
+            ProcessMonitorSampler.CpuPercent(TimeSpan.FromSeconds(30), 1, 2) != 100 ||
+            ProcessMonitorSampler.CpuPercent(TimeSpan.Zero, 0, 0) != 0)
+            throw new Exception("Percentual de CPU nao normalizado corretamente.");
+        if (ProcessMonitorSampler.Throughput(1400, 400, 2) != 500 ||
+            ProcessMonitorSampler.Throughput(100, 200, 1) is not null)
+            throw new Exception("Contadores de E/S nao podem gerar taxas negativas.");
+
+        var sampler = new ProcessMonitorSampler();
+        var first = sampler.TakeSample();
+        System.Threading.Thread.Sleep(400);
+        var second = sampler.TakeSample();
+        if (first.ProcessCount <= 0 || second.ProcessCount <= 0 ||
+            second.Processes.Count != second.ProcessCount ||
+            second.Processes.GroupBy(x => x.Pid).Any(x => x.Count() > 1) ||
+            second.Processes.Any(x => x.MemoryBytes < 0 ||
+                (x.CpuPercent.HasValue &&
+                    (x.CpuPercent.Value < 0 || x.CpuPercent.Value > 100)) ||
+                (x.IoBytesPerSecond.HasValue && x.IoBytesPerSecond.Value < 0)) ||
+            (second.TotalCpuPercent.HasValue &&
+                (second.TotalCpuPercent.Value < 0 || second.TotalCpuPercent.Value > 100)) ||
+            (second.UsedMemoryPercent.HasValue && second.UsedMemoryPercent.Value > 100))
+            throw new Exception("Metrica de processos invalida no Windows.");
+        Console.WriteLine("OK: monitor de processos somente leitura, taxas e baseline.");
+    }
+
+    private static void TestProcessGrid(MainForm form)
+    {
+        var grid = Descendants(form).OfType<FlickerFreeProcessGrid>().Single();
+        if (!grid.Visible || grid.Columns.Count != 5 ||
+            !grid.Columns.Cast<DataGridViewColumn>().Select(c => c.HeaderText)
+                .SequenceEqual(new[] { "Processo", "PID", "CPU %", "RAM (MB)", "E/S (KB/s)" }))
+            throw new Exception("Tabela de processos nao apresenta as cinco colunas.");
+        var filter = Descendants(form).OfType<TextBox>()
+            .Single(x => x.PlaceholderText == "Nome ou PID");
+        var testSnapshot = new ProcessMonitorSnapshot(DateTime.UtcNow, 2, 12, 55, 1024,
+            new[]
+            {
+                new ProcessMonitorEntry(301, "TesteMonitorA", 40, 256 * 1048576L, 4096),
+                new ProcessMonitorEntry(302, "TesteMonitorB", 10, 128 * 1048576L, 1024)
+            });
+        form.PreviewProcessSnapshotForTests(testSnapshot);
+        Application.DoEvents();
+        if (grid.RowCount != 2 || grid.Rows[0].Cells[0].Value?.ToString() != "TesteMonitorA")
+            throw new Exception("Monitor nao ordenou por consumo instantaneo de CPU.");
+        var original = grid.Rows[0];
+        var next = testSnapshot with
+        {
+            Processes = new[]
+            {
+                new ProcessMonitorEntry(301, "TesteMonitorA", 35, 260 * 1048576L, 8192),
+                new ProcessMonitorEntry(302, "TesteMonitorB", 15, 150 * 1048576L, 2048)
+            }
+        };
+        form.PreviewProcessSnapshotForTests(next);
+        Application.DoEvents();
+        if (!ReferenceEquals(original, grid.Rows[0]) ||
+            grid.Rows[0].Cells[2].Value?.ToString() != "35,0" &&
+            grid.Rows[0].Cells[2].Value?.ToString() != "35.0")
+            throw new Exception("Tabela foi reconstruida ou nao atualizou valores.");
+        filter.Text = "302";
+        Application.DoEvents();
+        if (grid.RowCount != 1 || grid.Rows[0].Cells[0].Value?.ToString() != "TesteMonitorB")
+            throw new Exception("Filtro de nome/PID nao funciona.");
+        filter.Clear();
+        Application.DoEvents();
+        if (grid.RowCount != 2 ||
+            Descendants(form).OfType<Button>().All(x => x.Text != "Tarefas do Windows"))
+            throw new Exception("Opcao de abrir o Gerenciador de Tarefas ausente.");
+        Console.WriteLine("OK: grade, ordenacao, filtro e atualizacao sem reconstruir linhas.");
+    }
 
     private static void TestStartupBounds()
     {
