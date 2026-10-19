@@ -30,3 +30,7 @@ As ações administrativas disponíveis são específicas, visíveis e confirmad
 A consulta no Diagnóstico completo usa `WscGetSecurityProviderHealth` da biblioteca oficial `wscapi.dll`. Apresenta somente o estado agregado de proteção antivírus e firewall que o próprio Windows informa. Não identifica especificamente AVG, não executa varredura, não cria mecanismos de antivírus, não altera proteções nem substitui solução existente. `S_FALSE`, erros e estados não monitorados são classificados como indeterminados, nunca como evidência de infecção.
 
 O AVG CyberCapture bloqueou uma compilação portátil anterior e a encaminhou para análise. Enquanto não houver parecer, **não tentar contornar o bloqueio, desativar o AVG, adicionar exceções globais ou distribuir a versão como aprovada**. Assinatura, dependências, proveniência e relatórios de falso positivo exigem verificação independente.
+
+## Distribuicao v5.13.10.16 de testes
+
+O pacote de testes gera um arquivo SHA256SUMS.txt com hashes SHA-256 do executavel e dos principais arquivos de aplicativo. Esse arquivo permite detectar mudancas apos baixar, **nao autentica a origem sem um canal confiavel nem substitui uma assinatura Authenticode**. O AVG CyberCapture pode continuar bloqueando binarios desconhecidos; o projeto nao tenta contornar esse bloqueio. Aguardar decisao do fornecedor e reportar possivel falso positivo por canal oficial.
