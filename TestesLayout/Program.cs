@@ -27,7 +27,10 @@ internal static class LayoutTests
         Directory.CreateDirectory("LayoutCaptures");
 
         int tested = 0;
-        foreach (var (name, resolution) in StartupWindowSizing.ValidationMatrix)
+        // 21 resolucoes da matriz e a referencia real de 1440x900 do usuario.
+        var scenarios = StartupWindowSizing.ValidationMatrix
+            .Concat(new[] { ("Referencia 1440x900", new Size(1440, 900)) });
+        foreach (var (name, resolution) in scenarios)
         {
             // O runner Windows pode ter desktop fisico de 1024x768. Usamos uma
             // superficie virtual na resolucao alvo, sem mudar o monitor do runner.
@@ -39,8 +42,9 @@ internal static class LayoutTests
             surface.Size = new Size(opening.Width - 16, opening.Height - 39);
             Application.DoEvents();
 
-            bool capture = resolution.Width <= 1366 &&
-                (resolution.Height <= 800 || resolution == new Size(1280, 1024));
+            bool capture = (resolution.Width <= 1366 &&
+                (resolution.Height <= 800 || resolution == new Size(1280, 1024))) ||
+                resolution == new Size(1440, 900);
             foreach (int tab in new[] { 0, 1, 2, 3, 4 })
             {
                 nav.SelectTab(tab);
@@ -77,7 +81,7 @@ internal static class LayoutTests
             }
             tested++;
         }
-        if (tested != 21) throw new Exception($"Esperadas 21 resolucoes; encontradas {tested}");
+        if (tested != 22) throw new Exception($"Esperados 22 cenarios; encontrados {tested}");
         form.Close();
         Console.WriteLine($"PASSOU: {tested} resolucoes, 5 abas, acessibilidade por foco, janela na area util.");
     }
@@ -86,6 +90,13 @@ internal static class LayoutTests
     {
         if (StartupWindowSizing.ValidationMatrix.Length != 21)
             throw new Exception("A matriz precisa de 21 resolucoes.");
+        var reference = StartupWindowSizing.Fit(new Rectangle(0, 0, 1440, 852));
+        if (reference.Size != new Size(875, 745) ||
+            reference.X != 282 || reference.Y != 53)
+            throw new Exception("1440x900 deve abrir em 875x745, centralizado e fora da barra de tarefas.");
+        var large = StartupWindowSizing.Fit(new Rectangle(0, 0, 7680, 4272));
+        if (large.Size != reference.Size)
+            throw new Exception("8K nao pode ampliar os botoes ou a janela inicial.");
         foreach (var (name, resolution) in StartupWindowSizing.ValidationMatrix)
         {
             // Simular barra de tarefas de 48 pixels e area util com origem
@@ -104,7 +115,7 @@ internal static class LayoutTests
                 throw new Exception($"Nao recuperou a janela apos troca de monitor: {name}");
             // Tamanhos de janela sao limitados: nunca escalar a interface
             // proporcionalmente a resolucao nominal de 4K/5K/8K.
-            if (opening.Width > 1250 || opening.Height > 980)
+            if (opening.Width > 875 || opening.Height > 745)
                 throw new Exception($"Janela cresceu com a resolucao: {name}");
             // Ao mover para monitor menor, o tamanho e limitado sem alterar os
             // limites das janelas ja validas.
