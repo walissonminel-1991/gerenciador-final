@@ -674,7 +674,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.9 TESTE";
+        Text = "Gerenciador Final — v5.13.10.10 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -745,7 +745,7 @@ internal sealed partial class MainForm : Form
             if (Math.Abs(root.RowStyles[2].Height - rows.Log) > 1)
                 root.RowStyles[2].Height = rows.Log;
         }
-        void RestoreWithinMonitor()
+        void RestoreWithinMonitor(bool recomputeForDisplay = false)
         {
             if (IsDisposed) return;
             var area = Screen.FromControl(this).WorkingArea;
@@ -754,18 +754,34 @@ internal sealed partial class MainForm : Form
             var maximum = StartupWindowSizing.MaximumSizeFor(area);
             if (MinimumSize != minimum) MinimumSize = minimum;
             if (MaximumSize != maximum) MaximumSize = maximum;
-            var visible = StartupWindowSizing.KeepVisible(Bounds, area);
+            var visible = recomputeForDisplay
+                ? fitting : StartupWindowSizing.KeepVisible(Bounds, area);
             if (Bounds != visible) Bounds = visible;
         }
         root.SizeChanged += (_, _) => FitWorkspace();
-        DpiChanged += (_, _) => { RestoreWithinMonitor(); FitWorkspace(); };
+        DpiChanged += (_, _) => { RestoreWithinMonitor(recomputeForDisplay: true); FitWorkspace(); };
         ResizeEnd += (_, _) => RestoreWithinMonitor();
+        // Alteracoes de resolucao podem enviar varios eventos consecutivos.
+        // Consolidar para nao redesenhar a arvore da janela repetidamente.
+        var displayUpdate = new System.Windows.Forms.Timer { Interval = 170 };
+        displayUpdate.Tick += (_, _) =>
+        {
+            displayUpdate.Stop();
+            if (IsDisposed) return;
+            RestoreWithinMonitor(recomputeForDisplay: true);
+            FitWorkspace();
+        };
         EventHandler monitorChanged = (_, _) =>
         {
             if (!IsHandleCreated || IsDisposed) return;
             try
             {
-                BeginInvoke((Action)(() => { RestoreWithinMonitor(); FitWorkspace(); }));
+                BeginInvoke((Action)(() =>
+                {
+                    if (IsDisposed) return;
+                    displayUpdate.Stop();
+                    displayUpdate.Start();
+                }));
             }
             catch (InvalidOperationException) { /* Janela ja encerrada. */ }
         };
@@ -773,6 +789,8 @@ internal sealed partial class MainForm : Form
         FormClosed += (_, _) =>
         {
             SystemEvents.DisplaySettingsChanged -= monitorChanged;
+            displayUpdate.Stop();
+            displayUpdate.Dispose();
             _log.FlushPending();
         };
         FitWorkspace();
@@ -1340,14 +1358,16 @@ internal sealed partial class MainForm : Form
             Margin = Padding.Empty, BackColor = AppServices.Background };
         // Proporções responsivas: em janelas menores os cartões usam a rolagem escura.
         repairLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 342));
-        repairLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        repairLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 205));
         repairLayout.Controls.Add(repairActions, 0, 0);
         repairLayout.Controls.Add(BuildNetworkResultPanel(), 0, 1);
         repair.Controls.Add(ScrollablePage(repairLayout, width =>
         {
             int cardsHeight = ToolsHeight(repairActions, width);
+            int resultHeight = (int)Math.Ceiling(205 * DeviceDpi / 96d);
             repairLayout.RowStyles[0].Height = cardsHeight;
-            return cardsHeight + (int)Math.Ceiling(152 * DeviceDpi / 96d);
+            repairLayout.RowStyles[1].Height = resultHeight;
+            return cardsHeight + resultHeight;
         }));
         performance.Controls.Add(ScrollablePage(BuildEnergyPanel(),
             _ => (int)Math.Ceiling(405 * DeviceDpi / 96d)));
@@ -1460,8 +1480,21 @@ internal sealed partial class MainForm : Form
                 int usable = Math.Max(1, viewport - flow.Padding.Horizontal);
                 int desired = (int)Math.Ceiling(244 * scale);
                 int margin = (int)Math.Ceiling(8 * scale);
-                int columns = Math.Max(1, usable / Math.Max(1, desired + margin));
-                int cardWidth = Math.Max(1, Math.Min(desired, usable / columns - margin));
+                // Cinco cartões de reparo lado a lado deixam as descrições
+                // comprimidas. Usar 3 colunas no reparo e 4 na limpeza,
+                // distribuindo as fileiras de forma equilibrada.
+                int maxColumns = compact ? 4 : 3;
+                int columns = Math.Clamp(usable / Math.Max(1, desired + margin),
+                    1, maxColumns);
+                int cardWidth = Math.Min((int)Math.Ceiling(316 * scale),
+                    Math.Max((int)Math.Ceiling(196 * scale),
+                        usable / columns - margin));
+                int rowWidth = columns * (cardWidth + margin);
+                int side = Math.Max(7, (viewport - rowWidth) / 2);
+                // O espaço lateral fica dividido entre os dois lados, em
+                // vez de formar uma faixa vazia apenas à direita.
+                Padding balanced = new Padding(side, 7, 7, 7);
+                if (flow.Padding != balanced) flow.Padding = balanced;
                 foreach (Control card in flow.Controls)
                     if (card.Width != cardWidth) card.Width = cardWidth;
                 host.Reflow();
@@ -1618,8 +1651,8 @@ internal sealed partial class MainForm : Form
         if (_diskCards.IsDisposed || _diskCards.Content.Controls.Count == 0) return;
         int area = _diskCards.Content.ClientSize.Width - _diskCards.Content.Padding.Horizontal - 23;
         if (area <= 0) return;
-        int columns = area >= 740 ? 2 : 1;
-        int target = Math.Max(250, (area / columns) - 14);
+        int columns = area >= 1050 ? 3 : area >= 740 ? 2 : 1;
+        int target = Math.Max(230, (area / columns) - 14);
         foreach (Control card in _diskCards.Content.Controls)
             if (card.Width != target) card.Width = target;
         _diskCards.Reflow();
