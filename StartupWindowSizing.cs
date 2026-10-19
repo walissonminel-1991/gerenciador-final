@@ -12,10 +12,10 @@ internal static class StartupWindowSizing
     internal static readonly Size PreferredSize = new(875, 745);
     internal static readonly Size NormalMinimum = new(800, 600);
 
-    private const double InitialWidthRatio = 0.70;
-    private const double InitialHeightRatio = 0.82;
-    private const double MaximumWidthRatio = 0.72;
-    private const double MaximumHeightRatio = 0.83;
+    private const int InitialWidthPercent = 70;
+    private const int InitialHeightPercent = 82;
+    private const int MaximumWidthPercent = 72;
+    private const int MaximumHeightPercent = 83;
 
     // A regra agora e universal, inclusive em 800x600 e monitores antigos.
     internal static bool ApplyAreaLimit(Rectangle workingArea) =>
@@ -25,8 +25,8 @@ internal static class StartupWindowSizing
     {
         if (!ApplyAreaLimit(workingArea)) return PreferredSize;
         return new Size(
-            Math.Max(1, (int)Math.Floor(workingArea.Width * MaximumWidthRatio)),
-            Math.Max(1, (int)Math.Floor(workingArea.Height * MaximumHeightRatio)));
+            Math.Max(1, (int)((long)workingArea.Width * MaximumWidthPercent / 100L)),
+            Math.Max(1, (int)((long)workingArea.Height * MaximumHeightPercent / 100L)));
     }
 
     internal static Size LimitSize(Size requested, Rectangle workingArea)
@@ -43,8 +43,8 @@ internal static class StartupWindowSizing
         if (!ApplyAreaLimit(workingArea))
             return new Rectangle(0, 0, PreferredSize.Width, PreferredSize.Height);
         Size size = LimitSize(new Size(
-            Math.Max(1, (int)Math.Floor(workingArea.Width * InitialWidthRatio)),
-            Math.Max(1, (int)Math.Floor(workingArea.Height * InitialHeightRatio))),
+            Math.Max(1, (int)((long)workingArea.Width * InitialWidthPercent / 100L)),
+            Math.Max(1, (int)((long)workingArea.Height * InitialHeightPercent / 100L))),
             workingArea);
         return new Rectangle(
             workingArea.Left + (workingArea.Width - size.Width) / 2,
