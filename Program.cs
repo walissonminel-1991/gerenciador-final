@@ -1370,11 +1370,11 @@ internal sealed partial class MainForm : Form
         repair.Controls.Add(ScrollablePage(repairLayout, width =>
         {
             int cardsHeight = ToolsHeight(repairActions, width);
-            int resultHeight = (int)Math.Ceiling(205 * DeviceDpi / 96d);
+            int resultHeight = NetworkResultHeight();
             repairLayout.RowStyles[0].Height = cardsHeight;
             repairLayout.RowStyles[1].Height = resultHeight;
             return cardsHeight + resultHeight;
-        }));
+        }, trackRepair: true));
         performance.Controls.Add(ScrollablePage(BuildEnergyPanel(),
             _ => (int)Math.Ceiling(405 * DeviceDpi / 96d)));
         // Painéis nativos do gerenciador: nenhum atalho para Task Manager,
@@ -1403,13 +1403,14 @@ internal sealed partial class MainForm : Form
             EmbeddedInPage = true, BackColor = AppServices.Background
         };
         var flow = host.Content;
+        var measuredCards = new List<(Panel Card, Label Description)>();
         flow.Padding = new Padding(7);
         flow.BackColor = AppServices.Background;
         foreach (ToolInfo tool in tools)
         {
             var card = new Panel
             {
-                Size = new Size(244, 111),
+                Size = new Size(244, 90),
                 BackColor = PanelBackground,
                 Margin = new Padding(3, 3, 5, 6),
                 Padding = new Padding(6)
@@ -1462,7 +1463,7 @@ internal sealed partial class MainForm : Form
                 ForeColor = Muted,
                 Font = new Font("Segoe UI", compact ? 8.5F : 8.6F),
                 Text = tool.Description,
-                Padding = new Padding(2, 5, 2, 0),
+                Padding = new Padding(2, 2, 2, 0),
                 TextAlign = ContentAlignment.TopLeft
             };
 
@@ -1471,6 +1472,7 @@ internal sealed partial class MainForm : Form
             layout.Controls.Add(description, 0, 1);
             card.Controls.Add(layout);
             flow.Controls.Add(card);
+            measuredCards.Add((card, description));
         }
         // Tipografia e botoes mantem o mesmo tamanho de desenho em monitores
         // grandes; apenas a quantidade de colunas e a largura se adaptam.
@@ -1501,8 +1503,28 @@ internal sealed partial class MainForm : Form
                 // vez de formar uma faixa vazia apenas à direita.
                 Padding balanced = new Padding(side, 7, 7, 7);
                 if (flow.Padding != balanced) flow.Padding = balanced;
-                foreach (Control card in flow.Controls)
+                // A altura depende do texto real e da largura atual.
+                // Um card com duas linhas nao pode reservar a altura de
+                // outro com quatro linhas, e nenhum texto deve ser cortado.
+                int buttonRow = (int)Math.Ceiling(33 * scale);
+                int minHeight = (int)Math.Ceiling(78 * scale);
+                int maxHeight = (int)Math.Ceiling(160 * scale);
+                int cardHeight = minHeight;
+                foreach (var (card, description) in measuredCards)
+                {
                     if (card.Width != cardWidth) card.Width = cardWidth;
+                    int labelWidth = Math.Max(90,
+                        cardWidth - card.Padding.Horizontal - description.Padding.Horizontal - 4);
+                    int textHeight = TextRenderer.MeasureText(description.Text,
+                        description.Font, new Size(labelWidth, 1000),
+                        TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
+                    int required = buttonRow + card.Padding.Vertical +
+                        description.Padding.Vertical + textHeight + (int)Math.Ceiling(5 * scale);
+                    cardHeight = Math.Max(cardHeight, required);
+                }
+                cardHeight = Math.Clamp(cardHeight, minHeight, maxHeight);
+                foreach (var (card, _) in measuredCards)
+                    if (card.Height != cardHeight) card.Height = cardHeight;
                 host.Reflow();
             }
             finally { fittingCards = false; }
