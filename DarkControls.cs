@@ -579,11 +579,48 @@ internal sealed class DarkScrollableFlow : UserControl
         _scroll.BringToFront();
         _scroll.ValueChanged += (_, _) => _flow.Top = -_scroll.Value;
         _viewport.Resize += (_, _) => Reflow();
-        _flow.ControlAdded += (_, _) => Reflow();
+        _flow.ControlAdded += (_, e) => { if (e.Control is not null) TrackFocus(e.Control); Reflow(); };
         _flow.ControlRemoved += (_, _) => Reflow();
         _viewport.MouseWheel += (_, e) => _scroll.Value -= Math.Sign(e.Delta) * 85;
         _flow.MouseWheel += (_, e) => _scroll.Value -= Math.Sign(e.Delta) * 85;
         Resize += (_, _) => Reflow();
+        VisibleChanged += (_, _) => Reflow();
+        DpiChangedAfterParent += (_, _) => Reflow();
+    }
+
+    private void TrackFocus(Control control)
+    {
+        control.Enter += (_, _) =>
+        {
+            if (!control.Visible || !control.IsHandleCreated) return;
+            var rect = _flow.RectangleToClient(control.RectangleToScreen(control.ClientRectangle));
+            if (rect.Top < _scroll.Value) _scroll.Value = rect.Top;
+            else if (rect.Bottom > _scroll.Value + _viewport.Height)
+                _scroll.Value = rect.Bottom - _viewport.Height;
+        };
+        control.ControlAdded += (_, e) => { if (e.Control is not null) TrackFocus(e.Control); };
+        foreach (Control child in control.Controls) TrackFocus(child);
+    }
+
+    internal int MeasureContentHeight(int width)
+    {
+        int usable = Math.Max(1, width - _flow.Padding.Horizontal);
+        int used = 0, rowHeight = 0, total = _flow.Padding.Vertical;
+        foreach (Control card in _flow.Controls)
+        {
+            // Visible herda o estado da aba; medir mesmo antes de ela ser aberta.
+            int w = card.Width + card.Margin.Horizontal;
+            int h = card.Height + card.Margin.Vertical;
+            if (used > 0 && used + w > usable)
+            {
+                total += rowHeight;
+                used = 0;
+                rowHeight = 0;
+            }
+            used += w;
+            rowHeight = Math.Max(rowHeight, h);
+        }
+        return total + rowHeight + 3;
     }
 
     public void Reflow()
@@ -596,24 +633,7 @@ internal sealed class DarkScrollableFlow : UserControl
         try
         {
             _flow.Width = width;
-            int usable = Math.Max(1, width - _flow.Padding.Horizontal);
-            int used = 0, currentRowHeight = 0;
-            int totalHeight = _flow.Padding.Vertical;
-            foreach (Control card in _flow.Controls)
-            {
-                if (!card.Visible) continue;
-                int w = card.Width + card.Margin.Horizontal;
-                int h = card.Height + card.Margin.Vertical;
-                if (used > 0 && used + w > usable)
-                {
-                    totalHeight += currentRowHeight;
-                    used = 0;
-                    currentRowHeight = 0;
-                }
-                used += w;
-                currentRowHeight = Math.Max(currentRowHeight, h);
-            }
-            totalHeight += currentRowHeight + 3;
+            int totalHeight = MeasureContentHeight(width);
             _flow.Height = Math.Max(totalHeight, height);
             _scroll.SetMetrics(totalHeight, height);
             _flow.Top = -_scroll.Value;

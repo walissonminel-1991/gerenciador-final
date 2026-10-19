@@ -652,12 +652,13 @@ internal sealed partial class MainForm : Form
         catch (EntryPointNotFoundException) { }
     }
 
-    public MainForm()
+    public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.9 TESTE";
+        Text = "Gerenciador Final — v5.13.10 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
+        AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
         // Abre com o dimensionamento aprovado na v5.12.21.1, sem restaurar
         // janelas pequenas de execuções anteriores e sem sair do monitor.
@@ -679,6 +680,7 @@ internal sealed partial class MainForm : Form
         AddToolsPages();
         _nav.SelectedIndexChanged += async (_, _) =>
         {
+            if (!startServices) return;
             // Navegação plana: Aplicativos, Limpeza, Reparo, Desempenho, Sistema.
             if (_nav.SelectedIndex == 1)
                 await RefreshDiskUsageAsync();
@@ -689,10 +691,22 @@ internal sealed partial class MainForm : Form
         };
         root.Controls.Add(_nav, 0, 1);
         root.Controls.Add(BuildOperationsPanel(), 0, 2);
+        void FitWorkspace()
+        {
+            float scale = DeviceDpi / 96F;
+            // Em telas baixas o registro cede espaco as acoes, mantendo status e progresso.
+            float logHeight = ClientSize.Height / scale < 950 ? 80 * scale : 200 * scale;
+            if (Math.Abs(root.RowStyles[2].Height - logHeight) > 1)
+                root.RowStyles[2].Height = logHeight;
+        }
+        ClientSizeChanged += (_, _) => FitWorkspace();
+        DpiChanged += (_, _) => FitWorkspace();
+        FitWorkspace();
         // Abre imediatamente. Primeiro carrega a lista local e depois inicia consultas independentes,
         // em segundo plano, sem janelas auxiliares e sem executar instaladores.
         Shown += async (_, _) =>
         {
+            if (!startServices) { FitWorkspace(); return; }
             // WinForms pode redimensionar a janela automaticamente em monitores DPI
             // diferentes. Readequar apenas se necessário, sem cortar cartões.
             Rectangle visibleArea = Screen.FromControl(this).WorkingArea;
@@ -702,6 +716,8 @@ internal sealed partial class MainForm : Form
                 MinimumSize = StartupWindowSizing.AllowedMinimum(fitted);
                 Bounds = fitted;
             }
+            FitWorkspace();
+            if (!startServices) return;
             await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync);
             if (!IsDisposed)
                 BeginStartupChecks();
@@ -1147,22 +1163,12 @@ internal sealed partial class MainForm : Form
         cleaningLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         cleaningLayout.Controls.Add(cleaningActions, 0, 0);
         cleaningLayout.Controls.Add(BuildDiskPanel(), 0, 1);
-        cleaning.Controls.Add(cleaningLayout);
-        // Antes: altura 272px fixa ocultava os dois últimos botões.
-        // Quatro cartões por linha em janelas grandes e altura dinâmica em menores.
-        void AdjustCleaningCards()
+        cleaning.Controls.Add(ScrollablePage(cleaningLayout, width =>
         {
-            int available = Math.Max(0, cleaning.ClientSize.Width - 30);
-            int columns = Math.Clamp(available / 280, 1, 4);
-            int rows = (8 + columns - 1) / columns;
-            // Cada cartão compacto tem 146 px + margens: textos não são cortados.
-            // Em telas menores, a área adapta-se mantendo a barra escura interna.
-            float height = Math.Min(520, Math.Max(342, 22 + rows * 160));
-            if (Math.Abs(cleaningLayout.RowStyles[0].Height - height) > 1)
-                cleaningLayout.RowStyles[0].Height = height;
-        }
-        cleaning.Resize += (_, _) => AdjustCleaningCards();
-        AdjustCleaningCards();
+            int cardsHeight = ToolsHeight(cleaningActions, width);
+            cleaningLayout.RowStyles[0].Height = cardsHeight;
+            return cardsHeight + (int)Math.Ceiling(248 * DeviceDpi / 96d);
+        }));
         // Fluxo simples para uso cotidiano: DISM repara a imagem; em seguida SFC
         // verifica e tenta reparar os arquivos protegidos. Consultas separadas
         // continuam no diagnóstico do computador, sem alterações automáticas.
@@ -1196,15 +1202,22 @@ internal sealed partial class MainForm : Form
         var repairLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
             Margin = Padding.Empty, BackColor = AppServices.Background };
         // Proporções responsivas: em janelas menores os cartões usam a rolagem escura.
-        repairLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 56));
+        repairLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 342));
         repairLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 44));
         repairLayout.Controls.Add(repairActions, 0, 0);
         repairLayout.Controls.Add(BuildNetworkResultPanel(), 0, 1);
-        repair.Controls.Add(repairLayout);
-        performance.Controls.Add(BuildEnergyPanel());
+        repair.Controls.Add(ScrollablePage(repairLayout, width =>
+        {
+            int cardsHeight = ToolsHeight(repairActions, width);
+            repairLayout.RowStyles[0].Height = cardsHeight;
+            return cardsHeight + (int)Math.Ceiling(220 * DeviceDpi / 96d);
+        }));
+        performance.Controls.Add(ScrollablePage(BuildEnergyPanel(),
+            _ => (int)Math.Ceiling(490 * DeviceDpi / 96d)));
         // Painéis nativos do gerenciador: nenhum atalho para Task Manager,
         // MSConfig, Configurações, Windows Update ou MSInfo32.
-        system.Controls.Add(BuildIntegratedSystemPanel());
+        system.Controls.Add(ScrollablePage(BuildIntegratedSystemPanel(),
+            _ => (int)Math.Ceiling(460 * DeviceDpi / 96d)));
     }
 
     private sealed record ToolInfo(string Name, string Description, Color Color, Func<Task> Action);
@@ -1221,7 +1234,7 @@ internal sealed partial class MainForm : Form
 
     private Control CreateToolsFlow(IEnumerable<ToolInfo> tools, bool compact = false)
     {
-        var host = new DarkScrollableFlow { Dock = DockStyle.Fill, BackColor = AppServices.Background };
+        var host = new DarkScrollableFlow { Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = AppServices.Background };
         var flow = host.Content;
         flow.Padding = new Padding(12);
         flow.BackColor = AppServices.Background;
@@ -1229,7 +1242,7 @@ internal sealed partial class MainForm : Form
         {
             var card = new Panel
             {
-                Size = new Size(compact ? 268 : 286, compact ? 146 : 116),
+                Size = new Size(compact ? 268 : 286, compact ? 146 : 146),
                 BackColor = PanelBackground,
                 Margin = compact ? new Padding(3, 4, 9, 8) : new Padding(3, 4, 13, 10),
                 Padding = new Padding(8)
