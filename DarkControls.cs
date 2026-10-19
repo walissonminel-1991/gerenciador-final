@@ -756,10 +756,10 @@ internal sealed class DarkTabHost : UserControl
         .Select(index => _strip.GetButtonBounds(index)).ToArray();
     internal int NavigationHitTest(Point point) => _strip.HitTestForLayout(point);
 
-    public DarkTabHost(int tabWidth = 176)
+    public DarkTabHost()
     {
         BackColor = Color.FromArgb(21, 27, 35);
-        _strip = new TabStrip(this) { Height = StripHeight, TabWidth = tabWidth };
+        _strip = new TabStrip(this) { Height = StripHeight };
         _content = new Panel { BackColor = BackColor, Padding = Padding.Empty };
         Controls.Add(_content);
         Controls.Add(_strip);
@@ -825,7 +825,6 @@ internal sealed class DarkTabHost : UserControl
         private float _pulseProgress = 1F;
         private const double PulseMs = 145;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public int TabWidth { get; set; } = 176;
         public TabStrip(DarkTabHost host)
         {
             _host = host;
