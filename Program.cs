@@ -1320,7 +1320,31 @@ internal sealed partial class MainForm : Form
             card.Controls.Add(layout);
             flow.Controls.Add(card);
         }
-        host.Reflow();
+        // Os cartoes passam de quatro colunas para tres, duas ou uma sem
+        // exceder a largura disponivel, mesmo apos alteracoes de DPI.
+        bool fittingCards = false;
+        void FitCards()
+        {
+            if (fittingCards || host.IsDisposed || host.ClientSize.Width <= 0) return;
+            fittingCards = true;
+            try
+            {
+                double scale = Math.Max(1d, host.DeviceDpi / 96d);
+                int viewport = Math.Max(1, host.ClientSize.Width - (int)Math.Ceiling(16 * scale));
+                int usable = Math.Max(1, viewport - flow.Padding.Horizontal);
+                int desired = (int)Math.Ceiling((compact ? 268 : 286) * scale);
+                int margin = (int)Math.Ceiling((compact ? 12 : 16) * scale);
+                int columns = Math.Max(1, usable / Math.Max(1, desired + margin));
+                int cardWidth = Math.Max(1, Math.Min(desired, usable / columns - margin));
+                foreach (Control card in flow.Controls)
+                    if (card.Width != cardWidth) card.Width = cardWidth;
+                host.Reflow();
+            }
+            finally { fittingCards = false; }
+        }
+        host.SizeChanged += (_, _) => FitCards();
+        host.DpiChangedAfterParent += (_, _) => FitCards();
+        FitCards();
         return host;
     }
 
