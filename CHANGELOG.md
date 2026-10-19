@@ -2,6 +2,17 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.10 TESTE — densidade visual consistente em 1920x1080 e 2560x1440
+- Preserva a janela proporcional e o teto de 60% da area util nas 21 resolucoes.
+- Alinha a configuracao DPI do executavel e dos testes no modo PerMonitorV2; trocar de monitor ou escala 100/125/150% deve manter textos com escala nativa do Windows.
+- Centraliza as cinco abas com o mesmo espacamento dos dois lados, incluindo a logica de acerto de clique e navegacao por teclado.
+- Limpeza distribui oito ferramentas em no maximo quatro colunas, e Reparo distribui cinco ferramentas em no maximo tres colunas; os cartoes aproveitam melhor a largura sem esticar botoes.
+- Discos locais podem usar tres colunas quando ha espaco; altura do painel de limpeza acompanha os discos detectados em vez de preencher o resto da janela com uma caixa vazia.
+- Diagnostico de rede passa a ter altura baseada no conteudo, deixando a area sem informacoes no fundo neutro.
+- Alteracoes de resolucao do Windows recalculam o tamanho proporcional da janela, com 170 ms de consolidacao de eventos para evitar redesenhos repetidos; o redimensionamento manual continua sujeito ao limite.
+- Acrescenta testes de distribuicao de cartoes em Full HD e 1440p, preservando rolagem, bandeja e protecao de dados.
+- Nenhum mecanismo de busca, desinstalacao, limpeza ou driver foi alterado nesta revisao visual.
+
 ## 5.13.10.9 TESTE — proporcao universal de ate 60% da area da tela
 - Substitui a janela inicial fixa de 875x745 por dimensoes proporcionais a area util real do monitor, independentemente da resolucao (inclusive 800x600 e 8K).
 - A abertura utiliza cerca de 57,4% da area util (70% da largura e 82% da altura); o limite de redimensionamento usa no maximo 59,76% (72% da largura e 83% da altura).
