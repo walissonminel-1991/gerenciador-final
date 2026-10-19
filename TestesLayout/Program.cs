@@ -23,11 +23,25 @@ internal static class LayoutTests
             !form.HasCustomCaption)
             throw new Exception("Barra da janela nao pode mostrar botao de maximizar.");
         form.Show();
-        // O Win32 deve compor controles filhos antes de exibir cada quadro.
-        if ((GetWindowLong(form.Handle, -20) & 0x02000000) == 0)
-            throw new Exception("Composicao da janela nao habilitada; risco de efeito quebra-cabeca.");
+        // O PC FRACO nao pode receber WS_EX_COMPOSITED global: esse estilo
+        // transforma cada repintura nativa numa composicao de toda a arvore.
+        if ((GetWindowLong(form.Handle, -20) & 0x02000000) != 0)
+            throw new Exception("Composicao global pesada continua habilitada.");
         var surface = form.Controls.OfType<TableLayoutPanel>().Single();
         surface.Dock = DockStyle.None;
+        // O log recebe muitas mensagens na inicializacao. Validar que cada
+        // uma chega completa, mas a interface faz uma so atualizacao visual.
+        var log = Descendants(form).OfType<DarkLogView>().Single();
+        for (int i = 0; i < 70; i++)
+            log.AppendText($"Lote de diagnostico {i:D2}\n");
+        if (log.BatchFlushCount != 0)
+            throw new Exception("Registro redesenhou antes de consolidar a rajada.");
+        string allLines = log.RenderedText;
+        if (log.BatchFlushCount != 1 || !allLines.Contains("Lote de diagnostico 00") ||
+            !allLines.Contains("Lote de diagnostico 69") ||
+            allLines.Split("Lote de diagnostico ").Length != 71)
+            throw new Exception("Registro perdeu linhas ou redesenhou por mensagem.");
+        Console.WriteLine("OK: 70 linhas em uma pintura do Registro.");
         var nav = Descendants(form).OfType<DarkTabHost>().First();
         Directory.CreateDirectory("LayoutCaptures");
 
