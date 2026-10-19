@@ -15,6 +15,7 @@ internal sealed partial class MainForm
     private Panel? _caption;
     private bool _hiddenInTray;
     private bool _trayTransitioning;
+    private bool _diagnoseWindowLifecycle;
     private IntPtr _trayHandleBeforeHide;
     internal bool IsTrayTransitioning => _trayTransitioning;
     private bool _exitWhenIdle;
@@ -119,6 +120,12 @@ internal sealed partial class MainForm
             _windowIcon?.Dispose();
             _windowIcon = null;
         };
+        VisibleChanged += (_, _) =>
+        {
+            if (!_diagnoseWindowLifecycle || _trayTransitioning || IsDisposed) return;
+            DiagnosticTrace.Write("JANELA.VISIBILIDADE visivel=" + Visible +
+                " estado=" + WindowState + " bandeja=" + _hiddenInTray);
+        };
         // Nunca alternar ShowInTaskbar apos o Form criar Handle. O WinForms
         // pode destruir e recriar o HWND ao trocar essa propriedade e repintar
         // centenas de controles em cascata, parecendo fechar e abrir sozinho.
@@ -220,6 +227,14 @@ internal sealed partial class MainForm
         if (!_exitWhenIdle || IsDisposed || _busy) return;
         _exitWhenIdle = false;
         if (IsHandleCreated) BeginInvoke((Action)Close);
+    }
+
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        if (_diagnoseWindowLifecycle)
+            DiagnosticTrace.Write("JANELA.HANDLE_DESTRUIDO bandeja=" +
+                _hiddenInTray + " fechando=" + Disposing);
+        base.OnHandleDestroyed(e);
     }
 
     // Bloqueia mesmo uma tentativa por atalhos do Windows/WM_SYSCOMMAND.
