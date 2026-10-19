@@ -666,6 +666,7 @@ internal sealed class DarkTabHost : UserControl
         Controls.Add(_strip);
         Resize += (_, _) => LayoutHost();
         FontChanged += (_, _) => LayoutHost();
+        DpiChangedAfterParent += (_, _) => LayoutHost();
         LayoutHost();
         _strip.BringToFront();
     }
@@ -673,7 +674,9 @@ internal sealed class DarkTabHost : UserControl
     private void LayoutHost()
     {
         if (IsDisposed) return;
-        _strip.Bounds = new Rectangle(0, 0, Math.Max(0, ClientSize.Width), Math.Min(StripHeight, Math.Max(0, ClientSize.Height)));
+        // Altura proporcional ao DPI; todas as abas permanecem acessiveis.
+        int scaledStrip = (int)Math.Ceiling(StripHeight * Math.Max(1, DeviceDpi) / 96d);
+        _strip.Bounds = new Rectangle(0, 0, Math.Max(0, ClientSize.Width), Math.Min(scaledStrip, Math.Max(0, ClientSize.Height)));
         int contentTop = _strip.Bottom;
         _content.Bounds = new Rectangle(0, contentTop, Math.Max(0, ClientSize.Width), Math.Max(0, ClientSize.Height - contentTop));
         _content.PerformLayout();
@@ -710,6 +713,7 @@ internal sealed class DarkTabHost : UserControl
     {
         private readonly DarkTabHost _host;
         private readonly System.Windows.Forms.Timer _feedbackTimer = new() { Interval = 16 };
+        private readonly ToolTip _tabTips = new() { InitialDelay = 250, AutoPopDelay = 7000 };
         private int _hotTab = -1;
         private int _pressedTab = -1;
         private int _pulseTab = -1;
@@ -758,7 +762,11 @@ internal sealed class DarkTabHost : UserControl
             Invalidate();
         }
 
-        private int TabAreaWidth => Math.Max(80, Math.Min(TabWidth, (Width - 2) / Math.Max(1, _host._pages.Count)));
+        // Sem largura minima rigida: em areas estreitas as cinco abas continuam
+        // clicaveis, e a dica mostra o titulo integral mesmo com reticencias.
+        private int TabAreaWidth => Math.Max(1, Math.Min(
+            (int)Math.Ceiling(TabWidth * Math.Max(1, DeviceDpi) / 96d),
+            Math.Max(1, (Width - 2) / Math.Max(1, _host._pages.Count))));
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -804,6 +812,7 @@ internal sealed class DarkTabHost : UserControl
             if (_hotTab == tab) return;
             _hotTab = tab;
             Cursor = tab >= 0 ? Cursors.Hand : Cursors.Default;
+            _tabTips.SetToolTip(this, tab >= 0 ? _host._pages[tab].Title : string.Empty);
             Invalidate();
         }
 
@@ -812,6 +821,7 @@ internal sealed class DarkTabHost : UserControl
             base.OnMouseLeave(e);
             _hotTab = -1;
             _pressedTab = -1;
+            _tabTips.SetToolTip(this, string.Empty);
             Cursor = Cursors.Default;
             Invalidate();
         }
@@ -855,7 +865,12 @@ internal sealed class DarkTabHost : UserControl
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { _feedbackTimer.Stop(); _feedbackTimer.Dispose(); }
+            if (disposing)
+            {
+                _feedbackTimer.Stop();
+                _feedbackTimer.Dispose();
+                _tabTips.Dispose();
+            }
             base.Dispose(disposing);
         }
     }
