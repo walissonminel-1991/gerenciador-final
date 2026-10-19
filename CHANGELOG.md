@@ -2,6 +2,16 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.4 TESTE — janela discreta e bandeja do Windows
+- Em monitores a partir de 1366x768 (area util correspondente), a janela fica abaixo de 60% da area util; resolucoes menores mantem excecao para usabilidade.
+- Tamanho inicial compacto de 875x745 ou menor quando necessario, sem aumentar fontes ou botoes conforme a resolucao.
+- Removida a funcao e o botao de maximizar. Barra superior escura personalizada, com somente minimizar e fechar, incluindo dicas e realce ao passar o mouse.
+- Minimizar oculta o programa da area de trabalho/barra de tarefas e mostra o icone de bandeja sem interromper tarefas, consultas nem a coleta periodica de CPU/RAM.
+- Menu de bandeja Abrir e Sair; duplo clique restaura. Fechar encerra o aplicativo, diferentemente de Minimizar.
+- Quando Sair e solicitado durante operacao protegida, solicita cancelamento seguro quando disponivel e espera a operacao terminar antes de encerrar.
+- Nenhum arquivo de configuracao ou residuo novo e persistido por esses controles.
+- Testes de layout e bandeja automatizados no Windows; validacao visual real continua necessaria.
+
 ## 5.13.10.3 TESTE — janela inicial compacta como a referencia 1440x900
 - Substitui o tamanho inicial de 1250x980 pela dimensao de referencia 875x745: em monitores grandes, a janela deixa espaco livre ao redor.
 - Abre centralizada dentro da area util do monitor; em telas pequenas limita ao espaco disponivel, sem perder navegacao, rolamento ou o registro.
