@@ -2,6 +2,20 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.5 TESTE — bandeja fluida, mais informacao por tela e diagnostico
+- Nao alternar ShowInTaskbar ao minimizar/restaurar: Hide e Show preservam o mesmo HWND e evitam repintura por recriacao.
+- Suspende reorganizacoes de paginas e barras de rolagem durante transicoes de bandeja; amostragem de processos e consultas continuam ativas.
+- Registra eventos de visibilidade e criacao/destruicao de janela no diagnostico ja existente, para diferenciar repaint de novo processo.
+- Interface mais compacta: margens menores, cabecalho e comandos baixos, abas estreitas em duas linhas e log preservado.
+- Linhas de aplicativos com 67 px, texto com quebra em vez de reticencias, dicas com identidade/versao integrais.
+- Ferramentas com cartoes de 244x124 px e ajuste para 3 colunas quando houver largura; botoes aceitam multiplas linhas.
+- Processos, inicializacao, atualizacoes do Windows e planos de energia usam cartoes menos altos e espacos internos menores.
+- Reduz alturas minimas de paginas, conservando rolagem quando necessaria para nao esconder botoes.
+- Testes de seis ciclos de minimizacao/restauracao sem mudar o HWND, alem da matriz de resolucoes e testes de seguranca anteriores.
+- GOG.com, McAfee, Microvirt e MPC-HC permanecem historicos e somente leitura; nenhuma exclusao automaticamente autorizada.
+- A ausencia de duplicacao de APP.INICIALIZACAO no log anterior nao confirma a causa do desaparecimento, motivo pelo qual foram adicionados marcadores de ciclo de janela.
+- Validacao visual no PC real e testes de longos nomes/monitores continuam necessarios.
+
 ## 5.13.10.4 TESTE — janela discreta e bandeja do Windows
 - Em monitores a partir de 1366x768 (area util correspondente), a janela fica abaixo de 60% da area util; resolucoes menores mantem excecao para usabilidade.
 - Tamanho inicial compacto de 875x745 ou menor quando necessario, sem aumentar fontes ou botoes conforme a resolucao.
