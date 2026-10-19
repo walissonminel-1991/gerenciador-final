@@ -32,12 +32,14 @@ internal static class LayoutTests
         // O log recebe muitas mensagens na inicializacao. Validar que cada
         // uma chega completa, mas a interface faz uma so atualizacao visual.
         var log = Descendants(form).OfType<DarkLogView>().Single();
+        _ = log.RenderedText; // Drenar mensagens do construtor, se houver.
+        int flushesBefore = log.BatchFlushCount;
         for (int i = 0; i < 70; i++)
             log.AppendText($"Lote de diagnostico {i:D2}\n");
-        if (log.BatchFlushCount != 0)
+        if (log.BatchFlushCount != flushesBefore)
             throw new Exception("Registro redesenhou antes de consolidar a rajada.");
         string allLines = log.RenderedText;
-        if (log.BatchFlushCount != 1 || !allLines.Contains("Lote de diagnostico 00") ||
+        if (log.BatchFlushCount != flushesBefore + 1 || !allLines.Contains("Lote de diagnostico 00") ||
             !allLines.Contains("Lote de diagnostico 69") ||
             allLines.Split("Lote de diagnostico ").Length != 71)
             throw new Exception("Registro perdeu linhas ou redesenhou por mensagem.");
