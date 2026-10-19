@@ -21,7 +21,7 @@ internal sealed partial class MainForm
     private readonly HashSet<string> _updateSelection = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<WinUpdateChoice> _updateCatalog = Array.Empty<WinUpdateChoice>();
     private readonly ProcessMonitorSampler _processSampler = new();
-    private readonly System.Windows.Forms.Timer _processTimer = new() { Interval = 5000 };
+    private readonly System.Windows.Forms.Timer _processTimer = new() { Interval = ProcessSamplingPolicy.BackgroundIntervalMs };
     private bool _processSampling;
     private bool _windowsUpdateScanning;
     private bool _windowsUpdateChecked;
@@ -135,11 +135,8 @@ internal sealed partial class MainForm
         _processTimer.Tick += async (_, _) =>
         {
             if (_processSampling || IsDisposed) return;
-            // Nenhuma consulta continua em alta frequencia quando a janela
-            // esta oculta na bandeja ou quando outra aba esta selecionada.
-            bool visible = Visible && !IsInTray && _nav.SelectedIndex == 5 &&
-                           _activeSystemView == "processes";
-            _processTimer.Interval = visible ? 2000 : 5000;
+            // O timer continua na bandeja, mas com um intervalo economico.
+            UpdateProcessSamplingCadence();
             await RefreshProcessHistoryAsync();
         };
         FormClosed += (_, _) => _processTimer.Dispose();
@@ -148,14 +145,13 @@ internal sealed partial class MainForm
 
     private void SetSystemView(string view)
     {
-        _activeSystemView = view; // Amostragem segue em memória para ter histórico ao abrir a aba.
+        _activeSystemView = view; // A coleta permanece ativa na bandeja, com cadencia reduzida.
         if (_systemDetails is null || _installSelectedUpdates is null) return;
         bool showInstall = view == "update";
         bool showProcesses = view == "processes";
         _systemDetails.RowStyles[2].Height = showInstall ? 38 : 0;
         FitSystemSummaryHeight();
-        _processTimer.Interval = showProcesses && _nav.SelectedIndex == 5 &&
-            Visible && !IsInTray ? 2000 : 5000;
+        UpdateProcessSamplingCadence();
         _installSelectedUpdates.Visible = showInstall;
         if (_exportHardwareButton is not null) _exportHardwareButton.Visible = view == "hardware" && _hardwareGroups.Count > 0;
         if (_hardwareGrid is not null) _hardwareGrid.Visible = view == "hardware";
@@ -542,13 +538,24 @@ internal sealed partial class MainForm
         return card;
     }
 
-    // Inicializa as amostras de CPU/RAM independentemente da aba visível.
+    private void UpdateProcessSamplingCadence()
+    {
+        if (IsDisposed) return;
+        bool visible = Visible && !IsInTray && _nav.SelectedIndex == 5 &&
+                       _activeSystemView == "processes";
+        int interval = ProcessSamplingPolicy.IntervalMs(visible, IsInTray || !Visible);
+        if (_processTimer.Interval != interval) _processTimer.Interval = interval;
+    }
+
+    // A primeira coleta pesada nao concorre com o inventario de abertura.
+    // Coleta local segue no PC FRACO mesmo na bandeja do sistema.
     private void BeginBackgroundProcessSampling()
     {
         if (IsDisposed) return;
+        UpdateProcessSamplingCadence();
         _processTimer.Start();
-        _ = RefreshProcessHistoryAsync();
-        Log("Monitor de processos iniciado (somente leitura; 2 s na aba Processos e 5 s em segundo plano).");
+        Log("Monitor de processos ativo (leitura local: 2 s na aba Processos, " +
+            "12 s em outras abas e 20 s na bandeja).");
     }
 
     private void ShowCachedProcessesIfAvailable()
