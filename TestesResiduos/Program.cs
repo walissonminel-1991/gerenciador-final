@@ -12,32 +12,43 @@ void Check(bool result, string what)
     passed++;
 }
 
-Check(largeDesktop.Size == new System.Drawing.Size(875, 745),
-    "Dimensao inicial compacta mesmo em monitores grandes");
-Check(regularDesktop.Size == new System.Drawing.Size(875, 745) &&
-      regularDesktop.Y == 147 && regularDesktop.X == 522,
-    "Respeitar altura da area de trabalho com barra de tarefas");
+Check(largeDesktop.Size == new System.Drawing.Size(1344, 1148),
+    "Monitor grande: janela cresce com a area util, mantendo fontes definidas pelo DPI");
+Check(regularDesktop.Size == new System.Drawing.Size(1344, 852) &&
+      regularDesktop.Y == 94 && regularDesktop.X == 288,
+    "1920x1040: abertura centralizada e proporcional");
 Check(shiftedDesktop.Left >= -1920 && shiftedDesktop.Right <= 0 &&
       shiftedDesktop.Top >= 40 && shiftedDesktop.Bottom <= 1120,
-    "Centralizar em monitor com origem e posicao deslocadas");
-Check(smallDesktop.Width == 875 && smallDesktop.Height == 720 &&
+    "Centralizar em monitor deslocado");
+Check(smallDesktop.Size == new System.Drawing.Size(716, 590) &&
       StartupWindowSizing.AllowedMinimum(smallDesktop).Width <= smallDesktop.Width,
-    "Nao iniciar fora de monitores menores");
-var compactWindowArea = new System.Drawing.Rectangle(0, 0, 1366, 720);
-var compactWindow = StartupWindowSizing.Fit(compactWindowArea);
-Check(compactWindow.Width == 875 && compactWindow.Height == 674 &&
+    "1024x720: aplicar limite sem impedir abertura");
+var compactArea = new System.Drawing.Rectangle(0, 0, 1366, 720);
+var compactWindow = StartupWindowSizing.Fit(compactArea);
+Check(compactWindow.Size == new System.Drawing.Size(956, 590) &&
       (long)compactWindow.Width * compactWindow.Height <=
-          3L * compactWindowArea.Width * compactWindowArea.Height / 5L,
-    "Em 1366x768, a janela ocupa no maximo 60 por cento da area util");
-Check(!StartupWindowSizing.ApplyAreaLimit(new System.Drawing.Rectangle(0, 0, 1024, 720)),
-    "Abaixo de 1366x768, a janela pode ocupar area maior para permitir uso");
+          3L * compactArea.Width * compactArea.Height / 5L,
+    "1366x768: janela proporcional dentro dos 60% da area util");
+var tinyArea = new System.Drawing.Rectangle(0, 0, 800, 552);
+Check(StartupWindowSizing.ApplyAreaLimit(tinyArea) &&
+      StartupWindowSizing.Fit(tinyArea).Size == new System.Drawing.Size(560, 452),
+    "A regra de 60% vale tambem para resolucoes menores que 1366x768");
 var referenceDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1440, 852));
-Check(referenceDesktop.Size == new System.Drawing.Size(875, 745) &&
-      referenceDesktop.X == 282 && referenceDesktop.Y == 53,
-    "Referencia 1440x900: janela compacta e centralizada na area util");
+Check(referenceDesktop.Size == new System.Drawing.Size(1008, 698) &&
+      referenceDesktop.X == 216 && referenceDesktop.Y == 77,
+    "1440x900: tamanho proporcional e centralizado");
+var highResolutionArea = new System.Drawing.Rectangle(0, 0, 2560, 1392);
+var highResolution = StartupWindowSizing.Fit(highResolutionArea);
+Check(highResolution.Size == new System.Drawing.Size(1792, 1141) &&
+      highResolution.Width > referenceDesktop.Width,
+    "2560x1440: nao usar dimensoes fixas em monitores grandes");
+Check((long)StartupWindowSizing.MaximumSizeFor(highResolutionArea).Width *
+      StartupWindowSizing.MaximumSizeFor(highResolutionArea).Height <=
+          3L * highResolutionArea.Width * highResolutionArea.Height / 5L,
+    "Tamanho maximo nunca excede 60% da area em 2560x1440");
 Check(StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 0, 0)).Size ==
       StartupWindowSizing.PreferredSize,
-    "Ter tamanho inicial seguro quando o monitor ainda nao puder ser consultado");
+    "Tamanho seguro quando a area util ainda e desconhecida");
 
 // Jogos têm manifestos próprios; não usar ARP para inventar desinstaladores.
 Check(GameLibraryAudit.ParseSteamName("\"AppState\"\n{\n\"appid\" \"123\"\n\"name\" \"Jogo de Teste\"\n}") == "Jogo de Teste",
