@@ -1971,11 +1971,12 @@ internal sealed partial class MainForm : Form
         // Cabeçalho permanece de uma linha sem sobrepor os tres filtros.
         // Todas as informacoes podem ser lidas pelo tooltip da legenda.
         int width = _listTitle.ClientSize.Width;
-        _listTitle.Text = width < 180
-            ? $"{displayed} aplicativos"
-            : width < 430
-            ? $"{displayed} aplicativos · {(_catalogoVerificado ? updates.ToString() : "—")} atualizações"
-            : full;
+        // Preferir informacao essencial completa. Os detalhes adicionais,
+        // inclusive o Windows Update, ficam acessiveis na dica integral.
+        string count = _catalogoVerificado ? updates.ToString() : "—";
+        _listTitle.Text = width < 265
+            ? $"Apps: {displayed} · Atual.: {count}"
+            : $"Aplicativos: {displayed} · Atualizações: {count}";
         _toolTips.SetToolTip(_listTitle, full);
     }
 
