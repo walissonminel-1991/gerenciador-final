@@ -17,6 +17,7 @@ internal static class LayoutTests
         TestStartupBounds();
         TestWorkspaceProportions();
         TestMonitorMathAndSampling();
+        TestSamplingCadence();
 
         Console.WriteLine("Criando janela de teste, sem iniciar os servicos");
         using var form = new MainForm(startServices: false);
@@ -341,6 +342,21 @@ internal static class LayoutTests
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
     private static extern int GetWindowLong(IntPtr handle, int index);
 
+
+    private static void TestSamplingCadence()
+    {
+        if (ProcessSamplingPolicy.IntervalMs(true, false) != 2_000 ||
+            ProcessSamplingPolicy.IntervalMs(false, false) != 12_000 ||
+            ProcessSamplingPolicy.IntervalMs(false, true) != 20_000 ||
+            ProcessSamplingPolicy.IntervalMs(true, true) != 20_000)
+            throw new Exception("Coleta economica deve priorizar bandeja e permitir 2s na aba Processos.");
+        if (!(ProcessSamplingPolicy.ForegroundIntervalMs <
+              ProcessSamplingPolicy.BackgroundIntervalMs &&
+              ProcessSamplingPolicy.BackgroundIntervalMs <
+              ProcessSamplingPolicy.TrayIntervalMs))
+            throw new Exception("Amostragem de processos nao esta adaptativa.");
+        Console.WriteLine("OK: amostragem 2s na aba, 12s em segundo plano e 20s na bandeja.");
+    }
 
     private static void TestMonitorMathAndSampling()
     {
