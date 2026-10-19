@@ -933,6 +933,70 @@ internal sealed partial class MainForm : Form
         _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 3, ClearMultiSelection);
         _toolTips.SetToolTip(_bulkUninstallButton, "Solicita confirmação e desinstala os programas marcados, um por vez.");
         root.Controls.Add(actions, 0, 1);
+        // Em 800x600 o limite universal de 60% resulta numa janela
+        // naturalmente estreita. Distribuir as quatro acoes em duas
+        // linhas em vez de perder botoes para fora da area visivel.
+        bool? lastCompactActions = null;
+        void FitActionRows()
+        {
+            int threshold = (int)Math.Ceiling(735d * Math.Max(1, root.DeviceDpi) / 96d);
+            bool compact = root.ClientSize.Width < threshold;
+            if (lastCompactActions == compact) return;
+            lastCompactActions = compact;
+            root.SuspendLayout();
+            actions.SuspendLayout();
+            try
+            {
+                actions.RowStyles.Clear();
+                if (compact)
+                {
+                    root.RowStyles[1].Height = 68;
+                    actions.RowCount = 2;
+                    actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+                    actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+                    for (int i = 0; i < 4; i++)
+                    {
+                        actions.ColumnStyles[i].SizeType = SizeType.Percent;
+                        actions.ColumnStyles[i].Width = 25;
+                    }
+                    actions.ColumnStyles[4].SizeType = SizeType.Percent;
+                    actions.ColumnStyles[4].Width = 0;
+                    Button[] buttons = { _checkUpdatesButton, _selectManyButton,
+                        _bulkUninstallButton, _clearSelectionButton };
+                    for (int i = 0; i < buttons.Length; i++)
+                    {
+                        actions.SetColumnSpan(buttons[i], 2);
+                        actions.SetCellPosition(buttons[i],
+                            new TableLayoutPanelCellPosition((i % 2) * 2, i / 2));
+                    }
+                }
+                else
+                {
+                    root.RowStyles[1].Height = 44;
+                    actions.RowCount = 1;
+                    actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                    int[] widths = { 206, 161, 196, 132 };
+                    for (int i = 0; i < 4; i++)
+                    {
+                        actions.ColumnStyles[i].SizeType = SizeType.Absolute;
+                        actions.ColumnStyles[i].Width = widths[i];
+                    }
+                    actions.ColumnStyles[4].SizeType = SizeType.Percent;
+                    actions.ColumnStyles[4].Width = 100;
+                    Button[] buttons = { _checkUpdatesButton, _selectManyButton,
+                        _bulkUninstallButton, _clearSelectionButton };
+                    for (int i = 0; i < buttons.Length; i++)
+                    {
+                        actions.SetColumnSpan(buttons[i], 1);
+                        actions.SetCellPosition(buttons[i],
+                            new TableLayoutPanelCellPosition(i, 0));
+                    }
+                }
+            }
+            finally { actions.ResumeLayout(true); root.ResumeLayout(true); }
+        }
+        root.SizeChanged += (_, _) => FitActionRows();
+        FitActionRows();
 
         var heading = new TableLayoutPanel
         {
