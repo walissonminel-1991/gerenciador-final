@@ -274,6 +274,40 @@ if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 }
 
 
+Console.WriteLine("Seguranca: receitas adulteradas e instaladores sem comprovante.");
+foreach (var approved in new[] { x64, x86, obs, npp, sumX64, sumX86, gameRecipe })
+    Verify(approved is not null && VerifiedUpdaters.IsApprovedRecipe(approved),
+        "Receita local completa reconhecida: " + approved?.Identifier);
+var forgedRecipes = new[]
+{
+    obs! with { Arguments = "/arbitrary-command" },
+    obs! with { RequiredSigner = "Outro Editor" },
+    obs! with { Download = new Uri("https://github.com/outro/projeto/releases/download/x/installer.exe") },
+    obs! with { Sha256 = new string('0', 64) },
+    obs! with { Identifier = "../outside" },
+    obs! with { Interactive = false },
+    sumX64 with { Arguments = "-install -arbitrary" }
+};
+string blockedFolder = Path.Combine(Path.GetTempPath(), "GF-Blocked-Recipe-" + Guid.NewGuid().ToString("N"));
+foreach (var forged in forgedRecipes)
+{
+    Verify(!VerifiedUpdaters.IsApprovedRecipe(forged), "Receita adulterada recusada: " + forged.Identifier);
+    bool refused = false;
+    try { await VerifiedUpdaters.DownloadAndVerifyAsync(forged, blockedFolder, _ => { }, CancellationToken.None); }
+    catch (InvalidDataException) { refused = true; }
+    Verify(refused && !Directory.Exists(blockedFolder),
+        "Receita adulterada bloqueada antes de rede/escrita");
+}
+bool noReceipt = false;
+try
+{
+    using var unexpected = await VerifiedUpdaters.OpenVerifiedForLaunchAsync(
+        obs!, Path.Combine(Path.GetTempPath(), "never-downloaded.exe"));
+}
+catch (InvalidDataException) { noReceipt = true; }
+Verify(noReceipt, "Caminho sem comprovante da sessao nao chega ao instalador/UAC");
+
+
 namespace GerenciadorAplicativos
 {
     internal sealed class ProgramEntry

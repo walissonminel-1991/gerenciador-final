@@ -1,5 +1,10 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Seguranca — v5.13.11.5 TESTE (20/10/2026)
+
+Reforcados comprovantes de instaladores, revalidacao antes de executar, protecao de arquivos abertos, identidade do processo no pipe e escrita atomica de privacidade. Regressões adicionadas; o resultado final do Windows fica no PR #40. O progresso da checklist permanece **27/42 (64,3%)**; isto nao substitui testes reais. [Achados e limites](SEGURANCA-v5.13.11.5.md).
+
+
 ## Auditoria — v5.13.11.4 TESTE (20/10/2026)
 
 Progresso recalculado a partir das sete áreas abaixo: **27 de 42 checkpoints (64,3%)**. Os complementos de diagnóstico/CI são frentes adicionais e não entram implicitamente nesse denominador. O número antigo 30/45 era inconsistente com os itens publicados.

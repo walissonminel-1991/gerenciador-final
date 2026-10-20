@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Diagnostics;
 using System.Net;
@@ -17,6 +18,61 @@ internal sealed record VerifiedUpdateRecipe(
 
 internal static class VerifiedUpdaters
 {
+    private sealed record DownloadReceipt(VerifiedUpdateRecipe Recipe, string Digest);
+    private static readonly ConcurrentDictionary<string, DownloadReceipt> Receipts =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentQueue<string> ReceiptOrder = new();
+
+    private static void RememberDownload(string path, VerifiedUpdateRecipe recipe, string digest)
+    {
+        string full = Path.GetFullPath(path);
+        Receipts[full] = new(recipe, digest);
+        ReceiptOrder.Enqueue(full);
+        while (ReceiptOrder.Count > 32 && ReceiptOrder.TryDequeue(out string? oldest))
+            Receipts.TryRemove(oldest, out _);
+    }
+
+    // A receita completa precisa ser uma das constantes locais, nao apenas ter ID conhecido.
+    internal static bool IsApprovedRecipe(VerifiedUpdateRecipe recipe)
+    {
+        VerifiedUpdateRecipe? approved = recipe.Identifier switch
+        {
+            "vc2013-x64" or "vc2013-x86" => new(recipe.Identifier, "Microsoft Visual C++ 2013",
+                VcTarget.ToString(), recipe.Identifier == "vc2013-x64" ? Vc64 : Vc86,
+                null, "Microsoft Corporation", "/install /quiet /norestart", false,
+                "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/"),
+            "obs-x64-32.2.2" => new(recipe.Identifier, "OBS Studio", "32.2.2",
+                Obs, ObsDigest, "OBS Project, LLC", "", true, "https://obsproject.com/download"),
+            "notepadpp-x64-8.9.8.1" => new(recipe.Identifier, "Notepad++", "8.9.8.1",
+                Npp64, NppDigest, "Notepad++", "", true, "https://notepad-plus-plus.org/downloads/"),
+            "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" =>
+                CreateSumatraRecipe(new ProgramEntry(), recipe.Identifier == "sumatrapdf-x64-3.6.1",
+                    recipe.Arguments == "-install -all-users"),
+            "gameinput-x64-3.5.283" => new(recipe.Identifier, "Microsoft GameInput", "3.5.283.0",
+                GameInputPackage, GameInputDigest, "Microsoft Corporation", "/passive /norestart", false,
+                "https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-nuget"),
+            _ => null
+        };
+        return approved is not null && recipe == approved;
+    }
+
+    internal static async Task<FileStream> OpenVerifiedForLaunchAsync(
+        VerifiedUpdateRecipe recipe, string path)
+    {
+        if (!IsApprovedRecipe(recipe) || !Path.IsPathFullyQualified(path) ||
+            !Receipts.TryRemove(Path.GetFullPath(path), out var receipt) || receipt.Recipe != recipe)
+            throw new InvalidDataException("Instalador sem comprovante valido desta sessao.");
+        var locked = InstallerFileGuard.OpenRead(path);
+        try
+        {
+            await InstallerFileGuard.RequireDigestAsync(locked, receipt.Digest);
+            if (!VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
+                throw new CryptographicException("Assinatura alterada antes da execucao (" + issue + ").");
+            return locked;
+        }
+        catch { locked.Dispose(); throw; }
+    }
+
     private static readonly Version VcTarget = new(12, 0, 40664, 0);
     private const string ObsDigest = "c3a0b880adbe64dc4bcb68f93016916ab5b55ae43fd227115287bf80257d92dc";
     private const string NppDigest = "26f3bcced788fadbac4e7e577b430ea2ce6060cf3bcad993ef4612ecd7d743da";
@@ -400,7 +456,8 @@ internal static class VerifiedUpdaters
     internal static async Task<string> DownloadAndVerifyAsync(VerifiedUpdateRecipe recipe,
         string directory, Action<string> report, CancellationToken cancel)
     {
-        if (!IsAllowedRemoteUri(recipe.Download, recipe.Identifier)) throw new InvalidDataException("Endereço não autorizado.");
+        if (!IsApprovedRecipe(recipe) || !IsAllowedRemoteUri(recipe.Download, recipe.Identifier))
+            throw new InvalidDataException("Receita ou endereco nao autorizado.");
         Directory.CreateDirectory(directory);
         bool gameInput = recipe.Identifier == "gameinput-x64-3.5.283";
         string path = Path.Combine(directory, recipe.Identifier + (gameInput ? ".nupkg" : ".exe"));
@@ -447,19 +504,17 @@ internal static class VerifiedUpdaters
                 if (total < 50_000) throw new InvalidDataException("Arquivo recebido está incompleto.");
             }
             report("Verificando integridade e assinatura digital...");
-            if (recipe.Sha256 is string digest)
-            {
-                using var file = File.OpenRead(path);
-                string actual = Convert.ToHexString(await SHA256.HashDataAsync(file, cancel));
-                if (!actual.Equals(digest, StringComparison.OrdinalIgnoreCase))
-                    throw new CryptographicException("SHA-256 não corresponde ao arquivo oficial.");
-            }
+            using var downloaded = InstallerFileGuard.OpenRead(path);
+            string actualDigest = await InstallerFileGuard.DigestAsync(downloaded, cancel);
+            if (recipe.Sha256 is string digest &&
+                !actualDigest.Equals(digest, StringComparison.OrdinalIgnoreCase))
+                throw new CryptographicException("SHA-256 nao corresponde ao arquivo oficial.");
             if (gameInput)
             {
                 // Nunca executar nupkg/ZIP diretamente. Extrair APENAS o MSI no
                 // caminho conhecido, apos validar o SHA publicado no winget-pkgs.
                 string msi = Path.Combine(directory, recipe.Identifier + ".msi");
-                using (var archive = ZipFile.OpenRead(path))
+                using (var archive = new ZipArchive(downloaded, ZipArchiveMode.Read, leaveOpen: true))
                 {
                     if (archive.Entries.Count is < 1 or > 300)
                         throw new InvalidDataException("Pacote NuGet com estrutura inesperada.");
@@ -470,12 +525,15 @@ internal static class VerifiedUpdaters
                         throw new InvalidDataException("Redistribuível oficial GameInput ausente ou inválido.");
                     entries[0].ExtractToFile(msi);
                 }
+                using var lockedMsi = InstallerFileGuard.OpenRead(msi);
                 if (!VerifyAuthenticode(msi, recipe.RequiredSigner, out string msiIssue))
                     throw new CryptographicException("MSI Microsoft sem assinatura válida (" + msiIssue + ").");
+                RememberDownload(msi, recipe, await InstallerFileGuard.DigestAsync(lockedMsi, cancel));
                 return msi;
             }
             if (!VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
                 throw new CryptographicException("Assinatura Authenticode inválida ou editor não esperado (" + issue + ").");
+            RememberDownload(path, recipe, actualDigest);
             return path;
         }
         throw new InvalidDataException("Excesso de redirecionamentos.");
@@ -548,6 +606,9 @@ internal static class VerifiedUpdaters
 
     internal static async Task<int> LaunchAsync(VerifiedUpdateRecipe recipe, string verifiedFile, Action<string> report)
     {
+        // O arquivo fica sem compartilhamento de escrita/exclusao ate o instalador terminar.
+        // Recibo e hash sao locais a esta sessao; nao sao lidos de arquivo adulteravel.
+        using var verifiedLock = await OpenVerifiedForLaunchAsync(recipe, verifiedFile);
         if (recipe.Identifier == "obs-x64-32.2.2" &&
             Process.GetProcessesByName("obs64").Any())
             throw new InvalidOperationException("Feche o OBS Studio antes de instalar a atualização.");

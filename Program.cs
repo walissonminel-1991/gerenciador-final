@@ -3044,9 +3044,18 @@ internal sealed partial class MainForm : Form
                 Log("Não foi possível conectar à tarefa administrativa. Verifique se o Windows ou antivírus bloqueou o programa.");
                 Status("Falha de comunicação com operação administrativa"); return;
             }
+            // Token nao substitui a identidade do cliente informada pelo kernel.
+            if (!PipePeerVerifier.IsExpectedClient(server, child.Id))
+            { Status("Conexao administrativa rejeitada: processo inesperado."); return; }
             using var reader = new StreamReader(server, Encoding.UTF8, detectEncodingFromByteOrderMarks: true,
                 bufferSize: 4096, leaveOpen: true);
-            string? handshake = await reader.ReadLineAsync();
+            string? handshake;
+            using (var handshakeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            {
+                try { handshake = await reader.ReadLineAsync(handshakeTimeout.Token); }
+                catch (OperationCanceledException)
+                { Status("Tempo esgotado na autenticacao da tarefa administrativa."); return; }
+            }
             if (handshake != "HELLO|" + token)
             { Status("Falha de autenticação da tarefa administrativa"); return; }
             bool gotResult = false;

@@ -47,7 +47,7 @@ internal sealed class AnonymousTelemetry
         {
             if (!File.Exists(ConsentFile) || new FileInfo(ConsentFile).Length > 512)
                 return TelemetryConsent.NotAsked;
-            using var json = JsonDocument.Parse(File.ReadAllText(ConsentFile));
+            using var json = JsonDocument.Parse(ReadBoundedFile(ConsentFile, 512));
             var root = json.RootElement;
             // Falha fechada: nao aceitar campos extras, chaves repetidas ou tipos ambiguos.
             if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count() != 2 ||
@@ -86,7 +86,7 @@ internal sealed class AnonymousTelemetry
             }
             try
             {
-                Directory.CreateDirectory(_folder);
+                EnsureStorageFolder();
                 WriteAtomic(ConsentFile, JsonSerializer.Serialize(new { schema = 1, state = (int)consent }));
                 Consent = consent;
                 if (!preserveEvents) _events.Clear();
@@ -132,7 +132,7 @@ internal sealed class AnonymousTelemetry
             {
                 if (!File.Exists(PendingFile) || new FileInfo(PendingFile).Length > 4096 || PendingHasExpired())
                     return null;
-                string pending = File.ReadAllText(PendingFile);
+                string pending = ReadBoundedFile(PendingFile, 4096);
                 return GitHubDiagnosticShare.CreateReviewUrl(pending) is not null ? pending : null;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
@@ -164,7 +164,7 @@ internal sealed class AnonymousTelemetry
             if (_events.Count == 0) { ExpirePendingReport(); return false; }
             try
             {
-                Directory.CreateDirectory(_folder);
+                EnsureStorageFolder();
                 WriteAtomic(PendingFile, Serialize(version, true));
                 return true; // Guardou localmente. Nao significa envio.
             }
@@ -199,12 +199,40 @@ internal sealed class AnonymousTelemetry
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return false; }
     }
 
+    private void EnsureStorageFolder()
+    {
+        void CheckAncestors()
+        {
+            for (var dir = new DirectoryInfo(Path.GetFullPath(_folder)); dir is not null; dir = dir.Parent)
+                if (dir.Exists && (dir.Attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException("Pasta de privacidade redirecionada.");
+        }
+        CheckAncestors();
+        Directory.CreateDirectory(_folder);
+        CheckAncestors();
+    }
+
+    private static string ReadBoundedFile(string path, int maxBytes)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (stream.Length > maxBytes) throw new IOException("Arquivo de privacidade acima do limite.");
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd();
+    }
+
     private static void WriteAtomic(string path, string content)
     {
-        string temporary = path + ".tmp";
+        // CreateNew nunca trunca/segue um arquivo temporario preexistente.
+        string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllText(temporary, content, new UTF8Encoding(false));
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write,
+                FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                byte[] bytes = new UTF8Encoding(false).GetBytes(content);
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
             File.Move(temporary, path, overwrite: true);
         }
         finally { TryDelete(temporary); }

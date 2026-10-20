@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
+    <Compile Include="../PipePeerVerifier.cs" Link="PipePeerVerifier.cs" />
     <Compile Include="../WindowsSystemTools.cs" Link="WindowsSystemTools.cs" />
     <Compile Include="../SecurityCenterHealth.cs" Link="SecurityCenterHealth.cs"/>
   </ItemGroup>

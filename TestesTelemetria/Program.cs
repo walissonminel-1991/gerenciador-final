@@ -186,6 +186,35 @@ try
         Verify(expiredReader.ReviewableReport("v5.13.11.4") is null && !File.Exists(expiring.PendingFile),
             "Relatorio expirado e apagado quando o bloqueio termina");
     }
+    var uniqueTemp = new AnonymousTelemetry(Path.Combine(temp, "unique-temp"));
+    Directory.CreateDirectory(Path.GetDirectoryName(uniqueTemp.ConsentFile)!);
+    string predictableTemp = uniqueTemp.ConsentFile + ".tmp";
+    File.WriteAllText(predictableTemp, "sentinela-nao-modificar");
+    Verify(uniqueTemp.SetConsent(TelemetryConsent.LocalOnly) &&
+        File.ReadAllText(predictableTemp) == "sentinela-nao-modificar",
+        "Gravacao atomica nao trunca nem segue temporario previsivel preexistente");
+    Verify(!Directory.EnumerateFiles(Path.GetDirectoryName(uniqueTemp.ConsentFile)!, "*.tmp")
+        .Any(p => p != predictableTemp),
+        "Temporarios exclusivos sao removidos apos gravacao");
+
+    if (OperatingSystem.IsWindows())
+    {
+        string realFolder = Path.Combine(temp, "real-storage");
+        string linkedFolder = Path.Combine(temp, "linked-storage");
+        Directory.CreateDirectory(realFolder);
+        bool linkedCreated = false;
+        try { Directory.CreateSymbolicLink(linkedFolder, realFolder); linkedCreated = true; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        if (linkedCreated)
+        {
+            var linkedCollector = new AnonymousTelemetry(linkedFolder);
+            Verify(!linkedCollector.SetConsent(TelemetryConsent.LocalOnly) &&
+                !File.Exists(Path.Combine(realFolder, "consentimento-v1.json")),
+                "Pasta de privacidade redirecionada nao recebe gravacoes");
+            Directory.Delete(linkedFolder);
+        }
+        else Console.WriteLine("SKIP: link de diretorio indisponivel; nao e teste aprovado.");
+    }
     Console.WriteLine("OK: privacidade, retomada, expiracao e falhas de disco; nenhuma rede foi usada.");
 }
 finally

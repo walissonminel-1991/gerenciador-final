@@ -34,3 +34,8 @@ O AVG CyberCapture bloqueou uma compilação portátil anterior e a encaminhou p
 ## Distribuicao v5.13.10.16 de testes
 
 O pacote de testes gera um arquivo SHA256SUMS.txt com hashes SHA-256 do executavel e dos principais arquivos de aplicativo. Esse arquivo permite detectar mudancas apos baixar, **nao autentica a origem sem um canal confiavel nem substitui uma assinatura Authenticode**. O AVG CyberCapture pode continuar bloqueando binarios desconhecidos; o projeto nao tenta contornar esse bloqueio. Aguardar decisao do fornecedor e reportar possivel falso positivo por canal oficial.
+
+
+## Revisao defensiva v5.13.11.5
+
+Consulte [o relatorio de seguranca](docs/SEGURANCA-v5.13.11.5.md) sobre comprovantes de instaladores, revalidacao de arquivos, identidade de processos no pipe e gravacao local. Os controles reduzem riscos especificos e nao equivalem a certificacao, ausencia de falsos positivos ou imunidade contra adulteracao por administrador/kernel.

@@ -159,12 +159,9 @@ internal static class WindowsTerminalUpdater
             !verifiedBundle.EndsWith(".msixbundle", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Arquivo MSIX verificado nao encontrado.");
         // Nova validacao imediatamente antes de entregar o arquivo ao Windows.
-        await using (var stream = File.OpenRead(verifiedBundle))
-        {
-            string digest = Convert.ToHexString(await SHA256.HashDataAsync(stream));
-            if (!digest.Equals(AssetDigest, StringComparison.OrdinalIgnoreCase))
-                throw new CryptographicException("Arquivo MSIX alterado antes da instalacao.");
-        }
+        // Manter a protecao ate o Windows concluir a leitura/deployment.
+        using var verifiedLock = InstallerFileGuard.OpenRead(verifiedBundle);
+        await InstallerFileGuard.RequireDigestAsync(verifiedLock, AssetDigest);
         ValidateBundleIdentity(verifiedBundle);
         report("Atualizando o Windows Terminal com o instalador nativo do Windows...");
         var operation = new PackageManager().AddPackageAsync(

@@ -40,3 +40,67 @@ if (OperatingSystem.IsWindows())
     }
 }
 Console.WriteLine("OK: ferramentas internas limitadas ao caminho de sistema, sem executar comandos administrativos.");
+
+string guardFolder = Path.Combine(Path.GetTempPath(), "GF-File-Guard-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(guardFolder);
+try
+{
+    string fixture = Path.Combine(guardFolder, "fixture.bin");
+    await File.WriteAllTextAsync(fixture, "original");
+    string digest;
+    using (var initial = InstallerFileGuard.OpenRead(fixture))
+        digest = await InstallerFileGuard.DigestAsync(initial);
+    await File.WriteAllTextAsync(fixture, "alterado");
+    bool changed = false;
+    using (var replaced = InstallerFileGuard.OpenRead(fixture))
+    {
+        try { await InstallerFileGuard.RequireDigestAsync(replaced, digest); }
+        catch (System.Security.Cryptography.CryptographicException) { changed = true; }
+    }
+    Check(changed, "adulteracao entre verificacoes e detectada");
+    if (OperatingSystem.IsWindows())
+    {
+        using (var pinned = InstallerFileGuard.OpenRead(fixture))
+        {
+            bool writeBlocked = false, deleteBlocked = false;
+            try { await File.WriteAllTextAsync(fixture, "intruso"); }
+            catch (IOException) { writeBlocked = true; }
+            try { File.Delete(fixture); }
+            catch (IOException) { deleteBlocked = true; }
+            Check(writeBlocked && deleteBlocked, "arquivo em validacao nao compartilha escrita/exclusao");
+        }
+        // O teste cria somente um link para uma fixture, nunca segue/exclui dados do usuario.
+        string linked = Path.Combine(guardFolder, "linked.bin");
+        bool canLink = false;
+        try { File.CreateSymbolicLink(linked, fixture); canLink = true; }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
+        if (canLink)
+        {
+            bool linkBlocked = false;
+            try { using var rejected = InstallerFileGuard.OpenRead(linked); }
+            catch (InvalidDataException) { linkBlocked = true; }
+            Check(linkBlocked, "arquivo redirecionado rejeitado");
+            File.Delete(linked);
+        }
+        else Console.WriteLine("SKIP: criacao de symlink indisponivel no runner; nao equivale a teste aprovado.");
+
+        string pipeName = "GF-Peer-Test-" + Guid.NewGuid().ToString("N");
+        using var pipeServer = new System.IO.Pipes.NamedPipeServerStream(
+            pipeName, System.IO.Pipes.PipeDirection.In, 1,
+            System.IO.Pipes.PipeTransmissionMode.Byte, System.IO.Pipes.PipeOptions.Asynchronous);
+        Check(!PipePeerVerifier.IsExpectedClient(pipeServer, Environment.ProcessId),
+            "pipe desconectado nao autentica cliente");
+        using var pipeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var waiting = pipeServer.WaitForConnectionAsync(pipeTimeout.Token);
+        using var pipeClient = new System.IO.Pipes.NamedPipeClientStream(".", pipeName,
+            System.IO.Pipes.PipeDirection.Out, System.IO.Pipes.PipeOptions.Asynchronous);
+        await pipeClient.ConnectAsync(pipeTimeout.Token);
+        await waiting;
+        Check(PipePeerVerifier.IsExpectedClient(pipeServer, Environment.ProcessId),
+            "kernel confirma PID real do cliente conectado");
+        Check(!PipePeerVerifier.IsExpectedClient(pipeServer, int.MaxValue),
+            "outro PID nao e aceito mesmo com pipe conectado");
+    }
+}
+finally { Directory.Delete(guardFolder, recursive: true); }
+Console.WriteLine("OK: hash de arquivo alterado e bloqueios de compartilhamento.");

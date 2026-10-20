@@ -1,5 +1,14 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.5 — protecao de instaladores, pipe e arquivos locais (TESTE)
+
+- Receita integral aprovada e comprovante em memoria vinculam o instalador ao download desta sessao.
+- SHA-256 e assinatura sao revalidados antes da execucao; arquivo permanece sem compartilhamento de escrita/exclusao enquanto o processo iniciado e aguardado. Terminal recebe trava equivalente durante deployment.
+- Pipe administrativo verifica PID informado pelo Windows e limita espera da autenticacao a cinco segundos.
+- Privacidade usa temporarios exclusivos com CreateNew; recusa pastas redirecionadas e limita leitura pelo arquivo aberto.
+- Testes de adulteracao, receitas forjadas, PID incorreto e temporarios preexistentes. Limites documentados em docs/SEGURANCA-v5.13.11.5.md.
+
+
 ## v5.13.11.4 — auditoria de segurança, diagnóstico e consistência (TESTE)
 
 - Comandos internos Windows e Gerenciador de Tarefas usam caminhos absolutos da pasta de sistema, com lista fechada; evita procurar executáveis homônimos no diretório portátil/PATH.
