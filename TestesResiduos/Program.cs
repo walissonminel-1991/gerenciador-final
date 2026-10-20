@@ -16,6 +16,13 @@ bool partialRejected = false;
 try { InventoryReconciler.RequireComplete(Array.Empty<ProgramEntry>(), 1); }
 catch (InvalidOperationException) { partialRejected = true; }
 Check(partialRejected, "Leitura parcial nao pode autorizar limpeza por falsa ausencia");
+Check(ResidualAudit.IsDriverBoosterProduct(new ProgramEntry { Name = "Driver Booster 13", Publisher = "IObit" }),
+    "Auditoria reconhece Driver Booster 13 como aplicativo de terceiros");
+Check(ResidualAudit.IsDriverBoosterProduct(new ProgramEntry { Name = "Driver Booster 13.6" }),
+    "Variantes numericas do Driver Booster sao reconhecidas");
+Check(!ResidualAudit.IsDriverBoosterProduct(new ProgramEntry { Name = "Microsoft Driver Update" }) &&
+      !ResidualAudit.IsDriverBoosterProduct(new ProgramEntry { Name = "Driver Booster Cleaner" }),
+    "Auditoria especifica nao confunde drivers do Windows e produtos homonimos");
 Check(InventoryReconciler.RequireComplete(Array.Empty<ProgramEntry>(), 0).Count == 0,
     "Inventario vazio completo nao e confundido com erro de acesso");
 
