@@ -32,6 +32,7 @@ internal static class Program
         }
         try
         {
+            AnonymousTelemetryContext.Current = new AnonymousTelemetry();
             ApplicationConfiguration.Initialize();
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += (_, e) =>
@@ -799,6 +800,9 @@ internal sealed partial class MainForm : Form
             displayUpdate.Stop();
             displayUpdate.Dispose();
             _log.FlushPending();
+            // Um unico arquivo rotativo, apenas se o usuario aceitou.
+            // Nao ha envio nem espera de rede no encerramento nesta versao.
+            AnonymousTelemetryContext.Current?.SaveOnNormalExit(DiagnosticTrace.VersionLabel);
         };
         FitWorkspace();
         // Abre imediatamente. Primeiro carrega a lista local e depois inicia consultas independentes,
@@ -808,6 +812,7 @@ internal sealed partial class MainForm : Form
             RestoreWithinMonitor();
             FitWorkspace();
             if (!startServices) return;
+            OfferAnonymousDiagnosticConsent(firstRun: true);
             // Na abertura, a lista ainda esta vazia: nao animar barra de
             // progresso nem alternar Enabled/Visible de dezenas de controles.
             await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync,
