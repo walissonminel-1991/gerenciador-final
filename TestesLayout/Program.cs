@@ -392,10 +392,11 @@ internal static class LayoutTests
             Descendants(form).OfType<Button>().All(x => x.Text != "Tarefas do Windows"))
             throw new Exception("RAM: grafico ou acesso a Tarefas do Windows ausente.");
         const ulong GiB = 1073741824UL;
+        int samplesBefore = graph.SampleCount;
         form.PreviewMemoryRamForTests(new MemoryRamSample(DateTime.UtcNow, 8 * GiB, 2 * GiB));
         form.PreviewMemoryRamForTests(new MemoryRamSample(DateTime.UtcNow, 8 * GiB, 3 * GiB));
         Application.DoEvents();
-        if (graph.SampleCount != 2 ||
+        if (graph.SampleCount != Math.Min(MemoryRamHistory.Capacity, samplesBefore + 2) ||
             !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryAvailable" && x.Text.Contains("3,00") || x.Name == "MemoryAvailable" && x.Text.Contains("3.00")) ||
             !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryCleaned" && x.Text.Contains("0 MB")))
             throw new Exception("RAM: dados inconsistentes: pontos=" + graph.SampleCount +
