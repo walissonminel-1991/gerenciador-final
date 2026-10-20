@@ -551,10 +551,23 @@ internal sealed class DarkLogView : UserControl
     {
         _renderTimer.Stop();
         _pending.Clear();
-        _editor.Text = value ?? "";
+        // O TextBox multiline nativo do Windows exige CRLF. Apenas LF faz
+        // paragrafos aparecerem colados, como visto na previa de privacidade.
+        // Idempotente: nao criar CRCRLF em relatorios ja normalizados.
+        _editor.Text = NormalizeWindowsLineBreaks(value);
         _editor.SelectionStart = 0;
         _editor.SelectionLength = 0;
         _editor.ScrollToCaret();
+        SyncMetrics();
+    }
+
+    internal static string NormalizeWindowsLineBreaks(string? value) =>
+        (value ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Replace("\n", "\r\n");
+
+    // Somente para textos explicativos, nunca muda fonte do registro tecnico.
+    internal void UseReadableFont(Font font)
+    {
+        _editor.Font = font;
         SyncMetrics();
     }
 
