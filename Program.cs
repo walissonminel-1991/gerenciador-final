@@ -2536,8 +2536,13 @@ internal sealed partial class MainForm : Form
             }
             finally
             {
-                try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
-                catch (Exception) { Log("Aviso: não foi possível limpar a pasta temporária da atualização."); }
+                if (VerifiedUpdaters.IsFolderProtected(folder))
+                    Log("Pacote temporario protegido nesta sessao. Mantenha o GF aberto ate todos os instaladores terminarem.");
+                else
+                {
+                    try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+                    catch (Exception) { Log("Aviso: não foi possível limpar a pasta temporária da atualização."); }
+                }
             }
         });
     }

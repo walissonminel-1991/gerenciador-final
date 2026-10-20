@@ -67,6 +67,10 @@ try
             catch (IOException) { writeBlocked = true; }
             try { File.Delete(fixture); }
             catch (IOException) { deleteBlocked = true; }
+            bool renameBlocked = false;
+            try { Directory.Move(guardFolder, guardFolder + "-moved"); }
+            catch (IOException) { renameBlocked = true; }
+            Check(renameBlocked, "pasta ancestral nao pode ser renomeada durante a verificacao");
             Check(writeBlocked && deleteBlocked, "arquivo em validacao nao compartilha escrita/exclusao");
         }
         // O teste cria somente um link para uma fixture, nunca segue/exclui dados do usuario.
@@ -83,6 +87,43 @@ try
             File.Delete(linked);
         }
         else Console.WriteLine("SKIP: criacao de symlink indisponivel no runner; nao equivale a teste aprovado.");
+
+        string redirect = Path.Combine(guardFolder, "redirect");
+        try
+        {
+            Directory.CreateSymbolicLink(redirect, guardFolder);
+            bool rejected = false;
+            try { using var invalid = InstallerFileGuard.OpenRead(Path.Combine(redirect, "fixture.bin")); }
+            catch (InvalidDataException) { rejected = true; }
+            Check(rejected, "ancestral redirecionado rejeitado pelo handle");
+            Directory.Delete(redirect);
+        }
+        catch (UnauthorizedAccessException) { Console.WriteLine("SKIP: symlink de pasta sem permissao."); }
+
+        foreach (string invalid in new[] { @"\\\\server\\share\\setup.exe", @"\\\\?\\C:\\setup.exe", @"C:\\setup.exe:payload", "setup.exe" })
+        {
+            bool rejected = false;
+            try { InstallerFileGuard.ValidateLocalPath(invalid); }
+            catch (InvalidDataException) { rejected = true; }
+            Check(rejected, "namespace remoto, dispositivo, ADS ou relativo recusado");
+        }
+        using (var session = new InstallerFileGuard.SessionProtection())
+        {
+            // Simula retorno do processo pai: o proprietario da trava agora e a sessao.
+            session.Retain(InstallerFileGuard.OpenRead(fixture));
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            bool stillProtected = false;
+            try { File.Delete(fixture); }
+            catch (IOException) { stillProtected = true; }
+            Check(stillProtected, "trava permanece apos transferencia para a sessao e coleta");
+        }
+        await File.WriteAllTextAsync(fixture, "liberado ao encerrar a sessao");
+        // DisposeAsync tambem precisa liberar todos os ancestrais.
+        await using (var asyncLease = InstallerFileGuard.OpenRead(fixture)) { }
+        Directory.Move(guardFolder, guardFolder + "-moved");
+        Directory.Move(guardFolder + "-moved", guardFolder);
+        Console.WriteLine("OK: ancestrais presos, namespaces recusados e protecao retida pela sessao.");
 
         string pipeName = "GF-Peer-Test-" + Guid.NewGuid().ToString("N");
         using var pipeServer = new System.IO.Pipes.NamedPipeServerStream(

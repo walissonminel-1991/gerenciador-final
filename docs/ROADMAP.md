@@ -1,5 +1,9 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Reforco adicional — v5.13.11.6 TESTE (20/10/2026)
+
+Protecao de ancestrais por handles, retencao de instaladores pela sessao, recusa de caminhos especiais e arquivos vizinhos inesperados. Auditoria NuGet bloqueante e configuracao Dependabot. Evidencias e limites: [relatorio](SEGURANCA-v5.13.11.6.md). Progresso funcional permanece 27/42; sem declarar envio automatico ou manutencao por IA implementados.
+
 ## Seguranca — v5.13.11.5 TESTE (20/10/2026)
 
 Reforcados comprovantes de instaladores, revalidacao antes de executar, protecao de arquivos abertos, identidade do processo no pipe e escrita atomica de privacidade. Regressões adicionadas; o resultado final do Windows fica no PR #40. O progresso da checklist permanece **27/42 (64,3%)**; isto nao substitui testes reais. [Achados e limites](SEGURANCA-v5.13.11.5.md).

@@ -18,6 +18,25 @@ internal sealed record VerifiedUpdateRecipe(
 
 internal static class VerifiedUpdaters
 {
+    private static readonly InstallerFileGuard.SessionProtection SessionLocks = new();
+    private static readonly ConcurrentDictionary<string, byte> ProtectedFolders =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    internal static bool IsFolderProtected(string folder) =>
+        ProtectedFolders.ContainsKey(Path.GetFullPath(folder));
+
+    internal static void ValidateInstallerDirectory(VerifiedUpdateRecipe recipe, string file)
+    {
+        string folder = Path.GetDirectoryName(file)!;
+        string[] allowed = recipe.Identifier == "gameinput-x64-3.5.283"
+            ? new[] { recipe.Identifier + ".nupkg", recipe.Identifier + ".msi" }
+            : new[] { recipe.Identifier + ".exe" };
+        foreach (string entry in Directory.EnumerateFileSystemEntries(folder))
+            if (!allowed.Contains(Path.GetFileName(entry), StringComparer.OrdinalIgnoreCase) ||
+                (File.GetAttributes(entry) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
+                throw new InvalidDataException("Pasta do instalador contem arquivos inesperados. Baixe novamente.");
+    }
+
     private sealed record DownloadReceipt(VerifiedUpdateRecipe Recipe, string Digest);
     private static readonly ConcurrentDictionary<string, DownloadReceipt> Receipts =
         new(StringComparer.OrdinalIgnoreCase);
@@ -458,7 +477,10 @@ internal static class VerifiedUpdaters
     {
         if (!IsApprovedRecipe(recipe) || !IsAllowedRemoteUri(recipe.Download, recipe.Identifier))
             throw new InvalidDataException("Receita ou endereco nao autorizado.");
+        directory = InstallerFileGuard.ValidateLocalPath(directory);
+        using var parentLock = InstallerFileGuard.PinDirectory(Path.GetDirectoryName(directory)!);
         Directory.CreateDirectory(directory);
+        using var directoryLock = InstallerFileGuard.PinDirectory(directory);
         bool gameInput = recipe.Identifier == "gameinput-x64-3.5.283";
         string path = Path.Combine(directory, recipe.Identifier + (gameInput ? ".nupkg" : ".exe"));
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
@@ -606,9 +628,13 @@ internal static class VerifiedUpdaters
 
     internal static async Task<int> LaunchAsync(VerifiedUpdateRecipe recipe, string verifiedFile, Action<string> report)
     {
-        // O arquivo fica sem compartilhamento de escrita/exclusao ate o instalador terminar.
+        // Preserva arquivo e ancestrais ate o GF encerrar, inclusive apos a saida do bootstrapper.
         // Recibo e hash sao locais a esta sessao; nao sao lidos de arquivo adulteravel.
-        using var verifiedLock = await OpenVerifiedForLaunchAsync(recipe, verifiedFile);
+        var verifiedLock = await OpenVerifiedForLaunchAsync(recipe, verifiedFile);
+        bool retained = false;
+        try
+        {
+        ValidateInstallerDirectory(recipe, verifiedFile);
         if (recipe.Identifier == "obs-x64-32.2.2" &&
             Process.GetProcessesByName("obs64").Any())
             throw new InvalidOperationException("Feche o OBS Studio antes de instalar a atualização.");
@@ -618,6 +644,9 @@ internal static class VerifiedUpdaters
         report(recipe.Interactive
             ? "Abrindo instalador oficial para você concluir as opções necessárias..."
             : "Executando atualização oficial. O Windows pode solicitar autorização UAC...");
+        SessionLocks.Retain(verifiedLock);
+        retained = true;
+        ProtectedFolders[Path.GetDirectoryName(Path.GetFullPath(verifiedFile))!] = 0;
         using var process = Process.Start(new ProcessStartInfo
         {
             // Caminho System32 absoluto: nenhum executável homônimo vindo do pacote ou PATH.
@@ -625,9 +654,12 @@ internal static class VerifiedUpdaters
                 ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "msiexec.exe")
                 : verifiedFile,
             Arguments = isMsi ? $"/i \"{verifiedFile}\" {recipe.Arguments}" : recipe.Arguments,
-            UseShellExecute = true, Verb = "runas", WorkingDirectory = Path.GetDirectoryName(verifiedFile)!
+            UseShellExecute = true, Verb = "runas",
+            WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System)
         }) ?? throw new InvalidOperationException("Instalador não foi iniciado.");
         await process.WaitForExitAsync();
         return process.ExitCode;
+        }
+        finally { if (!retained) verifiedLock.Dispose(); }
     }
 }

@@ -308,6 +308,28 @@ catch (InvalidDataException) { noReceipt = true; }
 Verify(noReceipt, "Caminho sem comprovante da sessao nao chega ao instalador/UAC");
 
 
+string isolated = Path.Combine(Path.GetTempPath(), "GF-Siblings-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(isolated);
+try
+{
+    string installer = Path.Combine(isolated, obs!.Identifier + ".exe");
+    File.WriteAllText(installer, "fixture nao executavel");
+    VerifiedUpdaters.ValidateInstallerDirectory(obs, installer);
+    string sibling = Path.Combine(isolated, "version.dll");
+    File.WriteAllText(sibling, "fixture nao executavel");
+    bool denied = false;
+    try { VerifiedUpdaters.ValidateInstallerDirectory(obs, installer); }
+    catch (InvalidDataException) { denied = true; }
+    Verify(denied, "DLL inesperada ao lado do instalador bloqueia lancamento");
+    File.Delete(sibling);
+    Directory.CreateDirectory(sibling);
+    denied = false;
+    try { VerifiedUpdaters.ValidateInstallerDirectory(obs, installer); }
+    catch (InvalidDataException) { denied = true; }
+    Verify(denied, "pasta inesperada ao lado do instalador bloqueia lancamento");
+}
+finally { Directory.Delete(isolated, true); }
+
 namespace GerenciadorAplicativos
 {
     internal sealed class ProgramEntry

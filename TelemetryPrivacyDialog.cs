@@ -128,7 +128,8 @@ internal sealed partial class MainForm
             "Abrir o formulário transmite o resumo técnico ao GitHub pela URL do navegador. " +
             "Se você publicar, a Issue será PÚBLICA e vinculada ao seu perfil GitHub.\n\n" +
             "Nenhum arquivo completo de diagnóstico será anexado. Você poderá " +
-            "revisar ou desistir antes de publicar. Deseja abrir o formulário?",
+            "revisar ou desistir antes de publicar. Não acrescente senhas, tokens, dados pessoais " +
+            "ou capturas que mostrem essas informações. Deseja abrir o formulário?",
             "Revisar diagnóstico público no GitHub") != DialogResult.Yes)
             return;
 

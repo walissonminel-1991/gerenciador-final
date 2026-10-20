@@ -1,5 +1,13 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.6 — caminhos protegidos e defesa adicional (TESTE)
+
+- Ancestrais abertos da raiz ao destino, sem seguir reparse points nem compartilhar escrita/exclusao; recusa UNC, dispositivos e ADS.
+- Arquivo e ancestrais de instaladores permanecem protegidos durante a sessao, mesmo apos retorno do processo inicial. Limite de 32 pacotes; temporarios retidos nao sao apagados durante a sessao.
+- Pasta de trabalho do instalador no sistema; arquivos/pastas inesperados junto do pacote bloqueiam lancamento. Isso nao controla DLLs carregadas internamente por instaladores externos.
+- Escrita de privacidade e downloads com diretórios presos; auditoria NuGet bloqueante e configuracao Dependabot semanal.
+- Testes de renomeacao de ancestral, symlink de pasta, namespaces, retencao e arquivos vizinhos. Ver docs/SEGURANCA-v5.13.11.6.md.
+
 ## v5.13.11.5 — protecao de instaladores, pipe e arquivos locais (TESTE)
 
 - Receita integral aprovada e comprovante em memoria vinculam o instalador ao download desta sessao.
