@@ -163,7 +163,7 @@ try
         schema = 1, version = "v5.13.11.4\n", exit = "normal",
         counts = new Dictionary<string, int> { ["MSIX.LEITURA"] = 1 }
     });
-    Verify(GitHubDiagnosticShare.CreateReviewUrl(trailingNewline) is null,
+    Verify(!DiagnosticPayloadPolicy.IsValidReport(trailingNewline),
         "Versao com quebra de linha final e rejeitada");
 
     if (OperatingSystem.IsWindows())
