@@ -149,6 +149,11 @@ internal static class LayoutTests
             throw new Exception("Busca ou aviso de consulta segura ausente.");
         if (Descendants(placeholder).OfType<DarkScrollableFlow>().Any())
             throw new Exception("DRIVERS nao deve mostrar rolagem duplicada.");
+        if (!Descendants(placeholder).OfType<Button>().Any(b =>
+                b.Text == "Outros" &&
+                b.AccessibleDescription.Contains("indeterminada", StringComparison.Ordinal)) ||
+            Descendants(placeholder).OfType<Button>().Any(b => b.Text == "Não confirmados"))
+            throw new Exception("Filtro DRIVERS deve caber inteiro e explicar os casos incertos.");
         var privacyStatus = Descendants(form).OfType<Button>()
             .SingleOrDefault(b => b.Name == "PrivacyStatusButton")
             ?? throw new Exception("Indicador de privacidade ausente do cabecalho.");
@@ -552,7 +557,9 @@ internal static class LayoutTests
     {
         var graph = Descendants(form).OfType<MemoryRamChart>().Single();
         if (!graph.Visible ||
-            Descendants(form).OfType<Button>().All(x => x.Text != "Tarefas do Windows") ||
+            Descendants(form).OfType<Button>().All(x =>
+                x.Name != "OpenWindowsTaskManager" || x.Text != "Abrir tarefas" ||
+                !x.AccessibleName.Contains("Gerenciador de Tarefas", StringComparison.Ordinal)) ||
             Descendants(form).OfType<Button>().All(x => x.Name != "MemoryAutoOptimization") ||
             Descendants(form).OfType<Button>().All(x => x.Name != "MemoryManualOptimization") ||
             Descendants(form).OfType<Label>().All(x => x.Name != "MemoryCandidates"))
