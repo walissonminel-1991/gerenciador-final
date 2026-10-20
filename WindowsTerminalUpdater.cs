@@ -72,9 +72,9 @@ internal static class WindowsTerminalUpdater
             !recipe.Sha256.Equals(AssetDigest, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Receita Windows Terminal nao autorizada.");
         folder = InstallerFileGuard.ValidateLocalPath(folder);
-        using var parentLock = InstallerFileGuard.PinDirectory(Path.GetDirectoryName(folder)!);
+        using var parentLock = InstallerFileGuard.PinDirectory(Path.GetDirectoryName(folder)!, allowLeafWrites: true);
         Directory.CreateDirectory(folder);
-        using var directoryLock = InstallerFileGuard.PinDirectory(folder);
+        using var directoryLock = InstallerFileGuard.PinDirectory(folder, allowLeafWrites: true);
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(5) };
         client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.17"));

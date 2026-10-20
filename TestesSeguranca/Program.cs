@@ -52,6 +52,19 @@ string guardFolder = Path.Combine(Path.GetTempPath(), "GF-File-Guard-" + Guid.Ne
 Directory.CreateDirectory(guardFolder);
 try
 {
+    // Gravacao atomica precisa permitir criar/renomear arquivos filhos,
+    // mantendo a propria pasta protegida contra renomeacao.
+    using (var writableDirectory = InstallerFileGuard.PinDirectory(guardFolder, allowLeafWrites: true))
+    {
+        string created = Path.Combine(guardFolder, "atomic.tmp");
+        File.WriteAllText(created, "fixture");
+        File.Move(created, Path.Combine(guardFolder, "atomic.json"));
+        File.Delete(Path.Combine(guardFolder, "atomic.json"));
+        bool renamed = false;
+        try { Directory.Move(guardFolder, guardFolder + "-moved"); }
+        catch (IOException) { renamed = true; }
+        Check(renamed, "gravacao dos filhos permitida sem liberar renomeacao da pasta");
+    }
     string fixture = Path.Combine(guardFolder, "fixture.bin");
     await File.WriteAllTextAsync(fixture, "original");
     string digest;

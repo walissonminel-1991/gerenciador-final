@@ -222,7 +222,7 @@ internal sealed class AnonymousTelemetry
 
     private static void WriteAtomic(string path, string content)
     {
-        using var directoryLock = InstallerFileGuard.PinDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        using var directoryLock = InstallerFileGuard.PinDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!, allowLeafWrites: true);
         // CreateNew nunca trunca/segue um arquivo temporario preexistente.
         string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try

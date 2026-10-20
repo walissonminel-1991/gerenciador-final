@@ -30,10 +30,10 @@ internal static class InstallerFileGuard
         }
     }
 
-    internal static FileStream OpenRead(string path)
+    internal static FileStream OpenRead(string path, bool allowDirectoryWrites = false)
     {
         string full = ValidateLocalPath(path);
-        var parents = PinDirectory(Path.GetDirectoryName(full)!);
+        var parents = PinDirectory(Path.GetDirectoryName(full)!, allowDirectoryWrites);
         SafeFileHandle? handle = null;
         try
         {
@@ -65,7 +65,7 @@ internal static class InstallerFileGuard
         return full;
     }
 
-    internal static IDisposable PinDirectory(string directory)
+    internal static IDisposable PinDirectory(string directory, bool allowLeafWrites = false)
     {
         string full = ValidateLocalPath(directory);
         var chain = new Stack<string>();
@@ -77,7 +77,8 @@ internal static class InstallerFileGuard
             while (chain.TryPop(out string? part))
             {
                 // OPEN_REPARSE_POINT impede seguir o componente final; os anteriores ja estao presos.
-                var handle = CreateFileW(part, 0x80000000, 1, IntPtr.Zero, 3,
+                uint sharing = allowLeafWrites && chain.Count == 0 ? 3u : 1u;
+                var handle = CreateFileW(part, 0x80000000, sharing, IntPtr.Zero, 3,
                     0x02000000 | 0x00200000, IntPtr.Zero);
                 lease.Handles.Add(handle);
                 CheckHandle(handle, directory: true);

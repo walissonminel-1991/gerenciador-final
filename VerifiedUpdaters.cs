@@ -478,9 +478,9 @@ internal static class VerifiedUpdaters
         if (!IsApprovedRecipe(recipe) || !IsAllowedRemoteUri(recipe.Download, recipe.Identifier))
             throw new InvalidDataException("Receita ou endereco nao autorizado.");
         directory = InstallerFileGuard.ValidateLocalPath(directory);
-        using var parentLock = InstallerFileGuard.PinDirectory(Path.GetDirectoryName(directory)!);
+        using var parentLock = InstallerFileGuard.PinDirectory(Path.GetDirectoryName(directory)!, allowLeafWrites: true);
         Directory.CreateDirectory(directory);
-        using var directoryLock = InstallerFileGuard.PinDirectory(directory);
+        using var directoryLock = InstallerFileGuard.PinDirectory(directory, allowLeafWrites: true);
         bool gameInput = recipe.Identifier == "gameinput-x64-3.5.283";
         string path = Path.Combine(directory, recipe.Identifier + (gameInput ? ".nupkg" : ".exe"));
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
@@ -526,7 +526,7 @@ internal static class VerifiedUpdaters
                 if (total < 50_000) throw new InvalidDataException("Arquivo recebido está incompleto.");
             }
             report("Verificando integridade e assinatura digital...");
-            using var downloaded = InstallerFileGuard.OpenRead(path);
+            using var downloaded = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
             string actualDigest = await InstallerFileGuard.DigestAsync(downloaded, cancel);
             if (recipe.Sha256 is string digest &&
                 !actualDigest.Equals(digest, StringComparison.OrdinalIgnoreCase))
