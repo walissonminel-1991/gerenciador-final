@@ -62,6 +62,16 @@ class PoliticasDeSeguranca(unittest.TestCase):
         self.assertIn("RequireDigestAsync(locked, receipt.Digest)", source)
         self.assertIn("IsApprovedRecipe(recipe)", source)
 
+    def test_simulacao_e_isolada_de_rede_dispositivos_e_consentimento(self):
+        code = read("AnonymousTelemetry.cs")
+        simulation = code.split("internal static string SimulateContributionWithoutSending", 1)[1]
+        simulation = simulation.split("private static string HumanCategory", 1)[0]
+        for forbidden in ("HttpClient", "Process.Start(", "File.", "Directory.",
+                          "SetConsent(", "_events", "_folder", "ReadAllText(", "WebRequest"):
+            self.assertNotIn(forbidden, simulation,
+                f"Simulacao local nao pode conter operacao com efeito: {forbidden}")
+        self.assertIn("DiagnosticPayloadPolicy.IsValidReport(syntheticReport)", simulation)
+
     def test_receptor_remoto_desativado_por_padrao(self):
         source = read("prototipos/telemetria-worker/worker.mjs")
         self.assertIn("status: 503", source)
