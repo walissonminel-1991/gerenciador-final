@@ -8,7 +8,7 @@ Estado: **prévia para revisão**; não publica automaticamente relatórios nem 
 2. Criar conta GitHub ou entrar com a existente no navegador. Um endereço Gmail pode ser usado como e-mail de cadastro; isso não implica automaticamente que o GitHub possua login por Google em todos os fluxos.
 3. Aceitar ou recusar **diagnóstico local** no GF. Recusar não prejudica as ferramentas principais.
 4. Depois que houver algum evento técnico incluído na lista permitida, clicar na bandeja do Windows em **Revisar diagnóstico no GitHub**.
-5. O GF pede confirmação, informa que a Issue será **pública** e abre o navegador com título e resumo técnico pré-preenchidos. Nada é enviado até o participante confirmar a publicação no site. Ele pode cancelar.
+5. O GF pede confirmação, informa que a Issue será **pública** e abre o navegador com título e resumo técnico pré-preenchidos. Abrir o formulário já transmite o resumo técnico ao GitHub na URL, mesmo que o participante cancele. A Issue só se torna pública após confirmar a publicação no site.
 6. A Issue pública ficará associada ao perfil GitHub do participante e, por isso, não se deve anexar arquivos de diagnóstico completos, capturas contendo dados pessoais, senhas ou caminhos. O GF só preenche categorias de eventos e versão do próprio programa, sem nome de aplicativos ou identificador do PC.
 7. O participante pode continuar na Issue para esclarecer sintomas e acompanhar correções. O projeto poderá relacionar a Issue a uma PR de revisão.
 

@@ -125,7 +125,7 @@ internal sealed partial class MainForm
         }
 
         if (DarkConfirmDialog.Confirm(this,
-            "O GitHub abrirá um formulário com os dados técnicos resumidos. " +
+            "Abrir o formulário transmite o resumo técnico ao GitHub pela URL do navegador. " +
             "Se você publicar, a Issue será PÚBLICA e vinculada ao seu perfil GitHub.\n\n" +
             "Nenhum arquivo completo de diagnóstico será anexado. Você poderá " +
             "revisar ou desistir antes de publicar. Deseja abrir o formulário?",
@@ -138,12 +138,12 @@ internal sealed partial class MainForm
             {
                 UseShellExecute = true
             });
-            Status("Formulário GitHub aberto. Nada foi enviado automaticamente.");
+            Status("Formulário GitHub aberto com o resumo. A Issue só será publicada se você confirmar no site.");
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception
             or InvalidOperationException or System.Security.SecurityException)
         {
-            Status("Não foi possível abrir o navegador. O diagnóstico não foi enviado.");
+            Status("Não foi possível abrir o navegador. Nenhuma Issue foi criada pelo programa.");
         }
     }
 

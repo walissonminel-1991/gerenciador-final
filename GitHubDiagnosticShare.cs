@@ -68,7 +68,7 @@ internal static class GitHubDiagnosticShare
             body.AppendLine();
             body.AppendLine("### Observações");
             body.AppendLine("Se desejar, descreva o problema SEM publicar dados pessoais, arquivos ou logs completos.");
-            body.AppendLine("Este formulário é enviado somente após sua confirmação no GitHub.");
+            body.AppendLine("A Issue só é publicada após sua confirmação no GitHub.");
             string title = "[GF Diagnostico] " + gfVersion + " - resumo voluntario";
             string url = RepositoryIssuesUrl + "?title=" + Uri.EscapeDataString(title) +
                 "&body=" + Uri.EscapeDataString(body.ToString());

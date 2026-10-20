@@ -5,6 +5,7 @@
 - Revisão no GitHub usa o resumo da sessão atual ou, sem eventos novos, o relatório local anterior ainda válido, preservando sua versão original.
 - Pendências são revalidadas por tamanho, conteúdo permitido e prazo de sete dias também ao abrir a revisão.
 - Revogar interrompe a coleta imediatamente nesta sessão mesmo quando o disco impede gravar a preferência; falhas de gravação/exclusão são informadas sem afirmar sucesso.
+- Aviso antes de abrir o navegador explica que a URL já transmite o resumo ao GitHub; criar a Issue pública ainda exige confirmação no site.
 - Regressões para retomada, prioridade da sessão atual, adulteração, expiração durante a execução e falhas de disco.
 - Publicação continua manual no GitHub; testes reais/AVG e automação por IA continuam pendentes.
 
