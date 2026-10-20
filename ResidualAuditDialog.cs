@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace GerenciadorAplicativos;
@@ -56,19 +57,8 @@ internal sealed class ResidualAuditDialog : Form
             details += "\r\n\r\nComponentes relacionados que ainda aparecem instalados:\r\n" +
                 string.Join("\r\n", report.RelatedRegisteredPrograms.Select(n => "• " + n)) +
                 "\r\nEsses componentes NÃO são classificados como resíduos.";
-        var text = new TextBox
-        {
-            Dock = DockStyle.Fill,
-            Multiline = true,
-            ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical,
-            WordWrap = true,
-            Text = details,
-            BackColor = Color.FromArgb(30, 39, 50),
-            ForeColor = Color.FromArgb(229, 237, 246),
-            BorderStyle = BorderStyle.FixedSingle,
-            Font = new Font("Segoe UI", 9.5F)
-        };
+        var text = new DarkLogView { Dock = DockStyle.Fill };
+        text.SetText(details);
         layout.Controls.Add(text, 0, 1);
 
         var bar = new FlowLayoutPanel
@@ -88,6 +78,23 @@ internal sealed class ResidualAuditDialog : Form
         AcceptButton = close;
         CancelButton = close;
     }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        try
+        {
+            int enabled = 1;
+            if (DwmSetWindowAttribute(Handle, 20, ref enabled, 4) != 0)
+                DwmSetWindowAttribute(Handle, 19, ref enabled, 4);
+        }
+        catch (DllNotFoundException) { }
+        catch (EntryPointNotFoundException) { }
+    }
+
+    [DllImport("dwmapi.dll", ExactSpelling = true)]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr hwnd, int attribute, ref int value, int size);
 
     internal static void ShowHistoricalResults(IWin32Window owner,
         IReadOnlyList<ResidualAuditReport> historical)
