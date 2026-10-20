@@ -393,7 +393,7 @@ internal sealed class Fixture(bool failMozilla = false, bool badTags = false, in
             if (tag is not null)
                 return new HttpResponseMessage(HttpStatusCode.OK)
                 {
-                    Content = new StringContent("{\\"tag_name\\":\\"" + tag + "\\"}")
+                    Content = new StringContent("{\"tag_name\":\"" + tag + "\"}")
                 };
         }
         if (failMozilla && uri.Host == "product-details.mozilla.org")
