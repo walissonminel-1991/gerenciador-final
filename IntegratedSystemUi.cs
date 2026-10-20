@@ -473,7 +473,7 @@ internal sealed partial class MainForm
         int columns = _activeSystemView == "startup"
             ? StartupCardLayout.ColumnsForSpace(space)
             : space >= 720 ? 2 : 1;
-        int cardWidth = Math.Max(250, space / columns - 17);
+        int cardWidth = StartupCardLayout.CardWidth(space, columns);
         flow.SuspendLayout();
         try
         {
