@@ -67,13 +67,29 @@ internal sealed partial class MainForm
         actionPanel.Controls.Add(refresh, 0, 0);
         _toolTips.SetToolTip(refresh,
             "Consulta os drivers associados aos dispositivos por WMI. Não instala, atualiza nem remove.");
-        actionPanel.Controls.Add(new Label
+        var actionInfo = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
+        var actionHint = new Label
         {
             Dock = DockStyle.Fill, ForeColor = Muted,
             Text = "Consulta local, somente leitura. Nenhuma alteração em drivers.",
-            TextAlign = ContentAlignment.MiddleLeft,
-            AutoEllipsis = true
-        }, 1, 0);
+            TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true
+        };
+        var compactFilter = new ComboBox
+        {
+            Name = "DriverCompactFilter", Dock = DockStyle.Fill,
+            BackColor = Color.FromArgb(37, 48, 61), ForeColor = Ink,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            FlatStyle = FlatStyle.Flat,
+            Visible = false, Margin = Padding.Empty
+        };
+        compactFilter.Items.AddRange(new object[]
+            { "Todos", "Presentes", "Não confirmados" });
+        compactFilter.SelectedIndex = 0;
+        _toolTips.SetToolTip(compactFilter,
+            "Filtro apenas visual; sem atualização ou remoção de drivers.");
+        actionInfo.Controls.Add(actionHint);
+        actionInfo.Controls.Add(compactFilter);
+        actionPanel.Controls.Add(actionInfo, 1, 0);
         root.Controls.Add(actionPanel, 0, 1);
 
         var heading = new TableLayoutPanel
@@ -187,6 +203,14 @@ internal sealed partial class MainForm
         all.Click += (_, _) => { activeFilter = "Todos"; Render(); };
         present.Click += (_, _) => { activeFilter = "Presentes"; Render(); };
         other.Click += (_, _) => { activeFilter = "Não confirmados"; Render(); };
+        compactFilter.SelectedIndexChanged += (_, _) =>
+        {
+            if (compactFilter.SelectedItem is string selected)
+            {
+                activeFilter = selected;
+                Render();
+            }
+        };
         refresh.Click += async (_, _) =>
         {
             if (_driverReadTask is { IsCompleted: false })
@@ -242,13 +266,19 @@ internal sealed partial class MainForm
         void FitVerticalSpace()
         {
             if (root.IsDisposed) return;
+            bool tiny = root.ClientSize.Height < 230;
             bool compact = root.ClientSize.Height < 360;
-            root.RowStyles[0].Height = compact ? 30 : 35;
-            root.RowStyles[1].Height = compact ? 36 : 44;
-            root.RowStyles[2].Height = compact ? 29 : 33;
-            root.RowStyles[4].Height = compact ? 31 : 67;
+            root.RowStyles[0].Height = tiny ? 28 : compact ? 30 : 35;
+            root.RowStyles[1].Height = tiny ? 31 : compact ? 36 : 44;
+            root.RowStyles[2].Height = tiny ? 0 : compact ? 29 : 33;
+            root.RowStyles[4].Height = tiny ? 22 : compact ? 31 : 67;
             footer.RowStyles[0].Height = compact ? 100 : 55;
             footer.RowStyles[1].Height = compact ? 0 : 45;
+            heading.Visible = !tiny;
+            actionHint.Visible = !tiny;
+            compactFilter.Visible = tiny;
+            if (tiny && compactFilter.SelectedItem is string current && current != activeFilter)
+                compactFilter.SelectedItem = activeFilter;
             history.Visible = !compact;
             state.AccessibleDescription = state.Text + Environment.NewLine +
                 history.Text + Environment.NewLine + history.AccessibleDescription;
