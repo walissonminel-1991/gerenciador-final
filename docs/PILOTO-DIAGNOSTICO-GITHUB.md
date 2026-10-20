@@ -1,6 +1,6 @@
-# Piloto GitHub-only — diagnóstico colaborativo v5.13.11.3
+# Piloto GitHub-only — diagnóstico colaborativo v5.13.11.4
 
-Estado: **prévia para revisão**; não publica automaticamente relatórios nem usa tokens. A base local voluntária da v5.13.11.1 é pré-requisito. A v5.13.11.3 adiciona um formulário pré-preenchido de Issue pública, para o próprio participante conferir e publicar.
+Estado: **prévia para revisão**; não publica automaticamente relatórios nem usa tokens. A base local voluntária da v5.13.11.1 é pré-requisito. A v5.13.11.4 adiciona um formulário pré-preenchido de Issue pública, para o próprio participante conferir e publicar.
 
 ## Experiência para participantes
 
@@ -45,3 +45,5 @@ A revisão prefere os eventos da sessão atual. Sem eventos novos, usa a única 
 Revogar para a coleta imediatamente nesta sessão. Se não for possível persistir a preferência ou apagar a pendência, o programa informa a falha; a preferência deve ser revista na próxima abertura. Não há promessa de exclusão quando o Windows impede a operação.
 
 Na simulação, conferir recusa sem perda de ferramentas, aceite, cancelamento no GF e no navegador, revisão após reabrir, publicação manual (opcional e pública), revogação e ausência de dados pessoais. A publicação de uma Issue não ativa análise por IA nem prepara uma versão automaticamente.
+
+A revisão v5.13.11.4 também preserva a pendência após uma sessão vazia e as contagens ao reafirmar consentimento já ativo. Expiração bloqueia a revisão independentemente do sucesso da exclusão. O aceite é carregado somente de um arquivo de consentimento válido e sem campos adicionais/repetidos.

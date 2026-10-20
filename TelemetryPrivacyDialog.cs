@@ -39,7 +39,7 @@ internal sealed class TelemetryPrivacyDialog : Form
             Text = "O GERENCIADOR FINAL está em desenvolvimento. Você pode colaborar " +
                    "com o diagnóstico de bugs sem compartilhar dados pessoais.\n\n" +
                    "Esta etapa registra somente a versão do GF, o encerramento e " +
-                   "contagens por categoria de erro. Não recolhe nomes de programas, " +
+                   "contagens de eventos técnicos. Não recolhe nomes de programas, " +
                    "arquivos, comandos, IP, caminhos, IDs de dispositivos ou dados de uso pessoal.\n\n" +
                    "IMPORTANTE: nenhuma informação será enviada automaticamente. " +
                    "É possível revisar um resumo e publicá-lo manualmente no GitHub; " +

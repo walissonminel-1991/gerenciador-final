@@ -48,16 +48,20 @@ internal sealed class AnonymousTelemetry
             if (!File.Exists(ConsentFile) || new FileInfo(ConsentFile).Length > 512)
                 return TelemetryConsent.NotAsked;
             using var json = JsonDocument.Parse(File.ReadAllText(ConsentFile));
-            if (json.RootElement.TryGetProperty("schema", out var schema) &&
-                schema.GetInt32() == 1 &&
-                json.RootElement.TryGetProperty("state", out var value) &&
-                value.ValueKind == JsonValueKind.Number)
-                return value.GetInt32() switch
-                {
-                    1 => TelemetryConsent.Declined,
-                    2 => TelemetryConsent.LocalOnly,
-                    _ => TelemetryConsent.NotAsked
-                };
+            var root = json.RootElement;
+            // Falha fechada: nao aceitar campos extras, chaves repetidas ou tipos ambiguos.
+            if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count() != 2 ||
+                !root.TryGetProperty("schema", out var schema) ||
+                schema.ValueKind != JsonValueKind.Number || !schema.TryGetInt32(out int schemaValue) || schemaValue != 1 ||
+                !root.TryGetProperty("state", out var value) ||
+                value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int state))
+                return TelemetryConsent.NotAsked;
+            return state switch
+            {
+                1 => TelemetryConsent.Declined,
+                2 => TelemetryConsent.LocalOnly,
+                _ => TelemetryConsent.NotAsked
+            };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
             JsonException or InvalidOperationException or FormatException or OverflowException or System.Security.SecurityException) { }
@@ -72,6 +76,7 @@ internal sealed class AnonymousTelemetry
         {
             // Revogar interrompe a coleta mesmo se o disco impedir a persistencia.
             // O retorno ainda informa falhas de gravacao ou exclusao para a interface.
+            bool preserveEvents = consent == TelemetryConsent.LocalOnly && Consent == consent;
             bool deleted = true;
             if (consent == TelemetryConsent.Declined)
             {
@@ -84,7 +89,7 @@ internal sealed class AnonymousTelemetry
                 Directory.CreateDirectory(_folder);
                 WriteAtomic(ConsentFile, JsonSerializer.Serialize(new { schema = 1, state = (int)consent }));
                 Consent = consent;
-                _events.Clear();
+                if (!preserveEvents) _events.Clear();
                 return deleted;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
@@ -121,11 +126,11 @@ internal sealed class AnonymousTelemetry
         lock (_gate)
         {
             if (Consent != TelemetryConsent.LocalOnly) return null;
-            if (_events.Count > 0) return Serialize(version, normalExit: false);
             ExpirePendingReport();
+            if (_events.Count > 0) return Serialize(version, normalExit: false);
             try
             {
-                if (!File.Exists(PendingFile) || new FileInfo(PendingFile).Length > 4096)
+                if (!File.Exists(PendingFile) || new FileInfo(PendingFile).Length > 4096 || PendingHasExpired())
                     return null;
                 string pending = File.ReadAllText(PendingFile);
                 return GitHubDiagnosticShare.CreateReviewUrl(pending) is not null ? pending : null;
@@ -139,8 +144,7 @@ internal sealed class AnonymousTelemetry
     {
         // Versao validada para impedir campos arbitrarios. Sem ID de sessao,
         // hostname, IP, caminhos, inventario, timestamps ou eventos detalhados.
-        if (version.Length > 30 || !System.Text.RegularExpressions.Regex.IsMatch(
-            version, @"^v[0-9]+(?:\.[0-9]+){3}$"))
+        if (!GitHubDiagnosticShare.IsValidVersion(version))
             version = "versao-indisponivel";
         return JsonSerializer.Serialize(new
         {
@@ -156,6 +160,8 @@ internal sealed class AnonymousTelemetry
         lock (_gate)
         {
             if (Consent != TelemetryConsent.LocalOnly) return false;
+            // Uma sessao sem eventos nao apaga a pendencia util da sessao anterior.
+            if (_events.Count == 0) { ExpirePendingReport(); return false; }
             try
             {
                 Directory.CreateDirectory(_folder);
@@ -178,11 +184,14 @@ internal sealed class AnonymousTelemetry
         {
             if (!File.Exists(PendingFile)) return;
             if (Consent != TelemetryConsent.LocalOnly ||
-                DateTime.UtcNow - File.GetLastWriteTimeUtc(PendingFile) > TimeSpan.FromDays(7))
+                PendingHasExpired())
                 TryDelete(PendingFile);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
     }
+
+    private bool PendingHasExpired() =>
+        DateTime.UtcNow - File.GetLastWriteTimeUtc(PendingFile) > TimeSpan.FromDays(7);
 
     private static bool TryDelete(string path)
     {

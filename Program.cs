@@ -151,7 +151,7 @@ internal static class AppServices
         Encoding commandEncoding = GetCommandEncoding();
         var psi = new ProcessStartInfo
         {
-            FileName = fileName,
+            FileName = WindowsSystemTools.Resolve(fileName),
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,

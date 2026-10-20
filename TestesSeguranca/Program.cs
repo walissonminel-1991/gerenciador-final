@@ -20,3 +20,23 @@ Check(results[0].Category == "Protecao antivirus" &&
 Check(results.All(x => Enum.IsDefined(x.Level) && x.Description.Length > 0),
     "retorno sempre seguro");
 Console.WriteLine("OK: consulta agregada WSC somente leitura e mapeamento conservador.");
+
+foreach (string invalid in new[] { "cmd.exe", "powershell.exe", @"C:\Fake\net.exe", @"..\net.exe", "net.exe /stop", "https://example.com/net.exe" })
+{
+    bool denied = false;
+    try { WindowsSystemTools.Resolve(invalid); }
+    catch (ArgumentException) { denied = true; }
+    Check(denied, "comando/caminho arbitrario bloqueado: " + invalid);
+}
+if (OperatingSystem.IsWindows())
+{
+    string system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+    foreach (string name in new[] { "powercfg.exe", "net.exe", "cleanmgr.exe", "dism.exe", "sfc.exe", "ipconfig.exe", "netsh.exe", "defrag.exe", "taskmgr.exe" })
+    {
+        string resolved = WindowsSystemTools.Resolve(name);
+        Check(Path.IsPathFullyQualified(resolved) && Path.GetDirectoryName(resolved) == system &&
+            Path.GetFileName(resolved) == name,
+            "ferramenta vinculada a pasta do Windows sem execucao: " + name);
+    }
+}
+Console.WriteLine("OK: ferramentas internas limitadas ao caminho de sistema, sem executar comandos administrativos.");

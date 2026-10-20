@@ -110,7 +110,7 @@ internal sealed partial class MainForm
         taskManager.Margin = new Padding(1, 2, 1, 2);
         taskManager.Click += (_, _) =>
         {
-            try { Process.Start(new ProcessStartInfo("taskmgr.exe") { UseShellExecute = true }); }
+            try { Process.Start(new ProcessStartInfo(WindowsSystemTools.Resolve("taskmgr.exe")) { UseShellExecute = true }); }
             catch (Exception ex) { ReportError(ex); }
         };
         _actionControls.Add(taskManager);

@@ -26,6 +26,10 @@ try
     tracker.Record("JANELA.BANDEJA_RESTAURAR.INICIO");
     for (int i = 0; i < 120; i++)
         tracker.Record("JANELA.BANDEJA_RESTAURAR.FIM");
+    Verify(tracker.SetConsent(TelemetryConsent.LocalOnly) &&
+        JsonDocument.Parse(tracker.Preview("v5.13.11.4", false)).RootElement
+            .GetProperty("counts").GetProperty("REGISTRO_PROGRAMAS.FALHA").GetInt32() == 2,
+        "Reconfirmar consentimento ativo preserva ocorrencias ja coletadas");
     Verify(tracker.SaveOnNormalExit("v5.13.11.1"), "Relatorio salvo apenas ao encerrar");
     string json = File.ReadAllText(tracker.PendingFile);
     Verify(!json.Contains("Privado") && !json.Contains("segredo") &&
@@ -85,6 +89,10 @@ try
 
     Verify(restarted.ReviewableReport("v5.13.11.3") == File.ReadAllText(restarted.PendingFile),
         "Reabertura permite revisar pendencia anterior com sua versao original");
+    string previousReport = File.ReadAllText(restarted.PendingFile);
+    Verify(!restarted.SaveOnNormalExit("v5.13.11.4") &&
+        File.ReadAllText(restarted.PendingFile) == previousReport,
+        "Encerrar sessao vazia preserva pendencia util anterior");
     restarted.Record("DESINSTALACAO.FALHA");
     using (var current = JsonDocument.Parse(restarted.ReviewableReport("v5.13.11.3")!))
         Verify(current.RootElement.GetProperty("version").GetString() == "v5.13.11.3" &&
@@ -139,6 +147,45 @@ try
     Verify(!lockedReport.SetConsent(TelemetryConsent.Declined) &&
         lockedReport.Consent == TelemetryConsent.Declined,
         "Falha de exclusao e informada sem manter coleta ativa");
+    string invalidConsentFolder = Path.Combine(temp, "invalid-consent");
+    Directory.CreateDirectory(invalidConsentFolder);
+    foreach (string invalid in new[]
+    {
+        "[]", "null", "{\"schema\":1,\"state\":2,\"extra\":true}",
+        "{\"schema\":1,\"state\":1,\"state\":2}",
+        "{\"schema\":1,\"schema\":1,\"state\":2}",
+        "{\"schema\":1,\"state\":99999999999999999}",
+        "{\"schema\":1,\"state\":\"2\"}", "{\"schema\":2,\"state\":2}"
+    })
+    {
+        File.WriteAllText(Path.Combine(invalidConsentFolder, "consentimento-v1.json"), invalid);
+        var invalidTracker = new AnonymousTelemetry(invalidConsentFolder);
+        Verify(invalidTracker.Consent == TelemetryConsent.NotAsked &&
+            !invalidTracker.SaveOnNormalExit("v5.13.11.4"),
+            "Consentimento ambiguo ou adulterado nao ativa coleta: " + invalid);
+    }
+    string trailingNewline = JsonSerializer.Serialize(new
+    {
+        schema = 1, version = "v5.13.11.4\n", exit = "normal",
+        counts = new Dictionary<string, int> { ["MSIX.LEITURA"] = 1 }
+    });
+    Verify(GitHubDiagnosticShare.CreateReviewUrl(trailingNewline) is null,
+        "Versao com quebra de linha final e rejeitada");
+
+    if (OperatingSystem.IsWindows())
+    {
+        var expiring = new AnonymousTelemetry(Path.Combine(temp, "locked-expiry"));
+        expiring.SetConsent(TelemetryConsent.LocalOnly);
+        expiring.Record("APP.FALHA_INTERFACE");
+        expiring.SaveOnNormalExit("v5.13.11.4");
+        var expiredReader = new AnonymousTelemetry(Path.Combine(temp, "locked-expiry"));
+        File.SetLastWriteTimeUtc(expiring.PendingFile, DateTime.UtcNow.AddDays(-8));
+        using (var readLock = new FileStream(expiring.PendingFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+            Verify(expiredReader.ReviewableReport("v5.13.11.4") is null && File.Exists(expiring.PendingFile),
+                "Relatorio expirado nao pode ser revisado mesmo quando o Windows impede sua exclusao");
+        Verify(expiredReader.ReviewableReport("v5.13.11.4") is null && !File.Exists(expiring.PendingFile),
+            "Relatorio expirado e apagado quando o bloqueio termina");
+    }
     Console.WriteLine("OK: privacidade, retomada, expiracao e falhas de disco; nenhuma rede foi usada.");
 }
 finally

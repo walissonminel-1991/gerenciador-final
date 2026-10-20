@@ -758,6 +758,21 @@ finally
 }
 Check(AdvancedUninstallCleaner.Inspect(new[] { sumatra, notepad }).Count == 0,
     "Modo profundo não apresenta programa ainda instalado");
+// Revalidar o disco nao amplia o consentimento dado no dialogo anterior.
+var originallyAccepted = new DeepCleanItem(sumatra,
+    new[] { @"C:\Approved", @"C:\NoLongerPresent" },
+    new[] { @"Software\Approved", @"Software\NoLongerPresent" }, 1, 0);
+var afterDialog = new DeepCleanItem(sumatra,
+    new[] { @"C:\Approved", @"C:\AppearedAfterConsent" },
+    new[] { @"Software\Approved", @"Software\AppearedAfterConsent" }, 2, 0);
+var restricted = AdvancedUninstallCleaner.RestrictToAccepted(originallyAccepted, afterDialog);
+Check(restricted.Folders.SequenceEqual(new[] { @"C:\Approved" }) &&
+    restricted.RegistryKeys.SequenceEqual(new[] { @"Software\Approved" }),
+    "Novas pastas/chaves apos confirmacao ficam preservadas; alvos desaparecidos nao reaparecem");
+var emptyApproval = originallyAccepted with { Folders = Array.Empty<string>(), RegistryKeys = Array.Empty<string>() };
+var nothingApproved = AdvancedUninstallCleaner.RestrictToAccepted(emptyApproval, afterDialog);
+Check(nothingApproved.Folders.Count == 0 && nothingApproved.RegistryKeys.Count == 0,
+    "Confirmacao sem alvos nao autoriza limpar novos residuos");
 Console.WriteLine("Testes do catálogo de desinstalação embarcado.");
 var rules = UninstallRuleCatalog.Rules;
 Check(rules.Count == 6, "Seis políticas específicas validadas e incorporadas ao executável");

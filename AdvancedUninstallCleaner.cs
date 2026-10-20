@@ -240,6 +240,15 @@ internal static class AdvancedUninstallCleaner
             or IOException or ArgumentException) { return false; }
     }
 
+    // Uma nova pasta/chave surgida depois do dialogo precisa de nova autorizacao.
+    // A lista atual limita a politica; a lista aceita limita o consentimento.
+    internal static DeepCleanItem RestrictToAccepted(DeepCleanItem accepted, DeepCleanItem current) =>
+        current with
+        {
+            Folders = current.Folders.Where(p => accepted.Folders.Contains(p, Compare)).ToArray(),
+            RegistryKeys = current.RegistryKeys.Where(k => accepted.RegistryKeys.Contains(k, Compare)).ToArray()
+        };
+
     internal static DeepCleanResult Clean(DeepCleanItem accepted,
         IReadOnlyCollection<ProgramEntry> currentInstalled)
     {
@@ -251,6 +260,7 @@ internal static class AdvancedUninstallCleaner
         var current = Inspect(currentInstalled).FirstOrDefault(x =>
             x.App.Name.Equals(accepted.App.Name, StringComparison.OrdinalIgnoreCase));
         if (current is null) return new(0, 0, 0, 0, 0);
+        current = RestrictToAccepted(accepted, current);
         int files = 0, dirs = 0, reg = 0, skipped = current.InaccessibleOrLinked, failed = 0;
         foreach (string folder in current.Folders)
         {

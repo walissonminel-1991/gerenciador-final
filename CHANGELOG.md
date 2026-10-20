@@ -1,5 +1,15 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.4 — auditoria de segurança, diagnóstico e consistência (TESTE)
+
+- Comandos internos Windows e Gerenciador de Tarefas usam caminhos absolutos da pasta de sistema, com lista fechada; evita procurar executáveis homônimos no diretório portátil/PATH.
+- Limpeza avançada só pode excluir pastas/chaves simultaneamente válidas na reconsulta e presentes na confirmação original.
+- Diagnóstico expirado não pode ser compartilhado quando sua exclusão é bloqueada pelo Windows; sessão vazia preserva pendência anterior.
+- Reaceitar coleta já ativa preserva contagens; consentimento inválido/ambíguo e versão com quebra de linha são recusados.
+- Roadmap reconciliado: a checklist publicada contém 27/42 checkpoints (64,3%), diferente do resumo histórico 30/45. Evidências de monitoramento atualizadas para o painel RAM.
+- Regressões para comandos, escopo autorizado, consentimento, retomada e expiração; relatório em docs/AUDITORIA-v5.13.11.4.md.
+
+
 ## v5.13.11.3 — retomada e revogação do diagnóstico (TESTE)
 
 - Revisão no GitHub usa o resumo da sessão atual ou, sem eventos novos, o relatório local anterior ainda válido, preservando sua versão original.

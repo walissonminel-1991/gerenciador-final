@@ -1,17 +1,24 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Auditoria — v5.13.11.4 TESTE (20/10/2026)
+
+Progresso recalculado a partir das sete áreas abaixo: **27 de 42 checkpoints (64,3%)**. Os complementos de diagnóstico/CI são frentes adicionais e não entram implicitamente nesse denominador. O número antigo 30/45 era inconsistente com os itens publicados.
+
+Correções desta revisão: comandos internos vinculados à pasta de sistema, limpeza avançada restrita aos alvos aceitos, rejeição de diagnóstico expirado mesmo se sua exclusão falhar, preservação de pendência após sessão vazia e consentimento ativo idempotente. Acrescentadas regressões. O resultado final da validação Windows e do pacote é registrado no PR #40. Relatório: [AUDITORIA-v5.13.11.4.md](AUDITORIA-v5.13.11.4.md).
+
+
 ## Continuidade — diagnóstico v5.13.11.3 TESTE (20/10/2026)
 
 Estado confirmado: `main` na v5.13.11.0 candidata; PR #38 com coleta local e PR #40 com revisão pública no GitHub. O CI Windows da v5.13.11.2 passou (run 39444626580). Nenhuma dessas evidências comprova testes nos dois PCs nem resolve o AVG.
 
 - [x] Consentimento local e formulário público manual implementados na branch do PR #40.
 - [x] Corrigidas retomada de pendência e interrupção da coleta ao revogar com falha de disco; testes adicionados na v5.13.11.3.
-- [ ] Aprovar compilação e regressões Windows da v5.13.11.3.
+- [x] Aprovar compilação e regressões Windows da v5.13.11.3. Evidência: runs 39450808920 e 39450809136; revisão ec8c1ce.
 - [ ] Simular novo participante: cadastro/login GitHub no navegador, recusa, aceite, coleta, revisão, cancelamento/publicação manual e revogação. Conferir também reinício e relatório anterior.
 - [ ] Validar AVG e experiência nos dois PCs antes de publicação estável.
 - [ ] Implementar triagem/agrupamento e PRs por IA com testes e revisão. Ainda não há manutenção autônoma, envio automático ou exclusão garantida de Issues públicas.
 
-O marcador original permanece **30/45 checkpoints (67%)**. Este complemento não altera checkpoints dependentes de hardware real.
+A checklist atualmente publicada soma **27/42 checkpoints (64,3%)**. O número 30/45 (67%) foi mantido de um resumo anterior e não corresponde à lista atual; fica registrado apenas como referência histórica. Esta correção é contábil e não comprova avanços nos computadores.
 
 
 ## Complemento — v5.13.11.2 TESTE: piloto GitHub-only
@@ -20,11 +27,11 @@ Com a conta GitHub do colaborador, o aplicativo oferece formulário pré-preench
 
 ## Complemento de desenvolvimento — v5.13.11.1 TESTE: diagnóstico local voluntário
 
-Uma nova frente de privacidade foi iniciada com opção de consentimento, eventos agregados em allowlist, um relatório local rotativo e revogação. **Envio remoto não está implantado**; sua ativação exigirá consentimento separado e avaliação de segurança. Consulte [DIAGNOSTICO-COLABORATIVO.md](DIAGNOSTICO-COLABORATIVO.md). Isso não altera os 30/45 checkpoints originais.
+Uma nova frente de privacidade foi iniciada com opção de consentimento, eventos agregados em allowlist, um relatório local rotativo e revogação. **Envio remoto não está implantado**; sua ativação exigirá consentimento separado e avaliação de segurança. Consulte [DIAGNOSTICO-COLABORATIVO.md](DIAGNOSTICO-COLABORATIVO.md). O resumo histórico de 30/45 foi reconciliado com a checklist atual: 27/42.
 
 ## Complemento de desenvolvimento — v5.13.11.0 CANDIDATA (20/10/2026)
 
-O marcador original de 30/45 checkpoints (67%) permanece inalterado: testes de código e aprovação em hardware real não são equivalentes. A partir de v5.13.10.19, novas entregas em branches de desenvolvimento incluem revisão de resíduos do Driver Booster, diagnóstico de AVG/MSIX, painel de RAM e otimização conservadora de cache do próprio aplicativo, SHA-256 e identificação versionada de pacotes.
+O resumo anterior informava 30/45 checkpoints (67%); a auditoria de 20/10 contou 27/42 na checklist abaixo. Testes de código e aprovação em hardware real não são equivalentes. A partir de v5.13.10.19, novas entregas em branches de desenvolvimento incluem revisão de resíduos do Driver Booster, diagnóstico de AVG/MSIX, painel de RAM e otimização conservadora de cache do próprio aplicativo, SHA-256 e identificação versionada de pacotes.
 
 A candidata v5.13.11.0 acrescenta **quatro fontes oficiais verificadas** (ShareX, HandBrake, Rufus e qBittorrent), totalizando 18 fontes oficiais de versões com identidade vinculada, além do catálogo RuckZuck. Inclui bateria automatizada consolidada de verificações de fontes, identidade, atualização, segurança e UI. As fontes novas são apenas consultivas; não constituem receitas de instalação nem conferem assinatura dos pacotes.
 
@@ -83,9 +90,9 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 
 ### Desempenho e estabilidade — 4/6 (67%)
 
-- [x] P1 — Cadência de monitoramento conforme visibilidade. Evidência: ProcessSamplingPolicy.cs v5.13.10.16
+- [x] P1 — Cadência de monitoramento conforme visibilidade. Evidência atual: IntegratedSystemUi.UpdateProcessSamplingCadence e ProcessSamplingPolicy.cs; amostragem global de RAM.
 - [x] P2 — Consultas de caminhos fora da interface. Evidência: Program.cs v5.13.10.17
-- [x] P3 — Atualização incremental e registro em lotes. Evidência: ProcessMonitorUi.cs; DarkControls.cs
+- [x] P3 — Atualização incremental e registro em lotes. Evidência atual: MemoryRamDashboard.cs; DarkControls.cs. A antiga tabela de processos foi substituída pelo acesso ao Gerenciador de Tarefas do Windows.
 - [x] P4 — Regressões de monitoramento e bandeja aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] P5 — Medir tempo de abertura, CPU e RAM nos computadores. Evidência: Validação presencial adiada
 - [ ] P6 — Diagnosticar bloqueio AVG e verificar estabilidade real. Evidência: Causa e resolução ainda não comprovadas
@@ -132,7 +139,7 @@ A gestão de drivers permanece não implementada: fontes oficiais, compatibilida
 - A CI não executa instaladores reais de aplicativos, não valida fontes online ao vivo e não comprova compatibilidade universal.
 - A tabela de drivers não enumera todo o Driver Store e não permite instalar, remover ou reverter pacotes.
 - Identidade alterada por um instalador permanece indeterminada, mesmo quando a atualização pode ter funcionado.
-- As alterações estão numa branch de teste; a branch principal não foi substituída.
+- A `main` contém a candidata v5.13.11.0. As correções posteriores estão na branch do PR #40 até sua integração.
 - A lista tem escopo explícito e pode crescer com novos achados. Seus percentuais não medem a proporção de todo o produto pronta.
 
 ## Manutenção da CI — 20/10/2026

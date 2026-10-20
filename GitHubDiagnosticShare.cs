@@ -11,7 +11,10 @@ internal static class GitHubDiagnosticShare
     internal const string RepositoryIssuesUrl =
         "https://github.com/walissonminel-1991/gerenciador-final/issues/new";
     private static readonly Regex VersionPattern =
-        new(@"^v[0-9]{1,3}(?:\.[0-9]{1,4}){3}$", RegexOptions.CultureInvariant);
+        new(@"^v[0-9]{1,3}(?:\.[0-9]{1,4}){3}\z", RegexOptions.CultureInvariant);
+
+    internal static bool IsValidVersion(string? version) =>
+        version is not null && VersionPattern.IsMatch(version);
 
     // Esta URL nunca dispara criacao de Issue: so abre o formulario do GitHub.
     // Valida tudo outra vez, embora AnonymousTelemetry gere o JSON local.
@@ -29,7 +32,7 @@ internal static class GitHubDiagnosticShare
                 schema.ValueKind != JsonValueKind.Number || schema.GetInt32() != 1 ||
                 !root.TryGetProperty("version", out var version) ||
                 version.ValueKind != JsonValueKind.String ||
-                !VersionPattern.IsMatch(version.GetString() ?? "") ||
+                !IsValidVersion(version.GetString()) ||
                 !root.TryGetProperty("exit", out var exit) ||
                 exit.ValueKind != JsonValueKind.String ||
                 exit.GetString() is not ("normal" or "incompleto") ||
