@@ -35,8 +35,9 @@ internal sealed class ResidualAuditDialog : Form
             ? "A análise encontrou dados de fabricantes, possíveis instalações e vestígios sem confirmação. " +
               "Eles podem pertencer a programas ou jogos ativos. Nenhum item será apagado."
             : report.UninstallConfirmed
-                ? $"A remoção de {report.Product} foi confirmada. A análise encontrou " +
-                  "possíveis dados remanescentes, que NÃO serão excluídos automaticamente."
+                ? $"O registro de desinstalação de {report.Product} não está mais presente. " +
+                  "O desinstalador do fabricante ainda pode estar aberto. " +
+                  "Os possíveis vestígios abaixo NÃO serão excluídos automaticamente."
                 : $"{report.Product} ainda aparece instalado ou possui registros associados. " +
                   "Os itens abaixo são apenas informativos. Nenhuma exclusão será autorizada.";
 
@@ -110,6 +111,8 @@ internal sealed class ResidualAuditDialog : Form
                 ? "INSTALAÇÃO A CONFERIR"
                 : kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal)
                 ? "PERFIL DE FABRICANTE / JOGOS — PRESERVAR"
+                : report.Product == "WinMerge"
+                ? "VESTÍGIOS ESPECÍFICOS — PRESERVAR / CONFERIR"
                 : report.Historical ? "DADOS HISTÓRICOS PARA REVISÃO" : "OUTROS DADOS";
             string locations = string.Join("\r\n", report.Findings.Select(f => "  • " + f.Location));
             string advisory = report.Findings.FirstOrDefault()?.Evidence ?? "";
