@@ -115,8 +115,7 @@ internal static class ResidualAudit
         IReadOnlyCollection<ProgramEntry> installed)
     {
         bool stillPresent = installed.Any(p =>
-            Regex.IsMatch(p.Name.Trim(),
-                @"^WinMerge(?:\s+(?:x64|x86|64-bit|32-bit))?$",
+            Regex.IsMatch(p.Name.Trim(), @"^WinMerge(?:$|[\s\(])",
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
         if (stillPresent)
             return new("WinMerge", false, [], [], Historical: true);
