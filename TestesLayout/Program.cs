@@ -14,6 +14,8 @@ internal static class LayoutTests
             null, TimeSpan.FromMinutes(4), Timeout.InfiniteTimeSpan);
         Application.EnableVisualStyles();
 
+        if (DiagnosticTrace.FormatVersion(new Version(5, 13, 10, 18)) != "v5.13.10.18")
+            throw new Exception("Diagnostico perdeu a revisao da compilacao.");
         TestStartupBounds();
         TestWorkspaceProportions();
         TestMonitorMathAndSampling();
@@ -60,11 +62,9 @@ internal static class LayoutTests
         Control placeholder = Descendants(form).SingleOrDefault(c =>
             c.Name == "DriversPlaceholder")
             ?? throw new Exception("Pagina DRIVERS ausente.");
-        if (!placeholder.Visible ||
-            Descendants(placeholder).Count(c =>
-                c.Name is "DriversPreviewCard0" or "DriversPreviewCard1" or "DriversPreviewCard2") != 3 ||
-            Descendants(placeholder).OfType<Button>().Any())
-            throw new Exception("DRIVERS precisa exibir tres paineis informativos sem acoes.");
+        if (!placeholder.Visible || Descendants(placeholder).OfType<Button>().Count() != 1 ||
+            !Descendants(placeholder).OfType<DataGridView>().Any(g => g.Name == "DriverInventoryGrid" && g.ReadOnly))
+            throw new Exception("DRIVERS precisa permitir apenas consulta e mostrar tabela somente leitura.");
         if (!Descendants(placeholder).OfType<Label>().Any(c =>
                 c.Text.Contains("nenhuma instalação, remoção ou alteração")))
             throw new Exception("Aviso de modulo futuro ausente.");
@@ -237,8 +237,8 @@ internal static class LayoutTests
                 // pagina deve permitir instalacao, remocao ou diagnostico.
                 if (tab == 1)
                 {
-                    if (Descendants(placeholder).OfType<Button>().Any())
-                        throw new Exception("DRIVERS ganhou uma acao prematura.");
+                    if (Descendants(placeholder).OfType<Button>().Any(b => b.Name != "DriverInventoryRefresh"))
+                        throw new Exception("DRIVERS ganhou uma acao diferente da consulta.");
                 }
                 else if (allButtons.Length == 0)
                     throw new Exception($"Nenhum botao apresentado: {name} {resolution} aba={tab}");
@@ -320,7 +320,7 @@ internal static class LayoutTests
         nav.SelectTab(5);
         Application.DoEvents();
         TestProcessGrid(form);
-        var monitorGrid = Descendants(form).OfType<FlickerFreeProcessGrid>().Single();
+        var monitorGrid = Descendants(form).OfType<FlickerFreeProcessGrid>().Single(g => g.Name != "DriverInventoryGrid");
         if (monitorGrid.ColumnHeadersHeight > 30 ||
             monitorGrid.RowTemplate.Height > 26 ||
             monitorGrid.ColumnHeadersDefaultCellStyle.SelectionBackColor !=
@@ -390,7 +390,7 @@ internal static class LayoutTests
 
     private static void TestProcessGrid(MainForm form)
     {
-        var grid = Descendants(form).OfType<FlickerFreeProcessGrid>().Single();
+        var grid = Descendants(form).OfType<FlickerFreeProcessGrid>().Single(g => g.Name != "DriverInventoryGrid");
         if (!grid.Visible || grid.Columns.Count != 5 ||
             !grid.Columns.Cast<DataGridViewColumn>().Select(c => c.HeaderText)
                 .SequenceEqual(new[] { "Processo", "PID", "CPU %", "RAM (MB)", "E/S (KB/s)" }))

@@ -329,6 +329,29 @@ internal static class VerifiedUpdaters
         return false;
     }
 
+    internal static bool ConfirmInstallation(VerifiedUpdateRecipe recipe, ProgramEntry original,
+        IEnumerable<ProgramEntry> current)
+    {
+        // Confirma a instalacao escolhida, nao outra copia do mesmo produto.
+        // Se o instalador trocar a identidade, manter resultado indeterminado.
+        if (string.IsNullOrWhiteSpace(original.InventoryId)) return false;
+        foreach (var entry in current)
+        {
+            if (!original.InventoryId.Equals(entry.InventoryId, StringComparison.OrdinalIgnoreCase) ||
+                !IsInstalledVersionAtLeast(recipe.Identifier, recipe.Version, new[] { entry })) continue;
+            if (recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
+            {
+                var installation = DetectSumatraInstallation(entry);
+                bool expectedX64 = recipe.Identifier == "sumatrapdf-x64-3.6.1";
+                bool expectedAllUsers = recipe.Arguments.Contains("-all-users", StringComparison.Ordinal);
+                if (installation is null || installation.Value.IsX64 != expectedX64 ||
+                    installation.Value.AllUsers != expectedAllUsers) continue;
+            }
+            return true;
+        }
+        return false;
+    }
+
     private static bool MatchesInstalledPublisher(string identifier, string publisher)
     {
         string[] allowed = identifier switch

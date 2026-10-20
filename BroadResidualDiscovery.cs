@@ -321,7 +321,7 @@ internal static class BroadResidualDiscovery
         IEnumerable<BroadResidualEvidence> raw,
         IReadOnlyCollection<ProgramEntry> installed,
         IReadOnlyCollection<string>? activeGameNames = null,
-        IReadOnlyCollection<string>? runningProcessNames = null)
+        IReadOnlyCollection<string>? runningProcessNames = null, bool inventoryIncomplete = false)
     {
         // Jogos Steam/Epic podem estar instalados sem entradas ARP. Nunca
         // classificar suas pastas ou preferencias como vestigios de remocao.
@@ -359,7 +359,7 @@ internal static class BroadResidualDiscovery
                 var findings = all.Take(MaxEvidencePerGroup)
                     .Select(e => new ResidualAuditFinding(e.Location,
                         status + " — " + e.Kind, 1,
-                        explanation + " Somente leitura.")).ToArray();
+                        explanation + (inventoryIncomplete ? " Inventário de proteção parcial; ausência não comprova remoção." : "") + " Somente leitura.")).ToArray();
                 return new
                 {
                     Group = group.First().Name,
@@ -378,7 +378,8 @@ internal static class BroadResidualDiscovery
     }
 
     internal static BroadResidualResult Inspect(IReadOnlyCollection<ProgramEntry> installed,
-        IReadOnlyCollection<string>? activeGameNames = null, bool gameInventoryPartial = false)
+        IReadOnlyCollection<string>? activeGameNames = null, bool gameInventoryPartial = false,
+        bool inventoryIncomplete = false)
     {
         var clock = Stopwatch.StartNew();
         var found = new List<BroadResidualEvidence>();
@@ -409,8 +410,8 @@ internal static class BroadResidualDiscovery
         var liveEvidence = ReadRunningProcessNames()
             .Concat(ReadRegisteredExecutableNames())
             .Distinct(Comparer).ToArray();
-        var reports = Classify(found, installed, activeGameNames, liveEvidence);
-        if (reports.Count >= MaxReportGroups || gameInventoryPartial) incomplete = true;
+        var reports = Classify(found, installed, activeGameNames, liveEvidence, inventoryIncomplete || gameInventoryPartial);
+        if (reports.Count >= MaxReportGroups || gameInventoryPartial || inventoryIncomplete) incomplete = true;
         return new(reports, rootsChecked, entries, restricted, incomplete);
     }
 }

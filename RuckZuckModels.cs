@@ -6,6 +6,10 @@ internal sealed record CatalogEntry(string ShortName, string ProductName, string
 internal enum MatchState { Candidate, EqualOrNewer, NotComparable, Unmatched, Ambiguous, DifferentMajor, SupersededRegistration }
 internal sealed record UpdateMatch(InstalledApp Installed, CatalogEntry? Catalog, MatchState State, string Provider = "RuckZuck")
 {
+    public string DiagnosticReason => !Installed.EligibleForUpdates
+        ? "SOMENTE INVENTÁRIO; SEM IDENTIDADE AUTORIZADA PARA ATUALIZAÇÃO"
+        : StateLabel;
+
     public string StateLabel => State switch
     {
         MatchState.Candidate => "POSSÍVEL ATUALIZAÇÃO",

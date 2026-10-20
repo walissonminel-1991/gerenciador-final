@@ -12,8 +12,9 @@ internal static class DiagnosticTrace
     // antiga quando o executavel muda. Nao grava caminhos pessoais no conteudo.
     private static readonly Version BuildVersion =
         typeof(DiagnosticTrace).Assembly.GetName().Version ?? new Version(0, 0, 0);
-    private static readonly string VersionLabel =
-        $"v{BuildVersion.Major}.{BuildVersion.Minor}.{Math.Max(BuildVersion.Build, 0)}";
+    internal static string FormatVersion(Version version) =>
+        $"v{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}.{Math.Max(version.Revision, 0)}";
+    private static readonly string VersionLabel = FormatVersion(BuildVersion);
     private static readonly string FileName =
         $"GerenciadorFinal-Diagnostico-{VersionLabel}.log";
     private static string? _logFile;

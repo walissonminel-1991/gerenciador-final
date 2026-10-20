@@ -56,8 +56,7 @@ internal static class MaintenanceAudit
             filename = match.Value;
         }
         filename = Expand(filename);
-        if (SystemUninstallers.Contains(filename) ||
-            SystemUninstallers.Contains(Path.GetFileName(filename))) return "available";
+        if (SystemUninstallers.Contains(filename)) return "available";
         if (!Path.IsPathFullyQualified(filename)) return "unknown";
         try
         {
@@ -80,9 +79,7 @@ internal static class MaintenanceAudit
         foreach (var app in apps)
         {
             if (!string.IsNullOrWhiteSpace(app.CatalogIdentity)) catalog++;
-            string state = CheckUninstaller(
-                string.IsNullOrWhiteSpace(app.UninstallString) ? app.QuietUninstallString : app.UninstallString,
-                app.InventoryOnly);
+            string state = CheckUninstallers(app);
             if (state == "available") good++;
             else if (state == "missing")
             {
@@ -96,6 +93,17 @@ internal static class MaintenanceAudit
                 unknown++;
         }
         return (apps.Count, catalog, good, missing, unknown, concerns);
+    }
+
+    internal static string CheckUninstallers(ProgramEntry app)
+    {
+        string normal = CheckUninstaller(app.UninstallString, app.InventoryOnly);
+        string quiet = CheckUninstaller(app.QuietUninstallString, app.InventoryOnly);
+        if (normal == "protected" || quiet == "protected") return "protected";
+        if (normal == "available" || quiet == "available") return "available";
+        if (normal == "unknown" || quiet == "unknown") return "unknown";
+        if (normal == "missing" || quiet == "missing") return "missing";
+        return "absent";
     }
 
     internal static bool ReviewDisconnectedDevice(bool? present, string? deviceClass,

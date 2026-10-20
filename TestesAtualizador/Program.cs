@@ -164,10 +164,18 @@ Verify(VerifiedUpdaters.Resolve(Item("SumatraPDF", "3.6.1", "3.6.1",
             Verify(actual64?.Identifier == "sumatrapdf-x64-3.6.1" &&
                    VerifiedUpdaters.GetPrimaryAction(installed) == "update",
                    "SumatraPDF instalado x64: botão Atualizar habilitado com arquitetura PE");
+            installed.InventoryId = "CurrentUser|Registry64|SumatraPDF";
+            var updatedSumatra = Item("SumatraPDF", "3.6.1", "", "Krzysztof Kowalczyk");
+            updatedSumatra.InventoryId = installed.InventoryId;
+            updatedSumatra.InstallLocation = standardRoot;
+            Verify(VerifiedUpdaters.ConfirmInstallation(actual64!, installed, new[] { updatedSumatra }), "Sumatra confirma arquitetura e escopo originais");
+            var wrongScope = VerifiedUpdaters.CreateSumatraRecipe(installed, true, true);
+            Verify(!VerifiedUpdaters.ConfirmInstallation(wrongScope, installed, new[] { updatedSumatra }), "Sumatra local nao comprova pacote para todos os usuarios");
             stub[0x84] = 0x4C; stub[0x85] = 0x01; // I386
             File.WriteAllBytes(exe, stub);
             Verify(VerifiedUpdaters.Resolve(installed)?.Identifier == "sumatrapdf-x86-3.6.1",
                    "SumatraPDF instalado x86: arquitetura original preservada");
+            Verify(!VerifiedUpdaters.ConfirmInstallation(actual64!, installed, new[] { updatedSumatra }), "Sumatra x86 nao confirma pacote x64");
             stub[0x84] = 0; stub[0x85] = 0;
             File.WriteAllBytes(exe, stub);
             Verify(VerifiedUpdaters.Resolve(installed) is null,
@@ -204,6 +212,17 @@ Verify(VerifiedUpdaters.IsInstalledVersionAtLeast("obs-x64-32.2.2", "32.2.2",
 Verify(!VerifiedUpdaters.IsInstalledVersionAtLeast("receita-desconhecida", "1.0",
     new[] { Item("OBS Studio", "32.2.2", "", "OBS Project") }),
     "Receita desconhecida nao confirma instalacao");
+var originalVc = Item("Microsoft Visual C++ 2013 Redistributable (x64)", "12.0.30501", "12.0.40664");
+originalVc.InventoryId = "LocalMachine|Registry64|VC2013";
+var updatedVc = Item(originalVc.Name, "12.0.40664", "");
+updatedVc.InventoryId = originalVc.InventoryId;
+Verify(VerifiedUpdaters.ConfirmInstallation(x64!, originalVc, new[] { updatedVc }), "Confirmar a identidade selecionada");
+updatedVc.InventoryId = "CurrentUser|Registry64|VC2013";
+Verify(!VerifiedUpdaters.ConfirmInstallation(x64!, originalVc, new[] { updatedVc }), "Outra instalacao por usuario nao confirma a selecionada");
+updatedVc.InventoryId = "LocalMachine|Registry32|VC2013";
+Verify(!VerifiedUpdaters.ConfirmInstallation(x64!, originalVc, new[] { updatedVc }), "Outra vista do Registro nao confirma a selecionada");
+originalVc.InventoryId = "";
+Verify(!VerifiedUpdaters.ConfirmInstallation(x64!, originalVc, new[] { updatedVc }), "Identidade ausente permanece indeterminada");
 Console.WriteLine($"{checkedCount}/{checkedCount} testes incluindo confirmacao posterior aprovados");
 if (args.Contains("--verify-terminal", StringComparer.OrdinalIgnoreCase))
 {
@@ -260,6 +279,7 @@ namespace GerenciadorAplicativos
     internal sealed class ProgramEntry
     {
         public string Name { get; init; } = "";
+        public string InventoryId { get; set; } = "";
         public string Version { get; init; } = "";
         public string Publisher { get; init; } = "";
         public string AvailableVersion { get; init; } = "";

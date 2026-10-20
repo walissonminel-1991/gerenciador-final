@@ -187,8 +187,13 @@ internal static class AppServices
         }
     }
 
-    public static List<ProgramEntry> GetInstalledPrograms() =>
-        ScanInstalledPrograms().Items.ToList();
+    // Consumido pelos fluxos que confirmam instalacao/ausencia antes de limpar.
+    // Uma leitura parcial nao pode virar evidencia de desinstalacao.
+    public static List<ProgramEntry> GetInstalledPrograms()
+    {
+        var scan = ScanInstalledPrograms();
+        return InventoryReconciler.RequireComplete(scan.Items, scan.ReadFailures);
+    }
 
     internal static UnifiedInventoryScan ScanAllInstalledApps()
     {
@@ -674,7 +679,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true)
     {
-        Text = "Gerenciador Final — v5.13.10.17 TESTE";
+        Text = "Gerenciador Final — v5.13.10.18 TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -1999,6 +2004,12 @@ internal sealed partial class MainForm : Form
                 return;
             }
             AplicarCandidatos(merged);
+            foreach (var group in merged.GroupBy(m => m.DiagnosticReason))
+            {
+                DiagnosticTrace.Write($"MULTIFONTES.COBERTURA motivo={group.Key} quantidade={group.Count()}");
+                Log($"Cobertura: {group.Count()} — {group.Key}.");
+            }
+            Log("A consulta HTTPS e o WinGet podem ter coberturas diferentes. O diagnóstico registra apenas contagens e motivos, sem nomes de aplicativos.");
             _catalogoVerificado = true;
             RenderPrograms();
             int candidates = merged.Count(x => x.State == MatchState.Candidate);
@@ -2473,7 +2484,7 @@ internal sealed partial class MainForm : Form
                 }
                 await Task.Delay(1000);
                 var apps = await Task.Run(AppServices.GetInstalledPrograms);
-                bool confirmed = VerifiedUpdaters.IsInstalledVersionAtLeast(recipe.Identifier, recipe.Version, apps);
+                bool confirmed = await Task.Run(() => VerifiedUpdaters.ConfirmInstallation(recipe, entry, apps));
                 if (confirmed)
                 {
                     Log("Atualização confirmada no Registro do Windows: " + recipe.ProductName + " " + recipe.Version);
@@ -2482,7 +2493,7 @@ internal sealed partial class MainForm : Form
                 }
                 else
                 {
-                    Log("Instalador finalizado, mas a nova versão não foi confirmada no Registro. Verifique o fabricante.");
+                    Log("Instalador finalizado, mas versão e identidade da instalação escolhida não foram confirmadas. Outra cópia ou mudança de registro não comprova o resultado; confira o fabricante.");
                     Status("Instalador terminou; versão ainda não confirmada.");
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.VERSAO_NAO_CONFIRMADA");
                 }
@@ -2897,6 +2908,11 @@ internal sealed partial class MainForm : Form
         // Assim aplicativos Store ou jogos ativos nao viram falsos vestigios.
         var inventorySnapshot = await Task.Run(AppServices.ScanAllInstalledApps);
         var updatedInventory = inventorySnapshot.Items;
+        bool inventoryIncomplete = inventorySnapshot.Registry.ReadFailures > 0 ||
+            inventorySnapshot.Msix.Failures > 0 || inventorySnapshot.Msix.Status != "ok" ||
+            inventorySnapshot.Games.Partial;
+        if (inventoryIncomplete)
+            Log("Inventário de proteção PARCIAL: ausência na lista não comprova remoção. Os achados históricos continuam somente leitura.");
         var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory));
         DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)}");
         Status("Analisando locais comuns de aplicativos e Registro, sem alterar arquivos...");
@@ -2907,7 +2923,7 @@ internal sealed partial class MainForm : Form
         // Proteger seus dados ativos antes de sugerir vestigios historicos.
         var gameInventory = inventorySnapshot.Games;
         var broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory,
-            gameInventory.ActiveNames, gameInventory.Partial));
+            gameInventory.ActiveNames, gameInventory.Partial, inventoryIncomplete));
         int installCandidates = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)));
         int publisherData = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal)));
         DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");

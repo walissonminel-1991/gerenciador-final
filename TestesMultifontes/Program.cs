@@ -10,6 +10,10 @@ void Assert(bool ok, string label)
     Console.WriteLine("OK " + label);
 }
 static InstalledApp App(string n, string ver, string maker) => new(n, ver, maker);
+Assert(new UpdateMatch(new InstalledApp("Inventario", "1.0", "Editor", false), null, MatchState.Unmatched).DiagnosticReason.Contains("SOMENTE INVENTÁRIO"),
+    "Cobertura distingue entrada inelegivel de ausencia no catalogo");
+Assert(new UpdateMatch(App("Nome privado", "1.0", "Editor privado"), null, MatchState.Ambiguous).DiagnosticReason == "CORRESPONDÊNCIA AMBÍGUA",
+    "Motivo agregado nao inclui nomes nem dados do aplicativo");
 var obs = App("OBS Studio", "31.1.2", "OBS Project");
 var firefox = App("Mozilla Firefox", "139.0.1", "Mozilla Corporation");
 var notepad = App("Notepad++ (64-bit x64)", "8.7.5", "Notepad++ Team");

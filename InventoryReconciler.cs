@@ -6,6 +6,13 @@ namespace GerenciadorAplicativos;
 // Não combinar duas instalações só porque usam nome e versão iguais.
 internal static class InventoryReconciler
 {
+    internal static List<ProgramEntry> RequireComplete(IEnumerable<ProgramEntry> entries, int readFailures)
+    {
+        if (readFailures != 0)
+            throw new InvalidOperationException("Inventário incompleto: não é possível confirmar ausência ou autorizar limpeza de resíduos.");
+        return entries.ToList();
+    }
+
     private static readonly Regex MsiId = new(
         @"^\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);

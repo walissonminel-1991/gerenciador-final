@@ -2,6 +2,15 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.18 TESTE — consolidacao e inventario consultivo de drivers
+- Diagnostico de desinstalacao considera ambas as alternativas registradas; caminho absoluto ausente nao herda confianca do nome msiexec.exe.
+- Leitura incompleta do Registro bloqueia os fluxos que precisam confirmar ausencia antes da limpeza; auditoria contextual informa limitacoes do inventario.
+- Confirmacao posterior exige a identidade original da instalacao; Sumatra confere tambem arquitetura PE e escopo. Mudanca de identidade permanece indeterminada, sem afirmar sucesso.
+- Diagnostico de cobertura registra apenas contagens por motivo, sem nomes de aplicativos; nao presume equivalencia com WinGet.
+- DRIVERS recebe tabela consultiva de associacoes dispositivo/INF/versao/fornecedor, presenca e assinatura informada pelo WMI, sob demanda e em segundo plano. Nao enumera todo Driver Store, nao instala, remove ou reverte drivers.
+- Consulta de drivers tem limite de espera na interface e impede consultas sobrepostas enquanto WMI termina. Identificadores completos de dispositivos nao sao gravados no log.
+- Regressoes ampliadas e consulta WMI no runner Windows. Validacao nos computadores do usuario continua pendente.
+
 ## 5.13.10.17 TESTE — consolidacao antes dos testes nos computadores
 - Verificacao de caminhos de desinstalacao movida para o mesmo trabalho em segundo plano do inventario, antes de entregar o snapshot a interface.
 - Resumo acessivel e dica do contador distinguem inventario completo, itens com acao, sem acao, desinstalaveis e atualizacoes, sem duplicar itens com duas acoes.

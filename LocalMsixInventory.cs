@@ -62,7 +62,7 @@ internal static class LocalMsixInventory
             foreach (var package in new PackageManager().FindPackagesForUser(string.Empty))
             {
                 seen++;
-                if (seen > 2400) break;
+                if (seen > 2400) { failures++; break; }
                 try
                 {
                     var id = package.Id;

@@ -12,6 +12,13 @@ void Check(bool result, string what)
     passed++;
 }
 
+bool partialRejected = false;
+try { InventoryReconciler.RequireComplete(Array.Empty<ProgramEntry>(), 1); }
+catch (InvalidOperationException) { partialRejected = true; }
+Check(partialRejected, "Leitura parcial nao pode autorizar limpeza por falsa ausencia");
+Check(InventoryReconciler.RequireComplete(Array.Empty<ProgramEntry>(), 0).Count == 0,
+    "Inventario vazio completo nao e confundido com erro de acesso");
+
 Check(largeDesktop.Size == new System.Drawing.Size(1344, 1148),
     "Monitor grande: janela cresce com a area util, mantendo fontes definidas pelo DPI");
 Check(regularDesktop.Size == new System.Drawing.Size(1344, 852) &&
@@ -251,6 +258,12 @@ Check(MaintenanceAudit.CheckUninstaller('"' + missingExecutable + '"', false) ==
     "Caminho absoluto removido pode ser identificado sem apagar entrada de Registro");
 Check(MaintenanceAudit.CheckUninstaller("uninstall.exe /S", false) == "unknown",
     "Comandos relativos não são sinalizados indevidamente como arquivos ausentes");
+Check(MaintenanceAudit.CheckUninstaller('"' + Path.Combine(Path.GetDirectoryName(missingExecutable)!, "msiexec.exe") + '"', false) == "missing",
+    "Arquivo ausente chamado msiexec nao recebe confianca pelo nome");
+var alternateUninstall = new ProgramEntry { Name = "Duas alternativas", UninstallString = '"' + missingExecutable + '"', QuietUninstallString = "msiexec.exe /X{ABC123}" };
+Check(MaintenanceAudit.InspectPrograms(new[] { alternateUninstall }).Available == 1 &&
+      MaintenanceAudit.InspectPrograms(new[] { alternateUninstall }).Missing == 0,
+    "Diagnostico usa alternativa silenciosa valida sem falso desinstalador ausente");
 var brokenInventory = new[]
 {
     new ProgramEntry { Name = "Antigo Editor", UninstallString = '"' + missingExecutable + '"',
@@ -341,6 +354,10 @@ Check(classified.Count == 1 &&
     "Indicios antigos exigem duas fontes diferentes e nenhum historico previo");
 Check(classified.All(x => x.Historical && !x.UninstallConfirmed),
     "Varredura geral nao se apresenta como desinstalacao comprovada");
+var partialClassification = BroadResidualDiscovery.Classify(oldEvidence, Array.Empty<ProgramEntry>(), inventoryIncomplete: true);
+Check(partialClassification.Count > 0 && partialClassification.All(r => !r.UninstallConfirmed &&
+    r.Findings.All(f => f.Evidence.Contains("Inventário de proteção parcial"))),
+    "Inventario parcial torna explicita a incerteza em todos os achados historicos");
 Check(classified.All(x => x.Product != "OBS Studio" && x.Product != "Microsoft" &&
       x.Product != "Origin"),
     "Ignorar aplicativos ativos, pastas protegidas e substituto EA app");
