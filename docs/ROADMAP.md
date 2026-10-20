@@ -1,5 +1,9 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Complemento de desenvolvimento — v5.13.11.1 TESTE: diagnóstico local voluntário
+
+Uma nova frente de privacidade foi iniciada com opção de consentimento, eventos agregados em allowlist, um relatório local rotativo e revogação. **Envio remoto não está implantado**; sua ativação exigirá consentimento separado e avaliação de segurança. Consulte [DIAGNOSTICO-COLABORATIVO.md](DIAGNOSTICO-COLABORATIVO.md). Isso não altera os 30/45 checkpoints originais.
+
 ## Complemento de desenvolvimento — v5.13.11.0 CANDIDATA (20/10/2026)
 
 O marcador original de 30/45 checkpoints (67%) permanece inalterado: testes de código e aprovação em hardware real não são equivalentes. A partir de v5.13.10.19, novas entregas em branches de desenvolvimento incluem revisão de resíduos do Driver Booster, diagnóstico de AVG/MSIX, painel de RAM e otimização conservadora de cache do próprio aplicativo, SHA-256 e identificação versionada de pacotes.
