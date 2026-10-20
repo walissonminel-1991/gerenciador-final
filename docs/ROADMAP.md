@@ -1,5 +1,10 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Teste v5.13.11.11 e correções visuais v5.13.11.12 (20/10/2026)
+
+O testador abriu a nova lista DRIVERS com 184 associações e confirmou sua disposição no padrão visual de Aplicativos. Captura da aba Inicialização mostrou cartões com apenas **duas colunas** e espaço subutilizado; adaptada para três por linha quando houver largura, preservando duas/uma nas telas menores e mantendo detalhes acessíveis. O convite de privacidade não apareceu novamente porque o consentimento **LocalOnly** já estava persistido; foi acrescentado indicador permanente no cabeçalho, clicável para revisão/revogação, sem reativar envio remoto nem incomodar com novo diálogo a cada versão. Inventário e diagnósticos seguem somente leitura; manutenção real não validada e roadmap funcional permanece **27/42**.
+
+
 ## Padrão visual de Aplicativos aplicado a DRIVERS — v5.13.11.11 TESTE (20/10/2026)
 
 Solicitado após observar tabela pequena e truncada no PC real. Aba DRIVERS agora usa cartões de lista virtualizada como Aplicativos, com busca por dispositivo/fabricante/versão/INF, filtros de presença e consulta sob demanda. Não há botões de atualizar, desinstalar, remover ou limpar drivers. A pesquisa/seleção não altera registros ou arquivos. A matriz de layout e 184 associações sintéticas foram adicionadas aos testes. **Gestão real de drivers continua pendente**; progresso funcional ainda 27/42.
