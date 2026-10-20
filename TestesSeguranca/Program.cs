@@ -1,5 +1,12 @@
 using GerenciadorAplicativos;
 
+if (args.Length == 2 && args[0] == "--probe-protected")
+{
+    try { using var write = new FileStream(args[1], FileMode.Open, FileAccess.Write, FileShare.Read); Environment.ExitCode = 1; }
+    catch (IOException) { Environment.ExitCode = 0; }
+    return;
+}
+
 static void Check(bool ok, string why)
 {
     if (!ok) throw new Exception("Seguranca: " + why);
@@ -117,6 +124,14 @@ try
             try { File.Delete(fixture); }
             catch (IOException) { stillProtected = true; }
             Check(stillProtected, "trava permanece apos transferencia para a sessao e coleta");
+            var probeInfo = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!)
+                { UseShellExecute = false, CreateNoWindow = true };
+            probeInfo.ArgumentList.Add("--probe-protected");
+            probeInfo.ArgumentList.Add(fixture);
+            using var probe = System.Diagnostics.Process.Start(probeInfo)!;
+            using var probeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await probe.WaitForExitAsync(probeTimeout.Token);
+            Check(probe.ExitCode == 0, "outro processo tambem nao consegue escrever no pacote retido");
         }
         await File.WriteAllTextAsync(fixture, "liberado ao encerrar a sessao");
         // DisposeAsync tambem precisa liberar todos os ancestrais.

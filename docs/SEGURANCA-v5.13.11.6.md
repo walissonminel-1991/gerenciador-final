@@ -7,10 +7,12 @@
 - Instaladores Win32 retidos em memoria pela sessao (maximo 32), inclusive apos o processo inicial terminar ou UAC ser cancelado. Seus arquivos temporarios nao sao removidos pelo fluxo de atualizacao enquanto protegidos. Sem exclusao recursiva automatica posterior; limpeza normal de temporarios pode remove-los quando nao estiverem em uso.
 - A pasta do pacote precisa conter apenas os nomes esperados; DLL/pasta inesperada bloqueia antes do UAC. WorkingDirectory passa a ser a pasta do sistema.
 - Auditoria NuGet de dependencias diretas/transitivas habilitada para todos os projetos; NU1900–NU1905 bloqueiam build/restore. Dependabot configurado semanalmente para NuGet raiz e Actions; ativacao depende da integracao na branch padrao. Nenhuma CVE especifica e declarada corrigida.
+- Dois workflows atuais usam Actions fixadas por SHA, com credenciais de checkout nao persistidas. Historicos permanecem como evidencia; Dependabot pode propor atualizacoes dos pins.
+- NuGet usa fonte explicita oficial tanto para pacotes quanto para auditoria, sem herdar feeds inesperados do ambiente.
 - Confirmacao de compartilhamento publico alerta para senhas/tokens/dados pessoais em texto e capturas adicionados pelo usuario.
 
 ## Verificacao
-Regressoes Windows: impedir escrita/exclusao do arquivo e renomeacao de ancestral; rejeitar symlink de arquivo/pasta, UNC/dispositivo/ADS/relativo; manter trava apos transferencia para sessao e GC; liberar ancestrais por DisposeAsync; recusar DLL/pasta inesperada junto ao instalador. Testes existentes de assinatura/receita/pipe/privacidade continuam necessarios. CI desta revisao deve ser consultado no PR #40; testes anteriores nao comprovam este commit.
+Regressoes Windows: impedir escrita/exclusao do arquivo e renomeacao de ancestral; rejeitar symlink de arquivo/pasta, UNC/dispositivo/ADS/relativo; manter trava apos transferencia para sessao e GC, inclusive contra escrita por outro processo de teste; liberar ancestrais por DisposeAsync; recusar DLL/pasta inesperada junto ao instalador. Testes existentes de assinatura/receita/pipe/privacidade continuam necessarios. CI desta revisao deve ser consultado no PR #40; testes anteriores nao comprovam este commit.
 
 ## Limites
 A retencao acaba ao encerrar o GF: manter o programa aberto ate finalizar todos os instaladores. Nao e rastreamento completo de subprocessos nem de servicos Windows Installer. Nao protege arquivos extraidos internamente por instaladores, DLLs carregadas depois da verificacao da pasta, outros caminhos controlados pelo fabricante, administrador/kernel comprometido ou injecao no proprio processo. A verificacao de arquivos vizinhos e pontual, nao uma ACL imutavel.
