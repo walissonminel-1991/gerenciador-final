@@ -468,7 +468,11 @@ internal sealed partial class MainForm
         FlowLayoutPanel flow = _systemPanelCards.Content;
         int space = _systemPanelCards.ClientSize.Width - 42;
         if (space < 280) return;
-        int columns = space >= 720 ? 2 : 1;
+        // Tres por linha apenas em Inicializacao quando houver largura real;
+        // outros painéis conservam a distribuicao antiga para evitar regressao.
+        int columns = _activeSystemView == "startup"
+            ? StartupCardLayout.ColumnsForSpace(space)
+            : space >= 720 ? 2 : 1;
         int cardWidth = Math.Max(250, space / columns - 17);
         flow.SuspendLayout();
         try
@@ -497,17 +501,21 @@ internal sealed partial class MainForm
     {
         var card = new TableLayoutPanel
         {
-            Width = 390, Height = 123, RowCount = 3, ColumnCount = 1,
+            Name = "StartupEntryCard",
+            Width = 390, Height = 108, RowCount = 3, ColumnCount = 1,
             BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
             Padding = new Padding(8, 5, 8, 5)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
         var name = new Label { Text = item.Name, Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 9.6F, FontStyle.Bold), AutoEllipsis = false };
+            Font = new Font("Segoe UI", 9.2F, FontStyle.Bold),
+            AutoEllipsis = true, AccessibleDescription = item.Name };
         var desc = new Label { Text = item.Details, Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 8.3F), AutoEllipsis = false };
+            Font = new Font("Segoe UI", 8.1F),
+            AutoEllipsis = true, AccessibleDescription = item.Details };
+        _toolTips.SetToolTip(name, item.Name);
         _toolTips.SetToolTip(desc, item.Details);
         card.Controls.Add(name, 0, 0);
         card.Controls.Add(desc, 0, 1);
