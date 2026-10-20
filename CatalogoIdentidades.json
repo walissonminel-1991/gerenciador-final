@@ -257,6 +257,63 @@
       ],
       "officialSource": null,
       "cleanupPolicy": null
+    },
+    {
+      "id": "sharex",
+      "name": "ShareX",
+      "names": [
+        "ShareX"
+      ],
+      "publishers": [
+        "ShareX Team",
+        "ShareX",
+        "Jaex"
+      ],
+      "officialSource": "sharex",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "handbrake",
+      "name": "HandBrake",
+      "names": [
+        "HandBrake"
+      ],
+      "publishers": [
+        "HandBrake Team",
+        "HandBrake",
+        "HandBrake Project"
+      ],
+      "officialSource": "handbrake",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "rufus",
+      "name": "Rufus",
+      "names": [
+        "Rufus"
+      ],
+      "publishers": [
+        "Akeo Consulting",
+        "Pete Batard",
+        "Akeo"
+      ],
+      "officialSource": "rufus",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "qbittorrent",
+      "name": "qBittorrent",
+      "names": [
+        "qBittorrent",
+        "qBittorrent (64-bit)"
+      ],
+      "publishers": [
+        "The qBittorrent Project",
+        "qBittorrent Project",
+        "qBittorrent"
+      ],
+      "officialSource": "qbittorrent",
+      "cleanupPolicy": null
     }
   ]
 }
