@@ -413,8 +413,11 @@ internal static class LayoutTests
         TestMemoryPanel(form);
         var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
             .Where(flow => flow.IsPageViewport).ToArray();
-        if (pageViewports.Length != 5)
-            throw new Exception($"Esperadas cinco paginas com rolagem controlada; encontradas {pageViewports.Length}");
+        // DRIVERS agora usa a mesma lista virtualizada de Aplicativos,
+        // sem rolagem externa duplicada. Outras quatro paginas a preservam.
+        if (pageViewports.Length != 4)
+            throw new Exception($"Esperadas quatro paginas com rolagem controlada e " +
+                $"DRIVERS com lista propria; encontradas {pageViewports.Length}");
         var systemCards = Descendants(form).OfType<DarkScrollableFlow>()
             .SelectMany(flow => flow.Content.Controls.Cast<Control>());
         if (systemCards.Any(c => c is TableLayoutPanel panel &&
