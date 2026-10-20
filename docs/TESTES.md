@@ -1,4 +1,6 @@
-# Roteiro de testes — Gerenciador Final 5.12.3
+# Roteiro de testes — Gerenciador Final v5.13.11.8 TESTE
+
+**20/10/2026: neste ciclo, usar o outro PC; PC FRACO não será utilizado hoje.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real ainda não é oferecido na v5.13.11.8.** A ideia de conta GitHub secundária foi estruturada em [piloto restrito](PILOTO-CONTA-GITHUB-SECUNDARIA.md), dependente de uma GitHub App e repositório privado exclusivos.
 
 Este roteiro serve a mantenedores e revisores. **Não é um relatório de testes
 concluídos nem uma garantia de segurança.** Registre ambiente, compilação,
@@ -6,11 +8,10 @@ versão, resultados e erros encontrados ao executar cada verificação.
 
 ## Preparar ambiente
 
-1. Use uma máquina Windows 10/11 x64 de testes, com SDK .NET 10 para compilação.
-2. Extraia o código em uma pasta nova, sem misturar versões anteriores.
-3. Execute `Compilar-OSS-Windows-x64.bat` e verifique a criação de
-   `Distribuicao\GerenciadorFinal.exe`.
-4. Abra o aplicativo e observe se as abas, o tema e o ícone GF aparecem corretamente.
+1. Use o computador Windows x64 disponível, mantendo o antivírus ativo; faça backup antes de operações administrativas.
+2. Para testar o binário já compilado, utilize o artefato específico da build Windows aprovada na PR #40; não é necessário instalar SDK neste PC apenas para abri-lo.
+3. Confira a versão e os hashes informados na build, não misture binários de candidatos diferentes. Não ignore alertas do AVG nem contorne o SmartScreen.
+4. Abra o aplicativo e observe abas, tema, ícone GF, restauração da bandeja e disponibilidade dos botões. Teste a janela de privacidade: recusar, simular **sem enviar**, autorizar somente coleta local e revogar. Verifique que isso não tenta conexão de envio.
 
 ## Testes consultivos — sem alterar o Windows
 
