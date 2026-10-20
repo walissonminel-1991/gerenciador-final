@@ -45,6 +45,10 @@ try
         "Relogio regressivo nao substitui base mais recente");
     Check(!DriverHistory.Record(file, Complete(a with { DeviceId = "" }), now.AddSeconds(4)).Saved,
         "Identidade vazia rejeitada");
+    using (var busy = new FileStream(file + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+        Check(!DriverHistory.Record(file, Complete(a), now.AddSeconds(5)).Saved && File.ReadAllText(file) == saved,
+            "Outra instancia gravando impede sobrescrita concorrente");
+    File.Delete(file + ".lock");
     File.WriteAllText(file, "{quebrado");
     Check(!DriverHistory.Record(file, Complete(a), now).Saved && File.ReadAllText(file) == "{quebrado",
         "Arquivo corrompido preservado sem reinicio silencioso");
@@ -55,6 +59,7 @@ try
         Check(DriverHistory.Record(file, Complete(a with { Version = i.ToString() }), now.AddMinutes(i)).Saved,
             "Persistir rodada historica " + i);
     var state = System.Text.Json.JsonSerializer.Deserialize<DriverHistoryState>(File.ReadAllText(file))!;
+    Check(DriverHistory.Record(file, Complete(a with { Version = "26" }), now.AddMinutes(26)).Timeline.Split(Environment.NewLine).Length == 20, "Historico retido disponivel para consulta na interface");
     Check(state.Changes.Count == 20, "Retencao limitada a vinte mudancas");
     Check(Directory.GetFiles(folder, "*.tmp").Length == 0, "Nenhum temporario apos gravacao");
     var before = DriverHistory.Snapshot(Complete(a));
@@ -64,6 +69,14 @@ try
         "Assinatura conflitante preservada na comparacao");
 }
 finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+var links = DriverPackageLinks.Analyze(Complete(a, b, a with { InfName = "OEM1.INF", Version = "2", Signed = false },
+    c with { InfName = "../oem2.inf" }, c with { InfName = "" }));
+Check(links.Packages.Count == 1 && links.Packages[0].Devices == 2 && links.Packages[0].Versions == 2,
+    "INF compartilhado preserva dispositivos e versoes divergentes");
+Check(links.Packages[0].ConflictingSignatures && links.WithoutInf == 2,
+    "Conflitos de assinatura e INF ausente/invalido ficam explicitos");
+Check(DriverPackageLinks.Analyze(new([], true, "parcial")).Partial,
+    "Correlacao conserva limitacao da origem");
 if (args.Contains("--live"))
 {
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));

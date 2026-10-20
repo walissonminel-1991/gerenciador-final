@@ -7,7 +7,7 @@ namespace GerenciadorAplicativos;
 internal sealed record DriverHistoryChange(DateTimeOffset At, int Added, int Missing, int Changed);
 internal sealed record DriverHistoryState(int Schema, DateTimeOffset At,
     Dictionary<string, string> Devices, List<DriverHistoryChange> Changes);
-internal sealed record DriverHistoryResult(bool Saved, bool Baseline, int Added, int Missing, int Changed, string Message);
+internal sealed record DriverHistoryResult(bool Saved, bool Baseline, int Added, int Missing, int Changed, string Message, string Timeline = "");
 
 // Historico proprio: compara observacoes, nao comprova instalacao/desinstalacao.
 // Nao persiste nomes, IDs de hardware, caminhos ou saida de comandos.
@@ -46,6 +46,11 @@ internal static class DriverHistory
             try
             {
                 var current = Snapshot(inventory);
+                string full = Path.GetFullPath(path);
+                Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+                // Serializa tambem instancias diferentes do programa; conflito preserva a base.
+                using var fileLock = new FileStream(full + ".lock", FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
                 DriverHistoryState? previous = null;
                 if (File.Exists(path))
                 {
@@ -65,8 +70,6 @@ internal static class DriverHistory
                 if (previous is not null && change.Added + change.Missing + change.Changed > 0)
                     changes.Add(change);
                 var next = new DriverHistoryState(1, at, current, changes.TakeLast(20).ToList());
-                string full = Path.GetFullPath(path);
-                Directory.CreateDirectory(Path.GetDirectoryName(full)!);
                 temporary = full + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
@@ -76,7 +79,9 @@ internal static class DriverHistory
                 File.Move(temporary, full, true);
                 return new(true, previous is null, change.Added, change.Missing, change.Changed,
                     previous is null ? "Histórico local iniciado nesta consulta; sem reconstrução do passado." :
-                    $"Desde a consulta anterior: {change.Added} novos, {change.Missing} não observados, {change.Changed} alterados. Não comprova remoção de pacotes.");
+                    $"Desde a consulta anterior: {change.Added} novos, {change.Missing} não observados, {change.Changed} alterados. Não comprova remoção de pacotes.",
+                    string.Join(Environment.NewLine, next.Changes.AsEnumerable().Reverse().Select(x =>
+                        $"{x.At.ToLocalTime():g}: {x.Added} novos, {x.Missing} não observados, {x.Changed} alterados")));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or ArgumentException or NotSupportedException)
             {

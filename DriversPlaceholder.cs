@@ -65,10 +65,17 @@ internal sealed partial class MainForm
                 grid.Rows.Clear();
                 foreach (var item in result.Items)
                     grid.Rows.Add(item.DeviceName, item.Provider, item.Version, item.InfName, item.PresenceLabel, item.SignatureLabel);
-                state.Text = $"{result.Status}: {result.Items.Count} associações. Ausência não autoriza remoção; assinatura informada pelo Windows não substitui validação do pacote.";
+                var links = DriverPackageLinks.Analyze(result);
+                state.Text = $"{result.Status}: {result.Items.Count} associações, {links.Packages.Count} INFs, {links.WithoutInf} sem INF válido. Ausência não autoriza remoção; assinatura informada pelo Windows.";
+                DiagnosticTrace.Write($"DRIVERS.VINCULOS infs={links.Packages.Count} compartilhados={links.Packages.Count(p => p.Devices > 1)} versoes_divergentes={links.Packages.Count(p => p.Versions > 1)} assinaturas_conflitantes={links.Packages.Count(p => p.ConflictingSignatures)} sem_inf={links.WithoutInf}");
                 DiagnosticTrace.Write($"DRIVERS.INVENTARIO quantidade={result.Items.Count} parcial={result.Partial}");
                 var recorded = await Task.Run(() => DriverHistory.Record(DriverHistory.DefaultPath, result, DateTimeOffset.UtcNow));
-                if (!host.IsDisposed) history.Text = recorded.Message;
+                if (!host.IsDisposed)
+                {
+                    history.Text = recorded.Message;
+                    history.AccessibleDescription = recorded.Message + Environment.NewLine + recorded.Timeline;
+                    _toolTips.SetToolTip(history, recorded.Timeline.Length == 0 ? recorded.Message : recorded.Timeline);
+                }
                 DiagnosticTrace.Write($"DRIVERS.HISTORICO salvo={recorded.Saved} base={recorded.Baseline} novos={recorded.Added} nao_observados={recorded.Missing} alterados={recorded.Changed}");
             }
             catch (OperationCanceledException)
