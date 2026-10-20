@@ -11,6 +11,21 @@ string temp = Path.Combine(Path.GetTempPath(), "gf-telemetry-tests-" + Guid.NewG
 try
 {
     var tracker = new AnonymousTelemetry(temp);
+    Verify(!Directory.Exists(temp) && tracker.Consent == TelemetryConsent.NotAsked,
+        "Simulacao parte de um computador sem preferencia registrada");
+    Verify(tracker.ExplainLocalCollection("v5.13.11.8").Contains("COLETA DESATIVADA"),
+        "Explicacao em linguagem simples mostra coleta desativada");
+    string offlineExample = AnonymousTelemetry.SimulateContributionWithoutSending("v5.13.11.8");
+    Verify(offlineExample.Contains("SIMULACAO APROVADA") &&
+           offlineExample.Contains("INVENTADOS") &&
+           offlineExample.Contains("Nenhum arquivo foi criado") &&
+           !Directory.Exists(temp) &&
+           tracker.Consent == TelemetryConsent.NotAsked,
+        "Simulacao offline nao coleta, nao cria arquivos e nao altera consentimento");
+    bool invalidVersionBlocked = false;
+    try { AnonymousTelemetry.SimulateContributionWithoutSending("../program.exe"); }
+    catch (ArgumentException) { invalidVersionBlocked = true; }
+    Verify(invalidVersionBlocked, "Simulacao recusa versao arbitraria");
     tracker.Record("APP.FALHA_INTERFACE");
     Verify(tracker.Consent == TelemetryConsent.NotAsked &&
            !File.Exists(tracker.ConsentFile) && !File.Exists(tracker.PendingFile),
@@ -18,6 +33,8 @@ try
     Verify(!tracker.SaveOnNormalExit("v5.13.11.1"), "Sem consentimento nao gera relatorio");
 
     Verify(tracker.SetConsent(TelemetryConsent.LocalOnly), "Aceitacao local explicita");
+    Verify(tracker.ExplainLocalCollection("v5.13.11.8").Contains("COLETA LOCAL ATIVA"),
+        "Participacao aceita e exibida sem linguagem de programacao");
     tracker.Record("REGISTRO_PROGRAMAS.FALHA usuario=C:\\Users\\Privado");
     tracker.Record("REGISTRO_PROGRAMAS.FALHA app=nome-privado");
     tracker.Record("APP.FALHA_INTERFACE senha=segredo");
