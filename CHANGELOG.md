@@ -1,5 +1,13 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.13 — pequenos ajustes de legibilidade após teste real (TESTE)
+
+- Capturas da v5.13.11.12 confirmaram **três cartões por linha** na subaba Inicialização e o indicador persistente **Coleta local ativa** no cabeçalho, sem solicitar novamente consentimento já concedido.
+- O botão da área de memória agora mostra **Abrir tarefas**, com nome acessível e dica completa **Abrir Gerenciador de Tarefas do Windows**, corrigindo corte do texto na janela proporcional.
+- O filtro da lista DRIVERS agora mostra **Outros**, com explicação acessível de que inclui associações não presentes ou indeterminadas; nenhuma é automaticamente considerada obsoleta.
+- A validação Windows passa a exigir os rótulos curtos e seus textos acessíveis. Sem mudança de execução de atualizações, drivers, limpeza, desinstalação, redes, energia ou telemetria.
+
+
 ## v5.13.11.12 — inicialização compacta e indicador de privacidade (TESTE)
 
 - A aba **Inicialização** (dentro de Inicialização e sistema) distribui cartões em **três colunas quando a largura permite**, duas em janelas intermediárias e uma nas estreitas, sem alterar as grades de Windows Update e outras subabas.
