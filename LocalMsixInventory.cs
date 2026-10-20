@@ -100,9 +100,16 @@ internal static class LocalMsixInventory
         }
         catch (Exception ex)
         {
-            return new LocalMsixResult([], 0, ex.GetType().Name);
+            // Apenas o tipo e o HRESULT: nunca salvar nomes de pacotes, perfis
+            // ou mensagens COM potencialmente identificáveis nos diagnósticos.
+            return new LocalMsixResult([], 0, FailureStatus(ex));
         }
     }
+
+    internal static string FailureStatus(Exception ex) =>
+        ex is System.Runtime.InteropServices.COMException com
+            ? $"COMException(0x{unchecked((uint)com.HResult):X8})"
+            : ex.GetType().Name;
 
     internal static IReadOnlyList<LocalMsixApp> MergeWithRegistry(
         IReadOnlyList<LocalMsixApp> packages, IReadOnlyList<InstalledApp> registry)
