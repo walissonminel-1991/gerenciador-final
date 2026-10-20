@@ -30,7 +30,8 @@ Um serviço receptor será necessário para receber contribuições sem exigir c
 - [x] Coleta local com opção de recusar e revogar.
 - [x] Política rígida de categorias e validação de campos.
 - [x] O executável não oferece anexos, Issues manuais ou upload genérico.
-- [ ] Definir receptor seguro sem cadastro do participante, autenticação antiabuso e segregação das credenciais.
+- [x] Preparar receptor de **homologação** protegido, sem segredos no EXE e com testes HTTP fictícios, ainda não implantado.
+- [ ] Definir autenticação/antiabuso de **produção** sem cadastro do participante; credencial de homologação não pode ser distribuída.
 - [ ] Aprovar política LGPD, aviso de privacidade, retenção, exclusão e consentimento específico de envio.
 - [ ] Testar com destino simulado: aceita campos permitidos; rejeita uploads, texto, tamanho excedido, duplicações e respostas adversas.
 - [ ] Exigir proteções de branch e revisão humana de builds.
