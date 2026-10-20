@@ -237,6 +237,16 @@ internal static class StartupManager
 internal sealed record WinUpdateChoice(string Id, string Title, string Kb, bool Downloaded, bool EulaAccepted);
 internal static class WindowsUpdateClient
 {
+    // Uma oferta do Windows Update e identificada por GUID + REVISAO.
+    // Se o fornecedor revisar a oferta apos a selecao, exigir nova consulta.
+    internal static string? VerifiedIdentity(string? rawId, int revision)
+    {
+        if (!Guid.TryParse(rawId, out Guid guid) || revision <= 0)
+            return null;
+        return guid.ToString("D") + "@" +
+            revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     public static Task<IReadOnlyList<WinUpdateChoice>> ScanAsync() => StaWorker.Run<IReadOnlyList<WinUpdateChoice>>(() =>
     {
         dynamic session = CreateSession();
@@ -251,7 +261,9 @@ internal static class WindowsUpdateClient
             string kb = "";
             try { foreach (object number in entry.KBArticleIDs) { kb += "KB" + number + " "; } } catch { }
             string rawId = (string)entry.Identity.UpdateID;
-            string id = Guid.TryParse(rawId, out Guid parsed) ? parsed.ToString("D") : rawId;
+            int revision = (int)entry.Identity.RevisionNumber;
+            string? id = VerifiedIdentity(rawId, revision);
+            if (id is null) continue;
             choices.Add(new WinUpdateChoice(id,
                 (string)entry.Title, kb.Trim(), (bool)entry.IsDownloaded, (bool)entry.EulaAccepted));
         }
@@ -273,7 +285,9 @@ internal static class WindowsUpdateClient
         {
             dynamic entry = found.Updates.Item(i);
             string rawId = (string)entry.Identity.UpdateID;
-            string id = Guid.TryParse(rawId, out Guid parsed) ? parsed.ToString("D") : rawId;
+            int revision = (int)entry.Identity.RevisionNumber;
+            string? id = VerifiedIdentity(rawId, revision);
+            if (id is null) continue;
             if (!ids.Contains(id)) continue;
             if (!(bool)entry.EulaAccepted)
             {
