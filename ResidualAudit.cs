@@ -50,6 +50,11 @@ internal static class ResidualAudit
                     System.Security.SecurityException or IOException) { }
             }
         }
+        // WinMerge guarda preferencias e integração em uma subchave do
+        // fabricante Thingamahoochie. Nome "WinMerge" diretamente sob Software
+        // NAO cobre esse caminho documentado. Apenas leitura, sem remoção.
+        if (removed && IsWinMergeProduct(previous))
+            InspectWinMergeRegistry(findings);
         // Driver Booster é produto de terceiros, não um driver do Windows.
         // A regra geral suprime "driver" para evitar falsos positivos; esta
         // exceção é estritamente somente leitura e não habilita limpeza.
@@ -57,6 +62,49 @@ internal static class ResidualAudit
             InspectDriverBoosterFamily(findings, examined);
         string[] related = FindRelatedRegistrations(previous, current);
         return new(previous.Name, removed, findings.Take(MaxDetails).ToArray(), related);
+    }
+
+    // Referência: manual oficial do WinMerge, opcoes /cfg.
+    // O caminho pertence ao WinMerge, mas pode conter configuracoes a preservar
+    // e valores de integracao de terceiros: ele NUNCA vira receita de limpeza.
+    internal const string WinMergeRegistrySubkey = @"SOFTWARE\Thingamahoochie\WinMerge";
+
+    internal static bool IsWinMergeProduct(ProgramEntry app) =>
+        Regex.IsMatch(app.Name.Trim(), @"^WinMerge(?:\s+(?:x64|x86|64-bit|32-bit))?$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) &&
+        app.Publisher.Trim().Equals("Thingamahoochie Software",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static void InspectWinMergeRegistry(List<ResidualAuditFinding> findings)
+    {
+        foreach (var source in new[]
+        {
+            (Hive: RegistryHive.CurrentUser, View: RegistryView.Default,
+                Label: "HKEY_CURRENT_USER"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry64,
+                Label: "HKEY_LOCAL_MACHINE (64 bits)"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry32,
+                Label: "HKEY_LOCAL_MACHINE (32 bits)")
+        })
+        {
+            try
+            {
+                using var root = RegistryKey.OpenBaseKey(source.Hive, source.View);
+                using var key = root.OpenSubKey(WinMergeRegistrySubkey, writable: false);
+                if (key is null) continue;
+                findings.Add(new(source.Label + @"\" + WinMergeRegistrySubkey,
+                    "Configuração ou integração WinMerge — preservar",
+                    Math.Max(1, Math.Min(ScanLimit, key.ValueCount + key.SubKeyCount)),
+                    "Chave documentada do WinMerge. Pode conter preferências, histórico " +
+                    "e integração com o Explorador; somente leitura. " +
+                    "Não é prova de exclusividade nem autorização de exclusão."));
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or
+                System.Security.SecurityException or IOException or ArgumentException)
+            {
+                // Falha de leitura nao autoriza inventar ou apagar vestigios.
+            }
+        }
     }
 
     internal static bool IsDriverBoosterProduct(ProgramEntry app) =>
