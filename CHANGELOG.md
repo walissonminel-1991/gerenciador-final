@@ -6,7 +6,7 @@
 - Novo botão **Simular sem enviar**, sem exigir consentimento ou conta: cria uma demonstração fictícia estritamente em memória, validada pelo esquema de dados permitido.
 - Simulação não lê informações reais do computador, não grava arquivo, não comunica com rede e não altera consentimento. Testes automatizados validam esses limites e a presença do controle na interface.
 - A coleta continua apenas local e voluntária; envio remoto, autenticação de participantes, manutenção por IA e publicação automática permanecem desativados.
-- Definidos critérios para uma futura contribuição simples, sem upload de arquivos e sem exigir GitHub do usuário final. Veja docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md.
+- Definidos critérios para uma futura contribuição simples, sem upload de arquivos e sem exigir GitHub do usuário final. O receptor de homologação é protegido por segredo exclusivo do servidor, desligado por padrão e testado apenas com tráfego fictício. Nenhuma transmissão foi ativada no GF. Veja docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md e docs/INFRAESTRUTURA-ENVIO-SEGURO.md.
 
 
 ## v5.13.11.7 — bloqueio de envio manual e verificações adicionais (TESTE)
