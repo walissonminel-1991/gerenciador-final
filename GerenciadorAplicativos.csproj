@@ -1,18 +1,29 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- DPI fisico de cada monitor; corresponde aos testes do layout. -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\GerenciadorFinal.ico</ApplicationIcon>
     <AssemblyName>GerenciadorFinal</AssemblyName>
     <RootNamespace>GerenciadorAplicativos</RootNamespace>
-    <Version>5.12.3</Version>
+    <Version>5.13.11.0</Version>
     <Title>Gerenciador Final</Title>
     <Description>Gerenciador Final: atualizações, diagnóstico e manutenção do Windows.</Description>
     <PublishSingleFile>false</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
+  <!-- Os projetos de testes sao compilados separadamente. -->
+  <ItemGroup>
+    <Compile Remove="TestesMotor/**/*.cs;TestesRede/**/*.cs;TestesAtualizador/**/*.cs;TestesCatalogo/**/*.cs;TestesMultifontes/**/*.cs;TestesMsix/**/*.cs;TestesFechamento/**/*.cs;TestesResiduos/**/*.cs;TestesLayout/**/*.cs;TestesSeguranca/**/*.cs;TestesDrivers/**/*.cs;ProcessMonitor.cs;ProcessMonitorUi.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="CatalogoDesinstalacao.json" LogicalName="GerenciadorFinal.UninstallCatalog" />
+    <EmbeddedResource Include="CatalogoIdentidades.json" LogicalName="GerenciadorFinal.ApplicationIdentityCatalog" />
+    <EmbeddedResource Include="CatalogoAuditoriaHistorica.json" LogicalName="GerenciadorFinal.HistoricalOrphanCatalog" />
+  </ItemGroup>
 </Project>

@@ -20,19 +20,21 @@ internal sealed partial class MainForm
     private Button? _installSelectedUpdates;
     private readonly HashSet<string> _updateSelection = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<WinUpdateChoice> _updateCatalog = Array.Empty<WinUpdateChoice>();
-    private readonly ProcessHistorySampler _processSampler = new();
-    private readonly System.Windows.Forms.Timer _processTimer = new() { Interval = 5000 };
-    private bool _processSampling;
-    private string _activeSystemView = "";
+    private readonly System.Windows.Forms.Timer _memoryTimer = new() { Interval = ProcessSamplingPolicy.BackgroundIntervalMs };
+    private bool _memorySampling;
+    private bool _windowsUpdateScanning;
+    private bool _windowsUpdateChecked;
+    private string? _windowsUpdateScanFailure;
+    private string _activeSystemView = "memory";
 
     private Control BuildIntegratedSystemPanel()
     {
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, BackColor = AppServices.Background,
-            ColumnCount = 1, RowCount = 2, Padding = new Padding(8, 8, 8, 6)
+            ColumnCount = 1, RowCount = 2, Padding = new Padding(5, 5, 5, 4)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var actions = new TableLayoutPanel
@@ -41,8 +43,8 @@ internal sealed partial class MainForm
             Margin = Padding.Empty, BackColor = AppServices.Background
         };
         for (int i = 0; i < 4; i++) actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        AddIntegratedAction(actions, 0, "Processos", "Histórico recente de CPU e RAM, atualizado a cada 5 s.", AppServices.Blue,
-            async () => { _activeSystemView = "processes"; _processTimer.Start(); await RefreshProcessHistoryAsync(); });
+        AddIntegratedAction(actions, 0, "Memória RAM", "Consumo e memória disponível. Histórico local, também na bandeja.", AppServices.Blue,
+            async () => { _activeSystemView = "memory"; await RefreshMemoryRamAsync(); });
         AddIntegratedAction(actions, 1, "Inicialização", "Ative ou desative entradas do seu usuário de modo reversível.", AppServices.Gray,
             async () => { _activeSystemView = "startup"; await RefreshStartupEntriesAsync(); });
         AddIntegratedAction(actions, 2, "Windows Update", "Procure, selecione e instale atualizações oficiais.", AppServices.Green,
@@ -64,12 +66,12 @@ internal sealed partial class MainForm
         var details = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, BackColor = PanelBackground,
-            ColumnCount = 1, RowCount = 4, Padding = new Padding(12, 9, 12, 10),
-            Margin = new Padding(4, 5, 4, 0)
+            ColumnCount = 1, RowCount = 4, Padding = new Padding(8, 4, 8, 4),
+            Margin = new Padding(2, 2, 2, 0)
         };
         _systemDetails = details;
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
+        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
         details.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         details.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
@@ -94,7 +96,7 @@ internal sealed partial class MainForm
         _systemPanelSummary.Dock = DockStyle.Fill;
         _systemPanelSummary.Font = new Font("Segoe UI", 9F);
         _systemPanelSummary.ForeColor = Muted;
-        _systemPanelSummary.TextAlign = ContentAlignment.TopLeft;
+        _systemPanelSummary.TextAlign = ContentAlignment.MiddleLeft;
         details.Controls.Add(_systemPanelSummary, 0, 1);
         _installSelectedUpdates = CreateButton("Baixar e instalar selecionadas (0)", AppServices.Green, Color.White);
         _installSelectedUpdates.Dock = DockStyle.Fill;
@@ -109,6 +111,7 @@ internal sealed partial class MainForm
         _systemPanelCards.Resize += (_, _) => ResizeIntegratedCards();
         var contentHost = new Panel { Dock = DockStyle.Fill, BackColor = PanelBackground, Margin = Padding.Empty };
         contentHost.Controls.Add(_systemPanelCards);
+        contentHost.Controls.Add(BuildMemoryRamDashboard());
         _hardwareGrid = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3,
@@ -121,29 +124,38 @@ internal sealed partial class MainForm
         contentHost.Controls.Add(_hardwareGrid);
         _systemPanelCards.BringToFront();
         details.Controls.Add(contentHost, 0, 3);
+        SetSystemView("memory");
         root.Controls.Add(details, 0, 1);
+        root.SizeChanged += (_, _) => FitSystemActionsHeight(root, actions);
+        details.SizeChanged += (_, _) => FitSystemSummaryHeight();
+        FitSystemActionsHeight(root, actions);
+        FitSystemSummaryHeight();
 
-        _processTimer.Tick += async (_, _) =>
+        _memoryTimer.Tick += async (_, _) =>
         {
-            if (_activeSystemView != "processes" || _processSampling || _busy || IsDisposed || _nav.SelectedIndex != 4)
-                return;
-            await RefreshProcessHistoryAsync();
+            if (_memorySampling || IsDisposed) return;
+            UpdateProcessSamplingCadence();
+            await RefreshMemoryRamAsync();
         };
-        FormClosed += (_, _) => _processTimer.Dispose();
+        FormClosed += (_, _) => _memoryTimer.Dispose();
         return root;
     }
 
     private void SetSystemView(string view)
     {
-        _activeSystemView = view;
-        if (view != "processes") _processTimer.Stop();
+        _activeSystemView = view; // A coleta permanece ativa na bandeja, com cadencia reduzida.
         if (_systemDetails is null || _installSelectedUpdates is null) return;
         bool showInstall = view == "update";
-        _systemDetails.RowStyles[2].Height = showInstall ? 43 : 0;
+        bool showMemory = view == "memory";
+        _systemDetails.RowStyles[2].Height = showInstall ? 38 : 0;
+        FitSystemSummaryHeight();
+        UpdateProcessSamplingCadence();
         _installSelectedUpdates.Visible = showInstall;
         if (_exportHardwareButton is not null) _exportHardwareButton.Visible = view == "hardware" && _hardwareGroups.Count > 0;
         if (_hardwareGrid is not null) _hardwareGrid.Visible = view == "hardware";
-        if (_systemPanelCards is not null) _systemPanelCards.Visible = view != "hardware";
+        if (_memoryDashboardView is not null) _memoryDashboardView.Visible = showMemory;
+        if (_systemPanelCards is not null)
+            _systemPanelCards.Visible = view != "hardware" && !showMemory;
         _systemDetails.PerformLayout();
     }
 
@@ -153,12 +165,13 @@ internal sealed partial class MainForm
         var card = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, BackColor = PanelBackground,
-            ColumnCount = 1, RowCount = 2, Margin = new Padding(4, 4, 8, 9),
-            Padding = new Padding(7, 5, 7, 4)
+            ColumnCount = 1, RowCount = 2, Margin = new Padding(2, 1, 3, 2),
+            Padding = new Padding(4, 2, 4, 2)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var button = CreateButton(caption, color, Color.White);
+        button.AccessibleDescription = description;
         button.Dock = DockStyle.Fill;
         button.Margin = Padding.Empty;
         _actionControls.Add(button);
@@ -168,18 +181,61 @@ internal sealed partial class MainForm
             if (_busy) return;
             SetSystemView(caption switch
             {
-                "Processos" => "processes", "Inicialização" => "startup", "Windows Update" => "update", _ => "hardware"
+                "Memória RAM" => "memory", "Inicialização" => "startup", "Windows Update" => "update", _ => "hardware"
             });
             try { await action(); } catch (Exception ex) { ReportError(ex); }
         };
         card.Controls.Add(button, 0, 0);
         card.Controls.Add(new Label
         {
-            Text = description, Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 8.2F), TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(2, 3, 2, 0)
+            Name = "SystemActionDescription" + column,
+            Text = description,
+            Dock = DockStyle.Fill, ForeColor = Muted,
+            AutoEllipsis = false,
+            Font = new Font("Segoe UI", 9F),
+            TextAlign = ContentAlignment.TopLeft,
+            Padding = new Padding(1, 2, 1, 0),
+            AccessibleDescription = description
         }, 0, 1);
         parent.Controls.Add(card, column, 0);
+    }
+
+    private void FitSystemActionsHeight(TableLayoutPanel root, TableLayoutPanel actions)
+    {
+        if (root.IsDisposed || actions.IsDisposed || root.ClientSize.Width < 1) return;
+        int width = Math.Max(88,
+            (root.ClientSize.Width - root.Padding.Horizontal) / 4 - 23);
+        int minHeight = (int)Math.Ceiling(82d * Math.Max(1d, DeviceDpi / 96d));
+        int height = minHeight;
+        foreach (var card in actions.Controls.OfType<TableLayoutPanel>())
+        {
+            var label = card.Controls.OfType<Label>().FirstOrDefault();
+            if (label is null) continue;
+            int measured = TextRenderer.MeasureText(label.Text, label.Font,
+                new Size(width, 800),
+                TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
+            int required = (int)card.RowStyles[0].Height + measured +
+                card.Margin.Vertical + card.Padding.Vertical + label.Padding.Vertical + 3;
+            height = Math.Max(height, required);
+        }
+        if (Math.Abs(root.RowStyles[0].Height - height) >= 1)
+            root.RowStyles[0].Height = height;
+    }
+
+    private void FitSystemSummaryHeight()
+    {
+        if (_systemDetails is null || _systemDetails.IsDisposed ||
+            _systemPanelSummary.IsDisposed) return;
+        int width = Math.Max(180, _systemDetails.ClientSize.Width -
+            _systemDetails.Padding.Horizontal - 10);
+        int measured = TextRenderer.MeasureText(_systemPanelSummary.Text,
+            _systemPanelSummary.Font, new Size(width, 200),
+            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
+        int height = Math.Clamp(measured + 4,
+            (int)Math.Ceiling(26d * Math.Max(1d, DeviceDpi / 96d)),
+            (int)Math.Ceiling(78d * Math.Max(1d, DeviceDpi / 96d)));
+        if (Math.Abs(_systemDetails.RowStyles[1].Height - height) >= 1)
+            _systemDetails.RowStyles[1].Height = height;
     }
 
     private void ReplaceSystemCards(IEnumerable<Control> cards)
@@ -380,23 +436,23 @@ internal sealed partial class MainForm
     {
         var panel = new TableLayoutPanel
         {
-            Width = 390, Height = 133, RowCount = 2, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 3, 13, 11),
-            Padding = new Padding(12, 8, 12, 7)
+            Width = 390, Height = 104, RowCount = 2, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
+            Padding = new Padding(9, 5, 9, 4)
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var title = new Label
         {
             Text = entry.Title, Dock = DockStyle.Fill,
             ForeColor = Ink, Font = new Font("Segoe UI", 9.6F, FontStyle.Bold),
-            AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft
+            AutoEllipsis = false, TextAlign = ContentAlignment.MiddleLeft
         };
         var detail = new Label
         {
             Text = entry.Description, Dock = DockStyle.Fill,
             ForeColor = Muted, Font = new Font("Segoe UI", 8.7F),
-            AutoEllipsis = true, TextAlign = ContentAlignment.TopLeft,
+            AutoEllipsis = false, TextAlign = ContentAlignment.TopLeft,
             Padding = new Padding(0, 4, 0, 0)
         };
         _toolTips.SetToolTip(title, entry.Title);
@@ -441,17 +497,17 @@ internal sealed partial class MainForm
     {
         var card = new TableLayoutPanel
         {
-            Width = 390, Height = 144, RowCount = 3, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 3, 13, 11),
-            Padding = new Padding(10, 8, 10, 8)
+            Width = 390, Height = 123, RowCount = 3, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
+            Padding = new Padding(8, 5, 8, 5)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
         var name = new Label { Text = item.Name, Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 9.6F, FontStyle.Bold), AutoEllipsis = true };
+            Font = new Font("Segoe UI", 9.6F, FontStyle.Bold), AutoEllipsis = false };
         var desc = new Label { Text = item.Details, Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 8.3F), AutoEllipsis = true };
+            Font = new Font("Segoe UI", 8.3F), AutoEllipsis = false };
         _toolTips.SetToolTip(desc, item.Details);
         card.Controls.Add(name, 0, 0);
         card.Controls.Add(desc, 0, 1);
@@ -464,9 +520,9 @@ internal sealed partial class MainForm
         {
             if (_busy) return;
             string verb = item.Enabled ? "desativar" : "reativar";
-            if (MessageBox.Show(this, $"Deseja {verb} '{item.Name}' na inicialização do Windows?\n\n" +
-                "A opção será reversível nesta mesma lista. Alterações afetarão o próximo login. O programa não será desinstalado.",
-                "Confirmar inicialização", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            if (DarkConfirmDialog.Confirm(this,
+                $"Deseja {verb} '{item.Name}' na inicialização do Windows?",
+                "Confirmar inicialização") != DialogResult.Yes) return;
             await ExecuteAsync("Alterando inicialização...", async () =>
             {
                 await Task.Run(() => StartupManager.Toggle(item));
@@ -480,18 +536,91 @@ internal sealed partial class MainForm
         return card;
     }
 
+    private void UpdateProcessSamplingCadence()
+    {
+        if (IsDisposed) return;
+        bool visible = Visible && !IsInTray && _nav.SelectedIndex == 5 &&
+                       _activeSystemView == "memory";
+        int interval = ProcessSamplingPolicy.IntervalMs(visible, IsInTray || !Visible);
+        if (_memoryTimer.Interval != interval) _memoryTimer.Interval = interval;
+    }
+
+    // Coleta global por GlobalMemoryStatusEx, sem enumeracao de processos.
+    private void BeginBackgroundMemoryMonitoring()
+    {
+        if (IsDisposed) return;
+        UpdateProcessSamplingCadence();
+        _memoryTimer.Start();
+        Log("RAM: acompanhamento local em segundo plano (2 s na aba RAM, 12 s em outras abas, 20 s na bandeja).");
+    }
+
     private async Task ScanWindowsUpdatesAsync()
     {
-        await ExecuteAsync("Procurando atualizações do Windows...", async () =>
+        await ScanWindowsUpdatesInBackgroundAsync();
+    }
+
+    private async Task ScanWindowsUpdatesInBackgroundAsync(bool force = false)
+    {
+        if (IsDisposed) return;
+        if (_windowsUpdateScanning)
         {
-            _systemPanelTitle.Text = "Windows Update · procurando...";
-            _systemPanelSummary.Text = "A pesquisa pode demorar alguns minutos e requer Internet. Não instala nada nesta etapa.";
-            _updateCatalog = await WindowsUpdateClient.ScanAsync();
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
+            {
+                _systemPanelTitle.Text = "Windows Update · consultando...";
+                _systemPanelSummary.Text = "Busca automática em andamento. Nenhuma atualização será instalada sem confirmação.";
+            }
+            return;
+        }
+        if (_windowsUpdateChecked && !force)
+        {
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
+                DrawWindowsUpdates();
+            return;
+        }
+        _windowsUpdateScanning = true;
+        RenderTitle();
+        if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
+        {
+            _systemPanelTitle.Text = "Windows Update · consultando...";
+            _systemPanelSummary.Text = "Consulta oficial do Windows em segundo plano; pode demorar alguns minutos.";
+        }
+        Log("Windows Update: consulta iniciada automaticamente, sem instalar atualizações.");
+        try
+        {
+            // A API Windows Update Agent roda numa thread STA própria e não bloqueia a janela.
+            var found = await WindowsUpdateClient.ScanAsync();
+            if (IsDisposed) return;
+            _updateCatalog = found;
             _updateSelection.Clear();
-            DrawWindowsUpdates();
-            Status($"{_updateCatalog.Count} atualizações do Windows disponíveis");
-            Log($"Windows Update Agent: {_updateCatalog.Count} atualizações de software encontradas.");
-        });
+            _windowsUpdateChecked = true;
+            _windowsUpdateScanFailure = null;
+            RenderTitle();
+            Log($"Windows Update: {_updateCatalog.Count} atualização(ões) de software encontrada(s).");
+            DiagnosticTrace.Write($"WINDOWS_UPDATE.CONSULTA_OK quantidade={found.Count}");
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
+            {
+                DrawWindowsUpdates();
+                Status($"Windows Update: {found.Count} atualizações disponíveis");
+            }
+        }
+        catch (Exception ex)
+        {
+            if (IsDisposed) return;
+            _windowsUpdateScanFailure = ex.GetType().Name;
+            RenderTitle();
+            DiagnosticTrace.Failure("WINDOWS_UPDATE.CONSULTA_FALHA", ex);
+            Log("Windows Update: consulta indisponível (" + _windowsUpdateScanFailure + ").");
+            if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
+            {
+                _systemPanelTitle.Text = "Windows Update · consulta indisponível";
+                _systemPanelSummary.Text = "O Windows Update não pôde ser consultado. Nenhuma instalação foi iniciada.";
+            }
+        }
+        finally
+        {
+            _windowsUpdateScanning = false;
+            if (!IsDisposed) RenderTitle();
+        }
     }
 
     private void DrawWindowsUpdates()
@@ -512,15 +641,15 @@ internal sealed partial class MainForm
     {
         var card = new TableLayoutPanel
         {
-            Width = 390, Height = 144, RowCount = 3, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 3, 13, 11),
-            Padding = new Padding(11, 7, 11, 7)
+            Width = 390, Height = 125, RowCount = 3, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
+            Padding = new Padding(8, 5, 8, 5)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
         card.Controls.Add(new Label { Text = update.Title, Dock = DockStyle.Fill,
-            ForeColor = Ink, Font = new Font("Segoe UI", 9.3F, FontStyle.Bold), AutoEllipsis = true }, 0, 0);
+            ForeColor = Ink, Font = new Font("Segoe UI", 9.3F, FontStyle.Bold), AutoEllipsis = false }, 0, 0);
         var details = new Label { Text = (update.Kb.Length > 0 ? update.Kb + " · " : "") +
             (update.Downloaded ? "Baixada" : "Download necessário") +
             (update.EulaAccepted ? " · Licença já aceita" : " · Licença pendente"),
@@ -564,10 +693,9 @@ internal sealed partial class MainForm
                 "Windows Update", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (MessageBox.Show(this,
-            $"Baixar e instalar {selected.Length} atualização(ões) selecionada(s) pelo Windows Update?\n\n" +
-            "O Windows poderá solicitar autorização de administrador (UAC). Alguns pacotes exigem reinicialização, mas o programa NÃO reiniciará o computador automaticamente.\n\nContinue apenas depois de salvar seu trabalho.",
-            "Confirmar Windows Update", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        if (DarkConfirmDialog.Confirm(this,
+            $"Deseja instalar {selected.Length} atualização(ões) do Windows? Algumas podem exigir reinicialização.",
+            "Confirmar Windows Update") != DialogResult.Yes) return;
         await ExecuteAsync("Instalando atualizações do Windows...", async () =>
         {
             // O trabalhador já existente solicita UAC e mostra as mensagens na janela principal.
@@ -583,20 +711,30 @@ internal sealed partial class MainForm
         });
     }
 
-    private async Task RefreshProcessHistoryAsync()
+    private Task RefreshMemoryRamAsync()
     {
-        if (_processSampling || _busy || _activeSystemView != "processes") return;
-        _processSampling = true;
+        if (_memorySampling || IsDisposed) return Task.CompletedTask;
+        _memorySampling = true;
         try
         {
-            var snapshot = await Task.Run(_processSampler.TakeSample);
-            if (_activeSystemView == "processes" && !IsDisposed)
+            // GlobalMemoryStatusEx é consulta instantânea, não requer
+            // Task.Run nem cria threads para cada amostra.
+            var sample = MemoryRamReader.Capture();
+            if (!IsDisposed && sample is not null)
             {
-                ShowIntegratedSnapshot(snapshot);
-                Status("Histórico de processos atualizado");
+                if (Visible && !IsInTray && _nav.SelectedIndex == 5 &&
+                    _activeSystemView == "memory")
+                    ShowMemoryRamSample(sample);
+                else
+                    _memoryHistory.Add(sample);
+                EvaluateAutomaticMemoryCleanup(sample);
             }
         }
-        catch (Exception ex) { Log("Histórico de processos: " + ex.Message); }
-        finally { _processSampling = false; }
+        catch (Exception ex)
+        {
+            if (!IsDisposed) Log("RAM: consulta indisponível (" + ex.GetType().Name + ").");
+        }
+        finally { _memorySampling = false; }
+        return Task.CompletedTask;
     }
 }

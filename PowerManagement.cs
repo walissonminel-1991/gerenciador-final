@@ -202,18 +202,18 @@ internal sealed partial class MainForm
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1,
-            Padding = new Padding(12, 12, 12, 12), Margin = Padding.Empty,
+            Padding = new Padding(8, 6, 8, 6), Margin = Padding.Empty,
             BackColor = AppServices.Background
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 238));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 104));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 53));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 172));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
             BackColor = AppServices.Background };
-        header.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        header.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
         header.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         header.Controls.Add(new Label { Text = "PLANOS DE ENERGIA", Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", 13F, FontStyle.Bold), ForeColor = Ink,
@@ -234,10 +234,10 @@ internal sealed partial class MainForm
         root.Controls.Add(grid, 0, 1);
 
         var hibernate = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 2,
-            BackColor = PanelBackground, Padding = new Padding(14, 12, 14, 10), Margin = new Padding(5, 5, 5, 0) };
+            BackColor = PanelBackground, Padding = new Padding(11, 7, 11, 7), Margin = new Padding(3, 3, 3, 0) };
         hibernate.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        hibernate.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
-        hibernate.RowStyles.Add(new RowStyle(SizeType.Absolute, 35));
+        hibernate.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 123));
+        hibernate.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         hibernate.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         hibernate.Controls.Add(new Label { Text = "HIBERNAÇÃO", Dock = DockStyle.Fill, ForeColor = Ink,
             Font = new Font("Segoe UI", 10.5F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
@@ -247,8 +247,10 @@ internal sealed partial class MainForm
         _hibernateStateLabel.TextAlign = ContentAlignment.MiddleLeft;
         hibernate.Controls.Add(_hibernateStateLabel, 0, 1);
         _hibernateToggle = CreateSecondaryButton("Consultar...");
-        _hibernateToggle.Dock = DockStyle.Fill;
-        _hibernateToggle.Margin = new Padding(5, 5, 0, 5);
+        _hibernateToggle.Dock = DockStyle.None;
+        _hibernateToggle.Anchor = AnchorStyles.Right | AnchorStyles.Top;
+        _hibernateToggle.Size = new Size(108, 30);
+        _hibernateToggle.Margin = new Padding(2, 7, 0, 0);
         _hibernateToggle.Enabled = false;
         _hibernateToggle.Click += async (_, _) => await ToggleHibernateAsync();
         _actionControls.Add(_hibernateToggle);
@@ -258,12 +260,12 @@ internal sealed partial class MainForm
         var restoreRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2,
             Margin = new Padding(5, 2, 5, 0), BackColor = AppServices.Background };
         restoreRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        restoreRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 238));
+        restoreRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 194));
         restoreRow.Controls.Add(new Label { Text = "Reversão disponível nesta sessão, após uma alteração feita pelo Gerenciador.",
             Dock = DockStyle.Fill, ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
         _restorePreviousPowerButton = CreateSecondaryButton("Restaurar plano anterior");
         _restorePreviousPowerButton.Dock = DockStyle.Fill;
-        _restorePreviousPowerButton.Margin = new Padding(4, 5, 0, 5);
+        _restorePreviousPowerButton.Margin = new Padding(3, 5, 0, 5);
         _restorePreviousPowerButton.Enabled = false;
         _restorePreviousPowerButton.Click += async (_, _) => await RestorePreviousPowerAsync();
         _actionControls.Add(_restorePreviousPowerButton);
@@ -275,14 +277,14 @@ internal sealed partial class MainForm
     private Control PowerCard(string key, string title, string description, Color accent)
     {
         var card = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1,
-            BackColor = PanelBackground, Padding = new Padding(14, 9, 14, 9), Margin = new Padding(5, 5, 5, 5) };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 37));
+            BackColor = PanelBackground, Padding = new Padding(9, 6, 9, 5), Margin = new Padding(3, 3, 3, 4) };
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 39));
         card.Controls.Add(new Label { Text = title, Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-            AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+            Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+            AutoEllipsis = false, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
         card.Controls.Add(new Label { Text = description, Dock = DockStyle.Fill, ForeColor = Muted,
             Font = new Font("Segoe UI", 9F), TextAlign = ContentAlignment.TopLeft }, 0, 1);
         var badge = new Label { Text = "Consultando...", Dock = DockStyle.Fill, ForeColor = Muted,
@@ -290,7 +292,9 @@ internal sealed partial class MainForm
         _powerBadges[key] = badge;
         card.Controls.Add(badge, 0, 2);
         var button = CreateButton("Ativar", accent, Color.White);
-        button.Dock = DockStyle.Fill;
+        button.Dock = DockStyle.None;
+        button.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
+        button.Size = new Size(112, 30);
         button.Enabled = false;
         button.Margin = Padding.Empty;
         button.Click += async (_, _) => await ChoosePowerPlanAsync(key, title);

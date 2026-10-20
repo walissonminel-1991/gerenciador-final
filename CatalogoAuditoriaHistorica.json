@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "notes": "Candidates for READ-ONLY historical orphan inspection; no authorizations to delete.",
+  "rules": [
+    {
+      "id": "origin-legacy",
+      "name": "Origin",
+      "installedNames": [
+        "Origin",
+        "Origin Client",
+        "EA app",
+        "EA Desktop"
+      ],
+      "folders": [
+        "Local\\Origin"
+      ],
+      "registry": [
+        "HKLM32\\SOFTWARE\\Origin"
+      ],
+      "warn": "Os dados do Origin podem conter jogos salvos e ainda ser usados pelo EA app."
+    },
+    {
+      "id": "utorrent-web",
+      "name": "uTorrent Web",
+      "installedNames": [
+        "uTorrent Web",
+        "µTorrent Web",
+        "uTorrentWeb"
+      ],
+      "folders": [
+        "StartMenu\\uTorrent Web"
+      ],
+      "registry": [],
+      "warn": "Atalhos antigos devem ser revisados individualmente antes de qualquer exclusao."
+    },
+    {
+      "id": "vivaldi",
+      "name": "Vivaldi",
+      "installedNames": [
+        "Vivaldi",
+        "Vivaldi Browser"
+      ],
+      "folders": [],
+      "registry": [
+        "HKCU\\Software\\Vivaldi",
+        "HKCU\\Software\\Vivaldi\\NativeMessagingHosts",
+        "HKCU\\Software\\Vivaldi\\NativeMessagingHosts\\me.proton.pass.nm"
+      ],
+      "warn": "O componente Proton Pass pode continuar em uso. Nao remova estas chaves por conta propria.",
+      "activeDependents": [
+        "Proton Pass",
+        "Proton Pass for Windows"
+      ]
+    }
+  ]
+}

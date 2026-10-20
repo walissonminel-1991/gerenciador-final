@@ -42,7 +42,7 @@ internal sealed partial class MainForm
         _networkDetails.Font = new Font("Segoe UI", 8.8F);
         _networkDetails.TextAlign = ContentAlignment.TopLeft;
         _networkDetails.Padding = new Padding(0, 4, 0, 0);
-        _networkDetails.AutoEllipsis = true;
+        _networkDetails.AutoEllipsis = false;
         panel.Controls.Add(_networkSummary, 0, 1);
         panel.Controls.Add(_networkDetails, 0, 2);
         return panel;
@@ -65,6 +65,7 @@ internal sealed partial class MainForm
             var lines = result.Checks.Select(check => $"{check.Name}: {check.Detail}").ToArray();
             _networkDetails.Text = string.Join(Environment.NewLine, lines.Take(5)) +
                 (lines.Length > 5 ? $"{Environment.NewLine}Mais {lines.Length - 5} resultado(s) no registro." : "");
+            _relayoutRepair?.Invoke();
             foreach (var check in result.Checks)
             {
                 Log($"Rede [{check.State}]: {check.Name} — {check.Detail}");

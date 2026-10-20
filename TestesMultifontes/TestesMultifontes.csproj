@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../RuckZuckModels.cs" Link="Models.cs" />
+    <Compile Include="../Matching.cs" Link="Matching.cs" />
+    <Compile Include="../OfficialReleaseSources.cs" Link="Sources.cs" />
+    <Compile Include="../ApplicationIdentityCatalog.cs" Link="ApplicationIdentityCatalog.cs" />
+    <EmbeddedResource Include="../CatalogoIdentidades.json" LogicalName="GerenciadorFinal.ApplicationIdentityCatalog" />
+  </ItemGroup>
+</Project>

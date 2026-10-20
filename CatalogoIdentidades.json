@@ -1,0 +1,319 @@
+{
+  "schema": 1,
+  "reason": "Unified authoritative app identity used for inventory, official update discovery, and safe post-uninstall checks; never grants execute/delete by itself",
+  "rules": [
+    {
+      "id": "gameinput-winget",
+      "name": "Microsoft GameInput",
+      "names": [
+        "Microsoft GameInput"
+      ],
+      "publishers": [
+        "Microsoft Corporation"
+      ],
+      "officialSource": "gameinput-winget",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "outlook-winget",
+      "name": "Outlook for Windows",
+      "names": [
+        "Outlook for Windows",
+        "Outlook para Windows"
+      ],
+      "publishers": [
+        "Microsoft Corporation"
+      ],
+      "officialSource": "outlook-winget",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "edge-stable",
+      "name": "Microsoft Edge",
+      "names": [
+        "Microsoft Edge"
+      ],
+      "publishers": [
+        "Microsoft Corporation"
+      ],
+      "officialSource": "edge-stable",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "proton-pass-desktop",
+      "name": "Proton Pass",
+      "names": [
+        "Proton Pass"
+      ],
+      "publishers": [
+        "Proton AG",
+        "Proton Technologies AG"
+      ],
+      "officialSource": "proton-pass-desktop",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "windows-terminal",
+      "name": "Windows Terminal",
+      "names": [
+        "Windows Terminal",
+        "Terminal do Windows"
+      ],
+      "publishers": [
+        "Microsoft Corporation"
+      ],
+      "officialSource": "windows-terminal",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "firefox-stable",
+      "name": "Firefox",
+      "names": [
+        "Mozilla Firefox",
+        "Firefox",
+        "Mozilla Firefox (x64*"
+      ],
+      "publishers": [
+        "Mozilla Corporation",
+        "Mozilla Foundation",
+        "Mozilla"
+      ],
+      "officialSource": "firefox-stable",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "thunderbird-stable",
+      "name": "Thunderbird",
+      "names": [
+        "Mozilla Thunderbird (Release)",
+        "Mozilla Thunderbird (Stable)"
+      ],
+      "publishers": [
+        "Mozilla Corporation",
+        "Mozilla"
+      ],
+      "officialSource": "thunderbird-stable",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "obs",
+      "name": "OBS Studio",
+      "names": [
+        "OBS Studio"
+      ],
+      "publishers": [
+        "OBS Project",
+        "OBS Project, LLC",
+        "OBS"
+      ],
+      "officialSource": "obs",
+      "cleanupPolicy": "obs"
+    },
+    {
+      "id": "notepadpp",
+      "name": "Notepad++",
+      "names": [
+        "Notepad++",
+        "Notepad++ (*"
+      ],
+      "publishers": [
+        "Notepad++ Team",
+        "Notepad Team",
+        "Don HO",
+        "Notepad++"
+      ],
+      "officialSource": "notepadpp",
+      "cleanupPolicy": "notepadpp"
+    },
+    {
+      "id": "powertoys",
+      "name": "PowerToys",
+      "names": [
+        "Microsoft PowerToys",
+        "PowerToys"
+      ],
+      "publishers": [
+        "Microsoft Corporation"
+      ],
+      "officialSource": "powertoys",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "powershell",
+      "name": "PowerShell 7",
+      "names": [
+        "PowerShell 7",
+        "PowerShell 7-x64",
+        "PowerShell 7-x86",
+        "PowerShell 7 (x64)",
+        "PowerShell 7 (x86)"
+      ],
+      "publishers": [
+        "Microsoft Corporation"
+      ],
+      "officialSource": "powershell",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "sevenzip",
+      "name": "7-Zip",
+      "names": [
+        "7-Zip *"
+      ],
+      "publishers": [
+        "Igor Pavlov"
+      ],
+      "officialSource": "sevenzip",
+      "cleanupPolicy": "7zip"
+    },
+    {
+      "id": "github-desktop",
+      "name": "GitHub Desktop",
+      "names": [
+        "GitHub Desktop"
+      ],
+      "publishers": [
+        "GitHub, Inc.",
+        "GitHub"
+      ],
+      "officialSource": "github-desktop",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "sumatrapdf",
+      "name": "SumatraPDF",
+      "names": [
+        "SumatraPDF",
+        "SumatraPDF (x64)",
+        "SumatraPDF (x86)",
+        "SumatraPDF (64-bit)",
+        "SumatraPDF (32-bit)"
+      ],
+      "publishers": [
+        "Krzysztof Kowalczyk",
+        "SumatraPDF",
+        "SumatraPDF Reader"
+      ],
+      "officialSource": "sumatrapdf",
+      "cleanupPolicy": "sumatrapdf"
+    },
+    {
+      "id": "vlc",
+      "name": "VLC media player",
+      "names": [
+        "VLC media player",
+        "VLC media player (*"
+      ],
+      "publishers": [
+        "VideoLAN",
+        "VideoLAN Team"
+      ],
+      "officialSource": null,
+      "cleanupPolicy": "vlc"
+    },
+    {
+      "id": "audacity",
+      "name": "Audacity",
+      "names": [
+        "Audacity",
+        "Audacity (*"
+      ],
+      "publishers": [
+        "Audacity Team",
+        "Muse Group",
+        "Audacity"
+      ],
+      "officialSource": null,
+      "cleanupPolicy": "audacity"
+    },
+    {
+      "id": "plex",
+      "name": "Plex",
+      "names": [
+        "Plex",
+        "Plex Media Server",
+        "Plex Media Server (*"
+      ],
+      "publishers": [
+        "Plex, Inc.",
+        "Plex",
+        "Plex GmbH"
+      ],
+      "officialSource": null,
+      "cleanupPolicy": null
+    },
+    {
+      "id": "adobe-acrobat",
+      "name": "Adobe Acrobat",
+      "names": [
+        "Adobe Acrobat (64-bit)",
+        "Adobe Acrobat",
+        "Adobe Acrobat Reader (64-bit)"
+      ],
+      "publishers": [
+        "Adobe",
+        "Adobe Inc.",
+        "Adobe Systems Incorporated"
+      ],
+      "officialSource": null,
+      "cleanupPolicy": null
+    },
+    {
+      "id": "sharex",
+      "name": "ShareX",
+      "names": [
+        "ShareX"
+      ],
+      "publishers": [
+        "ShareX Team",
+        "ShareX",
+        "Jaex"
+      ],
+      "officialSource": "sharex",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "handbrake",
+      "name": "HandBrake",
+      "names": [
+        "HandBrake"
+      ],
+      "publishers": [
+        "HandBrake Team",
+        "HandBrake",
+        "HandBrake Project"
+      ],
+      "officialSource": "handbrake",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "rufus",
+      "name": "Rufus",
+      "names": [
+        "Rufus"
+      ],
+      "publishers": [
+        "Akeo Consulting",
+        "Pete Batard",
+        "Akeo"
+      ],
+      "officialSource": "rufus",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "qbittorrent",
+      "name": "qBittorrent",
+      "names": [
+        "qBittorrent",
+        "qBittorrent (64-bit)"
+      ],
+      "publishers": [
+        "The qBittorrent Project",
+        "qBittorrent Project",
+        "qBittorrent"
+      ],
+      "officialSource": "qbittorrent",
+      "cleanupPolicy": null
+    }
+  ]
+}

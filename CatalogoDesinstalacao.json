@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "purpose": "Verified exclusive per-user residue paths; never treat catalog as proof of forensic erasure",
+  "updated": "2026-10-18",
+  "rules": [
+    {
+      "id": "sumatrapdf",
+      "displayName": "SumatraPDF",
+      "installedNames": [
+        "SumatraPDF"
+      ],
+      "folders": [
+        "Roaming\\SumatraPDF",
+        "Local\\SumatraPDF"
+      ],
+      "registryKeys": [
+        "Software\\SumatraPDF"
+      ]
+    },
+    {
+      "id": "notepadpp",
+      "displayName": "Notepad++ (64-bit x64)",
+      "installedNames": [
+        "Notepad++*"
+      ],
+      "folders": [
+        "Roaming\\Notepad++",
+        "Local\\Notepad++"
+      ],
+      "registryKeys": [
+        "Software\\Notepad++"
+      ]
+    },
+    {
+      "id": "7zip",
+      "displayName": "7-Zip",
+      "installedNames": [
+        "7-Zip*"
+      ],
+      "folders": [
+        "Roaming\\7-Zip"
+      ],
+      "registryKeys": [
+        "Software\\7-Zip"
+      ]
+    },
+    {
+      "id": "obs",
+      "displayName": "OBS Studio",
+      "installedNames": [
+        "OBS Studio*"
+      ],
+      "folders": [
+        "Roaming\\obs-studio"
+      ],
+      "registryKeys": []
+    },
+    {
+      "id": "vlc",
+      "displayName": "VLC media player",
+      "installedNames": [
+        "VLC media player*"
+      ],
+      "folders": [
+        "Roaming\\vlc"
+      ],
+      "registryKeys": []
+    },
+    {
+      "id": "audacity",
+      "displayName": "Audacity",
+      "installedNames": [
+        "Audacity*"
+      ],
+      "folders": [
+        "Roaming\\audacity"
+      ],
+      "registryKeys": []
+    }
+  ]
+}

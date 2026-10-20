@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -48,12 +49,18 @@ internal sealed class DarkVScrollBar : Control
 
     public void SetMetrics(int contentSize, int pageSize)
     {
-        _contentSize = Math.Max(0, contentSize);
-        _pageSize = Math.Max(1, pageSize);
-        bool needed = _contentSize > _pageSize;
-        Visible = needed;
+        int nextContent = Math.Max(0, contentSize);
+        int nextPage = Math.Max(1, pageSize);
+        bool needed = nextContent > nextPage;
+        // Nao redesenhar barra se a metrica e a visibilidade nao mudaram.
+        // Evita cintilacao na area de registro a cada evento de texto.
+        if (_contentSize == nextContent && _pageSize == nextPage && Visible == needed)
+            return;
+        _contentSize = nextContent;
+        _pageSize = nextPage;
+        if (Visible != needed) Visible = needed;
         ChangeValue(_value);
-        Invalidate();
+        if (needed) Invalidate();
     }
 
     private void ChangeValue(int next)
@@ -71,7 +78,7 @@ internal sealed class DarkVScrollBar : Control
         int available = Math.Max(1, Height - margin * 2);
         if (_contentSize <= 0 || _contentSize <= _pageSize)
             return new Rectangle(margin, margin, Math.Max(2, Width - margin * 2), available);
-        int size = Math.Clamp((int)Math.Round(available * (_pageSize / (double)_contentSize)), 25, available);
+        int size = Math.Clamp((int)Math.Round(available * (_pageSize / (double)_contentSize)), Math.Min(25, available), available);
         int travel = available - size;
         int pos = MaximumValue == 0 ? 0 : (int)Math.Round(travel * (_value / (double)MaximumValue));
         return new Rectangle(margin, margin + pos, Math.Max(2, Width - margin * 2), size);
@@ -161,18 +168,32 @@ internal sealed class DarkVScrollBar : Control
 
 internal static class AppRowGeometry
 {
-    public static Rectangle Checkbox(Rectangle bounds) => new(bounds.Left + 17, bounds.Top + 28, 20, 20);
-    public static Rectangle UpdateButton(Rectangle bounds) => new(bounds.Right - 234, bounds.Top + 20, 105, 36);
-    public static Rectangle UninstallButton(Rectangle bounds) => new(bounds.Right - 124, bounds.Top + 20, 112, 36);
+    public static Rectangle Checkbox(Rectangle bounds) => new(bounds.Left + 17, bounds.Top + 23, 18, 18);
+    public static Rectangle UpdateButton(Rectangle bounds) => new(bounds.Right - 318, bounds.Top + 16, 112, 33);
+    public static Rectangle SiteButton(Rectangle bounds) => new(bounds.Right - 200, bounds.Top + 16, 80, 33);
+    public static Rectangle UninstallButton(Rectangle bounds) => new(bounds.Right - 115, bounds.Top + 16, 103, 33);
 }
 
 internal sealed class DarkProgramList : Control
 {
     private readonly List<ProgramEntry> _items = new();
+    private readonly ToolTip _itemTips = new() { InitialDelay = 450, AutoPopDelay = 12000 };
+    private int _tipRow = -1;
     private readonly DarkVScrollBar _scrollbar = new();
     private int _selectedIndex = -1;
     private int _scrollOffset;
     private int _itemHeight = 72;
+    // Pressão visual de 160 ms antes de abrir instaladores/navegador.
+    // Uma só animação leve por clique, sem formularios extras, sons ou arquivos.
+    private readonly System.Windows.Forms.Timer _feedbackTimer = new() { Interval = 16 };
+    private ProgramEntry? _hoverItem;
+    private string _hoverAction = "";
+    private ProgramEntry? _downItem;
+    private string _downAction = "";
+    private ProgramEntry? _pulseItem;
+    private string _pulseAction = "";
+    private long _pulseStart;
+    private float _pulseProgress;
 
     public event EventHandler? SelectedIndexChanged;
     public event DrawItemEventHandler? DrawItem;
@@ -181,9 +202,17 @@ internal sealed class DarkProgramList : Control
     private bool _multiSelectMode;
     private bool _actionsEnabled = true;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public bool MultiSelectMode { get => _multiSelectMode; set { _multiSelectMode = value; Invalidate(); } }
+    public bool MultiSelectMode
+    {
+        get => _multiSelectMode;
+        set { _multiSelectMode = value; ResetActionVisuals(); Invalidate(); }
+    }
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public bool ActionsEnabled { get => _actionsEnabled; set { _actionsEnabled = value; Invalidate(); } }
+    public bool ActionsEnabled
+    {
+        get => _actionsEnabled;
+        set { _actionsEnabled = value; if (!value) ResetActionVisuals(); Invalidate(); }
+    }
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public IReadOnlyList<ProgramEntry> Items => _items;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -210,15 +239,84 @@ internal sealed class DarkProgramList : Control
         _scrollbar.ValueChanged += (_, _) => { _scrollOffset = _scrollbar.Value; Invalidate(); };
         Controls.Add(_scrollbar);
         Resize += (_, _) => UpdateMetrics();
+        _feedbackTimer.Tick += (_, _) => AdvanceButtonAnimation();
+    }
+
+    private void ResetActionVisuals()
+    {
+        _feedbackTimer.Stop();
+        _hoverItem = _downItem = _pulseItem = null;
+        _hoverAction = _downAction = _pulseAction = "";
+        _pulseProgress = 0;
+        Cursor = Cursors.Default;
+    }
+
+    // Estado da interação usado exclusivamente para desenhar os botões da lista.
+    internal (bool Hovered, bool Pressed, float Pulse) ActionVisual(ProgramEntry item, string action)
+    {
+        bool hover = _actionsEnabled && ReferenceEquals(item, _hoverItem) && _hoverAction == action;
+        bool down = ReferenceEquals(item, _downItem) && _downAction == action && hover;
+        bool pulse = ReferenceEquals(item, _pulseItem) && _pulseAction == action;
+        return (hover, down || (pulse && _pulseProgress < 0.75F), pulse ? _pulseProgress : 0F);
+    }
+
+    private (ProgramEntry? Item, string Action) HitAction(Point point)
+    {
+        int contentWidth = ClientSize.Width - (_scrollbar.Visible ? _scrollbar.Width : 0);
+        if (!_actionsEnabled || _multiSelectMode || point.X < 0 || point.Y < 0 ||
+            point.X >= contentWidth || point.Y >= ClientSize.Height || _itemHeight <= 0)
+            return (null, "");
+        int index = (point.Y + _scrollOffset) / _itemHeight;
+        if (index < 0 || index >= _items.Count) return (null, "");
+        var item = _items[index];
+        var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
+        if (item.CanUninstall && AppRowGeometry.UninstallButton(bounds).Contains(point)) return (item, "uninstall");
+        if (item.IsUpdate && AppRowGeometry.UpdateButton(bounds).Contains(point))
+        {
+            string? primaryAction = VerifiedUpdaters.GetPrimaryAction(item);
+            if (primaryAction is not null) return (item, primaryAction);
+        }
+        // O botao secundario Site so aparece quando Atualizar e seguro e direto.
+        if (item.IsUpdate &&
+            (VerifiedUpdaters.Resolve(item) is not null || WindowsTerminalUpdater.Resolve(item) is not null) &&
+            VerifiedUpdaters.GetOfficialPage(item) is not null &&
+            AppRowGeometry.SiteButton(bounds).Contains(point)) return (item, "site");
+        return (null, "");
+    }
+
+    private void AdvanceButtonAnimation()
+    {
+        if (_pulseItem is null) { _feedbackTimer.Stop(); return; }
+        _pulseProgress = Math.Clamp((float)((Stopwatch.GetTimestamp() - _pulseStart) * 1000.0 /
+            Stopwatch.Frequency / 160.0), 0F, 1F);
+        Invalidate();
+        if (_pulseProgress < 1F) return;
+        var item = _pulseItem;
+        var action = _pulseAction;
+        _feedbackTimer.Stop();
+        _pulseItem = null;
+        _pulseAction = "";
+        _pulseProgress = 0;
+        Invalidate();
+        if (!IsDisposed && _actionsEnabled && !_multiSelectMode && _items.Contains(item))
+            ItemActionClicked?.Invoke(item, action);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) { _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _itemTips.Dispose(); }
+        base.Dispose(disposing);
     }
 
     public void ScrollToTop() => _scrollbar.Value = 0;
 
     public void SetItems(IEnumerable<ProgramEntry> entries)
     {
+        ResetActionVisuals();
         ProgramEntry? prior = SelectedItem;
         _items.Clear();
         _items.AddRange(entries);
+        _tipRow = -1;
         int oldSelected = _selectedIndex;
         _selectedIndex = prior is null ? -1 : _items.FindIndex(x => ReferenceEquals(x, prior));
         UpdateMetrics();
@@ -271,6 +369,41 @@ internal sealed class DarkProgramList : Control
         finally { e.Graphics.Clip = original; original.Dispose(); }
     }
 
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        int index = _itemHeight > 0 ? (e.Y + _scrollOffset) / _itemHeight : -1;
+        if (index != _tipRow)
+        {
+            _tipRow = index;
+            string text = index >= 0 && index < _items.Count
+                ? _items[index].Name + "\nVersão atual: " + _items[index].Version +
+                  "\nDisponível: " + _items[index].AvailableVersion +
+                  "\nFonte: " + _items[index].Source
+                : "";
+            _itemTips.SetToolTip(this, text);
+        }
+        var (item, action) = HitAction(e.Location);
+        if (!ReferenceEquals(item, _hoverItem) || _hoverAction != action)
+        {
+            _hoverItem = item;
+            _hoverAction = action;
+            Cursor = item is null ? Cursors.Default : Cursors.Hand;
+            Invalidate();
+        }
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        _hoverItem = null;
+        _hoverAction = "";
+        _tipRow = -1;
+        _itemTips.SetToolTip(this, "");
+        Cursor = Cursors.Default;
+        Invalidate();
+    }
+
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
@@ -279,28 +412,44 @@ internal sealed class DarkProgramList : Control
         int index = (e.Y + _scrollOffset) / _itemHeight;
         if (index < 0 || index >= _items.Count) return;
         var item = _items[index];
-        var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
         Focus();
         if (_multiSelectMode)
         {
             SelectIndex(index);
-            ItemCheckboxClicked?.Invoke(item);
+            if (item.CanUninstall) ItemCheckboxClicked?.Invoke(item);
             return;
         }
-        if (AppRowGeometry.UninstallButton(bounds).Contains(e.Location))
-        {
-            SelectIndex(index);
-            ItemActionClicked?.Invoke(item, "uninstall");
-            return;
-        }
-        if (item.IsUpdate && !string.IsNullOrWhiteSpace(item.PackageId) &&
-            AppRowGeometry.UpdateButton(bounds).Contains(e.Location))
-        {
-            SelectIndex(index);
-            ItemActionClicked?.Invoke(item, "update");
-            return;
-        }
+        var (hit, action) = HitAction(e.Location);
+        _downItem = hit;
+        _downAction = action;
+        _hoverItem = hit;
+        _hoverAction = action;
+        _feedbackTimer.Stop();
+        _pulseItem = null;
+        _pulseAction = "";
+        _pulseProgress = 0;
         SelectIndex(index);
+        Invalidate(); // Mostra o botão pressionado ANTES de executar a ação.
+    }
+
+    protected override void OnMouseUp(MouseEventArgs e)
+    {
+        base.OnMouseUp(e);
+        if (e.Button != MouseButtons.Left) return;
+        var (hit, action) = HitAction(e.Location);
+        bool click = hit is not null && ReferenceEquals(hit, _downItem) && action == _downAction;
+        _downItem = null;
+        _downAction = "";
+        if (click)
+        {
+            // Feedback perceptível mesmo para a ação que abre o navegador instantaneamente.
+            _pulseItem = hit;
+            _pulseAction = action;
+            _pulseStart = Stopwatch.GetTimestamp();
+            _pulseProgress = 0;
+            _feedbackTimer.Start();
+        }
+        Invalidate();
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
@@ -319,7 +468,7 @@ internal sealed class DarkProgramList : Control
     {
         if (_multiSelectMode && _actionsEnabled && e.KeyCode == Keys.Space && SelectedItem is ProgramEntry current)
         {
-            ItemCheckboxClicked?.Invoke(current);
+            if (current.CanUninstall) ItemCheckboxClicked?.Invoke(current);
             e.Handled = true;
             return;
         }
@@ -353,7 +502,15 @@ internal sealed class DarkLogView : UserControl
 
     private readonly TextBox _editor = new();
     private readonly DarkVScrollBar _scroll = new();
+    private readonly System.Windows.Forms.Timer _renderTimer = new() { Interval = 85 };
+    private readonly System.Text.StringBuilder _pending = new();
     private bool _syncing;
+    private bool _syncScheduled;
+    internal int BatchFlushCount { get; private set; }
+    internal string RenderedText
+    {
+        get { FlushPending(); return _editor.Text; }
+    }
 
     public DarkLogView()
     {
@@ -380,15 +537,75 @@ internal sealed class DarkLogView : UserControl
         inner.Controls.Add(_scroll);
         _scroll.BringToFront();
         _editor.Resize += (_, _) => ScheduleSync();
+        _editor.HandleCreated += (_, _) => ScheduleSync();
         _editor.TextChanged += (_, _) => ScheduleSync();
         _editor.MouseWheel += (_, _) => ScheduleSync();
         _editor.KeyUp += (_, _) => ScheduleSync();
         Resize += (_, _) => ScheduleSync();
+        _renderTimer.Tick += (_, _) => FlushPending();
     }
 
+    // Para relatórios estáticos: apresenta o texto desde a primeira linha,
+    // sem o temporizador de lotes usado pelo registro em tempo real.
+    public void SetText(string value)
+    {
+        _renderTimer.Stop();
+        _pending.Clear();
+        _editor.Text = value ?? "";
+        _editor.SelectionStart = 0;
+        _editor.SelectionLength = 0;
+        _editor.ScrollToCaret();
+        SyncMetrics();
+    }
+
+    // Mensagens consecutivas chegam a cada poucos milisseundos no arranque.
+    // Apresenta-las juntas evita varios ScrollToCaret e dezenas de repinturas.
+    // A fila existe so em memoria; nao interfere no arquivo DiagnosticTrace.
     public void AppendText(string text)
     {
-        _editor.AppendText(text);
+        if (IsDisposed || string.IsNullOrEmpty(text)) return;
+        _pending.Append(text);
+        if (!_renderTimer.Enabled) _renderTimer.Start();
+    }
+
+    // Descartar somente texto antigo do painel de mensagens deste aplicativo,
+    // preservando o trecho recente. Não toca no Windows nem em outros processos.
+    // O número retornado representa caracteres UTF-16 que deixamos de reter;
+    // não representa memória física recuperada.
+    internal long CompactOldLog(int thresholdChars = 50000, int keepChars = 16000)
+    {
+        if (IsDisposed || _editor.IsDisposed || _editor.Focused) return 0;
+        FlushPending();
+        if (thresholdChars <= keepChars || keepChars <= 0 ||
+            _editor.TextLength <= thresholdChars) return 0;
+        string previous = _editor.Text;
+        int offset = previous.Length - keepChars;
+        int nextLine = previous.IndexOf('\n', offset);
+        if (nextLine >= 0 && nextLine + 1 < previous.Length) offset = nextLine + 1;
+        if (offset <= 0 || offset >= previous.Length) return 0;
+        _editor.Text = previous[offset..];
+        _editor.SelectionStart = _editor.TextLength;
+        _editor.ScrollToCaret();
+        SyncMetrics();
+        return (long)offset * sizeof(char);
+    }
+
+    internal long ReclaimableOldLogBytes(int thresholdChars = 50000, int keepChars = 16000)
+    {
+        if (IsDisposed || _editor.IsDisposed || _editor.Focused || thresholdChars <= keepChars)
+            return 0;
+        int length = _editor.TextLength + _pending.Length;
+        return length > thresholdChars ? (long)(length - keepChars) * sizeof(char) : 0;
+    }
+
+    internal void FlushPending()
+    {
+        _renderTimer.Stop();
+        if (IsDisposed || _editor.IsDisposed || _pending.Length == 0) return;
+        string batch = _pending.ToString();
+        _pending.Clear();
+        BatchFlushCount++;
+        _editor.AppendText(batch);
         _editor.SelectionStart = _editor.TextLength;
         _editor.ScrollToCaret();
         SyncMetrics();
@@ -396,8 +613,17 @@ internal sealed class DarkLogView : UserControl
 
     private void ScheduleSync()
     {
-        if (IsDisposed || !IsHandleCreated) return;
-        try { BeginInvoke(new Action(SyncMetrics)); } catch (InvalidOperationException) { }
+        if (IsDisposed || !IsHandleCreated || _syncScheduled) return;
+        _syncScheduled = true;
+        try
+        {
+            BeginInvoke((Action)(() =>
+            {
+                _syncScheduled = false;
+                if (!IsDisposed && !_renderTimer.Enabled) SyncMetrics();
+            }));
+        }
+        catch (InvalidOperationException) { _syncScheduled = false; }
     }
 
     private void SyncMetrics()
@@ -422,6 +648,16 @@ internal sealed class DarkLogView : UserControl
         int delta = target - current;
         if (delta != 0) SendMessage(_editor.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)delta);
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _renderTimer.Stop();
+            _renderTimer.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }
 
 // FlowLayoutPanel sem AutoScroll: as barras nativas nunca ficam visiveis.
@@ -432,6 +668,18 @@ internal sealed class DarkScrollableFlow : UserControl
     private readonly FlowLayoutPanel _flow;
     private readonly DarkVScrollBar _scroll;
     private bool _arranging;
+
+    // Um unico scroll pertence a pagina externa. Componentes embutidos
+    // mostram todo o conteudo, em vez de instalar barras independentes.
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    internal bool EmbeddedInPage { get; set; }
+
+    // Evita o scroll fantasma de 3 px da folga utilizada pelos cartoes.
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    internal bool IsPageViewport { get; set; }
+
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    internal bool HasVerticalScrollbar => _scroll.Visible;
 
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public FlowLayoutPanel Content => _flow;
@@ -450,13 +698,57 @@ internal sealed class DarkScrollableFlow : UserControl
         Controls.Add(_viewport);
         Controls.Add(_scroll);
         _scroll.BringToFront();
-        _scroll.ValueChanged += (_, _) => _flow.Top = -_scroll.Value;
+        _scroll.ValueChanged += (_, _) =>
+        {
+            if (!EmbeddedInPage) _flow.Top = -_scroll.Value;
+        };
         _viewport.Resize += (_, _) => Reflow();
-        _flow.ControlAdded += (_, _) => Reflow();
+        _flow.ControlAdded += (_, e) => { if (e.Control is not null) TrackFocus(e.Control); Reflow(); };
         _flow.ControlRemoved += (_, _) => Reflow();
         _viewport.MouseWheel += (_, e) => _scroll.Value -= Math.Sign(e.Delta) * 85;
         _flow.MouseWheel += (_, e) => _scroll.Value -= Math.Sign(e.Delta) * 85;
         Resize += (_, _) => Reflow();
+        VisibleChanged += (_, _) =>
+        {
+            if (FindForm() is MainForm form && form.IsTrayTransitioning) return;
+            Reflow();
+        };
+        DpiChangedAfterParent += (_, _) => Reflow();
+    }
+
+    private void TrackFocus(Control control)
+    {
+        control.Enter += (_, _) =>
+        {
+            if (!control.Visible || !control.IsHandleCreated) return;
+            var rect = _flow.RectangleToClient(control.RectangleToScreen(control.ClientRectangle));
+            if (rect.Top < _scroll.Value) _scroll.Value = rect.Top;
+            else if (rect.Bottom > _scroll.Value + _viewport.Height)
+                _scroll.Value = rect.Bottom - _viewport.Height;
+        };
+        control.ControlAdded += (_, e) => { if (e.Control is not null) TrackFocus(e.Control); };
+        foreach (Control child in control.Controls) TrackFocus(child);
+    }
+
+    internal int MeasureContentHeight(int width)
+    {
+        int usable = Math.Max(1, width - _flow.Padding.Horizontal);
+        int used = 0, rowHeight = 0, total = _flow.Padding.Vertical;
+        foreach (Control card in _flow.Controls)
+        {
+            // Visible herda o estado da aba; medir mesmo antes de ela ser aberta.
+            int w = card.Width + card.Margin.Horizontal;
+            int h = card.Height + card.Margin.Vertical;
+            if (used > 0 && used + w > usable)
+            {
+                total += rowHeight;
+                used = 0;
+                rowHeight = 0;
+            }
+            used += w;
+            rowHeight = Math.Max(rowHeight, h);
+        }
+        return total + rowHeight + 3;
     }
 
     public void Reflow()
@@ -469,27 +761,20 @@ internal sealed class DarkScrollableFlow : UserControl
         try
         {
             _flow.Width = width;
-            int usable = Math.Max(1, width - _flow.Padding.Horizontal);
-            int used = 0, currentRowHeight = 0;
-            int totalHeight = _flow.Padding.Vertical;
-            foreach (Control card in _flow.Controls)
-            {
-                if (!card.Visible) continue;
-                int w = card.Width + card.Margin.Horizontal;
-                int h = card.Height + card.Margin.Vertical;
-                if (used > 0 && used + w > usable)
-                {
-                    totalHeight += currentRowHeight;
-                    used = 0;
-                    currentRowHeight = 0;
-                }
-                used += w;
-                currentRowHeight = Math.Max(currentRowHeight, h);
-            }
-            totalHeight += currentRowHeight + 3;
+            int measured = MeasureContentHeight(width);
+            int totalHeight = IsPageViewport ? Math.Max(0, measured - 3) : measured;
             _flow.Height = Math.Max(totalHeight, height);
-            _scroll.SetMetrics(totalHeight, height);
-            _flow.Top = -_scroll.Value;
+            if (EmbeddedInPage)
+            {
+                _scroll.SetMetrics(0, height);
+                _scroll.Visible = false;
+                _flow.Top = 0;
+            }
+            else
+            {
+                _scroll.SetMetrics(totalHeight, height);
+                _flow.Top = -_scroll.Value;
+            }
             _flow.Left = 0;
             _flow.PerformLayout();
         }
@@ -504,21 +789,27 @@ internal sealed class DarkTabHost : UserControl
     private readonly TabStrip _strip;
     private readonly Panel _content;
     private int _selectedIndex = -1;
-    private const int StripHeight = 42;
+    private const int StripHeight = 35;
 
     public event EventHandler? SelectedIndexChanged;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public int SelectedIndex => _selectedIndex;
+    internal int TabCount => _pages.Count;
+    internal string[] TabTitles => _pages.Select(item => item.Title).ToArray();
+    internal Rectangle[] NavigationBounds => Enumerable.Range(0, _pages.Count)
+        .Select(index => _strip.GetButtonBounds(index)).ToArray();
+    internal int NavigationHitTest(Point point) => _strip.HitTestForLayout(point);
 
-    public DarkTabHost(int tabWidth = 176)
+    public DarkTabHost()
     {
         BackColor = Color.FromArgb(21, 27, 35);
-        _strip = new TabStrip(this) { Height = StripHeight, TabWidth = tabWidth };
+        _strip = new TabStrip(this) { Height = StripHeight };
         _content = new Panel { BackColor = BackColor, Padding = Padding.Empty };
         Controls.Add(_content);
         Controls.Add(_strip);
         Resize += (_, _) => LayoutHost();
         FontChanged += (_, _) => LayoutHost();
+        DpiChangedAfterParent += (_, _) => LayoutHost();
         LayoutHost();
         _strip.BringToFront();
     }
@@ -526,7 +817,14 @@ internal sealed class DarkTabHost : UserControl
     private void LayoutHost()
     {
         if (IsDisposed) return;
-        _strip.Bounds = new Rectangle(0, 0, Math.Max(0, ClientSize.Width), Math.Min(StripHeight, Math.Max(0, ClientSize.Height)));
+        // Altura proporcional ao DPI; todas as abas permanecem acessiveis.
+        int eachTab = ClientSize.Width / Math.Max(1, _pages.Count);
+        // Seis abas igualmente distribuídas. Quando necessário, títulos
+        // longos podem ocupar duas linhas, sem serem abreviados.
+        double scale = Math.Max(1, DeviceDpi / 96d);
+        int height = eachTab < 145 * scale ? 44 : 35;
+        int scaledStrip = (int)Math.Ceiling(height * Math.Max(1, DeviceDpi) / 96d);
+        _strip.Bounds = new Rectangle(0, 0, Math.Max(0, ClientSize.Width), Math.Min(scaledStrip, Math.Max(0, ClientSize.Height)));
         int contentTop = _strip.Bottom;
         _content.Bounds = new Rectangle(0, contentTop, Math.Max(0, ClientSize.Width), Math.Max(0, ClientSize.Height - contentTop));
         _content.PerformLayout();
@@ -562,20 +860,71 @@ internal sealed class DarkTabHost : UserControl
     private sealed class TabStrip : Control
     {
         private readonly DarkTabHost _host;
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public int TabWidth { get; set; } = 176;
+        private readonly System.Windows.Forms.Timer _feedbackTimer = new() { Interval = 16 };
+        private readonly ToolTip _tabTips = new() { InitialDelay = 250, AutoPopDelay = 7000 };
+        private int _hotTab = -1;
+        private int _pressedTab = -1;
+        private int _pulseTab = -1;
+        private long _pulseStart;
+        private float _pulseProgress = 1F;
+        private const double PulseMs = 145;
         public TabStrip(DarkTabHost host)
         {
             _host = host;
             BackColor = Color.FromArgb(21, 27, 35);
             ForeColor = Color.FromArgb(237, 243, 250);
-            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            Font = new Font("Segoe UI", 8.8F, FontStyle.Bold);
             TabStop = true;
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
+            _feedbackTimer.Tick += (_, _) =>
+            {
+                _pulseProgress = Math.Clamp((float)((Stopwatch.GetTimestamp() - _pulseStart) *
+                    1000.0 / Stopwatch.Frequency / PulseMs), 0F, 1F);
+                Invalidate();
+                if (_pulseProgress < 1F) return;
+                _feedbackTimer.Stop();
+                int next = _pulseTab;
+                _pulseTab = -1;
+                if (!IsDisposed && next >= 0) _host.SelectTab(next);
+                Invalidate();
+            };
         }
 
-        private int TabAreaWidth => Math.Max(80, Math.Min(TabWidth, (Width - 2) / Math.Max(1, _host._pages.Count)));
+        private int HitTab(Point point)
+        {
+            if (point.X < 0 || point.Y < 0 || point.Y >= Height) return -1;
+            int relative = point.X - TabOffset;
+            if (relative < 0 || relative >= TabAreaWidth * _host._pages.Count) return -1;
+            int index = relative / TabAreaWidth;
+            return index >= 0 && index < _host._pages.Count ? index : -1;
+        }
+
+        private void StartTabFeedback(int index)
+        {
+            if (index < 0 || index >= _host._pages.Count) return;
+            _pulseTab = index;
+            _pulseProgress = 0F;
+            _pulseStart = Stopwatch.GetTimestamp();
+            _feedbackTimer.Start();
+            Invalidate();
+        }
+
+        // Seis abas dividem a largura disponivel igualmente. A margem lateral
+        // e limitada a 12 pixels, evitando corredores vazios em telas grandes.
+        private int TabEdgeMargin => Math.Clamp(Width / 160, 3, 12);
+        private int TabAreaWidth => Math.Max(1,
+            (Width - 2 * TabEdgeMargin) / Math.Max(1, _host._pages.Count));
+        private int TabOffset => Math.Max(0,
+            (Width - TabAreaWidth * _host._pages.Count) / 2);
+        internal Rectangle GetButtonBounds(int index)
+        {
+            if (index < 0 || index >= _host._pages.Count) return Rectangle.Empty;
+            int w = TabAreaWidth;
+            return new Rectangle(TabOffset + index * w + 3, 3,
+                Math.Max(1, w - 6), Math.Max(1, Height - 9));
+        }
+        internal int HitTestForLayout(Point point) => HitTab(point);
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -584,22 +933,79 @@ internal sealed class DarkTabHost : UserControl
             int w = TabAreaWidth;
             for (int i = 0; i < _host._pages.Count; i++)
             {
-                int left = i * w + 3;
-                var bounds = new Rectangle(left, 3, Math.Max(10, w - 6), Height - 9);
+                var bounds = GetButtonBounds(i);
                 bool active = _host.SelectedIndex == i;
+                bool down = i == _pressedTab || (i == _pulseTab && _pulseProgress < 0.65F);
+                float glow = i == _pulseTab ? MathF.Sin(_pulseProgress * MathF.PI) : 0F;
+                if (down) { bounds.Offset(0, 2); bounds.Height -= 2; }
+                Color baseFill = active ? Color.FromArgb(43, 66, 89) : Color.FromArgb(33, 42, 53);
+                if (down) baseFill = Color.FromArgb(25, 35, 46);
+                else if (i == _hotTab) baseFill = Color.FromArgb(52, 69, 86);
+                if (glow > 0)
+                    baseFill = Color.FromArgb(
+                        Math.Min(255, baseFill.R + (int)(9 * glow)),
+                        Math.Min(255, baseFill.G + (int)(18 * glow)),
+                        Math.Min(255, baseFill.B + (int)(23 * glow)));
                 using var path = ModernButton.RoundRect(bounds, 8);
-                using var brush = new SolidBrush(active ? Color.FromArgb(43, 66, 89) : Color.FromArgb(33, 42, 53));
+                using var brush = new SolidBrush(baseFill);
                 e.Graphics.FillPath(brush, path);
-                if (active)
+                if (i == _hotTab || i == _pulseTab)
                 {
-                    using var accent = new SolidBrush(Color.FromArgb(59, 155, 231));
-                    e.Graphics.FillRectangle(accent, bounds.X + 12, bounds.Bottom - 4, bounds.Width - 24, 3);
+                    using var outline = new Pen(Color.FromArgb(90 + (int)(50 * glow), 91, 157, 213), 1F);
+                    e.Graphics.DrawPath(outline, path);
                 }
+                // A própria cor da aba ativa indica a seleção; sem sublinhado redundante.
                 var labelColor = active ? Color.FromArgb(170, 216, 255) : Color.FromArgb(164, 179, 193);
-                TextRenderer.DrawText(e.Graphics, _host._pages[i].Title, Font, bounds, labelColor,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                    TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                string caption = _host._pages[i].Title;
+                // A versao anterior forçava duas linhas mesmo com largura
+                // suficiente. Priorizar o titulo INTEGRAL em uma linha;
+                // reduzir apenas a fonte da aba, nunca usar reticencias.
+                Font chosen = Font;
+                Font? fitted = null;
+                try
+                {
+                    int available = Math.Max(12, bounds.Width - 7);
+                    while (TextRenderer.MeasureText(e.Graphics, caption, chosen,
+                        new Size(int.MaxValue, 32), TextFormatFlags.NoPadding |
+                        TextFormatFlags.NoPrefix).Width > available &&
+                        chosen.SizeInPoints > 7.1F)
+                    {
+                        float nextSize = Math.Max(7.0F, chosen.SizeInPoints - 0.35F);
+                        fitted?.Dispose();
+                        fitted = new Font(Font.FontFamily, nextSize, FontStyle.Bold);
+                        chosen = fitted;
+                    }
+                    bool wrap = TextRenderer.MeasureText(e.Graphics, caption, chosen,
+                        new Size(int.MaxValue, 32),
+                        TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width > available;
+                    TextRenderer.DrawText(e.Graphics, caption, chosen, bounds, labelColor,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                        (wrap ? TextFormatFlags.WordBreak : TextFormatFlags.SingleLine) |
+                        TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+                }
+                finally { fitted?.Dispose(); }
             }
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            int tab = HitTab(e.Location);
+            if (_hotTab == tab) return;
+            _hotTab = tab;
+            Cursor = tab >= 0 ? Cursors.Hand : Cursors.Default;
+            _tabTips.SetToolTip(this, tab >= 0 ? _host._pages[tab].Title : string.Empty);
+            Invalidate();
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            _hotTab = -1;
+            _pressedTab = -1;
+            _tabTips.SetToolTip(this, string.Empty);
+            Cursor = Cursors.Default;
+            Invalidate();
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
@@ -607,7 +1013,19 @@ internal sealed class DarkTabHost : UserControl
             base.OnMouseDown(e);
             if (e.Button != MouseButtons.Left) return;
             Focus();
-            _host.SelectTab(e.X / TabAreaWidth);
+            _pressedTab = HitTab(e.Location);
+            Invalidate();
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+            if (e.Button != MouseButtons.Left) return;
+            int clicked = HitTab(e.Location);
+            bool valid = _pressedTab >= 0 && clicked == _pressedTab;
+            _pressedTab = -1;
+            if (valid) StartTabFeedback(clicked);
+            Invalidate();
         }
 
         protected override bool IsInputKey(Keys keyData)
@@ -618,10 +1036,24 @@ internal sealed class DarkTabHost : UserControl
 
         protected override void OnKeyDown(KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Left) _host.SelectTab((_host.SelectedIndex - 1 + _host._pages.Count) % _host._pages.Count);
-            else if (e.KeyCode == Keys.Right) _host.SelectTab((_host.SelectedIndex + 1) % _host._pages.Count);
+            if (_host._pages.Count == 0) return;
+            if (e.KeyCode == Keys.Left)
+                StartTabFeedback((_host.SelectedIndex - 1 + _host._pages.Count) % _host._pages.Count);
+            else if (e.KeyCode == Keys.Right)
+                StartTabFeedback((_host.SelectedIndex + 1) % _host._pages.Count);
             else { base.OnKeyDown(e); return; }
             e.Handled = true;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _feedbackTimer.Stop();
+                _feedbackTimer.Dispose();
+                _tabTips.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }

@@ -4,15 +4,17 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Versão do projeto:** 5.12.3 · **[Histórico de versões](CHANGELOG.md)** · **Estado:** projeto em preparação para publicação aberta; assinatura pública ainda não obtida.
+**Versão do código em desenvolvimento:** v5.13.11.0 CANDIDATA · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
 
 ## Recursos
 
-- Lista de aplicativos instalados, atualizações identificadas pelo WinGet, atualização e desinstalação com confirmação.
+- Inventário independente do catálogo de atualizações (Win32 e MSIX/Store), busca de versões por RuckZuck e fontes oficiais HTTPS com identidade de produto/editor, ações de atualização verificadas e desinstalação com confirmação.
 - Limpeza seletiva de arquivos temporários, Lixeira e caches, com informações de unidades e otimização pelo Windows.
 - Diagnóstico de rede, reparos específicos mediante consentimento, redefinição avançada e reparo do Windows por DISM/SFC.
 - Planos de energia e hibernação com opções explícitas.
-- Consulta a processos, inicialização, Windows Update e informações do computador.
+- Gráfico de RAM com acompanhamento na bandeja, limpeza opcional apenas de caches internos do GF (não de memória de outros aplicativos), inicialização, Windows Update e informações do computador.
+- Aba DRIVERS de consulta somente leitura com histórico local de dispositivos/INF; não instala, remove nem reverte drivers.
+- Auditoria histórica de possíveis resíduos somente leitura, com proteção de instalações, dados pessoais e fabricantes compartilhados.
 - Interface Windows Forms em português, tema escuro e ícone **GF** azul.
 
 **Atenção:** uma ferramenta de manutenção não substitui backups, proteção antivírus ou suporte especializado. Operações administrativas podem causar alterações de rede, reinicializações ou perda de dados não salvos. Leia cada confirmação. Não há ganho de desempenho garantido.
@@ -41,7 +43,9 @@ dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contai
 
 O resultado estará em `Distribuicao\GerenciadorFinal.exe`. **Mantenha os arquivos adjacentes ao EXE**; ele depende da DLL e demais componentes publicados. Para uso portátil, consulte [o guia resumido](docs/USO-PORTATIL.md); para validação, siga [o roteiro de testes](docs/TESTES.md). Para um instalador de teste consulte `docs/PUBLICACAO.md`. Os fluxos antigos `Criar-Instalador-Windows-x64.bat`, `Assinar-GF.cmd` e `GerenciadorFinal-Instalador.iss` continuam exigindo certificado Authenticode próprio; **não fazem parte da assinatura gratuita da SignPath**.
 
-O GitHub Actions compila com um runner Windows hospedado pelo GitHub e conserva apenas um **artefato de teste não assinado**, nunca faz Release público automaticamente. Consulte `.github/workflows/build-windows.yml`.
+O GitHub Actions compila com um runner Windows hospedado pelo GitHub e conserva **artefatos de teste não assinados** com nome versionado, `BUILD-INFO.txt` e `SHA256SUMS.txt`. O workflow de validação candidata executa regressões de inventário, fontes, instaladores, drivers, resíduos, RAM e segurança. Nenhum desses testes valida o alerta do AVG ou equivale a uma Release pública. Consulte `.github/workflows/build-windows.yml`, `.github/workflows/validar-candidata-windows.yml` e [o roadmap](docs/ROADMAP.md).
+
+**Estado de segurança:** há investigação pendente sobre alerta comportamental `IDP.Generic` no AVG. A amostra foi encaminhada pelo mantenedor. Não desative proteções nem tente executar um arquivo em quarentena. A assinatura SignPath segue pendente.
 
 ## Segurança e privacidade
 
