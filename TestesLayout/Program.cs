@@ -452,7 +452,7 @@ internal static class LayoutTests
         Application.DoEvents();
         if (graph.SampleCount != Math.Min(MemoryRamHistory.Capacity, samplesBefore + 2) ||
             !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryAvailable" && x.Text.Contains("3,00") || x.Name == "MemoryAvailable" && x.Text.Contains("3.00")) ||
-            !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryCleaned" && x.Text.Contains("0 MB")))
+            !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryCleaned" && x.Text.Contains("0 KB")))
             throw new Exception("RAM: dados inconsistentes: pontos=" + graph.SampleCount +
                 ", disponivel=" + Descendants(form).OfType<Label>().FirstOrDefault(x => x.Name == "MemoryAvailable")?.Text +
                 ", liberada=" + Descendants(form).OfType<Label>().FirstOrDefault(x => x.Name == "MemoryCleaned")?.Text);
