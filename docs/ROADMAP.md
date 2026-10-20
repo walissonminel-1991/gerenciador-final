@@ -1,5 +1,10 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Ajuste de legibilidade — v5.13.11.9 TESTE (20/10/2026)
+
+Captura de tela em PC real confirmou o botão `Simular sem enviar` funcional, mas a prévia `DarkLogView` unia parágrafos porque TextBox nativo exigia CRLF. A revisão normaliza linhas, reduz o texto de consentimento, usa fonte mais legível e acrescenta regressões. O AVG não apresentou alerta durante a abertura observada; isso **não** é aprovação geral do antivírus nem das operações administrativas. Coleta permanece apenas local, sem envio, e o progresso funcional permanece **27/42**.
+
+
 ## Experiencia acessivel — v5.13.11.8 TESTE (20/10/2026)
 
 Incluida simulacao local sem rede, arquivo ou consentimento e previa amigavel do diagnostico. Receptor de homologacao preparado, desativado por padrao e testado com requisicoes ficticias; nao e envio remoto real. A futura contribuicao devera ser simples para nao especialistas e nao depender de conta GitHub, arquivos .txt ou publicacao de Issues. [Criterios de seguranca, UI e ativacao](EXPERIENCIA-CONTRIBUICAO-SIMPLES.md). O progresso funcional anterior permanece **27/42**; a simulacao e uma frente de privacidade extra e **nao** significa envio implementado.
