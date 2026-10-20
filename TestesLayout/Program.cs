@@ -70,6 +70,25 @@ internal static class LayoutTests
                 throw new Exception("Simulacao aprovou ou recusou consentimento sem autorizacao.");
             privacy.Close();
         }
+        if (PrivacyConsentPresentation.ButtonLabel(TelemetryConsent.LocalOnly) != "Coleta local ativa" ||
+            PrivacyConsentPresentation.ButtonLabel(TelemetryConsent.Declined) != "Coleta desativada" ||
+            !PrivacyConsentPresentation.Explanation(TelemetryConsent.LocalOnly)
+                .Contains("Nenhum diagnóstico é enviado", StringComparison.Ordinal) ||
+            !PrivacyConsentPresentation.Explanation(TelemetryConsent.LocalOnly)
+                .Contains("versão anterior", StringComparison.Ordinal))
+            throw new Exception("Estado persistente de privacidade nao e claro.");
+        // Os tres cartoes de Inicializacao precisam caber, com margens,
+        // sem mudar a quantidade de colunas das outras subabas.
+        if (StartupCardLayout.ColumnsForSpace(1000) != 3 ||
+            StartupCardLayout.ColumnsForSpace(885) != 3 ||
+            StartupCardLayout.ColumnsForSpace(884) != 2 ||
+            StartupCardLayout.ColumnsForSpace(720) != 2 ||
+            StartupCardLayout.ColumnsForSpace(590) != 2 ||
+            StartupCardLayout.ColumnsForSpace(589) != 1 ||
+            StartupCardLayout.CardWidth(1000, 3) > 325 ||
+            StartupCardLayout.CardWidth(885, 3) < 250 ||
+            3 * (StartupCardLayout.CardWidth(885, 3) + 9) > 885)
+            throw new Exception("Inicializacao nao comporta tres cartoes proporcionais.");
         TestStartupBounds();
         TestWorkspaceProportions();
         TestRamHistoryAndSampling();
@@ -130,6 +149,13 @@ internal static class LayoutTests
             throw new Exception("Busca ou aviso de consulta segura ausente.");
         if (Descendants(placeholder).OfType<DarkScrollableFlow>().Any())
             throw new Exception("DRIVERS nao deve mostrar rolagem duplicada.");
+        var privacyStatus = Descendants(form).OfType<Button>()
+            .SingleOrDefault(b => b.Name == "PrivacyStatusButton")
+            ?? throw new Exception("Indicador de privacidade ausente do cabecalho.");
+        if (privacyStatus.Text != PrivacyConsentPresentation.ButtonLabel(
+                AnonymousTelemetryContext.Current?.Consent ?? TelemetryConsent.NotAsked) ||
+            !privacyStatus.AccessibleDescription.Contains("Clique", StringComparison.Ordinal))
+            throw new Exception("Consentimento existente nao esta visivel nem revisavel.");
         var fakeDrivers = Enumerable.Range(0, 184).Select(i => new DriverInventoryEntry(
             "TEST\\\\ID" + i, "Dispositivo sintetico " + i,
             "Fabricante de teste", "1.2.3." + i, "oem" + i + ".inf",
