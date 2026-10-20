@@ -118,6 +118,90 @@ internal sealed class AnonymousTelemetry
     {
         lock (_gate) return Serialize(version, normalExit);
     }
+    // Texto voltado a iniciantes: apenas o resumo ja autorizado, sem campos brutos.
+    // Nunca muda consentimento, nao cria arquivo e nao consulta a rede.
+    internal string ExplainLocalCollection(string version)
+    {
+        lock (_gate)
+        {
+            if (Consent != TelemetryConsent.LocalOnly)
+                return "COLETA DESATIVADA\n\nNenhuma ocorrencia foi registrada por este recurso. " +
+                    "Voce pode testar a simulacao com exemplos ficticios sem aceitar a coleta.";
+
+            var explanation = new StringBuilder();
+            explanation.AppendLine("COLETA LOCAL ATIVA — NENHUM ENVIO");
+            explanation.AppendLine();
+            explanation.AppendLine("Versao do programa: " +
+                (DiagnosticPayloadPolicy.IsValidVersion(version) ? version : "nao disponivel"));
+            if (_events.Count == 0)
+            {
+                explanation.AppendLine("Nenhuma ocorrencia tecnica registrada nesta sessao.");
+            }
+            else
+            {
+                explanation.AppendLine("Ocorrencias tecnicas desta sessao:");
+                foreach (var entry in _events)
+                    explanation.AppendLine("- " + HumanCategory(entry.Key) + ": " +
+                        entry.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+            explanation.AppendLine();
+            explanation.AppendLine("Nao inclui nomes de programas, arquivos, senhas, usuario ou historico de navegacao.");
+            explanation.AppendLine("O relatorio permanece neste computador e nao e enviado automaticamente.");
+            return explanation.ToString();
+        }
+    }
+
+    // Demonstracao deterministica, 100% ficticia: nao usa _events, _folder,
+    // arquivos, nome de maquina ou chamadas HTTP. Funciona mesmo sem consentir.
+    internal static string SimulateContributionWithoutSending(string version)
+    {
+        if (!DiagnosticPayloadPolicy.IsValidVersion(version))
+            throw new ArgumentException("Versao do programa invalida para simulacao.", nameof(version));
+
+        string syntheticReport = JsonSerializer.Serialize(new
+        {
+            schema = 1,
+            version,
+            exit = "normal",
+            counts = new SortedDictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["APP.FALHA_INTERFACE"] = 1,
+                ["MULTIFONTES.CONSULTA_FALHA"] = 2
+            }
+        });
+        if (!DiagnosticPayloadPolicy.IsValidReport(syntheticReport))
+            throw new InvalidOperationException("Simulacao bloqueada pela politica de privacidade.");
+
+        return "SIMULACAO APROVADA — NADA FOI ENVIADO\n\n" +
+            "Os dados abaixo sao INVENTADOS, apenas para demonstrar:\n" +
+            "- Versao do programa: " + version + "\n" +
+            "- Falhas da interface: 1\n" +
+            "- Falhas em consultas de atualizacao: 2\n\n" +
+            "Nenhuma informacao real do computador foi lida.\n" +
+            "Nenhum arquivo foi criado, escolhido ou anexado.\n" +
+            "Nenhuma conexao de envio foi feita.\n" +
+            "Seu consentimento nao foi alterado.";
+    }
+
+    private static string HumanCategory(string category) => category switch
+    {
+        "APP.FALHA_INTERFACE" => "Falha da interface",
+        "APP.FALHA_NAO_TRATADA" => "Falha inesperada",
+        "REGISTRO_PROGRAMAS.FALHA" => "Falha ao identificar aplicativos",
+        "MSIX.LEITURA" => "Leituras de aplicativos da Microsoft Store",
+        "MULTIFONTES.CONSULTA_FALHA" => "Falha em consultas de atualizacao",
+        "MULTIFONTES.CONSULTA_CANCELADA" => "Consultas de atualizacao canceladas",
+        "DESINSTALACAO.FALHA" => "Falha na desinstalacao",
+        "INSTALACAO_OFICIAL.FALHA" => "Falha no instalador verificado",
+        "TERMINAL_GITHUB.FALHA" => "Falha na atualizacao do Windows Terminal",
+        "JANELA.BANDEJA_RESTAURAR.INICIO" => "Restauracoes iniciadas pela bandeja",
+        "JANELA.BANDEJA_RESTAURAR.FIM" => "Restauracoes concluidas pela bandeja",
+        "JANELA.BANDEJA_OCULTAR.INICIO" => "Minimizacoes iniciadas",
+        "JANELA.BANDEJA_OCULTAR.FIM" => "Minimizacoes concluidas",
+        "DIAGNOSTICO_COMPLETO.FIM" => "Diagnosticos concluidos",
+        _ => "Ocorrencia tecnica"
+    };
+
 
     // Prefere a sessao atual; se ainda nao houver eventos, permite revisar a
     // unica pendencia anterior. Nenhum conteudo do disco e confiado sem validacao.
