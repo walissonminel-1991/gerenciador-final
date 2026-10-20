@@ -103,6 +103,49 @@ internal sealed class TelemetryPrivacyDialog : Form
 
 internal sealed partial class MainForm
 {
+    // Piloto GitHub-only: envio PUBLICO exige duas acoes conscientes:
+    // confirmar no GF e clicar em "Submit new issue" no proprio GitHub.
+    private void ShareAnonymousDiagnosticToGitHub()
+    {
+        var collector = AnonymousTelemetryContext.Current;
+        if (collector is null || IsDisposed) return;
+        if (collector.Consent != TelemetryConsent.LocalOnly)
+        {
+            OfferAnonymousDiagnosticConsent();
+            if (collector.Consent != TelemetryConsent.LocalOnly) return;
+        }
+
+        string preview = collector.Preview(DiagnosticTrace.VersionLabel, normalExit: false);
+        Uri? url = GitHubDiagnosticShare.CreateReviewUrl(preview);
+        if (url is null)
+        {
+            Status("Ainda não há ocorrências técnicas elegíveis para compartilhar com o GitHub.");
+            return;
+        }
+
+        if (DarkConfirmDialog.Confirm(this,
+            "O GitHub abrirá um formulário com os dados técnicos resumidos. " +
+            "Se você publicar, a Issue será PÚBLICA e vinculada ao seu perfil GitHub.\n\n" +
+            "Nenhum arquivo completo de diagnóstico será anexado. Você poderá " +
+            "revisar ou desistir antes de publicar. Deseja abrir o formulário?",
+            "Revisar diagnóstico público no GitHub") != DialogResult.Yes)
+            return;
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url.AbsoluteUri)
+            {
+                UseShellExecute = true
+            });
+            Status("Formulário GitHub aberto. Nada foi enviado automaticamente.");
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception
+            or InvalidOperationException or System.Security.SecurityException)
+        {
+            Status("Não foi possível abrir o navegador. O diagnóstico não foi enviado.");
+        }
+    }
+
     private void OfferAnonymousDiagnosticConsent(bool firstRun = false)
     {
         var collector = AnonymousTelemetryContext.Current;
