@@ -36,11 +36,19 @@ internal static class ResidualPreview
     internal static async Task<ResidualPreviewState> CaptureAsync(ResidualCandidate candidate,
         CancellationToken token = default)
     {
+        // Não reter listas mutáveis do chamador como autorização de conteúdo.
+        candidate = candidate with { Files = Array.AsReadOnly(candidate.Files.ToArray()) };
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(8));
+        token = deadline.Token;
         var files = new List<ResidualFileState>();
-        bool complete = candidate.Files.Count is > 0 and <= 16;
+        bool complete = candidate.Files.Count is > 0 and <= 16 && candidate.Preserved == 0 &&
+            candidate.Files.Distinct(StringComparer.OrdinalIgnoreCase).Count() == candidate.Files.Count &&
+            candidate.Files.All(ResidualReadSafety.IsLocalAbsolute);
         long total = 0;
         if (!complete || !ResidualReadSafety.IsUnlinkedDirectory(candidate.Root))
             return new(candidate, files, false);
+        if (!SameTargets(candidate)) return new(candidate, files, false);
         foreach (string path in candidate.Files)
         {
             if (token.IsCancellationRequested) { complete = false; break; }
@@ -62,13 +70,26 @@ internal static class ResidualPreview
                 System.Security.SecurityException or ArgumentException or NotSupportedException or OperationCanceledException)
             { complete = false; }
         }
-        return new(candidate, files, complete && files.Count == candidate.Files.Count);
+        return new(candidate, files.AsReadOnly(), complete && !token.IsCancellationRequested &&
+            files.Count == candidate.Files.Count && SameTargets(candidate));
+    }
+
+    private static bool SameTargets(ResidualCandidate candidate)
+    {
+        var current = UninstallResiduals.InspectDirectory(candidate.Product, candidate.Root,
+            candidate.Files.Select(Path.GetFileName).OfType<string>().ToArray());
+        return current is not null && current.Preserved == 0 &&
+            current.Files.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(candidate.Files);
     }
 
     internal static async Task<bool> IsUnchangedAsync(ResidualPreviewState accepted,
         CancellationToken token = default)
     {
-        if (!accepted.Complete || token.IsCancellationRequested) return false;
+        if (!accepted.Complete || token.IsCancellationRequested || accepted.Candidate.Preserved != 0 ||
+            accepted.Files.Count != accepted.Candidate.Files.Count) return false;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(8));
+        token = deadline.Token;
         // Só os alvos originalmente exibidos. Nunca acrescentar arquivos novos.
         var refreshed = UninstallResiduals.InspectDirectory(accepted.Candidate.Product,
             accepted.Candidate.Root, accepted.Candidate.Files.Select(Path.GetFileName).OfType<string>().ToArray());
@@ -76,7 +97,7 @@ internal static class ResidualPreview
             !refreshed.Files.ToHashSet(StringComparer.OrdinalIgnoreCase)
                 .SetEquals(accepted.Candidate.Files)) return false;
         var current = await CaptureAsync(refreshed, token).ConfigureAwait(false);
-        return current.Complete && accepted.Files.Count == current.Files.Count &&
+        return !token.IsCancellationRequested && current.Complete && accepted.Files.Count == current.Files.Count &&
             accepted.Files.All(a => current.Files.Any(c =>
                 string.Equals(a.Path, c.Path, StringComparison.OrdinalIgnoreCase) &&
                 a.Identity == c.Identity && a.Digest == c.Digest));
@@ -86,12 +107,16 @@ internal static class ResidualPreview
         bool unchanged = true)
     {
         var decision = Decide(new(true, true, false, false, false, true, false, unchanged));
-        var findings = states.SelectMany(state => state.Candidate.Files.Select(path =>
+        var snapshots = states.ToArray();
+        bool partial = !unchanged || snapshots.Any(s => !s.Complete);
+        var findings = snapshots.SelectMany(state => state.Candidate.Files.Select(path =>
             new ResidualAuditFinding(path, "Prévia de arquivo — exclusão bloqueada", 1,
                 !unchanged ? "Arquivo ou conjunto de alvos mudou desde a prévia. Preservar e repetir análise." :
                 state.Complete ? "Identidade e conteúdo registrados somente nesta revisão. " + decision.Reason :
                 "Não foi possível validar identidade, link único e conteúdo dentro dos limites. Preservar.",
                 ResidualDisposition.Unknown))).ToArray();
-        return new(product, false, findings, []);
+        return new(product, false, findings, [], Incomplete: partial,
+            Coverage: partial ? new ResidualCoverage(ResidualScanIssue.ReadFailure, SourcesUnavailable: ["Preview"],
+                CandidatesNotEvaluated: null) : null);
     }
 }

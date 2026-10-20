@@ -2,8 +2,8 @@ using Microsoft.Win32;
 
 namespace GerenciadorAplicativos;
 
-// Opt-in AVANÇADO: elimina dados privados e configurações exclusivas de
-// aplicativos identificados. Não altera HKLM, serviços, histórico do Windows,
+// Revisão AVANÇADA somente leitura. Exclusão de dados e configurações
+// permanece bloqueada, inclusive nas chamadas internas. Não altera HKLM, serviços, histórico do Windows,
 // caches globais, associações compartilhadas ou outros perfis de usuário.
 // Excluir no NTFS não significa sobrescrita física/forense em SSD.
 internal sealed record DeepCleanItem(ProgramEntry App, IReadOnlyList<string> Folders,

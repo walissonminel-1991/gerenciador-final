@@ -10,6 +10,17 @@ def read(path: str) -> str:
 
 
 class PoliticasDeSeguranca(unittest.TestCase):
+    def test_residuos_nao_alcancam_operacoes_destrutivas(self):
+        for name in ("UninstallResiduals.cs", "AdvancedUninstallCleaner.cs", "ResidualAudit.cs",
+                     "HistoricalResidualAudit.cs", "BroadResidualDiscovery.cs", "ResidualPreview.cs",
+                     "ResidualReportMerger.cs", "ResidualAuditDialog.cs"):
+            code = read(name)
+            for forbidden in ("File.Delete(", "Directory.Delete(", "DeleteSubKeyTree(",
+                              ".DeleteSubKey(", "CleanDirectorySafely(", "Process.Start(", "HttpClient"):
+                self.assertNotIn(forbidden, code, name)
+        self.assertIn("CanExecute => false", read("ResidualPreview.cs"))
+        self.assertIn("CanRemove => false", read("ResidualAudit.cs"))
+
     def test_aplicativo_sem_envio_manual_de_diagnosticos(self):
         source = "\n".join(p.read_text(encoding="utf-8")
                             for p in ROOT.glob("*.cs"))

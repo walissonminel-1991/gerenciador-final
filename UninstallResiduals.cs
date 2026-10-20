@@ -2,7 +2,7 @@ namespace GerenciadorAplicativos;
 
 // Inspeção POS-desinstalação. Jamais varre o disco inteiro ou remove configurações,
 // documentos, pastas compartilhadas e chaves de Registro de forma heurística.
-// Só autoriza arquivos executáveis de nome EXATO em diretorios de programas conhecidos.
+// Examina nomes exatos em diretórios conhecidos; exclusão permanece bloqueada.
 internal sealed record ResidualCandidate(string Product, string Root, IReadOnlyList<string> Files, int Preserved);
 internal sealed record ResidualCleanupResult(int RemovedFiles, int RemovedDirectories, int Failed, int Preserved);
 
@@ -95,7 +95,7 @@ internal static class UninstallResiduals
     {
         try
         {
-            if (!Path.IsPathFullyQualified(root) || !Directory.Exists(root)) return false;
+            if (!ResidualReadSafety.IsUnlinkedDirectory(root)) return false;
             var dir = new DirectoryInfo(root);
             if ((dir.Attributes & FileAttributes.ReparsePoint) != 0) return false;
             // Impede navegar por junções nos pais de instalações ou perfis.

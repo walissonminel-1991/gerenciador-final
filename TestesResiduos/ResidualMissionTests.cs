@@ -207,6 +207,20 @@ internal static class ResidualMissionTests
             File.Delete(file + ".old");
             using (var inUse = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
                 check(!(await ResidualPreview.CaptureAsync(candidate)).Complete, "Arquivo em uso ou leitura negada preservado");
+            var mutablePaths = new List<string> { file };
+            var copied = await ResidualPreview.CaptureAsync(candidate with { Files = mutablePaths });
+            mutablePaths.Clear();
+            check(copied.Candidate.Files.Count == 1 && await ResidualPreview.IsUnchangedAsync(copied),
+                "Prévia copia alvos e não muda com lista original do chamador");
+            check(!(await ResidualPreview.CaptureAsync(candidate with { Files = new[] { file, file } })).Complete,
+                "Caminhos duplicados não forjam identidade da prévia");
+            string unknown = Path.Combine(root, "playlist.m3u");
+            File.WriteAllText(unknown, "playlist fictícia");
+            var mixed = UninstallResiduals.InspectDirectory("LegacyEditor", root, new[] { "LegacyEditor.exe" })!;
+            check(!(await ResidualPreview.CaptureAsync(mixed)).Complete &&
+                !(await ResidualPreview.CaptureAsync(candidate)).Complete && File.Exists(unknown),
+                "Pastas com dados misturados ou arquivo novo antes da captura permanecem desconhecidas");
+            File.Delete(unknown);
             string hardlink = Path.Combine(root, "SegundaReferencia.exe");
             check(CreateHardLink(hardlink, file, IntPtr.Zero), "Criar hard link apenas no fixture temporário");
             check(!(await ResidualPreview.CaptureAsync(candidate)).Complete,

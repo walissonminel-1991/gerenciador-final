@@ -13,6 +13,7 @@ void Check(bool result, string what)
 }
 
 ResidualIntegrityTests.Run(Check);
+await ResidualBlockingTests.Run(Check);
 ResidualMissionTests.Run(Check);
 if (args.Contains("--missao")) return;
 
