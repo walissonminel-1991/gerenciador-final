@@ -46,6 +46,19 @@ internal static class ResidualReadSafety
             (path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' &&
              path[2] == '\\' && !path[2..].Contains(':'));
     }
+    internal static bool PathsOverlap(string? first, string? second)
+    {
+        if (!IsLocalAbsolute(first) || !IsLocalAbsolute(second)) return false;
+        try
+        {
+            string a = Path.GetFullPath(first!).TrimEnd('\\', '/');
+            string b = Path.GetFullPath(second!).TrimEnd('\\', '/');
+            return a.Equals(b, StringComparison.OrdinalIgnoreCase) ||
+                a.StartsWith(b + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                b.StartsWith(a + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException) { return false; }
+    }
     internal static bool IsUnlinkedDirectory(string path)
     {
         if (!IsLocalAbsolute(path)) return false;

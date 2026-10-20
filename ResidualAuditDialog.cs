@@ -39,7 +39,7 @@ internal sealed class ResidualAuditDialog : Form
                   "O desinstalador do fabricante ainda pode estar aberto. " +
                   "Os possíveis vestígios abaixo NÃO serão excluídos automaticamente."
                 : $"{report.Product} ainda aparece instalado ou possui registros associados. " +
-                  "Os itens abaixo são apenas informativos. Nenhuma exclusão será autorizada.";
+                  "O estado completo não foi confirmado. Nenhuma exclusão será autorizada.";
 
         layout.Controls.Add(new Label
         {
@@ -52,7 +52,7 @@ internal sealed class ResidualAuditDialog : Form
         }, 0, 0);
 
         string details = groupedDetails ?? string.Join("\r\n\r\n", report.Findings.Select((f, i) =>
-            $"{i + 1}. {f.Kind}: {f.Location}\r\n" +
+            $"{i + 1}. {f.DecisionLabel} — {f.Kind}: {f.Location}\r\n" +
             $"   {f.Items} item(ns) encontrados — {f.Evidence}"));
         if (report.RelatedRegisteredPrograms.Count > 0)
             details += "\r\n\r\nComponentes relacionados que ainda aparecem instalados:\r\n" +
@@ -106,18 +106,10 @@ internal sealed class ResidualAuditDialog : Form
         var sorted = historical.OrderBy(r => r.Product, StringComparer.CurrentCultureIgnoreCase).ToArray();
         var grouped = string.Join("\r\n\r\n", sorted.Select(report =>
         {
-            string kind = report.Findings.FirstOrDefault()?.Kind ?? "Verificação";
-            string category = kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)
-                ? "INSTALAÇÃO A CONFERIR"
-                : kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal)
-                ? "PERFIL DE FABRICANTE / JOGOS — PRESERVAR"
-                : report.Product == "WinMerge"
-                ? "VESTÍGIOS ESPECÍFICOS — PRESERVAR / CONFERIR"
-                : report.Historical ? "DADOS HISTÓRICOS PARA REVISÃO" : "OUTROS DADOS";
-            string locations = string.Join("\r\n", report.Findings.Select(f => "  • " + f.Location));
-            string advisory = report.Findings.FirstOrDefault()?.Evidence ?? "";
-            return report.Product + " — " + category + "\r\n" + locations +
-                "\r\n  " + advisory;
+            string locations = string.Join("\r\n", report.Findings.Select(f =>
+                "  • " + f.DecisionLabel + " — " + f.Location + "\r\n    " + f.Evidence));
+            return report.Product + (report.Incomplete ? " — REVISÃO PARCIAL" : " — REVISÃO SEM EXCLUSÃO") +
+                "\r\n" + locations;
         }));
         var merged = new ResidualAuditReport("Revisão histórica", false,
             sorted.SelectMany(r => r.Findings).ToArray(),

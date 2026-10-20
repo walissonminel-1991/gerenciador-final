@@ -129,39 +129,29 @@ internal static class BroadResidualDiscovery
     internal static bool IsProtectedByInstalled(string product,
         IReadOnlyCollection<ProgramEntry> installed)
     {
+        return IsProtectedByNames(product, ProtectionNames(installed));
+    }
+
+    private static string[] ProtectionNames(IReadOnlyCollection<ProgramEntry> installed) =>
+        installed.SelectMany(app => new[] { app.Name, app.Publisher, app.CatalogDisplayName })
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Select(NormalizedCompare)
+            .Where(x => x.Length > 0).Distinct(Comparer).ToArray();
+
+    private static bool IsProtectedByNames(string product, IReadOnlyCollection<string> names)
+    {
         string candidate = NormalizedCompare(product);
         if (candidate.Length < 4) return true;
-        string[] names = installed.SelectMany(app => new[]
-            { app.Name, app.Publisher, app.CatalogDisplayName }).Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(NormalizedCompare).Distinct(Comparer).ToArray();
-        foreach (string full in names)
+        if (names.Any(full => full == candidate || full.StartsWith(candidate + " ", StringComparison.Ordinal) ||
+            candidate.StartsWith(full + " ", StringComparison.Ordinal))) return true;
+        return candidate switch
         {
-            if (full == candidate ||
-                full.StartsWith(candidate + " ", StringComparison.OrdinalIgnoreCase) ||
-                candidate.StartsWith(full + " ", StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-        // Alias conservador de instalacao: o componente continua presente
-        // sob outro nome no ARP. Especialmente MPC-HC distribuido com K-Lite,
-        // Microvirt sob MEmu e dados GOG.com usados pelo GOG Galaxy.
-        // O alias so PROTEGE dados: nunca autoriza limpeza ou desinstalacao.
-        bool protectsAlias = candidate switch
-        {
-            "GOG COM" => names.Any(n => n.StartsWith("GOG GALAXY", StringComparison.OrdinalIgnoreCase)),
-            "MICROVIRT" => names.Any(n => n == "MEMU" ||
-                n.StartsWith("MEMU PLAY", StringComparison.OrdinalIgnoreCase)),
-            "MPC HC" => names.Any(n =>
-                n.StartsWith("K LITE CODEC PACK", StringComparison.OrdinalIgnoreCase) ||
-                n.StartsWith("MEDIA PLAYER CLASSIC HOME CINEMA", StringComparison.OrdinalIgnoreCase)),
+            "GOG COM" => names.Any(n => n.StartsWith("GOG GALAXY", StringComparison.Ordinal)),
+            "MICROVIRT" => names.Any(n => n == "MEMU" || n.StartsWith("MEMU PLAY", StringComparison.Ordinal)),
+            "MPC HC" => names.Any(n => n.StartsWith("K LITE CODEC PACK", StringComparison.Ordinal) ||
+                n.StartsWith("MEDIA PLAYER CLASSIC HOME CINEMA", StringComparison.Ordinal)),
+            "ORIGIN" => names.Any(n => n == "EA APP" || n.StartsWith("EA DESKTOP", StringComparison.Ordinal)),
             _ => false
         };
-        if (protectsAlias) return true;
-        // EA app replaces Origin. The historical cache may contain cloud saves.
-        if (candidate == "ORIGIN" &&
-            installed.Any(p => p.Name.Equals("EA app", StringComparison.OrdinalIgnoreCase)
-                || p.Name.StartsWith("EA Desktop", StringComparison.OrdinalIgnoreCase)))
-            return true;
-        return false;
     }
 
     private static bool IsReparse(FileSystemInfo item)
@@ -444,9 +434,10 @@ internal static class BroadResidualDiscovery
             .Select(NormalizedCompare)
             .Where(name => name.Length >= 4)
             .ToHashSet(Comparer);
-        return raw.Where(e => EligibleName(e.Name))
+        var protectedNames = ProtectionNames(installed); // normalizar só uma vez por análise
+        return raw.Take(30000).Where(e => EligibleName(e.Name))
             .GroupBy(e => NormalizedCompare(e.Name), Comparer)
-            .Where(group => !IsProtectedByInstalled(group.First().Name, installed) &&
+            .Where(group => !IsProtectedByNames(group.First().Name, protectedNames) &&
                 !protectedGames.Contains(NormalizedCompare(group.First().Name)) &&
                 !IsRunningProduct(group.First().Name,
                     runningProcessNames ?? Array.Empty<string>()) &&
@@ -473,7 +464,10 @@ internal static class BroadResidualDiscovery
                 var findings = all.Take(MaxEvidencePerGroup)
                     .Select(e => new ResidualAuditFinding(e.Location,
                         status + " — " + e.Kind, 1,
-                        explanation + (inventoryIncomplete ? " Inventário de proteção parcial; ausência não comprova remoção." : "") + " Somente leitura.")).ToArray();
+                        explanation + (e.Container.Length > 0 ? " Local subordinado a " + e.Container + "; vínculo exclusivo não comprovado." : "") + (inventoryIncomplete ? " Inventário de proteção parcial; ausência não comprova remoção." : "") + " Somente leitura.",
+                        inventoryIncomplete ? ResidualDisposition.Unknown :
+                        sharedPublisher || e.RootGroup == "Integration" ? ResidualDisposition.PreserveShared :
+                        e.RootGroup == "AppData" ? ResidualDisposition.PreserveData : ResidualDisposition.Review)).ToArray();
                 return new
                 {
                     Group = group.First().Name,
@@ -487,7 +481,7 @@ internal static class BroadResidualDiscovery
             .ThenBy(g => g.Group, Comparer)
             .Take(MaxReportGroups)
             .Select(g => new ResidualAuditReport(g.Group, false, g.Findings,
-                Array.Empty<string>(), Historical: true))
+                Array.Empty<string>(), Historical: true, Incomplete: inventoryIncomplete))
             .ToArray();
     }
 

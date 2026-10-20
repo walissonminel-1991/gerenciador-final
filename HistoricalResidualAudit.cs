@@ -83,7 +83,7 @@ internal static class HistoricalResidualAudit
         var parts = id.Split('\\');
         return parts.Length == 2 &&
             parts[0] is "Local" or "Roaming" or "StartMenu" &&
-            parts[1].Length is >= 4 and <= 60 &&
+            parts[1].Length is >= 3 and <= 60 &&
             !new[] { "Microsoft", "Windows", "Programs", "Packages", "Temp",
                 "Shared", "Common", "Cache", "Drivers", "System", "Startup" }
                 .Contains(parts[1], StringComparer.OrdinalIgnoreCase) &&
@@ -150,7 +150,7 @@ internal static class HistoricalResidualAudit
             }
             return items == 0 ? null :
                 new(folder, "Diretório histórico (somente leitura)", items,
-                    "Pode conter dados ainda úteis. " + warning);
+                    "Pode conter dados ainda úteis. " + warning, ResidualDisposition.PreserveData);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { return null; }
@@ -173,7 +173,7 @@ internal static class HistoricalResidualAudit
                 @"HKEY_CURRENT_USER\Software\") + string.Join("\\", parts.Skip(2));
             return new(path, "Chave de Registro (somente leitura)",
                 Math.Max(1, key.ValueCount + key.SubKeyCount),
-                "Existência não significa que possa ser excluída. " + warning);
+                "Existência não significa que possa ser excluída. " + warning, ResidualDisposition.PreserveData);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
             System.Security.SecurityException or ArgumentException) { return null; }

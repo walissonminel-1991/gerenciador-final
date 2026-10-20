@@ -38,3 +38,13 @@ Busca geral agora examina até dois níveis em pastas e SOFTWARE (produto sob fa
 `ResidualScanBudget`: até 30.000 entradas compartilhadas entre fontes, 2.500 por raiz e 128 filhos por contêiner, 14 segundos cooperativos e token de cancelamento. Não pode interromper uma chamada nativa que já bloqueou. Diretórios redirecionados/ancestrais com reparse e caminhos relativos, UNC, dispositivos, ADS/traversal são recusados. Resultado parcial explicita falta de cobertura; o limite nunca autoriza limpeza.
 
 Validação local: build TestesResiduos sem avisos/erros; nove verificações `--missao` aprovadas no Linux com dados temporários (cancelamento, timeout, limites, produto sob fabricante, playlist, raiz ausente e link/ancestral). Casos adicionais de comandos locais e Registro sintético são Windows-only e aguardam o CI deste marco. Tarefas agendadas, resolução de atalhos/integrações COM e histórico transacional persistente continuam pendentes; não foram declarados implementados.
+
+## M3 — classificação e correlação
+
+Decisão tipada por achado: revisar, preservar dados, preservar compartilhado ou estado desconhecido; nem categoria validada concede capacidade de exclusão. Perfis em AppData, preferências do Registro e dados multimídia ficam preservados. Inventário/proteções parciais convertem todos os relatórios unidos em estado desconhecido. O fluxo pós-desinstalador e a revisão avançada passam a usar a fotografia unificada Win32/MSIX/jogos.
+
+Identificadores MSI, ID de inventário e sobreposição delimitada de caminhos ainda usados bloqueiam falsa confirmação de ausência. Relatórios agora unem locais e motivos, sem descartar evidências por nome; alvo ligado a produtos diferentes passa a compartilhado. Interface mostra decisão e justificativa de cada item. Normalização do inventário realizada uma vez por classificação.
+
+Regressão encontrada pelo CI M2: o validador histórico rejeitava a pasta de três letras `vlc`, fazendo o catálogo inteiro falhar fechado. Corrigida validação mínima para três letras e adicionado teste do carregamento das cinco regras, inclusive no subconjunto local. Não houve desbloqueio de exclusão.
+
+Validação deste marco: aplicação compilada localmente para Windows sem erros (aviso SYSLIB0057 preexistente em VerifiedUpdaters); build dos testes sem avisos/erros. Vinte testes locais específicos aprovados, incluindo 10.000 evidências/1.000 instalações com saída limitada a 100 grupos, conflitos, inventário parcial e MSI/instalação paralela. Sete testes Python aprovados. Repetir suite Windows nesta revisão para encerrar a regressão do catálogo.

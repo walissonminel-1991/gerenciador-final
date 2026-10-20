@@ -42,6 +42,12 @@ internal static class UninstallResiduals
     // Se mesmo aplicativo ainda aparece no Registro não apagar nada.
     internal static bool StillInstalled(ProgramEntry original, IReadOnlyCollection<ProgramEntry> installed)
     {
+        if (installed.Any(p =>
+            (!string.IsNullOrWhiteSpace(original.MsiProductCode) &&
+                original.MsiProductCode.Equals(p.MsiProductCode, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrWhiteSpace(original.InventoryId) &&
+                original.InventoryId.Equals(p.InventoryId, StringComparison.OrdinalIgnoreCase)) ||
+            ResidualReadSafety.PathsOverlap(original.InstallLocation, p.InstallLocation))) return true;
         // Mesmo ID em todas as etapas: se uma variante continua instalada,
         // o software NÃO está removido e nenhum resíduo pode ser apagado.
         var identity = ApplicationIdentityCatalog.Resolve(original.Name, original.Publisher);

@@ -93,7 +93,10 @@ internal sealed record RegistryInventoryScan(IReadOnlyList<ProgramEntry> Items,
     int Inspected, int HiddenComponents, int UpdateEntries, int ReadFailures, int Duplicates);
 internal sealed record UnifiedInventoryScan(IReadOnlyList<ProgramEntry> Items,
     RegistryInventoryScan Registry, LocalMsixResult Msix, int Added,
-    GameLibraryReport Games, int GamesAdded);
+    GameLibraryReport Games, int GamesAdded)
+{
+    internal bool Incomplete => Registry.ReadFailures > 0 || Msix.Failures > 0 || Msix.Status != "ok" || Games.Partial;
+}
 internal sealed record CommandResult(int ExitCode, string StandardOutput, string StandardError);
 internal sealed record CleanupResult(int FilesRemoved, int DirectoriesRemoved, int Failed, int ReparseSkipped, int Skipped, IReadOnlyList<string> Examples);
 internal sealed record DiskUsageInfo(string Root, string Label, long TotalBytes, long FreeBytes);
@@ -1339,7 +1342,7 @@ internal sealed partial class MainForm : Form
                 AppServices.Gray,
                 () => ExecuteAsync("Verificando resíduos de aplicativos...", ReviewOldUninstallResiduesAsync)),
             Tool("Limpeza avançada",
-                "Revisa dados e chaves do Registro de apps removidos. Exige confirmação.",
+                "Revisa perfis e configurações. Somente leitura nesta versão de teste.",
                 AppServices.Orange,
                 () => ExecuteAsync("Verificando resíduos para limpeza avançada...", ReviewDeepUninstallResiduesAsync))
         }, compact: true);
@@ -2675,8 +2678,9 @@ internal sealed partial class MainForm : Form
                 // A auditoria é separada das políticas que podem apagar arquivos.
                 // Mesmo sem receita de limpeza, mostra locais específicos e possíveis
                 // componentes relacionados, sempre SEM tocar no disco ou Registro.
-                var currentInventory = await Task.Run(AppServices.GetInstalledPrograms);
-                var audit = await Task.Run(() => ResidualAudit.Inspect(entry, currentInventory));
+                var currentInventory = await Task.Run(AppServices.ScanAllInstalledApps);
+                var audit = await Task.Run(() => ResidualAudit.Inspect(entry, currentInventory.Items,
+                    currentInventory.Incomplete));
                 DiagnosticTrace.Write($"DESINSTALACAO.AUDITORIA encontrados={audit.Findings.Count} relacionados={audit.RelatedRegisteredPrograms.Count} removido={audit.UninstallConfirmed}");
                 if (audit.Findings.Count > 0 || audit.RelatedRegisteredPrograms.Count > 0)
                 {
@@ -2718,8 +2722,8 @@ internal sealed partial class MainForm : Form
         Status("Analisando catálogo com " + UninstallRuleCatalog.Count +
             " regras de aplicativos para limpeza avançada...");
         DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_INICIO");
-        var installed = await Task.Run(AppServices.GetInstalledPrograms);
-        var candidates = await Task.Run(() => AdvancedUninstallCleaner.Inspect(installed));
+        var snapshot = await Task.Run(AppServices.ScanAllInstalledApps);
+        var candidates = await Task.Run(() => AdvancedUninstallCleaner.Inspect(snapshot.Items));
         DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_FIM programas=" + candidates.Count);
         if (candidates.Count == 0)
         {
@@ -2730,12 +2734,12 @@ internal sealed partial class MainForm : Form
         var reports = candidates.Select(item => new ResidualAuditReport(item.App.Name, false,
             item.Folders.Select(folder => new ResidualAuditFinding(folder,
                 "Dados e configurações — preservar", 1,
-                "Pode conter preferências, playlists, backups e perfis. Exclusão desativada nesta candidata."))
+                "Pode conter preferências, playlists, backups e perfis. Exclusão desativada nesta candidata.", ResidualDisposition.PreserveData))
             .Concat(item.RegistryKeys.Select(key => new ResidualAuditFinding(@"HKEY_CURRENT_USER\" + key,
                 "Configurações — preservar", 1,
-                "Ausência na lista de programas não comprova exclusividade ou desinstalação."))).ToArray(),
+                "Ausência na lista de programas não comprova exclusividade ou desinstalação.", ResidualDisposition.PreserveData))).ToArray(),
             Array.Empty<string>(), Historical: true)).ToArray();
-        ResidualAuditDialog.ShowHistoricalResults(this, reports);
+        ResidualAuditDialog.ShowHistoricalResults(this, ResidualReportMerger.Merge(reports, snapshot.Incomplete));
         Status("Revisão concluída. Dados preservados; exclusão desativada nesta candidata.");
     }
 
@@ -2822,9 +2826,7 @@ internal sealed partial class MainForm : Form
         // Assim aplicativos Store ou jogos ativos nao viram falsos vestigios.
         var inventorySnapshot = await Task.Run(AppServices.ScanAllInstalledApps);
         var updatedInventory = inventorySnapshot.Items;
-        bool inventoryIncomplete = inventorySnapshot.Registry.ReadFailures > 0 ||
-            inventorySnapshot.Msix.Failures > 0 || inventorySnapshot.Msix.Status != "ok" ||
-            inventorySnapshot.Games.Partial;
+        bool inventoryIncomplete = inventorySnapshot.Incomplete;
         if (inventoryIncomplete)
             Log("Inventário de proteção PARCIAL: ausência na lista não comprova remoção. Os achados históricos continuam somente leitura.");
         var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory));
@@ -2860,16 +2862,12 @@ internal sealed partial class MainForm : Form
         int installCandidates = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)));
         int publisherData = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal)));
         DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
-        // Manter resultados com caminhos identificados pelas receitas específicas primeiro,
-        // impedindo várias caixas de diálogo para o mesmo aplicativo histórico.
-        var historicalNames = new HashSet<string>(historical.Concat(winMergeReports)
-            .Select(r => r.Product), StringComparer.OrdinalIgnoreCase);
-        var allReports = historical.Concat(boosterReports).Concat(winMergeReports)
-            .Concat(broad.Reports.Where(r => !historicalNames.Contains(r.Product)))
-            .ToArray();
-        if (allReports.Length > 0)
+        // Unir todas as fontes por produto/local, preservando motivos divergentes.
+        var allReports = ResidualReportMerger.Merge(historical.Concat(boosterReports).Concat(winMergeReports)
+            .Concat(broad.Reports), inventoryIncomplete || broad.Incomplete);
+        if (allReports.Count > 0)
         {
-            Log($"Auditoria de dados e instalações: {allReports.Length} grupos para revisão (não são lixo confirmado). " +
+            Log($"Auditoria de dados e instalações: {allReports.Count} grupos para revisão (não são lixo confirmado). " +
                 $"Verificados {broad.EntriesSeen} nomes em {broad.RootsChecked} origens." +
                 (broad.Incomplete ? " Análise PARCIAL: limites de proteção alcançados." : ""));
             ResidualAuditDialog.ShowHistoricalResults(this, allReports);

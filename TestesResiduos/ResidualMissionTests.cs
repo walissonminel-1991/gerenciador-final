@@ -5,6 +5,7 @@ internal static class ResidualMissionTests
 {
     internal static void Run(Action<bool, string> check)
     {
+        Classification(check);
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
         var stopped = new ResidualScanBudget(cancelled.Token);
@@ -92,4 +93,67 @@ internal static class ResidualMissionTests
         }
         finally { Registry.CurrentUser.DeleteSubKeyTree(keyPath, false); }
     }
+    private static void Classification(Action<bool, string> check)
+    {
+        check(HistoricalResidualAudit.Rules.Count == 5 && HistoricalResidualAudit.Rules.Any(r => r.Id == "vlc-profile"),
+            "Catálogo histórico valida nomes curtos VLC e carrega todas as cinco regras");
+        var app = new ProgramEntry { Name = "Editor Antigo", MsiProductCode = "{ID-SINTETICO}" };
+        check(UninstallResiduals.StillInstalled(app, new[] { new ProgramEntry
+            { Name = "Nome Novo", MsiProductCode = "{ID-SINTETICO}" } }),
+            "Identificador MSI preserva instalação sob nome diferente");
+        var sameLocation = new ProgramEntry { Name = "Nova Versão", InstallLocation = Path.Combine(Path.GetTempPath(), "Produto") };
+        check(UninstallResiduals.StillInstalled(new ProgramEntry { Name = "Antiga Versão", InstallLocation = sameLocation.InstallLocation },
+            new[] { sameLocation }), "Reinstalação ou variante no mesmo local bloqueia confirmação de ausência");
+        check(!ResidualReadSafety.PathsOverlap(Path.Combine(Path.GetTempPath(), "Produto"),
+            Path.Combine(Path.GetTempPath(), "ProdutoOutro")), "Prefixo de pasta semelhante não equivale a ancestral compartilhado");
+        var data = new ResidualAuditFinding(@"C:\Fake\Profile", "Perfil", 1, "Playlists e preferências", ResidualDisposition.PreserveData);
+        var shared = data with { Disposition = ResidualDisposition.PreserveShared, Evidence = "Mais de um produto" };
+        var merged = ResidualReportMerger.Merge(new[]
+        {
+            new ResidualAuditReport("Editor x64", false, new[] { data }, []),
+            new ResidualAuditReport("Editor", false, new[] { shared, data with { Location = @"HKCU\Software\Editor" } }, [])
+        });
+        check(merged.Count == 1 && merged[0].Findings.Count == 2 &&
+            merged[0].Findings[0].Disposition == ResidualDisposition.PreserveShared &&
+            merged[0].Findings[0].Evidence.Contains("Playlists") && merged[0].Findings[0].Evidence.Contains("Mais de um"),
+            "União de fontes preserva locais únicos, motivos e decisão mais restritiva");
+        var conflict = ResidualReportMerger.Merge(new[]
+        {
+            new ResidualAuditReport("AppA", false, new[] { data }, []),
+            new ResidualAuditReport("AppB", false, new[] { data }, [])
+        });
+        check(conflict.SelectMany(r => r.Findings).All(f => f.Disposition == ResidualDisposition.PreserveShared && !f.CanRemove),
+            "Mesmo alvo ligado a produtos diferentes é compartilhado e bloqueado");
+        check(ResidualReportMerger.Merge(merged, incomplete: true).All(r => r.Incomplete &&
+            r.Findings.All(f => f.Disposition == ResidualDisposition.Unknown && !f.CanRemove)),
+            "Inventário parcial produz estado desconhecido e proíbe exclusão em todas as fontes");
+        check(!new ResidualAuditFinding("ficticio", "Teste", 1, "pontuação", ResidualDisposition.ValidatedCandidate).CanRemove,
+            "Nem categoria validada nem pontuação concede capacidade de apagar");
+        var media = new[]
+        {
+            new BroadResidualEvidence("foobar2000", @"C:\Fake\foobar2000", "Perfil", "AppData"),
+            new BroadResidualEvidence("foobar2000", @"HKCU\Software\foobar2000", "Configurações", "Registry"),
+            new BroadResidualEvidence("Future Games", @"C:\Fake\Future Games", "Perfil", "AppData"),
+            new BroadResidualEvidence("Future Games", @"HKCU\Software\Future Games", "Chave", "Registry")
+        };
+        var classified = BroadResidualDiscovery.Classify(media, []);
+        check(classified.Single(r => r.Product == "foobar2000").Findings.Any(f => f.Disposition == ResidualDisposition.PreserveData) &&
+            classified.Single(r => r.Product == "Future Games").Findings.All(f => f.Disposition == ResidualDisposition.PreserveShared),
+            "Perfil de mídia e fabricante desconhecido recebem preservação contextual");
+        check(BroadResidualDiscovery.Classify(media, [], inventoryIncomplete: true)
+            .SelectMany(r => r.Findings).All(f => f.Disposition == ResidualDisposition.Unknown),
+            "Leitura parcial impede classificar perfis como removíveis");
+        var many = Enumerable.Range(0, 5000).SelectMany(i => new[]
+        {
+            new BroadResidualEvidence("Produto" + i, "Local" + i, "Dados", "AppData"),
+            new BroadResidualEvidence("Produto" + i, "Registro" + i, "Chave", "Registry")
+        }).ToArray();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var large = BroadResidualDiscovery.Classify(many, Enumerable.Range(0, 1000)
+            .Select(i => new ProgramEntry { Name = "Instalado" + i, Publisher = "Fabricante" + i }).ToArray());
+        check(large.Count == 100 && large.All(r => !r.UninstallConfirmed && r.Findings.All(f => !f.CanRemove)) &&
+            clock.Elapsed < TimeSpan.FromSeconds(20),
+            "Dez mil evidências e mil instalações: saída limitada e sem autorização de exclusão");
+    }
+
 }
