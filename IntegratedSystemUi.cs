@@ -20,13 +20,12 @@ internal sealed partial class MainForm
     private Button? _installSelectedUpdates;
     private readonly HashSet<string> _updateSelection = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<WinUpdateChoice> _updateCatalog = Array.Empty<WinUpdateChoice>();
-    private readonly ProcessMonitorSampler _processSampler = new();
-    private readonly System.Windows.Forms.Timer _processTimer = new() { Interval = ProcessSamplingPolicy.BackgroundIntervalMs };
-    private bool _processSampling;
+    private readonly System.Windows.Forms.Timer _memoryTimer = new() { Interval = ProcessSamplingPolicy.BackgroundIntervalMs };
+    private bool _memorySampling;
     private bool _windowsUpdateScanning;
     private bool _windowsUpdateChecked;
     private string? _windowsUpdateScanFailure;
-    private string _activeSystemView = "processes";
+    private string _activeSystemView = "memory";
 
     private Control BuildIntegratedSystemPanel()
     {
@@ -44,8 +43,8 @@ internal sealed partial class MainForm
             Margin = Padding.Empty, BackColor = AppServices.Background
         };
         for (int i = 0; i < 4; i++) actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        AddIntegratedAction(actions, 0, "Processos", "CPU, memória e E/S por processo. Atualiza a cada 2 s com a aba aberta.", AppServices.Blue,
-            async () => { _activeSystemView = "processes"; ShowCachedProcessesIfAvailable(); await RefreshProcessHistoryAsync(); });
+        AddIntegratedAction(actions, 0, "Memória RAM", "Consumo e memória disponível. Histórico local, também na bandeja.", AppServices.Blue,
+            async () => { _activeSystemView = "memory"; await RefreshMemoryRamAsync(); });
         AddIntegratedAction(actions, 1, "Inicialização", "Ative ou desative entradas do seu usuário de modo reversível.", AppServices.Gray,
             async () => { _activeSystemView = "startup"; await RefreshStartupEntriesAsync(); });
         AddIntegratedAction(actions, 2, "Windows Update", "Procure, selecione e instale atualizações oficiais.", AppServices.Green,
@@ -112,7 +111,7 @@ internal sealed partial class MainForm
         _systemPanelCards.Resize += (_, _) => ResizeIntegratedCards();
         var contentHost = new Panel { Dock = DockStyle.Fill, BackColor = PanelBackground, Margin = Padding.Empty };
         contentHost.Controls.Add(_systemPanelCards);
-        contentHost.Controls.Add(BuildProcessMonitorView());
+        contentHost.Controls.Add(BuildMemoryRamDashboard());
         _hardwareGrid = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3,
@@ -125,21 +124,20 @@ internal sealed partial class MainForm
         contentHost.Controls.Add(_hardwareGrid);
         _systemPanelCards.BringToFront();
         details.Controls.Add(contentHost, 0, 3);
-        SetSystemView("processes");
+        SetSystemView("memory");
         root.Controls.Add(details, 0, 1);
         root.SizeChanged += (_, _) => FitSystemActionsHeight(root, actions);
         details.SizeChanged += (_, _) => FitSystemSummaryHeight();
         FitSystemActionsHeight(root, actions);
         FitSystemSummaryHeight();
 
-        _processTimer.Tick += async (_, _) =>
+        _memoryTimer.Tick += async (_, _) =>
         {
-            if (_processSampling || IsDisposed) return;
-            // O timer continua na bandeja, mas com um intervalo economico.
+            if (_memorySampling || IsDisposed) return;
             UpdateProcessSamplingCadence();
-            await RefreshProcessHistoryAsync();
+            await RefreshMemoryRamAsync();
         };
-        FormClosed += (_, _) => _processTimer.Dispose();
+        FormClosed += (_, _) => _memoryTimer.Dispose();
         return root;
     }
 
@@ -148,16 +146,16 @@ internal sealed partial class MainForm
         _activeSystemView = view; // A coleta permanece ativa na bandeja, com cadencia reduzida.
         if (_systemDetails is null || _installSelectedUpdates is null) return;
         bool showInstall = view == "update";
-        bool showProcesses = view == "processes";
+        bool showMemory = view == "memory";
         _systemDetails.RowStyles[2].Height = showInstall ? 38 : 0;
         FitSystemSummaryHeight();
         UpdateProcessSamplingCadence();
         _installSelectedUpdates.Visible = showInstall;
         if (_exportHardwareButton is not null) _exportHardwareButton.Visible = view == "hardware" && _hardwareGroups.Count > 0;
         if (_hardwareGrid is not null) _hardwareGrid.Visible = view == "hardware";
-        if (_processMonitorView is not null) _processMonitorView.Visible = showProcesses;
+        if (_memoryDashboardView is not null) _memoryDashboardView.Visible = showMemory;
         if (_systemPanelCards is not null)
-            _systemPanelCards.Visible = view != "hardware" && !showProcesses;
+            _systemPanelCards.Visible = view != "hardware" && !showMemory;
         _systemDetails.PerformLayout();
     }
 
@@ -183,7 +181,7 @@ internal sealed partial class MainForm
             if (_busy) return;
             SetSystemView(caption switch
             {
-                "Processos" => "processes", "Inicialização" => "startup", "Windows Update" => "update", _ => "hardware"
+                "Memória RAM" => "memory", "Inicialização" => "startup", "Windows Update" => "update", _ => "hardware"
             });
             try { await action(); } catch (Exception ex) { ReportError(ex); }
         };
@@ -542,26 +540,18 @@ internal sealed partial class MainForm
     {
         if (IsDisposed) return;
         bool visible = Visible && !IsInTray && _nav.SelectedIndex == 5 &&
-                       _activeSystemView == "processes";
+                       _activeSystemView == "memory";
         int interval = ProcessSamplingPolicy.IntervalMs(visible, IsInTray || !Visible);
-        if (_processTimer.Interval != interval) _processTimer.Interval = interval;
+        if (_memoryTimer.Interval != interval) _memoryTimer.Interval = interval;
     }
 
-    // A primeira coleta pesada nao concorre com o inventario de abertura.
-    // Coleta local segue no PC FRACO mesmo na bandeja do sistema.
-    private void BeginBackgroundProcessSampling()
+    // Coleta global por GlobalMemoryStatusEx, sem enumeracao de processos.
+    private void BeginBackgroundMemoryMonitoring()
     {
         if (IsDisposed) return;
         UpdateProcessSamplingCadence();
-        _processTimer.Start();
-        Log("Monitor de processos ativo (leitura local: 2 s na aba Processos, " +
-            "12 s em outras abas e 20 s na bandeja).");
-    }
-
-    private void ShowCachedProcessesIfAvailable()
-    {
-        if (_lastMonitorSnapshot is not null && !IsDisposed)
-            ShowProcessMonitorSnapshot(_lastMonitorSnapshot);
+        _memoryTimer.Start();
+        Log("RAM: acompanhamento local em segundo plano (2 s na aba RAM, 12 s em outras abas, 20 s na bandeja).");
     }
 
     private async Task ScanWindowsUpdatesAsync()
@@ -721,34 +711,25 @@ internal sealed partial class MainForm
         });
     }
 
-    private async Task RefreshProcessHistoryAsync()
+    private async Task RefreshMemoryRamAsync()
     {
-        if (_processSampling || IsDisposed) return;
-        _processSampling = true;
+        if (_memorySampling || IsDisposed) return;
+        _memorySampling = true;
         try
         {
-            bool processTabVisible = Visible && _nav.SelectedIndex == 5 &&
-                _activeSystemView == "processes";
-            bool readDetails = ProcessSamplingPolicy.ShouldReadProcessDetails(
-                processTabVisible, IsInTray || !Visible);
-            var snapshot = await Task.Run(() => readDetails
-                ? _processSampler.TakeSample()
-                : _processSampler.TakeResourceSample());
-            if (IsDisposed) return;
-            // Não sobrescrever a última tabela detalhada com uma fotografia
-            // sem processos. Assim ocultar/restaurar não produz uma lista vazia.
-            if (readDetails)
-            {
-                _lastMonitorSnapshot = snapshot;
-                if (Visible && !IsInTray && _activeSystemView == "processes" &&
-                    _nav.SelectedIndex == 5)
-                {
-                    ShowProcessMonitorSnapshot(snapshot);
-                    // Status não muda continuamente: evita piscar o REGISTRO.
-                }
-            }
+            // So consulta status global; nunca abre handles de outros processos.
+            var sample = await Task.Run(MemoryRamReader.Capture);
+            if (IsDisposed || sample is null) return;
+            if (Visible && !IsInTray && _nav.SelectedIndex == 5 &&
+                _activeSystemView == "memory")
+                ShowMemoryRamSample(sample);
+            else
+                _memoryHistory.Add(sample); // manter serie mesmo quando oculto.
         }
-        catch (Exception ex) { if (!IsDisposed) Log("Histórico de processos: " + ex.GetType().Name); }
-        finally { _processSampling = false; }
+        catch (Exception ex)
+        {
+            if (!IsDisposed) Log("RAM: consulta indisponível (" + ex.GetType().Name + ").");
+        }
+        finally { _memorySampling = false; }
     }
 }

@@ -736,11 +736,8 @@ internal sealed partial class MainForm : Form
             if (_nav.SelectedIndex == 4)
                 await RefreshEnergyInfoAsync();
             UpdateProcessSamplingCadence();
-            if (_nav.SelectedIndex == 5 && _activeSystemView == "processes")
-            {
-                ShowCachedProcessesIfAvailable();
-                _ = RefreshProcessHistoryAsync();
-            }
+            if (_nav.SelectedIndex == 5 && _activeSystemView == "memory")
+                _ = RefreshMemoryRamAsync();
         };
         root.Controls.Add(_nav, 0, 1);
         root.Controls.Add(BuildOperationsPanel(), 0, 2);
@@ -823,7 +820,7 @@ internal sealed partial class MainForm : Form
             if (!_busy)
             {
                 _consultaCatalogoCts?.Cancel();
-                _processTimer.Stop();
+                _memoryTimer.Stop();
                 return;
             }
             if (_consultaCatalogoCts is not null)
@@ -2071,7 +2068,7 @@ internal sealed partial class MainForm : Form
     private void BeginStartupChecks()
     {
         Log("Inicialização: consultando atualizações de aplicativos e Windows Update em segundo plano.");
-        BeginBackgroundProcessSampling();
+        BeginBackgroundMemoryMonitoring();
         _ = RunStaggeredStartupChecksAsync();
     }
 

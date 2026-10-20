@@ -18,7 +18,7 @@ internal static class LayoutTests
             throw new Exception("Diagnostico perdeu a revisao da compilacao.");
         TestStartupBounds();
         TestWorkspaceProportions();
-        TestMonitorMathAndSampling();
+        TestRamHistoryAndSampling();
         TestSamplingCadence();
 
         Console.WriteLine("Criando janela de teste, sem iniciar os servicos");
@@ -197,7 +197,7 @@ internal static class LayoutTests
                             StringComparison.Ordinal)).OrderBy(label => label.Name).ToArray();
                     var expectedDescriptions = new[]
                     {
-                        "CPU, memória e E/S por processo. Atualiza a cada 2 s com a aba aberta.",
+                        "Consumo e memória disponível. Histórico local, também na bandeja.",
                         "Ative ou desative entradas do seu usuário de modo reversível.",
                         "Procure, selecione e instale atualizações oficiais.",
                         "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos."
@@ -326,13 +326,7 @@ internal static class LayoutTests
             throw new Exception("Botoes de ferramentas ainda ocupam cartoes inteiros.");
         nav.SelectTab(5);
         Application.DoEvents();
-        TestProcessGrid(form);
-        var monitorGrid = Descendants(form).OfType<FlickerFreeProcessGrid>().Single(g => g.Name != "DriverInventoryGrid");
-        if (monitorGrid.ColumnHeadersHeight > 30 ||
-            monitorGrid.RowTemplate.Height > 26 ||
-            monitorGrid.ColumnHeadersDefaultCellStyle.SelectionBackColor !=
-                monitorGrid.ColumnHeadersDefaultCellStyle.BackColor)
-            throw new Exception("Monitor continua com cabecalho destacado ou linhas muito altas.");
+        TestMemoryPanel(form);
         var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
             .Where(flow => flow.IsPageViewport).ToArray();
         if (pageViewports.Length != 5)
@@ -370,85 +364,45 @@ internal static class LayoutTests
         Console.WriteLine("OK: amostragem 2s na aba; contadores globais a 12s ou 20s em background.");
     }
 
-    private static void TestMonitorMathAndSampling()
+    private static void TestRamHistoryAndSampling()
     {
-        double halfCpu = ProcessMonitorSampler.CpuPercent(
-            TimeSpan.FromSeconds(1), 1, 2);
-        if (Math.Abs(halfCpu - 50) > 0.0001 ||
-            ProcessMonitorSampler.CpuPercent(TimeSpan.FromSeconds(30), 1, 2) != 100 ||
-            ProcessMonitorSampler.CpuPercent(TimeSpan.Zero, 0, 0) != 0)
-            throw new Exception("Percentual de CPU nao normalizado corretamente.");
-        if (ProcessMonitorSampler.Throughput(1400, 400, 2) != 500 ||
-            ProcessMonitorSampler.Throughput(100, 200, 1) is not null)
-            throw new Exception("Contadores de E/S nao podem gerar taxas negativas.");
-
-        var sampler = new ProcessMonitorSampler();
-        var first = sampler.TakeSample();
-        System.Threading.Thread.Sleep(400);
-        var second = sampler.TakeSample();
-        if (first.ProcessCount <= 0 || second.ProcessCount <= 0 ||
-            second.Processes.Count != second.ProcessCount ||
-            second.Processes.GroupBy(x => x.Pid).Any(x => x.Count() > 1) ||
-            second.Processes.Any(x => x.MemoryBytes < 0 ||
-                (x.CpuPercent.HasValue &&
-                    (x.CpuPercent.Value < 0 || x.CpuPercent.Value > 100)) ||
-                (x.IoBytesPerSecond.HasValue && x.IoBytesPerSecond.Value < 0)) ||
-            (second.TotalCpuPercent.HasValue &&
-                (second.TotalCpuPercent.Value < 0 || second.TotalCpuPercent.Value > 100)) ||
-            (second.UsedMemoryPercent.HasValue && second.UsedMemoryPercent.Value > 100))
-            throw new Exception("Metrica de processos invalida no Windows.");
-        var globalOnly = sampler.TakeResourceSample();
-        if (globalOnly.ProcessCount != 0 || globalOnly.Processes.Count != 0 ||
-            (globalOnly.TotalCpuPercent is double cpu && (cpu < 0 || cpu > 100)) ||
-            (globalOnly.UsedMemoryPercent is uint memory && memory > 100))
-            throw new Exception("Monitor leve deve coletar recursos sem fornecer processos ficticios.");
-        Console.WriteLine("OK: monitor de processos e contador global em segundo plano.");
+        const ulong GiB = 1073741824UL;
+        var history = new MemoryRamHistory();
+        history.Add(new MemoryRamSample(DateTime.UtcNow, 8 * GiB, 2 * GiB));
+        if (history.Samples.Count != 1 ||
+            history.Samples[0].UsedPercent != 75 ||
+            history.Samples[0].UsedBytes != 6 * GiB)
+            throw new Exception("RAM: memoria usada/disponivel calculada incorretamente.");
+        for (int i = 0; i < MemoryRamHistory.Capacity + 10; i++)
+            history.Add(new MemoryRamSample(DateTime.UtcNow, 8 * GiB, GiB));
+        if (history.Samples.Count != MemoryRamHistory.Capacity ||
+            history.ConfirmedReclaimedBytes != 0)
+            throw new Exception("RAM: historico ilimitado ou inventou limpeza.");
+        var current = MemoryRamReader.Capture();
+        if (current is null || current.TotalBytes == 0 ||
+            current.AvailableBytes > current.TotalBytes)
+            throw new Exception("RAM: leitura local do Windows invalida.");
+        Console.WriteLine("OK: RAM, limite de amostras e limpeza nao inventada.");
     }
 
-    private static void TestProcessGrid(MainForm form)
+    private static void TestMemoryPanel(MainForm form)
     {
-        var grid = Descendants(form).OfType<FlickerFreeProcessGrid>().Single(g => g.Name != "DriverInventoryGrid");
-        if (!grid.Visible || grid.Columns.Count != 5 ||
-            !grid.Columns.Cast<DataGridViewColumn>().Select(c => c.HeaderText)
-                .SequenceEqual(new[] { "Processo", "PID", "CPU %", "RAM (MB)", "E/S (KB/s)" }))
-            throw new Exception("Tabela de processos nao apresenta as cinco colunas.");
-        var filter = Descendants(form).OfType<TextBox>()
-            .Single(x => x.PlaceholderText == "Nome ou PID");
-        var testSnapshot = new ProcessMonitorSnapshot(DateTime.UtcNow, 2, 12, 55, 1024,
-            new[]
-            {
-                new ProcessMonitorEntry(301, "TesteMonitorA", 40, 256 * 1048576L, 4096),
-                new ProcessMonitorEntry(302, "TesteMonitorB", 10, 128 * 1048576L, 1024)
-            });
-        form.PreviewProcessSnapshotForTests(testSnapshot);
-        Application.DoEvents();
-        if (grid.RowCount != 2 || grid.Rows[0].Cells[0].Value?.ToString() != "TesteMonitorA")
-            throw new Exception("Monitor nao ordenou por consumo instantaneo de CPU.");
-        var original = grid.Rows[0];
-        var next = testSnapshot with
-        {
-            Processes = new[]
-            {
-                new ProcessMonitorEntry(301, "TesteMonitorA", 35, 260 * 1048576L, 8192),
-                new ProcessMonitorEntry(302, "TesteMonitorB", 15, 150 * 1048576L, 2048)
-            }
-        };
-        form.PreviewProcessSnapshotForTests(next);
-        Application.DoEvents();
-        if (!ReferenceEquals(original, grid.Rows[0]) ||
-            grid.Rows[0].Cells[2].Value?.ToString() != "35,0" &&
-            grid.Rows[0].Cells[2].Value?.ToString() != "35.0")
-            throw new Exception("Tabela foi reconstruida ou nao atualizou valores.");
-        filter.Text = "302";
-        Application.DoEvents();
-        if (grid.RowCount != 1 || grid.Rows[0].Cells[0].Value?.ToString() != "TesteMonitorB")
-            throw new Exception("Filtro de nome/PID nao funciona.");
-        filter.Clear();
-        Application.DoEvents();
-        if (grid.RowCount != 2 ||
+        var graph = Descendants(form).OfType<MemoryRamChart>().Single();
+        if (!graph.Visible ||
             Descendants(form).OfType<Button>().All(x => x.Text != "Tarefas do Windows"))
-            throw new Exception("Opcao de abrir o Gerenciador de Tarefas ausente.");
-        Console.WriteLine("OK: grade, ordenacao, filtro e atualizacao sem reconstruir linhas.");
+            throw new Exception("RAM: grafico ou acesso a Tarefas do Windows ausente.");
+        const ulong GiB = 1073741824UL;
+        int samplesBefore = graph.SampleCount;
+        form.PreviewMemoryRamForTests(new MemoryRamSample(DateTime.UtcNow, 8 * GiB, 2 * GiB));
+        form.PreviewMemoryRamForTests(new MemoryRamSample(DateTime.UtcNow, 8 * GiB, 3 * GiB));
+        Application.DoEvents();
+        if (graph.SampleCount != Math.Min(MemoryRamHistory.Capacity, samplesBefore + 2) ||
+            !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryAvailable" && x.Text.Contains("3,00") || x.Name == "MemoryAvailable" && x.Text.Contains("3.00")) ||
+            !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryCleaned" && x.Text.Contains("0 MB")))
+            throw new Exception("RAM: dados inconsistentes: pontos=" + graph.SampleCount +
+                ", disponivel=" + Descendants(form).OfType<Label>().FirstOrDefault(x => x.Name == "MemoryAvailable")?.Text +
+                ", liberada=" + Descendants(form).OfType<Label>().FirstOrDefault(x => x.Name == "MemoryCleaned")?.Text);
+        Console.WriteLine("OK: grafico de RAM, valores e botao do Windows.");
     }
 
     private static void TestStartupBounds()
