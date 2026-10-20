@@ -1,5 +1,14 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.8 — simulação de contribuição sem envio (TESTE)
+
+- Janela de privacidade usa linguagem simples: mostra claramente quando a coleta local está ativa ou desativada, sem obrigar a interpretar JSON.
+- Novo botão **Simular sem enviar**, sem exigir consentimento ou conta: cria uma demonstração fictícia estritamente em memória, validada pelo esquema de dados permitido.
+- Simulação não lê informações reais do computador, não grava arquivo, não comunica com rede e não altera consentimento. Testes automatizados validam esses limites e a presença do controle na interface.
+- A coleta continua apenas local e voluntária; envio remoto, autenticação de participantes, manutenção por IA e publicação automática permanecem desativados.
+- Definidos critérios para uma futura contribuição simples, sem upload de arquivos e sem exigir GitHub do usuário final. Veja docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md.
+
+
 ## v5.13.11.7 — bloqueio de envio manual e verificações adicionais (TESTE)
 
 - Removida a publicação manual de diagnóstico para Issues públicas; GitHub Actions não aceita mais eventos de Issues como entrada. Coleta permanece estritamente local e consentida.
