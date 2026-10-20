@@ -176,8 +176,9 @@ internal sealed partial class MainForm
 
     internal void MinimizeToTray()
     {
-        if (IsDisposed || _hiddenInTray || _trayIcon is null) return;
+        if (IsDisposed || _trayTransitioning || _hiddenInTray || _trayIcon is null) return;
         _trayTransitioning = true;
+        DiagnosticTrace.Write("JANELA.BANDEJA_OCULTAR.INICIO");
         try
         {
             _trayHandleBeforeHide = IsHandleCreated ? Handle : IntPtr.Zero;
@@ -185,16 +186,19 @@ internal sealed partial class MainForm
             // Hide retira a janela da barra de tarefas naturalmente.
             // NUNCA alterar ShowInTaskbar aqui: evita RecreateHandle().
             Hide();
+            DiagnosticTrace.Write("JANELA.BANDEJA_OCULTAR.APÓS_HIDE");
             _trayIcon.Visible = true;
             UpdateProcessSamplingCadence();
+            DiagnosticTrace.Write("JANELA.BANDEJA_OCULTAR.FIM");
         }
         finally { _trayTransitioning = false; }
     }
 
     internal void RestoreFromTray()
     {
-        if (IsDisposed || (!_hiddenInTray && Visible)) return;
+        if (IsDisposed || _trayTransitioning || (!_hiddenInTray && Visible)) return;
         _trayTransitioning = true;
+        DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.INICIO");
         try
         {
             _hiddenInTray = false;
@@ -208,7 +212,9 @@ internal sealed partial class MainForm
                     WindowState = FormWindowState.Normal;
             }
             finally { ResumeLayout(true); }
+            DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.ANTES_SHOW");
             Show();
+            DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.APOS_SHOW");
             UpdateProcessSamplingCadence();
             if (_trayIcon is not null) _trayIcon.Visible = false;
             if (_trayHandleBeforeHide != IntPtr.Zero && Handle != _trayHandleBeforeHide)
@@ -216,9 +222,13 @@ internal sealed partial class MainForm
         }
         finally { _trayTransitioning = false; }
         Activate();
+        DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.FIM");
         // Mostrar dados recentes rapidamente, sem forcar reconstruir a janela.
         if (_nav.SelectedIndex == 5 && _activeSystemView == "processes")
+        {
+            DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.PROCESSOS_ATUALIZAR");
             _ = RefreshProcessHistoryAsync();
+        }
     }
 
     private void RequestTrayExit()
