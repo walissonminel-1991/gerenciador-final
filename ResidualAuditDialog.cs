@@ -33,7 +33,9 @@ internal sealed class ResidualAuditDialog : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
 
-        string intro = report.Historical
+        string intro = report.Incomplete
+            ? "Análise parcial — alguns locais não puderam ser verificados. Preserve os itens e confira os limites abaixo."
+            : report.Historical
             ? "A análise encontrou dados de fabricantes, possíveis instalações e vestígios sem confirmação. " +
               "Eles podem pertencer a programas ou jogos ativos. Nenhum item será apagado."
             : report.UninstallConfirmed
@@ -41,12 +43,12 @@ internal sealed class ResidualAuditDialog : Form
                   "O desinstalador do fabricante ainda pode estar aberto. " +
                   "Os possíveis vestígios abaixo NÃO serão excluídos automaticamente."
                 : $"O estado completo de {report.Product} não foi confirmado. " +
-                  "O estado completo não foi confirmado. Nenhuma exclusão será autorizada.";
+                  "Nenhuma exclusão será autorizada.";
 
         layout.Controls.Add(new Label
         {
             Dock = DockStyle.Fill,
-            Text = intro + "\n\nArquivos desconhecidos, drivers e chaves compartilhadas exigem análise individual.",
+            Text = intro + "\n\nExclusão indisponível nesta versão de teste.",
             ForeColor = Color.FromArgb(226, 238, 249),
             TextAlign = ContentAlignment.MiddleLeft,
             Font = new Font("Segoe UI", 10F),

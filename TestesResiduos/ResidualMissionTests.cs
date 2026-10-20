@@ -48,8 +48,8 @@ internal static class ResidualMissionTests
             BroadResidualDiscovery.InspectDirectory(temp, "Dados", "AppData", found,
                 ref entries, ref restricted, ref partial, new ResidualScanBudget());
             check(found.Any(e => e.Name == "LegacyEditor" && e.Container == "Fabricante Desconhecido") &&
-                found.All(e => e.Name != "NivelNaoVarrer") && !partial,
-                "Segundo nível encontra produto sob fabricante desconhecido sem percorrer perfil");
+                found.All(e => e.Name != "NivelNaoVarrer") && partial,
+                "Segundo nível encontra produto sob fabricante desconhecido informa profundidade limitada sem percorrer perfil");
             check(File.Exists(Path.Combine(product, "playlist.m3u")), "Descoberta preserva playlist");
             var many = Path.Combine(temp, "MuitosProdutos");
             Directory.CreateDirectory(many);

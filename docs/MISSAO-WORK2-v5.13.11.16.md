@@ -25,3 +25,15 @@ Falha de decisão confirmada: contar itens preservados não detecta troca de um 
 Testes: chamadas diretas dos cinco bloqueios; Registro HKCU sintético; ACL de leitura negada em arquivo sintético; junction NTFS sintética; lista mutável, alvos duplicados, conteúdo novo antes da captura. Fixtures isolados; teardown só remove recursos próprios. Testes Windows de ACL/junction aguardam CI; bloqueio direto de arquivos e oito testes Python passaram localmente. Guardrail estático impede que os componentes de resíduos passem a invocar exclusão, shell, rede ou limpador genérico; não substitui análise semântica.
 
 Limitação mantida: prévia não retém handles até uma futura execução, não comprova propriedade exclusiva nem término dos auxiliares/MSI/serviços. Hash não é autorização. Nenhuma remoção foi reativada.
+
+## C — precisão e desempenho
+
+B aprovado nos três workflows: política 39508255073, build 39508255116 e regressões Windows 39508255014 (incluindo ACL de leitura negada, junction NTFS, hard links e todos os cinco bloqueios). O CI de A foi substituído pelo de B por concorrência, não por falha de teste.
+
+Correções C: ProgramData e preferências do Registro também preservam dados; diretório em Program Files ou Netease implica estado desconhecido, e Driver Booster exige conferência. Proteção geral de perfis desconhecidos não depende da lista fixa. União reconcilia aliases de Registro sem misturar 32/64 bits, preserva tipos/motivos e marca pastas ancestrais/descendentes de produtos diferentes como compartilhadas. Evidências incompatíveis no mesmo local ficam parciais/desconhecidas.
+
+Inventário e processos são normalizados/indexados uma vez, com comparação de prefixos por fronteira de palavra. Classificação tem limite cooperativo de cinco segundos; cancelamento durante classificação mantém estado parcial. Corrigida regressão durante desenvolvimento: flag de limite por raiz não pode interromper o orçamento global; teste cobre continuação das demais fontes. Profundidade limitada, indisponibilidade e falhas de fontes não percorridas são informadas. Não se afirma cobertura completa do computador.
+
+Novos casos sintéticos: onze fabricantes conhecidos, perfis desconhecidos/foobar/VLC, nomes próximos, Netease, instalação portátil, pai/filho compartilhados, aliases de Registro, contradição e continuação após limite local. Dez mil evidências/cinco mil instalações/mil processos avaliados com todos os 5.000 grupos contabilizados; medição local apenas orientativa, não equivale ao PC FRACO. Teste de interface Windows adiciona relatório parcial vazio com exclusão indisponível. Nenhuma alteração em atualização oficial do Notepad++/receitas.
+
+Contagens: entradas são itens visitados na descoberta (ou evidências recebidas na classificação isolada); grupos examinados são nomes elegíveis correlacionados; candidatos encontrados são grupos não protegidos com indícios independentes. Evidências não avaliadas são conhecidas somente quando a fonte oferece tamanho; caso contrário, quantidade desconhecida. Fontes sem acesso não são tratadas como inexistentes. Limite de exibição não descarta resultados silenciosamente.

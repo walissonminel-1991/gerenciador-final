@@ -28,9 +28,8 @@ internal sealed class ResidualScanBudget
         if (token.IsCancellationRequested) Issues |= ResidualScanIssue.Cancelled;
         if (clock.Elapsed >= timeout) Issues |= ResidualScanIssue.Timeout;
         if (Entries >= maxEntries) Issues |= ResidualScanIssue.EntryLimit;
-        if ((Issues & (ResidualScanIssue.Cancelled | ResidualScanIssue.Timeout | ResidualScanIssue.EntryLimit)) != 0)
-            return false;
-        return true;
+        // Limite local de uma raiz não interrompe as demais fontes.
+        return !token.IsCancellationRequested && clock.Elapsed < timeout && Entries < maxEntries;
     }
     internal bool Visit()
     {
@@ -113,24 +112,25 @@ internal enum ResidualScanIssue
 {
     None = 0, EntryLimit = 1, Timeout = 2, Cancelled = 4, ReadFailure = 8,
     GroupLimit = 16, LocationLimit = 32, InventoryPartial = 64,
-    DepthLimit = 128, LinkSkipped = 256, SourceUnavailable = 512
+    DepthLimit = 128, LinkSkipped = 256, SourceUnavailable = 512, ContradictoryEvidence = 1024
 }
 
 // Somente contagens e identificadores fixos de fontes; nunca caminhos ou nomes de produtos.
 internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanIssue.None,
     int EntriesExamined = 0, IReadOnlyList<string>? SourcesConsulted = null,
     IReadOnlyList<string>? SourcesUnavailable = null, int CandidatesFound = 0,
-    int ReportsOmitted = 0, int LocationsOmitted = 0, int? CandidatesNotEvaluated = 0)
+    int ReportsOmitted = 0, int LocationsOmitted = 0, int? CandidatesNotEvaluated = 0, int CandidatesExamined = 0)
 {
     internal bool Incomplete => Issues != ResidualScanIssue.None;
     internal const string PartialMessage = "ANÁLISE PARCIAL — a busca atingiu um limite ou encontrou uma falha e pode haver outros resultados.";
     internal string Describe() => (Incomplete ? PartialMessage : "Análise concluída nos locais consultados.") +
         $"\r\nEntradas examinadas: {EntriesExamined}; candidatos encontrados: {CandidatesFound}; " +
         $"grupos fora da exibição: {ReportsOmitted}; locais fora da exibição: {LocationsOmitted}; " +
-        "candidatos não avaliados: " + (CandidatesNotEvaluated?.ToString() ?? "quantidade desconhecida") + "." +
+        "evidências não avaliadas: " + (CandidatesNotEvaluated?.ToString() ?? "quantidade desconhecida") + "." +
         (SourcesConsulted is { Count: > 0 } ? "\r\nFontes consultadas: " + string.Join(", ", SourcesConsulted) : "") +
         (SourcesUnavailable is { Count: > 0 } ? "\r\nFontes indisponíveis: " + string.Join(", ", SourcesUnavailable) : "") +
         (Incomplete ? "\r\nMotivos: " + Issues + ". Confiança limitada; preservar e repetir a análise." : "") +
+        "\r\nEscopo: locais comuns de aplicativos, até dois níveis; não é uma varredura completa do computador." +
         "\r\nExclusão indisponível nesta versão de teste.";
 
     internal static ResidualCoverage Combine(IEnumerable<ResidualCoverage?> coverages)
@@ -142,7 +142,7 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
             values.SelectMany(v => v.SourcesUnavailable ?? []).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray(),
             values.Sum(v => v.CandidatesFound), values.Sum(v => v.ReportsOmitted),
             values.Sum(v => v.LocationsOmitted), values.Any(v => v.CandidatesNotEvaluated is null)
-                ? null : values.Sum(v => v.CandidatesNotEvaluated ?? 0));
+                ? null : values.Sum(v => v.CandidatesNotEvaluated ?? 0), values.Sum(v => v.CandidatesExamined));
     }
 }
 

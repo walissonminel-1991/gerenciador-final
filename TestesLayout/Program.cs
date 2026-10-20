@@ -55,7 +55,18 @@ internal static class LayoutTests
                 throw new Exception("Conferência não atualizou a prévia ou ocultou estado parcial.");
             review.Close();
         }
-        Console.WriteLine("OK Prévia de resíduos tipada e conferência sem exclusão");
+        var partialEmpty = new ResidualAuditReport("Busca sem achados", false, [], [], Historical: true,
+            Incomplete: true, Coverage: new ResidualCoverage(ResidualScanIssue.Timeout, CandidatesNotEvaluated: null));
+        using (var review = new ResidualAuditDialog(partialEmpty))
+        {
+            review.Show(); Application.DoEvents();
+            var rendered = Descendants(review).OfType<DarkLogView>().Single().RenderedText;
+            if (!rendered.Contains("ANÁLISE PARCIAL") || !rendered.Contains("quantidade desconhecida") ||
+                !rendered.Contains("Exclusão indisponível") || Descendants(review).OfType<Button>().Count() != 1)
+                throw new Exception("Busca parcial sem achados precisa mostrar limites sem botão destrutivo.");
+            review.Close();
+        }
+        Console.WriteLine("OK Prévia de resíduos tipada, parcial vazio e conferência sem exclusão");
         // Permite experimentar a contribuicao sem gravar dados ou autorizar coleta.
         string dryRunFolder = Path.Combine(Path.GetTempPath(),
             "GF-Preview-Only-" + Guid.NewGuid().ToString("N"));
