@@ -133,7 +133,7 @@ internal sealed class AnonymousTelemetry
                 if (!File.Exists(PendingFile) || new FileInfo(PendingFile).Length > 4096 || PendingHasExpired())
                     return null;
                 string pending = ReadBoundedFile(PendingFile, 4096);
-                return GitHubDiagnosticShare.CreateReviewUrl(pending) is not null ? pending : null;
+                return DiagnosticPayloadPolicy.IsValidReport(pending) ? pending : null;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                 System.Security.SecurityException) { return null; }
@@ -144,7 +144,7 @@ internal sealed class AnonymousTelemetry
     {
         // Versao validada para impedir campos arbitrarios. Sem ID de sessao,
         // hostname, IP, caminhos, inventario, timestamps ou eventos detalhados.
-        if (!GitHubDiagnosticShare.IsValidVersion(version))
+        if (!DiagnosticPayloadPolicy.IsValidVersion(version))
             version = "versao-indisponivel";
         return JsonSerializer.Serialize(new
         {
@@ -190,8 +190,14 @@ internal sealed class AnonymousTelemetry
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
     }
 
-    private bool PendingHasExpired() =>
-        DateTime.UtcNow - File.GetLastWriteTimeUtc(PendingFile) > TimeSpan.FromDays(7);
+    private bool PendingHasExpired()
+    {
+        // Timestamps futuros/adulterados nao podem manter dados indefinidamente.
+        DateTime changed = File.GetLastWriteTimeUtc(PendingFile);
+        DateTime now = DateTime.UtcNow;
+        return changed > now.AddMinutes(5) ||
+               now - changed > TimeSpan.FromDays(7);
+    }
 
     private static bool TryDelete(string path)
     {
