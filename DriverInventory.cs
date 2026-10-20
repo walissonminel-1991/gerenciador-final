@@ -29,6 +29,7 @@ internal static class DriverInventory
         var rows = new List<DriverInventoryEntry>();
         var presence = new Dictionary<string, bool?>(StringComparer.OrdinalIgnoreCase);
         bool partial = false;
+        string stage = "conectar";
         object? locator = null, services = null;
         var clock = Stopwatch.StartNew();
         static void Release(object? value)
@@ -47,8 +48,10 @@ internal static class DriverInventory
                 int count = 0;
                 try
                 {
+                    stage = "executar consulta";
                     token.ThrowIfCancellationRequested();
                     result = ((dynamic)services!).ExecQuery(sql, "WQL", 48);
+                    stage = "enumerar consulta";
                     foreach (object row in (System.Collections.IEnumerable)result)
                     {
                         try
@@ -91,7 +94,7 @@ internal static class DriverInventory
         }
         catch (Exception ex)
         {
-            return new(Correlate(rows, presence), true, "Consulta parcial ou indisponível: " + ex.GetType().Name);
+            return new(Correlate(rows, presence), true, $"Consulta parcial ou indisponível: {stage}; {ex.GetType().Name}; 0x{ex.HResult:X8}");
         }
         finally { Release(services); Release(locator); }
     }
