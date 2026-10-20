@@ -69,6 +69,13 @@ Check(ProtectedApplications.IsInventoryOnly("Microsoft GameInput", false) &&
 Check(!ProtectedApplications.IsInventoryOnly("OBS Studio", false) &&
       !ProtectedApplications.IsInventoryOnly("Microsoft GameInput Preview", false),
     "Programas convencionais não são bloqueados indevidamente");
+Check(LocalMsixInventory.FailureStatus(
+    new System.Runtime.InteropServices.COMException("teste", unchecked((int)0x80070005)))
+    == "COMException(0x80070005)",
+    "MSIX: excecao COM relatada por codigo HRESULT");
+Check(LocalMsixInventory.FailureStatus(new InvalidOperationException("teste"))
+    == "InvalidOperationException",
+    "MSIX: excecao generica relatada por tipo");
 var live = LocalMsixInventory.ReadCurrentUser();
 Console.WriteLine($"MSIX_CI status={live.Status} enumerados={live.Seen} reconhecidos={live.Items.Count}");
 Check(live.Status.Length > 0, "Inventário real tratado sem falhar aplicação");
