@@ -1,5 +1,17 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.15 — descoberta, preservação e prévia de resíduos (TESTE)
+
+- Suspensa exclusão de resíduos de executáveis, perfis e chaves do Registro: reenumeração ampliava o consentimento e não protegia conteúdo/identidade até a remoção. Bloqueio também nos métodos internos, sem opção oculta para reativar nesta build.
+- Descoberta limitada a dois níveis para produto sob fabricante, HKCU/HKLM 32/64, pistas de Run/serviços Win32 e perfis históricos de VLC/foobar2000. Sem execução de comandos, leitura de outros perfis, tarefas/drivers ou varredura de discos.
+- Decisão por item: revisar, preservar dados, preservar compartilhado ou estado desconhecido. União de evidências sem perder locais/motivos; proteção por MSI, identidade de inventário e caminho ainda utilizado.
+- Prévia pós-desinstalação com identidade por handle, recusa de hard links e comparação SHA-256 dos executáveis reconhecidos; botão **Conferir novamente**, sem botão de apagar. Comparação não é prova de exclusividade nem rastreamento completo de subprocessos.
+- Testes negativos adicionais, fontes limitadas/canceláveis, classificação com milhares de evidências e regressão da interface. Correção do validador histórico que rejeitava o nome curto VLC.
+- Consentimento continua apenas local; sem envio remoto, merge na main, release estável ou nova funcionalidade de drivers. Desinstaladores oficiais continuam exigindo confirmação e têm sua própria política de dados.
+
+Validação e limites: [missão de resíduos](docs/MISSAO-RESIDUOS-v5.13.11.15.md). Consultar os três workflows da revisão exata antes de usar o artefato; testes reais de desempenho, AVG, ACL/junctions e manutenção destrutiva continuam pendentes.
+
+
 ## v5.13.11.14 — resíduos WinMerge após teste real (TESTE)
 
 - **Notepad++ 8.9.8.1:** o teste real confirmou integridade do instalador, pré-verificações, execução e versão instalada.

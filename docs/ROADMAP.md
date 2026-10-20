@@ -1,5 +1,20 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Missão de resíduos — v5.13.11.15 TESTE (20/10/2026)
+
+| Marco | Progresso comprovado |
+|---|---|
+| M1 | Auditoria concluída; exclusões inseguras bloqueadas no backend e UI; três workflows aprovados no commit 0f3701e. |
+| M2 | Descoberta em dois níveis, Registro 32/64, Run/serviços e perfis de mídia; limites e cancelamento testados. Regressão do nome curto VLC encontrada no CI e corrigida no M3. |
+| M3 | Classificação por item, união de evidências, inventário unificado e proteção MSI/caminhos; três workflows aprovados no commit afca0ae. |
+| M4 | Prévia com identidade/hash e conferência sem apagar; decisão em simulação. 202/202 verificações de resíduos e UI passaram no Windows, commit 9583d55. |
+| M5 | v5.13.11.15 preparada e compilada localmente sem erros; CI final, origem do ZIP e SHA-256 vinculados no fechamento da PR #40. |
+
+**Checklist funcional atual: 26/42.** R4 foi suspenso deliberadamente: revalidar apenas nomes de arquivos/pastas não garante consentimento sobre conteúdo nem exclusividade. Isso corrige a contabilidade anterior de 27/42; as referências históricas abaixo permanecem como registro das respectivas versões. Nenhum checkpoint dependente dos PCs foi marcado como concluído por testes sintéticos. [Auditoria, decisões, testes e continuidade](MISSAO-RESIDUOS-v5.13.11.15.md).
+
+Próximo teste supervisionado: comparar locais/enquadramento entre v5.13.11.14 e .15 no PC de histórico longo; conferir VLC/foobar2000, perfis dos fabricantes e WinMerge antes/depois do término completo do desinstalador; anotar tempo e responsividade. Nesta candidata não existe exclusão real de resíduos. Futuro executor exige propriedade exclusiva comprovada, validação/consentimento de conteúdo, proteção contínua por handles, rastreamento de auxiliares e bateria supervisionada com backup.
+
+
 ## Primeiro teste efetivo de manutenção — v5.13.11.14 TESTE (20/10/2026)
 
 Teste real comprovou instalação oficial verificada do **Notepad++ v8.9.8.1** e registro do WinMerge x64 removido após execução do desinstalador, com um item restante na pasta de instalação para revisão. Identificada lacuna: `HKCU\Software\Thingamahoochie\WinMerge` não aparecia na auditoria de nome canônico, embora documentada pelo fabricante. A candidata acrescenta inspeção exata **somente leitura** dessa chave, das variantes HKLM correspondentes e de pastas WinMerge numa revisão histórica, sem habilitar exclusões. Lista é reconsultada antes de exibir a auditoria; mensagem não considera o fechamento de todas as janelas do desinstalador confirmado apenas pela ausência no Registro. Progresso funcional **27/42**, sem contabilizar manutenção completa com base nesses primeiros cenários. [Evidências, limitações e próximos testes](SIMULACAO-MANUTENCAO-WINMERGE-2026-10-20.md).
@@ -120,12 +135,12 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [x] I6 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] I7 — Cobertura conferida nos dois computadores. Evidência: Validação presencial adiada
 
-### Desinstalação e resíduos — 5/7 (71%)
+### Desinstalação e resíduos — 4/7 (R4 suspenso na v5.13.11.15)
 
 - [x] R1 — Proteção de jogos e instalações ativas. Evidência: GameLibraryAudit.cs; BroadResidualDiscovery.cs
 - [x] R2 — Classificação conservadora de fabricantes compartilhados. Evidência: BroadResidualDiscovery.cs; ResidualAuditDialog.cs
 - [x] R3 — Auditoria histórica somente leitura. Evidência: HistoricalResidualAudit.cs; HistoricalDeviceAudit.cs
-- [x] R4 — Limpeza específica após confirmação e revalidação da remoção. Evidência: Program.cs; UninstallResiduals.cs
+- [ ] R4 — Limpeza real específica após confirmação e revalidação. Suspensa na v5.13.11.15: somente prévia e simulação até comprovar exclusividade, integridade do consentimento e segurança de execução. Evidência: ResidualPreview.cs; UninstallResiduals.cs; AdvancedUninstallCleaner.cs
 - [x] R5 — Regressões de proteção aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] R6 — Resolver casos históricos ambíguos com evidências adicionais. Evidência: Adicionada proteção para inventário incompleto; a atribuição dos vestígios específicos ainda depende de evidências dos computadores.
 - [ ] R7 — Desinstalação e preservação de dados validadas nos computadores. Evidência: Validação presencial adiada

@@ -2736,7 +2736,7 @@ internal sealed partial class MainForm : Form
 
         Log("Revisão de resíduos somente leitura nesta candidata. Nenhum arquivo adicional foi apagado.");
         await RefreshCatalogAsync();
-        Status($"Desinstalação: {confirmed} confirmada(s), {failed} falha(s). " +
+        Status($"Desinstalação: {confirmed} registro(s) ausente(s), {failed} falha(s). " +
             "Auditoria adicional concluída; possíveis resíduos desconhecidos não foram apagados.");
     }
 

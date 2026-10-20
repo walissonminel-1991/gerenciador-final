@@ -64,6 +64,8 @@ internal static class ResidualReadSafety
         if (!IsLocalAbsolute(path)) return false;
         try
         {
+            if (OperatingSystem.IsWindows() &&
+                new DriveInfo(Path.GetPathRoot(path)!).DriveType != DriveType.Fixed) return false;
             for (DirectoryInfo? dir = new(path); dir is not null; dir = dir.Parent)
                 if (!dir.Exists || (dir.Attributes & FileAttributes.ReparsePoint) != 0) return false;
             return true;
