@@ -1,5 +1,14 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.9 — legibilidade do diagnóstico colaborativo (TESTE)
+
+- Corrigidas as quebras de parágrafo do componente `DarkLogView.SetText` em Windows: converte novas linhas para CRLF sem duplicar `\r` e sem alterar o registro ao vivo.
+- Janela de privacidade apresenta texto introdutório mais curto, fonte Segoe UI no relatório e explicações com acentos em português.
+- Mensagem da simulação agora informa `SIMULAÇÃO CONCLUÍDA — NADA FOI ENVIADO`, evitando confundir simulação com aprovação de consentimento.
+- Testes Windows exigem separação visual real dos parágrafos antes e depois do clique, além de isolamento da simulação, sem rede, arquivos ou autorização.
+- Nenhum envio de diagnósticos foi ativado; recurso continua apenas local e voluntário.
+
+
 ## v5.13.11.8 — simulação de contribuição sem envio (TESTE)
 
 - Janela de privacidade usa linguagem simples: mostra claramente quando a coleta local está ativa ou desativada, sem obrigar a interpretar JSON.
