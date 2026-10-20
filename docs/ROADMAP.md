@@ -1,5 +1,10 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Capturas reais da v5.13.11.12 — pequenos ajustes v5.13.11.13 (20/10/2026)
+
+A nova revisão exibiu corretamente **três cartões por linha em Inicialização** e **Coleta local ativa** permanentemente no cabeçalho. Consultas concluíram: inventário de 171 programas e 183 associações de drivers, sem ações destrutivas e sem erro final. A ausência pontual de uma associação relativamente às 184 anteriores não prova desinstalação nem é fundamento para apagar driver. Correções pontuais de rótulos: botão de acesso ao Gerenciador de Tarefas e filtro Outros em DRIVERS, que mantêm explicação acessível e não alteram a consulta. Próxima bateria relevante: verificar **atualizações individuais, desinstalação de software de teste e reparos condicionados a diagnóstico**, somente após backup e consentimento explícito. Progresso funcional permanece 27/42.
+
+
 ## Teste v5.13.11.11 e correções visuais v5.13.11.12 (20/10/2026)
 
 O testador abriu a nova lista DRIVERS com 184 associações e confirmou sua disposição no padrão visual de Aplicativos. Captura da aba Inicialização mostrou cartões com apenas **duas colunas** e espaço subutilizado; adaptada para três por linha quando houver largura, preservando duas/uma nas telas menores e mantendo detalhes acessíveis. O convite de privacidade não apareceu novamente porque o consentimento **LocalOnly** já estava persistido; foi acrescentado indicador permanente no cabeçalho, clicável para revisão/revogação, sem reativar envio remoto nem incomodar com novo diálogo a cada versão. Inventário e diagnósticos seguem somente leitura; manutenção real não validada e roadmap funcional permanece **27/42**.
