@@ -70,16 +70,24 @@ export default {
     catch { return new Response(null, { status: 400 }); }
     const normalized = validateReport(parsed);
     if (normalized === null) return new Response(null, { status: 422 });
-    // Não armazenar IP, user-agent, cookies, URLs, IDs, timestamps enviados pelo cliente.
-    // Retenção precisa ser limitada também na configuração de logs do provedor.
+    // Agrega por dia/versao/categoria; nao armazena uma linha por usuario.
+    // Não guardar IP, user-agent, cookies, IDs ou metadados do computador.
+    const report = JSON.parse(normalized);
     const now = Math.floor(Date.now() / 1000);
-    await env.DB.prepare("INSERT INTO reports (data, created_at, expires_at) VALUES (?, ?, ?)")
-      .bind(normalized, now, now + ttlSeconds).run();
+    const day = Math.floor(now / 86400);
+    const statements = Object.entries(report.counts).map(([event, count]) =>
+      env.DB.prepare(
+        "INSERT INTO daily_counts (day, version, event, total, expires_at) " +
+        "VALUES (?, ?, ?, ?, ?) ON CONFLICT(day, version, event) DO UPDATE " +
+        "SET total = daily_counts.total + excluded.total, " +
+        "expires_at = MAX(daily_counts.expires_at, excluded.expires_at)"
+      ).bind(day, report.version, event, count, now + ttlSeconds));
+    await env.DB.batch(statements);
     return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
   },
   async scheduled(_event, env) {
     const now = Math.floor(Date.now() / 1000);
-    await env.DB.prepare("DELETE FROM reports WHERE expires_at <= ?")
+    await env.DB.prepare("DELETE FROM daily_counts WHERE expires_at <= ?")
       .bind(now).run();
   }
 };
