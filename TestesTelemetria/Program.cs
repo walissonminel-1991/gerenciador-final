@@ -57,19 +57,19 @@ try
     Verify(DiagnosticPayloadPolicy.IsValidReport(validReport),
         "Apenas contagens tecnicas com esquema fechado sao elegiveis");
     Verify(!DiagnosticPayloadPolicy.IsValidReport(
-        "{\\"schema\\":1,\\"version\\":\\"v5.13.11.6\\",\\"exit\\":\\"normal\\",\\"counts\\":{}}"),
+        "{\"schema\":1,\"version\":\"v5.13.11.6\",\"exit\":\"normal\",\"counts\":{}}"),
         "Nao aceitar relatorio sem ocorrencias");
     Verify(!DiagnosticPayloadPolicy.IsValidReport(
-        "{\\"schema\\":1,\\"version\\":\\"v5.13.11.6\\",\\"exit\\":\\"normal\\",\\"counts\\":{\\"MSIX.LEITURA\\":1},\\"filename\\":\\"malware.exe\\"}"),
+        "{\"schema\":1,\"version\":\"v5.13.11.6\",\"exit\":\"normal\",\"counts\":{\"MSIX.LEITURA\":1},\"filename\":\"malware.exe\"}"),
         "Proibir metadados de arquivos e campos inesperados");
     Verify(!DiagnosticPayloadPolicy.IsValidReport(
-        "{\\"schema\\":1,\\"version\\":\\"v5.13.11.6\\",\\"exit\\":\\"normal\\",\\"counts\\":{\\"MSIX.LEITURA\\":1,\\"MSIX.LEITURA\\":2}}"),
+        "{\"schema\":1,\"version\":\"v5.13.11.6\",\"exit\":\"normal\",\"counts\":{\"MSIX.LEITURA\":1,\"MSIX.LEITURA\":2}}"),
         "Proibir chaves repetidas mesmo com JSON sintaticamente valido");
     Verify(!DiagnosticPayloadPolicy.IsValidReport(
-        "{\\"schema\\":1,\\"version\\":\\"v5.13.11.6\\",\\"exit\\":\\"normal\\",\\"counts\\":{\\"MSIX.LEITURA\\":101}}"),
+        "{\"schema\":1,\"version\":\"v5.13.11.6\",\"exit\":\"normal\",\"counts\":{\"MSIX.LEITURA\":101}}"),
         "Recusar contagem maior que o limite");
     Verify(!DiagnosticPayloadPolicy.IsValidReport(
-        "{\\"schema\\":1,\\"version\\":\\"v5.13.11.6\\",\\"exit\\":\\"normal\\",\\"counts\\":{\\"C:\\\\Users\\\\Privado\\":1}}"),
+        "{\"schema\":1,\"version\":\"v5.13.11.6\",\"exit\":\"normal\",\"counts\":{\"C:\\\\Users\\\\Privado\":1}}"),
         "Recusar chaves que contenham caminhos ou nomes arbitrarios");
 
     tracker.Record("APP.FALHA_NAO_TRATADA");
