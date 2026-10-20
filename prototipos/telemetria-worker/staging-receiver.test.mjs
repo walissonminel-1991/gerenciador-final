@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handleStagingRequest } from "./staging-receiver.mjs";
+import staging, { handleStagingRequest } from "./staging-receiver.mjs";
 
 const TEST_TOKEN = "TEST_ONLY_49b618a4309f48e7a05c7c2c84872d32";
 const report = JSON.stringify({
@@ -123,4 +123,19 @@ test("aceita agregado canonico e guarda somente buckets sem dados individuais", 
     assert.ok(args[4] > Math.floor(Date.now() / 1000));
     assert.ok(!args.includes(TEST_TOKEN));
   }
+});
+
+test("limpeza agendada limita retencao do banco de homologacao", async () => {
+  let cutoff = 0, calls = 0;
+  await staging.scheduled({}, {
+    DB: { prepare(sql) {
+      assert.equal(sql, "DELETE FROM daily_counts WHERE expires_at <= ?");
+      return { bind(value) {
+        cutoff = value;
+        return { async run() { calls++; } };
+      } };
+    } }
+  });
+  assert.equal(calls, 1);
+  assert.ok(Math.abs(cutoff - Math.floor(Date.now() / 1000)) < 3);
 });
