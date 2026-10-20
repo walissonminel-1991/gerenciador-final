@@ -125,28 +125,29 @@ internal sealed class AnonymousTelemetry
         lock (_gate)
         {
             if (Consent != TelemetryConsent.LocalOnly)
-                return "COLETA DESATIVADA\n\nNenhuma ocorrencia foi registrada por este recurso. " +
-                    "Voce pode testar a simulacao com exemplos ficticios sem aceitar a coleta.";
+                return "COLETA DESATIVADA\n\n" +
+                    "Nenhuma ocorrência foi registrada por este recurso.\n" +
+                    "Você pode simular com dados fictícios sem ativar a coleta.";
 
             var explanation = new StringBuilder();
             explanation.AppendLine("COLETA LOCAL ATIVA — NENHUM ENVIO");
             explanation.AppendLine();
-            explanation.AppendLine("Versao do programa: " +
+            explanation.AppendLine("Versão do programa: " +
                 (DiagnosticPayloadPolicy.IsValidVersion(version) ? version : "nao disponivel"));
             if (_events.Count == 0)
             {
-                explanation.AppendLine("Nenhuma ocorrencia tecnica registrada nesta sessao.");
+                explanation.AppendLine("Nenhuma ocorrência técnica registrada nesta sessão.");
             }
             else
             {
-                explanation.AppendLine("Ocorrencias tecnicas desta sessao:");
+                explanation.AppendLine("Ocorrências técnicas desta sessão:");
                 foreach (var entry in _events)
                     explanation.AppendLine("- " + HumanCategory(entry.Key) + ": " +
                         entry.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             }
             explanation.AppendLine();
-            explanation.AppendLine("Nao inclui nomes de programas, arquivos, senhas, usuario ou historico de navegacao.");
-            explanation.AppendLine("O relatorio permanece neste computador e nao e enviado automaticamente.");
+            explanation.AppendLine("Não inclui nomes de programas, arquivos, senhas, usuário nem histórico de navegação.");
+            explanation.AppendLine("O relatório permanece neste computador e não é enviado automaticamente.");
             return explanation.ToString();
         }
     }
@@ -172,15 +173,15 @@ internal sealed class AnonymousTelemetry
         if (!DiagnosticPayloadPolicy.IsValidReport(syntheticReport))
             throw new InvalidOperationException("Simulacao bloqueada pela politica de privacidade.");
 
-        return "SIMULACAO APROVADA — NADA FOI ENVIADO\n\n" +
-            "Os dados abaixo sao INVENTADOS, apenas para demonstrar:\n" +
-            "- Versao do programa: " + version + "\n" +
-            "- Falhas da interface: 1\n" +
-            "- Falhas em consultas de atualizacao: 2\n\n" +
-            "Nenhuma informacao real do computador foi lida.\n" +
-            "Nenhum arquivo foi criado, escolhido ou anexado.\n" +
-            "Nenhuma conexao de envio foi feita.\n" +
-            "Seu consentimento nao foi alterado.";
+        return "SIMULAÇÃO CONCLUÍDA — NADA FOI ENVIADO\n\n" +
+            "EXEMPLO COM DADOS INVENTADOS\n" +
+            "Versão do programa: " + version + "\n" +
+            "Falhas na interface: 1\n" +
+            "Falhas em consultas de atualização: 2\n\n" +
+            "Nenhuma informação real do computador foi lida.\n" +
+            "Nenhum arquivo foi criado ou anexado.\n" +
+            "Nenhuma conexão de envio foi feita.\n" +
+            "Seu consentimento não foi alterado.";
     }
 
     private static string HumanCategory(string category) => category switch
@@ -189,17 +190,17 @@ internal sealed class AnonymousTelemetry
         "APP.FALHA_NAO_TRATADA" => "Falha inesperada",
         "REGISTRO_PROGRAMAS.FALHA" => "Falha ao identificar aplicativos",
         "MSIX.LEITURA" => "Leituras de aplicativos da Microsoft Store",
-        "MULTIFONTES.CONSULTA_FALHA" => "Falha em consultas de atualizacao",
-        "MULTIFONTES.CONSULTA_CANCELADA" => "Consultas de atualizacao canceladas",
-        "DESINSTALACAO.FALHA" => "Falha na desinstalacao",
+        "MULTIFONTES.CONSULTA_FALHA" => "Falha em consultas de atualização",
+        "MULTIFONTES.CONSULTA_CANCELADA" => "Consultas de atualização canceladas",
+        "DESINSTALACAO.FALHA" => "Falha na desinstalação",
         "INSTALACAO_OFICIAL.FALHA" => "Falha no instalador verificado",
-        "TERMINAL_GITHUB.FALHA" => "Falha na atualizacao do Windows Terminal",
-        "JANELA.BANDEJA_RESTAURAR.INICIO" => "Restauracoes iniciadas pela bandeja",
-        "JANELA.BANDEJA_RESTAURAR.FIM" => "Restauracoes concluidas pela bandeja",
-        "JANELA.BANDEJA_OCULTAR.INICIO" => "Minimizacoes iniciadas",
-        "JANELA.BANDEJA_OCULTAR.FIM" => "Minimizacoes concluidas",
-        "DIAGNOSTICO_COMPLETO.FIM" => "Diagnosticos concluidos",
-        _ => "Ocorrencia tecnica"
+        "TERMINAL_GITHUB.FALHA" => "Falha na atualização do Windows Terminal",
+        "JANELA.BANDEJA_RESTAURAR.INICIO" => "Restaurações iniciadas pela bandeja",
+        "JANELA.BANDEJA_RESTAURAR.FIM" => "Restaurações concluídas pela bandeja",
+        "JANELA.BANDEJA_OCULTAR.INICIO" => "Minimizações iniciadas",
+        "JANELA.BANDEJA_OCULTAR.FIM" => "Minimizações concluídas",
+        "DIAGNOSTICO_COMPLETO.FIM" => "Diagnósticos concluídos",
+        _ => "Ocorrência técnica"
     };
 
 
