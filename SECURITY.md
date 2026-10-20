@@ -1,5 +1,8 @@
 # Política de segurança
 
+> **v5.13.11.7 TESTE:** a coleta de eventos técnicos continua opcional e local. A interface de publicação manual de diagnósticos no GitHub e a leitura de Issues pelo Actions foram removidas; o protótipo de recepção permanece indisponível. Instaladores sem SHA-256 fixado não recebem autorização de execução. Nenhuma atualização/receita de fabricante pode ser garantida sem risco; testes reais e aprovação humana continuam obrigatórios antes de distribuição. [Detalhes](docs/SEGURANCA-v5.13.11.7.md).
+
+
 ## Estado
 
 O projeto está em preparação para a primeira publicação aberta. **Nenhum binário está atualmente certificado como seguro ou assinado pela SignPath Foundation.**
