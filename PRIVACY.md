@@ -1,5 +1,8 @@
 # Privacidade
 
+Na **v5.13.11.12 TESTE**, o consentimento local anterior é respeitado entre versões portáteis e reinicializações; o aviso de primeiro uso não é reapresentado automaticamente a quem já aceitou ou recusou. Para não ocultar a escolha, um botão no cabeçalho mostra **Coleta local ativa**, **Coleta desativada** ou **Configurar privacidade** e abre diretamente a janela de revisão. A transmissão de diagnósticos pela internet segue **desativada** e exigirá novo consentimento separado quando for implementada.
+
+
 **Na v5.13.11.8 TESTE**, a janela de privacidade inclui a opção `Simular sem enviar`, disponível até para quem não autorizou a coleta. A simulação utiliza apenas ocorrências fictícias e não lê dados da máquina, não cria arquivos nem faz conexões. A prévia da coleta local foi traduzida para linguagem simples, e a coleta continua desativada até consentimento expresso. A versão ainda não implementa envio remoto. Um receptor de homologação isolado foi preparado apenas para testes com dados artificiais e não está implantado; [detalhes](docs/INFRAESTRUTURA-ENVIO-SEGURO.md). [Descrição da experiência](docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md).
 
 
