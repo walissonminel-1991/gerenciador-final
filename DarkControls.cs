@@ -537,6 +537,7 @@ internal sealed class DarkLogView : UserControl
         inner.Controls.Add(_scroll);
         _scroll.BringToFront();
         _editor.Resize += (_, _) => ScheduleSync();
+        _editor.HandleCreated += (_, _) => ScheduleSync();
         _editor.TextChanged += (_, _) => ScheduleSync();
         _editor.MouseWheel += (_, _) => ScheduleSync();
         _editor.KeyUp += (_, _) => ScheduleSync();
@@ -544,7 +545,20 @@ internal sealed class DarkLogView : UserControl
         _renderTimer.Tick += (_, _) => FlushPending();
     }
 
-    // Mensagens consecutivas chegam a cada poucos milissegundos no arranque.
+    // Para relatórios estáticos: apresenta o texto desde a primeira linha,
+    // sem o temporizador de lotes usado pelo registro em tempo real.
+    public void SetText(string value)
+    {
+        _renderTimer.Stop();
+        _pending.Clear();
+        _editor.Text = value ?? "";
+        _editor.SelectionStart = 0;
+        _editor.SelectionLength = 0;
+        _editor.ScrollToCaret();
+        SyncMetrics();
+    }
+
+    // Mensagens consecutivas chegam a cada poucos milisseundos no arranque.
     // Apresenta-las juntas evita varios ScrollToCaret e dezenas de repinturas.
     // A fila existe so em memoria; nao interfere no arquivo DiagnosticTrace.
     public void AppendText(string text)
