@@ -83,8 +83,25 @@ try
            File.Exists(restarted.PendingFile),
            "Preferencia voluntaria persiste para a proxima sessao");
 
+    Verify(restarted.ReviewableReport("v5.13.11.3") == File.ReadAllText(restarted.PendingFile),
+        "Reabertura permite revisar pendencia anterior com sua versao original");
+    restarted.Record("DESINSTALACAO.FALHA");
+    using (var current = JsonDocument.Parse(restarted.ReviewableReport("v5.13.11.3")!))
+        Verify(current.RootElement.GetProperty("version").GetString() == "v5.13.11.3" &&
+            current.RootElement.GetProperty("counts").EnumerateObject().Count() == 1,
+            "Sessao atual tem prioridade sem misturar contagens de sessoes diferentes");
+    var pendingOnly = new AnonymousTelemetry(temp);
+    File.WriteAllText(pendingOnly.PendingFile, "{invalid}");
+    Verify(pendingOnly.ReviewableReport("v5.13.11.3") is null,
+        "Pendencia adulterada nao chega ao formulario");
+    File.WriteAllText(pendingOnly.PendingFile, new string('x', 4097));
+    Verify(pendingOnly.ReviewableReport("v5.13.11.3") is null,
+        "Pendencia acima do limite e rejeitada");
+    tracker.SaveOnNormalExit("v5.13.11.1");
+
     File.SetLastWriteTimeUtc(restarted.PendingFile, DateTime.UtcNow.AddDays(-8));
-    _ = new AnonymousTelemetry(temp);
+    Verify(pendingOnly.ReviewableReport("v5.13.11.3") is null,
+        "Expiracao tambem e verificada ao revisar, sem reiniciar o aplicativo");
     Verify(!File.Exists(restarted.PendingFile), "Relatorio antigo expira apos sete dias");
 
     restarted.Record("APP.FALHA_INTERFACE");
@@ -95,7 +112,34 @@ try
            "Recusa apaga pendencias e interrompe coleta");
     var refused = new AnonymousTelemetry(temp);
     Verify(refused.Consent == TelemetryConsent.Declined, "Nao repete aviso apos recusa");
-    Console.WriteLine("OK: 10 cenarios de privacidade/rotacao aprovados; nenhuma rede foi usada.");
+    Verify(refused.ReviewableReport("v5.13.11.3") is null,
+        "Recusa impede revisao e compartilhamento de pendencias");
+
+    // Um diretorio no lugar do arquivo simula falha de persistencia sem depender de ACL/root.
+    var blocked = new AnonymousTelemetry(Path.Combine(temp, "blocked-consent"));
+    Verify(blocked.SetConsent(TelemetryConsent.LocalOnly), "Prepara revogacao com disco bloqueado");
+    blocked.Record("APP.FALHA_INTERFACE");
+    blocked.SaveOnNormalExit("v5.13.11.3");
+    File.Delete(blocked.ConsentFile);
+    Directory.CreateDirectory(blocked.ConsentFile);
+    Verify(!blocked.SetConsent(TelemetryConsent.Declined) &&
+        blocked.Consent == TelemetryConsent.Declined && !File.Exists(blocked.PendingFile),
+        "Falha ao persistir recusa ainda interrompe coleta e apaga pendencia");
+    blocked.Record("APP.FALHA_INTERFACE");
+    Verify(!blocked.SaveOnNormalExit("v5.13.11.3") &&
+        blocked.ReviewableReport("v5.13.11.3") is null,
+        "Revogacao com erro impede nova coleta, salvamento e compartilhamento");
+    Verify(!blocked.SetConsent(TelemetryConsent.LocalOnly) &&
+        blocked.Consent == TelemetryConsent.Declined,
+        "Falha ao aceitar nao reativa coleta");
+
+    var lockedReport = new AnonymousTelemetry(Path.Combine(temp, "blocked-report"));
+    lockedReport.SetConsent(TelemetryConsent.LocalOnly);
+    Directory.CreateDirectory(lockedReport.PendingFile);
+    Verify(!lockedReport.SetConsent(TelemetryConsent.Declined) &&
+        lockedReport.Consent == TelemetryConsent.Declined,
+        "Falha de exclusao e informada sem manter coleta ativa");
+    Console.WriteLine("OK: privacidade, retomada, expiracao e falhas de disco; nenhuma rede foi usada.");
 }
 finally
 {

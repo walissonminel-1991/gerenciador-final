@@ -1,6 +1,6 @@
-# Piloto GitHub-only — diagnóstico colaborativo v5.13.11.2
+# Piloto GitHub-only — diagnóstico colaborativo v5.13.11.3
 
-Estado: **prévia para revisão**; não publica automaticamente relatórios nem usa tokens. A base local voluntária da v5.13.11.1 é pré-requisito. A v5.13.11.2 adiciona um formulário pré-preenchido de Issue pública, para o próprio participante conferir e publicar.
+Estado: **prévia para revisão**; não publica automaticamente relatórios nem usa tokens. A base local voluntária da v5.13.11.1 é pré-requisito. A v5.13.11.3 adiciona um formulário pré-preenchido de Issue pública, para o próprio participante conferir e publicar.
 
 ## Experiência para participantes
 
@@ -37,3 +37,11 @@ Referências:
 - https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app
 - https://docs.github.com/en/rest/issues/issues#create-an-issue
 - https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/best-practices-for-creating-a-github-app
+
+## Retomada e falhas locais
+
+A revisão prefere os eventos da sessão atual. Sem eventos novos, usa a única pendência anterior, revalidando tamanho, categorias permitidas e expiração de sete dias; mantém a versão e o encerramento originais. Abrir o navegador não comprova publicação e não apaga o relatório automaticamente.
+
+Revogar para a coleta imediatamente nesta sessão. Se não for possível persistir a preferência ou apagar a pendência, o programa informa a falha; a preferência deve ser revista na próxima abertura. Não há promessa de exclusão quando o Windows impede a operação.
+
+Na simulação, conferir recusa sem perda de ferramentas, aceite, cancelamento no GF e no navegador, revisão após reabrir, publicação manual (opcional e pública), revogação e ausência de dados pessoais. A publicação de uma Issue não ativa análise por IA nem prepara uma versão automaticamente.

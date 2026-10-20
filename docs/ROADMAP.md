@@ -1,5 +1,19 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Continuidade — diagnóstico v5.13.11.3 TESTE (20/10/2026)
+
+Estado confirmado: `main` na v5.13.11.0 candidata; PR #38 com coleta local e PR #40 com revisão pública no GitHub. O CI Windows da v5.13.11.2 passou (run 39444626580). Nenhuma dessas evidências comprova testes nos dois PCs nem resolve o AVG.
+
+- [x] Consentimento local e formulário público manual implementados na branch do PR #40.
+- [x] Corrigidas retomada de pendência e interrupção da coleta ao revogar com falha de disco; testes adicionados na v5.13.11.3.
+- [ ] Aprovar compilação e regressões Windows da v5.13.11.3.
+- [ ] Simular novo participante: cadastro/login GitHub no navegador, recusa, aceite, coleta, revisão, cancelamento/publicação manual e revogação. Conferir também reinício e relatório anterior.
+- [ ] Validar AVG e experiência nos dois PCs antes de publicação estável.
+- [ ] Implementar triagem/agrupamento e PRs por IA com testes e revisão. Ainda não há manutenção autônoma, envio automático ou exclusão garantida de Issues públicas.
+
+O marcador original permanece **30/45 checkpoints (67%)**. Este complemento não altera checkpoints dependentes de hardware real.
+
+
 ## Complemento — v5.13.11.2 TESTE: piloto GitHub-only
 
 Com a conta GitHub do colaborador, o aplicativo oferece formulário pré-preenchido e revisável para Issues públicas, exclusivamente com categorias técnicas aprovadas. Publicação exige confirmação no navegador, não há credenciais embutidas. A próxima fase exige uma GitHub App registrada com permissões limitadas, consentimento separado para envio e revisão de privacidade. Veja [PILOTO-DIAGNOSTICO-GITHUB.md](PILOTO-DIAGNOSTICO-GITHUB.md).

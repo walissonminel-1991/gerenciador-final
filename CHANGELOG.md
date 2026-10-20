@@ -1,5 +1,14 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.3 — retomada e revogação do diagnóstico (TESTE)
+
+- Revisão no GitHub usa o resumo da sessão atual ou, sem eventos novos, o relatório local anterior ainda válido, preservando sua versão original.
+- Pendências são revalidadas por tamanho, conteúdo permitido e prazo de sete dias também ao abrir a revisão.
+- Revogar interrompe a coleta imediatamente nesta sessão mesmo quando o disco impede gravar a preferência; falhas de gravação/exclusão são informadas sem afirmar sucesso.
+- Regressões para retomada, prioridade da sessão atual, adulteração, expiração durante a execução e falhas de disco.
+- Publicação continua manual no GitHub; testes reais/AVG e automação por IA continuam pendentes.
+
+
 ## v5.13.11.2 TESTE — piloto colaborativo GitHub-only
 - Menu da bandeja permite revisar dados técnicos agregados e abrir um formulário de Issue no repositório público, com autenticação pelo próprio navegador do usuário.
 - Dupla confirmação humana: aviso de publicidade no GF e envio final no GitHub. Nenhum token, conta vinculada automaticamente, upload ou transmissão invisível é adicionado.

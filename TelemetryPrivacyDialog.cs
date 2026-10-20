@@ -116,7 +116,7 @@ internal sealed partial class MainForm
             if (collector.Consent != TelemetryConsent.LocalOnly) return;
         }
 
-        string preview = collector.Preview(DiagnosticTrace.VersionLabel, normalExit: false);
+        string? preview = collector.ReviewableReport(DiagnosticTrace.VersionLabel);
         Uri? url = GitHubDiagnosticShare.CreateReviewUrl(preview);
         if (url is null)
         {
@@ -162,7 +162,9 @@ internal sealed partial class MainForm
         bool saved = collector.SetConsent(choice);
         if (!saved)
         {
-            Log("Privacidade: não foi possível registrar a preferência. A coleta continua desativada.");
+            Status(choice == TelemetryConsent.Declined
+                ? "Coleta interrompida nesta sessão, mas não foi possível salvar a recusa ou apagar todos os dados locais. Revise a preferência ao abrir novamente."
+                : "Não foi possível salvar a preferência. A escolha anterior foi mantida.");
             return;
         }
         Status(choice == TelemetryConsent.LocalOnly

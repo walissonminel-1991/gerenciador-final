@@ -60,7 +60,7 @@ internal sealed class AnonymousTelemetry
                 };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-            JsonException or InvalidOperationException or FormatException or System.Security.SecurityException) { }
+            JsonException or InvalidOperationException or FormatException or OverflowException or System.Security.SecurityException) { }
         return TelemetryConsent.NotAsked;
     }
 
@@ -70,15 +70,22 @@ internal sealed class AnonymousTelemetry
             return false;
         lock (_gate)
         {
+            // Revogar interrompe a coleta mesmo se o disco impedir a persistencia.
+            // O retorno ainda informa falhas de gravacao ou exclusao para a interface.
+            bool deleted = true;
+            if (consent == TelemetryConsent.Declined)
+            {
+                Consent = consent;
+                _events.Clear();
+                deleted = TryDelete(PendingFile);
+            }
             try
             {
                 Directory.CreateDirectory(_folder);
                 WriteAtomic(ConsentFile, JsonSerializer.Serialize(new { schema = 1, state = (int)consent }));
                 Consent = consent;
                 _events.Clear();
-                if (consent != TelemetryConsent.LocalOnly)
-                    TryDelete(PendingFile);
-                return true;
+                return deleted;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                 ArgumentException or NotSupportedException or System.Security.SecurityException) { return false; }
@@ -105,6 +112,27 @@ internal sealed class AnonymousTelemetry
     internal string Preview(string version, bool normalExit)
     {
         lock (_gate) return Serialize(version, normalExit);
+    }
+
+    // Prefere a sessao atual; se ainda nao houver eventos, permite revisar a
+    // unica pendencia anterior. Nenhum conteudo do disco e confiado sem validacao.
+    internal string? ReviewableReport(string version)
+    {
+        lock (_gate)
+        {
+            if (Consent != TelemetryConsent.LocalOnly) return null;
+            if (_events.Count > 0) return Serialize(version, normalExit: false);
+            ExpirePendingReport();
+            try
+            {
+                if (!File.Exists(PendingFile) || new FileInfo(PendingFile).Length > 4096)
+                    return null;
+                string pending = File.ReadAllText(PendingFile);
+                return GitHubDiagnosticShare.CreateReviewUrl(pending) is not null ? pending : null;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                System.Security.SecurityException) { return null; }
+        }
     }
 
     private string Serialize(string version, bool normalExit)
@@ -158,7 +186,7 @@ internal sealed class AnonymousTelemetry
 
     private static bool TryDelete(string path)
     {
-        try { if (File.Exists(path)) File.Delete(path); return true; }
+        try { if (Directory.Exists(path)) return false; if (File.Exists(path)) File.Delete(path); return true; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return false; }
     }
 
