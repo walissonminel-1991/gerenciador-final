@@ -727,13 +727,25 @@ internal sealed partial class MainForm
         _processSampling = true;
         try
         {
-            var snapshot = await Task.Run(_processSampler.TakeSample);
+            bool processTabVisible = Visible && _nav.SelectedIndex == 5 &&
+                _activeSystemView == "processes";
+            bool readDetails = ProcessSamplingPolicy.ShouldReadProcessDetails(
+                processTabVisible, IsInTray || !Visible);
+            var snapshot = await Task.Run(() => readDetails
+                ? _processSampler.TakeSample()
+                : _processSampler.TakeResourceSample());
             if (IsDisposed) return;
-            _lastMonitorSnapshot = snapshot;
-            if (_activeSystemView == "processes" && _nav.SelectedIndex == 5)
+            // Não sobrescrever a última tabela detalhada com uma fotografia
+            // sem processos. Assim ocultar/restaurar não produz uma lista vazia.
+            if (readDetails)
             {
-                ShowProcessMonitorSnapshot(snapshot);
-                // Status nao muda continuamente: evita piscar a area REGISTRO.
+                _lastMonitorSnapshot = snapshot;
+                if (Visible && !IsInTray && _activeSystemView == "processes" &&
+                    _nav.SelectedIndex == 5)
+                {
+                    ShowProcessMonitorSnapshot(snapshot);
+                    // Status não muda continuamente: evita piscar o REGISTRO.
+                }
             }
         }
         catch (Exception ex) { if (!IsDisposed) Log("Histórico de processos: " + ex.GetType().Name); }
