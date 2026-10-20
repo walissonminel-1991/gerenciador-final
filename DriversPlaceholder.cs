@@ -12,13 +12,14 @@ internal sealed partial class MainForm
         var host = new TableLayoutPanel
         {
             Name = "DriversPlaceholder", Dock = DockStyle.Top, BackColor = AppServices.Background,
-            ColumnCount = 1, RowCount = 4, Padding = new Padding(10)
+            ColumnCount = 1, RowCount = 5, Padding = new Padding(10)
         };
         host.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         host.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
         host.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         host.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         host.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
+        host.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
         var intro = new Label { Dock = DockStyle.Fill, ForeColor = Ink,
             Text = "Drivers associados a dispositivos: fabricante, versão, INF e presença. Consulta local, somente quando solicitada." };
         var refresh = new Button { Name = "DriverInventoryRefresh", Text = "Consultar drivers", Dock = DockStyle.Left,
@@ -45,6 +46,9 @@ internal sealed partial class MainForm
             Text = "Nenhuma consulta iniciada. Não é o inventário completo do Driver Store. Nesta aba: nenhuma instalação, remoção ou alteração de drivers." };
         host.Controls.Add(intro, 0, 0); host.Controls.Add(refresh, 0, 1);
         host.Controls.Add(grid, 0, 2); host.Controls.Add(state, 0, 3);
+        var history = new Label { Name = "DriverHistoryStatus", Dock = DockStyle.Fill, ForeColor = Muted,
+            Text = "Histórico próprio: consultas completas serão comparadas e salvas localmente, sem nomes nem IDs de hardware. Até 20 registros de mudanças." };
+        host.Controls.Add(history, 0, 4);
         refresh.Click += async (_, _) =>
         {
             if (_driverReadTask is { IsCompleted: false })
@@ -63,6 +67,9 @@ internal sealed partial class MainForm
                     grid.Rows.Add(item.DeviceName, item.Provider, item.Version, item.InfName, item.PresenceLabel, item.SignatureLabel);
                 state.Text = $"{result.Status}: {result.Items.Count} associações. Ausência não autoriza remoção; assinatura informada pelo Windows não substitui validação do pacote.";
                 DiagnosticTrace.Write($"DRIVERS.INVENTARIO quantidade={result.Items.Count} parcial={result.Partial}");
+                var recorded = await Task.Run(() => DriverHistory.Record(DriverHistory.DefaultPath, result, DateTimeOffset.UtcNow));
+                if (!host.IsDisposed) history.Text = recorded.Message;
+                DiagnosticTrace.Write($"DRIVERS.HISTORICO salvo={recorded.Saved} base={recorded.Baseline} novos={recorded.Added} nao_observados={recorded.Missing} alterados={recorded.Changed}");
             }
             catch (OperationCanceledException)
             {
@@ -79,7 +86,7 @@ internal sealed partial class MainForm
         var viewport = new Panel { Dock = DockStyle.Fill, AutoScroll = true,
             BackColor = AppServices.Background, Name = "DriverInventoryViewport" };
         viewport.Controls.Add(host);
-        void FitHeight() => host.Height = Math.Max(340, viewport.ClientSize.Height);
+        void FitHeight() => host.Height = Math.Max(420, viewport.ClientSize.Height);
         viewport.Resize += (_, _) => FitHeight();
         FitHeight();
         return viewport;

@@ -16,6 +16,54 @@ Check(result.Single(d => d.DeviceId == b.DeviceId).PresenceLabel == "Não presen
 Check(result.Single(d => d.DeviceId == c.DeviceId).Present is null && c.SignatureLabel == "Indeterminado", "Ausencia de evidencias nao inventa presenca nem assinatura");
 Check(DriverInventory.Correlate(new[] { a, a with { Signed = false } }, new Dictionary<string, bool?>()).Count == 2,
     "Evidencias conflitantes de assinatura nao sao fundidas");
+// Historico usa exclusivamente um diretorio temporario isolado nestes testes.
+string folder = Path.Combine(Path.GetTempPath(), "GF-driver-history-tests-" + Guid.NewGuid().ToString("N"));
+string file = Path.Combine(folder, "history.json");
+var now = DateTimeOffset.UtcNow;
+DriverInventoryResult Complete(params DriverInventoryEntry[] items) => new(items, false, "ok");
+try
+{
+    var first = DriverHistory.Record(file, Complete(a, b), now);
+    Check(first.Saved && first.Baseline, "Primeira consulta estabelece base local");
+    string baseline = File.ReadAllText(file);
+    Check(!baseline.Contains(a.DeviceId) && !baseline.Contains(a.DeviceName) && !baseline.Contains(a.Provider) &&
+        !baseline.Contains(a.InfName), "Arquivo nao contem nomes nem IDs brutos");
+    var same = DriverHistory.Record(file, Complete(b, a, a), now.AddSeconds(1));
+    Check(same.Saved && !same.Baseline && same.Added + same.Missing + same.Changed == 0,
+        "Ordem e duplicatas nao criam mudancas historicas");
+    var changed = DriverHistory.Record(file, Complete(a with { Version = "2.0" }, c), now.AddSeconds(2));
+    Check(changed.Added == 1 && changed.Missing == 1 && changed.Changed == 1,
+        "Distinguir novo, nao observado e versao alterada");
+    var presence = DriverHistory.Record(file, Complete(a with { Version = "2.0", Present = false }, c), now.AddSeconds(3));
+    Check(presence.Changed == 1 && presence.Missing == 0, "Nao presente e diferente de nao observado");
+    string saved = File.ReadAllText(file);
+    Check(!DriverHistory.Record(file, new([], true, "parcial"), now.AddSeconds(4)).Saved && File.ReadAllText(file) == saved,
+        "Consulta parcial preserva base byte a byte");
+    Check(!DriverHistory.Record(file, Complete(), now.AddSeconds(4)).Saved && File.ReadAllText(file) == saved,
+        "Consulta vazia nao declara remocao de todos os dispositivos");
+    Check(!DriverHistory.Record(file, Complete(a), now.AddDays(-1)).Saved && File.ReadAllText(file) == saved,
+        "Relogio regressivo nao substitui base mais recente");
+    Check(!DriverHistory.Record(file, Complete(a with { DeviceId = "" }), now.AddSeconds(4)).Saved,
+        "Identidade vazia rejeitada");
+    File.WriteAllText(file, "{quebrado");
+    Check(!DriverHistory.Record(file, Complete(a), now).Saved && File.ReadAllText(file) == "{quebrado",
+        "Arquivo corrompido preservado sem reinicio silencioso");
+    File.WriteAllText(file, baseline.Replace("\"Schema\":1", "\"Schema\":99"));
+    Check(!DriverHistory.Record(file, Complete(a), now).Saved, "Esquema futuro nao e sobrescrito");
+    File.WriteAllText(file, baseline);
+    for (int i = 1; i <= 25; i++)
+        Check(DriverHistory.Record(file, Complete(a with { Version = i.ToString() }), now.AddMinutes(i)).Saved,
+            "Persistir rodada historica " + i);
+    var state = System.Text.Json.JsonSerializer.Deserialize<DriverHistoryState>(File.ReadAllText(file))!;
+    Check(state.Changes.Count == 20, "Retencao limitada a vinte mudancas");
+    Check(Directory.GetFiles(folder, "*.tmp").Length == 0, "Nenhum temporario apos gravacao");
+    var before = DriverHistory.Snapshot(Complete(a));
+    var after = DriverHistory.Snapshot(Complete(a with { DeviceName = "Nome traduzido", DeviceId = "pci\\one" }));
+    Check(DriverHistory.Compare(before, after, now).Changed == 0, "Nome traduzido e caixa do ID nao alteram historico");
+    Check(DriverHistory.Compare(before, DriverHistory.Snapshot(Complete(a, a with { Signed = false })), now).Changed == 1,
+        "Assinatura conflitante preservada na comparacao");
+}
+finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
 if (args.Contains("--live"))
 {
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
