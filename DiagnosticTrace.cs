@@ -14,7 +14,7 @@ internal static class DiagnosticTrace
         typeof(DiagnosticTrace).Assembly.GetName().Version ?? new Version(0, 0, 0);
     internal static string FormatVersion(Version version) =>
         $"v{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}.{Math.Max(version.Revision, 0)}";
-    private static readonly string VersionLabel = FormatVersion(BuildVersion);
+    internal static readonly string VersionLabel = FormatVersion(BuildVersion);
     private static readonly string FileName =
         $"GerenciadorFinal-Diagnostico-{VersionLabel}.log";
     private static string? _logFile;
