@@ -30,6 +30,31 @@ class PoliticasDeSeguranca(unittest.TestCase):
         self.assertNotIn("repository_dispatch", workflow)
         self.assertIn("contents: read", workflow)
 
+    def test_varredura_estatica_de_todos_arquivos_fonte(self):
+        # Percorre toda a arvore de codigo, nao somente uma amostra manual.
+        # Padroes textuais sao guardrails, nao detector universal de malware.
+        extensions = {".cs", ".ps1", ".cmd", ".bat", ".mjs", ".iss", ".yml", ".py"}
+        excluded_dirs = {".git", "bin", "obj", "Distribuicao", ".venv"}
+        scanned = []
+        for file in ROOT.rglob("*"):
+            if not file.is_file() or file.suffix.lower() not in extensions or (
+                set(file.relative_to(ROOT).parts) & excluded_dirs
+            ):
+                continue
+            contents = file.read_text(encoding="utf-8")
+            scanned.append(file.relative_to(ROOT).as_posix())
+            if file.suffix == ".cs" and file.parent == ROOT:
+                self.assertNotIn("OpenFileDialog", contents, str(file))
+                self.assertNotIn("GitHubDiagnosticShare", contents, str(file))
+            if file.suffix == ".yml" and "/workflows/" in file.as_posix():
+                self.assertNotIn("pull_request_target:", contents, str(file))
+                self.assertNotIn("repository_dispatch:", contents, str(file))
+                self.assertNotIn("\\n  issues:", contents, str(file))
+                self.assertNotIn("\\n  issue_comment:", contents, str(file))
+        self.assertGreaterEqual(len(scanned), 80,
+            "Inventario de codigo incompleto: a auditoria nao deve aceitar arvore vazia")
+        print(f"Auditoria estatica: {len(scanned)} arquivos-fonte examinados.")
+
     def test_instaladores_exigem_sha_fixado_e_assinatura(self):
         source = read("VerifiedUpdaters.cs")
         self.assertIn("approved.Sha256 is { Length: 64 }", source)
