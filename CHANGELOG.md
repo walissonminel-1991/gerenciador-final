@@ -1,5 +1,15 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.11 — lista de drivers no mesmo padrão dos aplicativos (TESTE)
+
+- Removida a tabela técnica com colunas da aba DRIVERS; exibida lista de cartões escuros com nome em destaque, informações complementares, ícone, seleção e rolagem escura, seguindo a aba Aplicativos.
+- Cada cartão exibe versão, fornecedor, INF associado, assinatura informada pelo Windows e status de presença (presente, não presente ou indeterminado), sem confundir ausência com driver obsoleto.
+- Campo de pesquisa por dispositivo, fabricante, versão ou INF; filtros Todos, Presentes e Não confirmados (inclui não presente e indeterminado), sem instalação, atualização ou remoção.
+- Renderização virtualizada dos cartões: apenas linhas visíveis são desenhadas, evitando centenas de controles no PC de baixo desempenho.
+- Mantidos captura WMI, correlação de pacotes, histórico local e registros de diagnóstico anteriores, com lista integralmente somente leitura.
+- Testes Windows validam lista, filtros com 184 entradas fictícias e layout na matriz de resoluções.
+
+
 ## v5.13.11.10 — tabela de drivers responsiva (TESTE)
 
 - Capturas reais da v5.13.11.8 mostraram a tabela de drivers utilizando somente parte da largura da aba e truncando os dados.
