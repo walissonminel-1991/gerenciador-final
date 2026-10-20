@@ -50,7 +50,9 @@ internal static class DriverInventory
                 {
                     stage = "executar consulta";
                     token.ThrowIfCancellationRequested();
-                    result = ((dynamic)services!).ExecQuery(sql, "WQL", 48);
+                    // O adaptador COM IEnumerable do .NET requer enumeracao rebobinavel.
+                    // Manter retorno semissincrono (16), sem ForwardOnly (32).
+                    result = ((dynamic)services!).ExecQuery(sql, "WQL", 16);
                     stage = "enumerar consulta";
                     foreach (object row in (System.Collections.IEnumerable)result)
                     {
