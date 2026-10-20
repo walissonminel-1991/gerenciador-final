@@ -238,6 +238,9 @@ internal static class LayoutTests
                 // DRIVERS permite consulta, sem instalacao ou remocao.
                 if (tab == 1)
                 {
+                    var driverViewport = Descendants(form).OfType<DarkScrollableFlow>().Single(x => x.Name == "DriverInventoryViewport");
+                    if (placeholder.Height > driverViewport.ClientSize.Height && !driverViewport.HasVerticalScrollbar)
+                        throw new Exception($"DRIVERS precisa de rolagem quando o conteudo nao cabe: {name}");
                     var driverGrid = Descendants(placeholder).OfType<DataGridView>().Single();
                     if (driverGrid.Height < 100)
                         throw new Exception($"Tabela DRIVERS sem altura util: {name} {resolution}");
