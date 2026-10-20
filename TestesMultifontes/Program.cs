@@ -28,10 +28,10 @@ var fakeSeven = App("7-Zip 25.00 (x64)", "25.00", "Editor Suspeito");
 var esr = App("Mozilla Firefox ESR", "115.0.0", "Mozilla Corporation");
 var thunderbirdEsr = App("Thunderbird ESR", "128.0", "Mozilla Corporation");
 var unknownThunderbird = App("Mozilla Thunderbird", "140.0", "Mozilla Corporation");
-Assert(ApplicationIdentityCatalog.RuleCount == 18,
-    "Catálogo unificado reconhece 18 famílias verificadas");
-Assert(ApplicationIdentityCatalog.Rules.Count(r => r.OfficialSource is not null) == 14,
-    "Quatorze fontes oficiais referenciam identidade estável");
+Assert(ApplicationIdentityCatalog.RuleCount == 22,
+    "Catálogo unificado reconhece 22 famílias verificadas");
+Assert(ApplicationIdentityCatalog.Rules.Count(r => r.OfficialSource is not null) == 18,
+    "Dezoito fontes oficiais referenciam identidade estável");
 Assert(ApplicationIdentityCatalog.Resolve("OBS Studio", "OBS Project")?.Id == "obs" &&
     ApplicationIdentityCatalog.Resolve("OBS Studio", "OBS Project, LLC")?.Id == "obs",
     "Mesmo ID para versões de fabricante oficial do OBS");
@@ -113,6 +113,64 @@ using (var source = new OfficialReleaseSources(fixture))
     Assert(suppressed[0].State == MatchState.EqualOrNewer, "Versão oficial atual anula falso positivo");
 }
 
+var sharex = App("ShareX", "20.2.0", "ShareX Team");
+var handbrake = App("HandBrake", "1.10.0", "HandBrake Team");
+var rufus = App("Rufus", "4.13", "Akeo Consulting");
+var qb = App("qBittorrent", "5.2.0", "The qBittorrent Project");
+var spoofShare = App("ShareX", "20.2.0", "Falso Editor");
+var previewShare = App("ShareX Preview", "20.2.0", "ShareX Team");
+var spoofRufus = App("Rufus", "4.13", "Fornecedor Desconhecido");
+var spoofQb = App("qBittorrent Pro", "5.2.0", "The qBittorrent Project");
+Assert(ApplicationIdentityCatalog.Resolve(sharex.Name, sharex.Publisher)?.Id == "sharex" &&
+       ApplicationIdentityCatalog.Resolve(handbrake.Name, handbrake.Publisher)?.Id == "handbrake" &&
+       ApplicationIdentityCatalog.Resolve(rufus.Name, rufus.Publisher)?.Id == "rufus" &&
+       ApplicationIdentityCatalog.Resolve(qb.Name, qb.Publisher)?.Id == "qbittorrent",
+       "Quatro identidades novas exigem nome exato e editor permitido");
+Assert(ApplicationIdentityCatalog.Resolve(spoofShare.Name, spoofShare.Publisher) is null &&
+       ApplicationIdentityCatalog.Resolve(previewShare.Name, previewShare.Publisher) is null &&
+       ApplicationIdentityCatalog.Resolve(spoofRufus.Name, spoofRufus.Publisher) is null &&
+       ApplicationIdentityCatalog.Resolve(spoofQb.Name, spoofQb.Publisher) is null,
+       "Nomes parecidos e editores falsos não participam de atualizações");
+
+OfficialReleaseSources.ClearCacheForTests();
+var sourcesFixture = new Fixture();
+using (var officialSources = new OfficialReleaseSources(sourcesFixture))
+{
+    var apps = new[] { sharex, handbrake, rufus, qb, spoofShare, previewShare, spoofRufus, spoofQb };
+    var result = await officialSources.QueryAsync(apps, CancellationToken.None);
+    Assert(result.Findings.Count == 4 && result.Diagnostics.Count == 4 &&
+        result.Diagnostics.All(x => x.Status == "ok") && sourcesFixture.Requests == 4,
+        "Quatro endpoints oficiais independentes e nenhuma requisição por falso editor");
+    Assert(result.Findings.Any(x => ReferenceEquals(x.Installed, sharex) && x.LatestVersion == "21.0.0") &&
+        result.Findings.Any(x => ReferenceEquals(x.Installed, handbrake) && x.LatestVersion == "1.11.2") &&
+        result.Findings.Any(x => ReferenceEquals(x.Installed, rufus) && x.LatestVersion == "4.15") &&
+        result.Findings.Any(x => ReferenceEquals(x.Installed, qb) && x.LatestVersion == "5.2.3"),
+        "Tags oficiais estáveis normalizadas sem versões inventadas");
+    var merged = MultiSourceMatcher.Merge(apps, null, result.Findings);
+    Assert(merged.Count(x => x.State == MatchState.Candidate) == 4 &&
+        merged.Skip(4).All(x => x.State == MatchState.Unmatched),
+        "Novas fontes geram só quatro candidatos informativos");
+    await officialSources.QueryAsync([sharex, handbrake, rufus, qb], CancellationToken.None);
+    Assert(sourcesFixture.Requests == 4, "Cache conjunto evita repetição de consultas");
+}
+Assert(OfficialReleaseSources.NormalizeOfficialVersionTag("qbittorrent", "release-5.2.3") == "5.2.3" &&
+       OfficialReleaseSources.NormalizeOfficialVersionTag("sharex", "v21.0.0-beta1") == "21.0.0-beta1",
+       "Tag release- e pre-lançamento separados sem autorizar beta");
+OfficialReleaseSources.ClearCacheForTests();
+using (var partial = new OfficialReleaseSources(new Fixture(failSharex:true)))
+{
+    var scan = await partial.QueryAsync([sharex, handbrake, rufus, qb], CancellationToken.None);
+    Assert(scan.Findings.Count == 3 && scan.Diagnostics.Count == 4 &&
+        scan.Diagnostics.Any(d => d.Provider == "sharex" && d.Status != "ok"),
+        "Falha de ShareX não cancela HandBrake, Rufus ou qBittorrent");
+}
+OfficialReleaseSources.ClearCacheForTests();
+using (var unstable = new OfficialReleaseSources(new Fixture(badNewTags:true)))
+{
+    var scan = await unstable.QueryAsync([sharex, handbrake, rufus, qb], CancellationToken.None);
+    Assert(scan.Findings.Count == 3 && scan.Diagnostics.Any(d => d.Provider == "qbittorrent" && d.Status != "ok"),
+        "Pré-lançamento qBittorrent rejeitado sem prejudicar outras fontes");
+}
 OfficialReleaseSources.ClearCacheForTests();
 var failing = new Fixture(failMozilla:true);
 using (var source = new OfficialReleaseSources(failing))
@@ -269,7 +327,8 @@ if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
     OfficialReleaseSources.ClearCacheForTests();
     using var source = new OfficialReleaseSources();
     var live = await source.QueryAsync([obs, firefox, notepad, powertoys, shell, sevenzip,
-        desktop, sumatra, thunderbird, edge, terminal, proton, gameInput, outlook],
+        desktop, sumatra, thunderbird, edge, terminal, proton, gameInput, outlook,
+        sharex, handbrake, rufus, qb],
         new CancellationTokenSource(TimeSpan.FromSeconds(25)).Token, true);
     foreach (var item in live.Diagnostics)
         Console.WriteLine($"FONTE_AO_VIVO {item.Provider} status={item.Status} tempo_ms={item.Milliseconds}");
@@ -279,7 +338,7 @@ if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
 }
 
 internal sealed class Fixture(bool failMozilla = false, bool badTags = false, int delay = 0,
-    bool failEdge = false, bool failProton = false) : HttpMessageHandler
+    bool failEdge = false, bool failProton = false, bool failSharex = false, bool badNewTags = false) : HttpMessageHandler
 {
     private int _requests;
     public int Requests => Volatile.Read(ref _requests);
@@ -317,6 +376,25 @@ internal sealed class Fixture(bool failMozilla = false, bool badTags = false, in
             return new HttpResponseMessage(HttpStatusCode.OK) {
                 Content = new StringContent("# Proton Pass desktop\n\n### Version 1.42.0\n- official desktop\n")
             };
+        }
+        if (failSharex && uri.AbsolutePath.Contains("/ShareX/ShareX/", StringComparison.OrdinalIgnoreCase))
+            return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        if (uri.Host == "api.github.com")
+        {
+            string? tag = uri.AbsolutePath switch
+            {
+                "/repos/ShareX/ShareX/releases/latest" => "v21.0.0",
+                "/repos/HandBrake/HandBrake/releases/latest" => "1.11.2",
+                "/repos/pbatard/rufus/releases/latest" => "v4.15",
+                "/repos/qbittorrent/qBittorrent/releases/latest" =>
+                    badNewTags ? "release-5.3.0beta1" : "release-5.2.3",
+                _ => null
+            };
+            if (tag is not null)
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\\"tag_name\\":\\"" + tag + "\\"}")
+                };
         }
         if (failMozilla && uri.Host == "product-details.mozilla.org")
             return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
