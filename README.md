@@ -4,7 +4,7 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Versão do código em desenvolvimento:** v5.13.11.0 CANDIDATA · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
+**Versão do código em desenvolvimento:** v5.13.11.1 TESTE · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
 
 ## Recursos
 
@@ -16,6 +16,7 @@
 - Aba DRIVERS de consulta somente leitura com histórico local de dispositivos/INF; não instala, remove nem reverte drivers.
 - Auditoria histórica de possíveis resíduos somente leitura, com proteção de instalações, dados pessoais e fabricantes compartilhados.
 - Interface Windows Forms em português, tema escuro e ícone **GF** azul.
+- Diagnóstico colaborativo opcional **somente local** na v5.13.11.1: consentimento, prévia de dados, revogação e um relatório rotativo sem identificadores. **Nenhum envio automático para servidores está ativo.**
 
 **Atenção:** uma ferramenta de manutenção não substitui backups, proteção antivírus ou suporte especializado. Operações administrativas podem causar alterações de rede, reinicializações ou perda de dados não salvos. Leia cada confirmação. Não há ganho de desempenho garantido.
 
