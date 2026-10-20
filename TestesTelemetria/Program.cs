@@ -48,6 +48,32 @@ try
                "Categorias exatas e limites impedem crescimento descontrolado");
     }
 
+    // Publicacao GitHub: apenas abre formulario no navegador, nunca executa POST.
+    var link = GitHubDiagnosticShare.CreateReviewUrl(
+        tracker.Preview("v5.13.11.2", normalExit: false));
+    Verify(link is not null && link.Host == "github.com" &&
+        link.AbsolutePath == "/walissonminel-1991/gerenciador-final/issues/new",
+        "Formulario publico usa somente dominio/caminho oficial GitHub");
+    var publicUrl = Uri.UnescapeDataString(link!.Query);
+    Verify(publicUrl.Contains("REGISTRO_PROGRAMAS.FALHA") &&
+        publicUrl.Contains("JANELA.BANDEJA_RESTAURAR.FIM") &&
+        publicUrl.Contains("PÚBLICA") &&
+        !publicUrl.Contains("Privado") && !publicUrl.Contains("segredo") &&
+        !publicUrl.Contains("nome-privado") && !publicUrl.Contains("exemplo.com"),
+        "URL de revisao exclui textos originais, caminhos e segredos simulados");
+    Verify(GitHubDiagnosticShare.CreateReviewUrl(
+        "{\"schema\":1,\"version\":\"v5.13.11.2\",\"exit\":\"normal\",\"counts\":{}}") is null,
+        "Relatorio sem eventos nao provoca abertura de Issue");
+    Verify(GitHubDiagnosticShare.CreateReviewUrl(
+        "{\"schema\":1,\"version\":\"v5.13.11.2\",\"exit\":\"normal\",\"counts\":{\"MSIX.LEITURA\":1},\"secret\":\"malicioso\"}") is null,
+        "Campo arbitrario inserido no JSON nao pode virar Issue");
+    Verify(GitHubDiagnosticShare.CreateReviewUrl(
+        "{\"schema\":1,\"version\":\"v5.13.11.2\",\"exit\":\"normal\",\"counts\":{\"C:\\\\Users\\\\Privado\":1}}") is null,
+        "Chaves que parecem caminhos pessoais sao rejeitadas");
+    Verify(GitHubDiagnosticShare.CreateReviewUrl(
+        "{\"schema\":1,\"version\":\"v5.13.11.2\",\"exit\":\"normal\",\"counts\":{\"MSIX.LEITURA\":101}}") is null,
+        "Contagem acima do limite nao pode virar Issue");
+
     tracker.Record("APP.FALHA_NAO_TRATADA");
     Verify(tracker.SaveOnNormalExit("v5.13.11.1") &&
            Directory.EnumerateFiles(temp, "diagnostico-pendente*").Count() == 1,
