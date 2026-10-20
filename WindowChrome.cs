@@ -54,12 +54,6 @@ internal sealed partial class MainForm
                 RestoreFromTray();
                 OfferAnonymousDiagnosticConsent();
             }) { Name = "TrayPrivacy" });
-        _trayMenu.Items.Add(new ToolStripMenuItem(
-            "Revisar diagnóstico no GitHub", null, (_, _) =>
-            {
-                RestoreFromTray();
-                ShareAnonymousDiagnosticToGitHub();
-            }) { Name = "TrayGitHubDiagnostic" });
         _trayMenu.Items.Add(new ToolStripSeparator());
         _trayMenu.Items.Add(new ToolStripMenuItem("Sair", null, (_, _) => RequestTrayExit())
         { Name = "TrayExit" });
