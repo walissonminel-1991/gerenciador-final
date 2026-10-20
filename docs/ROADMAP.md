@@ -1,5 +1,10 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Testes reais e ajuste responsivo — v5.13.11.10 TESTE (20/10/2026)
+
+As capturas/log de teste em PC real foram examinados. Houve abertura sem alerta AVG reportado, inventário, consultas, análise de hardware e visualização de abas. A tabela de drivers deixava muita largura ociosa e truncava valores; passou a usar colunas Fill ponderadas e mínimos, com teste na matriz de resoluções. Nenhuma operação destrutiva foi executada ou aprovada; verificar persistência/revogação da coleta, eficácia de atualização, desinstalação e reparo em testes posteriores. [Relatório detalhado](TESTE-REAL-v5.13.11.8-2026-10-20.md). Roadmap funcional continua **27/42**.
+
+
 ## Ajuste de legibilidade — v5.13.11.9 TESTE (20/10/2026)
 
 Captura de tela em PC real confirmou o botão `Simular sem enviar` funcional, mas a prévia `DarkLogView` unia parágrafos porque TextBox nativo exigia CRLF. A revisão normaliza linhas, reduz o texto de consentimento, usa fonte mais legível e acrescenta regressões. O AVG não apresentou alerta durante a abertura observada; isso **não** é aprovação geral do antivírus nem das operações administrativas. Coleta permanece apenas local, sem envio, e o progresso funcional permanece **27/42**.
