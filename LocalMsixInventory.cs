@@ -102,7 +102,7 @@ internal static class LocalMsixInventory
         {
             // Apenas o tipo e o HRESULT: nunca salvar nomes de pacotes, perfis
             // ou mensagens COM potencialmente identificáveis nos diagnósticos.
-            return new LocalMsixResult([], 0, FailureStatus(ex));
+            return new LocalMsixResult([], 0, FailureStatus(ex), Failures: 1);
         }
     }
 
