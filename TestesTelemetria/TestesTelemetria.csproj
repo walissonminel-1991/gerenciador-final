@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../AnonymousTelemetry.cs" Link="AnonymousTelemetry.cs" />
+    <Compile Include="../GitHubDiagnosticShare.cs" Link="GitHubDiagnosticShare.cs" />
   </ItemGroup>
 </Project>
