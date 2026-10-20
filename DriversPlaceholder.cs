@@ -89,13 +89,9 @@ internal sealed partial class MainForm
             }
             finally { if (!refresh.IsDisposed) refresh.Enabled = true; }
         };
-        // Preservar altura util da tabela em janelas pequenas; a pagina pode rolar.
-        var viewport = new Panel { Dock = DockStyle.Fill, AutoScroll = true,
-            BackColor = AppServices.Background, Name = "DriverInventoryViewport" };
-        viewport.Controls.Add(host);
-        void FitHeight() => host.Height = Math.Max(420, viewport.ClientSize.Height);
-        viewport.Resize += (_, _) => FitHeight();
-        FitHeight();
+        // Reutiliza a rolagem escura da aplicacao, com navegacao por foco e DPI.
+        var viewport = ScrollablePage(host, _ => (int)Math.Ceiling(420d * Math.Max(1d, DeviceDpi / 96d)));
+        viewport.Name = "DriverInventoryViewport";
         return viewport;
     }
 }

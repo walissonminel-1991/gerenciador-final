@@ -68,6 +68,8 @@ internal static class LayoutTests
         if (!Descendants(placeholder).OfType<Label>().Any(c =>
                 c.Text.Contains("nenhuma instalação, remoção ou alteração")))
             throw new Exception("Aviso de modulo futuro ausente.");
+        if (!Descendants(form).Any(c => c.Name == "DriverInventoryViewport" && c is DarkScrollableFlow))
+            throw new Exception("DRIVERS deve reutilizar rolagem escura da aplicacao.");
         Directory.CreateDirectory("LayoutCaptures");
 
         int tested = 0;
