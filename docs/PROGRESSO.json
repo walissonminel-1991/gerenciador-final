@@ -1,9 +1,9 @@
 {
-  "version": "5.13.10.17 TESTE",
-  "date": "2026-10-19",
-  "code_commit": "859ba45a705c5461c2c4b3978dd280eb0edb96ca",
+  "version": "5.13.10.18 TESTE",
+  "date": "2026-10-20",
+  "code_commit": "f1204485743363a8a92af6f2b64c960fec289c90",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39311936327",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -43,7 +43,7 @@
           "id": "I6",
           "title": "Regressões da consolidação aprovadas no Windows remoto",
           "done": true,
-          "evidence": "CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39311936327"
+          "evidence": "CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261"
         },
         {
           "id": "I7",
@@ -84,13 +84,14 @@
           "id": "R5",
           "title": "Regressões de proteção aprovadas no Windows remoto",
           "done": true,
-          "evidence": "CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39311936327"
+          "evidence": "CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261"
         },
         {
           "id": "R6",
           "title": "Resolver casos históricos ambíguos com evidências adicionais",
           "done": false,
-          "evidence": "Preservar enquanto a atribuição não for confiável"
+          "evidence": "Adicionada proteção para inventário incompleto; a atribuição dos vestígios específicos ainda depende de evidências dos computadores.",
+          "blocked_by": "amostras_reais"
         },
         {
           "id": "R7",
@@ -129,21 +130,22 @@
         },
         {
           "id": "U5",
-          "title": "Correlacionar arquitetura e escopo em todas as confirmações posteriores",
-          "done": false,
-          "evidence": "Ainda incompleto, inclusive Sumatra x86/x64"
+          "title": "Vincular confirmação à instalação original e conferir arquitetura/escopo Sumatra",
+          "done": true,
+          "evidence": "VerifiedUpdaters.ConfirmInstallation; TestesAtualizador aprovados. Identidade alterada permanece indeterminada; não equivale à validação real de todos os instaladores."
         },
         {
           "id": "U6",
           "title": "Explicar divergências de cobertura com WinGet",
           "done": false,
-          "evidence": "Precisa comparação dos resultados equivalentes"
+          "evidence": "Contagens por motivo implementadas sem nomes nos logs; comparação com WinGet depende de capturas equivalentes da mesma máquina.",
+          "blocked_by": "comparacao_mesma_maquina"
         },
         {
           "id": "U7",
           "title": "Regressões da consolidação aprovadas no Windows remoto",
           "done": true,
-          "evidence": "CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39311936327"
+          "evidence": "CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261"
         },
         {
           "id": "U8",
@@ -178,7 +180,7 @@
           "id": "P4",
           "title": "Regressões de monitoramento e bandeja aprovadas no Windows remoto",
           "done": true,
-          "evidence": "CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39311936327"
+          "evidence": "CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261"
         },
         {
           "id": "P5",
@@ -219,7 +221,7 @@
           "id": "V4",
           "title": "Matriz automatizada de layout aprovada nesta consolidação",
           "done": true,
-          "evidence": "CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39311936327"
+          "evidence": "CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261"
         },
         {
           "id": "V5",
@@ -242,13 +244,14 @@
           "id": "D2",
           "title": "Correlacionar dispositivos, pacotes e histórico Windows",
           "done": false,
-          "evidence": "Etapa futura"
+          "evidence": "Correlação dispositivo/INF/presença implementada em parte. Driver Store completo e histórico Windows continuam pendentes.",
+          "blocked_by": "validar_coleta_antes_de_ampliar"
         },
         {
           "id": "D3",
           "title": "Inventário funcional na aba DRIVERS",
-          "done": false,
-          "evidence": "DriversPlaceholder.cs ainda provisório"
+          "done": true,
+          "evidence": "Tabela WMI sob demanda; teste real de coleta no runner Windows e matriz de layout aprovados. Sem instalação/remoção."
         },
         {
           "id": "D4",
