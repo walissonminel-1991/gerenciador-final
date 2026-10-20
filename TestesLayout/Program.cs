@@ -56,7 +56,7 @@ internal static class LayoutTests
         };
         if (nav.TabCount != 6 || !nav.TabTitles.SequenceEqual(expectedTitles))
             throw new Exception("A ordem das seis abas principais foi alterada.");
-        // DRIVERS e uma area de planejamento, sem comandos falsos.
+        // DRIVERS permite somente consulta local.
         nav.SelectTab(1);
         Application.DoEvents();
         Control placeholder = Descendants(form).SingleOrDefault(c =>
@@ -233,10 +233,12 @@ internal static class LayoutTests
 
                 var allButtons = Descendants(form).OfType<Button>()
                     .Where(b => b.Visible).ToArray();
-                // DRIVERS nao possui operacoes reais: nenhum botao dentro da
-                // pagina deve permitir instalacao, remocao ou diagnostico.
+                // DRIVERS permite consulta, sem instalacao ou remocao.
                 if (tab == 1)
                 {
+                    var driverGrid = Descendants(placeholder).OfType<DataGridView>().Single();
+                    if (driverGrid.Height < 100)
+                        throw new Exception($"Tabela DRIVERS sem altura util: {name} {resolution}");
                     if (Descendants(placeholder).OfType<Button>().Any(b => b.Name != "DriverInventoryRefresh"))
                         throw new Exception("DRIVERS ganhou uma acao diferente da consulta.");
                 }

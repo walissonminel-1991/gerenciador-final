@@ -11,7 +11,7 @@ internal sealed partial class MainForm
     {
         var host = new TableLayoutPanel
         {
-            Name = "DriversPlaceholder", Dock = DockStyle.Fill, BackColor = AppServices.Background,
+            Name = "DriversPlaceholder", Dock = DockStyle.Top, BackColor = AppServices.Background,
             ColumnCount = 1, RowCount = 4, Padding = new Padding(10)
         };
         host.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -75,6 +75,13 @@ internal sealed partial class MainForm
             }
             finally { if (!refresh.IsDisposed) refresh.Enabled = true; }
         };
-        return host;
+        // Preservar altura util da tabela em janelas pequenas; a pagina pode rolar.
+        var viewport = new Panel { Dock = DockStyle.Fill, AutoScroll = true,
+            BackColor = AppServices.Background, Name = "DriverInventoryViewport" };
+        viewport.Controls.Add(host);
+        void FitHeight() => host.Height = Math.Max(340, viewport.ClientSize.Height);
+        viewport.Resize += (_, _) => FitHeight();
+        FitHeight();
+        return viewport;
     }
 }
