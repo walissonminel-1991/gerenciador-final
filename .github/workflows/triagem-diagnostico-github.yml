@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   politica:
+    name: Política de segurança e privacidade
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

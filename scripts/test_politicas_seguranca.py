@@ -1,6 +1,7 @@
 """Guardrails estaticos: nao substituem revisao de codigo nem testes Windows."""
 from pathlib import Path
 import unittest
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -10,6 +11,22 @@ def read(path: str) -> str:
 
 
 class PoliticasDeSeguranca(unittest.TestCase):
+    def test_actions_fixadas_e_sem_credenciais_persistentes(self):
+        workflows = list((ROOT / ".github/workflows").glob("*.yml"))
+        self.assertGreaterEqual(len(workflows), 43)
+        for file in workflows:
+            code = file.read_text(encoding="utf-8")
+            self.assertIn("contents: read", code, str(file))
+            for action in re.findall(r"uses:\s*([^\s#]+)", code):
+                self.assertRegex(action, r"^actions/[a-z-]+@[a-f0-9]{40}$", str(file))
+            if "actions/checkout@" in code:
+                self.assertIn("persist-credentials: false", code, str(file))
+            for write in ("contents: write", "issues: write", "pull-requests: write", "write-all"):
+                self.assertNotIn(write, code, str(file))
+        self.assertIn("name: Regressões Windows", read(".github/workflows/validar-candidata-windows.yml"))
+        self.assertIn("name: Compilação Windows x64", read(".github/workflows/build-windows.yml"))
+        self.assertIn("name: Política de segurança e privacidade", read(".github/workflows/triagem-diagnostico-github.yml"))
+
     def test_residuos_nao_alcancam_operacoes_destrutivas(self):
         for name in ("UninstallResiduals.cs", "AdvancedUninstallCleaner.cs", "ResidualAudit.cs",
                      "HistoricalResidualAudit.cs", "BroadResidualDiscovery.cs", "ResidualPreview.cs",

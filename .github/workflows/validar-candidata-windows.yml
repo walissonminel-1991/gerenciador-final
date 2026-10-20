@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   validar:
+    name: Regressões Windows
     runs-on: windows-2022
     timeout-minutes: 35
     env:
