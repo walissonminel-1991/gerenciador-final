@@ -157,20 +157,9 @@ internal sealed partial class MainForm
         void Render()
         {
             if (root.IsDisposed) return;
-            IEnumerable<DriverInventoryEntry> filtered = snapshot ?? Array.Empty<DriverInventoryEntry>();
-            filtered = activeFilter switch
-            {
-                "Presentes" => filtered.Where(item => item.Present == true),
-                "Não confirmados" => filtered.Where(item => item.Present != true),
-                _ => filtered
-            };
             string query = search.Text.Trim();
-            if (query.Length > 0)
-                filtered = filtered.Where(item =>
-                    string.Join(" ", item.DeviceName, item.Provider, item.Version,
-                        item.InfName, item.PresenceLabel, item.SignatureLabel)
-                    .Contains(query, StringComparison.CurrentCultureIgnoreCase));
-            var visible = filtered.ToArray();
+            var visible = DriverListFilters.Apply(
+                snapshot ?? Array.Empty<DriverInventoryEntry>(), activeFilter, query);
             list.SetItems(visible);
             list.ScrollToTop();
             int count = snapshot?.Count ?? 0;
