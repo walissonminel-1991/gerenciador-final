@@ -1,0 +1,47 @@
+name: Validar candidata Windows
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compilar aplicacao
+        shell: pwsh
+        run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
+      - name: Testes motor de comparacao
+        run: dotnet run --project TestesMotor/TestesMotor.csproj -c Release
+      - name: Testes RuckZuck simulados
+        run: dotnet run --project TestesCatalogo/TestesCatalogo.csproj -c Release
+      - name: Testes fontes oficiais e antifalsos positivos
+        run: dotnet run --project TestesMultifontes/TestesMultifontes.csproj -c Release
+      - name: Testes instaladores verificados
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release
+      - name: Testes drivers e historico
+        run: dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release
+      - name: Testes residuos sem exclusao
+        run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release
+      - name: Testes layout e RAM
+        run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release
+      - name: Testes inventario MSIX
+        run: dotnet run --project TestesMsix/TestesMsix.csproj -c Release
+      - name: Testes WSC somente leitura
+        run: dotnet run --project TestesSeguranca/TestesSeguranca.csproj -c Release
+      - name: Testes bloqueio de instaladores e encerramento seguro
+        run: dotnet run --project TestesFechamento/TestesFechamento.csproj -c Release
