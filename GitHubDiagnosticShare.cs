@@ -59,7 +59,7 @@ internal static class GitHubDiagnosticShare
             body.AppendLine("> Nenhum relatório completo, nome de programa, arquivo ou caminho foi incluído.");
             body.AppendLine();
             body.AppendLine("**Versão do GF:** " + gfVersion);
-            body.AppendLine("**Encerramento observado:** " + exit.GetString());
+            body.AppendLine("**Estado da sessão:** " + (exit.GetString() == "normal" ? "encerramento normal" : "coleta em andamento ou interrompida"));
             body.AppendLine();
             body.AppendLine("### Ocorrências técnicas (agregadas; não representam usuários únicos)");
             foreach (var row in rows.OrderBy(x => x.Name, StringComparer.Ordinal))
