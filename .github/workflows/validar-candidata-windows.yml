@@ -33,6 +33,8 @@ jobs:
       - name: Compilar aplicacao
         shell: pwsh
         run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
+      - name: Testes WSC somente leitura
+        run: dotnet run --project TestesSeguranca/TestesSeguranca.csproj -c Release
       - name: Testes motor de comparacao
         run: dotnet run --project TestesMotor/TestesMotor.csproj -c Release
       - name: Testes RuckZuck simulados
@@ -53,7 +55,5 @@ jobs:
         run: dotnet run --project TestesTelemetria/TestesTelemetria.csproj -c Release
       - name: Testes servidor prototipo sem deploy
         run: node --test prototipos/telemetria-worker/test.mjs
-      - name: Testes WSC somente leitura
-        run: dotnet run --project TestesSeguranca/TestesSeguranca.csproj -c Release
       - name: Testes bloqueio de instaladores e encerramento seguro
         run: dotnet run --project TestesFechamento/TestesFechamento.csproj -c Release
