@@ -1,5 +1,10 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Experiencia acessivel — v5.13.11.8 TESTE (20/10/2026)
+
+Incluida simulacao local sem rede, arquivo ou consentimento e previa amigavel do diagnostico; nao e teste de envio remoto. A futura contribuicao devera ser simples para nao especialistas e nao depender de conta GitHub, arquivos .txt ou publicacao de Issues. [Criterios de seguranca, UI e ativacao](EXPERIENCIA-CONTRIBUICAO-SIMPLES.md). O progresso funcional anterior permanece **27/42**; a simulacao e uma frente de privacidade extra e **nao** significa envio implementado.
+
+
 ## Segurança v5.13.11.7 TESTE — nenhuma entrada manual (20/10/2026)
 
 A PR #40 **substituiu** o piloto de Issues públicas por coleta local estritamente voluntária e esquema fechado; removeu a geração de formulários e o gatilho `issues` do CI. Bloqueou instaladores sem SHA-256 previamente autorizado, introduziu correspondência da revisão no Windows Update e desativou o receptor remoto experimental. Esta revisão supersede o trecho histórico abaixo que descreve a antiga triagem GitHub como ativa. Detalhes: [segurança e limites](SEGURANCA-v5.13.11.7.md). **O progresso funcional continua 27/42; a manutenção por IA e o envio remoto não estão implementados.**
