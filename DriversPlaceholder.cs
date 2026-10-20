@@ -220,6 +220,7 @@ internal sealed partial class MainForm
                     history.AccessibleDescription = recorded.Message + Environment.NewLine + recorded.Timeline;
                     _toolTips.SetToolTip(history,
                         recorded.Timeline.Length == 0 ? recorded.Message : recorded.Timeline);
+                    FitVerticalSpace();
                 }
                 DiagnosticTrace.Write($"DRIVERS.HISTORICO salvo={recorded.Saved} base={recorded.Baseline} novos={recorded.Added} nao_observados={recorded.Missing} alterados={recorded.Changed}");
             }
@@ -236,7 +237,27 @@ internal sealed partial class MainForm
             }
             finally { if (!refresh.IsDisposed) refresh.Enabled = true; }
         };
+        // Em resolucoes menores, deixar a area da lista prevalecer.
+        // O rodape detalhado permanece acessivel pela descricao/tooltip.
+        void FitVerticalSpace()
+        {
+            if (root.IsDisposed) return;
+            bool compact = root.ClientSize.Height < 360;
+            root.RowStyles[0].Height = compact ? 30 : 35;
+            root.RowStyles[1].Height = compact ? 36 : 44;
+            root.RowStyles[2].Height = compact ? 29 : 33;
+            root.RowStyles[4].Height = compact ? 31 : 67;
+            footer.RowStyles[0].Height = compact ? 100 : 55;
+            footer.RowStyles[1].Height = compact ? 0 : 45;
+            history.Visible = !compact;
+            state.AccessibleDescription = state.Text + Environment.NewLine +
+                history.Text + Environment.NewLine + history.AccessibleDescription;
+            if (compact) _toolTips.SetToolTip(state, state.AccessibleDescription);
+        }
+        root.SizeChanged += (_, _) => FitVerticalSpace();
+        root.DpiChangedAfterParent += (_, _) => FitVerticalSpace();
         Render();
+        FitVerticalSpace();
         return root;
     }
 }
