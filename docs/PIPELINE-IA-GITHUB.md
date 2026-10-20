@@ -2,6 +2,12 @@
 
 **Estado: plano de integração, não operacional.** Este documento não autoriza coleta remota, execução autônoma de código recebido nem publicação automática. Base de código v5.13.11.1: opt-in local na PR #38 e compilação/regressões Windows aprovadas.
 
+## Estado da triagem GitHub-only (20/10/2026)
+
+- **Implementado na PR #40, ainda nao integrado na main:** workflow `.github/workflows/triagem-diagnostico-github.yml`, parser estrito em `scripts/triagem_diagnostico.py` e testes de regressao independentes. Issues publicas novas com titulo do piloto sao verificadas automaticamente, sem permissao de escrita, e geram resumo apenas de categorias e contagens aceitas. Consulte [triagem GitHub](TRIAGEM-DIAGNOSTICO-GITHUB.md).
+- **Nao implementados:** envio pelo aplicativo em segundo plano, recepcao privada, comprovacao de origem dos relatos, triagem por agente IA, PRs gerados por IA, exclusao retroativa de Issues e atualizacoes automaticas. Uma Issue publica pode continuar publicamente visivel mesmo se o parser a rejeitar.
+- O progresso funcional do roadmap permanece 27/42; CI e triagem integram um trabalho complementar.
+
 ## Objetivo
 
 Com consentimento **separado para envio**, converter diagnósticos agregados (não logs) em tarefas verificáveis de manutenção; permitir que uma IA proponha correções em branches, preparar builds de teste e changelog, preservar revisão humana e eliminar dados temporários após processamento ou até sete dias.
