@@ -22,3 +22,9 @@ Auditoria NuGet nao audita automaticamente o runtime embutido no pacote portatil
 UAC, instaladores reais, subprocessos e AVG exigem validacao em PC real. Esta revisao permanece candidata, sem release estavel ou merge automatico.
 
 Referencias tecnicas: Microsoft CreateFileW e GetFileInformationByHandle; nao utilizar nomes de caminhos como prova exclusiva da identidade de arquivos.
+
+## Continuidade de hardening do CI (sem alterar versao do EXE)
+
+O fluxo `build-windows.yml` foi separado em dois jobs: compilacao/testes de PR apenas com `contents:read`, e atestacao apenas quando o workflow roda a partir da `main` confiavel. Esse segundo job faz download do artefato da propria execucao, confere `SHA256SUMS.txt` com `sha256sum --check` e so entao usa `id-token:write` e `attestations:write`. No PR, o job de atestacao fica desativado; a origem do pacote continua sem assinatura Authenticode. A atestacao em producao precisa ser validada apos merge na main.
+
+Tambem foi adicionada triagem deterministica e somente leitura de Issues publicas do piloto (sem envio automatico e sem IA modificando o codigo). Veja [triagem](TRIAGEM-DIAGNOSTICO-GITHUB.md).
