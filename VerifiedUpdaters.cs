@@ -72,7 +72,10 @@ internal static class VerifiedUpdaters
                 "https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-nuget"),
             _ => null
         };
-        return approved is not null && recipe == approved;
+        return approved is not null && recipe == approved &&
+            // Nenhum EXE/MSI e executado sem SHA-256 fixado na receita revisada.
+            approved.Sha256 is { Length: 64 } &&
+            approved.Sha256.All(Uri.IsHexDigit);
     }
 
     internal static async Task<FileStream> OpenVerifiedForLaunchAsync(
@@ -360,7 +363,7 @@ internal static class VerifiedUpdaters
         if (!entry.IsUpdate) return null;
         if (WindowsTerminalUpdater.Resolve(entry) is not null) return "terminal";
         if (GetMicrosoftStoreUri(entry) is not null) return "store";
-        if (Resolve(entry) is not null) return "update";
+        if (Resolve(entry) is { } recipe && IsApprovedRecipe(recipe)) return "update";
         if (GetOfficialPage(entry) is not null) return "site";
         return "guide";
     }
