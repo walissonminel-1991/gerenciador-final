@@ -13,6 +13,12 @@ internal static class ResidualBlockingTests
         {
             string file = Path.Combine(root, "Editor.exe");
             File.WriteAllText(file, "fixture isolado");
+            var readBudget = new ResidualScanBudget();
+            check(ResidualReadSafety.HasExistingLocalFile(file, readBudget) &&
+                !ResidualReadSafety.HasExistingLocalFile(file + "-ausente", readBudget) && !readBudget.Incomplete,
+                "Executável registrado ausente é distinguido de arquivo existente sem presumir erro");
+            check(!ResidualReadSafety.HasExistingLocalFile("relativo/Editor.exe", readBudget) && readBudget.Incomplete,
+                "Pista de executável não verificável mantém análise parcial");
             var app = new ProgramEntry { Name = "Produto fictício" };
             var candidate = new ResidualCandidate(app.Name, root, [file], 0);
             var basic = UninstallResiduals.Clean(app, candidate);

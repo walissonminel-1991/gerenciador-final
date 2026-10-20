@@ -364,8 +364,7 @@ internal static class BroadResidualDiscovery
                     string rawPath = entry?.GetValue(null) as string ?? "";
                     if (rawPath.Length == 0 || rawPath.Length > 1024) continue;
                     string path = Environment.ExpandEnvironmentVariables(rawPath).Trim('"');
-                    if (ResidualReadSafety.IsLocalAbsolute(path) &&
-                        ResidualReadSafety.IsUnlinkedDirectory(Path.GetDirectoryName(path) ?? "") && File.Exists(path))
+                    if (ResidualReadSafety.HasExistingLocalFile(path, budget))
                         names.Add(Path.GetFileNameWithoutExtension(executable));
                 }
             }

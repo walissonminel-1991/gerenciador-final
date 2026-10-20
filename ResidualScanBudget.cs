@@ -63,6 +63,24 @@ internal static class ResidualReadSafety
             (path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' &&
              path[2] == '\\' && !path[2..].Contains(':'));
     }
+    internal static bool HasExistingLocalFile(string path, ResidualScanBudget? budget)
+    {
+        if (!IsLocalAbsolute(path)) { budget?.MarkIncomplete(ResidualScanIssue.SourceUnavailable); return false; }
+        try
+        {
+            // File.Exists também retorna false para erros; isso perderia uma proteção ativa.
+            var attributes = File.GetAttributes(path);
+            if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0 ||
+                !IsUnlinkedDirectory(Path.GetDirectoryName(path) ?? ""))
+            { budget?.MarkIncomplete(ResidualScanIssue.LinkSkipped); return false; }
+            return true;
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException) { return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            System.Security.SecurityException or ArgumentException or NotSupportedException)
+        { budget?.MarkIncomplete(); return false; }
+    }
+
     internal static bool CanInspectDirectory(string path, ResidualScanBudget budget)
     {
         if (!IsLocalAbsolute(path)) { budget.MarkIncomplete(ResidualScanIssue.SourceUnavailable); return false; }
