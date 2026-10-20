@@ -1,5 +1,14 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.10 — tabela de drivers responsiva (TESTE)
+
+- Capturas reais da v5.13.11.8 mostraram a tabela de drivers utilizando somente parte da largura da aba e truncando os dados.
+- As seis colunas agora preenchem proporcionalmente a largura disponível, com larguras mínimas para preservar a usabilidade e permitir rolagem horizontal em telas estreitas.
+- Regressões de layout conferem a configuração da tabela na matriz de resoluções do projeto.
+- Diagnóstico, limpeza, atualização, desinstalação e reparo **não tiveram seus mecanismos de execução alterados** nesta revisão.
+- Observações de campo e limitações: [teste real de 20/10/2026](docs/TESTE-REAL-v5.13.11.8-2026-10-20.md).
+
+
 ## v5.13.11.9 — legibilidade do diagnóstico colaborativo (TESTE)
 
 - Corrigidas as quebras de parágrafo do componente `DarkLogView.SetText` em Windows: converte novas linhas para CRLF sem duplicar `\r` e sem alterar o registro ao vivo.
