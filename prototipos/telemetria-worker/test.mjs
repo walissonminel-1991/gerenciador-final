@@ -12,37 +12,16 @@ test("aceita apenas envelope fixo agregado", () => {
   assert.equal(validateReport({ ...example, exit: "crash" }), null);
   assert.equal(validateReport({ ...example, version: "nome-privado" }), null);
 });
-test("rejeita metadados ou payload de logs enviados pelo cliente", async () => {
-  const fakeDb = { prepare: () => { throw new Error("Nao deve escrever"); } };
-  const request = new Request("https://example.invalid/v1/diagnostico", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ...example, path: "C:\\Users\\private" })
-  });
-  assert.equal((await handler.fetch(request, { DB: fakeDb })).status, 422);
-});
-test("agrega em buckets sem guardar uma linha individual por maquina", async () => {
-  let inserted = [];
-  let batched = false;
-  const db = { prepare: sql => {
-    assert.match(sql, /^INSERT INTO daily_counts/);
-    return { bind(...args) {
-      inserted.push(args);
-      return { query: sql, args };
-    } };
-  }, async batch(statements) {
-    assert.equal(statements.length, 1);
-    batched = true;
-  }};
-  const request = new Request("https://example.invalid/v1/diagnostico", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify(example)
-  });
-  assert.equal((await handler.fetch(request, { DB: db })).status, 204);
-  assert.equal(batched, true);
-  assert.equal(inserted[0][1], "v5.13.11.1");
-  assert.equal(inserted[0][2], "MSIX.LEITURA");
-  assert.equal(inserted[0][3], 3);
-  assert.ok(inserted[0][4] > Math.floor(Date.now() / 1000));
+test("receptor permanece desligado mesmo com JSON valido ou malicioso", async () => {
+  const fakeDb = { prepare: () => { throw new Error("Nao deve gravar dados de usuarios"); },
+                   batch: () => { throw new Error("Nao deve agregar dados"); } };
+  for (const value of [example, { ...example, file: "malware.exe" }]) {
+    const request = new Request("https://example.invalid/v1/diagnostico", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(value)
+    });
+    assert.equal((await handler.fetch(request, { DB: fakeDb })).status, 503);
+  }
 });
 test("executa limpeza programada", async () => {
   let deleted = false;
