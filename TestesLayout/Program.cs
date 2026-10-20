@@ -22,6 +22,32 @@ internal static class LayoutTests
             WindowsUpdateClient.VerifiedIdentity("invalido", 12) is not null ||
             WindowsUpdateClient.VerifiedIdentity(knownId, 0) is not null)
             throw new Exception("Windows Update deve preservar GUID e revisao antes de instalar.");
+        // Permite experimentar a contribuicao sem gravar dados ou autorizar coleta.
+        string dryRunFolder = Path.Combine(Path.GetTempPath(),
+            "GF-Preview-Only-" + Guid.NewGuid().ToString("N"));
+        var dryRunRecorder = new AnonymousTelemetry(dryRunFolder);
+        using (var privacy = new TelemetryPrivacyDialog(dryRunRecorder))
+        {
+            privacy.Show();
+            Application.DoEvents();
+            var simulate = Descendants(privacy).OfType<Button>().SingleOrDefault(
+                b => b.Name == "PrivacyOfflineSimulation")
+                ?? throw new Exception("Botao de simulacao segura ausente.");
+            var preview = Descendants(privacy).OfType<DarkLogView>().SingleOrDefault(
+                view => view.Name == "PrivacyLocalPreview")
+                ?? throw new Exception("Previa de coleta acessivel ausente.");
+            if (!preview.RenderedText.Contains("COLETA DESATIVADA"))
+                throw new Exception("Consentimento ausente nao foi explicado claramente.");
+            simulate.PerformClick();
+            if (!preview.RenderedText.Contains("SIMULACAO APROVADA") ||
+                !preview.RenderedText.Contains("Nenhuma conexao de envio foi feita.") ||
+                !preview.RenderedText.Contains("INVENTADOS") ||
+                dryRunRecorder.Consent != TelemetryConsent.NotAsked ||
+                Directory.Exists(dryRunFolder) ||
+                privacy.DialogResult != DialogResult.None)
+                throw new Exception("Simulacao alterou consentimento ou nao demonstrou isolamento.");
+            privacy.Close();
+        }
         TestStartupBounds();
         TestWorkspaceProportions();
         TestRamHistoryAndSampling();
