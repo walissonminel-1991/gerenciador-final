@@ -39,13 +39,24 @@ internal static class LayoutTests
             if (!preview.RenderedText.Contains("COLETA DESATIVADA"))
                 throw new Exception("Consentimento ausente nao foi explicado claramente.");
             simulate.PerformClick();
-            if (!preview.RenderedText.Contains("SIMULACAO APROVADA") ||
-                !preview.RenderedText.Contains("Nenhuma conexao de envio foi feita.") ||
-                !preview.RenderedText.Contains("INVENTADOS") ||
-                dryRunRecorder.Consent != TelemetryConsent.NotAsked ||
-                Directory.Exists(dryRunFolder) ||
-                privacy.DialogResult != DialogResult.None)
-                throw new Exception("Simulacao alterou consentimento ou nao demonstrou isolamento.");
+            // ModernButton somente despacha Click depois de 145 ms de feedback.
+            // Testar o clique REAL, sem executar diretamente o callback.
+            for (int attempt = 0; attempt < 30 &&
+                !preview.RenderedText.Contains("SIMULACAO APROVADA"); attempt++)
+            {
+                System.Threading.Thread.Sleep(20);
+                Application.DoEvents();
+            }
+            if (!preview.RenderedText.Contains("SIMULACAO APROVADA"))
+                throw new Exception("Simulacao nao respondeu ao clique animado.");
+            if (!preview.RenderedText.Contains("Nenhuma conexao de envio foi feita.") ||
+                !preview.RenderedText.Contains("INVENTADOS"))
+                throw new Exception("Simulacao nao explicou os dados ficticios.");
+            if (dryRunRecorder.Consent != TelemetryConsent.NotAsked ||
+                Directory.Exists(dryRunFolder))
+                throw new Exception("Simulacao alterou consentimento ou arquivos locais.");
+            if (privacy.DialogResult != DialogResult.None)
+                throw new Exception("Simulacao aprovou ou recusou consentimento sem autorizacao.");
             privacy.Close();
         }
         TestStartupBounds();
