@@ -314,7 +314,8 @@ internal static class LayoutTests
                 if (tab == 1)
                 {
                     if (driverCards.Height < 100 || driverCards.Width < placeholder.Width - 70)
-                        throw new Exception($"DRIVERS nao aproveita o espaco para cartoes: {name} {resolution}");
+                        throw new Exception($"DRIVERS nao aproveita o espaco para cartoes: {name} {resolution} " +
+                            $"lista={driverCards.Size} raiz={placeholder.Size}");
                     if (Descendants(placeholder).OfType<DataGridView>().Any() ||
                         Descendants(placeholder).OfType<Button>().Any(b =>
                             b.Text.Contains("Desinstalar", StringComparison.OrdinalIgnoreCase) ||
