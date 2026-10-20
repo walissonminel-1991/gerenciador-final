@@ -1,5 +1,17 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.14 — resíduos WinMerge após teste real (TESTE)
+
+- **Notepad++ 8.9.8.1:** o teste real confirmou integridade do instalador, pré-verificações, execução e versão instalada.
+- **WinMerge x64:** a entrada de desinstalação desapareceu e o inventário caiu de 175 para 174 aplicativos; identificada uma pasta de instalação remanescente, sem remoção automática.
+- Auditoria somente leitura agora reconhece `HKCU\Software\Thingamahoochie\WinMerge`, chave documentada pelo fabricante, e as visualizações HKLM da mesma subchave, quando acessíveis.
+- **Resíduos de aplicativos** também pode consultar a família WinMerge historicamente, sem exigir reinstalação ou apagar preferências; protege variantes ainda instaladas. Nenhum achado significa autorização de exclusão.
+- A lista de programas é atualizada antes do relatório de revisão após desinstalação. A mensagem diferencia **ausência do registro** de **término integral do desinstalador do fabricante**, pois a captura mostrou uma janela nativa ainda aberta.
+- Testes verificam a identificação exata do WinMerge, fabricantes homônimos, o bloqueio com instalação ativa e a natureza não destrutiva do relatório histórico.
+- As 11 famílias de perfis de fabricante/jogos e os candidatos Driver Booster/Netease continuam protegidos, só para revisão.
+- [Relatório da simulação](docs/SIMULACAO-MANUTENCAO-WINMERGE-2026-10-20.md).
+
+
 ## v5.13.11.13 — pequenos ajustes de legibilidade após teste real (TESTE)
 
 - Capturas da v5.13.11.12 confirmaram **três cartões por linha** na subaba Inicialização e o indicador persistente **Coleta local ativa** no cabeçalho, sem solicitar novamente consentimento já concedido.
