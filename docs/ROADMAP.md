@@ -1,5 +1,10 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Primeiro teste efetivo de manutenção — v5.13.11.14 TESTE (20/10/2026)
+
+Teste real comprovou instalação oficial verificada do **Notepad++ v8.9.8.1** e registro do WinMerge x64 removido após execução do desinstalador, com um item restante na pasta de instalação para revisão. Identificada lacuna: `HKCU\Software\Thingamahoochie\WinMerge` não aparecia na auditoria de nome canônico, embora documentada pelo fabricante. A candidata acrescenta inspeção exata **somente leitura** dessa chave, das variantes HKLM correspondentes e de pastas WinMerge numa revisão histórica, sem habilitar exclusões. Lista é reconsultada antes de exibir a auditoria; mensagem não considera o fechamento de todas as janelas do desinstalador confirmado apenas pela ausência no Registro. Progresso funcional **27/42**, sem contabilizar manutenção completa com base nesses primeiros cenários. [Evidências, limitações e próximos testes](SIMULACAO-MANUTENCAO-WINMERGE-2026-10-20.md).
+
+
 ## Capturas reais da v5.13.11.12 — pequenos ajustes v5.13.11.13 (20/10/2026)
 
 A nova revisão exibiu corretamente **três cartões por linha em Inicialização** e **Coleta local ativa** permanentemente no cabeçalho. Consultas concluíram: inventário de 171 programas e 183 associações de drivers, sem ações destrutivas e sem erro final. A ausência pontual de uma associação relativamente às 184 anteriores não prova desinstalação nem é fundamento para apagar driver. Correções pontuais de rótulos: botão de acesso ao Gerenciador de Tarefas e filtro Outros em DRIVERS, que mantêm explicação acessível e não alteram a consulta. Próxima bateria relevante: verificar **atualizações individuais, desinstalação de software de teste e reparos condicionados a diagnóstico**, somente após backup e consentimento explícito. Progresso funcional permanece 27/42.
