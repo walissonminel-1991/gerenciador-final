@@ -7,7 +7,7 @@
 - Campo de pesquisa por dispositivo, fabricante, versão ou INF; filtros Todos, Presentes e Não confirmados (inclui não presente e indeterminado), sem instalação, atualização ou remoção.
 - Renderização virtualizada dos cartões: apenas linhas visíveis são desenhadas, evitando centenas de controles no PC de baixo desempenho.
 - Mantidos captura WMI, correlação de pacotes, histórico local e registros de diagnóstico anteriores, com lista integralmente somente leitura.
-- Testes Windows validam lista, filtros com 184 entradas fictícias e layout na matriz de resoluções; o espaço vertical adapta o rodapé em telas menores, preservando informações completas nas dicas e acessibilidade.
+- Testes Windows validam lista, filtros com 184 entradas fictícias e layout na matriz de resoluções; em 800×600, pesquisa e consulta permanecem visíveis, os filtros passam a um seletor compacto e o rodapé se reduz para preservar um cartão completo, sem perder o estado acessível.
 
 
 ## v5.13.11.10 — tabela de drivers responsiva (TESTE)
