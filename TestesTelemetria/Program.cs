@@ -52,31 +52,25 @@ try
                "Categorias exatas e limites impedem crescimento descontrolado");
     }
 
-    // Publicacao GitHub: apenas abre formulario no navegador, nunca executa POST.
-    var link = GitHubDiagnosticShare.CreateReviewUrl(
-        tracker.Preview("v5.13.11.2", normalExit: false));
-    Verify(link is not null && link.Host == "github.com" &&
-        link.AbsolutePath == "/walissonminel-1991/gerenciador-final/issues/new",
-        "Formulario publico usa somente dominio/caminho oficial GitHub");
-    var publicUrl = Uri.UnescapeDataString(link!.Query);
-    Verify(publicUrl.Contains("REGISTRO_PROGRAMAS.FALHA") &&
-        publicUrl.Contains("JANELA.BANDEJA_RESTAURAR.FIM") &&
-        publicUrl.Contains("PÚBLICA") &&
-        !publicUrl.Contains("Privado") && !publicUrl.Contains("segredo") &&
-        !publicUrl.Contains("nome-privado") && !publicUrl.Contains("exemplo.com"),
-        "URL de revisao exclui textos originais, caminhos e segredos simulados");
-    Verify(GitHubDiagnosticShare.CreateReviewUrl(
-        "{\"schema\":1,\"version\":\"v5.13.11.2\",\"exit\":\"normal\",\"counts\":{}}") is null,
-        "Relatorio sem eventos nao provoca abertura de Issue");
-    Verify(GitHubDiagnosticShare.CreateReviewUrl(
-        "{\"schema\":1,\"version\":\"v5.13.11.2\",\"exit\":\"normal\",\"counts\":{\"MSIX.LEITURA\":1},\"secret\":\"malicioso\"}") is null,
-        "Campo arbitrario inserido no JSON nao pode virar Issue");
-    Verify(GitHubDiagnosticShare.CreateReviewUrl(
-        "{\"schema\":1,\"version\":\"v5.13.11.2\",\"exit\":\"normal\",\"counts\":{\"C:\\\\Users\\\\Privado\":1}}") is null,
-        "Chaves que parecem caminhos pessoais sao rejeitadas");
-    Verify(GitHubDiagnosticShare.CreateReviewUrl(
-        "{\"schema\":1,\"version\":\"v5.13.11.2\",\"exit\":\"normal\",\"counts\":{\"MSIX.LEITURA\":101}}") is null,
-        "Contagem acima do limite nao pode virar Issue");
+    // Nenhum link, formulario, anexo ou envio a GitHub: somente politica de JSON local.
+    string validReport = tracker.Preview("v5.13.11.6", normalExit: false);
+    Verify(DiagnosticPayloadPolicy.IsValidReport(validReport),
+        "Apenas contagens tecnicas com esquema fechado sao elegiveis");
+    Verify(!DiagnosticPayloadPolicy.IsValidReport(
+        "{\\"schema\\":1,\\"version\\":\\"v5.13.11.6\\",\\"exit\\":\\"normal\\",\\"counts\\":{}}"),
+        "Nao aceitar relatorio sem ocorrencias");
+    Verify(!DiagnosticPayloadPolicy.IsValidReport(
+        "{\\"schema\\":1,\\"version\\":\\"v5.13.11.6\\",\\"exit\\":\\"normal\\",\\"counts\\":{\\"MSIX.LEITURA\\":1},\\"filename\\":\\"malware.exe\\"}"),
+        "Proibir metadados de arquivos e campos inesperados");
+    Verify(!DiagnosticPayloadPolicy.IsValidReport(
+        "{\\"schema\\":1,\\"version\\":\\"v5.13.11.6\\",\\"exit\\":\\"normal\\",\\"counts\\":{\\"MSIX.LEITURA\\":1,\\"MSIX.LEITURA\\":2}}"),
+        "Proibir chaves repetidas mesmo com JSON sintaticamente valido");
+    Verify(!DiagnosticPayloadPolicy.IsValidReport(
+        "{\\"schema\\":1,\\"version\\":\\"v5.13.11.6\\",\\"exit\\":\\"normal\\",\\"counts\\":{\\"MSIX.LEITURA\\":101}}"),
+        "Recusar contagem maior que o limite");
+    Verify(!DiagnosticPayloadPolicy.IsValidReport(
+        "{\\"schema\\":1,\\"version\\":\\"v5.13.11.6\\",\\"exit\\":\\"normal\\",\\"counts\\":{\\"C:\\\\Users\\\\Privado\\":1}}"),
+        "Recusar chaves que contenham caminhos ou nomes arbitrarios");
 
     tracker.Record("APP.FALHA_NAO_TRATADA");
     Verify(tracker.SaveOnNormalExit("v5.13.11.1") &&
