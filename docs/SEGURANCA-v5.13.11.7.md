@@ -37,3 +37,7 @@
 - `scripts/test_politicas_seguranca.py`: ausência do envio manual no executável, ausência de ingestão de Issues em CI, hash obrigatório e isolamento de atestações.
 
 Consultas e compilações das revisões específicas devem ser confirmadas nas execuções Windows mais recentes da PR #40; aprovações de commits anteriores não equivalem a validação desta candidata.
+
+## Complemento posterior — v5.13.11.8
+
+Acrescentada uma **simulação totalmente local**, com dados sintéticos e validados, acessível sem consentir. A visualização substitui JSON bruto por frases simples na janela de privacidade. Simulação não acessa disco/rede, não usa informações do usuário nem altera a preferência local; essa condição é verificada por testes de lógica e layout. Não constitui ativação do envio remoto. [Plano de experiência](EXPERIENCIA-CONTRIBUICAO-SIMPLES.md).
