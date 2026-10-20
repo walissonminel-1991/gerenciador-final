@@ -250,3 +250,26 @@ internal sealed class DarkDriverList : Control
         base.Dispose(disposing);
     }
 }
+
+internal static class DriverListFilters
+{
+    // Apenas uma visao dos dados WMI. Nunca decide ausencia, obsolescencia ou
+    // autorizacao de limpeza/atualizacao com base nesses filtros.
+    internal static DriverInventoryEntry[] Apply(
+        IEnumerable<DriverInventoryEntry> items, string filter, string query)
+    {
+        IEnumerable<DriverInventoryEntry> filtered = filter switch
+        {
+            "Presentes" => items.Where(item => item.Present == true),
+            "Não confirmados" => items.Where(item => item.Present != true),
+            _ => items
+        };
+        query = query.Trim();
+        if (query.Length > 0)
+            filtered = filtered.Where(item =>
+                string.Join(" ", item.DeviceName, item.Provider, item.Version,
+                    item.InfName, item.PresenceLabel, item.SignatureLabel)
+                .Contains(query, StringComparison.CurrentCultureIgnoreCase));
+        return filtered.ToArray();
+    }
+}
