@@ -40,6 +40,18 @@ internal sealed class ProcessMonitorSampler
         return (current - previous) / seconds;
     }
 
+    // A leitura em segundo plano não enumera processos nem abre seus handles.
+    // Mantem somente os contadores globais, sem criar histórico fictício de
+    // consumo individual durante o período oculto.
+    public ProcessMonitorSnapshot TakeResourceSample()
+    {
+        _previous.Clear(); // taxas por processo nao podem usar um baseline antigo.
+        var now = DateTime.UtcNow;
+        return new ProcessMonitorSnapshot(
+            now, 0, ReadCpuUsage(), ReadMemoryLoad(), ReadNetworkUsage(now),
+            Array.Empty<ProcessMonitorEntry>());
+    }
+
     public ProcessMonitorSnapshot TakeSample()
     {
         var now = DateTime.UtcNow;

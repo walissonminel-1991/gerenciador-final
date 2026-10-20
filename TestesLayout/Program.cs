@@ -362,7 +362,12 @@ internal static class LayoutTests
               ProcessSamplingPolicy.BackgroundIntervalMs <
               ProcessSamplingPolicy.TrayIntervalMs))
             throw new Exception("Amostragem de processos nao esta adaptativa.");
-        Console.WriteLine("OK: amostragem 2s na aba, 12s em segundo plano e 20s na bandeja.");
+        if (!ProcessSamplingPolicy.ShouldReadProcessDetails(true, false) ||
+            ProcessSamplingPolicy.ShouldReadProcessDetails(false, false) ||
+            ProcessSamplingPolicy.ShouldReadProcessDetails(true, true) ||
+            ProcessSamplingPolicy.ShouldReadProcessDetails(false, true))
+            throw new Exception("Leitura detalhada de processos nao pode ocorrer na bandeja/outras abas.");
+        Console.WriteLine("OK: amostragem 2s na aba; contadores globais a 12s ou 20s em background.");
     }
 
     private static void TestMonitorMathAndSampling()
@@ -392,7 +397,12 @@ internal static class LayoutTests
                 (second.TotalCpuPercent.Value < 0 || second.TotalCpuPercent.Value > 100)) ||
             (second.UsedMemoryPercent.HasValue && second.UsedMemoryPercent.Value > 100))
             throw new Exception("Metrica de processos invalida no Windows.");
-        Console.WriteLine("OK: monitor de processos somente leitura, taxas e baseline.");
+        var globalOnly = sampler.TakeResourceSample();
+        if (globalOnly.ProcessCount != 0 || globalOnly.Processes.Count != 0 ||
+            (globalOnly.TotalCpuPercent is double cpu && (cpu < 0 || cpu > 100)) ||
+            (globalOnly.UsedMemoryPercent is uint memory && memory > 100))
+            throw new Exception("Monitor leve deve coletar recursos sem fornecer processos ficticios.");
+        Console.WriteLine("OK: monitor de processos e contador global em segundo plano.");
     }
 
     private static void TestProcessGrid(MainForm form)
