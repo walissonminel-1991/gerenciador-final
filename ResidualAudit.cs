@@ -107,6 +107,34 @@ internal static class ResidualAudit
         }
     }
 
+    // Quando o programa foi removido ANTES de abrir o GF, nao ha entrada
+    // anterior no inventario para a auditoria convencional. Verificamos
+    // apenas pastas EXATAS de WinMerge e sua chave documentada, sem inferir
+    // exclusividade, sem tocar no Registro e sem habilitar exclusao.
+    internal static ResidualAuditReport InspectHistoricalWinMerge(
+        IReadOnlyCollection<ProgramEntry> installed)
+    {
+        bool stillPresent = installed.Any(p =>
+            Regex.IsMatch(p.Name.Trim(),
+                @"^WinMerge(?:\s+(?:x64|x86|64-bit|32-bit))?$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
+        if (stillPresent)
+            return new("WinMerge", false, [], [], Historical: true);
+        var findings = new List<ResidualAuditFinding>();
+        var examined = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string folder in new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinMerge"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinMerge")
+        }.Distinct(StringComparer.OrdinalIgnoreCase))
+            InspectFolder(folder, "Possível pasta de instalação antiga do WinMerge",
+                findings, examined);
+        InspectWinMergeRegistry(findings);
+        // Ausencia no inventario, sozinha, nao comprova uma desinstalacao.
+        return new("WinMerge", false, findings.Take(MaxDetails).ToArray(),
+            [], Historical: true);
+    }
+
     internal static bool IsDriverBoosterProduct(ProgramEntry app) =>
         Regex.IsMatch(app.Name.Trim(), @"^Driver Booster(?:\s+\d+(?:\.\d+)*)?$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
