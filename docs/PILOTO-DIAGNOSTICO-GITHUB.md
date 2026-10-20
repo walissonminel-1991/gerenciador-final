@@ -1,4 +1,6 @@
-# Piloto GitHub-only — diagnóstico colaborativo v5.13.11.4
+# Piloto GitHub-only — histórico v5.13.11.4 (descontinuado)
+
+> **IMPORTANTE — v5.13.11.7:** este piloto não está disponível na versão atual. Removemos o formulário de Issue do GF e a ingestão de Issues no GitHub Actions para impedir entradas manuais, anexos e conteúdo não confiável. Este documento é mantido somente para explicar decisões antigas. Consulte [segurança vigente](SEGURANCA-v5.13.11.7.md).
 
 Estado: **prévia para revisão**; não publica automaticamente relatórios nem usa tokens. A base local voluntária da v5.13.11.1 é pré-requisito. A v5.13.11.4 adiciona um formulário pré-preenchido de Issue pública, para o próprio participante conferir e publicar.
 
