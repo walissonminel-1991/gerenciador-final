@@ -12,6 +12,7 @@ void Check(bool result, string what)
     passed++;
 }
 
+ResidualIntegrityTests.Run(Check);
 ResidualMissionTests.Run(Check);
 if (args.Contains("--missao")) return;
 

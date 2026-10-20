@@ -11,7 +11,11 @@ internal sealed class ResidualScanBudget
     private readonly TimeSpan timeout;
     private readonly int maxEntries;
     internal int Entries { get; private set; }
-    internal bool Incomplete { get; private set; }
+    internal bool Incomplete => Issues != ResidualScanIssue.None;
+    internal ResidualScanIssue Issues { get; private set; }
+    private string? currentSource;
+    internal readonly HashSet<string> SourcesConsulted = new(StringComparer.Ordinal);
+    internal readonly HashSet<string> SourcesUnavailable = new(StringComparer.Ordinal);
     internal ResidualScanBudget(CancellationToken token = default,
         TimeSpan? timeout = null, int maxEntries = 30000)
     {
@@ -21,8 +25,11 @@ internal sealed class ResidualScanBudget
     }
     internal bool CanContinue()
     {
-        if (token.IsCancellationRequested || clock.Elapsed >= timeout || Entries >= maxEntries)
-        { Incomplete = true; return false; }
+        if (token.IsCancellationRequested) Issues |= ResidualScanIssue.Cancelled;
+        if (clock.Elapsed >= timeout) Issues |= ResidualScanIssue.Timeout;
+        if (Entries >= maxEntries) Issues |= ResidualScanIssue.EntryLimit;
+        if ((Issues & (ResidualScanIssue.Cancelled | ResidualScanIssue.Timeout | ResidualScanIssue.EntryLimit)) != 0)
+            return false;
         return true;
     }
     internal bool Visit()
@@ -31,7 +38,18 @@ internal sealed class ResidualScanBudget
         Entries++;
         return true;
     }
-    internal void MarkIncomplete() => Incomplete = true;
+    internal void MarkIncomplete(ResidualScanIssue issue = ResidualScanIssue.ReadFailure)
+    {
+        Issues |= issue;
+        if ((issue & (ResidualScanIssue.ReadFailure | ResidualScanIssue.SourceUnavailable)) != 0 && currentSource is not null)
+            SourcesUnavailable.Add(currentSource);
+    }
+    internal void Source(string identifier) { currentSource = identifier; SourcesConsulted.Add(identifier); }
+    internal void Unavailable(string identifier)
+    { SourcesUnavailable.Add(identifier); MarkIncomplete(); }
+    internal ResidualCoverage Coverage => new(Issues, Entries,
+        SourcesConsulted.Order(StringComparer.Ordinal).ToArray(),
+        SourcesUnavailable.Order(StringComparer.Ordinal).ToArray());
 }
 
 internal static class ResidualReadSafety
@@ -45,6 +63,21 @@ internal static class ResidualReadSafety
         return !OperatingSystem.IsWindows() ||
             (path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' &&
              path[2] == '\\' && !path[2..].Contains(':'));
+    }
+    internal static bool CanInspectDirectory(string path, ResidualScanBudget budget)
+    {
+        if (!IsLocalAbsolute(path)) { budget.MarkIncomplete(ResidualScanIssue.SourceUnavailable); return false; }
+        try
+        {
+            var attributes = File.GetAttributes(path);
+            if ((attributes & FileAttributes.Directory) == 0 || !IsUnlinkedDirectory(path))
+            { budget.MarkIncomplete(ResidualScanIssue.LinkSkipped); return false; }
+            return true;
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException) { return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            System.Security.SecurityException or ArgumentException or NotSupportedException)
+        { budget.MarkIncomplete(); return false; }
     }
     internal static bool PathsOverlap(string? first, string? second)
     {
@@ -73,4 +106,54 @@ internal static class ResidualReadSafety
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
             System.Security.SecurityException or ArgumentException or NotSupportedException) { return false; }
     }
+}
+
+[Flags]
+internal enum ResidualScanIssue
+{
+    None = 0, EntryLimit = 1, Timeout = 2, Cancelled = 4, ReadFailure = 8,
+    GroupLimit = 16, LocationLimit = 32, InventoryPartial = 64,
+    DepthLimit = 128, LinkSkipped = 256, SourceUnavailable = 512
+}
+
+// Somente contagens e identificadores fixos de fontes; nunca caminhos ou nomes de produtos.
+internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanIssue.None,
+    int EntriesExamined = 0, IReadOnlyList<string>? SourcesConsulted = null,
+    IReadOnlyList<string>? SourcesUnavailable = null, int CandidatesFound = 0,
+    int ReportsOmitted = 0, int LocationsOmitted = 0, int? CandidatesNotEvaluated = 0)
+{
+    internal bool Incomplete => Issues != ResidualScanIssue.None;
+    internal const string PartialMessage = "ANÁLISE PARCIAL — a busca atingiu um limite ou encontrou uma falha e pode haver outros resultados.";
+    internal string Describe() => (Incomplete ? PartialMessage : "Análise concluída nos locais consultados.") +
+        $"\r\nEntradas examinadas: {EntriesExamined}; candidatos encontrados: {CandidatesFound}; " +
+        $"grupos fora da exibição: {ReportsOmitted}; locais fora da exibição: {LocationsOmitted}; " +
+        "candidatos não avaliados: " + (CandidatesNotEvaluated?.ToString() ?? "quantidade desconhecida") + "." +
+        (SourcesConsulted is { Count: > 0 } ? "\r\nFontes consultadas: " + string.Join(", ", SourcesConsulted) : "") +
+        (SourcesUnavailable is { Count: > 0 } ? "\r\nFontes indisponíveis: " + string.Join(", ", SourcesUnavailable) : "") +
+        (Incomplete ? "\r\nMotivos: " + Issues + ". Confiança limitada; preservar e repetir a análise." : "") +
+        "\r\nExclusão indisponível nesta versão de teste.";
+
+    internal static ResidualCoverage Combine(IEnumerable<ResidualCoverage?> coverages)
+    {
+        var values = coverages.OfType<ResidualCoverage>().Distinct().ToArray();
+        return new(values.Aggregate(ResidualScanIssue.None, (a, b) => a | b.Issues),
+            values.Sum(v => v.EntriesExamined),
+            values.SelectMany(v => v.SourcesConsulted ?? []).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray(),
+            values.SelectMany(v => v.SourcesUnavailable ?? []).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray(),
+            values.Sum(v => v.CandidatesFound), values.Sum(v => v.ReportsOmitted),
+            values.Sum(v => v.LocationsOmitted), values.Any(v => v.CandidatesNotEvaluated is null)
+                ? null : values.Sum(v => v.CandidatesNotEvaluated ?? 0));
+    }
+}
+
+// Mantém o estado da busca mesmo quando nenhum achado pôde ser lido.
+internal sealed class ResidualReportSet(IReadOnlyList<ResidualAuditReport> reports, ResidualCoverage coverage)
+    : IReadOnlyList<ResidualAuditReport>
+{
+    internal ResidualCoverage Coverage { get; } = coverage;
+    internal bool Incomplete => Coverage.Incomplete || reports.Any(r => r.Incomplete);
+    public int Count => reports.Count;
+    public ResidualAuditReport this[int index] => reports[index];
+    public IEnumerator<ResidualAuditReport> GetEnumerator() => reports.GetEnumerator();
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 }

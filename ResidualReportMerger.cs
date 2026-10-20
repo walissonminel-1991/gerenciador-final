@@ -10,10 +10,16 @@ internal static class ResidualReportMerger
 
     // União de locais: um catálogo mais específico não deve ocultar outra fonte.
     // Visões de Registro distintas continuam distintas, inclusive 32/64 bits.
-    internal static IReadOnlyList<ResidualAuditReport> Merge(IEnumerable<ResidualAuditReport> reports,
-        bool incomplete = false)
+    internal static ResidualReportSet Merge(IEnumerable<ResidualAuditReport> reports,
+        bool incomplete = false, ResidualCoverage? coverage = null)
     {
-        var merged = reports.Take(500).GroupBy(r => ProductKey(r.Product)).Select(group =>
+        var input = reports.ToArray();
+        coverage = ResidualCoverage.Combine(input.Select(r => r.Coverage)
+            .Append((reports as ResidualReportSet)?.Coverage).Append(coverage));
+        if (incomplete && !coverage.Incomplete)
+            coverage = coverage with { Issues = coverage.Issues | ResidualScanIssue.InventoryPartial };
+        incomplete |= coverage.Incomplete;
+        var merged = input.GroupBy(r => ProductKey(r.Product)).Select(group =>
         {
             var all = group.ToArray();
             bool partial = incomplete || all.Any(r => r.Incomplete);
@@ -33,18 +39,19 @@ internal static class ResidualReportMerger
             return new ResidualAuditReport(all[0].Product, all.All(r => r.UninstallConfirmed) && !partial,
                 findings, all.SelectMany(r => r.RelatedRegisteredPrograms)
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                all.Any(r => r.Historical), partial);
+                all.Any(r => r.Historical), partial, coverage);
         }).ToArray();
         var shared = merged.SelectMany(r => r.Findings.Select(f => (r.Product, f.Location)))
             .GroupBy(x => x.Location.TrimEnd('\\', '/'), StringComparer.OrdinalIgnoreCase)
             .Where(g => g.Select(x => x.Product).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
             .Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return merged.Select(r => r with
+        var result = merged.Select(r => r with
         {
             Findings = r.Findings.Select(f => shared.Contains(f.Location.TrimEnd('\\', '/'))
                 ? f with { Disposition = r.Incomplete ? ResidualDisposition.Unknown : ResidualDisposition.PreserveShared,
                     Evidence = f.Evidence + " Mesmo local associado a mais de um aplicativo; preservar." } : f).ToArray()
-        }).ToArray();
+        }).OrderBy(r => r.Product, StringComparer.OrdinalIgnoreCase).ToArray();
+        return new(result, coverage);
     }
     private static int Rank(ResidualDisposition disposition) => disposition switch
     {

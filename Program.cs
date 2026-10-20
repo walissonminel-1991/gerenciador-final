@@ -2853,24 +2853,25 @@ internal sealed partial class MainForm : Form
         bool inventoryIncomplete = inventorySnapshot.Incomplete;
         if (inventoryIncomplete)
             Log("Inventário de proteção PARCIAL: ausência na lista não comprova remoção. Os achados históricos continuam somente leitura.");
-        var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory));
+        var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory, inventoryIncomplete));
         // Driver Booster é excluído pela regra genérica para nomes de drivers.
         // Complementar com locais específicos da família IObit, sem inferir
         // que arquivos compartilhados são lixo nem autorizar sua remoção.
         var boosterEvidence = await Task.Run(() => ResidualAudit.Inspect(
             new ProgramEntry { Name = "Driver Booster" }, updatedInventory));
         bool boosterStillRegistered = updatedInventory.Any(ResidualAudit.IsDriverBoosterProduct);
-        var boosterReports = boosterEvidence.Findings.Count == 0
+        var boosterReports = boosterEvidence.Findings.Count == 0 && !boosterEvidence.Incomplete
             ? Array.Empty<ResidualAuditReport>()
             : new[] { new ResidualAuditReport("Driver Booster (IObit)", false,
                 boosterEvidence.Findings.Select(f => f with
                 {
                     Kind = (boosterStillRegistered || inventoryIncomplete
                         ? "Instalação não confirmada — " : "Vestígio não confirmado — ") + f.Kind
-                }).ToArray(), Array.Empty<string>(), Historical: true) };
+                }).ToArray(), Array.Empty<string>(), Historical: true,
+                Incomplete: boosterEvidence.Incomplete, Coverage: boosterEvidence.Coverage) };
         var historicalWinMerge = await Task.Run(
             () => ResidualAudit.InspectHistoricalWinMerge(updatedInventory));
-        var winMergeReports = historicalWinMerge.Findings.Count == 0
+        var winMergeReports = historicalWinMerge.Findings.Count == 0 && !historicalWinMerge.Incomplete
             ? Array.Empty<ResidualAuditReport>()
             : new[] { historicalWinMerge };
         DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)} booster_locais={boosterEvidence.Findings.Count} winmerge_locais={historicalWinMerge.Findings.Count}");
@@ -2897,8 +2898,8 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
         // Unir todas as fontes por produto/local, preservando motivos divergentes.
         var allReports = ResidualReportMerger.Merge(historical.Concat(boosterReports).Concat(winMergeReports)
-            .Concat(broad.Reports), inventoryIncomplete || broad.Incomplete);
-        if (allReports.Count > 0)
+            .Concat(broad.Reports), inventoryIncomplete || broad.Incomplete, ResidualCoverage.Combine(new[] { broad.Coverage, historical.Coverage }));
+        if (allReports.Count > 0 || allReports.Incomplete)
         {
             Log($"Auditoria de dados e instalações: {allReports.Count} grupos para revisão (não são lixo confirmado). " +
                 $"Verificados {broad.EntriesSeen} nomes em {broad.RootsChecked} origens." +
@@ -2910,8 +2911,8 @@ internal sealed partial class MainForm : Form
             Log("Nenhum indício reconhecido nos locais analisados. Isso NÃO comprova ausência total de vestígios." +
                 (broad.Incomplete ? " Análise parcial devido a limites de acesso ou tempo." : ""));
         }
-        Status(broad.Incomplete
-            ? "Análise parcial concluída. Alguns locais não puderam ser examinados; nenhum dado incerto foi apagado."
+        Status(allReports.Incomplete
+            ? ResidualCoverage.PartialMessage
             : "Análise concluída. Instalações e perfis foram classificados sem exclusões.");
     }
 

@@ -22,7 +22,7 @@ internal sealed record ResidualAuditFinding(string Location, string Kind, int It
 }
 internal sealed record ResidualAuditReport(
     string Product, bool UninstallConfirmed, IReadOnlyList<ResidualAuditFinding> Findings,
-    IReadOnlyList<string> RelatedRegisteredPrograms, bool Historical = false, bool Incomplete = false);
+    IReadOnlyList<string> RelatedRegisteredPrograms, bool Historical = false, bool Incomplete = false, ResidualCoverage? Coverage = null);
 
 internal static class ResidualAudit
 {
@@ -31,13 +31,16 @@ internal static class ResidualAudit
     internal static ResidualAuditReport Inspect(ProgramEntry previous,
         IReadOnlyCollection<ProgramEntry> current, bool inventoryIncomplete = false)
     {
+        var budget = new ResidualScanBudget();
+        budget.Source("PostUninstall");
+        if (inventoryIncomplete) budget.MarkIncomplete(ResidualScanIssue.InventoryPartial);
         bool removed = !inventoryIncomplete && !UninstallResiduals.StillInstalled(previous, current);
         var findings = new List<ResidualAuditFinding>();
         var examined = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string? familyName = CanonicalName(previous);
         // Caminho de instalação registrado: evidência, mas não autorização de exclusão.
         InspectFolder(previous.InstallLocation, "Instalação informada pelo fabricante",
-            findings, examined);
+            findings, examined, budget);
 
         if (familyName is not null)
         {
@@ -49,7 +52,7 @@ internal static class ResidualAudit
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
             }.Where(root => ResidualReadSafety.IsLocalAbsolute(root)))
                 InspectFolder(Path.Combine(root, familyName),
-                    "Possíveis preferências e arquivos do aplicativo", findings, examined, ResidualDisposition.PreserveData);
+                    "Possíveis preferências e arquivos do aplicativo", findings, examined, budget, ResidualDisposition.PreserveData);
 
             if (IsApprovedRegistryLeaf(familyName))
             {
@@ -63,28 +66,28 @@ internal static class ResidualAudit
                             "Pode conter preferências; nome exato não comprova exclusividade", ResidualDisposition.PreserveData));
                 }
                 catch (Exception ex) when (ex is UnauthorizedAccessException or
-                    System.Security.SecurityException or IOException) { }
+                    System.Security.SecurityException or IOException) { budget.MarkIncomplete(); }
             }
         }
         // WinMerge guarda preferencias e integração em uma subchave do
         // fabricante Thingamahoochie. Nome "WinMerge" diretamente sob Software
         // NAO cobre esse caminho documentado. Apenas leitura, sem remoção.
         if (removed && IsWinMergeProduct(previous))
-            InspectWinMergeRegistry(findings);
+            InspectWinMergeRegistry(findings, budget);
         // Driver Booster é produto de terceiros, não um driver do Windows.
         // A regra geral suprime "driver" para evitar falsos positivos; esta
         // exceção é estritamente somente leitura e não habilita limpeza.
         if (IsDriverBoosterProduct(previous))
-            InspectDriverBoosterFamily(findings, examined);
+            InspectDriverBoosterFamily(findings, examined, budget);
         for (int i = 0; i < findings.Count; i++)
             if (current.Any(p => ResidualReadSafety.PathsOverlap(findings[i].Location, p.InstallLocation)))
                 findings[i] = findings[i] with { Disposition = ResidualDisposition.PreserveShared,
                     Evidence = findings[i].Evidence + "; local usado por instalação ainda registrada: preservar" };
         string[] related = FindRelatedRegistrations(previous, current);
-        return new(previous.Name, removed, findings.Take(MaxDetails).Select(f => inventoryIncomplete
+        return new(previous.Name, removed && !budget.Incomplete, findings.Select(f => budget.Incomplete
             ? f with { Disposition = ResidualDisposition.Unknown,
                 Evidence = f.Evidence + "; inventário parcial: estado desconhecido, preservar" } : f).ToArray(),
-            related, Incomplete: inventoryIncomplete);
+            related, Incomplete: budget.Incomplete, Coverage: budget.Coverage);
     }
 
     // Referência: manual oficial do WinMerge, opcoes /cfg.
@@ -98,7 +101,7 @@ internal static class ResidualAudit
         app.Publisher.Trim().Equals("Thingamahoochie Software",
             StringComparison.OrdinalIgnoreCase);
 
-    private static void InspectWinMergeRegistry(List<ResidualAuditFinding> findings)
+    private static void InspectWinMergeRegistry(List<ResidualAuditFinding> findings, ResidualScanBudget budget)
     {
         foreach (var source in new[]
         {
@@ -125,7 +128,7 @@ internal static class ResidualAudit
             catch (Exception ex) when (ex is UnauthorizedAccessException or
                 System.Security.SecurityException or IOException or ArgumentException)
             {
-                // Falha de leitura nao autoriza inventar ou apagar vestigios.
+                budget.MarkIncomplete();
             }
         }
     }
@@ -137,6 +140,8 @@ internal static class ResidualAudit
     internal static ResidualAuditReport InspectHistoricalWinMerge(
         IReadOnlyCollection<ProgramEntry> installed)
     {
+        var budget = new ResidualScanBudget();
+        budget.Source("WinMergeHistory");
         bool stillPresent = installed.Any(p =>
             Regex.IsMatch(p.Name.Trim(), @"^WinMerge(?:$|[\s\(])",
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
@@ -150,11 +155,11 @@ internal static class ResidualAudit
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinMerge")
         }.Distinct(StringComparer.OrdinalIgnoreCase))
             InspectFolder(folder, "Possível pasta de instalação antiga do WinMerge",
-                findings, examined);
-        InspectWinMergeRegistry(findings);
+                findings, examined, budget);
+        InspectWinMergeRegistry(findings, budget);
         // Ausencia no inventario, sozinha, nao comprova uma desinstalacao.
-        return new("WinMerge", false, findings.Take(MaxDetails).ToArray(),
-            [], Historical: true);
+        return new("WinMerge", false, findings.ToArray(),
+            [], Historical: true, Incomplete: budget.Incomplete, Coverage: budget.Coverage);
     }
 
     internal static bool IsDriverBoosterProduct(ProgramEntry app) =>
@@ -162,7 +167,7 @@ internal static class ResidualAudit
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static void InspectDriverBoosterFamily(
-        List<ResidualAuditFinding> findings, HashSet<string> examined)
+        List<ResidualAuditFinding> findings, HashSet<string> examined, ResidualScanBudget budget)
     {
         // Apenas caminhos específicos do produto. Pasta genérica IObit pode
         // pertencer a outros aplicativos da empresa e nunca é classificada
@@ -177,7 +182,7 @@ internal static class ResidualAudit
         };
         foreach (string folder in folders.Distinct(StringComparer.OrdinalIgnoreCase))
             InspectFolder(folder, "Dados específicos de Driver Booster; sem confirmação de exclusividade",
-                findings, examined);
+                findings, examined, budget);
 
         foreach (var source in new[]
         {
@@ -197,7 +202,7 @@ internal static class ResidualAudit
                         "Pode pertencer a uma instalação ainda ativa; somente leitura, sem autorização de limpeza."));
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or
-                System.Security.SecurityException or IOException) { }
+                System.Security.SecurityException or IOException) { budget.MarkIncomplete(); }
         }
     }
 
@@ -280,10 +285,12 @@ internal static class ResidualAudit
     }
 
     private static void InspectFolder(string? folder, string label,
-        List<ResidualAuditFinding> findings, HashSet<string> examined,
+        List<ResidualAuditFinding> findings, HashSet<string> examined, ResidualScanBudget budget,
         ResidualDisposition disposition = ResidualDisposition.Review)
     {
-        if (!SafeAuditRoot(folder)) return;
+        if (string.IsNullOrWhiteSpace(folder)) return;
+        if (!budget.CanContinue() || !ResidualReadSafety.CanInspectDirectory(folder.Trim().Trim('"'), budget)) return;
+        if (!SafeAuditRoot(folder)) { budget.MarkIncomplete(ResidualScanIssue.SourceUnavailable); return; }
         string full = Path.GetFullPath(folder!.Trim().Trim('"'));
         if (!examined.Add(full)) return;
         try
@@ -292,14 +299,16 @@ internal static class ResidualAudit
             foreach (string entry in Directory.EnumerateFileSystemEntries(full,
                 "*", SearchOption.TopDirectoryOnly))
             {
-                if (++files > ScanLimit) return; // suspiciously huge: report nothing
+                if (!budget.Visit() || ++files > ScanLimit)
+                { budget.MarkIncomplete(ResidualScanIssue.EntryLimit); break; }
                 if ((File.GetAttributes(entry) & FileAttributes.ReparsePoint) != 0)
-                    return;
+                { budget.MarkIncomplete(ResidualScanIssue.LinkSkipped); break; }
             }
             if (files > 0)
                 findings.Add(new(full, "Pasta", files,
                     label + "; somente leitura, não é prova de exclusividade", disposition));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        { budget.MarkIncomplete(); }
     }
 }

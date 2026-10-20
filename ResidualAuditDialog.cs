@@ -101,7 +101,7 @@ internal sealed class ResidualAuditDialog : Form
     }
 
     private static string FormatSingle(ResidualAuditReport report) =>
-        (report.Incomplete ? "ANÁLISE PARCIAL — ESTADO DESCONHECIDO\r\n\r\n" : "") +
+        (report.Coverage?.Describe() ?? (report.Incomplete ? ResidualCoverage.PartialMessage : "Exclusão indisponível nesta versão de teste.")) + "\r\n\r\n" +
         string.Join("\r\n\r\n", report.Findings.Select((f, i) =>
             $"{i + 1}. {f.DecisionLabel} — {f.Kind}: {f.Location}\r\n   {f.Items} item(ns) — {f.Evidence}")) +
         (report.RelatedRegisteredPrograms.Count > 0 ? "\r\n\r\nComponentes ainda registrados (preservar):\r\n" +
@@ -134,11 +134,12 @@ internal sealed class ResidualAuditDialog : Form
     internal static void ShowHistoricalResults(IWin32Window owner,
         IReadOnlyList<ResidualAuditReport> historical)
     {
-        if (historical.Count == 0) return;
+        var coverage = (historical as ResidualReportSet)?.Coverage ?? ResidualCoverage.Combine(historical.Select(r => r.Coverage));
+        if (historical.Count == 0 && !coverage.Incomplete) return;
         // Uma única janela, por produto e risco, sem repetir cada advertência.
         // O relatório permanece somente leitura, SEM botões para apagar dados.
         var sorted = historical.OrderBy(r => r.Product, StringComparer.CurrentCultureIgnoreCase).ToArray();
-        var grouped = string.Join("\r\n\r\n", sorted.Select(report =>
+        var grouped = coverage.Describe() + "\r\n\r\n" + string.Join("\r\n\r\n", sorted.Select(report =>
         {
             string locations = string.Join("\r\n", report.Findings.Select(f =>
                 "  • " + f.DecisionLabel + " — " + f.Location + "\r\n    " + f.Evidence));
@@ -147,7 +148,7 @@ internal sealed class ResidualAuditDialog : Form
         }));
         var merged = new ResidualAuditReport("Revisão histórica", false,
             sorted.SelectMany(r => r.Findings).ToArray(),
-            Array.Empty<string>(), Historical: true);
+            Array.Empty<string>(), Historical: true, Incomplete: coverage.Incomplete, Coverage: coverage);
         using var window = new ResidualAuditDialog(merged, grouped);
         window.ShowDialog(owner);
     }
@@ -155,7 +156,7 @@ internal sealed class ResidualAuditDialog : Form
     internal static void ShowResults(IWin32Window owner, ResidualAuditReport report,
         Func<CancellationToken, Task<ResidualAuditReport>>? refresh = null)
     {
-        if (report.Findings.Count == 0 && report.RelatedRegisteredPrograms.Count == 0)
+        if (report.Findings.Count == 0 && report.RelatedRegisteredPrograms.Count == 0 && !report.Incomplete)
             return;
         using var window = new ResidualAuditDialog(report, refresh: refresh);
         window.ShowDialog(owner);
