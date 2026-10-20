@@ -30,7 +30,7 @@ internal sealed class TelemetryPrivacyDialog : Form
         };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 207));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
 
         var notice = new Label
         {
@@ -55,26 +55,34 @@ internal sealed class TelemetryPrivacyDialog : Form
         preview.SetText(recorder.ExplainLocalCollection(DiagnosticTrace.VersionLabel));
         root.Controls.Add(preview, 0, 1);
 
-        var buttons = new FlowLayoutPanel
+        // Duas linhas: os quatro controles nunca concorrem pela mesma largura
+        // em notebooks ou sob ampliacao de texto/DPI.
+        var buttons = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft,
-            WrapContents = false, Padding = new Padding(0, 5, 0, 0)
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 2,
+            Padding = new Padding(0, 3, 0, 1)
         };
+        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        buttons.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        buttons.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
         var accept = new ModernButton
         {
-            Text = "Aceitar", DialogResult = DialogResult.Yes,
+            Text = "Ativar coleta local", DialogResult = DialogResult.Yes,
             Size = new Size(115, 34), BackColor = AppServices.Blue,
             ForeColor = Color.White, Margin = new Padding(6, 0, 0, 0)
         };
         var decline = new ModernButton
         {
-            Text = "Recusar / Desativar", DialogResult = DialogResult.No,
+            Text = "Não participar / Desativar", DialogResult = DialogResult.No,
             Size = new Size(165, 34), BackColor = AppServices.Gray,
             ForeColor = Color.White, Margin = new Padding(6, 0, 0, 0)
         };
         var cancel = new ModernButton
         {
-            Text = "Voltar", DialogResult = DialogResult.Cancel,
+            Text = "Voltar sem alterar", DialogResult = DialogResult.Cancel,
             Size = new Size(90, 34), BackColor = AppServices.Dark,
             ForeColor = Color.White, Margin = new Padding(6, 0, 0, 0)
         };
@@ -93,10 +101,17 @@ internal sealed class TelemetryPrivacyDialog : Form
             preview.SetText(AnonymousTelemetry.SimulateContributionWithoutSending(
                 DiagnosticTrace.VersionLabel));
         };
-        buttons.Controls.Add(cancel);
-        buttons.Controls.Add(decline);
-        buttons.Controls.Add(simulate);
-        buttons.Controls.Add(accept);
+        // Linha superior: apenas conhecer a experiencia ou sair.
+        // Linha inferior: decidir sobre a coleta local, com escolhas equivalentes.
+        foreach (var button in new[] { accept, decline, cancel, simulate })
+        {
+            button.Dock = DockStyle.Fill;
+            button.Margin = new Padding(4, 2, 4, 2);
+        }
+        buttons.Controls.Add(simulate, 0, 0);
+        buttons.Controls.Add(cancel, 1, 0);
+        buttons.Controls.Add(accept, 0, 1);
+        buttons.Controls.Add(decline, 1, 1);
         root.Controls.Add(buttons, 0, 2);
         Controls.Add(root);
         CancelButton = cancel;
