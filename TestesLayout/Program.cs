@@ -70,6 +70,9 @@ internal static class LayoutTests
             throw new Exception("Aviso de modulo futuro ausente.");
         if (!Descendants(form).Any(c => c.Name == "DriverInventoryViewport" && c is DarkScrollableFlow))
             throw new Exception("DRIVERS deve reutilizar rolagem escura da aplicacao.");
+        var driverStoreMode = Descendants(placeholder).OfType<CheckBox>().Single(c => c.Name == "DriverStoreMode");
+        if (driverStoreMode.Checked || !driverStoreMode.Text.Contains("admin"))
+            throw new Exception("Consulta administrativa deve ser opcional e identificada.");
         Directory.CreateDirectory("LayoutCaptures");
 
         int tested = 0;

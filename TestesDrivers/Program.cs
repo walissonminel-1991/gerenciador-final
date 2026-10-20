@@ -89,6 +89,15 @@ Check(DriverStoreInventory.Correlate(store, null).All(x => x.ObservedDevices is 
     "Consulta de dispositivos ausente nao inventa zero vinculos");
 Check(DriverStoreInventory.Correlate(store, new([], true, "parcial")).All(x => x.EvidencePartial),
     "Correlacao conserva incerteza da leitura parcial");
+Check(DriverStoreInventory.Correlate(store, Complete(a with { Version = "1.0.0.0" }))[0].VersionConflicts == 0,
+    "Versoes equivalentes nao criam divergencia artificial");
+Check(DriverStoreInventory.Correlate(store, Complete(a with { Version = "2.0" }))[0].VersionConflicts == 1,
+    "Mesmo INF com versao divergente nao e confirmacao de versao ativa");
+using (var cancelled = new CancellationTokenSource())
+{
+    cancelled.Cancel();
+    Check(DriverStoreInventory.Capture(cancelled.Token).Partial, "Cancelamento anterior a consulta DISM nao abre sessao nativa");
+}
 if (args.Contains("--live"))
 {
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));

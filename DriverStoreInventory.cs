@@ -5,10 +5,10 @@ namespace GerenciadorAplicativos;
 internal sealed record DriverStoreEntry(string PublishedName, string Provider, string Version,
     string ClassName, bool InBox, bool BootCritical, int Signature);
 internal sealed record DriverStoreResult(IReadOnlyList<DriverStoreEntry> Items, bool Partial, string Status);
-internal sealed record DriverStoreLink(DriverStoreEntry Package, int? ObservedDevices, bool EvidencePartial)
+internal sealed record DriverStoreLink(DriverStoreEntry Package, int? ObservedDevices, bool EvidencePartial, int VersionConflicts = 0)
 {
     internal string LinkLabel => ObservedDevices is null ? "Não consultado" : ObservedDevices == 0
-        ? "Sem vínculo observado" : $"{ObservedDevices} dispositivo(s)";
+        ? "Sem vínculo observado" : $"{ObservedDevices} dispositivo(s)" + (VersionConflicts > 0 ? $"; {VersionConflicts} versão divergente" : "");
 }
 
 internal static class DriverStoreInventory
@@ -18,9 +18,20 @@ internal static class DriverStoreInventory
     {
         var links = devices?.Items.Where(d => !string.IsNullOrWhiteSpace(d.InfName))
             .GroupBy(d => d.InfName, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Select(d => d.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count(), StringComparer.OrdinalIgnoreCase);
-        return packages.Items.Select(p => new DriverStoreLink(p, links is null ? null : links.GetValueOrDefault(p.PublishedName),
-            packages.Partial || devices is null || devices.Partial)).ToArray();
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.OrdinalIgnoreCase);
+        bool DifferentVersion(string a, string b)
+        {
+            if (!Version.TryParse(a, out var x) || !Version.TryParse(b, out var y)) return false;
+            return x.Major != y.Major || x.Minor != y.Minor || Math.Max(0, x.Build) != Math.Max(0, y.Build) ||
+                Math.Max(0, x.Revision) != Math.Max(0, y.Revision);
+        }
+        return packages.Items.Select(p =>
+        {
+            var observed = links?.GetValueOrDefault(p.PublishedName) ?? [];
+            return new DriverStoreLink(p, links is null ? null : observed.Select(d => d.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+                packages.Partial || devices is null || devices.Partial,
+                observed.Where(d => DifferentVersion(d.Version, p.Version)).Select(d => d.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        }).ToArray();
     }
 
     // ABI documentada em DismAPI.h. BOOL e enum sao inteiros de 32 bits.
@@ -64,7 +75,7 @@ internal static class DriverStoreInventory
                 string path = Path.Combine(Environment.SystemDirectory, "Dism", "DismApi.dll");
                 if (!File.Exists(path)) path = Path.Combine(Environment.SystemDirectory, "DismApi.dll");
                 library = NativeLibrary.Load(path, typeof(DriverStoreInventory).Assembly,
-                    DllImportSearchPath.DllLoadDirectory | DllImportSearchPath.System32);
+                    DllImportSearchPath.UseDllDirectoryForDependencies | DllImportSearchPath.System32);
                 T Function<T>(string name) where T : Delegate => Marshal.GetDelegateForFunctionPointer<T>(NativeLibrary.GetExport(library, name));
                 var initialize = Function<Initialize>("DismInitialize");
                 var open = Function<Open>("DismOpenSession");
