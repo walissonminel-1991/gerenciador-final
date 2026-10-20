@@ -34,8 +34,8 @@ internal static class DriverStoreInventory
         }).ToArray();
     }
 
-    // ABI documentada em DismAPI.h. BOOL e enum sao inteiros de 32 bits.
-    [StructLayout(LayoutKind.Sequential)]
+    // DismAPI.h usa pragma pack(push, 1). BOOL e enum sao inteiros de 32 bits.
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     internal struct NativePackage
     {
         public IntPtr PublishedName, OriginalFileName;

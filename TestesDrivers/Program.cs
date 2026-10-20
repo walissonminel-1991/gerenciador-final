@@ -77,8 +77,11 @@ Check(links.Packages[0].ConflictingSignatures && links.WithoutInf == 2,
     "Conflitos de assinatura e INF ausente/invalido ficam explicitos");
 Check(DriverPackageLinks.Analyze(new([], true, "parcial")).Partial,
     "Correlacao conserva limitacao da origem");
-Check(System.Runtime.InteropServices.Marshal.SizeOf<DriverStoreInventory.NativePackage>() == (IntPtr.Size == 8 ? 104 : 72),
+Check(System.Runtime.InteropServices.Marshal.SizeOf<DriverStoreInventory.NativePackage>() == (IntPtr.Size == 8 ? 100 : 72),
     "Layout nativo DISM corresponde ao tamanho documentado dos campos");
+Check(System.Runtime.InteropServices.Marshal.OffsetOf<DriverStoreInventory.NativePackage>("CatalogFile").ToInt32() == (IntPtr.Size == 8 ? 20 : 12) &&
+    System.Runtime.InteropServices.Marshal.OffsetOf<DriverStoreInventory.NativePackage>("ProviderName").ToInt32() == (IntPtr.Size == 8 ? 60 : 36),
+    "Offsets do ABI DISM usam pack 1, sem alinhamento padrao de ponteiros");
 var pkg = new DriverStoreEntry("OEM1.INF", "Vendor", "1.0", "Display", false, true, 0);
 var store = new DriverStoreResult(new[] { pkg, pkg with { PublishedName = "oem99.inf" } }, false, "ok");
 var joined = DriverStoreInventory.Correlate(store, Complete(a, a, b));
