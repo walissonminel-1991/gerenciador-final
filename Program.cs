@@ -2631,8 +2631,9 @@ internal sealed partial class MainForm : Form
                 {
                     failed++;
                     DiagnosticTrace.Write("DESINSTALACAO.REGISTRO_AINDA_PRESENTE");
-                    Log("O aplicativo ainda aparece instalado: " + entry.Name +
-                        ". Nenhuma limpeza de resíduos foi permitida.");
+                    Log("Registro de desinstalação ainda associado a " + entry.Name +
+                        ". Feche todas as janelas do fornecedor e clique em Atualizar lista para revalidar. " +
+                        "Nenhuma limpeza de resíduos foi permitida.");
                 }
                 // A auditoria é separada das políticas que podem apagar arquivos.
                 // Mesmo sem receita de limpeza, mostra locais específicos e possíveis
