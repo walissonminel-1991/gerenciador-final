@@ -36,20 +36,23 @@ internal sealed class TelemetryPrivacyDialog : Form
         {
             Dock = DockStyle.Fill, ForeColor = ForeColor,
             TextAlign = ContentAlignment.TopLeft,
-            Text = "O GERENCIADOR FINAL está em desenvolvimento. Você pode colaborar " +
-                   "com o diagnóstico de bugs sem compartilhar dados pessoais.\n\n" +
-                   "Esta etapa registra somente a versão do GF, o encerramento e " +
-                   "contagens de eventos técnicos. Não recolhe nomes de programas, " +
-                   "arquivos, comandos, IP, caminhos, IDs de dispositivos ou dados de uso pessoal.\n\n" +
-                   "IMPORTANTE: nenhuma informação será enviada automaticamente. " +
-                   "Nenhum formulário de envio ou anexo manual está disponível. " +
-                   "Uma eventual coleta remota exigirá novo consentimento e revisão de segurança."
+            Text = "Ajude a melhorar o GERENCIADOR FINAL sem precisar entender informática.\n\n" +
+                   "Se aceitar, o programa guardará APENAS neste computador a versão " +
+                   "do GF e pequenas contagens de falhas técnicas. Não coleta nomes " +
+                   "de programas, arquivos, senhas, caminhos ou informações pessoais.\n\n" +
+                   "NADA será enviado pela internet. A participação é opcional e pode " +
+                   "ser desativada a qualquer momento, sem perder funções.\n\n" +
+                   "Você pode simular com dados fictícios sem aceitar ou enviar nada."
         };
         root.Controls.Add(notice, 0, 0);
 
-        var preview = new DarkLogView { Dock = DockStyle.Fill, Margin = new Padding(0, 2, 0, 2) };
-        preview.SetText("PRÉVIA EXATA DOS CAMPOS ARMAZENADOS LOCALMENTE:\n" +
-            recorder.Preview(DiagnosticTrace.VersionLabel, normalExit: true));
+        var preview = new DarkLogView
+        {
+            Name = "PrivacyLocalPreview",
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0, 2, 0, 2)
+        };
+        preview.SetText(recorder.ExplainLocalCollection(DiagnosticTrace.VersionLabel));
         root.Controls.Add(preview, 0, 1);
 
         var buttons = new FlowLayoutPanel
@@ -60,23 +63,39 @@ internal sealed class TelemetryPrivacyDialog : Form
         var accept = new ModernButton
         {
             Text = "Aceitar", DialogResult = DialogResult.Yes,
-            Size = new Size(125, 34), BackColor = AppServices.Blue,
+            Size = new Size(115, 34), BackColor = AppServices.Blue,
             ForeColor = Color.White, Margin = new Padding(6, 0, 0, 0)
         };
         var decline = new ModernButton
         {
             Text = "Recusar / Desativar", DialogResult = DialogResult.No,
-            Size = new Size(169, 34), BackColor = AppServices.Gray,
+            Size = new Size(165, 34), BackColor = AppServices.Gray,
             ForeColor = Color.White, Margin = new Padding(6, 0, 0, 0)
         };
         var cancel = new ModernButton
         {
             Text = "Voltar", DialogResult = DialogResult.Cancel,
-            Size = new Size(110, 34), BackColor = AppServices.Dark,
+            Size = new Size(90, 34), BackColor = AppServices.Dark,
             ForeColor = Color.White, Margin = new Padding(6, 0, 0, 0)
+        };
+        var simulate = new ModernButton
+        {
+            Name = "PrivacyOfflineSimulation",
+            Text = "Simular sem enviar",
+            Size = new Size(155, 34),
+            BackColor = AppServices.Dark,
+            ForeColor = Color.White,
+            Margin = new Padding(6, 0, 0, 0)
+        };
+        simulate.Click += (_, _) =>
+        {
+            // Nao chama coleta, nao altera consentimento, nao grava em disco nem usa rede.
+            preview.SetText(AnonymousTelemetry.SimulateContributionWithoutSending(
+                DiagnosticTrace.VersionLabel));
         };
         buttons.Controls.Add(cancel);
         buttons.Controls.Add(decline);
+        buttons.Controls.Add(simulate);
         buttons.Controls.Add(accept);
         root.Controls.Add(buttons, 0, 2);
         Controls.Add(root);
