@@ -563,6 +563,31 @@ try
 catch (InvalidDataException) { passed++; }
 Console.WriteLine("OK Catálogo recusa chave de sistema e diretórios genéricos");
 
+// WinMerge: registro do fabricante documentado, inspeção estritamente
+// somente leitura, inclusive quando a remoção ocorreu antes desta sessão.
+Check(ResidualAudit.WinMergeRegistrySubkey == @"SOFTWARE\Thingamahoochie\WinMerge",
+    "Auditoria conhece a chave WinMerge sem confundir com Software\\WinMerge");
+Check(ResidualAudit.IsWinMergeProduct(new ProgramEntry
+    { Name = "WinMerge x64", Publisher = "Thingamahoochie Software" }) &&
+    ResidualAudit.IsWinMergeProduct(new ProgramEntry
+    { Name = "WinMerge", Publisher = "Thingamahoochie Software" }) &&
+    !ResidualAudit.IsWinMergeProduct(new ProgramEntry
+    { Name = "WinMerge x64", Publisher = "Fabricante Incorreto" }) &&
+    !ResidualAudit.IsWinMergeProduct(new ProgramEntry
+    { Name = "WinMerge Driver", Publisher = "Thingamahoochie Software" }),
+    "Auditoria especifica WinMerge recusa produtos ambiguos e outros fabricantes");
+var winMergeInstalled = ResidualAudit.InspectHistoricalWinMerge(new[]
+    { new ProgramEntry { Name = "WinMerge x64", Publisher = "Thingamahoochie Software" } });
+Check(winMergeInstalled.Findings.Count == 0 &&
+    !winMergeInstalled.UninstallConfirmed && winMergeInstalled.Historical,
+    "Uma instalacao WinMerge ativa nunca e considerada residuo historico");
+var winMergeHistorical = ResidualAudit.InspectHistoricalWinMerge(Array.Empty<ProgramEntry>());
+Check(!winMergeHistorical.UninstallConfirmed && winMergeHistorical.Historical &&
+    winMergeHistorical.Findings.All(r =>
+        r.Location.Contains("WinMerge", StringComparison.OrdinalIgnoreCase) &&
+        r.Evidence.Contains("somente leitura", StringComparison.OrdinalIgnoreCase)),
+    "Somente locais especificos sao consultados; ausencia no inventario nao confirma remocao");
+
 // Auditoria ampliada: detectar dados remanescentes sem autorizar exclusão.
 Check(ResidualAudit.CanonicalName(new ProgramEntry
     { Name = "DroidCam Client", Publisher = "Dev47Apps" }) == "DroidCam",
