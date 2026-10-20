@@ -638,6 +638,7 @@ internal sealed partial class MainForm : Form
     private readonly Label _emptyState = new();
     private readonly TextBox _search = new();
     private readonly DarkLogView _log = new();
+    private Button? _privacyStatusButton;
     private readonly Label _status = new();
     private readonly Label _listTitle = new();
     private readonly Label _itemHint = new();
@@ -859,9 +860,10 @@ internal sealed partial class MainForm : Form
 
     private Control BuildHeader()
     {
-        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Margin = Padding.Empty };
+        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Margin = Padding.Empty };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 5));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 186));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         panel.Controls.Add(new Panel
@@ -879,8 +881,18 @@ internal sealed partial class MainForm : Form
         {
             Text = "Programas, atualizações e manutenção do Windows em um só lugar.",
             Dock = DockStyle.Fill, Margin = new Padding(13, 0, 0, 0),
-            ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft
+            ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft,
+            AutoEllipsis = true
         }, 1, 1);
+        _privacyStatusButton = CreateSecondaryButton("Configurar privacidade");
+        _privacyStatusButton.Name = "PrivacyStatusButton";
+        _privacyStatusButton.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+        _privacyStatusButton.Dock = DockStyle.Fill;
+        _privacyStatusButton.Margin = new Padding(5, 9, 1, 9);
+        _privacyStatusButton.Click += (_, _) => OfferAnonymousDiagnosticConsent();
+        panel.Controls.Add(_privacyStatusButton, 2, 0);
+        panel.SetRowSpan(_privacyStatusButton, 2);
+        RefreshPrivacyStatus();
         return panel;
     }
 
