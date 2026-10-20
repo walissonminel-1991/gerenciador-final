@@ -48,6 +48,12 @@ internal sealed partial class MainForm
         };
         _trayMenu.Items.Add(new ToolStripMenuItem("Abrir", null, (_, _) => RestoreFromTray())
         { Name = "TrayOpen" });
+        _trayMenu.Items.Add(new ToolStripMenuItem(
+            "Privacidade e diagnóstico", null, (_, _) =>
+            {
+                RestoreFromTray();
+                OfferAnonymousDiagnosticConsent();
+            }) { Name = "TrayPrivacy" });
         _trayMenu.Items.Add(new ToolStripSeparator());
         _trayMenu.Items.Add(new ToolStripMenuItem("Sair", null, (_, _) => RequestTrayExit())
         { Name = "TrayExit" });
