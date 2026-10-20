@@ -17,8 +17,8 @@ jobs:
   build:
     permissions:
       contents: read
-      id-token: write
-      attestations: write
+    outputs:
+      artifact_name: ${{ steps.pacote.outputs.nome }}
     runs-on: windows-2022
     timeout-minutes: 30
     steps:
@@ -107,9 +107,32 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      # Atestado de origem GitHub nao assina o executavel (Authenticode).
-      - name: Atestar procedencia do executavel (GitHub)
-        if: github.event_name != 'pull_request' && github.event.repository.private == false
+  # OIDC e permissao de atestacao somente em contexto confiavel da main.
+  # PRs externos nunca recebem id-token:write nem attestations:write.
+  attest:
+    name: Atestar pacote apenas na main
+    needs: build
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.private == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Recuperar somente artefato do build deste workflow
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: Distribuicao
+      - name: Verificar manifesto e integridade antes de atestar
+        shell: bash
+        run: |
+          test -s Distribuicao/GerenciadorFinal.exe
+          test -s Distribuicao/SHA256SUMS.txt
+          (cd Distribuicao && sha256sum --check SHA256SUMS.txt)
+      # Atestado de procedencia GitHub nao substitui assinatura Authenticode.
+      - name: Atestar procedencia do executavel da main
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: Distribuicao/GerenciadorFinal.exe
