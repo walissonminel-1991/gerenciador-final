@@ -60,7 +60,7 @@ internal static class ResidualAudit
     }
 
     internal static bool IsDriverBoosterProduct(ProgramEntry app) =>
-        Regex.IsMatch(app.Name.Trim(), @"^Driver Booster(?:\\s+\\d+(?:\\.\\d+)*)?$",
+        Regex.IsMatch(app.Name.Trim(), @"^Driver Booster(?:\s+\d+(?:\.\d+)*)?$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static void InspectDriverBoosterFamily(
@@ -91,9 +91,9 @@ internal static class ResidualAudit
             try
             {
                 using var root = RegistryKey.OpenBaseKey(source.Hive, source.View);
-                using var key = root.OpenSubKey(@"SOFTWARE\\IObit\\Driver Booster", writable: false);
+                using var key = root.OpenSubKey(@"SOFTWARE\IObit\Driver Booster", writable: false);
                 if (key is not null)
-                    findings.Add(new(source.Label + @"\\SOFTWARE\\IObit\\Driver Booster",
+                    findings.Add(new(source.Label + @"\SOFTWARE\IObit\Driver Booster",
                         "Registro específico do produto", Math.Max(1, Math.Min(ScanLimit,
                             key.ValueCount + key.SubKeyCount)),
                         "Pode pertencer a uma instalação ainda ativa; somente leitura, sem autorização de limpeza."));
