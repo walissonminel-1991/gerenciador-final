@@ -1,5 +1,10 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Segurança v5.13.11.7 TESTE — nenhuma entrada manual (20/10/2026)
+
+A PR #40 **substituiu** o piloto de Issues públicas por coleta local estritamente voluntária e esquema fechado; removeu a geração de formulários e o gatilho `issues` do CI. Bloqueou instaladores sem SHA-256 previamente autorizado, introduziu correspondência da revisão no Windows Update e desativou o receptor remoto experimental. Esta revisão supersede o trecho histórico abaixo que descreve a antiga triagem GitHub como ativa. Detalhes: [segurança e limites](SEGURANCA-v5.13.11.7.md). **O progresso funcional continua 27/42; a manutenção por IA e o envio remoto não estão implementados.**
+
+
 ## Continuidade — triagem de diagnosticos publicos (20/10/2026)
 
 A PR #40 recebeu um workflow separado para triagem deterministica de Issues voluntarias do GitHub: parser com esquema fechado, allowlist de 14 eventos, limites de 1 a 100 ocorrencias por categoria, rejeicao de campos inesperados e testes de entradas maliciosas. O workflow nao executa texto fornecido por participantes, nao usa permissao de escrita e nao implementa manutencao IA ou envio remoto. Evidencias: [documentacao](TRIAGEM-DIAGNOSTICO-GITHUB.md) e checks da PR #40. **Sem mudanca de versao do aplicativo nem do progresso funcional: 27/42 (64,3%).**
