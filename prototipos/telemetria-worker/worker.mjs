@@ -40,12 +40,30 @@ export default {
     const declared = Number(request.headers.get("content-length"));
     if (Number.isFinite(declared) && declared > maxBody)
       return new Response(null, { status: 413 });
-    // Read maximum bytes without buffering arbitrarily large payloads.
+    // Leitura em streaming limitada: nunca carregar mais que 4 KB na memoria.
     let raw;
     try {
-      raw = await request.text();
-      if (new TextEncoder().encode(raw).length > maxBody)
-        return new Response(null, { status: 413 });
+      if (!request.body) return new Response(null, { status: 400 });
+      const reader = request.body.getReader();
+      const chunks = [];
+      let total = 0;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > maxBody) {
+          await reader.cancel();
+          return new Response(null, { status: 413 });
+        }
+        chunks.push(value);
+      }
+      const combined = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        combined.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      raw = new TextDecoder("utf-8", { fatal: true }).decode(combined);
     } catch { return new Response(null, { status: 400 }); }
     let parsed;
     try { parsed = JSON.parse(raw); }
