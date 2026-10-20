@@ -117,14 +117,27 @@ internal static class LayoutTests
         Control placeholder = Descendants(form).SingleOrDefault(c =>
             c.Name == "DriversPlaceholder")
             ?? throw new Exception("Pagina DRIVERS ausente.");
-        if (!placeholder.Visible || Descendants(placeholder).OfType<Button>().Count() != 1 ||
-            !Descendants(placeholder).OfType<DataGridView>().Any(g => g.Name == "DriverInventoryGrid" && g.ReadOnly))
-            throw new Exception("DRIVERS precisa permitir apenas consulta e mostrar tabela somente leitura.");
-        if (!Descendants(placeholder).OfType<Label>().Any(c =>
-                c.Text.Contains("nenhuma instalação, remoção ou alteração")))
-            throw new Exception("Aviso de modulo futuro ausente.");
-        if (!Descendants(form).Any(c => c.Name == "DriverInventoryViewport" && c is DarkScrollableFlow))
-            throw new Exception("DRIVERS deve reutilizar rolagem escura da aplicacao.");
+        var driverCards = Descendants(placeholder).OfType<DarkDriverList>().SingleOrDefault()
+            ?? throw new Exception("DRIVERS deve usar cartoes do mesmo padrao dos aplicativos.");
+        if (!placeholder.Visible || Descendants(placeholder).OfType<DataGridView>().Any() ||
+            Descendants(placeholder).OfType<Button>()
+                .Count(b => b.Name == "DriverInventoryRefresh") != 1)
+            throw new Exception("DRIVERS nao pode usar grade antiga nem oferecer alteracao de drivers.");
+        if (!Descendants(placeholder).OfType<TextBox>().Any(t =>
+                t.Name == "DriverInventorySearch") ||
+            !Descendants(placeholder).OfType<Label>().Any(c =>
+                c.Text.Contains("Nenhuma alteração em drivers")))
+            throw new Exception("Busca ou aviso de consulta segura ausente.");
+        if (Descendants(placeholder).OfType<DarkScrollableFlow>().Any())
+            throw new Exception("DRIVERS nao deve mostrar rolagem duplicada.");
+        var fakeDrivers = Enumerable.Range(0, 184).Select(i => new DriverInventoryEntry(
+            "TEST\\\\ID" + i, "Dispositivo sintetico " + i,
+            "Fabricante de teste", "1.2.3." + i, "oem" + i + ".inf",
+            true, i % 3 == 0 ? true : i % 3 == 1 ? false : null)).ToArray();
+        driverCards.SetItems(fakeDrivers);
+        if (driverCards.Items.Count != 184 || driverCards.SelectedItem is not null)
+            throw new Exception("Lista de drivers virtualizada perdeu registros ou selecionou automaticamente.");
+        driverCards.SetItems(Array.Empty<DriverInventoryEntry>());
         Directory.CreateDirectory("LayoutCaptures");
 
         int tested = 0;
@@ -293,18 +306,14 @@ internal static class LayoutTests
                 // DRIVERS permite consulta, sem instalacao ou remocao.
                 if (tab == 1)
                 {
-                    var driverViewport = Descendants(form).OfType<DarkScrollableFlow>().Single(x => x.Name == "DriverInventoryViewport");
-                    if (placeholder.Height > driverViewport.ClientSize.Height && !driverViewport.HasVerticalScrollbar)
-                        throw new Exception($"DRIVERS precisa de rolagem quando o conteudo nao cabe: {name}");
-                    var driverGrid = Descendants(placeholder).OfType<DataGridView>().Single();
-                    if (driverGrid.Height < 100)
-                        throw new Exception($"Tabela DRIVERS sem altura util: {name} {resolution}");
-                    if (driverGrid.AutoSizeColumnsMode != DataGridViewAutoSizeColumnsMode.Fill ||
-                        driverGrid.Columns.Count != 6 ||
-                        driverGrid.Columns.Cast<DataGridViewColumn>().Any(c => c.MinimumWidth < 90))
-                        throw new Exception($"DRIVERS voltou a deixar metade da largura inutilizada: {name} {resolution}");
-                    if (Descendants(placeholder).OfType<Button>().Any(b => b.Name != "DriverInventoryRefresh"))
-                        throw new Exception("DRIVERS ganhou uma acao diferente da consulta.");
+                    if (driverCards.Height < 100 || driverCards.Width < placeholder.Width - 70)
+                        throw new Exception($"DRIVERS nao aproveita o espaco para cartoes: {name} {resolution}");
+                    if (Descendants(placeholder).OfType<DataGridView>().Any() ||
+                        Descendants(placeholder).OfType<Button>().Any(b =>
+                            b.Text.Contains("Desinstalar", StringComparison.OrdinalIgnoreCase) ||
+                            b.Text.Contains("Atualizar driver", StringComparison.OrdinalIgnoreCase) ||
+                            b.Text.Contains("Remover driver", StringComparison.OrdinalIgnoreCase)))
+                        throw new Exception("DRIVERS ganhou acao destrutiva.");
                 }
                 else if (allButtons.Length == 0)
                     throw new Exception($"Nenhum botao apresentado: {name} {resolution} aba={tab}");
