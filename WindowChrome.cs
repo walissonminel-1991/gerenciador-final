@@ -223,11 +223,11 @@ internal sealed partial class MainForm
         finally { _trayTransitioning = false; }
         Activate();
         DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.FIM");
-        // Mostrar dados recentes rapidamente, sem forcar reconstruir a janela.
-        if (_nav.SelectedIndex == 5 && _activeSystemView == "processes")
+        // Recolher RAM global, sem enumeracao de PIDs na restauracao.
+        if (_nav.SelectedIndex == 5 && _activeSystemView == "memory")
         {
-            DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.PROCESSOS_ATUALIZAR");
-            _ = RefreshProcessHistoryAsync();
+            DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.RAM_ATUALIZAR");
+            _ = RefreshMemoryRamAsync();
         }
     }
 
