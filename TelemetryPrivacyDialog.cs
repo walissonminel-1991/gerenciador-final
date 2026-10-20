@@ -139,6 +139,20 @@ internal sealed class TelemetryPrivacyDialog : Form
 
 internal sealed partial class MainForm
 {
+    private void RefreshPrivacyStatus()
+    {
+        if (_privacyStatusButton is null || _privacyStatusButton.IsDisposed) return;
+        var state = AnonymousTelemetryContext.Current?.Consent ?? TelemetryConsent.NotAsked;
+        _privacyStatusButton.Text = PrivacyConsentPresentation.ButtonLabel(state);
+        _privacyStatusButton.AccessibleName = "Privacidade: " + _privacyStatusButton.Text;
+        _privacyStatusButton.AccessibleDescription = PrivacyConsentPresentation.Explanation(state);
+        _toolTips.SetToolTip(_privacyStatusButton,
+            _privacyStatusButton.AccessibleDescription);
+        _privacyStatusButton.BackColor = state == TelemetryConsent.LocalOnly
+            ? Color.FromArgb(43, 66, 89) : AppServices.Gray;
+        _privacyStatusButton.Invalidate();
+    }
+
     private void OfferAnonymousDiagnosticConsent(bool firstRun = false)
     {
         var collector = AnonymousTelemetryContext.Current;
@@ -152,6 +166,7 @@ internal sealed partial class MainForm
         var choice = decision == DialogResult.Yes
             ? TelemetryConsent.LocalOnly : TelemetryConsent.Declined;
         bool saved = collector.SetConsent(choice);
+        RefreshPrivacyStatus();
         if (!saved)
         {
             Status(choice == TelemetryConsent.Declined
