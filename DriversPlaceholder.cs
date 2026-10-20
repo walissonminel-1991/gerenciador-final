@@ -26,9 +26,10 @@ internal sealed partial class MainForm
 
         var searchBar = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 3, Margin = Padding.Empty,
-            BackColor = AppServices.Background
+            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+            Margin = Padding.Empty, BackColor = AppServices.Background
         };
+        searchBar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
@@ -56,8 +57,10 @@ internal sealed partial class MainForm
 
         var actionPanel = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 2, Margin = new Padding(0, 2, 0, 2)
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            Margin = new Padding(0, 2, 0, 2)
         };
+        actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var refresh = CreateButton("Consultar drivers", AppServices.Blue, Color.White);
@@ -94,8 +97,10 @@ internal sealed partial class MainForm
 
         var heading = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty
+            Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
+            Margin = Padding.Empty
         };
+        heading.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 73));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 94));
