@@ -332,8 +332,8 @@ internal static class LayoutTests
             throw new Exception("Monitor continua com cabecalho destacado ou linhas muito altas.");
         var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
             .Where(flow => flow.IsPageViewport).ToArray();
-        if (pageViewports.Length != 4)
-            throw new Exception($"Esperadas quatro paginas com rolagem controlada; encontradas {pageViewports.Length}");
+        if (pageViewports.Length != 5)
+            throw new Exception($"Esperadas cinco paginas com rolagem controlada; encontradas {pageViewports.Length}");
         var systemCards = Descendants(form).OfType<DarkScrollableFlow>()
             .SelectMany(flow => flow.Content.Controls.Cast<Control>());
         if (systemCards.Any(c => c is TableLayoutPanel panel &&
