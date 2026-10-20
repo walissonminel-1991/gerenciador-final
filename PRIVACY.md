@@ -1,5 +1,8 @@
 # Privacidade
 
+**Na v5.13.11.8 TESTE**, a janela de privacidade inclui a opção `Simular sem enviar`, disponível até para quem não autorizou a coleta. A simulação utiliza apenas ocorrências fictícias e não lê dados da máquina, não cria arquivos nem faz conexões. A prévia da coleta local foi traduzida para linguagem simples, e a coleta continua desativada até consentimento expresso. A versão ainda não implementa envio remoto. [Descrição da experiência](docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md).
+
+
 A partir da candidata v5.13.11.1, o Gerenciador Final oferece **coleta opcional exclusivamente local** de contagens agregadas de categorias técnicas, mediante consentimento explícito na primeira execução. Isso não cria contas de usuário e **não habilita nenhum envio pela internet**. A escolha pode ser alterada no menu da bandeja (**Privacidade e diagnóstico**). Recusar não reduz as funcionalidades do programa.
 
 O resumo é limitado ao identificador de versão do GF, tipo de encerramento normal e contagens das categorias técnicas permitidas. Não inclui inventário, nomes de programas, usuários, caminhos de arquivos, comandos, logs completos ou identificador persistente do computador. Armazenamento local: `%LOCALAPPDATA%\\GerenciadorFinal\\Privacidade`, com um relatório rotativo, expiração de sete dias e exclusão quando o usuário revoga o consentimento. A preferência mínima é mantida localmente para não repetir o aviso.
