@@ -125,9 +125,13 @@ internal sealed partial class MainForm
         }
         var all = Filter("Todos", 1);
         var present = Filter("Presentes", 2);
-        var other = Filter("Não confirmados", 3);
-        _toolTips.SetToolTip(other,
-            "Inclui dispositivos não presentes e os de presença indeterminada. Não significa driver obsoleto.");
+        // Rotulo compacto: a forma extensa ficava cortada ("Não") em
+        // resolucoes intermediarias. O significado permanece explicito.
+        var other = Filter("Outros", 3);
+        other.AccessibleName = "Não confirmados";
+        other.AccessibleDescription =
+            "Dispositivos ausentes ou com presença indeterminada. Não significa driver obsoleto.";
+        _toolTips.SetToolTip(other, other.AccessibleDescription);
         root.Controls.Add(heading, 0, 2);
 
         var list = new DarkDriverList { Dock = DockStyle.Fill, Margin = Padding.Empty };
