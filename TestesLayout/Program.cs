@@ -299,6 +299,10 @@ internal static class LayoutTests
                     var driverGrid = Descendants(placeholder).OfType<DataGridView>().Single();
                     if (driverGrid.Height < 100)
                         throw new Exception($"Tabela DRIVERS sem altura util: {name} {resolution}");
+                    if (driverGrid.AutoSizeColumnsMode != DataGridViewAutoSizeColumnsMode.Fill ||
+                        driverGrid.Columns.Count != 6 ||
+                        driverGrid.Columns.Cast<DataGridViewColumn>().Any(c => c.MinimumWidth < 90))
+                        throw new Exception($"DRIVERS voltou a deixar metade da largura inutilizada: {name} {resolution}");
                     if (Descendants(placeholder).OfType<Button>().Any(b => b.Name != "DriverInventoryRefresh"))
                         throw new Exception("DRIVERS ganhou uma acao diferente da consulta.");
                 }
