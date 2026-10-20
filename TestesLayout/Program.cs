@@ -22,6 +22,12 @@ internal static class LayoutTests
             WindowsUpdateClient.VerifiedIdentity("invalido", 12) is not null ||
             WindowsUpdateClient.VerifiedIdentity(knownId, 0) is not null)
             throw new Exception("Windows Update deve preservar GUID e revisao antes de instalar.");
+        // Regressao da captura real: WinForms TextBox junta parágrafos se receber
+        // somente LF em SetText. Validar CRLF idempotente, inclusive com CR solto.
+        if (DarkLogView.NormalizeWindowsLineBreaks("um\n\ndois") != "um\r\n\r\ndois" ||
+            DarkLogView.NormalizeWindowsLineBreaks("um\r\n\r\ndois") != "um\r\n\r\ndois" ||
+            DarkLogView.NormalizeWindowsLineBreaks("um\rdois") != "um\r\ndois")
+            throw new Exception("Normalizacao de paragrafo WinForms falhou.");
         // Permite experimentar a contribuicao sem gravar dados ou autorizar coleta.
         string dryRunFolder = Path.Combine(Path.GetTempPath(),
             "GF-Preview-Only-" + Guid.NewGuid().ToString("N"));
@@ -38,20 +44,25 @@ internal static class LayoutTests
                 ?? throw new Exception("Previa de coleta acessivel ausente.");
             if (!preview.RenderedText.Contains("COLETA DESATIVADA"))
                 throw new Exception("Consentimento ausente nao foi explicado claramente.");
+            if (!preview.RenderedText.Contains("COLETA DESATIVADA\r\n\r\n"))
+                throw new Exception("Previa inicial nao preservou separacao de paragrafos.");
             simulate.PerformClick();
             // ModernButton somente despacha Click depois de 145 ms de feedback.
             // Testar o clique REAL, sem executar diretamente o callback.
             for (int attempt = 0; attempt < 30 &&
-                !preview.RenderedText.Contains("SIMULACAO APROVADA"); attempt++)
+                !preview.RenderedText.Contains("SIMULAÇÃO CONCLUÍDA"); attempt++)
             {
                 System.Threading.Thread.Sleep(20);
                 Application.DoEvents();
             }
-            if (!preview.RenderedText.Contains("SIMULACAO APROVADA"))
+            if (!preview.RenderedText.Contains("SIMULAÇÃO CONCLUÍDA"))
                 throw new Exception("Simulacao nao respondeu ao clique animado.");
-            if (!preview.RenderedText.Contains("Nenhuma conexao de envio foi feita.") ||
+            if (!preview.RenderedText.Contains("Nenhuma conexão de envio foi feita.") ||
                 !preview.RenderedText.Contains("INVENTADOS"))
                 throw new Exception("Simulacao nao explicou os dados ficticios.");
+            if (!preview.RenderedText.Contains("SIMULAÇÃO CONCLUÍDA — NADA FOI ENVIADO\r\n\r\n") ||
+                !preview.RenderedText.Contains("EXEMPLO COM DADOS INVENTADOS\r\n"))
+                throw new Exception("Simulacao perdeu a estrutura de linhas no TextBox Windows.");
             if (dryRunRecorder.Consent != TelemetryConsent.NotAsked ||
                 Directory.Exists(dryRunFolder))
                 throw new Exception("Simulacao alterou consentimento ou arquivos locais.");
