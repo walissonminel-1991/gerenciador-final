@@ -77,10 +77,28 @@ Check(links.Packages[0].ConflictingSignatures && links.WithoutInf == 2,
     "Conflitos de assinatura e INF ausente/invalido ficam explicitos");
 Check(DriverPackageLinks.Analyze(new([], true, "parcial")).Partial,
     "Correlacao conserva limitacao da origem");
+Check(System.Runtime.InteropServices.Marshal.SizeOf<DriverStoreInventory.NativePackage>() == (IntPtr.Size == 8 ? 104 : 72),
+    "Layout nativo DISM corresponde ao tamanho documentado dos campos");
+var pkg = new DriverStoreEntry("OEM1.INF", "Vendor", "1.0", "Display", false, true, 0);
+var store = new DriverStoreResult(new[] { pkg, pkg with { PublishedName = "oem99.inf" } }, false, "ok");
+var joined = DriverStoreInventory.Correlate(store, Complete(a, a, b));
+Check(joined[0].ObservedDevices == 2 && joined[0].Package.BootCritical,
+    "Correlacao INF preserva compartilhamento e protecao de boot");
+Check(joined[1].LinkLabel == "Sem vínculo observado", "Sem vinculo nao e classificacao de lixo");
+Check(DriverStoreInventory.Correlate(store, null).All(x => x.ObservedDevices is null && x.EvidencePartial),
+    "Consulta de dispositivos ausente nao inventa zero vinculos");
+Check(DriverStoreInventory.Correlate(store, new([], true, "parcial")).All(x => x.EvidencePartial),
+    "Correlacao conserva incerteza da leitura parcial");
 if (args.Contains("--live"))
 {
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
     var live = await Task.Run(() => DriverInventory.Capture(timeout.Token)).WaitAsync(timeout.Token);
     Console.WriteLine($"WMI quantidade={live.Items.Count} parcial={live.Partial} status={live.Status}");
     Check(live.Items.Count > 0 && !live.Partial, "Consulta WMI somente leitura concluida no runner Windows");
+    using var storeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+    var packages = await Task.Run(() => DriverStoreInventory.Capture(storeTimeout.Token)).WaitAsync(storeTimeout.Token);
+    Console.WriteLine($"DISM quantidade={packages.Items.Count} parcial={packages.Partial} status={packages.Status}");
+    Check(packages.Items.Count > 0 && !packages.Partial, "Consulta DISM real somente leitura concluida no runner");
+    Check(packages.Items.All(p => p.PublishedName.EndsWith(".inf", StringComparison.OrdinalIgnoreCase)),
+        "Nomes publicados do retorno nativo possuem formato INF");
 }

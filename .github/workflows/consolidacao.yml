@@ -1,7 +1,7 @@
-name: Consolidacao v5.13.10.19 - regressoes offline Windows
+name: Consolidacao v5.13.10.20 - regressoes offline Windows
 on:
   push:
-    branches: [teste-consolidacao-v5.13.10.19]
+    branches: [teste-consolidacao-v5.13.10.20]
     paths-ignore: ['docs/**', '**.md']
   workflow_dispatch:
 permissions:
@@ -44,23 +44,23 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Layout-consolidacao-v5.13.10.19
+          name: Layout-consolidacao-v5.13.10.20
           path: LayoutCaptures/
           if-no-files-found: ignore
           retention-days: 7
       - name: Preparar pacote para validacao futura
         shell: pwsh
         run: |
-          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o Distribuicao-v5.13.10.19
+          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o Distribuicao-v5.13.10.20
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ./TestesManifesto/Testar-Ativacao.ps1 -ExecutablePath './Distribuicao-v5.13.10.19/GerenciadorFinal.exe'
-          $folder = 'Distribuicao-v5.13.10.19'
+          ./TestesManifesto/Testar-Ativacao.ps1 -ExecutablePath './Distribuicao-v5.13.10.20/GerenciadorFinal.exe'
+          $folder = 'Distribuicao-v5.13.10.20'
           Get-ChildItem $folder -File | Sort-Object Name | ForEach-Object {
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
           } | Set-Content (Join-Path $folder 'SHA256SUMS.txt') -Encoding utf8
       - uses: actions/upload-artifact@v4
         with:
-          name: GerenciadorFinal-v5.13.10.19-TESTE-NAO-ASSINADO
-          path: Distribuicao-v5.13.10.19/
+          name: GerenciadorFinal-v5.13.10.20-TESTE-NAO-ASSINADO
+          path: Distribuicao-v5.13.10.20/
           if-no-files-found: error
           retention-days: 7
