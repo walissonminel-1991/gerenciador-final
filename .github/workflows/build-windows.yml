@@ -1,4 +1,3 @@
-
 name: Compilar Windows (sem assinatura)
 
 on:
@@ -50,7 +49,7 @@ jobs:
             "Commit Git: $env:GITHUB_SHA"
             "Execucao GitHub Actions: $env:GITHUB_RUN_ID"
             'Assinatura digital: AUSENTE (pacote experimental)'
-            'Status AVG: NAO VALIDADO; nao instalar/executar se estiver em quarentena'
+            'Status AVG: NAO VALIDADO; nao executar se estiver em quarentena'
             'Origem: https://github.com/walissonminel-1991/gerenciador-final'
           ) | Set-Content 'Distribuicao/BUILD-INFO.txt' -Encoding utf8
 
@@ -63,29 +62,14 @@ jobs:
             Sort-Object FullName)
           if ($files.Count -lt 3) { throw 'Distribuicao incompleta' }
           $lines = foreach ($file in $files) {
-            $relative = [IO.Path]::GetRelativePath($root, $file.FullName).Replace('\\', '/')
+            $relative = [IO.Path]::GetRelativePath($root, $file.FullName).Replace('\', '/')
             $digest = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$digest  $relative"
           }
           $lines | Set-Content 'Distribuicao/SHA256SUMS.txt' -Encoding utf8
           $verified = 0
           foreach ($line in (Get-Content 'Distribuicao/SHA256SUMS.txt')) {
-            if ($line -notmatch '^([a-f0-9]{64})  (.+)
-        uses: actions/upload-artifact@v4
-        with:
-          name: gerenciador-final-unsigned-win-x64
-          path: Distribuicao/
-          retention-days: 7
-          if-no-files-found: error
-
-      # Procedencia verificavel nao e assinatura Authenticode do EXE.
-      # Pulamos pull requests e repositorios privados sem suporte a attestations.
-      - name: Atestar procedencia do executavel (GitHub)
-        if: github.event_name != 'pull_request' && github.event.repository.private == false
-        uses: actions/attest@v4
-        with:
-          subject-path: Distribuicao/GerenciadorFinal.exe
-) { throw 'Manifesto SHA256 invalido' }
+            if ($line -notmatch '^([a-f0-9]{64})  (.+)$') { throw 'Manifesto SHA256 invalido' }
             $expected = $Matches[1]
             $relative = $Matches[2]
             $path = Join-Path $root ($relative.Replace('/', [IO.Path]::DirectorySeparatorChar))
@@ -104,3 +88,10 @@ jobs:
           path: Distribuicao/
           retention-days: 7
           if-no-files-found: error
+
+      # Atestado de origem GitHub nao assina o executavel (Authenticode).
+      - name: Atestar procedencia do executavel (GitHub)
+        if: github.event_name != 'pull_request' && github.event.repository.private == false
+        uses: actions/attest@v4
+        with:
+          subject-path: Distribuicao/GerenciadorFinal.exe
