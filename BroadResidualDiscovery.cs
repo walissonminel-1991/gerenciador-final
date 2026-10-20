@@ -8,7 +8,7 @@ namespace GerenciadorAplicativos;
 // instalacao do Gerenciador Final. SOMENTE LEITURA; resultados sao HIPOTESES.
 // Nao varre bibliotecas pessoais nem elimina arquivos/Registro. Nenhuma receita
 // de exclusao pode usar o resultado deste motor como autorizacao.
-internal sealed record BroadResidualEvidence(string Name, string Location, string Kind, string RootGroup);
+internal sealed record BroadResidualEvidence(string Name, string Location, string Kind, string RootGroup, string Container = "");
 internal sealed record BroadResidualResult(
     IReadOnlyList<ResidualAuditReport> Reports,
     int RootsChecked, int EntriesSeen, int RestrictedRoots, bool Incomplete);
@@ -18,7 +18,6 @@ internal static class BroadResidualDiscovery
     private const int MaxEntriesPerRoot = 2500;
     private const int MaxReportGroups = 100;
     private const int MaxEvidencePerGroup = 7;
-    private static readonly TimeSpan MaxElapsed = TimeSpan.FromSeconds(14);
     private static readonly StringComparer Comparer = StringComparer.OrdinalIgnoreCase;
 
     // Chaves com nomes de empresas podem representar perfis compartilhados de
@@ -81,7 +80,8 @@ internal static class BroadResidualDiscovery
         var pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
         var userPrograms = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
         var commonPrograms = Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms);
-        string low = Path.GetFullPath(Path.Combine(local, "..", "LocalLow"));
+        string low = string.IsNullOrWhiteSpace(local) ? "" :
+            Path.Combine(Path.GetDirectoryName(local) ?? local, "LocalLow");
         return new (string, string)[]
         {
             (local, "Dados locais"),
@@ -171,21 +171,24 @@ internal static class BroadResidualDiscovery
         { return true; }
     }
 
-    private static void InspectDirectory(string path, string category, string group,
+    // Dois níveis no máximo. Não lê conteúdo nem resolve/executa atalhos.
+    // O segundo nível encontra Produto em Fabricante/Produto sem lista fixa.
+    internal static void InspectDirectory(string path, string category, string group,
         List<BroadResidualEvidence> evidence, ref int entries, ref int restricted,
-        ref bool incomplete, Stopwatch clock)
+        ref bool incomplete, ResidualScanBudget budget)
     {
+        if (!budget.CanContinue()) { incomplete = true; return; }
+        if (!ResidualReadSafety.IsUnlinkedDirectory(path))
+        { restricted++; incomplete = true; return; }
         try
         {
-            var root = new DirectoryInfo(path);
-            if (!root.Exists || IsReparse(root)) return;
             int inspected = 0;
-            foreach (FileSystemInfo item in root.EnumerateFileSystemInfos())
+            foreach (FileSystemInfo item in new DirectoryInfo(path).EnumerateFileSystemInfos())
             {
-                if (clock.Elapsed > MaxElapsed) { incomplete = true; break; }
+                if (!budget.Visit()) { incomplete = true; break; }
                 if (++inspected > MaxEntriesPerRoot) { incomplete = true; break; }
                 entries++;
-                if (IsReparse(item)) continue;
+                if (IsReparse(item)) { incomplete = true; continue; }
                 bool isDir = (item.Attributes & FileAttributes.Directory) != 0;
                 if (!isDir && group != "StartMenu") continue;
                 if (!isDir && !item.Extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase) &&
@@ -193,31 +196,74 @@ internal static class BroadResidualDiscovery
                 string? name = NormalizeName(item.Name);
                 if (name is null) continue;
                 evidence.Add(new(name, item.FullName, isDir ? category : "Atalho", group));
+                if (!isDir || !budget.CanContinue()) continue;
+                // Uma falha num fabricante não abandona os demais diretórios.
+                try
+                {
+                    if (!ResidualReadSafety.IsUnlinkedDirectory(item.FullName))
+                    { incomplete = true; continue; }
+                    int children = 0;
+                    foreach (FileSystemInfo child in ((DirectoryInfo)item).EnumerateFileSystemInfos())
+                    {
+                        if (!budget.Visit() || ++children > 128) { incomplete = true; break; }
+                        entries++;
+                        if (IsReparse(child)) { incomplete = true; continue; }
+                        bool directory = (child.Attributes & FileAttributes.Directory) != 0;
+                        if (!directory && (group != "StartMenu" ||
+                            !new[] { ".lnk", ".url" }.Contains(child.Extension, Comparer))) continue;
+                        string? childName = NormalizeName(child.Name);
+                        if (childName is not null)
+                            evidence.Add(new(childName, child.FullName,
+                                directory ? category : "Atalho", group, name));
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                    System.Security.SecurityException) { restricted++; incomplete = true; }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
             System.Security.SecurityException) { restricted++; incomplete = true; }
     }
 
-    private static void InspectRegistryHive(RegistryHive hive, RegistryView view,
+    internal static void InspectRegistryHive(RegistryHive hive, RegistryView view,
         string identifier, List<BroadResidualEvidence> evidence, ref int entries,
-        ref int restricted, ref bool incomplete, Stopwatch clock)
+        ref int restricted, ref bool incomplete, ResidualScanBudget budget, string softwarePath = "SOFTWARE")
     {
+        if (!budget.CanContinue()) { incomplete = true; return; }
         try
         {
             using RegistryKey baseKey = RegistryKey.OpenBaseKey(hive, view);
-            using RegistryKey? software = baseKey.OpenSubKey("SOFTWARE", writable: false);
+            using RegistryKey? software = baseKey.OpenSubKey(softwarePath, writable: false);
             if (software is null) return;
             int inspected = 0;
             foreach (string keyName in software.GetSubKeyNames())
             {
-                if (clock.Elapsed > MaxElapsed) { incomplete = true; break; }
+                if (!budget.Visit()) { incomplete = true; break; }
                 if (++inspected > MaxEntriesPerRoot) { incomplete = true; break; }
                 entries++;
                 string? normalized = NormalizeName(keyName);
                 if (normalized is null) continue;
                 evidence.Add(new(normalized,
-                    identifier + @"\SOFTWARE\" + keyName, "Chave de Registro", "Registry"));
+                    identifier + @"\" + softwarePath + @"\" + keyName, "Chave de Registro", "Registry"));
+                if (!budget.CanContinue()) { incomplete = true; break; }
+                try
+                {
+                    using RegistryKey? vendor = software.OpenSubKey(keyName, writable: false);
+                    if (vendor is null) continue;
+                    string[] children = vendor.GetSubKeyNames();
+                    if (children.Length > 128) incomplete = true;
+                    foreach (string child in children.Take(128))
+                    {
+                        if (!budget.Visit()) { incomplete = true; break; }
+                        entries++;
+                        string? product = NormalizeName(child);
+                        if (product is not null)
+                            evidence.Add(new(product, identifier + @"\" + softwarePath + @"\" + keyName + @"\" + child,
+                                "Configuração sob fabricante", "Registry", normalized));
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                    System.Security.SecurityException) { restricted++; incomplete = true; }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
@@ -235,7 +281,7 @@ internal static class BroadResidualDiscovery
         return sources.Count >= 2 &&
             (sources.Contains("AppData") || sources.Contains("ProgramData")) &&
             (sources.Contains("Registry") || sources.Contains("StartMenu") ||
-             sources.Contains("ProgramFiles"));
+             sources.Contains("ProgramFiles") || sources.Contains("Integration"));
     }
 
     // Um programa portatil pode estar ativo sem uma entrada ARP. Reconhecer
@@ -255,7 +301,7 @@ internal static class BroadResidualDiscovery
         });
     }
 
-    internal static IReadOnlyCollection<string> ReadRunningProcessNames()
+    internal static IReadOnlyCollection<string> ReadRunningProcessNames(ResidualScanBudget? budget = null)
     {
         var names = new HashSet<string>(Comparer);
         try
@@ -264,14 +310,15 @@ internal static class BroadResidualDiscovery
             {
                 using (process)
                 {
+                    if (budget is not null && !budget.CanContinue()) continue;
                     try { names.Add(process.ProcessName); }
                     catch (Exception ex) when (ex is InvalidOperationException or
-                        System.ComponentModel.Win32Exception) { /* processo saiu */ }
+                        System.ComponentModel.Win32Exception) { budget?.MarkIncomplete(); }
                 }
             }
         }
         catch (Exception ex) when (ex is InvalidOperationException or
-            System.ComponentModel.Win32Exception) { /* leitura parcial */ }
+            System.ComponentModel.Win32Exception) { budget?.MarkIncomplete(); }
         return names;
     }
 
@@ -280,7 +327,7 @@ internal static class BroadResidualDiscovery
     // quando o arquivo referenciado ainda existir. Somente leitura e sem
     // executar o binario; entradas antigas apontando para arquivos ausentes
     // nao sao consideradas instalacao.
-    internal static IReadOnlyCollection<string> ReadRegisteredExecutableNames()
+    internal static IReadOnlyCollection<string> ReadRegisteredExecutableNames(ResidualScanBudget? budget = null)
     {
         var names = new HashSet<string>(Comparer);
         foreach (var (hive, view) in new[]
@@ -296,23 +343,90 @@ internal static class BroadResidualDiscovery
                 using RegistryKey? paths = baseKey.OpenSubKey(
                     @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths", false);
                 if (paths is null) continue;
-                foreach (string executable in paths.GetSubKeyNames().Take(1200))
+                string[] executables = paths.GetSubKeyNames();
+                if (executables.Length > 1200) budget?.MarkIncomplete();
+                foreach (string executable in executables.Take(1200))
                 {
+                    if (budget is not null && !budget.Visit()) break;
                     if (!executable.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                         continue;
                     using RegistryKey? entry = paths.OpenSubKey(executable, false);
                     string rawPath = entry?.GetValue(null) as string ?? "";
                     if (rawPath.Length == 0 || rawPath.Length > 1024) continue;
                     string path = Environment.ExpandEnvironmentVariables(rawPath).Trim('"');
-                    if (File.Exists(path))
+                    if (ResidualReadSafety.IsLocalAbsolute(path) &&
+                        ResidualReadSafety.IsUnlinkedDirectory(Path.GetDirectoryName(path) ?? "") && File.Exists(path))
                         names.Add(Path.GetFileNameWithoutExtension(executable));
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                 System.Security.SecurityException or ArgumentException)
-            { /* leitura parcial; nenhuma ausencia sera tratada como desinstalacao */ }
+            { budget?.MarkIncomplete(); }
         }
         return names;
+    }
+
+    // Somente extrai uma pista de identidade. Nunca executa comando de Run/serviço,
+    // expande shell, consulta rede ou trata o texto como uma receita de remoção.
+    internal static string? ExecutableName(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command) || command.Length > 2048) return null;
+        var match = Regex.Match(command.Trim(), "^\"([^\"]+\\.exe)\"(?:\\s|$)|^([^\"\\s]+\\.exe)(?:\\s|$)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (!match.Success) return null;
+        string path = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+        return ResidualReadSafety.IsLocalAbsolute(path) ? NormalizeName(Path.GetFileNameWithoutExtension(path)) : null;
+    }
+
+    private static void InspectIntegrations(List<BroadResidualEvidence> found,
+        ref int entries, ref int restricted, ref bool incomplete, ResidualScanBudget budget)
+    {
+        foreach (var (hive, view, label, subkey, services) in new[]
+        {
+            (RegistryHive.CurrentUser, RegistryView.Registry64, "HKEY_CURRENT_USER (64 bits)", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false),
+            (RegistryHive.CurrentUser, RegistryView.Registry32, "HKEY_CURRENT_USER (32 bits)", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false),
+            (RegistryHive.LocalMachine, RegistryView.Registry64, "HKEY_LOCAL_MACHINE (64 bits)", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false),
+            (RegistryHive.LocalMachine, RegistryView.Registry32, "HKEY_LOCAL_MACHINE (32 bits)", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false),
+            (RegistryHive.LocalMachine, RegistryView.Registry64, "HKEY_LOCAL_MACHINE", @"SYSTEM\CurrentControlSet\Services", true)
+        })
+        {
+            if (!budget.CanContinue()) { incomplete = true; break; }
+            try
+            {
+                using var root = RegistryKey.OpenBaseKey(hive, view);
+                using var key = root.OpenSubKey(subkey, writable: false);
+                if (key is null) continue;
+                string[] names = services ? key.GetSubKeyNames() : key.GetValueNames();
+                if (names.Length > 1200) incomplete = true;
+                foreach (string name in names.Take(1200))
+                {
+                    if (!budget.Visit()) { incomplete = true; break; }
+                    entries++;
+                    try
+                    {
+                        string raw;
+                        if (services)
+                        {
+                            using var service = key.OpenSubKey(name, writable: false);
+                            // Drivers (1/2) nunca entram na auditoria de aplicativos.
+                            if (service?.GetValue("Type") is not int type || (type & 0x30) == 0 ||
+                                (type & 0x03) != 0) continue;
+                            raw = service.GetValue("ImagePath", "", RegistryValueOptions.DoNotExpandEnvironmentNames) as string ?? "";
+                        }
+                        else raw = key.GetValue(name, "", RegistryValueOptions.DoNotExpandEnvironmentNames) as string ?? "";
+                        string? product = ExecutableName(raw);
+                        if (product is null) continue;
+                        found.Add(new(product, label + @"\" + subkey + @"\" + name,
+                            services ? "Serviço registrado — preservar" : "Inicialização registrada — preservar",
+                            "Integration"));
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                        System.Security.SecurityException) { restricted++; incomplete = true; }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                System.Security.SecurityException) { restricted++; incomplete = true; }
+        }
     }
 
     // Classificação independente do ambiente: o mesmo algoritmo pode ser testado
@@ -379,39 +493,41 @@ internal static class BroadResidualDiscovery
 
     internal static BroadResidualResult Inspect(IReadOnlyCollection<ProgramEntry> installed,
         IReadOnlyCollection<string>? activeGameNames = null, bool gameInventoryPartial = false,
-        bool inventoryIncomplete = false)
+        bool inventoryIncomplete = false, CancellationToken cancellationToken = default)
     {
-        var clock = Stopwatch.StartNew();
+        var budget = new ResidualScanBudget(cancellationToken);
         var found = new List<BroadResidualEvidence>();
         int entries = 0, restricted = 0, rootsChecked = 0;
         bool incomplete = false;
         foreach (var (path, category) in Roots())
         {
-            if (clock.Elapsed > MaxElapsed) { incomplete = true; break; }
+            if (!budget.CanContinue()) { incomplete = true; break; }
             rootsChecked++;
             string group = category.StartsWith("Atalhos", StringComparison.Ordinal) ?
                 "StartMenu" : category.StartsWith("Arquivos de instalação", StringComparison.Ordinal) ?
                 "ProgramFiles" : category == "Dados de aplicativos" ? "ProgramData" : "AppData";
             InspectDirectory(path, category, group, found, ref entries,
-                ref restricted, ref incomplete, clock);
+                ref restricted, ref incomplete, budget);
         }
         foreach (var (hive, view, identifier) in new[]
         {
-            (RegistryHive.CurrentUser, RegistryView.Default, "HKEY_CURRENT_USER"),
+            (RegistryHive.CurrentUser, RegistryView.Registry64, "HKEY_CURRENT_USER (64 bits)"),
+            (RegistryHive.CurrentUser, RegistryView.Registry32, "HKEY_CURRENT_USER (32 bits)"),
             (RegistryHive.LocalMachine, RegistryView.Registry64, "HKEY_LOCAL_MACHINE"),
             (RegistryHive.LocalMachine, RegistryView.Registry32, "HKEY_LOCAL_MACHINE (32 bits)")
         })
         {
-            if (clock.Elapsed > MaxElapsed) { incomplete = true; break; }
+            if (!budget.CanContinue()) { incomplete = true; break; }
             rootsChecked++;
             InspectRegistryHive(hive, view, identifier, found, ref entries,
-                ref restricted, ref incomplete, clock);
+                ref restricted, ref incomplete, budget);
         }
-        var liveEvidence = ReadRunningProcessNames()
-            .Concat(ReadRegisteredExecutableNames())
+        InspectIntegrations(found, ref entries, ref restricted, ref incomplete, budget);
+        var liveEvidence = ReadRunningProcessNames(budget)
+            .Concat(ReadRegisteredExecutableNames(budget))
             .Distinct(Comparer).ToArray();
-        var reports = Classify(found, installed, activeGameNames, liveEvidence, inventoryIncomplete || gameInventoryPartial);
+        var reports = Classify(found, installed, activeGameNames, liveEvidence, inventoryIncomplete || gameInventoryPartial || incomplete || budget.Incomplete);
         if (reports.Count >= MaxReportGroups || gameInventoryPartial || inventoryIncomplete) incomplete = true;
-        return new(reports, rootsChecked, entries, restricted, incomplete);
+        return new(reports, rootsChecked, entries, restricted, incomplete || budget.Incomplete);
     }
 }

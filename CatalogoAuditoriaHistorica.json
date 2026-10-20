@@ -51,6 +51,37 @@
         "Proton Pass",
         "Proton Pass for Windows"
       ]
+    },
+    {
+      "id": "foobar2000",
+      "name": "foobar2000",
+      "installedNames": [
+        "foobar2000",
+        "foobar2000 x64"
+      ],
+      "folders": [
+        "Roaming\\foobar2000",
+        "Local\\foobar2000"
+      ],
+      "registry": [
+        "HKCU\\Software\\foobar2000"
+      ],
+      "warn": "Perfis, playlists e biblioteca de mídia são dados úteis. Preservar."
+    },
+    {
+      "id": "vlc-profile",
+      "name": "VLC",
+      "installedNames": [
+        "VLC",
+        "VLC media player"
+      ],
+      "folders": [
+        "Roaming\\vlc"
+      ],
+      "registry": [
+        "HKCU\\Software\\VideoLAN\\VLC"
+      ],
+      "warn": "Preferências, playlists e histórico de mídia devem ser preservados."
     }
   ]
 }

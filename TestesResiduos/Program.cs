@@ -12,6 +12,9 @@ void Check(bool result, string what)
     passed++;
 }
 
+ResidualMissionTests.Run(Check);
+if (args.Contains("--missao")) return;
+
 bool partialRejected = false;
 try { InventoryReconciler.RequireComplete(Array.Empty<ProgramEntry>(), 1); }
 catch (InvalidOperationException) { partialRejected = true; }
@@ -521,8 +524,8 @@ Console.WriteLine("OK Jogos ativos nao sao confundidos com residuos historicos")
 
 // Catálogo histórico: Origem, Vivaldi e uTorrent não podem ser limpos
 // automaticamente, e não devem aparecer como resíduos com produto instalado.
-Check(HistoricalResidualAudit.Rules.Count == 3,
-    "Três famílias históricas para auditoria não destrutiva");
+Check(HistoricalResidualAudit.Rules.Count == 5,
+    "Cinco famílias históricas para auditoria não destrutiva");
 Check(HistoricalResidualAudit.Rules.Any(r => r.Id == "origin-legacy" &&
     r.Registry.Contains(@"HKLM32\SOFTWARE\Origin") &&
     r.Folders.Contains(@"Local\Origin")),

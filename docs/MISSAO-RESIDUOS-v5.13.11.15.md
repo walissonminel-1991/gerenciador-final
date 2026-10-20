@@ -28,3 +28,13 @@ Sem copiar código externo. Referências usadas para delimitar a implementação
 ## Próximos marcos
 
 M2: descoberta direcionada de segundo nível, orçamento/cancelamento e testes. M3: classificação explícita, contexto parcial e evidências por item. M4: prévia/revalidação sem execução destrutiva. M5: regressões Windows, versão, artefato e SHA-256 no mesmo commit aprovado. Não há acesso verificável à franquia Work.
+
+## M2 — descoberta ampliada
+
+M1 aprovado nos três workflows do commit `0f3701e7a9005592c2ec7f7a60274f473d744107`: política 39502667282, Windows 39502666891, pacote 39502667013.
+
+Busca geral agora examina até dois níveis em pastas e SOFTWARE (produto sob fabricante desconhecido), incluindo HKCU32/64 e HKLM32/64. Run e serviços Win32 fornecem pistas de executável local; não executa comandos, não expande variáveis/shell e não considera drivers. Catálogo histórico adiciona perfis VLC/foobar2000, preservando preferências e playlists. Atalhos são enumerados sem execução/resolução de destino.
+
+`ResidualScanBudget`: até 30.000 entradas compartilhadas entre fontes, 2.500 por raiz e 128 filhos por contêiner, 14 segundos cooperativos e token de cancelamento. Não pode interromper uma chamada nativa que já bloqueou. Diretórios redirecionados/ancestrais com reparse e caminhos relativos, UNC, dispositivos, ADS/traversal são recusados. Resultado parcial explicita falta de cobertura; o limite nunca autoriza limpeza.
+
+Validação local: build TestesResiduos sem avisos/erros; nove verificações `--missao` aprovadas no Linux com dados temporários (cancelamento, timeout, limites, produto sob fabricante, playlist, raiz ausente e link/ancestral). Casos adicionais de comandos locais e Registro sintético são Windows-only e aguardam o CI deste marco. Tarefas agendadas, resolução de atalhos/integrações COM e histórico transacional persistente continuam pendentes; não foram declarados implementados.
