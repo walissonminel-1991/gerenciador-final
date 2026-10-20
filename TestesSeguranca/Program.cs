@@ -104,3 +104,34 @@ try
 }
 finally { Directory.Delete(guardFolder, recursive: true); }
 Console.WriteLine("OK: hash de arquivo alterado e bloqueios de compartilhamento.");
+
+if (OperatingSystem.IsWindows())
+{
+    var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+    var policy = assembly.GetCustomAttributes(
+        typeof(System.Runtime.InteropServices.DefaultDllImportSearchPathsAttribute), false)
+        .Cast<System.Runtime.InteropServices.DefaultDllImportSearchPathsAttribute>().Single();
+    Check(policy.Paths == System.Runtime.InteropServices.DllImportSearchPath.System32,
+        "P/Invoke limitado a DLLs do Windows");
+    string planted = Path.Combine(AppContext.BaseDirectory, "rstrtmgr.dll");
+    bool created = false;
+    try
+    {
+        using (var fixtureDll = new FileStream(planted, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            created = true;
+            fixtureDll.Write(System.Text.Encoding.ASCII.GetBytes("fixture-invalida-nao-carregar"));
+        }
+        IntPtr module = System.Runtime.InteropServices.NativeLibrary.Load("rstrtmgr.dll", assembly, null);
+        try
+        {
+            string actual = NativeModuleProbe.PathOf(module);
+            string system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+            Check(string.Equals(Path.GetDirectoryName(actual), system, StringComparison.OrdinalIgnoreCase),
+                "DLL homonima ao lado do teste nao substitui a biblioteca do sistema");
+        }
+        finally { System.Runtime.InteropServices.NativeLibrary.Free(module); }
+    }
+    finally { if (created) File.Delete(planted); }
+}
+Console.WriteLine("OK: busca nativa restrita ao sistema, com fixture homonima.");

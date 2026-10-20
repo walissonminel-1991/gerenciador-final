@@ -4,6 +4,7 @@
 
 - Receita integral aprovada e comprovante em memoria vinculam o instalador ao download desta sessao.
 - SHA-256 e assinatura sao revalidados antes da execucao; arquivo permanece sem compartilhamento de escrita/exclusao enquanto o processo iniciado e aguardado. Terminal recebe trava equivalente durante deployment.
+- P/Invokes do GF usam somente a pasta de sistema para carregar DLLs nativas.
 - Pipe administrativo verifica PID informado pelo Windows e limita espera da autenticacao a cinco segundos.
 - Privacidade usa temporarios exclusivos com CreateNew; recusa pastas redirecionadas e limita leitura pelo arquivo aberto.
 - Testes de adulteracao, receitas forjadas, PID incorreto e temporarios preexistentes. Limites documentados em docs/SEGURANCA-v5.13.11.5.md.

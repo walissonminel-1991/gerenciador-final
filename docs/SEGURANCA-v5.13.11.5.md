@@ -9,12 +9,15 @@ Data: 20/10/2026. Base: 4ab088312e8da7823961b4df9f53771d8a275dca, branch do PR #
 3. **Identidade do cliente no pipe administrativo.** O servidor conferia somente o token enviado no texto. Agora tambem confere o PID do cliente pelo kernel contra o processo que iniciou, antes de ler mensagens; autenticacao sem resposta termina apos cinco segundos. Reduz falsificacao de status e travamento local por conexao indevida. O pipe transporta resultados/logs; esta revisao nao demonstra uma via de comandos arbitrarios pelo pipe.
 4. **Temporario previsivel da privacidade.** A escrita usava um nome fixo com truncamento. Agora usa GUID, CreateNew, acesso exclusivo e flush antes da troca atomica. Pastas redirecionadas por links/juncoes sao recusadas antes da gravacao. Leituras usam o tamanho do arquivo aberto com compartilhamento somente de leitura, em vez de depender apenas de uma consulta de tamanho anterior.
 
+5. **Busca de DLLs nativas do proprio GF.** Os imports declarados usam DLLs do Windows, mas nao havia politica explicita de busca. O assembly agora exige System32 com DefaultDllImportSearchPaths, reduzindo a possibilidade de carregar uma DLL homonima da pasta portatil. Isto cobre os P/Invokes do GF, nao o carregamento interno dos instaladores externos.
+
 ## Regressões
 
 - Receitas locais validas continuam reconhecidas; mudancas de argumentos, URL, hash, editor, ID e modo sao rejeitadas antes de rede/escrita.
 - Instalador sem comprovante da sessao e bloqueado antes de UAC/execucao.
 - Fixture modificada depois de calcular o hash e rejeitada.
 - No Windows, escrita/exclusao de arquivo aberto para validacao sao recusadas.
+- DLL falsa inofensiva ao lado do executavel de teste: a biblioteca efetivamente carregada precisa vir da pasta de sistema.
 - Pipe real local: PID correto aceito, PID diferente e pipe desconectado rejeitados, sem elevacao.
 - Temporario previsivel preexistente permanece intacto; temporarios exclusivos sao limpos.
 - Links de arquivo/pasta sao testados quando o runner permite cria-los; indisponibilidade e registrada como SKIP, nao aprovada.
@@ -34,3 +37,5 @@ Permanecem a avaliacao AVG, testes nos dois PCs, limites WMI e ausencia de assin
 
 - https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getnamedpipeclientprocessid
 - https://learn.microsoft.com/en-us/dotnet/api/system.io.fileshare?view=net-10.0
+
+- https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.defaultdllimportsearchpathsattribute?view=net-10.0

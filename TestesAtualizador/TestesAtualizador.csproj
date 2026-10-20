@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
     <Compile Include="../VerifiedUpdaters.cs" Link="VerifiedUpdaters.cs" />
     <Compile Include="../WindowsTerminalUpdater.cs" Link="WindowsTerminalUpdater.cs" />
