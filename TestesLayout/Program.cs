@@ -16,6 +16,12 @@ internal static class LayoutTests
 
         if (DiagnosticTrace.FormatVersion(new Version(5, 13, 10, 18)) != "v5.13.10.18")
             throw new Exception("Diagnostico perdeu a revisao da compilacao.");
+        const string knownId = "a2a4b6b8-1212-4343-8585-919191919191";
+        if (WindowsUpdateClient.VerifiedIdentity(knownId, 12) != knownId + "@12" ||
+            WindowsUpdateClient.VerifiedIdentity(knownId, 13) == knownId + "@12" ||
+            WindowsUpdateClient.VerifiedIdentity("invalido", 12) is not null ||
+            WindowsUpdateClient.VerifiedIdentity(knownId, 0) is not null)
+            throw new Exception("Windows Update deve preservar GUID e revisao antes de instalar.");
         TestStartupBounds();
         TestWorkspaceProportions();
         TestRamHistoryAndSampling();
