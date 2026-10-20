@@ -137,6 +137,13 @@ internal static class LayoutTests
         driverCards.SetItems(fakeDrivers);
         if (driverCards.Items.Count != 184 || driverCards.SelectedItem is not null)
             throw new Exception("Lista de drivers virtualizada perdeu registros ou selecionou automaticamente.");
+        if (DriverListFilters.Apply(fakeDrivers, "Todos", "").Length != 184 ||
+            DriverListFilters.Apply(fakeDrivers, "Presentes", "").Length != 62 ||
+            DriverListFilters.Apply(fakeDrivers, "Não confirmados", "").Length != 122 ||
+            DriverListFilters.Apply(fakeDrivers, "Todos", "oem18.inf").Length != 1 ||
+            DriverListFilters.Apply(fakeDrivers, "Todos", "fabricante DE TESTE").Length != 184)
+            throw new Exception("Pesquisa e filtros DRIVERS falharam na amostra de 184 itens.");
+        // Todos os drivers continuam apenas texto; filtros nao fazem instalacoes.
         driverCards.SetItems(Array.Empty<DriverInventoryEntry>());
         Directory.CreateDirectory("LayoutCaptures");
 
