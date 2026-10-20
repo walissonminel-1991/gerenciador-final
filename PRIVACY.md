@@ -1,6 +1,6 @@
 # Privacidade
 
-**Na v5.13.11.8 TESTE**, a janela de privacidade inclui a opção `Simular sem enviar`, disponível até para quem não autorizou a coleta. A simulação utiliza apenas ocorrências fictícias e não lê dados da máquina, não cria arquivos nem faz conexões. A prévia da coleta local foi traduzida para linguagem simples, e a coleta continua desativada até consentimento expresso. A versão ainda não implementa envio remoto. [Descrição da experiência](docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md).
+**Na v5.13.11.8 TESTE**, a janela de privacidade inclui a opção `Simular sem enviar`, disponível até para quem não autorizou a coleta. A simulação utiliza apenas ocorrências fictícias e não lê dados da máquina, não cria arquivos nem faz conexões. A prévia da coleta local foi traduzida para linguagem simples, e a coleta continua desativada até consentimento expresso. A versão ainda não implementa envio remoto. Um receptor de homologação isolado foi preparado apenas para testes com dados artificiais e não está implantado; [detalhes](docs/INFRAESTRUTURA-ENVIO-SEGURO.md). [Descrição da experiência](docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md).
 
 
 A partir da candidata v5.13.11.1, o Gerenciador Final oferece **coleta opcional exclusivamente local** de contagens agregadas de categorias técnicas, mediante consentimento explícito na primeira execução. Isso não cria contas de usuário e **não habilita nenhum envio pela internet**. A escolha pode ser alterada no menu da bandeja (**Privacidade e diagnóstico**). Recusar não reduz as funcionalidades do programa.
