@@ -105,7 +105,14 @@ internal sealed partial class MainForm
             ForeColor = Ink, Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true
         }, 0, 0);
-        var taskManager = CreateSecondaryButton("Tarefas do Windows");
+        // Texto curto para permanecer legivel nas janelas proporcionais
+        // (ex.: 1150x700), sem abrir um dialogo auxiliar do GF.
+        var taskManager = CreateSecondaryButton("Abrir tarefas");
+        taskManager.Name = "OpenWindowsTaskManager";
+        taskManager.AccessibleName = "Abrir Gerenciador de Tarefas do Windows";
+        taskManager.AccessibleDescription =
+            "Abre o Gerenciador de Tarefas oficial do Windows em uma janela externa.";
+        _toolTips.SetToolTip(taskManager, taskManager.AccessibleDescription);
         taskManager.Dock = DockStyle.Fill;
         taskManager.Margin = new Padding(1, 2, 1, 2);
         taskManager.Click += (_, _) =>
