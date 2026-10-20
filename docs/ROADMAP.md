@@ -1,5 +1,9 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Continuidade — triagem de diagnosticos publicos (20/10/2026)
+
+A PR #40 recebeu um workflow separado para triagem deterministica de Issues voluntarias do GitHub: parser com esquema fechado, allowlist de 14 eventos, limites de 1 a 100 ocorrencias por categoria, rejeicao de campos inesperados e testes de entradas maliciosas. O workflow nao executa texto fornecido por participantes, nao usa permissao de escrita e nao implementa manutencao IA ou envio remoto. Evidencias: [documentacao](TRIAGEM-DIAGNOSTICO-GITHUB.md) e checks da PR #40. **Sem mudanca de versao do aplicativo nem do progresso funcional: 27/42 (64,3%).**
+
 ## Reforco adicional — v5.13.11.6 TESTE (20/10/2026)
 
 Protecao de ancestrais por handles, retencao de instaladores pela sessao, recusa de caminhos especiais e arquivos vizinhos inesperados. Auditoria NuGet bloqueante e configuracao Dependabot. Evidencias e limites: [relatorio](SEGURANCA-v5.13.11.6.md). Progresso funcional permanece 27/42; sem declarar envio automatico ou manutencao por IA implementados.
