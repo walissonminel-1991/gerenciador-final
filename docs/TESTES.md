@@ -1,6 +1,6 @@
 # Roteiro de testes — Gerenciador Final v5.13.11.8 TESTE
 
-**20/10/2026: neste ciclo, usar o outro PC; PC FRACO não será utilizado hoje.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real ainda não é oferecido na v5.13.11.8.** A ideia de conta GitHub secundária foi estruturada em [piloto restrito](PILOTO-CONTA-GITHUB-SECUNDARIA.md), dependente de uma GitHub App e repositório privado exclusivos.
+**20/10/2026: neste ciclo, usar o outro PC; PC FRACO não será utilizado hoje.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real ainda não é oferecido na v5.13.11.8.** A ideia de autenticação GitHub com conta existente foi estruturada em [piloto restrito](PILOTO-AUTENTICACAO-GITHUB.md), dependente de uma GitHub App e repositório privado exclusivos.
 
 Este roteiro serve a mantenedores e revisores. **Não é um relatório de testes
 concluídos nem uma garantia de segurança.** Registre ambiente, compilação,
