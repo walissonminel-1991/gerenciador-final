@@ -29,19 +29,30 @@ internal sealed partial class MainForm
             Name = "DriverInventoryGrid", Dock = DockStyle.Fill, ReadOnly = true,
             AllowUserToAddRows = false, AllowUserToDeleteRows = false, RowHeadersVisible = false,
             BackgroundColor = AppServices.Background, BorderStyle = BorderStyle.None,
-            EnableHeadersVisualStyles = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+            EnableHeadersVisualStyles = false,
+            // Ajusta todas as colunas a largura disponivel. Em janelas estreitas
+            // os MinimumWidth preservam os textos e permitem rolagem horizontal.
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect, MultiSelect = false,
             ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle { BackColor = PanelBackground, ForeColor = Ink },
             DefaultCellStyle = new DataGridViewCellStyle { BackColor = AppServices.Background, ForeColor = Ink,
                 SelectionBackColor = PanelBackground, SelectionForeColor = Ink },
             RowTemplate = { Height = 26 }
         };
-        foreach (var (name, title, width) in new[] {
-            ("Device", "Dispositivo", 220), ("Provider", "Fornecedor", 150),
-            ("Version", "Versão", 125), ("Inf", "INF associado", 115),
-            ("Presence", "Presença", 115), ("Signature", "Assinatura informada", 145) })
-            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = name, HeaderText = title, Width = width,
-                SortMode = DataGridViewColumnSortMode.Automatic });
+        foreach (var (name, title, minimum, weight) in new[] {
+            ("Device", "Dispositivo", 180, 31f), ("Provider", "Fornecedor", 140, 22f),
+            ("Version", "Versão", 115, 16f), ("Inf", "INF associado", 110, 14f),
+            ("Presence", "Presença", 95, 12f), ("Signature", "Assinatura informada", 145, 21f) })
+            grid.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = name, HeaderText = title,
+                MinimumWidth = minimum, FillWeight = weight,
+                SortMode = DataGridViewColumnSortMode.Automatic,
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    WrapMode = DataGridViewTriState.False
+                }
+            });
         var state = new Label { Dock = DockStyle.Fill, ForeColor = Muted,
             Text = "Nenhuma consulta iniciada. Não é o inventário completo do Driver Store. Nesta aba: nenhuma instalação, remoção ou alteração de drivers." };
         host.Controls.Add(intro, 0, 0); host.Controls.Add(refresh, 0, 1);
