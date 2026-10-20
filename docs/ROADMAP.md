@@ -1,5 +1,10 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Padrão visual de Aplicativos aplicado a DRIVERS — v5.13.11.11 TESTE (20/10/2026)
+
+Solicitado após observar tabela pequena e truncada no PC real. Aba DRIVERS agora usa cartões de lista virtualizada como Aplicativos, com busca por dispositivo/fabricante/versão/INF, filtros de presença e consulta sob demanda. Não há botões de atualizar, desinstalar, remover ou limpar drivers. A pesquisa/seleção não altera registros ou arquivos. A matriz de layout e 184 associações sintéticas foram adicionadas aos testes. **Gestão real de drivers continua pendente**; progresso funcional ainda 27/42.
+
+
 ## Testes reais e ajuste responsivo — v5.13.11.10 TESTE (20/10/2026)
 
 As capturas/log de teste em PC real foram examinados. Houve abertura sem alerta AVG reportado, inventário, consultas, análise de hardware e visualização de abas. A tabela de drivers deixava muita largura ociosa e truncava valores; passou a usar colunas Fill ponderadas e mínimos, com teste na matriz de resoluções. Nenhuma operação destrutiva foi executada ou aprovada; verificar persistência/revogação da coleta, eficácia de atualização, desinstalação e reparo em testes posteriores. [Relatório detalhado](TESTE-REAL-v5.13.11.8-2026-10-20.md). Roadmap funcional continua **27/42**.
