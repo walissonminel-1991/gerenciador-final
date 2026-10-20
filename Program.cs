@@ -32,7 +32,14 @@ internal static class Program
         }
         try
         {
-            AnonymousTelemetryContext.Current = new AnonymousTelemetry();
+            // Telemetria voluntaria jamais pode impedir a abertura do programa.
+            try { AnonymousTelemetryContext.Current = new AnonymousTelemetry(); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                System.Security.SecurityException or ArgumentException)
+            {
+                AnonymousTelemetryContext.Current = null;
+                DiagnosticTrace.Write("PRIVACIDADE.INIT_FALHA");
+            }
             ApplicationConfiguration.Initialize();
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += (_, e) =>
