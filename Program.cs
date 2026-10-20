@@ -659,6 +659,7 @@ internal sealed partial class MainForm : Form
     private bool _catalogoVerificado; // Resultado local do RuckZuck (sem instalacao)
     private CancellationTokenSource? _consultaCatalogoCts;
     private CancellationTokenSource? _installerDownloadCts;
+    private CancellationTokenSource? _residualScanCts;
     private int _catalogoGeneration; // Descarta resultados de consultas anteriores ao recarregamento local.
     private string _appFilter = "Todos";
     private readonly HashSet<ProgramEntry> _checkedApps = new();
@@ -844,6 +845,13 @@ internal sealed partial class MainForm : Form
                 e.Cancel = true;
                 _consultaCatalogoCts.Cancel();
                 Status("Cancelando a consulta. Tente fechar novamente em alguns instantes.");
+                return;
+            }
+            if (_residualScanCts is not null)
+            {
+                e.Cancel = true;
+                _residualScanCts.Cancel();
+                Status("Cancelando análise de resíduos. Tente fechar novamente em instantes.");
                 return;
             }
             if (_installerDownloadCts is not null)
@@ -2681,12 +2689,28 @@ internal sealed partial class MainForm : Form
                 var currentInventory = await Task.Run(AppServices.ScanAllInstalledApps);
                 var audit = await Task.Run(() => ResidualAudit.Inspect(entry, currentInventory.Items,
                     currentInventory.Incomplete));
+                var previewStates = new List<ResidualPreviewState>();
+                using (var previewTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(8)))
+                    foreach (var candidate in UninstallResiduals.Inspect(entry))
+                        previewStates.Add(await ResidualPreview.CaptureAsync(candidate, previewTimeout.Token));
+                if (previewStates.Count > 0)
+                    audit = ResidualReportMerger.Merge(new[] { audit,
+                        ResidualPreview.Describe(entry.Name, previewStates) }, currentInventory.Incomplete).Single();
                 DiagnosticTrace.Write($"DESINSTALACAO.AUDITORIA encontrados={audit.Findings.Count} relacionados={audit.RelatedRegisteredPrograms.Count} removido={audit.UninstallConfirmed}");
                 if (audit.Findings.Count > 0 || audit.RelatedRegisteredPrograms.Count > 0)
                 {
                     Log($"Auditoria de {entry.Name}: {audit.Findings.Count} local(is) possível(is) e " +
                         $"{audit.RelatedRegisteredPrograms.Count} componente(s) relacionado(s) ainda registrado(s).");
-                    ResidualAuditDialog.ShowResults(this, audit);
+                    ResidualAuditDialog.ShowResults(this, audit, async token =>
+                    {
+                        var fresh = await Task.Run(AppServices.ScanAllInstalledApps, token);
+                        var refreshedAudit = await Task.Run(() => ResidualAudit.Inspect(entry, fresh.Items, fresh.Incomplete), token);
+                        bool unchanged = true;
+                        foreach (var state in previewStates)
+                            unchanged &= await ResidualPreview.IsUnchangedAsync(state, token);
+                        return ResidualReportMerger.Merge(new[] { refreshedAudit,
+                            ResidualPreview.Describe(entry.Name, previewStates, unchanged) }, fresh.Incomplete).Single();
+                    });
                 }
                 else
                 {
@@ -2857,8 +2881,17 @@ internal sealed partial class MainForm : Form
         // Jogos detectados apenas por manifestos Steam/Epic nao pertencem ao ARP.
         // Proteger seus dados ativos antes de sugerir vestigios historicos.
         var gameInventory = inventorySnapshot.Games;
-        var broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory,
-            gameInventory.ActiveNames, gameInventory.Partial, inventoryIncomplete));
+        BroadResidualResult broad;
+        using (var scanCancellation = new CancellationTokenSource())
+        {
+            _residualScanCts = scanCancellation;
+            try
+            {
+                broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory,
+                    gameInventory.ActiveNames, gameInventory.Partial, inventoryIncomplete, scanCancellation.Token));
+            }
+            finally { _residualScanCts = null; }
+        }
         int installCandidates = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)));
         int publisherData = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal)));
         DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");

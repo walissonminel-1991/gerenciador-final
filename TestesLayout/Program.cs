@@ -28,6 +28,34 @@ internal static class LayoutTests
             DarkLogView.NormalizeWindowsLineBreaks("um\r\n\r\ndois") != "um\r\n\r\ndois" ||
             DarkLogView.NormalizeWindowsLineBreaks("um\rdois") != "um\r\ndois")
             throw new Exception("Normalizacao de paragrafo WinForms falhou.");
+        var residue = new ResidualAuditReport("Aplicativo fictício", false, new[]
+        {
+            new ResidualAuditFinding(@"C:\Ficticio\Playlist", "Perfil", 1, "Preservar playlist", ResidualDisposition.PreserveData),
+            new ResidualAuditFinding(@"C:\Ficticio\Binario", "Binário", 1, "Sem exclusividade", ResidualDisposition.Unknown)
+        }, []);
+        using (var review = new ResidualAuditDialog(residue, refresh: _ => Task.FromResult(residue with
+            { Incomplete = true, Findings = new[] { residue.Findings[1] with { Evidence = "ALVO ALTERADO — PRESERVAR" } } })))
+        {
+            review.Show();
+            Application.DoEvents();
+            var buttons = Descendants(review).OfType<Button>().ToArray();
+            if (buttons.Length != 2 || buttons.Any(b => b.Text.Contains("Excluir") || b.Text.Contains("Remover")))
+                throw new Exception("Revisão de resíduos não pode expor exclusão.");
+            var text = Descendants(review).OfType<DarkLogView>().Single();
+            if (!text.RenderedText.Contains("Preservar dados") || !text.RenderedText.Contains("Estado desconhecido"))
+                throw new Exception("Decisões individuais da prévia não foram exibidas.");
+            buttons.Single(b => b.Name == "ResidualRecheck").PerformClick();
+            for (int attempt = 0; attempt < 30 && !text.RenderedText.Contains("ALVO ALTERADO"); attempt++)
+            {
+                System.Threading.Thread.Sleep(20);
+                Application.DoEvents();
+            }
+            if (!text.RenderedText.Contains("ALVO ALTERADO") || !text.RenderedText.Contains("NENHUM ITEM APAGADO") ||
+                !text.RenderedText.Contains("ANÁLISE PARCIAL"))
+                throw new Exception("Conferência não atualizou a prévia ou ocultou estado parcial.");
+            review.Close();
+        }
+        Console.WriteLine("OK Prévia de resíduos tipada e conferência sem exclusão");
         // Permite experimentar a contribuicao sem gravar dados ou autorizar coleta.
         string dryRunFolder = Path.Combine(Path.GetTempPath(),
             "GF-Preview-Only-" + Guid.NewGuid().ToString("N"));

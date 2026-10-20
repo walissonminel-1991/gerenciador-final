@@ -6,6 +6,7 @@ internal static class ResidualMissionTests
     internal static void Run(Action<bool, string> check)
     {
         Classification(check);
+        Decisions(check);
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
         var stopped = new ResidualScanBudget(cancelled.Token);
@@ -75,6 +76,7 @@ internal static class ResidualMissionTests
         finally { Directory.Delete(temp, true); }
 
         if (!OperatingSystem.IsWindows()) return;
+        PreviewFiles(check).GetAwaiter().GetResult();
         string keyPath = @"Software\GF_Mission_" + Guid.NewGuid().ToString("N");
         try
         {
@@ -155,5 +157,74 @@ internal static class ResidualMissionTests
             clock.Elapsed < TimeSpan.FromSeconds(20),
             "Dez mil evidências e mil instalações: saída limitada e sem autorização de exclusão");
     }
+
+    private static void Decisions(Action<bool, string> check)
+    {
+        var ready = new ResidualDecisionContext(true, true, true, false, true, true, true, true);
+        check(ResidualPreview.Decide(ready).SimulationEligible && !ResidualPreview.Decide(ready).CanExecute,
+            "Mesmo pré-condições completas habilitam apenas simulação");
+        var unsafeContexts = new[]
+        {
+            ready with { InventoryComplete = false }, ready with { LauncherExited = false },
+            ready with { AuxiliaryProcessesFinished = false }, ready with { ActiveResources = true },
+            ready with { ExclusiveOwnership = false }, ready with { ExplicitPolicy = false },
+            ready with { SpecificConsent = false }, ready with { SnapshotUnchanged = false },
+            ready with { PersonalOrSharedData = true }
+        };
+        check(unsafeContexts.All(c => !ResidualPreview.Decide(c).SimulationEligible && !ResidualPreview.Decide(c).CanExecute),
+            "Inventário parcial, interrupção, auxiliar ativo, reinstalação, dados compartilhados ou mudança bloqueiam decisão");
+        var removedRegistryBeforeExit = ready with { LauncherExited = false, AuxiliaryProcessesFinished = false };
+        check(!ResidualPreview.Decide(removedRegistryBeforeExit).SimulationEligible,
+            "WinMerge: registro ausente antes do término do fabricante não autoriza limpeza");
+    }
+
+    private static async Task PreviewFiles(Action<bool, string> check)
+    {
+        string root = Path.Combine(Path.GetTempPath(), "GF-Preview-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            string file = Path.Combine(root, "LegacyEditor.exe");
+            File.WriteAllText(file, "dados ficticios A");
+            var candidate = UninstallResiduals.InspectDirectory("LegacyEditor", root, new[] { "LegacyEditor.exe" })!;
+            var preview = await ResidualPreview.CaptureAsync(candidate);
+            check(preview.Complete && preview.Files.Count == 1 && await ResidualPreview.IsUnchangedAsync(preview),
+                "Prévia Windows registra identidade, link único e SHA-256 sem exclusão");
+            var written = File.GetLastWriteTimeUtc(file);
+            File.WriteAllText(file, "dados ficticios B");
+            File.SetLastWriteTimeUtc(file, written);
+            check(!await ResidualPreview.IsUnchangedAsync(preview),
+                "Conteúdo alterado com tamanho e timestamp iguais invalida prévia");
+            preview = await ResidualPreview.CaptureAsync(candidate);
+            File.WriteAllText(Path.Combine(root, "novo.exe"), "novo arquivo");
+            check(!await ResidualPreview.IsUnchangedAsync(preview), "Arquivo surgido após prévia exige nova análise");
+            File.Delete(Path.Combine(root, "novo.exe"));
+            preview = await ResidualPreview.CaptureAsync(candidate);
+            File.Move(file, file + ".old");
+            File.WriteAllText(file, "dados ficticios B");
+            File.SetLastWriteTimeUtc(file, written);
+            check(!await ResidualPreview.IsUnchangedAsync(preview), "Substituição no mesmo caminho invalida identidade");
+            File.Delete(file + ".old");
+            using (var inUse = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                check(!(await ResidualPreview.CaptureAsync(candidate)).Complete, "Arquivo em uso ou leitura negada preservado");
+            string hardlink = Path.Combine(root, "SegundaReferencia.exe");
+            check(CreateHardLink(hardlink, file, IntPtr.Zero), "Criar hard link apenas no fixture temporário");
+            check(!(await ResidualPreview.CaptureAsync(candidate)).Complete,
+                "Hard link bloqueia validação de exclusividade do arquivo");
+            File.Delete(hardlink);
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            check(!(await ResidualPreview.CaptureAsync(candidate, cancelled.Token)).Complete &&
+                !await ResidualPreview.IsUnchangedAsync(preview, cancelled.Token), "Cancelamento invalida captura e revalidação");
+            preview = await ResidualPreview.CaptureAsync(candidate);
+            File.Delete(file);
+            check(!await ResidualPreview.IsUnchangedAsync(preview), "Alvo ausente depois da análise não gera exclusão substituta");
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool CreateHardLink(string newName, string existingName, IntPtr attributes);
 
 }

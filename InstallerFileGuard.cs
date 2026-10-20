@@ -100,6 +100,18 @@ internal static class InstallerFileGuard
             throw new InvalidDataException("Caminho redirecionado ou tipo de arquivo nao autorizado.");
     }
 
+    // Mesma identidade por handle reutilizada pela prévia de resíduos. Não
+    // altera os critérios de instalação nem autoriza exclusão de arquivo.
+    internal sealed record FileIdentity(uint Volume, ulong Index, uint Links, ulong Size, long Written);
+    internal static FileIdentity ReadIdentity(FileStream stream)
+    {
+        if (!GetFileInformationByHandle(stream.SafeFileHandle, out var info))
+            throw new IOException("Identidade do arquivo indisponível.");
+        return new(info.Volume, ((ulong)info.IndexHigh << 32) | info.IndexLow, info.Links,
+            ((ulong)info.SizeHigh << 32) | info.SizeLow,
+            ((long)info.Written.dwHighDateTime << 32) | (uint)info.Written.dwLowDateTime);
+    }
+
     private sealed class DirectoryLease : IDisposable
     {
         internal readonly List<SafeFileHandle> Handles = new();

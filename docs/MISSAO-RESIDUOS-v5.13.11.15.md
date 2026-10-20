@@ -48,3 +48,15 @@ Identificadores MSI, ID de inventário e sobreposição delimitada de caminhos a
 Regressão encontrada pelo CI M2: o validador histórico rejeitava a pasta de três letras `vlc`, fazendo o catálogo inteiro falhar fechado. Corrigida validação mínima para três letras e adicionado teste do carregamento das cinco regras, inclusive no subconjunto local. Não houve desbloqueio de exclusão.
 
 Validação deste marco: aplicação compilada localmente para Windows sem erros (aviso SYSLIB0057 preexistente em VerifiedUpdaters); build dos testes sem avisos/erros. Vinte testes locais específicos aprovados, incluindo 10.000 evidências/1.000 instalações com saída limitada a 100 grupos, conflitos, inventário parcial e MSI/instalação paralela. Sete testes Python aprovados. Repetir suite Windows nesta revisão para encerrar a regressão do catálogo.
+
+## M4 — prévia e decisão em simulação
+
+M3 passou nos três workflows (Windows 39503504733, política 39503504720, pacote 39503504825), corrigindo a regressão do catálogo do M2.
+
+A prévia pós-desinstalação reutiliza `InstallerFileGuard`: lê por handle com ancestrais presos, registra identidade de volume/arquivo, número de links, tamanho, modificação e SHA-256 somente dos executáveis reconhecidos. Hard links ou leitura incerta não são validados. Limites: 16 alvos por candidato, 32 MiB por arquivo e 64 MiB por candidato; captura inicial com cancelamento em oito segundos. Prévia só em memória, sem log de conteúdo/identidade/caminho.
+
+`Conferir novamente` reconsulta inventário unificado e compara exatamente os alvos exibidos; conteúdo alterado (mesmo tamanho/data), substituição, ausência, mudança no conjunto ou cancelamento invalidam a comparação. Nenhum alvo novo é acrescentado à seleção antiga. O guard é liberado após a leitura: a comparação **não** garante proteção contínua até uma futura exclusão. Por isso não existe executor habilitado.
+
+Decisão exige inventário completo, término confirmado do lançador e auxiliares, ausência de recurso ativo, exclusividade, regra explícita, consentimento específico e snapshot igual; mesmo o caso completo habilita somente simulação. Não há confirmação de apagar nem promessa de reversão. O GF ainda não comprova todos os subprocessos/MSI/serviços do fabricante, nem propriedade exclusiva. Não apagar automaticamente com base no resultado.
+
+Testes adicionados: nove impedimentos de decisão; caso WinMerge com ARP removido antes de terminar; captura/revalidação Windows, hard link, arquivo bloqueado, mesmo tamanho/data, substituição, arquivos novos/ausentes e cancelamento; UI exige decisões por item, botão de conferência funcional e ausência de botões destrutivos. Subconjunto local agora tem 23 verificações; testes por handle e UI serão confirmados no CI Windows. ACLs complexas, junctions nativas e concorrência adversarial completa permanecem para bateria ampliada; recusa de reparse points e bloqueio global de exclusão continuam ativos.

@@ -8,7 +8,9 @@ namespace GerenciadorAplicativos;
 // Encontrar algo não prova que seja resíduo; exige política específica.
 internal sealed class ResidualAuditDialog : Form
 {
-    private ResidualAuditDialog(ResidualAuditReport report, string? groupedDetails = null)
+    private readonly CancellationTokenSource reviewCancellation = new();
+    internal ResidualAuditDialog(ResidualAuditReport report, string? groupedDetails = null,
+        Func<CancellationToken, Task<ResidualAuditReport>>? refresh = null)
     {
         Text = report.Historical ? "Revisão de dados e instalações históricas" : "Revisão após desinstalação";
         StartPosition = FormStartPosition.CenterParent;
@@ -38,7 +40,7 @@ internal sealed class ResidualAuditDialog : Form
                 ? $"O registro de desinstalação de {report.Product} não está mais presente. " +
                   "O desinstalador do fabricante ainda pode estar aberto. " +
                   "Os possíveis vestígios abaixo NÃO serão excluídos automaticamente."
-                : $"{report.Product} ainda aparece instalado ou possui registros associados. " +
+                : $"O estado completo de {report.Product} não foi confirmado. " +
                   "O estado completo não foi confirmado. Nenhuma exclusão será autorizada.";
 
         layout.Controls.Add(new Label
@@ -51,13 +53,7 @@ internal sealed class ResidualAuditDialog : Form
             Padding = new Padding(6, 2, 5, 2)
         }, 0, 0);
 
-        string details = groupedDetails ?? string.Join("\r\n\r\n", report.Findings.Select((f, i) =>
-            $"{i + 1}. {f.DecisionLabel} — {f.Kind}: {f.Location}\r\n" +
-            $"   {f.Items} item(ns) encontrados — {f.Evidence}"));
-        if (report.RelatedRegisteredPrograms.Count > 0)
-            details += "\r\n\r\nComponentes relacionados que ainda aparecem instalados:\r\n" +
-                string.Join("\r\n", report.RelatedRegisteredPrograms.Select(n => "• " + n)) +
-                "\r\nEsses componentes NÃO são classificados como resíduos.";
+        string details = groupedDetails ?? FormatSingle(report);
         var text = new DarkLogView { Dock = DockStyle.Fill };
         text.SetText(details);
         layout.Controls.Add(text, 0, 1);
@@ -74,10 +70,48 @@ internal sealed class ResidualAuditDialog : Form
             ForeColor = Color.White
         };
         bar.Controls.Add(close);
+        if (refresh is not null)
+        {
+            var recheck = new ModernButton
+            {
+                Name = "ResidualRecheck", Text = "Conferir novamente", Size = new Size(165, 34),
+                BackColor = AppServices.Gray, ForeColor = Color.White
+            };
+            recheck.Click += async (_, _) =>
+            {
+                recheck.Enabled = false;
+                try
+                {
+                    var current = await refresh(reviewCancellation.Token);
+                    if (!IsDisposed) text.SetText("CONFERÊNCIA SOMENTE LEITURA — NENHUM ITEM APAGADO\r\n\r\n" + FormatSingle(current));
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+                {
+                    if (!IsDisposed) text.SetText("Não foi possível conferir todos os dados. Preserve os itens e repita a análise.");
+                }
+                finally { if (!IsDisposed) recheck.Enabled = true; }
+            };
+            bar.Controls.Add(recheck);
+        }
         layout.Controls.Add(bar, 0, 2);
         Controls.Add(layout);
         AcceptButton = close;
         CancelButton = close;
+    }
+
+    private static string FormatSingle(ResidualAuditReport report) =>
+        (report.Incomplete ? "ANÁLISE PARCIAL — ESTADO DESCONHECIDO\r\n\r\n" : "") +
+        string.Join("\r\n\r\n", report.Findings.Select((f, i) =>
+            $"{i + 1}. {f.DecisionLabel} — {f.Kind}: {f.Location}\r\n   {f.Items} item(ns) — {f.Evidence}")) +
+        (report.RelatedRegisteredPrograms.Count > 0 ? "\r\n\r\nComponentes ainda registrados (preservar):\r\n" +
+            string.Join("\r\n", report.RelatedRegisteredPrograms.Select(n => "• " + n)) : "");
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        reviewCancellation.Cancel();
+        base.OnFormClosed(e);
+        reviewCancellation.Dispose();
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -118,11 +152,12 @@ internal sealed class ResidualAuditDialog : Form
         window.ShowDialog(owner);
     }
 
-    internal static void ShowResults(IWin32Window owner, ResidualAuditReport report)
+    internal static void ShowResults(IWin32Window owner, ResidualAuditReport report,
+        Func<CancellationToken, Task<ResidualAuditReport>>? refresh = null)
     {
         if (report.Findings.Count == 0 && report.RelatedRegisteredPrograms.Count == 0)
             return;
-        using var window = new ResidualAuditDialog(report);
+        using var window = new ResidualAuditDialog(report, refresh: refresh);
         window.ShowDialog(owner);
     }
 }
