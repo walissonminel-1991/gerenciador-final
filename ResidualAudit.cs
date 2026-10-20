@@ -50,8 +50,57 @@ internal static class ResidualAudit
                     System.Security.SecurityException or IOException) { }
             }
         }
+        // Driver Booster é produto de terceiros, não um driver do Windows.
+        // A regra geral suprime "driver" para evitar falsos positivos; esta
+        // exceção é estritamente somente leitura e não habilita limpeza.
+        if (IsDriverBoosterProduct(previous))
+            InspectDriverBoosterFamily(findings, examined);
         string[] related = FindRelatedRegistrations(previous, current);
         return new(previous.Name, removed, findings.Take(MaxDetails).ToArray(), related);
+    }
+
+    internal static bool IsDriverBoosterProduct(ProgramEntry app) =>
+        Regex.IsMatch(app.Name.Trim(), @"^Driver Booster(?:\\s+\\d+(?:\\.\\d+)*)?$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    private static void InspectDriverBoosterFamily(
+        List<ResidualAuditFinding> findings, HashSet<string> examined)
+    {
+        // Apenas caminhos específicos do produto. Pasta genérica IObit pode
+        // pertencer a outros aplicativos da empresa e nunca é classificada
+        // automaticamente como resíduo do Driver Booster.
+        var folders = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "IObit", "Driver Booster"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "IObit", "Driver Booster"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "IObit", "Driver Booster"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IObit", "Driver Booster"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "IObit", "Driver Booster")
+        };
+        foreach (string folder in folders.Distinct(StringComparer.OrdinalIgnoreCase))
+            InspectFolder(folder, "Dados específicos de Driver Booster; sem confirmação de exclusividade",
+                findings, examined);
+
+        foreach (var source in new[]
+        {
+            (Hive: RegistryHive.CurrentUser, View: RegistryView.Default, Label: "HKEY_CURRENT_USER"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry32, Label: "HKEY_LOCAL_MACHINE (32 bits)"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry64, Label: "HKEY_LOCAL_MACHINE (64 bits)")
+        })
+        {
+            try
+            {
+                using var root = RegistryKey.OpenBaseKey(source.Hive, source.View);
+                using var key = root.OpenSubKey(@"SOFTWARE\\IObit\\Driver Booster", writable: false);
+                if (key is not null)
+                    findings.Add(new(source.Label + @"\\SOFTWARE\\IObit\\Driver Booster",
+                        "Registro específico do produto", Math.Max(1, Math.Min(ScanLimit,
+                            key.ValueCount + key.SubKeyCount)),
+                        "Pode pertencer a uma instalação ainda ativa; somente leitura, sem autorização de limpeza."));
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or
+                System.Security.SecurityException or IOException) { }
+        }
     }
 
     internal static string[] FindRelatedRegistrations(ProgramEntry previous,
@@ -105,7 +154,8 @@ internal static class ResidualAudit
                 Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
                 Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
             ];
             bool under = allowedBases.Any(basePath =>
             {
