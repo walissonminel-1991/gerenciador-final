@@ -4,7 +4,7 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Versão do código em desenvolvimento:** v5.13.11.2 TESTE · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
+**Versão do código em desenvolvimento:** v5.13.11.3 TESTE · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
 
 ## Recursos
 
@@ -16,7 +16,7 @@
 - Aba DRIVERS de consulta somente leitura com histórico local de dispositivos/INF; não instala, remove nem reverte drivers.
 - Auditoria histórica de possíveis resíduos somente leitura, com proteção de instalações, dados pessoais e fabricantes compartilhados.
 - Interface Windows Forms em português, tema escuro e ícone **GF** azul.
-- Diagnóstico colaborativo: coleta local voluntária e prévia. Na v5.13.11.2 é possível **revisar um resumo e abrir uma Issue pública no GitHub**, mediante duas confirmações do usuário. **Nenhum envio automático para servidores está ativo.** Consulte [o piloto de colaboradores](docs/PILOTO-DIAGNOSTICO-GITHUB.md).
+- Diagnóstico colaborativo: coleta local voluntária e prévia. Na v5.13.11.3 é possível **revisar um resumo e abrir uma Issue pública no GitHub**, mediante duas confirmações do usuário. **Nenhum envio automático para servidores está ativo.** Consulte [o piloto de colaboradores](docs/PILOTO-DIAGNOSTICO-GITHUB.md).
 
 **Atenção:** uma ferramenta de manutenção não substitui backups, proteção antivírus ou suporte especializado. Operações administrativas podem causar alterações de rede, reinicializações ou perda de dados não salvos. Leia cada confirmação. Não há ganho de desempenho garantido.
 
