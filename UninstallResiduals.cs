@@ -132,52 +132,13 @@ internal static class UninstallResiduals
         { return null; }
     }
 
-    internal static ResidualCleanupResult Clean(ProgramEntry original, ResidualCandidate candidate)
-    {
-        var policy = GetPolicy(original);
-        if (policy is null || !policy.Product.Equals(candidate.Product, StringComparison.Ordinal) ||
-            !policy.Roots.Any(root => PathComparer.Equals(root, candidate.Root)))
-            return new(0, 0, 1, 0);
-        // Voltar ao disco agora; nunca confiar em caminhos capturados antes do dialogo.
-        ResidualCandidate? refreshed = InspectDirectory(policy.Product, candidate.Root, policy.KnownFileNames);
-        if (refreshed is null) return new(0, 0, 0, 0);
-        return CleanCandidateFiles(refreshed, policy.KnownFileNames);
-    }
+    // Candidata de auditoria: nomes exatos e nova enumeração não provam
+    // propriedade exclusiva nem preservam o consentimento sobre o conteúdo.
+    // Nenhuma chamada interna pode contornar o bloqueio de exclusão.
+    internal static ResidualCleanupResult Clean(ProgramEntry original, ResidualCandidate candidate) =>
+        new(0, 0, 1, candidate.Preserved + candidate.Files.Count);
 
-    // Testável com pasta TEMP, mas a chamada de produção Clean() exige a política
-    // e os diretórios fixos previamente aprovados.
     internal static ResidualCleanupResult CleanCandidateFiles(
-        ResidualCandidate refreshed, IReadOnlyCollection<string> allowedNames)
-    {
-        if (!SafeRoot(refreshed.Root)) return new(0, 0, 1, 0);
-        var recheck = InspectDirectory(refreshed.Product, refreshed.Root, allowedNames);
-        if (recheck is null) return new(0, 0, 0, 0);
-        int removed = 0, errors = 0, directories = 0;
-        foreach (string file in recheck.Files)
-        {
-            try
-            {
-                if (!SafeRoot(recheck.Root) ||
-                    !PathComparer.Equals(Path.GetDirectoryName(file), recheck.Root) ||
-                    !allowedNames.Contains(Path.GetFileName(file), PathComparer))
-                { errors++; continue; }
-                if ((File.GetAttributes(file) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
-                { errors++; continue; }
-                File.Delete(file);
-                removed++;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            { errors++; }
-        }
-        try
-        {
-            if (SafeRoot(recheck.Root) && !Directory.EnumerateFileSystemEntries(recheck.Root).Any())
-            {
-                Directory.Delete(recheck.Root);
-                directories++;
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { errors++; }
-        return new(removed, directories, errors, recheck.Preserved);
-    }
+        ResidualCandidate refreshed, IReadOnlyCollection<string> allowedNames) =>
+        new(0, 0, 1, refreshed.Preserved + refreshed.Files.Count);
 }

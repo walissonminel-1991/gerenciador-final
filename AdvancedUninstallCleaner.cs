@@ -157,88 +157,13 @@ internal static class AdvancedUninstallCleaner
         return found;
     }
 
-    // Nunca seguir junctions/reparse ou ultrapassar a raiz. Escopo é o diretório
-    // exclusivo aprovado; as versões de teste usam apenas uma raiz em TEMP.
-    internal static DeepCleanResult DeleteApprovedTree(string root, IReadOnlyCollection<string> allowedRoots)
-    {
-        if (!AllowedPath(root, allowedRoots) || !Directory.Exists(root))
-            return new(0, 0, 0, 1, 0);
-        var inventory = CountTree(root);
-        if (!inventory.complete)
-            return new(0, 0, 0, 1 + inventory.skipped, 0);
-        var directories = new List<string>();
-        var files = new List<string>();
-        var pending = new Stack<string>();
-        pending.Push(root);
-        try
-        {
-            while (pending.Count > 0)
-            {
-                string dir = pending.Pop();
-                if (!AllowedPath(root, allowedRoots) || !SafeDescendant(dir, root))
-                    return new(0, 0, 0, 1, 0);
-                foreach (FileSystemInfo item in new DirectoryInfo(dir).EnumerateFileSystemInfos())
-                {
-                    if ((item.Attributes & FileAttributes.ReparsePoint) != 0) continue;
-                    if ((item.Attributes & FileAttributes.Directory) != 0)
-                    {
-                        pending.Push(item.FullName);
-                        directories.Add(item.FullName);
-                    }
-                    else files.Add(item.FullName);
-                }
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        { return new(0, 0, 0, 1, 0); }
-        int deleted = 0, removedDirs = 0, failed = 0;
-        foreach (string file in files)
-        {
-            try
-            {
-                if (!AllowedPath(root, allowedRoots) || !SafeDescendant(file, root))
-                { failed++; continue; }
-                var fi = new FileInfo(file);
-                if ((fi.Attributes & FileAttributes.ReparsePoint) != 0) { failed++; continue; }
-                fi.Delete(); deleted++;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { failed++; }
-        }
-        foreach (string dir in directories.OrderByDescending(x => x.Length).Append(root))
-        {
-            try
-            {
-                if (!AllowedPath(root, allowedRoots) || !SafeDescendant(dir, root))
-                { failed++; continue; }
-                var di = new DirectoryInfo(dir);
-                if (di.Exists && (di.Attributes & FileAttributes.ReparsePoint) == 0 &&
-                    !di.EnumerateFileSystemInfos().Any())
-                { di.Delete(); removedDirs++; }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { failed++; }
-        }
-        return new(deleted, removedDirs, 0, inventory.skipped, failed);
-    }
+    // Exclusão suspensa nesta candidata, também para chamadas diretas.
+    // Antes de reativar: snapshot por identidade/conteúdo, handles estáveis,
+    // exclusividade comprovada e bateria supervisionada em Windows.
+    internal static DeepCleanResult DeleteApprovedTree(string root, IReadOnlyCollection<string> allowedRoots) =>
+        new(0, 0, 0, 1, 0);
 
-    // Somente HKCU e caminho EXATO previamente autorizado. Não remove a raiz
-    // Software nem resultados de buscas por substring no Regedit.
-    internal static bool DeleteApprovedRegistryKey(string key, IReadOnlyCollection<string> allowlist)
-    {
-        if (!OwnRegistryPath(key, allowlist)) return false;
-        try
-        {
-            using var software = Registry.CurrentUser.OpenSubKey("Software", writable: true);
-            if (software is null) return false;
-            string leaf = key[@"Software\".Length..];
-            if (leaf.Length == 0 || leaf.Contains('\\') || leaf.Contains('/')) return false;
-            using (var existing = software.OpenSubKey(leaf))
-                if (existing is null) return false;
-            software.DeleteSubKeyTree(leaf, throwOnMissingSubKey: false);
-            return true;
-        }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException
-            or IOException or ArgumentException) { return false; }
-    }
+    internal static bool DeleteApprovedRegistryKey(string key, IReadOnlyCollection<string> allowlist) => false;
 
     // Uma nova pasta/chave surgida depois do dialogo precisa de nova autorizacao.
     // A lista atual limita a politica; a lista aceita limita o consentimento.
@@ -250,29 +175,5 @@ internal static class AdvancedUninstallCleaner
         };
 
     internal static DeepCleanResult Clean(DeepCleanItem accepted,
-        IReadOnlyCollection<ProgramEntry> currentInstalled)
-    {
-        var policy = KnownPolicies().FirstOrDefault(x =>
-            x.App.Name.Equals(accepted.App.Name, StringComparison.OrdinalIgnoreCase));
-        if (policy is null || StillInstalled(policy.App, currentInstalled))
-            return new(0, 0, 0, 1, 0);
-        // Recalcular os alvos da política, nunca confiar cegamente na lista antiga.
-        var current = Inspect(currentInstalled).FirstOrDefault(x =>
-            x.App.Name.Equals(accepted.App.Name, StringComparison.OrdinalIgnoreCase));
-        if (current is null) return new(0, 0, 0, 0, 0);
-        current = RestrictToAccepted(accepted, current);
-        int files = 0, dirs = 0, reg = 0, skipped = current.InaccessibleOrLinked, failed = 0;
-        foreach (string folder in current.Folders)
-        {
-            var result = DeleteApprovedTree(folder, policy.Folders);
-            files += result.Files; dirs += result.Directories;
-            skipped += result.Skipped; failed += result.Failed;
-        }
-        foreach (string key in current.RegistryKeys)
-        {
-            if (DeleteApprovedRegistryKey(key, policy.RegistryKeys)) reg++;
-            else failed++;
-        }
-        return new(files, dirs, reg, skipped, failed);
-    }
+        IReadOnlyCollection<ProgramEntry> currentInstalled) => new(0, 0, 0, 1, 0);
 }

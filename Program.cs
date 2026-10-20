@@ -2706,62 +2706,7 @@ internal sealed partial class MainForm : Form
             }
         }
 
-        // Executar somente depois de confirmar a remoção. Uma consulta sem
-        // resíduos ou sem receita conhecida jamais deve apagar arquivos.
-        foreach (var item in completed)
-        {
-            if (!UninstallResiduals.IsSupported(item))
-            {
-                Log("Registro removido; limpeza automática de resíduos não disponível para " + item.Name + ".");
-                continue;
-            }
-            Status("Verificando resíduos de " + item.Name + "...");
-            DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_CONSULTA_INICIO");
-            var found = await Task.Run(() => UninstallResiduals.Inspect(item));
-            DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_CONSULTA_FIM candidatos=" + found.Sum(x => x.Files.Count));
-            if (found.Count == 0)
-            {
-                Log("Nenhum resíduo executável reconhecido encontrado para " + item.Name +
-                    ". Configurações pessoais são preservadas.");
-                continue;
-            }
-            int detected = found.Sum(x => x.Files.Count);
-            int untouched = found.Sum(x => x.Preserved);
-            string description = string.Join("\n", found.Take(3).Select(x =>
-                "• " + x.Product + ": " + x.Files.Count + " arquivo(s) na pasta de instalação"));
-            string question = $"Desinstalação de {item.Name} confirmada.\n\n" +
-                $"Foram encontrados {detected} arquivo(s) residuais de instalação:\n" +
-                description +
-                $"\n\nDeseja limpar somente esses arquivos?\n" +
-                $"Configurações, documentos, plugins e outros dados ({untouched} item(ns) não reconhecido(s)) serão preservados.";
-            if (DarkConfirmDialog.Confirm(this, question, "Limpar resíduos após desinstalação") != DialogResult.Yes)
-            {
-                Log("Limpeza de resíduos recusada. Nenhum arquivo adicional removido.");
-                DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_RECUSADO");
-                continue;
-            }
-            // Revalidar imediatamente a remoção; caso outra instalação tenha surgido, não limpar.
-            if (UninstallResiduals.StillInstalled(item, await Task.Run(AppServices.GetInstalledPrograms)))
-            {
-                Log("O aplicativo voltou a constar no Registro; resíduos preservados.");
-                DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_ABORTADO_REINSTALACAO");
-                continue;
-            }
-            int filesRemoved = 0, foldersRemoved = 0, errors = 0, preserved = 0;
-            foreach (var candidate in found)
-            {
-                var outcome = await Task.Run(() => UninstallResiduals.Clean(item, candidate));
-                filesRemoved += outcome.RemovedFiles;
-                foldersRemoved += outcome.RemovedDirectories;
-                errors += outcome.Failed;
-                preserved += outcome.Preserved;
-            }
-            DiagnosticTrace.Write($"DESINSTALACAO.RESIDUOS_LIMPEZA arquivos={filesRemoved} pastas={foldersRemoved} falhas={errors} preservados={preserved}");
-            Log($"Resíduos de {item.Name}: removidos {filesRemoved} arquivo(s) e {foldersRemoved} pasta(s) vazia(s); " +
-                $"preservados {preserved} item(ns); falhas {errors}.");
-            Status(errors == 0 ? "Limpeza de resíduos concluída com segurança."
-                               : "Limpeza parcial: alguns arquivos requerem permissões ou estão em uso.");
-        }
+        Log("Revisão de resíduos somente leitura nesta candidata. Nenhum arquivo adicional foi apagado.");
         await RefreshCatalogAsync();
         Status($"Desinstalação: {confirmed} confirmada(s), {failed} falha(s). " +
             "Auditoria adicional concluída; possíveis resíduos desconhecidos não foram apagados.");
@@ -2782,45 +2727,16 @@ internal sealed partial class MainForm : Form
             Status("Nenhum resíduo avançado reconhecido; outros vestígios não podem ser descartados.");
             return;
         }
-        foreach (var item in candidates)
-        {
-            var targets = item.Folders.Select(p => "• Pasta: " + p)
-                .Concat(item.RegistryKeys.Select(p => @"• Regedit: HKEY_CURRENT_USER\" + p));
-            string preview = string.Join("\n", targets.Take(5));
-            string warning =
-                "MODO AVANÇADO — AÇÃO IRREVERSÍVEL\n\n" +
-                item.App.Name + " não consta no Registro como instalado.\n\n" +
-                "A limpeza pode apagar preferências, histórico local, documentos, backups e plugins " +
-                "armazenados nas pastas exclusivas abaixo, além das chaves de Registro listadas:\n\n" +
-                preview +
-                $"\n\nArquivos identificados: {item.FileCount}. Itens especiais ignorados: {item.InaccessibleOrLinked}.\n" +
-                "As exclusões não passam pela Lixeira. Não há garantia de apagamento forense em SSD.\n" +
-                "Componentes compartilhados e outras contas serão preservados.\n\n" +
-                "DESEJA EXCLUIR ESSES DADOS PERMANENTEMENTE?";
-            if (DarkConfirmDialog.Confirm(this, warning,
-                "Limpeza avançada — confirmar exclusão") != DialogResult.Yes)
-            {
-                DiagnosticTrace.Write("LIMPEZA_AVANCADA.RECUSADA");
-                Log("Limpeza avançada de " + item.App.Name + " recusada. Nenhuma alteração.");
-                continue;
-            }
-            // Reconsulta independente, a confirmação não vale para apps reinstalados.
-            var fresh = await Task.Run(AppServices.GetInstalledPrograms);
-            if (AdvancedUninstallCleaner.StillInstalled(item.App, fresh))
-            {
-                Status("O programa foi detectado novamente. Nenhum dado será apagado.");
-                DiagnosticTrace.Write("LIMPEZA_AVANCADA.REINSTALADO");
-                continue;
-            }
-            Status("Eliminando apenas dados exclusivos autorizados de " + item.App.Name + "...");
-            var result = await Task.Run(() => AdvancedUninstallCleaner.Clean(item, fresh));
-            DiagnosticTrace.Write($"LIMPEZA_AVANCADA.RESULTADO arquivos={result.Files} pastas={result.Directories} chaves={result.RegistryKeys} ignorados={result.Skipped} falhas={result.Failed}");
-            Log($"Limpeza avançada de {item.App.Name}: {result.Files} arquivo(s), {result.Directories} pasta(s), " +
-                $"{result.RegistryKeys} chave(s) HKCU removidos; {result.Skipped} ignorados; {result.Failed} falhas.");
-            Status(result.Failed == 0 && result.Skipped == 0
-                ? "Limpeza avançada concluída para alvos conhecidos. Outros vestígios podem permanecer."
-                : "Limpeza avançada parcial. Dados protegidos ou inacessíveis foram preservados.");
-        }
+        var reports = candidates.Select(item => new ResidualAuditReport(item.App.Name, false,
+            item.Folders.Select(folder => new ResidualAuditFinding(folder,
+                "Dados e configurações — preservar", 1,
+                "Pode conter preferências, playlists, backups e perfis. Exclusão desativada nesta candidata."))
+            .Concat(item.RegistryKeys.Select(key => new ResidualAuditFinding(@"HKEY_CURRENT_USER\" + key,
+                "Configurações — preservar", 1,
+                "Ausência na lista de programas não comprova exclusividade ou desinstalação."))).ToArray(),
+            Array.Empty<string>(), Historical: true)).ToArray();
+        ResidualAuditDialog.ShowHistoricalResults(this, reports);
+        Status("Revisão concluída. Dados preservados; exclusão desativada nesta candidata.");
     }
 
     private async Task RunMaintenanceAuditAsync()
@@ -2898,46 +2814,6 @@ internal sealed partial class MainForm : Form
 
     private async Task ReviewOldUninstallResiduesAsync()
     {
-        Status("Conferindo instalações removidas e arquivos residuais conhecidos...");
-        var installed = await Task.Run(AppServices.GetInstalledPrograms);
-        var orphans = await Task.Run(() => UninstallResiduals.FindPreviouslyUninstalled(installed));
-        DiagnosticTrace.Write("DESINSTALACAO.REVISAO_ANTIGA programas=" + orphans.Count);
-        if (orphans.Count == 0)
-        {
-            Log("Nenhum resíduo executável com receita de exclusão encontrado. Ampliando a auditoria histórica.");
-            Status("Verificando vestígios históricos somente para leitura...");
-        }
-        foreach (var (app, candidates) in orphans)
-        {
-            int count = candidates.Sum(x => x.Files.Count);
-            if (DarkConfirmDialog.Confirm(this,
-                $"O aplicativo {app.Name} não está mais instalado.\n\n" +
-                $"Há {count} arquivo(s) residuais reconhecidos nas antigas pastas de instalação.\n\n" +
-                "Deseja remover somente esses arquivos?\n" +
-                "Documentos, plugins e configurações pessoais permanecerão intocados.",
-                "Limpeza de resíduos de aplicativos") != DialogResult.Yes)
-            {
-                Log("Limpeza de resíduos antigos recusada para " + app.Name);
-                continue;
-            }
-            if (UninstallResiduals.StillInstalled(app, await Task.Run(AppServices.GetInstalledPrograms)))
-            {
-                Log("Registro de instalação detectado novamente; limpeza cancelada.");
-                continue;
-            }
-            int removed = 0, failed = 0, kept = 0, emptyFolders = 0;
-            foreach (var candidate in candidates)
-            {
-                var result = await Task.Run(() => UninstallResiduals.Clean(app, candidate));
-                removed += result.RemovedFiles;
-                failed += result.Failed;
-                kept += result.Preserved;
-                emptyFolders += result.RemovedDirectories;
-            }
-            DiagnosticTrace.Write($"DESINSTALACAO.REVISAO_LIMPEZA arquivos={removed} falhas={failed} preservados={kept}");
-            Log($"Resíduos antigos de {app.Name}: {removed} arquivo(s) e {emptyFolders} pasta(s) vazia(s) removidos; " +
-                $"{kept} item(ns) preservado(s); {failed} falha(s).");
-        }
         // A análise histórica cobre produtos que já desapareceram do inventário.
         // NUNCA autoriza exclusão de chaves HKLM/HKCU, saves ou integrações.
         Status("Verificando vestígios antigos sem modificar o computador...");

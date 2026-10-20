@@ -692,23 +692,23 @@ try
     Check(deny.Failed == 1 && File.Exists(Path.Combine(root, "SumatraPDF.exe")),
         "Impedir exclusao com raiz TEMP fora da politica de producao");
     var cleaned = UninstallResiduals.CleanCandidateFiles(scan!, allowed);
-    Check(cleaned.RemovedFiles == 1 && cleaned.RemovedDirectories == 0 &&
-          cleaned.Preserved == 3 && cleaned.Failed == 0,
-          "Excluir apenas arquivo exato, mantendo dados e subpasta");
+    Check(cleaned.RemovedFiles == 0 && cleaned.RemovedDirectories == 0 &&
+          cleaned.Preserved == 4 && cleaned.Failed == 1,
+          "Candidata bloqueia exclusão direta e preserva todos os arquivos");
     Check(File.Exists(Path.Combine(root, "settings.txt")) &&
           File.Exists(Path.Combine(root, "notas-pessoais.pdf")) &&
           File.Exists(Path.Combine(custom, "user.dll")),
           "Nao remover configuracoes documentos ou plugins");
-    Check(UninstallResiduals.InspectDirectory("SumatraPDF", root, allowed) is null,
-          "Nova varredura nao sugere apagar dados pessoais");
+    Check(UninstallResiduals.InspectDirectory("SumatraPDF", root, allowed)?.Files.Count == 1,
+          "Nova varredura confirma que o executável também foi preservado");
     string root2 = Path.Combine(temp, "Notepad++");
     Directory.CreateDirectory(root2);
     File.WriteAllText(Path.Combine(root2, "notepad++.exe"), "simulated");
     var second = UninstallResiduals.InspectDirectory("Notepad++", root2,
         new[] { "notepad++.exe" })!;
     var result2 = UninstallResiduals.CleanCandidateFiles(second, new[] { "notepad++.exe" });
-    Check(result2.RemovedFiles == 1 && result2.RemovedDirectories == 1 &&
-          !Directory.Exists(root2), "Remover pasta SOMENTE quando ficar vazia");
+    Check(result2.RemovedFiles == 0 && result2.RemovedDirectories == 0 &&
+          Directory.Exists(root2), "Pasta e executável permanecem em simulação");
     string root3 = Path.Combine(temp, "unknown");
     Directory.CreateDirectory(root3);
     File.WriteAllText(Path.Combine(root3, "qualquer.exe"), "other");
@@ -741,8 +741,8 @@ try
     Check(notAllowed.Files == 0 && notAllowed.Skipped > 0 && File.Exists(owned),
         "Não excluir dados fora da lista explícita de diretórios");
     var erased = AdvancedUninstallCleaner.DeleteApprovedTree(knownRoot, new[] { knownRoot });
-    Check(erased.Files == 2 && erased.Directories == 2 &&
-          !Directory.Exists(knownRoot), "Apagar pasta própria, preferências e backups com autorização");
+    Check(erased.Files == 0 && erased.Directories == 0 &&
+          File.Exists(owned) && File.Exists(backup), "Nem allowlist explícita contorna bloqueio de exclusão de dados");
     Check(File.Exists(shared), "Não tocar dados compartilhados ou diretórios vizinhos");
     var other = AdvancedUninstallCleaner.DeleteApprovedTree(testBase, new[] { knownRoot });
     Check(other.Files == 0 && Directory.Exists(testBase),
@@ -771,10 +771,10 @@ try
           new[] { @"Software" }), "Nunca excluir raiz Software do usuário");
     using (var stillThere = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(testKey))
         Check(stillThere is not null, "Registro desconhecido permanece intacto");
-    Check(AdvancedUninstallCleaner.DeleteApprovedRegistryKey(testKey, new[] { testKey }),
-        "Remover subchave HKCU exclusiva após permissão explícita");
+    Check(!AdvancedUninstallCleaner.DeleteApprovedRegistryKey(testKey, new[] { testKey }),
+        "Chamada interna não contorna bloqueio de exclusão do Registro");
     using (var removedKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(testKey))
-        Check(removedKey is null, "Confirmar chave e valores removidos do Registro");
+        Check(removedKey is not null, "Confirmar chave e valores preservados no Registro");
 }
 finally
 {
