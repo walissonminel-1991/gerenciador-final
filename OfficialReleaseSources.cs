@@ -27,6 +27,7 @@ internal sealed class OfficialReleaseSources : IDisposable
     private static readonly HttpClient SharedClient = MakeClient();
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
+    private readonly TimeSpan _responseTimeout;
 
     // Nomes e fabricantes são verificados ANTES de qualquer requisição.
     // Não tentamos inferir URLs a partir da lista de programas do usuário.
@@ -145,8 +146,9 @@ internal sealed class OfficialReleaseSources : IDisposable
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return client;
     }
-    internal OfficialReleaseSources(HttpMessageHandler? handler = null)
+    internal OfficialReleaseSources(HttpMessageHandler? handler = null, TimeSpan? responseTimeout = null)
     {
+        _responseTimeout = responseTimeout ?? TimeSpan.FromSeconds(14);
         _ownsHttp = handler is not null;
         _http = handler is null ? SharedClient : new HttpClient(handler)
         {
@@ -162,6 +164,7 @@ internal sealed class OfficialReleaseSources : IDisposable
     internal async Task<ProviderScan> QueryAsync(IEnumerable<InstalledApp> installed,
         CancellationToken token, bool forceRefresh = false)
     {
+        token.ThrowIfCancellationRequested();
         var apps = installed.ToArray();
         var applicable = Known.Select(recipe => (
             Recipe: recipe,
@@ -198,6 +201,7 @@ internal sealed class OfficialReleaseSources : IDisposable
 
     private async Task<string> GetVersionAsync(Recipe recipe, CancellationToken token, bool force)
     {
+        token.ThrowIfCancellationRequested();
         if (!force && Cache.TryGetValue(recipe.Id, out var cached) &&
             cached.Expires > DateTimeOffset.UtcNow) return cached.Version;
         var gate = Gates.GetOrAdd(recipe.Id, _ => new SemaphoreSlim(1, 1));
@@ -224,10 +228,12 @@ internal sealed class OfficialReleaseSources : IDisposable
         Uri url = new(recipe.Endpoint);
         if (!IsAllowedUrl(url)) throw new InvalidDataException("Endereço não autorizado.");
         // Proton pode ficar bloqueado por 14s; limite local de 5s sem atrasar demais outras fontes.
-        using var quickTimeout = recipe.Id == "proton-pass-desktop"
-            ? CancellationTokenSource.CreateLinkedTokenSource(token) : null;
-        quickTimeout?.CancelAfter(TimeSpan.FromSeconds(5));
-        CancellationToken requestToken = quickTimeout?.Token ?? token;
+        // ResponseHeadersRead encerra o timeout do HttpClient nos cabecalhos.
+        // Este token limita tambem o corpo, inclusive servidores que param de enviar.
+        using var quickTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        quickTimeout.CancelAfter(recipe.Id == "proton-pass-desktop" && _responseTimeout > TimeSpan.FromSeconds(5)
+            ? TimeSpan.FromSeconds(5) : _responseTimeout);
+        CancellationToken requestToken = quickTimeout.Token;
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, requestToken);
         if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)
@@ -271,6 +277,10 @@ internal sealed class OfficialReleaseSources : IDisposable
                     !doc.RootElement.TryGetProperty(recipe.JsonProperty, out var property) ||
                     property.ValueKind != JsonValueKind.String)
                     throw new InvalidDataException("Versão não localizada na resposta.");
+                if (recipe.JsonProperty == "tag_name" &&
+                    ((doc.RootElement.TryGetProperty("prerelease", out var pre) && pre.ValueKind != JsonValueKind.False) ||
+                     (doc.RootElement.TryGetProperty("draft", out var draft) && draft.ValueKind != JsonValueKind.False)))
+                    throw new InvalidDataException("Publicacao nao estavel.");
                 tag = NormalizeOfficialVersionTag(recipe.Id, property.GetString() ?? "");
             }
         }
@@ -290,7 +300,8 @@ internal sealed class OfficialReleaseSources : IDisposable
         foreach (var item in root.EnumerateArray())
         {
             if (++seen > 1000) throw new InvalidDataException("Índice WinGet excessivamente grande.");
-            if (!item.TryGetProperty("type", out var kind) || kind.GetString() != "dir" ||
+            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("type", out var kind) ||
+                kind.ValueKind != JsonValueKind.String || kind.GetString() != "dir" ||
                 !item.TryGetProperty("name", out var name) || name.ValueKind != JsonValueKind.String)
                 continue;
             string version = name.GetString() ?? "";
@@ -311,15 +322,18 @@ internal sealed class OfficialReleaseSources : IDisposable
         string? latest = null;
         foreach (var product in root.EnumerateArray())
         {
-            if (!product.TryGetProperty("Product", out var name) ||
+            if (product.ValueKind != JsonValueKind.Object || !product.TryGetProperty("Product", out var name) ||
+                name.ValueKind != JsonValueKind.String ||
                 !string.Equals(name.GetString(), "Stable", StringComparison.OrdinalIgnoreCase) ||
                 !product.TryGetProperty("Releases", out var releases) ||
                 releases.ValueKind != JsonValueKind.Array) continue;
             foreach (var release in releases.EnumerateArray())
             {
-                if (!release.TryGetProperty("Platform", out var platform) ||
+                if (release.ValueKind != JsonValueKind.Object || !release.TryGetProperty("Platform", out var platform) ||
+                    platform.ValueKind != JsonValueKind.String ||
                     platform.GetString() != "Windows" ||
                     !release.TryGetProperty("Architecture", out var architecture) ||
+                    architecture.ValueKind != JsonValueKind.String ||
                     !string.Equals(architecture.GetString(), arch, StringComparison.OrdinalIgnoreCase) ||
                     !release.TryGetProperty("ProductVersion", out var versionElement) ||
                     versionElement.ValueKind != JsonValueKind.String) continue;

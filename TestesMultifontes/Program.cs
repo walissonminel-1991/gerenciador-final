@@ -234,6 +234,34 @@ using (var doc = System.Text.Json.JsonDocument.Parse("[{\"name\":\".validation\"
     Assert(OfficialReleaseSources.ParseWinGetVersionDirectories(doc.RootElement) == "3.5.283",
         "Somente diretórios numéricos participam da ordenação");
 }
+// Formatos defeituosos nao podem derrubar as outras fontes.
+using (var malformed = System.Text.Json.JsonDocument.Parse("[null,42,{\"type\":true},{\"type\":\"dir\",\"name\":\"1.2.3\"}]"))
+    Assert(OfficialReleaseSources.ParseWinGetVersionDirectories(malformed.RootElement) == "1.2.3",
+        "Indice ignora elementos de tipos inesperados sem excecao global");
+using (var malformed = System.Text.Json.JsonDocument.Parse("[null,{\"Product\":42},{\"Product\":\"Stable\",\"Releases\":[null,{\"Platform\":false}]}]"))
+{
+    try { OfficialReleaseSources.ParseEdgeStableVersion(malformed.RootElement); throw new Exception("Edge invalido aceito"); }
+    catch (InvalidDataException) { Assert(true, "Edge malformado resulta em fonte indisponivel controlada"); }
+}
+OfficialReleaseSources.ClearCacheForTests();
+using (var source = new OfficialReleaseSources(new AdversarialFixture()))
+{
+    var scan = await source.QueryAsync([obs, firefox], CancellationToken.None);
+    Assert(scan.Findings.Count == 1 && scan.Findings[0].Provider == "Mozilla",
+        "Tag numerica marcada prerelease nao vence fonte estavel");
+    using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
+    try { await source.QueryAsync([firefox], cancelled.Token); throw new Exception("Cache ignorou cancelamento"); }
+    catch (OperationCanceledException) { Assert(true, "Cancelamento respeitado mesmo com cache preenchido"); }
+}
+OfficialReleaseSources.ClearCacheForTests();
+using (var source = new OfficialReleaseSources(new AdversarialFixture(stallBody: true), TimeSpan.FromMilliseconds(150)))
+{
+    var clock = Stopwatch.StartNew();
+    var scan = await source.QueryAsync([obs, firefox], CancellationToken.None);
+    Assert(scan.Findings.Count == 1 && scan.Diagnostics.Any(d => d.Status.Contains("Canceled")) && clock.Elapsed < TimeSpan.FromSeconds(5),
+        "Corpo parado respeita prazo local e preserva resultado da outra fonte");
+}
+
 Console.WriteLine($"{tests}/{tests} testes de motores múltiplos aprovados");
 if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
 {
@@ -313,4 +341,31 @@ internal sealed class Fixture(bool failMozilla = false, bool badTags = false, in
             : "{\"tag_name\":\"v7.5.2\"}";
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };
     }
+}
+
+internal sealed class AdversarialFixture(bool stallBody = false) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        bool mozilla = request.RequestUri!.Host == "product-details.mozilla.org";
+        HttpContent content = mozilla ? new StringContent("{\"LATEST_FIREFOX_VERSION\":\"140.0.2\"}") :
+            stallBody ? new StreamContent(new StalledStream()) :
+            new StringContent("{\"tag_name\":\"v999.0.0\",\"prerelease\":true}");
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+    }
+}
+internal sealed class StalledStream : Stream
+{
+    public override bool CanRead => true;
+    public override bool CanSeek => false;
+    public override bool CanWrite => false;
+    public override long Length => throw new NotSupportedException();
+    public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    { await Task.Delay(Timeout.Infinite, cancellationToken); return 0; }
+    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override void Flush() => throw new NotSupportedException();
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 }
