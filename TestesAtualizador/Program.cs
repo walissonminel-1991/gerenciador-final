@@ -12,9 +12,16 @@ var x64 = VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributab
  "12.0.30501.0", "12.0.40664.0"));
 var x86 = VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x86) - 12.0.30501",
  "12.0.30501.0", "12.0.40664.0"));
-Verify(x64?.Identifier == "vc2013-x64" && x64.Download.Host == "aka.ms", "Visual C++ x64 autorizado");
-Verify(x86?.Identifier == "vc2013-x86" && x86.Download != x64!.Download, "Visual C++ x86 autorizado");
-Verify(x64!.Arguments.Contains("/quiet") && x64.Arguments.Contains("/norestart"), "Argumentos de instalacao controlados");
+Verify(x64?.Identifier == "vc2013-x64" && x64.Download.Host == "aka.ms" &&
+       !VerifiedUpdaters.IsApprovedRecipe(x64),
+       "Visual C++ x64 sem hash fixado: nao permite instalacao automatica");
+Verify(x86?.Identifier == "vc2013-x86" && x86.Download != x64!.Download &&
+       !VerifiedUpdaters.IsApprovedRecipe(x86),
+       "Visual C++ x86 sem hash fixado: somente orientacao oficial");
+Verify(x64!.Arguments.Contains("/quiet") && x64.Arguments.Contains("/norestart") &&
+       VerifiedUpdaters.GetPrimaryAction(Item("Microsoft Visual C++ 2013 Redistributable (x64)",
+            "12.0.30501", "12.0.40664")) == "site",
+       "Visual C++ apresenta site oficial em vez de executar pacote sem SHA-256");
 Verify(VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64)",
  "12.0.30501.0", "12.0.40664.0", "Fabricante desconhecido")) is null, "Recusar editor nao Microsoft");
 Verify(VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64)",
@@ -252,7 +259,7 @@ if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
         : args.Contains("--verify-npp", StringComparer.OrdinalIgnoreCase)
         ? new[] { npp }
         : args.Contains("--verify-obs", StringComparer.OrdinalIgnoreCase)
-        ? new[] { obs } : new[] { x86, x64 };
+        ? new[] { obs } : new[] { obs, npp };
     foreach (var recipe in recipes)
     {
         if (recipe is null) throw new InvalidOperationException("Receita não encontrada.");
@@ -275,7 +282,7 @@ if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 
 
 Console.WriteLine("Seguranca: receitas adulteradas e instaladores sem comprovante.");
-foreach (var approved in new[] { x64, x86, obs, npp, sumX64, sumX86, gameRecipe })
+foreach (var approved in new[] { obs, npp, sumX64, sumX86, gameRecipe })
     Verify(approved is not null && VerifiedUpdaters.IsApprovedRecipe(approved),
         "Receita local completa reconhecida: " + approved?.Identifier);
 var forgedRecipes = new[]
