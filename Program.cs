@@ -2915,7 +2915,21 @@ internal sealed partial class MainForm : Form
         if (inventoryIncomplete)
             Log("Inventário de proteção PARCIAL: ausência na lista não comprova remoção. Os achados históricos continuam somente leitura.");
         var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory));
-        DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)}");
+        // Driver Booster é excluído pela regra genérica para nomes de drivers.
+        // Complementar com locais específicos da família IObit, sem inferir
+        // que arquivos compartilhados são lixo nem autorizar sua remoção.
+        var boosterEvidence = await Task.Run(() => ResidualAudit.Inspect(
+            new ProgramEntry { Name = "Driver Booster" }, updatedInventory));
+        bool boosterStillRegistered = updatedInventory.Any(ResidualAudit.IsDriverBoosterProduct);
+        var boosterReports = boosterEvidence.Findings.Count == 0
+            ? Array.Empty<ResidualAuditReport>()
+            : new[] { new ResidualAuditReport("Driver Booster (IObit)", false,
+                boosterEvidence.Findings.Select(f => f with
+                {
+                    Kind = (boosterStillRegistered || inventoryIncomplete
+                        ? "Instalação não confirmada — " : "Vestígio não confirmado — ") + f.Kind
+                }).ToArray(), Array.Empty<string>(), Historical: true) };
+        DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)} booster_locais={boosterEvidence.Findings.Count}");
         Status("Analisando locais comuns de aplicativos e Registro, sem alterar arquivos...");
         DiagnosticTrace.Write("RESIDUOS_GERAIS.CONSULTA_INICIO");
         // Independe de ter observado a instalação ou a remoção do programa.
@@ -2932,7 +2946,8 @@ internal sealed partial class MainForm : Form
         // impedindo várias caixas de diálogo para o mesmo aplicativo histórico.
         var historicalNames = new HashSet<string>(historical.Select(r => r.Product),
             StringComparer.OrdinalIgnoreCase);
-        var allReports = historical.Concat(broad.Reports.Where(r => !historicalNames.Contains(r.Product)))
+        var allReports = historical.Concat(boosterReports)
+            .Concat(broad.Reports.Where(r => !historicalNames.Contains(r.Product)))
             .ToArray();
         if (allReports.Length > 0)
         {
