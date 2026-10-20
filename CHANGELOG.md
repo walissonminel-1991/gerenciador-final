@@ -1,5 +1,15 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.7 — bloqueio de envio manual e verificações adicionais (TESTE)
+
+- Removida a publicação manual de diagnóstico para Issues públicas; GitHub Actions não aceita mais eventos de Issues como entrada. Coleta permanece estritamente local e consentida.
+- Validador fechado de JSON técnico; nenhuma categoria, campo ou anexo arbitrário é admitido; proteção contra contagens ambíguas e timestamps futuros.
+- Prototipo de recepção remota desativado por padrão e sem possibilidade de gravação nesta candidata.
+- Atualização automática exige receita fixa com SHA-256 e assinatura; Visual C++ 2013 sem hash passa a oferecer apenas página oficial.
+- Windows Update valida GUID e revisão selecionada antes da instalação; sem autorização de aceite de EULA ou reinício automático.
+- Testes adicionais de privacidade, bloqueios de instalador e políticas de Actions; workflows legados remanescentes fixados por SHA.
+- **Ainda é candidata de testes**: não promete ausência absoluta de riscos nem aprovação por AVG. Detalhes em docs/SEGURANCA-v5.13.11.7.md.
+
 ## v5.13.11.6 — caminhos protegidos e defesa adicional (TESTE)
 
 - Ancestrais abertos da raiz ao destino, sem seguir reparse points nem compartilhar exclusao/renomeacao; recusa UNC, dispositivos e ADS.
