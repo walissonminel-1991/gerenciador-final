@@ -1,5 +1,9 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Complemento — v5.13.11.2 TESTE: piloto GitHub-only
+
+Com a conta GitHub do colaborador, o aplicativo oferece formulário pré-preenchido e revisável para Issues públicas, exclusivamente com categorias técnicas aprovadas. Publicação exige confirmação no navegador, não há credenciais embutidas. A próxima fase exige uma GitHub App registrada com permissões limitadas, consentimento separado para envio e revisão de privacidade. Veja [PILOTO-DIAGNOSTICO-GITHUB.md](PILOTO-DIAGNOSTICO-GITHUB.md).
+
 ## Complemento de desenvolvimento — v5.13.11.1 TESTE: diagnóstico local voluntário
 
 Uma nova frente de privacidade foi iniciada com opção de consentimento, eventos agregados em allowlist, um relatório local rotativo e revogação. **Envio remoto não está implantado**; sua ativação exigirá consentimento separado e avaliação de segurança. Consulte [DIAGNOSTICO-COLABORATIVO.md](DIAGNOSTICO-COLABORATIVO.md). Isso não altera os 30/45 checkpoints originais.
