@@ -56,7 +56,7 @@ internal sealed class AnonymousTelemetry
                 };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-            JsonException or InvalidOperationException or FormatException) { }
+            JsonException or InvalidOperationException or FormatException or System.Security.SecurityException) { }
         return TelemetryConsent.NotAsked;
     }
 
@@ -77,7 +77,7 @@ internal sealed class AnonymousTelemetry
                 return true;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-                ArgumentException or NotSupportedException) { return false; }
+                ArgumentException or NotSupportedException or System.Security.SecurityException) { return false; }
         }
     }
 
@@ -131,7 +131,7 @@ internal sealed class AnonymousTelemetry
                 return true; // Guardou localmente. Nao significa envio.
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-                ArgumentException or NotSupportedException) { return false; }
+                ArgumentException or NotSupportedException or System.Security.SecurityException) { return false; }
         }
     }
 
@@ -149,13 +149,13 @@ internal sealed class AnonymousTelemetry
                 DateTime.UtcNow - File.GetLastWriteTimeUtc(PendingFile) > TimeSpan.FromDays(7))
                 TryDelete(PendingFile);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
     }
 
     private static bool TryDelete(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); return true; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return false; }
     }
 
     private static void WriteAtomic(string path, string content)
