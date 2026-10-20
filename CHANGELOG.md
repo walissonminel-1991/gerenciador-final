@@ -1,5 +1,12 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.2 TESTE — piloto colaborativo GitHub-only
+- Menu da bandeja permite revisar dados técnicos agregados e abrir um formulário de Issue no repositório público, com autenticação pelo próprio navegador do usuário.
+- Dupla confirmação humana: aviso de publicidade no GF e envio final no GitHub. Nenhum token, conta vinculada automaticamente, upload ou transmissão invisível é adicionado.
+- Filtro estrito de schema, versão, categorias e contagens antes de montar URL; recusa de dados arbitrários/relatórios vazios; testes offline dedicados.
+- Mantém a coleta local/consentimento anterior. GitHub App e envio automático ao encerrar ainda não implementados.
+
+
 ## v5.13.11.1 TESTE — privacidade e diagnostico colaborativo local
 - Consentimento explícito na primeira abertura, recusável e revogável pelo menu da bandeja; sem caixa pré-selecionada.
 - Resumo estrito com versão do GF, encerramento e contagens de 14 categorias técnicas, sem logs brutos, nomes, caminhos, inventário ou IDs persistentes.
