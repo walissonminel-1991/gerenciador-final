@@ -1,3 +1,4 @@
+# Historico: usar somente na branch da versao correspondente.
 name: Gerenciador Final v5.13.10.16 Economia PC FRACO - Windows x64
 
 on:
@@ -76,7 +77,6 @@ on:
 
   pull_request:
     branches:
-      - main
       - teste-residuos-contextuais-v5.13.7
   workflow_dispatch:
 

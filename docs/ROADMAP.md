@@ -134,3 +134,7 @@ A gestão de drivers permanece não implementada: fontes oficiais, compatibilida
 - Identidade alterada por um instalador permanece indeterminada, mesmo quando a atualização pode ter funcionado.
 - As alterações estão numa branch de teste; a branch principal não foi substituída.
 - A lista tem escopo explícito e pode crescer com novos achados. Seus percentuais não medem a proporção de todo o produto pronta.
+
+## Manutenção da CI — 20/10/2026
+
+Retirado o destino `main` de 24 workflows históricos que executavam verificações de versões anteriores. Mantidos os testes atuais em `Validar candidata Windows` e a validação do pacote em `Compilar Windows (sem assinatura)`, com cancelamento de revisões anteriores da mesma PR. A bateria consolidada também passa a executar em pushes na `main`. Detalhes e limitações: [Actions atuais e históricas](ACTIONS-ATUAIS-E-HISTORICAS.md). A mudança está na branch do PR #40 até integração e não altera os checkpoints dependentes dos computadores.

@@ -1,3 +1,4 @@
+# Historico: usar somente na branch da versao correspondente.
 name: Gerenciador Final v5.13.10.6 Layout Responsivo - Windows x64
 
 on:
@@ -67,7 +68,6 @@ on:
 
   pull_request:
     branches:
-      - main
       - teste-residuos-contextuais-v5.13.7
   workflow_dispatch:
 

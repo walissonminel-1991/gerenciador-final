@@ -1,3 +1,4 @@
+# Historico: usar somente na branch da versao correspondente.
 name: Gerenciador Final v5.13.3 Inventario Windows Ampliado - Windows x64
 
 on:
@@ -59,9 +60,6 @@ on:
 
 
 
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
