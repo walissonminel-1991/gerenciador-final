@@ -1,5 +1,14 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.12 — inicialização compacta e indicador de privacidade (TESTE)
+
+- A aba **Inicialização** (dentro de Inicialização e sistema) distribui cartões em **três colunas quando a largura permite**, duas em janelas intermediárias e uma nas estreitas, sem alterar as grades de Windows Update e outras subabas.
+- Cartões de inicialização mais baixos e compactos: títulos e descrições com dicas integrais/acessibilidade; confirmação e ações de ativação/desativação preservadas.
+- **Consentimento local não reaparece automaticamente após trocar o ZIP**, porque o aceite/recusa anterior fica persistido fora da pasta do programa, evitando solicitação repetida. A janela principal agora mostra continuamente **Coleta local ativa**, **Coleta desativada** ou **Configurar privacidade**, com botão para revisar a escolha.
+- O botão reflete imediatamente aceitação ou revogação; a coleta continua somente local, sem transmissão, arquivo enviado ou novo consentimento remoto.
+- Testes de layout verificam transições 1/2/3 colunas, margens mínimas, estado persistente visível e acessibilidade.
+
+
 ## v5.13.11.11 — lista de drivers no mesmo padrão dos aplicativos (TESTE)
 
 - Removida a tabela técnica com colunas da aba DRIVERS; exibida lista de cartões escuros com nome em destaque, informações complementares, ícone, seleção e rolagem escura, seguindo a aba Aplicativos.
