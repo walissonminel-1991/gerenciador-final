@@ -4,9 +4,9 @@ Base: 5.13.10.18 TESTE · 2026-10-20
 
 Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.
 
-Código desta rodada: `f1204485743363a8a92af6f2b64c960fec289c90`
+Código desta rodada: `5171c895725e779df3ccba8d54a8faf56735950d`
 
-CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261
+CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 
 ## Entregas deste lote
 
@@ -26,7 +26,7 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [x] I3 — Bibliotecas de jogos e entradas somente leitura. Evidência: GameLibraryAudit.cs; TestesResiduos
 - [x] I4 — Verificação dos desinstaladores em segundo plano. Evidência: Program.cs v5.13.10.17
 - [x] I5 — Contadores de inventário completo e ações disponíveis. Evidência: ActionableInventory.cs; Program.cs v5.13.10.17
-- [x] I6 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261
+- [x] I6 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] I7 — Cobertura conferida nos dois computadores. Evidência: Validação presencial adiada
 
 ### Desinstalação e resíduos — 5/7 (71%)
@@ -35,7 +35,7 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [x] R2 — Classificação conservadora de fabricantes compartilhados. Evidência: BroadResidualDiscovery.cs; ResidualAuditDialog.cs
 - [x] R3 — Auditoria histórica somente leitura. Evidência: HistoricalResidualAudit.cs; HistoricalDeviceAudit.cs
 - [x] R4 — Limpeza específica após confirmação e revalidação da remoção. Evidência: Program.cs; UninstallResiduals.cs
-- [x] R5 — Regressões de proteção aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261
+- [x] R5 — Regressões de proteção aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] R6 — Resolver casos históricos ambíguos com evidências adicionais. Evidência: Adicionada proteção para inventário incompleto; a atribuição dos vestígios específicos ainda depende de evidências dos computadores.
 - [ ] R7 — Desinstalação e preservação de dados validadas nos computadores. Evidência: Validação presencial adiada
 
@@ -47,7 +47,7 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [x] U4 — Confirmação posterior rejeita editor divergente e entrada somente leitura. Evidência: VerifiedUpdaters.cs; TestesAtualizador v5.13.10.17
 - [x] U5 — Vincular confirmação à instalação original e conferir arquitetura/escopo Sumatra. Evidência: VerifiedUpdaters.ConfirmInstallation; TestesAtualizador aprovados. Identidade alterada permanece indeterminada; não equivale à validação real de todos os instaladores.
 - [ ] U6 — Explicar divergências de cobertura com WinGet. Evidência: Contagens por motivo implementadas sem nomes nos logs; comparação com WinGet depende de capturas equivalentes da mesma máquina.
-- [x] U7 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261
+- [x] U7 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] U8 — Instalação e versão final validadas nos computadores. Evidência: Validação presencial adiada
 
 ### Desempenho e estabilidade — 4/6 (67%)
@@ -55,7 +55,7 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [x] P1 — Cadência de monitoramento conforme visibilidade. Evidência: ProcessSamplingPolicy.cs v5.13.10.16
 - [x] P2 — Consultas de caminhos fora da interface. Evidência: Program.cs v5.13.10.17
 - [x] P3 — Atualização incremental e registro em lotes. Evidência: ProcessMonitorUi.cs; DarkControls.cs
-- [x] P4 — Regressões de monitoramento e bandeja aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261
+- [x] P4 — Regressões de monitoramento e bandeja aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] P5 — Medir tempo de abertura, CPU e RAM nos computadores. Evidência: Validação presencial adiada
 - [ ] P6 — Diagnosticar bloqueio AVG e verificar estabilidade real. Evidência: Causa e resolução ainda não comprovadas
 
@@ -64,7 +64,7 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [x] V1 — Layout adaptável, DPI e navegação. Evidência: ResponsiveLayout.cs; StartupWindowSizing.cs
 - [x] V2 — Cartões compactos, textos e rolagem. Evidência: Program.cs; IntegratedSystemUi.cs
 - [x] V3 — Descrição acessível do resumo completo de aplicativos. Evidência: Program.cs v5.13.10.17
-- [x] V4 — Matriz automatizada de layout aprovada nesta consolidação. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39347934261
+- [x] V4 — Matriz automatizada de layout aprovada nesta consolidação. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] V5 — Legibilidade e fluidez aprovadas nos dois computadores. Evidência: Validação presencial adiada
 
 ### Investigação de drivers — 2/4 (50%)

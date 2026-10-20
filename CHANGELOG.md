@@ -9,7 +9,9 @@ Este arquivo resume as alterações mais recentes do projeto. As versões anteri
 - Diagnostico de cobertura registra apenas contagens por motivo, sem nomes de aplicativos; nao presume equivalencia com WinGet.
 - DRIVERS recebe tabela consultiva de associacoes dispositivo/INF/versao/fornecedor, presenca e assinatura informada pelo WMI, sob demanda e em segundo plano. Nao enumera todo Driver Store, nao instala, remove ou reverte drivers.
 - Consulta de drivers tem limite de espera na interface e impede consultas sobrepostas enquanto WMI termina. Identificadores completos de dispositivos nao sao gravados no log.
-- Regressoes ampliadas e consulta WMI no runner Windows. Validacao nos computadores do usuario continua pendente.
+- Consulta WMI real validada no runner; enumeracao COM corrigida apos falha reproduzida.
+- Aba DRIVERS preserva altura da tabela e permite rolagem em janelas pequenas; captura 800x600 revisada.
+- Nove grupos de regressao, 22 cenarios de layout e ativacao do pacote aprovados. Validacao nos computadores do usuario continua pendente.
 
 ## 5.13.10.17 TESTE — consolidacao antes dos testes nos computadores
 - Verificacao de caminhos de desinstalacao movida para o mesmo trabalho em segundo plano do inventario, antes de entregar o snapshot a interface.
