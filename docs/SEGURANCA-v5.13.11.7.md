@@ -41,3 +41,7 @@ Consultas e compilações das revisões específicas devem ser confirmadas nas e
 ## Complemento posterior — v5.13.11.8
 
 Acrescentada uma **simulação totalmente local**, com dados sintéticos e validados, acessível sem consentir. A visualização substitui JSON bruto por frases simples na janela de privacidade. Simulação não acessa disco/rede, não usa informações do usuário nem altera a preferência local; essa condição é verificada por testes de lógica e layout. Não constitui ativação do envio remoto. [Plano de experiência](EXPERIENCIA-CONTRIBUICAO-SIMPLES.md).
+
+## Receptor de homologacao v5.13.11.8
+
+Preparado `prototipos/telemetria-worker/staging-receiver.mjs` sem conexao ao GF: fica inativo por padrao, exige secret **somente no servidor**, limitador de chamadas e banco privado. Rejeita envio de arquivos, texto livre, JSON nao canonico e cargas superiores a 4 KiB. CI envia requisições artificiais em memoria e testa agregacao/expiracao. **Nao** resolve o envio publico de usuarios sem conta e nao foi implantado. [Limites e operacao](INFRAESTRUTURA-ENVIO-SEGURO.md).
