@@ -77,7 +77,9 @@ internal static class InstallerFileGuard
             while (chain.TryPop(out string? part))
             {
                 // OPEN_REPARSE_POINT impede seguir o componente final; os anteriores ja estao presos.
-                uint sharing = allowLeafWrites && chain.Count == 0 ? 3u : 1u;
+                // Nao bloquear escrita em TEMP/perfil/raiz usados por outros aplicativos.
+                // Todos os ancestrais negam DELETE; somente a pasta privada de leitura nega WRITE.
+                uint sharing = chain.Count == 0 && !allowLeafWrites ? 1u : 3u;
                 var handle = CreateFileW(part, 0x80000000, sharing, IntPtr.Zero, 3,
                     0x02000000 | 0x00200000, IntPtr.Zero);
                 lease.Handles.Add(handle);

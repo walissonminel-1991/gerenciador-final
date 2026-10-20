@@ -65,6 +65,22 @@ try
         catch (IOException) { renamed = true; }
         Check(renamed, "gravacao dos filhos permitida sem liberar renomeacao da pasta");
     }
+    string childFolder = Path.Combine(guardFolder, "private-stage");
+    Directory.CreateDirectory(childFolder);
+    string childFixture = Path.Combine(childFolder, "installer.bin");
+    File.WriteAllText(childFixture, "fixture");
+    using (var childGuard = InstallerFileGuard.OpenRead(childFixture))
+    {
+        string sibling = Path.Combine(guardFolder, "unrelated.tmp");
+        File.WriteAllText(sibling, "outro aplicativo");
+        File.Move(sibling, Path.Combine(guardFolder, "unrelated.json"));
+        File.Delete(Path.Combine(guardFolder, "unrelated.json"));
+        bool ancestorBlocked = false;
+        try { Directory.Move(guardFolder, guardFolder + "-moved"); }
+        catch (IOException) { ancestorBlocked = true; }
+        Check(ancestorBlocked, "ancestral nao renomeia sem impedir arquivos de outros aplicativos");
+    }
+    Directory.Delete(childFolder, true);
     string fixture = Path.Combine(guardFolder, "fixture.bin");
     await File.WriteAllTextAsync(fixture, "original");
     string digest;
