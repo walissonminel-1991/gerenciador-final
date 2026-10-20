@@ -42,8 +42,8 @@ internal sealed class TelemetryPrivacyDialog : Form
                    "contagens de eventos técnicos. Não recolhe nomes de programas, " +
                    "arquivos, comandos, IP, caminhos, IDs de dispositivos ou dados de uso pessoal.\n\n" +
                    "IMPORTANTE: nenhuma informação será enviada automaticamente. " +
-                   "É possível revisar um resumo e publicá-lo manualmente no GitHub; " +
-                   "Issues são públicas. O futuro envio automático exigirá novo consentimento."
+                   "Nenhum formulário de envio ou anexo manual está disponível. " +
+                   "Uma eventual coleta remota exigirá novo consentimento e revisão de segurança."
         };
         root.Controls.Add(notice, 0, 0);
 
@@ -104,50 +104,6 @@ internal sealed class TelemetryPrivacyDialog : Form
 
 internal sealed partial class MainForm
 {
-    // Piloto GitHub-only: envio PUBLICO exige duas acoes conscientes:
-    // confirmar no GF e clicar em "Submit new issue" no proprio GitHub.
-    private void ShareAnonymousDiagnosticToGitHub()
-    {
-        var collector = AnonymousTelemetryContext.Current;
-        if (collector is null || IsDisposed) return;
-        if (collector.Consent != TelemetryConsent.LocalOnly)
-        {
-            OfferAnonymousDiagnosticConsent();
-            if (collector.Consent != TelemetryConsent.LocalOnly) return;
-        }
-
-        string? preview = collector.ReviewableReport(DiagnosticTrace.VersionLabel);
-        Uri? url = GitHubDiagnosticShare.CreateReviewUrl(preview);
-        if (url is null)
-        {
-            Status("Ainda não há ocorrências técnicas elegíveis para compartilhar com o GitHub.");
-            return;
-        }
-
-        if (DarkConfirmDialog.Confirm(this,
-            "Abrir o formulário transmite o resumo técnico ao GitHub pela URL do navegador. " +
-            "Se você publicar, a Issue será PÚBLICA e vinculada ao seu perfil GitHub.\n\n" +
-            "Nenhum arquivo completo de diagnóstico será anexado. Você poderá " +
-            "revisar ou desistir antes de publicar. Não acrescente senhas, tokens, dados pessoais " +
-            "ou capturas que mostrem essas informações. Deseja abrir o formulário?",
-            "Revisar diagnóstico público no GitHub") != DialogResult.Yes)
-            return;
-
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url.AbsoluteUri)
-            {
-                UseShellExecute = true
-            });
-            Status("Formulário GitHub aberto com o resumo. A Issue só será publicada se você confirmar no site.");
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception
-            or InvalidOperationException or System.Security.SecurityException)
-        {
-            Status("Não foi possível abrir o navegador. Nenhuma Issue foi criada pelo programa.");
-        }
-    }
-
     private void OfferAnonymousDiagnosticConsent(bool firstRun = false)
     {
         var collector = AnonymousTelemetryContext.Current;
