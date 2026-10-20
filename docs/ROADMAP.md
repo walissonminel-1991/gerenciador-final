@@ -2,7 +2,7 @@
 
 ## Experiencia acessivel — v5.13.11.8 TESTE (20/10/2026)
 
-Incluida simulacao local sem rede, arquivo ou consentimento e previa amigavel do diagnostico; nao e teste de envio remoto. A futura contribuicao devera ser simples para nao especialistas e nao depender de conta GitHub, arquivos .txt ou publicacao de Issues. [Criterios de seguranca, UI e ativacao](EXPERIENCIA-CONTRIBUICAO-SIMPLES.md). O progresso funcional anterior permanece **27/42**; a simulacao e uma frente de privacidade extra e **nao** significa envio implementado.
+Incluida simulacao local sem rede, arquivo ou consentimento e previa amigavel do diagnostico. Receptor de homologacao preparado, desativado por padrao e testado com requisicoes ficticias; nao e envio remoto real. A futura contribuicao devera ser simples para nao especialistas e nao depender de conta GitHub, arquivos .txt ou publicacao de Issues. [Criterios de seguranca, UI e ativacao](EXPERIENCIA-CONTRIBUICAO-SIMPLES.md). O progresso funcional anterior permanece **27/42**; a simulacao e uma frente de privacidade extra e **nao** significa envio implementado.
 
 
 ## Segurança v5.13.11.7 TESTE — nenhuma entrada manual (20/10/2026)
