@@ -1,5 +1,14 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.0 CANDIDATA — novas fontes e consolidação para GitHub
+- Quatro novas consultas oficiais somente leitura: ShareX, HandBrake, Rufus e qBittorrent. URLs fixas GitHub Releases; nomes e editores conferidos em catálogo interno antes da chamada. Nenhuma instalação automática habilitada pelas novas fontes.
+- Regressões com fontes simuladas: candidatos, versões oficiais, falso editor, nomes parecidos, cache, pré-lançamento, falha de provedor e fusão sem duplicar linhas.
+- Bateria abrangente Windows para comparar motores de versões, instaladores, drivers, resíduos, RAM, inventário MSIX e compatibilidade de interface.
+- Projeto e manifesto atualizados para v5.13.11.0; README e identificação do pacote atualizados; nome do ZIP com versão e commit, BUILD-INFO e SHA256SUMS verificado em CI.
+- Consolidado o desenvolvimento das séries v5.13.10.19 a v5.13.10.24: histórico de drivers, resíduos específicos, tema escuro, painel de RAM, otimização de caches próprios, instrumentação de bandeja/erros MSIX e validação automatizada.
+- Estado: CANDIDATA. Validação em PC FRACO e segundo PC, assinaturas digitais e avaliação de alerta AVG ainda pendentes. Sem afirmação de segurança final, estabilidade pública ou cobertura universal.
+
+
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
 ## 5.13.10.18 TESTE — consolidacao e inventario consultivo de drivers
