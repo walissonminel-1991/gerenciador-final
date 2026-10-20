@@ -16,7 +16,7 @@ internal sealed class TelemetryPrivacyDialog : Form
         ShowInTaskbar = false;
         MaximizeBox = false;
         MinimizeBox = false;
-        ClientSize = new Size(566, 430);
+        ClientSize = new Size(586, 505);
         MinimumSize = Size;
         MaximumSize = Size;
         BackColor = AppServices.Background;
@@ -28,7 +28,7 @@ internal sealed class TelemetryPrivacyDialog : Form
             Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
             Padding = new Padding(16, 13, 16, 12)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 158));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 207));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
 
