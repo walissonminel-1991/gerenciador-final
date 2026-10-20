@@ -6,6 +6,7 @@ on:
       - teste-consolidacao-v5.13.10.19
       - correcao-residuos-driver-booster-v5.13.10.20
       - diagnostico-bandeja-msix-v5.13.10.21
+      - monitoramento-leve-compatibilidade-v5.13.10.22
   workflow_dispatch:
 
 permissions:
