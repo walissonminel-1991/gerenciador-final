@@ -6,7 +6,7 @@ PRs destinados à `main` executam três workflows atuais:
 
 - `validar-candidata-windows.yml`: compilação e regressões atuais de inventário, atualizações, drivers, resíduos, layout/RAM, privacidade, segurança e encerramento. Também executa após push na `main`.
 - `build-windows.yml`: publicação portátil, verificação de identidade/ativação do manifesto no Windows, SHA-256, artefato e procedência. **Builds de PR não recebem OIDC nem permissão para atestações**: um job separado com permissões elevadas só roda a partir da `main` confiável, após validar o manifesto do artefato gerado pelo próprio workflow.
-- `triagem-diagnostico-github.yml`: regressões de validação estrita em PRs/push e triagem somente de Issues voluntárias recém-publicadas com prefixo conhecido, sem permissões de escrita ou interpretação de texto como instruções.
+- `triagem-diagnostico-github.yml`: testes de políticas de segurança de diagnósticos e bloqueio de entrada manual; **não** dispara em Issues nem lê anexos, comentários ou arquivos de participantes. O fluxo de compartilhamento do piloto foi descontinuado por segurança.
 
 Ambos cancelam execuções anteriores do mesmo workflow/ref quando chega uma revisão mais recente. Falhas reais desses workflows devem ser investigadas antes de considerar uma candidata aprovada.
 
