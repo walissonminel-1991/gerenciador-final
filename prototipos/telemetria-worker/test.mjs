@@ -20,26 +20,35 @@ test("rejeita metadados ou payload de logs enviados pelo cliente", async () => {
   });
   assert.equal((await handler.fetch(request, { DB: fakeDb })).status, 422);
 });
-test("grava exclusivamente JSON validado e com prazo de expiração", async () => {
-  let inserted;
-  const db = { prepare: sql => ({ bind(...args) {
-    assert.match(sql, /^INSERT INTO reports/);
-    inserted = args;
-    return { async run() {} };
-  }}) };
+test("agrega em buckets sem guardar uma linha individual por maquina", async () => {
+  let inserted = [];
+  let batched = false;
+  const db = { prepare: sql => {
+    assert.match(sql, /^INSERT INTO daily_counts/);
+    return { bind(...args) {
+      inserted.push(args);
+      return { query: sql, args };
+    } };
+  }, async batch(statements) {
+    assert.equal(statements.length, 1);
+    batched = true;
+  }};
   const request = new Request("https://example.invalid/v1/diagnostico", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify(example)
   });
   assert.equal((await handler.fetch(request, { DB: db })).status, 204);
-  assert.deepEqual(JSON.parse(inserted[0]), example);
-  assert.equal(inserted[2] - inserted[1], 7 * 86400);
+  assert.equal(batched, true);
+  assert.equal(inserted[0][1], "v5.13.11.1");
+  assert.equal(inserted[0][2], "MSIX.LEITURA");
+  assert.equal(inserted[0][3], 3);
+  assert.ok(inserted[0][4] > Math.floor(Date.now() / 1000));
 });
 test("executa limpeza programada", async () => {
   let deleted = false;
   const db = { prepare: sql => ({
     bind: cutoff => {
-      assert.match(sql, /^DELETE FROM reports/);
+      assert.match(sql, /^DELETE FROM daily_counts/);
       assert.equal(typeof cutoff, "number");
       return { async run() { deleted = true; } };
     }
