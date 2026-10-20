@@ -78,7 +78,19 @@ internal sealed class OfficialReleaseSources : IDisposable
         new("sumatrapdf", "GitHub oficial", "SumatraPDF",
             "https://api.github.com/repos/sumatrapdfreader/sumatrapdf/releases/latest",
             "https://www.sumatrapdfreader.org/download-free-pdf-viewer",
-            SumatraPdf, "tag_name")
+            SumatraPdf, "tag_name"),
+        new("sharex", "GitHub oficial", "ShareX",
+            "https://api.github.com/repos/ShareX/ShareX/releases/latest",
+            "https://getsharex.com/", ShareX, "tag_name"),
+        new("handbrake", "GitHub oficial", "HandBrake",
+            "https://api.github.com/repos/HandBrake/HandBrake/releases/latest",
+            "https://handbrake.fr/", HandBrake, "tag_name"),
+        new("rufus", "GitHub oficial", "Rufus",
+            "https://api.github.com/repos/pbatard/rufus/releases/latest",
+            "https://rufus.ie/", Rufus, "tag_name"),
+        new("qbittorrent", "GitHub oficial", "qBittorrent",
+            "https://api.github.com/repos/qbittorrent/qBittorrent/releases/latest",
+            "https://www.qbittorrent.org/", Qbittorrent, "tag_name")
     ];
 
     private static bool Publisher(InstalledApp app, params string[] allowed)
@@ -122,6 +134,21 @@ internal sealed class OfficialReleaseSources : IDisposable
         Publisher(a, "krzysztof kowalczyk", "sumatrapdf", "sumatrapdf reader") &&
         Regex.IsMatch(a.Name, @"^SumatraPDF(?:\s*\((?:x64|x86|64-bit|32-bit)\))?$",
             RegexOptions.IgnoreCase);
+    // Correspondencia restrita a produto e editor. Nunca habilita limpeza ou
+    // instalacao; esta lista e somente informativa.
+    private static bool ShareX(InstalledApp a) =>
+        a.Name.Equals("ShareX", StringComparison.OrdinalIgnoreCase) &&
+        Publisher(a, "sharex team", "sharex", "jaex");
+    private static bool HandBrake(InstalledApp a) =>
+        a.Name.Equals("HandBrake", StringComparison.OrdinalIgnoreCase) &&
+        Publisher(a, "handbrake team", "handbrake", "handbrake project");
+    private static bool Rufus(InstalledApp a) =>
+        a.Name.Equals("Rufus", StringComparison.OrdinalIgnoreCase) &&
+        Publisher(a, "akeo consulting", "pete batard", "akeo");
+    private static bool Qbittorrent(InstalledApp a) =>
+        (a.Name.Equals("qBittorrent", StringComparison.OrdinalIgnoreCase) ||
+         a.Name.Equals("qBittorrent (64-bit)", StringComparison.OrdinalIgnoreCase)) &&
+        Publisher(a, "qbittorrent project", "the qbittorrent project", "qbittorrent");
     private static bool Obs(InstalledApp a) =>
         a.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase) &&
         Publisher(a, "obs project", "obs project llc", "obs");
@@ -142,7 +169,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         {
             Timeout = TimeSpan.FromSeconds(14)
         };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.21"));
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.13.11"));
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return client;
     }
@@ -156,7 +183,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         };
         if (_ownsHttp)
         {
-            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.21"));
+            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.13.11"));
             _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
     }
@@ -351,7 +378,7 @@ internal sealed class OfficialReleaseSources : IDisposable
     internal static string NormalizeOfficialVersionTag(string sourceId, string value)
     {
         string tag = value.Trim();
-        if (sourceId == "github-desktop" &&
+        if ((sourceId == "github-desktop" || sourceId == "qbittorrent") &&
             tag.StartsWith("release-", StringComparison.OrdinalIgnoreCase))
             tag = tag["release-".Length..];
         if (sourceId == "sumatrapdf" &&
