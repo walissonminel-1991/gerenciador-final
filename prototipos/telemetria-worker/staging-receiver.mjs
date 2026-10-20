@@ -130,4 +130,13 @@ export async function handleStagingRequest(request, env) {
   }
 }
 
-export default { fetch: handleStagingRequest };
+export default {
+  fetch: handleStagingRequest,
+  // Apaga agregados expirados; somente dados tecnicos, nenhum registro individual.
+  async scheduled(_event, env) {
+    if (!env?.DB) return;
+    const now = Math.floor(Date.now() / 1000);
+    await env.DB.prepare("DELETE FROM daily_counts WHERE expires_at <= ?")
+      .bind(now).run();
+  }
+};
