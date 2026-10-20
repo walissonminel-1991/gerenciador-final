@@ -16,7 +16,7 @@ try
     Verify(tracker.ExplainLocalCollection("v5.13.11.8").Contains("COLETA DESATIVADA"),
         "Explicacao em linguagem simples mostra coleta desativada");
     string offlineExample = AnonymousTelemetry.SimulateContributionWithoutSending("v5.13.11.8");
-    Verify(offlineExample.Contains("SIMULACAO APROVADA") &&
+    Verify(offlineExample.Contains("SIMULAÇÃO CONCLUÍDA") &&
            offlineExample.Contains("INVENTADOS") &&
            offlineExample.Contains("Nenhum arquivo foi criado") &&
            !Directory.Exists(temp) &&
