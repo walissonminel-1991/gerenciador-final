@@ -1,21 +1,23 @@
 # GERENCIADOR FINAL — progresso verificável
 
-Base: 5.13.10.18 TESTE · 2026-10-20
+Base: 5.13.10.19 TESTE · 2026-10-20
 
 Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.
 
-Código desta rodada: `5171c895725e779df3ccba8d54a8faf56735950d`
+O desenvolvimento continua antes da bateria nos computadores. Apenas os casos que realmente exigem evidência de uma máquina ficam pendentes dessa validação. Um terceiro computador será bem-vindo, mas não é requisito para continuar.
 
-CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
+Código validado: `cbeca35a4bc240eb074a65c18ef48c5a79589e62`
 
-## Entregas deste lote
+CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39402317825
 
-- Confirmação de atualização vinculada à instalação escolhida; validação adicional de arquitetura e escopo do SumatraPDF.
-- Diagnóstico agregado dos motivos de cobertura, sem nomes de aplicativos nos novos registros de diagnóstico.
-- Recusa de confirmação de ausência quando a leitura do Registro falha; evidência explícita de inventário parcial na auditoria histórica.
-- Correção da avaliação de desinstalador ausente e consideração da alternativa silenciosa.
-- Aba DRIVERS com consulta local sob demanda, fornecedor, versão, INF, presença e assinatura informada pelo Windows.
-- Arquivo de diagnóstico identifica também a revisão da versão.
+## Entregas da rodada
+
+- Histórico próprio de drivers, iniciado na primeira consulta completa. Último retrato e até vinte resumos de mudanças, sem nomes ou IDs brutos no arquivo.
+- Gravação atômica e proteção contra consulta parcial/vazia, corrupção, esquema desconhecido, relógio regressivo e gravação por outra instância.
+- Agrupamento por INF preservando dispositivos distintos e sinalizando versões/assinaturas divergentes.
+- Fontes de atualização com prazo também para o corpo HTTP, cancelamento respeitado no cache e tratamento de JSON de tipos inesperados.
+- Rejeição de publicações marcadas como prerelease/draft, mesmo quando a tag é numérica.
+- Rolagem escura na aba DRIVERS, reaproveitando a adaptação DPI e navegação por foco.
 
 ## Checklist
 
@@ -26,7 +28,7 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [x] I3 — Bibliotecas de jogos e entradas somente leitura. Evidência: GameLibraryAudit.cs; TestesResiduos
 - [x] I4 — Verificação dos desinstaladores em segundo plano. Evidência: Program.cs v5.13.10.17
 - [x] I5 — Contadores de inventário completo e ações disponíveis. Evidência: ActionableInventory.cs; Program.cs v5.13.10.17
-- [x] I6 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
+- [x] I6 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39402317825
 - [ ] I7 — Cobertura conferida nos dois computadores. Evidência: Validação presencial adiada
 
 ### Desinstalação e resíduos — 5/7 (71%)
@@ -35,11 +37,11 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [x] R2 — Classificação conservadora de fabricantes compartilhados. Evidência: BroadResidualDiscovery.cs; ResidualAuditDialog.cs
 - [x] R3 — Auditoria histórica somente leitura. Evidência: HistoricalResidualAudit.cs; HistoricalDeviceAudit.cs
 - [x] R4 — Limpeza específica após confirmação e revalidação da remoção. Evidência: Program.cs; UninstallResiduals.cs
-- [x] R5 — Regressões de proteção aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
+- [x] R5 — Regressões de proteção aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39402317825
 - [ ] R6 — Resolver casos históricos ambíguos com evidências adicionais. Evidência: Adicionada proteção para inventário incompleto; a atribuição dos vestígios específicos ainda depende de evidências dos computadores.
 - [ ] R7 — Desinstalação e preservação de dados validadas nos computadores. Evidência: Validação presencial adiada
 
-### Atualizações — 6/8 (75%)
+### Atualizações — 7/9 (78%)
 
 - [x] U1 — Consulta e fusão de múltiplas fontes. Evidência: OfficialReleaseSources.cs; RuckZuckCatalog.cs
 - [x] U2 — Comparação de versões e proteção de identidades. Evidência: Matching.cs; TestesMotor; TestesMultifontes
@@ -47,15 +49,16 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [x] U4 — Confirmação posterior rejeita editor divergente e entrada somente leitura. Evidência: VerifiedUpdaters.cs; TestesAtualizador v5.13.10.17
 - [x] U5 — Vincular confirmação à instalação original e conferir arquitetura/escopo Sumatra. Evidência: VerifiedUpdaters.ConfirmInstallation; TestesAtualizador aprovados. Identidade alterada permanece indeterminada; não equivale à validação real de todos os instaladores.
 - [ ] U6 — Explicar divergências de cobertura com WinGet. Evidência: Contagens por motivo implementadas sem nomes nos logs; comparação com WinGet depende de capturas equivalentes da mesma máquina.
-- [x] U7 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
+- [x] U7 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39402317825
 - [ ] U8 — Instalação e versão final validadas nos computadores. Evidência: Validação presencial adiada
+- [x] U9 — Isolar respostas malformadas e limitar leitura HTTP completa. Evidência: TestesMultifontes: corpo HTTP parado, cache cancelado, tipos JSON inesperados e prerelease numérico aprovados.
 
 ### Desempenho e estabilidade — 4/6 (67%)
 
 - [x] P1 — Cadência de monitoramento conforme visibilidade. Evidência: ProcessSamplingPolicy.cs v5.13.10.16
 - [x] P2 — Consultas de caminhos fora da interface. Evidência: Program.cs v5.13.10.17
 - [x] P3 — Atualização incremental e registro em lotes. Evidência: ProcessMonitorUi.cs; DarkControls.cs
-- [x] P4 — Regressões de monitoramento e bandeja aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
+- [x] P4 — Regressões de monitoramento e bandeja aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39402317825
 - [ ] P5 — Medir tempo de abertura, CPU e RAM nos computadores. Evidência: Validação presencial adiada
 - [ ] P6 — Diagnosticar bloqueio AVG e verificar estabilidade real. Evidência: Causa e resolução ainda não comprovadas
 
@@ -64,15 +67,17 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [x] V1 — Layout adaptável, DPI e navegação. Evidência: ResponsiveLayout.cs; StartupWindowSizing.cs
 - [x] V2 — Cartões compactos, textos e rolagem. Evidência: Program.cs; IntegratedSystemUi.cs
 - [x] V3 — Descrição acessível do resumo completo de aplicativos. Evidência: Program.cs v5.13.10.17
-- [x] V4 — Matriz automatizada de layout aprovada nesta consolidação. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
+- [x] V4 — Matriz automatizada de layout aprovada nesta consolidação. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39402317825
 - [ ] V5 — Legibilidade e fluidez aprovadas nos dois computadores. Evidência: Validação presencial adiada
 
-### Investigação de drivers — 2/4 (50%)
+### Investigação de drivers — 4/6 (67%)
 
 - [x] D1 — Comparação histórica PnP somente leitura. Evidência: HistoricalDeviceAudit.cs
-- [ ] D2 — Correlacionar dispositivos, pacotes e histórico Windows. Evidência: Correlação dispositivo/INF/presença implementada em parte. Driver Store completo e histórico Windows continuam pendentes.
+- [ ] D2 — Correlacionar dispositivos, pacotes e histórico Windows. Evidência: Vínculos WMI por INF implementados. Inventário completo do Driver Store e correlação com histórico Windows seguem como desenvolvimento, sem bloqueio global pelos computadores.
 - [x] D3 — Inventário funcional na aba DRIVERS. Evidência: Tabela WMI sob demanda; teste real de coleta no runner Windows e matriz de layout aprovados. Sem instalação/remoção.
 - [ ] D4 — Validar interpretação nos computadores. Evidência: Etapa futura
+- [x] D5 — Histórico próprio limitado e persistente de observações. Evidência: DriverHistory.cs; testes de persistência, corrupção, relógio, concorrência e retenção aprovados.
+- [x] D6 — Correlacionar INFs compartilhados e evidências divergentes. Evidência: DriverPackageLinks.cs; testes de compartilhamento, versões e assinaturas divergentes aprovados.
 
 ### Gestão de drivers — 0/5 (0%)
 
@@ -82,24 +87,34 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [ ] G4 — Reversão quando suportada e recuperação de falhas. Evidência: Etapa futura
 - [ ] G5 — Validar fluxo controlado nos computadores. Evidência: Etapa futura
 
-## Próxima etapa: validar o lote nos dois computadores
+## Próximas frentes de desenvolvimento sem depender dos computadores
 
-1. Seguir [TESTE-CONSOLIDADO.md](TESTE-CONSOLIDADO.md) primeiro no PC FRACO e depois no principal.
-2. Comparar inventário e atualizações na mesma máquina e horário; coletar os casos históricos ambíguos.
-3. Conferir a consulta de drivers com o Gerenciador de Dispositivos; registrar dados ausentes e divergências.
-4. Medir abertura, CPU/RAM, bandeja e legibilidade; registrar eventual alerta AVG sem desativá-lo.
-5. Corrigir divergências observadas antes de ampliar Driver Store/histórico e iniciar gestão de pacotes.
+1. Ampliar a consulta para os pacotes do Driver Store, mantendo leitura separada de ações e limites para falhas/permissões.
+2. Correlacionar essa lista com os vínculos WMI e com evidências do histórico do Windows; ausência de dispositivo não prova pacote dispensável.
+3. Expandir fontes de atualização apenas com identidade, canal, arquitetura e respostas verificáveis; manter simulações de falhas isoladas.
+4. Ampliar cenários de proteção de resíduos e conferir dados compartilhados antes de autorizar qualquer nova política de limpeza.
+5. Desenvolver a avaliação de compatibilidade e procedência de pacotes antes da instalação/reversão de drivers.
 
-## Desenvolvimento posterior
+## Pendências que exigem evidências reais
 
-A gestão de drivers permanece não implementada: fontes oficiais, compatibilidade, verificação de pacotes, instalação e reversão. A consulta atual não comprova essas funções. Validar sua coleta nos equipamentos é o próximo marco escolhido; não significa que todo desenvolvimento possível sem esses equipamentos esteja esgotado.
+- AVG e desempenho nos equipamentos específicos.
+- Diferenças concretas de cobertura com WinGet na mesma máquina e horário.
+- Atribuição de vestígios ambíguos no histórico de cada computador.
+- Compatibilidade dos dispositivos, instalação e reversão em hardware real.
 
-## Limites da validação
+A preparação e as simulações dessas frentes podem continuar. Os resultados reais não serão marcados como aprovados antecipadamente.
 
-- A CI cobre compilação, nove grupos de regressão, consulta WMI real no runner, layout/bandeja/monitoramento e ativação do pacote. Consultar o resultado acima antes de considerar o lote aprovado.
-- O runner Windows não reproduz o AVG, os dispositivos, a resolução nem a carga dos computadores do usuário.
-- A CI não executa instaladores reais de aplicativos, não valida fontes online ao vivo e não comprova compatibilidade universal.
-- A tabela de drivers não enumera todo o Driver Store e não permite instalar, remover ou reverter pacotes.
-- Identidade alterada por um instalador permanece indeterminada, mesmo quando a atualização pode ter funcionado.
-- As alterações estão numa branch de teste; a branch principal não foi substituída.
-- A lista tem escopo explícito e pode crescer com novos achados. Seus percentuais não medem a proporção de todo o produto pronta.
+## Bateria futura
+
+Usar [MATRIZ-COMPUTADORES.md](MATRIZ-COMPUTADORES.md) e [TESTE-CONSOLIDADO.md](TESTE-CONSOLIDADO.md). PC C é opcional. Registrar versão, ambiente e resultado, sem dados pessoais.
+
+## Limitações
+
+- A consulta atual e o agrupamento por INF não enumeram todo o Driver Store.
+- O histórico próprio registra mudanças observadas; não reconstrói o passado nem prova instalação ou remoção de pacotes.
+- Hashes evitam IDs em texto, mas não constituem garantia de anonimização absoluta. Histórico local não deve ser copiado entre computadores.
+- Não há instalação, remoção nem reversão de drivers nesta versão.
+- Os testes remotos não reproduzem AVG, carga e hardware dos computadores reais.
+- A CI não valida instaladores reais de aplicativos nem fontes online ao vivo nesta rodada.
+- As alterações permanecem em branch de teste; a principal não foi substituída.
+- Foram acrescentados checkpoints explícitos de histórico, correlação e robustez HTTP. Os denominadores cresceram; percentuais não medem esforço nem conclusão universal do produto.

@@ -2,6 +2,16 @@
 
 Este arquivo resume as alterações mais recentes do projeto. As versões anteriores a 5.12 são etapas históricas do desenvolvimento e não representam versões publicadas no GitHub.
 
+## 5.13.10.19 TESTE — historico proprio e correlacao de drivers
+- Historico local compara consultas completas, preserva a base em consultas parciais/vazias e conserva ate vinte resumos de mudancas.
+- Persistencia atomica, limite de tamanho, validacao do esquema, protecao contra relogio regressivo e disputa entre instancias. Nomes e IDs brutos nao sao gravados.
+- Correlacao por INF distingue compartilhamento entre dispositivos, versoes divergentes, assinaturas conflitantes e INF ausente/invalido.
+- Comparacao descreve observacoes; nao declara pacote dispensavel nem autoriza instalacao/remocao.
+- Fontes oficiais agora limitam tambem a leitura do corpo HTTP; cancelamento respeitado no cache e respostas JSON malformadas isoladas.
+- Publicacoes marcadas como prerelease/draft nao geram candidato estavel, mesmo com tag numerica.
+- Aba DRIVERS reutiliza rolagem escura e adaptacao DPI da aplicacao.
+- Matriz preparada para dois computadores e um terceiro opcional; desenvolvimento sem essas maquinas continua.
+
 ## 5.13.10.18 TESTE — consolidacao e inventario consultivo de drivers
 - Diagnostico de desinstalacao considera ambas as alternativas registradas; caminho absoluto ausente nao herda confianca do nome msiexec.exe.
 - Leitura incompleta do Registro bloqueia os fluxos que precisam confirmar ausencia antes da limpeza; auditoria contextual informa limitacoes do inventario.

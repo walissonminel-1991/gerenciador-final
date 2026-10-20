@@ -1,12 +1,12 @@
-# Validação do lote v5.13.10.18
+# Validação do lote v5.13.10.19
 
-Executar a mesma sequência no PC FRACO e no computador principal. Registrar qual máquina foi usada, a versão exata e o resultado. Não instalar SDK. Manter todos os arquivos do pacote portátil juntos.
+Quando iniciarmos a bateria, executar a mesma sequência nos computadores disponíveis. Usar [MATRIZ-COMPUTADORES.md](MATRIZ-COMPUTADORES.md), que admite um terceiro computador opcional. Registrar qual máquina foi usada, a versão exata e o resultado. Não instalar SDK. Manter todos os arquivos do pacote portátil juntos.
 
 ## 1. Abertura e proteção
 
 - Abrir o programa com o antivírus ativo.
 - Se houver bloqueio: registrar captura do alerta, nome da detecção, horário e a versão do Gerenciador Final. Não insistir em instalação/limpeza durante o bloqueio.
-- Conferir se o arquivo de diagnóstico identifica v5.13.10.18, incluindo a última revisão.
+- Conferir se o arquivo de diagnóstico identifica v5.13.10.19, incluindo a última revisão.
 - Abrir, minimizar para bandeja e restaurar três vezes. Registrar travamento, fechamento ou piscada observada.
 
 ## 2. Inventário e atualização
@@ -37,7 +37,7 @@ Executar a mesma sequência no PC FRACO e no computador principal. Registrar qua
 - Registrar tempo aproximado até a lista responder, CPU e RAM pelo Gerenciador de Tarefas após estabilizar, e comportamento na bandeja.
 - Conferir textos, botão Consultar drivers, tabela/rolagem e navegação na resolução e escala DPI reais.
 
-## O que esses testes desbloqueiam
+## Evidências que esses testes fornecerão
 
 - Cobertura real do inventário e divergências de atualização (I7, U6, U8).
 - Classificação dos vestígios específicos e preservação após desinstalação (R6, R7).
