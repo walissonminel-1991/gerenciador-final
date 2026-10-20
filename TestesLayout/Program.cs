@@ -398,7 +398,9 @@ internal static class LayoutTests
         if (graph.SampleCount != 2 ||
             !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryAvailable" && x.Text.Contains("3,00") || x.Name == "MemoryAvailable" && x.Text.Contains("3.00")) ||
             !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryCleaned" && x.Text.Contains("0 MB")))
-            throw new Exception("RAM: grafico e contadores nao refletem amostras.");
+            throw new Exception("RAM: dados inconsistentes: pontos=" + graph.SampleCount +
+                ", disponivel=" + Descendants(form).OfType<Label>().FirstOrDefault(x => x.Name == "MemoryAvailable")?.Text +
+                ", liberada=" + Descendants(form).OfType<Label>().FirstOrDefault(x => x.Name == "MemoryCleaned")?.Text);
         Console.WriteLine("OK: grafico de RAM, valores e botao do Windows.");
     }
 
