@@ -9,6 +9,6 @@
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
     <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
     <Compile Include="../AnonymousTelemetry.cs" Link="AnonymousTelemetry.cs" />
-    <Compile Include="../GitHubDiagnosticShare.cs" Link="GitHubDiagnosticShare.cs" />
+    <Compile Include="../DiagnosticPayloadPolicy.cs" Link="DiagnosticPayloadPolicy.cs" />
   </ItemGroup>
 </Project>
