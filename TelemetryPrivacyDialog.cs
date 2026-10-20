@@ -41,8 +41,9 @@ internal sealed class TelemetryPrivacyDialog : Form
                    "Esta etapa registra somente a versão do GF, o encerramento e " +
                    "contagens por categoria de erro. Não recolhe nomes de programas, " +
                    "arquivos, comandos, IP, caminhos, IDs de dispositivos ou dados de uso pessoal.\n\n" +
-                   "IMPORTANTE: ainda não há envio automático. Tudo ficará local; " +
-                   "quando o envio seguro estiver disponível, solicitaremos novo consentimento."
+                   "IMPORTANTE: nenhuma informação será enviada automaticamente. " +
+                   "É possível revisar um resumo e publicá-lo manualmente no GitHub; " +
+                   "Issues são públicas. O futuro envio automático exigirá novo consentimento."
         };
         root.Controls.Add(notice, 0, 0);
 
