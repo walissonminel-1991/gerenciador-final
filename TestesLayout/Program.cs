@@ -313,9 +313,17 @@ internal static class LayoutTests
                 // DRIVERS permite consulta, sem instalacao ou remocao.
                 if (tab == 1)
                 {
-                    if (driverCards.Height < 100 || driverCards.Width < placeholder.Width - 70)
+                    bool tinyDrivers = placeholder.Height < 230;
+                    int minDriverHeight = tinyDrivers ? 73 : 100;
+                    if (driverCards.Height < minDriverHeight ||
+                        driverCards.Width < placeholder.Width - 70)
                         throw new Exception($"DRIVERS nao aproveita o espaco para cartoes: {name} {resolution} " +
                             $"lista={driverCards.Size} raiz={placeholder.Size}");
+                    var mobileFilter = Descendants(placeholder).OfType<ComboBox>()
+                        .SingleOrDefault(c => c.Name == "DriverCompactFilter");
+                    if (mobileFilter is null || mobileFilter.Visible != tinyDrivers ||
+                        mobileFilter.Items.Count != 3)
+                        throw new Exception($"Filtro compacto DRIVERS inacessivel: {name} {resolution}");
                     if (Descendants(placeholder).OfType<DataGridView>().Any() ||
                         Descendants(placeholder).OfType<Button>().Any(b =>
                             b.Text.Contains("Desinstalar", StringComparison.OrdinalIgnoreCase) ||
