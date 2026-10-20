@@ -19,6 +19,10 @@ internal sealed class AnonymousTelemetry
         "JANELA.BANDEJA_RESTAURAR.FIM", "JANELA.BANDEJA_OCULTAR.INICIO",
         "JANELA.BANDEJA_OCULTAR.FIM", "DIAGNOSTICO_COMPLETO.FIM"
     };
+    // Reutilizada na validacao do formulario PUBLICO, sem duplicar allowlist.
+    internal static bool IsAllowedCategory(string category) =>
+        AllowedEvents.Contains(category);
+
     private const int MaximumEventsPerCategory = 100;
     private readonly object _gate = new();
     private readonly string _folder;
