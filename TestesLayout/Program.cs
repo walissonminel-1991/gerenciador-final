@@ -19,6 +19,7 @@ internal static class LayoutTests
         TestStartupBounds();
         TestWorkspaceProportions();
         TestRamHistoryAndSampling();
+        TestSafeMemoryPolicyAndLogCache();
         TestSamplingCadence();
 
         Console.WriteLine("Criando janela de teste, sem iniciar os servicos");
@@ -364,6 +365,56 @@ internal static class LayoutTests
         Console.WriteLine("OK: amostragem 2s na aba; contadores globais a 12s ou 20s em background.");
     }
 
+    private static void TestSafeMemoryPolicyAndLogCache()
+    {
+        const ulong GiB = 1073741824UL;
+        var policy = new SafeMemoryOptimizationPolicy();
+        var low = new MemoryRamSample(DateTime.UtcNow, 8 * GiB, GiB);
+        var safe = new MemoryRamSample(DateTime.UtcNow, 8 * GiB, 4 * GiB);
+        var start = DateTime.UtcNow;
+
+        if (policy.ShouldOptimize(low, true, start))
+            throw new Exception("Limpeza automática deve começar desligada.");
+        policy.AutomaticEnabled = true;
+        if (policy.ShouldOptimize(low, false, start) ||
+            policy.ShouldOptimize(low, false, start.AddSeconds(20)) ||
+            !policy.ShouldOptimize(low, false, start.AddSeconds(40)))
+            throw new Exception("Política exige pressão persistente antes de otimizar.");
+        policy.RecordRun(start.AddSeconds(40));
+        if (policy.ShouldOptimize(low, true, start.AddMinutes(1)) ||
+            policy.ShouldOptimize(low, true, start.AddMinutes(2)) ||
+            policy.ShouldOptimize(low, true, start.AddMinutes(3)))
+            throw new Exception("Cooldown de limpeza foi ignorado.");
+        if (!policy.ShouldOptimize(low, true, start.AddMinutes(16)))
+            throw new Exception("Auto deveria poder agir após cooldown e pressão contínua.");
+        policy.RecordRun(start.AddMinutes(16));
+        if (policy.ShouldOptimize(low, true, start.AddMinutes(17)) ||
+            policy.ShouldOptimize(safe, false, start.AddMinutes(18)) ||
+            policy.ShouldOptimize(low, false, start.AddMinutes(19)) ||
+            policy.ShouldOptimize(low, false, start.AddMinutes(20)))
+            throw new Exception("Amostra normal deve quebrar a sequência de pressão.");
+        policy.AutomaticEnabled = false;
+        if (policy.ShouldOptimize(low, true, start.AddMinutes(40)))
+            throw new Exception("Otimização desativada não deve agir.");
+
+        var counter = new AppCacheCleanupCounter();
+        counter.Register(2048);
+        counter.Register(-100);
+        if (counter.Operations != 2 || counter.DiscardedBufferBytes != 2048)
+            throw new Exception("Contador não pode inventar memória positiva.");
+
+        using var mockLog = new DarkLogView();
+        for (int i = 0; i < 250; i++) mockLog.AppendText($"Mensagem {i:D3}: apenas cache do GF.\n");
+        long dropped = mockLog.CompactOldLog(2000, 400);
+        if (dropped <= 0 || mockLog.RenderedText.Contains("Mensagem 000") ||
+            !mockLog.RenderedText.Contains("Mensagem 249"))
+            throw new Exception("Compactação do log não preservou mensagens recentes.");
+
+        using var signal = new WindowsLowMemorySignal();
+        _ = signal.IsLow(); // disponibilidade é opcional, não exige admin.
+        Console.WriteLine("OK: política de pressão persistente, cooldown, log próprio e limite de cache.");
+    }
+
     private static void TestRamHistoryAndSampling()
     {
         const ulong GiB = 1073741824UL;
@@ -389,7 +440,10 @@ internal static class LayoutTests
     {
         var graph = Descendants(form).OfType<MemoryRamChart>().Single();
         if (!graph.Visible ||
-            Descendants(form).OfType<Button>().All(x => x.Text != "Tarefas do Windows"))
+            Descendants(form).OfType<Button>().All(x => x.Text != "Tarefas do Windows") ||
+            Descendants(form).OfType<Button>().All(x => x.Name != "MemoryAutoOptimization") ||
+            Descendants(form).OfType<Button>().All(x => x.Name != "MemoryManualOptimization") ||
+            Descendants(form).OfType<Label>().All(x => x.Name != "MemoryCandidates"))
             throw new Exception("RAM: grafico ou acesso a Tarefas do Windows ausente.");
         const ulong GiB = 1073741824UL;
         int samplesBefore = graph.SampleCount;
@@ -398,7 +452,7 @@ internal static class LayoutTests
         Application.DoEvents();
         if (graph.SampleCount != Math.Min(MemoryRamHistory.Capacity, samplesBefore + 2) ||
             !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryAvailable" && x.Text.Contains("3,00") || x.Name == "MemoryAvailable" && x.Text.Contains("3.00")) ||
-            !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryCleaned" && x.Text.Contains("0 MB")))
+            !Descendants(form).OfType<Label>().Any(x => x.Name == "MemoryCleaned" && x.Text.Contains("0 KB")))
             throw new Exception("RAM: dados inconsistentes: pontos=" + graph.SampleCount +
                 ", disponivel=" + Descendants(form).OfType<Label>().FirstOrDefault(x => x.Name == "MemoryAvailable")?.Text +
                 ", liberada=" + Descendants(form).OfType<Label>().FirstOrDefault(x => x.Name == "MemoryCleaned")?.Text);

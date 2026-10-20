@@ -73,19 +73,25 @@ internal sealed partial class MainForm
     private readonly Label _memoryUsageLabel = new();
     private readonly Label _memoryReadyLabel = new();
     private readonly Label _memoryCleanedLabel = new();
+    private readonly Label _memoryCandidatesLabel = new();
+    private readonly SafeMemoryOptimizationPolicy _memoryCleanupPolicy = new();
+    private readonly AppCacheCleanupCounter _appCacheCounter = new();
+    private readonly WindowsLowMemorySignal _memoryPressureSignal = new();
+    private Button? _autoMemoryButton;
 
     private Control BuildMemoryRamDashboard()
     {
         var root = new TableLayoutPanel
         {
             Name = "MemoryRamDashboard", Dock = DockStyle.Fill,
-            ColumnCount = 1, RowCount = 4,
+            ColumnCount = 1, RowCount = 5,
             BackColor = PanelBackground, Padding = new Padding(5, 4, 5, 3)
         };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 51));
 
         var top = new TableLayoutPanel
         {
@@ -126,7 +132,7 @@ internal sealed partial class MainForm
         {
             "Em uso: aguardando",
             "Disponível: aguardando",
-            "Liberada pelo GF: 0 MB"
+            "Cache GF descartado: 0 KB"
         };
         for (int c = 0; c < values.Length; c++)
         {
@@ -140,16 +146,61 @@ internal sealed partial class MainForm
             stats.Controls.Add(values[c], c, 0);
         }
         root.Controls.Add(stats, 0, 2);
+
+        var cleanupBar = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 3,
+            BackColor = PanelBackground, Margin = Padding.Empty
+        };
+        cleanupBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 154));
+        cleanupBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 152));
+        cleanupBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _autoMemoryButton = CreateSecondaryButton("Auto: desligada");
+        _autoMemoryButton.Name = "MemoryAutoOptimization";
+        _autoMemoryButton.Dock = DockStyle.Fill;
+        _autoMemoryButton.Margin = new Padding(2, 2, 5, 2);
+        _toolTips.SetToolTip(_autoMemoryButton,
+            "Ative a limpeza conservadora de caches internos apenas sob pressão persistente, com 15 min entre ações.");
+        _autoMemoryButton.Click += (_, _) =>
+        {
+            _memoryCleanupPolicy.AutomaticEnabled = !_memoryCleanupPolicy.AutomaticEnabled;
+            _autoMemoryButton.Text = _memoryCleanupPolicy.AutomaticEnabled ? "Auto: ativada" : "Auto: desligada";
+            UpdateMemoryCacheLabels();
+        };
+        _actionControls.Add(_autoMemoryButton);
+        cleanupBar.Controls.Add(_autoMemoryButton, 0, 0);
+
+        var manual = CreateSecondaryButton("Otimizar cache GF");
+        manual.Name = "MemoryManualOptimization";
+        manual.Dock = DockStyle.Fill;
+        manual.Margin = new Padding(2, 2, 4, 2);
+        _toolTips.SetToolTip(manual,
+            "Descarta apenas mensagens antigas e amostras do próprio GF. Não reduz memória de outros aplicativos.");
+        manual.Click += (_, _) => RunSafeMemoryCleanup(false);
+        _actionControls.Add(manual);
+        cleanupBar.Controls.Add(manual, 1, 0);
+
+        _memoryCandidatesLabel.Name = "MemoryCandidates";
+        _memoryCandidatesLabel.Text = "Cache interno elegível: 0 KB";
+        _memoryCandidatesLabel.Dock = DockStyle.Fill;
+        _memoryCandidatesLabel.ForeColor = Muted;
+        _memoryCandidatesLabel.TextAlign = ContentAlignment.MiddleLeft;
+        _memoryCandidatesLabel.AutoEllipsis = true;
+        _memoryCandidatesLabel.Padding = new Padding(4, 1, 1, 0);
+        cleanupBar.Controls.Add(_memoryCandidatesLabel, 2, 0);
+        root.Controls.Add(cleanupBar, 0, 3);
+
         root.Controls.Add(new Label
         {
             Name = "MemorySafetyNote",
-            Text = "Disponível inclui cache reutilizável pelo Windows. Limpeza forçada de outros aplicativos não é realizada. " +
-                   "Contador de limpeza: somente ganhos confirmados; por enquanto, nenhuma limpeza automática ativa.",
+            Text = "Disponível inclui RAM em espera reutilizável. Otimização automática só com autorização e pressão persistente. " +
+                   "Cache descartado mede buffers do GF, não memória física recuperada; sem alterar outros processos.",
             ForeColor = Muted, Dock = DockStyle.Fill, AutoEllipsis = false,
             Font = new Font("Segoe UI", 8.2F),
             TextAlign = ContentAlignment.MiddleLeft,
             Padding = new Padding(5, 2, 4, 1)
-        }, 0, 3);
+        }, 0, 4);
+        FormClosed += (_, _) => _memoryPressureSignal.Dispose();
         _memoryDashboardView = root;
         return root;
     }
@@ -168,7 +219,37 @@ internal sealed partial class MainForm
         _memoryUsageLabel.Text = $"Em uso: {GiB(sample.UsedBytes)} ({sample.UsedPercent:N0}%)";
         _memoryReadyLabel.Text = $"Disponível: {GiB(sample.AvailableBytes)}";
         // Nao inferir limpeza de oscilacoes normais de memoria do Windows.
-        _memoryCleanedLabel.Text = $"Liberada pelo GF: {_memoryHistory.ConfirmedReclaimedBytes / 1048576d:N0} MB";
+        UpdateMemoryCacheLabels();
         FitSystemSummaryHeight();
+    }
+
+    private void UpdateMemoryCacheLabels()
+    {
+        _memoryCleanedLabel.Text = $"Cache GF descartado: {_appCacheCounter.DiscardedBufferBytes / 1024d:N0} KB";
+        _memoryCandidatesLabel.Text = $"Cache interno elegível: {_log.ReclaimableOldLogBytes() / 1024d:N0} KB";
+    }
+
+    private void RunSafeMemoryCleanup(bool automatic)
+    {
+        if (IsDisposed) return;
+        // O único texto descartado é do próprio painel de registro.
+        // Eventos técnicos persistidos em arquivo não são alterados.
+        long bytes = _log.CompactOldLog();
+        _memoryHistory.TrimToRecent(30);
+        _memoryChart?.SetSamples(_memoryHistory.Samples);
+        _appCacheCounter.Register(bytes);
+        _memoryCleanupPolicy.RecordRun(DateTime.UtcNow);
+        UpdateMemoryCacheLabels();
+        if (!automatic)
+            Status(bytes > 0
+                ? "Cache interno antigo descartado. RAM física liberada não é mensurada."
+                : "Sem cache interno antigo elegível para descarte.");
+        DiagnosticTrace.Write($"RAM.CACHE_INTERNO modo={(automatic ? "auto" : "manual")} bytes_descartados={bytes}");
+    }
+
+    private void EvaluateAutomaticMemoryCleanup(MemoryRamSample sample)
+    {
+        if (_memoryCleanupPolicy.ShouldOptimize(sample, _memoryPressureSignal.IsLow(), DateTime.UtcNow))
+            RunSafeMemoryCleanup(true);
     }
 }

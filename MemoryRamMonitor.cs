@@ -49,4 +49,10 @@ internal sealed class MemoryRamHistory
         _samples.Add(sample);
         if (_samples.Count > Capacity) _samples.RemoveAt(0);
     }
+
+    internal void TrimToRecent(int count)
+    {
+        int retained = Math.Clamp(count, 2, Capacity);
+        if (_samples.Count > retained) _samples.RemoveRange(0, _samples.Count - retained);
+    }
 }

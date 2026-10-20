@@ -568,6 +568,36 @@ internal sealed class DarkLogView : UserControl
         if (!_renderTimer.Enabled) _renderTimer.Start();
     }
 
+    // Descartar somente texto antigo do painel de mensagens deste aplicativo,
+    // preservando o trecho recente. Não toca no Windows nem em outros processos.
+    // O número retornado representa caracteres UTF-16 que deixamos de reter;
+    // não representa memória física recuperada.
+    internal long CompactOldLog(int thresholdChars = 50000, int keepChars = 16000)
+    {
+        if (IsDisposed || _editor.IsDisposed || _editor.Focused) return 0;
+        FlushPending();
+        if (thresholdChars <= keepChars || keepChars <= 0 ||
+            _editor.TextLength <= thresholdChars) return 0;
+        string previous = _editor.Text;
+        int offset = previous.Length - keepChars;
+        int nextLine = previous.IndexOf('\n', offset);
+        if (nextLine >= 0 && nextLine + 1 < previous.Length) offset = nextLine + 1;
+        if (offset <= 0 || offset >= previous.Length) return 0;
+        _editor.Text = previous[offset..];
+        _editor.SelectionStart = _editor.TextLength;
+        _editor.ScrollToCaret();
+        SyncMetrics();
+        return (long)offset * sizeof(char);
+    }
+
+    internal long ReclaimableOldLogBytes(int thresholdChars = 50000, int keepChars = 16000)
+    {
+        if (IsDisposed || _editor.IsDisposed || _editor.Focused || thresholdChars <= keepChars)
+            return 0;
+        int length = _editor.TextLength + _pending.Length;
+        return length > thresholdChars ? (long)(length - keepChars) * sizeof(char) : 0;
+    }
+
     internal void FlushPending()
     {
         _renderTimer.Stop();

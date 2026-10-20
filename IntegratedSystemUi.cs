@@ -711,25 +711,30 @@ internal sealed partial class MainForm
         });
     }
 
-    private async Task RefreshMemoryRamAsync()
+    private Task RefreshMemoryRamAsync()
     {
-        if (_memorySampling || IsDisposed) return;
+        if (_memorySampling || IsDisposed) return Task.CompletedTask;
         _memorySampling = true;
         try
         {
-            // So consulta status global; nunca abre handles de outros processos.
-            var sample = await Task.Run(MemoryRamReader.Capture);
-            if (IsDisposed || sample is null) return;
-            if (Visible && !IsInTray && _nav.SelectedIndex == 5 &&
-                _activeSystemView == "memory")
-                ShowMemoryRamSample(sample);
-            else
-                _memoryHistory.Add(sample); // manter serie mesmo quando oculto.
+            // GlobalMemoryStatusEx é consulta instantânea, não requer
+            // Task.Run nem cria threads para cada amostra.
+            var sample = MemoryRamReader.Capture();
+            if (!IsDisposed && sample is not null)
+            {
+                if (Visible && !IsInTray && _nav.SelectedIndex == 5 &&
+                    _activeSystemView == "memory")
+                    ShowMemoryRamSample(sample);
+                else
+                    _memoryHistory.Add(sample);
+                EvaluateAutomaticMemoryCleanup(sample);
+            }
         }
         catch (Exception ex)
         {
             if (!IsDisposed) Log("RAM: consulta indisponível (" + ex.GetType().Name + ").");
         }
         finally { _memorySampling = false; }
+        return Task.CompletedTask;
     }
 }
