@@ -2651,7 +2651,9 @@ internal sealed partial class MainForm : Form
                     completed.Add(entry);
                     confirmed++;
                     DiagnosticTrace.Write("DESINSTALACAO.REGISTRO_AUSENTE");
-                    Log("Desinstalação confirmada no Registro: " + entry.Name);
+                    Log("O registro de desinstalação não está mais presente: " + entry.Name +
+                        ". A conclusão de janelas do fornecedor e a exclusividade dos vestígios " +
+                        "ainda exigem conferência.");
                 }
                 else
                 {
@@ -2660,6 +2662,15 @@ internal sealed partial class MainForm : Form
                     Log("Registro de desinstalação ainda associado a " + entry.Name +
                         ". Feche todas as janelas do fornecedor e clique em Atualizar lista para revalidar. " +
                         "Nenhuma limpeza de resíduos foi permitida.");
+                }
+                // Atualizar a lista ANTES de apresentar o relatório: o usuário
+                // não deve ver o software como instalado por trás da revisão.
+                // A ausência da entrada ainda não confirma que todas as janelas
+                // de um desinstalador terceirizado tenham terminado.
+                if (removed)
+                {
+                    await RefreshCatalogAsync();
+                    Status("Registro removido; confira se a janela do desinstalador do fabricante já terminou.");
                 }
                 // A auditoria é separada das políticas que podem apagar arquivos.
                 // Mesmo sem receita de limpeza, mostra locais específicos e possíveis
@@ -2955,7 +2966,12 @@ internal sealed partial class MainForm : Form
                     Kind = (boosterStillRegistered || inventoryIncomplete
                         ? "Instalação não confirmada — " : "Vestígio não confirmado — ") + f.Kind
                 }).ToArray(), Array.Empty<string>(), Historical: true) };
-        DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)} booster_locais={boosterEvidence.Findings.Count}");
+        var historicalWinMerge = await Task.Run(
+            () => ResidualAudit.InspectHistoricalWinMerge(updatedInventory));
+        var winMergeReports = historicalWinMerge.Findings.Count == 0
+            ? Array.Empty<ResidualAuditReport>()
+            : new[] { historicalWinMerge };
+        DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)} booster_locais={boosterEvidence.Findings.Count} winmerge_locais={historicalWinMerge.Findings.Count}");
         Status("Analisando locais comuns de aplicativos e Registro, sem alterar arquivos...");
         DiagnosticTrace.Write("RESIDUOS_GERAIS.CONSULTA_INICIO");
         // Independe de ter observado a instalação ou a remoção do programa.
@@ -2970,9 +2986,9 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
         // Manter resultados com caminhos identificados pelas receitas específicas primeiro,
         // impedindo várias caixas de diálogo para o mesmo aplicativo histórico.
-        var historicalNames = new HashSet<string>(historical.Select(r => r.Product),
-            StringComparer.OrdinalIgnoreCase);
-        var allReports = historical.Concat(boosterReports)
+        var historicalNames = new HashSet<string>(historical.Concat(winMergeReports)
+            .Select(r => r.Product), StringComparer.OrdinalIgnoreCase);
+        var allReports = historical.Concat(boosterReports).Concat(winMergeReports)
             .Concat(broad.Reports.Where(r => !historicalNames.Contains(r.Product)))
             .ToArray();
         if (allReports.Length > 0)
