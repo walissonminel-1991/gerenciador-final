@@ -36,13 +36,13 @@ internal sealed class TelemetryPrivacyDialog : Form
         {
             Dock = DockStyle.Fill, ForeColor = ForeColor,
             TextAlign = ContentAlignment.TopLeft,
-            Text = "Ajude a melhorar o GERENCIADOR FINAL sem precisar entender informática.\n\n" +
-                   "Se aceitar, o programa guardará APENAS neste computador a versão " +
-                   "do GF e pequenas contagens de falhas técnicas. Não coleta nomes " +
-                   "de programas, arquivos, senhas, caminhos ou informações pessoais.\n\n" +
-                   "NADA será enviado pela internet. A participação é opcional e pode " +
-                   "ser desativada a qualquer momento, sem perder funções.\n\n" +
-                   "Você pode simular com dados fictícios sem aceitar ou enviar nada."
+            Text = "Ajude a melhorar o GERENCIADOR FINAL.\n\n" +
+                   "Se aceitar, guardaremos neste computador apenas a versão do GF " +
+                   "e contagens de falhas técnicas. Não recolhemos nomes de " +
+                   "programas, arquivos, senhas nem dados pessoais.\n\n" +
+                   "Nada será enviado pela internet. Participar é opcional e " +
+                   "não limita o uso do programa.\n\n" +
+                   "Você pode simular sem aceitar a coleta."
         };
         root.Controls.Add(notice, 0, 0);
 
@@ -52,6 +52,7 @@ internal sealed class TelemetryPrivacyDialog : Form
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 2, 0, 2)
         };
+        preview.UseReadableFont(Font);
         preview.SetText(recorder.ExplainLocalCollection(DiagnosticTrace.VersionLabel));
         root.Controls.Add(preview, 0, 1);
 
