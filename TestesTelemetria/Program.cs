@@ -40,8 +40,10 @@ try
                root.GetProperty("exit").GetString() == "normal",
                "Somente versao e estado de encerramento");
         var counts = root.GetProperty("counts");
-        Verify(counts.EnumerateObject().Count() == 3 &&
+        Verify(counts.EnumerateObject().Count() == 4 &&
                counts.GetProperty("REGISTRO_PROGRAMAS.FALHA").GetInt32() == 2 &&
+               counts.GetProperty("APP.FALHA_INTERFACE").GetInt32() == 1 &&
+               counts.GetProperty("JANELA.BANDEJA_RESTAURAR.INICIO").GetInt32() == 1 &&
                counts.GetProperty("JANELA.BANDEJA_RESTAURAR.FIM").GetInt32() == 100,
                "Categorias exatas e limites impedem crescimento descontrolado");
     }
