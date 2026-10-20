@@ -1,5 +1,16 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Missão Work 2 — v5.13.11.16 TESTE (20/10/2026)
+
+| Marco | Implementação e evidência |
+|---|---|
+| A — integridade | Removido corte silencioso de 500 relatórios; saturação 500–10.000, omissões explícitas e estado parcial vazio. Integrado e validado com B/C. |
+| B — decisão | Cinco entradas destrutivas bloqueadas; prévia copia alvos, recusa dados misturados e limita conferência. ACL/junction/hard links em fixtures passaram no Windows 39508255014. |
+| C — precisão/desempenho | Preservação geral de perfis, locais compartilhados, aliases 32/64 e comparação indexada; 260/260 verificações e UI aprovadas no Windows 39508751898. |
+| D — GitHub/consolidação | 43 workflows auditados, 38 históricos reforçados, checks com nomes únicos; proteção administrativa documentada. Revisão final da candidata, ZIP e SHA-256 registrados na PR #40 após aprovação. |
+
+**Checklist funcional: 26/42 (61,9%).** A melhoria de confiabilidade não conclui checkpoints dependentes dos PCs nem reativa R4. [Relatório incremental](MISSAO-WORK2-v5.13.11.16.md), [testes supervisionados](TESTES-RESIDUOS-v5.13.11.16.md) e [pendências administrativas](SEGURANCA-GITHUB-WORK2.md). Main e envio remoto preservados; próxima missão deve partir das divergências observadas nos PCs, sem repetir a auditoria já documentada.
+
 ## Missão de resíduos — v5.13.11.15 TESTE (20/10/2026)
 
 | Marco | Progresso comprovado |

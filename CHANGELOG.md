@@ -1,5 +1,16 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.16 — integridade e segurança da análise de resíduos (TESTE)
+
+- União deixa de descartar relatórios após os primeiros 500. Classificação contabiliza grupos/locais fora da exibição, cancelamentos, tempo, profundidade, falhas e evidências não avaliadas. Análise parcial permanece visível mesmo sem achados.
+- Cobertura acompanha as fontes e se mantém correta ao unir resumos aninhados, sem duplicar contagens. Evidências, tipos e motivos são preservados; aliases da mesma visão do Registro reconciliados sem misturar arquiteturas.
+- Preservação geral de perfis, preferências, ProgramData e diretórios compartilhados entre produtos; instalações portáteis, Netease e Driver Booster exigem conferência. Comparação indexada do inventário/processos e cancelamento cooperativo também na classificação.
+- Prévia recusa conteúdo misturado, alvos duplicados ou alterados; copia os alvos aceitos e possui timeout na captura e conferência. Hash/identidade não concedem autorização para apagar.
+- Cinco pontos internos de exclusão permanecem bloqueados e cobertos por testes, incluindo fixtures Windows de ACL negada, junction, hard links e mudança de arquivo. Não foram alteradas receitas de atualização oficial nem habilitado envio remoto.
+- 38 workflows históricos reforçados: Actions em SHA oficial e checkout sem persistência de credenciais. Nomes únicos dos três checks atuais; documentação de proteção administrativa da main ainda pendente do proprietário.
+
+[Relatório, limites e continuidade](docs/MISSAO-WORK2-v5.13.11.16.md) · [Roteiro nos PCs](docs/TESTES-RESIDUOS-v5.13.11.16.md). Resultados finais de CI, origem/commit e integridade do ZIP vinculados na PR #40; pacote experimental sem assinatura. Roadmap funcional permanece 26/42, com exclusão suspensa.
+
 ## v5.13.11.15 — descoberta, preservação e prévia de resíduos (TESTE)
 
 - Suspensa exclusão de resíduos de executáveis, perfis e chaves do Registro: reenumeração ampliava o consentimento e não protegia conteúdo/identidade até a remoção. Bloqueio também nos métodos internos, sem opção oculta para reativar nesta build.

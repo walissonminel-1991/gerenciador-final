@@ -54,6 +54,13 @@ internal static class ResidualIntegrityTests
         var empty = ResidualReportMerger.Merge([], coverage: unavailable);
         check(empty.Count == 0 && empty.Incomplete && empty.Coverage.Describe().Contains("ANÁLISE PARCIAL") &&
             empty.Coverage.Describe().Contains("quantidade desconhecida"), "Erro de fonte sem achados não equivale a análise concluída");
+        var sourceA = new ResidualCoverage(EntriesExamined: 21, CandidatesFound: 3, CandidatesExamined: 5);
+        var sourceB = new ResidualCoverage(EntriesExamined: 12, CandidatesFound: 2, CandidatesExamined: 4);
+        var composite = ResidualCoverage.Combine([sourceA, sourceB]);
+        var nested = ResidualCoverage.Combine([composite, sourceA, sourceB, composite]);
+        var repeated = ResidualCoverage.Combine([nested, composite]);
+        check(repeated.EntriesExamined == 33 && repeated.CandidatesFound == 5 && repeated.CandidatesExamined == 9,
+            "Cobertura de fontes e resumos aninhados contabiliza cada observação uma única vez");
         var noDuplicates = ResidualReportMerger.Merge(new[]
         {
             new ResidualAuditReport("App", false, [new("MesmoLocal", "Perfil", 1, "fonte A")], [], Coverage: unavailable),

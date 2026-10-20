@@ -12,9 +12,9 @@ Limites de descoberta permanecem cooperativos, não interrompem chamadas nativas
 
 Validação local A: 26 verificações novas de integridade/saturação (500, 501, 1.000, 5.000 e 10.000 candidatos; 30.001 evidências; fronteira exata; cancelamento; fonte indisponível; união duplicada), além das 23 verificações locais anteriores. Aplicação compilada para Windows, sem erros; aviso SYSLIB0057 preexistente. Validação Windows real via CI ainda pendente neste marco.
 
-## B, C e D
+## Restrições permanentes da missão
 
-Em andamento. Exclusão real continua obrigatoriamente bloqueada. Sem alteração administrativa, merge na main, release estável, upload de diagnóstico ou manutenção autônoma.
+Exclusão real continua obrigatoriamente bloqueada. Sem alteração administrativa, merge na main, release estável, upload de diagnóstico ou manutenção autônoma.
 
 ## B — bloqueios e prévia
 
@@ -43,3 +43,20 @@ Contagens: entradas são itens visitados na descoberta (ou evidências recebidas
 C aprovado nos três workflows (política 39508752193, Windows 39508751898, build 39508752010), incluindo interface parcial vazia e novas regressões de classificação. Nove verificações Python e dez testes Node locais aprovados após reforço dos workflows.
 
 43 workflows auditados; 38 históricos corrigidos com Actions fixadas em SHA oficial e checkout sem persistência de credenciais. YAMLs analisados com parser, todas as configurações confirmadas. Três checks atuais recebem nomes únicos para futura exigência em proteção de branch. Dependabot e auditoria NuGet bloqueante mantidos; sem pacotes de terceiros declarados nos projetos. Main segue sem proteção/rulesets e auto merge desativado; integração não lê endpoint administrativo (403). Configuração exigida do proprietário detalhada em [Segurança GitHub](SEGURANCA-GITHUB-WORK2.md). Nenhuma configuração administrativa alterada.
+
+
+## Consolidação da candidata
+
+Versão incremental correta: v5.13.11.16 TESTE. Nenhuma versão intermediária foi entregue como candidata final. Correção adicional de integração: resumos compostos e coberturas por fonte podiam somar as mesmas contagens duas vezes; a união agora mantém as observações originais e deduplica a composição. Teste de resumos aninhados acrescentado. Motivos de parcialidade traduzidos para linguagem acessível, sem nomes internos de enums.
+
+Validação anterior à versão: C com 260/260 verificações Windows, UI, demais regressões e três workflows aprovados. Local final: 73 verificações específicas; nove testes Python de segurança/privacidade e dez testes Node. Compilação local Windows sem erros; avisos preexistentes SYSLIB0057 e CS8602 documentados. O novo teste de cobertura aninhada ainda precisa da aprovação final Windows junto à versão .16. Nenhum teste enfraquecido ou desativado para obter aprovação.
+
+Arquivos centrais alterados: ResidualReportMerger.cs, ResidualScanBudget.cs, BroadResidualDiscovery.cs, ResidualAudit.cs, HistoricalResidualAudit.cs, ResidualPreview.cs, ResidualAuditDialog.cs, UninstallResiduals.cs, AdvancedUninstallCleaner.cs e Program.cs. Novas suítes ResidualIntegrityTests.cs, ResidualBlockingTests.cs, ResidualPrecisionTests.cs; ampliações em ResidualMissionTests.cs, TestesResiduos/Program.cs, TestesLayout/Program.cs e scripts/test_politicas_seguranca.py; 41 YAMLs alterados (38 históricos e três checks atuais), versão/manifesto/README/changelog/roadmap e documentos desta missão.
+
+Pacote final só deve ser indicado após três workflows da mesma revisão aprovados. A PR #40 registra commit do head, commit de integração usado no CI, igualdade de árvores, IDs de runs/artefato, SHA-256 do ZIP e conferência de cada entrada do manifesto. O commit de integração da PR é criado pelo GitHub para testes, sem merge na main. O fechamento da PR deve conter esses resultados para não alterar o commit do pacote após validá-lo.
+
+Continuidade: seguir o roteiro .16 no PC de histórico longo e no PC FRACO; medir cobertura/limites, erros e responsividade, preservar perfis e conferir AVG sem desativar proteções. Limitações remanescentes: chamadas nativas não preemptíveis, profundidade e exibição limitadas (com aviso/contagem, sem paginação), propriedade exclusiva não comprovada, handles liberados após leitura, auxiliares do fabricante não rastreados integralmente e limpeza de temporários separada com exclusão textual antiga. Não reutilizar essa rotina como executor de resíduos. Não há autorização de remoção real nesta missão.
+
+Próxima missão Work: começar pela PR/commit final e pelos resultados reais deste roteiro; corrigir apenas divergências novas; avaliar inspeção sob demanda/paginação sem perder cobertura/consentimento. Não reauditar tudo nem habilitar executor, telemetria remota ou manutenção autônoma. Franquia Work não consultável por ferramenta; nenhum saldo estimado.
+
+D aprovado nos três workflows antes da candidata: política 39509088643, Windows 39509088640 e build 39509088564, com os novos nomes de jobs. A revisão de versão/contagem aninhada é validada na rodada final, cujos resultados ficam na PR.
