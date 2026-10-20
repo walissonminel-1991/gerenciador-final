@@ -77,7 +77,7 @@ internal static class InstallerFileGuard
             while (chain.TryPop(out string? part))
             {
                 // OPEN_REPARSE_POINT impede seguir o componente final; os anteriores ja estao presos.
-                var handle = CreateFileW(part, 0x80, 1, IntPtr.Zero, 3,
+                var handle = CreateFileW(part, 0x80000000, 1, IntPtr.Zero, 3,
                     0x02000000 | 0x00200000, IntPtr.Zero);
                 lease.Handles.Add(handle);
                 CheckHandle(handle, directory: true);

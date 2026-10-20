@@ -107,7 +107,7 @@ try
         }
         catch (UnauthorizedAccessException) { Console.WriteLine("SKIP: symlink de pasta sem permissao."); }
 
-        foreach (string invalid in new[] { @"\\\\server\\share\\setup.exe", @"\\\\?\\C:\\setup.exe", @"C:\\setup.exe:payload", "setup.exe" })
+        foreach (string invalid in new[] { @"\\server\share\setup.exe", @"\\?\C:\setup.exe", @"C:\setup.exe:payload", "setup.exe" })
         {
             bool rejected = false;
             try { InstallerFileGuard.ValidateLocalPath(invalid); }
