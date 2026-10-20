@@ -169,3 +169,9 @@ internal sealed class AnonymousTelemetry
         finally { TryDelete(temporary); }
     }
 }
+
+internal static class AnonymousTelemetryContext
+{
+    // Somente processo principal: trabalhadores elevados nao inicializam coleta.
+    internal static AnonymousTelemetry? Current { get; set; }
+}
