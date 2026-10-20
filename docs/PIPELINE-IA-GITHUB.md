@@ -2,11 +2,13 @@
 
 **Estado: plano de integração, não operacional.** Este documento não autoriza coleta remota, execução autônoma de código recebido nem publicação automática. Base de código v5.13.11.1: opt-in local na PR #38 e compilação/regressões Windows aprovadas.
 
-## Estado da triagem GitHub-only (20/10/2026)
+## Restrição de segurança v5.13.11.7 (20/10/2026)
 
-- **Implementado na PR #40, ainda nao integrado na main:** workflow `.github/workflows/triagem-diagnostico-github.yml`, parser estrito em `scripts/triagem_diagnostico.py` e testes de regressao independentes. Issues publicas novas com titulo do piloto sao verificadas automaticamente, sem permissao de escrita, e geram resumo apenas de categorias e contagens aceitas. Consulte [triagem GitHub](TRIAGEM-DIAGNOSTICO-GITHUB.md).
-- **Nao implementados:** envio pelo aplicativo em segundo plano, recepcao privada, comprovacao de origem dos relatos, triagem por agente IA, PRs gerados por IA, exclusao retroativa de Issues e atualizacoes automaticas. Uma Issue publica pode continuar publicamente visivel mesmo se o parser a rejeitar.
-- O progresso funcional do roadmap permanece 27/42; CI e triagem integram um trabalho complementar.
+O piloto de publicação manual em Issues foi **desligado e removido da interface**, e não existe mais workflow de leitura de Issues públicas. O parser antigo foi retirado. O workflow `triagem-diagnostico-github.yml` agora apenas testa as políticas contra anexos/entrada arbitrária. Receptor remoto do protótipo retorna 503 em todas as requisições.
+
+A coleta local consentida continua disponível; **nenhum dado sai do computador pelo GF**. Uma futura integração IA não pode consumir anexos, texto de usuários ou comandos da internet. Apenas agregados previamente estruturados por serviço confiável poderiam gerar insights, sem permissão de escrita na branch protegida. Merge/release permanecem manuais. Não há agente de código ativado nem autenticação/limites/consentimento remoto implementados.
+
+Ver [política vigente](SEGURANCA-v5.13.11.7.md).
 
 ## Objetivo
 
