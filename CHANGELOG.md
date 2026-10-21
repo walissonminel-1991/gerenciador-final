@@ -1,5 +1,14 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.20 — filtros por origem e classificação coerentes (TESTE)
+
+- Segunda bateria real PC fraco 1440×900 identificou que o filtro por origem mostrava todos os locais do grupo, inclusive de outras fontes. Corrigida a interseção entre **origem, classificação e pesquisa** sobre os locais individuais, sem modificar a fotografia original nem permitir exclusões.
+- Total de locais passa a indicar apenas locais correspondentes ao filtro; busca por conteúdo de um local não deve corresponder falsamente a outro local do mesmo grupo.
+- Listas vazias distinguem "Nenhum candidato revisável" em uma análise parcial de "Nenhum grupo/local corresponde aos filtros", sem sugerir ausência total de resíduos.
+- Casos de regressão adicionados ao motor e UI Windows para origem e classificação com dados comuns, perfil do usuário e Registro.
+- [Relatório agregado do PC fraco v5.13.11.19](docs/TESTE-PC-FRACO-2026-10-21-v5.13.11.19.md). Excluídos os arquivos brutos e dados pessoais. Exclusão de resíduos e envio remoto continuam desativados.
+
+
 ## v5.13.11.19 — correções após testes reais no PC fraco (TESTE)
 
 - Evidência real em monitor 1440×900 revelou agrupamento incorreto de subpastas genéricas como `Config`, `Logs`, `Updates`, `Scripts` e `Providers`; subpastas homônimas de fabricantes distintos podiam parecer um único aplicativo. A descoberta agora conserva esses locais associados ao nome do contêiner pai, sem os classificar como produtos independentes nem conceder autorização de exclusão.
