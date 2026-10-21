@@ -1,5 +1,15 @@
 # Roteiro de testes — v5.13.11.32 TESTE
 
+## Build da .32 e CI
+
+Artefato portátil não assinado [v5.13.11.32 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39680829661/artifacts/12384491029),
+código `ea8530d`. Confira BUILD-INFO e SHA256SUMS; retenção informada
+até 28/10/2026. Aprovados: [compilação](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39680829661),
+[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39680829530)
+e [política de privacidade](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39680829538).
+A primeira tentativa de compilação falhou por colisão de nomes locais,
+corrigida na revisão aprovada. CI não substitui execução nos PCs reais.
+
 ## Resultados da segunda bateria PC FORTE (.31) e objetivo da .32
 
 A .31 confirmou 174 programas, 27 MSIX, 3 possíveis atualizações,

@@ -1,6 +1,6 @@
 # Histórico de versões — Gerenciador Final
 
-## v5.13.11.32 — auditoria local estruturada de limpeza (TESTE; CI pendente)
+## v5.13.11.32 — auditoria local estruturada de limpeza (TESTE; CI aprovada)
 
 Na segunda bateria presencial da .31, capturas mostraram limpeza real de 47 arquivos/pastas,
 17 itens preservados, zero falhas, seguida de cleanmgr do Windows com código 0.
@@ -10,7 +10,7 @@ resumo agregado de temporários e código de saída das limpezas elevadas.
 Não grava conteúdo do pipe, nomes de arquivos, caminhos, mensagens de exceção
 ou detalhes de usuário; código 0 não significa quantidade de bytes liberados.
 O mecanismo de remoção não foi alterado. Testes de campos inválidos incluídos.
-O roadmap permanece 26/42.
+CI aprovada em 21/10/2026: compilação Windows x64, regressões (incluindo testes de auditoria), 132 combinações de layout e políticas de segurança. Teste presencial da .32 ainda pendente; roadmap 26/42.
 
 
 ## v5.13.11.31 — MISSÃO WORK 4 (TESTE; CI aprovada)

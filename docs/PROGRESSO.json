@@ -1,9 +1,9 @@
 {
   "version": "5.13.11.32 TESTE",
   "date": "2026-10-21",
-  "code_commit": "pending",
-  "ci_status": "pending",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/pull/40/checks",
+  "code_commit": "ea8530d42b2c31e8aa45c44e96d00b2947359f44",
+  "ci_status": "success",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39680829530",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -352,5 +352,6 @@
     "merge_sha": "8656bb1edc3103e4df33dd2fe210456f13e6b219",
     "authenticode_signed": false
   },
-  "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42."
+  "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
+  "test_diagnostics": "Auditoria local de limpezas com categorias fixas e apenas contagens numericas/codigo de retorno. CI Windows x64, regressao e politicas aprovadas; teste fisico .32 pendente. 26/42."
 }
