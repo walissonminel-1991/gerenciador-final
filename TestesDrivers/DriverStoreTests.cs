@@ -10,6 +10,11 @@ internal static class DriverStoreTests
         var mapping = DriverStoreAudit.CheckMapping("oem1.inf", storePath, published, windows);
         check(mapping.State == DriverStoreState.Mapped && !mapping.CanMaintain,
             "Driver Store: round trip explícito não habilita manutenção");
+        check(DriverStoreAudit.CheckNativeMapping("oem1.inf", storePath, "OEM1.INF", windows).State == DriverStoreState.Mapped,
+            "Fronteira nativa: nome publicado simples só resolve o INF exato no diretório INF do Windows");
+        foreach (string wrong in new[] { "oem2.inf", "../oem1.inf", "INF/oem1.inf", "oem1.inf:stream" })
+            check(DriverStoreAudit.CheckNativeMapping("oem1.inf", storePath, wrong, windows).State == DriverStoreState.Inconsistent,
+                "Fronteira nativa recusa nome diferente ou caminho relativo arbitrário: " + wrong);
         foreach (string bad in new[] { "../oem1.inf", "..inf", "oem1.inf:stream", @"C:\oem1.inf", "oem1.inf ", "" })
             check(!DriverPackageLinks.IsValidInf(bad), "INF não aceita caminho, ADS ou nome inválido: " + bad);
         check(DriverStoreAudit.CheckMapping("oem1.inf", storePath,

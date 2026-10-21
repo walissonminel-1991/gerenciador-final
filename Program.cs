@@ -1934,7 +1934,8 @@ internal sealed partial class MainForm : Form
                 $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures} retidos={scan.Msix.Items.Count(x => x.Stale)} repeticao={scan.Msix.Retried} fase={scan.Msix.FailureStage} apartment={scan.Msix.Apartment}");
             int retainedMsix = scan.Msix.Items.Count(x => x.Stale);
             TestDiagnosticDetail.Record("MSIX", ("observados", scan.Msix.Items.Count - retainedMsix),
-                ("retidos", retainedMsix), ("falhas", scan.Msix.Failures), ("parcial", scan.Incomplete ? 1 : 0));
+                ("retidos", retainedMsix), ("falhas", scan.Msix.Failures),
+                ("parcial", scan.Msix.Failures > 0 || scan.Msix.Status != "ok" ? 1 : 0));
             if (retainedMsix > 0)
                 Log($"MSIX: {retainedMsix} entradas preservadas da última leitura completa desta sessão, sem ações de atualização. Presença atual não confirmada.");
             DiagnosticTrace.Write($"JOGOS.LEITURA steam={scan.Games.Steam} epic={scan.Games.Epic} adicionados={scan.GamesAdded} parciais={scan.Games.Partial}");
