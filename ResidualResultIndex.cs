@@ -33,12 +33,21 @@ internal sealed class ResidualResultIndex
         // Alguns produtores legados marcam a linha como incompleta sem
         // preencher Issues na cobertura agregada. Nunca apresentar isso como
         // verificacao concluida, mesmo que nao existam locais a mostrar.
-        if (source.Any(r => r.Incomplete) && !sourceCoverage.Incomplete)
-            sourceCoverage = sourceCoverage with
-            {
-                Issues = sourceCoverage.Issues | ResidualScanIssue.ReportIncomplete,
-                CandidatesNotEvaluated = null
-            };
+        // Um produtor tambem pode esquecer de incluir Issues individuais
+        // na cobertura da colecao. Reconciliar flags sem somar contagens
+        // novamente (as coberturas podem conter as mesmas observacoes).
+        var reportIssues = source.Aggregate(ResidualScanIssue.None,
+            (flags, report) => flags | (report.Coverage?.Issues ?? ResidualScanIssue.None));
+        bool missingDetail = source.Any(r => r.Incomplete) &&
+            (reportIssues | sourceCoverage.Issues) == ResidualScanIssue.None;
+        bool unknownCount = source.Any(r => r.Coverage?.CandidatesNotEvaluated is null);
+        sourceCoverage = sourceCoverage with
+        {
+            Issues = sourceCoverage.Issues | reportIssues |
+                (missingDetail ? ResidualScanIssue.ReportIncomplete : ResidualScanIssue.None),
+            CandidatesNotEvaluated = missingDetail || unknownCount
+                ? null : sourceCoverage.CandidatesNotEvaluated
+        };
         // A fotografia nao pode mudar quando o produtor reutiliza ou altera
         // as listas de fontes apos entregar os resultados a janela.
         Coverage = sourceCoverage with
