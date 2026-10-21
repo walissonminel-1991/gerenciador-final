@@ -1,9 +1,17 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**Candidata atual: v5.13.11.24 TESTE · Progresso: 26/42 (61,9%).**
+**Candidata atual: v5.13.11.25 TESTE · Progresso: 26/42 (61,9%).**
 Os percentuais indicam checkpoints e não segurança ou prontidão para release.
 
-## Última bateria real — PC fraco (21/10/2026)
+## Revisão da faxina — v5.13.11.25 TESTE
+
+Correções de preservação MSIX parcial, propagação de cobertura ao diagnóstico,
+nomes de dispositivos, identidade de arquivos/instaladores, ABI de restauração
+e scripts de distribuição; contrato GUID/revisão do Windows Update preservado
+entre UI e worker. Resíduos continuam somente leitura; nenhuma nova
+etapa funcional foi declarada concluída. [Relatório, evidências e roteiro](OPERACAO-FAXINA-FINAL.md).
+
+## Última bateria real — PC fraco (21/10/2026, v5.13.11.24)
 
 A v5.13.11.24 manteve a interface responsiva e a leitura de 108 associações
 de drivers, 50 INF (três associações sem INF válido); 2 possíveis atualizações
@@ -33,7 +41,7 @@ de dados privados para mascarar falha de leitura.
 ## Organização e evidências
 
 - [Índice de arquivos atuais e históricos](ORGANIZACAO-REPOSITORIO.md)
-- [Plano atual de teste no PC fraco](PLANO-PC-FRACO-v5.13.11.24.md)
+- [Roteiro atual e revisão da faxina](OPERACAO-FAXINA-FINAL.md)
 - [Resultados anteriores .23](TESTE-PC-FRACO-2026-10-21-v5.13.11.23.md)
 - [Missão técnica Work 3](MISSAO-WORK3-v5.13.11.17.md)
 - [Histórico resumido de versões](../CHANGELOG.md)
@@ -131,7 +139,7 @@ A gestão de drivers permanece não implementada: fontes oficiais, compatibilida
 
 ## Limites da validação
 
-- A CI cobre compilação, nove grupos de regressão, consulta WMI real no runner, layout/bandeja/monitoramento e ativação do pacote. Consultar o resultado acima antes de considerar o lote aprovado.
+- A CI cobre compilação, regressões de comparação, catálogos, instaladores, drivers, resíduos, MSIX, privacidade, encerramento, layout/bandeja/RAM e ativação do pacote. Consultas WMI ao vivo e downloads têm caminhos manuais opcionais; só são validados quando executados. Consultar o resultado acima antes de considerar o lote aprovado.
 - O runner Windows não reproduz o AVG, os dispositivos, a resolução nem a carga dos computadores do usuário.
 - A CI não executa instaladores reais de aplicativos, não valida fontes online ao vivo e não comprova compatibilidade universal.
 - A tabela de drivers não enumera todo o Driver Store e não permite instalar, remover ou reverter pacotes.

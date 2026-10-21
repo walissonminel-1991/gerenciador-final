@@ -15,8 +15,9 @@ precisa dos arquivos publicados ao seu lado.
 
 ## Funções e limitações
 
-- A detecção e atualização de aplicativos depende da disponibilidade do WinGet,
-  integrado ao App Installer do Windows em instalações compatíveis.
+- O inventário usa o Registro, MSIX/Store e manifestos de jogos. A busca de
+  versões usa RuckZuck e fontes oficiais HTTPS, sem exigir a CLI WinGet.
+  Falhas de fontes tornam a consulta parcial; não comprovam desinstalação.
 - O diagnóstico de rede é apenas consultivo. `Reparar rede` só oferece correções
   específicas quando há resultado aplicável e pede confirmação.
 - `Redefinir rede`, ajustes de energia, atualizações, desinstalação, limpeza e

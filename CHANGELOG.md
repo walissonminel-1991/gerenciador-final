@@ -1,5 +1,9 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.25 — revisão da faxina (TESTE)
+
+Preservação de inventário MSIX observado mesmo em falhas tardias, fase/apartment no diagnóstico e propagação de cobertura parcial ao diagnóstico completo. Nomes de drivers ausentes podem usar o nome PnP do mesmo ID, sem reinterpretar versões. Limpeza temporária e logs passam a conferir a identidade efetiva; consentimento e pendência recusam redirecionamento. Corrigido o contrato GUID/revisão do Windows Update entre consulta, UI e worker, sem instalações no teste. Correções da ABI de restauração, do vínculo MSI/GameInput com o ZIP autenticado e da resolução de desinstaladores do Windows. Certificado extraído do assinante validado pelo WinTrust, sem API obsoleta. Contagens e falhas de fontes de resíduos corrigidas; três arquivos e métodos órfãos retirados. Scripts derivam versão do projeto/PE, CI valida referências e oferece testes externos opcionais. [Relatório único, validações e limites](docs/OPERACAO-FAXINA-FINAL.md). Roadmap mantém **26/42**, PR Draft, resíduos somente leitura, sem release estável. A causa do erro MSIX do PC fraco e a compatibilidade AVG continuam pendentes.
+
 ## Manutenção de repositório em 21/10/2026 (sem versão nova de executável)
 
 Removidos da árvore de desenvolvimento workflows versionados antigos e guias de teste v5.12 obsoletos. Mantidos três fluxos CI oficiais, suíte de segurança ajustada à lista explícita, atualização do README e progresso funcional coerente em 26/42. Commits anteriores e resultados históricos permanecem consultáveis.

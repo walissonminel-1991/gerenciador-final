@@ -4,9 +4,9 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Versão do código em desenvolvimento:** v5.13.11.24 TESTE · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
+**Versão do código em desenvolvimento:** v5.13.11.25 TESTE · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
 
-**Estado atual e continuidade:** [roadmap funcional](docs/ROADMAP.md) · [guia de organização do repositório](docs/ORGANIZACAO-REPOSITORIO.md) · [checklist vigente do PC fraco](docs/PLANO-PC-FRACO-v5.13.11.24.md). Artefatos de TESTE e verificações na [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). **Exclusão de resíduos indisponível; MSIX pode ficar temporariamente parcial com erro 0x80040154, inclusive após uma tentativa adicional.**
+**Estado atual e continuidade:** [roadmap funcional](docs/ROADMAP.md) · [guia de organização do repositório](docs/ORGANIZACAO-REPOSITORIO.md) · [revisão e roteiro vigente](docs/OPERACAO-FAXINA-FINAL.md). Artefatos de TESTE e verificações na [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). **Exclusão de resíduos indisponível; MSIX pode ficar temporariamente parcial com erro 0x80040154, inclusive após uma tentativa adicional.**
 
 ## Recursos
 
@@ -28,7 +28,7 @@ Após termos uma versão revisada e liberada, os downloads oficiais serão publi
 
 **Situação da assinatura:** o projeto **não está assinado pela SignPath Foundation**. A inscrição será considerada depois da publicação e revisão. Versões sem assinatura podem apresentar avisos do Windows ou de antivírus. Não desative proteções nem configure exclusões para instalar o programa.
 
-O instalador do Windows usa **Inno Setup** e instala uma aplicação .NET **self-contained**, portanto o usuário final **não precisa instalar o SDK .NET**. Algumas funções dependem de recursos do próprio Windows, como WinGet/App Installer.
+O instalador do Windows usa **Inno Setup** e instala uma aplicação .NET **self-contained**, portanto o usuário final **não precisa instalar o SDK .NET**. As consultas de aplicativos usam RuckZuck e fontes oficiais HTTPS; não exigem a CLI WinGet. MSIX/Store e Windows Update dependem das APIs e serviços disponíveis no Windows.
 
 ## Código-fonte e compilação
 
@@ -54,7 +54,7 @@ Os três workflows atuais estão em `.github/workflows/` (compilação, regress�
 
 - Operações que alteram configurações solicitam confirmação e, quando necessário, permissão UAC.
 - O instalador não adiciona exceções de antivírus nem regras de firewall.
-- A análise de rede faz DNS e teste de conectividade com `www.microsoft.com`, além de testes locais; recursos WinGet e Windows Update interagem com provedores externos quando acionados.
+- A análise de rede faz DNS e teste de conectividade com `www.microsoft.com`, além de testes locais; as consultas de catálogos HTTPS e Windows Update interagem com seus provedores, inclusive nas verificações automáticas da inicialização.
 - Consulte [PRIVACY.md](PRIVACY.md) e [SECURITY.md](SECURITY.md) para detalhes e divulgação responsável.
 
 ## Code signing policy

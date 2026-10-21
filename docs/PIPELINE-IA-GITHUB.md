@@ -6,7 +6,7 @@
 
 O piloto de publicação manual em Issues foi **desligado e removido da interface**, e não existe mais workflow de leitura de Issues públicas. O parser antigo foi retirado. O workflow `triagem-diagnostico-github.yml` agora apenas testa as políticas contra anexos/entrada arbitrária. Receptor remoto do protótipo retorna 503 em todas as requisições.
 
-A coleta local consentida continua disponível; **nenhum dado sai do computador pelo GF**. Uma futura integração IA não pode consumir anexos, texto de usuários ou comandos da internet. Apenas agregados previamente estruturados por serviço confiável poderiam gerar insights, sem permissão de escrita na branch protegida. Merge/release permanecem manuais. Não há agente de código ativado nem autenticação/limites/consentimento remoto implementados.
+A coleta local consentida continua disponível; **nenhum diagnóstico é enviado pelo GF**. As consultas HTTPS de atualização e conectividade continuam descritas em [PRIVACY.md](../PRIVACY.md). Uma futura integração IA não pode consumir anexos, texto de usuários ou comandos da internet. Apenas agregados previamente estruturados por serviço confiável poderiam gerar insights, sem permissão de escrita na branch protegida. Merge/release permanecem manuais. Não há agente de código ativado nem autenticação/limites/consentimento remoto implementados.
 
 Ver [política vigente](SEGURANCA-v5.13.11.7.md).
 

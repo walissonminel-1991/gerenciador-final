@@ -1,6 +1,6 @@
-# Roteiro de testes — Gerenciador Final (candidata atual v5.13.11.24 TESTE)
+# Roteiro de testes — Gerenciador Final (candidata atual v5.13.11.25 TESTE)
 
-**21/10/2026: testes do PC fraco em andamento. A MSIX permanece parcialmente indisponível após retry na .24; proteger os resultados e não concluir que 19 apps foram desinstalados.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real continua indisponível nesta candidata.** A ideia de autenticação GitHub com conta existente foi estruturada em [piloto restrito](PILOTO-AUTENTICACAO-GITHUB.md), dependente de uma GitHub App e repositório privado exclusivos.
+**21/10/2026: revisão da faxina na .25; [relatório e roteiro consultivo](OPERACAO-FAXINA-FINAL.md). Último teste real do PC fraco: .24. A MSIX permanece parcialmente indisponível após retry na .24; proteger os resultados e não concluir que 19 apps foram desinstalados.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real continua indisponível nesta candidata.** A ideia de autenticação GitHub com conta existente foi estruturada em [piloto restrito](PILOTO-AUTENTICACAO-GITHUB.md), dependente de uma GitHub App e repositório privado exclusivos.
 
 Este roteiro serve a mantenedores e revisores. **Não é um relatório de testes
 concluídos nem uma garantia de segurança.** Registre ambiente, compilação,
@@ -15,7 +15,7 @@ versão, resultados e erros encontrados ao executar cada verificação.
 
 ## Testes consultivos — sem alterar o Windows
 
-- **Aplicativos:** listar instalações, pesquisar e consultar atualizações WinGet.
+- **Aplicativos:** listar instalações, pesquisar e consultar atualizações via catálogos HTTPS e fontes oficiais.
   Não clicar em atualização/desinstalação em massa neste teste.
 - **Limpeza e desempenho:** conferir prévia de limpeza, espaço de cada disco,
   botões `Atualizar discos` (texto completo) e `Analisar limpeza`.
@@ -28,7 +28,7 @@ versão, resultados e erros encontrados ao executar cada verificação.
 ## Testes administrativos — apenas em ambiente controlado
 
 Após backup e autorização explícita, avaliar individualmente funções de limpeza,
-WinGet, reparo DISM/SFC, alterações de energia, restauração e rede. Confirmar
+atualização supervisionada, reparo DISM/SFC, alterações de energia, restauração e rede. Confirmar
 UAC, mensagens, códigos de saída e se operações interrompidas relatam falha.
 Não provocar defeitos de rede ou remover programas apenas para acionar botões.
 `Redefinir rede` é uma operação avançada separada de `Reparar rede`.

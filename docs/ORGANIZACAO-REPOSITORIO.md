@@ -12,7 +12,7 @@ Este documento diferencia **arquivos ativos**, **evidências históricas** e
   por ferramentas; R4 continua suspenso, sem remoção de resíduos
 - [CHANGELOG](../CHANGELOG.md) — histórico de alterações por versão
 - [TESTES](TESTES.md) — procedimento geral, segurança e validações
-- [Plano PC fraco vigente](PLANO-PC-FRACO-v5.13.11.24.md) — bateria da .24
+- [Revisão da faxina e roteiro vigente](OPERACAO-FAXINA-FINAL.md) — candidata .25; último teste real .24
 
 ## Código e testes
 
@@ -55,7 +55,7 @@ pelo GitHub Actions. Artefatos de teste têm retenção curta no workflow.
   `docs/`; não publicar logs brutos, nomes de perfis, caminhos privados,
   capturas com dados pessoais ou identificadores de hardware.
 - Não adicionar LEIA-PRIMEIRO versionado nem workflow de compilação
-  versionado na raiz. O guardrail de CI verifica essas condições.
+  versionado na raiz. O guardrail de CI verifica essas condições, inclui extensões `.yml` e `.yaml` e permite novos fluxos apenas mediante revisão da lista explícita.
 - Saídas de compilação, `LayoutCaptures/`, caches e logs permanecem
   ignorados pelo Git. Distribuir binários exclusivamente como artefatos
   de teste temporários ou Releases aprovadas.

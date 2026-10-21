@@ -26,10 +26,7 @@ nem arquivos ZIP de artefatos armazenados no serviço, que têm retenção
 específica. Remover arquivos versionados também não apaga objetos Git
 históricos nem diminui automaticamente o armazenamento GitHub do repositório.
 
-O teste `scripts/test_politicas_seguranca.py` passou a exigir o conjunto
-*exato* dos três workflows ativos, verificando cada ação/permissão sem
-relaxar a política de segurança. Isto impede novos arquivos de CI por
-versão sem revisão explícita.
+O teste `scripts/test_politicas_seguranca.py` exige a lista explícita dos três workflows ativos, incluindo `.yml` e `.yaml`. Um teste com arquivos sintéticos comprova que um fluxo novo é recusado sem revisão da lista e pode ser aceito após aprovação explícita nela. Os controles de ações, permissões e credenciais continuam aplicáveis. Novos testes legítimos podem usar os fluxos atuais ou propor uma mudança revisada dessa lista.
 
 ## Política daqui para frente
 
@@ -44,3 +41,16 @@ versão sem revisão explícita.
   Uma execução antiga não valida a versão nova.
 
 **PR #40 ainda é Draft**, sem merge na main nem publicação de release.
+
+## Revisão da faxina (.25)
+
+O workflow Windows atual recuperou dois caminhos opcionais de `workflow_dispatch`:
+`verificar_fontes_reais` e `verificar_downloads`. Usam consultas/downloads,
+sem instalar ou executar os pacotes baixados. Os jobs falham se a verificação
+falhar; uma execução de PR com esses jobs ignorados não comprova fontes ao vivo.
+Scripts de distribuição têm `--print-version`, validado no Windows sem publicar.
+`BUILD-INFO.txt` distingue SHA fonte, base e SHA do merge sintético testado.
+
+A limpeza permanece exclusivamente na branch da PR #40. A `main` ainda contém
+42 workflows históricos até integração futura; não houve remoção de execuções,
+artefatos ou releases. [Diagnóstico consolidado](OPERACAO-FAXINA-FINAL.md).
