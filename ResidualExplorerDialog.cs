@@ -51,6 +51,7 @@ internal sealed class ResidualExplorerDialog : Form
         Func<string, CancellationToken, Task<ResidualInspectionResult>>? inspector = null)
     {
         source = reports; inspectOverride = inspector; lifetimeToken = lifetime.Token;
+        locations.EmptyMessage = "Nenhum item neste nível. Consulte o resumo; os dados foram preservados.";
         criteria = "\u001f" + ResidualFilter.All + "\u001f" + ResidualSource.None;
         Text = "Investigação de resíduos — somente leitura"; StartPosition = FormStartPosition.CenterParent;
         BackColor = AppServices.Background; ForeColor = Color.FromArgb(235, 242, 250); Font = new Font("Segoe UI", 9f);
