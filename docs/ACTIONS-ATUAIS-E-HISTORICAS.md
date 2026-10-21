@@ -1,23 +1,46 @@
-# Actions atuais e históricas
+# GitHub Actions — manutenção e arquivo histórico
 
-## Validação das versões atuais
+## Workflows ativos (somente três)
 
-PRs destinados à `main` executam três workflows atuais:
+| Arquivo | Finalidade |
+| --- | --- |
+| `build-windows.yml` | Publicar portátil Windows x64, verificar manifesto, hashes e criar artefato de teste |
+| `validar-candidata-windows.yml` | Compilar e executar regressões reais/sintéticas Windows, UI, segurança, inventário, drivers e resíduos |
+| `triagem-diagnostico-github.yml` | Conferir políticas estáticas de privacidade/segurança e simular receptor isolado |
 
-- `validar-candidata-windows.yml`: compilação e regressões atuais de inventário, atualizações, drivers, resíduos, layout/RAM, privacidade, segurança e encerramento. Também executa após push na `main`.
-- `build-windows.yml`: publicação portátil, verificação de identidade/ativação do manifesto no Windows, SHA-256, artefato e procedência. **Builds de PR não recebem OIDC nem permissão para atestações**: um job separado com permissões elevadas só roda a partir da `main` confiável, após validar o manifesto do artefato gerado pelo próprio workflow.
-- `triagem-diagnostico-github.yml`: testes de políticas de segurança de diagnósticos e bloqueio de entrada manual; **não** dispara em Issues nem lê anexos, comentários ou arquivos de participantes. O fluxo de compartilhamento do piloto foi descontinuado por segurança.
+Estes workflows são necessários e continuam com permissões mínimas de PR,
+checkout sem credenciais persistentes e atestação condicionada à main.
 
-Ambos cancelam execuções anteriores do mesmo workflow/ref quando chega uma revisão mais recente. Falhas reais desses workflows devem ser investigadas antes de considerar uma candidata aprovada.
+## Remoção dos workflows antigos (21/10/2026)
 
-## Workflows históricos
+Havia **38 arquivos `compilar-gerenciador-v*.yml`**, versões acumuladas que
+apontavam a builds anteriores e eram mantidas apenas para reprodução
+histórica. Outros dois arquivos, `consolidacao.yml` e
+`validar-monitoramento-leve.yml`, eram voltados a branches antigas.
+Esses **40 workflows históricos** foram removidos da árvore de
+desenvolvimento; suas implementações, versões anteriores e commits continuam
+acessíveis pelo histórico Git.
 
-Em 20/10/2026, 24 arquivos `compilar-gerenciador-v*.yml` ainda incluíam `main` no filtro de PR. Isso disparava verificações de versões anteriores para o código atual, incluindo exigências de `ProcessMonitor.cs`/`ProcessMonitorUi.cs`, substituídos na implementação atual. A execução 39444626604 comprova o caso: falhou em “Validar amostragem conservadora e tabela de processos” com “Monitor ou testes ausentes”.
+Isto não remove registros de execuções anteriores no GitHub Actions
+nem arquivos ZIP de artefatos armazenados no serviço, que têm retenção
+específica. Remover arquivos versionados também não apaga objetos Git
+históricos nem diminui automaticamente o armazenamento GitHub do repositório.
 
-Foi removido somente o destino `main` dos gatilhos de PR desses 24 workflows. As branches históricas já configuradas, gatilhos de push, execução manual e passos dos jobs foram preservados. A v5.13.3 tinha apenas `main` como destino de PR e passou a executar somente por seu push histórico ou manualmente.
+O teste `scripts/test_politicas_seguranca.py` passou a exigir o conjunto
+*exato* dos três workflows ativos, verificando cada ação/permissão sem
+relaxar a política de segurança. Isto impede novos arquivos de CI por
+versão sem revisão explícita.
 
-Esses arquivos continuam como referência histórica e podem falhar quando executados manualmente sobre código recente. Para reproduzir uma versão antiga, use sua branch/revisão correspondente. Para validar uma candidata atual, use os dois workflows atuais. Os resultados antigos permanecem no histórico do GitHub; esta mudança não transforma falhas anteriores em sucessos.
+## Política daqui para frente
 
-Não foram removidas as suítes atuais nem inseridos `continue-on-error` ou comandos que convertam falhas de testes em sucesso. A verificação local comparou semanticamente todos os jobs históricos e os gatilhos preservados, validou os YAMLs e confirmou que somente os dois workflows de compilação e validação da época disparavam para PRs destinados à `main` (a triagem foi adicionada posteriormente).
+- Não criar `compilar-gerenciador-vX.Y.Z.yml` a cada compilação.
+  O mesmo workflow ativo produz pacotes identificados por versão/commit.
+- Não criar novas páginas `LEIA-PRIMEIRO-vX.Y.Z.md` na raiz. Atualizar
+  o README e o checklist corrente.
+- Manter resultados agregados (sem dados pessoais) e notas históricas
+  necessárias dentro de `docs/`, com índice em
+  [Organização](ORGANIZACAO-REPOSITORIO.md).
+- Em cada mudança de CI, verificar as três Actions da mesma revisão.
+  Uma execução antiga não valida a versão nova.
 
-A alteração não aumenta a versão do aplicativo: trata da configuração de CI e não modifica o executável. Sua aplicação na `main` depende da integração da PR que a contém; branches antigas continuam usando seus próprios arquivos.
+**PR #40 ainda é Draft**, sem merge na main nem publicação de release.

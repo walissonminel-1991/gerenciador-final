@@ -1,9 +1,9 @@
 {
-  "version": "5.13.10.18 TESTE",
-  "date": "2026-10-20",
-  "code_commit": "5171c895725e779df3ccba8d54a8faf56735950d",
+  "version": "5.13.11.24 TESTE",
+  "date": "2026-10-21",
+  "code_commit": "efc53c21b7e99be54ea8c487d8eeebd464e36080",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39609249720",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -77,8 +77,9 @@
         {
           "id": "R4",
           "title": "Limpeza específica após confirmação e revalidação da remoção",
-          "done": true,
-          "evidence": "Program.cs; UninstallResiduals.cs"
+          "done": false,
+          "evidence": "Execução real suspensa por segurança desde v5.13.11.15; prévia/simulação somente leitura. Ver docs/ROADMAP.md.",
+          "blocked_by": "exclusividade_consentimento_e_validacao_real"
         },
         {
           "id": "R5",
@@ -174,7 +175,7 @@
           "id": "P3",
           "title": "Atualização incremental e registro em lotes",
           "done": true,
-          "evidence": "ProcessMonitorUi.cs; DarkControls.cs"
+          "evidence": "MemoryRamDashboard.cs; DarkControls.cs. O monitor de processos antigo não integra mais a UI principal."
         },
         {
           "id": "P4",
@@ -296,5 +297,11 @@
         }
       ]
     }
-  ]
+  ],
+  "latest_real_test": {
+    "version": "5.13.11.24 TESTE",
+    "environment": "PC fraco, Windows x64",
+    "status": "MSIX parcial após retry: 55 entradas, erro 0x80040154",
+    "observations": "108 associações de drivers; 12 grupos e 41 locais de resíduos preservados; investigação parcial; nenhuma exclusão"
+  }
 }

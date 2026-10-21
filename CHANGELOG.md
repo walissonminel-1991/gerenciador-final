@@ -1,5 +1,18 @@
 # Histórico de versões — Gerenciador Final
 
+## Manutenção de repositório em 21/10/2026 (sem versão nova de executável)
+
+Removidos da árvore de desenvolvimento workflows versionados antigos e guias de teste v5.12 obsoletos. Mantidos três fluxos CI oficiais, suíte de segurança ajustada à lista explícita, atualização do README e progresso funcional coerente em 26/42. Commits anteriores e resultados históricos permanecem consultáveis.
+
+## v5.13.11.24 — fontes parcialmente lidas e inventário MSIX (TESTE)
+
+Separada falha pontual de leitura de fonte inteiramente indisponível na auditoria de resíduos; painel mais claro e logs com contadores por origem. Testes Windows 327/327 e MSIX 24/24 aprovados; a execução real posterior no PC fraco mostrou erro MSIX 0x80040154 persistente após retry, com inventário parcial de 55 entradas. Nenhuma remoção habilitada.
+
+## v5.13.11.23 — motivos de parcialidade explícitos (TESTE)
+
+Registro sanitizado de falhas e limites na descoberta de resíduos; interface e inventário MSIX preservados. A leitura real MSIX da .23 enumerou 123 pacotes e 19 apps sem retry. Sem exclusão.
+
+
 ## v5.13.11.22 — inventário visível sem ações inseguras (TESTE)
 
 - PC fraco confirmou a leitura MSIX: **123 pacotes**, **19 aplicativos**, **74 entradas** no total, falhas **0**. O retry novo não precisou atuar (`repeticao=False`), então não é possível concluir que ele resolverá uma futura falha persistente.

@@ -4,9 +4,9 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Versão do código em desenvolvimento:** v5.13.11.22 TESTE · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
+**Versão do código em desenvolvimento:** v5.13.11.24 TESTE · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
 
-Missão Work 3: [investigação progressiva e limites](docs/MISSAO-WORK3-v5.13.11.17.md) · [checklist do PC fraco, 1440×900](docs/CHECKLIST-PC-FRACO-v5.13.11.17.md). ZIP final e SHA-256 na [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). Exclusão de resíduos indisponível nesta versão.
+**Estado atual e continuidade:** [roadmap funcional](docs/ROADMAP.md) · [guia de organização do repositório](docs/ORGANIZACAO-REPOSITORIO.md) · [checklist vigente do PC fraco](docs/PLANO-PC-FRACO-v5.13.11.24.md). Artefatos de TESTE e verificações na [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). **Exclusão de resíduos indisponível; MSIX pode ficar temporariamente parcial com erro 0x80040154, inclusive após uma tentativa adicional.**
 
 ## Recursos
 
@@ -46,7 +46,7 @@ dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contai
 
 O resultado estará em `Distribuicao\GerenciadorFinal.exe`. **Mantenha os arquivos adjacentes ao EXE**; ele depende da DLL e demais componentes publicados. Para uso portátil, consulte [o guia resumido](docs/USO-PORTATIL.md); para validação, siga [o roteiro de testes](docs/TESTES.md). Para um instalador de teste consulte `docs/PUBLICACAO.md`. Os fluxos antigos `Criar-Instalador-Windows-x64.bat`, `Assinar-GF.cmd` e `GerenciadorFinal-Instalador.iss` continuam exigindo certificado Authenticode próprio; **não fazem parte da assinatura gratuita da SignPath**.
 
-O GitHub Actions compila com um runner Windows hospedado pelo GitHub e conserva **artefatos de teste não assinados** com nome versionado, `BUILD-INFO.txt` e `SHA256SUMS.txt`. O workflow de validação candidata executa regressões de inventário, fontes, instaladores, drivers, resíduos, RAM e segurança. Nenhum desses testes valida o alerta do AVG ou equivale a uma Release pública. Consulte `.github/workflows/build-windows.yml`, `.github/workflows/validar-candidata-windows.yml` e [o roadmap](docs/ROADMAP.md).
+Os três workflows atuais estão em `.github/workflows/` (compilação, regressões e política de segurança); configurações antigas foram retiradas da árvore ativa e permanecem recuperáveis no histórico Git. O GitHub Actions compila com um runner Windows hospedado pelo GitHub e conserva **artefatos de teste não assinados** com nome versionado, `BUILD-INFO.txt` e `SHA256SUMS.txt`. O workflow de validação candidata executa regressões de inventário, fontes, instaladores, drivers, resíduos, RAM e segurança. Nenhum desses testes valida o alerta do AVG ou equivale a uma Release pública. Consulte `.github/workflows/build-windows.yml`, `.github/workflows/validar-candidata-windows.yml` e [o roadmap](docs/ROADMAP.md).
 
 **Estado de segurança:** há investigação pendente sobre alerta comportamental `IDP.Generic` no AVG. A amostra foi encaminhada pelo mantenedor. Não desative proteções nem tente executar um arquivo em quarentena. A assinatura SignPath segue pendente.
 

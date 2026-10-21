@@ -13,7 +13,17 @@ def read(path: str) -> str:
 class PoliticasDeSeguranca(unittest.TestCase):
     def test_actions_fixadas_e_sem_credenciais_persistentes(self):
         workflows = list((ROOT / ".github/workflows").glob("*.yml"))
-        self.assertGreaterEqual(len(workflows), 43)
+        # Evitar acúmulo de workflows versionados: somente CI atual.
+        active = {f.name for f in workflows}
+        expected = {
+            "build-windows.yml",
+            "validar-candidata-windows.yml",
+            "triagem-diagnostico-github.yml",
+        }
+        self.assertEqual(active, expected,
+            "Workflows históricos ou inesperados foram adicionados ao CI atual")
+        self.assertFalse(list(ROOT.glob("LEIA-PRIMEIRO-v5.*.md")),
+            "Guias de versões antigas devem ficar no histórico Git, não na raiz")
         for file in workflows:
             code = file.read_text(encoding="utf-8")
             self.assertIn("contents: read", code, str(file))
