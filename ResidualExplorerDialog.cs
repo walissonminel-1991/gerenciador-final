@@ -148,6 +148,13 @@ internal sealed class ResidualExplorerDialog : Form
         summary.Text = (page.Coverage.Incomplete ? "ANÁLISE PARCIAL — há locais não examinados ou fontes indisponíveis.\n" : "Análise dos locais consultados; não é varredura completa do computador.\n") +
             $"{page.Matching} de {page.TotalAvailable} grupos; {page.Reports.Count} nesta página, {page.NotLoaded} nas demais. {page.LocationsAvailable} locais disponíveis.\nExclusão indisponível nesta versão de teste.";
         summary.ForeColor = page.Coverage.Incomplete ? Color.FromArgb(255, 209, 138) : ForeColor;
+        groups.EmptyMessage = page.Matching == 0 && filter.SelectedIndex == (int)ResidualFilter.Review &&
+            page.Coverage.Incomplete
+            ? "Nenhum candidato revisável. A análise é parcial; preserve os dados."
+            : "Nenhum grupo corresponde aos filtros escolhidos.";
+        locations.EmptyMessage = page.Matching == 0
+            ? "Nenhum local corresponde aos filtros escolhidos."
+            : "Nenhum item neste nível. Consulte o resumo; os dados foram preservados.";
         binding = true;
         try { groups.SetRows(page.Reports.Select(r => new ResidualDisplayRow(r.Product, r.Product,
             $"{r.Findings.Count} locais · {(r.Incomplete ? "análise parcial" : "revisão necessária")}",
