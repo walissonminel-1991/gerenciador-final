@@ -8,7 +8,8 @@ namespace GerenciadorAplicativos;
 internal sealed record LocalMsixApp(string Name, string Version, string Publisher,
     string PackageName, bool RecipeEligible = false);
 internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen,
-    string Status, int Launchable = 0, int Filtered = 0, int Failures = 0);
+    string Status, int Launchable = 0, int Filtered = 0, int Failures = 0,
+    bool Retried = false);
 
 internal static class LocalMsixInventory
 {
@@ -51,7 +52,24 @@ internal static class LocalMsixInventory
             maker, packageName, RecipeEligible: false);
     }
 
-    internal static LocalMsixResult ReadCurrentUser()
+    // REGDB_E_CLASSNOTREG pode indicar ativacao WinRT momentaneamente
+    // indisponivel. Uma unica nova tentativa, sem PowerShell, processo
+    // auxiliar, elevacao ou acesso a outros perfis. Se persistir, falha
+    // explicitamente: lista MSIX vazia nunca significa zero apps instalados.
+    internal static LocalMsixResult ReadCurrentUser() => ReadWithRetry(ReadOnce);
+
+    internal static LocalMsixResult ReadWithRetry(Func<LocalMsixResult> read)
+    {
+        var first = read();
+        if (!IsClassNotRegistered(first.Status)) return first;
+        var second = read();
+        return second with { Retried = true };
+    }
+
+    internal static bool IsClassNotRegistered(string status) =>
+        string.Equals(status, "COMException(0x80040154)", StringComparison.Ordinal);
+
+    private static LocalMsixResult ReadOnce()
     {
         try
         {
