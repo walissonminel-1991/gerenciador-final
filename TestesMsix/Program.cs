@@ -74,6 +74,17 @@ Check(new LocalMsixSnapshot().Read(() => new([], 0, "indisponível", Failures: 1
 Check(sessionSnapshot.Read(() => new([], 0, "ok")).Items.Count == 0 &&
     sessionSnapshot.Read(() => new([], 0, "falhou", Failures: 1)).Items.Count == 0,
     "MSIX: resultado vazio completo invalida a base anterior");
+Check(LocalMsixInventory.ConfirmedMicrosoftVersion(completeSnapshot, terminal!.PackageName)?.ToString() == terminal.Version,
+    "Confirmação MSIX: identidade verificada atual em fonte completa é utilizável");
+Check(LocalMsixInventory.ConfirmedMicrosoftVersion(mixedSnapshot, terminal!.PackageName) is null,
+    "Confirmação MSIX: status ok com falha parcial não confirma instalação nem versão final");
+Check(LocalMsixInventory.ConfirmedMicrosoftVersion(new([terminal! with { Stale = true }], 1, "ok"), terminal!.PackageName) is null,
+    "Confirmação MSIX: entrada retida nunca comprova versão atual mesmo com envelope indevido");
+Check(LocalMsixInventory.ConfirmedMicrosoftVersion(new([terminal! with { RecipeEligible = false }], 1, "ok"), terminal!.PackageName) is null,
+    "Confirmação MSIX: nome/editor de exibição sem publisherId auditado não autoriza atualização");
+Check(LocalMsixInventory.ConfirmedMicrosoftVersion(failedSnapshot, terminal!.PackageName) is null &&
+    LocalMsixInventory.ConfirmedMicrosoftVersion(completeSnapshot, "Contoso.Reader") is null,
+    "Confirmação MSIX: falha e pacote fora do contrato não usam a base retida");
 var additions = LocalMsixInventory.MergeWithRegistry(
     [terminal!, outlook!],
     [new InstalledApp("Terminal do Windows", "1.24.12741.0", "Microsoft Corporation")]);

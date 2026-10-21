@@ -42,11 +42,7 @@ internal static class WindowsTerminalUpdater
     {
         // O nome/publisherId da familia MSIX, e nao apenas o texto exibido no Registro.
         var scan = LocalMsixInventory.ReadCurrentUser();
-        if (scan.Status != "ok") return null;
-        var item = scan.Items.FirstOrDefault(x =>
-            x.PackageName.Equals(PackageName, StringComparison.OrdinalIgnoreCase) &&
-            x.Publisher.Equals("Microsoft Corporation", StringComparison.Ordinal));
-        return item is not null && Version.TryParse(item.Version, out var result) ? result : null;
+        return LocalMsixInventory.ConfirmedMicrosoftVersion(scan, PackageName);
     }
 
     private static bool AllowedDownloadUri(Uri uri)

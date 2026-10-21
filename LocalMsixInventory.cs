@@ -71,6 +71,18 @@ internal static class LocalMsixInventory
         return second with { Retried = true };
     }
 
+    // Confirmação operacional nunca usa retenção ou observação parcial.
+    // A identidade de publisherId já foi verificada por Recognize; nome/editor
+    // de exibição de um pacote genérico não substituem essa autorização.
+    internal static Version? ConfirmedMicrosoftVersion(LocalMsixResult scan, string packageName)
+    {
+        if (scan.Status != "ok" || scan.Failures != 0 || !Known.ContainsKey(packageName)) return null;
+        var item = scan.Items.FirstOrDefault(x => !x.Stale && x.RecipeEligible &&
+            x.PackageName.Equals(packageName, StringComparison.OrdinalIgnoreCase) &&
+            x.Publisher.Equals("Microsoft Corporation", StringComparison.Ordinal));
+        return item is not null && Version.TryParse(item.Version, out var version) ? version : null;
+    }
+
     internal static bool IsClassNotRegistered(string status) =>
         string.Equals(status, "COMException(0x80040154)", StringComparison.Ordinal);
 
