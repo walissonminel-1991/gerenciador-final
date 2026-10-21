@@ -235,6 +235,8 @@ internal static class ResidualExplorerTests
             {
                 window.Locations.SelectRow(i);
                 Require(window.DetailText.Contains(entries[i].PreservationExplanation) &&
+                    window.DetailText.IndexOf(entries[i].PreservationExplanation, StringComparison.Ordinal) <
+                        window.DetailText.IndexOf("COBERTURA DAS ANÁLISES", StringComparison.Ordinal) &&
                     window.DetailText.Contains("Pista pelo nome; finalidade e vínculo não confirmados") &&
                     window.DetailText.Contains("Exclusão indisponível") &&
                     Find(window, "ResidualInspect").Enabled == entries[i].CanInspect,

@@ -195,7 +195,6 @@ internal sealed class ResidualExplorerDialog : Form
     {
         if (selectedReport is null) return;
         string text = selectedReport.Product + "\r\n" + (selectedReport.UninstallConfirmed ? "Registro de desinstalação ausente; auxiliares ainda podem estar ativos." : "O programa ainda pode estar instalado. Vínculo exclusivo não comprovado.") + "\r\n\r\n";
-        if (inspectionResult is not null) text += inspectionResult.Explanation + "\r\n" + inspectionResult.Coverage.Describe() + "\r\n\r\n";
         if (locations.SelectedRow?.Target is ResidualAuditFinding f) text += f.DecisionLabel + "\r\n" + f.Location + "\r\n" + f.Evidence;
         else if (locations.SelectedRow?.Target is ResidualInspectionEntry e) text += e.Location + "\r\n" +
             e.PreservationExplanation + "\r\nPista pelo nome; finalidade e vínculo não confirmados. Conteúdo não lido. " +
@@ -203,6 +202,8 @@ internal sealed class ResidualExplorerDialog : Form
                 ? "Limite de profundidade ou quantidade: esta subpasta não foi examinada."
                 : "Inspeção de subpastas exige nova consulta limitada."
                 : "Arquivo preservado; não é aberto nesta inspeção.");
+        // A finalidade do item selecionado deve aparecer antes do resumo longo.
+        if (inspectionResult is not null) text += "\r\n\r\n" + inspectionResult.Explanation + "\r\n" + inspectionResult.Coverage.Describe();
         details.SetText(text + "\r\n\r\nExclusão indisponível nesta versão de teste."); UpdateActions();
     }
     internal Task InspectSelectedAsync()
