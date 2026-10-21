@@ -1,10 +1,12 @@
 # Histórico de versões — Gerenciador Final
 
-## v5.13.11.33 — reconciliação consultiva e barreiras WinGet (TESTE; CI em validação)
+## v5.13.11.33 — reconciliação consultiva e barreiras WinGet (TESTE; CI aprovada)
 
 Cinco produtos recebem fontes HTTPS fixas: EA app, FanControl, Jellyfin Server, K-Lite Mega e Plex Media Server, sem novas receitas de instalação. Proton prioriza feed oficial Windows estável/rollout completo e preserva changelog desktop e índice comunitário divergentes. O feed observado ainda oferecia 1.42.0; changelog 1.43.0 não prova distribuição Windows. A fusão preserva evidências, origem, instante e incertezas, separa contexto/identidade e bloqueia instaladores diretos quando requer revisão. FanControl aceita revisões inteiras; migração principal Jellyfin continua consultiva. Barra de consulta conta fontes concluídas, cancelamento preservado, resultado parcial explícito.
 
 Contrato WinGet isolado, sem implementação COM/CLI ou fallback; desligado mesmo com opt-in de produção. Diagnóstico opt-in inspeciona apenas presença de App Installer/alias/PATH do usuário atual, sem executar WinGet, reparar ou elevar. Sem novas dependências/telemetria/IPC. Script de criação de instalador deixa de oferecer instalação de SDK/Inno por WinGet. [Auditoria histórica, testes, matriz dos nove e roteiro](docs/MISSAO-WORK5.md). Roadmap 26/42; PC FORTE, PC FRACO e AVG pendentes.
+
+Código `.33` `7ba87d9`: três Actions aprovadas, 127/127 multifontes, 97/97 instaladores, 360/360 resíduos, 41/41 MSIX, 132 combinações de layout; pacote com 273 hashes conferidos sem execução. [Relatório e links](docs/MISSAO-WORK5.md#ci-final-e-pacote-conferido).
 
 ## v5.13.11.32 — auditoria local estruturada de limpeza (TESTE; CI aprovada)
 

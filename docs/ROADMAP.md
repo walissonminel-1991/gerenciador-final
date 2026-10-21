@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.33 TESTE (MISSÃO WORK 5; CI em validação) · Progresso: 26/42 (61,9%).**
+**v5.13.11.33 TESTE (MISSÃO WORK 5; CI aprovada; teste físico pendente) · Progresso: 26/42 (61,9%).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
 ## Estado atual — MISSÃO WORK 5

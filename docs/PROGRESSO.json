@@ -1,9 +1,9 @@
 {
   "version": "5.13.11.33 TESTE",
   "date": "2026-10-21",
-  "code_commit": null,
-  "ci_status": "pending",
-  "ci_url": null,
+  "code_commit": "7ba87d92618f571180f35819cf51e5984e530483",
+  "ci_status": "success",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690285207",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -338,10 +338,10 @@
       "native_store_partial": true
     }
   },
-  "build_url": null,
-  "policy_url": null,
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690280795",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690283814",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
-  "test_diagnostics": "Auditoria local de limpezas com categorias fixas e apenas contagens numericas/codigo de retorno. CI Windows x64, regressao e politicas aprovadas; teste fisico .32 pendente. 26/42.",
+  "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
   "winget_pc_forte_32": "WinGet (somente leitura): 9 atualizações na sessão administrativa, comando indisponível em terminal não elevado; GF: 3; diferença=6. Proton: changelog oficial 1.43.0 de 21/10, manifesto WinGet 1.42.0. Lixeira ainda possui dois itens da build .32 após erro 0x8000FFFF. Sem instalação/exclusão adicional. U6 não encerrado.",
   "previous_validated_artifact": {
@@ -356,9 +356,20 @@
     "merge_sha": "8656bb1edc3103e4df33dd2fe210456f13e6b219",
     "authenticode_signed": false
   },
-  "artifact": null,
+  "artifact": {
+    "id": 12388392363,
+    "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690280795/artifacts/12388392363",
+    "expires_at": "2026-10-28T22:59:31Z",
+    "size_bytes": 58901357,
+    "zip_sha256": "05de671112f91c6423540ce6de8d8764f60668cc5d455a26bcf304f06459ae9b",
+    "verified_manifest_files": 273,
+    "source_sha": "7ba87d92618f571180f35819cf51e5984e530483",
+    "merge_sha": "4ea9f4b32ebf8be17eda51abab377ece3b7b67c2",
+    "authenticode_signed": false
+  },
   "mission_work5": {
-    "status": "Implementação e verificações locais; CI Windows pendente",
+    "status": "Código final e três Actions aprovados; ZIP conferido sem executar; testes físicos pendentes",
     "winget_real_enabled": false,
     "winget_backend_shipped": false,
     "administrative_helper_added": false,
@@ -372,6 +383,21 @@
     "proton_reconciliation": "Feed Windows estável priorizado; changelog desktop e índice comunitário preservados; divergência bloqueia instalador direto",
     "completed_checkpoints": [],
     "field_validation": "PC FORTE primeiro; PC FRACO depois; AVG real pendente",
-    "report": "docs/MISSAO-WORK5.md"
+    "report": "docs/MISSAO-WORK5.md",
+    "validation": {
+      "multisource": "127/127",
+      "installers": "97/97",
+      "matching": "18/18",
+      "catalog": "17/17",
+      "residuals": "360/360",
+      "msix": "41/41",
+      "close": "30/30",
+      "layout_resolution_tabs": 132,
+      "workspace_dpi": "100%, 125%, 150%, 200%",
+      "policy_tests": 15,
+      "native_wmi_associations": 67,
+      "winget_real": "não executado; sem backend distribuído",
+      "live_sources_and_installer_downloads_job": "skipped (opcionais); não contabilizados como aprovação"
+    }
   }
 }

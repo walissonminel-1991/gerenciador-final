@@ -178,3 +178,41 @@ física de todos os DPI ou explicação individual definitiva dos seis registros
 [Próxima bateria, PC FORTE depois PC FRACO](TESTES.md#próxima-bateria-33--somente-consultas).
 Este checkpoint fecha a investigação disponível, não o portão presencial.
 Roadmap permanece **26/42 (61,9%)**; R4 e G1–G5 bloqueados.
+
+
+## CI final e pacote conferido
+
+Código final: [`7ba87d92618f571180f35819cf51e5984e530483`](https://github.com/walissonminel-1991/gerenciador-final/commit/7ba87d92618f571180f35819cf51e5984e530483).
+Auditoria: `120fdf6`; reconciliação: `8ed6c95`; correção Proton: `7ba87d9`.
+
+- [Compilação Windows x64 aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690280795)
+- [Regressões Windows aprovadas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690285207)
+- [Política/privacidade aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690283814)
+
+Logs finais: multifontes **127/127**, instaladores **97/97**, comparação **18/18**,
+catálogo/cache **17/17**, resíduos **360/360**, MSIX **41/41**, encerramento **30/30**;
+política **15/15**. Layout/RAM: **132 combinações** resolução/aba, proporções em
+100%, 125%, 150%, 200% e 12 ciclos de bandeja (330 ms no runner). WMI nativo 67
+associações; round trip SetupAPI/INF conferido, sem manutenção. Privacidade/Node,
+política de cache de RAM e WSC aprovados. Sem enfraquecer assertivas existentes.
+Jobs opcionais fontes externas/download de instaladores e atestação da main: **skipped**,
+não contam como teste real aprovado. Nenhum backend WinGet real testado; nenhum AVG no runner.
+
+[Pacote portátil .33 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690280795/artifacts/12388392363)
+`GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64`, 58.901.357 bytes,
+retenção GitHub até **28/10/2026, 19:59:31 (Fortaleza)**.
+BUILD-INFO confirma fonte `7ba87d9`, merge sintético
+`4ea9f4b32ebf8be17eda51abab377ece3b7b67c2` e base main `9ac3dc1`.
+ZIP baixado **sem executar**; todos os **273** arquivos do SHA256SUMS conferidos,
+nenhum arquivo extra fora do manifesto (exceto o próprio SHA256SUMS), PE x64/Windows GUI.
+Manifesto e ativação SxS passaram no runner. Runtime incluído; sem assinatura Authenticode,
+sem aprovação AVG e sem licença nova. Hash confirma integridade/origem, não ausência de risco.
+
+SHA-256 ZIP: `05de671112f91c6423540ce6de8d8764f60668cc5d455a26bcf304f06459ae9b`.
+SHA-256 EXE: `bffb527eb147281dcce14da13f7bf76ba456d0633ef9f835de041aa2d7a578f6`.
+
+Os commits posteriores desta homologação são documentais. O pacote escolhido é o desse
+código final testado; não reutiliza pacote .31/.32. PR #40 continua Draft e main preservada.
+Roadmap **26/42**, zero checkpoints novos; o avanço é implementação/verificação consultiva,
+não conclusão de U6 ou dos portões físicos. Limpeza de resíduos e operações de drivers
+continuam bloqueadas. [Bateria objetiva PC FORTE e PC FRACO](TESTES.md#próxima-bateria-33--somente-consultas).
