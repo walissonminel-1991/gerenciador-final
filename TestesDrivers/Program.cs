@@ -161,6 +161,8 @@ if (args.Contains("--live") || OperatingSystem.IsWindows())
     var live = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(timeout.Token)).WaitAsync(timeout.Token);
     Console.WriteLine($"WMI quantidade={live.Items.Count} parcial={live.Partial} status={live.Status}");
     Check(live.Items.Count > 0 && !live.Partial, "Consulta WMI somente leitura concluida no runner Windows");
+    foreach (var group in live.Store!.Packages.GroupBy(x => (x.State, x.FailureStage, x.NativeError)))
+        Console.WriteLine($"DRIVER_STORE_CI estado={group.Key.State} etapa={group.Key.FailureStage} erro=0x{unchecked((uint)group.Key.NativeError):X8} quantidade={group.Count()}");
     Check(live.Store is not null && live.Store.Packages.Any(x => x.State == DriverStoreState.Mapped) &&
         live.Store.Packages.All(x => !x.CanMaintain),
         "SetupAPI nativa confirma ao menos um round trip INF/Driver Store no runner sem manutenção");

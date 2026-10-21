@@ -5,8 +5,9 @@ using System.Text;
 namespace GerenciadorAplicativos;
 
 internal enum DriverStoreState { Mapped, Unavailable, Inconsistent, NotConsulted }
+internal enum DriverStoreStage { None, Platform, StoreLookup, PublishedLookup, Mapping, Attributes, NativeUnavailable }
 internal sealed record DriverStoreEvidence(string InfName, DriverStoreState State,
-    string PublishedPath = "", string StorePath = "")
+    string PublishedPath = "", string StorePath = "", DriverStoreStage FailureStage = DriverStoreStage.None, int NativeError = 0)
 {
     internal string Label => State switch
     {
@@ -65,7 +66,7 @@ internal static class DriverStoreAudit
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                 ArgumentException or NotSupportedException or System.Security.SecurityException or
                 DllNotFoundException or EntryPointNotFoundException)
-            { result = new(package.InfName, DriverStoreState.Unavailable); }
+            { result = new(package.InfName, DriverStoreState.Unavailable, FailureStage: DriverStoreStage.NativeUnavailable, NativeError: ex.HResult); }
             if (!result.InfName.Equals(package.InfName, StringComparison.OrdinalIgnoreCase))
                 result = new(package.InfName, DriverStoreState.Inconsistent);
             if (result.State != DriverStoreState.Mapped) partial = true;
@@ -77,7 +78,7 @@ internal static class DriverStoreAudit
     internal static DriverStoreEvidence CheckMapping(string inf, string storePath,
         string publishedPath, string windows)
     {
-        if (!DriverPackageLinks.IsValidInf(inf)) return new(inf, DriverStoreState.Inconsistent);
+        if (!DriverPackageLinks.IsValidInf(inf)) return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.Mapping);
         try
         {
             string expected = Path.Combine(windows, "INF", inf);
@@ -86,11 +87,11 @@ internal static class DriverStoreAudit
                 !Path.GetFullPath(publishedPath).Equals(Path.GetFullPath(expected), StringComparison.OrdinalIgnoreCase) ||
                 !Path.GetFullPath(storePath).StartsWith(Path.GetFullPath(repository) + Path.DirectorySeparatorChar,
                     StringComparison.OrdinalIgnoreCase) || !DriverPackageLinks.IsValidInf(Path.GetFileName(storePath)))
-                return new(inf, DriverStoreState.Inconsistent);
+                return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.Mapping);
             return new(inf, DriverStoreState.Mapped, Path.GetFullPath(publishedPath), Path.GetFullPath(storePath));
         }
         catch (Exception ex) when (ex is IOException or ArgumentException or NotSupportedException)
-        { return new(inf, DriverStoreState.Inconsistent); }
+        { return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.Mapping); }
     }
 
     private static bool LocalAbsolute(string path) => Path.IsPathFullyQualified(path) &&
@@ -101,26 +102,28 @@ internal static class DriverStoreAudit
 
     private static DriverStoreEvidence Resolve(string inf)
     {
-        if (!OperatingSystem.IsWindows()) return new(inf, DriverStoreState.Unavailable);
+        if (!OperatingSystem.IsWindows()) return new(inf, DriverStoreState.Unavailable, FailureStage: DriverStoreStage.Platform);
         string windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-        if (!LocalAbsolute(windows) || !DriverPackageLinks.IsValidInf(inf)) return new(inf, DriverStoreState.Unavailable);
+        if (!LocalAbsolute(windows) || !DriverPackageLinks.IsValidInf(inf)) return new(inf, DriverStoreState.Unavailable, FailureStage: DriverStoreStage.Platform);
         string published = Path.Combine(windows, "INF", inf);
         // Unicamente o INF publicado citado pelo WMI. Nunca procurar por nome parecido.
         var store = new StringBuilder(260);
         if (!SetupGetInfDriverStoreLocationW(published, IntPtr.Zero, null, store, (uint)store.Capacity, out _))
-            return new(inf, DriverStoreState.Unavailable);
+            return new(inf, DriverStoreState.Unavailable, FailureStage: DriverStoreStage.StoreLookup,
+                NativeError: Marshal.GetLastWin32Error());
         var roundTrip = new StringBuilder(260);
         if (!SetupGetInfPublishedNameW(store.ToString(), roundTrip, (uint)roundTrip.Capacity, out _))
-            return new(inf, DriverStoreState.Unavailable);
+            return new(inf, DriverStoreState.Unavailable, FailureStage: DriverStoreStage.PublishedLookup,
+                NativeError: Marshal.GetLastWin32Error());
         var result = CheckMapping(inf, store.ToString(), roundTrip.ToString(), windows);
         if (result.State != DriverStoreState.Mapped) return result;
         // Apenas atributos e ancestrais. Falha/reparse nunca confirma vínculo.
         foreach (string file in new[] { result.PublishedPath, result.StorePath })
         {
             if ((File.GetAttributes(file) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
-                return new(inf, DriverStoreState.Inconsistent);
+                return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.Mapping);
             for (var dir = new DirectoryInfo(Path.GetDirectoryName(file)!); dir is not null; dir = dir.Parent)
-                if ((dir.Attributes & FileAttributes.ReparsePoint) != 0) return new(inf, DriverStoreState.Inconsistent);
+                if ((dir.Attributes & FileAttributes.ReparsePoint) != 0) return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.Mapping);
         }
         return result;
     }
