@@ -3043,8 +3043,8 @@ internal sealed partial class MainForm : Form
                 if (!Directory.Exists(path))
                 {
                     Log("A pasta da limpeza não existe neste perfil. Nenhuma alteração realizada.");
-                    if (SafeMaintenanceAudit.MissingSource(task) is { } audit)
-                        DiagnosticTrace.Write(audit);
+                    if (SafeMaintenanceAudit.MissingSource(task) is { } missingSourceAudit)
+                        DiagnosticTrace.Write(missingSourceAudit);
                     Status("Nenhum cache encontrado");
                     return;
                 }
@@ -3052,8 +3052,8 @@ internal sealed partial class MainForm : Form
                 var result = await Task.Run(() => AppServices.CleanDirectorySafely(path, Log));
                 if (SafeMaintenanceAudit.LocalResult(task, result.FilesRemoved,
                     result.DirectoriesRemoved, result.Skipped, result.ReparseSkipped,
-                    result.Failed) is { } audit)
-                    DiagnosticTrace.Write(audit);
+                    result.Failed) is { } localResultAudit)
+                    DiagnosticTrace.Write(localResultAudit);
                 Status(result.Failed == 0 ? "Limpeza concluída" : "Limpeza parcial, com avisos");
             });
             return;
