@@ -23,6 +23,11 @@ internal static class ActionableInventory
 
     internal static bool ShouldShow(ProgramEntry app) => app.CanUninstall || app.IsUpdate;
 
+    // A aba padrão permanece acionável. A visualização "Inventário" é
+    // deliberada e somente informativa para itens sem atualização/desinstalação.
+    internal static bool ShouldShowInMainList(ProgramEntry app, string filter) =>
+        filter == "Inventário" || ShouldShow(app);
+
     internal static int VisibleCount(IEnumerable<ProgramEntry> entries) =>
         entries.Count(ShouldShow);
 
