@@ -36,7 +36,7 @@ internal sealed class ResidualResultIndex
         if (source.Any(r => r.Incomplete) && !sourceCoverage.Incomplete)
             sourceCoverage = sourceCoverage with
             {
-                Issues = sourceCoverage.Issues | ResidualScanIssue.InventoryPartial,
+                Issues = sourceCoverage.Issues | ResidualScanIssue.ReportIncomplete,
                 CandidatesNotEvaluated = null
             };
         // A fotografia nao pode mudar quando o produtor reutiliza ou altera
