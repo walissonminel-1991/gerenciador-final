@@ -1,5 +1,49 @@
 # Roteiro de testes — v5.13.11.32 TESTE
 
+## Comparação presencial com WinGet — PC FORTE, 21/10/2026
+
+Consulta **somente leitura** `winget upgrade` em PowerShell elevado mostrou
+**9 atualizações candidatas**, enquanto o GF .32 mostrou **3** na mesma
+máquina. Duas versões-alvo coincidiram; a terceira divergiu:
+GF detectou uma revisão recém-anunciada pelo fornecedor, enquanto o
+manifesto comunitário WinGet ainda mostrava a revisão anterior.
+O changelog oficial recebeu a revisão mais nova em 21/10/2026 às
+16h UTC, conforme commit
+[`9ebebbc`](https://github.com/ProtonMail/WebClients/commit/9ebebbc88e8b3b9652d4b5bbfebfd8e2d3538966).
+Isso valida a detecção por fonte oficial, **não** a disponibilidade
+comprovada do instalador Windows nem a segurança de instalação.
+
+Das **6 candidatas adicionais** do WinGet, cinco produtos não têm
+receita correspondente nas fontes oficiais fixas atuais do GF;
+um produto de sistema tem receita consultiva, mas a razão exata de
+não se tornar candidato deve ser apurada com vínculo de
+nome/editor/versão/eligibilidade e proteção de mudança de versão
+principal. Não atribuir causa exata com base só em totais agregados.
+RuckZuck e fontes fixas têm escopo menor e só aceitam correspondências
+conservadoras de identidade. Sem execução de atualização, download,
+alteração do Windows ou ampliação automática de privilégios.
+
+A execução de `winget` no PowerShell não elevado falhou por comando não
+encontrado, mas funcionou no terminal elevado. Possível divergência
+de App Execution Alias/PATH/registro do App Installer por contexto; **não
+é prova de que o WinGet exige administrador**. Não reinstalar
+pré-requisitos apenas por este diagnóstico.
+
+A Lixeira nativa continuava mostrando dois itens da pasta/arquivo
+de teste da versão .32 após o retorno
+`0x8000FFFF` observado em `SHEmptyRecycleBin`. Isto comprova que
+a Lixeira **não ficou vazia**; não comprova se houve exclusão parcial
+anterior. Não repetir esvaziamento, não apagar `$Recycle.Bin`
+manualmente e não inspecionar conteúdo privado.
+
+**U6:** comparação real foi obtida e os limites arquiteturais
+ficaram explícitos. Permanecem pendentes a classificação individual
+das seis diferenças e a verificação de origem/canal de instaladores.
+Checkpoint continua aberto; roadmap **26/42**. O próximo passo é
+melhorar a classificação consultiva e seus testes sem habilitar
+instalações automáticas.
+
+
 ## Validação presencial .32 — PC FORTE, sessão 21/10/2026
 
 **Aprovado nesta sessão:** 174 aplicativos/27 MSIX sem falhas, 140 entradas

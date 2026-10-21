@@ -106,8 +106,12 @@ bateria B após backup/consentimento. Drivers continuam apenas leitura.
 
 - **R6** exige resolver amostras históricas ambíguas concretas, não somente
   aprimorar textos ou aumentar a quantidade de achados.
-- **U6** exige comparação equivalente com WinGet no mesmo equipamento e
-  explicação de casos divergentes.
+- **U6:** comparação equivalente obtida em 21/10 no PC FORTE: 9
+  candidatas WinGet versus 3 GF. Duas versões coincidem; uma versão
+  mais nova foi anunciada no changelog oficial no mesmo dia, antes
+  de constar no catálogo comunitário. Seis candidatas ficaram fora
+  da lista do GF; falta atribuição segura caso a caso e teste de
+  compatibilidade/origem. Checkpoint permanece aberto.
 - **I7, R7, U8, P5, V5 e D4** dependem das validações presenciais previstas
   nos dois computadores; testes CI não substituem essa evidência.
 - **R4** permanece suspenso até prova da exclusividade e segurança da

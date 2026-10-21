@@ -139,8 +139,8 @@
           "id": "U6",
           "title": "Explicar divergências de cobertura com WinGet",
           "done": false,
-          "evidence": "174 registros particionados e fusão/cache reforçados; falta WinGet equivalente no mesmo PC/horário.",
-          "blocked_by": "comparacao_mesma_maquina"
+          "evidence": "PC FORTE .32, 21/10: winget upgrade listou 9 candidatos vs 3 do GF; 2 versões correspondem, uma divergência causada por changelog oficial publicado no mesmo dia antes da atualização do manifesto WinGet. Seis candidatas adicionais precisam de triagem individual, especialmente elegibilidade, nome/editor, versão e canal. Arquitetura multifontes conservadora confirmada.",
+          "blocked_by": "atribuir_seis_divergencias_individualmente"
         },
         {
           "id": "U7",
@@ -354,5 +354,6 @@
   },
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": "Auditoria local de limpezas com categorias fixas e apenas contagens numericas/codigo de retorno. CI Windows x64, regressao e politicas aprovadas; teste fisico .32 pendente. 26/42.",
-  "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42."
+  "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
+  "winget_pc_forte_32": "WinGet (somente leitura): 9 atualizações na sessão administrativa, comando indisponível em terminal não elevado; GF: 3; diferença=6. Proton: changelog oficial 1.43.0 de 21/10, manifesto WinGet 1.42.0. Lixeira ainda possui dois itens da build .32 após erro 0x8000FFFF. Sem instalação/exclusão adicional. U6 não encerrado."
 }
