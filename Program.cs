@@ -660,6 +660,7 @@ internal sealed partial class MainForm : Form
     private bool _busy;
     private bool _multiSelectMode;
     private bool _catalogoVerificado; // Resultado local do RuckZuck (sem instalacao)
+    private bool _inventoryIncomplete; // A ausência em uma fonte com falha não comprova desinstalação.
     private CancellationTokenSource? _consultaCatalogoCts;
     private CancellationTokenSource? _installerDownloadCts;
     private CancellationTokenSource? _residualScanCts;
@@ -1939,9 +1940,12 @@ internal sealed partial class MainForm : Form
                 return result;
             });
             items = scan.Items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            _inventoryIncomplete = scan.Incomplete;
+            if (_inventoryIncomplete)
+                Log("ATENÇÃO: inventário PARCIAL. Uma fonte do Windows não pôde ser consultada; aplicativos ausentes desta lista podem continuar instalados. Clique em Atualizar lista para tentar novamente. Nenhum aplicativo foi removido.");
             DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count} examinados={scan.Registry.Inspected} ocultos={scan.Registry.HiddenComponents} updates_arp={scan.Registry.UpdateEntries} erros={scan.Registry.ReadFailures} duplicados={scan.Registry.Duplicates}");
             DiagnosticTrace.Write($"MSIX.LEITURA status={scan.Msix.Status} enumerados={scan.Msix.Seen} " +
-                $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures}");
+                $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures} repeticao={scan.Msix.Retried}");
             DiagnosticTrace.Write($"JOGOS.LEITURA steam={scan.Games.Steam} epic={scan.Games.Epic} adicionados={scan.GamesAdded} parciais={scan.Games.Partial}");
             Log($"Inventário: {scan.Registry.Items.Count} programas Win32, {scan.Added} aplicativos MSIX e {scan.GamesAdded} jogos de bibliotecas adicionais. " +
                 $"{scan.Registry.HiddenComponents} componentes internos e {scan.Registry.UpdateEntries} atualizações individuais do Windows não foram incluídos.");
@@ -1968,7 +1972,9 @@ internal sealed partial class MainForm : Form
         RenderPrograms();
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_FIM");
         Log($"Inventário local: {_installed.Count} registros; {ActionableInventory.VisibleCount(_installed)} com desinstalação disponível. A lista exibida mostra somente ações.");
-        Status($"{ActionableInventory.VisibleCount(_installed)} aplicativos com ação disponíveis antes da consulta online");
+        Status(_inventoryIncomplete
+            ? "Inventário PARCIAL: fonte de aplicativos indisponível. Atualize a lista para tentar novamente."
+            : $"{ActionableInventory.VisibleCount(_installed)} aplicativos com ação disponíveis antes da consulta online");
     }
 
     private async Task LoadUpdatesAsync(bool forceRefresh = false)
@@ -2206,13 +2212,17 @@ internal sealed partial class MainForm : Form
         ApplyFilterAppearance();
     }
 
+    internal static string InventoryCoverageTitle(bool incomplete) =>
+        incomplete ? "Inventário PARCIAL" : "Inventário completo";
+
     private void RenderTitle()
     {
         var summary = ActionableInventory.Summarize(_installed);
         int updates = summary.Updates;
         int displayed = summary.Actionable;
         string windowsStatus = _windowsUpdateCheckingMessage();
-        string full = $"Inventário completo: {summary.Total} · Com ação: {displayed} · Sem ação disponível: {summary.WithoutAction} · Desinstaláveis: {summary.Uninstallable} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
+        string full = $"{InventoryCoverageTitle(_inventoryIncomplete)}: {summary.Total} · Com ação: {displayed} · Sem ação disponível: {summary.WithoutAction} · Desinstaláveis: {summary.Uninstallable} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
+            (_inventoryIncomplete ? " · Fonte do Windows indisponível: ausência na lista não comprova desinstalação. Atualizar lista para tentar novamente." : "") +
             (_consultaCatalogoCts is not null ? " · Verificando..." : "") +
             windowsStatus + (_multiSelectMode ? $" · Marcados: {_checkedApps.Count}" : "");
         // Cabeçalho permanece de uma linha sem sobrepor os tres filtros.
@@ -2221,8 +2231,9 @@ internal sealed partial class MainForm : Form
         // Preferir informacao essencial completa. Os detalhes adicionais,
         // inclusive o Windows Update, ficam acessiveis na dica integral.
         string count = _catalogoVerificado ? updates.ToString() : "—";
-        _listTitle.Text = width < 220
-            ? $"Aplicativos: {displayed}"
+        _listTitle.Text = _inventoryIncomplete
+            ? (width < 220 ? $"Apps: {displayed} · PARCIAL" : $"Aplicativos: {displayed} · INVENTÁRIO PARCIAL")
+            : width < 220 ? $"Aplicativos: {displayed}"
             : $"Aplicativos: {displayed} · Atualizações: {count}";
         _toolTips.SetToolTip(_listTitle, full);
         _listTitle.AccessibleDescription = full;
