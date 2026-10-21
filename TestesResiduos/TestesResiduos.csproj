@@ -17,6 +17,8 @@
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
     <Compile Include="../ResidualPreview.cs" Link="ResidualPreview.cs" />
     <Compile Include="../ResidualReportMerger.cs" Link="ResidualReportMerger.cs" />
+    <Compile Include="../ResidualInspection.cs" Link="ResidualInspection.cs" />
+    <Compile Include="../ResidualResultIndex.cs" Link="ResidualResultIndex.cs" />
     <Compile Include="../ResidualScanBudget.cs" Link="ResidualScanBudget.cs" />
     <Compile Include="../BroadResidualDiscovery.cs" Link="BroadResidualDiscovery.cs" />
     <Compile Include="../MaintenanceAudit.cs" Link="MaintenanceAudit.cs" />

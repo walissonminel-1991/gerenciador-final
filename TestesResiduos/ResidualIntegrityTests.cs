@@ -22,10 +22,11 @@ internal static class ResidualIntegrityTests
                 new BroadResidualEvidence("Produto" + i.ToString("D5"), "Registro" + i, "Chave", "Registry")
             }).ToArray();
             var classified = BroadResidualDiscovery.Classify(evidence, []);
-            check(classified.Count == 100 && classified.Incomplete && classified.Coverage.CandidatesFound == count &&
-                classified.Coverage.ReportsOmitted == count - 100 && classified.Coverage.LocationsOmitted == (count - 100) * 2 &&
-                classified.All(r => r.Incomplete && r.Findings.All(f => f.Disposition == ResidualDisposition.Unknown)),
-                $"Saturação {count}: classificação informa todos os grupos e locais fora da exibição");
+            check(classified.Count == count && !classified.Incomplete && classified.Coverage.CandidatesFound == count &&
+                classified.Coverage.ReportsOmitted == 0 && classified.Coverage.LocationsOmitted == 0 &&
+                classified.Sum(r => r.Findings.Count) == count * 2 &&
+                classified.All(r => r.Findings.All(f => f.Disposition == ResidualDisposition.PreserveData)),
+                $"Saturação {count}: todos os grupos e locais disponíveis, sem perda antes da paginação");
             check(classified.Select(r => r.Product).SequenceEqual(BroadResidualDiscovery.Classify(evidence.Reverse(), []).Select(r => r.Product)) &&
                 watch.Elapsed < TimeSpan.FromSeconds(30), $"Saturação {count}: seleção reproduzível com custo limitado");
         }
@@ -39,8 +40,8 @@ internal static class ResidualIntegrityTests
         var locations = Enumerable.Range(0, 8).Select(i => new BroadResidualEvidence("Editor Antigo", "Local" + i,
             "Dados", i == 0 ? "Registry" : "AppData")).ToArray();
         var cut = BroadResidualDiscovery.Classify(locations, []);
-        check(cut.Incomplete && cut.Coverage.LocationsOmitted == 1 && cut.Single().Findings.Count == 7,
-            "Oitava localização omitida é contabilizada e marcada parcial");
+        check(!cut.Incomplete && cut.Coverage.LocationsOmitted == 0 && cut.Single().Findings.Count == 8,
+            "Oitava localização permanece disponível para consulta progressiva");
         var tooMany = Enumerable.Range(0, 30001).Select(i => new BroadResidualEvidence("Editor Antigo", "Local" + i, "Dados", "AppData")).ToArray();
         var capped = BroadResidualDiscovery.Classify(tooMany, []);
         check(capped.Count == 0 && capped.Incomplete && capped.Coverage.CandidatesNotEvaluated == 1 &&

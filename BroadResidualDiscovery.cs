@@ -16,8 +16,6 @@ internal sealed record BroadResidualResult(
 internal static class BroadResidualDiscovery
 {
     private const int MaxEntriesPerRoot = 2500;
-    private const int MaxReportGroups = 100;
-    private const int MaxEvidencePerGroup = 7;
     private static readonly StringComparer Comparer = StringComparer.OrdinalIgnoreCase;
 
     // Chaves com nomes de empresas podem representar perfis compartilhados de
@@ -513,7 +511,7 @@ internal static class BroadResidualDiscovery
                     : sharedPublisher
                     ? "Nome de fabricante; pode conter configurações e jogos salvos de títulos ainda instalados. Não apagar."
                     : "Indícios em fontes diferentes; não comprovam desinstalação nem uso seguro para limpeza.";
-                var findings = all.OrderBy(e => e.Location, Comparer).Take(MaxEvidencePerGroup)
+                var findings = all.OrderBy(e => e.Location, Comparer)
                     .Select(e => new ResidualAuditFinding(e.Location,
                         status + " — " + e.Kind, 1,
                         explanation + (e.Container.Length > 0 ? " Local subordinado a " + e.Container + "; vínculo exclusivo não comprovado." : "") + (inventoryIncomplete ? " Inventário de proteção parcial; ausência não comprova remoção." : "") + " Somente leitura.",
@@ -532,15 +530,10 @@ internal static class BroadResidualDiscovery
             .ThenByDescending(g => g.Total)
             .ThenBy(g => g.Group, Comparer)
             .ToArray();
-        int omittedGroups = Math.Max(0, classified.Length - MaxReportGroups);
-        int omittedLocations = classified.Sum(g => g.Total - g.Findings.Length);
-        if (omittedGroups > 0) issues |= ResidualScanIssue.GroupLimit;
-        if (omittedLocations > 0) issues |= ResidualScanIssue.LocationLimit;
         coverage = ResidualCoverage.Combine(new[] { coverage, new ResidualCoverage(issues, EntriesExamined: coverage is null ? input.Count : 0,
-            CandidatesFound: classified.Length, ReportsOmitted: omittedGroups,
-            LocationsOmitted: omittedLocations + classified.Skip(MaxReportGroups).Sum(g => g.Findings.Length),
-            CandidatesNotEvaluated: classificationStopped ? null : remaining, CandidatesExamined: groupsExamined) });
-        var reports = classified.Take(MaxReportGroups).Select(g => new ResidualAuditReport(g.Group, false,
+            CandidatesFound: classified.Length, CandidatesNotEvaluated: classificationStopped ? null : remaining,
+            CandidatesExamined: groupsExamined) });
+        var reports = classified.Select(g => new ResidualAuditReport(g.Group, false,
             g.Findings.Select(f => coverage.Incomplete ? f with { Disposition = ResidualDisposition.Unknown } : f).ToArray(),
             Array.Empty<string>(), Historical: true, Incomplete: coverage.Incomplete, Coverage: coverage)).ToArray();
         return new(reports, coverage);

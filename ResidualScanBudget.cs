@@ -137,14 +137,15 @@ internal enum ResidualScanIssue
 internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanIssue.None,
     int EntriesExamined = 0, IReadOnlyList<string>? SourcesConsulted = null,
     IReadOnlyList<string>? SourcesUnavailable = null, int CandidatesFound = 0,
-    int ReportsOmitted = 0, int LocationsOmitted = 0, int? CandidatesNotEvaluated = 0, int CandidatesExamined = 0)
+    int ReportsOmitted = 0, int LocationsOmitted = 0, int? CandidatesNotEvaluated = 0, int CandidatesExamined = 0, int ReportsReconciled = 0, int LocationsReconciled = 0)
 {
     private IReadOnlyList<ResidualCoverage>? Components { get; init; }
     internal bool Incomplete => Issues != ResidualScanIssue.None;
     internal const string PartialMessage = "ANÁLISE PARCIAL — a busca atingiu um limite ou encontrou uma falha e pode haver outros resultados.";
     internal string Describe() => (Incomplete ? PartialMessage : "Análise concluída nos locais consultados.") +
         $"\r\nEntradas examinadas: {EntriesExamined}; grupos examinados: {CandidatesExamined}; candidatos encontrados: {CandidatesFound}; " +
-        $"grupos fora da exibição: {ReportsOmitted}; locais fora da exibição: {LocationsOmitted}; " +
+        $"grupos indisponíveis: {ReportsOmitted}; locais indisponíveis: {LocationsOmitted}; " +
+        $"duplicatas reconciliadas: {ReportsReconciled} grupos / {LocationsReconciled} locais; " +
         "evidências não avaliadas: " + (CandidatesNotEvaluated?.ToString() ?? "quantidade desconhecida") + "." +
         (SourcesConsulted is { Count: > 0 } ? "\r\nFontes consultadas: " + string.Join(", ", SourcesConsulted.Select(SourceLabel)) : "") +
         (SourcesUnavailable is { Count: > 0 } ? "\r\nFontes indisponíveis: " + string.Join(", ", SourcesUnavailable.Select(SourceLabel)) : "") +
@@ -184,7 +185,8 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
             values.SelectMany(v => v.SourcesUnavailable ?? []).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray(),
             leaves.Sum(v => v.CandidatesFound), leaves.Sum(v => v.ReportsOmitted),
             leaves.Sum(v => v.LocationsOmitted), leaves.Any(v => v.CandidatesNotEvaluated is null)
-                ? null : leaves.Sum(v => v.CandidatesNotEvaluated ?? 0), leaves.Sum(v => v.CandidatesExamined))
+                ? null : leaves.Sum(v => v.CandidatesNotEvaluated ?? 0), leaves.Sum(v => v.CandidatesExamined),
+            leaves.Sum(v => v.ReportsReconciled), leaves.Sum(v => v.LocationsReconciled))
             { Components = leaves };
     }
 

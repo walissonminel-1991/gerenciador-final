@@ -56,7 +56,7 @@ internal static class ResidualPrecisionTests
         var inventory = Enumerable.Range(0, 5000).Select(i => new ProgramEntry { Name = "Instalado" + i, Publisher = "Fabricante" + i }).ToArray();
         var clock = Stopwatch.StartNew();
         var large = BroadResidualDiscovery.Classify(evidence, inventory, runningProcessNames: processes);
-        check(large.Coverage.CandidatesFound == 5000 && large.Coverage.ReportsOmitted == 4900 &&
+        check(large.Coverage.CandidatesFound == 5000 && large.Coverage.ReportsOmitted == 0 && large.Count == 5000 &&
             !large.Coverage.Issues.HasFlag(ResidualScanIssue.Timeout) && clock.Elapsed < TimeSpan.FromSeconds(20),
             "Dez mil evidências, cinco mil instalações e mil processos: comparação indexada sem omissão silenciosa");
         Console.WriteLine("Métrica sintética de classificação: " + clock.ElapsedMilliseconds + " ms (não representa PC real).");

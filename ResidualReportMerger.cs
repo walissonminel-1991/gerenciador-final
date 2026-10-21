@@ -85,7 +85,10 @@ internal static class ResidualReportMerger
                 ? f with { Disposition = r.Incomplete ? ResidualDisposition.Unknown : ResidualDisposition.PreserveShared,
                     Evidence = f.Evidence + " Local igual ou ancestral associado a mais de um aplicativo; preservar." } : f).ToArray()
         }).OrderBy(r => r.Product, StringComparer.OrdinalIgnoreCase).ToArray();
-        return new(result, coverage);
+        var reconciled = new ResidualCoverage(ReportsReconciled: input.Length - result.Length,
+            LocationsReconciled: input.Sum(r => r.Findings.Count) - result.Sum(r => r.Findings.Count));
+        coverage = ResidualCoverage.Combine([coverage, reconciled]);
+        return new(result.Select(r => r with { Coverage = coverage }).ToArray(), coverage);
     }
     private static int Rank(ResidualDisposition disposition) => disposition switch
     {

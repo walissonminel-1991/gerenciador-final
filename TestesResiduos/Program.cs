@@ -12,6 +12,8 @@ void Check(bool result, string what)
     passed++;
 }
 
+ResidualInspectionTests.Run(Check);
+ResidualProgressiveTests.Run(Check);
 ResidualPrecisionTests.Run(Check);
 ResidualIntegrityTests.Run(Check);
 await ResidualBlockingTests.Run(Check);

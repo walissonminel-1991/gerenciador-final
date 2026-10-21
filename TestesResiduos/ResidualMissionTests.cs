@@ -153,9 +153,9 @@ internal static class ResidualMissionTests
         var clock = System.Diagnostics.Stopwatch.StartNew();
         var large = BroadResidualDiscovery.Classify(many, Enumerable.Range(0, 1000)
             .Select(i => new ProgramEntry { Name = "Instalado" + i, Publisher = "Fabricante" + i }).ToArray());
-        check(large.Count == 100 && large.All(r => !r.UninstallConfirmed && r.Findings.All(f => !f.CanRemove)) &&
+        check(large.Count == 5000 && large.All(r => !r.UninstallConfirmed && r.Findings.All(f => !f.CanRemove)) &&
             clock.Elapsed < TimeSpan.FromSeconds(20),
-            "Dez mil evidências e mil instalações: saída limitada e sem autorização de exclusão");
+            "Dez mil evidências e mil instalações: todos os grupos preservados e sem autorização de exclusão");
     }
 
     private static void Decisions(Action<bool, string> check)
