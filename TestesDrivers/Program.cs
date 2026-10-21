@@ -9,6 +9,27 @@ Check(DriverInventory.ReportedDeviceName("Nome Windows", "Descricao alternativa"
     DriverInventory.ReportedDeviceName("  ", " Descricao PnP ") == "Descricao PnP" &&
     DriverInventory.ReportedDeviceName(null, "") == "",
     "Descricao PnP so e fallback para nome ausente, sem inventar identidade");
+var emitted = new List<string>();
+TestDiagnosticDetail.SetProfile(1, line => { emitted.Add(line); return true; });
+Check(TestDiagnosticDetail.Enabled && emitted.Single().Contains("PC_FORTE"),
+    "Coleta de testes e voluntaria e seleciona o computador");
+Check(TestDiagnosticDetail.Record("DRIVERS",
+    ("associacoes", 168), ("ids_unicos", 166), ("sem_nome", 3),
+    ("sem_fornecedor", 3), ("sem_versao", 1), ("versao_incomum", 2),
+    ("sem_inf", 3), ("assinatura_indeterminada", 1),
+    ("presenca_indeterminada", 2), ("nao_presentes", 0), ("parcial", 0)),
+    "Registra apenas contagens autorizadas sem nomes ou caminhos");
+Check(!TestDiagnosticDetail.TryFormat(1, "DRIVERS",
+    new (string, int)[] { ("id_dispositivo", 99) }, out _) &&
+    !TestDiagnosticDetail.Record("INDEVIDO", ("caminho", 1)) &&
+    !TestDiagnosticDetail.Record("AMBIENTE", ("largura", -1)),
+    "Contrato recusa chaves desconhecidas, categorias livres e valores invalidos");
+TestDiagnosticDetail.SetProfile(0, line => { emitted.Add(line); return true; });
+int before = emitted.Count;
+Check(!TestDiagnosticDetail.Enabled &&
+    !TestDiagnosticDetail.Record("AMBIENTE", ("largura", 1920), ("altura", 1080),
+        ("dpi", 96), ("logicos", 8)) && emitted.Count == before,
+    "Desligar coleta estendida impede gravacao adicional");
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
 var c = a with { DeviceId = "USB\\THREE", Signed = null };
