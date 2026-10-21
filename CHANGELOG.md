@@ -1,5 +1,15 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.18 — confiabilidade da cobertura e próxima bateria no PC fraco (TESTE)
+
+- Revisão independente da Work 3 detectou inconsistência de cobertura: relatórios de origem marcados como `Incomplete=true`, mas sem `Issues` agregados, podiam aparecer na investigação progressiva como análise normal. A fotografia agora atribui `ReportIncomplete` e informa **relatório de origem incompleto** sem inventar o motivo.
+- Se uma origem tiver falha sinalizada apenas em `report.Coverage.Issues`, a consulta agora propaga essa flag para a cobertura geral **sem somar novamente as contagens**. Uma quantidade desconhecida permanece desconhecida.
+- Listas de fontes consultadas/indisponíveis são copiadas ao construir a fotografia para que mutações posteriores do produtor não alterem um resultado já apresentado.
+- Testes de resíduos cobrem origem parcialmente classificada, informação de falha presente só na linha, contagens não duplicadas, relatório sem cobertura opcional e mutação de listas. Teste WinForms verifica a advertência visível também em uma revisão sem locais.
+- Nenhuma alteração no motor de atualização, exclusão de resíduos, desinstalação, drivers ou telemetria. Exclusão real de resíduos continua bloqueada; medições do PC fraco ainda não foram realizadas.
+- Esta candidata **não** conclui as 16 etapas funcionais restantes do roadmap; progresso permanece 26/42.
+
+
 ## v5.13.11.17 — investigação progressiva e preparação do PC fraco (TESTE)
 
 - Todos os grupos/locais classificados disponíveis, eliminando os cortes de 100 grupos/sete locais; descoberta continua limitada e explicitamente parcial quando necessário.
