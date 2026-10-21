@@ -1,5 +1,12 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Nova bateria PC fraco — v5.13.11.20 TESTE
+
+A v5.13.11.19 no PC fraco 1440×900 confirmou a correção dos nomes genéricos: revisão com 12 grupos e 41 locais, contra 17/57 na anterior, sem apagar dados. Tempo de inicialização 709 ms, primeiro inventário 1,29 s, descoberta de resíduos 295 ms; sessão única, **não** benchmark controlado. A busca ainda é **parcial** (2.000 entradas, 2 fontes inacessíveis), sem conclusão de segurança para exclusão. Capturas mostraram que a seleção de origem filtrava grupos, mas continuava exibindo locais de origens diferentes; v5.13.11.20 passa a filtrar também os locais e suas contagens, com testes sintéticos e de interface. Também diferencia categorias sem candidatos revisáveis dos resultados não consultados. [Relatório agregado](TESTE-PC-FRACO-2026-10-21-v5.13.11.19.md).
+
+**Próxima etapa:** confirmar a correção em testes reais somente leitura, com filtros de origem e categoria, busca, desempenho, AVG e parcialidade. Nenhuma exclusão ou alteração em drivers autorizada. Roadmap: **26/42**, inalterado.
+
+
 ## PC fraco real 21/10/2026 — v5.13.11.19 TESTE
 
 Recebidas capturas e diagnóstico de um computador 1440×900 com v5.13.11.18. Inicialização 1,32 s; primeiro inventário 2,01 s; 74 programas; 108 associações de drivers; 3 possíveis atualizações; consulta de resíduos parcial com 2000 entradas examinadas, 17 grupos e 57 locais na revisão. O usuário testou interface, filtros, inspeção, bandeja e monitoramento de RAM sem executar exclusões. Detectado falso agrupamento de subpastas genéricas com nomes homônimos pertencentes a aplicações distintas. v5.13.11.19 corrige a identidade de `Config/Logs/Updates/Scripts/Providers` pelo contêiner pai, adiciona regressões de diretório/Registro e melhora a mensagem da lista vazia. Relatório agregado e sem identificadores pessoais: [PC fraco 21/10](TESTE-PC-FRACO-2026-10-21-v5.13.11.18.md). A cobertura continua parcial (limites e fontes inacessíveis); não inferir lixo seguro. Etapas funcionais: **26/42**. Próxima ação após passar CI: repetir análise somente leitura na nova candidata no mesmo PC, conferir grupos genéricos e parcialidade, sem instalar/desinstalar.
