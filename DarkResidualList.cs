@@ -18,7 +18,7 @@ internal sealed class DarkResidualList : Control
     internal IReadOnlyList<ResidualDisplayRow> Rows => rows;
     internal ResidualDisplayRow? SelectedRow => selected >= 0 && selected < rows.Length ? rows[selected] : null;
     internal int PaintedRows { get; private set; }
-    internal string EmptyMessage { get; set; } = "Nenhum grupo nesta seleção.";
+    internal string EmptyMessage = "Nenhum grupo nesta seleção.";
     private int RowHeight => Math.Max(54, (int)(66 * DeviceDpi / 96d));
     internal DarkResidualList()
     {
