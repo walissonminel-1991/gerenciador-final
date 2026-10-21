@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.33 TESTE (MISSÃO WORK 5; CI aprovada; teste físico pendente) · Progresso: 26/42 (61,9%).**
+**v5.13.11.33 TESTE (MISSÃO WORK 5; CI aprovada; primeira bateria PC FORTE concluída, PC FRACO pendente) · Progresso: 26/42 (61,9%).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
 ## Estado atual — MISSÃO WORK 5
@@ -10,6 +10,27 @@ sem executor COM/CLI. Cinco produtos com novas consultas HTTPS; evidências e
 conflitos multifontes preservados, instalação direta bloqueada quando houver revisão.
 Progresso real por fontes e diagnóstico de contexto/etapas com perfil de teste temporário.
 U6/I7 e testes físicos/AVG continuam abertos; nenhum novo checkpoint contabilizado.
+
+## Validação presencial — .33 PC FORTE
+
+Bateria privada de 21/10/2026: 174 aplicativos/27 MSIX completos;
+**6** candidatas multifontes versus **3** na .32, todas as 13 fontes
+consultadas OK e WinGet COM/CLI **não executado**. Contexto local:
+App Installer e alias observados, pasta de alias fora de PATH;
+consulta executada sem elevação. Cobertura agregada esclareceu:
+fontes novas 1/2/4 geraram candidatas, fonte 3 sem identidade
+canônica, fonte 5 inelegível (somente inventário), fonte 6
+identidade/canal não aceito; três fontes de produto 7/8/9
+divergem e bloqueiam instalação direta. A UI deve diferenciar
+candidatas totais das que exigem revisão.
+
+Drivers 178/63 sem alterações e resíduos 45 grupos/164 locais
+parciais, sem exclusão. Nenhum alerta AVG nas evidências desta
+sessão, mas apenas teste local limitado; PC FRACO ainda pendente.
+U6 permanece aberto até explicar individualmente as três
+barreiras, sem relativizar critérios de segurança.
+[Detalhes e códigos](TESTES.md#primeira-bateria-real-33--pc-forte-21102026).
+Roadmap preservado 26/42. Nenhuma build nova.
 
 ## Baseline — MISSÃO WORK 4
 

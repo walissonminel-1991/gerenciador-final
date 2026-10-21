@@ -1,5 +1,60 @@
 # Roteiro de testes — v5.13.11.33 TESTE
 
+## Primeira bateria real .33 — PC FORTE (21/10/2026)
+
+Evidências enviadas em sessão privada: seis capturas e diagnóstico local da .33;
+**não** anexar arquivo pessoal bruto, nomes de pastas de usuário nem paths do teste
+ao GitHub. Diagnóstico apresenta encerramento normal, sem erro fatal observado,
+sem uso de executor WinGet COM/CLI ou instalação, sem alteração de drivers
+e sem exclusão de resíduos. AVG não exibiu alerta nas capturas; aprovação
+antivírus universal **não** comprovada.
+
+**Estabilidade:** 174 aplicativos (140 com desinstalador/34 sem), 27 MSIX,
+inventário completo; WinGet contexto `pacote=1 alias=1 path=0 elevado=0 parcial=0`.
+Alias/PATH não comprovam capacidade da API nem exigência de administrador.
+178 associações WMI/63 INFs, 3 associações sem INF válido, 176 PnP,
+nenhuma diferença entre leituras. Resíduos 45 grupos/164 locais,
+44 candidatos gerais, 212 grupos protegidos, 611 sem evidência,
+3.925 entradas na descoberta geral, cobertura parcial por limite de entradas,
+profundidade, links e leitura em AppData/ProgramData. Nenhuma remoção.
+
+**Atualizações:** .32 tinha 3 candidatas; a .33 observou **6** em 174
+instalações; 13/13 fontes HTTPS reconhecidas e OK, 631 entradas no RuckZuck,
+103 sem correspondência de catálogo, 31 inventário apenas e 4 incertos.
+Tempo da etapa de busca medido: 5.726s na abertura, 1.775s após
+renovação (cache/fatores de rede não isolados). Oito fontes do projeto
+antes, treze agora; não existe executor WinGet real.
+Um resultado com **divergência entre fontes**; `IsUpdate` ainda conta
+`UpdateRequiresReview`, logo a UI inclui o caso conflitante nas seis
+candidatas; `VerifiedUpdaters.Resolve` bloqueia receita direta
+e `GetPrimaryAction` apresenta somente Store/site/orientação.
+
+**Códigos consultivos novos (somente números, definidos no código):**
+- `fonte=1 etapa=9`, `fonte=2 etapa=9`, `fonte=4 etapa=9`:
+  novas candidatas reconhecidas por fontes HTTPS, conservando ações
+  de site/orientação e sem autorizar instalador genérico.
+- `fonte=3 etapa=0`: identidade canônica não reconhecida no
+  snapshot; **não comprova ausência do produto**.
+- `fonte=5 etapa=2`: entrada reconhecida mas inelegível para
+  atualização por proteção de inventário; não liberar automaticamente.
+- `fonte=6 etapa=3`: condição de nome/editor/canal/identidade
+  não satisfeita; causa específica ainda não comprovada sem
+  verificação local das propriedades originais.
+- `fontes=7/8/9 etapa=7`: conflito entre proveniências do mesmo
+  produto; manter versão de feed Windows e outras observações
+  discriminadas, sem instalação direta.
+
+**Pendências objetivas:** desambiguar visualmente
+`candidatas totais` de `candidatas que exigem revisão`; apresentar
+na própria UI o motivo seguro de inelegibilidade sem divulgar dados
+privados; conferir identidade exata do candidato fonte 3 e a
+condição estrita fonte 6, sem enfraquecer proteções ou instalar
+WinGet. Ainda não há teste físico da .33 no PC FRACO,
+medição completa de AVG/CPU durante várias sessões nem
+instalação verificada; U6 e demais checkpoints de validação
+continuam abertos, roadmap **26/42 (61,9%)**.
+
+
 ## Próxima bateria .33 — somente consultas
 
 1. PC FORTE: extrair pacote .33 validado em pasta nova e conferir BUILD-INFO/SHA256SUMS.

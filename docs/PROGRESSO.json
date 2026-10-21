@@ -139,8 +139,8 @@
           "id": "U6",
           "title": "Explicar divergências de cobertura com WinGet",
           "done": false,
-          "evidence": "PC FORTE .32, 21/10: winget upgrade listou 9 candidatos vs 3 do GF; 2 versões correspondem, uma divergência causada por changelog oficial publicado no mesmo dia antes da atualização do manifesto WinGet. Seis candidatas adicionais precisam de triagem individual, especialmente elegibilidade, nome/editor, versão e canal. Arquitetura multifontes conservadora confirmada.",
-          "blocked_by": "atribuir_seis_divergencias_individualmente"
+          "evidence": "Comparacao PC FORTE WinGet 9 vs GF .32 3 e GF .33 6. Tres novas fontes fixas deram candidatos (codigos 1/2/4 etapa9), fonte3 sem identidade, fonte5 inelegivel somente inventario, fonte6 identidade/canal incompatível; Proton fontes 7/8/9 divergem e exige revisão. Atribuicao exata pendente para os tres casos restantes, sem relaxar seguranca ou rodar WinGet real.",
+          "blocked_by": "triagem_individual_com_identidade_contexto_e_avaliacao_sem_instalacao"
         },
         {
           "id": "U7",
@@ -399,5 +399,6 @@
       "winget_real": "não executado; sem backend distribuído",
       "live_sources_and_installer_downloads_job": "skipped (opcionais); não contabilizados como aprovação"
     }
-  }
+  },
+  "pc_forte_33": "Teste presencial v5.13.11.33 21/10/2026: 174 apps/27 MSIX, 6 candidatos (inclui caso conflitante em revisão), 13/13 fontes oficiais OK, RuckZuck 631; etapas de fontes novas 1/2/4=9 (candidato), 3=0 (sem identidade), 5=2 (inelegível), 6=3 (identidade/canal), Proton 7/8/9=7 (divergentes). Contexto WinGet presente (pacote=1 alias=1 path=0 elevado=0), executor real desligado. Drivers 178/63, residuos 45/164 parciais, encerrou normalmente. Sem instalacao, sem alerta AVG observado, PC FRACO pendente."
 }
