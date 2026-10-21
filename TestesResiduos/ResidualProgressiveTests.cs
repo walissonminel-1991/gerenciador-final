@@ -37,6 +37,40 @@ internal static class ResidualProgressiveTests
         var reportMany = new ResidualAuditReport("Editor Antigo", false, findings, []);
         check(Enumerable.Range(0, 34).SelectMany(p => ResidualResultIndex.LocationPage(reportMany, p)).Count() == 1000,
             "Mil locais do mesmo produto podem ser apresentados progressivamente");
+        // PC fraco v5.13.11.19: filtrar "Dados comuns" mantinha grupo
+        // McAfee mas exibia também Registro e Roaming. Filtrar ambos os níveis.
+        var threeSources = new ResidualAuditReport("Produto teste", false, new[]
+        {
+            new ResidualAuditFinding(@"C:\ProgramData\ProdutoTeste", "Dados comuns", 1,
+                "comum", ResidualDisposition.PreserveData, ResidualSource.CommonData),
+            new ResidualAuditFinding(@"C:\Users\Teste\AppData\Roaming\ProdutoTeste", "Preferências", 1,
+                "privado", ResidualDisposition.PreserveData, ResidualSource.UserData),
+            new ResidualAuditFinding(@"HKEY_LOCAL_MACHINE\SOFTWARE\ProdutoTeste", "Registro", 1,
+                "registro", ResidualDisposition.PreserveShared, ResidualSource.Registry)
+        }, []);
+        var filtered = new ResidualResultIndex([threeSources]);
+        var commonOnly = filtered.Query(source: ResidualSource.CommonData);
+        check(commonOnly.Matching == 1 && commonOnly.LocationsAvailable == 1 &&
+            commonOnly.Reports.Single().Findings.Single().Sources == ResidualSource.CommonData &&
+            commonOnly.Reports.Single().Findings.Single().Location.Contains("ProgramData") &&
+            !filtered.Query().Reports.Single().Findings.Any(f => f.Location == "MUTADO"),
+            "Dados comuns mostra apenas locais ProgramData, sem Registry nem Roaming");
+        var onlyRegistry = filtered.Query(source: ResidualSource.Registry, filter: ResidualFilter.Shared);
+        check(onlyRegistry.Matching == 1 && onlyRegistry.LocationsAvailable == 1 &&
+            onlyRegistry.Reports.Single().Findings.Single().Sources == ResidualSource.Registry,
+            "Registro mais compartilhado mantém somente a interseção de locais");
+        check(filtered.Query(source: ResidualSource.CommonData, filter: ResidualFilter.Shared).Matching == 0 &&
+            filtered.Query(source: ResidualSource.UserData, filter: ResidualFilter.Data).Reports.Single().Findings.Count == 1,
+            "Duas classificações não misturam origens de locais diferentes no mesmo grupo");
+        var searchLocal = filtered.Query("privado", source: ResidualSource.UserData);
+        check(searchLocal.Matching == 1 && searchLocal.LocationsAvailable == 1 &&
+            searchLocal.Reports.Single().Findings.Single().Evidence == "privado" &&
+            filtered.Query("privado", source: ResidualSource.CommonData).Matching == 0,
+            "Busca e origem devem coincidir no mesmo local, sem falso positivo por outro campo");
+        check(filtered.Query("Produto teste").LocationsAvailable == 3 &&
+            filtered.Query().LocationsAvailable == 3 &&
+            filtered.Query().Reports.Single().Findings.Count == 3,
+            "Remover filtros recupera a fotografia completa sem perda de locais");
         var mutable = new[] { new ResidualAuditReport("Original", false, findings, []) };
         var snapshot = new ResidualResultIndex(mutable);
         mutable[0] = mutable[0] with { Product = "Alterado" }; findings[0] = findings[0] with { Location = "Outro" };
