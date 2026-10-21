@@ -1,5 +1,14 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.19 — correções após testes reais no PC fraco (TESTE)
+
+- Evidência real em monitor 1440×900 revelou agrupamento incorreto de subpastas genéricas como `Config`, `Logs`, `Updates`, `Scripts` e `Providers`; subpastas homônimas de fabricantes distintos podiam parecer um único aplicativo. A descoberta agora conserva esses locais associados ao nome do contêiner pai, sem os classificar como produtos independentes nem conceder autorização de exclusão.
+- Abrange enumeração de subpastas em perfis/instalações e de subchaves de Registro; testes com dois fabricantes fictícios verificam que nenhuma pasta `Config` vira grupo próprio.
+- Janela de investigação diferencia lista de grupos vazia de inspeção em nível sem itens; mantém o contexto e a proteção de dados.
+- Métricas agregadas e observações estão no [relatório de teste real](docs/TESTE-PC-FRACO-2026-10-21-v5.13.11.18.md), sem anexar diagnósticos brutos ou histórico de IDs de hardware.
+- Não foram habilitadas limpeza, atualizações, drivers, remoção de resíduos nem envio de dados. Nova bateria real deverá confirmar agrupamentos e desempenho; progresso funcional continua 26/42.
+
+
 ## v5.13.11.18 — confiabilidade da cobertura e próxima bateria no PC fraco (TESTE)
 
 - Revisão independente da Work 3 detectou inconsistência de cobertura: relatórios de origem marcados como `Incomplete=true`, mas sem `Issues` agregados, podiam aparecer na investigação progressiva como análise normal. A fotografia agora atribui `ReportIncomplete` e informa **relatório de origem incompleto** sem inventar o motivo.
