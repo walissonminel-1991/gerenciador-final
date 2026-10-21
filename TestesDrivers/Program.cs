@@ -25,10 +25,10 @@ Check(!TestDiagnosticDetail.TryFormat(1, "DRIVERS",
     !TestDiagnosticDetail.Record("AMBIENTE", ("largura", -1)),
     "Contrato recusa chaves desconhecidas, categorias livres e valores invalidos");
 TestDiagnosticDetail.SetProfile(0, line => { emitted.Add(line); return true; });
-int before = emitted.Count;
+int countBeforeDisableCheck = emitted.Count;
 Check(!TestDiagnosticDetail.Enabled &&
     !TestDiagnosticDetail.Record("AMBIENTE", ("largura", 1920), ("altura", 1080),
-        ("dpi", 96), ("logicos", 8)) && emitted.Count == before,
+        ("dpi", 96), ("logicos", 8)) && emitted.Count == countBeforeDisableCheck,
     "Desligar coleta estendida impede gravacao adicional");
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
