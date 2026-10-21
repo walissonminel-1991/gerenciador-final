@@ -1,4 +1,29 @@
-# Roteiro de testes — v5.13.11.32 TESTE
+# Roteiro de testes — v5.13.11.33 TESTE
+
+## Próxima bateria .33 — somente consultas
+
+1. PC FORTE: extrair pacote .33 validado em pasta nova e conferir BUILD-INFO/SHA256SUMS.
+   Manter AVG ativo. Abrir normalmente, registrar startup/RAM/CPU/processos/arquivos novos.
+   A versão não inclui executor WinGet e não pede UAC para pesquisar.
+2. Escolher Teste PC FORTE em Limpeza e desempenho. Inspeção de contexto apenas de leitura:
+   App Installer/alias/PATH do usuário atual; não executa WinGet nem instala pré-requisitos.
+3. Verificar atualizações; observar barra por fontes concluídas, Cancelar consulta,
+   falha isolada e estado parcial. Repetir; mudar lista; confirmar que não há flash ou reinício.
+4. Apontar para cada candidata: conferir as versões/origens na dica. Proton pode mostrar
+   divergência; FanControl aceita versão inteira; Jellyfin de versão principal diferente
+   requer revisão. Novos produtos oferecem consulta/site/orientação, nunca instalador genérico.
+5. Registrar somente contagens e códigos COBERTURA_ATUALIZACAO, especialmente fonte 5
+   (GameInput); não compartilhar inventário bruto. Etapa 0 significa identidade não reconhecida,
+   não ausência comprovada de instalação. Legenda completa em [MISSÃO WORK 5](MISSAO-WORK5.md).
+6. Sem rede: inventário utilizável, fontes indisponíveis explícitas e nenhuma instalação.
+   Fechar/reabrir, minimizar/restaurar e comparar fontes/RAM/CPU com baseline .32.
+7. Se houver alerta, janela inesperada, UAC, dependência ou fechamento: parar, guardar evento
+   e hash. Não criar exceções nem tentar reparar WinGet. A consulta real COM/CLI está bloqueada.
+8. Somente depois, repetir consultas no PC FRACO, 1440×900; incluir inicialização/MSIX,
+   DPI real, cancelamento e bandeja. Comparar com .24 sem presumir que ausências são remoções.
+
+Não atualizar/desinstalar aplicativos, não limpar resíduos/Lixeira nem alterar drivers nesta bateria.
+UI automatizada usa o runner; não substitui monitores/DPI/AVG reais. Zero checkpoints novos.
 
 ## Comparação presencial com WinGet — PC FORTE, 21/10/2026
 
@@ -235,3 +260,4 @@ DISM/SFC, limpeza, energia/restauração) são outra bateria em máquina isolada
 após backup e consentimento específico. Não criar defeitos para acionar botões.
 Assinatura Authenticode, atestação de procedência e SHA-256 são evidências distintas;
 a candidata desta missão permanece experimental e sem assinatura.
+

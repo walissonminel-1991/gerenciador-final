@@ -79,6 +79,93 @@ são hipóteses documentadas para terminal normal versus elevado, não prova de 
 
 ## Execução, testes e entrega
 
-Resultados de implementação/CI, matriz dos nove produtos e roteiro: completar nos commits
-seguintes. Este checkpoint fecha a investigação disponível, não o portão presencial.
+Implementação .33: `WingetConsultativeProvider.cs` (contrato sem backend real),
+`WingetContextInspection.cs` (presença no contexto atual), `OfficialReleaseSources.cs`
+(fontes, procedência, TTL e reconciliação), modelos, inventário para contexto,
+tooltips, resolvers, diagnóstico opt-in e testes. Sem nova dependência NuGet.
+Só fatos públicos/nomes de produtos e editoras foram usados para mapear fontes;
+nenhum código GPL ou de outro projeto foi copiado. Script de desenvolvimento não
+oferece mais bootstrap de SDK/Inno por WinGet; o runtime do portátil não mudou.
+
+### Matriz antes/depois — sem instalar
+
+| Produto | .32 no PC FORTE | .33: cobertura implementada / limite |
+| --- | --- | --- |
+| 7-Zip | GF e WinGet 26.05 | GitHub oficial preservado; evidências consolidadas; um registro por instalação |
+| Outlook for Windows | GF e WinGet 1.2026.812.100 | Índice HTTPS/identidade MSIX preservados; Store como rota oficial |
+| Proton Pass | GF 1.43.0 / WinGet 1.42.0 | Duas observações separadas; divergência visível e sem instalador direto |
+| EA app | Somente WinGet | Faltava receita fixa: agora índice ElectronicArts.EADesktop por HTTPS; somente consulta/site |
+| FanControl | Somente WinGet | Faltava receita fixa e comparação inteira: GitHub Rem0o/FanControl.Releases e V284; sem instalar dependências |
+| Jellyfin Server | Somente WinGet | Faltava receita fixa: GitHub jellyfin/jellyfin; mudança de principal exige revisão; não confirma instalador Windows |
+| K-Lite Mega Codec Pack | Somente WinGet | Faltava receita fixa: índice CodecGuide.K-LiteCodecPack.Mega; rejeita Standard/Full e fabricante divergente |
+| Microsoft GameInput | Somente WinGet | Fonte consultiva já existia; causa real exata permanece pendente. Códigos por etapa acrescentados; receita oficial restrita não ampliada |
+| Plex Media Server | Somente WinGet | Identidade existia sem fonte: índice Plex.PlexMediaServer por HTTPS, predicado restrito ao Server; não confunde player |
+
+A coluna .32 vem da comparação relatada/documentada, não de inventário bruto reproduzido.
+Ausência de fonte fixa é **comprovada no código** para cinco produtos, mas não prova sozinha
+em que etapa cada registro real falhou no RuckZuck. Os campos privados não estão no log.
+Assim, para esses registros reais, vínculo de fabricante/versão/arquitetura/canal/escopo e
+etapa exata permanecem pendentes; fixtures demonstram os caminhos, não substituem evidência.
+Não se promete nove candidatas no PC. Versões publicadas hoje podem mudar.
+
+Proton: changelog consultado começa em 1.43.0 e índice comunitário em 1.42.0.
+Página Windows `https://proton.me/pass/download/windows` oferece carregamento dinâmico;
+a extração textual não expôs versão/assinatura/arquivo Windows da 1.43.0. Não baixamos nem
+executamos instalador Proton. A disponibilidade do binário estável exato para Windows
+continua **não comprovada**. Isso é exibido como anúncio/changelog, não instalador verificado.
+Fontes: commit `9ebebbc88e8b3b9652d4b5bbfebfd8e2d3538966`,
+`https://github.com/ProtonMail/WebClients/blob/main/applications/pass-desktop/CHANGELOG.md`,
+`https://github.com/microsoft/winget-pkgs/tree/master/manifests/p/Proton/ProtonPass`.
+
+### Cache, identidade e estado de instalação
+
+TTL monotônico explícito de 10 min. Cache contém somente versões públicas, separado
+por fonte/transportes e relógio; não armazena inventário, usuários ou achados. Instância de
+produção compartilha apenas transportes públicos fixos. Ao mudar inventário, associações
+são reconstruídas usando os objetos do snapshot novo; resultados de outro snapshot
+são recusados. A versão pública não precisa ser apagada porque o inventário mudou.
+Sem cache persistente nem associação entre processos/máquinas. Data da observação é
+preservada no cache. Fabricante/identidade/canal e dimensões conhecidas incompatíveis
+bloqueiam reconciliação. Dimensões desconhecidas são declaradas, nunca prova de elegibilidade.
+Uma fonte comunitária não vence automaticamente o anúncio do fornecedor; divergências
+continuam visíveis. Nenhuma observação consultiva gera receita nova.
+
+`Instalador verificado` continua sendo responsabilidade separada dos resolvers locais,
+SHA-256/WinTrust, contexto e confirmação humana. Divergências/revisão impedem
+EXE/MSIX direto mesmo que exista receita; Store/site/orientação continuam possíveis.
+Não houve autorização de instalação, desinstalação ou manutenção de drivers nesta missão.
+
+### Códigos agregados do perfil temporário
+
+COBERTURA_ATUALIZACAO fonte: 1 EA, 2 FanControl, 3 Jellyfin Server, 4 K-Lite Mega,
+5 GameInput, 6 Plex, 7 Proton changelog, 8 Proton índice comunitário.
+
+Etapa: 0 nenhuma identidade canônica reconhecida (não prova app ausente); 1 sem fonte fixa;
+2 somente inventário/inelegível; 3 identidade/canal não corresponde; 4 fonte não consultada;
+5 falha de fonte; 6 ausência de achado nessa fonte; 7 conflito entre fontes;
+8 revisão de contexto/migração; 9 candidata; 10 sem versão superior;
+11 versão não comparável; 12 outra regra conservadora.
+
+Código 3 é verificável diretamente por testes; para identidade não reconhecida no PC,
+usa-se 0, sem publicar nomes/editor. O diagnóstico respeita o teto total de 160 tentativas
+preexistente e só contém códigos/contagens. Se atingir teto, não presumir completude.
+WINGET_CONTEXTO contém somente cinco booleanos; alias presente não comprova executável
+genuíno ou API suportada. Não executa o alias nem pesquisa executáveis arbitrários no PATH.
+
+### Verificação antes da CI
+
+Linux: multifontes 121/121, motor 18/18, política 15/15; cross-build do aplicativo e
+suite de instaladores aprovado, zero avisos/erros. Nenhum teste Windows/AVG foi simulado
+como execução real. Regressões Windows completas e artefato estão aguardando Actions.
+Fixtures: nove produtos/duas fontes Proton, falsos fabricantes/edições, versões inteiras,
+contextos isolados x86/x64/ARM64/usuário/máquina/portátil/MSIX/canal, cache/TTL/data,
+falhas de fontes independentes, offline, progresso, snapshot estranho, desligado em todos
+os gatilhos, opt-in restrito, timeout não cooperativo, cancelamento e parada da sessão.
+Mocks de ausência/COM/alias/política são estados simulados, não disponibilidade real no runner.
+Tempos de fixtures são custo do teste; não se extrapolam para os PCs.
+
+Ainda não há medição real da .33 nos PCs, aprovação AVG, COM/CLI real, validação visual
+física de todos os DPI ou explicação individual definitiva dos seis registros privados.
+[Próxima bateria, PC FORTE depois PC FRACO](TESTES.md#próxima-bateria-33--somente-consultas).
+Este checkpoint fecha a investigação disponível, não o portão presencial.
 Roadmap permanece **26/42 (61,9%)**; R4 e G1–G5 bloqueados.

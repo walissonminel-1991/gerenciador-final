@@ -28,10 +28,10 @@ var fakeSeven = App("7-Zip 25.00 (x64)", "25.00", "Editor Suspeito");
 var esr = App("Mozilla Firefox ESR", "115.0.0", "Mozilla Corporation");
 var thunderbirdEsr = App("Thunderbird ESR", "128.0", "Mozilla Corporation");
 var unknownThunderbird = App("Mozilla Thunderbird", "140.0", "Mozilla Corporation");
-Assert(ApplicationIdentityCatalog.RuleCount == 22,
-    "Catálogo unificado reconhece 22 famílias verificadas");
-Assert(ApplicationIdentityCatalog.Rules.Count(r => r.OfficialSource is not null) == 18,
-    "Dezoito fontes oficiais referenciam identidade estável");
+Assert(ApplicationIdentityCatalog.RuleCount == 26,
+    "Catálogo unificado reconhece 26 famílias verificadas");
+Assert(ApplicationIdentityCatalog.Rules.Count(r => r.OfficialSource is not null) == 23,
+    "Vinte e três identidades de fontes oficiais referenciam identidade estável");
 Assert(ApplicationIdentityCatalog.Resolve("OBS Studio", "OBS Project")?.Id == "obs" &&
     ApplicationIdentityCatalog.Resolve("OBS Studio", "OBS Project, LLC")?.Id == "obs",
     "Mesmo ID para versões de fabricante oficial do OBS");
@@ -240,7 +240,7 @@ using (var extraSource = new OfficialReleaseSources(expandedFixture))
 {
     var expanded = await extraSource.QueryAsync(
         [edge, terminal, proton, wrongEdge, wrongProton, wrongTerminal], CancellationToken.None);
-    Assert(expanded.Findings.Count == 3 && expanded.Diagnostics.Count == 3 &&
+    Assert(expanded.Findings.Count == 4 && expanded.Diagnostics.Count == 4 &&
         expanded.Diagnostics.All(x => x.Status == "ok"),
         "Edge, Terminal e Proton reconhecidos com exclusão dos canais errados");
     Assert(expanded.Findings.First(x => ReferenceEquals(x.Installed, edge)).LatestVersion == "155.0.4283.62",
@@ -249,9 +249,9 @@ using (var extraSource = new OfficialReleaseSources(expandedFixture))
         "Windows Terminal Stable preserva todos os componentes da versão");
     Assert(expanded.Findings.First(x => ReferenceEquals(x.Installed, proton)).LatestVersion == "1.42.0",
         "Proton Pass lê changelog oficial desktop e não aplicativo de navegador");
-    Assert(expandedFixture.Requests == 3, "Três fontes extras consultadas somente uma vez");
+    Assert(expandedFixture.Requests == 4, "Quatro fontes extras incluindo comparação comunitária Proton consultadas uma vez");
     var cachedExtra = await extraSource.QueryAsync([edge, terminal, proton], CancellationToken.None);
-    Assert(cachedExtra.Findings.Count == 3 && expandedFixture.Requests == 3,
+    Assert(cachedExtra.Findings.Count == 4 && expandedFixture.Requests == 4,
         "Edge/Terminal/Proton compartilham cache em memória");
     var mergedExtras = MultiSourceMatcher.Merge([edge, terminal, proton], null, expanded.Findings);
     Assert(mergedExtras.Count(x => x.State == MatchState.Candidate) == 3,
@@ -261,7 +261,7 @@ OfficialReleaseSources.ClearCacheForTests();
 using (var extraSource = new OfficialReleaseSources(new Fixture(failEdge:true)))
 {
     var found = await extraSource.QueryAsync([edge, terminal, proton], CancellationToken.None);
-    Assert(found.Findings.Count == 2 &&
+    Assert(found.Findings.Count == 3 &&
         found.Diagnostics.Any(x => x.Provider == "edge-stable" && x.Status != "ok"),
         "Falha do serviço Edge não apaga outras fontes");
 }
@@ -269,7 +269,7 @@ OfficialReleaseSources.ClearCacheForTests();
 using (var extraSource = new OfficialReleaseSources(new Fixture(failProton:true)))
 {
     var found = await extraSource.QueryAsync([edge, terminal, proton], CancellationToken.None);
-    Assert(found.Findings.Count == 2 && found.Diagnostics.Any(x => x.Provider == "proton-pass-desktop" && x.Status != "ok"),
+    Assert(found.Findings.Count == 3 && found.Diagnostics.Any(x => x.Provider == "proton-pass-desktop" && x.Status != "ok"),
         "Falha no changelog Proton não apaga Microsoft/GitHub");
 }
 Assert(OfficialReleaseSources.IsAllowedUrl(new Uri("https://edgeupdates.microsoft.com/api/products?view=enterprise")) &&
@@ -325,6 +325,7 @@ using (var source = new OfficialReleaseSources(new AdversarialFixture(stallBody:
 }
 
 await OfficialLifetimeTests.Run(Assert);
+await Work5Tests.Run(Assert);
 Console.WriteLine($"{tests}/{tests} testes de motores múltiplos aprovados");
 if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
 {
@@ -359,7 +360,9 @@ internal sealed class Fixture(bool failMozilla = false, bool badTags = false, in
             uri.Host != "raw.githubusercontent.com")) throw new Exception("Host não aprovado");
         if (uri.Host == "api.github.com" && uri.AbsolutePath.Contains("/microsoft/winget-pkgs/contents/"))
         {
-            string versions = uri.AbsolutePath.EndsWith("GameInput", StringComparison.OrdinalIgnoreCase)
+            string versions = uri.AbsolutePath.EndsWith("ProtonPass", StringComparison.OrdinalIgnoreCase)
+                ? "[{\"name\":\"1.42.0\",\"type\":\"dir\"}]"
+                : uri.AbsolutePath.EndsWith("GameInput", StringComparison.OrdinalIgnoreCase)
                 ? "[{\"name\":\"3.5.270\",\"type\":\"dir\"},{\"name\":\"3.5.283\",\"type\":\"dir\"}]"
                 : "[{\"name\":\"1.2026.720.100\",\"type\":\"dir\"},{\"name\":\"1.2026.812.100\",\"type\":\"dir\"}]";
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(versions) };

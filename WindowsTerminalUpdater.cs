@@ -26,7 +26,7 @@ internal static class WindowsTerminalUpdater
 
     internal static TerminalUpdateRecipe? Resolve(ProgramEntry entry)
     {
-        if (!entry.IsUpdate || !entry.InventoryOnly ||
+        if (entry.UpdateRequiresReview || !entry.IsUpdate || !entry.InventoryOnly ||
             !entry.Publisher.Trim().Equals("Microsoft Corporation", StringComparison.OrdinalIgnoreCase) ||
             !entry.Source.Equals("GitHub oficial", StringComparison.Ordinal) ||
             (entry.Name != "Windows Terminal" && entry.Name != "Terminal do Windows"))

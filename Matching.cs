@@ -80,13 +80,20 @@ internal static class Matching
         var a = (installed ?? "").Trim();
         var b = (available ?? "").Trim();
         if (!VersionPattern.IsMatch(a) || !VersionPattern.IsMatch(b)) return null;
-        if (!Version.TryParse(a.TrimStart('v', 'V'), out var x) ||
-            !Version.TryParse(b.TrimStart('v', 'V'), out var y)) return null;
+        if (!Version.TryParse(PadSingle(a), out var x) ||
+            !Version.TryParse(PadSingle(b), out var y)) return null;
         // 1.2, 1.2.0 e 1.2.0.0 representam a mesma versão.
         // Version.CompareTo trata campos ausentes como -1 e gerava falso positivo.
         var parsedInstalled = new Version(x.Major, x.Minor, Math.Max(x.Build, 0), Math.Max(x.Revision, 0));
         var target = new Version(y.Major, y.Minor, Math.Max(y.Build, 0), Math.Max(y.Revision, 0));
         return parsedInstalled.CompareTo(target);
+    }
+
+    // FanControl publica revisões inteiras (V284); sem conversão para texto decimal.
+    private static string PadSingle(string value)
+    {
+        string numeric = value.TrimStart('v', 'V');
+        return numeric.Contains('.') ? numeric : numeric + ".0";
     }
 
     private static bool SameVisualCpp2013Family(InstalledApp installed, InstalledApp other)

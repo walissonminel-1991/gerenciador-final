@@ -11,7 +11,7 @@
     <ApplicationIcon>Assets\GerenciadorFinal.ico</ApplicationIcon>
     <AssemblyName>GerenciadorFinal</AssemblyName>
     <RootNamespace>GerenciadorAplicativos</RootNamespace>
-    <Version>5.13.11.32</Version>
+    <Version>5.13.11.33</Version>
     <Title>Gerenciador Final</Title>
     <Description>Gerenciador Final: atualizações, diagnóstico e manutenção do Windows.</Description>
     <PublishSingleFile>false</PublishSingleFile>
@@ -27,3 +27,4 @@
     <EmbeddedResource Include="CatalogoAuditoriaHistorica.json" LogicalName="GerenciadorFinal.HistoricalOrphanCatalog" />
   </ItemGroup>
 </Project>
+

@@ -1,9 +1,17 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.32 TESTE (CI aprovada; primeira validação física PC FORTE concluída) · Progresso: 26/42 (61,9%).**
+**v5.13.11.33 TESTE (MISSÃO WORK 5; CI em validação) · Progresso: 26/42 (61,9%).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
-## Estado atual — MISSÃO WORK 4
+## Estado atual — MISSÃO WORK 5
+
+[Auditoria e matriz dos nove produtos](MISSAO-WORK5.md): contrato WinGet desligado,
+sem executor COM/CLI. Cinco produtos com novas consultas HTTPS; evidências e
+conflitos multifontes preservados, instalação direta bloqueada quando houver revisão.
+Progresso real por fontes e diagnóstico de contexto/etapas com perfil de teste temporário.
+U6/I7 e testes físicos/AVG continuam abertos; nenhum novo checkpoint contabilizado.
+
+## Baseline — MISSÃO WORK 4
 
 Retenção MSIX em memória, identidade de snapshot na fusão de atualizações,
 TTL monotônico, limites de resíduos por origem, enumeração protegida e correlação
@@ -162,3 +170,4 @@ três Actions atuais e todas as regressões necessárias. Veja
 [ACTIONS-ATUAIS-E-HISTORICAS.md](ACTIONS-ATUAIS-E-HISTORICAS.md)
 para o escopo e limitações. Esta limpeza não corrige MSIX nem
 habilita manutenção destrutiva; não altera a contagem de checkpoints.
+

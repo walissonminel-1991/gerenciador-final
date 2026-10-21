@@ -10,7 +10,10 @@ namespace GerenciadorAplicativos;
 // Motores SOMENTE LEITURA. Fontes oficiais fixas; nenhum script, instalador,
 // comando de terminal ou dado do computador é enviado nas consultas.
 internal sealed record OfficialRelease(InstalledApp Installed, string LatestVersion,
-    string Provider, string OfficialPage);
+    string Provider, string OfficialPage, string SourceId = "",
+    string CanonicalId = "", DateTimeOffset ObservedAt = default,
+    string Architecture = "unknown", string Channel = "unknown", string Scope = "unknown",
+    string InstallType = "unknown", string EvidenceKind = "published-version");
 internal sealed record ProviderDiagnostic(string Provider, string Status, long Milliseconds, bool UsedMemoryCache = false);
 internal sealed record ProviderScan(IReadOnlyList<OfficialRelease> Findings,
     IReadOnlyList<ProviderDiagnostic> Diagnostics);
@@ -18,10 +21,10 @@ internal sealed record ProviderScan(IReadOnlyList<OfficialRelease> Findings,
 internal sealed class OfficialReleaseSources : IDisposable
 {
     private sealed record Recipe(string Id, string Provider, string Name, string Endpoint,
-        string Page, Func<InstalledApp, bool> Matches, string JsonProperty);
-    private sealed record CachedVersion(string Version, TimeProvider Clock, long Started);
-    private static readonly ConcurrentDictionary<string, CachedVersion> Cache = new();
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new();
+        string Page, Func<InstalledApp, bool> Matches, string JsonProperty, string? IdentitySource = null);
+    private sealed record CachedVersion(string Version, TimeProvider Clock, long Started, DateTimeOffset ObservedAt);
+    private static readonly ConcurrentDictionary<(object Transport, string Id), CachedVersion> Cache = new();
+    private static readonly ConcurrentDictionary<(object Transport, string Id), SemaphoreSlim> Gates = new();
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(10);
     private static readonly SemaphoreSlim GithubConcurrency = new(2, 2);
     private static readonly HttpClient SharedClient = MakeClient();
@@ -29,11 +32,30 @@ internal sealed class OfficialReleaseSources : IDisposable
     private readonly bool _ownsHttp;
     private readonly TimeSpan _responseTimeout;
     private readonly TimeProvider _clock;
+    private readonly object _cacheTransport;
 
     // Nomes e fabricantes são verificados ANTES de qualquer requisição.
     // Não tentamos inferir URLs a partir da lista de programas do usuário.
     private static readonly Recipe[] Known =
     [
+        new("ea-desktop", "Catálogo WinGet HTTPS", "EA app",
+            "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/e/ElectronicArts/EADesktop",
+            "https://www.ea.com/ea-app", a => Exact(a, "EA app", "electronic arts"), "__WINGET_VERSIONS__"),
+        new("fancontrol", "GitHub oficial", "FanControl",
+            "https://api.github.com/repos/Rem0o/FanControl.Releases/releases/latest",
+            "https://getfancontrol.com/", a => Exact(a, "FanControl", "remi mercier software", "rem0o"), "tag_name"),
+        new("jellyfin-server", "GitHub oficial", "Jellyfin Server",
+            "https://api.github.com/repos/jellyfin/jellyfin/releases/latest",
+            "https://jellyfin.org/downloads/windows/", a => Exact(a, "Jellyfin Server", "the jellyfin project"), "tag_name"),
+        new("klite-mega", "Catálogo WinGet HTTPS", "K-Lite Mega Codec Pack",
+            "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/c/CodecGuide/K-LiteCodecPack/Mega",
+            "https://codecguide.com/download_k-lite_codec_pack_mega.htm", KLiteMega, "__WINGET_VERSIONS__"),
+        new("plex", "Catálogo WinGet HTTPS", "Plex Media Server",
+            "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/p/Plex/PlexMediaServer",
+            "https://www.plex.tv/media-server-downloads/", a => Exact(a, "Plex Media Server", "plex"), "__WINGET_VERSIONS__"),
+        new("proton-pass-winget", "Catálogo WinGet HTTPS", "Proton Pass",
+            "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/p/Proton/ProtonPass",
+            "https://proton.me/pass/download", ProtonPass, "__WINGET_VERSIONS__", "proton-pass-desktop"),
         new("gameinput-winget", "Catálogo WinGet", "Microsoft GameInput",
             "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/m/Microsoft/GameInput",
             "https://github.com/microsoft/winget-pkgs/tree/master/manifests/m/Microsoft/GameInput",
@@ -99,6 +121,11 @@ internal sealed class OfficialReleaseSources : IDisposable
         var maker = Matching.NormalizePublisher(app.Publisher);
         return allowed.Any(x => maker == x);
     }
+    private static bool Exact(InstalledApp a, string name, params string[] publishers) =>
+        a.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && Publisher(a, publishers);
+    private static bool KLiteMega(InstalledApp a) => Publisher(a, "klcp", "codec guide") &&
+        Regex.IsMatch(a.Name, @"^K-Lite Mega Codec Pack(?: \d{1,4}(?:\.\d{1,6}){1,3})?$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static bool GameInput(InstalledApp a) =>
         a.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase) &&
         Publisher(a, "microsoft");
@@ -164,6 +191,30 @@ internal sealed class OfficialReleaseSources : IDisposable
         Regex.IsMatch(a.Name, @"^PowerShell 7(?:-x64|-x86| \(x64\)| \(x86\))?$", RegexOptions.IgnoreCase) &&
         Publisher(a, "microsoft");
 
+    internal static int ApplicableSourceCount(IEnumerable<InstalledApp> installed)
+    {
+        var apps = installed.ToArray();
+        return Known.Count(recipe => apps.Any(app => app.EligibleForUpdates && (app.Channel is "unknown" or "stable") && recipe.Matches(app) &&
+            ApplicationIdentityCatalog.MatchesOfficialSource(app.Name, app.Publisher, recipe.IdentitySource ?? recipe.Id)));
+    }
+
+    internal static int CoverageStage(InstalledApp app, string sourceId, ProviderScan scan, UpdateMatch match)
+    {
+        var recipe = Known.SingleOrDefault(r => r.Id == sourceId);
+        if (recipe is null) return 1; // no fixed source
+        if (!app.EligibleForUpdates) return 2;
+        if (app.Channel is not ("unknown" or "stable") || !recipe.Matches(app) || !ApplicationIdentityCatalog.MatchesOfficialSource(
+            app.Name, app.Publisher, recipe.IdentitySource ?? recipe.Id)) return 3;
+        var diagnostic = scan.Diagnostics.SingleOrDefault(d => d.Provider == sourceId);
+        if (diagnostic is null) return 4; // not queried
+        if (diagnostic.Status != "ok") return 5;
+        if (!scan.Findings.Any(f => ReferenceEquals(f.Installed, app) && f.SourceId == sourceId)) return 6;
+        if (match.HasSourceConflict) return 7;
+        if (match.RequiresReview) return 8;
+        return match.State switch { MatchState.Candidate => 9, MatchState.EqualOrNewer => 10,
+            MatchState.NotComparable => 11, _ => 12 };
+    }
+
     private static HttpClient MakeClient()
     {
         var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
@@ -177,6 +228,7 @@ internal sealed class OfficialReleaseSources : IDisposable
     internal OfficialReleaseSources(HttpMessageHandler? handler = null, TimeSpan? responseTimeout = null, TimeProvider? clock = null)
     {
         _clock = clock ?? TimeProvider.System;
+        _cacheTransport = (object?)handler ?? SharedClient;
         _responseTimeout = responseTimeout ?? TimeSpan.FromSeconds(14);
         _ownsHttp = handler is not null;
         _http = handler is null ? SharedClient : new HttpClient(handler)
@@ -191,15 +243,15 @@ internal sealed class OfficialReleaseSources : IDisposable
     }
 
     internal async Task<ProviderScan> QueryAsync(IEnumerable<InstalledApp> installed,
-        CancellationToken token, bool forceRefresh = false)
+        CancellationToken token, bool forceRefresh = false, IProgress<ProviderDiagnostic>? progress = null)
     {
         token.ThrowIfCancellationRequested();
         var apps = installed.ToArray();
         var applicable = Known.Select(recipe => (
             Recipe: recipe,
-            Apps: apps.Where(app => app.EligibleForUpdates && recipe.Matches(app) &&
+            Apps: apps.Where(app => app.EligibleForUpdates && (app.Channel is "unknown" or "stable") && recipe.Matches(app) &&
                 ApplicationIdentityCatalog.MatchesOfficialSource(
-                    app.Name, app.Publisher, recipe.Id)).ToArray()))
+                    app.Name, app.Publisher, recipe.IdentitySource ?? recipe.Id)).ToArray()))
             .Where(item => item.Apps.Length > 0).ToArray();
         if (applicable.Length == 0) return new([], []);
         var tasks = applicable.Select(async target =>
@@ -207,10 +259,13 @@ internal sealed class OfficialReleaseSources : IDisposable
             var clock = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                var (version, cached) = await GetVersionAsync(target.Recipe, token, forceRefresh);
+                var (version, cached, observedAt) = await GetVersionAsync(target.Recipe, token, forceRefresh);
                 var findings = target.Apps.Select(app =>
                     new OfficialRelease(app, version, target.Recipe.Provider,
-                        target.Recipe.Page)).ToArray();
+                        target.Recipe.Page, target.Recipe.Id, target.Recipe.IdentitySource ?? target.Recipe.Id,
+                        observedAt, Channel: target.Recipe.JsonProperty == "tag_name" ? "stable" : "unknown",
+                        EvidenceKind: target.Recipe.JsonProperty == "__WINGET_VERSIONS__" ? "community-index" :
+                            target.Recipe.JsonProperty == "__PROTON_CHANGELOG__" ? "desktop-changelog" : "vendor-release")).ToArray();
                 return (Findings: findings,
                     Diagnostic: new ProviderDiagnostic(target.Recipe.Id, "ok", clock.ElapsedMilliseconds, cached));
             }
@@ -223,30 +278,36 @@ internal sealed class OfficialReleaseSources : IDisposable
                     Diagnostic: new ProviderDiagnostic(target.Recipe.Id, ex.GetType().Name, clock.ElapsedMilliseconds));
             }
         });
-        var results = await Task.WhenAll(tasks);
+        var results = await Task.WhenAll(tasks.Select(async task =>
+        {
+            var result = await task;
+            progress?.Report(result.Diagnostic);
+            return result;
+        }));
         return new ProviderScan(results.SelectMany(x => x.Findings).ToArray(),
             results.Select(x => x.Diagnostic).ToArray());
     }
 
-    private async Task<(string Version, bool Cached)> GetVersionAsync(Recipe recipe, CancellationToken token, bool force)
+    private async Task<(string Version, bool Cached, DateTimeOffset ObservedAt)> GetVersionAsync(Recipe recipe, CancellationToken token, bool force)
     {
         token.ThrowIfCancellationRequested();
-        if (!force && Cache.TryGetValue(recipe.Id, out var cached) &&
-            ReferenceEquals(cached.Clock, _clock) && _clock.GetElapsedTime(cached.Started) < Ttl) return (cached.Version, true);
-        var gate = Gates.GetOrAdd(recipe.Id, _ => new SemaphoreSlim(1, 1));
+        var key = (_cacheTransport, recipe.Id);
+        if (!force && Cache.TryGetValue(key, out var cached) &&
+            ReferenceEquals(cached.Clock, _clock) && _clock.GetElapsedTime(cached.Started) < Ttl) return (cached.Version, true, cached.ObservedAt);
+        var gate = Gates.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(token);
         try
         {
-            if (!force && Cache.TryGetValue(recipe.Id, out cached) &&
-                ReferenceEquals(cached.Clock, _clock) && _clock.GetElapsedTime(cached.Started) < Ttl) return (cached.Version, true);
+            if (!force && Cache.TryGetValue(key, out cached) &&
+                ReferenceEquals(cached.Clock, _clock) && _clock.GetElapsedTime(cached.Started) < Ttl) return (cached.Version, true, cached.ObservedAt);
             bool github = recipe.Endpoint.StartsWith("https://api.github.com/", StringComparison.Ordinal);
             if (github) await GithubConcurrency.WaitAsync(token);
             try
             {
                 var value = await FetchVersionAsync(recipe, token);
                 token.ThrowIfCancellationRequested();
-                Cache[recipe.Id] = new CachedVersion(value, _clock, _clock.GetTimestamp());
-                return (value, false);
+                Cache[key] = new CachedVersion(value, _clock, _clock.GetTimestamp(), _clock.GetUtcNow());
+                return (value, false, Cache[key].ObservedAt);
             }
             finally { if (github) GithubConcurrency.Release(); }
         }
@@ -314,7 +375,7 @@ internal sealed class OfficialReleaseSources : IDisposable
                 tag = NormalizeOfficialVersionTag(recipe.Id, property.GetString() ?? "");
             }
         }
-        if (!Regex.IsMatch(tag, @"^\d{1,4}(?:\.\d{1,6}){1,3}$"))
+        if (!Regex.IsMatch(tag, recipe.Id == "fancontrol" ? @"^\d{1,4}$" : @"^\d{1,4}(?:\.\d{1,6}){1,3}$"))
             throw new InvalidDataException("Versão não estável ou não comparável.");
         return tag;
     }
@@ -404,8 +465,22 @@ internal sealed class OfficialReleaseSources : IDisposable
 
 internal static class MultiSourceMatcher
 {
-    // Uma fonte oficial só sobrepõe a comparação geral se nome, editor e
-    // versão forem comparáveis. Uma única linha instalada gera no máximo um candidato.
+    private static bool Conflicting(string a, string b) =>
+        a != "unknown" && b != "unknown" && !a.Equals(b, StringComparison.OrdinalIgnoreCase);
+
+    private static bool Compatible(InstalledApp app, OfficialRelease release)
+    {
+        string? canonical = ApplicationIdentityCatalog.Resolve(app.Name, app.Publisher)?.Id;
+        return (release.CanonicalId.Length == 0 || release.CanonicalId == canonical) &&
+            !Conflicting(app.Architecture, release.Architecture) &&
+            !Conflicting(app.Channel, release.Channel) &&
+            !Conflicting(app.Scope, release.Scope) &&
+            !Conflicting(app.InstallType, release.InstallType);
+    }
+
+    private static int Rank(OfficialRelease release) => release.EvidenceKind switch
+    { "community-index" => 1, "desktop-changelog" => 2, _ => 3 };
+
     internal static IReadOnlyList<UpdateMatch> Merge(
         IReadOnlyList<InstalledApp> installed,
         IReadOnlyList<UpdateMatch>? ruckzuck,
@@ -413,17 +488,16 @@ internal static class MultiSourceMatcher
     {
         if (ruckzuck is not null && ruckzuck.Count != installed.Count)
             throw new InvalidDataException("Quantidade divergente entre instalada e resultado do catálogo.");
-        var byApp = new Dictionary<InstalledApp, OfficialRelease>(ReferenceEqualityComparer.Instance);
+        // Referência da sessão preserva instalações iguais, por usuário/arquitetura/edição.
+        var snapshots = new HashSet<InstalledApp>(installed, ReferenceEqualityComparer.Instance);
+        var byApp = new Dictionary<InstalledApp, List<OfficialRelease>>(ReferenceEqualityComparer.Instance);
         foreach (var release in official)
         {
-            if (!release.Installed.EligibleForUpdates || !installed.Any(x => ReferenceEquals(x, release.Installed))) continue;
+            if (!release.Installed.EligibleForUpdates || !snapshots.Contains(release.Installed)) continue;
             if (Matching.CompareVersions("0.0", release.LatestVersion) is null) continue;
-            if (byApp.TryGetValue(release.Installed, out var current))
-            {
-                if (Matching.CompareVersions(current.LatestVersion, release.LatestVersion) is < 0)
-                    byApp[release.Installed] = release;
-            }
-            else byApp[release.Installed] = release;
+            if (!byApp.TryGetValue(release.Installed, out var rows))
+                byApp[release.Installed] = rows = [];
+            rows.Add(release);
         }
         var result = new UpdateMatch[installed.Count];
         for (int i = 0; i < installed.Count; i++)
@@ -436,29 +510,51 @@ internal static class MultiSourceMatcher
                 result[i] = new UpdateMatch(app, null, MatchState.Unmatched);
                 continue;
             }
-            var original = ruckzuck is null ?
-                new UpdateMatch(app, null, MatchState.Unmatched) : ruckzuck[i];
-            if (!byApp.TryGetValue(app, out var release))
+            var original = ruckzuck is null ? new UpdateMatch(app, null, MatchState.Unmatched) : ruckzuck[i];
+            var all = byApp.GetValueOrDefault(app) ?? [];
+            var compatible = all.Where(r => Compatible(app, r))
+                .OrderByDescending(Rank).ThenBy(r => r.SourceId, StringComparer.Ordinal)
+                .ThenBy(r => r.Provider, StringComparer.Ordinal)
+                .ThenBy(r => r.OfficialPage, StringComparer.Ordinal).ToArray();
+            OfficialRelease? chosen = null;
+            foreach (var release in compatible)
+                if (chosen is null || (Rank(release) == Rank(chosen) &&
+                    Matching.CompareVersions(chosen.LatestVersion, release.LatestVersion) is < 0))
+                    chosen = release;
+            string canonical = ApplicationIdentityCatalog.Resolve(app.Name, app.Publisher)?.Id ?? "";
+            var evidence = all.Select(r => new UpdateObservation(r.CanonicalId, r.SourceId,
+                r.Provider, r.LatestVersion, r.OfficialPage, r.ObservedAt,
+                r.Architecture, r.Channel, r.Scope, r.InstallType,
+                Compatible(app, r) ? r.EvidenceKind : "incompatible-identity-or-context")).ToList();
+            if (original.Catalog is { } rz)
+                evidence.Add(new(canonical, rz.ShortName, original.Provider, rz.ProductVersion,
+                    "", default, EvidenceKind: "catalog-version"));
+            evidence = evidence.Distinct().OrderBy(e => e.SourceId, StringComparer.Ordinal)
+                .ThenBy(e => e.Provider, StringComparer.Ordinal).ThenBy(e => e.Version, StringComparer.Ordinal).ToList();
+            var usableVersions = compatible.Select(r => r.LatestVersion).ToList();
+            if (original.Catalog is { } catalog) usableVersions.Add(catalog.ProductVersion);
+            bool conflict = usableVersions.Count > 1 && usableVersions.Skip(1)
+                .Any(v => Matching.CompareVersions(usableVersions[0], v) is not 0);
+            bool review = conflict || all.Count != compatible.Length;
+            var merged = original;
+            if (chosen is not null && original.State != MatchState.SupersededRegistration)
             {
-                result[i] = original;
-                continue;
+                int? delta = Matching.CompareVersions(app.Version, chosen.LatestVersion);
+                if (delta is not null)
+                {
+                    // Migração de servidor exige decisão própria; changelog nunca prova instalador Windows.
+                    bool majorChange = canonical == "jellyfin-server" &&
+                        app.Version.Split('.')[0] != chosen.LatestVersion.Split('.')[0];
+                    var state = delta >= 0 ? MatchState.EqualOrNewer :
+                        majorChange ? MatchState.DifferentMajor : MatchState.Candidate;
+                    review |= majorChange;
+                    merged = new UpdateMatch(app, delta >= 0 ? null :
+                        new CatalogEntry(app.Name, app.Name, chosen.LatestVersion, app.Publisher),
+                        state, chosen.Provider);
+                }
             }
-            int? delta = Matching.CompareVersions(app.Version, release.LatestVersion);
-            if (delta is null) { result[i] = original; continue; }
-            // Registros antigos do Visual C++ têm precedência sobre candidatos,
-            // mesmo que outras fontes venham a incluí-los.
-            if (original.State == MatchState.SupersededRegistration)
-            {
-                result[i] = original;
-                continue;
-            }
-            if (delta >= 0)
-            {
-                result[i] = new UpdateMatch(app, null, MatchState.EqualOrNewer, release.Provider);
-                continue;
-            }
-            var catalog = new CatalogEntry(app.Name, app.Name, release.LatestVersion, app.Publisher);
-            result[i] = new UpdateMatch(app, catalog, MatchState.Candidate, release.Provider);
+            result[i] = merged with { Observations = evidence.ToArray(), HasSourceConflict = conflict,
+                RequiresReview = review };
         }
         return result;
     }

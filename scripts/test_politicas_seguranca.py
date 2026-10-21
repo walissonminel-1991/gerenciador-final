@@ -166,6 +166,22 @@ class PoliticasDeSeguranca(unittest.TestCase):
             "Inventario de codigo incompleto: a auditoria nao deve aceitar arvore vazia")
         print(f"Auditoria estatica: {len(scanned)} arquivos-fonte examinados.")
 
+    def test_winget_sem_executor_e_sem_fallback_em_producao(self):
+        adapter = read("WingetConsultativeProvider.cs")
+        context = read("WingetContextInspection.cs")
+        query = read("OfficialReleaseSources.cs")
+        main = read("Program.cs")
+        for code in (adapter, context, query):
+            for forbidden in ("Process.Start(", "ProcessStartInfo", "CoCreateInstance", "GetTypeFromCLSID",
+                              "Assembly.Load", "ExecutionPolicy", 'Verb = "runas"', "InstallPackageAsync"):
+                self.assertNotIn(forbidden, code)
+        self.assertNotIn("ForSimulation(", main)
+        self.assertNotIn(".TryOptIn(", main)
+        self.assertNotIn("Microsoft.Management.Deployment", read("GerenciadorAplicativos.csproj"))
+        self.assertIn("backend is null", adapter)
+        self.assertIn("origin != WingetQueryOrigin.ExplicitLabTest", adapter)
+        self.assertNotRegex(read("Criar-Instalador-Windows-x64.bat"), r"(?im)^\s*winget\s")
+
     def test_instaladores_exigem_sha_fixado_e_assinatura(self):
         source = read("VerifiedUpdaters.cs")
         self.assertIn("approved.Sha256 is { Length: 64 }", source)

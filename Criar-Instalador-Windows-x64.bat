@@ -44,21 +44,9 @@ if errorlevel 1 goto sdk_missing
 goto publish
 
 :sdk_missing
-echo.
-echo O SDK .NET 10 e necessario SOMENTE para criar o instalador.
-echo Nao sera instalado nos computadores dos usuarios finais.
-where winget.exe >nul 2>&1
-if errorlevel 1 goto no_winget
-echo.
-choice /C SN /N /M "Deseja instalar o SDK .NET 10 neste computador de compilacao? [S/N] "
-if errorlevel 2 goto no_sdk
-winget install --id Microsoft.DotNet.SDK.10 --exact --source winget --accept-source-agreements --accept-package-agreements
-if errorlevel 1 goto sdk_install_failed
-call :find_dotnet
-if not defined DOTNET_EXE goto sdk_install_failed
-"%DOTNET_EXE%" --list-sdks 2>nul | findstr /B /C:"10.0." >nul
-if errorlevel 1 goto sdk_install_failed
-goto publish
+echo SDK .NET 10 ausente na maquina de compilacao. Nenhuma dependencia sera instalada.
+echo Prepare o ambiente de desenvolvimento com o SDK oficial antes de compilar.
+goto no_sdk
 
 :find_dotnet
 set "DOTNET_EXE="
@@ -85,17 +73,8 @@ call :find_iscc
 if defined ISCC_EXE goto compile
 
 echo.
-echo Inno Setup nao foi encontrado. Ele so e necessario na maquina de compilacao.
-where winget.exe >nul 2>&1
-if errorlevel 1 goto no_inno
-echo.
-choice /C SN /N /M "Deseja instalar Inno Setup na maquina de compilacao? [S/N] "
-if errorlevel 2 goto no_inno
-winget install --id JRSoftware.InnoSetup --exact --source winget --accept-source-agreements --accept-package-agreements
-if errorlevel 1 goto inno_install_failed
-call :find_iscc
-if not defined ISCC_EXE goto inno_install_failed
-goto compile
+echo Inno Setup nao foi encontrado. Prepare manualmente o ambiente de compilacao.
+goto no_inno
 
 :find_iscc
 set "ISCC_EXE="

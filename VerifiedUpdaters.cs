@@ -144,6 +144,11 @@ internal static class VerifiedUpdaters
     internal static string? GetOfficialPage(ProgramEntry entry)
     {
         if (!entry.IsUpdate) return null;
+        if (entry.Name == "EA app") return "https://www.ea.com/ea-app";
+        if (entry.Name == "FanControl") return "https://getfancontrol.com/";
+        if (entry.Name == "Jellyfin Server") return "https://jellyfin.org/downloads/windows/";
+        if (entry.Name.StartsWith("K-Lite Mega Codec Pack", StringComparison.OrdinalIgnoreCase))
+            return "https://codecguide.com/download_k-lite_codec_pack_mega.htm";
         if (entry.Name.StartsWith("Adobe Acrobat", StringComparison.OrdinalIgnoreCase))
             return "https://helpx.adobe.com/br/acrobat/desktop/get-set-up/access-the-app/update-manual.html";
         if (entry.Name.Equals("Plex", StringComparison.OrdinalIgnoreCase) ||
@@ -190,7 +195,7 @@ internal static class VerifiedUpdaters
 
     internal static VerifiedUpdateRecipe? Resolve(ProgramEntry entry)
     {
-        if (!entry.IsUpdate || string.IsNullOrWhiteSpace(entry.AvailableVersion)) return null;
+        if (entry.UpdateRequiresReview || !entry.IsUpdate || string.IsNullOrWhiteSpace(entry.AvailableVersion)) return null;
 
         if (entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase) &&
             entry.Publisher.Trim().Equals("Microsoft Corporation", StringComparison.OrdinalIgnoreCase) &&
@@ -361,6 +366,8 @@ internal static class VerifiedUpdaters
     internal static string? GetPrimaryAction(ProgramEntry entry)
     {
         if (!entry.IsUpdate) return null;
+        if (entry.UpdateRequiresReview)
+            return GetMicrosoftStoreUri(entry) is not null ? "store" : GetOfficialPage(entry) is not null ? "site" : "guide";
         if (WindowsTerminalUpdater.Resolve(entry) is not null) return "terminal";
         if (GetMicrosoftStoreUri(entry) is not null) return "store";
         if (Resolve(entry) is { } recipe && IsApprovedRecipe(recipe)) return "update";

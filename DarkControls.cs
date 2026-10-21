@@ -379,7 +379,7 @@ internal sealed class DarkProgramList : Control
             string text = index >= 0 && index < _items.Count
                 ? _items[index].Name + "\nVersão atual: " + _items[index].Version +
                   "\nDisponível: " + _items[index].AvailableVersion +
-                  "\nFonte: " + _items[index].Source
+                  "\nFonte: " + _items[index].Source + "\n" + _items[index].UpdateEvidence
                 : "";
             _itemTips.SetToolTip(this, text);
         }

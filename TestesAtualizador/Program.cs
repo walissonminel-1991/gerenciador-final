@@ -28,6 +28,14 @@ Verify(VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable 
  "12.0.30501.0", "12.0.40665.0")) is null, "Recusar versao sem receita");
 Verify(VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64)",
  "12.0.40664.0", "12.0.40664.0")) is null, "Recusar pacote atualizado");
+var reviewObs = new ProgramEntry { Name = "OBS Studio", Version = "31.1.2", AvailableVersion = "32.2.2",
+    Publisher = "OBS Project", Source = "GitHub oficial", IsUpdate = true, UpdateRequiresReview = true };
+Verify(VerifiedUpdaters.Resolve(reviewObs) is null && VerifiedUpdaters.GetPrimaryAction(reviewObs) == "site",
+    "Divergência preserva site oficial e bloqueia receita EXE mesmo com versão autorizada");
+var reviewTerminal = new ProgramEntry { Name = "Windows Terminal", Version = "1.24.0.0", AvailableVersion = "1.25.2733.0",
+    Publisher = "Microsoft Corporation", Source = "GitHub oficial", IsUpdate = true, InventoryOnly = true, UpdateRequiresReview = true };
+Verify(WindowsTerminalUpdater.Resolve(reviewTerminal) is null && VerifiedUpdaters.GetPrimaryAction(reviewTerminal) == "store",
+    "Divergência bloqueia instalador MSIX direto e conserva rota oficial Store");
 var obs = VerifiedUpdaters.Resolve(Item("OBS Studio", "31.1.2", "32.2.2", "OBS Project"));
 Verify(obs?.Identifier == "obs-x64-32.2.2" && obs.Sha256?.Length == 64 && obs.Interactive,
  "OBS instalador oficial e SHA-256 fixo");
@@ -353,6 +361,7 @@ namespace GerenciadorAplicativos
         public string AvailableVersion { get; init; } = "";
         public string Source { get; set; } = "";
         public bool IsUpdate { get; init; }
+        public bool UpdateRequiresReview { get; init; }
         public bool InventoryOnly { get; init; }
         public string InstallLocation { get; set; } = "";
         public string UninstallString { get; init; } = "";

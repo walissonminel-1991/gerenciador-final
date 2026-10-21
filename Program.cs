@@ -89,6 +89,8 @@ internal sealed class ProgramEntry
     public string AvailableVersion { get; set; } = "";
     public string Source { get; set; } = "";
     public bool IsUpdate { get; set; }
+    public bool UpdateRequiresReview { get; set; }
+    public string UpdateEvidence { get; set; } = "";
     public MatchState ComparisonState { get; set; } = MatchState.Unmatched;
 }
 
@@ -1162,7 +1164,9 @@ internal sealed partial class MainForm : Form
             new Rectangle(left, e.Bounds.Top + 5, width, 29), selected ? Accent : Ink,
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
         bool checkStore = item.IsUpdate && VerifiedUpdaters.GetPrimaryAction(item) == "store";
-        string details = item.IsUpdate && checkStore
+        string details = item.UpdateRequiresReview
+            ? "Revisar fontes e compatibilidade · detalhes ao apontar o mouse"
+            : item.IsUpdate && checkStore
             ? $"Versão em catálogo ({item.Source}); confira na Store · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
             : item.IsUpdate
             ? $"Possível atualização ({item.Source})  ·  {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
@@ -1618,11 +1622,12 @@ internal sealed partial class MainForm : Form
                     ("largura", bounds.Width), ("altura", bounds.Height),
                     ("dpi", DeviceDpi), ("logicos", Environment.ProcessorCount));
                 Log("Coleta detalhada de testes ativa apenas nesta sessão, somente contagens locais.");
+                _ = InspectWingetContextForTestAsync();
             }
             else Log("Coleta detalhada de testes desativada.");
         };
         _toolTips.SetToolTip(testMode, "Escolha o PC para comparar testes. Nada é enviado; " +
-            "sem caminhos, nomes de programas ou IDs de dispositivos. Volta ao padrão ao fechar.");
+            "sem caminhos, nomes de programas ou IDs. Inspeciona presença do App Installer/alias/PATH sem executar WinGet. Volta ao padrão ao fechar.");
         modePanel.Controls.Add(testMode, 1, 0);
         previewRow.Controls.Add(modePanel, 2, 0);
         root.Controls.Add(previewRow, 0, 1);
@@ -1980,27 +1985,49 @@ internal sealed partial class MainForm : Form
         // Entradas somente leitura (jogos e MSIX nao verificados) nao
         // recebem candidatos nem receitas automáticas de atualização.
         var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher,
-            !x.InventoryOnly || x.VerifiedMsixIdentity)).ToArray();
+            !x.InventoryOnly || x.VerifiedMsixIdentity,
+            Architecture: Regex.IsMatch(x.Name, @"(?i)\bARM64\b") ? "arm64" :
+                Regex.IsMatch(x.Name, @"(?i)\b(x64|64-bit)\b") ? "x64" :
+                Regex.IsMatch(x.Name, @"(?i)\b(x86|32-bit)\b") ? "x86" : "unknown",
+            Scope: x.InventoryId.StartsWith("CurrentUser|", StringComparison.Ordinal) ? "user" :
+                x.InventoryId.StartsWith("LocalMachine|", StringComparison.Ordinal) ? "machine" : "unknown",
+            InstallType: x.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) ? "msix" : "unknown")).ToArray();
         using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.Updates);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
         var watch = Stopwatch.StartNew();
         _consultaCatalogoCts = cancellation;
+        int totalSources = Math.Max(1, OfficialReleaseSources.ApplicableSourceCount(installed) + 1);
         if (!_busy)
         {
             // Consulta somente leitura: duração incerta, indicar atividade sem inventar percentual.
-            _progress.Style = ProgressBarStyle.Marquee;
-            _progress.MarqueeAnimationSpeed = 28;
+            _progress.Style = ProgressBarStyle.Blocks;
+            _progress.Maximum = totalSources;
+            _progress.Value = 0;
             _progress.Visible = true;
-            Status("Verificando fontes oficiais de atualizações…");
+            Status("Consultando fontes de versões…");
         }
         RenderTitle();
         if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar consulta";
         DiagnosticTrace.Write("MULTIFONTES.CONSULTA_INICIO fontes=ruckzuck,github,mozilla");
-        Log("Consultando fontes oficiais por HTTPS em paralelo: RuckZuck, GitHub Releases e Mozilla.");
+        Log("Consultando fontes de versões por HTTPS: RuckZuck, fabricantes e índices comunitários.");
+        Log(WingetConsultativeProvider.ProductionStatus);
         try
         {
             using var primary = new RuckZuckCatalog();
             using var official = new OfficialReleaseSources();
+            int completedSources = 0;
+            var sourceProgress = new Progress<ProviderDiagnostic>(diagnostic =>
+            {
+                if (IsDisposed || generation != _catalogoGeneration ||
+                    !ReferenceEquals(_consultaCatalogoCts, cancellation) || cancellation.IsCancellationRequested) return;
+                completedSources++;
+                if (!_busy)
+                {
+                    _progress.Maximum = totalSources;
+                    _progress.Value = Math.Min(completedSources, totalSources);
+                    Status($"Fontes concluídas: {completedSources}/{totalSources} · {diagnostic.Provider}: {diagnostic.Status}");
+                }
+            });
             async Task<(IReadOnlyList<UpdateMatch>? Matches, int Count, bool Cached, long NetworkMs,
                 long CompareMs, string Error)> ReadRuckZuckAsync()
             {
@@ -2021,9 +2048,10 @@ internal sealed partial class MainForm : Form
                 {
                     return (null, 0, false, timer.ElapsedMilliseconds, 0, ex.GetType().Name);
                 }
+                finally { ((IProgress<ProviderDiagnostic>)sourceProgress).Report(new("ruckzuck", "concluida", timer.ElapsedMilliseconds)); }
             }
             var ruckTask = ReadRuckZuckAsync();
-            var officialTask = official.QueryAsync(installed, cancellation.Token, forceRefresh);
+            var officialTask = official.QueryAsync(installed, cancellation.Token, forceRefresh, sourceProgress);
             await Task.WhenAll(ruckTask, officialTask);
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
@@ -2042,6 +2070,19 @@ internal sealed partial class MainForm : Form
                 return;
             }
             AplicarCandidatos(merged);
+            foreach (var (sourceId, sourceCode) in new[] { ("ea-desktop", 1), ("fancontrol", 2),
+                ("jellyfin-server", 3), ("klite-mega", 4), ("gameinput-winget", 5), ("plex", 6),
+                ("proton-pass-desktop", 7), ("proton-pass-winget", 8) })
+            {
+                // IDs internos fixos e contagens; nenhum nome/editor do inventário no diagnóstico.
+                var ruleId = sourceId == "proton-pass-winget" ? "proton-pass-desktop" : sourceId;
+                var indices = Enumerable.Range(0, installed.Length).Where(i =>
+                    ApplicationIdentityCatalog.Resolve(installed[i].Name, installed[i].Publisher)?.Id == ruleId).ToArray();
+                if (indices.Length == 0)
+                    TestDiagnosticDetail.Record("COBERTURA_ATUALIZACAO", ("fonte", sourceCode), ("etapa", 0), ("quantidade", 0));
+                foreach (var stages in indices.GroupBy(i => OfficialReleaseSources.CoverageStage(installed[i], sourceId, others, merged[i])))
+                    TestDiagnosticDetail.Record("COBERTURA_ATUALIZACAO", ("fonte", sourceCode), ("etapa", stages.Key), ("quantidade", stages.Count()));
+            }
             foreach (var group in merged.GroupBy(m => m.DiagnosticReason))
             {
                 DiagnosticTrace.Write($"MULTIFONTES.COBERTURA motivo={group.Key} quantidade={group.Count()}");
@@ -2073,7 +2114,10 @@ internal sealed partial class MainForm : Form
                 $"incertos={uncertain} ruckzuck_entradas={rz.Count} " +
                 $"ruckzuck_ms={rz.NetworkMs} comparacao_ms={rz.CompareMs} total_ms={watch.ElapsedMilliseconds}");
             Log("Instalação automática permanece limitada a instaladores oficiais com receitas verificadas.");
-            Status($"Consulta concluída: {candidates} possíveis atualizações · múltiplas fontes");
+            int sourceFailures = others.Diagnostics.Count(x => x.Status != "ok") + (rz.Matches is null ? 1 : 0);
+            int conflicts = merged.Count(m => m.HasSourceConflict);
+            if (conflicts > 0) Log($"Fontes divergentes: {conflicts} resultado(s); instalação direta bloqueada, detalhes na dica da linha.");
+            Status($"Consulta {(sourceFailures > 0 ? "parcial" : "concluída")}: {candidates} possíveis atualizações · {sourceFailures} fonte(s) indisponível(is)");
         }
         catch (OperationCanceledException)
         {
@@ -2101,6 +2145,7 @@ internal sealed partial class MainForm : Form
                     _progress.MarqueeAnimationSpeed = 0;
                     _progress.Style = ProgressBarStyle.Blocks;
                     _progress.Value = 0;
+                    _progress.Maximum = 100;
                     _progress.Visible = false;
                 }
                 RenderTitle();
@@ -2149,6 +2194,8 @@ internal sealed partial class MainForm : Form
             var item = _installed[i];
             var match = matches[i];
             item.ComparisonState = match.State;
+            item.UpdateRequiresReview = match.RequiresReview;
+            item.UpdateEvidence = match.EvidenceLabel + "\n" + match.EvidenceDetails;
             item.IsUpdate = match.State == MatchState.Candidate && match.Catalog is not null;
             item.AvailableVersion = match.Catalog?.ProductVersion ?? "";
             item.PackageId = ""; // Identificador de catálogo NÃO autoriza instalação.
@@ -2165,6 +2212,8 @@ internal sealed partial class MainForm : Form
         foreach (var entry in _installed)
         {
             entry.IsUpdate = false;
+            entry.UpdateRequiresReview = false;
+            entry.UpdateEvidence = "";
             entry.ComparisonState = MatchState.Unmatched;
             entry.AvailableVersion = "";
             entry.PackageId = "";
@@ -3320,3 +3369,4 @@ internal static class NativeMethods
     [DllImport("dwmapi.dll", PreserveSig = true)]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int valueSize);
 }
+

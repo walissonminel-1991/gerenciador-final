@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.32 TESTE",
+  "version": "5.13.11.33 TESTE",
   "date": "2026-10-21",
-  "code_commit": "ea8530d42b2c31e8aa45c44e96d00b2947359f44",
-  "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39680829530",
+  "code_commit": null,
+  "ci_status": "pending",
+  "ci_url": null,
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -299,10 +299,10 @@
     }
   ],
   "latest_real_test": {
-    "version": "5.13.11.30 TESTE",
-    "environment": "PC FORTE, Windows x64, 2560x1440, DPI 120",
-    "status": "Somente leitura; inventário estável; resíduos parciais; sem operações de manutenção",
-    "observations": "174 entradas/27 MSIX; 177 associações/63 INFs; 44 grupos/161 locais preservados; 8 fontes ok e 3 candidatos; encerramento normal"
+    "version": "5.13.11.32 TESTE",
+    "environment": "PC FORTE, Windows x64, 2560x1440",
+    "status": "Validação presencial registrada; sem teste físico .33",
+    "observations": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42."
   },
   "latest_real_test_pc_fraco": {
     "version": "5.13.11.24 TESTE",
@@ -338,9 +338,13 @@
       "native_store_partial": true
     }
   },
-  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668933034",
-  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668933046",
-  "artifact": {
+  "build_url": null,
+  "policy_url": null,
+  "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
+  "test_diagnostics": "Auditoria local de limpezas com categorias fixas e apenas contagens numericas/codigo de retorno. CI Windows x64, regressao e politicas aprovadas; teste fisico .32 pendente. 26/42.",
+  "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
+  "winget_pc_forte_32": "WinGet (somente leitura): 9 atualizações na sessão administrativa, comando indisponível em terminal não elevado; GF: 3; diferença=6. Proton: changelog oficial 1.43.0 de 21/10, manifesto WinGet 1.42.0. Lixeira ainda possui dois itens da build .32 após erro 0x8000FFFF. Sem instalação/exclusão adicional. U6 não encerrado.",
+  "previous_validated_artifact": {
     "id": 12379295504,
     "name": "GerenciadorFinal-v5.13.11.31-8656bb1e-TESTE-win-x64",
     "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668933034/artifacts/12379295504",
@@ -352,8 +356,22 @@
     "merge_sha": "8656bb1edc3103e4df33dd2fe210456f13e6b219",
     "authenticode_signed": false
   },
-  "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
-  "test_diagnostics": "Auditoria local de limpezas com categorias fixas e apenas contagens numericas/codigo de retorno. CI Windows x64, regressao e politicas aprovadas; teste fisico .32 pendente. 26/42.",
-  "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
-  "winget_pc_forte_32": "WinGet (somente leitura): 9 atualizações na sessão administrativa, comando indisponível em terminal não elevado; GF: 3; diferença=6. Proton: changelog oficial 1.43.0 de 21/10, manifesto WinGet 1.42.0. Lixeira ainda possui dois itens da build .32 após erro 0x8000FFFF. Sem instalação/exclusão adicional. U6 não encerrado."
+  "artifact": null,
+  "mission_work5": {
+    "status": "Implementação e verificações locais; CI Windows pendente",
+    "winget_real_enabled": false,
+    "winget_backend_shipped": false,
+    "administrative_helper_added": false,
+    "new_fixed_products": [
+      "ea-desktop",
+      "fancontrol",
+      "jellyfin-server",
+      "klite-mega",
+      "plex"
+    ],
+    "proton_reconciliation": "Changelog desktop e índice comunitário separados; divergência bloqueia instalador direto",
+    "completed_checkpoints": [],
+    "field_validation": "PC FORTE primeiro; PC FRACO depois; AVG real pendente",
+    "report": "docs/MISSAO-WORK5.md"
+  }
 }

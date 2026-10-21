@@ -7,6 +7,8 @@ internal static class TestDiagnosticDetail
 {
     private static readonly Dictionary<string, string[]> Fields = new(StringComparer.Ordinal)
     {
+        ["WINGET_CONTEXTO"] = ["pacote", "alias", "path", "elevado", "parcial"],
+        ["COBERTURA_ATUALIZACAO"] = ["fonte", "etapa", "quantidade"],
         ["AMBIENTE"] = ["largura", "altura", "dpi", "logicos"],
         ["INVENTARIO"] = ["total", "sem_nome", "sem_editor", "sem_versao", "desinstalaveis", "so_inventario", "sem_desinstalacao", "sem_desinstalacao_fora_flag", "parcial"],
         ["MSIX"] = ["observados", "retidos", "falhas", "parcial"],
