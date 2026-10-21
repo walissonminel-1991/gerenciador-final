@@ -1,5 +1,21 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## PC fraco 21/10/2026 — v5.13.11.22 TESTE
+
+A v5.13.11.21 restaurou a cobertura MSIX no PC fraco **sem usar retry**:
+123 pacotes lidos, 19 apps MSIX adicionados, 74 entradas totais,
+nenhuma falha. O inventário completo não aparecia ao pesquisar `MSIX`
+porque as linhas sem ação são intencionalmente ocultadas pelo filtro
+padrão, e a captura usava `Possíveis`. A v5.13.11.22 acrescenta um
+filtro `Inventário` exclusivamente visual, com linhas somente leitura,
+sem autorizar qualquer operação nesses pacotes. A descoberta de resíduos
+continua parcial por limites e fontes indisponíveis; manter congelada a
+exclusão e validar interface/AVG no PC fraco antes de aprofundar
+diferenciação de resíduos.
+[Relatório agregado da bateria](TESTE-PC-FRACO-2026-10-21-v5.13.11.21.md).
+Roadmap funcional: **26/42**.
+
+
 ## PC fraco 21/10/2026 — terceira bateria, v5.13.11.21 TESTE
 
 Os filtros da v5.13.11.20 foram confirmados no hardware real: `ProgramData`, `AppData` e Registro apresentam apenas suas evidências, incluindo interseções vazias. A investigação permaneceu somente leitura e incompleta por limites e duas fontes inacessíveis. O log revelou falha independente e crítica para a cobertura, `MSIX.LEITURA COMException(0x80040154)`, reduzindo o inventário de 74 para 55 entradas (19 MSIX não lidas), sem comprovar qualquer desinstalação. A v5.13.11.21 permite uma nova tentativa controlada e exibe inventário **PARCIAL** persistente se falhar. [Terceira bateria agregada](TESTE-PC-FRACO-2026-10-21-v5.13.11.20.md). Próximo teste: confirmar recuperação ou aviso de parcialidade no PC fraco e recolher somente diagnóstico local. Roadmap funcional continua **26/42**; não alterar drivers, remover resíduos nem instalar pacotes nesta bateria.
