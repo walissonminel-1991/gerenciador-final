@@ -46,6 +46,28 @@ internal static class ResidualProgressiveTests
         var empty = new ResidualResultIndex(new ResidualReportSet([], coverage));
         check(empty.Query().Coverage.Incomplete && empty.Query().Matching == 0 && empty.Query().Coverage.SourcesUnavailable!.Count == 1,
             "Paginação vazia preserva fonte inacessível e parcialidade da descoberta");
+        // Integradores legados podem entregar Incomplete=true com Coverage
+        // sem flags; a UI nao deve esconder a parcialidade em uma página vazia.
+        var incompleteLegacy = new ResidualResultIndex(new[]
+        {
+            new ResidualAuditReport("Programa de teste", false, [], [],
+                Incomplete: true)
+        });
+        check(incompleteLegacy.Query().Coverage.Incomplete &&
+            incompleteLegacy.Query().Coverage.Issues.HasFlag(ResidualScanIssue.InventoryPartial) &&
+            incompleteLegacy.Query().Coverage.CandidatesNotEvaluated is null,
+            "Relatorio parcialmente classificado nunca aparece como busca concluida");
+        var mutableSources = new List<string> { "AppData" };
+        var mutableUnavailable = new List<string> { "Registry" };
+        var originalCoverage = new ResidualCoverage(
+            ResidualScanIssue.SourceUnavailable,
+            SourcesConsulted: mutableSources, SourcesUnavailable: mutableUnavailable);
+        var immutablePage = new ResidualResultIndex(
+            new ResidualReportSet([], originalCoverage));
+        mutableSources.Clear(); mutableUnavailable.Clear();
+        check(immutablePage.Query().Coverage.SourcesConsulted!.SequenceEqual(new[] { "AppData" }) &&
+            immutablePage.Query().Coverage.SourcesUnavailable!.SequenceEqual(new[] { "Registry" }),
+            "Fotografia de cobertura nao muda apos mutacao das listas da origem");
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         bool stopped = false;
         try { snapshot.Query(cancellationToken: cancelled.Token); } catch (OperationCanceledException) { stopped = true; }
