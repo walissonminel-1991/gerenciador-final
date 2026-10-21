@@ -11,6 +11,21 @@ static void Check(bool ok, string why)
 {
     if (!ok) throw new Exception("Seguranca: " + why);
 }
+Check(SafeMaintenanceAudit.Begin("clean-user-temp") == "LIMPEZA.INICIO tipo=temporarios_usuario",
+    "inicio de limpeza deve usar tipo fixo");
+Check(SafeMaintenanceAudit.LocalResult("clean-user-temp", 47, 0, 17, 0, 0) ==
+    "LIMPEZA.RESUMO tipo=temporarios_usuario arquivos=47 pastas=0 preservados=17 links=0 falhas=0",
+    "resumo persistente apenas com numeros e categoria fixa");
+Check(SafeMaintenanceAudit.ElevatedExit("cleanmgr-auto", "0") ==
+    "LIMPEZA.PROCESSO_RESULTADO tipo=limpeza_disco_windows codigo=0",
+    "codigo do processo sem inferir bytes recuperados");
+Check(SafeMaintenanceAudit.Begin("C:\\Users\\Privado") is null &&
+    SafeMaintenanceAudit.LocalResult("C:\\Users\\Privado", 1, 0, 0, 0, 0) is null &&
+    SafeMaintenanceAudit.LocalResult("clean-user-temp", -1, 0, 0, 0, 0) is null &&
+    SafeMaintenanceAudit.ElevatedExit("cleanmgr-auto", "0|token") is null &&
+    SafeMaintenanceAudit.ElevatedExit("instalar-driver", "0") is null,
+    "auditoria rejeita caminho arbitrario, numeros invalidos, token e acao estranha");
+Console.WriteLine("OK: auditoria de limpeza aceita somente operacoes e contagens seguras.");
 
 Check(SecurityCenterHealth.Interpret("Antivirus", 0, 0).Level == SecurityHealthLevel.Ok,
     "protecao ativa");

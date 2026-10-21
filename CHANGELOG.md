@@ -1,5 +1,18 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.32 — auditoria local estruturada de limpeza (TESTE; CI pendente)
+
+Na segunda bateria presencial da .31, capturas mostraram limpeza real de 47 arquivos/pastas,
+17 itens preservados, zero falhas, seguida de cleanmgr do Windows com código 0.
+Os eventos só estavam visíveis no painel e não no arquivo de diagnóstico.
+A nova versão grava exclusivamente categoria fixa de ação, início, cancelamento,
+resumo agregado de temporários e código de saída das limpezas elevadas.
+Não grava conteúdo do pipe, nomes de arquivos, caminhos, mensagens de exceção
+ou detalhes de usuário; código 0 não significa quantidade de bytes liberados.
+O mecanismo de remoção não foi alterado. Testes de campos inválidos incluídos.
+O roadmap permanece 26/42.
+
+
 ## v5.13.11.31 — MISSÃO WORK 4 (TESTE; CI aprovada)
 
 - MSIX conserva apenas em memória a última leitura completa da sessão quando uma fonte falha; itens retidos têm presença não confirmada e não recebem receitas. Recuperação completa substitui a fotografia; não corrige por suposição a causa de 0x80040154.

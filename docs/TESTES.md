@@ -1,4 +1,25 @@
-# Roteiro de testes — v5.13.11.31 TESTE
+# Roteiro de testes — v5.13.11.32 TESTE
+
+## Resultados da segunda bateria PC FORTE (.31) e objetivo da .32
+
+A .31 confirmou 174 programas, 27 MSIX, 3 possíveis atualizações,
+178 associações WMI, 63/63 INFs consultados no Driver Store,
+45 grupos e 164 locais de resíduos **parciais**. A UI informou
+47 arquivos/pastas removidos dos temporários, 17 preservados e
+zero falhas, e retornou código 0 de Limpeza de Disco; esses eventos
+não constaram no diagnóstico persistente. A .32 acrescenta trilha
+local agregada e estrita, sem mudar os critérios de limpeza.
+
+Não repetir limpeza só para testar logging. A validação de formato fica
+na CI e pode ser verificada quando houver outra limpeza genuinamente
+necessária. Nunca enviar dumps da Steam, paths sensíveis ou arquivos
+pessoais; Steam/dumps permanece somente leitura e protegido.
+O filtro Todos do GF exibe aplicativos com ação; Inventário mostra
+também entradas sem ação. Visualizar no Driver tab a distinção entre
+presença indeterminada e assinatura informada pelo Windows.
+
+## Histórico da bateria .31
+
 
 21/10/2026 · PR #40 Draft · Roadmap **26/42 (61,9%)**.
 Código `de6ee62` aprovado nas três Actions. [Pacote escolhido e hashes](OPERACAO-FAXINA-FINAL.md#candidata-aprovada-e-pacote-conferido). Este arquivo é
