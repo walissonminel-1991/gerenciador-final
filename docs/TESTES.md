@@ -1,5 +1,46 @@
 # Roteiro de testes — v5.13.11.32 TESTE
 
+## Validação presencial .32 — PC FORTE, sessão 21/10/2026
+
+**Aprovado nesta sessão:** 174 aplicativos/27 MSIX sem falhas, 140 entradas
+com ação, três candidatas de atualização, oito fontes sem falha,
+178 associações de drivers, 63 INFs mapeados, nenhuma alteração no
+histórico de drivers (nas leituras sucessivas), 176 dispositivos PnP
+consultados, encerramento normal e sem eventos de exclusão de drivers.
+
+**Resíduos:** 45 grupos/164 locais e 44 candidatos gerais após 867 grupos
+examinados. 212 protegidos, 611 sem evidência suficiente, 3.925 entradas
+nas origens gerais, cobertura parcial de AppData e ProgramData e limites
+de profundidade, entradas e redirecionamentos. A inspeção de dados
+da Aquiris foi preservada; nenhuma exclusão de resíduos realizada.
+
+**Auditoria de limpezas comprovada no PC FORTE:**
+- `LIMPEZA.INICIO tipo=temporarios_usuario` e `LIMPEZA.RESUMO`
+  com zero arquivos/pastas removidos, 30 itens preservados, zero links e falhas.
+- `LIMPEZA.PROCESSO_RESULTADO tipo=temporarios_windows codigo=0`
+  — resultado do worker sem contagem individual de arquivos.
+- `LIMPEZA.PROCESSO_RESULTADO tipo=limpeza_disco_windows codigo=0`
+  — não implica bytes recuperados.
+- `RAM.CACHE_INTERNO modo=manual bytes_descartados=0`.
+- Os eventos estruturados não contêm caminhos nem nomes de arquivos.
+
+**Ocorrência aberta, não resolvida:** a interface mostrou
+`O Windows retornou código -2147418113` após a chamada para esvaziar
+a Lixeira, equivalente ao HRESULT `0x8000FFFF` (`E_UNEXPECTED`)
+de `SHEmptyRecycleBin` no código atual. É operação separada
+de `cleanmgr`. Não foi registrada no arquivo local de diagnóstico
+da .32; resultado final da Lixeira não comprovado. **Não repetir
+a exclusão nem apagar a pasta do sistema da Lixeira para investigar.**
+Inspeção manual da Lixeira do Windows sem exclusão, seguida de
+diagnóstico específico de estado e erro em versão futura.
+Fonte oficial: documentação Microsoft de SHEmptyRecycleBinW/HRESULT.
+
+**Continuidade:** confrontar 7-Zip/Outlook/Proton Pass com fontes oficiais
+e WinGet (somente listagem), validar os três dispositivos sem nome
+sem instalar drivers e preparar programa de teste não essencial para
+atualização supervisionada, com backup e critério de confirmação.
+Nenhum checkpoint adicional foi fechado: **26/42**.
+
 ## Build da .32 e CI
 
 Artefato portátil não assinado [v5.13.11.32 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39680829661/artifacts/12384491029),

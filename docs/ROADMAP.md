@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.32 TESTE (CI aprovada; teste físico pendente) · Progresso: 26/42 (61,9%).**
+**v5.13.11.32 TESTE (CI aprovada; primeira validação física PC FORTE concluída) · Progresso: 26/42 (61,9%).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
 ## Estado atual — MISSÃO WORK 4
@@ -11,10 +11,15 @@ consultiva INF ↔ Driver Store implementados. Diagnóstico opt-in permanece loc
 com teto total de 160 tentativas. Código `de6ee62` aprovado nas três Actions;
 [matriz de testes, pacote e hashes](OPERACAO-FAXINA-FINAL.md#candidata-aprovada-e-pacote-conferido).
 
-O último teste real do PC FORTE é a **.30** (174 apps, 27 MSIX, 177 associações/63
-INFs, 44 grupos/161 locais de resíduos parciais). No PC FRACO, o último é a **.24**,
-com MSIX 0x80040154 persistente e 55 entradas observadas; não significa remoção
-dos 19 aplicativos não enumerados. Não houve nova bateria presencial nesta missão.
+O teste real mais recente do PC FORTE é a **.32** (174 apps, 27 MSIX,
+178 associações/63 INFs, 45 grupos/164 locais de resíduos parciais).
+A auditoria estruturada de limpezas foi comprovada: temporários de usuário
+com 0 removidos/30 preservados; temporários Windows e cleanmgr com retorno 0.
+A operação de Lixeira retornou 0x8000FFFF (E_UNEXPECTED) na interface
+e ainda exige diagnóstico sem nova exclusão. No PC FRACO, a última
+bateria registrada é a **.24**, com MSIX 0x80040154 persistente e
+55 entradas observadas; não equivale à remoção dos aplicativos não enumerados.
+A validação da .32 no PC FRACO ainda está pendente.
 
 - [Matriz de achados, dependências, avanços e limites](OPERACAO-FAXINA-FINAL.md)
 - [Roteiro objetivo PC FORTE/PC FRACO, somente leitura primeiro](TESTES.md)
