@@ -2,8 +2,43 @@
 from pathlib import Path
 import unittest
 import re
+import xml.etree.ElementTree as ET
+from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Cada novo fluxo exige inclusao explicita e revisao de finalidade/seguranca.
+# A politica nao congela o numero de testes ou impede um fluxo legitimo futuro.
+APPROVED_WORKFLOWS = frozenset({
+    "build-windows.yml",
+    "validar-candidata-windows.yml",
+    "triagem-diagnostico-github.yml",
+})
+
+
+def workflow_inventory(folder: Path) -> set[str]:
+    return {p.name for p in folder.iterdir()
+            if p.is_file() and p.suffix.lower() in {".yml", ".yaml"}}
+
+
+def workflow_inventory_matches(folder: Path, approved: frozenset[str]) -> bool:
+    return workflow_inventory(folder) == approved
+
+
+def missing_markdown_targets(root: Path) -> list[tuple[str, str]]:
+    missing = []
+    # Links Markdown relativos, inclusive imagens. URLs/ancoras nao sao arquivos.
+    for file in root.rglob("*.md"):
+        if set(file.relative_to(root).parts) & {".git", "bin", "obj", ".cache"}:
+            continue
+        for link in re.findall(r"!?\[[^\]]*\]\(([^\s)]+)(?:\s+\"[^\"]*\")?\)",
+                               file.read_text(encoding="utf-8")):
+            target = urlsplit(link.strip("<>"))
+            if target.scheme or target.netloc or not target.path:
+                continue
+            if not (file.parent / unquote(target.path)).exists():
+                missing.append((file.relative_to(root).as_posix(), link))
+    return missing
 
 
 def read(path: str) -> str:
@@ -12,16 +47,10 @@ def read(path: str) -> str:
 
 class PoliticasDeSeguranca(unittest.TestCase):
     def test_actions_fixadas_e_sem_credenciais_persistentes(self):
-        workflows = list((ROOT / ".github/workflows").glob("*.yml"))
-        # Evitar acúmulo de workflows versionados: somente CI atual.
-        active = {f.name for f in workflows}
-        expected = {
-            "build-windows.yml",
-            "validar-candidata-windows.yml",
-            "triagem-diagnostico-github.yml",
-        }
-        self.assertEqual(active, expected,
-            "Workflows históricos ou inesperados foram adicionados ao CI atual")
+        folder = ROOT / ".github/workflows"
+        workflows = [folder / name for name in sorted(workflow_inventory(folder))]
+        self.assertTrue(workflow_inventory_matches(folder, APPROVED_WORKFLOWS),
+            "Workflow adicionado/removido sem revisar a lista explicita de CI")
         self.assertFalse(list(ROOT.glob("LEIA-PRIMEIRO-v5.*.md")),
             "Guias de versões antigas devem ficar no histórico Git, não na raiz")
         for file in workflows:
@@ -36,6 +65,50 @@ class PoliticasDeSeguranca(unittest.TestCase):
         self.assertIn("name: Regressões Windows", read(".github/workflows/validar-candidata-windows.yml"))
         self.assertIn("name: Compilação Windows x64", read(".github/workflows/build-windows.yml"))
         self.assertIn("name: Política de segurança e privacidade", read(".github/workflows/triagem-diagnostico-github.yml"))
+
+    def test_inventario_ci_nao_ignora_yaml_e_permite_expansao_revisada(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            for name in APPROVED_WORKFLOWS:
+                (folder / name).write_text("name: fixture\n", encoding="utf-8")
+            self.assertTrue(workflow_inventory_matches(folder, APPROVED_WORKFLOWS))
+            added = "validar-compatibilidade.yaml"
+            (folder / added).write_text("name: fixture\n", encoding="utf-8")
+            self.assertFalse(workflow_inventory_matches(folder, APPROVED_WORKFLOWS))
+            self.assertTrue(workflow_inventory_matches(folder,
+                APPROVED_WORKFLOWS | frozenset({added})))
+            (folder / "build-windows.yml").unlink()
+            self.assertFalse(workflow_inventory_matches(folder,
+                APPROVED_WORKFLOWS | frozenset({added})))
+
+    def test_documentacao_nao_tem_links_relativos_quebrados(self):
+        self.assertEqual(missing_markdown_targets(ROOT), [])
+
+    def test_detector_de_links_relativos_distingue_urls_ancoras_e_arquivos(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            (folder / "existe.md").write_text("# Existe\n", encoding="utf-8")
+            (folder / "index.md").write_text(
+                "[Valido](existe.md#titulo) [URL](https://example.com/inexistente.md) "
+                "[Ancora](#titulo) ![Ausente](imagem.png)", encoding="utf-8")
+            self.assertEqual(missing_markdown_targets(folder), [("index.md", "imagem.png")])
+
+    def test_versao_compativel_entre_projeto_e_manifesto(self):
+        project = ET.parse(ROOT / "GerenciadorAplicativos.csproj").getroot()
+        version = project.findtext("PropertyGroup/Version")
+        self.assertRegex(version or "", r"^[0-9]+(?:\.[0-9]+){3}$")
+        manifest = ET.parse(ROOT / "app.manifest").getroot()
+        identity = manifest.find("{urn:schemas-microsoft-com:asm.v1}assemblyIdentity")
+        self.assertIsNotNone(identity)
+        self.assertEqual(identity.attrib["version"], version)
+
+    def test_todos_projetos_de_regressao_tem_caminho_no_ci(self):
+        code = "\n".join(read(".github/workflows/" + name) for name in APPROVED_WORKFLOWS)
+        projects = {p.relative_to(ROOT).as_posix() for p in ROOT.glob("Testes*/*.csproj")}
+        invoked = set(re.findall(r"dotnet run --project ([\w/.-]+\.csproj)", code))
+        self.assertEqual(projects - invoked, set(), "Projeto de testes sem caminho no CI atual")
 
     def test_residuos_nao_alcancam_operacoes_destrutivas(self):
         for name in ("UninstallResiduals.cs", "AdvancedUninstallCleaner.cs", "ResidualAudit.cs",
@@ -72,7 +145,7 @@ class PoliticasDeSeguranca(unittest.TestCase):
     def test_varredura_estatica_de_todos_arquivos_fonte(self):
         # Percorre toda a arvore de codigo, nao somente uma amostra manual.
         # Padroes textuais sao guardrails, nao detector universal de malware.
-        extensions = {".cs", ".ps1", ".cmd", ".bat", ".mjs", ".iss", ".yml", ".py"}
+        extensions = {".cs", ".ps1", ".cmd", ".bat", ".mjs", ".iss", ".yml", ".yaml", ".py"}
         excluded_dirs = {".git", "bin", "obj", "Distribuicao", ".venv"}
         scanned = []
         for file in ROOT.rglob("*"):
@@ -85,11 +158,10 @@ class PoliticasDeSeguranca(unittest.TestCase):
             if file.suffix == ".cs" and file.parent == ROOT:
                 self.assertNotIn("OpenFileDialog", contents, str(file))
                 self.assertNotIn("GitHubDiagnosticShare", contents, str(file))
-            if file.suffix == ".yml" and "/workflows/" in file.as_posix():
-                self.assertNotIn("pull_request_target:", contents, str(file))
-                self.assertNotIn("repository_dispatch:", contents, str(file))
-                self.assertNotIn("\\n  issues:", contents, str(file))
-                self.assertNotIn("\\n  issue_comment:", contents, str(file))
+            if file.suffix.lower() in {".yml", ".yaml"} and "/workflows/" in file.as_posix():
+                self.assertNotRegex(contents,
+                    r'''(?m)^\s*['"]?(?:issues|issue_comment|pull_request_target|repository_dispatch)['"]?\s*:''',
+                    str(file))
         self.assertGreaterEqual(len(scanned), 80,
             "Inventario de codigo incompleto: a auditoria nao deve aceitar arvore vazia")
         print(f"Auditoria estatica: {len(scanned)} arquivos-fonte examinados.")

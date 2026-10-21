@@ -1,5 +1,7 @@
 using GerenciadorAplicativos;
 using Microsoft.Win32;
+using System.Security.AccessControl;
+using System.Security.Principal;
 
 internal static class ResidualMissionTests
 {
@@ -113,8 +115,45 @@ internal static class ResidualMissionTests
                 "Config no Registro permanece ligado ao fabricante sem inventar aplicativo");
             using var stillThere = Registry.CurrentUser.OpenSubKey(keyPath + @"\Fabricante Exemplo\LegacyEditor");
             check((string?)stillThere?.GetValue("Preferencias") == "ficticias", "Valores do Registro permanecem intactos");
+            RegistrySourceFailures(check, keyPath);
         }
         finally { Registry.CurrentUser.DeleteSubKeyTree(keyPath, false); }
+    }
+    private static void RegistrySourceFailures(Action<bool, string> check, string fixtureRoot)
+    {
+        string source = fixtureRoot + @"\FonteSintetica";
+        string vendor = source + @"\Fabricante Exemplo";
+        using (var created = Registry.CurrentUser.CreateSubKey(vendor))
+        using (created.CreateSubKey("Produto Exemplo")) { }
+        foreach (bool wholeSource in new[] { true, false })
+        {
+            string deniedPath = wholeSource ? source : vendor;
+            using var permissions = Registry.CurrentUser.OpenSubKey(deniedPath,
+                RegistryKeyPermissionCheck.ReadWriteSubTree,
+                RegistryRights.ReadKey | RegistryRights.ChangePermissions)!;
+            var original = permissions.GetAccessControl();
+            var denied = permissions.GetAccessControl();
+            denied.AddAccessRule(new RegistryAccessRule(WindowsIdentity.GetCurrent().User!,
+                RegistryRights.ReadKey, AccessControlType.Deny));
+            try
+            {
+                permissions.SetAccessControl(denied);
+                var found = new List<BroadResidualEvidence>();
+                int entries = 0, restricted = 0; bool partial = false;
+                var budget = new ResidualScanBudget();
+                const string identifier = "HKEY_CURRENT_USER";
+                BroadResidualDiscovery.InspectRegistryHive(RegistryHive.CurrentUser, RegistryView.Default,
+                    identifier, found, ref entries, ref restricted, ref partial, budget, source);
+                check(partial && restricted == 1 && (wholeSource
+                    ? found.Count == 0 && budget.Coverage.SourcesUnavailable!.SequenceEqual([identifier]) &&
+                        budget.Coverage.SourcesWithReadFailures!.Count == 0
+                    : found.Count == 1 && budget.Coverage.SourcesUnavailable!.Count == 0 &&
+                        budget.Coverage.SourcesWithReadFailures!.SequenceEqual([identifier])),
+                    wholeSource ? "ACL sintética: raiz inteira negada é fonte indisponível" :
+                        "ACL sintética: fabricante negado preserva resultados como falha pontual");
+            }
+            finally { permissions.SetAccessControl(original); }
+        }
     }
     private static void Classification(Action<bool, string> check)
     {

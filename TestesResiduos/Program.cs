@@ -296,6 +296,18 @@ Check(maintenance.Concerns.Count == 1 &&
       maintenance.Concerns[0].Name == "Antigo Editor" &&
       maintenance.Concerns[0].Description.Contains("não remova o Registro"),
     "Falhas de registro recebem explicação segura em vez de remoção agressiva");
+var partialMaintenance = MaintenanceAudit.Inspect(brokenInventory,
+    inspectDevices: false, inventoryIncomplete: true);
+Check(partialMaintenance.InventoryIncomplete && partialMaintenance.Incomplete &&
+      partialMaintenance.Installed == brokenInventory.Length &&
+      partialMaintenance.Concerns.Any(c => c.Category == "Inventário" &&
+          c.Description.Contains("não comprova desinstalação")),
+    "Falha MSIX ou ARP preserva contagem observada e diagnóstico parcial");
+Check(!maintenance.InventoryIncomplete && !maintenance.Incomplete,
+    "Consulta sintética completa não recebe parcialidade artificial");
+Check((maintenance with { Devices = maintenance.Devices with { Supported = true } }).Incomplete &&
+      (maintenance with { Devices = maintenance.Devices with { Partial = true } }).Incomplete,
+    "PnP sem comparação histórica ou com falha de leitura continua parcial");
 Check(MaintenanceAudit.ReviewDisconnectedDevice(false, "Display",
       @"PCI\VEN_10DE&DEV_1234", "Placa de vídeo anterior"),
     "GPU PCI desconectada é candidata a revisão de hardware");

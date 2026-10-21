@@ -11,6 +11,8 @@ test("aceita apenas envelope fixo agregado", () => {
   assert.equal(validateReport({ ...example, counts: { "PATH.C:\\Users": 2 } }), null);
   assert.equal(validateReport({ ...example, exit: "crash" }), null);
   assert.equal(validateReport({ ...example, version: "nome-privado" }), null);
+  for (const ending of ["\n", "\r", "\r\n", "\u2028", "\u2029"])
+    assert.equal(validateReport({ ...example, version: example.version + ending }), null);
 });
 test("receptor permanece desligado mesmo com JSON valido ou malicioso", async () => {
   const fakeDb = { prepare: () => { throw new Error("Nao deve gravar dados de usuarios"); },

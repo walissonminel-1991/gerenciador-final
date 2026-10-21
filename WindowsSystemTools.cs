@@ -19,4 +19,30 @@ internal static class WindowsSystemTools
             throw new InvalidOperationException("Pasta de sistema do Windows indisponivel.");
         return Path.Combine(system, name.ToLowerInvariant());
     }
+
+    // O Registro frequentemente usa apenas MsiExec.exe. Mesmo nessa rota
+    // explicita do fabricante, nao pesquisar executaveis no portatil ou PATH.
+    internal static string ResolveRegisteredUninstaller(string fileName)
+    {
+        string name = Environment.ExpandEnvironmentVariables(fileName).Trim();
+        string? systemName = name.ToLowerInvariant() switch
+        {
+            "msiexec" or "msiexec.exe" => "msiexec.exe",
+            "rundll32" or "rundll32.exe" => "rundll32.exe",
+            "cmd.exe" => "cmd.exe",
+            _ => null
+        };
+        if (systemName is not null)
+        {
+            string system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+            if (string.IsNullOrWhiteSpace(system) || !Path.IsPathFullyQualified(system))
+                throw new InvalidOperationException("Pasta de sistema do Windows indisponivel.");
+            return Path.Combine(system, systemName);
+        }
+        // Sem caminho absoluto nao e possivel identificar qual arquivo o
+        // fabricante registrou; ShellExecute nao deve completar essa identidade.
+        if (!Path.IsPathFullyQualified(name))
+            throw new InvalidDataException("Desinstalador registrado sem caminho absoluto verificavel.");
+        return Path.GetFullPath(name);
+    }
 }

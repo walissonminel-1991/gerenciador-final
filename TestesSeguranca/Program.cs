@@ -47,6 +47,80 @@ if (OperatingSystem.IsWindows())
     }
 }
 Console.WriteLine("OK: ferramentas internas limitadas ao caminho de sistema, sem executar comandos administrativos.");
+if (OperatingSystem.IsWindows())
+{
+    string system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+    foreach (var (registered, expected) in new[]
+    {
+        ("MsiExec.exe", "msiexec.exe"), ("msiexec", "msiexec.exe"),
+        ("rundll32", "rundll32.exe"), ("RUNDLL32.EXE", "rundll32.exe"), ("cmd.exe", "cmd.exe")
+    })
+        Check(WindowsSystemTools.ResolveRegisteredUninstaller(registered) == Path.Combine(system, expected),
+            "desinstalador Windows registrado sem caminho vincula a System32: " + registered);
+    foreach (string invalid in new[] { "uninstall.exe", @".\msiexec.exe", @"..\uninstall.exe", "tool.exe /run" })
+    {
+        bool denied = false;
+        try { WindowsSystemTools.ResolveRegisteredUninstaller(invalid); }
+        catch (InvalidDataException) { denied = true; }
+        Check(denied, "desinstalador relativo nao pesquisa PATH ou pasta portatil: " + invalid);
+    }
+    string absolute = Path.Combine(Path.GetTempPath(), "GF-Vendor", "uninstall.exe");
+    Check(WindowsSystemTools.ResolveRegisteredUninstaller(absolute) == absolute,
+        "caminho absoluto registrado do fabricante e preservado sem executar");
+}
+SafeTemporaryCleanupTests.Run();
+
+// A fixture usa bytes no formato da API, e nao a ordem dos campos gerenciados.
+// Nenhuma chamada a SRSetRestorePoint e feita nesta bateria.
+Check(System.Runtime.InteropServices.Marshal.SizeOf<RestorePointService.StatusManager>() == 12,
+    "STATEMGRSTATUS segue pack(1) do cabecalho Windows SDK");
+IntPtr nativeStatus = System.Runtime.InteropServices.Marshal.AllocHGlobal(12);
+try
+{
+    System.Runtime.InteropServices.Marshal.WriteInt32(nativeStatus, 0, 1058);
+    System.Runtime.InteropServices.Marshal.WriteInt64(nativeStatus, 4, 0x123456789ABC);
+    var status = System.Runtime.InteropServices.Marshal.PtrToStructure<RestorePointService.StatusManager>(nativeStatus);
+    Check(status.Status == 1058 && status.SequenceNumber == 0x123456789ABC,
+        "STATEMGRSTATUS preserva codigo de erro e sequencia nativos independentes");
+}
+finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(nativeStatus); }
+var restoreLog = new List<string>();
+int restoreCalls = 0;
+bool SyntheticRestore(ref RestorePointService.RestorePointInfo input,
+    out RestorePointService.StatusManager result)
+{
+    restoreCalls++;
+    Check(input.EventType == (restoreCalls == 1 ? 100 : 101), "restauracao respeita inicio e fim");
+    Check(input.SequenceNumber == (restoreCalls == 1 ? 0 : 0x123456789ABC),
+        "encerramento recebe exatamente a sequencia devolvida pela API");
+    result = new() { Status = 0, SequenceNumber = 0x123456789ABC };
+    return true;
+}
+Check(RestorePointService.Request(restoreLog.Add, SyntheticRestore) == 0 && restoreCalls == 2,
+    "solicitacao simulada so conclui depois do encerramento confirmado");
+restoreLog.Clear();
+restoreCalls = 0;
+bool FailedRestore(ref RestorePointService.RestorePointInfo input,
+    out RestorePointService.StatusManager result)
+{
+    restoreCalls++;
+    result = new() { Status = 1058, SequenceNumber = 0 };
+    return false;
+}
+Check(RestorePointService.Request(restoreLog.Add, FailedRestore) != 0 && restoreCalls == 1 &&
+    restoreLog.All(line => !line.Contains("Solicitação aceita", StringComparison.Ordinal)),
+    "falha ao iniciar nao tenta encerrar ou anuncia ponto de restauracao");
+restoreCalls = 0;
+bool FailedEnd(ref RestorePointService.RestorePointInfo input,
+    out RestorePointService.StatusManager result)
+{
+    restoreCalls++;
+    result = new() { Status = restoreCalls == 1 ? 0 : 13, SequenceNumber = 123 };
+    return true;
+}
+Check(RestorePointService.Request(_ => { }, FailedEnd) != 0 && restoreCalls == 2,
+    "status nativo de erro no encerramento nao e convertido em sucesso");
+Console.WriteLine("OK: ABI e fluxo de restauracao com bytes/retornos sinteticos, sem alterar Windows.");
 
 string guardFolder = Path.Combine(Path.GetTempPath(), "GF-File-Guard-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(guardFolder);

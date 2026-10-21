@@ -13,6 +13,13 @@ internal static class LayoutTests
             _ => Environment.FailFast("Timeout no teste de layout"),
             null, TimeSpan.FromMinutes(4), Timeout.InfiniteTimeSpan);
         Application.EnableVisualStyles();
+        if (!AppServices.TryParseUninstaller(@"C:\cache.exe_folder\uninstall.exe /S", out var uninstallPath, out var uninstallArgs) ||
+            uninstallPath != @"C:\cache.exe_folder\uninstall.exe" || uninstallArgs != "/S" ||
+            !AppServices.TryParseUninstaller("MsiExec.exe /I{ABCD}", out _, out var msiArgs) ||
+            msiArgs != "/X{ABCD}" ||
+            AppServices.TryParseUninstaller(null, out _, out _) ||
+            AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
+            throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
         ResidualExplorerTests.Run();
         // PC fraco v5.13.11.21: 19 MSIX estão no inventário, mas não
         // aparecem na lista de ações. O filtro explícito revela sem permitir
@@ -209,7 +216,7 @@ internal static class LayoutTests
             throw new Exception("DRIVERS nao deve mostrar rolagem duplicada.");
         if (!Descendants(placeholder).OfType<Button>().Any(b =>
                 b.Text == "Outros" &&
-                b.AccessibleDescription.Contains("indeterminada", StringComparison.Ordinal)) ||
+                b.AccessibleDescription?.Contains("indeterminada", StringComparison.Ordinal) == true) ||
             Descendants(placeholder).OfType<Button>().Any(b => b.Text == "Não confirmados"))
             throw new Exception("Filtro DRIVERS deve caber inteiro e explicar os casos incertos.");
         var privacyStatus = Descendants(form).OfType<Button>()
@@ -217,7 +224,7 @@ internal static class LayoutTests
             ?? throw new Exception("Indicador de privacidade ausente do cabecalho.");
         if (privacyStatus.Text != PrivacyConsentPresentation.ButtonLabel(
                 AnonymousTelemetryContext.Current?.Consent ?? TelemetryConsent.NotAsked) ||
-            !privacyStatus.AccessibleDescription.Contains("Clique", StringComparison.Ordinal))
+            privacyStatus.AccessibleDescription?.Contains("Clique", StringComparison.Ordinal) != true)
             throw new Exception("Consentimento existente nao esta visivel nem revisavel.");
         var fakeDrivers = Enumerable.Range(0, 184).Select(i => new DriverInventoryEntry(
             "TEST\\\\ID" + i, "Dispositivo sintetico " + i,
@@ -632,7 +639,7 @@ internal static class LayoutTests
         if (!graph.Visible ||
             Descendants(form).OfType<Button>().All(x =>
                 x.Name != "OpenWindowsTaskManager" || x.Text != "Abrir tarefas" ||
-                !x.AccessibleName.Contains("Gerenciador de Tarefas", StringComparison.Ordinal)) ||
+                x.AccessibleName?.Contains("Gerenciador de Tarefas", StringComparison.Ordinal) != true) ||
             Descendants(form).OfType<Button>().All(x => x.Name != "MemoryAutoOptimization") ||
             Descendants(form).OfType<Button>().All(x => x.Name != "MemoryManualOptimization") ||
             Descendants(form).OfType<Label>().All(x => x.Name != "MemoryCandidates"))

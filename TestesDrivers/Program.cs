@@ -16,6 +16,18 @@ Check(result.Single(d => d.DeviceId == b.DeviceId).PresenceLabel == "Não presen
 Check(result.Single(d => d.DeviceId == c.DeviceId).Present is null && c.SignatureLabel == "Indeterminado", "Ausencia de evidencias nao inventa presenca nem assinatura");
 Check(DriverInventory.Correlate(new[] { a, a with { Signed = false } }, new Dictionary<string, bool?>()).Count == 2,
     "Evidencias conflitantes de assinatura nao sao fundidas");
+var named = DriverInventory.Correlate(new[] { a, b with { DeviceName = " " }, c with { DeviceName = "" } },
+    new Dictionary<string, bool?> { ["PCI\\TWO"] = true },
+    new Dictionary<string, string> { ["pci\\one"] = "Nome alternativo", ["pci\\two"] = "Dispositivo PnP" });
+Check(named.Single(d => d.DeviceId == b.DeviceId).DeviceName == "Dispositivo PnP" &&
+    named.Single(d => d.DeviceId == b.DeviceId).Present == true,
+    "Nome PnP preenche nome ausente apenas para o mesmo ID sem diferenciar caixa");
+Check(named.Single(d => d.DeviceId == a.DeviceId).DeviceName == a.DeviceName &&
+    named.Single(d => d.DeviceId == c.DeviceId).DeviceName == "",
+    "Correlacao preserva nome original e nao inventa nome para ID sem evidencia");
+Check(DriverInventory.Correlate(new[] { a with { Version = "versao do fabricante" } },
+    new Dictionary<string, bool?>())[0].Version == "versao do fabricante",
+    "Versao bruta do WMI preservada sem converter, truncar nem inventar incompatibilidade");
 // Historico usa exclusivamente um diretorio temporario isolado nestes testes.
 string folder = Path.Combine(Path.GetTempPath(), "GF-driver-history-tests-" + Guid.NewGuid().ToString("N"));
 string file = Path.Combine(folder, "history.json");

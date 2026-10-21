@@ -337,6 +337,11 @@ try
 }
 finally { Directory.Delete(isolated, true); }
 
+if (OperatingSystem.IsWindows()) AuthenticodeTests.Run(Verify);
+else Console.WriteLine("SKIP: provedor Authenticode e contexto nativo exigem Windows; nao equivalem a aprovacao.");
+await AuthenticodeTests.RunArchiveAsync(Verify);
+Console.WriteLine($"{checkedCount}/{checkedCount} testes executados de autorizacao, identidade e integridade aprovados");
+
 namespace GerenciadorAplicativos
 {
     internal sealed class ProgramEntry

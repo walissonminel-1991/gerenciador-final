@@ -90,7 +90,6 @@ internal sealed class RuckZuckCatalog : IDisposable
         // O endpoint é sempre reconstruído localmente, sem aceitar caminhos ou parâmetros externos.
         var catalogUri = new Uri($"https://{baseUri.Host}/rest/v2/getcatalog");
         var json = await DownloadStringAsync(catalogUri, token, MaximumCatalogBytes);
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         using var document = JsonDocument.Parse(json);
         JsonDocument? innerDocument = null;
         try
@@ -203,12 +202,4 @@ internal sealed class RuckZuckCatalog : IDisposable
         if (_ownsClient) _http.Dispose();
     }
 
-    internal sealed class CatalogJson
-    {
-        public CatalogJson() { }
-        public string? ShortName { get; set; }
-        public string? ProductName { get; set; }
-        public string? ProductVersion { get; set; }
-        public string? Manufacturer { get; set; }
-    }
 }

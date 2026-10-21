@@ -10,5 +10,6 @@
     <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
     <Compile Include="../AnonymousTelemetry.cs" Link="AnonymousTelemetry.cs" />
     <Compile Include="../DiagnosticPayloadPolicy.cs" Link="DiagnosticPayloadPolicy.cs" />
+    <Compile Include="../DiagnosticTrace.cs" Link="DiagnosticTrace.cs" />
   </ItemGroup>
 </Project>

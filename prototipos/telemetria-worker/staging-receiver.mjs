@@ -73,7 +73,8 @@ export async function handleStagingRequest(request, env) {
   let url;
   try { url = new URL(request.url); }
   catch { return reply(404); }
-  if (url.pathname !== "/v1/diagnostico" || url.search ||
+  if (url.protocol !== "https:" || url.username || url.password ||
+      url.pathname !== "/v1/diagnostico" || url.search ||
       request.method !== "POST")
     return reply(404);
 
@@ -83,6 +84,7 @@ export async function handleStagingRequest(request, env) {
     return reply(401);
   if ((request.headers.get("content-type") || "").toLowerCase() !== "application/json" ||
       request.headers.has("content-encoding") ||
+      request.headers.has("cookie") ||
       request.headers.has("content-disposition"))
     return reply(415);
   try {

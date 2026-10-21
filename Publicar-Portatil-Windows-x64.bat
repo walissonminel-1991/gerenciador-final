@@ -1,7 +1,19 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions DisableDelayedExpansion
+rem A versao vem do projeto para nao rotular novas builds com versoes antigas.
+set "GF_BUILD_VERSION="
+for /f "tokens=*" %%L in ('findstr /R /C:"<Version>[0-9][0-9.]*</Version>" "%~dp0GerenciadorAplicativos.csproj"') do for /f "tokens=2 delims=<>" %%V in ("%%L") do set "GF_BUILD_VERSION=%%V"
+if not defined GF_BUILD_VERSION (
+  echo ERRO: versao ausente no projeto.
+  exit /b 1
+)
+rem Consulta sem efeitos para regressao Windows dos nomes de distribuicao.
+if /I "%~1"=="--print-version" (
+  echo %GF_BUILD_VERSION%
+  exit /b 0
+)
 cd /d "%~dp0"
-title Gerenciador Final v5.12.3 - Gerar versao portatil
+title Gerenciador Final v%GF_BUILD_VERSION% - Gerar versao portatil
 
 rem ESTE SCRIPT E PARA GERAR A DISTRIBUICAO PORTATIL.
 rem O usuario final nao executa este arquivo e nao precisa do SDK .NET.
@@ -23,10 +35,10 @@ set "DOTNET_NOLOGO=1"
 set "DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1"
 
 set "DIST_DIR=%~dp0Distribuicao"
-set "ZIP_PATH=%~dp0..\GerenciadorFinal-v5.12.3-Portatil-Windows-x64.zip"
+set "ZIP_PATH=%~dp0..\GerenciadorFinal-v%GF_BUILD_VERSION%-Portatil-Windows-x64.zip"
 
 echo ============================================================
-echo GERENCIADOR FINAL v5.12.3 - VERSAO PORTATIL
+echo GERENCIADOR FINAL v%GF_BUILD_VERSION% - VERSAO PORTATIL
 echo ============================================================
 echo O programa nao sera instalado neste computador.
 echo Nao serao criados atalhos nem configuracoes persistentes do app.
@@ -80,7 +92,7 @@ echo 2. Abra GerenciadorFinal.exe diretamente.
 echo 3. Nao e necessario SDK, runtime separado, instalador ou atalho.
 echo.
 echo O aplicativo nao grava suas configuracoes/logs proprios fora da pasta.
-echo O Windows e o WinGet ainda podem manter seus proprios registros/cache.
+echo O Windows e os instaladores dos fabricantes podem manter registros/cache.
 echo.
 pause
 exit /b 0

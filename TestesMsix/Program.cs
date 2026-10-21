@@ -107,7 +107,49 @@ var denied = LocalMsixInventory.ReadWithRetry(() =>
 Check(attempts == 1 && !denied.Retried &&
     denied.Status == "COMException(0x80070005)",
     "MSIX: erro de permissão não é repetido indiscriminadamente");
+Check(LocalMsixInventory.FailureStatus(new TypeInitializationException("WinRT.Factory",
+    new System.Runtime.InteropServices.COMException("mensagem privada", unchecked((int)0x80040154))))
+    == "COMException(0x80040154)",
+    "MSIX: HRESULT de ativação preservado através do wrapper sem mensagem privada");
+IEnumerable<int> Interrupted()
+{
+    yield return 1;
+    throw new System.Runtime.InteropServices.COMException("mensagem privada", unchecked((int)0x800706BE));
+}
+var interrupted = LocalMsixInventory.ReadPackages(Interrupted(),
+    _ => new LocalMsixObservation(generic!, Launchable: true));
+Check(interrupted.Items.Count == 1 && interrupted.Seen == 1 && interrupted.Launchable == 1 &&
+    interrupted.Failures == 1 && interrupted.Status == "COMException(0x800706BE)" &&
+    interrupted.FailureStage == "enumeration" && interrupted.Apartment.Length > 0,
+    "MSIX: interrupção de MoveNext preserva itens já lidos e informa cobertura parcial");
+attempts = 0;
+var interruptedActivation = LocalMsixInventory.ReadWithRetry(() =>
+{
+    attempts++;
+    return attempts == 1 ? interrupted with { Status = "COMException(0x80040154)" }
+        : new LocalMsixResult([], 0, "COMException(0x80040154)", Failures: 1);
+});
+Check(attempts == 1 && !interruptedActivation.Retried && interruptedActivation.Items.Count == 1 &&
+    interruptedActivation.Failures > 0 && interruptedActivation.FailureStage == "enumeration",
+    "MSIX: retry não substitui evidência parcial por outra leitura indisponível");
+var packageFailure = LocalMsixInventory.ReadPackages(new[] { 1, 2, 3 }, value =>
+{
+    if (value == 2) throw new InvalidOperationException("pacote privado");
+    return new LocalMsixObservation(value == 1 ? generic : generic! with { Version = "4.0.0.0" }, true);
+});
+Check(packageFailure.Items.Count == 1 && packageFailure.Items[0].Version == "4.0.0.0" &&
+    packageFailure.Seen == 3 && packageFailure.Failures == 1 && packageFailure.Launchable == 2 &&
+    packageFailure.FailureStage == "package",
+    "MSIX: falha em um pacote não perde outros apps nem transforma leitura em completa");
+var limited = LocalMsixInventory.ReadPackages(Enumerable.Range(1, 2402),
+    _ => new LocalMsixObservation(null));
+Check(limited.Seen == 2401 && limited.Filtered == 2400 && limited.Failures == 1 &&
+    limited.FailureStage == "limit", "MSIX: limite de pacotes permanece explícito e não finge cobertura completa");
+var complete = LocalMsixInventory.ReadPackages(new[] { 1 },
+    _ => new LocalMsixObservation(generic!, true));
+Check(complete.Items.Count == 1 && complete.Failures == 0 && complete.FailureStage == "" &&
+    complete.Status == "ok", "MSIX: leitura completa não recebe falsa falha de diagnóstico");
 var live = LocalMsixInventory.ReadCurrentUser();
-Console.WriteLine($"MSIX_CI status={live.Status} enumerados={live.Seen} reconhecidos={live.Items.Count}");
+Console.WriteLine($"MSIX_CI status={live.Status} fase={live.FailureStage} apartment={live.Apartment} enumerados={live.Seen} reconhecidos={live.Items.Count}");
 Check(live.Status.Length > 0, "Inventário real tratado sem falhar aplicação");
 Console.WriteLine($"{count}/{count} testes de inventário MSIX aprovados");

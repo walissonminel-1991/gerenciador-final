@@ -295,7 +295,7 @@ internal static class BroadResidualDiscovery
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-            System.Security.SecurityException) { restricted++; incomplete = true; budget.MarkIncomplete(); }
+            System.Security.SecurityException) { restricted++; incomplete = true; budget.Unavailable(identifier); }
     }
 
     // Nenhuma pista isolada autoriza uma afirmacao de desinstalacao. Para

@@ -45,6 +45,7 @@ internal sealed class AnonymousTelemetry
     {
         try
         {
+            InstallerFileGuard.ValidateLocalPath(ConsentFile);
             if (!File.Exists(ConsentFile) || new FileInfo(ConsentFile).Length > 512)
                 return TelemetryConsent.NotAsked;
             using var json = JsonDocument.Parse(ReadBoundedFile(ConsentFile, 512));
@@ -215,6 +216,7 @@ internal sealed class AnonymousTelemetry
             if (_events.Count > 0) return Serialize(version, normalExit: false);
             try
             {
+                InstallerFileGuard.ValidateLocalPath(PendingFile);
                 if (!File.Exists(PendingFile) || new FileInfo(PendingFile).Length > 4096 || PendingHasExpired())
                     return null;
                 string pending = ReadBoundedFile(PendingFile, 4096);
@@ -267,6 +269,7 @@ internal sealed class AnonymousTelemetry
     {
         try
         {
+            InstallerFileGuard.ValidateLocalPath(PendingFile);
             if (!File.Exists(PendingFile)) return;
             if (Consent != TelemetryConsent.LocalOnly ||
                 PendingHasExpired())
@@ -286,12 +289,25 @@ internal sealed class AnonymousTelemetry
 
     private static bool TryDelete(string path)
     {
-        try { if (Directory.Exists(path)) return false; if (File.Exists(path)) File.Delete(path); return true; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return false; }
+        try
+        {
+            InstallerFileGuard.ValidateLocalPath(path);
+            string parent = Path.GetDirectoryName(Path.GetFullPath(path))!;
+            if (!Directory.Exists(parent)) return true;
+            // Inclusive expiração/revogação: não seguir um ancestral que tenha
+            // sido trocado por junction antes de apagar a entrada da folha.
+            using var directoryLock = InstallerFileGuard.PinDirectory(parent, allowLeafWrites: true);
+            if (Directory.Exists(path)) return false;
+            File.Delete(path);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or
+            NotSupportedException or System.Security.SecurityException) { return false; }
     }
 
     private void EnsureStorageFolder()
     {
+        InstallerFileGuard.ValidateLocalPath(_folder);
         void CheckAncestors()
         {
             for (var dir = new DirectoryInfo(Path.GetFullPath(_folder)); dir is not null; dir = dir.Parent)
@@ -305,7 +321,10 @@ internal sealed class AnonymousTelemetry
 
     private static string ReadBoundedFile(string path, int maxBytes)
     {
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        // Recusar links da folha e prender seus ancestrais também na leitura.
+        // O limite é conferido no handle efetivamente aberto, sem confiar no
+        // tamanho observado anteriormente pelo caminho.
+        using var stream = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
         if (stream.Length > maxBytes) throw new IOException("Arquivo de privacidade acima do limite.");
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
         return reader.ReadToEnd();

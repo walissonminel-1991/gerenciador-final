@@ -199,10 +199,14 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
 
     internal static ResidualCoverage Combine(IEnumerable<ResidualCoverage?> coverages)
     {
-        var values = coverages.OfType<ResidualCoverage>().Distinct().ToArray();
+        // Duas observações independentes podem ter as mesmas contagens. Só
+        // a mesma instância (reutilizada por relatórios/resumos) é duplicata.
+        var values = coverages.OfType<ResidualCoverage>()
+            .Distinct<ResidualCoverage>(ReferenceEqualityComparer.Instance).ToArray();
         // Os componentes são observações originais, para não somar novamente
         // um resumo quando ele reaparece em relatório + coleção + união de fontes.
-        var leaves = values.SelectMany(v => v.Components ?? new[] { v }).Distinct().ToArray();
+        var leaves = values.SelectMany(v => v.Components ?? new[] { v })
+            .Distinct<ResidualCoverage>(ReferenceEqualityComparer.Instance).ToArray();
         return new ResidualCoverage(values.Aggregate(ResidualScanIssue.None, (a, b) => a | b.Issues),
             leaves.Sum(v => v.EntriesExamined),
             values.SelectMany(v => v.SourcesConsulted ?? []).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray(),

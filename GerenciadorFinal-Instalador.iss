@@ -1,8 +1,8 @@
-﻿; Gerenciador Final v5.12.3 — Inno Setup 6.3+
+﻿; Gerenciador Final — Inno Setup 6.3+
 ; Compilar somente apos dotnet publish ter produzido a pasta Distribuicao.
 ; Nao cria exclusoes de antivirus ou regras de firewall.
 #define MyAppName "Gerenciador Final"
-#define MyAppVersion "5.12.3"
+#define MyAppVersion GetVersionNumbersString(AddBackslash(SourcePath) + "Distribuicao\GerenciadorFinal.exe")
 #define MyAppExeName "GerenciadorFinal.exe"
 
 [Setup]
@@ -14,7 +14,7 @@ DefaultDirName={autopf}\Gerenciador Final
 DefaultGroupName=Gerenciador Final
 UninstallDisplayIcon={app}\{#MyAppExeName}
 OutputDir=Instalador
-OutputBaseFilename=GerenciadorFinal-Setup-v5.12.3-Windows-x64
+OutputBaseFilename=GerenciadorFinal-Setup-v{#MyAppVersion}-Windows-x64
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

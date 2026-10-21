@@ -62,6 +62,14 @@ internal static class ResidualIntegrityTests
         var repeated = ResidualCoverage.Combine([nested, composite]);
         check(repeated.EntriesExamined == 33 && repeated.CandidatesFound == 5 && repeated.CandidatesExamined == 9,
             "Cobertura de fontes e resumos aninhados contabiliza cada observação uma única vez");
+        var equalObservationA = new ResidualCoverage(EntriesExamined: 9, CandidatesExamined: 2);
+        var equalObservationB = new ResidualCoverage(EntriesExamined: 9, CandidatesExamined: 2);
+        var independent = ResidualCoverage.Combine([equalObservationA, equalObservationB, equalObservationA]);
+        check(independent.EntriesExamined == 18 && independent.CandidatesExamined == 4,
+            "Observações independentes com contagens iguais não são descartadas como duplicatas");
+        var equalNested = ResidualCoverage.Combine([independent, equalObservationB, independent]);
+        check(equalNested.EntriesExamined == 18 && equalNested.CandidatesExamined == 4,
+            "Resumo de observações iguais mantém deduplicação por identidade em uniões aninhadas");
         var noDuplicates = ResidualReportMerger.Merge(new[]
         {
             new ResidualAuditReport("App", false, [new("MesmoLocal", "Perfil", 1, "fonte A")], [], Coverage: unavailable),

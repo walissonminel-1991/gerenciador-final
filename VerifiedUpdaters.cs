@@ -549,12 +549,16 @@ internal static class VerifiedUpdaters
                     if (entries.Length != 1 || entries[0].Length < 50_000 || entries[0].Length > 80L * 1024 * 1024)
                         throw new InvalidDataException("Redistribuível oficial GameInput ausente ou inválido.");
                     entries[0].ExtractToFile(msi);
+                    using var lockedMsi = InstallerFileGuard.OpenRead(msi);
+                    // A identidade Microsoft sozinha nao prova que este e o MSI
+                    // daquele NUPKG. Releia o conteudo autenticado e compare por
+                    // handle apos fechar a extracao e prender o arquivo no disco.
+                    string msiDigest = await RequireArchiveDigestAsync(lockedMsi, entries[0], cancel);
+                    if (!VerifyAuthenticode(msi, recipe.RequiredSigner, out string msiIssue))
+                        throw new CryptographicException("MSI Microsoft sem assinatura válida (" + msiIssue + ").");
+                    RememberDownload(msi, recipe, msiDigest);
+                    return msi;
                 }
-                using var lockedMsi = InstallerFileGuard.OpenRead(msi);
-                if (!VerifyAuthenticode(msi, recipe.RequiredSigner, out string msiIssue))
-                    throw new CryptographicException("MSI Microsoft sem assinatura válida (" + msiIssue + ").");
-                RememberDownload(msi, recipe, await InstallerFileGuard.DigestAsync(lockedMsi, cancel));
-                return msi;
             }
             if (!VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
                 throw new CryptographicException("Assinatura Authenticode inválida ou editor não esperado (" + issue + ").");
@@ -564,39 +568,115 @@ internal static class VerifiedUpdaters
         throw new InvalidDataException("Excesso de redirecionamentos.");
     }
 
-    private static bool VerifyAuthenticode(string path, string signer, out string issue)
+    internal static async Task<string> RequireArchiveDigestAsync(FileStream extracted,
+        ZipArchiveEntry authenticatedSource, CancellationToken cancel = default)
+    {
+        await using var source = authenticatedSource.Open();
+        string expected = Convert.ToHexString(await SHA256.HashDataAsync(source, cancel));
+        await InstallerFileGuard.RequireDigestAsync(extracted, expected, cancel);
+        return expected;
+    }
+
+    internal static bool VerifyAuthenticode(string path, string signer, out string issue)
     {
         issue = "";
         // A verificação de cadeia e assinatura cabe ao Windows (WinVerifyTrust).
         var info = new WinTrustFileInfo { Size = (uint)Marshal.SizeOf<WinTrustFileInfo>(), FilePath = path };
         IntPtr pInfo = Marshal.AllocHGlobal(Marshal.SizeOf<WinTrustFileInfo>());
+        Guid action = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
+        var data = new WinTrustData
+        {
+            Size = (uint)Marshal.SizeOf<WinTrustData>(), UiChoice = 2,
+            RevocationChecks = 1, UnionChoice = 1, FileInfo = pInfo,
+            StateAction = 1, ProviderFlags = 0x80
+        };
+        bool verifyCalled = false;
+        bool infoInitialized = false;
         try
         {
             Marshal.StructureToPtr(info, pInfo, false);
-            var data = new WinTrustData
-            {
-                Size = (uint)Marshal.SizeOf<WinTrustData>(), UiChoice = 2,
-                RevocationChecks = 1, UnionChoice = 1, FileInfo = pInfo,
-                StateAction = 0, ProviderFlags = 0x80
-            };
-            Guid action = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
+            infoInitialized = true;
             int status = WinVerifyTrust(IntPtr.Zero, ref action, ref data);
+            verifyCalled = true;
             if (status != 0)
             {
                 issue = "WinVerifyTrust=0x" + status.ToString("X8");
                 return false;
             }
-            using var cert = new X509Certificate2(X509Certificate.CreateFromSignedFile(path));
+            // O certificado deve pertencer a assinatura efetivamente validada pelo
+            // Windows, nao a uma segunda interpretacao independente do arquivo.
+            IntPtr provider = WTHelperProvDataFromStateData(data.StateData);
+            IntPtr providerSigner = provider == IntPtr.Zero ? IntPtr.Zero :
+                WTHelperGetProvSignerFromChain(provider, 0, false, 0);
+            IntPtr providerCert = providerSigner == IntPtr.Zero ? IntPtr.Zero :
+                WTHelperGetProvCertFromChain(providerSigner, 0);
+            if (providerCert == IntPtr.Zero)
+                throw new CryptographicException("Certificado do assinante validado indisponivel.");
+            var trusted = Marshal.PtrToStructure<ProviderCertificatePrefix>(providerCert);
+            if (trusted.Size < Marshal.SizeOf<ProviderCertificatePrefix>() ||
+                trusted.Certificate == IntPtr.Zero)
+                throw new CryptographicException("Estrutura do assinante validado invalida.");
+            using var cert = LoadSignerCertificate(trusted.Certificate);
             string name = cert.GetNameInfo(X509NameType.SimpleName, false);
             issue = "editor=" + name;
             return name.Equals(signer, StringComparison.OrdinalIgnoreCase);
         }
-        catch (Exception ex) when (ex is CryptographicException or IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is CryptographicException or IOException or UnauthorizedAccessException
+            or DllNotFoundException or EntryPointNotFoundException)
         {
             issue = "validacao=" + ex.GetType().Name;
             return false;
         }
-        finally { Marshal.DestroyStructure<WinTrustFileInfo>(pInfo); Marshal.FreeHGlobal(pInfo); }
+        finally
+        {
+            // WTD_STATEACTION_CLOSE deve acompanhar toda tentativa VERIFY,
+            // inclusive assinatura recusada e excecao ao interpretar certificado.
+            try
+            {
+                if (verifyCalled)
+                {
+                    data.StateAction = 2;
+                    WinVerifyTrust(IntPtr.Zero, ref action, ref data);
+                }
+            }
+            finally
+            {
+                if (infoInitialized) Marshal.DestroyStructure<WinTrustFileInfo>(pInfo);
+                Marshal.FreeHGlobal(pInfo);
+            }
+        }
+    }
+
+    // Entrada exclusiva de CERT_CONTEXT obtido do provedor de confianca Windows.
+    // O loader recebe somente DER; nao interpreta EXE/MSI/PFX nem importa chaves.
+    internal static X509Certificate2 LoadSignerCertificate(IntPtr certificateContext)
+    {
+        if (certificateContext == IntPtr.Zero)
+            throw new CryptographicException("Contexto do certificado ausente.");
+        var context = Marshal.PtrToStructure<CertificateContext>(certificateContext);
+        if (context.Encoded == IntPtr.Zero || context.Length is 0 or > 1024 * 1024)
+            throw new CryptographicException("Certificado do assinante fora dos limites.");
+        var der = new byte[context.Length];
+        Marshal.Copy(context.Encoded, der, 0, der.Length);
+        return X509CertificateLoader.LoadCertificate(der);
+    }
+
+    // Apenas o prefixo documentado de CRYPT_PROVIDER_CERT e necessario.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProviderCertificatePrefix
+    {
+        public uint Size;
+        public IntPtr Certificate;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct CertificateContext
+    {
+        public uint Encoding;
+        public IntPtr Encoded;
+        public uint Length;
+        public IntPtr Information;
+        public IntPtr Store;
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -628,6 +708,14 @@ internal static class VerifiedUpdaters
 
     [DllImport("wintrust.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern int WinVerifyTrust(IntPtr hwnd, ref Guid actionId, ref WinTrustData data);
+
+    [DllImport("wintrust.dll", ExactSpelling = true)]
+    private static extern IntPtr WTHelperProvDataFromStateData(IntPtr state);
+    [DllImport("wintrust.dll", ExactSpelling = true)]
+    private static extern IntPtr WTHelperGetProvSignerFromChain(IntPtr provider, uint index,
+        [MarshalAs(UnmanagedType.Bool)] bool counterSigner, uint counterIndex);
+    [DllImport("wintrust.dll", ExactSpelling = true)]
+    private static extern IntPtr WTHelperGetProvCertFromChain(IntPtr signer, uint index);
 
     internal static async Task<int> LaunchAsync(VerifiedUpdateRecipe recipe, string verifiedFile, Action<string> report)
     {

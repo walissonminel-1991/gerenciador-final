@@ -56,30 +56,6 @@ internal static class AdvancedUninstallCleaner
         { return false; }
     }
 
-    private static bool SafeDescendant(string path, string root)
-    {
-        try
-        {
-            string basePath = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
-            string full = Path.GetFullPath(path);
-            if (!full.Equals(basePath, StringComparison.OrdinalIgnoreCase) &&
-                !full.StartsWith(basePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                return false;
-            DirectoryInfo? parent = Directory.Exists(full)
-                ? new DirectoryInfo(full)
-                : new FileInfo(full).Directory;
-            while (parent is not null && parent.FullName.Length >= basePath.Length)
-            {
-                if (parent.Exists && (parent.Attributes & FileAttributes.ReparsePoint) != 0) return false;
-                if (parent.FullName.Equals(basePath, StringComparison.OrdinalIgnoreCase)) return true;
-                parent = parent.Parent;
-            }
-            return false;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
-            or NotSupportedException) { return false; }
-    }
-
     private static bool OwnRegistryPath(string key, IEnumerable<string> allowed)
     {
         if (string.IsNullOrWhiteSpace(key) || !key.StartsWith(@"Software\", StringComparison.OrdinalIgnoreCase))

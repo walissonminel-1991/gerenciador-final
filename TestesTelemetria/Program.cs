@@ -222,19 +222,106 @@ try
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         if (linkedCreated)
         {
+            string foreignConsent = Path.Combine(realFolder, "consentimento-v1.json");
+            string foreignPending = Path.Combine(realFolder, "diagnostico-pendente-v1.json");
+            File.WriteAllText(foreignConsent, "{\"schema\":1,\"state\":2}");
+            File.WriteAllText(foreignPending, validReport);
+            File.SetLastWriteTimeUtc(foreignPending, DateTime.UtcNow.AddDays(-8));
             var linkedCollector = new AnonymousTelemetry(linkedFolder);
+            Verify(linkedCollector.Consent == TelemetryConsent.NotAsked &&
+                File.Exists(foreignPending) && File.ReadAllText(foreignPending) == validReport,
+                "Construtor não importa consentimento nem expira relatório através de pasta redirecionada");
             Verify(!linkedCollector.SetConsent(TelemetryConsent.LocalOnly) &&
-                !File.Exists(Path.Combine(realFolder, "consentimento-v1.json")),
-                "Pasta de privacidade redirecionada nao recebe gravacoes");
+                File.ReadAllText(foreignConsent) == "{\"schema\":1,\"state\":2}" &&
+                !linkedCollector.DeletePending() && File.Exists(foreignPending),
+                "Pasta de privacidade redirecionada não recebe gravações ou exclusões");
             Directory.Delete(linkedFolder);
+
+            string leafFolder = Path.Combine(temp, "linked-leaves");
+            Directory.CreateDirectory(leafFolder);
+            string leafConsent = Path.Combine(leafFolder, "consentimento-v1.json");
+            File.CreateSymbolicLink(leafConsent, foreignConsent);
+            Verify(new AnonymousTelemetry(leafFolder).Consent == TelemetryConsent.NotAsked,
+                "Link na folha não pode importar consentimento de outro arquivo");
+            File.Delete(leafConsent);
+            var leafCollector = new AnonymousTelemetry(leafFolder);
+            Verify(leafCollector.SetConsent(TelemetryConsent.LocalOnly), "Prepara revisão de folha redirecionada");
+            File.SetLastWriteTimeUtc(foreignPending, DateTime.UtcNow);
+            File.CreateSymbolicLink(leafCollector.PendingFile, foreignPending);
+            Verify(leafCollector.ReviewableReport("v5.13.11.4") is null &&
+                leafCollector.DeletePending() && File.ReadAllText(foreignPending) == validReport,
+                "Revisão rejeita link de arquivo e remoção apaga só a entrada local");
         }
         else Console.WriteLine("SKIP: link de diretorio indisponivel; nao e teste aprovado.");
+
+        string logFolder = Path.Combine(temp, "protected-log");
+        Directory.CreateDirectory(logFolder);
+        string logPath = Path.Combine(logFolder, "GerenciadorFinal-Diagnostico-" + DiagnosticTrace.VersionLabel + ".log");
+        string outsideLog = Path.Combine(temp, "sentinela-fora-do-log.txt");
+        File.WriteAllText(outsideLog, "sentinela-não-truncar");
+        if (!TelemetryNativeFixtures.CreateHardLink(logPath, outsideLog))
+            throw new System.ComponentModel.Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error());
+        Verify(DiagnosticTrace.StartInFolders([logFolder]) &&
+            DiagnosticTrace.Write("TESTE.PRIMEIRA_LINHA") &&
+            File.ReadAllText(outsideLog) == "sentinela-não-truncar",
+            "Log pré-criado como hard link não trunca nem modifica arquivo externo");
+        Verify(File.ReadAllText(logPath).Contains("TESTE.PRIMEIRA_LINHA"),
+            "Log protegido continua acessível a leitores comuns durante a sessão");
+        bool logReplacementBlocked = false;
+        try { File.Delete(logPath); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { logReplacementBlocked = true; }
+        Verify(logReplacementBlocked && DiagnosticTrace.Write("TESTE.APÓS_TROCA_RECUSADA"),
+            "Handle de sessão impede substituir a folha entre duas gravações");
+        bool parentReplacementBlocked = false;
+        try { Directory.Move(logFolder, logFolder + "-movido"); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { parentReplacementBlocked = true; }
+        Verify(parentReplacementBlocked, "Ancestrais do log não podem ser substituídos durante a sessão");
+        var writes = new bool[16];
+        Parallel.For(0, writes.Length, i => writes[i] = DiagnosticTrace.Write("TESTE.CONCORRENTE." + i));
+        string[] logLines = File.ReadAllLines(logPath);
+        Verify(writes.All(ok => ok) && Enumerable.Range(0, writes.Length).All(i =>
+            logLines.Count(line => line.EndsWith("TESTE.CONCORRENTE." + i, StringComparison.Ordinal)) == 1),
+            "Gravações concorrentes mantêm cada ocorrência completa exatamente uma vez");
+        DiagnosticTrace.Stop();
+        Verify(!DiagnosticTrace.Write("TESTE.APÓS_FECHAR") &&
+            DiagnosticTrace.StartInFolders([logFolder]) && DiagnosticTrace.Write("TESTE.REABERTURA"),
+            "Encerrar libera handles e uma nova sessão reinicia o log de forma segura");
+        DiagnosticTrace.Stop();
+        if (linkedCreated)
+        {
+            File.Delete(logPath);
+            File.CreateSymbolicLink(logPath, outsideLog);
+            Verify(DiagnosticTrace.StartInFolders([logFolder]) && DiagnosticTrace.Write("TESTE.LINK") &&
+                File.ReadAllText(outsideLog) == "sentinela-não-truncar",
+                "Log pré-criado como link simbólico não modifica seu destino");
+            DiagnosticTrace.Stop();
+            string redirectedLog = Path.Combine(temp, "redirected-log");
+            Directory.CreateSymbolicLink(redirectedLog, logFolder);
+            string fallbackLog = Path.Combine(temp, "fallback-log");
+            string protectedContents = File.ReadAllText(logPath);
+            Verify(DiagnosticTrace.StartInFolders([redirectedLog, fallbackLog]) &&
+                Path.GetDirectoryName(DiagnosticTrace.LogFilePath) == fallbackLog &&
+                File.ReadAllText(logPath) == protectedContents,
+                "Pasta redirecionada é recusada sem tocar seus arquivos e há fallback explícito");
+            DiagnosticTrace.Stop();
+            Directory.Delete(redirectedLog);
+        }
     }
     Console.WriteLine("OK: privacidade, retomada, expiracao e falhas de disco; nenhuma rede foi usada.");
 }
 finally
 {
+    DiagnosticTrace.Stop();
     try { Directory.Delete(temp, recursive: true); }
     catch (IOException) { }
     catch (UnauthorizedAccessException) { }
+}
+
+internal static class TelemetryNativeFixtures
+{
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW",
+        CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool CreateHardLinkNative(string link, string existing, IntPtr attributes);
+    internal static bool CreateHardLink(string link, string existing) => CreateHardLinkNative(link, existing, IntPtr.Zero);
 }

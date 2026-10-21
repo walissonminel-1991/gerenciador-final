@@ -8,8 +8,10 @@
   <ItemGroup>
     <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
+    <Compile Include="../SafeTemporaryCleanup.cs" Link="SafeTemporaryCleanup.cs" />
     <Compile Include="../PipePeerVerifier.cs" Link="PipePeerVerifier.cs" />
     <Compile Include="../WindowsSystemTools.cs" Link="WindowsSystemTools.cs" />
+    <Compile Include="../RestorePointService.cs" Link="RestorePointService.cs" />
     <Compile Include="../SecurityCenterHealth.cs" Link="SecurityCenterHealth.cs"/>
   </ItemGroup>
 </Project>

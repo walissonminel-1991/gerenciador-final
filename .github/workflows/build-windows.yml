@@ -22,6 +22,9 @@ jobs:
       artifact_name: ${{ steps.pacote.outputs.nome }}
     runs-on: windows-2022
     timeout-minutes: 30
+    env:
+      GF_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      GF_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
     steps:
       - name: Baixar fonte
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,6 +69,8 @@ jobs:
             'Produto: Gerenciador Final'
             "Versao: $version"
             "Commit Git: $env:GITHUB_SHA"
+            "Commit fonte: $env:GF_SOURCE_SHA"
+            "Base da PR (quando aplicavel): $env:GF_BASE_SHA"
             "Execucao GitHub Actions: $env:GITHUB_RUN_ID"
             'Assinatura digital: AUSENTE (pacote experimental)'
             'Status AVG: NAO VALIDADO; nao executar se estiver em quarentena'

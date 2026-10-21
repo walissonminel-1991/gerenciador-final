@@ -19,7 +19,10 @@ internal sealed record MaintenanceReport(int Installed, int Recognized,
     // Separar inventário real do Windows de reconhecimento de receitas específicas.
     public int WithPublisher { get; init; }
     public int WithVersion { get; init; }
+    public bool InventoryIncomplete { get; init; }
     public RegistryDeviceEvidence? HistoricalPnP { get; init; }
+    public bool Incomplete => InventoryIncomplete || Devices.Partial ||
+        (Devices.Supported && (HistoricalPnP is null || HistoricalPnP.Partial));
 }
 
 internal static class MaintenanceAudit
@@ -154,13 +157,14 @@ internal static class MaintenanceAudit
                     object? Get(string prop)
                     {
                         try { return device.Properties_.Item(prop).Value; }
-                        catch { return null; }
+                        catch { partial = true; return null; }
                     }
                     string name = Convert.ToString(Get("Name"), CultureInfo.CurrentCulture) ?? "";
                     string category = Convert.ToString(Get("PNPClass"), CultureInfo.CurrentCulture) ?? "";
                     string id = Convert.ToString(Get("PNPDeviceID"), CultureInfo.CurrentCulture) ?? "";
                     object? rawPresent = Get("Present");
                     bool? present = rawPresent is bool b ? b : null;
+                    if (present is null || string.IsNullOrWhiteSpace(id)) partial = true;
                     if (present == true && id.Length >= 6) activeIds.Add(id);
                     if (ReviewDisconnectedDevice(present, category, id, name))
                     {
@@ -170,7 +174,7 @@ internal static class MaintenanceAudit
                     }
                     int error = 0;
                     try { error = Convert.ToInt32(Get("ConfigManagerErrorCode") ?? 0); }
-                    catch (Exception) { }
+                    catch (Exception) { partial = true; }
                     if (present == true && error != 0 && error != 22)
                         errors++; // disabled is a choice, not proof of malfunction
                 }
@@ -198,7 +202,7 @@ internal static class MaintenanceAudit
     }
 
     internal static MaintenanceReport Inspect(IReadOnlyCollection<ProgramEntry> apps,
-        bool inspectDevices = true)
+        bool inspectDevices = true, bool inventoryIncomplete = false)
     {
         var inventory = InspectPrograms(apps);
         DeviceAudit device = inspectDevices ? Devices() : new(0, 0, 0, false, false, []);
@@ -209,6 +213,10 @@ internal static class MaintenanceAudit
             ? HistoricalDeviceAudit.Inspect(device.PresentIds)
             : null;
         var findings = inventory.Concerns.ToList();
+        if (inventoryIncomplete)
+            findings.Add(new("Inventário", "Consulta parcial de aplicativos",
+                "Uma ou mais fontes de aplicativos não puderam ser lidas por completo. " +
+                "Ausência nesta consulta não comprova desinstalação."));
         if (device.Disconnected > 0)
             findings.Add(new("Hardware", "Dispositivos desconectados",
                 $"{device.Disconnected} registros PnP desconectados (não significa driver inútil). " +
@@ -234,6 +242,7 @@ internal static class MaintenanceAudit
         {
             WithPublisher = apps.Count(a => !string.IsNullOrWhiteSpace(a.Publisher)),
             WithVersion = apps.Count(a => !string.IsNullOrWhiteSpace(a.Version)),
+            InventoryIncomplete = inventoryIncomplete,
             HistoricalPnP = historical
         };
     }

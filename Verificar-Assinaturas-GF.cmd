@@ -1,5 +1,17 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
+rem A versao vem do projeto para nao rotular novas builds com versoes antigas.
+set "GF_BUILD_VERSION="
+for /f "tokens=*" %%L in ('findstr /R /C:"<Version>[0-9][0-9.]*</Version>" "%~dp0GerenciadorAplicativos.csproj"') do for /f "tokens=2 delims=<>" %%V in ("%%L") do set "GF_BUILD_VERSION=%%V"
+if not defined GF_BUILD_VERSION (
+  echo ERRO: versao ausente no projeto.
+  exit /b 1
+)
+rem Consulta sem efeitos para regressao Windows dos nomes de distribuicao.
+if /I "%~1"=="--print-version" (
+  echo %GF_BUILD_VERSION%
+  exit /b 0
+)
 if "%~1"=="" (
   echo ERRO: informe o instalador final.
   exit /b 1
@@ -31,8 +43,8 @@ for %%F in ("%EXE%" "%DLL%" "%~1") do (
   "%GF_SIGNTOOL%" verify /pa /v "%%~fF"
   if errorlevel 1 exit /b 1
 )
-set "HASHES=%~dp1SHA256-GerenciadorFinal-v5.12.3.txt"
->"%HASHES%" echo Gerenciador Final v5.12.3 - hashes apos assinatura final.
+set "HASHES=%~dp1SHA256-GerenciadorFinal-v%GF_BUILD_VERSION%.txt"
+>"%HASHES%" echo Gerenciador Final v%GF_BUILD_VERSION% - hashes apos assinatura final.
 for %%F in ("%EXE%" "%DLL%" "%~1") do (
   >>"%HASHES%" echo.
   >>"%HASHES%" echo ARQUIVO: %%~nxF

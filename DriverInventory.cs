@@ -16,10 +16,20 @@ internal sealed record DriverInventoryResult(IReadOnlyList<DriverInventoryEntry>
 internal static class DriverInventory
 {
     internal static IReadOnlyList<DriverInventoryEntry> Correlate(IEnumerable<DriverInventoryEntry> drivers,
-        IReadOnlyDictionary<string, bool?> presence)
+        IReadOnlyDictionary<string, bool?> presence,
+        IReadOnlyDictionary<string, string>? deviceNames = null)
     {
         var indexed = new Dictionary<string, bool?>(presence, StringComparer.OrdinalIgnoreCase);
-        return drivers.Select(d => d with { Present = indexed.GetValueOrDefault(d.DeviceId) })
+        var names = deviceNames is null ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(deviceNames, StringComparer.OrdinalIgnoreCase);
+        return drivers.Select(d => d with
+            {
+                Present = indexed.GetValueOrDefault(d.DeviceId),
+                // DeviceName pode ser vazio na associação do driver. O nome
+                // PnP só é aproveitado quando pertence ao MESMO ID de dispositivo.
+                DeviceName = string.IsNullOrWhiteSpace(d.DeviceName)
+                    ? names.GetValueOrDefault(d.DeviceId, "") : d.DeviceName
+            })
             .DistinctBy(d => (d.DeviceId.ToUpperInvariant(), d.InfName.ToUpperInvariant(), d.Version, d.Provider.ToUpperInvariant(), d.Signed))
             .OrderBy(d => d.DeviceName, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
@@ -28,6 +38,7 @@ internal static class DriverInventory
     {
         var rows = new List<DriverInventoryEntry>();
         var presence = new Dictionary<string, bool?>(StringComparer.OrdinalIgnoreCase);
+        var deviceNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         bool partial = false;
         string stage = "conectar";
         object? locator = null, services = null;
@@ -79,10 +90,15 @@ internal static class DriverInventory
                 }
                 finally { Release(result); }
             }
-            Query("SELECT PNPDeviceID, Present FROM Win32_PnPEntity", get =>
+            Query("SELECT PNPDeviceID, Name, Present FROM Win32_PnPEntity", get =>
             {
                 string id = Convert.ToString(get("PNPDeviceID")) ?? "";
-                if (id.Length > 0) presence[id] = get("Present") is bool b ? b : null;
+                if (id.Length > 0)
+                {
+                    presence[id] = get("Present") is bool b ? b : null;
+                    string name = Convert.ToString(get("Name")) ?? "";
+                    if (!string.IsNullOrWhiteSpace(name)) deviceNames[id] = name;
+                }
             });
             Query("SELECT DeviceID, DeviceName, DriverProviderName, DriverVersion, InfName, IsSigned FROM Win32_PnPSignedDriver", get =>
             {
@@ -92,11 +108,11 @@ internal static class DriverInventory
                 rows.Add(new(id, Text("DeviceName"), Text("DriverProviderName"), Text("DriverVersion"),
                     Text("InfName"), get("IsSigned") is bool b ? b : null, null));
             });
-            return new(Correlate(rows, presence), partial, partial ? "Consulta parcial" : "Consulta concluída");
+            return new(Correlate(rows, presence, deviceNames), partial, partial ? "Consulta parcial" : "Consulta concluída");
         }
         catch (Exception ex)
         {
-            return new(Correlate(rows, presence), true, $"Consulta parcial ou indisponível: {stage}; {ex.GetType().Name}; 0x{ex.HResult:X8}");
+            return new(Correlate(rows, presence, deviceNames), true, $"Consulta parcial ou indisponível: {stage}; {ex.GetType().Name}; 0x{ex.HResult:X8}");
         }
         finally { Release(services); Release(locator); }
     }

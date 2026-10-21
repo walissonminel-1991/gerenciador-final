@@ -63,6 +63,7 @@ internal static class Program
             catch { }
             return 1;
         }
+        finally { DiagnosticTrace.Stop(); }
     }
 }
 
@@ -333,90 +334,16 @@ internal static class AppServices
 
     public static CleanupResult CleanDirectorySafely(string root, Action<string>? log = null)
     {
-        // Escopo limitado à pasta informada. Nunca remove a pasta raiz.
-        // Não percorre junctions/symlinks; preserva arquivos recentes/em uso
-        // e diretórios do antivírus. Nenhuma confirmação por arquivo.
-        int files = 0, directories = 0, failed = 0, special = 0, skipped = 0;
-        var examples = new List<string>();
-        void Failure(string path, Exception ex)
-        {
-            failed++;
-            if (examples.Count < 5) examples.Add(Path.GetFileName(path) + ": " + ex.Message);
-        }
-        string fullRoot;
-        try { fullRoot = Path.GetFullPath(root); }
-        catch (Exception ex) { Failure(root, ex); return new(0, 0, failed, 0, 0, examples); }
-        if (!Directory.Exists(fullRoot))
-            return new(0, 0, 1, 0, 0, new[] { "Pasta temporária não encontrada." });
-
-        var stack = new Stack<(string path, bool after)>();
-        stack.Push((fullRoot, false));
-        while (stack.Count > 0)
-        {
-            var (path, after) = stack.Pop();
-            if (after)
-            {
-                if (!path.Equals(fullRoot, StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        // Preserva pastas que ainda têm arquivos recentes/protegidos.
-                        if (!Directory.EnumerateFileSystemEntries(path).Any())
-                        { Directory.Delete(path, recursive: false); directories++; }
-                    }
-                    catch (DirectoryNotFoundException) { }
-                    catch (UnauthorizedAccessException ex) { Failure(path, ex); }
-                    catch (IOException) { skipped++; }
-                    catch (Exception ex) { Failure(path, ex); }
-                }
-                continue;
-            }
-            if (!Directory.Exists(path)) continue;
-            try
-            {
-                if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
-                { special++; continue; }
-                // Diretórios temporários do antivírus devem ficar intocados.
-                if (!path.Equals(fullRoot, StringComparison.OrdinalIgnoreCase) &&
-                    Path.GetFileName(path).StartsWith("_avg_", StringComparison.OrdinalIgnoreCase))
-                { skipped++; continue; }
-                stack.Push((path, true));
-                foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.TopDirectoryOnly))
-                {
-                    try
-                    {
-                        var attrs = File.GetAttributes(file);
-                        if ((attrs & FileAttributes.ReparsePoint) != 0) { special++; continue; }
-                        if ((attrs & FileAttributes.ReadOnly) != 0 ||
-                            DateTime.Now - File.GetLastWriteTime(file) < TimeSpan.FromHours(24))
-                        { skipped++; continue; }
-                        File.Delete(file);
-                        files++;
-                    }
-                    catch (FileNotFoundException) { }
-                    catch (DirectoryNotFoundException) { }
-                    catch (IOException) { skipped++; } // Em uso, não é erro crítico.
-                    catch (UnauthorizedAccessException) { skipped++; }
-                    catch (Exception ex) { Failure(file, ex); }
-                }
-                foreach (string child in Directory.EnumerateDirectories(path, "*", SearchOption.TopDirectoryOnly))
-                    stack.Push((child, false));
-            }
-            catch (UnauthorizedAccessException) { skipped++; }
-            catch (IOException) { skipped++; }
-            catch (Exception ex) { Failure(path, ex); }
-        }
-        log?.Invoke($"Limpeza: {files} arquivo(s) e {directories} pasta(s) removidos; " +
-                    $"{skipped} itens recentes, protegidos ou em uso preservados; {special} links ignorados; {failed} falhas inesperadas.");
-        foreach (var line in examples) log?.Invoke("Detalhe: " + line);
-        return new(files, directories, failed, special, skipped, examples);
+        var result = SafeTemporaryCleanup.Clean(root, log);
+        return new(result.FilesRemoved, result.DirectoriesRemoved, result.Failed,
+            result.ReparseSkipped, result.Skipped, result.Examples);
     }
 
-    public static bool TryParseUninstaller(string command, out string fileName, out string arguments)
+    public static bool TryParseUninstaller(string? command, out string fileName, out string arguments)
     {
         fileName = ""; arguments = "";
-        string raw = command.Trim();
-        if (raw.Length == 0) return false;
+        string raw = command?.Trim() ?? "";
+        if (raw.Length is 0 or > 32767 || raw.Any(char.IsControl)) return false;
         if (raw.StartsWith('"'))
         {
             int end = raw.IndexOf('"', 1);
@@ -426,10 +353,11 @@ internal static class AppServices
         }
         else
         {
-            int exeIndex = raw.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
-            if (exeIndex >= 0)
+            var executable = Regex.Match(raw, @"^.+?\.exe(?=\s|$)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (executable.Success)
             {
-                int end = exeIndex + 4;
+                int end = executable.Length;
                 fileName = raw[..end].Trim().Trim('"');
                 arguments = raw[end..].Trim();
             }
@@ -1958,7 +1886,7 @@ internal sealed partial class MainForm : Form
                 Log("ATENÇÃO: inventário PARCIAL. Uma ou mais fontes não puderam ser consultadas; aplicativos ausentes desta lista podem continuar instalados. Clique em Atualizar lista para tentar novamente. Nenhum aplicativo foi removido.");
             DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count} examinados={scan.Registry.Inspected} ocultos={scan.Registry.HiddenComponents} updates_arp={scan.Registry.UpdateEntries} erros={scan.Registry.ReadFailures} duplicados={scan.Registry.Duplicates}");
             DiagnosticTrace.Write($"MSIX.LEITURA status={scan.Msix.Status} enumerados={scan.Msix.Seen} " +
-                $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures} repeticao={scan.Msix.Retried}");
+                $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures} repeticao={scan.Msix.Retried} fase={scan.Msix.FailureStage} apartment={scan.Msix.Apartment}");
             DiagnosticTrace.Write($"JOGOS.LEITURA steam={scan.Games.Steam} epic={scan.Games.Epic} adicionados={scan.GamesAdded} parciais={scan.Games.Partial}");
             Log($"Inventário: {scan.Registry.Items.Count} programas Win32, {scan.Added} aplicativos MSIX e {scan.GamesAdded} jogos de bibliotecas adicionais. " +
                 $"{scan.Registry.HiddenComponents} componentes internos e {scan.Registry.UpdateEntries} atualizações individuais do Windows não foram incluídos.");
@@ -2657,9 +2585,11 @@ internal sealed partial class MainForm : Form
                     Log("Sem desinstalador registrado: " + entry.Name);
                     continue;
                 }
+                exe = WindowsSystemTools.ResolveRegisteredUninstaller(exe);
                 using Process? proc = Process.Start(new ProcessStartInfo
                 {
-                    FileName = exe, Arguments = args, UseShellExecute = true
+                    FileName = exe, Arguments = args, UseShellExecute = true,
+                    WorkingDirectory = Path.GetDirectoryName(exe)!
                 });
                 if (proc is null)
                 {
@@ -2812,17 +2742,17 @@ internal sealed partial class MainForm : Form
     {
         Status("Conferindo instalações registradas e dispositivos do Windows...");
         DiagnosticTrace.Write("DIAGNOSTICO_COMPLETO.INICIO");
-        var apps = await Task.Run(() => AppServices.ScanAllInstalledApps().Items);
-        var maintenanceTask = Task.Run(() => MaintenanceAudit.Inspect(apps));
-        var gamesTask = Task.Run(GameLibraryAudit.Inspect);
+        var inventory = await Task.Run(AppServices.ScanAllInstalledApps);
+        var maintenanceTask = Task.Run(() => MaintenanceAudit.Inspect(inventory.Items,
+            inventoryIncomplete: inventory.Incomplete));
+        var games = inventory.Games;
         // Consulta agregada via API oficial do Windows, sem subprocessos,
         // privilegiamento ou chamadas a APIs privadas do AVG.
         var securityTask = Task.Run(SecurityCenterHealth.Capture);
-        await Task.WhenAll(maintenanceTask, gamesTask, securityTask);
+        await Task.WhenAll(maintenanceTask, securityTask);
         var report = await maintenanceTask;
-        var games = await gamesTask;
         var security = await securityTask;
-        DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} pnp_sem_correspondencia={report.HistoricalPnP?.NotPresent ?? 0} steam={games.Steam} epic={games.Epic} parcial={report.Devices.Partial || games.Partial}");
+        DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} pnp_sem_correspondencia={report.HistoricalPnP?.NotPresent ?? 0} steam={games.Steam} epic={games.Epic} inventario_parcial={report.InventoryIncomplete} msix_status={inventory.Msix.Status} msix_fase={inventory.Msix.FailureStage} msix_apartment={inventory.Msix.Apartment} parcial={report.Incomplete || games.Partial}");
         Log($"DIAGNÓSTICO COMPLETO: {report.Installed} programas; " +
             $"{report.Recognized} associados ao catálogo de receitas específicas; " +
             $"{report.WithPublisher} com fabricante registrado e " +
@@ -2874,11 +2804,10 @@ internal sealed partial class MainForm : Form
         }
         Log("Diagnóstico de proteção: leitura do Centro de Segurança. Não substitui AVG ou Defender.");
         Log("Nenhum driver, arquivo de instalação ou chave de Registro foi removido pelo diagnóstico.");
-        Status(report.Devices.Partial || games.Partial ||
-               report.HistoricalPnP is null || report.HistoricalPnP.Partial
+        Status(report.Incomplete || games.Partial
             ? "Diagnóstico parcial: consulte as informações e limitações no registro."
             : $"Diagnóstico: {report.MissingUninstallers} desinstaladores ausentes; " +
-              $"{report.HistoricalPnP.NotPresent} instâncias PnP sem confirmação (não são drivers).");
+              $"{report.HistoricalPnP?.NotPresent ?? 0} instâncias PnP sem confirmação (não são drivers).");
     }
 
     private Task ReviewOldUninstallResiduesAsync() => WithResidualCancellationAsync(ReviewOldUninstallResiduesCoreAsync);

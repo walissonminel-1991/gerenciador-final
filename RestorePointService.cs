@@ -11,8 +11,8 @@ internal static class RestorePointService
     private const int EndSystemChange = 101;
     private const int ModifySettings = 12;
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct RestorePointInfo
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 1)]
+    internal struct RestorePointInfo
     {
         public int EventType;
         public int RestorePointType;
@@ -21,18 +21,25 @@ internal static class RestorePointService
         public string Description;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct StatusManager
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    internal struct StatusManager
     {
-        public long SequenceNumber;
+        // SrRestorePtApi.h usa #pragma pack(1): offsets 0 e 4, tamanho 12.
+        // A ordem e parte da ABI, nao da apresentacao do resultado.
         public int Status;
+        public long SequenceNumber;
     }
 
     [DllImport("srclient.dll", CharSet = CharSet.Unicode, EntryPoint = "SRSetRestorePointW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SRSetRestorePoint(ref RestorePointInfo input, out StatusManager result);
 
-    public static int Request(Action<string> log)
+    internal delegate bool RestorePointCall(ref RestorePointInfo input, out StatusManager result);
+
+    public static int Request(Action<string> log) => Request(log, SRSetRestorePoint);
+
+    // Permite exercitar inicio/fim/falhas com dados sinteticos, sem criar ponto real.
+    internal static int Request(Action<string> log, RestorePointCall invoke)
     {
         try
         {
@@ -41,7 +48,7 @@ internal static class RestorePointService
                 EventType = BeginSystemChange, RestorePointType = ModifySettings,
                 SequenceNumber = 0, Description = "Gerenciador Final - antes da manutencao"
             };
-            bool accepted = SRSetRestorePoint(ref begin, out var state);
+            bool accepted = invoke(ref begin, out var state);
             if (!accepted || state.Status != 0)
             {
                 log($"Windows não confirmou a solicitação do ponto de restauração. Status {state.Status}, Win32 {Marshal.GetLastWin32Error()}.");
@@ -53,7 +60,7 @@ internal static class RestorePointService
                 EventType = EndSystemChange, RestorePointType = ModifySettings,
                 SequenceNumber = state.SequenceNumber, Description = "Gerenciador Final - fim da operacao"
             };
-            bool finalized = SRSetRestorePoint(ref end, out var ending);
+            bool finalized = invoke(ref end, out var ending);
             if (!finalized || ending.Status != 0)
             {
                 log("O Windows iniciou mas não confirmou o encerramento do ponto de restauração.");

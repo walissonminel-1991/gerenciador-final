@@ -18,6 +18,9 @@ export function validateReport(value) {
   if (value.schema !== 1 || value.exit !== "normal" ||
       typeof value.version !== "string" ||
       !/^v\d{1,3}(\.\d{1,4}){3}$/.test(value.version) ||
+      // Em JavaScript, $ também aceita posição anterior à quebra final.
+      // O esquema não permite nenhum espaço/quebra ao redor da versão.
+      value.version !== value.version.trim() ||
       !value.counts || typeof value.counts !== "object" || Array.isArray(value.counts))
     return null;
   const keys = Object.keys(value.counts);

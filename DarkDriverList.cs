@@ -196,10 +196,12 @@ internal sealed class DarkDriverList : Control
         _tips.SetToolTip(this, string.Join(Environment.NewLine,
             item.DeviceName,
             "Fornecedor: " + item.Provider,
-            "Versão: " + item.Version,
+            "Versão informada pelo Windows: " + item.Version,
             "INF: " + item.InfName,
             "Presença: " + item.PresenceLabel,
             "Assinatura informada pelo Windows: " + item.SignatureLabel,
+            "A versão é o texto relatado pelo WMI, sem correção ou comparação entre fabricantes.",
+            "Dados ausentes ou versões diferentes não comprovam incompatibilidade ou obsolescência.",
             "Somente consulta. Nenhuma instalação ou remoção de drivers."));
     }
 

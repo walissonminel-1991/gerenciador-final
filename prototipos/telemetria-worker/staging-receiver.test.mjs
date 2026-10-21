@@ -62,9 +62,11 @@ test("rejeita arquivos, metodos, content-types, encoding e query", async () => {
   const { env, state } = mockEnv();
   assert.equal((await handleStagingRequest(new Request("https://staging.example.invalid/v1/diagnostico"), env)).status, 404);
   assert.equal((await handleStagingRequest(request(report, {}, "https://staging.example.invalid/v1/diagnostico?file=test.txt"), env)).status, 404);
+  assert.equal((await handleStagingRequest(request(report, {}, "http://staging.example.invalid/v1/diagnostico"), env)).status, 404);
   for (const headers of [
     { "content-type": "multipart/form-data" }, { "content-type": "text/plain" },
-    { "content-encoding": "gzip" }, { "content-disposition": "attachment; filename=diagnostico.txt" }
+    { "content-encoding": "gzip" }, { "content-disposition": "attachment; filename=diagnostico.txt" },
+    { cookie: "sessao=dado-que-nao-deve-ser-recebido" }
   ]) {
     assert.equal((await handleStagingRequest(request(report, headers), env)).status, 415);
   }
@@ -79,6 +81,7 @@ test("validacao rejeita campos arbitrarios, duplicados, comandos, payloads grand
     report.replace('"schema":1,', '"schema":1,"schema":1,'),
     report.replace('"MSIX.LEITURA":2', '"C:\\\\Users\\\\Privado":2'),
     report.replace('"MSIX.LEITURA":2', '"MSIX.LEITURA":101'),
+    report.replace('"v5.13.11.8"', '"v5.13.11.8\\n"'),
     JSON.stringify({ schema: 1, version: "v5.13.11.8", exit: "normal",
                      counts: { "MSIX.LEITURA": 1 }, file: "malware.exe" }),
     "x".repeat(4097),
