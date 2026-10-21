@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**Candidata com CI aprovada: v5.13.11.27 TESTE · Progresso: 26/42 (61,9%).**
+**Candidata em validação: v5.13.11.28 TESTE · Progresso: 26/42 (61,9%).**
 Os percentuais indicam checkpoints e não segurança ou prontidão para release.
 
 ## Primeiro teste presencial — PC FORTE, v5.13.11.26
