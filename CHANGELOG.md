@@ -1,5 +1,15 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.21 — proteção do inventário MSIX após terceira bateria no PC fraco (TESTE)
+
+- As capturas reais confirmaram o conserto dos filtros por origem/classificação da v5.13.11.20, sem permitir exclusão de resíduos.
+- Diagnosticado `COMException(0x80040154)` ao ativar a API WinRT de inventário MSIX. A leitura caiu de 19 aplicativos MSIX no teste anterior para zero; a lista geral mostrou 55 em vez de 74 entradas. **Não indica desinstalação de aplicativos.**
+- MSIX tenta mais uma vez somente nesse HRESULT, sem PowerShell, processos auxiliares, elevação nem leitura de outros perfis. Se a fonte continuar indisponível, o GF anuncia **Inventário PARCIAL** de forma persistente no cabeçalho e no registro; não transforma a falha em consulta completa.
+- Casos automáticos para recuperação, falha persistente, acesso negado, texto de interface e propagação da parcialidade para proteção de resíduos.
+- [Terceira bateria anonimizada](docs/TESTE-PC-FRACO-2026-10-21-v5.13.11.20.md). Nenhum arquivo de diagnóstico bruto publicado.
+- Limpeza de resíduos, instalação/desinstalação e manutenção de drivers não foram liberadas como decorrência desta alteração. Roadmap permanece 26/42.
+
+
 ## v5.13.11.20 — filtros por origem e classificação coerentes (TESTE)
 
 - Segunda bateria real PC fraco 1440×900 identificou que o filtro por origem mostrava todos os locais do grupo, inclusive de outras fontes. Corrigida a interseção entre **origem, classificação e pesquisa** sobre os locais individuais, sem modificar a fotografia original nem permitir exclusões.
