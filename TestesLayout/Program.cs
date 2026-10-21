@@ -440,11 +440,15 @@ internal static class LayoutTests
                 {
                     var profile = Descendants(form).OfType<ComboBox>()
                         .SingleOrDefault(c => c.Name == "TestDiagnosticProfile");
-                    if (profile?.Parent?.Parent is not TableLayoutPanel preview ||
-                        preview.RowCount != 1 || preview.Height < 46 ||
-                        preview.Controls.OfType<Button>().Any(b => b.Height < 24) ||
-                        profile.Height < 16)
-                        throw new Exception($"Linha do diagnostico de testes cortada: {name} {resolution}");
+                    var preview = profile?.Parent?.Parent as TableLayoutPanel;
+                    int minButtonHeight = preview?.Controls.OfType<Button>()
+                        .Select(b => b.Height).DefaultIfEmpty(0).Min() ?? 0;
+                    if (preview is null || preview.RowCount != 1 ||
+                        preview.Height < 46 || minButtonHeight < 24 ||
+                        profile!.Height < 16)
+                        throw new Exception($"Linha do diagnostico de testes cortada: {name} {resolution} " +
+                            $"preview={preview?.Height} botao={minButtonHeight} combo={profile?.Height} " +
+                            $"DPI={preview?.DeviceDpi} linhas={preview?.RowCount}");
                 }
                 var allButtons = Descendants(form).OfType<Button>()
                     .Where(b => b.Visible).ToArray();
