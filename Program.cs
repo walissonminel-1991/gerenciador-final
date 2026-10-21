@@ -2931,7 +2931,11 @@ internal sealed partial class MainForm : Form
             gameInventory.ActiveNames, gameInventory.Partial, inventoryIncomplete, token));
         int installCandidates = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)));
         int publisherData = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal)));
-        DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
+        // Flags agregadas não identificáveis permitem diferenciar limite,
+        // acesso e profundidade no PC fraco, sem expor caminhos locais.
+        var scanIssues = broad.Coverage?.Issues ??
+            (broad.Incomplete ? ResidualScanIssue.ReportIncomplete : ResidualScanIssue.None);
+        DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete} motivos={scanIssues.ToString().Replace(", ", "+")}");
         // Unir todas as fontes por produto/local, preservando motivos divergentes.
         var allReports = ResidualReportMerger.Merge(historical.Concat(boosterReports).Concat(winMergeReports)
             .Concat(broad.Reports), inventoryIncomplete || broad.Incomplete, ResidualCoverage.Combine(new[] { broad.Coverage, historical.Coverage }));
@@ -2939,7 +2943,7 @@ internal sealed partial class MainForm : Form
         {
             Log($"Auditoria de dados e instalações: {allReports.Count} grupos para revisão (não são lixo confirmado). " +
                 $"Verificados {broad.EntriesSeen} nomes em {broad.RootsChecked} origens." +
-                (broad.Incomplete ? " Análise PARCIAL: limites de proteção alcançados." : ""));
+                (broad.Incomplete ? " Análise PARCIAL: " + (broad.Coverage?.ReasonSummary ?? "cobertura indisponível") + ". Preserve os dados." : ""));
             PresentResidualReports(allReports);
         }
         else

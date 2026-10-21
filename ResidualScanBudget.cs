@@ -45,7 +45,12 @@ internal sealed class ResidualScanBudget
     }
     internal void Source(string identifier) { currentSource = identifier; SourcesConsulted.Add(identifier); }
     internal void Unavailable(string identifier)
-    { SourcesUnavailable.Add(identifier); MarkIncomplete(); }
+    {
+        // A fonte indicada pode ser diferente da última consultada; não
+        // atribuir por engano a falha a outro diretório ou ramo de Registro.
+        SourcesUnavailable.Add(identifier);
+        Issues |= ResidualScanIssue.SourceUnavailable;
+    }
     internal ResidualCoverage Coverage => new(Issues, Entries,
         SourcesConsulted.Order(StringComparer.Ordinal).ToArray(),
         SourcesUnavailable.Order(StringComparer.Ordinal).ToArray());
@@ -142,6 +147,9 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
 {
     private IReadOnlyList<ResidualCoverage>? Components { get; init; }
     internal bool Incomplete => Issues != ResidualScanIssue.None;
+    // Apenas rótulos fixos. Seguro para tela e log; nunca contém caminhos
+    // do usuário, nomes de aplicativos ou identificadores de hardware.
+    internal string ReasonSummary => Incomplete ? DescribeIssues(Issues) : "nenhum";
     internal const string PartialMessage = "ANÁLISE PARCIAL — a busca atingiu um limite ou encontrou uma falha e pode haver outros resultados.";
     internal string Describe() => (Incomplete ? PartialMessage : "Análise concluída nos locais consultados.") +
         $"\r\nEntradas examinadas: {EntriesExamined}; grupos examinados: {CandidatesExamined}; candidatos encontrados: {CandidatesFound}; " +
@@ -151,7 +159,7 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
         "evidências não avaliadas: " + (CandidatesNotEvaluated?.ToString() ?? "quantidade desconhecida") + "." +
         (SourcesConsulted is { Count: > 0 } ? "\r\nFontes consultadas: " + string.Join(", ", SourcesConsulted.Select(SourceLabel)) : "") +
         (SourcesUnavailable is { Count: > 0 } ? "\r\nFontes indisponíveis: " + string.Join(", ", SourcesUnavailable.Select(SourceLabel)) : "") +
-        (Incomplete ? "\r\nMotivos: " + DescribeIssues(Issues) + ". Confiança limitada; preservar e repetir a análise." : "") +
+        (Incomplete ? "\r\nMotivos: " + ReasonSummary + ". Confiança limitada; preservar e repetir a análise." : "") +
         "\r\nEscopo: locais comuns de aplicativos, até dois níveis; não é uma varredura completa do computador." +
         "\r\nExclusão indisponível nesta versão de teste.";
 

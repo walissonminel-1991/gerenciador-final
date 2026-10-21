@@ -76,6 +76,27 @@ internal static class ResidualProgressiveTests
         mutable[0] = mutable[0] with { Product = "Alterado" }; findings[0] = findings[0] with { Location = "Outro" };
         check(snapshot.Query().Reports.Single().Product == "Original" && snapshot.Query().Reports.Single().Findings[0].Location == "Local0",
             "Índice preserva fotografia da consulta, independente das listas do chamador");
+        // PC fraco v5.13.11.21: fontes indisponíveis e limites devem ter
+        // motivo explícito, sem contaminar a fonte consultada anteriormente.
+        var unavailableBudget = new ResidualScanBudget();
+        unavailableBudget.Source("AppData");
+        unavailableBudget.Unavailable("ProgramData");
+        check(unavailableBudget.Coverage.Issues.HasFlag(ResidualScanIssue.SourceUnavailable) &&
+            !unavailableBudget.Coverage.Issues.HasFlag(ResidualScanIssue.ReadFailure) &&
+            unavailableBudget.Coverage.SourcesUnavailable!.SequenceEqual(["ProgramData"]),
+            "Fonte indisponível não contamina origem anterior nem simula erro de leitura");
+        var failedBudget = new ResidualScanBudget();
+        failedBudget.Source("AppData");
+        failedBudget.MarkIncomplete();
+        check(failedBudget.Coverage.Issues.HasFlag(ResidualScanIssue.ReadFailure) &&
+            failedBudget.Coverage.SourcesUnavailable!.SequenceEqual(["AppData"]),
+            "Erro real de leitura mantém identificação da fonte que falhou");
+        var reasons = new ResidualCoverage(ResidualScanIssue.EntryLimit | ResidualScanIssue.SourceUnavailable);
+        check(reasons.ReasonSummary.Contains("limite de entradas", StringComparison.Ordinal) &&
+            reasons.ReasonSummary.Contains("fonte indisponível", StringComparison.Ordinal) &&
+            reasons.Describe().Contains(reasons.ReasonSummary, StringComparison.Ordinal) &&
+            new ResidualCoverage().ReasonSummary == "nenhum",
+            "Resumo seguro distingue limite de quantidade de fonte não acessível");
         var coverage = new ResidualCoverage(ResidualScanIssue.ReadFailure, SourcesUnavailable: ["Registry"], CandidatesNotEvaluated: null);
         var empty = new ResidualResultIndex(new ResidualReportSet([], coverage));
         check(empty.Query().Coverage.Incomplete && empty.Query().Matching == 0 && empty.Query().Coverage.SourcesUnavailable!.Count == 1,

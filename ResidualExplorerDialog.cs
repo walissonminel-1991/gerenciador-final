@@ -145,7 +145,7 @@ internal sealed class ResidualExplorerDialog : Form
     private void Bind(ResidualResultPage page)
     {
         CurrentPage = page;
-        summary.Text = (page.Coverage.Incomplete ? "ANÁLISE PARCIAL — há locais não examinados ou fontes indisponíveis.\n" : "Análise dos locais consultados; não é varredura completa do computador.\n") +
+        summary.Text = (page.Coverage.Incomplete ? "ANÁLISE PARCIAL — " + page.Coverage.ReasonSummary + ".\n" : "Análise dos locais consultados; não é varredura completa do computador.\n") +
             $"{page.Matching} de {page.TotalAvailable} grupos; {page.Reports.Count} nesta página, {page.NotLoaded} nas demais. {page.LocationsAvailable} locais disponíveis.\nExclusão indisponível nesta versão de teste.";
         summary.ForeColor = page.Coverage.Incomplete ? Color.FromArgb(255, 209, 138) : ForeColor;
         groups.EmptyMessage = page.Matching == 0 && filter.SelectedIndex == (int)ResidualFilter.Review &&
