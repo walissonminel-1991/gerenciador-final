@@ -11,7 +11,7 @@ namespace GerenciadorAplicativos;
 // comando de terminal ou dado do computador é enviado nas consultas.
 internal sealed record OfficialRelease(InstalledApp Installed, string LatestVersion,
     string Provider, string OfficialPage);
-internal sealed record ProviderDiagnostic(string Provider, string Status, long Milliseconds);
+internal sealed record ProviderDiagnostic(string Provider, string Status, long Milliseconds, bool UsedMemoryCache = false);
 internal sealed record ProviderScan(IReadOnlyList<OfficialRelease> Findings,
     IReadOnlyList<ProviderDiagnostic> Diagnostics);
 
@@ -19,7 +19,7 @@ internal sealed class OfficialReleaseSources : IDisposable
 {
     private sealed record Recipe(string Id, string Provider, string Name, string Endpoint,
         string Page, Func<InstalledApp, bool> Matches, string JsonProperty);
-    private sealed record CachedVersion(string Version, DateTimeOffset Expires);
+    private sealed record CachedVersion(string Version, TimeProvider Clock, long Started);
     private static readonly ConcurrentDictionary<string, CachedVersion> Cache = new();
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new();
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(10);
@@ -28,6 +28,7 @@ internal sealed class OfficialReleaseSources : IDisposable
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
     private readonly TimeSpan _responseTimeout;
+    private readonly TimeProvider _clock;
 
     // Nomes e fabricantes são verificados ANTES de qualquer requisição.
     // Não tentamos inferir URLs a partir da lista de programas do usuário.
@@ -173,8 +174,9 @@ internal sealed class OfficialReleaseSources : IDisposable
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return client;
     }
-    internal OfficialReleaseSources(HttpMessageHandler? handler = null, TimeSpan? responseTimeout = null)
+    internal OfficialReleaseSources(HttpMessageHandler? handler = null, TimeSpan? responseTimeout = null, TimeProvider? clock = null)
     {
+        _clock = clock ?? TimeProvider.System;
         _responseTimeout = responseTimeout ?? TimeSpan.FromSeconds(14);
         _ownsHttp = handler is not null;
         _http = handler is null ? SharedClient : new HttpClient(handler)
@@ -205,12 +207,12 @@ internal sealed class OfficialReleaseSources : IDisposable
             var clock = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                string version = await GetVersionAsync(target.Recipe, token, forceRefresh);
+                var (version, cached) = await GetVersionAsync(target.Recipe, token, forceRefresh);
                 var findings = target.Apps.Select(app =>
                     new OfficialRelease(app, version, target.Recipe.Provider,
                         target.Recipe.Page)).ToArray();
                 return (Findings: findings,
-                    Diagnostic: new ProviderDiagnostic(target.Recipe.Id, "ok", clock.ElapsedMilliseconds));
+                    Diagnostic: new ProviderDiagnostic(target.Recipe.Id, "ok", clock.ElapsedMilliseconds, cached));
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidDataException
@@ -226,24 +228,25 @@ internal sealed class OfficialReleaseSources : IDisposable
             results.Select(x => x.Diagnostic).ToArray());
     }
 
-    private async Task<string> GetVersionAsync(Recipe recipe, CancellationToken token, bool force)
+    private async Task<(string Version, bool Cached)> GetVersionAsync(Recipe recipe, CancellationToken token, bool force)
     {
         token.ThrowIfCancellationRequested();
         if (!force && Cache.TryGetValue(recipe.Id, out var cached) &&
-            cached.Expires > DateTimeOffset.UtcNow) return cached.Version;
+            ReferenceEquals(cached.Clock, _clock) && _clock.GetElapsedTime(cached.Started) < Ttl) return (cached.Version, true);
         var gate = Gates.GetOrAdd(recipe.Id, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(token);
         try
         {
             if (!force && Cache.TryGetValue(recipe.Id, out cached) &&
-                cached.Expires > DateTimeOffset.UtcNow) return cached.Version;
+                ReferenceEquals(cached.Clock, _clock) && _clock.GetElapsedTime(cached.Started) < Ttl) return (cached.Version, true);
             bool github = recipe.Endpoint.StartsWith("https://api.github.com/", StringComparison.Ordinal);
             if (github) await GithubConcurrency.WaitAsync(token);
             try
             {
                 var value = await FetchVersionAsync(recipe, token);
-                Cache[recipe.Id] = new CachedVersion(value, DateTimeOffset.UtcNow.Add(Ttl));
-                return value;
+                token.ThrowIfCancellationRequested();
+                Cache[recipe.Id] = new CachedVersion(value, _clock, _clock.GetTimestamp());
+                return (value, false);
             }
             finally { if (github) GithubConcurrency.Release(); }
         }
@@ -413,7 +416,7 @@ internal static class MultiSourceMatcher
         var byApp = new Dictionary<InstalledApp, OfficialRelease>(ReferenceEqualityComparer.Instance);
         foreach (var release in official)
         {
-            if (!installed.Any(x => ReferenceEquals(x, release.Installed))) continue;
+            if (!release.Installed.EligibleForUpdates || !installed.Any(x => ReferenceEquals(x, release.Installed))) continue;
             if (Matching.CompareVersions("0.0", release.LatestVersion) is null) continue;
             if (byApp.TryGetValue(release.Installed, out var current))
             {
@@ -426,6 +429,13 @@ internal static class MultiSourceMatcher
         for (int i = 0; i < installed.Count; i++)
         {
             var app = installed[i];
+            if (ruckzuck is not null && !ReferenceEquals(ruckzuck[i].Installed, app))
+                throw new InvalidDataException("Resultado do catálogo pertence a outra fotografia de inventário.");
+            if (!app.EligibleForUpdates)
+            {
+                result[i] = new UpdateMatch(app, null, MatchState.Unmatched);
+                continue;
+            }
             var original = ruckzuck is null ?
                 new UpdateMatch(app, null, MatchState.Unmatched) : ruckzuck[i];
             if (!byApp.TryGetValue(app, out var release))

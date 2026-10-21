@@ -101,11 +101,15 @@ using (var source = new OfficialReleaseSources(fixture))
          new OfficialRelease(obs, "32.2.2", "GitHub oficial", "")]);
     Assert(duplicate.Count == 1 && duplicate[0].Catalog?.ProductVersion == "32.2.2",
         "Resultados duplicados consolidados na maior versão oficial");
-    var upToDate = MultiSourceMatcher.Merge([App("OBS Studio", "32.2.2", "OBS Project")],
-        [new UpdateMatch(obs, new("OBS", "OBS", "33.0.0", "OBS Project"), MatchState.Candidate)],
-        [new OfficialRelease(obs, "32.2.2", "GitHub oficial", "")]);
-    // Referência diferente não deve fundir um resultado de outro aplicativo.
-    Assert(upToDate[0].State == MatchState.Candidate, "IDs das linhas não são confundidos");
+    bool wrongSnapshotRejected = false;
+    try
+    {
+        _ = MultiSourceMatcher.Merge([App("OBS Studio", "32.2.2", "OBS Project")],
+            [new UpdateMatch(obs, new("OBS", "OBS", "33.0.0", "OBS Project"), MatchState.Candidate)],
+            [new OfficialRelease(obs, "32.2.2", "GitHub oficial", "")]);
+    }
+    catch (InvalidDataException) { wrongSnapshotRejected = true; }
+    Assert(wrongSnapshotRejected, "Resultado de outra fotografia não é aplicado à instalação atual");
     var currentApp = App("OBS Studio", "32.2.2", "OBS Project");
     var suppressed = MultiSourceMatcher.Merge([currentApp],
         [new UpdateMatch(currentApp, new("OBS", "OBS", "33.0", "OBS Project"), MatchState.Candidate)],
@@ -320,6 +324,7 @@ using (var source = new OfficialReleaseSources(new AdversarialFixture(stallBody:
         "Corpo parado respeita prazo local e preserva resultado da outra fonte");
 }
 
+await OfficialLifetimeTests.Run(Assert);
 Console.WriteLine($"{tests}/{tests} testes de motores múltiplos aprovados");
 if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
 {

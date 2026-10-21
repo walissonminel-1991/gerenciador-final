@@ -10,12 +10,13 @@ internal sealed class RuckZuckCatalog : IDisposable
     private static readonly HttpClient SharedHttp = CreateSharedClient();
     private readonly HttpClient _http;
     private readonly bool _ownsClient;
+    private readonly TimeProvider _clock;
     private const int MaximumCatalogBytes = 25 * 1024 * 1024;
     // Cache somente em memoria: reduz duas solicitações HTTPS e não deixa arquivos no computador.
     // Instalações e decisões de segurança continuam consultando o Registro atual.
     private static readonly SemaphoreSlim CacheGate = new(1, 1);
-    private sealed record CacheSnapshot(IReadOnlyList<CatalogEntry> Entries, DateTimeOffset Expires);
-    private static CacheSnapshot? _memoryCache;
+    private sealed record CacheSnapshot(IReadOnlyList<CatalogEntry> Entries, TimeProvider Clock, long Started);
+    private static volatile CacheSnapshot? _memoryCache;
     private static readonly TimeSpan MemoryTtl = TimeSpan.FromMinutes(10);
     internal bool UsedMemoryCache { get; private set; }
 
@@ -30,8 +31,9 @@ internal sealed class RuckZuckCatalog : IDisposable
         return client;
     }
 
-    internal RuckZuckCatalog(HttpMessageHandler? handler = null)
+    internal RuckZuckCatalog(HttpMessageHandler? handler = null, TimeProvider? clock = null)
     {
+        _clock = clock ?? TimeProvider.System;
         _ownsClient = handler is not null;
         _http = handler is null ? SharedHttp : new HttpClient(handler)
         {
@@ -46,7 +48,7 @@ internal sealed class RuckZuckCatalog : IDisposable
     {
         token.ThrowIfCancellationRequested();
         UsedMemoryCache = false;
-        if (!forceRefresh && _memoryCache is { } cached && DateTimeOffset.UtcNow < cached.Expires)
+        if (!forceRefresh && _memoryCache is { } cached && ReferenceEquals(cached.Clock, _clock) && _clock.GetElapsedTime(cached.Started) < MemoryTtl)
         {
             UsedMemoryCache = true;
             return cached.Entries;
@@ -55,14 +57,14 @@ internal sealed class RuckZuckCatalog : IDisposable
         try
         {
             // Outra consulta pode ter preenchido o cache enquanto aguardávamos a trava.
-            if (!forceRefresh && _memoryCache is { } existing && DateTimeOffset.UtcNow < existing.Expires)
+            if (!forceRefresh && _memoryCache is { } existing && ReferenceEquals(existing.Clock, _clock) && _clock.GetElapsedTime(existing.Started) < MemoryTtl)
             {
                 UsedMemoryCache = true;
                 return existing.Entries;
             }
             var catalog = await DownloadCatalogAsync(token);
             token.ThrowIfCancellationRequested();
-            _memoryCache = new CacheSnapshot(catalog, DateTimeOffset.UtcNow.Add(MemoryTtl));
+            _memoryCache = new CacheSnapshot(catalog, _clock, _clock.GetTimestamp());
             return catalog;
         }
         finally { CacheGate.Release(); }
