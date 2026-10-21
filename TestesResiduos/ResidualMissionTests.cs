@@ -51,6 +51,17 @@ internal static class ResidualMissionTests
                 found.All(e => e.Name != "NivelNaoVarrer") && partial,
                 "Segundo nível encontra produto sob fabricante desconhecido informa profundidade limitada sem percorrer perfil");
             check(File.Exists(Path.Combine(product, "playlist.m3u")), "Descoberta preserva playlist");
+            // Confirmar que o enumerador real preserva o proprietario
+            // de subpastas genericas iguais, sem ler seus conteudos.
+            Directory.CreateDirectory(Path.Combine(temp, "SteamLab", "Config"));
+            Directory.CreateDirectory(Path.Combine(temp, "WinHanceLab", "Config"));
+            found.Clear(); entries = 0; restricted = 0; partial = false;
+            BroadResidualDiscovery.InspectDirectory(temp, "Dados", "AppData", found,
+                ref entries, ref restricted, ref partial, new ResidualScanBudget());
+            check(found.Any(e => e.Name == "SteamLab" && e.Location.EndsWith(Path.Combine("SteamLab", "Config"))) &&
+                found.Any(e => e.Name == "WinHanceLab" && e.Location.EndsWith(Path.Combine("WinHanceLab", "Config"))) &&
+                !found.Any(e => e.Name.Equals("Config", StringComparison.OrdinalIgnoreCase)),
+                "Enumeracao real atribui Config ao pai correto sem misturar fabricantes");
             var many = Path.Combine(temp, "MuitosProdutos");
             Directory.CreateDirectory(many);
             for (int i = 0; i < 150; i++) Directory.CreateDirectory(Path.Combine(many, "Produto" + i));
@@ -90,6 +101,16 @@ internal static class ResidualMissionTests
                 new ResidualScanBudget(), keyPath);
             check(found.Any(e => e.Name == "LegacyEditor" && e.Container == "Fabricante Exemplo") && !partial,
                 "Registro: produto em subchave de fabricante encontrado somente leitura");
+            // Mesmo no Registro, a palavra Config nao pode virar produto.
+            using (var generic = Registry.CurrentUser.CreateSubKey(keyPath + @"\Fabricante Exemplo\Config"))
+                generic.SetValue("Ficticio", "nao ler");
+            found.Clear(); entries = 0; restricted = 0; partial = false;
+            BroadResidualDiscovery.InspectRegistryHive(RegistryHive.CurrentUser, RegistryView.Default,
+                "HKEY_CURRENT_USER", found, ref entries, ref restricted, ref partial,
+                new ResidualScanBudget(), keyPath);
+            check(found.Any(e => e.Name == "Fabricante Exemplo" && e.Location.EndsWith(@"\Config")) &&
+                found.All(e => e.Name != "Config") && !partial,
+                "Config no Registro permanece ligado ao fabricante sem inventar aplicativo");
             using var stillThere = Registry.CurrentUser.OpenSubKey(keyPath + @"\Fabricante Exemplo\LegacyEditor");
             check((string?)stillThere?.GetValue("Preferencias") == "ficticias", "Valores do Registro permanecem intactos");
         }
