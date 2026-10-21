@@ -12,6 +12,7 @@ void Check(bool result, string what)
     passed++;
 }
 
+ResidualCorrelationTests.Run(Check);
 ResidualInspectionTests.Run(Check);
 ResidualProgressiveTests.Run(Check);
 ResidualPrecisionTests.Run(Check);

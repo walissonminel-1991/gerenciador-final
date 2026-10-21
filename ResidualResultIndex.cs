@@ -35,7 +35,7 @@ internal sealed class ResidualResultIndex
         Locations = reports.Sum(r => r.Findings.Count);
     }
     internal ResidualResultPage Query(string? text = null, ResidualFilter filter = ResidualFilter.All,
-        int page = 0, int pageSize = 50, CancellationToken cancellationToken = default)
+        int page = 0, int pageSize = 50, CancellationToken cancellationToken = default, ResidualSource source = ResidualSource.None)
     {
         pageSize = Math.Clamp(pageSize, 10, 100);
         var matches = new List<ResidualAuditReport>();
@@ -44,7 +44,7 @@ internal sealed class ResidualResultIndex
         {
             if ((i & 63) == 0) cancellationToken.ThrowIfCancellationRequested();
             if ((query.Length == 0 || search[i].Contains(query, StringComparison.OrdinalIgnoreCase)) &&
-                Matches(reports[i], filter)) matches.Add(reports[i]);
+                Matches(reports[i], filter) && (source == ResidualSource.None || reports[i].Findings.Any(f => (f.Sources & source) != 0))) matches.Add(reports[i]);
         }
         cancellationToken.ThrowIfCancellationRequested();
         int pages = Math.Max(1, (matches.Count + pageSize - 1) / pageSize);
@@ -57,10 +57,10 @@ internal sealed class ResidualResultIndex
     {
         ResidualFilter.All => true,
         ResidualFilter.Review => report.Findings.Any(f => f.Disposition is ResidualDisposition.Review or ResidualDisposition.ValidatedCandidate),
-        ResidualFilter.Data => report.Findings.Any(f => f.Disposition == ResidualDisposition.PreserveData),
-        ResidualFilter.Shared => report.Findings.Any(f => f.Disposition == ResidualDisposition.PreserveShared),
+        ResidualFilter.Data => report.Findings.Any(f => f.Disposition == ResidualDisposition.PreserveData || f.BasisDisposition == ResidualDisposition.PreserveData),
+        ResidualFilter.Shared => report.Findings.Any(f => f.Disposition == ResidualDisposition.PreserveShared || f.BasisDisposition == ResidualDisposition.PreserveShared),
         ResidualFilter.Installation => report.RelatedRegisteredPrograms.Count > 0 ||
-            report.Findings.Any(f => f.Kind.StartsWith("Instalação", StringComparison.OrdinalIgnoreCase)),
+            report.Findings.Any(f => f.Disposition == ResidualDisposition.InstallationCheck || f.BasisDisposition == ResidualDisposition.InstallationCheck || f.Kind.StartsWith("Instalação", StringComparison.OrdinalIgnoreCase)),
         _ => report.Incomplete || report.Findings.Any(f => f.Disposition == ResidualDisposition.Unknown)
     };
     internal static IReadOnlyList<ResidualAuditFinding> LocationPage(ResidualAuditReport report, int page, int pageSize = 30)

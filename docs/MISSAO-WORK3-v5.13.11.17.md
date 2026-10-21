@@ -15,3 +15,11 @@ Testes locais: navegação 500/1.000/5.000/10.000 grupos, busca/filtro global, 1
 ## Restrições
 
 Cinco bloqueios de exclusão mantidos; sem upload, manutenção automática, merge, release estável, mudanças em drivers ou antivírus. Roadmap funcional não recebe checkpoints de hardware por testes sintéticos. Franquia Work não consultável; nenhum saldo estimado.
+
+## M2 — precisão e correlação
+
+M1 aprovado nos três workflows: Windows 39524185096, política 39524185089, pacote 39524185067. Implementada classificação tipada **Instalação a conferir**, sem capacidade de remoção. Caminhos ainda usados por produto renomeado/reinstalado/versão paralela são protegidos por índice de ancestrais/descendentes com fronteira de diretório. Aliases do catálogo de identidades protegem programas sob outro nome, sem alterar receitas executáveis.
+
+Origens das evidências são flags tipadas (perfil, dados comuns, instalação, Registro, atalho, integração), preservadas na união. Fabricantes distintos com nome de produto homônimo mantêm estado desconhecido e preservação compartilhada. Resultado parcial conserva a base de preservação para filtros, além da incerteza; não transforma inventário incompleto em autorização.
+
+Seis regressões novas verificam caminho ainda usado, fronteiras, identidade ambígua, origem/filtro em parcial, alias oficial e fontes combinadas. O teste de parcial encontrou perda da base de preservação durante o desenvolvimento; corrigida antes deste commit. Famílias VLC/foobar2000/WinMerge e os onze fabricantes continuam protegidos. Fontes novas só serão adicionadas se reduzirem erro concreto; consultas globais adicionais não são requisito para completar a paginação.

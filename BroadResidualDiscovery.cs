@@ -8,7 +8,7 @@ namespace GerenciadorAplicativos;
 // instalacao do Gerenciador Final. SOMENTE LEITURA; resultados sao HIPOTESES.
 // Nao varre bibliotecas pessoais nem elimina arquivos/Registro. Nenhuma receita
 // de exclusao pode usar o resultado deste motor como autorizacao.
-internal sealed record BroadResidualEvidence(string Name, string Location, string Kind, string RootGroup, string Container = "");
+internal sealed record BroadResidualEvidence(string Name, string Location, string Kind, string RootGroup, string Container = "", ResidualSource Sources = ResidualSource.None);
 internal sealed record BroadResidualResult(
     IReadOnlyList<ResidualAuditReport> Reports,
     int RootsChecked, int EntriesSeen, int RestrictedRoots, bool Incomplete, ResidualCoverage? Coverage = null);
@@ -131,7 +131,8 @@ internal static class BroadResidualDiscovery
     }
 
     private static string[] ProtectionNames(IReadOnlyCollection<ProgramEntry> installed) =>
-        installed.SelectMany(app => new[] { app.Name, app.Publisher, app.CatalogDisplayName })
+        installed.SelectMany(app => new[] { app.Name, app.Publisher, app.CatalogDisplayName }
+            .Concat(ApplicationIdentityCatalog.Resolve(app.Name, app.Publisher)?.Names.Select(n => n.TrimEnd('*').Trim()) ?? []))
             .Where(x => !string.IsNullOrWhiteSpace(x)).Select(NormalizedCompare)
             .Where(x => x.Length > 0).Distinct(Comparer).Order(StringComparer.Ordinal).ToArray();
 
@@ -452,6 +453,7 @@ internal static class BroadResidualDiscovery
             .Select(NormalizedCompare)
             .Where(name => name.Length >= 4)
             .ToHashSet(Comparer);
+        var installationPaths = new ResidualPathIndex(installed.Select(p => p.InstallLocation));
         var protectedNames = ProtectionNames(installed); // normalizar só uma vez por análise
         var runningNames = (runningProcessNames ?? []).Select(NormalizedCompare)
             .Select(n => Regex.Replace(n, @"(?:\s(?:64|32|X64|X86)|(?<=\p{L})(?:64|32))$", ""))
@@ -495,18 +497,23 @@ internal static class BroadResidualDiscovery
                     .Select(g => g.OrderByDescending(e => e.RootGroup == "Integration")
                         .ThenByDescending(e => e.RootGroup == "AppData" || e.RootGroup == "ProgramData")
                         .ThenBy(e => e.Kind, StringComparer.Ordinal).First() with
-                        { Kind = string.Join(" / ", g.Select(e => e.Kind).Distinct().Order(StringComparer.Ordinal)) })
+                        { Kind = string.Join(" / ", g.Select(e => e.Kind).Distinct().Order(StringComparer.Ordinal)),
+                          Sources = g.Aggregate(ResidualSource.None, (a, e) => a | SourceOf(e.RootGroup)) })
                     .ToArray();
                 int sourceTypes = all.Select(e => e.RootGroup).Distinct(Comparer).Count();
                 // Um diretório em Program Files pode ser uma instalação real,
                 // inclusive portátil, sem UninstallString. Uma pasta com nome
                 // de fabricante pode guardar saves de vários jogos diferentes.
-                bool hasProgramFiles = all.Any(e => e.RootGroup == "ProgramFiles");
+                bool hasProgramFiles = all.Any(e => e.Sources.HasFlag(ResidualSource.Installation));
+                bool activePath = all.Any(e => installationPaths.Overlaps(e.Location));
+                bool ambiguous = group.Where(e => e.Container.Length > 0).Select(e => NormalizedCompare(e.Container)).Distinct(Comparer).Take(2).Count() > 1;
                 bool sharedPublisher = IsSharedPublisherName(group.First().Name);
-                string status = hasProgramFiles ? "Instalação não confirmada" :
+                string status = hasProgramFiles || activePath ? "Instalação não confirmada" :
                     sharedPublisher ? "Dados compartilhados de fabricante" :
                     "Vestígio não confirmado";
-                string explanation = hasProgramFiles
+                string explanation = ambiguous ? "Nome associado a fabricantes distintos; vínculo ambíguo. Preservar todos os locais."
+                    : activePath ? "Local sobreposto a uma instalação registrada sob outro nome ou versão. Preservar e conferir."
+                    : hasProgramFiles
                     ? "Há diretório de instalação. O aplicativo pode continuar presente sem registro de desinstalação. Não apagar."
                     : sharedPublisher
                     ? "Nome de fabricante; pode conter configurações e jogos salvos de títulos ainda instalados. Não apagar."
@@ -515,12 +522,18 @@ internal static class BroadResidualDiscovery
                     .Select(e => new ResidualAuditFinding(e.Location,
                         status + " — " + e.Kind, 1,
                         explanation + (e.Container.Length > 0 ? " Local subordinado a " + e.Container + "; vínculo exclusivo não comprovado." : "") + (inventoryIncomplete ? " Inventário de proteção parcial; ausência não comprova remoção." : "") + " Somente leitura.",
-                        inventoryIncomplete || hasProgramFiles || group.Key == "NETEASE" ? ResidualDisposition.Unknown :
-                        sharedPublisher || e.RootGroup == "Integration" ? ResidualDisposition.PreserveShared :
-                        e.RootGroup is "AppData" or "ProgramData" or "Registry" ? ResidualDisposition.PreserveData : ResidualDisposition.Review)).ToArray();
+                        inventoryIncomplete || ambiguous ? ResidualDisposition.Unknown :
+                        hasProgramFiles || activePath || group.Key == "NETEASE" ? ResidualDisposition.InstallationCheck :
+                        sharedPublisher || e.Sources.HasFlag(ResidualSource.Integration) ? ResidualDisposition.PreserveShared :
+                        e.RootGroup is "AppData" or "ProgramData" or "Registry" ? ResidualDisposition.PreserveData : ResidualDisposition.Review,
+                        e.Sources, ambiguous ? ResidualDisposition.PreserveShared : inventoryIncomplete
+                            ? hasProgramFiles || activePath || group.Key == "NETEASE" ? ResidualDisposition.InstallationCheck
+                            : sharedPublisher || e.Sources.HasFlag(ResidualSource.Integration) ? ResidualDisposition.PreserveShared
+                            : e.RootGroup is "AppData" or "ProgramData" or "Registry" ? ResidualDisposition.PreserveData : ResidualDisposition.Review
+                            : null)).ToArray();
                 return new
                 {
-                    Group = group.First().Name,
+                    Group = group.Select(e => e.Name).OrderBy(n => n.Length).ThenBy(n => n, StringComparer.Ordinal).First(),
                     Sources = sourceTypes,
                     Total = all.Length,
                     Findings = findings
@@ -534,10 +547,18 @@ internal static class BroadResidualDiscovery
             CandidatesFound: classified.Length, CandidatesNotEvaluated: classificationStopped ? null : remaining,
             CandidatesExamined: groupsExamined) });
         var reports = classified.Select(g => new ResidualAuditReport(g.Group, false,
-            g.Findings.Select(f => coverage.Incomplete ? f with { Disposition = ResidualDisposition.Unknown } : f).ToArray(),
+            g.Findings.Select(f => coverage.Incomplete ? f with { BasisDisposition = f.BasisDisposition ?? f.Disposition, Disposition = ResidualDisposition.Unknown } : f).ToArray(),
             Array.Empty<string>(), Historical: true, Incomplete: coverage.Incomplete, Coverage: coverage)).ToArray();
         return new(reports, coverage);
     }
+
+    internal static ResidualSource SourceOf(string group) => group switch
+    {
+        "AppData" => ResidualSource.UserData, "ProgramData" => ResidualSource.CommonData,
+        "ProgramFiles" => ResidualSource.Installation, "Registry" => ResidualSource.Registry,
+        "StartMenu" => ResidualSource.Shortcut, "Integration" => ResidualSource.Integration,
+        _ => ResidualSource.None
+    };
 
     internal static BroadResidualResult Inspect(IReadOnlyCollection<ProgramEntry> installed,
         IReadOnlyCollection<string>? activeGameNames = null, bool gameInventoryPartial = false,

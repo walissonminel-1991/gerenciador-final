@@ -50,6 +50,8 @@ internal static class ResidualReportMerger
                 var disposition = locations.Select(f => f.Disposition).OrderByDescending(Rank).First();
                 return first with
                 {
+                    Sources = locations.Aggregate(ResidualSource.None, (a, f) => a | f.Sources),
+                    BasisDisposition = locations.Select(f => f.BasisDisposition ?? f.Disposition).OrderByDescending(Rank).First(),
                     Kind = string.Join(" / ", locations.Select(f => f.Kind).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)),
                     Items = locations.Max(f => f.Items),
                     Evidence = string.Join(" ", locations.Select(f => f.Evidence).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)) +
@@ -82,7 +84,7 @@ internal static class ResidualReportMerger
         var result = merged.Select(r => r with
         {
             Findings = r.Findings.Select(f => shared.Contains(LocationKey(f.Location))
-                ? f with { Disposition = r.Incomplete ? ResidualDisposition.Unknown : ResidualDisposition.PreserveShared,
+                ? f with { BasisDisposition = ResidualDisposition.PreserveShared, Disposition = r.Incomplete ? ResidualDisposition.Unknown : ResidualDisposition.PreserveShared,
                     Evidence = f.Evidence + " Local igual ou ancestral associado a mais de um aplicativo; preservar." } : f).ToArray()
         }).OrderBy(r => r.Product, StringComparer.OrdinalIgnoreCase).ToArray();
         var reconciled = new ResidualCoverage(ReportsReconciled: input.Length - result.Length,
@@ -92,7 +94,8 @@ internal static class ResidualReportMerger
     }
     private static int Rank(ResidualDisposition disposition) => disposition switch
     {
-        ResidualDisposition.Unknown => 5,
+        ResidualDisposition.Unknown => 6,
+        ResidualDisposition.InstallationCheck => 5,
         ResidualDisposition.PreserveShared => 4,
         ResidualDisposition.PreserveData => 3,
         ResidualDisposition.Review => 2,

@@ -2865,7 +2865,7 @@ internal sealed partial class MainForm : Form
             : new[] { new ResidualAuditReport("Driver Booster (IObit)", false,
                 boosterEvidence.Findings.Select(f => f with
                 {
-                    Disposition = ResidualDisposition.Unknown,
+                    Disposition = inventoryIncomplete ? ResidualDisposition.Unknown : ResidualDisposition.InstallationCheck,
                     Evidence = f.Evidence + " Situação do Driver Booster exige conferência; ausência não comprova desinstalação.",
                     Kind = (boosterStillRegistered || inventoryIncomplete
                         ? "Instalação não confirmada — " : "Vestígio não confirmado — ") + f.Kind

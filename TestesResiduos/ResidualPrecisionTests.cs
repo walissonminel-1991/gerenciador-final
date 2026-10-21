@@ -18,10 +18,10 @@ internal static class ResidualPrecisionTests
         check(BroadResidualDiscovery.Classify(Pair("Editor"), installed).Count == 0 &&
             BroadResidualDiscovery.Classify(Pair("EditorPro"), installed).Count == 1,
             "Índice preserva prefixo por palavra sem confundir produto homônimo");
-        check(BroadResidualDiscovery.Classify(Pair("Netease"), []).Single().Findings.All(f => f.Disposition == ResidualDisposition.Unknown),
+        check(BroadResidualDiscovery.Classify(Pair("Netease"), []).Single().Findings.All(f => f.Disposition == ResidualDisposition.InstallationCheck && !f.CanRemove),
             "Netease exige conferência de instalação sem assumir desinstalação");
         check(BroadResidualDiscovery.Classify(Pair("EditorPortatil").Append(new("EditorPortatil", "Instalacao", "Pasta", "ProgramFiles")), [])
-            .Single().Findings.All(f => f.Disposition == ResidualDisposition.Unknown), "Instalação portátil ainda possível impede conclusão de resíduo");
+            .Single().Findings.All(f => f.Disposition == ResidualDisposition.InstallationCheck && !f.CanRemove), "Instalação portátil ainda possível impede conclusão de resíduo");
         var conflict = ResidualReportMerger.Merge(new[]
         {
             new ResidualAuditReport("App A", false, [new(@"C:\Vendor", "Fabricante", 1, "pai")], []),

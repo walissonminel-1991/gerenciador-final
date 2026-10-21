@@ -5,9 +5,12 @@ namespace GerenciadorAplicativos;
 
 // Complementa as receitas verificadas. Detecta, mas NUNCA apaga.
 // Um registro ainda existente ou uma pasta com nome semelhante NAO prova lixo.
-internal enum ResidualDisposition { Review, PreserveData, PreserveShared, Unknown, ValidatedCandidate }
+internal enum ResidualDisposition { Review, PreserveData, PreserveShared, Unknown, ValidatedCandidate, InstallationCheck }
+[Flags]
+internal enum ResidualSource { None = 0, UserData = 1, CommonData = 2, Installation = 4, Registry = 8, Shortcut = 16, Integration = 32 }
 internal sealed record ResidualAuditFinding(string Location, string Kind, int Items, string Evidence,
-    ResidualDisposition Disposition = ResidualDisposition.Review)
+    ResidualDisposition Disposition = ResidualDisposition.Review, ResidualSource Sources = ResidualSource.None,
+    ResidualDisposition? BasisDisposition = null)
 {
     // Categoria não é uma capacidade de exclusão; candidata estritamente de leitura.
     internal bool CanRemove => false;
@@ -15,7 +18,10 @@ internal sealed record ResidualAuditFinding(string Location, string Kind, int It
     {
         ResidualDisposition.PreserveData => "Preservar dados",
         ResidualDisposition.PreserveShared => "Preservar compartilhado",
-        ResidualDisposition.Unknown => "Estado desconhecido — preservar",
+        ResidualDisposition.Unknown => BasisDisposition == ResidualDisposition.PreserveData
+            ? "Estado desconhecido — preservar dados" : BasisDisposition == ResidualDisposition.PreserveShared
+            ? "Estado desconhecido — preservar compartilhado" : "Estado desconhecido — preservar",
+        ResidualDisposition.InstallationCheck => "Instalação a conferir — preservar",
         ResidualDisposition.ValidatedCandidate => "Revisar — simulação",
         _ => "Revisar"
     };
