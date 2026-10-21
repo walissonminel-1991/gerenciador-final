@@ -1,5 +1,12 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.29 — diagnóstico de resíduos e layout para DPI (TESTE)
+
+Bateria presencial da .28 no PC FORTE confirmou 174 aplicativos, 27 MSIX, três possíveis atualizações (7-Zip, Outlook/Store, Proton Pass), 168 associações de drivers e fotografia de drivers estável. Resíduos: 867 grupos avaliados na descoberta geral, 213 preservados por vínculo ativo, 611 sem indícios independentes, 43 candidatos gerais, 44 grupos/161 locais após união com auditorias específicas. Cobertura parcial; nenhuma exclusão.
+
+A .29 deixa explícitos `grupos_avaliados` e `candidatos_gerais`, e renomeia as contagens filtradas no modo voluntário de testes para não confundir os 867 avaliados com os 44 exibidos. No PC FORTE a seleção do modo foi posterior à primeira leitura: `TESTES.INVENTARIO` ausente não significa zero. Linhas de controles de Limpeza e desempenho recebem espaço adicional proporcional ao DPI para reduzir cortes visuais em monitores de 125%+; aprovação presencial ainda pendente. A regressão garante área de conteúdo, não apenas altura nominal. Não foram alterados orçamentos de varredura, remoção de resíduos, ações com drivers, instaladores ou permissões. CI aprovada: 351/351 resíduos, 30/30 MSIX, 132 resoluções/abas e testes de métricas. Roadmap 26/42.
+
+
 ## v5.13.11.28 — coleta comparativa local PC FORTE / PC FRACO (TESTE)
 
 Escolha temporária e explícita em Limpeza e desempenho: Desligado (padrão), PC FORTE ou PC FRACO. Somente após ativar, acrescenta métricas numéricas de inventário, atualizações, drivers, resíduos e diagnóstico completo às consultas que o usuário já solicita. Esquema fechado de categorias e campos; sem IDs de dispositivo, nomes, caminhos, arquivos, dados pessoais, uploads ou novas varreduras. Limite de 160 observações extras por sessão e desativação imediata. Não muda ações de atualização, limpeza, drivers, permissões ou os 26/42 checkpoints. Regressões Windows aprovadas, incluindo 351/351 resíduos, 30/30 MSIX, 132 cenários de layout e testes da coleta opt-in; testes presenciais da .28 ainda pendentes. Limite acumulado por sessão, mesmo após alternar modo, aprovado em teste dedicado. Falhas anteriores de fixture e de layout em 1280×720 foram corrigidas e revalidadas.

@@ -1,4 +1,4 @@
-# Roteiro de testes — Gerenciador Final (candidata v5.13.11.28 TESTE, CI aprovada; referência presencial .27)
+# Roteiro de testes — Gerenciador Final (candidata v5.13.11.29 TESTE, CI aprovada; referência presencial .28)
 
 **21/10/2026: incorporação conservadora na .26; [relatório e roteiro consultivo](OPERACAO-FAXINA-FINAL.md). Último teste real do PC fraco: .24. A MSIX permanece parcialmente indisponível após retry na .24; proteger os resultados e não concluir que 19 apps foram desinstalados.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real continua indisponível nesta candidata.** A ideia de autenticação GitHub com conta existente foi estruturada em [piloto restrito](PILOTO-AUTENTICACAO-GITHUB.md), dependente de uma GitHub App e repositório privado exclusivos.
 
@@ -143,6 +143,32 @@ PnP no conjunto de drivers. Pacote .27 de teste: [artefato temporário](https://
 `3e66b334`. Conferir BUILD-INFO e SHA256SUMS; arquivo sem assinatura.
  Ainda pendentes testes de atualização/desinstalação
 supervisionadas e confirmação de detalhes dos resíduos em cada caso.
+
+## Bateria de confirmação da .29
+
+[ZIP portátil .29 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511079/artifacts/12371893437), código `bde12b5`, merge sintético `4d28bea9` conforme nome do artefato. Conferir BUILD-INFO e SHA256SUMS. CI:
+[regressões](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657510961),
+[build](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511079),
+[política](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511084);
+todos aprovados. Retenção indicada até 28/10/2026, sem release estável.
+
+No **PC FORTE**, antes de disparar consultas, abrir Limpeza e
+desempenho e selecionar **Teste PC FORTE**. Fazer Atualizar lista,
+Verificar atualizações, Consultar drivers, investigar resíduos e abrir
+Diagnóstico completo; não executar manutenção. Confirmar presença de
+`TESTES.INVENTARIO`, `TESTES.RESIDUOS` e
+`TESTES.MANUTENCAO`. Os contadores de resíduos devem explicitar
+`grupos_avaliados`, `filtrados_ativos`,
+`filtrados_sem_evidencia` e `candidatos_gerais`;
+valores diferentes entre computadores exigem análise, não exclusão.
+
+Conferir se os botões Analisar limpeza/Diagnóstico completo, seletor
+de testes e linha de unidades estão **inteiramente visíveis**, na
+escala 125% real (2560×1440), com o mouse fora dos tooltips.
+Depois repetir no PC FRACO, incluindo 1440×900 e sua escala real.
+O teste sintético de 132 combinações não substitui a tela física.
+Em nenhum caso copiar IDs, nomes pessoais ou conteúdo de arquivos
+para o repositório. Se a investigação permanecer parcial, preservar.
 
 ## Build da .28 aprovada em CI, não validada presencialmente
 

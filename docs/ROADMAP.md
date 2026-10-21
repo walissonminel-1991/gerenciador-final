@@ -1,7 +1,31 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**Candidata com CI aprovada: v5.13.11.28 TESTE · Progresso: 26/42 (61,9%).**
+**Candidata com CI aprovada: v5.13.11.29 TESTE · Progresso: 26/42 (61,9%).**
 Os percentuais indicam checkpoints e não segurança ou prontidão para release.
+
+## Evidência presencial — PC FORTE .28 e refinamento .29
+
+A .28 comprovou que o modo de teste pode registrar métricas de qualidade
+sem nomes/IDs de hardware no diagnóstico compartilhável. Inventário:
+174 entradas, 27 MSIX; cobertura de atualizações: 3 candidatas e 8/8
+fontes respondendo. Drivers: 168 associações, 60 INFs, 3 sem INF,
+3 sem nome/editor, 2 versões em formato incomum, zero diferenças do
+histórico. A investigação de resíduos permanece parcial: 867 grupos
+avaliados em classificação geral, 213 filtrados por proteção,
+611 sem evidência independente e 43 candidatos gerais; auditorias
+reunidas mostram 44 grupos e 161 locais. Este agregado não significa
+44 grupos limpos ou 213 remoções possíveis. Falhas de leitura em duas
+origens, nenhum descarte realizado. O modo PC FORTE foi ligado após a
+primeira leitura de inventário, portanto ainda falta TESTES.INVENTARIO.
+
+A .29 refina o nome dos contadores e redimensiona controles da aba
+Limpeza conforme DPI. [CI Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657510961),
+[compilação](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511079)
+e [segurança](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511084)
+aprovadas. [Artefato .29 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511079/artifacts/12371893437)
+não assinado; verificar BUILD-INFO e SHA256SUMS. Ainda depende da
+validação visual no PC FORTE e da bateria no PC FRACO. Nenhum checkpoint
+novo; R4 e G1–G5 continuam bloqueados. **26/42 (61,9%).**
 
 ## Coleta comparativa de testes — v5.13.11.28
 

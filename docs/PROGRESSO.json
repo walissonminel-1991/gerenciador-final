@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.28 TESTE",
+  "version": "5.13.11.29 TESTE",
   "date": "2026-10-21",
-  "code_commit": "381806164ce864114b42d228190081a02a0e57d6",
+  "code_commit": "bde12b52774dfd963301565124c4a299a3db9107",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313662",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657510961",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -305,5 +305,6 @@
     "observations": "108 associações de drivers; 12 grupos e 41 locais de resíduos preservados; investigação parcial; nenhuma exclusão"
   },
   "notes_pc_forte": "Primeira bateria real v5.13.11.26: 174 entradas e 27 MSIX estaveis no PC FORTE; 168 associações de drivers; 44 grupos de resíduos em consulta parcial; nenhuma atualização, remoção ou limpeza real validada. Candidata .27 aprovada em CI Windows, build x64 e politicas; novo teste presencial ainda pendente. Roadmap 26/42.",
-  "test_diagnostics": "Coleta local opt-in PC FORTE/FRACO, limite acumulado 160 eventos por processo mesmo apos alternar, contrato testado no Windows; validacao nos PCs ainda pendente. Roadmap 26/42."
+  "test_diagnostics": "Coleta local opt-in PC FORTE/FRACO, limite acumulado 160 eventos por processo mesmo apos alternar, contrato testado no Windows; validacao nos PCs ainda pendente. Roadmap 26/42.",
+  "pc_forte_28": "174 apps, 27 MSIX, 3 candidatos, 168 drivers, residuos 867 classificados (213 protegidos, 611 insuficientes, 43 candidatos); UI 44 grupos/161 locais. Coleta ligada apos primeiro inventario. .29 com CI aprovada e validacao presencial pendente; 26/42."
 }
