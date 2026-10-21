@@ -1,5 +1,10 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Revisão pós-Work 3 — v5.13.11.18 TESTE
+
+Auditoria independente da v5.13.11.17 comprovou três workflows finais aprovados e 310/310 verificações de resíduos. Uma inconsistência identificada na montagem da fotografia podia perder o estado parcial reportado por origens legadas/linhas individuais. Corrigida a propagação de falhas sem duplicar contagens e congeladas as listas de fontes da cobertura. Adicionados testes sintéticos e WinForms para preservar aviso de **ANÁLISE PARCIAL**, mesmo com zero achados. Nenhuma exclusão foi habilitada; progresso funcional permanece **26/42**. Próximo marco: testes reais no PC fraco 1440×900 conforme [checklist Work 3](CHECKLIST-PC-FRACO-v5.13.11.17.md); verificar aviso de parcialidade, desempenho, filtros, cancelamento e AVG sem apagar nada.
+
+
 ## Missão Work 3 — v5.13.11.17 TESTE
 
 | Marco | Progresso comprovado |
