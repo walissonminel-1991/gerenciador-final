@@ -14,6 +14,24 @@ internal static class LayoutTests
             null, TimeSpan.FromMinutes(4), Timeout.InfiniteTimeSpan);
         Application.EnableVisualStyles();
         ResidualExplorerTests.Run();
+        // PC fraco v5.13.11.21: 19 MSIX estão no inventário, mas não
+        // aparecem na lista de ações. O filtro explícito revela sem permitir
+        // atualização nem desinstalação somente pelo nome ou origem.
+        var inventoryOnly = new ProgramEntry
+        {
+            Name = "Leitor MSIX fictício", Version = "1.2.3.4",
+            InventoryOnly = true, InventorySource = "Aplicativo empacotado (MSIX)"
+        };
+        if (ActionableInventory.ShouldShow(inventoryOnly) ||
+            ActionableInventory.ShouldShowInMainList(inventoryOnly, "Todos") ||
+            ActionableInventory.ShouldShowInMainList(inventoryOnly, "Com atualização") ||
+            !ActionableInventory.ShouldShowInMainList(inventoryOnly, "Inventário") ||
+            ActionableInventory.CanUninstall(inventoryOnly))
+            throw new Exception("MSIX somente leitura deve aparecer exclusivamente na visualizacao de inventario.");
+        var normal = new ProgramEntry { Name = "Aplicativo com ação", CanUninstall = true };
+        if (!ActionableInventory.ShouldShowInMainList(normal, "Todos") ||
+            !ActionableInventory.ShouldShowInMainList(normal, "Inventário"))
+            throw new Exception("Visualizacao de inventario nao pode ocultar aplicativos tradicionais.");
 
         if (DiagnosticTrace.FormatVersion(new Version(5, 13, 10, 18)) != "v5.13.10.18")
             throw new Exception("Diagnostico perdeu a revisao da compilacao.");
@@ -323,6 +341,21 @@ internal static class LayoutTests
                     if (search is null || search.Controls.OfType<Button>()
                         .Any(button => button.Text == "Atualizar lista"))
                         throw new Exception("Atualizar lista nao deve aparecer junto da pesquisa.");
+                    var inventoryFilter = Descendants(form).OfType<Button>()
+                        .SingleOrDefault(button => button.Text == "Inventário");
+                    if (inventoryFilter is null || !inventoryFilter.Visible ||
+                        inventoryFilter.Parent is not TableLayoutPanel heading ||
+                        heading.ColumnCount != 5 ||
+                        heading.Controls.OfType<Button>().Count() != 4)
+                        throw new Exception("Filtro de inventario MSIX ausente ou fora da faixa de Aplicativos.");
+                    foreach (var filterButton in heading.Controls.OfType<Button>())
+                    {
+                        if (filterButton.Right > heading.ClientSize.Width + 2 ||
+                            filterButton.Left < 0 ||
+                            filterButton.Width < 45)
+                            throw new Exception("Filtro de aplicativos cortado: " +
+                                name + " / " + filterButton.Text);
+                    }
                     bool expectCompact = commands.ClientSize.Width <
                         (int)Math.Ceiling(870d * Math.Max(1, commands.DeviceDpi) / 96d);
                     if (commands.RowCount != (expectCompact ? 2 : 1))
