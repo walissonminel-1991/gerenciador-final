@@ -31,3 +31,11 @@ M2 aprovado nos três workflows (39524480844, 39524480823, 39524480812). Cache d
 Instrumentação agrega tempo, alocações globais, heap, RAM e CPU do processo, somente no diagnóstico local. Medida de Startup termina antes do consentimento; descoberta inclui classificação e também gera sua medição específica. Fontes novas de informação pessoal não são consultadas. Sem amostragem contínua extra nem GC forçada no aplicativo.
 
 [Benchmarks](BENCHMARKS-WORK3.md): base .16 e M3 executados sequencialmente com mesmo runtime/fixture; 500/1.000 aplicativos, 5.000/10.000 candidatos e 50.000 evidências. Maior cobertura custa alocações adicionais; não declarar melhoria percentual de velocidade nem extrapolar para o PC FRACO. Nos dois motores, 50.000 evidências excedem o teto de 30.000, e as 20.000 não avaliadas ficam explícitas.
+
+## M4 — interface progressiva
+
+M3 aprovado nos três workflows (39525016425, 39525016433, 39525016443). A revisão histórica/avançada agora usa uma única janela organizada com cartões virtualizados, busca e filtros globais de decisão/origem, páginas de grupos e de locais, explicações e inspeção no mesmo painel. Não concatena todos os milhares de achados em um TextBox. O resumo diferencia os grupos disponíveis daqueles apenas em outras páginas; fontes inacessíveis/locais não examinados continuam no resumo de cobertura. Seleção por página preservada dentro do mesmo critério.
+
+UI usa um trabalhador por revisão, exclusão mútua, atraso de 220 ms na digitação e descarte de respostas antigas/canceladas. Nenhuma tarefa por candidato. Fechamento cancela callbacks, e captura de fonte impede acessar índice já descartado. Trocar produto durante inspeção cancela a resposta antiga. Botão Cancelar consulta de resíduos também disponível no registro da janela principal, incluindo as etapas anteriores à descoberta; uma chamada nativa em curso ainda precisa retornar.
+
+Testes WinForms reais adicionados para 800×600, 1280×720, 1366×768, 1440×900, 1600×900, 1920×1080, 2560×1440 e 4K, com mil grupos, páginas de locais, seleção, pesquisa, filtros, controles contidos e desenho apenas de linhas visíveis. Testes de resposta tardia após cancelamento e parcial vazio. Compilação local Windows/layout sem erros; execução visual/nativa será validada no CI deste marco. Segurança visual mantém aviso permanente e nenhum botão destrutivo.

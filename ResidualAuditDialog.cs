@@ -138,20 +138,7 @@ internal sealed class ResidualAuditDialog : Form
     {
         var coverage = (historical as ResidualReportSet)?.Coverage ?? ResidualCoverage.Combine(historical.Select(r => r.Coverage));
         if (historical.Count == 0 && !coverage.Incomplete) return;
-        // Uma única janela, por produto e risco, sem repetir cada advertência.
-        // O relatório permanece somente leitura, SEM botões para apagar dados.
-        var sorted = historical.OrderBy(r => r.Product, StringComparer.CurrentCultureIgnoreCase).ToArray();
-        var grouped = coverage.Describe() + "\r\n\r\n" + string.Join("\r\n\r\n", sorted.Select(report =>
-        {
-            string locations = string.Join("\r\n", report.Findings.Select(f =>
-                "  • " + f.DecisionLabel + " — " + f.Location + "\r\n    " + f.Evidence));
-            return report.Product + (report.Incomplete ? " — REVISÃO PARCIAL" : " — REVISÃO SEM EXCLUSÃO") +
-                "\r\n" + locations;
-        }));
-        var merged = new ResidualAuditReport("Revisão histórica", false,
-            sorted.SelectMany(r => r.Findings).ToArray(),
-            Array.Empty<string>(), Historical: true, Incomplete: coverage.Incomplete, Coverage: coverage);
-        using var window = new ResidualAuditDialog(merged, grouped);
+        using var window = new ResidualExplorerDialog(historical);
         window.ShowDialog(owner);
     }
 

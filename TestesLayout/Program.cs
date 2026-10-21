@@ -13,6 +13,7 @@ internal static class LayoutTests
             _ => Environment.FailFast("Timeout no teste de layout"),
             null, TimeSpan.FromMinutes(4), Timeout.InfiniteTimeSpan);
         Application.EnableVisualStyles();
+        ResidualExplorerTests.Run();
 
         if (DiagnosticTrace.FormatVersion(new Version(5, 13, 10, 18)) != "v5.13.10.18")
             throw new Exception("Diagnostico perdeu a revisao da compilacao.");

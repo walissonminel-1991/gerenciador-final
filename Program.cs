@@ -1794,6 +1794,7 @@ internal sealed partial class MainForm : Form
         _status.ForeColor = Muted;
         _status.TextAlign = ContentAlignment.MiddleRight;
         top.Controls.Add(_status, 1, 0);
+        AddResidualCancelButton(top);
         root.Controls.Add(top, 0, 0);
         _progress.Dock = DockStyle.Fill;
         _progress.Margin = new Padding(0, 0, 0, 2);
@@ -2746,14 +2747,17 @@ internal sealed partial class MainForm : Form
             "Auditoria adicional concluída; possíveis resíduos desconhecidos não foram apagados.");
     }
 
-    private async Task ReviewDeepUninstallResiduesAsync()
+    private Task ReviewDeepUninstallResiduesAsync() => WithResidualCancellationAsync(ReviewDeepUninstallResiduesCoreAsync);
+    private async Task ReviewDeepUninstallResiduesCoreAsync(CancellationToken token)
     {
         // Não é a limpeza padrão, não pode ser disparada automaticamente.
         Status("Analisando catálogo com " + UninstallRuleCatalog.Count +
             " regras de aplicativos para limpeza avançada...");
         DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_INICIO");
         var snapshot = await Task.Run(AppServices.ScanAllInstalledApps);
+        token.ThrowIfCancellationRequested();
         var candidates = await Task.Run(() => AdvancedUninstallCleaner.Inspect(snapshot.Items));
+        token.ThrowIfCancellationRequested();
         DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_FIM programas=" + candidates.Count);
         if (candidates.Count == 0)
         {
@@ -2846,7 +2850,8 @@ internal sealed partial class MainForm : Form
               $"{report.HistoricalPnP.NotPresent} instâncias PnP sem confirmação (não são drivers).");
     }
 
-    private async Task ReviewOldUninstallResiduesAsync()
+    private Task ReviewOldUninstallResiduesAsync() => WithResidualCancellationAsync(ReviewOldUninstallResiduesCoreAsync);
+    private async Task ReviewOldUninstallResiduesCoreAsync(CancellationToken token)
     {
         // A análise histórica cobre produtos que já desapareceram do inventário.
         // NUNCA autoriza exclusão de chaves HKLM/HKCU, saves ou integrações.
@@ -2855,11 +2860,12 @@ internal sealed partial class MainForm : Form
         // Usar uma unica fotografia atual de Win32, MSIX e bibliotecas de jogos.
         // Assim aplicativos Store ou jogos ativos nao viram falsos vestigios.
         var inventorySnapshot = await Task.Run(AppServices.ScanAllInstalledApps);
+        token.ThrowIfCancellationRequested();
         var updatedInventory = inventorySnapshot.Items;
         bool inventoryIncomplete = inventorySnapshot.Incomplete;
         if (inventoryIncomplete)
             Log("Inventário de proteção PARCIAL: ausência na lista não comprova remoção. Os achados históricos continuam somente leitura.");
-        var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory, inventoryIncomplete));
+        var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory, inventoryIncomplete, token));
         // Driver Booster é excluído pela regra genérica para nomes de drivers.
         // Complementar com locais específicos da família IObit, sem inferir
         // que arquivos compartilhados são lixo nem autorizar sua remoção.
@@ -2890,17 +2896,8 @@ internal sealed partial class MainForm : Form
         // Jogos detectados apenas por manifestos Steam/Epic nao pertencem ao ARP.
         // Proteger seus dados ativos antes de sugerir vestigios historicos.
         var gameInventory = inventorySnapshot.Games;
-        BroadResidualResult broad;
-        using (var scanCancellation = new CancellationTokenSource())
-        {
-            _residualScanCts = scanCancellation;
-            try
-            {
-                broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory,
-                    gameInventory.ActiveNames, gameInventory.Partial, inventoryIncomplete, scanCancellation.Token));
-            }
-            finally { _residualScanCts = null; }
-        }
+        var broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory,
+            gameInventory.ActiveNames, gameInventory.Partial, inventoryIncomplete, token));
         int installCandidates = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)));
         int publisherData = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal)));
         DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
