@@ -74,6 +74,25 @@ internal static class ResidualExplorerTests
             window.Show(); Until(() => window.Ready && !window.Busy, "Parcial vazio não carregou");
             Require(window.SummaryText.Contains("ANÁLISE PARCIAL") && window.SummaryText.Contains("Exclusão indisponível"), "Parcial vazio foi escondido"); window.Close();
         }
-        Console.WriteLine("OK Explorador: parcial vazio e resultado tardio bloqueado após cancelamento");
+        using (var host = new MainForm(startServices: false))
+        {
+            host.Show(); Application.DoEvents(); host.MinimizeToTray();
+            host.PresentResidualReports(reports); Application.DoEvents();
+            Require(host.IsInTray && host.HasPendingResidualReview && !Application.OpenForms.OfType<ResidualExplorerDialog>().Any(),
+                "Consulta concluída na bandeja abriu janela inesperada");
+            using var closer = new System.Windows.Forms.Timer { Interval = 25 };
+            bool reopened = false;
+            closer.Tick += (_, _) =>
+            {
+                var explorer = Application.OpenForms.OfType<ResidualExplorerDialog>().FirstOrDefault();
+                if (explorer?.Ready != true) return;
+                reopened = true; closer.Stop(); explorer.Close();
+            };
+            closer.Start(); host.RestoreFromTray();
+            Until(() => reopened && !host.HasPendingResidualReview && !Application.OpenForms.OfType<ResidualExplorerDialog>().Any(),
+                "Resultado da bandeja não foi apresentado uma vez após restauração");
+            host.Close();
+        }
+        Console.WriteLine("OK Explorador: parcial vazio, cancelamento e restauração da bandeja sem janela inesperada");
     }
 }

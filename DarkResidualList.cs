@@ -86,5 +86,5 @@ internal sealed class DarkResidualList : Control
         base.OnKeyDown(e);
     }
     protected override void Dispose(bool disposing)
-    { base.Dispose(disposing); if (disposing) { tips.Dispose(); titleFont.Dispose(); bodyFont.Dispose(); } }
+    { if (disposing) { rows = []; selected = -1; } base.Dispose(disposing); if (disposing) { tips.Dispose(); titleFont.Dispose(); bodyFont.Dispose(); } }
 }

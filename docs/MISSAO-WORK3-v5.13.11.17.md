@@ -66,3 +66,10 @@ Origens das regras históricas, WinMerge e revisão avançada também foram pree
 Captura 800×600 do runner conferida visualmente. Ajustados campos de filtro para desenho escuro e rolagem da lista ao restaurar seleção: o cartão selecionado deve ficar visível, em vez de exibir detalhes de um cartão fora do viewport. Subpastas sem navegação autorizada pela profundidade agora explicam por que não foram examinadas. A captura extrema mostra área reduzida de detalhes com rolagem própria; a validação principal continua 1440×900. Nenhuma asserção essencial foi removida.
 
 Teste nativo adicional de inspeção usa somente chave HKCU aleatória própria: enumera nomes de subchaves, não lê os valores durante a operação e comprova valor fictício preservado. A chave é removida exclusivamente no teardown. Nenhum Registro real do usuário é modificado.
+
+
+## Recursos, cancelamento e bandeja
+
+Após aprovação da revisão 3373d2f nos três workflows (39526979969, 39526979934, 39526979928), reforçados cancelamento e retenção: construção do índice verifica token, inspeções nativas possuem limite global de uma por vez mesmo entre janelas, fechamento descarta referências às listas/fotografia e cartões liberam suas linhas. Não são criadas threads por candidato nem filas de leituras nativas por reabertura.
+
+Consulta concluída com o GF na bandeja deixa uma única fotografia pendente em memória; não abre revisão inesperadamente. Restaurar apresenta o resultado uma vez, após operação atual terminar. Teste WinForms cobre ocultar, concluir com dados fictícios, restaurar e fechar a revisão. Nova consulta não é iniciada automaticamente. O comportamento definitivo do antivírus e desempenho continuam dependendo dos PCs.

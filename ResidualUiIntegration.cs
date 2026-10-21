@@ -5,6 +5,25 @@ namespace GerenciadorAplicativos;
 
 internal sealed partial class MainForm
 {
+    private IReadOnlyList<ResidualAuditReport>? pendingResidualReports;
+    internal bool HasPendingResidualReview => pendingResidualReports is not null;
+    internal void PresentResidualReports(IReadOnlyList<ResidualAuditReport> reports)
+    {
+        if (IsDisposed) return;
+        if (IsInTray || !Visible)
+        {
+            pendingResidualReports = reports;
+            Log("Consulta concluída na bandeja. Resultado somente leitura aguardando restauração da janela.");
+            return;
+        }
+        ResidualAuditDialog.ShowHistoricalResults(this, reports);
+    }
+    private void TryShowPendingResidualReview()
+    {
+        if (IsDisposed || _busy || IsInTray || !Visible || pendingResidualReports is null) return;
+        var pending = pendingResidualReports; pendingResidualReports = null;
+        PresentResidualReports(pending);
+    }
     private Button? residualCancel;
     private ColumnStyle? residualCancelColumn;
     private async Task WithResidualCancellationAsync(Func<CancellationToken, Task> action)

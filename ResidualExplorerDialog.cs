@@ -6,7 +6,8 @@ namespace GerenciadorAplicativos;
 // Uma revisão organizada; detalhes e inspeção ficam na mesma janela, sem ações destrutivas.
 internal sealed class ResidualExplorerDialog : Form
 {
-    private readonly IReadOnlyList<ResidualAuditReport> source;
+    private IReadOnlyList<ResidualAuditReport> source;
+    private static readonly SemaphoreSlim nativeInspection = new(1, 1);
     private ResidualResultIndex? index;
     private readonly Label summary = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
     private readonly TextBox search = new() { Name = "ResidualSearch", Dock = DockStyle.Fill, PlaceholderText = "Buscar programa, fabricante ou local", MaxLength = 256 };
@@ -106,7 +107,7 @@ internal sealed class ResidualExplorerDialog : Form
         split.SizeChanged += (_, _) => ArrangeBody();
         Shown += async (_, _) => await RunAsync(async (token, id) =>
         {
-            var built = await Task.Run(() => new ResidualResultIndex(source), token);
+            var built = await Task.Run(() => new ResidualResultIndex(source, token), token);
             if (!Current(id, token)) return; index = built;
             var page = await Task.Run(() => built.Query(cancellationToken: token), token);
             if (Current(id, token)) Bind(page);
@@ -199,7 +200,13 @@ internal sealed class ResidualExplorerDialog : Form
         if (path is null || session is null) return Task.CompletedTask;
         return RunAsync(async (token, id) =>
         {
-            var result = inspectOverride is null ? await Task.Run(() => session.Inspect(path, token), token) : await inspectOverride(path, token);
+            await nativeInspection.WaitAsync(token);
+            ResidualInspectionResult result;
+            try
+            {
+                result = inspectOverride is null ? await Task.Run(() => session.Inspect(path, token), token) : await inspectOverride(path, token);
+            }
+            finally { nativeInspection.Release(); }
             if (!Current(id, token)) return;
             inspectionResult = result; locationPage = 0; ShowLocations();
         });
@@ -240,7 +247,8 @@ internal sealed class ResidualExplorerDialog : Form
         if (release)
         {
             resourcesDisposed = true;
-            debounce.Stop(); debounce.Dispose(); lifetime.Cancel(); operation?.Cancel(); index = null;
+            debounce.Stop(); debounce.Dispose(); lifetime.Cancel(); operation?.Cancel(); index = null; source = []; CurrentPage = null;
+            selectedReport = null; inspection = null; inspectionResult = null; selections.Clear();
         }
         base.Dispose(disposing);
         if (release) { lifetime.Dispose(); readable.Dispose(); }

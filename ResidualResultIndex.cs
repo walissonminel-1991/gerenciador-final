@@ -25,17 +25,22 @@ internal sealed class ResidualResultIndex
     internal int FilterPasses => Volatile.Read(ref filterPasses);
     internal int Count => reports.Length;
     internal int Locations { get; }
-    internal ResidualResultIndex(IReadOnlyList<ResidualAuditReport> source)
+    internal ResidualResultIndex(IReadOnlyList<ResidualAuditReport> source, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         Coverage = (source as ResidualReportSet)?.Coverage ?? ResidualCoverage.Combine(source.Select(r => r.Coverage));
-        reports = source.Select(r => r with
+        reports = source.Select(r =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return r with
         {
             Findings = Array.AsReadOnly(r.Findings.ToArray()),
             RelatedRegisteredPrograms = Array.AsReadOnly(r.RelatedRegisteredPrograms.ToArray())
-        }).OrderBy(r => r.Product, StringComparer.OrdinalIgnoreCase).ToArray();
-        search = reports.Select(r => string.Join('\n', new[] { r.Product }
+        }; }).OrderBy(r => r.Product, StringComparer.OrdinalIgnoreCase).ToArray();
+        cancellationToken.ThrowIfCancellationRequested();
+        search = reports.Select(r => { cancellationToken.ThrowIfCancellationRequested(); return string.Join('\n', new[] { r.Product }
             .Concat(r.Findings.SelectMany(f => new[] { f.Location, f.Kind, f.Evidence }))
-            .Concat(r.RelatedRegisteredPrograms))).ToArray();
+            .Concat(r.RelatedRegisteredPrograms)); }).ToArray();
         Locations = reports.Sum(r => r.Findings.Count);
     }
     internal ResidualResultPage Query(string? text = null, ResidualFilter filter = ResidualFilter.All,

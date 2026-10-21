@@ -1904,6 +1904,7 @@ internal sealed partial class MainForm : Form
             if (_nav.SelectedIndex == 4)
                 _ = RefreshEnergyInfoAsync();
             ExitAfterCurrentOperation();
+            if (!IsDisposed && HasPendingResidualReview) BeginInvoke((Action)TryShowPendingResidualReview);
         }
     }
 
@@ -2774,7 +2775,7 @@ internal sealed partial class MainForm : Form
                 "Configurações — preservar", 1,
                 "Ausência na lista de programas não comprova exclusividade ou desinstalação.", ResidualDisposition.PreserveData, ResidualSource.Registry))).ToArray(),
             Array.Empty<string>(), Historical: true)).ToArray();
-        ResidualAuditDialog.ShowHistoricalResults(this, ResidualReportMerger.Merge(reports, snapshot.Incomplete, deep.Coverage));
+        PresentResidualReports(ResidualReportMerger.Merge(reports, snapshot.Incomplete, deep.Coverage));
         Status("Revisão concluída. Dados preservados; exclusão desativada nesta candidata.");
     }
 
@@ -2910,7 +2911,7 @@ internal sealed partial class MainForm : Form
             Log($"Auditoria de dados e instalações: {allReports.Count} grupos para revisão (não são lixo confirmado). " +
                 $"Verificados {broad.EntriesSeen} nomes em {broad.RootsChecked} origens." +
                 (broad.Incomplete ? " Análise PARCIAL: limites de proteção alcançados." : ""));
-            ResidualAuditDialog.ShowHistoricalResults(this, allReports);
+            PresentResidualReports(allReports);
         }
         else
         {

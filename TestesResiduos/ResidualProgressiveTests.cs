@@ -49,6 +49,9 @@ internal static class ResidualProgressiveTests
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         bool stopped = false;
         try { snapshot.Query(cancellationToken: cancelled.Token); } catch (OperationCanceledException) { stopped = true; }
+        bool creationStopped = false;
+        try { _ = new ResidualResultIndex(mutable, cancelled.Token); } catch (OperationCanceledException) { creationStopped = true; }
+        check(creationStopped, "Fechamento cancela construção do índice antes de copiar resultados");
         check(stopped && snapshot.Query().Matching == 1, "Cancelar filtro não destrói a fotografia nem resultados anteriores");
         var one = new ResidualAuditReport("Editor", false, [new("MesmoLocal", "Perfil", 1, "A")], []);
         var merged = ResidualReportMerger.Merge([one, one]);
