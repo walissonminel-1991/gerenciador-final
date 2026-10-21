@@ -51,6 +51,29 @@ Check(LocalMsixInventory.MergeWithRegistry([generic!],
 Check(LocalMsixInventory.MergeWithRegistry([generic!],
     [new InstalledApp("Leitor de documentos", "3.2.1.0", "Contoso Ltda.")]).Count == 0,
     "Não exibir duplicata Win32/MSIX de mesmo programa e fabricante");
+// Falha real de fonte: conservar a última leitura completa só nesta sessão.
+var sessionSnapshot = new LocalMsixSnapshot();
+var completeSnapshot = sessionSnapshot.Read(() => new([terminal!, outlook!], 2, "ok"));
+var failedSnapshot = sessionSnapshot.Read(() => new([], 0, "COMException(0x80040154)", Failures: 1));
+Check(failedSnapshot.Items.Count == 2 && failedSnapshot.Items.All(x => x.Stale && !x.RecipeEligible) &&
+    failedSnapshot.Failures == 1 && failedSnapshot.Status != "ok",
+    "MSIX: falha de ativação preserva snapshot da sessão sem autorizar receitas");
+var observedNew = terminal! with { Version = "1.25.0.0" };
+var mixedSnapshot = sessionSnapshot.Read(() => new([observedNew], 1, "ok", Failures: 1));
+Check(mixedSnapshot.Items.Count == 2 && mixedSnapshot.Items.Single(x => !x.Stale).Version == "1.25.0.0" &&
+    mixedSnapshot.Items.All(x => !x.RecipeEligible),
+    "MSIX: observação parcial recente prevalece sem habilitar atualização ou perder apps anteriores");
+var failedAgain = sessionSnapshot.Read(() => new([], 0, "indisponível", Failures: 1));
+Check(failedAgain.Items.Single(x => x.PackageName == terminal!.PackageName).Version == terminal!.Version,
+    "MSIX: leitura parcial não substitui a última base completa");
+var confirmedAfter = sessionSnapshot.Read(() => new([terminal!], 1, "ok"));
+Check(confirmedAfter.Items.Count == 1 && !confirmedAfter.Items[0].Stale && confirmedAfter.Items[0].RecipeEligible,
+    "MSIX: nova leitura completa confirma presença e deixa de reter item ausente");
+Check(new LocalMsixSnapshot().Read(() => new([], 0, "indisponível", Failures: 1)).Items.Count == 0,
+    "MSIX: processo sem leitura completa não inventa histórico de outra sessão");
+Check(sessionSnapshot.Read(() => new([], 0, "ok")).Items.Count == 0 &&
+    sessionSnapshot.Read(() => new([], 0, "falhou", Failures: 1)).Items.Count == 0,
+    "MSIX: resultado vazio completo invalida a base anterior");
 var additions = LocalMsixInventory.MergeWithRegistry(
     [terminal!, outlook!],
     [new InstalledApp("Terminal do Windows", "1.24.12741.0", "Microsoft Corporation")]);

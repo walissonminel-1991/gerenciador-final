@@ -6,7 +6,7 @@ namespace GerenciadorAplicativos;
 // receitas. Ter um pacote instalado NÃO concede permissão de atualizar ou
 // remover. Para todas as identidades não auditadas: somente inventário.
 internal sealed record LocalMsixApp(string Name, string Version, string Publisher,
-    string PackageName, bool RecipeEligible = false);
+    string PackageName, bool RecipeEligible = false, bool Stale = false);
 internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen,
     string Status, int Launchable = 0, int Filtered = 0, int Failures = 0,
     bool Retried = false, string FailureStage = "", string Apartment = "");
@@ -57,7 +57,8 @@ internal static class LocalMsixInventory
     // indisponivel. Uma unica nova tentativa ANTES de observar pacotes, sem PowerShell, processo
     // auxiliar, elevacao ou acesso a outros perfis. Se persistir, falha
     // explicitamente: lista MSIX vazia nunca significa zero apps instalados.
-    internal static LocalMsixResult ReadCurrentUser() => ReadWithRetry(ReadOnce);
+    private static readonly LocalMsixSnapshot Snapshot = new();
+    internal static LocalMsixResult ReadCurrentUser() => Snapshot.Read(() => ReadWithRetry(ReadOnce));
 
     internal static LocalMsixResult ReadWithRetry(Func<LocalMsixResult> read)
     {
