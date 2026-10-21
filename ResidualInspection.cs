@@ -3,7 +3,73 @@ using Microsoft.Win32;
 namespace GerenciadorAplicativos;
 
 internal sealed record ResidualInspectionEntry(string Name, string Location, bool Container,
-    ResidualDisposition Disposition, bool CanInspect = false);
+    ResidualDisposition Disposition, bool CanInspect = false)
+{
+    internal ResidualPreservationKind PreservationKind => ResidualPreservationHints.Kind(Name, Container);
+    internal string PreservationExplanation => ResidualPreservationHints.Explain(PreservationKind);
+}
+
+internal enum ResidualPreservationKind
+{
+    Unknown, BrowserHistoryAndBookmarks, BrowserCredentials, BrowserCookies,
+    BrowserSession, BrowserProfile, Cache, Backup, Playlist, SavedGames, Installer
+}
+
+// Pistas locais de finalidade, não regras de descoberta ou de autorização.
+// Só nomes de metadados já enumerados; não abre bases, perfis ou arquivos.
+// Implementação própria; procedência/documentação no relatório consolidado.
+internal static class ResidualPreservationHints
+{
+    internal static ResidualPreservationKind Kind(string name, bool container)
+    {
+        if (container)
+            return name.ToUpperInvariant() switch
+            {
+                "BOOKMARKBACKUPS" => ResidualPreservationKind.BrowserHistoryAndBookmarks,
+                "SESSIONSTORE-BACKUPS" or "SESSIONS" => ResidualPreservationKind.BrowserSession,
+                "PROFILES" or "USER DATA" => ResidualPreservationKind.BrowserProfile,
+                "CACHE" or "CACHES" or "CACHE2" or "GPUCACHE" or "CODE CACHE" or "CACHESTORAGE"
+                    => ResidualPreservationKind.Cache,
+                "BACKUP" or "BACKUPS" or "MOBILESYNC" => ResidualPreservationKind.Backup,
+                "PLAYLISTS" => ResidualPreservationKind.Playlist,
+                "SAVED GAMES" or "SAVEGAMES" or "SAVES" => ResidualPreservationKind.SavedGames,
+                "INSTALLER" or "PACKAGE CACHE" or "MSOCACHE" => ResidualPreservationKind.Installer,
+                _ => ResidualPreservationKind.Unknown
+            };
+        var known = name.ToUpperInvariant() switch
+        {
+            "PLACES.SQLITE" or "FAVICONS.SQLITE" or "BOOKMARKS" or "HISTORY"
+                => ResidualPreservationKind.BrowserHistoryAndBookmarks,
+            "LOGINS.JSON" or "KEY4.DB" or "LOGIN DATA" => ResidualPreservationKind.BrowserCredentials,
+            "COOKIES.SQLITE" or "COOKIES" => ResidualPreservationKind.BrowserCookies,
+            "SESSIONSTORE.JSONLZ4" => ResidualPreservationKind.BrowserSession,
+            "PROFILES.INI" or "INSTALLS.INI" => ResidualPreservationKind.BrowserProfile,
+            _ => ResidualPreservationKind.Unknown
+        };
+        if (known != ResidualPreservationKind.Unknown) return known;
+        return Path.GetExtension(name).ToUpperInvariant() switch
+        {
+            ".M3U" or ".M3U8" or ".PLS" or ".FPL" or ".XSPF" => ResidualPreservationKind.Playlist,
+            ".MSI" or ".MSP" => ResidualPreservationKind.Installer,
+            _ => ResidualPreservationKind.Unknown
+        };
+    }
+
+    internal static string Explain(ResidualPreservationKind kind) => kind switch
+    {
+        ResidualPreservationKind.BrowserHistoryAndBookmarks => "Pelo nome, pode integrar favoritos, histórico ou seus backups de navegador. Preservar esses dados pessoais.",
+        ResidualPreservationKind.BrowserCredentials => "Pelo nome, pode guardar senhas salvas ou chaves usadas para protegê-las. Preservar; conteúdo não consultado.",
+        ResidualPreservationKind.BrowserCookies => "Pelo nome, pode guardar cookies, sessões autenticadas e preferências de sites. Preservar.",
+        ResidualPreservationKind.BrowserSession => "Pelo nome, pode guardar abas e janelas abertas ou dados para restaurar a sessão. Preservar.",
+        ResidualPreservationKind.BrowserProfile => "Pelo nome, pode guardar ou indicar perfis de navegador com favoritos, senhas e configurações. Podem continuar úteis após desinstalar; preservar.",
+        ResidualPreservationKind.Cache => "Pelo nome, pode ser cache ainda usado por um aplicativo. Isso não comprova abandono nem espaço recuperável; preservar nesta investigação.",
+        ResidualPreservationKind.Backup => "Pelo nome, pode conter backups de aplicativos ou dispositivos, necessários para recuperar dados. Preservar.",
+        ResidualPreservationKind.Playlist => "Pelo nome, pode guardar playlists ou organização da biblioteca de mídia. Preservar.",
+        ResidualPreservationKind.SavedGames => "Pelo nome, pode guardar progresso e configurações de jogos. Preservar mesmo se o jogo não aparecer no inventário.",
+        ResidualPreservationKind.Installer => "Pelo nome, pode ser fonte de instalação ou reparo, necessária para atualizar, desinstalar ou reverter um aplicativo. Preservar.",
+        _ => "Finalidade não confirmada pelos metadados. Pode conter dados pessoais ou compartilhados; preservar."
+    };
+}
 internal sealed record ResidualInspectionResult(string Location, IReadOnlyList<ResidualInspectionEntry> Entries,
     ResidualCoverage Coverage, string Explanation)
 {
@@ -42,7 +108,7 @@ internal sealed class ResidualInspectionSession
             if (canonical.StartsWith("HKEY_", StringComparison.OrdinalIgnoreCase)) ReadRegistry(canonical);
             else ReadDirectory();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or System.Security.SecurityException or
             ArgumentException or NotSupportedException or InvalidOperationException)
         { budget.MarkIncomplete(); }
         return Result(budget.Incomplete ? "Inspeção parcial. Alguns itens não puderam ser examinados; preservar." :

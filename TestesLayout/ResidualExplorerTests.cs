@@ -66,6 +66,7 @@ internal static class ResidualExplorerTests
             Console.WriteLine($"OK Explorador de resíduos {size.Width}x{size.Height}: busca, filtro, páginas, seleção e botões");
             window.Close();
         }
+        PreservationDetails();
         // Regressão do PC fraco: filtrar origem nao deve deixar outros
         // locais do mesmo produto visiveis no painel direito.
         var distinctOrigins = new ResidualAuditReport("App de teste", false,
@@ -122,6 +123,19 @@ internal static class ResidualExplorerTests
             Require(window.Locations.EmptyMessage.Contains("Nenhum item neste nível") &&
                 !window.Locations.EmptyMessage.Contains("Nenhum grupo"),
                 "Inspeção vazia não deve sugerir ausência de grupos de aplicativos");
+            window.Close();
+        }
+        using (var window = new ResidualExplorerDialog(reports,
+            (_, _) => Task.FromException<ResidualInspectionResult>(new InvalidDataException("Recusa sintética do guard"))))
+        {
+            window.Show(); Until(() => window.Ready && !window.Busy, "Fotografia para recusa indisponível");
+            string previousKey = window.Locations.SelectedRow!.Key;
+            Find(window, "ResidualInspect").PerformClick();
+            Until(() => !window.Busy && window.SummaryText.Contains("Análise parcial"),
+                "Recusa de segurança escapou da fronteira da interface");
+            Require(window.Locations.SelectedRow?.Key == previousKey && window.CurrentPage?.Matching == 1000 &&
+                Find(window, "ResidualInspect").Enabled && !window.DetailText.Contains("Recusa sintética"),
+                "Recusa deve preservar fotografia, liberar interface e não expor detalhe interno");
             window.Close();
         }
         var pending = new TaskCompletionSource<ResidualInspectionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -193,5 +207,53 @@ internal static class ResidualExplorerTests
             host.Close();
         }
         Console.WriteLine("OK Explorador: parcial vazio, cancelamento e restauração da bandeja sem janela inesperada");
+    }
+
+    private static void PreservationDetails()
+    {
+        string folder = @"C:\Fixture\PerfilAlternativo";
+        var report = new ResidualAuditReport("Perfil sintético", false,
+            [new(folder, "Perfil", 1, "Vínculo não confirmado", ResidualDisposition.PreserveData)], []);
+        ResidualInspectionEntry[] entries =
+        [
+            new("places.sqlite", folder + @"\places.sqlite", false, ResidualDisposition.PreserveData),
+            new("cache2", folder + @"\cache2", true, ResidualDisposition.PreserveData, true),
+            new("Backup", folder + @"\Backup", true, ResidualDisposition.PreserveData),
+            new("key4.db", folder + @"\key4.db", false, ResidualDisposition.PreserveData),
+            new("desconhecido", folder + @"\desconhecido", false, ResidualDisposition.PreserveData)
+        ];
+        foreach (var size in new[] { new Size(1280, 720), new Size(1440, 900), new Size(2560, 1440) })
+        {
+            using var window = new ResidualExplorerDialog([report], (path, _) => Task.FromResult(
+                new ResidualInspectionResult(path, entries, new(), "Metadados sintéticos; conteúdo não lido.")));
+            window.Show(); window.ClientSize = ResidualExplorerDialog.FitClient(new Rectangle(Point.Empty, size));
+            Until(() => window.Ready && !window.Busy, "Fotografia de preservação indisponível");
+            Find(window, "ResidualInspect").PerformClick();
+            Until(() => !window.Busy && window.Locations.Rows.Count == entries.Length,
+                "Motivos não carregaram na inspeção");
+            for (int i = 0; i < entries.Length; i++)
+            {
+                window.Locations.SelectRow(i);
+                Require(window.DetailText.Contains(entries[i].PreservationExplanation) &&
+                    window.DetailText.Contains("Pista pelo nome; finalidade e vínculo não confirmados") &&
+                    window.DetailText.Contains("Exclusão indisponível") &&
+                    Find(window, "ResidualInspect").Enabled == entries[i].CanInspect,
+                    "Detalhe deve explicar preservação e incerteza sem autorizar ação adicional");
+                var editor = Descendants(window).OfType<TextBox>().Single(t => t.Multiline);
+                Require(editor.ReadOnly && editor.WordWrap && editor.Text == window.DetailText &&
+                    editor.ClientSize.Width > 0 && editor.ClientSize.Height > 0 &&
+                    editor.Parent!.ClientRectangle.Contains(editor.Bounds),
+                    "Explicação deve permanecer disponível por texto nativo legível e dentro do painel");
+            }
+            window.Locations.SelectRow(0); window.Refresh(); Application.DoEvents();
+            Directory.CreateDirectory("LayoutCaptures");
+            using var shot = new Bitmap(window.Width, window.Height);
+            window.DrawToBitmap(shot, new Rectangle(Point.Empty, window.Size));
+            shot.Save($"LayoutCaptures/Residuos-Preservacao-{size.Width}x{size.Height}.png");
+            Require(Descendants(window).OfType<Button>().All(b => !b.Text.Contains("Excluir") && !b.Text.Contains("Remover")),
+                "Motivos de preservação não podem criar ação destrutiva");
+            window.Close();
+        }
+        Console.WriteLine("OK Preservação: explicações e incerteza na inspeção em 720p e nos dois PCs; sem ações destrutivas");
     }
 }

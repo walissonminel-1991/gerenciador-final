@@ -105,7 +105,12 @@ internal static class BroadResidualDiscovery
         "Preferences", "Profiles", "User Data", "UserData", "Data", "Logs",
         "Log", "Updates", "Update", "Scripts", "Providers", "Plugins",
         "Extensions", "Components", "Modules", "Assets", "Themes",
-        "Bin", "Lib", "Runtime", "Storage", "Local Storage", "Database"
+        "Bin", "Lib", "Runtime", "Storage", "Local Storage", "Database",
+        // Dados subordinados ao aplicativo/fabricante, não produtos novos.
+        "Cache", "Caches", "cache2", "GPUCache", "Code Cache", "CacheStorage",
+        "Session Storage", "IndexedDB", "Service Worker", "sessionstore-backups",
+        "bookmarkbackups", "Backup", "Backups", "MobileSync", "Playlists",
+        "Saved Games", "Savegames", "Saves"
     };
 
     internal static string? ProductFromChild(string? parent, string? child)

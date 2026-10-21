@@ -197,9 +197,12 @@ internal sealed class ResidualExplorerDialog : Form
         string text = selectedReport.Product + "\r\n" + (selectedReport.UninstallConfirmed ? "Registro de desinstalação ausente; auxiliares ainda podem estar ativos." : "O programa ainda pode estar instalado. Vínculo exclusivo não comprovado.") + "\r\n\r\n";
         if (inspectionResult is not null) text += inspectionResult.Explanation + "\r\n" + inspectionResult.Coverage.Describe() + "\r\n\r\n";
         if (locations.SelectedRow?.Target is ResidualAuditFinding f) text += f.DecisionLabel + "\r\n" + f.Location + "\r\n" + f.Evidence;
-        else if (locations.SelectedRow?.Target is ResidualInspectionEntry e) text += e.Location + "\r\nDados preservados; conteúdo não lido. " + (e.Container && !e.CanInspect
-            ? "Limite de profundidade ou quantidade: esta subpasta não foi examinada."
-            : "Inspeção de subpastas exige nova consulta limitada.");
+        else if (locations.SelectedRow?.Target is ResidualInspectionEntry e) text += e.Location + "\r\n" +
+            e.PreservationExplanation + "\r\nPista pelo nome; finalidade e vínculo não confirmados. Conteúdo não lido. " +
+            (e.Container ? !e.CanInspect
+                ? "Limite de profundidade ou quantidade: esta subpasta não foi examinada."
+                : "Inspeção de subpastas exige nova consulta limitada."
+                : "Arquivo preservado; não é aberto nesta inspeção.");
         details.SetText(text + "\r\n\r\nExclusão indisponível nesta versão de teste."); UpdateActions();
     }
     internal Task InspectSelectedAsync()
@@ -227,7 +230,7 @@ internal sealed class ResidualExplorerDialog : Form
         int id = ++generation; bool entered = false; UpdateActions();
         try { await worker.WaitAsync(own.Token); entered = true; await work(own.Token, id); }
         catch (OperationCanceledException) { }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
         { if (Current(id, own.Token)) summary.Text = "Análise parcial — não foi possível consultar todos os dados. Resultados anteriores preservados.\nExclusão indisponível nesta versão de teste."; }
         finally
         {

@@ -190,6 +190,34 @@ internal static class ResidualMissionTests
             mixedGeneric.Any(r => r.Product == "WinHance") &&
             mixedGeneric.All(r => r.Findings.All(f => !f.CanRemove)),
             "Configuracoes homonimas de aplicativos distintos nunca se fundem ou habilitam exclusao");
+        string[] subordinate = ["cache2", "GPUCache", "Code Cache", "CacheStorage", "IndexedDB",
+            "Session Storage", "Service Worker", "bookmarkbackups", "sessionstore-backups",
+            "Backups", "MobileSync", "Playlists", "Saves"];
+        var profileEvidence = new[] { "EditorAlpha", "EditorBeta" }.SelectMany(parent =>
+            subordinate.Select(child => new BroadResidualEvidence(
+                BroadResidualDiscovery.ProductFromChild(parent, child)!,
+                Path.Combine(Path.GetTempPath(), parent, child), "Dados", "AppData", parent))
+            .Append(new BroadResidualEvidence(parent, @"HKCU\Software\" + parent, "Preferências", "Registry")))
+            .ToArray();
+        var profiles = BroadResidualDiscovery.Classify(profileEvidence, []);
+        check(profiles.Count == 2 && profiles.All(r => r.Findings.Count == subordinate.Length + 1 &&
+                r.Findings.All(f => f.Disposition == ResidualDisposition.PreserveData && !f.CanRemove)) &&
+            profiles.Select(r => r.Product).ToHashSet().SetEquals(["EditorAlpha", "EditorBeta"]),
+            "Caches, backups e dados de sessão ficam com seu aplicativo sem formar falsos produtos entre fabricantes");
+        var protectedProfiles = BroadResidualDiscovery.Classify(profileEvidence,
+            [new ProgramEntry { Name = "EditorAlpha" }]);
+        check(protectedProfiles.Count == 1 && protectedProfiles[0].Product == "EditorBeta" &&
+            protectedProfiles.Coverage.ProtectedGroups == 1,
+            "Aplicativo ainda instalado protege também seus caches e backups subordinados");
+        var partialProfiles = BroadResidualDiscovery.Classify(profileEvidence, [], inventoryIncomplete: true);
+        check(partialProfiles.Coverage.Issues.HasFlag(ResidualScanIssue.InventoryPartial) &&
+            partialProfiles.SelectMany(r => r.Findings).All(f => f.Disposition == ResidualDisposition.Unknown &&
+                f.BasisDisposition == ResidualDisposition.PreserveData && !f.CanRemove),
+            "Dados subordinados mantêm incerteza e preservação quando o inventário é parcial");
+        check(BroadResidualDiscovery.ProductFromChild("EditorAlpha", "CacheHelper") == "CacheHelper" &&
+            BroadResidualDiscovery.ProductFromChild("EditorAlpha", "BackupsPro") == "BackupsPro" &&
+            subordinate.All(n => !BroadResidualDiscovery.EligibleName(n)),
+            "Nomes de produtos parecidos continuam distintos de nomes exatos de dados");
         check(HistoricalResidualAudit.Rules.Count == 5 && HistoricalResidualAudit.Rules.Any(r => r.Id == "vlc-profile"),
             "Catálogo histórico valida nomes curtos VLC e carrega todas as cinco regras");
         var app = new ProgramEntry { Name = "Editor Antigo", MsiProductCode = "{ID-SINTETICO}" };
