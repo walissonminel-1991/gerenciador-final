@@ -1548,7 +1548,8 @@ internal sealed partial class MainForm : Form
             ForeColor = Ink, Font = new Font("Segoe UI", 11F, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft
         }, 0, 0);
-        var optimizeDisks = CreateSecondaryButton("Otimizar unidades");
+        var optimizeDisks = CreateSecondaryButton("Otimizar");
+        optimizeDisks.AccessibleName = "Otimizar unidades";
         optimizeDisks.Dock = DockStyle.Fill;
         optimizeDisks.Margin = new Padding(5, 4, 5, 4);
         optimizeDisks.Click += async (_, _) => await ConfirmThenRun("optimize-drives",
@@ -1926,6 +1927,8 @@ internal sealed partial class MainForm : Form
                 ("sem_versao", items.Count(x => string.IsNullOrWhiteSpace(x.Version))),
                 ("desinstalaveis", items.Count(x => x.CanUninstall)),
                 ("so_inventario", items.Count(x => x.InventoryOnly)),
+                ("sem_desinstalacao", items.Count(x => !x.CanUninstall)),
+                ("sem_desinstalacao_fora_flag", items.Count(x => !x.CanUninstall && !x.InventoryOnly)),
                 ("parcial", scan.Incomplete ? 1 : 0));
             DiagnosticTrace.Write($"MSIX.LEITURA status={scan.Msix.Status} enumerados={scan.Msix.Seen} " +
                 $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures} repeticao={scan.Msix.Retried} fase={scan.Msix.FailureStage} apartment={scan.Msix.Apartment}");
@@ -2952,10 +2955,22 @@ internal sealed partial class MainForm : Form
         var unavailable = broad.Coverage?.SourcesUnavailable ?? [];
         static bool IsRegistry(string value) => value.StartsWith("HKEY_", StringComparison.Ordinal);
         static bool IsAppdata(string value) => value == "AppData";
+        // Classificar apenas tokens FIXOS conhecidos da varredura, nao caminhos
+        // reais nem nomes de programas; cobertura parcial continua parcial.
+        static bool IsIntegration(string source) =>
+            source is "Processes" or "AppPaths" or "RunServices";
+        static bool IsOther(string source) =>
+            !IsRegistry(source) && !IsAppdata(source) &&
+            source is not ("ProgramData" or "ProgramFiles" or "StartMenu") &&
+            !IsIntegration(source);
         TestDiagnosticDetail.Record("FONTES",
             ("falha_registro", failures.Count(IsRegistry)),
             ("falha_appdata", failures.Count(IsAppdata)),
-            ("falha_outras", failures.Count(x => !IsRegistry(x) && !IsAppdata(x))),
+            ("falha_programdata", failures.Count(x => x == "ProgramData")),
+            ("falha_programfiles", failures.Count(x => x == "ProgramFiles")),
+            ("falha_startmenu", failures.Count(x => x == "StartMenu")),
+            ("falha_integracoes", failures.Count(IsIntegration)),
+            ("falha_outras", failures.Count(IsOther)),
             ("indisp_registro", unavailable.Count(IsRegistry)),
             ("indisp_appdata", unavailable.Count(IsAppdata)),
             ("indisp_outras", unavailable.Count(x => !IsRegistry(x) && !IsAppdata(x))));

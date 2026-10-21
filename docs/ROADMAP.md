@@ -1,7 +1,28 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**Candidata com CI aprovada: v5.13.11.29 TESTE · Progresso: 26/42 (61,9%).**
+**Candidata em CI: v5.13.11.30 TESTE · Progresso: 26/42 (61,9%).**
 Os percentuais indicam checkpoints e não segurança ou prontidão para release.
+
+## PC FORTE — bateria .29 e qualidade do diagnóstico .30
+
+O diagnóstico da .29 confirma 174 aplicativos e 27 MSIX, oito fontes de
+atualização e três candidatos. A única variação entre .28 e .29 apareceu
+em drivers: 168 para **177 associações**, 60 para **63 INFs**, nove IDs
+novos e nenhum ausente/alterado no primeiro confronto; na segunda
+consulta já não houve diferenças. PnP consultados passaram de 166 para
+175. O fato **não identifica** causa nem comprova atualização/instalação.
+Antes de habilitar G1–G5, investigar o histórico PnP no PC FORTE,
+conferindo identidades localmente, sem colocar IDs em logs públicos.
+
+O modo ampliado da .29 finalmente registrou inventário: total 174,
+33 marcados `InventoryOnly`, 140 desinstaláveis e 34 sem rota de
+desinstalação: critérios diferentes, não um aplicativo desaparecido.
+A .30 separa os dois indicadores e subdivide as origens fixas de falha
+da descoberta de resíduos, sem caminhos, ampliação de escopo ou novos
+privilégios. A interface mantém o botão de otimização em uma linha.
+A .29 manteve 44 grupos/161 locais de resíduos parciais, incluindo
+43 candidatos gerais e duas fontes com falhas pontuais. Resultado
+coerente, mas não suficiente para remoção. Continua **26/42**.
 
 ## Evidência presencial — PC FORTE .28 e refinamento .29
 

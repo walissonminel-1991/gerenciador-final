@@ -8,12 +8,12 @@ internal static class TestDiagnosticDetail
     private static readonly Dictionary<string, string[]> Fields = new(StringComparer.Ordinal)
     {
         ["AMBIENTE"] = ["largura", "altura", "dpi", "logicos"],
-        ["INVENTARIO"] = ["total", "sem_nome", "sem_editor", "sem_versao", "desinstalaveis", "so_inventario", "parcial"],
+        ["INVENTARIO"] = ["total", "sem_nome", "sem_editor", "sem_versao", "desinstalaveis", "so_inventario", "sem_desinstalacao", "sem_desinstalacao_fora_flag", "parcial"],
         ["ATUALIZACOES"] = ["avaliados", "candidatos", "incertos", "registro_antigo", "fontes", "ruckzuck_ok"],
         ["DRIVERS"] = ["associacoes", "ids_unicos", "sem_nome", "sem_fornecedor", "sem_versao", "versao_incomum", "sem_inf", "assinatura_indeterminada", "presenca_indeterminada", "nao_presentes", "parcial"],
         ["RESIDUOS"] = ["grupos", "locais", "examinados", "grupos_avaliados", "candidatos_gerais", "filtrados_ativos", "filtrados_sem_evidencia", "grupos_omitidos", "locais_omitidos", "fontes", "indisponiveis", "falhas_leitura", "nao_avaliados_desconhecidos", "parcial"],
         ["LIMITES"] = ["entradas", "leitura", "profundidade", "links", "tempo", "cancelamento", "inventario", "fonte", "grupos", "locais"],
-        ["FONTES"] = ["falha_registro", "falha_appdata", "falha_outras", "indisp_registro", "indisp_appdata", "indisp_outras"],
+        ["FONTES"] = ["falha_registro", "falha_appdata", "falha_programdata", "falha_programfiles", "falha_startmenu", "falha_integracoes", "falha_outras", "indisp_registro", "indisp_appdata", "indisp_outras"],
         ["MANUTENCAO"] = ["instalados", "reconhecidos", "sem_desinstalador", "desinstalador_incerto", "pnp", "historicos_nao_observados", "seguranca_atencao", "seguranca_incerta", "parcial"]
     };
     private static readonly object Gate = new();

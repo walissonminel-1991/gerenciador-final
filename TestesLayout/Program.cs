@@ -438,6 +438,11 @@ internal static class LayoutTests
 
                 if (tab == 2)
                 {
+                    var optimize = Descendants(form).OfType<Button>()
+                        .SingleOrDefault(b => b.AccessibleName == "Otimizar unidades");
+                    if (optimize is null || optimize.Text != "Otimizar" ||
+                        optimize.Height < 24)
+                        throw new Exception($"Acao de otimizacao cortada: {name} {resolution}");
                     var profile = Descendants(form).OfType<ComboBox>()
                         .SingleOrDefault(c => c.Name == "TestDiagnosticProfile");
                     var preview = profile?.Parent?.Parent as TableLayoutPanel;

@@ -1,4 +1,4 @@
-# Roteiro de testes — Gerenciador Final (candidata v5.13.11.29 TESTE, CI aprovada; referência presencial .28)
+# Roteiro de testes — Gerenciador Final (candidata v5.13.11.30 TESTE, CI pendente; referência presencial .29)
 
 **21/10/2026: incorporação conservadora na .26; [relatório e roteiro consultivo](OPERACAO-FAXINA-FINAL.md). Último teste real do PC fraco: .24. A MSIX permanece parcialmente indisponível após retry na .24; proteger os resultados e não concluir que 19 apps foram desinstalados.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real continua indisponível nesta candidata.** A ideia de autenticação GitHub com conta existente foi estruturada em [piloto restrito](PILOTO-AUTENTICACAO-GITHUB.md), dependente de uma GitHub App e repositório privado exclusivos.
 
@@ -143,6 +143,27 @@ PnP no conjunto de drivers. Pacote .27 de teste: [artefato temporário](https://
 `3e66b334`. Conferir BUILD-INFO e SHA256SUMS; arquivo sem assinatura.
  Ainda pendentes testes de atualização/desinstalação
 supervisionadas e confirmação de detalhes dos resíduos em cada caso.
+
+## Bateria da .30 — diagnóstico sem operações em drivers
+
+A .29 no PC FORTE registrou 177 associações WMI e 63 INFs, contra
+168/60 na .28, com nove novos IDs segundo o histórico local, nenhum
+não observado e nenhum alterado. O mesmo PC registrou 175 PnP
+consultados, antes 166. Não concluir alteração de driver instalado,
+apenas mudança entre snapshots. Faça conferência manual dos dispositivos
+somente pelo Gerenciador de Dispositivos local; não publicar IDs ou
+números de série.
+
+Ao testar a .30, selecionar PC FORTE *antes de Atualizar lista*.
+Conferir `TESTES.INVENTARIO`: `so_inventario` e
+`sem_desinstalacao` são contagens diferentes por definição.
+No log da .29, 33 versus 34; a .30 deve acrescentar a
+diferença sem flag. `TESTES.FONTES` passa a discriminar
+ProgramData/ProgramFiles/StartMenu/integrações por categorias
+fixas, sem revelar caminhos ou abrir conteúdo. Na aba Limpeza
+verificar o botão visual **Otimizar**, que continua com nome
+acessível **Otimizar unidades**. Mantêm-se os mesmos orçamentos
+de consulta e a exclusão de resíduos indisponível.
 
 ## Bateria de confirmação da .29
 

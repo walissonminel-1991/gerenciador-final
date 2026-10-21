@@ -50,6 +50,24 @@ Check(TestDiagnosticDetail.TryFormat(1, "RESIDUOS",
     }, out string resumoResiduos) && resumoResiduos.Contains("grupos_avaliados=867") &&
     213 + 611 + 43 == 867,
     "Detalhamento de residuos separa grupos examinados e resultados exibidos");
+Check(TestDiagnosticDetail.TryFormat(1, "INVENTARIO", new (string, int)[] {
+    ("total", 174), ("sem_nome", 0), ("sem_editor", 9), ("sem_versao", 45),
+    ("desinstalaveis", 140), ("so_inventario", 33),
+    ("sem_desinstalacao", 34), ("sem_desinstalacao_fora_flag", 1),
+    ("parcial", 0)
+}, out var recordInventario) &&
+    recordInventario.Contains("so_inventario=33") &&
+    recordInventario.Contains("sem_desinstalacao=34"),
+    "Inventario distingue flag e disponibilidade de desinstalador sem perder entradas");
+Check(TestDiagnosticDetail.TryFormat(1, "FONTES", new (string, int)[] {
+    ("falha_registro", 0), ("falha_appdata", 1),
+    ("falha_programdata", 1), ("falha_programfiles", 0),
+    ("falha_startmenu", 0), ("falha_integracoes", 0),
+    ("falha_outras", 0), ("indisp_registro", 0),
+    ("indisp_appdata", 0), ("indisp_outras", 0)
+}, out var recordFontes) &&
+    recordFontes.Contains("falha_programdata=1"),
+    "Falha de fonte identificada apenas por categoria segura e nao pelo caminho real");
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
 var c = a with { DeviceId = "USB\\THREE", Signed = null };
