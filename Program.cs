@@ -1584,12 +1584,41 @@ internal sealed partial class MainForm : Form
             "e firewall pelo Centro de Segurança do Windows. Somente leitura.");
         _actionControls.Add(fullAudit);
         previewRow.Controls.Add(fullAudit, 1, 0);
-        _cleanupPreview.Text = "Analisar espaço e dispositivos sem apagar dados.";
+        var modePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Margin = Padding.Empty };
+        modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 175));
+        _cleanupPreview.Text = "Coleta ampliada apenas para testes.";
         _cleanupPreview.Dock = DockStyle.Fill;
         _cleanupPreview.ForeColor = Muted;
         _cleanupPreview.TextAlign = ContentAlignment.MiddleLeft;
-        _cleanupPreview.AutoEllipsis = false;
-        previewRow.Controls.Add(_cleanupPreview, 2, 0);
+        _cleanupPreview.AutoEllipsis = true;
+        modePanel.Controls.Add(_cleanupPreview, 0, 0);
+        var testMode = new ComboBox
+        {
+            Name = "TestDiagnosticProfile", Dock = DockStyle.Fill,
+            Margin = new Padding(3, 5, 0, 5), DropDownStyle = ComboBoxStyle.DropDownList,
+            BackColor = Color.FromArgb(37, 48, 61), ForeColor = Ink,
+            FlatStyle = FlatStyle.Flat
+        };
+        testMode.Items.AddRange(new object[] { "Teste desligado", "Teste PC FORTE", "Teste PC FRACO" });
+        testMode.SelectedIndex = 0;
+        testMode.SelectedIndexChanged += (_, _) =>
+        {
+            TestDiagnosticDetail.SetProfile(testMode.SelectedIndex, DiagnosticTrace.Write);
+            if (TestDiagnosticDetail.Enabled)
+            {
+                var bounds = Screen.FromControl(this).Bounds;
+                TestDiagnosticDetail.Record("AMBIENTE",
+                    ("largura", bounds.Width), ("altura", bounds.Height),
+                    ("dpi", DeviceDpi), ("logicos", Environment.ProcessorCount));
+                Log("Coleta detalhada de testes ativa apenas nesta sessão, somente contagens locais.");
+            }
+            else Log("Coleta detalhada de testes desativada.");
+        };
+        _toolTips.SetToolTip(testMode, "Escolha o PC para comparar testes. Nada é enviado; " +
+            "sem caminhos, nomes de programas ou IDs de dispositivos. Volta ao padrão ao fechar.");
+        modePanel.Controls.Add(testMode, 1, 0);
+        previewRow.Controls.Add(modePanel, 2, 0);
         root.Controls.Add(previewRow, 0, 1);
         _diskSummary.Text = "Consulte o espaço livre e ocupado das unidades locais.";
         _diskSummary.Dock = DockStyle.Fill;
@@ -1885,6 +1914,14 @@ internal sealed partial class MainForm : Form
             if (_inventoryIncomplete)
                 Log("ATENÇÃO: inventário PARCIAL. Uma ou mais fontes não puderam ser consultadas; aplicativos ausentes desta lista podem continuar instalados. Clique em Atualizar lista para tentar novamente. Nenhum aplicativo foi removido.");
             DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count} examinados={scan.Registry.Inspected} ocultos={scan.Registry.HiddenComponents} updates_arp={scan.Registry.UpdateEntries} erros={scan.Registry.ReadFailures} duplicados={scan.Registry.Duplicates}");
+            TestDiagnosticDetail.Record("INVENTARIO",
+                ("total", items.Count),
+                ("sem_nome", items.Count(x => string.IsNullOrWhiteSpace(x.Name))),
+                ("sem_editor", items.Count(x => string.IsNullOrWhiteSpace(x.Publisher))),
+                ("sem_versao", items.Count(x => string.IsNullOrWhiteSpace(x.Version))),
+                ("desinstalaveis", items.Count(x => x.CanUninstall)),
+                ("so_inventario", items.Count(x => x.InventoryOnly)),
+                ("parcial", scan.Incomplete ? 1 : 0));
             DiagnosticTrace.Write($"MSIX.LEITURA status={scan.Msix.Status} enumerados={scan.Msix.Seen} " +
                 $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures} repeticao={scan.Msix.Retried} fase={scan.Msix.FailureStage} apartment={scan.Msix.Apartment}");
             DiagnosticTrace.Write($"JOGOS.LEITURA steam={scan.Games.Steam} epic={scan.Games.Epic} adicionados={scan.GamesAdded} parciais={scan.Games.Partial}");
@@ -2004,6 +2041,10 @@ internal sealed partial class MainForm : Form
             int superseded = merged.Count(x => x.State == MatchState.SupersededRegistration);
             int officialCandidates = merged.Count(x => x.State == MatchState.Candidate &&
                 x.Provider != "RuckZuck");
+            TestDiagnosticDetail.Record("ATUALIZACOES",
+                ("avaliados", merged.Count), ("candidatos", candidates),
+                ("incertos", uncertain), ("registro_antigo", superseded),
+                ("fontes", others.Diagnostics.Count), ("ruckzuck_ok", rz.Matches is null ? 0 : 1));
             if (superseded > 0)
                 Log($"Visual C++: {superseded} registro(s) antigo(s) já atendidos por versões recentes.");
             if (rz.Matches is null)
@@ -2753,6 +2794,15 @@ internal sealed partial class MainForm : Form
         var report = await maintenanceTask;
         var security = await securityTask;
         DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} pnp_sem_correspondencia={report.HistoricalPnP?.NotPresent ?? 0} steam={games.Steam} epic={games.Epic} inventario_parcial={report.InventoryIncomplete} msix_status={inventory.Msix.Status} msix_fase={inventory.Msix.FailureStage} msix_apartment={inventory.Msix.Apartment} parcial={report.Incomplete || games.Partial}");
+        TestDiagnosticDetail.Record("MANUTENCAO",
+            ("instalados", report.Installed), ("reconhecidos", report.Recognized),
+            ("sem_desinstalador", report.MissingUninstallers),
+            ("desinstalador_incerto", report.UnverifiableUninstallers),
+            ("pnp", report.Devices.Queried),
+            ("historicos_nao_observados", report.HistoricalPnP?.NotPresent ?? 0),
+            ("seguranca_atencao", security.Count(x => x.Level == SecurityHealthLevel.Attention)),
+            ("seguranca_incerta", security.Count(x => x.Level != SecurityHealthLevel.Attention && x.Level != SecurityHealthLevel.Ok)),
+            ("parcial", report.Incomplete || games.Partial ? 1 : 0));
         Log($"DIAGNÓSTICO COMPLETO: {report.Installed} programas; " +
             $"{report.Recognized} associados ao catálogo de receitas específicas; " +
             $"{report.WithPublisher} com fabricante registrado e " +
@@ -2868,6 +2918,39 @@ internal sealed partial class MainForm : Form
         // Unir todas as fontes por produto/local, preservando motivos divergentes.
         var allReports = ResidualReportMerger.Merge(historical.Concat(boosterReports).Concat(winMergeReports)
             .Concat(broad.Reports), inventoryIncomplete || broad.Incomplete, ResidualCoverage.Combine(new[] { broad.Coverage, historical.Coverage }));
+        var coverage = allReports.Coverage;
+        TestDiagnosticDetail.Record("RESIDUOS",
+            ("grupos", allReports.Count), ("locais", allReports.Sum(x => x.Findings.Count)),
+            ("examinados", coverage.EntriesExamined),
+            ("protegidos", coverage.ProtectedGroups), ("insuficientes", coverage.InsufficientGroups),
+            ("grupos_omitidos", coverage.ReportsOmitted), ("locais_omitidos", coverage.LocationsOmitted),
+            ("fontes", coverage.SourcesConsulted?.Count ?? 0),
+            ("indisponiveis", coverage.SourcesUnavailable?.Count ?? 0),
+            ("falhas_leitura", coverage.SourcesWithReadFailures?.Count ?? 0),
+            ("nao_avaliados_desconhecidos", coverage.CandidatesNotEvaluated is null ? 1 : 0),
+            ("parcial", allReports.Incomplete ? 1 : 0));
+        TestDiagnosticDetail.Record("LIMITES",
+            ("entradas", scanIssues.HasFlag(ResidualScanIssue.EntryLimit) ? 1 : 0),
+            ("leitura", scanIssues.HasFlag(ResidualScanIssue.ReadFailure) ? 1 : 0),
+            ("profundidade", scanIssues.HasFlag(ResidualScanIssue.DepthLimit) ? 1 : 0),
+            ("links", scanIssues.HasFlag(ResidualScanIssue.LinkSkipped) ? 1 : 0),
+            ("tempo", scanIssues.HasFlag(ResidualScanIssue.Timeout) ? 1 : 0),
+            ("cancelamento", scanIssues.HasFlag(ResidualScanIssue.Cancelled) ? 1 : 0),
+            ("inventario", scanIssues.HasFlag(ResidualScanIssue.InventoryPartial) ? 1 : 0),
+            ("fonte", scanIssues.HasFlag(ResidualScanIssue.SourceUnavailable) ? 1 : 0),
+            ("grupos", scanIssues.HasFlag(ResidualScanIssue.GroupLimit) ? 1 : 0),
+            ("locais", scanIssues.HasFlag(ResidualScanIssue.LocationLimit) ? 1 : 0));
+        var failures = broad.Coverage?.SourcesWithReadFailures ?? [];
+        var unavailable = broad.Coverage?.SourcesUnavailable ?? [];
+        static bool IsRegistry(string value) => value.StartsWith("HKEY_", StringComparison.Ordinal);
+        static bool IsAppdata(string value) => value == "AppData";
+        TestDiagnosticDetail.Record("FONTES",
+            ("falha_registro", failures.Count(IsRegistry)),
+            ("falha_appdata", failures.Count(IsAppdata)),
+            ("falha_outras", failures.Count(x => !IsRegistry(x) && !IsAppdata(x))),
+            ("indisp_registro", unavailable.Count(IsRegistry)),
+            ("indisp_appdata", unavailable.Count(IsAppdata)),
+            ("indisp_outras", unavailable.Count(x => !IsRegistry(x) && !IsAppdata(x))));
         if (allReports.Count > 0 || allReports.Incomplete)
         {
             Log($"Auditoria de dados e instalações: {allReports.Count} grupos para revisão (não são lixo confirmado). " +
