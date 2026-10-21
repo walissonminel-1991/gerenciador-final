@@ -3,7 +3,7 @@ using Microsoft.Win32;
 namespace GerenciadorAplicativos;
 
 internal sealed record ResidualInspectionEntry(string Name, string Location, bool Container,
-    ResidualDisposition Disposition);
+    ResidualDisposition Disposition, bool CanInspect = false);
 internal sealed record ResidualInspectionResult(string Location, IReadOnlyList<ResidualInspectionEntry> Entries,
     ResidualCoverage Coverage, string Explanation)
 {
@@ -52,7 +52,8 @@ internal sealed class ResidualInspectionSession
             budget.Coverage with { CandidatesFound = found.Count, CandidatesNotEvaluated = budget.Incomplete ? null : 0 }, explanation);
         void Register(string name, string path, bool container)
         {
-            found.Add(new(name, path, container, ResidualDisposition.PreserveData));
+            bool navigable = container && depth + 1 < 2 && targets.Count < maximumTargets;
+            found.Add(new(name, path, container, ResidualDisposition.PreserveData, navigable));
             if (container && targets.Count < maximumTargets) targets.TryAdd(path, depth + 1);
             else if (container) budget.MarkIncomplete(ResidualScanIssue.EntryLimit);
         }

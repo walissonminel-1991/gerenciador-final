@@ -34,6 +34,10 @@ internal static class ResidualInspectionTests
             check(linkedResult.Coverage.Issues.HasFlag(ResidualScanIssue.LinkSkipped) && linkedResult.Entries.All(e => e.Name != "Vinculo"),
                 "Inspeção não segue links nem os inclui como contêineres navegáveis");
             Directory.Delete(linked);
+            var protectedTarget = new ResidualAuditReport("Fictício", false,
+                [new(Path.GetPathRoot(root)!, "Raiz protegida", 1, "fora do escopo")], []);
+            check(new ResidualInspectionSession(protectedTarget, [root]).Inspect(Path.GetPathRoot(root)!).Coverage.Incomplete,
+                "Inspeção recusa raiz protegida mesmo quando recebida em relatório sintético");
             check(File.ReadAllText(Path.Combine(folder, "playlist.m3u")) == "dados fictícios", "Playlist de fixture permanece intacta após inspeções");
         }
         finally { Directory.Delete(root, true); }

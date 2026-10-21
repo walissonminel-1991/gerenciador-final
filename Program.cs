@@ -2756,10 +2756,11 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_INICIO");
         var snapshot = await Task.Run(AppServices.ScanAllInstalledApps);
         token.ThrowIfCancellationRequested();
-        var candidates = await Task.Run(() => AdvancedUninstallCleaner.Inspect(snapshot.Items));
+        var deep = await Task.Run(() => AdvancedUninstallCleaner.InspectWithCoverage(snapshot.Items, token));
+        var candidates = deep.Items;
         token.ThrowIfCancellationRequested();
         DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_FIM programas=" + candidates.Count);
-        if (candidates.Count == 0)
+        if (candidates.Count == 0 && !deep.Coverage.Incomplete)
         {
             Log("Limpeza avançada: nenhum dado ou chave do Registro conhecido encontrado.");
             Status("Nenhum resíduo avançado reconhecido; outros vestígios não podem ser descartados.");
@@ -2773,7 +2774,7 @@ internal sealed partial class MainForm : Form
                 "Configurações — preservar", 1,
                 "Ausência na lista de programas não comprova exclusividade ou desinstalação.", ResidualDisposition.PreserveData))).ToArray(),
             Array.Empty<string>(), Historical: true)).ToArray();
-        ResidualAuditDialog.ShowHistoricalResults(this, ResidualReportMerger.Merge(reports, snapshot.Incomplete));
+        ResidualAuditDialog.ShowHistoricalResults(this, ResidualReportMerger.Merge(reports, snapshot.Incomplete, deep.Coverage));
         Status("Revisão concluída. Dados preservados; exclusão desativada nesta candidata.");
     }
 

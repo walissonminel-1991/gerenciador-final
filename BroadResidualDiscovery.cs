@@ -474,7 +474,7 @@ internal static class BroadResidualDiscovery
         }
         var classificationClock = Stopwatch.StartNew();
         bool classificationStopped = false;
-        int groupsExamined = 0;
+        int groupsExamined = 0, protectedGroups = 0, insufficientGroups = 0, reconciledLocations = 0;
         var classified = input.Where(e => EligibleName(e.Name))
             .GroupBy(e => NormalizedCompare(e.Name), Comparer)
             .TakeWhile(group =>
@@ -485,10 +485,14 @@ internal static class BroadResidualDiscovery
                 classificationStopped = true;
                 return false;
             })
-            .Where(group => !IsProtectedByNames(group.First().Name, protectedNames) &&
-                !protectedGames.Contains(NormalizedCompare(group.First().Name)) &&
-                !HasNameRelation(group.Key, runningNames) &&
-                HasIndependentResidueEvidence(group))
+            .Where(group =>
+            {
+                if (IsProtectedByNames(group.First().Name, protectedNames) ||
+                    protectedGames.Contains(NormalizedCompare(group.First().Name)) || HasNameRelation(group.Key, runningNames))
+                { protectedGroups++; return false; }
+                if (!HasIndependentResidueEvidence(group)) { insufficientGroups++; return false; }
+                return true;
+            })
             .Select(group =>
             {
                 if (group.GroupBy(e => ResidualReportMerger.LocationKey(e.Location), Comparer)
@@ -499,8 +503,10 @@ internal static class BroadResidualDiscovery
                         .ThenByDescending(e => e.RootGroup == "AppData" || e.RootGroup == "ProgramData")
                         .ThenBy(e => e.Kind, StringComparer.Ordinal).First() with
                         { Kind = string.Join(" / ", g.Select(e => e.Kind).Distinct().Order(StringComparer.Ordinal)),
-                          Sources = g.Aggregate(ResidualSource.None, (a, e) => a | SourceOf(e.RootGroup)) })
+                          Sources = g.Aggregate(ResidualSource.None, (a, e) => a | SourceOf(e.RootGroup)),
+                          Container = string.Join(" / ", g.Select(e => e.Container).Where(n => n.Length > 0).Distinct().Order(StringComparer.Ordinal)) })
                     .ToArray();
+                reconciledLocations += group.Count() - all.Length;
                 int sourceTypes = all.Select(e => e.RootGroup).Distinct(Comparer).Count();
                 // Um diretório em Program Files pode ser uma instalação real,
                 // inclusive portátil, sem UninstallString. Uma pasta com nome
@@ -546,7 +552,8 @@ internal static class BroadResidualDiscovery
             .ToArray();
         coverage = ResidualCoverage.Combine(new[] { coverage, new ResidualCoverage(issues, EntriesExamined: coverage is null ? input.Count : 0,
             CandidatesFound: classified.Length, CandidatesNotEvaluated: classificationStopped ? null : remaining,
-            CandidatesExamined: groupsExamined) });
+            CandidatesExamined: groupsExamined, LocationsReconciled: reconciledLocations,
+            ProtectedGroups: protectedGroups, InsufficientGroups: insufficientGroups) });
         var reports = classified.Select(g => new ResidualAuditReport(g.Group, false,
             g.Findings.Select(f => coverage.Incomplete ? f with { BasisDisposition = f.BasisDisposition ?? f.Disposition, Disposition = ResidualDisposition.Unknown } : f).ToArray(),
             Array.Empty<string>(), Historical: true, Incomplete: coverage.Incomplete, Coverage: coverage)).ToArray();

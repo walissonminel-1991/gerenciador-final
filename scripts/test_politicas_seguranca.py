@@ -30,7 +30,8 @@ class PoliticasDeSeguranca(unittest.TestCase):
     def test_residuos_nao_alcancam_operacoes_destrutivas(self):
         for name in ("UninstallResiduals.cs", "AdvancedUninstallCleaner.cs", "ResidualAudit.cs",
                      "HistoricalResidualAudit.cs", "BroadResidualDiscovery.cs", "ResidualPreview.cs",
-                     "ResidualReportMerger.cs", "ResidualAuditDialog.cs"):
+                     "ResidualReportMerger.cs", "ResidualAuditDialog.cs", "ResidualResultIndex.cs",
+                     "ResidualInspection.cs", "ResidualPathIndex.cs", "ResidualExplorerDialog.cs", "DarkResidualList.cs"):
             code = read(name)
             for forbidden in ("File.Delete(", "Directory.Delete(", "DeleteSubKeyTree(",
                               ".DeleteSubKey(", "CleanDirectorySafely(", "Process.Start(", "HttpClient"):

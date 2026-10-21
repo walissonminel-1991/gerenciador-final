@@ -8,7 +8,7 @@ internal sealed record ResidualPreviewState(ResidualCandidate Candidate,
 internal sealed record ResidualDecisionContext(bool InventoryComplete, bool LauncherExited,
     bool AuxiliaryProcessesFinished, bool ActiveResources, bool ExclusiveOwnership,
     bool ExplicitPolicy, bool SpecificConsent, bool SnapshotUnchanged,
-    bool PersonalOrSharedData = false);
+    bool PersonalOrSharedData = false, bool RelatedIntegrationsChecked = false, bool Reinstalled = false);
 internal sealed record ResidualDecision(bool SimulationEligible, string Reason)
 {
     internal bool CanExecute => false;
@@ -21,6 +21,8 @@ internal static class ResidualPreview
 
     internal static ResidualDecision Decide(ResidualDecisionContext context)
     {
+        if (context.Reinstalled) return new(false, "Aplicativo reinstalado ou versão paralela identificada: preservar.");
+        if (!context.RelatedIntegrationsChecked) return new(false, "Serviços, tarefas e integrações relacionadas ainda não conferidos integralmente.");
         if (context.PersonalOrSharedData) return new(false, "Dados pessoais ou compartilhados: preservar.");
         if (!context.InventoryComplete) return new(false, "Inventário parcial: estado desconhecido, preservar.");
         if (!context.LauncherExited || !context.AuxiliaryProcessesFinished)

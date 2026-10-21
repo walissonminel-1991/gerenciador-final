@@ -36,6 +36,17 @@ internal static class ResidualCorrelationTests
         };
         check(BroadResidualDiscovery.Classify(renamed, [new ProgramEntry { Name = "Windows Terminal", Publisher = alias.Publishers[0] }]).Count == 0,
             "Aliases oficiais protegem programa instalado sob outro nome sem ampliar catálogo executável");
+        var reconciled = BroadResidualDiscovery.Classify(evidence.Concat(evidence), []);
+        check(reconciled.Single().Findings.Count == 2 && reconciled.Coverage.LocationsReconciled == 2,
+            "Duplicação de evidências na descoberta tem reconciliação contada sem perda de locais");
+        var excluded = BroadResidualDiscovery.Classify(evidence.Append(new("PistaIsolada", "OutroLocal", "Perfil", "AppData")),
+            [new ProgramEntry { Name = "NomeAntigo" }]);
+        check(excluded.Count == 0 && excluded.Coverage.ProtectedGroups == 1 && excluded.Coverage.InsufficientGroups == 1,
+            "Grupos protegidos e indícios insuficientes não são confundidos com resultados perdidos");
+        using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
+        var deep = AdvancedUninstallCleaner.InspectWithCoverage([], cancelled.Token);
+        check(deep.Items.Count == 0 && deep.Coverage.Issues.HasFlag(ResidualScanIssue.Cancelled),
+            "Revisão avançada cancelada antes da primeira fonte informa parcial vazio");
         var combined = ResidualReportMerger.Merge(new[]
         {
             new ResidualAuditReport("App", false, [new("Local", "Perfil", 1, "A", ResidualDisposition.PreserveData, ResidualSource.UserData)], []),

@@ -8,6 +8,7 @@ namespace GerenciadorAplicativos;
 // Excluir no NTFS não significa sobrescrita física/forense em SSD.
 internal sealed record DeepCleanItem(ProgramEntry App, IReadOnlyList<string> Folders,
     IReadOnlyList<string> RegistryKeys, long FileCount, int InaccessibleOrLinked);
+internal sealed record DeepCleanScan(IReadOnlyList<DeepCleanItem> Items, ResidualCoverage Coverage);
 internal sealed record DeepCleanResult(int Files, int Directories, int RegistryKeys,
     int Skipped, int Failed);
 
@@ -86,13 +87,15 @@ internal static class AdvancedUninstallCleaner
         return allowed.Any(x => Compare.Equals(x, key));
     }
 
-    private static bool RegistryExists(string key)
+    private static bool RegistryExists(string key, ResidualScanBudget budget)
     {
+        if (!budget.Visit()) return false;
         try { using var handle = Registry.CurrentUser.OpenSubKey(key, writable: false); return handle is not null; }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException) { return false; }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        { budget.MarkIncomplete(); return false; }
     }
 
-    private static (long files, int skipped, bool complete) CountTree(string folder)
+    private static (long files, int skipped, bool complete) CountTree(string folder, ResidualScanBudget budget)
     {
         long files = 0;
         int skipped = 0, visited = 0;
@@ -103,16 +106,18 @@ internal static class AdvancedUninstallCleaner
             while (pending.Count > 0)
             {
                 var (dir, depth) = pending.Pop();
-                if (depth > MaxDepth) return (files, skipped, false);
+                if (!budget.CanContinue()) return (files, skipped, false);
+                if (depth > MaxDepth) { budget.MarkIncomplete(ResidualScanIssue.DepthLimit); return (files, skipped, false); }
                 var info = new DirectoryInfo(dir);
                 if (!info.Exists || (info.Attributes & FileAttributes.ReparsePoint) != 0)
                     return (files, skipped, false);
+                using var lease = OperatingSystem.IsWindows() ? InstallerFileGuard.PinDirectory(dir, allowLeafWrites: true) : null;
                 foreach (FileSystemInfo child in info.EnumerateFileSystemInfos())
                 {
-                    if (++visited > MaxEntries) return (files, skipped, false);
+                    if (!budget.Visit() || ++visited > MaxEntries) { budget.MarkIncomplete(ResidualScanIssue.EntryLimit); return (files, skipped, false); }
                     if ((child.Attributes & FileAttributes.ReparsePoint) != 0)
                     {
-                        skipped++;
+                        skipped++; budget.MarkIncomplete(ResidualScanIssue.LinkSkipped);
                         continue;
                     }
                     if ((child.Attributes & FileAttributes.Directory) != 0)
@@ -122,15 +127,20 @@ internal static class AdvancedUninstallCleaner
             }
             return (files, skipped, true);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        { return (files, skipped, false); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        { budget.MarkIncomplete(); return (files, skipped, false); }
     }
 
-    internal static IReadOnlyList<DeepCleanItem> Inspect(IReadOnlyCollection<ProgramEntry> installed)
+    internal static IReadOnlyList<DeepCleanItem> Inspect(IReadOnlyCollection<ProgramEntry> installed) => InspectWithCoverage(installed).Items;
+    internal static DeepCleanScan InspectWithCoverage(IReadOnlyCollection<ProgramEntry> installed, CancellationToken token = default)
     {
+        var budget = new ResidualScanBudget(token, TimeSpan.FromSeconds(10), MaxEntries);
+        budget.Source("DeepCatalog");
+        if (UninstallRuleCatalog.Count == 0) budget.Unavailable("DeepCatalog");
         var found = new List<DeepCleanItem>();
         foreach (var policy in KnownPolicies())
         {
+            if (!budget.CanContinue()) break;
             if (StillInstalled(policy.App, installed)) continue;
             var folders = new List<string>();
             var keys = new List<string>();
@@ -138,23 +148,26 @@ internal static class AdvancedUninstallCleaner
             int skipped = 0;
             foreach (string root in policy.Folders.Distinct(Compare))
             {
-                if (!Directory.Exists(root) || !AllowedPath(root, policy.Folders)) continue;
-                var inventory = CountTree(root);
+                if (!budget.CanContinue()) break;
+                if (!ResidualReadSafety.CanInspectDirectory(root, budget)) continue;
+                if (!AllowedPath(root, policy.Folders)) { budget.MarkIncomplete(ResidualScanIssue.SourceUnavailable); continue; }
+                var inventory = CountTree(root, budget);
                 if (!inventory.complete)
                 {
-                    skipped++;
-                    continue; // diretório com acesso incerto não é sequer oferecido
+                    skipped++; budget.MarkIncomplete();
+                    folders.Add(root); // revisão somente leitura; incerteza precisa ficar visível
+                    continue;
                 }
                 fileCount += inventory.files;
                 skipped += inventory.skipped;
                 folders.Add(root);
             }
             foreach (string key in policy.RegistryKeys)
-                if (OwnRegistryPath(key, policy.RegistryKeys) && RegistryExists(key)) keys.Add(key);
+                if (OwnRegistryPath(key, policy.RegistryKeys) && RegistryExists(key, budget)) keys.Add(key);
             if (folders.Count > 0 || keys.Count > 0)
                 found.Add(new DeepCleanItem(policy.App, folders, keys, fileCount, skipped));
         }
-        return found;
+        return new(found, budget.Coverage with { CandidatesFound = found.Count, CandidatesNotEvaluated = budget.Incomplete ? null : 0 });
     }
 
     // Exclusão suspensa nesta candidata, também para chamadas diretas.

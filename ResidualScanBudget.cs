@@ -137,7 +137,7 @@ internal enum ResidualScanIssue
 internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanIssue.None,
     int EntriesExamined = 0, IReadOnlyList<string>? SourcesConsulted = null,
     IReadOnlyList<string>? SourcesUnavailable = null, int CandidatesFound = 0,
-    int ReportsOmitted = 0, int LocationsOmitted = 0, int? CandidatesNotEvaluated = 0, int CandidatesExamined = 0, int ReportsReconciled = 0, int LocationsReconciled = 0)
+    int ReportsOmitted = 0, int LocationsOmitted = 0, int? CandidatesNotEvaluated = 0, int CandidatesExamined = 0, int ReportsReconciled = 0, int LocationsReconciled = 0, int ProtectedGroups = 0, int InsufficientGroups = 0)
 {
     private IReadOnlyList<ResidualCoverage>? Components { get; init; }
     internal bool Incomplete => Issues != ResidualScanIssue.None;
@@ -146,6 +146,7 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
         $"\r\nEntradas examinadas: {EntriesExamined}; grupos examinados: {CandidatesExamined}; candidatos encontrados: {CandidatesFound}; " +
         $"grupos indisponíveis: {ReportsOmitted}; locais indisponíveis: {LocationsOmitted}; " +
         $"duplicatas reconciliadas: {ReportsReconciled} grupos / {LocationsReconciled} locais; " +
+        $"grupos protegidos: {ProtectedGroups}; indícios isolados: {InsufficientGroups}; " +
         "evidências não avaliadas: " + (CandidatesNotEvaluated?.ToString() ?? "quantidade desconhecida") + "." +
         (SourcesConsulted is { Count: > 0 } ? "\r\nFontes consultadas: " + string.Join(", ", SourcesConsulted.Select(SourceLabel)) : "") +
         (SourcesUnavailable is { Count: > 0 } ? "\r\nFontes indisponíveis: " + string.Join(", ", SourcesUnavailable.Select(SourceLabel)) : "") +
@@ -160,7 +161,7 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
         "Processes" => "programas em execução", "AppPaths" => "executáveis registrados",
         "RunServices" => "inicialização e serviços", "HistoricalCatalog" => "regras históricas",
         "PostUninstall" => "locais após desinstalação", "WinMergeHistory" => "histórico do WinMerge",
-        "Preview" => "conferência dos arquivos", _ => source.StartsWith("HKEY_", StringComparison.Ordinal)
+        "Preview" => "conferência dos arquivos", "Inspection" => "inspeção sob demanda", "DeepCatalog" => "perfis de revisão avançada", _ => source.StartsWith("HKEY_", StringComparison.Ordinal)
             ? "Registro: " + source : source
     };
     private static string DescribeIssues(ResidualScanIssue issues) => string.Join(", ", new[]
@@ -186,7 +187,8 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
             leaves.Sum(v => v.CandidatesFound), leaves.Sum(v => v.ReportsOmitted),
             leaves.Sum(v => v.LocationsOmitted), leaves.Any(v => v.CandidatesNotEvaluated is null)
                 ? null : leaves.Sum(v => v.CandidatesNotEvaluated ?? 0), leaves.Sum(v => v.CandidatesExamined),
-            leaves.Sum(v => v.ReportsReconciled), leaves.Sum(v => v.LocationsReconciled))
+            leaves.Sum(v => v.ReportsReconciled), leaves.Sum(v => v.LocationsReconciled),
+            leaves.Sum(v => v.ProtectedGroups), leaves.Sum(v => v.InsufficientGroups))
             { Components = leaves };
     }
 

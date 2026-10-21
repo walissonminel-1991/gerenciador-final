@@ -37,7 +37,7 @@ internal static class ResidualExplorerTests
                 Require(!button.Text.Contains("Excluir") && !button.Text.Contains("Remover"), "Explorador expôs ação destrutiva");
             }
             Find(window, "ResidualLocationNext").PerformClick();
-            Require(window.Locations.Rows.Count == 30 && window.Locations.Rows[0].Key.EndsWith("Local30"), "Página de locais perdeu continuidade");
+            Until(() => window.Locations.Rows.Count == 30 && window.Locations.Rows[0].Key.EndsWith("Local30"), "Página de locais perdeu continuidade após animação do botão");
             Find(window, "ResidualNext").PerformClick(); Until(() => !window.Busy && window.CurrentPage?.PageIndex == 1, "Próxima página não carregou");
             window.Groups.SelectRow(3); string selected = window.Groups.SelectedRow!.Key;
             Find(window, "ResidualPrevious").PerformClick(); Until(() => !window.Busy && window.CurrentPage?.PageIndex == 0, "Página anterior não carregou");

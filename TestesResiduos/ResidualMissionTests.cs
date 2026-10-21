@@ -160,7 +160,7 @@ internal static class ResidualMissionTests
 
     private static void Decisions(Action<bool, string> check)
     {
-        var ready = new ResidualDecisionContext(true, true, true, false, true, true, true, true);
+        var ready = new ResidualDecisionContext(true, true, true, false, true, true, true, true, RelatedIntegrationsChecked: true);
         check(ResidualPreview.Decide(ready).SimulationEligible && !ResidualPreview.Decide(ready).CanExecute,
             "Mesmo pré-condições completas habilitam apenas simulação");
         var unsafeContexts = new[]
@@ -169,7 +169,7 @@ internal static class ResidualMissionTests
             ready with { AuxiliaryProcessesFinished = false }, ready with { ActiveResources = true },
             ready with { ExclusiveOwnership = false }, ready with { ExplicitPolicy = false },
             ready with { SpecificConsent = false }, ready with { SnapshotUnchanged = false },
-            ready with { PersonalOrSharedData = true }
+            ready with { PersonalOrSharedData = true }, ready with { RelatedIntegrationsChecked = false }, ready with { Reinstalled = true }
         };
         check(unsafeContexts.All(c => !ResidualPreview.Decide(c).SimulationEligible && !ResidualPreview.Decide(c).CanExecute),
             "Inventário parcial, interrupção, auxiliar ativo, reinstalação, dados compartilhados ou mudança bloqueiam decisão");
@@ -221,6 +221,12 @@ internal static class ResidualMissionTests
                 !(await ResidualPreview.CaptureAsync(candidate)).Complete && File.Exists(unknown),
                 "Pastas com dados misturados ou arquivo novo antes da captura permanecem desconhecidas");
             File.Delete(unknown);
+            bool renameBlocked = false;
+            using (var held = InstallerFileGuard.OpenRead(file, allowDirectoryWrites: true))
+            {
+                try { File.Move(file, file + ".rename"); } catch (IOException) { renameBlocked = true; }
+            }
+            check(renameBlocked && File.Exists(file), "Handle de leitura impede substituição enquanto identidade é conferida");
             string hardlink = Path.Combine(root, "SegundaReferencia.exe");
             check(CreateHardLink(hardlink, file, IntPtr.Zero), "Criar hard link apenas no fixture temporário");
             check(!(await ResidualPreview.CaptureAsync(candidate)).Complete,

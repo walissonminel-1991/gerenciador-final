@@ -214,8 +214,16 @@ internal sealed class ResidualExplorerDialog : Form
     private void UpdateActions()
     {
         cancel.Enabled = Busy; previous.Enabled = CurrentPage?.PageIndex > 0; next.Enabled = CurrentPage is not null && CurrentPage.PageIndex + 1 < CurrentPage.PageCount;
-        inspect.Enabled = !Busy && locations.SelectedRow is not null && (locations.SelectedRow.Target is not ResidualInspectionEntry entry || entry.Container);
+        inspect.Enabled = !Busy && locations.SelectedRow is not null && (locations.SelectedRow.Target is not ResidualInspectionEntry entry || entry.CanInspect);
     }
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        try { int enabled = 1; _ = DwmSetWindowAttribute(Handle, 20, ref enabled, 4); }
+        catch (DllNotFoundException) { } catch (EntryPointNotFoundException) { }
+    }
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll", ExactSpelling = true)]
+    private static extern int DwmSetWindowAttribute(IntPtr handle, int attribute, ref int value, int size);
     protected override void Dispose(bool disposing)
     {
         if (disposing) { debounce.Stop(); debounce.Dispose(); lifetime.Cancel(); operation?.Cancel(); index = null; }

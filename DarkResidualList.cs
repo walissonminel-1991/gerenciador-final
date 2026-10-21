@@ -13,7 +13,7 @@ internal sealed class DarkResidualList : Control
     private readonly ToolTip tips = new() { InitialDelay = 400, AutoPopDelay = 12000 };
     private readonly Font titleFont = new("Segoe UI", 9.5f, FontStyle.Bold);
     private readonly Font bodyFont = new("Segoe UI", 8.8f);
-    private int selected = -1;
+    private int selected = -1, tipIndex = -1;
     internal event Action? SelectionChanged;
     internal IReadOnlyList<ResidualDisplayRow> Rows => rows;
     internal ResidualDisplayRow? SelectedRow => selected >= 0 && selected < rows.Length ? rows[selected] : null;
@@ -31,7 +31,7 @@ internal sealed class DarkResidualList : Control
     internal void SetRows(IEnumerable<ResidualDisplayRow> items, string? selectedKey = null)
     {
         string? old = selectedKey ?? SelectedRow?.Key;
-        rows = items.ToArray(); selected = old is null ? -1 : Array.FindIndex(rows, r => r.Key == old);
+        rows = items.ToArray(); tipIndex = -1; tips.SetToolTip(this, ""); selected = old is null ? -1 : Array.FindIndex(rows, r => r.Key == old);
         if (selected < 0 && rows.Length > 0) selected = 0;
         scroll.Value = 0; Metrics(); SelectionChanged?.Invoke();
     }
@@ -72,6 +72,7 @@ internal sealed class DarkResidualList : Control
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e); int index = (e.Y + scroll.Value) / RowHeight;
+        if (index == tipIndex) return; tipIndex = index;
         tips.SetToolTip(this, index >= 0 && index < rows.Length ? rows[index].Title + "\n" + rows[index].Decision + "\n" + rows[index].Detail : "");
     }
     protected override void OnMouseWheel(MouseEventArgs e) { base.OnMouseWheel(e); scroll.Value -= Math.Sign(e.Delta) * RowHeight * 3; }
