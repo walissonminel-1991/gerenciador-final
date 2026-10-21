@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**Candidata em CI: v5.13.11.30 TESTE · Progresso: 26/42 (61,9%).**
+**Candidata com CI aprovada: v5.13.11.30 TESTE · Progresso: 26/42 (61,9%).**
 Os percentuais indicam checkpoints e não segurança ou prontidão para release.
 
 ## PC FORTE — bateria .29 e qualidade do diagnóstico .30
@@ -22,7 +22,12 @@ da descoberta de resíduos, sem caminhos, ampliação de escopo ou novos
 privilégios. A interface mantém o botão de otimização em uma linha.
 A .29 manteve 44 grupos/161 locais de resíduos parciais, incluindo
 43 candidatos gerais e duas fontes com falhas pontuais. Resultado
-coerente, mas não suficiente para remoção. Continua **26/42**.
+coerente, mas não suficiente para remoção. A candidata .30 passou em
+[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681832),
+[compilação x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681896)
+e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659682111);
+[ZIP portátil experimental](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681896/artifacts/12372688145),
+sem assinatura e ainda sem teste presencial. Continua **26/42**.
 
 ## Evidência presencial — PC FORTE .28 e refinamento .29
 

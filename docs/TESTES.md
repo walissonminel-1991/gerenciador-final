@@ -1,4 +1,4 @@
-# Roteiro de testes — Gerenciador Final (candidata v5.13.11.30 TESTE, CI pendente; referência presencial .29)
+# Roteiro de testes — Gerenciador Final (candidata v5.13.11.30 TESTE, CI aprovada; referência presencial .29)
 
 **21/10/2026: incorporação conservadora na .26; [relatório e roteiro consultivo](OPERACAO-FAXINA-FINAL.md). Último teste real do PC fraco: .24. A MSIX permanece parcialmente indisponível após retry na .24; proteger os resultados e não concluir que 19 apps foram desinstalados.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real continua indisponível nesta candidata.** A ideia de autenticação GitHub com conta existente foi estruturada em [piloto restrito](PILOTO-AUTENTICACAO-GITHUB.md), dependente de uma GitHub App e repositório privado exclusivos.
 
@@ -143,6 +143,20 @@ PnP no conjunto de drivers. Pacote .27 de teste: [artefato temporário](https://
 `3e66b334`. Conferir BUILD-INFO e SHA256SUMS; arquivo sem assinatura.
  Ainda pendentes testes de atualização/desinstalação
 supervisionadas e confirmação de detalhes dos resíduos em cada caso.
+
+## Artefato .30 aprovado em CI, não homologado nos PCs reais
+
+[Pacote Windows x64 .30 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681896/artifacts/12372688145).
+Código `e0db292`, merge sintético `5d290162` segundo o nome do
+artefato. Conferir BUILD-INFO e SHA256SUMS; sem assinatura, retenção
+indicada até 28/10/2026. Aprovados:
+[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681832)
+(351/351 resíduos, 30/30 MSIX, 132 combinações de layout e
+testes das novas métricas),
+[build x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681896)
+e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659682111).
+O produto ainda precisa de validação presencial e não ganhou
+permissão para remover resíduos ou pacotes de drivers.
 
 ## Bateria da .30 — diagnóstico sem operações em drivers
 
