@@ -1,5 +1,10 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.28 — coleta comparativa local PC FORTE / PC FRACO (TESTE)
+
+Escolha temporária e explícita em Limpeza e desempenho: Desligado (padrão), PC FORTE ou PC FRACO. Somente após ativar, acrescenta métricas numéricas de inventário, atualizações, drivers, resíduos e diagnóstico completo às consultas que o usuário já solicita. Esquema fechado de categorias e campos; sem IDs de dispositivo, nomes, caminhos, arquivos, dados pessoais, uploads ou novas varreduras. Limite de 160 observações extras por sessão e desativação imediata. Não muda ações de atualização, limpeza, drivers, permissões ou os 26/42 checkpoints. Testes nativos e no PC FORTE pendentes.
+
+
 ## v5.13.11.27 — melhoria conservadora da identificação de drivers (TESTE)
 
 No PC FORTE, a .26 observou inventário estável de 174 entradas, 27 aplicativos MSIX, duas possíveis atualizações, 168 associações de drivers e resíduos parciais em 44 grupos/161 locais. A .27 usa a descrição PnP do MESMO dispositivo quando falta o nome, exibe ID local em tooltip e permite pesquisa por esse ID sem incluí-lo em diagnóstico; versões e assinaturas brutas preservadas. Testes específicos cobrem o fallback e a pesquisa. Nenhum motor de atualização, driver, remoção, rollback, worker, autorização de resíduos ou privilégio foi ampliado. CI Windows da .27 aprovada (351/351 resíduos, 30/30 MSIX, testes de drivers incluindo novo fallback; builds e políticas aprovadas). Teste presencial da .27 ainda necessário; checkpoints **26/42**.
