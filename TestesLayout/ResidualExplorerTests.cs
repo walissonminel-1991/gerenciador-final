@@ -26,6 +26,17 @@ internal static class ResidualExplorerTests
             failedMsix, 0, new GameLibraryReport(0, 0, 0, 0, false, []), 0);
         Require(incompleteInventory.Incomplete,
             "Falha MSIX propaga inventário incompleto para proteção de resíduos");
+        foreach (var area in new[] { new Rectangle(0, 0, 1280, 680), new Rectangle(0, 0, 1440, 860),
+            new Rectangle(-2560, 0, 2560, 1400), new Rectangle(1920, -900, 1440, 860),
+            new Rectangle(0, 0, 3440, 1400), new Rectangle(0, 0, 3840, 2120) })
+        foreach (double scale in new[] { 1.0, 1.25, 1.5, 2.0 })
+        {
+            var requested = new Rectangle(area.Right - 120, area.Bottom - 120,
+                (int)(1080 * scale), (int)(740 * scale));
+            var fit = ResidualExplorerDialog.FitBounds(requested, area);
+            Require(area.Contains(fit) && fit.Width <= requested.Width && fit.Height <= requested.Height,
+                "Modal físico precisa caber no monitor do owner após DPI, inclusive com coordenadas negativas");
+        }
         var reports = Enumerable.Range(0, 1000).Select(i => new ResidualAuditReport("Produto" + i.ToString("D4"), false,
             Enumerable.Range(0, i == 0 ? 65 : 2).Select(j => new ResidualAuditFinding(@"C:\Fixture\Produto" + i + "\\Local" + j,
                 "Dados", 1, "Fabricante" + i % 5, i % 2 == 0 ? ResidualDisposition.PreserveData : ResidualDisposition.PreserveShared,

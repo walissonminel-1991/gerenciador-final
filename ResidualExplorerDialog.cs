@@ -245,6 +245,23 @@ internal sealed class ResidualExplorerDialog : Form
         cancel.Enabled = Busy; previous.Enabled = CurrentPage?.PageIndex > 0; next.Enabled = CurrentPage is not null && CurrentPage.PageIndex + 1 < CurrentPage.PageCount;
         inspect.Enabled = !Busy && locations.SelectedRow is not null && (locations.SelectedRow.Target is not ResidualInspectionEntry entry || entry.CanInspect);
     }
+    internal static Rectangle FitBounds(Rectangle requested, Rectangle workingArea)
+    {
+        int width = Math.Min(Math.Max(1, requested.Width), Math.Max(1, workingArea.Width - 16));
+        int height = Math.Min(Math.Max(1, requested.Height), Math.Max(1, workingArea.Height - 16));
+        return new Rectangle(Math.Clamp(requested.X, workingArea.Left, workingArea.Right - width),
+            Math.Clamp(requested.Y, workingArea.Top, workingArea.Bottom - height), width, height);
+    }
+    protected override void OnShown(EventArgs e)
+    {
+        // A construção ainda não conhece o monitor do owner. Conter o tamanho
+        // físico DEPOIS da escala DPI, incluindo bordas e barra de título.
+        var area = Screen.FromControl(Owner ?? this).WorkingArea;
+        var fitted = FitBounds(Bounds, area);
+        MinimumSize = new Size(Math.Min(MinimumSize.Width, fitted.Width), Math.Min(MinimumSize.Height, fitted.Height));
+        Bounds = fitted;
+        base.OnShown(e);
+    }
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);

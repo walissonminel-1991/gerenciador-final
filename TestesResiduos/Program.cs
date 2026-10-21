@@ -20,6 +20,7 @@ ResidualPrecisionTests.Run(Check);
 ResidualIntegrityTests.Run(Check);
 await ResidualBlockingTests.Run(Check);
 ResidualMissionTests.Run(Check);
+ResidualSourceBudgetTests.Run(Check);
 if (args.Contains("--missao")) return;
 
 bool partialRejected = false;

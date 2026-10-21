@@ -210,11 +210,14 @@ internal static class BroadResidualDiscovery
         { restricted++; incomplete = true; budget.Unavailable(group); return; }
         try
         {
+            using var rootLease = OperatingSystem.IsWindows()
+                ? InstallerFileGuard.PinDirectory(path, allowLeafWrites: true) : null;
             int inspected = 0;
             foreach (FileSystemInfo item in new DirectoryInfo(path).EnumerateFileSystemInfos())
             {
+                if (inspected >= MaxEntriesPerRoot) { incomplete = true; budget.MarkIncomplete(ResidualScanIssue.EntryLimit); break; }
                 if (!budget.Visit()) { incomplete = true; break; }
-                if (++inspected > MaxEntriesPerRoot) { incomplete = true; budget.MarkIncomplete(ResidualScanIssue.EntryLimit); break; }
+                inspected++;
                 entries++;
                 if (IsReparse(item)) { incomplete = true; budget.MarkIncomplete(ResidualScanIssue.LinkSkipped); continue; }
                 bool isDir = (item.Attributes & FileAttributes.Directory) != 0;
@@ -229,11 +232,15 @@ internal static class BroadResidualDiscovery
                 try
                 {
                     if (!ResidualReadSafety.IsUnlinkedDirectory(item.FullName))
-                    { incomplete = true; continue; }
+                    { incomplete = true; budget.MarkIncomplete(ResidualScanIssue.LinkSkipped); continue; }
+                    using var childLease = OperatingSystem.IsWindows()
+                        ? InstallerFileGuard.PinDirectory(item.FullName, allowLeafWrites: true) : null;
                     int children = 0;
                     foreach (FileSystemInfo child in ((DirectoryInfo)item).EnumerateFileSystemInfos())
                     {
-                        if (!budget.Visit() || ++children > 128) { incomplete = true; budget.MarkIncomplete(ResidualScanIssue.EntryLimit); break; }
+                        if (children >= 128) { incomplete = true; budget.MarkIncomplete(ResidualScanIssue.EntryLimit); break; }
+                        if (!budget.Visit()) { incomplete = true; break; }
+                        children++;
                         entries++;
                         if (IsReparse(child)) { incomplete = true; budget.MarkIncomplete(ResidualScanIssue.LinkSkipped); continue; }
                         bool directory = (child.Attributes & FileAttributes.Directory) != 0;
@@ -246,11 +253,11 @@ internal static class BroadResidualDiscovery
                                 directory ? category : "Atalho", group, name));
                     }
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                     System.Security.SecurityException) { restricted++; incomplete = true; budget.MarkIncomplete(); }
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
             System.Security.SecurityException) { restricted++; incomplete = true; budget.MarkIncomplete(); }
     }
 
@@ -268,8 +275,9 @@ internal static class BroadResidualDiscovery
             int inspected = 0;
             foreach (string keyName in software.GetSubKeyNames())
             {
+                if (inspected >= MaxEntriesPerRoot) { incomplete = true; budget.MarkIncomplete(ResidualScanIssue.EntryLimit); break; }
                 if (!budget.Visit()) { incomplete = true; break; }
-                if (++inspected > MaxEntriesPerRoot) { incomplete = true; budget.MarkIncomplete(ResidualScanIssue.EntryLimit); break; }
+                inspected++;
                 entries++;
                 string? normalized = NormalizeName(keyName);
                 if (normalized is null) continue;
@@ -295,11 +303,11 @@ internal static class BroadResidualDiscovery
                                 "Configuração sob fabricante", "Registry", normalized));
                     }
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                     System.Security.SecurityException) { restricted++; incomplete = true; budget.MarkIncomplete(); }
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
             System.Security.SecurityException) { restricted++; incomplete = true; budget.Unavailable(identifier); }
     }
 

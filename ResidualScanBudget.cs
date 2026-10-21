@@ -14,6 +14,14 @@ internal sealed class ResidualScanBudget
     internal bool Incomplete => Issues != ResidualScanIssue.None;
     internal ResidualScanIssue Issues { get; private set; }
     private string? currentSource;
+    private readonly Dictionary<string, ResidualSourceCoverage> sourceDetails = new(StringComparer.Ordinal);
+    private void AddIssue(ResidualScanIssue issue)
+    {
+        Issues |= issue;
+        if (currentSource is not null)
+            sourceDetails[currentSource] = sourceDetails[currentSource] with
+                { Issues = sourceDetails[currentSource].Issues | issue };
+    }
     internal readonly HashSet<string> SourcesConsulted = new(StringComparer.Ordinal);
     internal readonly HashSet<string> SourcesUnavailable = new(StringComparer.Ordinal);
     // Uma falha em um item nao torna necessariamente a origem inteira inacessivel.
@@ -27,9 +35,9 @@ internal sealed class ResidualScanBudget
     }
     internal bool CanContinue()
     {
-        if (token.IsCancellationRequested) Issues |= ResidualScanIssue.Cancelled;
-        if (clock.Elapsed >= timeout) Issues |= ResidualScanIssue.Timeout;
-        if (Entries >= maxEntries) Issues |= ResidualScanIssue.EntryLimit;
+        if (token.IsCancellationRequested) AddIssue(ResidualScanIssue.Cancelled);
+        if (clock.Elapsed >= timeout) AddIssue(ResidualScanIssue.Timeout);
+        if (Entries >= maxEntries) AddIssue(ResidualScanIssue.EntryLimit);
         // Limite local de uma raiz não interrompe as demais fontes.
         return !token.IsCancellationRequested && clock.Elapsed < timeout && Entries < maxEntries;
     }
@@ -37,29 +45,41 @@ internal sealed class ResidualScanBudget
     {
         if (!CanContinue()) return false;
         Entries++;
+        if (currentSource is not null)
+            sourceDetails[currentSource] = sourceDetails[currentSource] with
+                { Entries = sourceDetails[currentSource].Entries + 1 };
         return true;
     }
     internal void MarkIncomplete(ResidualScanIssue issue = ResidualScanIssue.ReadFailure)
     {
-        Issues |= issue;
+        AddIssue(issue);
         if (currentSource is null) return;
         if ((issue & ResidualScanIssue.ReadFailure) != 0)
             SourcesWithReadFailures.Add(currentSource);
         if ((issue & ResidualScanIssue.SourceUnavailable) != 0)
             SourcesUnavailable.Add(currentSource);
     }
-    internal void Source(string identifier) { currentSource = identifier; SourcesConsulted.Add(identifier); }
+    internal void Source(string identifier)
+    {
+        currentSource = identifier;
+        SourcesConsulted.Add(identifier);
+        sourceDetails.TryAdd(identifier, new(identifier, 0, ResidualScanIssue.None));
+    }
     internal void Unavailable(string identifier)
     {
         // A fonte indicada pode ser diferente da última consultada; não
         // atribuir por engano a falha a outro diretório ou ramo de Registro.
         SourcesUnavailable.Add(identifier);
         Issues |= ResidualScanIssue.SourceUnavailable;
+        sourceDetails.TryAdd(identifier, new(identifier, 0, ResidualScanIssue.None));
+        sourceDetails[identifier] = sourceDetails[identifier] with
+            { Issues = sourceDetails[identifier].Issues | ResidualScanIssue.SourceUnavailable };
     }
     internal ResidualCoverage Coverage => new(Issues, Entries,
         SourcesConsulted.Order(StringComparer.Ordinal).ToArray(),
         SourcesUnavailable.Order(StringComparer.Ordinal).ToArray(),
-        SourcesWithReadFailures: SourcesWithReadFailures.Order(StringComparer.Ordinal).ToArray());
+        SourcesWithReadFailures: SourcesWithReadFailures.Order(StringComparer.Ordinal).ToArray(),
+        SourceDetails: sourceDetails.Values.OrderBy(x => x.Source, StringComparer.Ordinal).ToArray());
 }
 
 internal static class ResidualReadSafety
@@ -145,12 +165,14 @@ internal enum ResidualScanIssue
     ReportIncomplete = 2048
 }
 
+internal sealed record ResidualSourceCoverage(string Source, int Entries, ResidualScanIssue Issues);
+
 // Somente contagens e identificadores fixos de fontes; nunca caminhos ou nomes de produtos.
 internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanIssue.None,
     int EntriesExamined = 0, IReadOnlyList<string>? SourcesConsulted = null,
     IReadOnlyList<string>? SourcesUnavailable = null, int CandidatesFound = 0,
     int ReportsOmitted = 0, int LocationsOmitted = 0, int? CandidatesNotEvaluated = 0, int CandidatesExamined = 0, int ReportsReconciled = 0, int LocationsReconciled = 0, int ProtectedGroups = 0, int InsufficientGroups = 0,
-    IReadOnlyList<string>? SourcesWithReadFailures = null)
+    IReadOnlyList<string>? SourcesWithReadFailures = null, IReadOnlyList<ResidualSourceCoverage>? SourceDetails = null)
 {
     private IReadOnlyList<ResidualCoverage>? Components { get; init; }
     internal bool Incomplete => Issues != ResidualScanIssue.None;
@@ -173,9 +195,20 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
             string.Join(", ", SourcesUnavailable.Select(SourceLabel)) : "") +
         (SourcesConsulted is { Count: > 0 } ? "\r\n\r\nFontes consultadas: " +
             string.Join(", ", SourcesConsulted.Select(SourceLabel)) : "") +
-        "\r\n\r\nEscopo: locais comuns de aplicativos, até dois níveis; não é uma varredura completa do computador." +
+        (SourceDetails is { Count: > 0 } ? "\r\n\r\nLIMITES POR ORIGEM (entradas observadas; motivos):\r\n" +
+            string.Join("\r\n", SourceDetails.Select(x => SourceLabel(x.Source) + ": " + x.Entries + "; " +
+                (x.Issues == ResidualScanIssue.None ? "nenhum limite registrado" : DescribeIssues(x.Issues)))) : "") +
+        "\r\n\r\nEscopo: locais comuns de aplicativos, até dois níveis; 2.500 entradas na raiz e 128 filhos por pasta. Não é uma varredura completa do computador." +
         "\r\nExclusão indisponível nesta versão de teste.";
 
+    internal static int SourceCode(string source) => source switch
+    {
+        "AppData" => 1, "ProgramData" => 2, "ProgramFiles" => 3, "StartMenu" => 4,
+        "Processes" => 5, "AppPaths" => 6, "RunServices" => 7,
+        "HKEY_CURRENT_USER (64 bits)" => 8, "HKEY_CURRENT_USER (32 bits)" => 9,
+        "HKEY_LOCAL_MACHINE" => 10, "HKEY_LOCAL_MACHINE (32 bits)" => 11,
+        _ => 0
+    };
     private static string SourceLabel(string source) => source switch
     {
         "AppData" => "perfis do usuário", "ProgramData" => "dados comuns dos aplicativos",
@@ -216,7 +249,11 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
                 ? null : leaves.Sum(v => v.CandidatesNotEvaluated ?? 0), leaves.Sum(v => v.CandidatesExamined),
             leaves.Sum(v => v.ReportsReconciled), leaves.Sum(v => v.LocationsReconciled),
             leaves.Sum(v => v.ProtectedGroups), leaves.Sum(v => v.InsufficientGroups),
-            values.SelectMany(v => v.SourcesWithReadFailures ?? []).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray())
+            values.SelectMany(v => v.SourcesWithReadFailures ?? []).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray(),
+            leaves.SelectMany(v => v.SourceDetails ?? []).GroupBy(x => x.Source, StringComparer.Ordinal)
+                .Select(g => new ResidualSourceCoverage(g.Key, g.Sum(x => x.Entries),
+                    g.Aggregate(ResidualScanIssue.None, (a, x) => a | x.Issues)))
+                .OrderBy(x => x.Source, StringComparer.Ordinal).ToArray())
             { Components = leaves };
     }
 
