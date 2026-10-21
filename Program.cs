@@ -1283,8 +1283,10 @@ internal sealed partial class MainForm : Form
                 DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red,
                     _programList.ActionVisual(item, "uninstall"));
             else if (!item.IsUpdate && _appFilter == "Inventário")
-                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Somente leitura",
-                    AppServices.Gray, (false, false, 0F));
+                TextRenderer.DrawText(e.Graphics, "Somente leitura", _rowInfo,
+                    AppRowGeometry.UninstallButton(e.Bounds), Muted,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.NoPrefix);
         }
     }
 
