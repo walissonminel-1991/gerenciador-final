@@ -97,6 +97,28 @@ internal static class ResidualMissionTests
     }
     private static void Classification(Action<bool, string> check)
     {
+        // Regressao PC fraco: Steam\\config e WinHance\\Config nao sao
+        // o mesmo programa; pastas genericas ficam sob seu proprietario.
+        check(!BroadResidualDiscovery.EligibleName("Config") &&
+            !BroadResidualDiscovery.EligibleName("Logs") &&
+            !BroadResidualDiscovery.EligibleName("Updates") &&
+            !BroadResidualDiscovery.EligibleName("Scripts") &&
+            !BroadResidualDiscovery.EligibleName("Providers") &&
+            BroadResidualDiscovery.ProductFromChild("Steam", "config") == "Steam" &&
+            BroadResidualDiscovery.ProductFromChild("WinHance", "Config") == "WinHance" &&
+            BroadResidualDiscovery.ProductFromChild("Empresa Exemplo", "EditorReal") == "EditorReal",
+            "Subpastas genericas nao se tornam candidatos de produtos distintos");
+        var mixedGeneric = BroadResidualDiscovery.Classify(new[]
+        {
+            new BroadResidualEvidence(BroadResidualDiscovery.ProductFromChild("Steam", "config")!, @"C:\\Apps\\Steam\\config", "Dados", "AppData", "Steam"),
+            new BroadResidualEvidence("Steam", @"HKCU\\Software\\Steam", "Configuração", "Registry"),
+            new BroadResidualEvidence(BroadResidualDiscovery.ProductFromChild("WinHance", "Config")!, @"C:\\Apps\\WinHance\\Config", "Dados", "AppData", "WinHance"),
+            new BroadResidualEvidence("WinHance", @"HKCU\\Software\\WinHance", "Configuração", "Registry")
+        }, []);
+        check(mixedGeneric.Count == 2 && mixedGeneric.Any(r => r.Product == "Steam") &&
+            mixedGeneric.Any(r => r.Product == "WinHance") &&
+            mixedGeneric.All(r => r.Findings.All(f => !f.CanRemove)),
+            "Configuracoes homonimas de aplicativos distintos nunca se fundem ou habilitam exclusao");
         check(HistoricalResidualAudit.Rules.Count == 5 && HistoricalResidualAudit.Rules.Any(r => r.Id == "vlc-profile"),
             "Catálogo histórico valida nomes curtos VLC e carrega todas as cinco regras");
         var app = new ProgramEntry { Name = "Editor Antigo", MsiProductCode = "{ID-SINTETICO}" };
