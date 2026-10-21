@@ -2116,8 +2116,11 @@ internal sealed partial class MainForm : Form
             Log("Instalação automática permanece limitada a instaladores oficiais com receitas verificadas.");
             int sourceFailures = others.Diagnostics.Count(x => x.Status != "ok") + (rz.Matches is null ? 1 : 0);
             int conflicts = merged.Count(m => m.HasSourceConflict);
+            int requiringReview = merged.Count(m => m.State == MatchState.Candidate && m.RequiresReview);
             if (conflicts > 0) Log($"Fontes divergentes: {conflicts} resultado(s); instalação direta bloqueada, detalhes na dica da linha.");
-            Status($"Consulta {(sourceFailures > 0 ? "parcial" : "concluída")}: {candidates} possíveis atualizações · {sourceFailures} fonte(s) indisponível(is)");
+            Status($"Consulta {(sourceFailures > 0 ? "parcial" : "concluída")}: {candidates} possíveis atualizações" +
+                (requiringReview > 0 ? $" ({requiringReview} em revisão)" : "") +
+                $" · {sourceFailures} fonte(s) indisponível(is)");
         }
         catch (OperationCanceledException)
         {

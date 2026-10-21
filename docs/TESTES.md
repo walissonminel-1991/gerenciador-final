@@ -1,4 +1,23 @@
-# Roteiro de testes — v5.13.11.33 TESTE
+# Roteiro de testes — v5.13.11.34 TESTE
+
+## Bateria de correção Jellyfin/Plex no PC FORTE (.34, CI pendente)
+
+Capturas da .33 mostraram Jellyfin Media Player separado do Jellyfin
+Server 12.1.0, Plex player 1.115.0 separado do Plex Media Server
+1.43.4.10903 (x64), GameInput fora de Todos (somente inventário) e
+divergências Proton 1.43.0 changelog/1.42.0 Windows. A .33 registrou
+cancelamento de consulta em cerca de 0,6 s e encerramento normal.
+
+Na .34, verificar **somente leitura**: Jellyfin Server reconhecido
+com versão no nome, Plex Media Server reconhecido com sufixo (x64),
+sem sugerir atualização a Jellyfin Media Player nem ao Plex player.
+Versão mais nova não é prova de compatibilidade de instalador.
+A UI deve mostrar número de candidatas e quantas exigem revisão.
+Não alterar GameInput, Proton, MSIX, WinGet e políticas.
+Preservar AVG e comparar com .33 após passar a CI, se for seguro.
+PC FRACO adiado pelo usuário; não assumir testes nesse ambiente.
+
+## Histórico das sessões anteriores
 
 ## Primeira bateria real .33 — PC FORTE (21/10/2026)
 

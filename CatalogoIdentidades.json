@@ -344,7 +344,8 @@
       "id": "jellyfin-server",
       "name": "Jellyfin Server",
       "names": [
-        "Jellyfin Server"
+        "Jellyfin Server",
+        "Jellyfin Server *"
       ],
       "publishers": [
         "The Jellyfin Project"

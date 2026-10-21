@@ -1,5 +1,22 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.34 TESTE — correspondência conservadora de servidores (CI pendente)
+
+Segunda bateria da .33 no PC FORTE confirmou que o inventário real registra
+Jellyfin Server com número de versão no nome e Plex Media Server com versão
+e arquitetura x64; as receitas anteriores exigiam nomes exatos. Corrigidas
+**apenas as identidades consultivas** do Jellyfin Server e Plex Media Server
+com regex de versão delimitada, fabricante autorizado e testes negativos
+para Jellyfin Media Player, Plex player, preview e nome forjado.
+O GameInput continua somente inventário e o Proton continua bloqueado
+para instalação direta quando existem fontes divergentes.
+
+A UI esclarece quando candidatos exigem revisão dentro da contagem total.
+Não muda motor de instalação, nenhuma dependência nova, nem execução de
+WinGet COM/CLI, UAC, limpeza ou manutenção de drivers.
+Nenhum resultado da .34 está confirmado no PC real. Roadmap 26/42.
+
+
 ## v5.13.11.33 — reconciliação consultiva e barreiras WinGet (TESTE; CI aprovada)
 
 Cinco produtos recebem fontes HTTPS fixas: EA app, FanControl, Jellyfin Server, K-Lite Mega e Plex Media Server, sem novas receitas de instalação. Proton prioriza feed oficial Windows estável/rollout completo e preserva changelog desktop e índice comunitário divergentes. O feed observado ainda oferecia 1.42.0; changelog 1.43.0 não prova distribuição Windows. A fusão preserva evidências, origem, instante e incertezas, separa contexto/identidade e bloqueia instaladores diretos quando requer revisão. FanControl aceita revisões inteiras; migração principal Jellyfin continua consultiva. Barra de consulta conta fontes concluídas, cancelamento preservado, resultado parcial explícito.

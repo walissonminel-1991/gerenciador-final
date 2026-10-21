@@ -46,13 +46,13 @@ internal sealed class OfficialReleaseSources : IDisposable
             "https://getfancontrol.com/", a => Exact(a, "FanControl", "remi mercier software", "rem0o"), "tag_name"),
         new("jellyfin-server", "GitHub oficial", "Jellyfin Server",
             "https://api.github.com/repos/jellyfin/jellyfin/releases/latest",
-            "https://jellyfin.org/downloads/windows/", a => Exact(a, "Jellyfin Server", "the jellyfin project"), "tag_name"),
+            "https://jellyfin.org/downloads/windows/", JellyfinServer, "tag_name"),
         new("klite-mega", "Catálogo WinGet HTTPS", "K-Lite Mega Codec Pack",
             "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/c/CodecGuide/K-LiteCodecPack/Mega",
             "https://codecguide.com/download_k-lite_codec_pack_mega.htm", KLiteMega, "__WINGET_VERSIONS__"),
         new("plex", "Catálogo WinGet HTTPS", "Plex Media Server",
             "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/p/Plex/PlexMediaServer",
-            "https://www.plex.tv/media-server-downloads/", a => Exact(a, "Plex Media Server", "plex"), "__WINGET_VERSIONS__"),
+            "https://www.plex.tv/media-server-downloads/", PlexMediaServer, "__WINGET_VERSIONS__"),
         new("proton-pass-windows", "Proton Windows", "Proton Pass",
             "https://proton.me/download/PassDesktop/win32/x64/version.json",
             "https://proton.me/pass/download/windows", ProtonPass, "__PROTON_WINDOWS__", "proton-pass-desktop"),
@@ -126,6 +126,16 @@ internal sealed class OfficialReleaseSources : IDisposable
     }
     private static bool Exact(InstalledApp a, string name, params string[] publishers) =>
         a.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && Publisher(a, publishers);
+    // Sufixo opcional de versão precisa corresponder por inteiro; não confundir com player, preview ou outras edições.
+    private static bool JellyfinServer(InstalledApp a) =>
+        Publisher(a, "the jellyfin project") &&
+        Regex.IsMatch(a.Name, @"^Jellyfin Server(?: \d{1,4}(?:\.\d{1,6}){1,3})?$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static bool PlexMediaServer(InstalledApp a) =>
+        Publisher(a, "plex") &&
+        Regex.IsMatch(a.Name,
+            @"^Plex Media Server(?: \d{1,4}(?:\.\d{1,6}){1,3}(?: \((?:x64|x86)\))?)?$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static bool KLiteMega(InstalledApp a) => Publisher(a, "klcp", "codec guide") &&
         Regex.IsMatch(a.Name, @"^K-Lite Mega Codec Pack(?: \d{1,4}(?:\.\d{1,6}){1,3})?$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);

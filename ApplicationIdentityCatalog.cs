@@ -123,6 +123,10 @@ internal static class ApplicationIdentityCatalog
                    rest.StartsWith("32-bit", StringComparison.OrdinalIgnoreCase);
         if (prefix.EndsWith("(x64", StringComparison.OrdinalIgnoreCase))
             return rest[0] is ')' or ' ';
+        // Variante observada em ARP: versão no nome, mas sem sufixos de preview, comandos ou edições diferentes.
+        if (prefix.Equals("Jellyfin Server ", StringComparison.OrdinalIgnoreCase))
+            return Regex.IsMatch(rest, @"^\d{1,4}(?:\.\d{1,6}){1,3}$",
+                RegexOptions.CultureInvariant);
         if (prefix.EndsWith(' ')) return char.IsAsciiDigit(rest[0]) ||
             (prefix.StartsWith("Plex Media Server", StringComparison.OrdinalIgnoreCase)
                 && char.IsAsciiLetter(rest[0]));

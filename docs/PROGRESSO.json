@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.33 TESTE",
+  "version": "5.13.11.34 TESTE",
   "date": "2026-10-21",
-  "code_commit": "7ba87d92618f571180f35819cf51e5984e530483",
-  "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690285207",
+  "code_commit": "pending",
+  "ci_status": "pending",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/pull/40/checks",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -400,5 +400,6 @@
       "live_sources_and_installer_downloads_job": "skipped (opcionais); não contabilizados como aprovação"
     }
   },
-  "pc_forte_33": "Teste presencial v5.13.11.33 21/10/2026: 174 apps/27 MSIX, 6 candidatos (inclui caso conflitante em revisão), 13/13 fontes oficiais OK, RuckZuck 631; etapas de fontes novas 1/2/4=9 (candidato), 3=0 (sem identidade), 5=2 (inelegível), 6=3 (identidade/canal), Proton 7/8/9=7 (divergentes). Contexto WinGet presente (pacote=1 alias=1 path=0 elevado=0), executor real desligado. Drivers 178/63, residuos 45/164 parciais, encerrou normalmente. Sem instalacao, sem alerta AVG observado, PC FRACO pendente."
+  "pc_forte_33": "Teste presencial v5.13.11.33 21/10/2026: 174 apps/27 MSIX, 6 candidatos (inclui caso conflitante em revisão), 13/13 fontes oficiais OK, RuckZuck 631; etapas de fontes novas 1/2/4=9 (candidato), 3=0 (sem identidade), 5=2 (inelegível), 6=3 (identidade/canal), Proton 7/8/9=7 (divergentes). Contexto WinGet presente (pacote=1 alias=1 path=0 elevado=0), executor real desligado. Drivers 178/63, residuos 45/164 parciais, encerrou normalmente. Sem instalacao, sem alerta AVG observado, PC FRACO pendente.",
+  "pc_forte_33_followup": "Jellyfin Server 12.1.0 no ARP e Plex Media Server 1.43.4.10903 (x64) não correspondiam às receitas exatas. GameInput apareceu apenas como inventário e Proton mantém conflito 1.43.0/1.42.0. Cancelamento .33 ocorreu normalmente. Alterações propostas .34 corrigem somente identidades consultivas e distinguem contagem em revisão; PC FRACO indisponível hoje. Roadmap 26/42."
 }
