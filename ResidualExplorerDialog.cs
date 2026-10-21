@@ -33,7 +33,7 @@ internal sealed class ResidualExplorerDialog : Form
     private readonly System.Windows.Forms.Timer debounce = new() { Interval = 220 };
     private readonly Dictionary<int, string> selections = new();
     private int generation, locationPage;
-    private bool binding;
+    private bool binding, resourcesDisposed;
     private string criteria = "";
     private ResidualAuditReport? selectedReport;
     private ResidualInspectionSession? inspection;
@@ -226,7 +226,13 @@ internal sealed class ResidualExplorerDialog : Form
     private static extern int DwmSetWindowAttribute(IntPtr handle, int attribute, ref int value, int size);
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { debounce.Stop(); debounce.Dispose(); lifetime.Cancel(); operation?.Cancel(); index = null; }
-        base.Dispose(disposing); if (disposing) { lifetime.Dispose(); readable.Dispose(); }
+        bool release = disposing && !resourcesDisposed;
+        if (release)
+        {
+            resourcesDisposed = true;
+            debounce.Stop(); debounce.Dispose(); lifetime.Cancel(); operation?.Cancel(); index = null;
+        }
+        base.Dispose(disposing);
+        if (release) { lifetime.Dispose(); readable.Dispose(); }
     }
 }

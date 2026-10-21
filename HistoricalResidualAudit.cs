@@ -140,7 +140,8 @@ internal static class HistoricalResidualAudit
             }
             return items == 0 ? null :
                 new(folder, "Diretório histórico (somente leitura)", items,
-                    "Pode conter dados ainda úteis. " + warning, ResidualDisposition.PreserveData);
+                    "Pode conter dados ainda úteis. " + warning, ResidualDisposition.PreserveData,
+                    id.StartsWith("StartMenu\\", StringComparison.Ordinal) ? ResidualSource.Shortcut : ResidualSource.UserData);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         { budget.MarkIncomplete(); return null; }
@@ -164,7 +165,7 @@ internal static class HistoricalResidualAudit
                 @"HKEY_CURRENT_USER\Software\") + string.Join("\\", parts.Skip(2));
             return new(path, "Chave de Registro (somente leitura)",
                 Math.Max(1, key.ValueCount + key.SubKeyCount),
-                "Existência não significa que possa ser excluída. " + warning, ResidualDisposition.PreserveData);
+                "Existência não significa que possa ser excluída. " + warning, ResidualDisposition.PreserveData, ResidualSource.Registry);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
             System.Security.SecurityException or ArgumentException) { budget.MarkIncomplete(); return null; }

@@ -2769,10 +2769,10 @@ internal sealed partial class MainForm : Form
         var reports = candidates.Select(item => new ResidualAuditReport(item.App.Name, false,
             item.Folders.Select(folder => new ResidualAuditFinding(folder,
                 "Dados e configurações — preservar", 1,
-                "Pode conter preferências, playlists, backups e perfis. Exclusão desativada nesta candidata.", ResidualDisposition.PreserveData))
+                "Pode conter preferências, playlists, backups e perfis. Exclusão desativada nesta candidata.", ResidualDisposition.PreserveData, ResidualSource.UserData))
             .Concat(item.RegistryKeys.Select(key => new ResidualAuditFinding(@"HKEY_CURRENT_USER\" + key,
                 "Configurações — preservar", 1,
-                "Ausência na lista de programas não comprova exclusividade ou desinstalação.", ResidualDisposition.PreserveData))).ToArray(),
+                "Ausência na lista de programas não comprova exclusividade ou desinstalação.", ResidualDisposition.PreserveData, ResidualSource.Registry))).ToArray(),
             Array.Empty<string>(), Historical: true)).ToArray();
         ResidualAuditDialog.ShowHistoricalResults(this, ResidualReportMerger.Merge(reports, snapshot.Incomplete, deep.Coverage));
         Status("Revisão concluída. Dados preservados; exclusão desativada nesta candidata.");

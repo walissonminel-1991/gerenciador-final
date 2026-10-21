@@ -53,3 +53,10 @@ Novos testes: renomeação recusada enquanto handle está preso; revisão avanç
 ## Conferência visual e temporal
 
 Testes de cliques aguardam a entrega efetiva do evento de ModernButton, inclusive Cancelar antes de liberar resposta simulada. Capturas do explorador em oito resoluções são geradas **somente com dados fictícios** e guardadas como artefato de CI; não são capturas do computador do usuário. Isso permite revisão visual além das asserções de contenção, filtro, paginação e virtualização. Nova linha de desempenho também testada fora do esquema colaborativo; nenhuma ampliação de coleta.
+
+
+## Regressão de fechamento identificada pelo CI
+
+A revisão 74fb2d6 validou navegação em 800×600, mas revelou ObjectDisposedException ao fechar: Form.Close já descarta a janela, e o using chama Dispose novamente. O override tentava cancelar a fonte de lifetime já descartada. Corrigido com liberação idempotente dos recursos; testes continuam fechando e descartando a janela em todas as oito resoluções. Asserções não foram reduzidas. A tentativa de executar a suíte de privacidade Windows no Linux falhou na proteção de caminho Win32 existente; nenhuma proteção foi afrouxada e a verificação nova permanece obrigatória no runner Windows.
+
+Origens das regras históricas, WinMerge e revisão avançada também foram preenchidas, para que o filtro de Registro/perfis funcione nessas fontes, além da descoberta geral. Checklist real e roteiro de histórico extenso preparados; todos os campos de medições pessoais seguem em branco.

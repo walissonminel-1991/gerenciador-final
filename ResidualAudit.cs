@@ -69,7 +69,7 @@ internal static class ResidualAudit
                     if (handle is not null)
                         findings.Add(new(@"HKEY_CURRENT_USER\" + key, "Registro do usuário",
                             Math.Min(ScanLimit, handle.ValueCount + handle.SubKeyCount),
-                            "Pode conter preferências; nome exato não comprova exclusividade", ResidualDisposition.PreserveData));
+                            "Pode conter preferências; nome exato não comprova exclusividade", ResidualDisposition.PreserveData, ResidualSource.Registry));
                 }
                 catch (Exception ex) when (ex is UnauthorizedAccessException or
                     System.Security.SecurityException or IOException) { budget.MarkIncomplete(); }
@@ -129,7 +129,7 @@ internal static class ResidualAudit
                     Math.Max(1, Math.Min(ScanLimit, key.ValueCount + key.SubKeyCount)),
                     "Chave documentada do WinMerge. Pode conter preferências, histórico " +
                     "e integração com o Explorador; somente leitura. " +
-                    "Não é prova de exclusividade nem autorização de exclusão.", ResidualDisposition.PreserveData));
+                    "Não é prova de exclusividade nem autorização de exclusão.", ResidualDisposition.PreserveData, ResidualSource.Registry | ResidualSource.Integration));
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or
                 System.Security.SecurityException or IOException or ArgumentException)
@@ -205,7 +205,7 @@ internal static class ResidualAudit
                     findings.Add(new(source.Label + @"\SOFTWARE\IObit\Driver Booster",
                         "Registro específico do produto", Math.Max(1, Math.Min(ScanLimit,
                             key.ValueCount + key.SubKeyCount)),
-                        "Pode pertencer a uma instalação ainda ativa; somente leitura, sem autorização de limpeza."));
+                        "Pode pertencer a uma instalação ainda ativa; somente leitura, sem autorização de limpeza.", ResidualDisposition.InstallationCheck, ResidualSource.Registry));
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or
                 System.Security.SecurityException or IOException) { budget.MarkIncomplete(); }
@@ -312,7 +312,9 @@ internal static class ResidualAudit
             }
             if (files > 0)
                 findings.Add(new(full, "Pasta", files,
-                    label + "; somente leitura, não é prova de exclusividade", disposition));
+                    label + "; somente leitura, não é prova de exclusividade", disposition,
+                    new[] { Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) }
+                        .Any(root => ResidualInspectionSession.UnderRoot(full, root)) ? ResidualSource.Installation : ResidualSource.UserData));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         { budget.MarkIncomplete(); }
