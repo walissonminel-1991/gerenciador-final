@@ -74,6 +74,21 @@ internal static class ResidualExplorerTests
             window.Show(); Until(() => window.Ready && !window.Busy, "Parcial vazio não carregou");
             Require(window.SummaryText.Contains("ANÁLISE PARCIAL") && window.SummaryText.Contains("Exclusão indisponível"), "Parcial vazio foi escondido"); window.Close();
         }
+        // Fonte historica pode marcar Incomplete sem inserir flags em Coverage.
+        // O resumo exibido deve preservar a advertencia, mesmo com zero locais.
+        using (var window = new ResidualExplorerDialog(new[]
+        {
+            new ResidualAuditReport("Produto incompleto", false, [], [],
+                Incomplete: true)
+        }))
+        {
+            window.Show(); Until(() => window.Ready && !window.Busy,
+                "Relatorio parcial legado nao abriu");
+            Require(window.SummaryText.Contains("ANÁLISE PARCIAL") &&
+                window.CurrentPage!.Coverage.Incomplete,
+                "UI nao deve exibir relatório incompleto como análise concluída");
+            window.Close();
+        }
         using (var host = new MainForm(startServices: false))
         {
             host.Show(); Application.DoEvents(); host.MinimizeToTray();
