@@ -33,7 +33,7 @@ internal sealed class DarkResidualList : Control
         string? old = selectedKey ?? SelectedRow?.Key;
         rows = items.ToArray(); tipIndex = -1; tips.SetToolTip(this, ""); selected = old is null ? -1 : Array.FindIndex(rows, r => r.Key == old);
         if (selected < 0 && rows.Length > 0) selected = 0;
-        scroll.Value = 0; Metrics(); SelectionChanged?.Invoke();
+        scroll.Value = 0; Metrics(); SelectRow(selected);
     }
     private void Metrics() { scroll.SetMetrics(rows.Length * RowHeight, Math.Max(1, Height)); Invalidate(); }
     internal void SelectRow(int index)

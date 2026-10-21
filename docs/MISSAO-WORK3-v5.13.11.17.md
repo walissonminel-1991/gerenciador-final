@@ -60,3 +60,7 @@ Testes de cliques aguardam a entrega efetiva do evento de ModernButton, inclusiv
 A revisão 74fb2d6 validou navegação em 800×600, mas revelou ObjectDisposedException ao fechar: Form.Close já descarta a janela, e o using chama Dispose novamente. O override tentava cancelar a fonte de lifetime já descartada. Corrigido com liberação idempotente dos recursos; testes continuam fechando e descartando a janela em todas as oito resoluções. Asserções não foram reduzidas. A tentativa de executar a suíte de privacidade Windows no Linux falhou na proteção de caminho Win32 existente; nenhuma proteção foi afrouxada e a verificação nova permanece obrigatória no runner Windows.
 
 Origens das regras históricas, WinMerge e revisão avançada também foram preenchidas, para que o filtro de Registro/perfis funcione nessas fontes, além da descoberta geral. Checklist real e roteiro de histórico extenso preparados; todos os campos de medições pessoais seguem em branco.
+
+## Inspeção da captura sintética
+
+Captura 800×600 do runner conferida visualmente. Ajustados campos de filtro para desenho escuro e rolagem da lista ao restaurar seleção: o cartão selecionado deve ficar visível, em vez de exibir detalhes de um cartão fora do viewport. Subpastas sem navegação autorizada pela profundidade agora explicam por que não foram examinadas. A captura extrema mostra área reduzida de detalhes com rolagem própria; a validação principal continua 1440×900. Nenhuma asserção essencial foi removida.

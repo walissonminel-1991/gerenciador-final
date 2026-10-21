@@ -65,7 +65,15 @@ internal sealed class ResidualExplorerDialog : Form
         root.Controls.Add(search, 0, 1);
         filter.Items.AddRange(new object[] { "Todas as classificações", "Possível resíduo — revisar", "Dados importantes — preservar", "Compartilhado — preservar", "Instalação a conferir", "Estado desconhecido" });
         origin.Items.AddRange(new object[] { "Todas as origens", "Perfis do usuário", "Dados comuns", "Instalação", "Registro", "Atalhos", "Inicialização e serviços" });
-        foreach (var combo in new[] { filter, origin }) { combo.BackColor = search.BackColor; combo.ForeColor = ForeColor; combo.FlatStyle = FlatStyle.Flat; combo.SelectedIndex = 0; }
+        foreach (var combo in new[] { filter, origin }) { combo.BackColor = search.BackColor; combo.ForeColor = ForeColor; combo.FlatStyle = FlatStyle.Flat; combo.DrawMode = DrawMode.OwnerDrawFixed; combo.ItemHeight = 21;
+            combo.DrawItem += (_, e) =>
+            {
+                using var background = new SolidBrush(e.State.HasFlag(DrawItemState.Selected) ? Color.FromArgb(42, 66, 92) : Color.FromArgb(30, 40, 52));
+                e.Graphics.FillRectangle(background, e.Bounds);
+                if (e.Index >= 0) TextRenderer.DrawText(e.Graphics, combo.Items[e.Index]?.ToString(), combo.Font, e.Bounds, ForeColor,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+            };
+            combo.SelectedIndex = 0; }
         var filters = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
         filters.Controls.Add(filter); filters.Controls.Add(origin); root.Controls.Add(filters, 0, 2);
         split.Panel1.Controls.Add(groups);
@@ -180,7 +188,9 @@ internal sealed class ResidualExplorerDialog : Form
         string text = selectedReport.Product + "\r\n" + (selectedReport.UninstallConfirmed ? "Registro de desinstalação ausente; auxiliares ainda podem estar ativos." : "O programa ainda pode estar instalado. Vínculo exclusivo não comprovado.") + "\r\n\r\n";
         if (inspectionResult is not null) text += inspectionResult.Explanation + "\r\n" + inspectionResult.Coverage.Describe() + "\r\n\r\n";
         if (locations.SelectedRow?.Target is ResidualAuditFinding f) text += f.DecisionLabel + "\r\n" + f.Location + "\r\n" + f.Evidence;
-        else if (locations.SelectedRow?.Target is ResidualInspectionEntry e) text += e.Location + "\r\nDados preservados; conteúdo não lido. Inspeção de subpastas exige nova consulta limitada.";
+        else if (locations.SelectedRow?.Target is ResidualInspectionEntry e) text += e.Location + "\r\nDados preservados; conteúdo não lido. " + (e.Container && !e.CanInspect
+            ? "Limite de profundidade ou quantidade: esta subpasta não foi examinada."
+            : "Inspeção de subpastas exige nova consulta limitada.");
         details.SetText(text + "\r\n\r\nExclusão indisponível nesta versão de teste."); UpdateActions();
     }
     internal Task InspectSelectedAsync()
