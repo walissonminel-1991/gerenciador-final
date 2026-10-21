@@ -16,6 +16,16 @@ internal static class ResidualExplorerTests
     private static Button Find(Form form, string name) => Descendants(form).OfType<Button>().Single(b => b.Name == name);
     internal static void Run()
     {
+        Require(MainForm.InventoryCoverageTitle(true) == "Inventário PARCIAL" &&
+            MainForm.InventoryCoverageTitle(false) == "Inventário completo",
+            "Falha em fonte do Windows não permite legenda de inventário completo");
+        var failedMsix = new LocalMsixResult([], 0,
+            "COMException(0x80040154)", Failures: 1);
+        var incompleteInventory = new UnifiedInventoryScan([],
+            new RegistryInventoryScan([], 0, 0, 0, 0, 0),
+            failedMsix, 0, new GameLibraryReport(0, 0, 0, 0, false, []), 0);
+        Require(incompleteInventory.Incomplete,
+            "Falha MSIX propaga inventário incompleto para proteção de resíduos");
         var reports = Enumerable.Range(0, 1000).Select(i => new ResidualAuditReport("Produto" + i.ToString("D4"), false,
             Enumerable.Range(0, i == 0 ? 65 : 2).Select(j => new ResidualAuditFinding(@"C:\Fixture\Produto" + i + "\\Local" + j,
                 "Dados", 1, "Fabricante" + i % 5, i % 2 == 0 ? ResidualDisposition.PreserveData : ResidualDisposition.PreserveShared,
