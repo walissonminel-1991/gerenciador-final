@@ -30,7 +30,7 @@ internal static class TestDiagnosticDetail
             if (profile != 0) writer?.Invoke("TESTES.MODO estado=desativado");
             profile = 0;
             writer = null;
-            count = 0;
+            // Contagem por processo: alternar o perfil nao reinicia o orcamento.
             if (option == 0) return;
             string profileName = option == 1 ? "PC_FORTE" : "PC_FRACO";
             if (sink("TESTES.MODO perfil=" + profileName + " estado=ativo escopo=contagens"))
