@@ -111,7 +111,7 @@ Check(MainForm.InventoryCoverageTitle(true) == "Inventário PARCIAL" &&
       MainForm.InventoryCoverageTitle(false) == "Inventário completo",
     "UI: falha em fonte do Windows não permite legenda de inventário completo");
 var incomplete = new UnifiedInventoryScan([], new RegistryInventoryScan([], 0, 0, 0, 0, 0),
-    persistent, 0, new GameLibraryReport([], 0, 0, false), 0);
+    persistent, 0, new GameLibraryReport(0, 0, 0, 0, false, []), 0);
 Check(incomplete.Incomplete,
     "Fontes MSIX indisponíveis propagam inventário incompleto para investigação de resíduos");
 var live = LocalMsixInventory.ReadCurrentUser();
