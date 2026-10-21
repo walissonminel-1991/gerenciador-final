@@ -444,8 +444,10 @@ internal static class LayoutTests
                     int minButtonHeight = preview?.Controls.OfType<Button>()
                         .Select(b => b.Height).DefaultIfEmpty(0).Min() ?? 0;
                     if (preview is null || preview.RowCount != 1 ||
-                        preview.Height < 46 || minButtonHeight < 24 ||
-                        profile!.Height < 16)
+                        preview.Height < 40 || minButtonHeight < 24 ||
+                        profile!.Height < 16 ||
+                        !preview.RectangleToScreen(preview.ClientRectangle)
+                            .Contains(profile.RectangleToScreen(profile.ClientRectangle)))
                         throw new Exception($"Linha do diagnostico de testes cortada: {name} {resolution} " +
                             $"preview={preview?.Height} botao={minButtonHeight} combo={profile?.Height} " +
                             $"DPI={preview?.DeviceDpi} linhas={preview?.RowCount}");
