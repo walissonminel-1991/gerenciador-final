@@ -28,7 +28,24 @@ internal sealed class ResidualResultIndex
     internal ResidualResultIndex(IReadOnlyList<ResidualAuditReport> source, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        Coverage = (source as ResidualReportSet)?.Coverage ?? ResidualCoverage.Combine(source.Select(r => r.Coverage));
+        var sourceCoverage = (source as ResidualReportSet)?.Coverage ??
+            ResidualCoverage.Combine(source.Select(r => r.Coverage));
+        // Alguns produtores legados marcam a linha como incompleta sem
+        // preencher Issues na cobertura agregada. Nunca apresentar isso como
+        // verificacao concluida, mesmo que nao existam locais a mostrar.
+        if (source.Any(r => r.Incomplete) && !sourceCoverage.Incomplete)
+            sourceCoverage = sourceCoverage with
+            {
+                Issues = sourceCoverage.Issues | ResidualScanIssue.InventoryPartial,
+                CandidatesNotEvaluated = null
+            };
+        // A fotografia nao pode mudar quando o produtor reutiliza ou altera
+        // as listas de fontes apos entregar os resultados a janela.
+        Coverage = sourceCoverage with
+        {
+            SourcesConsulted = sourceCoverage.SourcesConsulted?.ToArray(),
+            SourcesUnavailable = sourceCoverage.SourcesUnavailable?.ToArray()
+        };
         reports = source.Select(r =>
         {
             cancellationToken.ThrowIfCancellationRequested();
