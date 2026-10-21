@@ -6,12 +6,13 @@ internal sealed record DriverPackageLinkResult(IReadOnlyList<DriverPackageLink> 
 // Apenas vinculos relatados pelo WMI; nao equivale ao Driver Store completo.
 internal static class DriverPackageLinks
 {
+    internal static bool IsValidInf(string name) => name.Length is > 4 and <= 255 &&
+        char.IsAsciiLetterOrDigit(name[0]) && !name.Contains("..", StringComparison.Ordinal) &&
+        name.EndsWith(".inf", StringComparison.OrdinalIgnoreCase) &&
+        name.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-');
     internal static DriverPackageLinkResult Analyze(DriverInventoryResult inventory)
     {
-        bool ValidInf(string name) => name.Length is > 4 and <= 255 &&
-            name.EndsWith(".inf", StringComparison.OrdinalIgnoreCase) &&
-            name.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-');
-        var eligible = inventory.Items.Where(d => ValidInf(d.InfName)).ToArray();
+        var eligible = inventory.Items.Where(d => IsValidInf(d.InfName)).ToArray();
         var packages = eligible.GroupBy(d => d.InfName, StringComparer.OrdinalIgnoreCase)
             .Select(g => new DriverPackageLink(g.Key,
                 g.Select(d => d.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count(),

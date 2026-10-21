@@ -231,7 +231,7 @@ internal static class AppServices
                 Version = app.Version,
                 Publisher = app.Publisher,
                 InventoryOnly = true,
-                InventorySource = "Aplicativo empacotado (MSIX)",
+                InventorySource = app.Stale ? "MSIX — leitura anterior, presença não confirmada" : "Aplicativo empacotado (MSIX)",
                 InventoryId = "MSIX|" + app.PackageName,
                 VerifiedMsixIdentity = app.RecipeEligible,
                 CatalogIdentity = verified?.Id ?? "",
@@ -1931,7 +1931,12 @@ internal sealed partial class MainForm : Form
                 ("sem_desinstalacao_fora_flag", items.Count(x => !x.CanUninstall && !x.InventoryOnly)),
                 ("parcial", scan.Incomplete ? 1 : 0));
             DiagnosticTrace.Write($"MSIX.LEITURA status={scan.Msix.Status} enumerados={scan.Msix.Seen} " +
-                $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures} repeticao={scan.Msix.Retried} fase={scan.Msix.FailureStage} apartment={scan.Msix.Apartment}");
+                $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures} retidos={scan.Msix.Items.Count(x => x.Stale)} repeticao={scan.Msix.Retried} fase={scan.Msix.FailureStage} apartment={scan.Msix.Apartment}");
+            int retainedMsix = scan.Msix.Items.Count(x => x.Stale);
+            TestDiagnosticDetail.Record("MSIX", ("observados", scan.Msix.Items.Count - retainedMsix),
+                ("retidos", retainedMsix), ("falhas", scan.Msix.Failures), ("parcial", scan.Incomplete ? 1 : 0));
+            if (retainedMsix > 0)
+                Log($"MSIX: {retainedMsix} entradas preservadas da última leitura completa desta sessão, sem ações de atualização. Presença atual não confirmada.");
             DiagnosticTrace.Write($"JOGOS.LEITURA steam={scan.Games.Steam} epic={scan.Games.Epic} adicionados={scan.GamesAdded} parciais={scan.Games.Partial}");
             Log($"Inventário: {scan.Registry.Items.Count} programas Win32, {scan.Added} aplicativos MSIX e {scan.GamesAdded} jogos de bibliotecas adicionais. " +
                 $"{scan.Registry.HiddenComponents} componentes internos e {scan.Registry.UpdateEntries} atualizações individuais do Windows não foram incluídos.");
@@ -2060,7 +2065,7 @@ internal sealed partial class MainForm : Form
             else
                 Log($"RuckZuck: {rz.Count} pacotes ({(rz.Cached ? "cache" : "HTTPS")}, {rz.NetworkMs} ms); comparação {rz.CompareMs} ms.");
             foreach (var diagnostic in others.Diagnostics)
-                Log($"Fonte oficial {diagnostic.Provider}: {diagnostic.Status}, {diagnostic.Milliseconds} ms.");
+                Log($"Fonte oficial {diagnostic.Provider}: {diagnostic.Status}, {diagnostic.Milliseconds} ms ({(diagnostic.UsedMemoryCache ? "cache" : "HTTPS")}).");
             DiagnosticTrace.Write($"MULTIFONTES.CONSULTA_OK instalados={installed.Length} candidatos={candidates} " +
                 $"fontes_oficiais={officialCandidates} reconhecidos={others.Findings.Count} " +
                 $"fontes_consultadas={others.Diagnostics.Count} fontes_ok={others.Diagnostics.Count(x => x.Status == "ok")} " +
@@ -2927,6 +2932,17 @@ internal sealed partial class MainForm : Form
         var allReports = ResidualReportMerger.Merge(historical.Concat(boosterReports).Concat(winMergeReports)
             .Concat(broad.Reports), inventoryIncomplete || broad.Incomplete, ResidualCoverage.Combine(new[] { broad.Coverage, historical.Coverage }));
         var coverage = allReports.Coverage;
+        // Apenas códigos de origens conhecidas, contagens e flags. Sem caminhos.
+        foreach (var detail in broad.Coverage?.SourceDetails ?? [])
+            TestDiagnosticDetail.Record("ORIGEM", ("codigo", ResidualCoverage.SourceCode(detail.Source)),
+                ("entradas", detail.Entries),
+                ("limite_entradas", detail.Issues.HasFlag(ResidualScanIssue.EntryLimit) ? 1 : 0),
+                ("profundidade", detail.Issues.HasFlag(ResidualScanIssue.DepthLimit) ? 1 : 0),
+                ("leitura", detail.Issues.HasFlag(ResidualScanIssue.ReadFailure) ? 1 : 0),
+                ("links", detail.Issues.HasFlag(ResidualScanIssue.LinkSkipped) ? 1 : 0),
+                ("tempo", detail.Issues.HasFlag(ResidualScanIssue.Timeout) ? 1 : 0),
+                ("cancelamento", detail.Issues.HasFlag(ResidualScanIssue.Cancelled) ? 1 : 0),
+                ("indisponivel", detail.Issues.HasFlag(ResidualScanIssue.SourceUnavailable) ? 1 : 0));
         TestDiagnosticDetail.Record("RESIDUOS",
             ("grupos", allReports.Count), ("locais", allReports.Sum(x => x.Findings.Count)),
             ("examinados", coverage.EntriesExamined),

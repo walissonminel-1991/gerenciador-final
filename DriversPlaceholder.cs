@@ -231,7 +231,7 @@ internal sealed partial class MainForm
             state.Text = "Consultando drivers em segundo plano…";
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             var token = timeout.Token;
-            _driverReadTask = Task.Run(() => DriverInventory.Capture(token));
+            _driverReadTask = Task.Run(() => DriverStoreAudit.CaptureWithPackages(token));
             try
             {
                 var result = await _driverReadTask.WaitAsync(token);
@@ -240,10 +240,18 @@ internal sealed partial class MainForm
                 Render();
                 var links = DriverPackageLinks.Analyze(result);
                 state.Text = $"{result.Status}: {result.Items.Count} associações, " +
-                    $"{links.Packages.Count} INFs, {links.WithoutInf} sem INF válido. Sem remoções.";
+                    $"{links.Packages.Count} INFs, {links.WithoutInf} sem INF válido. Store: {result.Store?.Packages.Count(x => x.State == DriverStoreState.Mapped) ?? 0} vínculos. Sem remoções.";
                 _toolTips.SetToolTip(state,
-                    state.Text + " Ausência não autoriza remoção; assinatura informada pelo Windows.");
+                    state.Text + " " + result.Store?.Summary + " Ausência não autoriza remoção; assinatura informada pelo Windows.");
                 DiagnosticTrace.Write($"DRIVERS.VINCULOS infs={links.Packages.Count} compartilhados={links.Packages.Count(p => p.Devices > 1)} versoes_divergentes={links.Packages.Count(p => p.Versions > 1)} assinaturas_conflitantes={links.Packages.Count(p => p.ConflictingSignatures)} sem_inf={links.WithoutInf}");
+                if (result.Store is { } store)
+                    TestDiagnosticDetail.Record("PACOTES", ("pacotes", store.Packages.Count),
+                        ("mapeados", store.Packages.Count(x => x.State == DriverStoreState.Mapped)),
+                        ("indisponiveis", store.Packages.Count(x => x.State == DriverStoreState.Unavailable)),
+                        ("inconsistentes", store.Packages.Count(x => x.State == DriverStoreState.Inconsistent)),
+                        ("nao_consultados", store.Packages.Count(x => x.State == DriverStoreState.NotConsulted)),
+                        ("pnp", result.PnpEntities), ("wmi_brutos", result.SignedRows),
+                        ("parcial", store.Partial ? 1 : 0));
                 DiagnosticTrace.Write($"DRIVERS.INVENTARIO quantidade={result.Items.Count} parcial={result.Partial}");
                 TestDiagnosticDetail.Record("DRIVERS",
                     ("associacoes", result.Items.Count),

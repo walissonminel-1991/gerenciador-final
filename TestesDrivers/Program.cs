@@ -35,7 +35,7 @@ int accepted = 0;
 for (int i = 0; i < 170; i++)
     if (TestDiagnosticDetail.Record("AMBIENTE", ("largura", 1280),
         ("altura", 720), ("dpi", 96), ("logicos", 4))) accepted++;
-Check(accepted == 159 && !TestDiagnosticDetail.Record("AMBIENTE",
+Check(accepted == 156 && !TestDiagnosticDetail.Record("AMBIENTE",
     ("largura", 1280), ("altura", 720), ("dpi", 96), ("logicos", 4)),
     "Limite global de 160 observacoes nao reinicia ao alternar o perfil PC FORTE/FRACO");
 TestDiagnosticDetail.SetProfile(0, line => { emitted.Add(line); return true; });
@@ -68,6 +68,8 @@ Check(TestDiagnosticDetail.TryFormat(1, "FONTES", new (string, int)[] {
 }, out var recordFontes) &&
     recordFontes.Contains("falha_programdata=1"),
     "Falha de fonte identificada apenas por categoria segura e nao pelo caminho real");
+DriverStoreTests.Run(Check);
+DiagnosticFailureTests.Run(Check);
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
 var c = a with { DeviceId = "USB\\THREE", Signed = null };
@@ -152,10 +154,15 @@ Check(links.Packages[0].ConflictingSignatures && links.WithoutInf == 2,
     "Conflitos de assinatura e INF ausente/invalido ficam explicitos");
 Check(DriverPackageLinks.Analyze(new([], true, "parcial")).Partial,
     "Correlacao conserva limitacao da origem");
-if (args.Contains("--live"))
+// CI Windows sempre exercita a ABI nativa somente leitura; fixtures continuam portáveis.
+if (args.Contains("--live") || OperatingSystem.IsWindows())
 {
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-    var live = await Task.Run(() => DriverInventory.Capture(timeout.Token)).WaitAsync(timeout.Token);
+    var live = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(timeout.Token)).WaitAsync(timeout.Token);
     Console.WriteLine($"WMI quantidade={live.Items.Count} parcial={live.Partial} status={live.Status}");
     Check(live.Items.Count > 0 && !live.Partial, "Consulta WMI somente leitura concluida no runner Windows");
+    Check(live.Store is not null && live.Store.Packages.Any(x => x.State == DriverStoreState.Mapped) &&
+        live.Store.Packages.All(x => !x.CanMaintain),
+        "SetupAPI nativa confirma ao menos um round trip INF/Driver Store no runner sem manutenção");
+    Console.WriteLine($"DRIVER_STORE_CI pacotes={live.Store!.Packages.Count} mapeados={live.Store.Packages.Count(x => x.State == DriverStoreState.Mapped)} parcial={live.Store.Partial}");
 }
