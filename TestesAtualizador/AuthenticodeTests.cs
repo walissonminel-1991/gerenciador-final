@@ -94,16 +94,17 @@ internal static class AuthenticodeTests
         // O host do SDK possui assinatura incorporada, como os instaladores.
         // powershell.exe do Windows pode ser assinado apenas por catalogo, que
         // nao e a modalidade usada por WTD_CHOICE_FILE neste verificador.
+        // O host usa o certificado de assinatura .NET, nao o editor dos MSIs.
         // Falhas de revogacao/confianca continuam falhando o teste.
         string sdkRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT") ??
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet");
         if (!Path.IsPathFullyQualified(sdkRoot))
             throw new InvalidDataException("Raiz absoluta do SDK indisponivel para fixture assinada.");
         string signedSystemFile = Path.Combine(sdkRoot, "dotnet.exe");
-        verify(VerifiedUpdaters.VerifyAuthenticode(signedSystemFile, "Microsoft Corporation", out var trustedIssue),
+        verify(VerifiedUpdaters.VerifyAuthenticode(signedSystemFile, ".NET", out var trustedIssue),
             "assinatura incorporada do host SDK fornece seu proprio editor: " + trustedIssue);
         verify(!VerifiedUpdaters.VerifyAuthenticode(signedSystemFile, "Editor de teste GF", out var mismatch) &&
-            mismatch == "editor=Microsoft Corporation",
+            mismatch == "editor=.NET",
             "assinatura confiavel nao autoriza editor diferente do exigido pela receita");
     }
 }
