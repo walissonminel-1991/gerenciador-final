@@ -15,9 +15,9 @@ estes não são drivers removíveis comprovados.
 A .28 acrescenta **somente coleta numérica opt-in** por sessão com escolha
 manual PC FORTE/FRACO. Sem IDs, nomes, caminhos, arquivo novo, envio ou
 mudança nos limites e permissões. As três Actions do código estão aprovadas:
-[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190258),
-[build x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190246)
-e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190241).
+[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313662),
+[build x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313649)
+e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313735).
 351/351 resíduos, 30/30 MSIX, 132 combinações de layout e testes de
 recusa de campos inválidos. Duas tentativas de regressão falharam em
 fixture e layout 1280×720, e ambas as falhas foram corrigidas antes

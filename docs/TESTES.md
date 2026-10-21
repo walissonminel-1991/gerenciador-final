@@ -146,15 +146,15 @@ supervisionadas e confirmação de detalhes dos resíduos em cada caso.
 
 ## Build da .28 aprovada em CI, não validada presencialmente
 
-[Pacote Windows x64 da .28](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190246/artifacts/12370850196).
-Código fonte testado `2795ee5873f8bfbf475ca4822615a70f82599849`,
-merge sintético `bfa5a1be` (conferir BUILD-INFO e SHA256SUMS);
+[Pacote Windows x64 da .28](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313649/artifacts/12371580574).
+Código fonte testado `381806164ce864114b42d228190081a02a0e57d6`,
+merge sintético `0adca046` (conferir BUILD-INFO e SHA256SUMS);
 retenção indicada até 28/10/2026. Pacote não assinado. Aprovados:
-[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190258)
+[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313662)
 (351/351 resíduos, 30/30 MSIX, 132 combinações de layout e testes
 positivos/negativos do opt-in),
-[compilação](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190246)
-e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190241).
+[compilação](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313649)
+e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313735).
 O histórico mantém as duas falhas intermediárias (fixture e layout)
 corrigidas antes da aprovação. Não equivale a validação nos PCs reais.
 

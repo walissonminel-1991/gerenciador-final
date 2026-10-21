@@ -1,9 +1,9 @@
 {
   "version": "5.13.11.28 TESTE",
   "date": "2026-10-21",
-  "code_commit": "2795ee5873f8bfbf475ca4822615a70f82599849",
+  "code_commit": "381806164ce864114b42d228190081a02a0e57d6",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190258",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313662",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -305,5 +305,5 @@
     "observations": "108 associações de drivers; 12 grupos e 41 locais de resíduos preservados; investigação parcial; nenhuma exclusão"
   },
   "notes_pc_forte": "Primeira bateria real v5.13.11.26: 174 entradas e 27 MSIX estaveis no PC FORTE; 168 associações de drivers; 44 grupos de resíduos em consulta parcial; nenhuma atualização, remoção ou limpeza real validada. Candidata .27 aprovada em CI Windows, build x64 e politicas; novo teste presencial ainda pendente. Roadmap 26/42.",
-  "test_diagnostics": "Modo temporario e opt-in PC FORTE/FRACO, apenas contagens limitadas no log habitual; CI do codigo aprovada, testes presenciais pendentes. 26/42."
+  "test_diagnostics": "Coleta local opt-in PC FORTE/FRACO, limite acumulado 160 eventos por processo mesmo apos alternar, contrato testado no Windows; validacao nos PCs ainda pendente. Roadmap 26/42."
 }
