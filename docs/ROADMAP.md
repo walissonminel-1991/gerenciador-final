@@ -133,13 +133,67 @@ evitar a acumulação de um diário inteiro antes do checklist vivo.
 - [ ] G4 — Reversão quando suportada e recuperação de falhas. Evidência: Etapa futura
 - [ ] G5 — Validar fluxo controlado nos computadores. Evidência: Etapa futura
 
-## Próxima etapa: validar o lote nos dois computadores
+## Próxima etapa prioritária — PC FORTE antes dos testes de drivers
 
-1. Seguir [TESTE-CONSOLIDADO.md](TESTE-CONSOLIDADO.md) primeiro no PC FRACO e depois no principal.
-2. Comparar inventário e atualizações na mesma máquina e horário; coletar os casos históricos ambíguos.
-3. Conferir a consulta de drivers com o Gerenciador de Dispositivos; registrar dados ausentes e divergências.
-4. Medir abertura, CPU/RAM, bandeja e legibilidade; registrar eventual alerta AVG sem desativá-lo.
-5. Corrigir divergências observadas antes de ampliar Driver Store/histórico e iniciar gestão de pacotes.
+**Ambientes:** PC FORTE = computador principal de testes; PC FRACO =
+equipamento de menor capacidade. A última bateria presencial documentada
+permanece a .24 no PC FRACO; a .26 passou em CI, **não** em teste presencial.
+
+O [roteiro operacional atualizado](TESTES.md) estabelece uma progressão:
+1. **Somente leitura, PC FORTE** — confirmar versão/hash da .26, inventário
+   completo ou parcial, desempenho, estabilidade/AVG e segurança de cada
+   descrição de resíduos. Os dados pessoais não devem ser inspecionados,
+   copiados nem removidos.
+2. **Refinar resíduos** — comparar achados ambíguos com as instalações reais,
+   proteger fabricantes/jogos/perfis e corrigir falsos vínculos com testes
+   reproduzíveis. Não reativar R4 por achar uma pasta "órfã"; exclusividade,
+   consentimento durável, revalidação e proteção contra redirecionamento
+   precisam de comprovação independente.
+3. **Atualizações e desinstalação comum** — comparar fontes com referência
+   independente no mesmo equipamento; após backup, testar uma operação
+   individual não essencial por vez e verificar identidade, versão, resultado
+   e resíduos em consulta posterior. Não executar lotes automáticos.
+4. **Drivers somente leitura** — confrontar WMI, dispositivo PnP, INF,
+   presença, fornecedor e versão com o Gerenciador de Dispositivos. Separar
+   ausência de informação de incompatibilidade; preservar resultados parciais.
+   Repetir consultas para localizar divergências antes de ampliar D2.
+5. **Confirmar no PC FRACO** os cenários de cobertura, interpretação,
+   interface e desempenho aplicáveis. Não declarar concluídos checkpoints que
+   exigem os dois computadores com evidência de apenas um.
+
+### Evidências para avançar sem maquiar o percentual
+
+- **R6** exige resolver amostras históricas ambíguas concretas, não somente
+  aprimorar textos ou aumentar a quantidade de achados.
+- **U6** exige comparação equivalente com WinGet no mesmo equipamento e
+  explicação de casos divergentes.
+- **I7, R7, U8, P5, V5 e D4** dependem das validações presenciais previstas
+  nos dois computadores; testes CI não substituem essa evidência.
+- **R4** permanece suspenso até prova da exclusividade e segurança da
+  exclusão real; nenhum programa de terceiro ou limpeza por heurística
+  substitui essa comprovação.
+- **D2** requer completar a correlação de dispositivos, pacotes do Driver
+  Store e histórico confiável do Windows. A coleção WMI/INF atual, inclusive
+  as 53 verificações sintéticas, cobre apenas uma parte do objetivo.
+- **G1–G5** continuam em zero: não há motor seguro de obtenção, validação,
+  instalação, remoção ou reversão de drivers nesta versão.
+
+### Critérios de abertura da gestão de drivers
+
+Antes de qualquer escrita, obter identificação inequívoca de hardware e do
+pacote **oficial** correspondente (G1); verificar compatibilidade de
+SO/arquitetura, integridade, assinatura e origem do pacote (G2). Apenas depois
+poderá existir uma operação por dispositivo, com confirmação clara, restauração
+ou recuperação previamente validada e verificação pós-instalação (G3).
+Reversão precisa respeitar suporte real do Windows e registrar falhas (G4).
+G5 demanda testes supervisionados **inicialmente em ambiente descartável**,
+e só depois em hardware de teste não crítico. Proibidos a remoção em massa,
+limpeza heurística de Driver Store, substituição silenciosa de drivers do
+sistema e promessa de rollback quando não disponível.
+
+**Decisão de checkpoint nesta revisão documental:** manter **26/42 (61,9%)**;
+está registrado o plano de teste, não uma nova função concluída. A branch
+de teste e o PR #40 permanecem Draft, sem merge/release.
 
 ## Desenvolvimento posterior
 
