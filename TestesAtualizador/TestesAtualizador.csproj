@@ -10,5 +10,9 @@
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
     <Compile Include="../VerifiedUpdaters.cs" Link="VerifiedUpdaters.cs" />
     <Compile Include="../WindowsTerminalUpdater.cs" Link="WindowsTerminalUpdater.cs" />
+    <Compile Include="../LocalMsixInventory.cs" Link="LocalMsixInventory.cs" />
+    <Compile Include="../LocalMsixSnapshot.cs" Link="LocalMsixSnapshot.cs" />
+    <Compile Include="../Matching.cs" Link="Matching.cs" />
+    <Compile Include="../RuckZuckModels.cs" Link="RuckZuckModels.cs" />
   </ItemGroup>
 </Project>

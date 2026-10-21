@@ -357,10 +357,4 @@ namespace GerenciadorAplicativos
         public string InstallLocation { get; set; } = "";
         public string UninstallString { get; init; } = "";
     }
-    internal sealed record LocalMsixApp(string Name, string Version, string Publisher, string PackageName);
-    internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen, string Status);
-    internal static class LocalMsixInventory
-    {
-        internal static LocalMsixResult ReadCurrentUser() => new([], 0, "ok");
-    }
 }
