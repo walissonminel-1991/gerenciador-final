@@ -1,4 +1,4 @@
-# Roteiro de testes — Gerenciador Final (candidata v5.13.11.27 TESTE; referência presencial .26)
+# Roteiro de testes — Gerenciador Final (candidata v5.13.11.27 TESTE com CI aprovada; referência presencial .26)
 
 **21/10/2026: incorporação conservadora na .26; [relatório e roteiro consultivo](OPERACAO-FAXINA-FINAL.md). Último teste real do PC fraco: .24. A MSIX permanece parcialmente indisponível após retry na .24; proteger os resultados e não concluir que 19 apps foram desinstalados.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real continua indisponível nesta candidata.** A ideia de autenticação GitHub com conta existente foi estruturada em [piloto restrito](PILOTO-AUTENTICACAO-GITHUB.md), dependente de uma GitHub App e repositório privado exclusivos.
 
@@ -134,8 +134,14 @@ Não equivale a benchmark de uso prolongado ou desempenho do PC FRACO.
 
 **Decisão:** manter 26/42 e R4 bloqueado. A próxima candidata .27 usa
 `Description` do mesmo registro PnP quando falta `Name` e permite busca/tooltip
-local pelo ID, sem exportar IDs em logs. Só usar novo pacote após CI e
-conferência de integridade. Ainda pendentes testes de atualização/desinstalação
+local pelo ID, sem exportar IDs em logs. As três Actions da .27 foram aprovadas: [regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648484834),
+[build x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648484877) e
+[políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648485243).
+A regressão confirmou 351/351 resíduos, 30/30 MSIX e o caso novo do fallback
+PnP no conjunto de drivers. Pacote .27 de teste: [artefato temporário](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648484877/artifacts/12368243340)
+(válido até 28/10/2026 segundo GitHub), fonte `77d9522`, merge sintético
+`3e66b334`. Conferir BUILD-INFO e SHA256SUMS; arquivo sem assinatura.
+ Ainda pendentes testes de atualização/desinstalação
 supervisionadas e confirmação de detalhes dos resíduos em cada caso.
 
 ## Testes administrativos — apenas em ambiente controlado

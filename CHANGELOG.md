@@ -2,7 +2,7 @@
 
 ## v5.13.11.27 — melhoria conservadora da identificação de drivers (TESTE)
 
-No PC FORTE, a .26 observou inventário estável de 174 entradas, 27 aplicativos MSIX, duas possíveis atualizações, 168 associações de drivers e resíduos parciais em 44 grupos/161 locais. A .27 usa a descrição PnP do MESMO dispositivo quando falta o nome, exibe ID local em tooltip e permite pesquisa por esse ID sem incluí-lo em diagnóstico; versões e assinaturas brutas preservadas. Testes específicos cobrem o fallback e a pesquisa. Nenhum motor de atualização, driver, remoção, rollback, worker, autorização de resíduos ou privilégio foi ampliado. Checkpoints **26/42** e teste Windows CI/presencial ainda necessários.
+No PC FORTE, a .26 observou inventário estável de 174 entradas, 27 aplicativos MSIX, duas possíveis atualizações, 168 associações de drivers e resíduos parciais em 44 grupos/161 locais. A .27 usa a descrição PnP do MESMO dispositivo quando falta o nome, exibe ID local em tooltip e permite pesquisa por esse ID sem incluí-lo em diagnóstico; versões e assinaturas brutas preservadas. Testes específicos cobrem o fallback e a pesquisa. Nenhum motor de atualização, driver, remoção, rollback, worker, autorização de resíduos ou privilégio foi ampliado. CI Windows da .27 aprovada (351/351 resíduos, 30/30 MSIX, testes de drivers incluindo novo fallback; builds e políticas aprovadas). Teste presencial da .27 ainda necessário; checkpoints **26/42**.
 
 ## v5.13.11.26 — incorporação conservadora (TESTE)
 

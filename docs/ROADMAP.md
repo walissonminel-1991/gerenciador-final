@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**Candidata em validação: v5.13.11.27 TESTE · Progresso: 26/42 (61,9%).**
+**Candidata com CI aprovada: v5.13.11.27 TESTE · Progresso: 26/42 (61,9%).**
 Os percentuais indicam checkpoints e não segurança ou prontidão para release.
 
 ## Primeiro teste presencial — PC FORTE, v5.13.11.26
@@ -16,7 +16,7 @@ reais de **ambos** os PCs e R4 continuam pendentes. Veja [TESTES](TESTES.md).
 
 A .27 introduz apenas descrição PnP do mesmo ID como fallback de nome e busca
 local por ID; sem correção inferida de versões nem instalação/remoção de driver.
-CI e novo teste no PC FORTE ainda necessários; progresso **26/42**.
+CI aprovada ([regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648484834), [build x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648484877) e [segurança](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648485243)); novo teste no PC FORTE ainda necessário; progresso **26/42**.
 
 ## Incorporação conservadora — v5.13.11.26 TESTE
 
