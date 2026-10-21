@@ -56,6 +56,21 @@ internal static class ResidualExplorerTests
             Console.WriteLine($"OK Explorador de resíduos {size.Width}x{size.Height}: busca, filtro, páginas, seleção e botões");
             window.Close();
         }
+        using (var window = new ResidualExplorerDialog(reports,
+            (path, _) => Task.FromResult(new ResidualInspectionResult(
+                path, [], new ResidualCoverage(), "Nível consultado sem itens listados."))))
+        {
+            window.Show(); Until(() => window.Ready && !window.Busy,
+                "Fotografia para inspeção vazia indisponível");
+            Find(window, "ResidualInspect").PerformClick();
+            Until(() => !window.Busy && window.Locations.Rows.Count == 0 &&
+                window.DetailText.Contains("Nível consultado sem itens"),
+                "Inspeção vazia não atualizou o resumo");
+            Require(window.Locations.EmptyMessage.Contains("Nenhum item neste nível") &&
+                !window.Locations.EmptyMessage.Contains("Nenhum grupo"),
+                "Inspeção vazia não deve sugerir ausência de grupos de aplicativos");
+            window.Close();
+        }
         var pending = new TaskCompletionSource<ResidualInspectionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         using (var window = new ResidualExplorerDialog(reports, (_, _) => pending.Task))
         {
