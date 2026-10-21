@@ -54,7 +54,8 @@ internal static class ResidualProgressiveTests
                 Incomplete: true)
         });
         check(incompleteLegacy.Query().Coverage.Incomplete &&
-            incompleteLegacy.Query().Coverage.Issues.HasFlag(ResidualScanIssue.InventoryPartial) &&
+            incompleteLegacy.Query().Coverage.Issues.HasFlag(ResidualScanIssue.ReportIncomplete) &&
+            incompleteLegacy.Query().Coverage.Describe().Contains("relatório de origem incompleto", StringComparison.Ordinal) &&
             incompleteLegacy.Query().Coverage.CandidatesNotEvaluated is null,
             "Relatorio parcialmente classificado nunca aparece como busca concluida");
         var mutableSources = new List<string> { "AppData" };
