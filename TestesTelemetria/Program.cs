@@ -36,8 +36,8 @@ try
     Verify(tracker.ExplainLocalCollection("v5.13.11.8").Contains("COLETA LOCAL ATIVA"),
         "Participacao aceita e exibida sem linguagem de programacao");
     tracker.Record("DESEMPENHO.LOCAL etapa=ResidualFilter duracao_ms=12.34 ram_depois_bytes=120000000");
-    Verify(!tracker.Preview("v5.13.11.16", false).Contains("DESEMPENHO") &&
-           !tracker.Preview("v5.13.11.16", false).Contains("120000000"),
+    Verify(!tracker.Preview("v5.13.11.17", false).Contains("DESEMPENHO") &&
+           !tracker.Preview("v5.13.11.17", false).Contains("120000000"),
         "Métricas locais não ampliam o esquema de contribuição voluntária");
     tracker.Record("REGISTRO_PROGRAMAS.FALHA usuario=C:\\Users\\Privado");
     tracker.Record("REGISTRO_PROGRAMAS.FALHA app=nome-privado");

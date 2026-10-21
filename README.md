@@ -4,7 +4,9 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Versão do código em desenvolvimento:** v5.13.11.16 TESTE · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
+**Versão do código em desenvolvimento:** v5.13.11.17 TESTE · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
+
+Missão Work 3: [investigação progressiva e limites](docs/MISSAO-WORK3-v5.13.11.17.md) · [checklist do PC fraco, 1440×900](docs/CHECKLIST-PC-FRACO-v5.13.11.17.md). ZIP final e SHA-256 na [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). Exclusão de resíduos indisponível nesta versão.
 
 ## Recursos
 

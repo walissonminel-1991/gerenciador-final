@@ -1,5 +1,20 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## Missão Work 3 — v5.13.11.17 TESTE
+
+| Marco | Progresso comprovado |
+|---|---|
+| M1 — investigação | Cortes de grupos/locais removidos no classificador; índice global, páginas e inspeção por metadados, com fontes não examinadas/inacessíveis separadas de dados em outras páginas. Saturação até 50.000 evidências mantém teto e parcialidade. |
+| M2 — precisão | Caminhos ainda usados, aliases e homônimos de fabricantes protegidos; origens tipadas e instalação a conferir. Testes negativos de conflitos e preservação. |
+| M3 — desempenho | Cache por consulta, cancelamento cooperativo, métricas locais, orçamento e concorrência limitados; comparação reproduzível com .16 publicada, incluindo custo maior de alocações. Sem comprovação no PC fraco. |
+| M4 — interface | Cartões virtualizados, busca/filtros globais, detalhe e inspeção integrados; oito resoluções, cancelamento, seleção e bandeja testados em WinForms real no runner. |
+| M5 — segurança | Revisão avançada conserva falhas e limites; conferência segura por handles, integrações/reinstalação falham fechado. Cinco entradas destrutivas bloqueadas; privacidade testada. |
+| M6 — consolidação | Revisão d0f8673 aprovada nos três workflows, 310/310 resíduos, 132 combinações gerais de resolução/aba. Versão/documentos consolidados; aprovação final do mesmo commit e integridade do pacote vinculadas na PR #40. |
+
+**Checklist funcional: 26/42 (61,9%), sem novos checkpoints declarados concluídos.** Os marcos acima aprofundam funções existentes, não comprovam R4, hardware real, reversão ou manutenção completa. [Relatório e retomada](MISSAO-WORK3-v5.13.11.17.md), [medições reproduzíveis](BENCHMARKS-WORK3.md), [checklist PC fraco](CHECKLIST-PC-FRACO-v5.13.11.17.md) e [histórico extenso](TESTES-RESIDUOS-v5.13.11.17.md).
+
+Main novamente observada sem proteção administrativa/rulesets; instruções objetivas em [Segurança GitHub](SEGURANCA-GITHUB-WORK2.md). Nenhuma alteração administrativa/merge. Próxima missão: partir de divergências dos testes reais e dos limites explicitados; não repetir auditorias completas nem habilitar exclusão.
+
 ## Missão Work 2 — v5.13.11.16 TESTE (20/10/2026)
 
 | Marco | Implementação e evidência |

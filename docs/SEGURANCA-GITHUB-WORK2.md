@@ -32,3 +32,7 @@ Em Settings → Rules → Rulesets, criar ruleset ativo para `main` (ou Branch p
 Em Settings → Actions → General: permissões padrão somente leitura; desativar capacidade de Actions criar/aprovar PRs; restringir Actions às necessárias e manter revisão obrigatória de workflows de contribuidores externos. O estado global dessas opções não pôde ser lido pela integração; o YAML restritivo não substitui essa configuração. Nenhum segredo/token foi enumerado ou exposto.
 
 Essas regras só passarão a valer após configuração pelo proprietário. Esta missão não fez merge na main, não habilitou proteção administrativa nem publicou release.
+
+## Rechecagem Work 3
+
+Main e rulesets consultados novamente antes da implementação: main permanece no mesmo commit, sem proteção, e rulesets vazios. Nenhuma configuração administrativa foi alterada; não foram repetidas tentativas administrativas com 403. Os três checks continuam obrigatórios para considerar o pacote de teste aprovado, mas a obrigatoriedade administrativa depende do proprietário configurar as regras acima. PR #40 deve permanecer Draft; sem merge automático.

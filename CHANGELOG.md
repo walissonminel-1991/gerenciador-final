@@ -1,5 +1,17 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.17 — investigação progressiva e preparação do PC fraco (TESTE)
+
+- Todos os grupos/locais classificados disponíveis, eliminando os cortes de 100 grupos/sete locais; descoberta continua limitada e explicitamente parcial quando necessário.
+- Revisão com cartões virtualizados, busca global, filtros de classificação/origem, páginas de grupos/locais, detalhes e inspeção somente leitura sob demanda.
+- Correlação por caminhos usados, aliases e fabricantes ambíguos; instalações a conferir e dados compartilhados permanecem preservados.
+- Cache de uma consulta, cancelamento, limites de enumeração/concorrência, liberação de listas ao fechar e resultado pendente na bandeja sem janela inesperada.
+- Métricas agregadas locais de duração/CPU/memória/alocações e benchmark reproduzível contra a .16; maior cobertura também tem custo de memória. Sem promessa de ganho no PC real.
+- Revisão avançada preserva falhas/limites; decisão exige conferência de integrações e recusa reinstalação. Cinco entradas de exclusão continuam bloqueadas.
+- 310/310 verificações de resíduos na consolidação anterior à troca de versão; investigação testada nas oito resoluções de 800×600 a 4K, além da matriz geral de 132 combinações. Falhas de espera de animação e descarte duplo foram corrigidas, sem reduzir asserções.
+
+[Relatório completo](docs/MISSAO-WORK3-v5.13.11.17.md) · [benchmarks e limites](docs/BENCHMARKS-WORK3.md) · [checklist PC fraco](docs/CHECKLIST-PC-FRACO-v5.13.11.17.md) · [roteiro de histórico extenso](docs/TESTES-RESIDUOS-v5.13.11.17.md). Validações finais, commit de integração, ZIP e SHA-256 registrados na PR #40 após conferência. Pacote de testes sem assinatura; sem merge/release estável, envio remoto ou exclusão de resíduos. Roadmap funcional mantido em 26/42: hardware real e R4 continuam pendentes.
+
 ## v5.13.11.16 — integridade e segurança da análise de resíduos (TESTE)
 
 - União deixa de descartar relatórios após os primeiros 500. Classificação contabiliza grupos/locais fora da exibição, cancelamentos, tempo, profundidade, falhas e evidências não avaliadas. Análise parcial permanece visível mesmo sem achados.

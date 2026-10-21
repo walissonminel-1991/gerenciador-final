@@ -73,3 +73,45 @@ Teste nativo adicional de inspeção usa somente chave HKCU aleatória própria:
 Após aprovação da revisão 3373d2f nos três workflows (39526979969, 39526979934, 39526979928), reforçados cancelamento e retenção: construção do índice verifica token, inspeções nativas possuem limite global de uma por vez mesmo entre janelas, fechamento descarta referências às listas/fotografia e cartões liberam suas linhas. Não são criadas threads por candidato nem filas de leituras nativas por reabertura.
 
 Consulta concluída com o GF na bandeja deixa uma única fotografia pendente em memória; não abre revisão inesperadamente. Restaurar apresenta o resultado uma vez, após operação atual terminar. Teste WinForms cobre ocultar, concluir com dados fictícios, restaurar e fechar a revisão. Nova consulta não é iniciada automaticamente. O comportamento definitivo do antivírus e desempenho continuam dependendo dos PCs.
+
+## M6 — consolidação e entrega verificável
+
+Não havia alterações posteriores à base informada no início desta missão. A numeração .17 estava livre; projeto, manifesto e README foram atualizados para **v5.13.11.17 TESTE** somente após um conjunto consistente de melhorias. Dez commits intermediários preservaram os marcos, correções e verificações antes desta consolidação. Sem acesso a indicador de franquia; nenhum saldo ou duração de janela foi inventado.
+
+### Componentes e problemas resolvidos
+
+| Área | Componentes principais | Resultado |
+|---|---|---|
+| Integridade | BroadResidualDiscovery, ResidualScanBudget, ResidualReportMerger | Não perder resultados classificados por cortes de apresentação; contar reconciliações, limites e falhas separadamente. |
+| Navegação | ResidualResultIndex, ResidualExplorerDialog, DarkResidualList | Busca/filtros no conjunto completo disponível; páginas de grupos e locais; somente cartões visíveis desenhados. |
+| Inspeção | ResidualInspection, AdvancedUninstallCleaner | Enumeração limitada por metadados, sem conteúdo/valores; inacessível não equivale a vazio; links preservados. |
+| Correlação | ResidualPathIndex, ResidualAudit, HistoricalResidualAudit | Caminhos compartilhados/ativos e aliases protegem dados, homônimos não ganham certeza indevida; origens históricas filtráveis. |
+| Segurança | ResidualPreview, guardrail Python e testes | Simulação exige integrações conferidas e ausência de reinstalação; nenhuma capacidade de executar remoção. |
+| Responsividade | ResidualUiIntegration, Program, WindowChrome | Cancelamento e descarte de respostas antigas; fila nativa global de uma inspeção; listas liberadas ao fechar; bandeja adia revisão. |
+| Medições | LocalPerformanceMetrics, ResidualBenchmark | Agregados numéricos locais; fixtures grandes reproduzíveis; sem coleta pessoal adicional/envio. |
+
+Fontes consultadas permanecem as já justificadas: perfis/dados comuns e instalações, Registro Software 32/64, atalhos e pistas Run/serviços existentes, catálogos históricos e chave específica WinMerge, inventário instalado/jogos. Inspeção adiciona apenas filhos do local selecionado/autorizado. Não introduzida segunda varredura global de serviços/tarefas/CLSID. Filtros não executam shell, rede nem limpeza; texto de pesquisa não se torna caminho de inspeção.
+
+### Evidência de validação antes da versão final
+
+Commit `d0f86735cdc90debe077ff88b38ceaff8e810011`: política **39527548122**, build x64 **39527548113**, regressões Windows **39527548107**, todos aprovados. Windows: **310/310 resíduos** contra 263/263 na base; oito resoluções do explorador, 132 combinações gerais resolução/aba, 22 cenários de tela/bandeja/foco/fechamento, 12 ciclos de bandeja e 30/30 testes de encerramento seguro sem encerrar processos reais.
+
+Também aprovados: WSC somente leitura, comparação (18/18), catálogo/cache (14/14), fontes oficiais (64/64), instaladores/confirmacão posterior (64/64), drivers/histórico, MSIX (21/21), privacidade sem rede e protótipo sem deploy (3 testes). Isso preserva Notepad++/WinMerge sem instalar/desinstalar aplicativos reais. Fixtures de VLC/foobar2000 preservam cache/preferências/histórico/playlists/componentes. Suíte de políticas verifica bloqueios destrutivos, privacidade e workflows; nenhum teste foi reduzido para passar.
+
+A candidata final precisa repetir os três workflows após troca de versão. A PR #40 registra os IDs finais, head da branch, commit de integração temporário do CI, igualdade da árvore, artefato do mesmo commit, ZIP/CRC, manifesto completo e SHA-256 conferido após baixar. Não registrar um hash futuro dentro do próprio commit: isso criaria uma referência circular e uma revisão diferente da compilada. PR permanece Draft e main preservada.
+
+### Desempenho e limites reais
+
+Medições comparáveis estão em BENCHMARKS-WORK3.md e JSONL, no estágio M3, com cobertura retornada explicitada. Exemplo com 1.000 apps/50.000 evidências: base 147,12 ms/109,92 MiB alocados; progressivo 130,50 ms/124,11 MiB, retornando 100 contra 15.000 grupos. Isso **não** comprova ganho geral ou RAM menor: alocação aumentou, outras cargas variaram e 20.000 evidências continuam não examinadas em ambos. Não extrapolar Linux/runner ao PC fraco nem confundir alocação com retenção.
+
+Cancelamento é cooperativo; chamadas nativas em andamento precisam retornar. A coleção é fotografia limitada, não monitoramento transacional nem prova de varredura completa. Não existe retomada automática de raiz que excedeu orçamento. Reabrir consulta inicia nova fotografia; não acumula páginas de consultas diferentes. O máximo de resultados classificados é condicionado ao teto de evidências e tempo, não à página visível.
+
+### Pendências e estado exato para retomada
+
+1. Executar o checklist PC fraco em 1440×900 com antivírus ativo; preencher os 15 grupos de medições/observações sem inventar valores. Comparar .16/.17 em condições equivalentes e observar RAM após fechar revisão, cancelamento, bandeja e reinício.
+2. No computador de histórico extenso, seguir TESTES-RESIDUOS-v5.13.11.17.md: conferir identidades/fabricantes, portáteis, versões paralelas, WinMerge, VLC e foobar2000. Nenhuma limpeza ou modificação do Registro.
+3. Investigar somente divergências reais e gargalos medidos. Ainda pendentes: cobertura completa de integrações/serviços/tarefas, propriedade exclusiva de conteúdo desconhecido, reversão confiável e garantia contínua entre conferência/operação. Hard links/junctions/ACLs e mudanças são recusados/conservadores, não autorização futura.
+4. Configurar proteção administrativa da main pelo proprietário conforme SEGURANCA-GITHUB-WORK2.md; PR/checks/Code Owners, force push/exclusão/bypass bloqueados, Actions somente leitura. Integração não altera administração.
+5. Retomar pela branch `piloto-diagnostico-github-v5.13.11.2`, head final indicado na PR #40 e por este relatório; não usar o merge sintético de CI como branch de desenvolvimento. Roadmap continua **26/42**, R4 suspenso. Sem release estável ou merge.
+
+**Confirmação final de arquitetura:** cinco entradas de exclusão continuam bloqueadas no backend, aviso permanente na UI e nenhuma seleção/inspeção pode habilitá-las. Nenhum envio remoto, upload de dados do usuário, Issue automática, instalação/desinstalação real de aplicativos, mudança de driver, elevação silenciosa ou alteração de proteção do Windows foi introduzido. Aprovação do runner vale para a candidata experimental e não para eliminação futura. Pacote sem assinatura e comportamento do antivírus/hardware real ainda não validados.
