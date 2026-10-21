@@ -5,7 +5,7 @@ using System.Text;
 namespace GerenciadorAplicativos;
 
 internal enum DriverStoreState { Mapped, Unavailable, Inconsistent, NotConsulted }
-internal enum DriverStoreStage { None, Platform, StoreLookup, PublishedLookup, Mapping, Attributes, NativeUnavailable }
+internal enum DriverStoreStage { None, Platform, StoreLookup, PublishedLookup, Mapping, Attributes, NativeUnavailable, PathValidation, PublishedMismatch, OutsideRepository, InfInvalid }
 internal sealed record DriverStoreEvidence(string InfName, DriverStoreState State,
     string PublishedPath = "", string StorePath = "", DriverStoreStage FailureStage = DriverStoreStage.None, int NativeError = 0)
 {
@@ -83,11 +83,15 @@ internal static class DriverStoreAudit
         {
             string expected = Path.Combine(windows, "INF", inf);
             string repository = Path.Combine(windows, "System32", "DriverStore", "FileRepository");
-            if (!LocalAbsolute(windows) || !LocalAbsolute(storePath) || !LocalAbsolute(publishedPath) ||
-                !Path.GetFullPath(publishedPath).Equals(Path.GetFullPath(expected), StringComparison.OrdinalIgnoreCase) ||
-                !Path.GetFullPath(storePath).StartsWith(Path.GetFullPath(repository) + Path.DirectorySeparatorChar,
-                    StringComparison.OrdinalIgnoreCase) || !DriverPackageLinks.IsValidInf(Path.GetFileName(storePath)))
-                return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.Mapping);
+            if (!LocalAbsolute(windows) || !LocalAbsolute(storePath) || !LocalAbsolute(publishedPath))
+                return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.PathValidation);
+            if (!Path.GetFullPath(publishedPath).Equals(Path.GetFullPath(expected), StringComparison.OrdinalIgnoreCase))
+                return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.PublishedMismatch);
+            if (!Path.GetFullPath(storePath).StartsWith(Path.GetFullPath(repository) + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase))
+                return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.OutsideRepository);
+            if (!DriverPackageLinks.IsValidInf(Path.GetFileName(storePath)))
+                return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.InfInvalid);
             return new(inf, DriverStoreState.Mapped, Path.GetFullPath(publishedPath), Path.GetFullPath(storePath));
         }
         catch (Exception ex) when (ex is IOException or ArgumentException or NotSupportedException)
@@ -121,9 +125,9 @@ internal static class DriverStoreAudit
         foreach (string file in new[] { result.PublishedPath, result.StorePath })
         {
             if ((File.GetAttributes(file) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
-                return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.Mapping);
+                return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.Attributes);
             for (var dir = new DirectoryInfo(Path.GetDirectoryName(file)!); dir is not null; dir = dir.Parent)
-                if ((dir.Attributes & FileAttributes.ReparsePoint) != 0) return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.Mapping);
+                if ((dir.Attributes & FileAttributes.ReparsePoint) != 0) return new(inf, DriverStoreState.Inconsistent, FailureStage: DriverStoreStage.Attributes);
         }
         return result;
     }
