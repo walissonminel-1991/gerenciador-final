@@ -32,6 +32,8 @@ internal static class Program
         }
         try
         {
+            LocalPerformanceMetrics.Sink = sample => DiagnosticTrace.Write(sample.Format());
+            LocalPerformanceMetrics.BeginStartup();
             // Telemetria voluntaria jamais pode impedir a abertura do programa.
             try { AnonymousTelemetryContext.Current = new AnonymousTelemetry(); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
@@ -208,6 +210,7 @@ internal static class AppServices
 
     internal static UnifiedInventoryScan ScanAllInstalledApps()
     {
+        using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.Inventory);
         var registry = ScanInstalledPrograms();
         var result = registry.Items.ToList();
         var msix = LocalMsixInventory.ReadCurrentUser();
@@ -824,6 +827,8 @@ internal sealed partial class MainForm : Form
             RestoreWithinMonitor();
             FitWorkspace();
             if (!startServices) return;
+            LocalPerformanceMetrics.CompleteStartup();
+            Log("Métricas agregadas de tempo, RAM e CPU do GF ficam apenas no diagnóstico local; nenhum envio remoto.");
             OfferAnonymousDiagnosticConsent(firstRun: true);
             // Na abertura, a lista ainda esta vazia: nao animar barra de
             // progresso nem alternar Enabled/Visible de dezenas de controles.
@@ -1976,6 +1981,7 @@ internal sealed partial class MainForm : Form
         // recebem candidatos nem receitas automáticas de atualização.
         var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher,
             !x.InventoryOnly || x.VerifiedMsixIdentity)).ToArray();
+        using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.Updates);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
         var watch = Stopwatch.StartNew();
         _consultaCatalogoCts = cancellation;

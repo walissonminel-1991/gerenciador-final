@@ -446,6 +446,7 @@ internal static class BroadResidualDiscovery
         IReadOnlyCollection<string>? activeGameNames = null,
         IReadOnlyCollection<string>? runningProcessNames = null, bool inventoryIncomplete = false, ResidualCoverage? coverage = null, CancellationToken cancellationToken = default)
     {
+        using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.ResidualClassification);
         // Jogos Steam/Epic podem estar instalados sem entradas ARP. Nunca
         // classificar suas pastas ou preferencias como vestigios de remocao.
         var protectedGames = (activeGameNames ?? Array.Empty<string>())
@@ -564,6 +565,7 @@ internal static class BroadResidualDiscovery
         IReadOnlyCollection<string>? activeGameNames = null, bool gameInventoryPartial = false,
         bool inventoryIncomplete = false, CancellationToken cancellationToken = default)
     {
+        using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.ResidualDiscovery);
         var budget = new ResidualScanBudget(cancellationToken);
         var found = new List<BroadResidualEvidence>();
         int entries = 0, restricted = 0, rootsChecked = 0;

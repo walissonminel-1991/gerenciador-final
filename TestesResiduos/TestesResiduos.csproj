@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <DefineConstants>$(DefineConstants);GF_PROGRESSIVE</DefineConstants>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -18,6 +19,7 @@
     <Compile Include="../ResidualPreview.cs" Link="ResidualPreview.cs" />
     <Compile Include="../ResidualReportMerger.cs" Link="ResidualReportMerger.cs" />
     <Compile Include="../ResidualInspection.cs" Link="ResidualInspection.cs" />
+    <Compile Include="../LocalPerformanceMetrics.cs" Link="LocalPerformanceMetrics.cs" />
     <Compile Include="../ResidualPathIndex.cs" Link="ResidualPathIndex.cs" />
     <Compile Include="../ResidualResultIndex.cs" Link="ResidualResultIndex.cs" />
     <Compile Include="../ResidualScanBudget.cs" Link="ResidualScanBudget.cs" />

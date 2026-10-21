@@ -23,3 +23,11 @@ M1 aprovado nos três workflows: Windows 39524185096, política 39524185089, pac
 Origens das evidências são flags tipadas (perfil, dados comuns, instalação, Registro, atalho, integração), preservadas na união. Fabricantes distintos com nome de produto homônimo mantêm estado desconhecido e preservação compartilhada. Resultado parcial conserva a base de preservação para filtros, além da incerteza; não transforma inventário incompleto em autorização.
 
 Seis regressões novas verificam caminho ainda usado, fronteiras, identidade ambígua, origem/filtro em parcial, alias oficial e fontes combinadas. O teste de parcial encontrou perda da base de preservação durante o desenvolvimento; corrigida antes deste commit. Famílias VLC/foobar2000/WinMerge e os onze fabricantes continuam protegidos. Fontes novas só serão adicionadas se reduzirem erro concreto; consultas globais adicionais não são requisito para completar a paginação.
+
+## M3 — desempenho e instrumentação
+
+M2 aprovado nos três workflows (39524480844, 39524480823, 39524480812). Cache de uma consulta em memória: mudanças de página não repetem correlação, disco ou busca; critério diferente invalida o cache. Fotografia/cache imutáveis publicados atomicamente, cancelamento nunca publica filtro incompleto. Sem cache persistente de caminhos/perfis.
+
+Instrumentação agrega tempo, alocações globais, heap, RAM e CPU do processo, somente no diagnóstico local. Medida de Startup termina antes do consentimento; descoberta inclui classificação e também gera sua medição específica. Fontes novas de informação pessoal não são consultadas. Sem amostragem contínua extra nem GC forçada no aplicativo.
+
+[Benchmarks](BENCHMARKS-WORK3.md): base .16 e M3 executados sequencialmente com mesmo runtime/fixture; 500/1.000 aplicativos, 5.000/10.000 candidatos e 50.000 evidências. Maior cobertura custa alocações adicionais; não declarar melhoria percentual de velocidade nem extrapolar para o PC FRACO. Nos dois motores, 50.000 evidências excedem o teto de 30.000, e as 20.000 não avaliadas ficam explícitas.

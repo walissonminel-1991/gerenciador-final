@@ -23,6 +23,16 @@ internal static class ResidualProgressiveTests
             check(index.Query(page: int.MaxValue).PageIndex == index.Query().PageCount - 1,
                 $"Página {count}: índices inválidos limitados sem perder estado");
         }
+        var cached = new ResidualResultIndex(Enumerable.Range(0, 500).Select(i => new ResidualAuditReport("App" + i, false, [], [])).ToArray());
+        cached.Query(); cached.Query(page: 1); cached.Query(page: 2);
+        check(cached.FilterPasses == 1, "Trocar página reutiliza filtro em memória sem reexaminar candidatos ou disco");
+        cached.Query("App1");
+        check(cached.FilterPasses == 2 && cached.Query("App1", page: 1).Matching == 111, "Cache é invalidado por critério e mantém resultado global");
+        PerformanceSample? sample = null;
+        using (LocalPerformanceMetrics.Measure(PerformanceStage.ResidualFilter, s => sample = s))
+            _ = new byte[5000];
+        check(sample is not null && sample.DurationMs >= 0 && sample.AllocatedBytes >= 0 &&
+            !sample.Format().Contains("App1") && !sample.Format().Contains(Path.GetTempPath()), "Métrica agregada mede processo sem nomes ou caminhos");
         var findings = Enumerable.Range(0, 1000).Select(i => new ResidualAuditFinding("Local" + i, "Dados", 1, "preservar")).ToArray();
         var reportMany = new ResidualAuditReport("Editor Antigo", false, findings, []);
         check(Enumerable.Range(0, 34).SelectMany(p => ResidualResultIndex.LocationPage(reportMany, p)).Count() == 1000,

@@ -12,6 +12,7 @@ void Check(bool result, string what)
     passed++;
 }
 
+if (args.Contains("--benchmark")) { ResidualBenchmark.Run(); return; }
 ResidualCorrelationTests.Run(Check);
 ResidualInspectionTests.Run(Check);
 ResidualProgressiveTests.Run(Check);

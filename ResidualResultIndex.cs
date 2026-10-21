@@ -19,6 +19,10 @@ internal sealed class ResidualResultIndex
     private readonly ResidualAuditReport[] reports;
     private readonly string[] search;
     internal ResidualCoverage Coverage { get; }
+    private sealed record CachedQuery(string Text, ResidualFilter Filter, ResidualSource Source, int[] Indices);
+    private CachedQuery? cache;
+    private int filterPasses;
+    internal int FilterPasses => Volatile.Read(ref filterPasses);
     internal int Count => reports.Length;
     internal int Locations { get; }
     internal ResidualResultIndex(IReadOnlyList<ResidualAuditReport> source)
@@ -38,19 +42,29 @@ internal sealed class ResidualResultIndex
         int page = 0, int pageSize = 50, CancellationToken cancellationToken = default, ResidualSource source = ResidualSource.None)
     {
         pageSize = Math.Clamp(pageSize, 10, 100);
-        var matches = new List<ResidualAuditReport>();
-        string query = (text ?? "").Trim();
-        for (int i = 0; i < reports.Length; i++)
-        {
-            if ((i & 63) == 0) cancellationToken.ThrowIfCancellationRequested();
-            if ((query.Length == 0 || search[i].Contains(query, StringComparison.OrdinalIgnoreCase)) &&
-                Matches(reports[i], filter) && (source == ResidualSource.None || reports[i].Findings.Any(f => (f.Sources & source) != 0))) matches.Add(reports[i]);
-        }
         cancellationToken.ThrowIfCancellationRequested();
-        int pages = Math.Max(1, (matches.Count + pageSize - 1) / pageSize);
+        string query = (text ?? "").Trim();
+        var current = Volatile.Read(ref cache);
+        if (current is null || current.Text != query || current.Filter != filter || current.Source != source)
+        {
+            using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.ResidualFilter);
+            var matches = new List<int>();
+            for (int i = 0; i < reports.Length; i++)
+            {
+                if ((i & 63) == 0) cancellationToken.ThrowIfCancellationRequested();
+                if ((query.Length == 0 || search[i].Contains(query, StringComparison.OrdinalIgnoreCase)) &&
+                    Matches(reports[i], filter) && (source == ResidualSource.None || reports[i].Findings.Any(f => (f.Sources & source) != 0))) matches.Add(i);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            current = new(query, filter, source, matches.ToArray());
+            Volatile.Write(ref cache, current);
+            Interlocked.Increment(ref filterPasses);
+        }
+        int pages = Math.Max(1, (current.Indices.Length + pageSize - 1) / pageSize);
         page = Math.Clamp(page, 0, pages - 1);
-        var items = matches.Skip(page * pageSize).Take(pageSize).ToArray();
-        return new(items, page, pageSize, Count, matches.Count, Locations,
+        var items = current.Indices.Skip(page * pageSize).Take(pageSize).Select(i => reports[i]).ToArray();
+        cancellationToken.ThrowIfCancellationRequested();
+        return new(items, page, pageSize, Count, current.Indices.Length, Locations,
             items.Sum(r => r.Findings.Count), Coverage);
     }
     internal static bool Matches(ResidualAuditReport report, ResidualFilter filter) => filter switch

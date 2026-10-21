@@ -27,6 +27,7 @@ internal sealed class ResidualInspectionSession
     internal ResidualInspectionResult Inspect(string location, CancellationToken token = default,
         int maximumEntries = 512, TimeSpan? timeout = null)
     {
+        using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.ResidualInspection);
         var budget = new ResidualScanBudget(token, timeout ?? TimeSpan.FromSeconds(5), Math.Clamp(maximumEntries, 1, 2048));
         budget.Source("Inspection");
         var found = new List<ResidualInspectionEntry>();
