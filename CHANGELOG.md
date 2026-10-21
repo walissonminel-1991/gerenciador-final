@@ -1,6 +1,6 @@
 # Histórico de versões — Gerenciador Final
 
-## v5.13.11.34 TESTE — correspondência conservadora de servidores (CI pendente)
+## v5.13.11.34 TESTE — correspondência conservadora de servidores (CI aprovada)
 
 Segunda bateria da .33 no PC FORTE confirmou que o inventário real registra
 Jellyfin Server com número de versão no nome e Plex Media Server com versão
@@ -14,7 +14,7 @@ para instalação direta quando existem fontes divergentes.
 A UI esclarece quando candidatos exigem revisão dentro da contagem total.
 Não muda motor de instalação, nenhuma dependência nova, nem execução de
 WinGet COM/CLI, UAC, limpeza ou manutenção de drivers.
-Nenhum resultado da .34 está confirmado no PC real. Roadmap 26/42.
+CI Windows aprovada no código final `9c411fb`: compilação x64, regressões com **130/130** testes multifontes e casos negativos de players/preview/fabricantes, e política de segurança/privacidade. A primeira tentativa revelou que faltava o alias canônico versionado do Plex, corrigido e retestado; somente código final aprovado. Nenhum resultado da .34 foi confirmado no PC real. Roadmap 26/42.
 
 
 ## v5.13.11.33 — reconciliação consultiva e barreiras WinGet (TESTE; CI aprovada)

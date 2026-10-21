@@ -4,7 +4,7 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Versão do código em desenvolvimento:** v5.13.11.34 TESTE (correções estritas de Jellyfin/Plex e contador de revisão; CI pendente). Última bateria presencial: v5.13.11.32 no PC FORTE. **[Missão, decisões e limites](docs/MISSAO-WORK5.md)** · **[Histórico](CHANGELOG.md)**. Sem release estável nem aprovação pelo AVG.
+**Versão do código em desenvolvimento:** v5.13.11.34 TESTE (Jellyfin/Plex estritos, contagem de revisão; 3 Actions CI aprovadas, testes físicos pendentes). Última bateria presencial: v5.13.11.32 no PC FORTE. **[Missão, decisões e limites](docs/MISSAO-WORK5.md)** · **[Histórico](CHANGELOG.md)**. Sem release estável nem aprovação pelo AVG.
 
 **Estado atual e continuidade:** [roadmap funcional](docs/ROADMAP.md) · [guia de organização do repositório](docs/ORGANIZACAO-REPOSITORIO.md) · [revisão e roteiro vigente](docs/OPERACAO-FAXINA-FINAL.md). Artefatos de TESTE e verificações na [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). **Exclusão de resíduos indisponível; MSIX pode ficar temporariamente parcial com erro 0x80040154, inclusive após uma tentativa adicional.**
 

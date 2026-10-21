@@ -1,6 +1,17 @@
 # Roteiro de testes — v5.13.11.34 TESTE
 
-## Bateria de correção Jellyfin/Plex no PC FORTE (.34, CI pendente)
+## Bateria de correção Jellyfin/Plex no PC FORTE (.34, CI aprovada)
+
+Build oficial de testes [v5.13.11.34 (artefato GitHub Actions)](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39694660841/artifacts/12390097297).
+Código aprovado: `9c411fba3177c111888d5fc7a62b4bd0b3211511`.
+[Regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39694660843)
+(**130/130 motores multifontes**) e
+[segurança/privacidade](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39694660928)
+aprovadas. Uma revisão inicial da .34 falhou o teste canônico de Plex
+e não deve ser testada; o pacote acima vem da revisão corrigida.
+Confira BUILD-INFO e SHA256SUMS no artefato portátil, sem mesclar pastas.
+Retenção GitHub indicada até 28/10/2026. Executável sem assinatura,
+sem aprovação real AVG e sem elevação/WinGet real.
 
 Capturas da .33 mostraram Jellyfin Media Player separado do Jellyfin
 Server 12.1.0, Plex player 1.115.0 separado do Plex Media Server
