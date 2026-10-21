@@ -1,4 +1,5 @@
 using GerenciadorAplicativos;
+using Microsoft.Win32;
 
 internal static class ResidualInspectionTests
 {
@@ -41,5 +42,21 @@ internal static class ResidualInspectionTests
             check(File.ReadAllText(Path.Combine(folder, "playlist.m3u")) == "dados fictícios", "Playlist de fixture permanece intacta após inspeções");
         }
         finally { Directory.Delete(root, true); }
+        if (!OperatingSystem.IsWindows()) return;
+        string key = @"Software\GF_Inspection_" + Guid.NewGuid().ToString("N");
+        try
+        {
+            using (var created = Registry.CurrentUser.CreateSubKey(key))
+            using (var child = created.CreateSubKey("Perfil")) child.SetValue("Privado", "CONTEUDO_FICTICIO_NAO_LER");
+            var report = new ResidualAuditReport("Fictício", false,
+                [new(@"HKEY_CURRENT_USER\" + key, "Preferências", 1, "preservar")], []);
+            var registrySession = new ResidualInspectionSession(report);
+            var result = registrySession.Inspect(report.Findings.Single().Location);
+            check(result.Entries.Count == 1 && result.Entries[0].Name == "Perfil" && !result.Coverage.Incomplete &&
+                !result.Explanation.Contains("CONTEUDO_FICTICIO"), "Inspeção nativa do Registro enumera somente nomes de subchaves fictícias");
+            using var preserved = Registry.CurrentUser.OpenSubKey(key + @"\Perfil");
+            check((string?)preserved?.GetValue("Privado") == "CONTEUDO_FICTICIO_NAO_LER", "Valor de fixture do Registro permanece intacto após inspeção");
+        }
+        finally { Registry.CurrentUser.DeleteSubKeyTree(key, false); }
     }
 }

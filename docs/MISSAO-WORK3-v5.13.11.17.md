@@ -64,3 +64,5 @@ Origens das regras históricas, WinMerge e revisão avançada também foram pree
 ## Inspeção da captura sintética
 
 Captura 800×600 do runner conferida visualmente. Ajustados campos de filtro para desenho escuro e rolagem da lista ao restaurar seleção: o cartão selecionado deve ficar visível, em vez de exibir detalhes de um cartão fora do viewport. Subpastas sem navegação autorizada pela profundidade agora explicam por que não foram examinadas. A captura extrema mostra área reduzida de detalhes com rolagem própria; a validação principal continua 1440×900. Nenhuma asserção essencial foi removida.
+
+Teste nativo adicional de inspeção usa somente chave HKCU aleatória própria: enumera nomes de subchaves, não lê os valores durante a operação e comprova valor fictício preservado. A chave é removida exclusivamente no teardown. Nenhum Registro real do usuário é modificado.
