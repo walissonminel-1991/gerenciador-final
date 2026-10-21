@@ -1,4 +1,4 @@
-# Roteiro de testes — Gerenciador Final (candidata v5.13.11.27 TESTE com CI aprovada; referência presencial .26)
+# Roteiro de testes — Gerenciador Final (candidata v5.13.11.28 TESTE, CI pendente; referência presencial .27)
 
 **21/10/2026: incorporação conservadora na .26; [relatório e roteiro consultivo](OPERACAO-FAXINA-FINAL.md). Último teste real do PC fraco: .24. A MSIX permanece parcialmente indisponível após retry na .24; proteger os resultados e não concluir que 19 apps foram desinstalados.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real continua indisponível nesta candidata.** A ideia de autenticação GitHub com conta existente foi estruturada em [piloto restrito](PILOTO-AUTENTICACAO-GITHUB.md), dependente de uma GitHub App e repositório privado exclusivos.
 
