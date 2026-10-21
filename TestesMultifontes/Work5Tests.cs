@@ -55,7 +55,8 @@ internal static class Work5Tests
         };
         var rejectedScan = await source.QueryAsync(invalidSuffixes, default);
         check(rejectedScan.Findings.Count == 0 &&
-            ApplicationIdentityCatalog.Resolve(invalidSuffixes[0].Name, invalidSuffixes[0].Publisher) is null,
+            ApplicationIdentityCatalog.Resolve(invalidSuffixes[0].Name, invalidSuffixes[0].Publisher) is null &&
+            ApplicationIdentityCatalog.Resolve(invalidSuffixes[2].Name, invalidSuffixes[2].Publisher) is null,
             "Sufixos desconhecidos, preview e fabricante divergente ficam bloqueados");
         check(scan.Findings.Count == 11 && progress.Values.Count == 11 &&
             progress.Values.All(d => d.Status == "ok"), "Progresso conta conclusões reais de cada fonte HTTPS");

@@ -127,6 +127,9 @@ internal static class ApplicationIdentityCatalog
         if (prefix.Equals("Jellyfin Server ", StringComparison.OrdinalIgnoreCase))
             return Regex.IsMatch(rest, @"^\d{1,4}(?:\.\d{1,6}){1,3}$",
                 RegexOptions.CultureInvariant);
+        if (prefix.Equals("Plex Media Server ", StringComparison.OrdinalIgnoreCase))
+            return Regex.IsMatch(rest, @"^\d{1,4}(?:\.\d{1,6}){1,3}(?: \((?:x64|x86)\))?$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         if (prefix.EndsWith(' ')) return char.IsAsciiDigit(rest[0]) ||
             (prefix.StartsWith("Plex Media Server", StringComparison.OrdinalIgnoreCase)
                 && char.IsAsciiLetter(rest[0]));

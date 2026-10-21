@@ -232,7 +232,8 @@
       "names": [
         "Plex",
         "Plex Media Server",
-        "Plex Media Server (*"
+        "Plex Media Server (*",
+        "Plex Media Server *"
       ],
       "publishers": [
         "Plex, Inc.",
