@@ -1,7 +1,28 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**Candidata em validação: v5.13.11.28 TESTE · Progresso: 26/42 (61,9%).**
+**Candidata com CI aprovada: v5.13.11.28 TESTE · Progresso: 26/42 (61,9%).**
 Os percentuais indicam checkpoints e não segurança ou prontidão para release.
+
+## Coleta comparativa de testes — v5.13.11.28
+
+A v5.13.11.27 no PC FORTE manteve 174 aplicativos, 27 MSIX e 168
+associações WMI (60 INFs; 3 inválidos/ausentes); histórico sem mudanças.
+A investigação geral de resíduos continuou parcial com 43 candidatos,
+44 grupos combinados e 161 locais, sem exclusão. O diagnóstico completo
+encontrou 166 dispositivos PnP e 103 registros históricos não observados;
+estes não são drivers removíveis comprovados.
+
+A .28 acrescenta **somente coleta numérica opt-in** por sessão com escolha
+manual PC FORTE/FRACO. Sem IDs, nomes, caminhos, arquivo novo, envio ou
+mudança nos limites e permissões. As três Actions do código estão aprovadas:
+[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190258),
+[build x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190246)
+e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190241).
+351/351 resíduos, 30/30 MSIX, 132 combinações de layout e testes de
+recusa de campos inválidos. Duas tentativas de regressão falharam em
+fixture e layout 1280×720, e ambas as falhas foram corrigidas antes
+da aprovação. O novo modo exige testes presenciais nos dois PCs.
+Roadmap permanece 26/42, R4 e G1–G5 bloqueados.
 
 ## Primeiro teste presencial — PC FORTE, v5.13.11.26
 

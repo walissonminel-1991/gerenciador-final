@@ -1,4 +1,4 @@
-# Roteiro de testes — Gerenciador Final (candidata v5.13.11.28 TESTE, CI pendente; referência presencial .27)
+# Roteiro de testes — Gerenciador Final (candidata v5.13.11.28 TESTE, CI aprovada; referência presencial .27)
 
 **21/10/2026: incorporação conservadora na .26; [relatório e roteiro consultivo](OPERACAO-FAXINA-FINAL.md). Último teste real do PC fraco: .24. A MSIX permanece parcialmente indisponível após retry na .24; proteger os resultados e não concluir que 19 apps foram desinstalados.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real continua indisponível nesta candidata.** A ideia de autenticação GitHub com conta existente foi estruturada em [piloto restrito](PILOTO-AUTENTICACAO-GITHUB.md), dependente de uma GitHub App e repositório privado exclusivos.
 
@@ -143,6 +143,20 @@ PnP no conjunto de drivers. Pacote .27 de teste: [artefato temporário](https://
 `3e66b334`. Conferir BUILD-INFO e SHA256SUMS; arquivo sem assinatura.
  Ainda pendentes testes de atualização/desinstalação
 supervisionadas e confirmação de detalhes dos resíduos em cada caso.
+
+## Build da .28 aprovada em CI, não validada presencialmente
+
+[Pacote Windows x64 da .28](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190246/artifacts/12370850196).
+Código fonte testado `2795ee5873f8bfbf475ca4822615a70f82599849`,
+merge sintético `bfa5a1be` (conferir BUILD-INFO e SHA256SUMS);
+retenção indicada até 28/10/2026. Pacote não assinado. Aprovados:
+[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190258)
+(351/351 resíduos, 30/30 MSIX, 132 combinações de layout e testes
+positivos/negativos do opt-in),
+[compilação](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190246)
+e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39653190241).
+O histórico mantém as duas falhas intermediárias (fixture e layout)
+corrigidas antes da aprovação. Não equivale a validação nos PCs reais.
 
 ## Diagnóstico ampliado de testes — v5.13.11.28 TESTE
 
