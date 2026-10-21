@@ -93,7 +93,7 @@ internal static class SafeTemporaryCleanup
                     }
                     catch (Win32Exception ex) when (ex.NativeErrorCode is 2 or 3 or 5 or 32 or 33)
                     { skipped++; }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Win32Exception)
+                    catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or Win32Exception)
                     { Failure(child, ex.Message); }
                 }
                 if (!keepRoot && !stopped)
@@ -104,7 +104,7 @@ internal static class SafeTemporaryCleanup
                         DeleteChecked(directory, path, Information(directory), directory: true);
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Win32Exception)
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or Win32Exception)
             { Failure(path, ex.Message); }
         }
 
@@ -118,7 +118,7 @@ internal static class SafeTemporaryCleanup
             log?.Invoke("Pasta temporária protegida; examinando arquivos antigos sem seguir links.");
             Visit(fullRoot, held.Leaf, 0, keepRoot: true);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
             ArgumentException or NotSupportedException or Win32Exception)
         { Failure(root, ex.Message); }
 

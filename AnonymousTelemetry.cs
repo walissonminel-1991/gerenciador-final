@@ -64,7 +64,7 @@ internal sealed class AnonymousTelemetry
                 _ => TelemetryConsent.NotAsked
             };
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
             JsonException or InvalidOperationException or FormatException or OverflowException or System.Security.SecurityException) { }
         return TelemetryConsent.NotAsked;
     }
@@ -93,7 +93,7 @@ internal sealed class AnonymousTelemetry
                 if (!preserveEvents) _events.Clear();
                 return deleted;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                 ArgumentException or NotSupportedException or System.Security.SecurityException) { return false; }
         }
     }
@@ -222,7 +222,7 @@ internal sealed class AnonymousTelemetry
                 string pending = ReadBoundedFile(PendingFile, 4096);
                 return DiagnosticPayloadPolicy.IsValidReport(pending) ? pending : null;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                 System.Security.SecurityException) { return null; }
         }
     }
@@ -255,7 +255,7 @@ internal sealed class AnonymousTelemetry
                 WriteAtomic(PendingFile, Serialize(version, true));
                 return true; // Guardou localmente. Nao significa envio.
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                 ArgumentException or NotSupportedException or System.Security.SecurityException) { return false; }
         }
     }
@@ -275,7 +275,7 @@ internal sealed class AnonymousTelemetry
                 PendingHasExpired())
                 TryDelete(PendingFile);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or System.Security.SecurityException) { }
     }
 
     private bool PendingHasExpired()
@@ -301,7 +301,7 @@ internal sealed class AnonymousTelemetry
             File.Delete(path);
             return true;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or
             NotSupportedException or System.Security.SecurityException) { return false; }
     }
 

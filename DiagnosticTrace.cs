@@ -43,7 +43,7 @@ internal static class DiagnosticTrace
             string localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string temp;
             try { temp = Path.GetTempPath(); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
             {
                 temp = "";
                 _lastFailure = ex.GetType().Name;
@@ -104,7 +104,7 @@ internal static class DiagnosticTrace
                     _lastFailure = "";
                     return true;
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or
                     NotSupportedException or System.Security.SecurityException)
                 {
                     // Nao oculta o erro: a mensagem e exibida ao usuario se nenhuma pasta funcionar.
@@ -121,7 +121,7 @@ internal static class DiagnosticTrace
         lock (Gate)
         {
             try { _identityLock?.Dispose(); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
             { _lastFailure = ex.GetType().Name; }
             finally
             {
@@ -156,7 +156,7 @@ internal static class DiagnosticTrace
                 stream.Flush(flushToDisk: true);
                 return true;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or
                 NotSupportedException or System.Security.SecurityException)
             {
                 _lastFailure = ex.GetType().Name;

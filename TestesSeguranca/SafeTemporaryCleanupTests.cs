@@ -98,6 +98,21 @@ internal static class SafeTemporaryCleanupTests
             Directory.Move(sandbox + "-moved", sandbox);
             Check(Directory.Exists(root), "leases liberadas ao concluir a limpeza");
 
+            string cancelledRoot = Path.Combine(sandbox, "cancelled");
+            Directory.CreateDirectory(cancelledRoot);
+            string cancelledFile = Path.Combine(cancelledRoot, "old.tmp");
+            File.WriteAllText(cancelledFile, "preservar ao cancelar");
+            File.SetLastWriteTimeUtc(cancelledFile, DateTime.UtcNow.AddDays(-2));
+            using (var duringScan = new CancellationTokenSource())
+            {
+                bool stopped = false;
+                try { SafeTemporaryCleanup.Clean(cancelledRoot, _ => duringScan.Cancel(), duringScan.Token); }
+                catch (OperationCanceledException) { stopped = true; }
+                Check(stopped && File.Exists(cancelledFile), "cancelamento durante consulta não exclui nem vira sucesso");
+            }
+            Directory.Move(cancelledRoot, cancelledRoot + "-released");
+            Check(Directory.Exists(cancelledRoot + "-released"), "cancelamento também libera os handles");
+
             string alias = Path.Combine(sandbox, "root-alias");
             if (TryLink(() => Directory.CreateSymbolicLink(alias, outside)))
             {
