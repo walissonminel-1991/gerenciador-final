@@ -58,6 +58,26 @@ internal static class ResidualProgressiveTests
             incompleteLegacy.Query().Coverage.Describe().Contains("relatório de origem incompleto", StringComparison.Ordinal) &&
             incompleteLegacy.Query().Coverage.CandidatesNotEvaluated is null,
             "Relatorio parcialmente classificado nunca aparece como busca concluida");
+        // Alguns produtores combinam a cobertura do conjunto sem propagar
+        // a flag especifica de uma linha. Recuperar a flag sem duplicar contagens.
+        var partialGroupCoverage = new ResidualCoverage(
+            ResidualScanIssue.ReadFailure, EntriesExamined: 3,
+            CandidatesNotEvaluated: null);
+        var inconsistentSet = new ResidualReportSet(
+            [new ResidualAuditReport("Leitura parcial", false, [], [],
+                Coverage: partialGroupCoverage)],
+            new ResidualCoverage(EntriesExamined: 8, CandidatesNotEvaluated: 0));
+        var corrected = new ResidualResultIndex(inconsistentSet).Query().Coverage;
+        check(corrected.Issues.HasFlag(ResidualScanIssue.ReadFailure) &&
+            corrected.EntriesExamined == 8 && corrected.CandidatesNotEvaluated is null,
+            "Flag de falha local propagada sem somar novamente contagens do agregado");
+        var missingOptionalCoverage = new ResidualResultIndex(new[]
+        {
+            new ResidualAuditReport("Sem cobertura extra", false, [], [])
+        }).Query().Coverage;
+        check(!missingOptionalCoverage.Incomplete &&
+            missingOptionalCoverage.CandidatesNotEvaluated == 0,
+            "Relatorio sem cobertura individual nao implica parcialidade falsa");
         var mutableSources = new List<string> { "AppData" };
         var mutableUnavailable = new List<string> { "Registry" };
         var originalCoverage = new ResidualCoverage(
