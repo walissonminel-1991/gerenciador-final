@@ -3025,7 +3025,14 @@ internal sealed partial class MainForm : Form
     {
         if (_busy) return;
         if (DarkConfirmDialog.Confirm(this, SimpleConfirmation(task), "Confirmar operação") != DialogResult.Yes)
-        { Log("Operação cancelada pelo usuário."); return; }
+        {
+            if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
+                DiagnosticTrace.Write(audit);
+            Log("Operação cancelada pelo usuário.");
+            return;
+        }
+        if (SafeMaintenanceAudit.Begin(task) is { } started)
+            DiagnosticTrace.Write(started);
         if (task is "clean-user-temp" or "clean-directx-cache")
         {
             string path = task == "clean-user-temp"
@@ -3036,11 +3043,17 @@ internal sealed partial class MainForm : Form
                 if (!Directory.Exists(path))
                 {
                     Log("A pasta da limpeza não existe neste perfil. Nenhuma alteração realizada.");
+                    if (SafeMaintenanceAudit.MissingSource(task) is { } audit)
+                        DiagnosticTrace.Write(audit);
                     Status("Nenhum cache encontrado");
                     return;
                 }
                 Log("Pasta consultada: " + path);
                 var result = await Task.Run(() => AppServices.CleanDirectorySafely(path, Log));
+                if (SafeMaintenanceAudit.LocalResult(task, result.FilesRemoved,
+                    result.DirectoriesRemoved, result.Skipped, result.ReparseSkipped,
+                    result.Failed) is { } audit)
+                    DiagnosticTrace.Write(audit);
                 Status(result.Failed == 0 ? "Limpeza concluída" : "Limpeza parcial, com avisos");
             });
             return;
@@ -3067,7 +3080,13 @@ internal sealed partial class MainForm : Form
         Process? child = null;
         try { child = Process.Start(start) ?? throw new InvalidOperationException("O Windows não iniciou o processo administrativo."); }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
-        { Status("Autorização administrativa cancelada"); Log("Operação cancelada na confirmação do UAC."); return; }
+        {
+            if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
+                DiagnosticTrace.Write(audit);
+            Status("Autorização administrativa cancelada");
+            Log("Operação cancelada na confirmação do UAC.");
+            return;
+        }
         using (child)
         using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(35)))
         {
@@ -3098,11 +3117,19 @@ internal sealed partial class MainForm : Form
                 else if (line.StartsWith("DONE|", StringComparison.Ordinal))
                 {
                     string code = line[5..];
+                    if (SafeMaintenanceAudit.ElevatedExit(task, code) is { } audit)
+                        DiagnosticTrace.Write(audit);
                     Status(code == "0" ? "Operação concluída" : "Operação concluída com avisos");
                     gotResult = true;
                 }
             }
-            if (!gotResult) { Status("Operação interrompida ou sem retorno"); Log("A tarefa foi interrompida antes de enviar o resultado."); }
+            if (!gotResult)
+            {
+                if (SafeMaintenanceAudit.NoReturn(task) is { } audit)
+                    DiagnosticTrace.Write(audit);
+                Status("Operação interrompida ou sem retorno");
+                Log("A tarefa foi interrompida antes de enviar o resultado.");
+            }
         }
     }
 
