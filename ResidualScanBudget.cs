@@ -130,7 +130,8 @@ internal enum ResidualScanIssue
 {
     None = 0, EntryLimit = 1, Timeout = 2, Cancelled = 4, ReadFailure = 8,
     GroupLimit = 16, LocationLimit = 32, InventoryPartial = 64,
-    DepthLimit = 128, LinkSkipped = 256, SourceUnavailable = 512, ContradictoryEvidence = 1024
+    DepthLimit = 128, LinkSkipped = 256, SourceUnavailable = 512, ContradictoryEvidence = 1024,
+    ReportIncomplete = 2048
 }
 
 // Somente contagens e identificadores fixos de fontes; nunca caminhos ou nomes de produtos.
@@ -171,7 +172,8 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
         (ResidualScanIssue.GroupLimit, "limite de grupos exibidos"), (ResidualScanIssue.LocationLimit, "limite de locais exibidos"),
         (ResidualScanIssue.InventoryPartial, "inventário incompleto"), (ResidualScanIssue.DepthLimit, "limite de profundidade"),
         (ResidualScanIssue.LinkSkipped, "local redirecionado ou não validado"), (ResidualScanIssue.SourceUnavailable, "fonte indisponível"),
-        (ResidualScanIssue.ContradictoryEvidence, "evidências contraditórias")
+        (ResidualScanIssue.ContradictoryEvidence, "evidências contraditórias"),
+        (ResidualScanIssue.ReportIncomplete, "relatório de origem incompleto")
     }.Where(p => (issues & p.Item1) != 0).Select(p => p.Item2));
 
     internal static ResidualCoverage Combine(IEnumerable<ResidualCoverage?> coverages)
