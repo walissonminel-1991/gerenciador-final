@@ -142,6 +142,22 @@ internal static class ResidualExplorerTests
             window.Show(); Until(() => window.Ready && !window.Busy, "Parcial vazio não carregou");
             Require(window.SummaryText.Contains("ANÁLISE PARCIAL") && window.SummaryText.Contains("Exclusão indisponível"), "Parcial vazio foi escondido"); window.Close();
         }
+        // PC fraco .23: o botão Resumo deve distinguir falha pontual
+        // de origem inteira indisponível, sem misturar indicadores.
+        using (var window = new ResidualExplorerDialog(new ResidualReportSet([],
+            new ResidualCoverage(ResidualScanIssue.ReadFailure | ResidualScanIssue.DepthLimit,
+                EntriesExamined: 2110,
+                SourcesWithReadFailures: ["ProgramData", "HKEY_LOCAL_MACHINE"]))))
+        {
+            window.Show(); Until(() => window.Ready && !window.Busy, "Resumo de parcialidade não carregou");
+            Find(window, "ResidualCoverage").PerformClick();
+            Require(window.DetailText.Contains("FONTES COM FALHAS PONTUAIS", StringComparison.Ordinal) &&
+                window.DetailText.Contains("Entradas contabilizadas: 2110 (total agregado)", StringComparison.Ordinal) &&
+                !window.DetailText.Contains("FONTES NÃO CONSULTADAS OU INACESSÍVEIS", StringComparison.Ordinal) &&
+                window.SummaryText.Contains("ANÁLISE PARCIAL", StringComparison.Ordinal),
+                "Janela não diferencia origem parcial e contagem agregada");
+            window.Close();
+        }
         // Fonte historica pode marcar Incomplete sem inserir flags em Coverage.
         // O resumo exibido deve preservar a advertencia, mesmo com zero locais.
         using (var window = new ResidualExplorerDialog(new[]

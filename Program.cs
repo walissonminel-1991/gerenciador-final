@@ -2935,7 +2935,7 @@ internal sealed partial class MainForm : Form
         // acesso e profundidade no PC fraco, sem expor caminhos locais.
         var scanIssues = broad.Coverage?.Issues ??
             (broad.Incomplete ? ResidualScanIssue.ReportIncomplete : ResidualScanIssue.None);
-        DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete} motivos={scanIssues.ToString().Replace(", ", "+")}");
+        DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} raizes_restritas={broad.RestrictedRoots} fontes_nao_consultadas_ou_inacessiveis={broad.Coverage?.SourcesUnavailable?.Count ?? 0} fontes_leitura_parcial={broad.Coverage?.SourcesWithReadFailures?.Count ?? 0} parcial={broad.Incomplete} motivos={scanIssues.ToString().Replace(", ", "+")}");
         // Unir todas as fontes por produto/local, preservando motivos divergentes.
         var allReports = ResidualReportMerger.Merge(historical.Concat(boosterReports).Concat(winMergeReports)
             .Concat(broad.Reports), inventoryIncomplete || broad.Incomplete, ResidualCoverage.Combine(new[] { broad.Coverage, historical.Coverage }));

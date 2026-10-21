@@ -54,7 +54,8 @@ internal sealed class ResidualResultIndex
         Coverage = sourceCoverage with
         {
             SourcesConsulted = sourceCoverage.SourcesConsulted?.ToArray(),
-            SourcesUnavailable = sourceCoverage.SourcesUnavailable?.ToArray()
+            SourcesUnavailable = sourceCoverage.SourcesUnavailable?.ToArray(),
+            SourcesWithReadFailures = sourceCoverage.SourcesWithReadFailures?.ToArray()
         };
         reports = source.Select(r =>
         {

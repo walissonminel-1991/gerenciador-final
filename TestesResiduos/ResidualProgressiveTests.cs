@@ -89,8 +89,15 @@ internal static class ResidualProgressiveTests
         failedBudget.Source("AppData");
         failedBudget.MarkIncomplete();
         check(failedBudget.Coverage.Issues.HasFlag(ResidualScanIssue.ReadFailure) &&
-            failedBudget.Coverage.SourcesUnavailable!.SequenceEqual(["AppData"]),
-            "Erro real de leitura mantém identificação da fonte que falhou");
+            failedBudget.Coverage.SourcesWithReadFailures!.SequenceEqual(["AppData"]) &&
+            failedBudget.Coverage.SourcesUnavailable!.Count == 0,
+            "Falha pontual preserva a fonte como parcialmente lida, não inteiramente indisponível");
+        var combinedFaults = ResidualCoverage.Combine([unavailableBudget.Coverage, failedBudget.Coverage]);
+        check(combinedFaults.SourcesWithReadFailures!.SequenceEqual(["AppData"]) &&
+            combinedFaults.SourcesUnavailable!.SequenceEqual(["ProgramData"]) &&
+            combinedFaults.Describe().Contains("FONTES COM FALHAS PONTUAIS", StringComparison.Ordinal) &&
+            combinedFaults.Describe().Contains("FONTES NÃO CONSULTADAS OU INACESSÍVEIS", StringComparison.Ordinal),
+            "Agregação preserva distinção entre leitura parcial e ausência de cobertura");
         var reasons = new ResidualCoverage(ResidualScanIssue.EntryLimit | ResidualScanIssue.SourceUnavailable);
         check(reasons.ReasonSummary.Contains("limite de entradas", StringComparison.Ordinal) &&
             reasons.ReasonSummary.Contains("fonte indisponível", StringComparison.Ordinal) &&
@@ -135,14 +142,17 @@ internal static class ResidualProgressiveTests
             "Relatorio sem cobertura individual nao implica parcialidade falsa");
         var mutableSources = new List<string> { "AppData" };
         var mutableUnavailable = new List<string> { "Registry" };
+        var mutableReadFailures = new List<string> { "ProgramData" };
         var originalCoverage = new ResidualCoverage(
             ResidualScanIssue.SourceUnavailable,
-            SourcesConsulted: mutableSources, SourcesUnavailable: mutableUnavailable);
+            SourcesConsulted: mutableSources, SourcesUnavailable: mutableUnavailable,
+            SourcesWithReadFailures: mutableReadFailures);
         var immutablePage = new ResidualResultIndex(
             new ResidualReportSet([], originalCoverage));
-        mutableSources.Clear(); mutableUnavailable.Clear();
+        mutableSources.Clear(); mutableUnavailable.Clear(); mutableReadFailures.Clear();
         check(immutablePage.Query().Coverage.SourcesConsulted!.SequenceEqual(new[] { "AppData" }) &&
-            immutablePage.Query().Coverage.SourcesUnavailable!.SequenceEqual(new[] { "Registry" }),
+            immutablePage.Query().Coverage.SourcesUnavailable!.SequenceEqual(new[] { "Registry" }) &&
+            immutablePage.Query().Coverage.SourcesWithReadFailures!.SequenceEqual(new[] { "ProgramData" }),
             "Fotografia de cobertura nao muda apos mutacao das listas da origem");
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         bool stopped = false;

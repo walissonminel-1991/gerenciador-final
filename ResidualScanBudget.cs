@@ -16,6 +16,8 @@ internal sealed class ResidualScanBudget
     private string? currentSource;
     internal readonly HashSet<string> SourcesConsulted = new(StringComparer.Ordinal);
     internal readonly HashSet<string> SourcesUnavailable = new(StringComparer.Ordinal);
+    // Uma falha em um item nao torna necessariamente a origem inteira inacessivel.
+    internal readonly HashSet<string> SourcesWithReadFailures = new(StringComparer.Ordinal);
     internal ResidualScanBudget(CancellationToken token = default,
         TimeSpan? timeout = null, int maxEntries = 30000)
     {
@@ -40,7 +42,10 @@ internal sealed class ResidualScanBudget
     internal void MarkIncomplete(ResidualScanIssue issue = ResidualScanIssue.ReadFailure)
     {
         Issues |= issue;
-        if ((issue & (ResidualScanIssue.ReadFailure | ResidualScanIssue.SourceUnavailable)) != 0 && currentSource is not null)
+        if (currentSource is null) return;
+        if ((issue & ResidualScanIssue.ReadFailure) != 0)
+            SourcesWithReadFailures.Add(currentSource);
+        if ((issue & ResidualScanIssue.SourceUnavailable) != 0)
             SourcesUnavailable.Add(currentSource);
     }
     internal void Source(string identifier) { currentSource = identifier; SourcesConsulted.Add(identifier); }
@@ -53,7 +58,8 @@ internal sealed class ResidualScanBudget
     }
     internal ResidualCoverage Coverage => new(Issues, Entries,
         SourcesConsulted.Order(StringComparer.Ordinal).ToArray(),
-        SourcesUnavailable.Order(StringComparer.Ordinal).ToArray());
+        SourcesUnavailable.Order(StringComparer.Ordinal).ToArray(),
+        SourcesWithReadFailures: SourcesWithReadFailures.Order(StringComparer.Ordinal).ToArray());
 }
 
 internal static class ResidualReadSafety
@@ -143,7 +149,8 @@ internal enum ResidualScanIssue
 internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanIssue.None,
     int EntriesExamined = 0, IReadOnlyList<string>? SourcesConsulted = null,
     IReadOnlyList<string>? SourcesUnavailable = null, int CandidatesFound = 0,
-    int ReportsOmitted = 0, int LocationsOmitted = 0, int? CandidatesNotEvaluated = 0, int CandidatesExamined = 0, int ReportsReconciled = 0, int LocationsReconciled = 0, int ProtectedGroups = 0, int InsufficientGroups = 0)
+    int ReportsOmitted = 0, int LocationsOmitted = 0, int? CandidatesNotEvaluated = 0, int CandidatesExamined = 0, int ReportsReconciled = 0, int LocationsReconciled = 0, int ProtectedGroups = 0, int InsufficientGroups = 0,
+    IReadOnlyList<string>? SourcesWithReadFailures = null)
 {
     private IReadOnlyList<ResidualCoverage>? Components { get; init; }
     internal bool Incomplete => Issues != ResidualScanIssue.None;
@@ -152,15 +159,21 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
     internal string ReasonSummary => Incomplete ? DescribeIssues(Issues) : "nenhum";
     internal const string PartialMessage = "ANÁLISE PARCIAL — a busca atingiu um limite ou encontrou uma falha e pode haver outros resultados.";
     internal string Describe() => (Incomplete ? PartialMessage : "Análise concluída nos locais consultados.") +
-        $"\r\nEntradas examinadas: {EntriesExamined}; grupos examinados: {CandidatesExamined}; candidatos encontrados: {CandidatesFound}; " +
-        $"grupos indisponíveis: {ReportsOmitted}; locais indisponíveis: {LocationsOmitted}; " +
-        $"duplicatas reconciliadas: {ReportsReconciled} grupos / {LocationsReconciled} locais; " +
-        $"grupos protegidos: {ProtectedGroups}; indícios isolados: {InsufficientGroups}; " +
-        "evidências não avaliadas: " + (CandidatesNotEvaluated?.ToString() ?? "quantidade desconhecida") + "." +
-        (SourcesConsulted is { Count: > 0 } ? "\r\nFontes consultadas: " + string.Join(", ", SourcesConsulted.Select(SourceLabel)) : "") +
-        (SourcesUnavailable is { Count: > 0 } ? "\r\nFontes indisponíveis: " + string.Join(", ", SourcesUnavailable.Select(SourceLabel)) : "") +
-        (Incomplete ? "\r\nMotivos: " + ReasonSummary + ". Confiança limitada; preservar e repetir a análise." : "") +
-        "\r\nEscopo: locais comuns de aplicativos, até dois níveis; não é uma varredura completa do computador." +
+        (Incomplete ? "\r\nMotivos: " + ReasonSummary + "." : "") +
+        "\r\n\r\nCOBERTURA DAS ANÁLISES REUNIDAS" +
+        $"\r\nEntradas contabilizadas: {EntriesExamined} (total agregado)." +
+        $"\r\nGrupos examinados: {CandidatesExamined}; candidatos encontrados: {CandidatesFound}." +
+        $"\r\nGrupos sem resultado: {ReportsOmitted}; locais sem resultado: {LocationsOmitted}." +
+        $"\r\nGrupos protegidos: {ProtectedGroups}; indícios isolados: {InsufficientGroups}." +
+        $"\r\nDuplicatas reconciliadas: {ReportsReconciled} grupos / {LocationsReconciled} locais." +
+        "\r\nEvidências não avaliadas: " + (CandidatesNotEvaluated?.ToString() ?? "quantidade desconhecida") + "." +
+        (SourcesWithReadFailures is { Count: > 0 } ? "\r\n\r\nFONTES COM FALHAS PONTUAIS DE LEITURA (podem ter resultados):\r\n" +
+            string.Join(", ", SourcesWithReadFailures.Select(SourceLabel)) : "") +
+        (SourcesUnavailable is { Count: > 0 } ? "\r\n\r\nFONTES NÃO CONSULTADAS OU INACESSÍVEIS:\r\n" +
+            string.Join(", ", SourcesUnavailable.Select(SourceLabel)) : "") +
+        (SourcesConsulted is { Count: > 0 } ? "\r\n\r\nFontes consultadas: " +
+            string.Join(", ", SourcesConsulted.Select(SourceLabel)) : "") +
+        "\r\n\r\nEscopo: locais comuns de aplicativos, até dois níveis; não é uma varredura completa do computador." +
         "\r\nExclusão indisponível nesta versão de teste.";
 
     private static string SourceLabel(string source) => source switch
@@ -198,7 +211,8 @@ internal sealed record ResidualCoverage(ResidualScanIssue Issues = ResidualScanI
             leaves.Sum(v => v.LocationsOmitted), leaves.Any(v => v.CandidatesNotEvaluated is null)
                 ? null : leaves.Sum(v => v.CandidatesNotEvaluated ?? 0), leaves.Sum(v => v.CandidatesExamined),
             leaves.Sum(v => v.ReportsReconciled), leaves.Sum(v => v.LocationsReconciled),
-            leaves.Sum(v => v.ProtectedGroups), leaves.Sum(v => v.InsufficientGroups))
+            leaves.Sum(v => v.ProtectedGroups), leaves.Sum(v => v.InsufficientGroups),
+            values.SelectMany(v => v.SourcesWithReadFailures ?? []).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray())
             { Components = leaves };
     }
 
