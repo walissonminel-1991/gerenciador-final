@@ -245,6 +245,19 @@ internal sealed partial class MainForm
                     state.Text + " Ausência não autoriza remoção; assinatura informada pelo Windows.");
                 DiagnosticTrace.Write($"DRIVERS.VINCULOS infs={links.Packages.Count} compartilhados={links.Packages.Count(p => p.Devices > 1)} versoes_divergentes={links.Packages.Count(p => p.Versions > 1)} assinaturas_conflitantes={links.Packages.Count(p => p.ConflictingSignatures)} sem_inf={links.WithoutInf}");
                 DiagnosticTrace.Write($"DRIVERS.INVENTARIO quantidade={result.Items.Count} parcial={result.Partial}");
+                TestDiagnosticDetail.Record("DRIVERS",
+                    ("associacoes", result.Items.Count),
+                    ("ids_unicos", result.Items.Select(x => x.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count()),
+                    ("sem_nome", result.Items.Count(x => string.IsNullOrWhiteSpace(x.DeviceName))),
+                    ("sem_fornecedor", result.Items.Count(x => string.IsNullOrWhiteSpace(x.Provider))),
+                    ("sem_versao", result.Items.Count(x => string.IsNullOrWhiteSpace(x.Version))),
+                    ("versao_incomum", result.Items.Count(x => !string.IsNullOrWhiteSpace(x.Version) &&
+                        !Version.TryParse(x.Version, out _))),
+                    ("sem_inf", links.WithoutInf),
+                    ("assinatura_indeterminada", result.Items.Count(x => !x.Signed.HasValue)),
+                    ("presenca_indeterminada", result.Items.Count(x => !x.Present.HasValue)),
+                    ("nao_presentes", result.Items.Count(x => x.Present == false)),
+                    ("parcial", result.Partial ? 1 : 0));
                 var recorded = await Task.Run(() => DriverHistory.Record(
                     DriverHistory.DefaultPath, result, DateTimeOffset.UtcNow));
                 if (!root.IsDisposed)
