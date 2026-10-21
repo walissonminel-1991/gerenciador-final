@@ -95,11 +95,32 @@ internal static class BroadResidualDiscovery
          .ToArray();
     }
 
+    // Subpastas de configuracao, cache e infraestrutura nao sao identidades
+    // de produtos. Ex.: Steam\\config e WinHance\\Config jamais podem ser
+    // unidos em um grupo ficticio chamado "Config". Preservar a evidencia
+    // subordinada ao nome do pai, sem inferir exclusividade ou autorizacao.
+    private static readonly HashSet<string> GenericChildNames = new(Comparer)
+    {
+        "Config", "Configs", "Configuration", "Configurations", "Settings",
+        "Preferences", "Profiles", "User Data", "UserData", "Data", "Logs",
+        "Log", "Updates", "Update", "Scripts", "Providers", "Plugins",
+        "Extensions", "Components", "Modules", "Assets", "Themes",
+        "Bin", "Lib", "Runtime", "Storage", "Local Storage", "Database"
+    };
+
+    internal static string? ProductFromChild(string? parent, string? child)
+    {
+        if (string.IsNullOrWhiteSpace(child)) return null;
+        if (GenericChildNames.Contains(child.Trim()))
+            return NormalizeName(parent);
+        return NormalizeName(child);
+    }
+
     internal static bool EligibleName(string? rawName)
     {
         if (string.IsNullOrWhiteSpace(rawName)) return false;
         string name = rawName.Trim();
-        if (name.Length is < 4 or > 70 || name is "." or ".." || Reserved.Contains(name) ||
+        if (name.Length is < 4 or > 70 || name is "." or ".." || Reserved.Contains(name) || GenericChildNames.Contains(name) ||
             Guid.TryParse(name, out _) || Regex.IsMatch(name, @"^\d+$"))
             return false;
         if (name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
@@ -213,7 +234,7 @@ internal static class BroadResidualDiscovery
                         bool directory = (child.Attributes & FileAttributes.Directory) != 0;
                         if (!directory && (group != "StartMenu" ||
                             !new[] { ".lnk", ".url" }.Contains(child.Extension, Comparer))) continue;
-                        string? childName = NormalizeName(child.Name);
+                        string? childName = ProductFromChild(name, child.Name);
                         if (directory) { incomplete = true; budget.MarkIncomplete(ResidualScanIssue.DepthLimit); }
                         if (childName is not null)
                             evidence.Add(new(childName, child.FullName,
@@ -260,7 +281,7 @@ internal static class BroadResidualDiscovery
                     {
                         if (!budget.Visit()) { incomplete = true; break; }
                         entries++;
-                        string? product = NormalizeName(child);
+                        string? product = ProductFromChild(normalized, child);
                         using var leaf = vendor.OpenSubKey(child, writable: false);
                         if (leaf is null) { incomplete = true; budget.MarkIncomplete(); }
                         else if (leaf.SubKeyCount > 0) { incomplete = true; budget.MarkIncomplete(ResidualScanIssue.DepthLimit); }
