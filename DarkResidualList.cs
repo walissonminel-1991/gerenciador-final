@@ -18,6 +18,7 @@ internal sealed class DarkResidualList : Control
     internal IReadOnlyList<ResidualDisplayRow> Rows => rows;
     internal ResidualDisplayRow? SelectedRow => selected >= 0 && selected < rows.Length ? rows[selected] : null;
     internal int PaintedRows { get; private set; }
+    internal string EmptyMessage { get; set; } = "Nenhum grupo nesta seleção.";
     private int RowHeight => Math.Max(54, (int)(66 * DeviceDpi / 96d));
     internal DarkResidualList()
     {
@@ -65,7 +66,7 @@ internal sealed class DarkResidualList : Control
             TextRenderer.DrawText(e.Graphics, item.Decision, bodyFont, new Rectangle(12, top + 27, Math.Max(1, width - 24), 18), Color.FromArgb(158, 205, 245), flags);
             TextRenderer.DrawText(e.Graphics, item.Detail, bodyFont, new Rectangle(12, top + 45, Math.Max(1, width - 24), 18), Color.FromArgb(172, 186, 202), flags);
         }
-        if (rows.Length == 0) TextRenderer.DrawText(e.Graphics, "Nenhum grupo nesta seleção.", bodyFont, ClientRectangle,
+        if (rows.Length == 0) TextRenderer.DrawText(e.Graphics, EmptyMessage, bodyFont, ClientRectangle,
             ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
     protected override void OnMouseDown(MouseEventArgs e) { base.OnMouseDown(e); if (e.Button == MouseButtons.Left && e.X < Width - (scroll.Visible ? scroll.Width : 0)) { Focus(); SelectRow((e.Y + scroll.Value) / RowHeight); } }
