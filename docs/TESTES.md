@@ -144,6 +144,39 @@ PnP no conjunto de drivers. Pacote .27 de teste: [artefato temporário](https://
  Ainda pendentes testes de atualização/desinstalação
 supervisionadas e confirmação de detalhes dos resíduos em cada caso.
 
+## Diagnóstico ampliado de testes — v5.13.11.28 TESTE
+
+Modo voluntário restrito aos dois laboratórios. A opção é **Desligado** por
+padrão e não fica salva entre execuções. No PC FORTE, abra **Limpeza e
+desempenho** e selecione **Teste PC FORTE** ao lado de Diagnóstico completo;
+no outro computador, selecione **Teste PC FRACO**. O registro `TESTES.MODO`
+confirma a seleção e registra resolução/DPI sem usar um identificador persistente.
+
+Depois de ativar, solicite novamente, nesta ordem: **Atualizar lista**,
+**Verificar atualizações**, **Consultar drivers**, **Investigação de resíduos**
+e **Diagnóstico completo**. As linhas locais `TESTES.INVENTARIO`,
+`TESTES.ATUALIZACOES`, `TESTES.DRIVERS`, `TESTES.RESIDUOS`,
+`TESTES.LIMITES`, `TESTES.FONTES` e `TESTES.MANUTENCAO`
+registram somente contagens autorizadas. Alguns grupos podem não aparecer se
+a etapa for interrompida ou ficar indisponível. Não equiparar ausência de
+linha a resultado zero. Limites nos resíduos permanecem vigentes.
+
+A seleção **Teste desligado** impede novas observações extras e
+`TESTES.MODO estado=desativado` registra a mudança. Logs anteriores da
+mesma sessão permanecem no arquivo habitual; não é criado outro relatório,
+upload ou arquivo de configuração. Nenhum evento `TESTES.*` é uma
+autorização de limpeza, atualização ou remoção de drivers. Não publicar o
+conteúdo do painel visual caso exponha usuário, caminhos ou outros dados.
+
+Comparar os dois PCs apenas quando as mesmas operações foram feitas em
+candidatas idênticas. As diferenças podem refletir hardware, bibliotecas,
+permissões e instalações próprias de cada PC, e não necessariamente erros.
+A métrica `versao_incomum` apenas indica texto WMI fora de um formato de
+versão simples; não significa pacote antigo, incompatível ou inseguro.
+O total de 103 instâncias PnP históricas não observadas no PC FORTE não é
+quantidade de drivers descartáveis. Ainda exigimos evidência presencial
+para concluir checkpoints do roadmap.
+
 ## Testes administrativos — apenas em ambiente controlado
 
 Após backup e autorização explícita, avaliar individualmente funções de limpeza,
