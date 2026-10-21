@@ -17,7 +17,7 @@
 - Gráfico de RAM com acompanhamento na bandeja, limpeza opcional apenas de caches internos do GF (não de memória de outros aplicativos), inicialização, Windows Update e informações do computador.
 - Aba DRIVERS de consulta somente leitura com histórico local e correlação consultiva de INF publicado/Driver Store por APIs do Windows; não instala, remove nem reverte drivers.
 - Auditoria histórica de possíveis resíduos somente leitura, com proteção de instalações, dados pessoais e fabricantes compartilhados. A inspeção explica pistas de favoritos, sessões, credenciais, backups e fontes de instalação, mantendo caches preservados.
-- Consultas multifontes com versões divergentes preservadas, origem na dica da linha e bloqueio do instalador direto em conflitos; cinco novos produtos consultivos e comparação Proton. WinGet COM/CLI permanece desativado, sem executor distribuído.
+- Consultas multifontes com versões divergentes preservadas, origem na dica da linha e bloqueio do instalador direto em conflitos; cinco novos produtos consultivos e comparação Proton com feed estável Windows priorizado. WinGet COM/CLI permanece desativado, sem executor distribuído.
 - Interface Windows Forms em português, tema escuro e ícone **GF** azul.
 - Diagnóstico colaborativo: coleta **local, voluntária e revogável**, com prévia em linguagem simples e botão **Simular sem enviar** usando dados fictícios (v5.13.11.8). Não existe envio real, anexo, formulário de Issue nem conta GitHub exigida do usuário. A arquitetura de compartilhamento futuro ainda depende de segurança e consentimento específico; veja [experiência de contribuição](docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md) e [roteiro de autenticação GitHub](docs/PILOTO-AUTENTICACAO-GITHUB.md).
 

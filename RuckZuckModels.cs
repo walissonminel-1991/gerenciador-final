@@ -20,6 +20,7 @@ internal sealed record UpdateMatch(InstalledApp Installed, CatalogEntry? Catalog
     public string EvidenceDetails => string.Join("\n", Observations.Select(o =>
         o.Provider + ": " + o.Version + " · " + (o.EvidenceKind switch
         {
+            "windows-stable-feed" => "versão oferecida para Windows x64; assinatura não verificada",
             "community-index" => "versão no catálogo comunitário",
             "desktop-changelog" => "versão anunciada no changelog desktop",
             "incompatible-identity-or-context" => "identidade ou instalação incompatível",

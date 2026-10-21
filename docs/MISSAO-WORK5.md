@@ -93,7 +93,7 @@ oferece mais bootstrap de SDK/Inno por WinGet; o runtime do portátil não mudou
 | --- | --- | --- |
 | 7-Zip | GF e WinGet 26.05 | GitHub oficial preservado; evidências consolidadas; um registro por instalação |
 | Outlook for Windows | GF e WinGet 1.2026.812.100 | Índice HTTPS/identidade MSIX preservados; Store como rota oficial |
-| Proton Pass | GF 1.43.0 / WinGet 1.42.0 | Duas observações separadas; divergência visível e sem instalador direto |
+| Proton Pass | GF 1.43.0 / WinGet 1.42.0 | Feed Windows priorizado: 1.42.0 estável; changelog 1.43.0 e índice 1.42.0 preservados; sem instalador direto |
 | EA app | Somente WinGet | Faltava receita fixa: agora índice ElectronicArts.EADesktop por HTTPS; somente consulta/site |
 | FanControl | Somente WinGet | Faltava receita fixa e comparação inteira: GitHub Rem0o/FanControl.Releases e V284; sem instalar dependências |
 | Jellyfin Server | Somente WinGet | Faltava receita fixa: GitHub jellyfin/jellyfin; mudança de principal exige revisão; não confirma instalador Windows |
@@ -108,13 +108,22 @@ Assim, para esses registros reais, vínculo de fabricante/versão/arquitetura/ca
 etapa exata permanecem pendentes; fixtures demonstram os caminhos, não substituem evidência.
 Não se promete nove candidatas no PC. Versões publicadas hoje podem mudar.
 
-Proton: changelog consultado começa em 1.43.0 e índice comunitário em 1.42.0.
-Página Windows `https://proton.me/pass/download/windows` oferece carregamento dinâmico;
-a extração textual não expôs versão/assinatura/arquivo Windows da 1.43.0. Não baixamos nem
-executamos instalador Proton. A disponibilidade do binário estável exato para Windows
-continua **não comprovada**. Isso é exibido como anúncio/changelog, não instalador verificado.
+Proton: investigação adicional localizou a documentação primária do autoatualizador e
+consultou somente o JSON público oficial:
+`https://proton.me/download/PassDesktop/win32/x64/version.json`.
+Em 21/10/2026 esse feed oferece **1.42.0, Stable, rollout 1**, com referência ao MSIX
+x64; changelog anuncia 1.43.0. O índice comunitário também aponta 1.42.0. Logo, não se
+pode atribuir a diferença apenas a atraso do WinGet: anúncio no changelog não comprova
+distribuição Windows. A implementação passou a priorizar o feed Windows e manter as
+três evidências. Beta, rollout parcial, URL fora do caminho/host/versionamento esperado,
+hash de metadados inválido ou esquema ambíguo são rejeitados. Só o JSON fixo foi
+consultado; o GF não baixa/segue a URL de pacote nem usa seus argumentos.
+O checksum do feed é informação, não validação de bytes/assinatura do instalador.
+Instalador 1.43.0 Windows e assinatura do binário 1.42.0 não foram verificados;
+Proton nunca foi usado como cobaia de instalação.
 Fontes: commit `9ebebbc88e8b3b9652d4b5bbfebfd8e2d3538966`,
 `https://github.com/ProtonMail/WebClients/blob/main/applications/pass-desktop/CHANGELOG.md`,
+`https://github.com/ProtonMail/WebClients/blob/main/applications/pass-desktop/update/README.md`,
 `https://github.com/microsoft/winget-pkgs/tree/master/manifests/p/Proton/ProtonPass`.
 
 ### Cache, identidade e estado de instalação
@@ -127,7 +136,7 @@ são recusados. A versão pública não precisa ser apagada porque o inventário
 Sem cache persistente nem associação entre processos/máquinas. Data da observação é
 preservada no cache. Fabricante/identidade/canal e dimensões conhecidas incompatíveis
 bloqueiam reconciliação. Dimensões desconhecidas são declaradas, nunca prova de elegibilidade.
-Uma fonte comunitária não vence automaticamente o anúncio do fornecedor; divergências
+Feed estável específico Windows prevalece sobre anúncio e catálogo comunitário; divergências
 continuam visíveis. Nenhuma observação consultiva gera receita nova.
 
 `Instalador verificado` continua sendo responsabilidade separada dos resolvers locais,
@@ -138,7 +147,7 @@ Não houve autorização de instalação, desinstalação ou manutenção de dri
 ### Códigos agregados do perfil temporário
 
 COBERTURA_ATUALIZACAO fonte: 1 EA, 2 FanControl, 3 Jellyfin Server, 4 K-Lite Mega,
-5 GameInput, 6 Plex, 7 Proton changelog, 8 Proton índice comunitário.
+5 GameInput, 6 Plex, 7 Proton changelog, 8 Proton índice comunitário, 9 Proton Windows.
 
 Etapa: 0 nenhuma identidade canônica reconhecida (não prova app ausente); 1 sem fonte fixa;
 2 somente inventário/inelegível; 3 identidade/canal não corresponde; 4 fonte não consultada;
@@ -154,10 +163,10 @@ genuíno ou API suportada. Não executa o alias nem pesquisa executáveis arbitr
 
 ### Verificação antes da CI
 
-Linux: multifontes 121/121, motor 18/18, política 15/15; cross-build do aplicativo e
+Linux: multifontes 127/127, motor 18/18, política 15/15; cross-build do aplicativo e
 suite de instaladores aprovado, zero avisos/erros. Nenhum teste Windows/AVG foi simulado
-como execução real. Regressões Windows completas e artefato estão aguardando Actions.
-Fixtures: nove produtos/duas fontes Proton, falsos fabricantes/edições, versões inteiras,
+como execução real. Primeiro checkpoint `8ed6c95` passou as três Actions (39689834609, 39689834693, 39689834600). A descoberta do feed Windows gerou outro commit; CI final e artefato devem ser do código posterior, nunca desse pacote intermediário.
+Fixtures: nove produtos/três fontes Proton, falsos fabricantes/edições, versões inteiras,
 contextos isolados x86/x64/ARM64/usuário/máquina/portátil/MSIX/canal, cache/TTL/data,
 falhas de fontes independentes, offline, progresso, snapshot estranho, desligado em todos
 os gatilhos, opt-in restrito, timeout não cooperativo, cancelamento e parada da sessão.

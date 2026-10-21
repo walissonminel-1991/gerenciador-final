@@ -131,23 +131,12 @@ goto fail
 :verification_failed
 echo ERRO: assinaturas do instalador/arquivos nao validadas.
 goto fail
-:no_winget
-echo Nao ha WinGet neste computador para instalar ferramentas de compilacao.
-echo Instale o SDK oficial somente nesta maquina e execute o publicador novamente:
-echo https://dotnet.microsoft.com/download/dotnet/10.0
-goto fail
 :no_sdk
 echo Compilacao cancelada. Falta o SDK .NET 10 na maquina de compilacao.
-goto fail
-:sdk_install_failed
-echo ERRO: instalacao/verificacao do SDK falhou. Consulte a mensagem acima.
 goto fail
 :no_inno
 echo Publiquei o aplicativo, mas nao foi possivel criar o instalador sem Inno Setup.
 echo Instale o Inno Setup pelo site oficial https://jrsoftware.org/isinfo.php e tente novamente.
-goto fail
-:inno_install_failed
-echo ERRO: Inno Setup nao foi detectado apos a instalacao.
 goto fail
 :publish_failed
 echo ERRO: publicacao falhou ou GerenciadorFinal.exe nao foi criado.

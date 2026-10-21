@@ -369,7 +369,7 @@
       "klite-mega",
       "plex"
     ],
-    "proton_reconciliation": "Changelog desktop e índice comunitário separados; divergência bloqueia instalador direto",
+    "proton_reconciliation": "Feed Windows estável priorizado; changelog desktop e índice comunitário preservados; divergência bloqueia instalador direto",
     "completed_checkpoints": [],
     "field_validation": "PC FORTE primeiro; PC FRACO depois; AVG real pendente",
     "report": "docs/MISSAO-WORK5.md"

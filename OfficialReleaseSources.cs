@@ -53,6 +53,9 @@ internal sealed class OfficialReleaseSources : IDisposable
         new("plex", "Catálogo WinGet HTTPS", "Plex Media Server",
             "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/p/Plex/PlexMediaServer",
             "https://www.plex.tv/media-server-downloads/", a => Exact(a, "Plex Media Server", "plex"), "__WINGET_VERSIONS__"),
+        new("proton-pass-windows", "Proton Windows", "Proton Pass",
+            "https://proton.me/download/PassDesktop/win32/x64/version.json",
+            "https://proton.me/pass/download/windows", ProtonPass, "__PROTON_WINDOWS__", "proton-pass-desktop"),
         new("proton-pass-winget", "Catálogo WinGet HTTPS", "Proton Pass",
             "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/p/Proton/ProtonPass",
             "https://proton.me/pass/download", ProtonPass, "__WINGET_VERSIONS__", "proton-pass-desktop"),
@@ -263,8 +266,10 @@ internal sealed class OfficialReleaseSources : IDisposable
                 var findings = target.Apps.Select(app =>
                     new OfficialRelease(app, version, target.Recipe.Provider,
                         target.Recipe.Page, target.Recipe.Id, target.Recipe.IdentitySource ?? target.Recipe.Id,
-                        observedAt, Channel: target.Recipe.JsonProperty == "tag_name" ? "stable" : "unknown",
-                        EvidenceKind: target.Recipe.JsonProperty == "__WINGET_VERSIONS__" ? "community-index" :
+                        observedAt, Architecture: target.Recipe.Id == "proton-pass-windows" ? "x64" : "unknown",
+                        Channel: target.Recipe.JsonProperty is "tag_name" or "__PROTON_WINDOWS__" ? "stable" : "unknown",
+                        InstallType: target.Recipe.Id == "proton-pass-windows" ? "msix" : "unknown",
+                        EvidenceKind: target.Recipe.JsonProperty == "__PROTON_WINDOWS__" ? "windows-stable-feed" : target.Recipe.JsonProperty == "__WINGET_VERSIONS__" ? "community-index" :
                             target.Recipe.JsonProperty == "__PROTON_CHANGELOG__" ? "desktop-changelog" : "vendor-release")).ToArray();
                 return (Findings: findings,
                     Diagnostic: new ProviderDiagnostic(target.Recipe.Id, "ok", clock.ElapsedMilliseconds, cached));
@@ -322,7 +327,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         // ResponseHeadersRead encerra o timeout do HttpClient nos cabecalhos.
         // Este token limita tambem o corpo, inclusive servidores que param de enviar.
         using var quickTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        quickTimeout.CancelAfter(recipe.Id == "proton-pass-desktop" && _responseTimeout > TimeSpan.FromSeconds(5)
+        quickTimeout.CancelAfter((recipe.Id is "proton-pass-desktop" or "proton-pass-windows") && _responseTimeout > TimeSpan.FromSeconds(5)
             ? TimeSpan.FromSeconds(5) : _responseTimeout);
         CancellationToken requestToken = quickTimeout.Token;
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -358,7 +363,9 @@ internal sealed class OfficialReleaseSources : IDisposable
         else
         {
             using var doc = await JsonDocument.ParseAsync(bounded, cancellationToken: requestToken);
-            if (recipe.JsonProperty == "__EDGE_STABLE__")
+            if (recipe.JsonProperty == "__PROTON_WINDOWS__")
+                tag = ParseProtonWindowsVersion(doc.RootElement);
+            else if (recipe.JsonProperty == "__EDGE_STABLE__")
                 tag = ParseEdgeStableVersion(doc.RootElement);
             else if (recipe.JsonProperty == "__WINGET_VERSIONS__")
                 tag = ParseWinGetVersionDirectories(doc.RootElement);
@@ -378,6 +385,36 @@ internal sealed class OfficialReleaseSources : IDisposable
         if (!Regex.IsMatch(tag, recipe.Id == "fancontrol" ? @"^\d{1,4}$" : @"^\d{1,4}(?:\.\d{1,6}){1,3}$"))
             throw new InvalidDataException("Versão não estável ou não comparável.");
         return tag;
+    }
+
+    // Feed do fornecedor específico Windows x64. Apenas Stable com rollout completo.
+    // URL/hash são validados como metadados; nunca baixados, executados ou convertidos em receita.
+    internal static string ParseProtonWindowsVersion(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("Releases", out var releases) ||
+            releases.ValueKind != JsonValueKind.Array || releases.GetArrayLength() > 500)
+            throw new InvalidDataException("Feed Windows inválido.");
+        string? latest = null;
+        foreach (var release in releases.EnumerateArray())
+        {
+            if (release.ValueKind != JsonValueKind.Object ||
+                !release.TryGetProperty("CategoryName", out var category) || category.ValueKind != JsonValueKind.String ||
+                category.GetString() != "Stable" || !release.TryGetProperty("RolloutPercentage", out var rollout) ||
+                rollout.ValueKind != JsonValueKind.Number || !rollout.TryGetDouble(out double fraction) || fraction != 1 ||
+                !release.TryGetProperty("Version", out var versionElement) || versionElement.ValueKind != JsonValueKind.String ||
+                !release.TryGetProperty("File", out var files) || files.ValueKind != JsonValueKind.Array ||
+                files.GetArrayLength() != 1) continue;
+            string version = versionElement.GetString() ?? "";
+            if (!Regex.IsMatch(version, @"^\d{1,4}(?:\.\d{1,6}){1,3}$")) continue;
+            var file = files[0];
+            if (file.ValueKind != JsonValueKind.Object ||
+                !file.TryGetProperty("Url", out var url) || url.ValueKind != JsonValueKind.String ||
+                url.GetString() != "https://proton.me/download/pass/windows/ProtonPass_" + version + ".msix" ||
+                !file.TryGetProperty("Sha512CheckSum", out var digest) || digest.ValueKind != JsonValueKind.String ||
+                digest.GetString() is not { Length: 128 } checksum || !checksum.All(Uri.IsHexDigit)) continue;
+            if (latest is null || Matching.CompareVersions(latest, version) is < 0) latest = version;
+        }
+        return latest ?? throw new InvalidDataException("Sem versão Windows estável com rollout completo.");
     }
 
     // Apenas diretórios de versão do repositório de manifestos comunitários Microsoft.
@@ -457,6 +494,8 @@ internal sealed class OfficialReleaseSources : IDisposable
         (url.Host.Equals("api.github.com", StringComparison.OrdinalIgnoreCase) ||
          url.Host.Equals("product-details.mozilla.org", StringComparison.OrdinalIgnoreCase) ||
          url.Host.Equals("edgeupdates.microsoft.com", StringComparison.OrdinalIgnoreCase) ||
+         (url.Host.Equals("proton.me", StringComparison.OrdinalIgnoreCase) &&
+          url.AbsolutePath == "/download/PassDesktop/win32/x64/version.json" && url.Query.Length == 0 && url.Fragment.Length == 0) ||
          url.Host.Equals("raw.githubusercontent.com", StringComparison.OrdinalIgnoreCase));
 
     internal static void ClearCacheForTests() => Cache.Clear();
@@ -479,7 +518,7 @@ internal static class MultiSourceMatcher
     }
 
     private static int Rank(OfficialRelease release) => release.EvidenceKind switch
-    { "community-index" => 1, "desktop-changelog" => 2, _ => 3 };
+    { "community-index" => 1, "desktop-changelog" => 2, "windows-stable-feed" => 4, _ => 3 };
 
     internal static IReadOnlyList<UpdateMatch> Merge(
         IReadOnlyList<InstalledApp> installed,
@@ -535,7 +574,7 @@ internal static class MultiSourceMatcher
             if (original.Catalog is { } catalog) usableVersions.Add(catalog.ProductVersion);
             bool conflict = usableVersions.Count > 1 && usableVersions.Skip(1)
                 .Any(v => Matching.CompareVersions(usableVersions[0], v) is not 0);
-            bool review = conflict || all.Count != compatible.Length;
+            bool review = conflict || all.Count != compatible.Length || chosen?.EvidenceKind == "desktop-changelog";
             var merged = original;
             if (chosen is not null && original.State != MatchState.SupersededRegistration)
             {

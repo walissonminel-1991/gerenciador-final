@@ -9,8 +9,8 @@
    App Installer/alias/PATH do usuário atual; não executa WinGet nem instala pré-requisitos.
 3. Verificar atualizações; observar barra por fontes concluídas, Cancelar consulta,
    falha isolada e estado parcial. Repetir; mudar lista; confirmar que não há flash ou reinício.
-4. Apontar para cada candidata: conferir as versões/origens na dica. Proton pode mostrar
-   divergência; FanControl aceita versão inteira; Jellyfin de versão principal diferente
+4. Apontar para cada candidata: conferir as versões/origens na dica. Proton prioriza feed Windows e pode mostrar
+   divergência com changelog; FanControl aceita versão inteira; Jellyfin de versão principal diferente
    requer revisão. Novos produtos oferecem consulta/site/orientação, nunca instalador genérico.
 5. Registrar somente contagens e códigos COBERTURA_ATUALIZACAO, especialmente fonte 5
    (GameInput); não compartilhar inventário bruto. Etapa 0 significa identidade não reconhecida,

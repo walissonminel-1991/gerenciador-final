@@ -2072,10 +2072,10 @@ internal sealed partial class MainForm : Form
             AplicarCandidatos(merged);
             foreach (var (sourceId, sourceCode) in new[] { ("ea-desktop", 1), ("fancontrol", 2),
                 ("jellyfin-server", 3), ("klite-mega", 4), ("gameinput-winget", 5), ("plex", 6),
-                ("proton-pass-desktop", 7), ("proton-pass-winget", 8) })
+                ("proton-pass-desktop", 7), ("proton-pass-winget", 8), ("proton-pass-windows", 9) })
             {
                 // IDs internos fixos e contagens; nenhum nome/editor do inventário no diagnóstico.
-                var ruleId = sourceId == "proton-pass-winget" ? "proton-pass-desktop" : sourceId;
+                var ruleId = sourceId is "proton-pass-winget" or "proton-pass-windows" ? "proton-pass-desktop" : sourceId;
                 var indices = Enumerable.Range(0, installed.Length).Where(i =>
                     ApplicationIdentityCatalog.Resolve(installed[i].Name, installed[i].Publisher)?.Id == ruleId).ToArray();
                 if (indices.Length == 0)

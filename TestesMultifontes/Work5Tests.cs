@@ -25,13 +25,13 @@ internal static class Work5Tests
         long cold = timer.ElapsedMilliseconds;
         var results = MultiSourceMatcher.Merge(apps, null, scan.Findings);
         check(results.Count == 9 && results.All(r => r.State == MatchState.Candidate),
-            "Nove identidades sintéticas consultadas; duas fontes de Proton não duplicam a instalação");
-        check(scan.Findings.Count == 10 && progress.Values.Count == 10 &&
+            "Nove identidades sintéticas consultadas; três fontes de Proton não duplicam a instalação");
+        check(scan.Findings.Count == 11 && progress.Values.Count == 11 &&
             progress.Values.All(d => d.Status == "ok"), "Progresso conta conclusões reais de cada fonte HTTPS");
-        check(results[2].Catalog?.ProductVersion == "1.43.0" && results[2].HasSourceConflict &&
-            results[2].RequiresReview && results[2].Observations.Count == 2 &&
+        check(results[2].Catalog?.ProductVersion == "1.42.0" && results[2].HasSourceConflict &&
+            results[2].RequiresReview && results[2].Observations.Count == 3 &&
             results[2].EvidenceDetails.Contains("1.42.0") && results[2].EvidenceDetails.Contains("1.43.0"),
-            "Proton mantém changelog 1.43.0 e índice 1.42.0, bloqueando decisão de instalação");
+            "Proton prefere Windows estável 1.42.0 e mantém changelog 1.43.0/índice em divergência");
         check(results[4].Catalog?.ProductVersion == "284" && Matching.CompareVersions("V283", "284") < 0 &&
             Matching.CompareVersions("284", "284.0") == 0 && Matching.CompareVersions("284beta", "285") is null,
             "FanControl aceita revisão inteira e rejeita sufixo beta sem parsing tabular");
@@ -41,13 +41,13 @@ internal static class Work5Tests
             "Deduplicação e explicação independem de ordem e repetição das fontes");
         timer.Restart();
         await source.QueryAsync(apps, default);
-        check(fixture.Requests == 10, "Consulta repetida usa cache de versões públicas, sem armazenar inventário");
+        check(fixture.Requests == 11, "Consulta repetida usa cache de versões públicas, sem armazenar inventário");
         Console.WriteLine($"WORK5_FIXTURE consulta_fria_ms={cold} repetida_ms={timer.ElapsedMilliseconds}");
         var changed = apps.Select(a => a with { }).ToArray();
         check(MultiSourceMatcher.Merge(changed, null, scan.Findings).All(m => m.State == MatchState.Unmatched),
             "Observações antigas não passam a outro snapshot mesmo com registros iguais");
         var fresh = await source.QueryAsync(changed, default);
-        check(MultiSourceMatcher.Merge(changed, null, fresh.Findings).Count(m => m.State == MatchState.Candidate) == 9 && fixture.Requests == 10,
+        check(MultiSourceMatcher.Merge(changed, null, fresh.Findings).Count(m => m.State == MatchState.Candidate) == 9 && fixture.Requests == 11,
             "Novo inventário reconstrói associações; cache reutiliza somente versão pública");
 
         var wrong = new[] { apps[3] with { Publisher = "Outro" }, apps[4] with { Name = "FanControl Pro" },
@@ -94,7 +94,7 @@ internal static class Work5Tests
         using (var partial = new OfficialReleaseSources(new NineFixture(failEa: true)))
         {
             var partialScan = await partial.QueryAsync(apps, default);
-            check(partialScan.Findings.Count == 9 && partialScan.Diagnostics.Count(d => d.Status != "ok") == 1,
+            check(partialScan.Findings.Count == 10 && partialScan.Diagnostics.Count(d => d.Status != "ok") == 1,
                 "Falha isolada EA preserva as outras nove consultas e declara resultado parcial");
         }
         OfficialReleaseSources.ClearCacheForTests();
@@ -127,6 +127,18 @@ internal static class Work5Tests
             check((await isolated.QueryAsync([apps[4]], default)).Findings.Count == 0,
                 "Transportes diferentes não herdam sucesso de cache de outra fonte simulada");
         }
+        foreach (string invalidFeed in new[] { WindowsFeed("99.0.0", "Beta"), WindowsFeed("99.0.0", rollout: 0.2),
+            WindowsFeed("1.42.0", url: "https://evil.example/payload.msix"), WindowsFeed("1.42.0", hash: "invalid"),
+            "{\"Releases\":\"truncated\"}" })
+        {
+            bool rejected = false;
+            try { using var json = System.Text.Json.JsonDocument.Parse(invalidFeed); OfficialReleaseSources.ParseProtonWindowsVersion(json.RootElement); }
+            catch (InvalidDataException) { rejected = true; }
+            check(rejected, "Feed Windows rejeita beta/rollout parcial/URL ou hash inesperado/esquema inválido");
+        }
+        check(!OfficialReleaseSources.IsAllowedUrl(new Uri("https://proton.me/download/pass/windows/payload.msix")) &&
+            OfficialReleaseSources.IsAllowedUrl(new Uri("https://proton.me/download/PassDesktop/win32/x64/version.json")),
+            "Allowlist Proton autoriza só JSON fixo, nunca URL de instalador");
         await AdapterTests(apps, check);
         foreach (var facts in new[] { new WingetContextFacts(false, false, false, false, true),
             new(true, false, true, false, true), new(true, true, false, false, true), new(true, true, true, true, true),
@@ -187,6 +199,11 @@ internal static class Work5Tests
                 "Contrato rejeita observação associada a outro snapshot/sessão");
         }
     }
+    internal static string WindowsFeed(string version, string category = "Stable", double rollout = 1,
+        string? url = null, string? hash = null) => System.Text.Json.JsonSerializer.Serialize(new {
+            Releases = new[] { new { CategoryName = category, Version = version, RolloutPercentage = rollout,
+                File = new[] { new { Url = url ?? "https://proton.me/download/pass/windows/ProtonPass_" + version + ".msix",
+                    Sha512CheckSum = hash ?? new string('a', 128), Args = "" } } } } });
     private sealed class CacheClock : TimeProvider
     {
         private long timestamp;
@@ -215,7 +232,7 @@ internal static class Work5Tests
             if (offline) throw new HttpRequestException("offline fixture");
             string path = request.RequestUri!.AbsolutePath;
             if (failEa && path.EndsWith("EADesktop")) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
-            string body = path.Contains("CHANGELOG") ? "### Version 1.43.0\n- fixture\n" :
+            string body = request.RequestUri.Host == "proton.me" ? WindowsFeed("1.42.0") : path.Contains("CHANGELOG") ? "### Version 1.43.0\n- fixture\n" :
                 path.EndsWith("releases/latest") ? "{\"tag_name\":\"" +
                     (path.Contains("FanControl") ? "V284" : path.Contains("jellyfin") ? "v12.2" : "26.05") + "\",\"draft\":false,\"prerelease\":false}" :
                 "[{\"type\":\"dir\",\"name\":\"" + (path.EndsWith("Outlook") ? "1.2026.812.100" :

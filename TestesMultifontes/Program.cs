@@ -240,7 +240,7 @@ using (var extraSource = new OfficialReleaseSources(expandedFixture))
 {
     var expanded = await extraSource.QueryAsync(
         [edge, terminal, proton, wrongEdge, wrongProton, wrongTerminal], CancellationToken.None);
-    Assert(expanded.Findings.Count == 4 && expanded.Diagnostics.Count == 4 &&
+    Assert(expanded.Findings.Count == 5 && expanded.Diagnostics.Count == 5 &&
         expanded.Diagnostics.All(x => x.Status == "ok"),
         "Edge, Terminal e Proton reconhecidos com exclusão dos canais errados");
     Assert(expanded.Findings.First(x => ReferenceEquals(x.Installed, edge)).LatestVersion == "155.0.4283.62",
@@ -249,9 +249,9 @@ using (var extraSource = new OfficialReleaseSources(expandedFixture))
         "Windows Terminal Stable preserva todos os componentes da versão");
     Assert(expanded.Findings.First(x => ReferenceEquals(x.Installed, proton)).LatestVersion == "1.42.0",
         "Proton Pass lê changelog oficial desktop e não aplicativo de navegador");
-    Assert(expandedFixture.Requests == 4, "Quatro fontes extras incluindo comparação comunitária Proton consultadas uma vez");
+    Assert(expandedFixture.Requests == 5, "Cinco fontes extras incluindo feed Windows e comparação comunitária Proton consultadas uma vez");
     var cachedExtra = await extraSource.QueryAsync([edge, terminal, proton], CancellationToken.None);
-    Assert(cachedExtra.Findings.Count == 4 && expandedFixture.Requests == 4,
+    Assert(cachedExtra.Findings.Count == 5 && expandedFixture.Requests == 5,
         "Edge/Terminal/Proton compartilham cache em memória");
     var mergedExtras = MultiSourceMatcher.Merge([edge, terminal, proton], null, expanded.Findings);
     Assert(mergedExtras.Count(x => x.State == MatchState.Candidate) == 3,
@@ -261,7 +261,7 @@ OfficialReleaseSources.ClearCacheForTests();
 using (var extraSource = new OfficialReleaseSources(new Fixture(failEdge:true)))
 {
     var found = await extraSource.QueryAsync([edge, terminal, proton], CancellationToken.None);
-    Assert(found.Findings.Count == 3 &&
+    Assert(found.Findings.Count == 4 &&
         found.Diagnostics.Any(x => x.Provider == "edge-stable" && x.Status != "ok"),
         "Falha do serviço Edge não apaga outras fontes");
 }
@@ -269,7 +269,7 @@ OfficialReleaseSources.ClearCacheForTests();
 using (var extraSource = new OfficialReleaseSources(new Fixture(failProton:true)))
 {
     var found = await extraSource.QueryAsync([edge, terminal, proton], CancellationToken.None);
-    Assert(found.Findings.Count == 3 && found.Diagnostics.Any(x => x.Provider == "proton-pass-desktop" && x.Status != "ok"),
+    Assert(found.Findings.Count == 4 && found.Diagnostics.Any(x => x.Provider == "proton-pass-desktop" && x.Status != "ok"),
         "Falha no changelog Proton não apaga Microsoft/GitHub");
 }
 Assert(OfficialReleaseSources.IsAllowedUrl(new Uri("https://edgeupdates.microsoft.com/api/products?view=enterprise")) &&
@@ -357,7 +357,7 @@ internal sealed class Fixture(bool failMozilla = false, bool badTags = false, in
         if (uri.Scheme != "https" || (uri.Host != "api.github.com" &&
             uri.Host != "product-details.mozilla.org" &&
             uri.Host != "edgeupdates.microsoft.com" &&
-            uri.Host != "raw.githubusercontent.com")) throw new Exception("Host não aprovado");
+            uri.Host != "raw.githubusercontent.com" && uri.Host != "proton.me")) throw new Exception("Host não aprovado");
         if (uri.Host == "api.github.com" && uri.AbsolutePath.Contains("/microsoft/winget-pkgs/contents/"))
         {
             string versions = uri.AbsolutePath.EndsWith("ProtonPass", StringComparison.OrdinalIgnoreCase)
@@ -367,6 +367,8 @@ internal sealed class Fixture(bool failMozilla = false, bool badTags = false, in
                 : "[{\"name\":\"1.2026.720.100\",\"type\":\"dir\"},{\"name\":\"1.2026.812.100\",\"type\":\"dir\"}]";
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(versions) };
         }
+        if (uri.Host == "proton.me") return new HttpResponseMessage(HttpStatusCode.OK) {
+            Content = new StringContent(Work5Tests.WindowsFeed("1.42.0")) };
         if (uri.Host == "edgeupdates.microsoft.com")
         {
             if (failEdge) return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
