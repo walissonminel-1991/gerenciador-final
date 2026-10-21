@@ -1564,7 +1564,8 @@ internal sealed partial class MainForm : Form
         _actionControls.Add(_refreshDisksButton);
         heading.Controls.Add(_refreshDisksButton, 2, 0);
         root.Controls.Add(heading, 0, 0);
-        var previewRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, BackColor = PanelBackground };
+        var previewRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = PanelBackground };
+        previewRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 159));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 204));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -1584,7 +1585,8 @@ internal sealed partial class MainForm : Form
             "e firewall pelo Centro de Segurança do Windows. Somente leitura.");
         _actionControls.Add(fullAudit);
         previewRow.Controls.Add(fullAudit, 1, 0);
-        var modePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Margin = Padding.Empty };
+        var modePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+        modePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 175));
         _cleanupPreview.Text = "Coleta ampliada apenas para testes.";
