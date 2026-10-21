@@ -40,7 +40,7 @@ internal sealed class ResidualResultIndex
             (flags, report) => flags | (report.Coverage?.Issues ?? ResidualScanIssue.None));
         bool missingDetail = source.Any(r => r.Incomplete) &&
             (reportIssues | sourceCoverage.Issues) == ResidualScanIssue.None;
-        bool unknownCount = source.Any(r => r.Coverage?.CandidatesNotEvaluated is null);
+        bool unknownCount = source.Any(r => r.Coverage is { CandidatesNotEvaluated: null });
         sourceCoverage = sourceCoverage with
         {
             Issues = sourceCoverage.Issues | reportIssues |
