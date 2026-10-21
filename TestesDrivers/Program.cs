@@ -5,6 +5,10 @@ void Check(bool value, string message)
     if (!value) throw new Exception(message);
     Console.WriteLine("OK " + message);
 }
+Check(DriverInventory.ReportedDeviceName("Nome Windows", "Descricao alternativa") == "Nome Windows" &&
+    DriverInventory.ReportedDeviceName("  ", " Descricao PnP ") == "Descricao PnP" &&
+    DriverInventory.ReportedDeviceName(null, "") == "",
+    "Descricao PnP so e fallback para nome ausente, sem inventar identidade");
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
 var c = a with { DeviceId = "USB\\THREE", Signed = null };

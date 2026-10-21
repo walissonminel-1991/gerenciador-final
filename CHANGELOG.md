@@ -1,5 +1,9 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.27 — melhoria conservadora da identificação de drivers (TESTE)
+
+No PC FORTE, a .26 observou inventário estável de 174 entradas, 27 aplicativos MSIX, duas possíveis atualizações, 168 associações de drivers e resíduos parciais em 44 grupos/161 locais. A .27 usa a descrição PnP do MESMO dispositivo quando falta o nome, exibe ID local em tooltip e permite pesquisa por esse ID sem incluí-lo em diagnóstico; versões e assinaturas brutas preservadas. Testes específicos cobrem o fallback e a pesquisa. Nenhum motor de atualização, driver, remoção, rollback, worker, autorização de resíduos ou privilégio foi ampliado. Checkpoints **26/42** e teste Windows CI/presencial ainda necessários.
+
 ## v5.13.11.26 — incorporação conservadora (TESTE)
 
 A inspeção sob demanda explica por que preservar favoritos, sessões, credenciais, perfis, playlists, jogos salvos, backups e fontes de instalação. São pistas por nomes, sem ler conteúdo nem comprovar propriedade. Cache não implica abandono ou espaço recuperável. Subpastas genéricas desses dados permanecem associadas ao pai, evitando falsos produtos e fusões entre fabricantes. Recusas de segurança `InvalidDataException` são tratadas como consulta parcial na sessão e interface. Implementação própria após analisar Dism++/WinScript e documentação oficial; nenhum código, catálogo ou workflow externo copiado. Licença MIT, raízes, profundidade, worker, motor de atualizações e exclusão bloqueada preservados. [Procedência, validação e roteiro](docs/OPERACAO-FAXINA-FINAL.md#incorporação-conservadora--v5131126-teste). Roadmap **26/42**; testes nos PCs, MSIX e AVG continuam pendentes.

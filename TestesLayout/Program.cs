@@ -253,6 +253,7 @@ internal static class LayoutTests
             DriverListFilters.Apply(fakeDrivers, "Presentes", "").Length != 62 ||
             DriverListFilters.Apply(fakeDrivers, "Não confirmados", "").Length != 122 ||
             DriverListFilters.Apply(fakeDrivers, "Todos", "oem18.inf").Length != 1 ||
+            DriverListFilters.Apply(fakeDrivers, "Todos", fakeDrivers[183].DeviceId).Length != 1 ||
             DriverListFilters.Apply(fakeDrivers, "Todos", "fabricante DE TESTE").Length != 184)
             throw new Exception("Pesquisa e filtros DRIVERS falharam na amostra de 184 itens.");
         // Todos os drivers continuam apenas texto; filtros nao fazem instalacoes.

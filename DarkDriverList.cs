@@ -194,7 +194,8 @@ internal sealed class DarkDriverList : Control
         }
         var item = _items[index];
         _tips.SetToolTip(this, string.Join(Environment.NewLine,
-            item.DeviceName,
+            string.IsNullOrWhiteSpace(item.DeviceName) ? "Nome nao fornecido pelo Windows" : item.DeviceName,
+            "ID do dispositivo (consulta local): " + item.DeviceId,
             "Fornecedor: " + item.Provider,
             "Versão informada pelo Windows: " + item.Version,
             "INF: " + item.InfName,
@@ -269,7 +270,7 @@ internal static class DriverListFilters
         query = query.Trim();
         if (query.Length > 0)
             filtered = filtered.Where(item =>
-                string.Join(" ", item.DeviceName, item.Provider, item.Version,
+                string.Join(" ", item.DeviceName, item.DeviceId, item.Provider, item.Version,
                     item.InfName, item.PresenceLabel, item.SignatureLabel)
                 .Contains(query, StringComparison.CurrentCultureIgnoreCase));
         return filtered.ToArray();

@@ -34,6 +34,12 @@ internal static class DriverInventory
             .OrderBy(d => d.DeviceName, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 
+    // Usar Description apenas quando Name vier vazio e somente no MESMO ID PnP.
+    // Nao inferir hardware, compatibilidade, fabricante ou versao.
+    internal static string ReportedDeviceName(string? name, string? description) =>
+        !string.IsNullOrWhiteSpace(name) ? name.Trim() :
+        !string.IsNullOrWhiteSpace(description) ? description.Trim() : "";
+
     internal static DriverInventoryResult Capture(CancellationToken token)
     {
         var rows = new List<DriverInventoryEntry>();
@@ -90,14 +96,15 @@ internal static class DriverInventory
                 }
                 finally { Release(result); }
             }
-            Query("SELECT PNPDeviceID, Name, Present FROM Win32_PnPEntity", get =>
+            Query("SELECT PNPDeviceID, Name, Description, Present FROM Win32_PnPEntity", get =>
             {
                 string id = Convert.ToString(get("PNPDeviceID")) ?? "";
                 if (id.Length > 0)
                 {
                     presence[id] = get("Present") is bool b ? b : null;
-                    string name = Convert.ToString(get("Name")) ?? "";
-                    if (!string.IsNullOrWhiteSpace(name)) deviceNames[id] = name;
+                    string name = ReportedDeviceName(
+                        Convert.ToString(get("Name")), Convert.ToString(get("Description")));
+                    if (name.Length > 0) deviceNames[id] = name;
                 }
             });
             Query("SELECT DeviceID, DeviceName, DriverProviderName, DriverVersion, InfName, IsSigned FROM Win32_PnPSignedDriver", get =>

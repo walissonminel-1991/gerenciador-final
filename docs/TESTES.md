@@ -1,4 +1,4 @@
-# Roteiro de testes — Gerenciador Final (candidata atual v5.13.11.26 TESTE)
+# Roteiro de testes — Gerenciador Final (candidata v5.13.11.27 TESTE; referência presencial .26)
 
 **21/10/2026: incorporação conservadora na .26; [relatório e roteiro consultivo](OPERACAO-FAXINA-FINAL.md). Último teste real do PC fraco: .24. A MSIX permanece parcialmente indisponível após retry na .24; proteger os resultados e não concluir que 19 apps foram desinstalados.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real continua indisponível nesta candidata.** A ideia de autenticação GitHub com conta existente foi estruturada em [piloto restrito](PILOTO-AUTENTICACAO-GITHUB.md), dependente de uma GitHub App e repositório privado exclusivos.
 
@@ -103,6 +103,40 @@ de dados ou ameaça à inicialização, parar as ações de escrita e continuar
 somente a coleta segura. Não elevar os **26/42** apenas por instalar uma build
 ou por ter testes sintéticos aprovados: cada checkpoint depende da evidência
 descrita no roadmap. Depois repetir os cenários aplicáveis no PC FRACO.
+
+## Evidência sanitizada do PC FORTE — 21/10/2026, .26
+
+O diagnóstico local e cinco imagens foram analisados sem publicar dados
+privados ou IDs de dispositivos. Startup etapa 329,74 ms, inventário inicial
+666,33 ms e repetido 467,82/455,90 ms; pico de memória do processo ~151 MB.
+Não equivale a benchmark de uso prolongado ou desempenho do PC FRACO.
+
+- **Inventário:** 174 entradas e contagem estável, 140 desinstaláveis, 34
+  somente inventário; 27 MSIX registrados com status ok, 159 pacotes
+  enumerados. Jogo Steam 42 entradas observadas, cinco adicionadas.
+- **Atualizações:** 2 candidatos (7-Zip e Outlook/Store); fontes consultadas
+  8, sucesso em 7, catálogo RuckZuck 631. Há 107 sem correspondência,
+  31 só inventário, três correspondências ambíguas e um timeout de uma
+  fonte oficial. Windows Update retornou zero na sessão. Nenhuma escrita.
+- **Drivers:** 168 associações em consulta não parcial, 60 INFs, 19
+  compartilhados, três sem INF válido. Mudanças do histórico próprio:
+  quatro novos, 18 não observados, dois alterados — **não são provas de
+  remoção ou atualização**. Fotos mostram nomes/provedores não informados
+  e versões WMI incomuns, requerendo conferência por dispositivo/ID.
+- **Resíduos:** 12 origens, 3.925 entradas, 43 candidatos, 15 instalações
+  a conferir, 11 perfis/fabricantes e 42 jogos ativos. Parcial por limite,
+  falha de leitura, profundidade e link; UI unificada mostra 44 grupos e
+  161 locais. Fabricantes/jogos foram tratados para preservar; não há
+  comprovação de exclusividade nem autorização de exclusão.
+- **Rede/encerramento:** HTTPS 443 concluído, DNS com falha isolada;
+  diagnóstico inconclusivo e sem reparo automático. Encerramento normal;
+  sem alerta AVG visível nesta sessão, sem comprovar compatibilidade universal.
+
+**Decisão:** manter 26/42 e R4 bloqueado. A próxima candidata .27 usa
+`Description` do mesmo registro PnP quando falta `Name` e permite busca/tooltip
+local pelo ID, sem exportar IDs em logs. Só usar novo pacote após CI e
+conferência de integridade. Ainda pendentes testes de atualização/desinstalação
+supervisionadas e confirmação de detalhes dos resíduos em cada caso.
 
 ## Testes administrativos — apenas em ambiente controlado
 

@@ -1,7 +1,22 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**Candidata atual: v5.13.11.26 TESTE · Progresso: 26/42 (61,9%).**
+**Candidata em validação: v5.13.11.27 TESTE · Progresso: 26/42 (61,9%).**
 Os percentuais indicam checkpoints e não segurança ou prontidão para release.
+
+## Primeiro teste presencial — PC FORTE, v5.13.11.26
+
+O diagnóstico comprova 174 entradas estáveis em consultas repetidas, 27 MSIX,
+168 associações de drivers, 60 INFs e três entradas sem INF válido. Foram
+oferecidas duas atualizações, mas nenhuma foi instalada; a pesquisa geral de
+resíduos foi parcial (43 candidatos gerais; interface combinada de 44 grupos e
+161 locais), sem exclusão. A rede teve HTTPS bem-sucedido e falha isolada no
+DNS; o aplicativo encerrou normalmente. Não foi comprovada a atribuição dos
+resíduos, compatibilidade de drivers ou eficácia de desinstalações. Os testes
+reais de **ambos** os PCs e R4 continuam pendentes. Veja [TESTES](TESTES.md).
+
+A .27 introduz apenas descrição PnP do mesmo ID como fallback de nome e busca
+local por ID; sem correção inferida de versões nem instalação/remoção de driver.
+CI e novo teste no PC FORTE ainda necessários; progresso **26/42**.
 
 ## Incorporação conservadora — v5.13.11.26 TESTE
 
