@@ -244,10 +244,24 @@ internal static class WindowsUpdateClient
     // Se o fornecedor revisar a oferta apos a selecao, exigir nova consulta.
     internal static string? VerifiedIdentity(string? rawId, int revision)
     {
-        if (!Guid.TryParse(rawId, out Guid guid) || revision <= 0)
+        if (!Guid.TryParse(rawId, out Guid guid) || guid == Guid.Empty || revision <= 0)
             return null;
         return guid.ToString("D") + "@" +
             revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    // Mesmo contrato entre consulta, seleção da UI e worker elevado. Um GUID
+    // sem revisão não identifica a oferta que o usuário confirmou.
+    internal static string? CanonicalSelectedIdentity(string? value)
+    {
+        if (value is null || value.Length is < 38 or > 47 || value[36] != '@' ||
+            !Guid.TryParseExact(value[..36], "D", out Guid guid) ||
+            !int.TryParse(value.AsSpan(37), NumberStyles.None, CultureInfo.InvariantCulture, out int revision))
+            return null;
+        string? canonical = VerifiedIdentity(guid.ToString("D"), revision);
+        // A revisão canônica não tem sinal, espaços nem zeros adicionais.
+        return canonical is not null && value.AsSpan(37).SequenceEqual(canonical.AsSpan(37))
+            ? canonical : null;
     }
 
     public static Task<IReadOnlyList<WinUpdateChoice>> ScanAsync() => StaWorker.Run<IReadOnlyList<WinUpdateChoice>>(() =>

@@ -3045,16 +3045,17 @@ internal static class WorkerHost
             Guid.TryParseExact(task[prefix.Length..], "D", out id) && id != Guid.Empty;
     }
 
-    private static bool TryParseUpdateTask(string task, out HashSet<string> ids)
+    internal static bool TryParseUpdateTask(string task, out HashSet<string> ids)
     {
         ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (!task.StartsWith("wu-install:", StringComparison.Ordinal)) return false;
-        string[] parts = task["wu-install:".Length..].Split(',', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = task["wu-install:".Length..].Split(',');
         if (parts.Length is 0 or > 30) return false;
         foreach (string part in parts)
         {
-            if (!Guid.TryParseExact(part, "D", out Guid id)) return false;
-            ids.Add(id.ToString("D"));
+            string? id = WindowsUpdateClient.CanonicalSelectedIdentity(part);
+            if (id is null) return false;
+            ids.Add(id);
         }
         return ids.Count == parts.Length;
     }

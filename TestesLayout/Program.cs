@@ -48,6 +48,22 @@ internal static class LayoutTests
             WindowsUpdateClient.VerifiedIdentity("invalido", 12) is not null ||
             WindowsUpdateClient.VerifiedIdentity(knownId, 0) is not null)
             throw new Exception("Windows Update deve preservar GUID e revisao antes de instalar.");
+        string selectedIdentity = WindowsUpdateClient.CanonicalSelectedIdentity(
+            WindowsUpdateClient.VerifiedIdentity(knownId, 12))
+            ?? throw new Exception("Selecao recusou identidade produzida pela consulta.");
+        if (!WorkerHost.TryParseUpdateTask("wu-install:" + selectedIdentity, out var parsedSelection) ||
+            !parsedSelection.SetEquals([knownId + "@12"]) || parsedSelection.Contains(knownId + "@13"))
+            throw new Exception("UI e worker precisam preservar a mesma revisao confirmada, sem instalar no teste.");
+        foreach (string invalidIdentity in new[] { knownId, knownId + "@0", knownId + "@-1", knownId + "@01",
+            knownId + "@2147483648", knownId + "@12\n", Guid.Empty.ToString("D") + "@12", "invalido@12" })
+            if (WindowsUpdateClient.CanonicalSelectedIdentity(invalidIdentity) is not null ||
+                WorkerHost.TryParseUpdateTask("wu-install:" + invalidIdentity, out _))
+                throw new Exception("Identidade Windows Update ambigua foi aceita.");
+        foreach (string invalidTask in new[] { "wu-install:", "wu-install:" + selectedIdentity + ",",
+            "wu-install:" + selectedIdentity + "," + selectedIdentity,
+            "wu-install:" + string.Join(",", Enumerable.Range(1, 31).Select(r => knownId + "@" + r)) })
+            if (WorkerHost.TryParseUpdateTask(invalidTask, out _))
+                throw new Exception("Worker aceitou selecao vazia, duplicada ou acima do limite.");
         // Regressao da captura real: WinForms TextBox junta parágrafos se receber
         // somente LF em SetText. Validar CRLF idempotente, inclusive com CR solto.
         if (DarkLogView.NormalizeWindowsLineBreaks("um\n\ndois") != "um\r\n\r\ndois" ||

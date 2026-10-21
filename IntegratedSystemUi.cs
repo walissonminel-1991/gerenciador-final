@@ -694,7 +694,8 @@ internal sealed partial class MainForm
             return;
         }
         string[] selected;
-        try { selected = _updateSelection.Select(s => Guid.Parse(s).ToString("D")).ToArray(); }
+        try { selected = _updateSelection.Select(s => WindowsUpdateClient.CanonicalSelectedIdentity(s)
+            ?? throw new FormatException("Identidade de atualização sem revisão válida.")).ToArray(); }
         catch (FormatException)
         {
             MessageBox.Show(this, "O Windows retornou um identificador inválido. Procure as atualizações novamente.",
