@@ -1,5 +1,15 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.22 — inventário visível sem ações inseguras (TESTE)
+
+- PC fraco confirmou a leitura MSIX: **123 pacotes**, **19 aplicativos**, **74 entradas** no total, falhas **0**. O retry novo não precisou atuar (`repeticao=False`), então não é possível concluir que ele resolverá uma futura falha persistente.
+- Busca por `MSIX` parecia vazia porque a lista exibia somente aplicativos com atualização/desinstalação, e o filtro **Possíveis** estava ativo. Não era ausência de pacotes.
+- Novo filtro **Inventário** na aba Aplicativos: mostra também Store/MSIX e jogos já identificados, sem exigir ação autorizada. Busca por origem `MSIX` revela esses aplicativos; dados sem ação têm identificação **Somente leitura** não clicável. A aba padrão **Todos** continua orientada a ações.
+- Testes de interface para filtro adicional em resoluções variadas e teste de política confirmando que entradas `InventoryOnly` nunca são desinstaláveis só por aparecerem.
+- Terceira bateria agregada: [PC fraco v5.13.11.21](docs/TESTE-PC-FRACO-2026-10-21-v5.13.11.21.md). Nenhum log bruto publicado.
+- Permanecem análise parcial de resíduos, nenhuma exclusão autorizada, transmissão de diagnóstico remoto desabilitada e PR Draft. Roadmap **26/42**.
+
+
 ## v5.13.11.21 — proteção do inventário MSIX após terceira bateria no PC fraco (TESTE)
 
 - As capturas reais confirmaram o conserto dos filtros por origem/classificação da v5.13.11.20, sem permitir exclusão de resíduos.
