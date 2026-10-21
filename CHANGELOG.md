@@ -1,5 +1,15 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.31 — MISSÃO WORK 4 (TESTE; CI aprovada)
+
+- MSIX conserva apenas em memória a última leitura completa da sessão quando uma fonte falha; itens retidos têm presença não confirmada e não recebem receitas. Recuperação completa substitui a fotografia; não corrige por suposição a causa de 0x80040154.
+- Fusão de atualizações recusa resultados de outra linha/snapshot e revalida somente inventário. Cache de dez minutos usa relógio monotônico, com origem cache/HTTPS observável e regressões de TTL/cancelamento.
+- Resíduos registram orçamento e motivos por origem; corrigida contagem além do teto de 128 filhos e de processos já consultados. Ancestrais presos durante enumeração, sem mais raízes, profundidade ou orçamento. Modal contido no monitor do proprietário após escala DPI.
+- Consulta de drivers acrescenta vínculo INF publicado ↔ Driver Store por SetupAPI e conferência de volta ao INF exato. Múltiplos dispositivos, presença desconhecida, assinatura WMI, limites e pacotes não consultados são preservados. Não enumera o Store inteiro, não reconstrói histórico Windows e não verifica assinatura criptográfica.
+- Diagnóstico opt-in limita todas as tentativas a 160, inclusive troca de perfil e falhas de gravação; sink indisponível não interrompe consultas. Campos novos somente numéricos, sem envio ou persistência adicional.
+- Roteiro, matriz P0–P3 e checkpoints consolidados nos documentos existentes. Nenhum checkpoint novo concluído: **26/42**. R4 e G1–G5 bloqueados; main e PR Draft preservados. CI final aprovada: 360/360 resíduos, 41/41 MSIX, 95/95 instaladores, 69/69 multifontes; pacote e 273 hashes conferidos. A integração SetupAPI e um stub antigo reprovaram em rodadas anteriores, foram corrigidos sem remover assertivas. [Evidências e pacote](docs/OPERACAO-FAXINA-FINAL.md#candidata-aprovada-e-pacote-conferido).
+
+
 ## v5.13.11.30 — comparação de drivers e clareza diagnóstica (TESTE; CI aprovada)
 
 No PC FORTE a .29 mostrou 177 associações de drivers (antes 168), 63 pacotes INF (antes 60) e 9 IDs novos no histórico local, sem entradas ausentes ou alteradas. A segunda leitura foi estável e a consulta PnP passou de 166 para 175; não atribuir a atualização, falha nem remoção sem evidência por ID. O inventário permaneceu em 174 (27 MSIX), com 33 entradas marcadas como inventário somente e 34 sem desinstalação possível. O modo de testes separa essas contagens e discrimina o tipo de fonte com falha de resíduos por rótulos fixos, sem gravar caminhos ou novos identificadores. Não altera varreduras, limites de segurança nem permissões. O botão de otimização recebe rótulo visual compacto mantendo o nome acessível. A investigação de resíduos segue parcial, 867 grupos examinados, 43 candidatos gerais/44 grupos unificados e 161 locais; nenhuma exclusão. Regressões Windows aprovadas (351/351 resíduos, 30/30 MSIX, 132 cenários e verificações das novas métricas), além de build e políticas. Teste presencial da .30 ainda pendente. Checkpoints 26/42.

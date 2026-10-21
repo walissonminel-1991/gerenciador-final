@@ -12,7 +12,7 @@ Este documento diferencia **arquivos ativos**, **evidências históricas** e
   por ferramentas; R4 continua suspenso, sem remoção de resíduos
 - [CHANGELOG](../CHANGELOG.md) — histórico de alterações por versão
 - [TESTES](TESTES.md) — procedimento geral, segurança e validações
-- [Revisão da faxina e roteiro vigente](OPERACAO-FAXINA-FINAL.md) — candidata .26; último teste real .24
+- [Revisão da faxina e roteiro vigente](OPERACAO-FAXINA-FINAL.md) — missão Work 4, candidata .31; últimos testes reais .30 PC FORTE e .24 PC FRACO
 
 ## Código e testes
 

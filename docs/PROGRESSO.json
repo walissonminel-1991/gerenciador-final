@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.30 TESTE",
+  "version": "5.13.11.31 TESTE",
   "date": "2026-10-21",
-  "code_commit": "e0db292f6796750958e292c9c278ec589dd3ba7b",
+  "code_commit": "de6ee62d2da87cebe8d82933bc4f8bf5c0099634",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681832",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668933022",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -49,7 +49,7 @@
           "id": "I7",
           "title": "Cobertura conferida nos dois computadores",
           "done": false,
-          "evidence": "Validação presencial adiada"
+          "evidence": "Snapshot MSIX .31 e testes de fonte; ainda depende dos dois PCs."
         }
       ]
     },
@@ -91,7 +91,7 @@
           "id": "R6",
           "title": "Resolver casos históricos ambíguos com evidências adicionais",
           "done": false,
-          "evidence": "Adicionada proteção para inventário incompleto; a atribuição dos vestígios específicos ainda depende de evidências dos computadores.",
+          "evidence": "Métricas por origem e enumeração protegida .31; faltam amostras reais com atribuição confirmada.",
           "blocked_by": "amostras_reais"
         },
         {
@@ -139,7 +139,7 @@
           "id": "U6",
           "title": "Explicar divergências de cobertura com WinGet",
           "done": false,
-          "evidence": "Contagens por motivo implementadas sem nomes nos logs; comparação com WinGet depende de capturas equivalentes da mesma máquina.",
+          "evidence": "174 registros particionados e fusão/cache reforçados; falta WinGet equivalente no mesmo PC/horário.",
           "blocked_by": "comparacao_mesma_maquina"
         },
         {
@@ -245,7 +245,7 @@
           "id": "D2",
           "title": "Correlacionar dispositivos, pacotes e histórico Windows",
           "done": false,
-          "evidence": "Correlação dispositivo/INF/presença implementada em parte. Driver Store completo e histórico Windows continuam pendentes.",
+          "evidence": "WMI/INF/publicado/Store via SetupAPI aprovados em CI .31; histórico Windows e pacotes não associados ainda pendentes.",
           "blocked_by": "validar_coleta_antes_de_ampliar"
         },
         {
@@ -269,13 +269,13 @@
           "id": "G1",
           "title": "Consultar versões oficiais e compatibilidade",
           "done": false,
-          "evidence": "Etapa futura"
+          "evidence": "Desenho conservador em OPERACAO-FAXINA-FINAL.md; provedor oficial/compatibilidade ainda indisponível."
         },
         {
           "id": "G2",
           "title": "Verificar pacote e assinatura",
           "done": false,
-          "evidence": "Etapa futura"
+          "evidence": "Localização de INF e assinatura WMI não validam integridade/catálogo/assinatura criptográfica."
         },
         {
           "id": "G3",
@@ -299,13 +299,57 @@
     }
   ],
   "latest_real_test": {
-    "version": "5.13.11.24 TESTE",
-    "environment": "PC fraco, Windows x64",
-    "status": "MSIX parcial após retry: 55 entradas, erro 0x80040154",
-    "observations": "108 associações de drivers; 12 grupos e 41 locais de resíduos preservados; investigação parcial; nenhuma exclusão"
+    "version": "5.13.11.30 TESTE",
+    "environment": "PC FORTE, Windows x64, 2560x1440, DPI 120",
+    "status": "Somente leitura; inventário estável; resíduos parciais; sem operações de manutenção",
+    "observations": "174 entradas/27 MSIX; 177 associações/63 INFs; 44 grupos/161 locais preservados; 8 fontes ok e 3 candidatos; encerramento normal"
   },
-  "notes_pc_forte": "Primeira bateria real v5.13.11.26: 174 entradas e 27 MSIX estaveis no PC FORTE; 168 associações de drivers; 44 grupos de resíduos em consulta parcial; nenhuma atualização, remoção ou limpeza real validada. Candidata .27 aprovada em CI Windows, build x64 e politicas; novo teste presencial ainda pendente. Roadmap 26/42.",
-  "test_diagnostics": "PC FORTE .29 174 apps/27 MSIX, 177 associacoes drivers/63 INFs (+9 e +3 versus .28), 33 marcados inventario, 34 sem desinstalacao; .30 separa estatisticas, detalha fontes e tem CI aprovada. Homologacao presencial pendente, 26/42.",
-  "pc_forte_28": "174 apps, 27 MSIX, 3 candidatos, 168 drivers, residuos 867 classificados (213 protegidos, 611 insuficientes, 43 candidatos); UI 44 grupos/161 locais. Coleta ligada apos primeiro inventario. .29 com CI aprovada e validacao presencial pendente; 26/42.",
-  "pc_forte_29": "174 programas, 27 MSIX, 3 candidatos, 177 drivers (+9 identificadores/3 INFs vs .28), 44 grupos e 161 locais de residuos em cobertura parcial; 33 flags InventoryOnly e 34 sem uninstall. Sem operacoes reais. 26/42."
+  "latest_real_test_pc_fraco": {
+    "version": "5.13.11.24 TESTE",
+    "status": "MSIX 0x80040154 persistente; 55 observados, sem prova de remoção de 19 MSIX",
+    "observations": "108 associações/50 INFs; 12 grupos/41 locais preservados; sem exclusão"
+  },
+  "mission_work4": {
+    "status": "Implementação e CI final aprovadas; validação física pendente",
+    "implemented": [
+      "Snapshot MSIX da sessão em falhas, sem receitas para entradas retidas",
+      "Fusão por identidade do snapshot e cache monotônico",
+      "Orçamento/motivos de resíduos por origem e guard durante enumeração",
+      "Correlação consultiva SetupAPI com round trip exato; WMI/SetupAPI nativos aprovados no runner",
+      "Teto de 160 tentativas de diagnóstico incluindo modo/falha",
+      "Modal contido no monitor do owner após DPI"
+    ],
+    "field_validation": "Pendente PC FORTE e PC FRACO",
+    "residual_deletion_enabled": false,
+    "driver_maintenance_enabled": false,
+    "completed_checkpoints": [],
+    "validation": {
+      "residuals": "360/360",
+      "msix": "41/41",
+      "installers": "95/95",
+      "multisource": "69/69",
+      "catalog": "17/17",
+      "matching": "18/18",
+      "layout_resolution_tabs": 132,
+      "modal_geometry": 24,
+      "driver_assertions": 95,
+      "native_wmi_associations": 61,
+      "native_store_mapped": 42,
+      "native_store_partial": true
+    }
+  },
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668933034",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668933046",
+  "artifact": {
+    "id": 12379295504,
+    "name": "GerenciadorFinal-v5.13.11.31-8656bb1e-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668933034/artifacts/12379295504",
+    "expires_at": "2026-10-28T20:17:50Z",
+    "size_bytes": 58885631,
+    "zip_sha256": "ed4b61056e5690c388674d082b5c7f190659adda1fb1b6fa3caa4ee7b23941fd",
+    "verified_manifest_files": 273,
+    "source_sha": "de6ee62d2da87cebe8d82933bc4f8bf5c0099634",
+    "merge_sha": "8656bb1edc3103e4df33dd2fe210456f13e6b219",
+    "authenticode_signed": false
+  }
 }

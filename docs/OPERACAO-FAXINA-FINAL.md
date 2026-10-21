@@ -1,5 +1,268 @@
 # Operação Faxina Final — revisão consolidada
 
+## MISSÃO WORK 4 — v5.13.11.31 TESTE
+
+21/10/2026 · Roadmap **26/42 (61,9%)** · PR #40 permanece Draft.
+Código final desta etapa: `de6ee62d2da87cebe8d82933bc4f8bf5c0099634`.
+CI do código final **APROVADA**: [regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668933022),
+[build x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668933034) e
+[política/privacidade](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668933046).
+Última mudança de produto: `51726d1`; suíte integrada final: `de6ee62`.
+A atualização documental posterior não altera o executável escolhido abaixo.
+
+### Resultado e limites
+
+Implementadas quatro frentes funcionais: retenção MSIX em memória após falha,
+fusão de atualizações vinculada ao snapshot correto e cache monotônico,
+cobertura de resíduos por origem com enumeração protegida, e matriz consultiva
+INF publicado ↔ Driver Store por SetupAPI. Diagnóstico opt-in agora contém
+falhas de gravação e limita **todas** as tentativas, inclusive liga/desliga, a 160
+por processo. O modal de resíduos é contido no monitor do proprietário após DPI.
+Não há nova exclusão, instalação/remoção de driver, envio, dependência ou privilégio.
+
+A leitura privada do Markdown, log .30 e imagem .30 foi realizada. Somente as
+contagens sanitizadas abaixo entram no repositório; nenhum log bruto, caminho
+pessoal, imagem do desktop ou ID PnP foi anexado. A captura .30 confirma
+`Otimizar` em uma linha; esse botão não foi refeito.
+
+A primeira validação Windows da nova API reprovou zero vínculos mapeados. A
+instrumentação sem caminhos isolou a recusa: `SetupGetInfPublishedNameW` devolveu
+o nome simples do INF no runner. A fronteira nativa agora aceita somente esse
+nome exato, ancorado em Windows/INF; outro relativo, INF diferente, ADS, caminho
+fora do Store e reparse continuam recusados. O teste de integração foi mantido:
+na revisão `bdc277b`, 66 associações WMI, 45 vínculos confirmados, resultado
+parcial pelos INFs ausentes. CI dessa revisão: [regressões 39667750464](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39667750464).
+
+A revisão de consumidores do snapshot também encontrou `CurrentUserVersion` do
+Windows Terminal verificando só `status=ok`. O novo helper exige **zero falhas**,
+entrada atual, família conhecida e identidade auditada. Cinco testes adicionais
+impedem confirmação por retenção, fonte parcial ou publisher de exibição falso.
+Nenhuma instalação ocorreu; a correção foi feita antes da entrega .31.
+
+**Não comprovado:** causa do HRESULT MSIX no PC FRACO; causa das nove associações
+e três INFs adicionais do PC FORTE; causa de alertas AVG; ganho de desempenho real;
+exclusividade de resíduos; compatibilidade e assinatura criptográfica de drivers.
+A nova correlação SetupAPI é evidência de localização, nunca de segurança para
+manutenção. D2 ainda não inclui histórico de instalação do Windows nem enumera
+pacotes sem associação WMI. Nenhum checkpoint aberto foi marcado concluído.
+
+### Baseline confirmado
+
+- PR #40 aberto, Draft, base `main` em `9ac3dc1`; HEAD inicial `900051d`,
+  implementação anterior .30 em `e0db292`. As três Actions de `900051d` estavam
+  aprovadas: 39660291360, 39660291409 e 39660291496.
+- PC FORTE .30: 174 entradas, 27 MSIX, 140 com rota de desinstalação, 34 sem rota;
+  33 flags `InventoryOnly`. Logo uma entrada sem rota não possui essa flag;
+  flag e possibilidade de ação são conceitos diferentes. Nove sem editor e 45
+  sem versão não receberam metadados inventados.
+- Partição de atualizações: **3 + 31 + 28 + 106 + 1 + 2 + 3 = 174**,
+  respectivamente candidato, somente inventário, sem versão superior, sem
+  catálogo, versão principal divergente, registro antigo e ambíguo. Os quatro
+  incertos são os três ambíguos mais a divergência principal; não somá-los de novo.
+  Oito fontes responderam, catálogo RuckZuck com 631 entradas. Uma atualização de
+  software do Windows foi somente consultada.
+- Drivers: 177 associações/177 IDs, 63 INFs, 20 compartilhados; três sem INF válido,
+  dois sem presença determinada, uma assinatura WMI indeterminada. As nove
+  associações a mais entre .28/.29 são observações adicionais, sem prova de
+  instalação. Os 103 registros históricos sem correspondência não são removíveis.
+- Resíduos: **213 + 611 + 43 = 867** grupos gerais classificados. Quarenta e quatro
+  grupos/161 locais na união de auditorias não são o mesmo universo de 867 grupos.
+  `origens=12` contabiliza raízes/visões visitadas na descoberta; `fontes=13` é a
+  união de identificadores das auditorias, incluindo integrações e histórico.
+  `3925` é o contador da descoberta; `4041` agrega o orçamento e outras auditorias,
+  inclusive App Paths, que já debitava orçamento fora daquele contador. Não é
+  evidência de duplicidade nem 116 candidatos ignorados. A .30 não permite
+  reconstruir a distribuição exata desse delta: as novas métricas por origem
+  permitirão essa conferência na .31.
+- Parcialidade `EntryLimit + ReadFailure + DepthLimit + LinkSkipped`, com falhas
+  pontuais em AppData e ProgramData. Velocidade não remove limites: duas camadas,
+  2.500 entradas por raiz e 128 filhos por pasta. Diretórios no limite da segunda
+  camada registram profundidade conservadoramente, mesmo sem investigar o próximo
+  nível. ACL e reparse também preservam. Não aumentar orçamento para mascará-los.
+- Abertura instrumentada 325 ms, inventário inicial 813 ms; atualizações 6,43 s
+  inicialmente e 0,39 s na repetição. Cache de dez minutos e pooling explicam uma
+  hipótese consistente, não uma atribuição causal de toda a latência. RAM de
+  processo observada ~173,5 MB decimais; a métrica inicial não mede todas as
+  consultas posteriores. Encerramento normal não comprova aprovação AVG.
+
+### Mapa de dependências e barreiras
+
+| Área | Entrada → componentes → saída | Barreira preservada |
+| --- | --- | --- |
+| Inventário | Registro + WinRT/MSIX + manifestos de jogos → `AppServices.ScanAllInstalledApps`, `LocalMsixSnapshot`, `InventoryReconciler` → UI e proteção de resíduos | Falha de fonte mantém parcial; entradas retidas não recebem receita |
+| Atualizações | Snapshot de instalações → `Matching`, `RuckZuckCatalog`, `OfficialReleaseSources`, `MultiSourceMatcher` → candidatos | Identidade por referência; editor/versão/canal; catálogo não autoriza instalação |
+| Instalação de apps | Seleção individual → `VerifiedUpdaters`, `InstallerFileGuard`, preflight → instalador oficial → releitura | Hash e assinatura, confirmação da mesma instalação; não executado nesta missão |
+| Resíduos | Inventário + raízes permitidas → `BroadResidualDiscovery`, `ResidualScanBudget`, classificadores/merger → `ResidualResultIndex`, explorer/inspection | Guard de ancestrais, tetos/cancelamento, parcial preserva, `CanRemove=false` |
+| Drivers | WMI PnP e associação assinada → `DriverInventory`, `DriverPackageLinks`, `DriverStoreAudit` → tabela e metadados locais | SetupAPI somente leitura, round trip exato; `CanMaintain=false`; nenhuma escrita |
+| Histórico | Snapshot WMI completo → `DriverHistory` → hashes locais e diferenças | Parcial/vazio não substitui base; diferença não prova instalação/remoção |
+| Diagnóstico | Opt-in manual → `TestDiagnosticSession`/allowlist → log local existente | Máximo acumulado de 160 tentativas; falha desativa; sem IDs, caminhos ou envio |
+| Manutenção e entrega | UI/worker já existentes → tarefas em allowlist; três workflows → pacote x64 e hashes | Workers não ampliados; PR sem escrita/credenciais; main, atestação e release preservadas |
+
+### Matriz P0–P3
+
+Achado de implementação reproduzível é distinto de causa comprovada nos PCs.
+Nenhum P0 novo foi identificado nesta revisão; isso não equivale a ausência
+universal de vulnerabilidades. R4 e G1–G5 continuam contidos.
+
+| Prioridade / natureza | Arquivo e método | Antes → depois / efeito | Evidência e risco residual |
+| --- | --- | --- | --- |
+| P1, falha latente comprovada | `OfficialReleaseSources.cs`, `MultiSourceMatcher.Merge` | Resultado de outra linha podia ser reaplicado se o chamador entregasse lista errada → recusa por identidade do snapshot; revalida somente inventário | Fixture antiga aceitava o vínculo errado; agora exige recusa. Geração da UI já protegia o fluxo normal; não atribuir aos três candidatos reais. Risco: recusa conservadora de resultado incoerente |
+| P1, lacuna de proteção comprovada | `LocalMsixInventory.ReadCurrentUser`, `LocalMsixSnapshot.Read` | Falha após leitura válida eliminava a fotografia anterior da lista → retém apenas nesta sessão, sinaliza presença não confirmada e bloqueia receitas | Seis casos novos: falha, leitura parcial recente, base preservada, recuperação, processo sem base e vazio completo. Não corrige a causa do COM no PC FRACO |
+| P1, regressão contida antes da entrega | `WindowsTerminalUpdater.CurrentUserVersion`, `LocalMsixInventory.ConfirmedMicrosoftVersion` | Fonte parcial com status ok e fotografia retida podiam ser usadas na confirmação → exige fonte completa, atual e identidade auditada | Cinco testes MSIX adicionais; nenhum instalador executado. Retenção continua apenas protetora |
+| P1, robustez/privacidade comprovada | `TestDiagnosticDetail`, `TestDiagnosticSession.Write/SetProfile/Record` | Trocas de perfil geravam linhas fora do teto; sink podia lançar exceção → todas as tentativas limitadas; falha contém coleta | Churn de 500 trocas, teto 160, falhas/recusas e campos indevidos. Menos linhas úteis após muitas trocas é efeito intencional |
+| P2, medição comprovada | `BroadResidualDiscovery.InspectDirectory/InspectRegistryHive` | Item além do teto debitava orçamento antes de ser examinado → contagem só de itens examinados | Fixture 150 filhos resulta em raiz + 128; orçamento e contador coincidem |
+| P2, barreira defensiva | `BroadResidualDiscovery.InspectDirectory`, `InstallerFileGuard.PinDirectory` | Checagem prévia sem manter ancestrais presos durante enumeração → lease de raiz/filho até concluir leitura | Regressões de links, ACL, caminhos e guard existentes + nova fixture. Pode aumentar parcialidade se a trava for negada; não contorna ACL. Não comprova reprodução de toda corrida nativa |
+| P2, diagnóstico de cobertura | `ResidualScanBudget`, `ResidualCoverage.Combine`, `ResidualResultIndex` | Somente flags globais → entradas/motivos por origem, fotografia copiada e fusão sem dupla soma | Testes de fonte distinta, subtotal, imutabilidade e cobertura agregada. Processos já consultados agora também debitam orçamento |
+| P2, cobertura de drivers | `DriverStoreAudit.Resolve/CheckMapping/Capture` | WMI/INF não tinha vínculo verificável com Store → API Windows + conferência de volta ao INF exato | Fixtures adversariais de caminho/INF, limite/cancelamento/ACL e testes nativos no runner. Buffers limitados; falha fica indisponível. Sem história Windows, validação de catálogo/assinatura ou operação |
+| P2, confiabilidade de cache | `RuckZuckCatalog.GetCatalogAsync`, `OfficialReleaseSources.GetVersionAsync` | TTL dependia de relógio civil → relógio monotônico; status cache/HTTPS explícito | Relógios controlados sem sleeps de TTL; vencimento aos dez minutos, concorrência e cancelamento. Rede real dos PCs segue pendente |
+| P2, posicionamento | `ResidualExplorerDialog.OnShown/FitBounds` | Tamanho inicial baseado no monitor primário → limites físicos do monitor do owner após DPI | 24 combinações adicionais de geometria, inclusive coordenadas negativas, além da matriz UI. DPI físico 125% do PC FORTE ainda pendente |
+| P3, organização | README, ROADMAP, TESTES, PROGRESSO, índice | Referências atuais ainda apontavam a .26/.29/.30 → ponto de entrada .31 e roteiro consolidado | Links/políticas em CI; histórico anterior preservado abaixo e no Git. Sem novos relatórios por versão |
+
+### Roadmap: antes e depois, sem inflação
+
+| Checkpoint | Antes → depois | Evidência / o que falta |
+| --- | --- | --- |
+| I7 | Aberto → aberto | Snapshot MSIX corrigido e fixtures; falta conferir inventário em ambos os PCs |
+| R4 | Bloqueado → bloqueado | Nenhum botão de apagar; exclusividade, consentimento durável, revalidação e recuperação ainda não demonstrados |
+| R6 | Aberto → aberto | Mais rastreabilidade e proteção; os casos históricos reais ainda não têm atribuição exclusiva comprovada |
+| R7 | Aberto → aberto | Preservação sintética aprovada; falta desinstalação individual supervisionada nos dois PCs |
+| U6 | Aberto → aberto | Partição real de 174 explicada, identidade/cache reforçados; falta referência WinGet equivalente no mesmo PC/horário |
+| U8 | Aberto → aberto | Nenhuma instalação no PC realizada nesta missão; falta versão final confirmada e recuperação |
+| P5 | Aberto → aberto | Métricas .30 disponíveis, CI não substitui três sessões comparáveis nos dois PCs |
+| P6 | Aberto → aberto | AVG não reproduzido no runner; não há correção causal comprovada |
+| V5 | Aberto → aberto | Matriz/geometry CI; ainda falta legibilidade e fluidez em 1440×900 e 2560×1440/125% reais |
+| D2 | Parcial → parcial mais completo | Novo elo WMI ↔ INF publicado ↔ Store; histórico confiável do Windows e pacotes não associados permanecem pendentes |
+| D4 | Aberto → aberto | Interpretação precisa ser confrontada localmente com Windows em ambos os PCs |
+| G1 | Bloqueado → bloqueado, desenho abaixo | Sem provedor de fonte oficial/compatibilidade instalado |
+| G2 | Bloqueado → bloqueado, desenho abaixo | `IsSigned` WMI e localização INF não são validação criptográfica |
+| G3 | Bloqueado → bloqueado | Nenhum instalador de drivers ou API de escrita introduzido |
+| G4 | Bloqueado → bloqueado | Sem rollback demonstrado em VM e recuperação de falha |
+| G5 | Bloqueado → bloqueado | Depende de G1–G4 e consentimento específico; nenhum teste destrutivo em PC real |
+
+### Preparação G1/G2 e decisões rejeitadas
+
+O elo implementado é `DeviceId → INF WMI → INF publicado → Store`.
+A expansão deverá consultar Hardware IDs/Compatible IDs, SO/build, arquitetura,
+classe e pacote correspondente, com provedor oficial identificado por política,
+sem inferir URL pelo nome. A avaliação de um candidato deverá exigir evidências
+separadas de procedência, compatibilidade, SHA-256 de origem confiável e assinatura
+criptográfica/catálogo aplicável. Todos os estados desconhecidos recusam a
+operação. Nenhum desses dados autoriza escrita só por ter versão superior.
+
+G3/G4 só poderão ser desenhados após esse contrato, backup/export oficial e ensaio
+em VM/sistema descartável. A reversão depende de suporte real do dispositivo e
+Windows; não prometer rollback universal. Rede, vídeo, chipset, storage, pacote
+compartilhado e driver inbox devem ser cenários separados. Testar falha/energia e
+recuperação fora dos PCs pessoais antes de propor teste supervisionado.
+
+**Não implementado deliberadamente:** continuação automática da descoberta,
+aumento de 128/2.500/30.000, mais profundidade ou busca de perfis privados.
+Uma retomada por offset em enumeração mutável pode pular/repetir entradas e fingir
+completude. A paginação em memória de resultados e a inspeção voluntária já
+existentes continuam disponíveis, limitadas e canceláveis; uma continuação de
+leitura exige cursor/snapshot consistente, teto acumulado, invalidação por mudança
+e testes adversariais próprios. Não remover `PARCIAL` após inspecionar um local.
+
+### Commits e regressões intermediárias
+
+| Commit | Resultado |
+| --- | --- |
+| [a9338fa](https://github.com/walissonminel-1991/gerenciador-final/commit/a9338fa6dfa7cb3fb9d2fd0f1dea8267c045b253) | Retenção MSIX e versão .31 |
+| [7328132](https://github.com/walissonminel-1991/gerenciador-final/commit/73281321380d63366729e4d6b969603144bc23f6) | Identidade de snapshot e cache monotônico |
+| [490a47d](https://github.com/walissonminel-1991/gerenciador-final/commit/490a47d32b5f4188383f706f7469e749bc7378e1) | Cobertura, limites, guard e modal |
+| [f729775](https://github.com/walissonminel-1991/gerenciador-final/commit/f729775c163e6d853a3b8234d9dde30350c35d2b) | Driver Store consultivo e diagnóstico limitado |
+| [a59efe1](https://github.com/walissonminel-1991/gerenciador-final/commit/a59efe1deb0b26f767b72d7c39096c239d9a4689) | Processos no orçamento e normalização dos blobs |
+| [8bde7ef](https://github.com/walissonminel-1991/gerenciador-final/commit/8bde7efb8621615ff9e0a4148878ea0dd8bc482c) / [245b43b](https://github.com/walissonminel-1991/gerenciador-final/commit/245b43b7697a462e735531aab7dfd2a161fd82a4) | Localização da falha nativa sem caminhos/IDs no diagnóstico |
+| [bdc277b](https://github.com/walissonminel-1991/gerenciador-final/commit/bdc277bfd03cb535866b167ebf39949fc24583bb) | Nome publicado nativo exato; primeiro lote Windows integralmente aprovado |
+| [51726d1](https://github.com/walissonminel-1991/gerenciador-final/commit/51726d128b1665382a9585b5c156c82523d458c1) | Consumidor operacional recusa MSIX parcial/retido e identidade não auditada |
+| [de6ee62](https://github.com/walissonminel-1991/gerenciador-final/commit/de6ee62d2da87cebe8d82933bc4f8bf5c0099634) | Suíte de instaladores passa a compilar inventário/snapshot reais, removendo stub obsoleto |
+
+As regressões Windows [39666245130](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39666245130),
+[39666868542](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39666868542) e
+[39667390621](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39667390621)
+reprovaram a integração SetupAPI: primeiro zero vínculos, depois recusa isolada de
+caminho. São tentativas da mesma investigação, não três causas diferentes nos PCs.
+A assertiva de pelo menos um vínculo nativo válido foi mantida e aprovada após o
+fix. A rodada [39668166740](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668166740)
+reprovou a compilação do stub antigo da suíte de instaladores depois da nova
+confirmação MSIX. O stub foi removido e a suíte usa os componentes reais;
+compilação local sem avisos e 89/89 testes portáveis (seis exigem Authenticode
+Windows). Nenhuma dessas builds reprovadas foi entregue nesta missão.
+
+Onze capturas sintéticas foram produzidas no lote aprovado `bdc277b`; revisão
+visual direta de `Residuos-1280x720.png` e `Residuos-Preservacao-1440x900.png`
+confirmou botões de navegação/fechamento, detalhes, rolagens e preservação visíveis.
+Não é teste físico de DPI 125% no PC FORTE. O runner usa decoração de janela do
+Windows Server; a aparência da barra de título não reproduz o desktop do usuário.
+
+### Candidata aprovada e pacote conferido
+
+| Verificação do código final `de6ee62` | Resultado observado |
+| --- | --- |
+| Compilação principal com analisadores | Sem avisos/erros |
+| Comparação / catálogo / multifontes | 18/18 · 17/17 · 69/69 |
+| Instaladores verificados, sem instalar | 95/95 |
+| Resíduos e preservação | **360/360**, antes 351/351 |
+| MSIX e confirmação de identidade | **41/41**, antes 30/30 |
+| Drivers / diagnóstico opt-in | 95 assertivas OK contadas na etapa; WMI nativo 61 associações, 42 vínculos Store confirmados; matriz ainda parcial por INF ausente/inválido |
+| UI e DPI sintético | 132 combinações resolução/aba, 24 novos casos de contenção do modal; suites de RAM, bandeja, foco, cancelamento e fechamento aprovadas |
+| Encerramento de instaladores | 30/30; nenhum processo encerrado no ensaio |
+| Política / receptor isolado | 14/14 políticas, 10/10 Node; privacidade/expiração/falhas de disco e demais etapas Windows aprovadas |
+| Jobs opcionais / atestação main | Fontes/downloads reais opcionais não executados neste lote; atestação da main não executada |
+
+[ZIP Windows x64 TESTE aprovado](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39668933034/artifacts/12379295504),
+**58.885.631 bytes**, `GerenciadorFinal-v5.13.11.31-8656bb1e-TESTE-win-x64`.
+Retenção GitHub: até **28/10/2026, 17:17:50 (Fortaleza)**, sete dias.
+Runtime incluído; não requer SDK no computador do usuário.
+
+ZIP baixado para inspeção, sem executar: BUILD-INFO confirmou versão **5.13.11.31**,
+fonte **de6ee62d2da87cebe8d82933bc4f8bf5c0099634**, merge sintético
+**8656bb1edc3103e4df33dd2fe210456f13e6b219**, base **9ac3dc1**, execução
+**39668933034**. Os **273 arquivos** do manifesto foram conferidos, conjunto exato
+sem omissões/duplicações; total 274 entradas incluindo SHA256SUMS. Presença de
+EXE, DLL e runtime verificada. Atestação/Authenticode continuam ausentes;
+assinatura informada no BUILD-INFO: AUSENTE; AVG: NÃO VALIDADO.
+
+| Arquivo | SHA-256 |
+| --- | --- |
+| ZIP | `ed4b61056e5690c388674d082b5c7f190659adda1fb1b6fa3caa4ee7b23941fd` |
+| EXE | `26a57b007db4a842b7657559fa93ccb8434c75afec956a53a6e4d3dbc0cb8dc5` |
+| DLL | `08d7b69e9cb856b651c2af91dddff01ed95786ca503bae82800c9ee26a2320e7` |
+
+### Validação e fila seguinte
+
+Validações locais: build principal/layout sem avisos, comparação 18/18,
+catálogo 17/17, multifontes 69/69, MSIX 41/41 e testes de drivers/privacidade.
+As novas fixtures de resíduos passaram localmente; a suíte integral aborta no
+Linux em uma fixture preexistente de bibliotecas Steam com caminhos Windows.
+Isso não é aprovação da suíte: o runner Windows é a referência obrigatória.
+Um erro de compilação inicial da fixture nova (`CanRemove` é do achado,
+não do relatório) foi corrigido antes de enviar à CI. A expectativa insegura de
+snapshot trocado foi substituída por uma assertiva de recusa, sem retirar proteção.
+Os blobs de fontes enviados pela API foram normalizados em commit explícito
+conforme `.gitattributes`; sem force-push ou reescrita de histórico.
+
+- **Sem PC:** validar a continuação consultiva consistente, projetar parser
+  próprio de histórico Windows com limites/redação antes de habilitar leitura,
+  ampliar fixtures de identidade/canais e revisar catálogos somente com prova.
+- **PC FORTE:** executar primeiro [bateria consultiva atual](TESTES.md); resolver
+  amostras ambíguas reais antes de operações individuais de aplicativos.
+- **PC FRACO:** repetir inventário MSIX na mesma sessão, recuperação e UI/CPU/RAM;
+  nenhum reparo/reinstalação de Windows para esconder 0x80040154.
+- **Ambiente descartável:** desenho e testes futuros de aquisição, integridade,
+  instalação/reversão de driver, falha de boot/rede e recuperação. Fora desta build.
+
+Fontes primárias da implementação nativa:
+[SetupGetInfDriverStoreLocationW](https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupgetinfdriverstorelocationw)
+e [SetupGetInfPublishedNameW](https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupgetinfpublishednamew).
+Implementação própria, sem cópia de projetos terceiros ou nova dependência.
+
+**Decisão de segurança: exclusão de resíduos e manutenção de drivers continuam
+BLOQUEADAS.** CI verde somente habilita distribuição experimental para a bateria
+consultiva; não comprova segurança universal, eficácia, assinatura ou aprovação AVG.
+
+## Histórico preservado — revisão e incorporação até v5.13.11.26
+
 21/10/2026 · **v5.13.11.26 TESTE** · roadmap **26/42 (61,9%)**.
 
 Código inicial: [`5e3ecd4`](https://github.com/walissonminel-1991/gerenciador-final/commit/5e3ecd450d6e41ae8a432caca8c590375ef9585d).

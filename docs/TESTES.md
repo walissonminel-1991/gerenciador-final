@@ -1,273 +1,121 @@
-# Roteiro de testes — Gerenciador Final (candidata v5.13.11.30 TESTE, CI aprovada; referência presencial .29)
+# Roteiro de testes — v5.13.11.31 TESTE
 
-**21/10/2026: incorporação conservadora na .26; [relatório e roteiro consultivo](OPERACAO-FAXINA-FINAL.md). Último teste real do PC fraco: .24. A MSIX permanece parcialmente indisponível após retry na .24; proteger os resultados e não concluir que 19 apps foram desinstalados.** Primeiro fazer somente a bateria de interface e coleta local, depois consultas, e somente após backup as operações individuais de atualização, desinstalação e reparo. **Envio real continua indisponível nesta candidata.** A ideia de autenticação GitHub com conta existente foi estruturada em [piloto restrito](PILOTO-AUTENTICACAO-GITHUB.md), dependente de uma GitHub App e repositório privado exclusivos.
+21/10/2026 · PR #40 Draft · Roadmap **26/42 (61,9%)**.
+Código `de6ee62` aprovado nas três Actions. [Pacote escolhido e hashes](OPERACAO-FAXINA-FINAL.md#candidata-aprovada-e-pacote-conferido). Este arquivo é
+um procedimento pendente de campo, não um relatório de testes presenciais.
+Resultados .30 do PC FORTE e matriz de achados: [revisão consolidada](OPERACAO-FAXINA-FINAL.md).
+Testes anteriores permanecem no CHANGELOG, documentos históricos e histórico Git.
 
-Este roteiro serve a mantenedores e revisores. **Não é um relatório de testes
-concluídos nem uma garantia de segurança.** Registre ambiente, compilação,
-versão, resultados e erros encontrados ao executar cada verificação.
+## Preparar os dois computadores
 
-## Preparar ambiente
+PC FORTE: 2560×1440, DPI real 120/125%. PC FRACO: 1440×900, escala a confirmar.
+Começar no PC FORTE, refinar resíduos e repetir a bateria consultiva no PC FRACO.
 
-1. Use o computador Windows x64 disponível, mantendo o antivírus ativo; faça backup antes de operações administrativas.
-2. Para testar o binário já compilado, utilize o artefato específico da build Windows aprovada na PR #40; não é necessário instalar SDK neste PC apenas para abri-lo.
-3. Confira a versão e os hashes informados na build, não misture binários de candidatos diferentes. Não ignore alertas do AVG nem contorne o SmartScreen.
-4. Abra o aplicativo e observe abas, tema, ícone GF, restauração da bandeja e disponibilidade dos botões. Teste a janela de privacidade: recusar, simular **sem enviar**, autorizar somente coleta local e revogar. Verifique que isso não tenta conexão de envio.
+1. Baixar o ZIP x64 da execução aprovada indicada no PR. Extrair a pasta inteira;
+   runtime incluído, sem instalar SDK ou misturar arquivos de outras candidatas.
+2. Conferir `BUILD-INFO.txt` e `SHA256SUMS.txt`, versão .31, SHA fonte e merge
+   sintético. Registrar qual artefato foi usado. Hash não é assinatura digital.
+3. Manter AVG/Defender/SmartScreen ativos. Se bloquearem, parar e registrar
+   horário, etapa, código/nome da detecção e hash. Nenhuma exceção ou desativação.
+4. Não executar otimização, limpeza, reparo, instalação, desinstalação ou ações em
+   lote nesta primeira bateria. Nenhuma operação de driver faz parte desta build.
+5. Ativar manualmente `Teste PC FORTE` ou `Teste PC FRACO` em Limpeza e desempenho,
+   **antes de repetir** consultas. Padrão desligado, seleção só nesta sessão.
 
-## Testes consultivos — sem alterar o Windows
+## Bateria A — somente leitura, nos dois PCs
 
-- **Aplicativos:** listar instalações, pesquisar e consultar atualizações via catálogos HTTPS e fontes oficiais.
-  Não clicar em atualização/desinstalação em massa neste teste.
-- **Limpeza e desempenho:** conferir prévia de limpeza, espaço de cada disco,
-  botões `Atualizar discos` (texto completo) e `Analisar limpeza`.
-- **Reparo e rede:** ao iniciar, `Reparar rede` deve estar desabilitado; clicar
-  `Analisar rede` e conferir adaptador, gateway, DNS e TCP/443 no painel/log.
-  Com testes saudáveis, o reparo deve continuar desabilitado.
-- **Planos de energia:** verificar plano ativo sem trocá-lo.
-- **Inicialização e sistema:** consultar dados, sem alterar configurações.
+| Ordem / checkpoints | Ação objetiva | Evidência mínima e critério |
+| --- | --- | --- |
+| 1 · I7 | Atualizar lista duas vezes na mesma sessão; pesquisar MSIX no filtro Inventário | `REGISTRO_PROGRAMAS.LIDO`, `MSIX.LEITURA`, `JOGOS.LEITURA`, `TESTES.INVENTARIO` e `TESTES.MSIX`; total, observados/retidos, falhas, fonte completa/parcial. PC FORTE .30 tinha 174/27 MSIX; variação legítima deve ser explicada, não forçada |
+| 2 · I7/MSIX | Se 0x80040154 ocorrer naturalmente, atualizar lista uma vez; não reparar Windows | Falha permanece PARCIAL; após leitura completa anterior nesta sessão, entradas antigas ficam retidas/sem receita e com presença não confirmada. Sem base nesta sessão não haverá retenção inventada de 19 apps da execução passada. Recuperação completa remove a marca antiga e substitui a fotografia |
+| 3 · U6 | Verificar atualizações; repetir; cancelar uma consulta e repetir | `TESTES.ATUALIZACOES`, `MULTIFONTES.COBERTURA`, tempos, contagem de fontes ok e rótulos cache/HTTPS no painel. Nenhuma instalação. A soma das categorias deve igualar o total avaliado; candidatos sem receita mantêm site/Store como alternativa |
+| 4 · U6 | Se WinGet já existe, no mesmo PC/horário consultar `winget upgrade` sem outros argumentos; comparar com nova consulta GF | Somente listagem, sem `--all`, sem ID de pacote, sem instalar/reparar WinGet. Planilha manual privada por caso A/B: versões instalada/GF/WinGet, canal, arquitetura, escopo e editor conferido localmente. Explicar identidade ausente, catálogo sem entrada, versão incerta, preview/ESR, registro antigo e principal divergente; não tratar mais candidatos como mais segurança |
+| 5 · R6 | Investigar resíduos uma vez e consultar Resumo | `RESIDUOS_GERAIS.CONSULTA_FIM`, `TESTES.RESIDUOS`, `TESTES.LIMITES`, `TESTES.FONTES`, `TESTES.ORIGEM`. Separar grupos gerais classificados, preservados, insuficientes e candidatos; grupos/locais reunidos são outro agregado. Flags/ACL/links devem permanecer PARCIAL |
+| 6 · R6 | Conferir fabricante de jogo, save/perfil, cache, software portátil e exemplo homônimo, se aparecerem; usar Inspecionar local voluntariamente | Capturas recortadas da decisão, filtros/origens, paginação, motivo e foco; mascarar caminhos/IDs. Não abrir conteúdo nem apagar. Finalidade pelo nome não prova exclusividade; pasta sem ARP pode ser instalação ativa. Cancelar inspeção preserva fotografia anterior |
+| 7 · D2/D4 | Consultar drivers duas vezes sem conectar/desconectar dispositivos | `TESTES.DRIVERS`, `DRIVERS.VINCULOS`, `TESTES.PACOTES`, `DRIVERS.HISTORICO`: WMI bruto/associações/IDs, PnP consultados, INFs/compartilhados, mapeados/indisponíveis/inconsistentes/não consultados. Nada é removível por estar ausente ou não mapeado |
+| 8 · D4 | Conferir localmente rede, vídeo, storage e um INF compartilhado com o Windows, se disponíveis | Nome/fornecedor/versão/presença/INF e caminho Store em tooltip, apenas no PC. Registrar resultado agregado e divergências por caso, sem exportar IDs. `IsSigned` WMI não é validação criptográfica. Não tentar explicar 168→177 sem histórico real correlacionado |
+| 9 · V5 | Abrir modal de resíduos com lista extensa e detalhes longos; buscar, filtrar origem/classificação, paginar e cancelar; Tab/Shift+Tab/Esc/fechar; testar bandeja | Capturas gerais recortadas nos DPI reais; controles visíveis, janela no monitor correto, rolagem dark, foco recuperado e fechamento sem travar. Modal diante de botões não significa controles cortados. `Otimizar` deve continuar em uma linha |
+| 10 · P5/P6 | Três sessões da mesma build, condições comparáveis; 2 min em repouso e bandeja/restauração | `DESEMPENHO.LOCAL`: Startup, Inventory, Updates, ResidualDiscovery/Classification/Inspection; anotar tempo até UI, até inventário e até consultas concluídas separadamente; CPU/RAM em 30/60/120 s. Não atribuir rede ao desenho da UI nem comparar MB decimal com MiB |
+| 11 · Privacidade | Desativar perfil e repetir uma consulta; alternar perfil não reinicia teto | Sem novas linhas de observação `TESTES.*`; linha MODO de desligamento somente se ainda houver orçamento. Diagnóstico básico existente permanece. Máximo total de 160 tentativas, incluindo modo/falhas; ausência de linha após teto não significa zero resultado. Nenhum envio/arquivo novo |
+| 12 · I7/R6/P6 | Diagnóstico completo; fechar normalmente e reabrir | `TESTES.MANUTENCAO` e `APP.ENCERRAMENTO_NORMAL`. Conferir PARCIAL persistente por fonte; não transformar histórico PnP em lixo. Desaparecer um alerta numa sessão não conclui compatibilidade AVG |
 
-## Bateria prioritária — PC FORTE (v5.13.11.26 TESTE)
+As consultas não devem provocar novas instalações nem mudar permissões. Falha
+ou cancelamento preserva dados e resultados anteriores; não insistir em loops.
+Não provocar erro COM, remover componentes do Windows, criar ACL negada no perfil
+real nem instalar antivírus para simular um caso.
 
-Objetivo: verificar a coleta e **refinar a interpretação dos resíduos antes** de
-avançar a gerenciamento de drivers. O nome PC FORTE identifica o computador
-principal de testes; PC FRACO designa o equipamento de menor capacidade.
-Esta bateria não substitui a exigência de validação nos **dois** computadores
-para I7, R7, U8, P5, V5 e D4 do roadmap.
+### Campos novos para comparar a .31
 
-**Preparo e rastreabilidade** — usar somente o ZIP x64 da .26 vinculado ao
-código `8578fa3` (merge sintético `165069f3`), obtido na
-[build Windows aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39642731837).
-Conferir `BUILD-INFO.txt`, `SHA256SUMS` e hash do ZIP
-`8a30abca5cefcee7d5168c5741ac71975abc294c0517ea99d133c71bf91d66e2`.
-Manter AVG/Defender/SmartScreen ativos; não criar exceção, desativar serviço
-ou baixar build de procedência diferente. Anotar Windows, arquitetura, escala DPI,
-resolução, hora, tempo de abertura, consumo aproximado CPU/RAM e
-`v5.13.11.26 TESTE`; não publicar identificadores do PC.
+`TESTES.MSIX`: `observados`, `retidos`, `falhas`, `parcial`.
+`TESTES.PACOTES`: `pacotes`, `mapeados`, `indisponiveis`, `inconsistentes`,
+`nao_consultados`, `pnp`, `wmi_brutos`, `parcial`. Vínculos confirmados não validam
+história, compatibilidade, hash, catálogo ou assinatura de drivers.
 
-### Etapa 1 — leitura de programas e resíduos (sem exclusão)
+`TESTES.ORIGEM`: código fixo, entradas e flags de limite de entradas,
+profundidade, leitura, links, tempo, cancelamento e indisponibilidade. As contagens
+representam observações debitadas no orçamento da descoberta, não arquivos únicos
+ou espaço recuperável. Um mesmo local pode ser observado por fontes distintas.
 
-- [ ] Abrir, fechar e reabrir; navegar nas abas e conferir contagens do inventário
-  antes/depois de atualizar. Registrar fontes indisponíveis e status de **parcial**
-  sem interpretar ausência MSIX como desinstalação.
-- [ ] Na investigação existente, conferir grupos e caminhos vinculados a softwares
-  **ainda instalados**, fabricantes compartilhados e vestígios históricos;
-  separar **preservar**, **suspeita sem confirmação** e **vínculo confirmado**.
-- [ ] Inspecionar exemplos de perfis, cookies, credenciais, favoritos, saves,
-  backups, playlists, caches e fontes de instalação **apenas quando aparecerem na
-  consulta atual**. Conferir explicação no detalhe e que conteúdo não é aberto.
-- [ ] Testar consulta parcial e cancelamento pela interface, sem forçar falhas
-  destrutivas. Resultado parcial deve preservar dados, não ampliar remoção.
-- [ ] Verificar que R4 continua bloqueado: nenhum botão de investigação deve
-  apagar pastas, Registro, perfil, Driver Store, WinSxS ou cache do Windows.
-- [ ] Comparar visualmente candidatos com um desinstalador conhecido, **sem
-  executar limpeza externa**, classificando falsos positivos e falsos negativos.
-  Não assumir que cache ou pasta órfã é dispensável.
+| Código | Origem fixa |
+| --- | --- |
+| 1 | AppData do usuário atual |
+| 2 | ProgramData |
+| 3 | Program Files |
+| 4 | Atalhos do menu Iniciar |
+| 5 | Processos em execução |
+| 6 | App Paths |
+| 7 | Inicialização/serviços |
+| 8 / 9 | Registro HKCU, visões 64 / 32 bits |
+| 10 / 11 | Registro HKLM, visões 64 / 32 bits |
+| 0 | Categoria não identificada; sem caminho no log |
 
-### Etapa 2 — cobertura de atualizações e desinstalação comum
+## Entrega privada das evidências de campo
 
-- [ ] Guardar fotografia do inventário e candidatos (nome, editor, versão,
-  origem e motivo de indeterminação; ocultar dados sensíveis).
-- [ ] Comparar cobertura com WinGet **no mesmo PC e período**, apenas como
-  referência independente; distinguir diferenças de identidade, arquitetura,
-  versões e fontes, sem forçar equivalência.
-- [ ] Só após backup e resultado satisfatório da etapa 1, escolher **um programa
-  não essencial**, com desinstalador oficial e sem dados pessoais importantes,
-  para atualização individual supervisionada. Conferir versão e identidade
-  após a operação e que a lista se atualiza. Sem `Atualizar todos`.
-- [ ] Em rodada separada, com backup e programa de teste não essencial,
-  verificar desinstalação pelo mecanismo oficial. Reconsultar inventário
-  e resíduos, **sem excluir** achados pós-desinstalação; conferir preservação
-  de dados compartilhados.
+- Um `GerenciadorFinal-Diagnostico-v5.13.11.31.log` por PC/sessão relevante,
+  identificado manualmente no texto da conversa. Não publicar log bruto no GitHub.
+- Resolução, escala, Windows/arquitetura, versão/hash do artefato e ordem executada.
+  O programa não infere PC FORTE/FRACO automaticamente.
+- Capturas recortadas: inventário completo/parcial; resumo de resíduos e um
+  exemplo preservado; tabela/estado de drivers; modal visível no DPI real.
+  Mascarar usuário, caminhos, IDs, contas e itens pessoais antes de compartilhar.
+- Para AVG: texto/código da detecção, instante e hash; somente captura recortada
+  do aviso se necessário. Não enviar binário ativo para criar exceção.
+- Comparação WinGet por casos equivalentes, no mesmo PC e em horário próximo;
+  se não estiver disponível, marcar pendente sem instalar pré-requisitos.
 
-### Etapa 3 — drivers: observação, não manutenção
+I7, R7, U8, P5, V5 e D4 exigem os dois computadores. R6 exige resolver casos
+históricos concretos; U6 exige explicar divergências reais de fontes. D2 ainda
+exige histórico confiável do Windows e cobertura além das associações WMI.
 
-- [ ] Executar `Consultar drivers`, anotar quantidade, parcialidade, INFs
-  ausentes/inválidos, dispositivos presentes/ausentes e versões sem formato
-  reconhecível. Repetir na mesma sessão para identificar instabilidade.
-- [ ] Conferir manualmente alguns itens no Gerenciador de Dispositivos:
-  mesmo ID PnP, dispositivo, fornecedor, versão informada pelo Windows e INF
-  quando disponível. Mesmo INF em dois dispositivos **não** significa duplicata.
-- [ ] Registrar divergências de WMI, itens sem INF e assinaturas indeterminadas
-  como **pendentes de interpretação**; não marcar driver como obsoleto ou
-  compatível somente por comparação textual.
-- [ ] Não instalar, atualizar, desinstalar, remover do Driver Store nem
-  reverter drivers nesta candidata. G1–G5 seguem não implementados.
-  Testes de operação sobre drivers exigirão outra versão, pré-validação
-  de pacote/assinatura/compatibilidade, plano de recuperação e ambiente isolado.
+## Bateria B — aplicativos, separada e supervisionada
 
-### Encerramento e decisão
+Somente depois de A e do refinamento de resíduos: escolher **um** aplicativo não
+essencial sem dados sensíveis, salvar backup e definir uma rota de recuperação
+pelo instalador oficial verificado. Ponto de restauração não substitui backup.
 
-Classificar cada resultado como **aprovado, reprovado, inconclusivo ou não
-executado**. Guardar versão/hash, passos e resultados sanitizados; se houver
-travamento, erro do AVG, `0x80040154`, divergência de inventário, corrupção
-de dados ou ameaça à inicialização, parar as ações de escrita e continuar
-somente a coleta segura. Não elevar os **26/42** apenas por instalar uma build
-ou por ter testes sintéticos aprovados: cada checkpoint depende da evidência
-descrita no roadmap. Depois repetir os cenários aplicáveis no PC FRACO.
+1. Registrar versão/identidade/escopo/arquitetura e obter consentimento individual.
+2. Testar uma atualização com receita validada; conferir hash/assinatura,
+   código de saída, versão final e atualização automática da lista. Se depender
+   de site/Store, usar a alternativa e validar a nova leitura; nenhum sucesso presumido.
+3. Em etapa separada, testar o desinstalador oficial, observando as escolhas de
+   preservação do próprio instalador. Reconsultar inventário e resíduos; não usar
+   limpeza heurística externa nem liberar o botão de exclusão do GF.
+4. Se houver falha, parar essa operação, registrar resultado e seguir a rota de
+   recuperação prevista. Não testar lotes nem aplicativos essenciais do Windows.
 
-## Evidência sanitizada do PC FORTE — 21/10/2026, .26
+Repetir somente os cenários autorizados no PC FRACO após a validação no PC FORTE.
+Não houve execução remota destas operações nesta missão.
 
-O diagnóstico local e cinco imagens foram analisados sem publicar dados
-privados ou IDs de dispositivos. Startup etapa 329,74 ms, inventário inicial
-666,33 ms e repetido 467,82/455,90 ms; pico de memória do processo ~151 MB.
-Não equivale a benchmark de uso prolongado ou desempenho do PC FRACO.
+## Ambiente descartável e manutenção do Windows
 
-- **Inventário:** 174 entradas e contagem estável, 140 desinstaláveis, 34
-  somente inventário; 27 MSIX registrados com status ok, 159 pacotes
-  enumerados. Jogo Steam 42 entradas observadas, cinco adicionadas.
-- **Atualizações:** 2 candidatos (7-Zip e Outlook/Store); fontes consultadas
-  8, sucesso em 7, catálogo RuckZuck 631. Há 107 sem correspondência,
-  31 só inventário, três correspondências ambíguas e um timeout de uma
-  fonte oficial. Windows Update retornou zero na sessão. Nenhuma escrita.
-- **Drivers:** 168 associações em consulta não parcial, 60 INFs, 19
-  compartilhados, três sem INF válido. Mudanças do histórico próprio:
-  quatro novos, 18 não observados, dois alterados — **não são provas de
-  remoção ou atualização**. Fotos mostram nomes/provedores não informados
-  e versões WMI incomuns, requerendo conferência por dispositivo/ID.
-- **Resíduos:** 12 origens, 3.925 entradas, 43 candidatos, 15 instalações
-  a conferir, 11 perfis/fabricantes e 42 jogos ativos. Parcial por limite,
-  falha de leitura, profundidade e link; UI unificada mostra 44 grupos e
-  161 locais. Fabricantes/jogos foram tratados para preservar; não há
-  comprovação de exclusividade nem autorização de exclusão.
-- **Rede/encerramento:** HTTPS 443 concluído, DNS com falha isolada;
-  diagnóstico inconclusivo e sem reparo automático. Encerramento normal;
-  sem alerta AVG visível nesta sessão, sem comprovar compatibilidade universal.
+Drivers G1–G5 continuam bloqueados. Instalação, remoção, rollback, export/backup e
+recuperação de falha de drivers só poderão ser ensaiados em VM/sistema descartável
+após desenho/validação de origem, compatibilidade e assinatura. Não usar
+`pnputil /delete-driver` ou equivalente nos PCs pessoais. Saves, credenciais,
+WinSxS, Driver Store, pacotes compartilhados e pontos de restauração são preservados.
 
-**Decisão:** manter 26/42 e R4 bloqueado. A próxima candidata .27 usa
-`Description` do mesmo registro PnP quando falta `Name` e permite busca/tooltip
-local pelo ID, sem exportar IDs em logs. As três Actions da .27 foram aprovadas: [regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648484834),
-[build x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648484877) e
-[políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648485243).
-A regressão confirmou 351/351 resíduos, 30/30 MSIX e o caso novo do fallback
-PnP no conjunto de drivers. Pacote .27 de teste: [artefato temporário](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648484877/artifacts/12368243340)
-(válido até 28/10/2026 segundo GitHub), fonte `77d9522`, merge sintético
-`3e66b334`. Conferir BUILD-INFO e SHA256SUMS; arquivo sem assinatura.
- Ainda pendentes testes de atualização/desinstalação
-supervisionadas e confirmação de detalhes dos resíduos em cada caso.
-
-## Artefato .30 aprovado em CI, não homologado nos PCs reais
-
-[Pacote Windows x64 .30 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681896/artifacts/12372688145).
-Código `e0db292`, merge sintético `5d290162` segundo o nome do
-artefato. Conferir BUILD-INFO e SHA256SUMS; sem assinatura, retenção
-indicada até 28/10/2026. Aprovados:
-[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681832)
-(351/351 resíduos, 30/30 MSIX, 132 combinações de layout e
-testes das novas métricas),
-[build x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681896)
-e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659682111).
-O produto ainda precisa de validação presencial e não ganhou
-permissão para remover resíduos ou pacotes de drivers.
-
-## Bateria da .30 — diagnóstico sem operações em drivers
-
-A .29 no PC FORTE registrou 177 associações WMI e 63 INFs, contra
-168/60 na .28, com nove novos IDs segundo o histórico local, nenhum
-não observado e nenhum alterado. O mesmo PC registrou 175 PnP
-consultados, antes 166. Não concluir alteração de driver instalado,
-apenas mudança entre snapshots. Faça conferência manual dos dispositivos
-somente pelo Gerenciador de Dispositivos local; não publicar IDs ou
-números de série.
-
-Ao testar a .30, selecionar PC FORTE *antes de Atualizar lista*.
-Conferir `TESTES.INVENTARIO`: `so_inventario` e
-`sem_desinstalacao` são contagens diferentes por definição.
-No log da .29, 33 versus 34; a .30 deve acrescentar a
-diferença sem flag. `TESTES.FONTES` passa a discriminar
-ProgramData/ProgramFiles/StartMenu/integrações por categorias
-fixas, sem revelar caminhos ou abrir conteúdo. Na aba Limpeza
-verificar o botão visual **Otimizar**, que continua com nome
-acessível **Otimizar unidades**. Mantêm-se os mesmos orçamentos
-de consulta e a exclusão de resíduos indisponível.
-
-## Bateria de confirmação da .29
-
-[ZIP portátil .29 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511079/artifacts/12371893437), código `bde12b5`, merge sintético `4d28bea9` conforme nome do artefato. Conferir BUILD-INFO e SHA256SUMS. CI:
-[regressões](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657510961),
-[build](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511079),
-[política](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511084);
-todos aprovados. Retenção indicada até 28/10/2026, sem release estável.
-
-No **PC FORTE**, antes de disparar consultas, abrir Limpeza e
-desempenho e selecionar **Teste PC FORTE**. Fazer Atualizar lista,
-Verificar atualizações, Consultar drivers, investigar resíduos e abrir
-Diagnóstico completo; não executar manutenção. Confirmar presença de
-`TESTES.INVENTARIO`, `TESTES.RESIDUOS` e
-`TESTES.MANUTENCAO`. Os contadores de resíduos devem explicitar
-`grupos_avaliados`, `filtrados_ativos`,
-`filtrados_sem_evidencia` e `candidatos_gerais`;
-valores diferentes entre computadores exigem análise, não exclusão.
-
-Conferir se os botões Analisar limpeza/Diagnóstico completo, seletor
-de testes e linha de unidades estão **inteiramente visíveis**, na
-escala 125% real (2560×1440), com o mouse fora dos tooltips.
-Depois repetir no PC FRACO, incluindo 1440×900 e sua escala real.
-O teste sintético de 132 combinações não substitui a tela física.
-Em nenhum caso copiar IDs, nomes pessoais ou conteúdo de arquivos
-para o repositório. Se a investigação permanecer parcial, preservar.
-
-## Build da .28 aprovada em CI, não validada presencialmente
-
-[Pacote Windows x64 da .28](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313649/artifacts/12371580574).
-Código fonte testado `381806164ce864114b42d228190081a02a0e57d6`,
-merge sintético `0adca046` (conferir BUILD-INFO e SHA256SUMS);
-retenção indicada até 28/10/2026. Pacote não assinado. Aprovados:
-[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313662)
-(351/351 resíduos, 30/30 MSIX, 132 combinações de layout e testes
-positivos/negativos do opt-in),
-[compilação](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313649)
-e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313735).
-O histórico mantém as duas falhas intermediárias (fixture e layout)
-corrigidas antes da aprovação. Não equivale a validação nos PCs reais.
-
-## Diagnóstico ampliado de testes — v5.13.11.28 TESTE
-
-Modo voluntário restrito aos dois laboratórios. A opção é **Desligado** por
-padrão e não fica salva entre execuções. No PC FORTE, abra **Limpeza e
-desempenho** e selecione **Teste PC FORTE** ao lado de Diagnóstico completo;
-no outro computador, selecione **Teste PC FRACO**. O registro `TESTES.MODO`
-confirma a seleção e registra resolução/DPI sem usar um identificador persistente.
-
-Depois de ativar, solicite novamente, nesta ordem: **Atualizar lista**,
-**Verificar atualizações**, **Consultar drivers**, **Investigação de resíduos**
-e **Diagnóstico completo**. As linhas locais `TESTES.INVENTARIO`,
-`TESTES.ATUALIZACOES`, `TESTES.DRIVERS`, `TESTES.RESIDUOS`,
-`TESTES.LIMITES`, `TESTES.FONTES` e `TESTES.MANUTENCAO`
-registram somente contagens autorizadas. Alguns grupos podem não aparecer se
-a etapa for interrompida ou ficar indisponível. Não equiparar ausência de
-linha a resultado zero. Limites nos resíduos permanecem vigentes.
-
-A seleção **Teste desligado** impede novas observações extras e
-`TESTES.MODO estado=desativado` registra a mudança. Logs anteriores da
-mesma sessão permanecem no arquivo habitual; não é criado outro relatório,
-upload ou arquivo de configuração. Nenhum evento `TESTES.*` é uma
-autorização de limpeza, atualização ou remoção de drivers. Não publicar o
-conteúdo do painel visual caso exponha usuário, caminhos ou outros dados.
-
-Comparar os dois PCs apenas quando as mesmas operações foram feitas em
-candidatas idênticas. As diferenças podem refletir hardware, bibliotecas,
-permissões e instalações próprias de cada PC, e não necessariamente erros.
-A métrica `versao_incomum` apenas indica texto WMI fora de um formato de
-versão simples; não significa pacote antigo, incompatível ou inseguro.
-O total de 103 instâncias PnP históricas não observadas no PC FORTE não é
-quantidade de drivers descartáveis. Ainda exigimos evidência presencial
-para concluir checkpoints do roadmap.
-
-## Testes administrativos — apenas em ambiente controlado
-
-Após backup e autorização explícita, avaliar individualmente funções de limpeza,
-atualização supervisionada, reparo DISM/SFC, alterações de energia, restauração e rede. Confirmar
-UAC, mensagens, códigos de saída e se operações interrompidas relatam falha.
-Não provocar defeitos de rede ou remover programas apenas para acionar botões.
-`Redefinir rede` é uma operação avançada separada de `Reparar rede`.
-
-## Instalador e segurança
-
-- Inspecionar o projeto e o binário efetivamente compilado, incluindo dependências.
-- Testar instalação/desinstalação e o atalho GF em máquina isolada.
-- Confirmar que não são criadas exclusões no antivírus ou regras de firewall.
-- Investigar alertas antivírus sobre o artefato testado antes da distribuição;
-  não instruir ninguém a contornar bloqueios.
-- Para versões assinadas, verificar assinatura, carimbo de data/hora e SHA-256.
-
-Para releases, arquivar os resultados reais dos testes no repositório (Issues ou
-relatório vinculado), com sistema operacional e hash do binário testado.
+Testes de instalador GF, atalhos e operações administrativas existentes (rede,
+DISM/SFC, limpeza, energia/restauração) são outra bateria em máquina isolada,
+após backup e consentimento específico. Não criar defeitos para acionar botões.
+Assinatura Authenticode, atestação de procedência e SHA-256 são evidências distintas;
+a candidata desta missão permanece experimental e sem assinatura.

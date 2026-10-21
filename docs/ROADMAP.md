@@ -1,158 +1,30 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**Candidata com CI aprovada: v5.13.11.30 TESTE · Progresso: 26/42 (61,9%).**
-Os percentuais indicam checkpoints e não segurança ou prontidão para release.
+**v5.13.11.31 TESTE · Progresso: 26/42 (61,9%).**
+Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
-## PC FORTE — bateria .29 e qualidade do diagnóstico .30
+## Estado atual — MISSÃO WORK 4
 
-O diagnóstico da .29 confirma 174 aplicativos e 27 MSIX, oito fontes de
-atualização e três candidatos. A única variação entre .28 e .29 apareceu
-em drivers: 168 para **177 associações**, 60 para **63 INFs**, nove IDs
-novos e nenhum ausente/alterado no primeiro confronto; na segunda
-consulta já não houve diferenças. PnP consultados passaram de 166 para
-175. O fato **não identifica** causa nem comprova atualização/instalação.
-Antes de habilitar G1–G5, investigar o histórico PnP no PC FORTE,
-conferindo identidades localmente, sem colocar IDs em logs públicos.
+Retenção MSIX em memória, identidade de snapshot na fusão de atualizações,
+TTL monotônico, limites de resíduos por origem, enumeração protegida e correlação
+consultiva INF ↔ Driver Store implementados. Diagnóstico opt-in permanece local,
+com teto total de 160 tentativas. Código `de6ee62` aprovado nas três Actions;
+[matriz de testes, pacote e hashes](OPERACAO-FAXINA-FINAL.md#candidata-aprovada-e-pacote-conferido).
 
-O modo ampliado da .29 finalmente registrou inventário: total 174,
-33 marcados `InventoryOnly`, 140 desinstaláveis e 34 sem rota de
-desinstalação: critérios diferentes, não um aplicativo desaparecido.
-A .30 separa os dois indicadores e subdivide as origens fixas de falha
-da descoberta de resíduos, sem caminhos, ampliação de escopo ou novos
-privilégios. A interface mantém o botão de otimização em uma linha.
-A .29 manteve 44 grupos/161 locais de resíduos parciais, incluindo
-43 candidatos gerais e duas fontes com falhas pontuais. Resultado
-coerente, mas não suficiente para remoção. A candidata .30 passou em
-[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681832),
-[compilação x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681896)
-e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659682111);
-[ZIP portátil experimental](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39659681896/artifacts/12372688145),
-sem assinatura e ainda sem teste presencial. Continua **26/42**.
+O último teste real do PC FORTE é a **.30** (174 apps, 27 MSIX, 177 associações/63
+INFs, 44 grupos/161 locais de resíduos parciais). No PC FRACO, o último é a **.24**,
+com MSIX 0x80040154 persistente e 55 entradas observadas; não significa remoção
+dos 19 aplicativos não enumerados. Não houve nova bateria presencial nesta missão.
 
-## Evidência presencial — PC FORTE .28 e refinamento .29
+- [Matriz de achados, dependências, avanços e limites](OPERACAO-FAXINA-FINAL.md)
+- [Roteiro objetivo PC FORTE/PC FRACO, somente leitura primeiro](TESTES.md)
+- [Estado dos 42 checkpoints em JSON](PROGRESSO.json)
+- [Histórico de versões](../CHANGELOG.md) e [organização](ORGANIZACAO-REPOSITORIO.md)
 
-A .28 comprovou que o modo de teste pode registrar métricas de qualidade
-sem nomes/IDs de hardware no diagnóstico compartilhável. Inventário:
-174 entradas, 27 MSIX; cobertura de atualizações: 3 candidatas e 8/8
-fontes respondendo. Drivers: 168 associações, 60 INFs, 3 sem INF,
-3 sem nome/editor, 2 versões em formato incomum, zero diferenças do
-histórico. A investigação de resíduos permanece parcial: 867 grupos
-avaliados em classificação geral, 213 filtrados por proteção,
-611 sem evidência independente e 43 candidatos gerais; auditorias
-reunidas mostram 44 grupos e 161 locais. Este agregado não significa
-44 grupos limpos ou 213 remoções possíveis. Falhas de leitura em duas
-origens, nenhum descarte realizado. O modo PC FORTE foi ligado após a
-primeira leitura de inventário, portanto ainda falta TESTES.INVENTARIO.
-
-A .29 refina o nome dos contadores e redimensiona controles da aba
-Limpeza conforme DPI. [CI Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657510961),
-[compilação](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511079)
-e [segurança](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511084)
-aprovadas. [Artefato .29 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39657511079/artifacts/12371893437)
-não assinado; verificar BUILD-INFO e SHA256SUMS. Ainda depende da
-validação visual no PC FORTE e da bateria no PC FRACO. Nenhum checkpoint
-novo; R4 e G1–G5 continuam bloqueados. **26/42 (61,9%).**
-
-## Coleta comparativa de testes — v5.13.11.28
-
-A v5.13.11.27 no PC FORTE manteve 174 aplicativos, 27 MSIX e 168
-associações WMI (60 INFs; 3 inválidos/ausentes); histórico sem mudanças.
-A investigação geral de resíduos continuou parcial com 43 candidatos,
-44 grupos combinados e 161 locais, sem exclusão. O diagnóstico completo
-encontrou 166 dispositivos PnP e 103 registros históricos não observados;
-estes não são drivers removíveis comprovados.
-
-A .28 acrescenta **somente coleta numérica opt-in** por sessão com escolha
-manual PC FORTE/FRACO. Sem IDs, nomes, caminhos, arquivo novo, envio ou
-mudança nos limites e permissões. As três Actions do código estão aprovadas:
-[regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313662),
-[build x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313649)
-e [políticas](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39654313735).
-351/351 resíduos, 30/30 MSIX, 132 combinações de layout e testes de
-recusa de campos inválidos. Duas tentativas de regressão falharam em
-fixture e layout 1280×720, e ambas as falhas foram corrigidas antes
-da aprovação. O novo modo exige testes presenciais nos dois PCs.
-Roadmap permanece 26/42, R4 e G1–G5 bloqueados.
-
-## Primeiro teste presencial — PC FORTE, v5.13.11.26
-
-O diagnóstico comprova 174 entradas estáveis em consultas repetidas, 27 MSIX,
-168 associações de drivers, 60 INFs e três entradas sem INF válido. Foram
-oferecidas duas atualizações, mas nenhuma foi instalada; a pesquisa geral de
-resíduos foi parcial (43 candidatos gerais; interface combinada de 44 grupos e
-161 locais), sem exclusão. A rede teve HTTPS bem-sucedido e falha isolada no
-DNS; o aplicativo encerrou normalmente. Não foi comprovada a atribuição dos
-resíduos, compatibilidade de drivers ou eficácia de desinstalações. Os testes
-reais de **ambos** os PCs e R4 continuam pendentes. Veja [TESTES](TESTES.md).
-
-A .27 introduz apenas descrição PnP do mesmo ID como fallback de nome e busca
-local por ID; sem correção inferida de versões nem instalação/remoção de driver.
-CI aprovada ([regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648484834), [build x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648484877) e [segurança](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39648485243)); novo teste no PC FORTE ainda necessário; progresso **26/42**.
-
-## Incorporação conservadora — v5.13.11.26 TESTE
-
-Motivos consultivos de preservação na inspeção existente, agrupamento de dados
-subordinados ao aplicativo e tratamento de recusa de segurança como consulta
-parcial. Implementação própria fundamentada em fontes oficiais; nenhuma regra
-externa executável nem catálogo remoto adicionado. Sem checkpoint novo:
-**26/42 (61,9%)** e R4 suspenso. [Procedência, validação e roteiro](OPERACAO-FAXINA-FINAL.md#incorporação-conservadora--v5131126-teste).
-
-## Revisão da faxina — v5.13.11.25 TESTE
-
-Correções de preservação MSIX parcial, propagação de cobertura ao diagnóstico,
-nomes de dispositivos, identidade de arquivos/instaladores, ABI de restauração
-e scripts de distribuição; contrato GUID/revisão do Windows Update preservado
-entre UI e worker. Resíduos continuam somente leitura; nenhuma nova
-etapa funcional foi declarada concluída. [Relatório, evidências e roteiro](OPERACAO-FAXINA-FINAL.md).
-
-## Última bateria real — PC fraco (21/10/2026, v5.13.11.24)
-
-A v5.13.11.24 manteve a interface responsiva e a leitura de 108 associações
-de drivers, 50 INF (três associações sem INF válido); 2 possíveis atualizações
-e uma atualização Windows consultada, sem execução de manutenção.
-
-**Regressão MSIX real:** erro de ativação
-`COMException(0x80040154)` persistiu após a única tentativa de retry.
-Inventário observado: **55** entradas (19 aplicativos MSIX não enumerados)
-em vez das 74 entradas observadas na .23. A lista deve ser classificada
-como **PARCIAL**; não há prova de que os aplicativos foram removidos.
-O diagnóstico completo da outra etapa não apaga a falha MSIX do inventário.
-
-Descoberta geral de resíduos: 12 origens consultadas, 2.000 entradas
-observadas, 11 grupos candidatos; limites `ReadFailure+InventoryPartial+
-DepthLimit+LinkSkipped`. Há 2 fontes com falhas pontuais de leitura
-e 0 fontes globalmente indisponíveis identificadas nessa consulta.
-A janela combinada preserva 12 grupos/41 locais; resultados não autorizam
-exclusão. Este diagnóstico valida a separação entre falhas pontuais e
-origens não consultadas, não o diagnóstico completo de todos os caminhos.
-
-**Próxima decisão técnica:** investigar ativação WinRT/MSIX de modo
-não invasivo, revisar nomes/versões incorretos de dispositivos WMI e
-testar se o inventário volta na mesma sessão. Não executar
-reinstalação, alteração de permissões, PowerShell auxiliar ou limpeza
-de dados privados para mascarar falha de leitura.
-
-## Organização e evidências
-
-- [Índice de arquivos atuais e históricos](ORGANIZACAO-REPOSITORIO.md)
-- [Roteiro atual e revisão da faxina](OPERACAO-FAXINA-FINAL.md)
-- [Resultados anteriores .23](TESTE-PC-FRACO-2026-10-21-v5.13.11.23.md)
-- [Missão técnica Work 3](MISSAO-WORK3-v5.13.11.17.md)
-- [Histórico resumido de versões](../CHANGELOG.md)
-- [Workflows ativos e removidos](ACTIONS-ATUAIS-E-HISTORICAS.md)
-
-O histórico detalhado das alterações de v5.13.11.0–.22 permanece no
-CHANGELOG e nos commits Git; ele não é repetido neste roadmap para
-evitar a acumulação de um diário inteiro antes do checklist vivo.
-
-## Entregas deste lote
-
-- Confirmação de atualização vinculada à instalação escolhida; validação adicional de arquitetura e escopo do SumatraPDF.
-- Diagnóstico agregado dos motivos de cobertura, sem nomes de aplicativos nos novos registros de diagnóstico.
-- Recusa de confirmação de ausência quando a leitura do Registro falha; evidência explícita de inventário parcial na auditoria histórica.
-- Correção da avaliação de desinstalador ausente e consideração da alternativa silenciosa.
-- Aba DRIVERS com consulta local sob demanda, fornecedor, versão, INF, presença e assinatura informada pelo Windows.
-- Arquivo de diagnóstico identifica também a revisão da versão.
+R6 e U6 receberam melhorias verificáveis, mas continuam sem evidência de campo
+suficiente. D2 ganhou o elo Store; histórico Windows e pacotes sem associação
+permanecem pendentes. **Nenhum dos 16 checkpoints abertos foi encerrado.**
+R4 e G1–G5 continuam bloqueados. Consultas não concedem permissão de excluir.
 
 ## Checklist
 
@@ -207,7 +79,7 @@ evitar a acumulação de um diário inteiro antes do checklist vivo.
 ### Investigação de drivers — 2/4 (50%)
 
 - [x] D1 — Comparação histórica PnP somente leitura. Evidência: HistoricalDeviceAudit.cs
-- [ ] D2 — Correlacionar dispositivos, pacotes e histórico Windows. Evidência: Correlação dispositivo/INF/presença implementada em parte. Driver Store completo e histórico Windows continuam pendentes.
+- [ ] D2 — Correlacionar dispositivos, pacotes e histórico Windows. Evidência: WMI/INF/presença e vínculo publicado ↔ Store via SetupAPI implementados na .31. Histórico Windows e pacotes sem associação continuam pendentes.
 - [x] D3 — Inventário funcional na aba DRIVERS. Evidência: Tabela WMI sob demanda; teste real de coleta no runner Windows e matriz de layout aprovados. Sem instalação/remoção.
 - [ ] D4 — Validar interpretação nos computadores. Evidência: Etapa futura
 
@@ -219,33 +91,11 @@ evitar a acumulação de um diário inteiro antes do checklist vivo.
 - [ ] G4 — Reversão quando suportada e recuperação de falhas. Evidência: Etapa futura
 - [ ] G5 — Validar fluxo controlado nos computadores. Evidência: Etapa futura
 
-## Próxima etapa prioritária — PC FORTE antes dos testes de drivers
+## Próxima etapa prioritária
 
-**Ambientes:** PC FORTE = computador principal de testes; PC FRACO =
-equipamento de menor capacidade. A última bateria presencial documentada
-permanece a .24 no PC FRACO; a .26 passou em CI, **não** em teste presencial.
-
-O [roteiro operacional atualizado](TESTES.md) estabelece uma progressão:
-1. **Somente leitura, PC FORTE** — confirmar versão/hash da .26, inventário
-   completo ou parcial, desempenho, estabilidade/AVG e segurança de cada
-   descrição de resíduos. Os dados pessoais não devem ser inspecionados,
-   copiados nem removidos.
-2. **Refinar resíduos** — comparar achados ambíguos com as instalações reais,
-   proteger fabricantes/jogos/perfis e corrigir falsos vínculos com testes
-   reproduzíveis. Não reativar R4 por achar uma pasta "órfã"; exclusividade,
-   consentimento durável, revalidação e proteção contra redirecionamento
-   precisam de comprovação independente.
-3. **Atualizações e desinstalação comum** — comparar fontes com referência
-   independente no mesmo equipamento; após backup, testar uma operação
-   individual não essencial por vez e verificar identidade, versão, resultado
-   e resíduos em consulta posterior. Não executar lotes automáticos.
-4. **Drivers somente leitura** — confrontar WMI, dispositivo PnP, INF,
-   presença, fornecedor e versão com o Gerenciador de Dispositivos. Separar
-   ausência de informação de incompatibilidade; preservar resultados parciais.
-   Repetir consultas para localizar divergências antes de ampliar D2.
-5. **Confirmar no PC FRACO** os cenários de cobertura, interpretação,
-   interface e desempenho aplicáveis. Não declarar concluídos checkpoints que
-   exigem os dois computadores com evidência de apenas um.
+Seguir [TESTES](TESTES.md): primeiro bateria A no PC FORTE, refinar casos
+históricos, repetir A no PC FRACO; operações individuais de apps somente na
+bateria B após backup/consentimento. Drivers continuam apenas leitura.
 
 ### Evidências para avançar sem maquiar o percentual
 
@@ -259,8 +109,8 @@ O [roteiro operacional atualizado](TESTES.md) estabelece uma progressão:
   exclusão real; nenhum programa de terceiro ou limpeza por heurística
   substitui essa comprovação.
 - **D2** requer completar a correlação de dispositivos, pacotes do Driver
-  Store e histórico confiável do Windows. A coleção WMI/INF atual, inclusive
-  as 53 verificações sintéticas, cobre apenas uma parte do objetivo.
+  Store e histórico confiável do Windows. A matriz WMI/INF/Store atual cobre apenas parte do objetivo;
+  validar também a interpretação do histórico real.
 - **G1–G5** continuam em zero: não há motor seguro de obtenção, validação,
   instalação, remoção ou reversão de drivers nesta versão.
 
@@ -277,8 +127,9 @@ e só depois em hardware de teste não crítico. Proibidos a remoção em massa,
 limpeza heurística de Driver Store, substituição silenciosa de drivers do
 sistema e promessa de rollback quando não disponível.
 
-**Decisão de checkpoint nesta revisão documental:** manter **26/42 (61,9%)**;
-está registrado o plano de teste, não uma nova função concluída. A branch
+**Decisão de checkpoint nesta missão:** manter **26/42 (61,9%)**;
+as melhorias foram implementadas e verificadas, mas os critérios de campo dos
+checkpoints abertos não foram satisfeitos. A branch
 de teste e o PR #40 permanecem Draft, sem merge/release.
 
 ## Desenvolvimento posterior
@@ -287,7 +138,7 @@ A gestão de drivers permanece não implementada: fontes oficiais, compatibilida
 
 ## Limites da validação
 
-- A CI cobre compilação, regressões de comparação, catálogos, instaladores, drivers, resíduos, MSIX, privacidade, encerramento, layout/bandeja/RAM e ativação do pacote. Consultas WMI ao vivo e downloads têm caminhos manuais opcionais; só são validados quando executados. Consultar o resultado acima antes de considerar o lote aprovado.
+- A CI cobre compilação, regressões de comparação, catálogos, instaladores, drivers, resíduos, MSIX, privacidade, encerramento, layout/bandeja/RAM e ativação do pacote. WMI/SetupAPI somente leitura são exercitados no runner Windows; fontes online e downloads mantêm jobs manuais opcionais. Consultar o resultado acima antes de considerar o lote aprovado.
 - O runner Windows não reproduz o AVG, os dispositivos, a resolução nem a carga dos computadores do usuário.
 - A CI não executa instaladores reais de aplicativos, não valida fontes online ao vivo e não comprova compatibilidade universal.
 - A tabela de drivers não enumera todo o Driver Store e não permite instalar, remover ou reverter pacotes.
