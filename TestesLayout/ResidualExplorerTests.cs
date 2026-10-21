@@ -56,6 +56,49 @@ internal static class ResidualExplorerTests
             Console.WriteLine($"OK Explorador de resíduos {size.Width}x{size.Height}: busca, filtro, páginas, seleção e botões");
             window.Close();
         }
+        // Regressão do PC fraco: filtrar origem nao deve deixar outros
+        // locais do mesmo produto visiveis no painel direito.
+        var distinctOrigins = new ResidualAuditReport("App de teste", false,
+            [
+                new ResidualAuditFinding(@"C:\ProgramData\AplicativoTeste", "Dados comuns", 1,
+                    "comum", ResidualDisposition.PreserveData, ResidualSource.CommonData),
+                new ResidualAuditFinding(@"C:\Users\Teste\AppData\Roaming\AplicativoTeste", "Configuração", 1,
+                    "usuario", ResidualDisposition.PreserveData, ResidualSource.UserData),
+                new ResidualAuditFinding(@"HKEY_LOCAL_MACHINE\SOFTWARE\AplicativoTeste", "Registro", 1,
+                    "registro", ResidualDisposition.PreserveShared, ResidualSource.Registry)
+            ], [], Incomplete: true, Coverage: new ResidualCoverage(ResidualScanIssue.DepthLimit));
+        using (var window = new ResidualExplorerDialog(new[] { distinctOrigins }))
+        {
+            window.Show(); Until(() => window.Ready && !window.Busy, "Filtro de origem não carregou");
+            var origins = Descendants(window).OfType<ComboBox>().Single(c => c.Name == "ResidualSource");
+            var kinds = Descendants(window).OfType<ComboBox>().Single(c => c.Name == "ResidualFilter");
+            origins.SelectedIndex = 2;
+            Until(() => !window.Busy && window.CurrentPage?.LocationsAvailable == 1 &&
+                window.Locations.Rows.Count == 1 &&
+                window.Locations.Rows[0].Key.Contains("ProgramData"),
+                "Dados comuns não isolou a origem nos locais visíveis");
+            Require(window.CurrentPage!.Reports.Single().Findings.All(f => f.Sources == ResidualSource.CommonData) &&
+                window.SummaryText.Contains("1 locais disponíveis"),
+                "Contagem do painel inclui locais ocultos por filtro");
+            kinds.SelectedIndex = 3;
+            Until(() => !window.Busy && window.CurrentPage?.Matching == 0 &&
+                window.Locations.Rows.Count == 0,
+                "Categoria compartilhada e Dados comuns deveriam ter interseção vazia");
+            Require(window.Locations.EmptyMessage.Contains("Nenhum local corresponde") &&
+                window.Groups.EmptyMessage.Contains("Nenhum grupo corresponde"),
+                "Filtro vazio deve explicar que não houve correspondência");
+            kinds.SelectedIndex = 1; origins.SelectedIndex = 0;
+            Until(() => !window.Busy && window.CurrentPage?.Matching == 0,
+                "Análise parcial não deve inventar candidato revisável");
+            Require(window.Groups.EmptyMessage.Contains("Nenhum candidato revisável") &&
+                window.SummaryText.Contains("ANÁLISE PARCIAL"),
+                "A classificação revisável vazia deve preservar o alerta parcial");
+            kinds.SelectedIndex = 0; origins.SelectedIndex = 4;
+            Until(() => !window.Busy && window.Locations.Rows.Count == 1 &&
+                window.Locations.Rows[0].Key.Contains("HKEY_LOCAL_MACHINE"),
+                "Alternar entre origens não restaurou Registro");
+            window.Close();
+        }
         using (var window = new ResidualExplorerDialog(reports,
             (path, _) => Task.FromResult(new ResidualInspectionResult(
                 path, [], new ResidualCoverage(), "Nível consultado sem itens listados."))))
