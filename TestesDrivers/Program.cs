@@ -39,6 +39,17 @@ Check(accepted == 159 && !TestDiagnosticDetail.Record("AMBIENTE",
     ("largura", 1280), ("altura", 720), ("dpi", 96), ("logicos", 4)),
     "Limite global de 160 observacoes nao reinicia ao alternar o perfil PC FORTE/FRACO");
 TestDiagnosticDetail.SetProfile(0, line => { emitted.Add(line); return true; });
+Check(TestDiagnosticDetail.TryFormat(1, "RESIDUOS",
+    new (string, int)[] {
+        ("grupos", 44), ("locais", 161), ("examinados", 4041),
+        ("grupos_avaliados", 867), ("candidatos_gerais", 43),
+        ("filtrados_ativos", 213), ("filtrados_sem_evidencia", 611),
+        ("grupos_omitidos", 0), ("locais_omitidos", 0), ("fontes", 13),
+        ("indisponiveis", 0), ("falhas_leitura", 2),
+        ("nao_avaliados_desconhecidos", 1), ("parcial", 1)
+    }, out string resumoResiduos) && resumoResiduos.Contains("grupos_avaliados=867") &&
+    213 + 611 + 43 == 867,
+    "Detalhamento de residuos separa grupos examinados e resultados exibidos");
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
 var c = a with { DeviceId = "USB\\THREE", Signed = null };

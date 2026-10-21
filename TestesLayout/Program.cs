@@ -436,6 +436,16 @@ internal static class LayoutTests
                         throw new Exception($"Rolagem fantasma: {name} aba={tab}");
                 }
 
+                if (tab == 2)
+                {
+                    var profile = Descendants(form).OfType<ComboBox>()
+                        .SingleOrDefault(c => c.Name == "TestDiagnosticProfile");
+                    if (profile?.Parent?.Parent is not TableLayoutPanel preview ||
+                        preview.RowCount != 1 || preview.Height < 46 ||
+                        preview.Controls.OfType<Button>().Any(b => b.Height < 24) ||
+                        profile.Height < 16)
+                        throw new Exception($"Linha do diagnostico de testes cortada: {name} {resolution}");
+                }
                 var allButtons = Descendants(form).OfType<Button>()
                     .Where(b => b.Visible).ToArray();
                 // DRIVERS permite consulta, sem instalacao ou remocao.

@@ -1531,9 +1531,12 @@ internal sealed partial class MainForm : Form
             Margin = new Padding(7, 0, 7, 4), Padding = new Padding(9, 6, 9, 6),
             BackColor = PanelBackground
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        // Linhas dimensionadas pelo DPI real. Evitar que botoes e seletor sejam
+        // cortados pelo resumo de discos em 125% / 150%, sem aumentar cards.
+        float dpiFactor = Math.Max(1f, DeviceDpi / 96f);
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(40 * dpiFactor)));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(48 * dpiFactor)));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(23 * dpiFactor)));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -1589,7 +1592,7 @@ internal sealed partial class MainForm : Form
         modePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 175));
-        _cleanupPreview.Text = "Coleta ampliada apenas para testes.";
+        _cleanupPreview.Text = "Ative antes das consultas; repita as etapas.";
         _cleanupPreview.Dock = DockStyle.Fill;
         _cleanupPreview.ForeColor = Muted;
         _cleanupPreview.TextAlign = ContentAlignment.MiddleLeft;
@@ -2924,7 +2927,10 @@ internal sealed partial class MainForm : Form
         TestDiagnosticDetail.Record("RESIDUOS",
             ("grupos", allReports.Count), ("locais", allReports.Sum(x => x.Findings.Count)),
             ("examinados", coverage.EntriesExamined),
-            ("protegidos", coverage.ProtectedGroups), ("insuficientes", coverage.InsufficientGroups),
+            ("grupos_avaliados", broad.Coverage?.CandidatesExamined ?? 0),
+            ("candidatos_gerais", broad.Reports.Count),
+            ("filtrados_ativos", broad.Coverage?.ProtectedGroups ?? 0),
+            ("filtrados_sem_evidencia", broad.Coverage?.InsufficientGroups ?? 0),
             ("grupos_omitidos", coverage.ReportsOmitted), ("locais_omitidos", coverage.LocationsOmitted),
             ("fontes", coverage.SourcesConsulted?.Count ?? 0),
             ("indisponiveis", coverage.SourcesUnavailable?.Count ?? 0),
