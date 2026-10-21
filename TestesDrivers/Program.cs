@@ -30,6 +30,15 @@ Check(!TestDiagnosticDetail.Enabled &&
     !TestDiagnosticDetail.Record("AMBIENTE", ("largura", 1920), ("altura", 1080),
         ("dpi", 96), ("logicos", 8)) && emitted.Count == countBeforeDisableCheck,
     "Desligar coleta estendida impede gravacao adicional");
+TestDiagnosticDetail.SetProfile(2, line => { emitted.Add(line); return true; });
+int accepted = 0;
+for (int i = 0; i < 170; i++)
+    if (TestDiagnosticDetail.Record("AMBIENTE", ("largura", 1280),
+        ("altura", 720), ("dpi", 96), ("logicos", 4))) accepted++;
+Check(accepted == 159 && !TestDiagnosticDetail.Record("AMBIENTE",
+    ("largura", 1280), ("altura", 720), ("dpi", 96), ("logicos", 4)),
+    "Limite global de 160 observacoes nao reinicia ao alternar o perfil PC FORTE/FRACO");
+TestDiagnosticDetail.SetProfile(0, line => { emitted.Add(line); return true; });
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
 var c = a with { DeviceId = "USB\\THREE", Signed = null };
