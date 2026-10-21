@@ -47,6 +47,12 @@ internal static class ResidualExplorerTests
             Until(() => !window.Busy && window.CurrentPage?.Matching == 200, "Busca não percorreu todos os grupos");
             var filter = Descendants(window).OfType<ComboBox>().Single(t => t.Name == "ResidualFilter"); filter.SelectedIndex = 3;
             Until(() => !window.Busy && window.CurrentPage?.Matching == 100, "Filtro global não foi aplicado");
+            Directory.CreateDirectory("LayoutCaptures");
+            using (var shot = new Bitmap(window.Width, window.Height))
+            {
+                window.DrawToBitmap(shot, new Rectangle(Point.Empty, window.Size));
+                shot.Save($"LayoutCaptures/Residuos-{size.Width}x{size.Height}.png");
+            }
             Console.WriteLine($"OK Explorador de resíduos {size.Width}x{size.Height}: busca, filtro, páginas, seleção e botões");
             window.Close();
         }
@@ -56,6 +62,7 @@ internal static class ResidualExplorerTests
             window.Show(); Until(() => window.Ready && !window.Busy, "Fotografia para cancelamento indisponível");
             Find(window, "ResidualInspect").PerformClick(); Until(() => window.Busy, "Inspeção não iniciou");
             Find(window, "ResidualCancel").PerformClick();
+            Until(() => window.SummaryText.Contains("Consulta cancelada"), "Animação de cancelamento não entregou o evento");
             pending.SetResult(new("fictício", [], new(), "NÃO APLICAR RESULTADO ANTIGO"));
             Until(() => !window.Busy, "Cancelamento não liberou a interface");
             Require(!window.DetailText.Contains("NÃO APLICAR") && window.CurrentPage?.Matching == 1000, "Resultado atrasado/cancelado substituiu fotografia");
