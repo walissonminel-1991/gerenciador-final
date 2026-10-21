@@ -352,7 +352,7 @@ internal static class BroadResidualDiscovery
             {
                 using (process)
                 {
-                    if (budget is not null && !budget.CanContinue()) continue;
+                    if (budget is not null && !budget.Visit()) continue;
                     try { names.Add(process.ProcessName); }
                     catch (Exception ex) when (ex is InvalidOperationException or
                         System.ComponentModel.Win32Exception) { budget?.MarkIncomplete(); }
@@ -644,7 +644,7 @@ internal static class BroadResidualDiscovery
             foreach (string source in new[] { "AppData", "ProgramData", "ProgramFiles", "StartMenu",
                 "HKEY_CURRENT_USER (64 bits)", "HKEY_CURRENT_USER (32 bits)", "HKEY_LOCAL_MACHINE",
                 "HKEY_LOCAL_MACHINE (32 bits)", "RunServices", "Processes", "AppPaths" })
-                if (!budget.SourcesConsulted.Contains(source)) budget.SourcesUnavailable.Add(source);
+                if (!budget.SourcesConsulted.Contains(source)) budget.Unavailable(source);
         }
         var scanCoverage = budget.Coverage with { CandidatesNotEvaluated = incomplete || budget.Incomplete ? null : 0 };
         var reports = Classify(found, installed, activeGameNames, liveEvidence,

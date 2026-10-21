@@ -26,6 +26,11 @@ internal static class ResidualSourceBudgetTests
         check(budget.Coverage.SourceDetails!.Single(x => x.Source == "StartMenu").Issues.HasFlag(ResidualScanIssue.SourceUnavailable) &&
             !budget.Coverage.SourceDetails!.Single(x => x.Source == "AppData").Issues.HasFlag(ResidualScanIssue.SourceUnavailable),
             "Fonte indisponível distinta não contamina a última raiz consultada");
+        var processBudget = new ResidualScanBudget(maxEntries: 1);
+        _ = BroadResidualDiscovery.ReadRunningProcessNames(processBudget);
+        check(processBudget.Entries == 1 && processBudget.Coverage.SourceDetails!.Single().Entries == 1 &&
+            processBudget.Issues.HasFlag(ResidualScanIssue.EntryLimit),
+            "Processos já consultados debitam o orçamento e não aparecem como zero observações");
         string root = Path.Combine(Path.GetTempPath(), "GF-Budget-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         try
