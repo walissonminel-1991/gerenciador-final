@@ -1,7 +1,15 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**Candidata atual: v5.13.11.25 TESTE · Progresso: 26/42 (61,9%).**
+**Candidata atual: v5.13.11.26 TESTE · Progresso: 26/42 (61,9%).**
 Os percentuais indicam checkpoints e não segurança ou prontidão para release.
+
+## Incorporação conservadora — v5.13.11.26 TESTE
+
+Motivos consultivos de preservação na inspeção existente, agrupamento de dados
+subordinados ao aplicativo e tratamento de recusa de segurança como consulta
+parcial. Implementação própria fundamentada em fontes oficiais; nenhuma regra
+externa executável nem catálogo remoto adicionado. Sem checkpoint novo:
+**26/42 (61,9%)** e R4 suspenso. [Procedência, validação e roteiro](OPERACAO-FAXINA-FINAL.md#incorporação-conservadora--v5131126-teste).
 
 ## Revisão da faxina — v5.13.11.25 TESTE
 

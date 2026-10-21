@@ -1,12 +1,12 @@
 # Operação Faxina Final — revisão consolidada
 
-21/10/2026 · **v5.13.11.25 TESTE** · roadmap **26/42 (61,9%)**.
+21/10/2026 · **v5.13.11.26 TESTE** · roadmap **26/42 (61,9%)**.
 
 Código inicial: [`5e3ecd4`](https://github.com/walissonminel-1991/gerenciador-final/commit/5e3ecd450d6e41ae8a432caca8c590375ef9585d).
 Implementação: [`79f2be4`](https://github.com/walissonminel-1991/gerenciador-final/commit/79f2be4e3aafe4496431dd4b3464376f4f47291d).
 Correção após a primeira regressão Windows: [`a85a7e1`](https://github.com/walissonminel-1991/gerenciador-final/commit/a85a7e1e3575a831f1bda27018d84d56f4dfc9fe).
 Código anterior integralmente aprovado: [`d96b635`](https://github.com/walissonminel-1991/gerenciador-final/commit/d96b6355f1e44df8517c02fa4b1bca5312a69ecf).
-Código final aprovado, incluindo o contrato Windows Update: [`190d47d`](https://github.com/walissonminel-1991/gerenciador-final/commit/190d47d9167646ab3896319527ba3ae48a7effeb).
+Código da .25 aprovado, incluindo o contrato Windows Update: [`190d47d`](https://github.com/walissonminel-1991/gerenciador-final/commit/190d47d9167646ab3896319527ba3ae48a7effeb).
 [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40) mantida Draft.
 A `main` permaneceu em `9ac3dc167b9e67ac50628749d5ad33c563c09376`.
 
@@ -14,6 +14,167 @@ Esta revisão implementou correções; não certifica ausência de vulnerabilida
 compatibilidade AVG, eficácia de manutenção ou prontidão para distribuição.
 Não houve execução de manutenção nos PCs, exclusão de resíduos, alteração de
 drivers, envio de diagnóstico, deploy, release ou remoção de histórico remoto.
+
+## Incorporação conservadora — v5.13.11.26 TESTE
+
+Base real conferida: `26925169430969b35799626bc972474cd0269e2b` (.25),
+com as três Actions aprovadas. Código desta incorporação:
+[`cbea81a`](https://github.com/walissonminel-1991/gerenciador-final/commit/cbea81acc2ad640f661afe75be209d97faa569fd).
+A conferência visual encontrou o novo motivo abaixo do resumo técnico extenso.
+[`8578fa3`](https://github.com/walissonminel-1991/gerenciador-final/commit/8578fa3a8698c60b723e528feaa073f4fc066502)
+coloca o motivo antes da cobertura detalhada e acrescenta a regressão de ordem.
+Este é o código final da .26; o número não mudou durante a revisão deste lote.
+As árvores enviadas pelo conector foram comparadas pelos objetos Git com as
+árvores locais revisadas (`bfa166cddde964e221bff3a4bbf029424fd07a4c` e
+`0a53b85b0bc2df9564508155f2ce977f214c0cd5`).
+O terminal não possuía credencial de push; a gravação pelo conector exigiu o HEAD
+esperado e `force=false`. Nenhum histórico foi reescrito. Revisões independentes
+de procedência e preservação foram confrontadas antes da integração.
+
+### Fronteiras e resultado implementado
+
+`HistoricalResidualAudit` e seus cinco itens continuam consultivos e restritos;
+`ApplicationIdentityCatalog` conserva identidade/editor e não concede ações.
+`ResidualPathIndex`, guard de arquivos, budgets e `ResidualPreview` permanecem
+fronteiras de proteção. Nenhum catálogo novo, parser externo, esquema, caminho
+interpretável, serviço, dependência ou conexão foi introduzido.
+
+- `ResidualInspection.cs`: enum e pistas compiladas pequenas a partir do nome e
+  tipo de metadado já observado. Explica favoritos/histórico, credenciais,
+  cookies, sessão/perfil, cache, backup, playlist, saves e fontes MSI. Fallback
+  desconhecido preserva. Nomes parecidos não recebem categoria por substring.
+- `ResidualExplorerDialog.cs`: apresenta a explicação no detalhe existente,
+  explicita que finalidade/vínculo não foram confirmados e mantém o conteúdo
+  fechado. Nenhum botão novo ou autorização de limpeza.
+- `BroadResidualDiscovery.cs`: cache, dados de sessão, backups, playlists e saves
+  deixam de ser nomes de produtos independentes. Permanecem subordinados ao
+  pai observado, sem comprovar propriedade exclusiva ou abandono. Não atravessa
+  novos diretórios nem aumenta profundidade ou limites.
+- Recusa `InvalidDataException` do guard passa a produzir parcialidade controlada
+  na sessão/fluxo de UI. A recusa não vira caminho aceito nem autorização.
+- `TestesResiduos/ResidualInspectionTests.cs`, `ResidualMissionTests.cs` e
+  `TestesLayout/ResidualExplorerTests.cs`: fixtures e consequências verificadas.
+  Projeto/manifesto identificam **5.13.11.26**. Nenhum worker foi alterado.
+
+`CanRemove` e `CanExecute` continuam falsos. Todas as entradas da inspeção
+continuam preservadas. Um nome de cache não comprova descarte; CacheStorage
+pode guardar estado offline de sites. As pistas não medem espaço recuperável,
+não leem conteúdo nem provam que um arquivo pertence a um navegador específico.
+
+### Matriz de procedência e decisões
+
+| Origem revalidada / arquivo | Licença / uso | Decisão e efeito no GF |
+| --- | --- | --- |
+| [Dism-Multi-language `875bce3`](https://github.com/Chuyu-Team/Dism-Multi-language/tree/875bce3511995000ceed38e3b7aba5917e4868cc): LICENSE, README, Data.xml (blob `a230f0c15057ff9aadce2c781ff5863c1437dedf`) | MIT, ©2016 Chuyu-Team. Referência factual; **nenhum código, texto expressivo ou regra copiado**. Não presume licença do motor/binários. | Incorporar a necessidade de explicar e preservar backups/fontes de reparação, por implementação própria. `MobileSync/Backup`, PatchCache/MSOCache e Office servem como contraexemplos de descarte. Sem importar caminhos ou comandos. |
+| Dism Data.xml: CleanCollection4/SystemOptimization/DefaultFilterList | Mesma revisão; XML ativo conferido: **73/163/32** itens, sem comentários. | Contagens não medem segurança. Rejeitar limpeza de Windows.old/WinSxS/Installer/Prefetch, movimentações, Registro, serviços e chamadas internas. |
+| [WinScript `2afba40`](https://github.com/flick9000/winscript/tree/2afba4028f2ec16c07c28f7151d3ea9d43d89884): LICENSE, scripts.ts (blob `50ed16dac2095e84316eed61dd7a1cb295922210`) | GPLv3. Somente referência de comportamento/contraexemplo; **nenhuma cópia, tradução ou adaptação de implementação GPL**. | A remoção de places.sqlite motivou teste negativo de preservação. A solução GF foi escrita com documentação oficial, sem importar as 126 ações, presets ou organização do catálogo. MIT do GF preservada. |
+| WinScript: appinstall.ts e .github/workflows/publish.yml | GPLv3; análise documental | Referência futura de identidades e SignPath. Não adicionar WinGet/Chocolatey, workflow, secrets, conta ou solicitação de assinatura. Não fornecem novo motor de inventário nem reputação transferível. |
+| [Mozilla: conteúdo dos perfis](https://support.mozilla.org/en-US/kb/profiles-where-firefox-stores-user-data) | Fatos técnicos, consulta em 21/10/2026; nenhum texto copiado | Confirma places.sqlite, bookmarkbackups, cookies.sqlite, key4.db/logins.json, sessionstore.jsonlz4 e perfis separados/MSIX. Pistas e fixtures próprias; nenhuma nova varredura de perfis. |
+| [Chromium `06ac4fc`](https://github.com/chromium/chromium/tree/06ac4fc411aefd2825ffe09017052da8732437b0), tag 140.0.7339.138 | Fontes oficiais BSD; apenas identificadores/fatos, sem código copiado | chrome_constants.cc, bookmark_constants.cc, history_constants.cc, password_manager_constants.cc, session_constants.cc, gpu_disk_cache_type.cc, storage_partition_impl.cc e cache_storage_manager.cc confirmam nomes de perfil/dados/cache. Pistas locais próprias; não garantem conteúdo nem exclusividade. |
+| [Microsoft: Installer Cache](https://learn.microsoft.com/en-us/troubleshoot/windows-client/application-management/missing-windows-installer-cache) e [WinSxS](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/clean-up-the-winsxs-folder) | Documentação oficial; fatos, sem copiar implementação | Preservar fontes de instalação/reparo; rejeitar limpeza manual de componentes. Não duplicar DISM/SFC ou mecanismos próprios existentes. |
+
+Nenhum material expressivo MIT foi reutilizado; não há novo componente externo
+para distribuir nem aviso de código transplantado a adicionar. A tabela registra
+procedência factual, não substitui licença caso haja cópia em um lote futuro.
+Não consultamos revisões novas dos dois projetos: os commits são os fixados pela
+missão. Debloat, mudanças de segurança/serviços, drivers, script remoto e presets
+ficaram fora. Inventário, preservação compartilhada, prévia, DISM/SFC e guards já
+eram atendidos pelo GF e foram mantidos.
+
+### Validação da incorporação
+
+Código final `8578fa3`: **três Actions aprovadas**, sem falhas intermediárias
+de CI neste lote. A primeira revisão `cbea81a` também passou nas três Actions;
+a conferência visual posterior motivou a correção de apresentação acima,
+sem excluir testes nem esconder falhas.
+
+| Validação nativa Windows final | Resultado e comparação com a base .25 |
+| --- | --- |
+| [Regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39642731857) | Resíduos **351/351** (base **337/337**), MSIX 30/30, instaladores 95/95, comparação 18/18, catálogo 14/14, multifontes 64/64, drivers 53 verificações e encerramento 30/30. Privacidade, RAM, fixtures de limpeza/restauração e bandeja aprovados. |
+| Layout | Mantidas 132 combinações resolução/aba e DPI de 100% a 200%. Novos detalhes/recusa de guard aprovados; 11 capturas do runner verificadas por ZIP, com inspeção visual da preservação em 1280×720 e 1440×900. Resoluções simuladas, não os computadores do usuário. |
+| [Build Windows x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39642731837) | Aplicativo sem erros/avisos, publicação self-contained, ativação de manifesto e origem aprovadas. SHA256SUMS de **273 arquivos** conferidos no runner e novamente no ZIP baixado, sem executar o aplicativo. |
+| [Políticas/privacidade](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39642736539) | Aprovada. Mantidos três workflows e suas permissões/SHAs. Jobs externos opcionais e atestação exclusiva da main ficaram ignorados; não contam como executados. |
+
+Artefato escolhido: [GerenciadorFinal-v5.13.11.26-165069f3-TESTE-win-x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39642731837/artifacts/12366321007),
+ID `12366321007`, **58.872.989 bytes**, retenção indicada até **28/10/2026**.
+Fonte `8578fa3a8698c60b723e528feaa073f4fc066502`;
+merge sintético testado `165069f332001a01e2da8af640f91606c0b67b9a`;
+base `9ac3dc167b9e67ac50628749d5ad33c563c09376`.
+BUILD-INFO confere esses valores. Hashes SHA-256 verificados:
+
+- ZIP: `8a30abca5cefcee7d5168c5741ac71975abc294c0517ea99d133c71bf91d66e2`
+- EXE: `293df2f1110bbddc19b7ceb1eb981968f4361bb3ca1e55ecde661e77327ce4bf`
+- DLL do GF: `cc68083c0f8493c7044002a3baebfb974e99846179c6373babdaae40069579af`
+
+A assinatura Authenticode permanece ausente. A consolidação documental posterior
+não muda o código de produção; o pacote escolhido continua identificado pela
+fonte acima, não pelo HEAD documental. PR permanece Draft, sem merge/release.
+
+
+Local Linux, SDK 10.0.402 / runtime 10.0.13: aplicativo e layout compilados com
+zero erros/avisos; subconjunto `--missao` passou **151 verificações**, contra 137
+na base. Políticas **14/14** (111 fontes e links/esquema/versão), protótipos Node
+**10/10**, sem rede/deploy. Isso não substitui execução nativa Windows.
+
+Fixtures: dois perfis alternativos/MSIX sintéticos, base places.sqlite com
+FileShare.None, dados pessoais ao lado de caches, credenciais/cookies/sessões,
+playlists/backups/saves/MSI, conteúdo byte a byte intacto, nomes parecidos
+preservados, link externo recusado, cancelamento/limites e limpeza das fixtures.
+Classificação separa os fabricantes, protege aplicativo instalado e mantém
+Unknown/BasisDisposition quando inventário é parcial. UI verifica explicação,
+incerteza, texto nativo completo, botões e capturas em 1280×720, 1440×900 e
+2560×1440, além da matriz existente.
+
+A recusa injetada valida a fronteira da UI e preserva resultados anteriores;
+**não reproduz a corrida nativa entre pré-checagem e pin**. A estrutura MSIX de
+fixture não exercita PackageManager. Não houve testes presenciais ou operações
+reais de limpeza/reparo/instalação. Nenhuma falha de CI foi ocultada.
+
+### Custo e limites
+
+Benchmark de classificação existente, Linux/.NET 10.0.13, oito processadores
+lógicos expostos, base `2692516` e árvore da .26. Ordem alternada nas rodadas:
+candidata/base e base/candidata. Medianas de seis amostras por revisão nos três
+primeiros cenários e três no saturado; a última rodada não registrou o cenário
+saturado completo e esse par foi excluído desse cenário em ambas as revisões.
+A medição inicial com saída incompleta também foi excluída. Resultados lógicos
+iguais em todos os registros completos; no saturado, 15.000 grupos e **20.000
+evidências não avaliadas**, sem mudar o orçamento de 30.000 entradas.
+
+| Apps / evidências | Mediana base / .26 (ms) | Alocação mediana base / .26 (bytes) |
+| --- | --- | --- |
+| 500 / 5.000 | 60,46 / 66,51 | 24.616.968 / 24.616.968 |
+| 1.000 / 10.000 | 146,47 / 117,29 | 49.224.952 / 49.224.932 |
+| 1.000 / 20.000 | 281,74 / 185,98 | 97.293.136 / 94.894.016 |
+| 1.000 / 50.000 | 124,12 / 177,85 | 140.939.840 / 140.939.832 |
+
+Tempos variam nos dois sentidos e as alocações incluem trabalho concorrente/JIT;
+**não demonstram ganho ou regressão causal de desempenho**. O benchmark não mede
+o custo visual de selecionar uma explicação. As pistas são calculadas só para
+metadados já consultados e detalhe selecionado, sem varredura nova no arranque.
+CPU/RAM/abertura reais continuam pendentes.
+
+Fora do lote: parser histórico embutido ainda aceita campos extras/duplicados e
+precisa de revisão própria antes de expandir seu contrato. Não foi acrescentado
+catálogo nem nova origem de regras; a falha de um catálogo adicional não se
+aplica. Não foi ampliada a autoridade das regras existentes para acomodar fontes
+externas. Também continuam pendentes **MSIX 0x80040154 no PC fraco, AVG, validação
+de drivers e medições reais**. Roadmap **26/42**; R4 suspenso.
+
+### Roteiro consultivo da .26 nos PCs
+
+1. Conferir versão, SHA fonte, BUILD-INFO e SHA256SUMS do artefato TESTE abaixo.
+2. No PC fraco, repetir consultas de inventário e diagnóstico na mesma sessão;
+   registrar estado parcial/fase/apartment/HRESULT sem reinstalar Store.
+3. Na investigação existente, inspecionar apenas locais já listados; ao selecionar
+   arquivos/pastas conhecidos, conferir explicação de preservação e incerteza.
+   Não é obrigatório que esses dados apareçam: raízes/profundidade não cresceram.
+4. Conferir cache ao lado de dados importantes, parcialidade e cancelamento;
+   não apagar dados, executar reparos, instalar programas nem alterar drivers.
+5. Repetir no PC principal, conferir legibilidade em 1440×900/2560×1440 e anotar
+   DPI, CPU/RAM e alertas AVG observados, sem desativar proteções.
+
+As seções seguintes conservam as evidências da revisão anterior (.25).
 
 ## Alcance e método
 

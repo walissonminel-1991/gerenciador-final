@@ -4,7 +4,7 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Versão do código em desenvolvimento:** v5.13.11.25 TESTE · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
+**Versão do código em desenvolvimento:** v5.13.11.26 TESTE · **[Histórico de versões](CHANGELOG.md)** · **Estado:** testes automatizados; não é uma versão estável nem aprovada pelo AVG.
 
 **Estado atual e continuidade:** [roadmap funcional](docs/ROADMAP.md) · [guia de organização do repositório](docs/ORGANIZACAO-REPOSITORIO.md) · [revisão e roteiro vigente](docs/OPERACAO-FAXINA-FINAL.md). Artefatos de TESTE e verificações na [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). **Exclusão de resíduos indisponível; MSIX pode ficar temporariamente parcial com erro 0x80040154, inclusive após uma tentativa adicional.**
 
@@ -16,7 +16,7 @@
 - Planos de energia e hibernação com opções explícitas.
 - Gráfico de RAM com acompanhamento na bandeja, limpeza opcional apenas de caches internos do GF (não de memória de outros aplicativos), inicialização, Windows Update e informações do computador.
 - Aba DRIVERS de consulta somente leitura com histórico local de dispositivos/INF; não instala, remove nem reverte drivers.
-- Auditoria histórica de possíveis resíduos somente leitura, com proteção de instalações, dados pessoais e fabricantes compartilhados.
+- Auditoria histórica de possíveis resíduos somente leitura, com proteção de instalações, dados pessoais e fabricantes compartilhados. A inspeção explica pistas de favoritos, sessões, credenciais, backups e fontes de instalação, mantendo caches preservados.
 - Interface Windows Forms em português, tema escuro e ícone **GF** azul.
 - Diagnóstico colaborativo: coleta **local, voluntária e revogável**, com prévia em linguagem simples e botão **Simular sem enviar** usando dados fictícios (v5.13.11.8). Não existe envio real, anexo, formulário de Issue nem conta GitHub exigida do usuário. A arquitetura de compartilhamento futuro ainda depende de segurança e consentimento específico; veja [experiência de contribuição](docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md) e [roteiro de autenticação GitHub](docs/PILOTO-AUTENTICACAO-GITHUB.md).
 
