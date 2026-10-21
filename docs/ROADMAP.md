@@ -1,5 +1,10 @@
 # GERENCIADOR FINAL — progresso verificável
 
+## PC fraco 21/10/2026 — terceira bateria, v5.13.11.21 TESTE
+
+Os filtros da v5.13.11.20 foram confirmados no hardware real: `ProgramData`, `AppData` e Registro apresentam apenas suas evidências, incluindo interseções vazias. A investigação permaneceu somente leitura e incompleta por limites e duas fontes inacessíveis. O log revelou falha independente e crítica para a cobertura, `MSIX.LEITURA COMException(0x80040154)`, reduzindo o inventário de 74 para 55 entradas (19 MSIX não lidas), sem comprovar qualquer desinstalação. A v5.13.11.21 permite uma nova tentativa controlada e exibe inventário **PARCIAL** persistente se falhar. [Terceira bateria agregada](TESTE-PC-FRACO-2026-10-21-v5.13.11.20.md). Próximo teste: confirmar recuperação ou aviso de parcialidade no PC fraco e recolher somente diagnóstico local. Roadmap funcional continua **26/42**; não alterar drivers, remover resíduos nem instalar pacotes nesta bateria.
+
+
 ## Nova bateria PC fraco — v5.13.11.20 TESTE
 
 A v5.13.11.19 no PC fraco 1440×900 confirmou a correção dos nomes genéricos: revisão com 12 grupos e 41 locais, contra 17/57 na anterior, sem apagar dados. Tempo de inicialização 709 ms, primeiro inventário 1,29 s, descoberta de resíduos 295 ms; sessão única, **não** benchmark controlado. A busca ainda é **parcial** (2.000 entradas, 2 fontes inacessíveis), sem conclusão de segurança para exclusão. Capturas mostraram que a seleção de origem filtrava grupos, mas continuava exibindo locais de origens diferentes; v5.13.11.20 passa a filtrar também os locais e suas contagens, com testes sintéticos e de interface. Também diferencia categorias sem candidatos revisáveis dos resultados não consultados. [Relatório agregado](TESTE-PC-FRACO-2026-10-21-v5.13.11.19.md).
