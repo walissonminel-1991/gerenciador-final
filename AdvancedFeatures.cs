@@ -40,20 +40,23 @@ internal static class DetailedHardware
             rows = scope.ExecQuery(query);
             foreach (object item in (System.Collections.IEnumerable)rows)
             {
-                dynamic entry = item;
-                var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (string col in columns)
+                try
                 {
-                    try
+                    dynamic entry = item;
+                    var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (string col in columns)
                     {
-                        object? val = entry.Properties_.Item(col).Value;
-                        dict[col] = val is null ? "" : Convert.ToString(val, CultureInfo.CurrentCulture) ?? "";
+                        try
+                        {
+                            object? val = entry.Properties_.Item(col).Value;
+                            dict[col] = val is null ? "" : Convert.ToString(val, CultureInfo.CurrentCulture) ?? "";
+                        }
+                        catch { dict[col] = ""; }
                     }
-                    catch { dict[col] = ""; }
+                    result.Add(dict);
+                    if (result.Count >= 16) break;
                 }
-                result.Add(dict);
-                if (result.Count >= 16) break;
-                Marshal.FinalReleaseComObject(item);
+                finally { if (Marshal.IsComObject(item)) Marshal.FinalReleaseComObject(item); }
             }
         }
         finally

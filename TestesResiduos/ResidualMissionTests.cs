@@ -131,7 +131,8 @@ internal static class ResidualMissionTests
             using var permissions = Registry.CurrentUser.OpenSubKey(deniedPath,
                 RegistryKeyPermissionCheck.ReadWriteSubTree,
                 RegistryRights.ReadKey | RegistryRights.ChangePermissions)!;
-            var original = permissions.GetAccessControl();
+            byte[] original = permissions.GetAccessControl(AccessControlSections.Access)
+                .GetSecurityDescriptorBinaryForm();
             var denied = permissions.GetAccessControl();
             denied.AddAccessRule(new RegistryAccessRule(WindowsIdentity.GetCurrent().User!,
                 RegistryRights.ReadKey, AccessControlType.Deny));
@@ -152,7 +153,17 @@ internal static class ResidualMissionTests
                     wholeSource ? "ACL sintética: raiz inteira negada é fonte indisponível" :
                         "ACL sintética: fabricante negado preserva resultados como falha pontual");
             }
-            finally { permissions.SetAccessControl(original); }
+            finally
+            {
+                // SetAccessControl persiste apenas seções marcadas como alteradas.
+                // Reaplicar um objeto GetAccessControl intacto pode não restaurar a DACL.
+                var restored = new RegistrySecurity();
+                restored.SetSecurityDescriptorBinaryForm(original, AccessControlSections.Access);
+                permissions.SetAccessControl(restored);
+            }
+            using var readableAgain = Registry.CurrentUser.OpenSubKey(deniedPath);
+            check(readableAgain is not null && readableAgain.GetSubKeyNames().Length == 1,
+                "ACL sintética restaurada permite leitura e próxima etapa");
         }
     }
     private static void Classification(Action<bool, string> check)

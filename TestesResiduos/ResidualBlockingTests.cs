@@ -40,7 +40,8 @@ internal static class ResidualBlockingTests
             }
             finally { Registry.CurrentUser.DeleteSubKeyTree(key, false); }
             var info = new FileInfo(file);
-            var original = info.GetAccessControl();
+            byte[] original = info.GetAccessControl(AccessControlSections.Access)
+                .GetSecurityDescriptorBinaryForm();
             try
             {
                 var denied = info.GetAccessControl();
@@ -50,7 +51,14 @@ internal static class ResidualBlockingTests
                 check(!(await ResidualPreview.CaptureAsync(candidate)).Complete,
                     "ACL nega leitura: prévia falha fechada sem excluir dados");
             }
-            finally { info.SetAccessControl(original); }
+            finally
+            {
+                var restored = new FileSecurity();
+                restored.SetSecurityDescriptorBinaryForm(original, AccessControlSections.Access);
+                info.SetAccessControl(restored);
+            }
+            check(File.ReadAllText(file) == "fixture isolado",
+                "ACL de arquivo sintético foi restaurada antes de continuar");
             string link = Path.Combine(root, "Junction");
             string target = Path.Combine(root, "Destino");
             Directory.CreateDirectory(target);
