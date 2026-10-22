@@ -2721,7 +2721,12 @@ internal sealed partial class MainForm : Form
             foreach (var request in requests)
                 prepared.Add(await Task.Run(() => RegisteredUninstaller.Prepare(request,
                     (path, signer) => VerifiedUpdaters.VerifyAuthenticode(path, signer, out _),
-                    allowUnsignedInLab: TestDiagnosticDetail.LabPcForteSelected)));
+                    allowUnsignedInLab: TestDiagnosticDetail.LabPcForteSelected,
+                    signatureIssue: (path, signer) =>
+                    {
+                        VerifiedUpdaters.VerifyAuthenticode(path, signer, out string issue);
+                        return issue;
+                    })));
             string preview = string.Join("\n\n", prepared.Select(p =>
                 "• " + p.Request.Original.Name + "\n" + p.StartInfo.FileName + " " + p.StartInfo.Arguments +
                 (p.UnsignedTestException ?

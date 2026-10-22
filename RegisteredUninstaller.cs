@@ -77,7 +77,7 @@ internal static class LabUnsignedUninstallerPolicy
 internal static class RegisteredUninstaller
 {
     internal static PreparedUninstaller Prepare(UninstallRequest request, Func<string,string,bool> trustedSigner,
-        bool allowUnsignedInLab = false)
+        bool allowUnsignedInLab = false, Func<string,string,string>? signatureIssue = null)
     {
         if(!UninstallBatch.BoundToProduct(request.Command,request.Original))
             throw new InvalidDataException("Comando não pertence ao produto selecionado.");
@@ -114,9 +114,8 @@ internal static class RegisteredUninstaller
                     bool unsignedOnly = allowUnsignedInLab &&
                         LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(request.Original, file, original) &&
                         ResidualReadSafety.IsUnlinkedDirectory(Path.GetDirectoryName(file) ?? "") &&
-                        signers.Length > 0 && signers.All(s =>
-                            !VerifiedUpdaters.VerifyAuthenticode(file, s, out string problem) &&
-                            problem == "WinVerifyTrust=0x800B0100");
+                        signers.Length > 0 && signatureIssue is not null &&
+                        signers.All(s => signatureIssue(file, s) == "WinVerifyTrust=0x800B0100");
                     if (!unsignedOnly)
                         throw new System.Security.Cryptography.CryptographicException(
                             "Identidade do desinstalador não confirmada por assinatura confiável. " +
