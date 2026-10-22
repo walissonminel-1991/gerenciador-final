@@ -19,12 +19,14 @@ internal static class Work6UninstallFlowTests
                 !LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(npp,
                     Path.Combine(pf, "Microsoft", "uninstall.exe"), "uninstall.exe"),
                 "LAB-U: excepcao so admite desinstalador original do produto registrado.");
-            var fb = npp with { Name = "foobar2000 v2.26.1 (x64)",
-                Publisher = "Peter Pawlowski", InstallLocation = Path.Combine(pf, "foobar2000") };
+            var fb = new ProgramEntry { Name = "foobar2000 v2.26.1 (x64)",
+                Publisher = "Peter Pawlowski", InventoryId = "LocalMachine|Registry64|foobar",
+                InstallLocation = Path.Combine(pf, "foobar2000") };
             check(LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(fb,
                     Path.Combine(fb.InstallLocation, "uninstall.exe"), "") &&
                 !LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(
-                    fb with { Publisher = "Editor Desconhecido" },
+                    new ProgramEntry { Name = fb.Name, Publisher = "Editor Desconhecido",
+                        InventoryId = fb.InventoryId, InstallLocation = fb.InstallLocation },
                     Path.Combine(fb.InstallLocation, "uninstall.exe"), ""),
                 "LAB-U: foobar2000 limitado ao editor informado no inventario.");
             await NativePrepare(check);
