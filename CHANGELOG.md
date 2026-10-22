@@ -1,5 +1,9 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.36 TESTE — ajustes PC FRACO (CI e validação física pendentes)
+
+Botão **Atualizar e verificar** unifica inventário local e versões HTTPS; a etapa online mantém cancelamento. Consulta de Drivers pode ser cancelada e preserva a lista anterior, sem resultados tardios ou operações de driver. Limpeza e desempenho usa grade de quatro colunas em largura suficiente e painel de discos mais compacto, mantendo rolagem segura em telas pequenas. Erro MSIX `0x800703FA` recebe uma única repetição adicional de leitura, sem fingir cobertura completa. Foram adicionados testes negativos de estado/cancelamento e tratamento MSIX. Sem alteração das proteções de exclusão e sem checkpoints novos (27/42).
+
 ## v5.13.11.35 TESTE — MISSÃO WORK 6 (CI aprovada, validação física pendente)
 
 Fluxos de atualizações, desinstalação e prévia de resíduos reforçados: revalidação de autorização, uma tentativa de lançamento, fontes parciais preservadas como revisão, pacote MSIX retido até fim do fornecedor, parser estrito para MSI/EXE, vínculo ao registro de instalação, ausência confirmada por leituras completas, proteção de arquivos e cadeia de diretórios nas prévias. Novo lote de testes de fluxo e 10/10 controles adversariais por mutação, além da suíte regressiva. CI Windows em 39708331526, build em 39708331528 e política em 39708331607 aprovadas. **Não houve instalações, desinstalações ou exclusões reais**, nem validação presencial da .35; U8/R7/R4 continuam abertos. Detalhes em [docs/MISSAO-WORK6-RESULTADO.md](docs/MISSAO-WORK6-RESULTADO.md). Roadmap 27/42.

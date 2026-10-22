@@ -4,7 +4,7 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Versão do código em desenvolvimento:** v5.13.11.35 TESTE (MISSÃO WORK 6; validação de atualização, desinstalação e prévias de resíduos; 3 Actions CI aprovadas, aguardando teste físico da .35). Última bateria presencial: v5.13.11.34 no PC FORTE. **[MISSÃO WORK 6 e resultados](docs/MISSAO-WORK6-RESULTADO.md)** · **[Missão anterior](docs/MISSAO-WORK5.md)** · **[Histórico](CHANGELOG.md)**. Sem release estável nem aprovação pelo AVG.
+**Versão do código em desenvolvimento:** v5.13.11.36 TESTE (PC FRACO: fluxo unificado, consulta de drivers cancelável, layout compacto e retry MSIX; aguardando validação CI e teste físico). Última bateria presencial: v5.13.11.34 no PC FORTE. **[MISSÃO WORK 6 e resultados](docs/MISSAO-WORK6-RESULTADO.md)** · **[Missão anterior](docs/MISSAO-WORK5.md)** · **[Histórico](CHANGELOG.md)**. Sem release estável nem aprovação pelo AVG.
 
 **Estado atual e continuidade:** [roadmap funcional](docs/ROADMAP.md) · [guia de organização do repositório](docs/ORGANIZACAO-REPOSITORIO.md) · [revisão e roteiro vigente](docs/OPERACAO-FAXINA-FINAL.md). Artefatos de TESTE e verificações na [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). **Exclusão de resíduos indisponível; MSIX pode ficar temporariamente parcial com erro 0x80040154, inclusive após uma tentativa adicional.**
 

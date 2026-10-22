@@ -1,4 +1,17 @@
-# Roteiro de testes — v5.13.11.35 TESTE
+# Roteiro de testes — v5.13.11.36 TESTE
+
+## Bateria prioritária no PC FRACO, 1440×900
+1. Extrair a nova candidata em pasta separada e confirmar versionamento, integridade, AVG e ausência de alertas; não criar exceções no antivírus.
+2. Aplicativos: pressionar **Atualizar e verificar**, observar inventário Win32/MSIX antes de consultas HTTPS e confirmação dos candidatos; cancelar consulta online e garantir que não publica resultado atrasado.
+3. MSIX: comparar com baseline completo 74 apps/19 MSIX. A .35 falhou com 0x80040154 e 0x800703FA (55 apps). A .36 repete uma única vez também 0x800703FA, mas não repara a origem Windows; falha persistente deve marcar PARCIAL e preservar restrições.
+4. Drivers: consultar normalmente e realizar nova consulta, pressionando **Cancelar** durante leitura. A lista anterior deve permanecer; a resposta nativa tardia não pode substituí-la, nem permitir varreduras concorrentes.
+5. Limpeza e desempenho: com Windows em 1440×900 e 100%, verificar quatro cartões por linha (duas fileiras) e dados de disco sem rolagem desnecessária. DPI alto e telas pequenas podem exigir rolagem, nunca corte de descrições.
+6. Resíduos: somente prévia, comparar 12 grupos/41 locais e transparência dos motivos de análise parcial; nenhuma remoção.
+7. Registrar duração, memória, fechamento e diagnóstico local. Não instalar, desinstalar, limpar cache, atualizar Windows ou manipular drivers nesta bateria.
+
+Critérios: sem mutação do Windows, consultas canceladas não modificam listas nem históricos e fontes parciais não são declaradas completas. **Roadmap permanece 27/42**; U8, R7, R4 e G1–G5 pendentes.
+
+
 
 ## Próxima bateria: primeiro contato .35 no PC FORTE
 

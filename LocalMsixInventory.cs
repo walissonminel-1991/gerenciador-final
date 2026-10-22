@@ -53,8 +53,8 @@ internal static class LocalMsixInventory
             maker, packageName, RecipeEligible: false);
     }
 
-    // REGDB_E_CLASSNOTREG pode indicar ativacao WinRT momentaneamente
-    // indisponivel. Uma unica nova tentativa ANTES de observar pacotes, sem PowerShell, processo
+    // REGDB_E_CLASSNOTREG e ERROR_KEY_DELETED podem indicar ativacao WinRT ou
+    // Registro do usuario momentaneamente indisponivel. Uma unica nova tentativa ANTES de observar pacotes, sem PowerShell, processo
     // auxiliar, elevacao ou acesso a outros perfis. Se persistir, falha
     // explicitamente: lista MSIX vazia nunca significa zero apps instalados.
     private static readonly LocalMsixSnapshot Snapshot = new();
@@ -65,7 +65,7 @@ internal static class LocalMsixInventory
         var first = read();
         // Uma enumeração já iniciada tem evidência parcial útil. Não a trocar
         // por outra tentativa que pode falhar antes do primeiro pacote.
-        if (!IsClassNotRegistered(first.Status) || first.Seen != 0 || first.Items.Count != 0)
+        if (!IsTransientMsixFailure(first.Status) || first.Seen != 0 || first.Items.Count != 0)
             return first;
         var second = read();
         return second with { Retried = true };
@@ -85,6 +85,12 @@ internal static class LocalMsixInventory
 
     internal static bool IsClassNotRegistered(string status) =>
         string.Equals(status, "COMException(0x80040154)", StringComparison.Ordinal);
+
+    // 0x800703FA = ERROR_KEY_DELETED: uma segunda consulta pode se recuperar,
+    // mas jamais declarar ausencia de aplicativos quando ambos acessos falham.
+    internal static bool IsTransientMsixFailure(string status) =>
+        IsClassNotRegistered(status) ||
+        string.Equals(status, "COMException(0x800703FA)", StringComparison.Ordinal);
 
     private static LocalMsixResult ReadOnce()
     {

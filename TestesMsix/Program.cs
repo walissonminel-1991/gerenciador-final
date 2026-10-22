@@ -141,6 +141,35 @@ var denied = LocalMsixInventory.ReadWithRetry(() =>
 Check(attempts == 1 && !denied.Retried &&
     denied.Status == "COMException(0x80070005)",
     "MSIX: erro de permissão não é repetido indiscriminadamente");
+attempts = 0;
+var retryRegistry = LocalMsixInventory.ReadWithRetry(() =>
+{
+    attempts++;
+    return attempts == 1
+        ? new LocalMsixResult([], 0, "COMException(0x800703FA)", Failures: 1)
+        : new LocalMsixResult([generic!], 1, "ok");
+});
+Check(attempts == 2 && retryRegistry.Retried && retryRegistry.Failures == 0 &&
+    retryRegistry.Items.Count == 1,
+    "MSIX: 0x800703FA recuperado em apenas uma repeticao");
+attempts = 0;
+var repeatedRegistry = LocalMsixInventory.ReadWithRetry(() =>
+{
+    attempts++;
+    return new LocalMsixResult([], 0, "COMException(0x800703FA)", Failures: 1);
+});
+Check(attempts == 2 && repeatedRegistry.Retried && repeatedRegistry.Failures > 0 &&
+    repeatedRegistry.Items.Count == 0 && repeatedRegistry.Status != "ok",
+    "MSIX: 0x800703FA persistente continua parcial, sem criar pacotes");
+attempts = 0;
+var partialRegistry = LocalMsixInventory.ReadWithRetry(() =>
+{
+    attempts++;
+    return new LocalMsixResult([generic!], 1, "COMException(0x800703FA)",
+        Failures: 1, FailureStage: "enumeration");
+});
+Check(attempts == 1 && !partialRegistry.Retried && partialRegistry.Items.Count == 1,
+    "MSIX: enumeração com itens parciais jamais repetida e descartada");
 Check(LocalMsixInventory.FailureStatus(new TypeInitializationException("WinRT.Factory",
     new System.Runtime.InteropServices.COMException("mensagem privada", unchecked((int)0x80040154))))
     == "COMException(0x80040154)",
