@@ -6,6 +6,8 @@ void Verify(bool condition, string label)
     checkedCount++;
     Console.WriteLine("OK " + label);
 }
+if (args.Contains("--work6-flow"))
+{ await Work6FlowTests.RunAsync(Verify); return; }
 if (args.Contains("--work6-authorization"))
 {
     var failures = new List<string>();
@@ -76,10 +78,8 @@ var gameRecipe = VerifiedUpdaters.Resolve(gameInput);
 Verify(VerifiedUpdaters.GetMicrosoftStoreUri(gameInput) is null &&
        VerifiedUpdaters.GetStoreWebFallback(gameInput) is null,
        "GameInput não existe como produto da Microsoft Store");
-Verify(VerifiedUpdaters.GetPrimaryAction(gameInput) == "update" &&
-       gameRecipe?.Identifier == "gameinput-x64-3.5.283" &&
-       gameRecipe.Sha256 == "B5988CB8FF9D7009B6DDF6AD4E3FF87E91B00CC17FFCD5D628DABC21C208F100",
-       "GameInput autoriza somente pacote Microsoft NuGet fixado em SHA-256");
+Verify(gameRecipe is null && VerifiedUpdaters.GetPrimaryAction(gameInput) != "update",
+       "GameInput protegido não autoriza pacote nem execução mesmo com fabricante/fonte corretos");
 Verify(VerifiedUpdaters.Resolve(Item("Microsoft GameInput", "3.5.270.0", "3.5.283",
        "Fornecedor de Jogos", "Catálogo WinGet")) is null,
        "GameInput rejeita fabricante nao Microsoft");
@@ -297,7 +297,7 @@ if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 
 
 Console.WriteLine("Seguranca: receitas adulteradas e instaladores sem comprovante.");
-foreach (var approved in new[] { obs, npp, sumX64, sumX86, gameRecipe })
+foreach (var approved in new[] { obs, npp, sumX64, sumX86 })
     Verify(approved is not null && VerifiedUpdaters.IsApprovedRecipe(approved),
         "Receita local completa reconhecida: " + approved?.Identifier);
 var forgedRecipes = new[]
@@ -353,6 +353,7 @@ try
 finally { Directory.Delete(isolated, true); }
 
 Work6AuthorizationTests.Run(Verify);
+await Work6FlowTests.RunAsync(Verify);
 SimulatedUpdateScenarioTests.Run(Verify);
 if (OperatingSystem.IsWindows()) AuthenticodeTests.Run(Verify);
 else Console.WriteLine("SKIP: provedor Authenticode e contexto nativo exigem Windows; nao equivalem a aprovacao.");

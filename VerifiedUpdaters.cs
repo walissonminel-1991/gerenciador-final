@@ -67,9 +67,6 @@ internal static class VerifiedUpdaters
             "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" =>
                 CreateSumatraRecipe(new ProgramEntry(), recipe.Identifier == "sumatrapdf-x64-3.6.1",
                     recipe.Arguments == "-install -all-users"),
-            "gameinput-x64-3.5.283" => new(recipe.Identifier, "Microsoft GameInput", "3.5.283.0",
-                GameInputPackage, GameInputDigest, "Microsoft Corporation", "/passive /norestart", false,
-                "https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-nuget"),
             _ => null
         };
         return approved is not null && recipe == approved &&
@@ -115,7 +112,7 @@ internal static class VerifiedUpdaters
     private static readonly Uri Obs = new("https://github.com/obsproject/obs-studio/releases/download/32.2.2/OBS-Studio-32.2.2-Windows-x64-Installer.exe");
 
     private static bool IsMicrosoft(string? publisher) =>
-        (publisher ?? "").Contains("Microsoft", StringComparison.OrdinalIgnoreCase);
+        new[] { "Microsoft Corporation", "Microsoft" }.Contains((publisher ?? "").Trim(), StringComparer.OrdinalIgnoreCase);
 
     // IDs oficiais conhecidos; GameInput nao tem pagina individual confirmada.
     internal static Uri? GetMicrosoftStoreUri(ProgramEntry entry)
@@ -195,18 +192,7 @@ internal static class VerifiedUpdaters
 
     internal static VerifiedUpdateRecipe? Resolve(ProgramEntry entry)
     {
-        if (entry.UpdateRequiresReview || !entry.IsUpdate || string.IsNullOrWhiteSpace(entry.AvailableVersion)) return null;
-
-        if (entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase) &&
-            entry.Publisher.Trim().Equals("Microsoft Corporation", StringComparison.OrdinalIgnoreCase) &&
-            entry.Source == "Catálogo WinGet" &&
-            TryVersion(entry.Version, out var gameInstalled) && gameInstalled < GameInputTarget &&
-            TryVersion(entry.AvailableVersion, out var gameAvailable) && gameAvailable == GameInputTarget)
-        {
-            return new("gameinput-x64-3.5.283", "Microsoft GameInput", "3.5.283.0",
-                GameInputPackage, GameInputDigest, "Microsoft Corporation", "/passive /norestart", false,
-                "https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-nuget");
-        }
+        if (entry.InventoryOnly || ProtectedApplications.IsProtectedName(entry.Name) || entry.UpdateRequiresReview || !entry.IsUpdate || string.IsNullOrWhiteSpace(entry.AvailableVersion)) return null;
 
         if (IsMicrosoft(entry.Publisher) &&
             entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable", StringComparison.OrdinalIgnoreCase) &&
@@ -222,8 +208,7 @@ internal static class VerifiedUpdaters
                 "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/");
         }
         if (entry.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase) &&
-            (entry.Publisher.Contains("OBS", StringComparison.OrdinalIgnoreCase) ||
-             entry.Publisher.Contains("Project", StringComparison.OrdinalIgnoreCase)) &&
+            MatchesInstalledPublisher("obs-x64-32.2.2", entry.Publisher) &&
             TryVersion(entry.Version, out var obsInstalled) && obsInstalled < new Version(32, 2, 2, 0) &&
             TryVersion(entry.AvailableVersion, out var obsAvailable) && obsAvailable == new Version(32, 2, 2, 0))
         {
@@ -394,7 +379,7 @@ internal static class VerifiedUpdaters
         {
             // A confirmacao posterior nao pode aceitar apenas nome/versao:
             // outro editor ou uma entrada somente leitura nao comprova instalacao.
-            if (entry.InventoryOnly || !MatchesInstalledPublisher(identifier, entry.Publisher))
+            if (entry.InventoryOnly || ProtectedApplications.IsProtectedName(entry.Name) || !MatchesInstalledPublisher(identifier, entry.Publisher))
                 continue;
             bool belongs = identifier switch
             {
@@ -419,8 +404,13 @@ internal static class VerifiedUpdaters
     {
         // Confirma a instalacao escolhida, nao outra copia do mesmo produto.
         // Se o instalador trocar a identidade, manter resultado indeterminado.
-        if (string.IsNullOrWhiteSpace(original.InventoryId)) return false;
-        foreach (var entry in current)
+        if (!IsApprovedRecipe(recipe) || original.InventoryOnly ||
+            ProtectedApplications.IsProtectedName(original.Name) ||
+            string.IsNullOrWhiteSpace(original.InventoryId) ||
+            !IsInstalledVersionAtLeast(recipe.Identifier, "0.0", [original])) return false;
+        var snapshot = current.ToArray();
+        if (snapshot.Count(x => x.InventoryId.Equals(original.InventoryId, StringComparison.OrdinalIgnoreCase)) != 1) return false;
+        foreach (var entry in snapshot)
         {
             if (!original.InventoryId.Equals(entry.InventoryId, StringComparison.OrdinalIgnoreCase) ||
                 !IsInstalledVersionAtLeast(recipe.Identifier, recipe.Version, new[] { entry })) continue;
@@ -435,6 +425,19 @@ internal static class VerifiedUpdaters
             return true;
         }
         return false;
+    }
+
+    internal static bool SameInstallationForUpdate(ProgramEntry original, IEnumerable<ProgramEntry> current)
+    {
+        if (string.IsNullOrWhiteSpace(original.InventoryId) || original.InventoryOnly ||
+            ProtectedApplications.IsProtectedName(original.Name)) return false;
+        var matches = current.Where(x => x.InventoryId.Equals(original.InventoryId, StringComparison.OrdinalIgnoreCase)).ToArray();
+        return matches.Length == 1 && !matches[0].InventoryOnly &&
+            !ProtectedApplications.IsProtectedName(matches[0].Name) &&
+            matches[0].Name.Equals(original.Name, StringComparison.OrdinalIgnoreCase) &&
+            matches[0].Publisher.Equals(original.Publisher, StringComparison.OrdinalIgnoreCase) &&
+            matches[0].Version == original.Version && matches[0].InstallLocation == original.InstallLocation &&
+            matches[0].UninstallString == original.UninstallString;
     }
 
     private static bool MatchesInstalledPublisher(string identifier, string publisher)
@@ -485,6 +488,10 @@ internal static class VerifiedUpdaters
     internal static async Task<string> DownloadAndVerifyAsync(VerifiedUpdateRecipe recipe,
         string directory, Action<string> report, CancellationToken cancel)
     {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        deadline.CancelAfter(TimeSpan.FromMinutes(8));
+        cancel = deadline.Token;
+        cancel.ThrowIfCancellationRequested();
         if (!IsApprovedRecipe(recipe) || !IsAllowedRemoteUri(recipe.Download, recipe.Identifier))
             throw new InvalidDataException("Receita ou endereco nao autorizado.");
         directory = InstallerFileGuard.ValidateLocalPath(directory);
@@ -755,7 +762,10 @@ internal static class VerifiedUpdaters
             UseShellExecute = true, Verb = "runas",
             WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System)
         }) ?? throw new InvalidOperationException("Instalador não foi iniciado.");
-        await process.WaitForExitAsync();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+        try { await process.WaitForExitAsync(deadline.Token); }
+        catch (OperationCanceledException)
+        { throw new TimeoutException("Instalador iniciado; conclusão indeterminada. Não repetir automaticamente. Confira a versão após concluir o fabricante."); }
         return process.ExitCode;
         }
         finally { if (!retained) verifiedLock.Dispose(); }

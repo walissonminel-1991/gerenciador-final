@@ -6,8 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../UpdateLaunchGate.cs" Link="UpdateLaunchGate.cs" />
     <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
+    <Compile Include="../ProtectedApplications.cs" Link="ProtectedApplications.cs" />
     <Compile Include="../VerifiedUpdaters.cs" Link="VerifiedUpdaters.cs" />
     <Compile Include="../WindowsTerminalUpdater.cs" Link="WindowsTerminalUpdater.cs" />
     <Compile Include="../LocalMsixInventory.cs" Link="LocalMsixInventory.cs" />

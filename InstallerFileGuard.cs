@@ -96,7 +96,8 @@ internal static class InstallerFileGuard
             throw new IOException("Nao foi possivel proteger o caminho do pacote.",
                 new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()));
         const uint reparse = 0x400, dir = 0x10;
-        if ((info.Attributes & reparse) != 0 || ((info.Attributes & dir) != 0) != directory)
+        if ((info.Attributes & reparse) != 0 || ((info.Attributes & dir) != 0) != directory ||
+            (!directory && info.Links != 1))
             throw new InvalidDataException("Caminho redirecionado ou tipo de arquivo nao autorizado.");
     }
 

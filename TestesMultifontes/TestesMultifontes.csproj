@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../UpdateResultHistory.cs" Link="UpdateResultHistory.cs" />
     <Compile Include="../RuckZuckModels.cs" Link="Models.cs" />
     <Compile Include="../Matching.cs" Link="Matching.cs" />
     <Compile Include="../ProtectedApplications.cs" Link="ProtectedApplications.cs" />
@@ -15,3 +16,4 @@
     <EmbeddedResource Include="../CatalogoIdentidades.json" LogicalName="GerenciadorFinal.ApplicationIdentityCatalog" />
   </ItemGroup>
 </Project>
+

@@ -1953,6 +1953,7 @@ internal sealed partial class MainForm : Form
             throw;
         }
         _catalogoGeneration++;
+        _updateHistory.Clear();
         _consultaCatalogoCts?.Cancel();
         // Os desinstaladores ja foram resolvidos em segundo plano.
         // Não ocultar do inventário os programas sem ação; somente da lista.
@@ -1973,6 +1974,8 @@ internal sealed partial class MainForm : Form
             ? "Inventário PARCIAL: fonte de aplicativos indisponível. Atualize a lista para tentar novamente."
             : $"{ActionableInventory.VisibleCount(_installed)} aplicativos com ação disponíveis antes da consulta online");
     }
+
+    private readonly UpdateResultHistory _updateHistory = new();
 
     private async Task LoadUpdatesAsync(bool forceRefresh = false)
     {
@@ -2057,18 +2060,12 @@ internal sealed partial class MainForm : Form
             if (generation != _catalogoGeneration || IsDisposed) return;
             var rz = await ruckTask;
             var others = await officialTask;
-            var merged = await Task.Run(
+            var freshMerged = await Task.Run(
                 () => MultiSourceMatcher.Merge(installed, rz.Matches, others.Findings), cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
-            if (rz.Matches is null && others.Findings.Count == 0)
-            {
-                InvalidarAtualizacoes();
-                Log("Todas as fontes consultadas estavam indisponíveis ou não cobrem os programas reconhecidos.");
-                Status("Fontes indisponíveis; aplicativos preservados");
-                DiagnosticTrace.Write("MULTIFONTES.SEM_RESULTADOS");
-                return;
-            }
+            bool partial = rz.Matches is null || others.Diagnostics.Any(x => x.Status != "ok");
+            var merged = _updateHistory.Apply(installed, freshMerged, partial);
             AplicarCandidatos(merged);
             foreach (var (sourceId, sourceCode) in new[] { ("ea-desktop", 1), ("fancontrol", 2),
                 ("jellyfin-server", 3), ("klite-mega", 4), ("gameinput-winget", 5), ("plex", 6),
@@ -2125,16 +2122,20 @@ internal sealed partial class MainForm : Form
         catch (OperationCanceledException)
         {
             if (generation != _catalogoGeneration || IsDisposed) return;
-            InvalidarAtualizacoes();
+            AplicarCandidatos(_updateHistory.Apply(installed,
+                installed.Select(x => new UpdateMatch(x, null, MatchState.Unmatched)).ToArray(), true));
+            RenderPrograms();
             DiagnosticTrace.Write("MULTIFONTES.CONSULTA_CANCELADA");
-            Log("Consulta cancelada ou esgotada; a lista local permanece disponível.");
-            Status("Consulta cancelada ou tempo esgotado");
+            Log("Consulta cancelada ou esgotada; resultados anteriores preservados em revisão quando disponíveis.");
+            Status("Consulta cancelada ou esgotada; resultados anteriores exigem revalidação");
         }
         catch (Exception ex)
         {
             DiagnosticTrace.Failure("MULTIFONTES.CONSULTA_FALHA", ex);
             if (generation != _catalogoGeneration || IsDisposed) return;
-            InvalidarAtualizacoes();
+            AplicarCandidatos(_updateHistory.Apply(installed,
+                installed.Select(x => new UpdateMatch(x, null, MatchState.Unmatched)).ToArray(), true));
+            RenderPrograms();
             Log("Falha geral na consulta multifontes (" + ex.GetType().Name + ").");
             Status("Consulta não concluída; lista local preservada");
         }
@@ -2520,7 +2521,7 @@ internal sealed partial class MainForm : Form
 
     private async Task UpdateThirdPartyAsync(ProgramEntry entry)
     {
-        if (_busy) return;
+        if (_busy || !_installed.Contains(entry)) return;
         VerifiedUpdateRecipe? recipe = VerifiedUpdaters.Resolve(entry);
         if (recipe is null)
         {
@@ -2576,19 +2577,22 @@ internal sealed partial class MainForm : Form
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.PREFLIGHT_APROVADO");
                 }
                 Status("Instalador verificado. Aguardando conclusão...");
-                int exit = await VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status);
-                DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM codigo=" + exit);
-                if (exit is not (0 or 3010))
+                var result = await new UpdateLaunchGate().RunAsync(
+                    async () => _installed.Contains(entry) && VerifiedUpdaters.Resolve(entry) == recipe &&
+                        VerifiedUpdaters.SameInstallationForUpdate(entry,
+                        await Task.Run(AppServices.GetInstalledPrograms)),
+                    () => VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status),
+                    async () => VerifiedUpdaters.ConfirmInstallation(recipe, entry,
+                        await Task.Run(AppServices.GetInstalledPrograms)));
+                DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM estado=" + result.State);
+                if (result.State is UpdateAttemptState.Blocked or UpdateAttemptState.Cancelled or UpdateAttemptState.Failed)
                 {
-                    Log("Instalador não concluiu com sucesso (código " + exit + ").");
-                    Status(recipe.Identifier == "obs-x64-32.2.2"
-                        ? "Instalação do OBS cancelada ou bloqueada. Confira outros aplicativos usando arquivos do OBS."
-                        : "Instalação não concluída (código " + exit + ").");
+                    Log("Atualização não confirmada: " + result.State + ". Não haverá nova tentativa automática.");
+                    Status("Atualização bloqueada, cancelada ou não concluída; atualize o inventário antes de tentar novamente.");
                     return;
                 }
-                await Task.Delay(1000);
-                var apps = await Task.Run(AppServices.GetInstalledPrograms);
-                bool confirmed = await Task.Run(() => VerifiedUpdaters.ConfirmInstallation(recipe, entry, apps));
+                bool confirmed = result.State == UpdateAttemptState.Confirmed;
+                int? exit = result.ExitCode;
                 if (confirmed)
                 {
                     Log("Atualização confirmada no Registro do Windows: " + recipe.ProductName + " " + recipe.Version);
@@ -3372,4 +3376,5 @@ internal static class NativeMethods
     [DllImport("dwmapi.dll", PreserveSig = true)]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int valueSize);
 }
+
 

@@ -63,6 +63,10 @@ internal static class WindowsTerminalUpdater
     internal static async Task<string> DownloadAndVerifyAsync(TerminalUpdateRecipe recipe, string folder,
         Action<string> report, CancellationToken token)
     {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromMinutes(5));
+        token = deadline.Token;
+        token.ThrowIfCancellationRequested();
         if (recipe.Version != TargetVersion ||
             !recipe.Download.Equals(PackageUri) ||
             !recipe.Sha256.Equals(AssetDigest, StringComparison.OrdinalIgnoreCase))

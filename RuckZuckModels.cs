@@ -15,9 +15,10 @@ internal sealed record UpdateMatch(InstalledApp Installed, CatalogEntry? Catalog
     public IReadOnlyList<UpdateObservation> Observations { get; init; } = [];
     public bool HasSourceConflict { get; init; }
     public bool RequiresReview { get; init; }
-    public string EvidenceLabel => HasSourceConflict ? "DIVERGÊNCIA ENTRE FONTES" :
+    public bool IsStale { get; init; }
+    public string EvidenceLabel => IsStale ? "EVIDÊNCIA ANTERIOR; CONSULTA PARCIAL — REVALIDAR" : HasSourceConflict ? "DIVERGÊNCIA ENTRE FONTES" :
         Observations.Count > 0 ? "VERSÃO PUBLICADA EM FONTE; INSTALADOR NÃO VERIFICADO" : StateLabel;
-    public string EvidenceDetails => string.Join("\n", Observations.Select(o =>
+    public string EvidenceDetails => (IsStale ? "Consulta atual incompleta: preservado último resultado completo desta sessão, por até 30 minutos; instalação direta bloqueada.\n" : "") + string.Join("\n", Observations.Select(o =>
         o.Provider + ": " + o.Version + " · " + (o.EvidenceKind switch
         {
             "windows-stable-feed" => "versão oferecida para Windows x64; assinatura não verificada",

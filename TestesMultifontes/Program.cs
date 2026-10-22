@@ -9,6 +9,7 @@ void Assert(bool ok, string label)
     tests++;
     Console.WriteLine("OK " + label);
 }
+Work6HistoryTests.Run(Assert);
 static InstalledApp App(string n, string ver, string maker) => new(n, ver, maker);
 Assert(new UpdateMatch(new InstalledApp("Inventario", "1.0", "Editor", false), null, MatchState.Unmatched).DiagnosticReason.Contains("SOMENTE INVENTÁRIO"),
     "Cobertura distingue entrada inelegivel de ausencia no catalogo");
