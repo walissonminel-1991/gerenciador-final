@@ -879,10 +879,10 @@ internal sealed partial class MainForm : Form
 
         var actions = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
             BackColor = AppServices.Background, Margin = new Padding(0, 2, 0, 2)
         };
-        foreach (int width in new[] { 142, 206, 161, 196, 132 })
+        foreach (int width in new[] { 222, 161, 196, 132 })
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, width));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Button MakeAction(string title, Color color, int column, Action onClick)
@@ -897,38 +897,32 @@ internal sealed partial class MainForm : Form
             _actionControls.Add(b);
             return b;
         }
-        var refresh = MakeAction("Atualizar lista", AppServices.Blue, 0,
-            () => _ = ExecuteAsync("Atualizando lista local...", RefreshCatalogAsync));
-        _toolTips.SetToolTip(refresh,
-            "Atualiza apenas o inventário local de programas. Não consulta a internet.");
-
-        // Verificar atualizações é distinto de recarregar a lista local.
-        // Permanece clicável durante a consulta para permitir cancelamento.
-        _checkUpdatesButton = MakeAction("Verificar atualizações", AppServices.Blue, 1,
+        // Atualiza a fotografia do inventario antes de consultar HTTPS.
+        _checkUpdatesButton = MakeAction("Atualizar e verificar", AppServices.Blue, 0,
             () => _ = CheckUpdatesFromButtonAsync());
         _actionControls.Remove(_checkUpdatesButton);
         _toolTips.SetToolTip(_checkUpdatesButton,
-            "Consulta HTTPS a fontes oficiais e RuckZuck. Não instala nem atualiza nada; " +
-            "as fontes recebem dados normais de conexão. Os resultados são candidatos, não garantias.");
-        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 2, ToggleMultiSelection);
-        _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 3,
+            "Renova o inventário e consulta versões por HTTPS. Não instala nada; " +
+            "durante a consulta online, clique novamente para cancelar.");
+        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 1, ToggleMultiSelection);
+        _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 2,
             () => _ = ExecuteAsync("Desinstalando selecionados...", UninstallCheckedAsync));
-        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 4, ClearMultiSelection);
+        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 3, ClearMultiSelection);
         _toolTips.SetToolTip(_bulkUninstallButton, "Solicita confirmação e desinstala os programas marcados, um por vez.");
         root.Controls.Add(actions, 0, 1);
-        // Distribuir os cinco comandos em duas linhas somente quando
+        // Distribuir os quatro comandos em duas linhas somente quando
         // necessário; a busca permanece numa faixa separada, sem botões
         // deslocados para o canto direito.
         bool? lastCompactActions = null;
         void FitActionRows()
         {
             double scale = Math.Max(1.0, root.DeviceDpi / 96d);
-            bool compact = root.ClientSize.Width < (int)Math.Ceiling(870 * scale);
+            bool compact = root.ClientSize.Width < (int)Math.Ceiling(745 * scale);
             if (lastCompactActions == compact) return;
             lastCompactActions = compact;
             var buttons = new Button[]
             {
-                refresh, _checkUpdatesButton, _selectManyButton,
+                _checkUpdatesButton, _selectManyButton,
                 _bulkUninstallButton, _clearSelectionButton
             };
             root.SuspendLayout();
@@ -942,22 +936,17 @@ internal sealed partial class MainForm : Form
                     actions.RowCount = 2;
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-                    for (int i = 0; i < 6; i++)
+                    for (int i = 0; i < 5; i++)
                     {
                         actions.ColumnStyles[i].SizeType = SizeType.Percent;
-                        actions.ColumnStyles[i].Width = 100F / 6F;
+                        actions.ColumnStyles[i].Width = i == 4 ? 0 : 25;
                     }
-                    // Primeira linha: atualizar, verificar e selecionar.
-                    // Segunda linha: desinstalar selecionados e limpar seleção.
-                    for (int i = 0; i < buttons.Length; i++)
-                        actions.SetColumnSpan(buttons[i], 1);
                     for (int i = 0; i < buttons.Length; i++)
                     {
-                        int span = i < 3 ? 2 : 3;
+                        actions.SetColumnSpan(buttons[i], 1);
                         actions.SetCellPosition(buttons[i],
-                            new TableLayoutPanelCellPosition(
-                                i < 3 ? i * 2 : (i - 3) * 3, i < 3 ? 0 : 1));
-                        actions.SetColumnSpan(buttons[i], span);
+                            new TableLayoutPanelCellPosition((i % 2) * 2, i / 2));
+                        actions.SetColumnSpan(buttons[i], 2);
                     }
                 }
                 else
@@ -965,14 +954,14 @@ internal sealed partial class MainForm : Form
                     root.RowStyles[1].Height = (int)Math.Ceiling(44 * scale);
                     actions.RowCount = 1;
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                    int[] widths = { 142, 206, 161, 196, 132 };
-                    for (int i = 0; i < 5; i++)
+                    int[] widths = { 222, 161, 196, 132 };
+                    for (int i = 0; i < 4; i++)
                     {
                         actions.ColumnStyles[i].SizeType = SizeType.Absolute;
                         actions.ColumnStyles[i].Width = (int)Math.Ceiling(widths[i] * scale);
                     }
-                    actions.ColumnStyles[5].SizeType = SizeType.Percent;
-                    actions.ColumnStyles[5].Width = 100;
+                    actions.ColumnStyles[4].SizeType = SizeType.Percent;
+                    actions.ColumnStyles[4].Width = 100;
                     for (int i = 0; i < buttons.Length; i++)
                     {
                         actions.SetColumnSpan(buttons[i], 1);
@@ -1081,6 +1070,29 @@ internal sealed partial class MainForm : Form
             return;
         }
         if (_busy) return;
+        bool loaded = false;
+        if (_checkUpdatesButton is { IsDisposed: false } initial)
+        {
+            initial.Text = "Atualizando lista...";
+            initial.Enabled = false; // Win32/MSIX pode entrar em chamada COM nao cancelavel.
+        }
+        try
+        {
+            await ExecuteAsync("Atualizando inventário local...", async () =>
+            {
+                await RefreshCatalogAsync();
+                loaded = true;
+            });
+        }
+        finally
+        {
+            if (_checkUpdatesButton is { IsDisposed: false } done)
+            {
+                done.Text = "Atualizar e verificar";
+                done.Enabled = true;
+            }
+        }
+        if (!loaded || IsDisposed) return;
         await LoadUpdatesAsync(forceRefresh: true);
         if (_catalogoVerificado && !IsDisposed)
         {
@@ -1101,7 +1113,7 @@ internal sealed partial class MainForm : Form
             _appFilter = title == "Marcados" ? "Selecionados" : title;
             RenderPrograms();
             if (title == "Com atualização" && !_catalogoVerificado)
-                Status("Clique em Verificar atualizações para consultar o catálogo online.");
+                Status("Clique em Atualizar e verificar para consultar o catálogo online.");
         };
         heading.Controls.Add(button, column, 0);
         return button;
@@ -1466,7 +1478,7 @@ internal sealed partial class MainForm : Form
                 double scale = Math.Max(1d, host.DeviceDpi / 96d);
                 int viewport = Math.Max(1, host.ClientSize.Width - (int)Math.Ceiling(16 * scale));
                 int usable = Math.Max(1, viewport - flow.Padding.Horizontal);
-                int desired = (int)Math.Ceiling(244 * scale);
+                int desired = (int)Math.Ceiling((compact ? 216 : 244) * scale);
                 int margin = (int)Math.Ceiling(8 * scale);
                 // Cinco cartões de reparo lado a lado deixam as descrições
                 // comprimidas. Usar 3 colunas no reparo e 4 na limpeza,
@@ -1481,13 +1493,14 @@ internal sealed partial class MainForm : Form
                 int side = Math.Max(7, (viewport - rowWidth) / 2);
                 // O espaço lateral fica dividido entre os dois lados, em
                 // vez de formar uma faixa vazia apenas à direita.
-                Padding balanced = new Padding(side, 7, 7, 7);
+                Padding balanced = new Padding(side, compact && columns == 4 ? 3 : 7, 7,
+                    compact && columns == 4 ? 3 : 7);
                 if (flow.Padding != balanced) flow.Padding = balanced;
                 // A altura depende do texto real e da largura atual.
                 // Um card com duas linhas nao pode reservar a altura de
                 // outro com quatro linhas, e nenhum texto deve ser cortado.
                 int buttonRow = (int)Math.Ceiling(33 * scale);
-                int minHeight = (int)Math.Ceiling(78 * scale);
+                int minHeight = (int)Math.Ceiling((compact && columns == 4 ? 72 : 78) * scale);
                 int maxHeight = (int)Math.Ceiling(160 * scale);
                 int cardHeight = minHeight;
                 foreach (var (card, description) in measuredCards)
@@ -1499,7 +1512,8 @@ internal sealed partial class MainForm : Form
                         description.Font, new Size(labelWidth, 1000),
                         TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
                     int required = buttonRow + card.Padding.Vertical +
-                        description.Padding.Vertical + textHeight + (int)Math.Ceiling(5 * scale);
+                        description.Padding.Vertical + textHeight +
+                        (int)Math.Ceiling((compact && columns == 4 ? 2 : 5) * scale);
                     cardHeight = Math.Max(cardHeight, required);
                 }
                 cardHeight = Math.Clamp(cardHeight, minHeight, maxHeight);
@@ -1520,15 +1534,15 @@ internal sealed partial class MainForm : Form
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1,
-            Margin = new Padding(7, 0, 7, 4), Padding = new Padding(9, 6, 9, 6),
+            Margin = new Padding(7, 0, 7, 2), Padding = new Padding(9, 4, 9, 4),
             BackColor = PanelBackground
         };
         // Linhas dimensionadas pelo DPI real. Evitar que botoes e seletor sejam
         // cortados pelo resumo de discos em 125% / 150%, sem aumentar cards.
         float dpiFactor = Math.Max(1f, DeviceDpi / 96f);
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(40 * dpiFactor)));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(48 * dpiFactor)));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(23 * dpiFactor)));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(34 * dpiFactor)));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(38 * dpiFactor)));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(20 * dpiFactor)));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -1648,13 +1662,13 @@ internal sealed partial class MainForm : Form
         string name = string.IsNullOrWhiteSpace(disk.Label) ? "Disco local" : disk.Label;
         var card = new TableLayoutPanel
         {
-            Size = new Size(350, 111), RowCount = 4, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Padding = new Padding(10, 5, 10, 6),
+            Size = new Size(350, 98), RowCount = 4, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Padding = new Padding(10, 4, 10, 4),
             Margin = new Padding(0, 0, 10, 7)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 19));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         card.Controls.Add(new Label
         {
@@ -1911,7 +1925,7 @@ internal sealed partial class MainForm : Form
             items = scan.Items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
             _inventoryIncomplete = scan.Incomplete;
             if (_inventoryIncomplete)
-                Log("ATENÇÃO: inventário PARCIAL. Uma ou mais fontes não puderam ser consultadas; aplicativos ausentes desta lista podem continuar instalados. Clique em Atualizar lista para tentar novamente. Nenhum aplicativo foi removido.");
+                Log("ATENÇÃO: inventário PARCIAL. Uma ou mais fontes não puderam ser consultadas; aplicativos ausentes desta lista podem continuar instalados. Clique em Atualizar e verificar para tentar novamente. Nenhum aplicativo foi removido.");
             DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count} examinados={scan.Registry.Inspected} ocultos={scan.Registry.HiddenComponents} updates_arp={scan.Registry.UpdateEntries} erros={scan.Registry.ReadFailures} duplicados={scan.Registry.Duplicates}");
             TestDiagnosticDetail.Record("INVENTARIO",
                 ("total", items.Count),
@@ -1959,7 +1973,7 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_FIM");
         Log($"Inventário local: {_installed.Count} registros; {ActionableInventory.VisibleCount(_installed)} com desinstalação disponível. A lista exibida mostra somente ações.");
         Status(_inventoryIncomplete
-            ? "Inventário PARCIAL: fonte de aplicativos indisponível. Atualize a lista para tentar novamente."
+            ? "Inventário PARCIAL: fonte de aplicativos indisponível. Use Atualizar e verificar para tentar novamente."
             : $"{ActionableInventory.VisibleCount(_installed)} aplicativos com ação disponíveis antes da consulta online");
     }
 
@@ -2142,7 +2156,7 @@ internal sealed partial class MainForm : Form
                 }
                 RenderTitle();
                 if (_checkUpdatesButton is not null)
-                    _checkUpdatesButton.Text = "Verificar atualizações";
+                    _checkUpdatesButton.Text = "Atualizar e verificar";
             }
         }
     }
@@ -2262,7 +2276,7 @@ internal sealed partial class MainForm : Form
         int displayed = summary.Actionable;
         string windowsStatus = _windowsUpdateCheckingMessage();
         string full = $"{InventoryCoverageTitle(_inventoryIncomplete)}: {summary.Total} · Com ação: {displayed} · Sem ação disponível: {summary.WithoutAction} · Desinstaláveis: {summary.Uninstallable} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
-            (_inventoryIncomplete ? " · Fonte do Windows indisponível: ausência na lista não comprova desinstalação. Atualizar lista para tentar novamente." : "") +
+            (_inventoryIncomplete ? " · Fonte do Windows indisponível: ausência na lista não comprova desinstalação. Atualizar e verificar para tentar novamente." : "") +
             (_consultaCatalogoCts is not null ? " · Verificando..." : "") +
             windowsStatus + (_multiSelectMode ? $" · Marcados: {_checkedApps.Count}" : "");
         // Cabeçalho permanece de uma linha sem sobrepor os quatro filtros.
@@ -2453,7 +2467,7 @@ internal sealed partial class MainForm : Form
                     {
                         _installerDownloadCts = null;
                         if (!IsDisposed && _checkUpdatesButton is not null)
-                            _checkUpdatesButton.Text = "Verificar atualizacoes";
+                            _checkUpdatesButton.Text = "Atualizar e verificar";
                     }
                 }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.MSIX_VALIDADO");
@@ -2555,7 +2569,7 @@ internal sealed partial class MainForm : Form
                     {
                         _installerDownloadCts = null;
                         if (!IsDisposed && _checkUpdatesButton is not null)
-                            _checkUpdatesButton.Text = "Verificar atualizações";
+                            _checkUpdatesButton.Text = "Atualizar e verificar";
                     }
                 }
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.ARQUIVO_VALIDADO receita=" + recipe.Identifier);

@@ -353,13 +353,13 @@ internal static class LayoutTests
                 {
                     var commands = Descendants(form).OfType<TableLayoutPanel>()
                         .FirstOrDefault(panel => panel.Controls.OfType<Button>()
-                            .Any(button => button.Text == "Verificar atualizações"));
-                    string[] expectedCommands = { "Atualizar lista", "Verificar atualizações",
+                            .Any(button => button.Text == "Atualizar e verificar"));
+                    string[] expectedCommands = { "Atualizar e verificar",
                         "Selecionar vários", "Desinstalar selecionados", "Limpar seleção" };
                     if (commands is null ||
                         !commands.Controls.OfType<Button>()
                             .Select(button => button.Text).SequenceEqual(expectedCommands))
-                        throw new Exception("Os cinco comandos de Aplicativos nao estao juntos.");
+                        throw new Exception("Os quatro comandos de Aplicativos nao estao juntos.");
                     var search = Descendants(form).OfType<TableLayoutPanel>()
                         .FirstOrDefault(panel => panel.Controls.OfType<TextBox>()
                             .Any(t => t.PlaceholderText.Contains("Nome, versão")));
@@ -382,7 +382,7 @@ internal static class LayoutTests
                                 name + " / " + filterButton.Text);
                     }
                     bool expectCompact = commands.ClientSize.Width <
-                        (int)Math.Ceiling(870d * Math.Max(1, commands.DeviceDpi) / 96d);
+                        (int)Math.Ceiling(745d * Math.Max(1, commands.DeviceDpi) / 96d);
                     if (commands.RowCount != (expectCompact ? 2 : 1))
                         throw new Exception("Acoes com numero incorreto de linhas: " + resolution);
                     foreach (Button button in commands.Controls.OfType<Button>())
@@ -450,7 +450,7 @@ internal static class LayoutTests
                     int minButtonHeight = preview?.Controls.OfType<Button>()
                         .Select(b => b.Height).DefaultIfEmpty(0).Min() ?? 0;
                     if (preview is null || preview.RowCount != 1 ||
-                        preview.Height < 40 || minButtonHeight < 24 ||
+                        preview.Height < 38 || minButtonHeight < 24 ||
                         profile!.Height < 16 ||
                         !preview.RectangleToScreen(preview.ClientRectangle)
                             .Contains(profile.RectangleToScreen(profile.ClientRectangle)))
