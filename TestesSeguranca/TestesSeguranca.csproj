@@ -11,6 +11,7 @@
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
     <Compile Include="../SafeTemporaryCleanup.cs" Link="SafeTemporaryCleanup.cs" />
     <Compile Include="../SafeMaintenanceAudit.cs" Link="SafeMaintenanceAudit.cs" />
+    <Compile Include="../SingleVolumeOptimization.cs" Link="SingleVolumeOptimization.cs" />
     <Compile Include="../PipePeerVerifier.cs" Link="PipePeerVerifier.cs" />
     <Compile Include="../WindowsSystemTools.cs" Link="WindowsSystemTools.cs" />
     <Compile Include="../RestorePointService.cs" Link="RestorePointService.cs" />

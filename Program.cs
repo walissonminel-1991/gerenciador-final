@@ -104,7 +104,8 @@ internal sealed record UnifiedInventoryScan(IReadOnlyList<ProgramEntry> Items,
 }
 internal sealed record CommandResult(int ExitCode, string StandardOutput, string StandardError);
 internal sealed record CleanupResult(int FilesRemoved, int DirectoriesRemoved, int Failed, int ReparseSkipped, int Skipped, IReadOnlyList<string> Examples);
-internal sealed record DiskUsageInfo(string Root, string Label, long TotalBytes, long FreeBytes);
+internal sealed record DiskUsageInfo(string Root, string Label, long TotalBytes, long FreeBytes,
+    string FileSystem = "");
 
 internal static class AppServices
 {
@@ -124,7 +125,11 @@ internal static class AppServices
                 string label;
                 try { label = disk.VolumeLabel?.Trim() ?? ""; }
                 catch { label = ""; }
-                items.Add(new DiskUsageInfo(disk.Name, label, total, Math.Clamp(free, 0L, total)));
+                string fileSystem;
+                try { fileSystem = disk.DriveFormat; }
+                catch { fileSystem = ""; }
+                items.Add(new DiskUsageInfo(disk.Name, label, total,
+                    Math.Clamp(free, 0L, total), fileSystem));
             }
             catch (IOException) { /* Volume momentaneamente indisponível. */ }
             catch (UnauthorizedAccessException) { /* Volume protegido. */ }
@@ -1551,9 +1556,8 @@ internal sealed partial class MainForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(38 * dpiFactor)));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(20 * dpiFactor)));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
+        var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 173));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 155));
         heading.Controls.Add(new Label
         {
@@ -1561,17 +1565,6 @@ internal sealed partial class MainForm : Form
             ForeColor = Ink, Font = new Font("Segoe UI", 11F, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft
         }, 0, 0);
-        var optimizeDisks = CreateSecondaryButton("Otimizar");
-        optimizeDisks.AccessibleName = "Otimizar unidades";
-        optimizeDisks.Dock = DockStyle.Fill;
-        optimizeDisks.Margin = new Padding(5, 4, 5, 4);
-        optimizeDisks.Click += async (_, _) => await ConfirmThenRun("optimize-drives",
-            "O Windows escolherá a operação apropriada para cada unidade fixa (SSD/HD).\n\n" +
-            "A análise/otimização pode demorar e solicitar autorização. Continuar?");
-        _toolTips.SetToolTip(optimizeDisks, "O Windows executa a otimização apropriada a cada tipo de unidade. Pode demorar.");
-        _actionControls.Add(optimizeDisks);
-        heading.Controls.Add(optimizeDisks, 1, 0);
-
         _refreshDisksButton = CreateSecondaryButton("Atualizar discos");
         _refreshDisksButton.Dock = DockStyle.Fill;
         _refreshDisksButton.Margin = new Padding(5, 4, 0, 4);
@@ -1579,7 +1572,7 @@ internal sealed partial class MainForm : Form
         _refreshDisksButton.Click += async (_, _) => await RefreshDiskUsageAsync();
         _toolTips.SetToolTip(_refreshDisksButton, "Reconsultar o espaço livre e ocupado de cada unidade local.");
         _actionControls.Add(_refreshDisksButton);
-        heading.Controls.Add(_refreshDisksButton, 2, 0);
+        heading.Controls.Add(_refreshDisksButton, 1, 0);
         root.Controls.Add(heading, 0, 0);
         var previewRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = PanelBackground };
         previewRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -1677,12 +1670,44 @@ internal sealed partial class MainForm : Form
         card.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
         card.RowStyles.Add(new RowStyle(SizeType.Absolute, 19));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.Controls.Add(new Label
+        var diskHeader = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            Margin = Padding.Empty, Padding = Padding.Empty,
+            BackColor = Color.FromArgb(38, 50, 63)
+        };
+        diskHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        diskHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,
+            (int)Math.Ceiling(91d * DeviceDpi / 96d)));
+        diskHeader.Controls.Add(new Label
         {
             Text = $"{name} ({letter})", Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", 10F, FontStyle.Bold), ForeColor = Ink,
-            TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true
+            TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true,
+            Margin = Padding.Empty
         }, 0, 0);
+        string? task = SingleVolumeOptimization.TaskForRoot(disk.Root);
+        var optimize = CreateSecondaryButton("Otimizar");
+        optimize.Name = "OptimizeVolume" + letter.TrimEnd(':');
+        optimize.AccessibleName = "Otimizar somente " + letter;
+        optimize.Dock = DockStyle.Fill;
+        optimize.Margin = new Padding(3, 0, 0, 0);
+        optimize.Tag = task;
+        optimize.Enabled = task is not null &&
+            SingleVolumeOptimization.IsEligible(DriveType.Fixed, true, disk.FileSystem);
+        _toolTips.SetToolTip(optimize, optimize.Enabled
+            ? "Otimizar apenas " + letter + " com o método adequado ao volume (SSD/HD)."
+            : "Otimização indisponível para este sistema de arquivos ou volume.");
+        optimize.Click += async (_, _) =>
+        {
+            if (task is null || !optimize.Enabled || _busy) return;
+            await ConfirmThenRun(task,
+                "Otimizar somente a unidade " + letter +
+                "? O Windows escolherá o método adequado e poderá solicitar autorização.");
+        };
+        _actionControls.Add(optimize);
+        diskHeader.Controls.Add(optimize, 1, 0);
+        card.Controls.Add(diskHeader, 0, 0);
         card.Controls.Add(new Label
         {
             Text = $"Usado: {DisplayGigabytes(used)}    |    Livre: {DisplayGigabytes(disk.FreeBytes)}",
@@ -1739,6 +1764,7 @@ internal sealed partial class MainForm : Form
                 var oldCards = _diskCards.Content.Controls.Cast<Control>().ToArray();
                 _diskCards.Content.Controls.Clear();
                 foreach (Control oldCard in oldCards) oldCard.Dispose();
+                _actionControls.RemoveAll(control => control.IsDisposed);
                 foreach (DiskUsageInfo volume in volumes)
                     _diskCards.Content.Controls.Add(CreateDiskCard(volume));
                 _diskSummary.Text = volumes.Count switch
@@ -3157,7 +3183,7 @@ internal static class WorkerHost
     private static readonly HashSet<string> Allowed = new(StringComparer.OrdinalIgnoreCase)
     {
         "clean-windows-temp", "clear-update-cache", "cleanmgr-auto", "windows-repair",
-        "flush-dns", "network-repair-winsock", "network-reset", "optimize-drives", "hibernate-on", "hibernate-off",
+        "flush-dns", "network-repair-winsock", "network-reset", "hibernate-on", "hibernate-off",
         "power-plan-balanced", "power-plan-saver", "power-plan-ultimate", "create-restore-point"
     };
 
@@ -3165,7 +3191,8 @@ internal static class WorkerHost
     {
         bool updateTask = TryParseUpdateTask(task, out _);
         bool restorePower = TryParseRestorePowerTask(task, out _);
-        if ((!Allowed.Contains(task) && !updateTask && !restorePower) || !Regex.IsMatch(pipeName, @"^GA5122_[a-f0-9]{32}$") ||
+        bool optimizeVolume = SingleVolumeOptimization.TryParseTask(task, out _);
+        if ((!Allowed.Contains(task) && !updateTask && !restorePower && !optimizeVolume) || !Regex.IsMatch(pipeName, @"^GA5122_[a-f0-9]{32}$") ||
             !Regex.IsMatch(token, @"^[a-f0-9]{32}$")) return 2;
         try
         {
@@ -3228,6 +3255,35 @@ internal static class WorkerHost
         }
 
         log("Permissão administrativa concedida. Progresso exibido na janela principal.");
+        if (SingleVolumeOptimization.TryParseTask(task, out string volume))
+        {
+            // Revalidar o alvo no worker elevado: o volume pode ter mudado
+            // entre o clique e o consentimento UAC. Nunca otimizar todos.
+            bool eligible = false;
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                if (!string.Equals(drive.Name, volume + "\\", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try
+                {
+                    eligible = SingleVolumeOptimization.IsEligible(
+                        drive.DriveType, drive.IsReady, drive.DriveFormat);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    eligible = false;
+                }
+                break;
+            }
+            if (!eligible)
+            {
+                log("Volume nao esta disponivel ou nao suporta otimizacao. Nenhuma unidade alterada.");
+                return 2;
+            }
+            log("Otimizando somente a unidade " + volume +
+                " com a politica adequada ao tipo de armazenamento do Windows.");
+            return await Run("defrag.exe", volume, "/O", "/U");
+        }
         switch (task)
         {
             case "clean-windows-temp":
@@ -3283,16 +3339,6 @@ internal static class WorkerHost
                 int two = await Run("netsh.exe", "int", "ip", "reset");
                 log("Reinicie o computador para completar algumas alterações de rede.");
                 return one == 0 && two == 0 ? 0 : 1;
-            }
-            case "optimize-drives":
-            {
-                int errors = 0;
-                foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
-                {
-                    log("Otimizando " + drive.Name);
-                    if (await Run("defrag.exe", drive.Name.TrimEnd('\\'), "/O") != 0) errors++;
-                }
-                return errors == 0 ? 0 : 1;
             }
             case "create-restore-point":
                 log("Solicitando ponto de restauração ao Windows...");

@@ -489,11 +489,31 @@ internal static class LayoutTests
 
                 if (tab == 2)
                 {
-                    var optimize = Descendants(form).OfType<Button>()
-                        .SingleOrDefault(b => b.AccessibleName == "Otimizar unidades");
-                    if (optimize is null || optimize.Text != "Otimizar" ||
-                        optimize.Height < 24)
-                        throw new Exception($"Acao de otimizacao cortada: {name} {resolution}");
+                    if (Descendants(form).OfType<Button>().Any(b =>
+                        b.AccessibleName == "Otimizar unidades"))
+                        throw new Exception("Nao deve existir otimizacao global de todos os discos.");
+                    // Cartao sintetico: a nova acao fica ao lado do nome
+                    // e aponta exclusivamente para o volume representado.
+                    var diskBuilder = typeof(MainForm).GetMethod("CreateDiskCard",
+                        System.Reflection.BindingFlags.NonPublic |
+                        System.Reflection.BindingFlags.Instance)!;
+                    using var diskFixture = (Control)diskBuilder.Invoke(form,
+                        new object[] { new DiskUsageInfo(@"C:\\", "Sistema",
+                            250000000000L, 100000000000L, "NTFS") })!;
+                    var diskButton = Descendants(diskFixture).OfType<Button>()
+                        .SingleOrDefault(b => b.Name == "OptimizeVolumeC");
+                    if (diskButton is null || !diskButton.Enabled ||
+                        diskButton.Text != "Otimizar" ||
+                        (string?)diskButton.Tag != "optimize-volume:C" ||
+                        diskButton.Parent is not TableLayoutPanel titleRow ||
+                        titleRow.Controls.OfType<Label>().Count() != 1)
+                        throw new Exception($"Otimizar deve aparecer junto ao nome da unidade: {name}");
+                    using var unsupportedFixture = (Control)diskBuilder.Invoke(form,
+                        new object[] { new DiskUsageInfo(@"D:\\", "Nao elegivel",
+                            250000000000L, 100000000000L, "exFAT") })!;
+                    if (Descendants(unsupportedFixture).OfType<Button>()
+                        .SingleOrDefault(b => b.Name == "OptimizeVolumeD") is not { Enabled: false })
+                        throw new Exception("Unidade nao elegivel deve ter otimizacao desabilitada.");
                     var profile = Descendants(form).OfType<ComboBox>()
                         .SingleOrDefault(c => c.Name == "TestDiagnosticProfile");
                     var preview = profile?.Parent?.Parent as TableLayoutPanel;

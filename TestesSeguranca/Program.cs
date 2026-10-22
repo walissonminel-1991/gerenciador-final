@@ -11,6 +11,33 @@ static void Check(bool ok, string why)
 {
     if (!ok) throw new Exception("Seguranca: " + why);
 }
+Check(SingleVolumeOptimization.TaskForRoot(@"C:\\") == "optimize-volume:C" &&
+    SingleVolumeOptimization.TaskForRoot(@"D:\\") == "optimize-volume:D" &&
+    SingleVolumeOptimization.TryParseTask("optimize-volume:C", out var onlyC) &&
+    onlyC == "C:" &&
+    SingleVolumeOptimization.TryParseTask("optimize-volume:D", out var onlyD) &&
+    onlyD == "D:", "Uma unidade recebe apenas um identificador canonico.");
+foreach (var candidate in new[]
+{
+    "optimize-drives", "optimize-volume:", "optimize-volume:CC", "optimize-volume:C /C",
+    "optimize-volume:C:/D", "optimize-volume:c", "optimize-volume:C\\",
+    "optimize-volume:C\n", "optimize-volume:Z:", "optimize-volume:C,C",
+    "optimize-volume:\\?\\C"
+})
+    Check(!SingleVolumeOptimization.TryParseTask(candidate, out _),
+        "Selecao de volume nao pode aceitar alvo multiplo nem parametros livres: " + candidate);
+Check(SingleVolumeOptimization.TaskForRoot(@"\\servidor\compartilhado") is null &&
+    SingleVolumeOptimization.TaskForRoot("C:") is null &&
+    SingleVolumeOptimization.TaskForRoot("C:\\alvo") is null &&
+    SingleVolumeOptimization.IsEligible(DriveType.Fixed, true, "NTFS") &&
+    SingleVolumeOptimization.IsEligible(DriveType.Fixed, true, "ReFS") &&
+    !SingleVolumeOptimization.IsEligible(DriveType.Removable, true, "NTFS") &&
+    !SingleVolumeOptimization.IsEligible(DriveType.Network, true, "NTFS") &&
+    !SingleVolumeOptimization.IsEligible(DriveType.Fixed, false, "NTFS") &&
+    !SingleVolumeOptimization.IsEligible(DriveType.Fixed, true, "exFAT"),
+    "Somente volumes locais, prontos e suportados podem ser otimizados.");
+Console.WriteLine("OK: otimizacao limitada a um volume e comandos injetados rejeitados.");
+
 Check(SafeMaintenanceAudit.Begin("clean-user-temp") == "LIMPEZA.INICIO tipo=temporarios_usuario",
     "inicio de limpeza deve usar tipo fixo");
 Check(SafeMaintenanceAudit.LocalResult("clean-user-temp", 47, 0, 17, 0, 0) ==
