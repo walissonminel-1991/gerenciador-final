@@ -1,6 +1,26 @@
 using GerenciadorAplicativos;
 
 int passed = 0;
+{
+    string win = @"C:\Windows";
+    string app = @"C:\Program Files\Cliente\worker.exe";
+    bool yes = SelectiveMemoryTrim.IsCandidate(12345, 20000, 2, 2,
+        "Worker", app, win, 256L * 1024 * 1024, false);
+    bool system = SelectiveMemoryTrim.IsCandidate(12345, 20000, 2, 2,
+        "svchost", @"C:\Windows\System32\svchost.exe", win, 256L * 1024 * 1024, false);
+    bool active = SelectiveMemoryTrim.IsCandidate(12345, 20000, 2, 2,
+        "Worker", app, win, 256L * 1024 * 1024, true);
+    bool service = SelectiveMemoryTrim.IsCandidate(12345, 20000, 0, 2,
+        "Worker", app, win, 256L * 1024 * 1024, false);
+    bool security = SelectiveMemoryTrim.IsCandidate(12345, 20000, 2, 2,
+        "SecurityAgent", app, win, 256L * 1024 * 1024, false);
+    bool small = SelectiveMemoryTrim.IsCandidate(12345, 20000, 2, 2,
+        "Worker", app, win, 16L * 1024 * 1024, false);
+    if (!yes || system || active || service || security || small)
+        throw new Exception("RAM: selecao nao respeita limites para segundo plano e seguranca.");
+    passed++;
+}
+
 var largeDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1920, 1400));
 var regularDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1920, 1040));
 var shiftedDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(-1920, 40, 1920, 1080));
