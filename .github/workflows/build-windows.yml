@@ -6,23 +6,33 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   build:
+    name: Compilação Windows x64
     permissions:
       contents: read
-      id-token: write
-      attestations: write
+    outputs:
+      artifact_name: ${{ steps.pacote.outputs.nome }}
     runs-on: windows-2022
     timeout-minutes: 30
+    env:
+      GF_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      GF_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
     steps:
       - name: Baixar fonte
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Preparar SDK .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
 
@@ -59,6 +69,8 @@ jobs:
             'Produto: Gerenciador Final'
             "Versao: $version"
             "Commit Git: $env:GITHUB_SHA"
+            "Commit fonte: $env:GF_SOURCE_SHA"
+            "Base da PR (quando aplicavel): $env:GF_BASE_SHA"
             "Execucao GitHub Actions: $env:GITHUB_RUN_ID"
             'Assinatura digital: AUSENTE (pacote experimental)'
             'Status AVG: NAO VALIDADO; nao executar se estiver em quarentena'
@@ -94,16 +106,39 @@ jobs:
           Write-Host "Integridade aprovada: $verified arquivos."
 
       - name: Conservar artefato para testes (nao assinado)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.pacote.outputs.nome }}
           path: Distribuicao/
           retention-days: 7
           if-no-files-found: error
 
-      # Atestado de origem GitHub nao assina o executavel (Authenticode).
-      - name: Atestar procedencia do executavel (GitHub)
-        if: github.event_name != 'pull_request' && github.event.repository.private == false
-        uses: actions/attest@v4
+  # OIDC e permissao de atestacao somente em contexto confiavel da main.
+  # PRs externos nunca recebem id-token:write nem attestations:write.
+  attest:
+    name: Atestar pacote apenas na main
+    needs: build
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.private == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Recuperar somente artefato do build deste workflow
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: Distribuicao
+      - name: Verificar manifesto e integridade antes de atestar
+        shell: bash
+        run: |
+          test -s Distribuicao/GerenciadorFinal.exe
+          test -s Distribuicao/SHA256SUMS.txt
+          (cd Distribuicao && sha256sum --check SHA256SUMS.txt)
+      # Atestado de procedencia GitHub nao substitui assinatura Authenticode.
+      - name: Atestar procedencia do executavel da main
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: Distribuicao/GerenciadorFinal.exe
