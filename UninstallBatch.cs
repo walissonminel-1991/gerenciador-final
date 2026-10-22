@@ -73,7 +73,10 @@ internal sealed class UninstallBatch
                     if(!after.Complete) { results.Add(new(request,UninstallState.Pending,exit)); break; }
                     absent=UninstallResiduals.StillInstalled(request.Original,after.Items) ? 0 : absent+1;
                     if(absent==2) { results.Add(new(request,UninstallState.RegistrationAbsent,exit)); break; }
-                    if(attempt==6) results.Add(new(request,UninstallState.StillPresent,exit));
+                    // O fornecedor pode atualizar o Registro segundos ou minutos depois
+                    // do processo inicial. Esta janela curta nao comprova
+                    // falha definitiva nem autoriza um segundo lançamento.
+                    if(attempt==6) results.Add(new(request,UninstallState.Pending,exit));
                     else await betweenChecks(token);
                 }
             }

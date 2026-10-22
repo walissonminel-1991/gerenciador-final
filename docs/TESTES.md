@@ -1,3 +1,13 @@
+## Evidências PC FORTE .38 — 22/10/2026, U8/R7/R4 não encerrados
+
+- Inventário completo 174 aplicativos/27 MSIX; 8 possíveis atualizações, 4 incertas, 14/15 fontes disponíveis; uma fonte externa com timeout. Não houve instalação supervisionada de atualização; **U8 pendente**.
+- Desinstalação real observada: `StillPresent codigo=0` às 14:51:46 e inventário 174 logo depois; diagnóstico posterior mostrou 173, sem identidade no log. Não se deve inferir que a redução foi obrigatoriamente causada pela ação. Ajustado estado para **Pending** após consultas rápidas quando o fornecedor termina com código zero mas o registro continua. Não repetir silenciosamente nem declarar sucesso. **R7 pendente**.
+- Duas preparações bloqueadas por `CryptographicException` (assinatura/identidade do desinstalador), sem execução: **não desabilitar Authenticode** para contornar.
+- IObit mostrou 6 itens Registro + 11 itens arquivos atribuídos a Notepad++ (somente imagem, não confirmados por auditoria do GF). Novo histórico consultivo identifica pastas exatas `AppData\\Roaming\\Notepad++`, `AppData\\Local\\Notepad++`, `ProgramData\\Notepad++` e chaves específicas `SOFTWARE\\Notepad++`; preserva qualquer dado e ignora chaves compartilhadas UFH do Windows. `R4` continua suspenso sem exclusão.
+- Resíduos gerais 45 grupos/164 locais, 864 grupos examinados, 44 candidatos amplos, 608 com evidência insuficiente, 212 protegidos. Análise parcial por limites de entradas/profundidade, links redirecionados e leituras AppData/ProgramData.
+- Recuperação de informações dos componentes e logs de usuário são privados. Não registrar nomes de apps ou caminhos nos diagnósticos automatizados.
+- Próximo ciclo significativo: verificar identidade pós-desinstalação em **duas consultas completas** e se ainda restam configurações do aplicativo; repetir U8 com app descartável atualizado pelo próprio GF sob autorização. R4 exige executor seguro em ambiente isolado e aprovação própria; não usar IObit como prova de exclusividade.
+
 ## Lote funcional em desenvolvimento — sem nova build para teste físico (22/10/2026)
 
 * **Windows**: dividir "Verificar Windows" (DISM ScanHealth + SFC verifyonly) e "Reparar Windows" (RestoreHealth + scannow). Reparação só habilita quando o texto explicitamente reconhecer corrupção nesta sessão; resultados inconclusivos não habilitam.

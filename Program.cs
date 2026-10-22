@@ -2751,7 +2751,7 @@ internal sealed partial class MainForm : Form
             int pending = outcomes.Count(x => x.State == UninstallState.Pending);
             int failures = outcomes.Count(x => x.State is UninstallState.Blocked or UninstallState.StartFailed or UninstallState.ProcessFailed or UninstallState.StillPresent);
             Status(!consent ? "Desinstalação cancelada" :
-                $"Desinstalação: {absent} registro(s) ausente(s), {pending} pendente(s), {failures} falha(s). Sem exclusão de resíduos.");
+                $"Desinstalação: {absent} registro(s) ausente(s), {pending} pendente(s) de confirmação, {failures} falha(s). Sem exclusão de resíduos.");
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
         {
@@ -2951,6 +2951,11 @@ internal sealed partial class MainForm : Form
         var winMergeReports = historicalWinMerge.Findings.Count == 0 && !historicalWinMerge.Incomplete
             ? Array.Empty<ResidualAuditReport>()
             : new[] { historicalWinMerge };
+        var historicalNotepad = await Task.Run(() =>
+            ResidualAudit.InspectHistoricalNotepadPlusPlus(updatedInventory, inventoryIncomplete));
+        var notepadReports = historicalNotepad.Findings.Count == 0
+            ? Array.Empty<ResidualAuditReport>()
+            : new[] { historicalNotepad };
         DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)} booster_locais={boosterEvidence.Findings.Count} winmerge_locais={historicalWinMerge.Findings.Count}");
         Status("Analisando locais comuns de aplicativos e Registro, sem alterar arquivos...");
         DiagnosticTrace.Write("RESIDUOS_GERAIS.CONSULTA_INICIO");
@@ -2970,7 +2975,7 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} raizes_restritas={broad.RestrictedRoots} fontes_nao_consultadas_ou_inacessiveis={broad.Coverage?.SourcesUnavailable?.Count ?? 0} fontes_leitura_parcial={broad.Coverage?.SourcesWithReadFailures?.Count ?? 0} parcial={broad.Incomplete} motivos={scanIssues.ToString().Replace(", ", "+")}");
         // Unir todas as fontes por produto/local, preservando motivos divergentes.
         var allReports = ResidualReportMerger.Merge(historical.Concat(boosterReports).Concat(winMergeReports)
-            .Concat(broad.Reports), inventoryIncomplete || broad.Incomplete, ResidualCoverage.Combine(new[] { broad.Coverage, historical.Coverage }));
+            .Concat(notepadReports).Concat(broad.Reports), inventoryIncomplete || broad.Incomplete, ResidualCoverage.Combine(new[] { broad.Coverage, historical.Coverage }));
         var coverage = allReports.Coverage;
         // Apenas códigos de origens conhecidas, contagens e flags. Sem caminhos.
         foreach (var detail in broad.Coverage?.SourceDetails ?? [])

@@ -168,6 +168,63 @@ internal static class ResidualAudit
             [], Historical: true, Incomplete: budget.Incomplete, Coverage: budget.Coverage);
     }
 
+
+    // Observacao historica para o caso real PC FORTE: Notepad++ ja removido
+    // pode deixar preferências AppData/Registro. Nao examina conteudo nem
+    // declara exclusiva uma chave Windows (UFH, AppCompat, Uninstall etc.).
+    // NUNCA transforma qualquer resultado em candidato executavel.
+    internal static ResidualAuditReport InspectHistoricalNotepadPlusPlus(
+        IReadOnlyCollection<ProgramEntry> installed, bool inventoryIncomplete = false)
+    {
+        var budget = new ResidualScanBudget();
+        budget.Source("NotepadHistory");
+        if (inventoryIncomplete) budget.MarkIncomplete(ResidualScanIssue.InventoryPartial);
+        if (inventoryIncomplete ||
+            installed.Any(p => p.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase)))
+            return new("Notepad++", false, [], [], Historical: true,
+                Incomplete: inventoryIncomplete, Coverage: budget.Coverage);
+
+        var findings = new List<ResidualAuditFinding>();
+        var examined = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string root in new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
+        }.Where(ResidualReadSafety.IsLocalAbsolute))
+            InspectFolder(Path.Combine(root, "Notepad++"),
+                "Configurações históricas do Notepad++; preservar até confirmação de titularidade",
+                findings, examined, budget, ResidualDisposition.PreserveData);
+        foreach (var source in new[]
+        {
+            (Hive: RegistryHive.CurrentUser, View: RegistryView.Default,
+                Label: "HKEY_CURRENT_USER"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry32,
+                Label: "HKEY_LOCAL_MACHINE (32 bits)"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry64,
+                Label: "HKEY_LOCAL_MACHINE (64 bits)")
+        })
+        {
+            try
+            {
+                using var root = RegistryKey.OpenBaseKey(source.Hive, source.View);
+                using var key = root.OpenSubKey(@"SOFTWARE\Notepad++", writable: false);
+                if (key is null) continue;
+                findings.Add(new(source.Label + @"\SOFTWARE\Notepad++",
+                    "Configurações específicas do Notepad++ — preservar",
+                    Math.Max(1, Math.Min(ScanLimit, key.ValueCount + key.SubKeyCount)),
+                    "Chave específica; pode conter preferências e dados reutilizáveis. " +
+                    "Preservar, sem ler valores ou autorizar exclusão.",
+                    ResidualDisposition.PreserveData, ResidualSource.Registry));
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or
+                System.Security.SecurityException or IOException or ArgumentException)
+            { budget.MarkIncomplete(); }
+        }
+        return new("Notepad++", false, findings.ToArray(), [],
+            Historical: true, Incomplete: budget.Incomplete, Coverage: budget.Coverage);
+    }
+
     internal static bool IsDriverBoosterProduct(ProgramEntry app) =>
         Regex.IsMatch(app.Name.Trim(), @"^Driver Booster(?:\s+\d+(?:\.\d+)*)?$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);

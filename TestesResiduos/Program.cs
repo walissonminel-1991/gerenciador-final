@@ -633,6 +633,25 @@ Check(!winMergeHistorical.UninstallConfirmed && winMergeHistorical.Historical &&
         r.Evidence.Contains("somente leitura", StringComparison.OrdinalIgnoreCase)),
     "Somente locais especificos sao consultados; ausencia no inventario nao confirma remocao");
 
+// Notepad++ historico: nao basta encontrar AppData para autorizar
+// remocao. Protecao inclui outras arquiteturas e inventario parcial.
+var notepadActiveReport = ResidualAudit.InspectHistoricalNotepadPlusPlus(new[]
+    { new ProgramEntry { Name = "Notepad++ (x64)", Publisher = "Don HO" } });
+Check(notepadActiveReport.Findings.Count == 0 &&
+    !notepadActiveReport.UninstallConfirmed && notepadActiveReport.Historical,
+    "Notepad++ instalado em outra variante nao aparece como vestigio historico.");
+var notepadPartialReport = ResidualAudit.InspectHistoricalNotepadPlusPlus(
+    Array.Empty<ProgramEntry>(), inventoryIncomplete: true);
+Check(notepadPartialReport.Findings.Count == 0 &&
+    notepadPartialReport.Incomplete && !notepadPartialReport.UninstallConfirmed,
+    "Inventario parcial nao pode confirmar ausencia de Notepad++.");
+var notepadHistory = ResidualAudit.InspectHistoricalNotepadPlusPlus(
+    Array.Empty<ProgramEntry>());
+Check(notepadHistory.Historical && !notepadHistory.UninstallConfirmed &&
+    notepadHistory.Findings.All(f => !f.CanRemove &&
+        f.Disposition == ResidualDisposition.PreserveData &&
+        f.Location.Contains("Notepad++", StringComparison.OrdinalIgnoreCase)),
+    "Vestigios Notepad++ exatos sao consultivos e preservam preferencias; nenhuma chave Windows compartilhada.");
 // Auditoria ampliada: detectar dados remanescentes sem autorizar exclusão.
 Check(ResidualAudit.CanonicalName(new ProgramEntry
     { Name = "DroidCam Client", Publisher = "Dev47Apps" }) == "DroidCam",

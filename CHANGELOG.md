@@ -1,5 +1,12 @@
 # Histórico de versões — Gerenciador Final
 
+## Lote de manutenção após .38 — R7 e resíduos históricos (não publicado)
+
+- A saída inicial do desinstalador com código zero e Registro ainda presente após a janela curta agora permanece **pendente**, não falha definitiva nem sucesso. Mantidos cancelamento, dupla leitura completa e uma única tentativa.
+- Adicionada observação histórica do Notepad++ após a remoção, somente pastas/chaves específicas e sempre `PreserveData`, sem limpeza e sem varrer chaves compartilhadas do Windows; bloqueado quando ainda instalado ou inventário parcial.
+- Novas regressões para remoção tardia, permanência, proteção de outra variante e status parcial. Esta alteração ainda depende da CI.
+- U8/R7/R4 permanecem abertos, 27/42 (64,3%).
+
 ## Lote de manutenção após .38 — não publicado, CI pendente (22/10/2026)
 
 - DISM/SFC divididos em diagnóstico consultivo e reparo após interpretação conservadora + confirmação. Progresso baseado em percentuais da saída; pesquisa local permanece disponível.

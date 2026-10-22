@@ -40,12 +40,15 @@ internal static class Work6UninstallFlowTests
         result=await Scenario([present,absent,absent]);
         check(result.Single().State==UninstallState.RegistrationAbsent && launches==before+1,"WORK6 lote: uma execução e duas ausências completas confirmam somente ausência do registro");
         result=await Scenario([present,absent,present]);
-        check(result.Single().State==UninstallState.StillPresent,"W6-U-STABLE ausência transitória seguida de presença não confirma remoção");
+        check(result.Single().State==UninstallState.Pending,"W6-U-STABLE ausência transitória seguida de presença não confirma remoção nem falha definitiva");
         before=launches;
         result=await Scenario([new([App(version:"2.0")],true)]);
         check(result.Single().State==UninstallState.Blocked && launches==before,"WORK6 lote: seleção alterada antes do lançamento bloqueia execução");
         result=await Scenario([new([app],false)]);
         check(result.Single().State==UninstallState.Blocked && launches==before,"W6-U-PARTIAL inventário parcial anterior produz zero lançamentos");
+        result=await Scenario([present,present,present,present,absent,absent]);
+        check(result.Single().State==UninstallState.RegistrationAbsent,
+            "R7: fornecedor remove registro tardiamente dentro da janela; duas leituras completas confirmam");
         result=await Scenario([present,new([],false)]);
         check(result.Single().State==UninstallState.Pending,"WORK6 lote: inventário posterior parcial não prova ausência");
         foreach(int code in new[]{2,3,5,193,740,1223}) {
@@ -78,7 +81,7 @@ internal static class Work6UninstallFlowTests
         gate=new(); pending=gate.RunAsync(mutable,true,()=>{entered.TrySetResult();return release.Task;},Launch,Wait);
         await entered.Task; mutable.Clear(); release.SetResult(present);
         result=await pending;
-        check(result.Count==1 && result[0].State==UninstallState.StillPresent,"WORK6 lote: coleção externa modificada não muda seleção autorizada");
+        check(result.Count==1 && result[0].State==UninstallState.Pending,"WORK6 lote: coleção externa modificada não muda seleção autorizada");
         before=launches;
         result=await new UninstallBatch().RunAsync(requests,true,Scan,(_,_)=>{launches++;throw new TimeoutException();},Wait);
         check(result.Single().State==UninstallState.Pending && launches==before+1,"WORK6 lote: fornecedor sem retorno fica pendente, sem sucesso ou repetição");
