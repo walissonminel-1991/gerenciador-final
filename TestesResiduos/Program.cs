@@ -652,6 +652,36 @@ Check(notepadHistory.Historical && !notepadHistory.UninstallConfirmed &&
         f.Disposition == ResidualDisposition.PreserveData &&
         f.Location.Contains("Notepad++", StringComparison.OrdinalIgnoreCase)),
     "Vestigios Notepad++ exatos sao consultivos e preservam preferencias; nenhuma chave Windows compartilhada.");
+Check(ResidualAudit.TrackedApplicationStillPresent("foobar2000",
+    new[] { "foobar2000 v2.26.1 (x64)" }) &&
+    !ResidualAudit.TrackedApplicationStillPresent("foobar2000",
+    new[] { "foobar2000fake" }) &&
+    ResidualAudit.TrackedApplicationStillPresent("Notepad++",
+        new[] { "Notepad++ (64-bit x64)" }),
+    "R4: identidades exatas de familia impedem classificar instalacao ativa como residuo.");
+var foobarTracked = ResidualAudit.InspectHistoricalFoobar2000(new[]
+    { new ProgramEntry { Name = "foobar2000 v2.26.1 (x64)", Publisher = "Peter Pawlowski" } });
+Check(foobarTracked.Findings.Count == 0 && foobarTracked.Historical,
+    "R4: foobar ativo nao aparece como vestigio historico.");
+var foobarIncomplete = ResidualAudit.InspectHistoricalFoobar2000(
+    Array.Empty<ProgramEntry>(), inventoryIncomplete: true);
+Check(foobarIncomplete.Incomplete && foobarIncomplete.Findings.Count == 0,
+    "R4: inventario parcial preserva foobar.");
+var foobarHistorical = ResidualAudit.InspectHistoricalFoobar2000(
+    Array.Empty<ProgramEntry>());
+Check(!foobarHistorical.UninstallConfirmed && foobarHistorical.Findings.All(f =>
+    !f.CanRemove && f.Disposition is ResidualDisposition.PreserveData or
+        ResidualDisposition.PreserveShared),
+    "R4: diretorios foobar e referencias Windows jamais ganham permissao de apagar.");
+Check(ResidualAudit.IsTrackedExecutableReference(
+    @"C:\Program Files\foobar2000\foobar2000.exe", "foobar2000.exe") &&
+    !ResidualAudit.IsTrackedExecutableReference(
+        @"C:\Program Files\Notepad++\notepad++.exe", "foobar2000.exe") &&
+    !ResidualAudit.IsTrackedExecutableReference(
+        @"C:\Windows\System32\notepad++.exe.old", "notepad++.exe") &&
+    !ResidualAudit.IsTrackedExecutableReference(
+        @"\\servidor\compartilhado\foobar2000.exe", "foobar2000.exe"),
+    "R4: correlacao exige executavel exato, sem confundir componentes de terceiros ou rede.");
 // Auditoria ampliada: detectar dados remanescentes sem autorizar exclusão.
 Check(ResidualAudit.CanonicalName(new ProgramEntry
     { Name = "DroidCam Client", Publisher = "Dev47Apps" }) == "DroidCam",

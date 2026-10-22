@@ -1,5 +1,12 @@
 # Histórico de versões — Gerenciador Final
 
+## Lote conservador de correlacao de residuos (a validar)
+
+- Correlacao historica independente para Notepad++ e foobar2000 (inclusive o perfil `foobar2000-v2` documentado pelo fabricante); busca somente em pastas do proprio produto e indices delimitados de referencias do Windows por nome exato do executavel.
+- Referencias de chaves compartilhadas **apenas leitura / preservar**, nunca apagar chaves Windows nem carregar valores. App ainda instalado ou inventario parcial bloqueia conclusao de residuo historico.
+- Testes negativos de identidade, caminho de rede, arquitetura/versao, referencias e protecao de dados.
+- Sem monitor persistente, servico residente ou copia de algoritmo proprietario do IObit.
+
 ## Lote de manutenção após .38 — R7 e resíduos históricos (não publicado)
 
 - A saída inicial do desinstalador com código zero e Registro ainda presente após a janela curta agora permanece **pendente**, não falha definitiva nem sucesso. Mantidos cancelamento, dupla leitura completa e uma única tentativa.

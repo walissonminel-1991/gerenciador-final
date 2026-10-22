@@ -1,3 +1,7 @@
+## Implementacao inspirada em monitoramento de desinstaladores (22/10/2026)
+
+Manual oficial IObit descreve *Install Monitor* que registra criacoes de arquivos e Registro durante instalacao, e varredura de sobras feita apos uma desinstalacao, inclusive de outro desinstalador. Como GF e portatil, sem servico persistente, nao tem log de instalacoes anteriores. Implementada uma correlacao historica limitada a Notepad++ e foobar2000, usando familias de perfis documentadas (inclusive AppData/foobar2000-v2) e indices de referencias Windows pelos nomes dos executaveis; nunca le dados nem apaga chaves compartilhadas. A cobertura e inferior ao monitor que estava rodando antes da instalacao.
+
 ## Evidências PC FORTE .38 — 22/10/2026, U8/R7/R4 não encerrados
 
 - Inventário completo 174 aplicativos/27 MSIX; 8 possíveis atualizações, 4 incertas, 14/15 fontes disponíveis; uma fonte externa com timeout. Não houve instalação supervisionada de atualização; **U8 pendente**.

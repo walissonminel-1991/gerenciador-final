@@ -169,60 +169,127 @@ internal static class ResidualAudit
     }
 
 
-    // Observacao historica para o caso real PC FORTE: Notepad++ ja removido
-    // pode deixar preferências AppData/Registro. Nao examina conteudo nem
-    // declara exclusiva uma chave Windows (UFH, AppCompat, Uninstall etc.).
-    // NUNCA transforma qualquer resultado em candidato executavel.
+
+    // Auditoria correlacionada sem monitor residente: uma instalacao anterior
+    // pode deixar configuracoes quando o ARP desaparece. Nao presume
+    // exclusividade, nao apaga nada e nunca le conteudo de arquivos.
+    // Os caminhos foram definidos por identidade de produto, nao por
+    // buscas amplas em AppData ou chaves arbitrarias do Windows.
     internal static ResidualAuditReport InspectHistoricalNotepadPlusPlus(
-        IReadOnlyCollection<ProgramEntry> installed, bool inventoryIncomplete = false)
+        IReadOnlyCollection<ProgramEntry> installed, bool inventoryIncomplete = false) =>
+        InspectHistoricalTrackedApplication("Notepad++", "notepad++.exe",
+            new[] { "Notepad++" }, installed, inventoryIncomplete);
+
+    internal static ResidualAuditReport InspectHistoricalFoobar2000(
+        IReadOnlyCollection<ProgramEntry> installed, bool inventoryIncomplete = false) =>
+        InspectHistoricalTrackedApplication("foobar2000", "foobar2000.exe",
+            new[] { "foobar2000", "foobar2000-v2" }, installed, inventoryIncomplete);
+
+    internal static bool TrackedApplicationStillPresent(string product,
+        IEnumerable<string> installedNames) =>
+        installedNames.Any(name =>
+            name.StartsWith(product, StringComparison.OrdinalIgnoreCase) &&
+            (name.Length == product.Length || !char.IsLetterOrDigit(name[product.Length])));
+
+    private static ResidualAuditReport InspectHistoricalTrackedApplication(
+        string product, string processName, IReadOnlyList<string> folders,
+        IReadOnlyCollection<ProgramEntry> installed, bool inventoryIncomplete)
     {
         var budget = new ResidualScanBudget();
-        budget.Source("NotepadHistory");
+        budget.Source("TrackedHistory");
         if (inventoryIncomplete) budget.MarkIncomplete(ResidualScanIssue.InventoryPartial);
-        if (inventoryIncomplete ||
-            installed.Any(p => p.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase)))
-            return new("Notepad++", false, [], [], Historical: true,
+        if (inventoryIncomplete || TrackedApplicationStillPresent(product, installed.Select(p => p.Name)))
+            return new(product, false, [], [], Historical: true,
                 Incomplete: inventoryIncomplete, Coverage: budget.Coverage);
 
         var findings = new List<ResidualAuditFinding>();
         var examined = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (string root in new[]
+        foreach (string basePath in new[]
         {
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
         }.Where(ResidualReadSafety.IsLocalAbsolute))
-            InspectFolder(Path.Combine(root, "Notepad++"),
-                "Configurações históricas do Notepad++; preservar até confirmação de titularidade",
-                findings, examined, budget, ResidualDisposition.PreserveData);
+            foreach (string folder in folders)
+                InspectFolder(Path.Combine(basePath, folder),
+                    "Dados especificos historicos de " + product + "; preservar ate revisao",
+                    findings, examined, budget, ResidualDisposition.PreserveData);
+
         foreach (var source in new[]
         {
-            (Hive: RegistryHive.CurrentUser, View: RegistryView.Default,
-                Label: "HKEY_CURRENT_USER"),
-            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry32,
-                Label: "HKEY_LOCAL_MACHINE (32 bits)"),
-            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry64,
-                Label: "HKEY_LOCAL_MACHINE (64 bits)")
+            (Hive: RegistryHive.CurrentUser, View: RegistryView.Default, Label: "HKEY_CURRENT_USER"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry32, Label: "HKEY_LOCAL_MACHINE (32 bits)"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry64, Label: "HKEY_LOCAL_MACHINE (64 bits)")
         })
+        foreach (string folder in folders)
         {
+            string keyPath = @"SOFTWARE\" + folder;
             try
             {
                 using var root = RegistryKey.OpenBaseKey(source.Hive, source.View);
-                using var key = root.OpenSubKey(@"SOFTWARE\Notepad++", writable: false);
+                using var key = root.OpenSubKey(keyPath, writable: false);
                 if (key is null) continue;
-                findings.Add(new(source.Label + @"\SOFTWARE\Notepad++",
-                    "Configurações específicas do Notepad++ — preservar",
+                findings.Add(new(source.Label + @"\" + keyPath,
+                    "Configuracoes especificas — preservar",
                     Math.Max(1, Math.Min(ScanLimit, key.ValueCount + key.SubKeyCount)),
-                    "Chave específica; pode conter preferências e dados reutilizáveis. " +
-                    "Preservar, sem ler valores ou autorizar exclusão.",
+                    "Nome exclusivo nao comprova origem ou autorizacao de limpeza. " +
+                    "Somente metadados, sem ler conteudos.",
                     ResidualDisposition.PreserveData, ResidualSource.Registry));
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or
                 System.Security.SecurityException or IOException or ArgumentException)
-            { budget.MarkIncomplete(); }
+            { budget.MarkIncomplete(ResidualScanIssue.ReadFailure); }
         }
-        return new("Notepad++", false, findings.ToArray(), [],
-            Historical: true, Incomplete: budget.Incomplete, Coverage: budget.Coverage);
+
+        // Sem varredura indiscriminada: somente alguns indices Windows
+        // conhecidos que usam caminho de executavel como NOME DO VALOR.
+        // Sao chaves COMPARTILHADAS: referenciar o aplicativo nao significa
+        // que a chave inteira possa ser removida ou alterada.
+        foreach (string relative in new[]
+        {
+            @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Compatibility Assistant\Store",
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\AppSwitched",
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\AppLaunch",
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\ShowJumpView"
+        })
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(relative, writable: false);
+                if (key is null) continue;
+                string[] names = key.GetValueNames();
+                if (names.Length > 2000)
+                {
+                    budget.MarkIncomplete(ResidualScanIssue.EntryLimit);
+                    continue;
+                }
+                int matches = names.Count(name => IsTrackedExecutableReference(name, processName));
+                if (matches == 0) continue;
+                findings.Add(new(@"HKEY_CURRENT_USER\" + relative,
+                    "Referencia historica em area compartilhada do Windows — preservar",
+                    matches,
+                    "O nome de um valor refere-se ao executavel. A chave pertence ao Windows; " +
+                    "nao ler valores nem excluir a chave, outros aplicativos dependem dela.",
+                    ResidualDisposition.PreserveShared,
+                    ResidualSource.Registry | ResidualSource.Integration));
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or
+                System.Security.SecurityException or IOException or ArgumentException)
+            { budget.MarkIncomplete(ResidualScanIssue.ReadFailure); }
+        }
+        return new(product, false, findings, [], Historical: true,
+            Incomplete: budget.Incomplete, Coverage: budget.Coverage);
+    }
+
+    internal static bool IsTrackedExecutableReference(string name, string executable)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 1000 ||
+            name.Contains('\0') || name.StartsWith(@"\\", StringComparison.Ordinal)) return false;
+        int last = Math.Max(name.LastIndexOf('\\'), name.LastIndexOf('/'));
+        string file = name[(last + 1)..];
+        return file.Equals(executable, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static bool IsDriverBoosterProduct(ProgramEntry app) =>
