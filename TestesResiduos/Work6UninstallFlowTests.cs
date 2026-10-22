@@ -7,7 +7,6 @@ internal static class Work6UninstallFlowTests
         MsiProductCode=Work6UninstallTests.Product, UninstallString=command??"msiexec.exe /X"+Work6UninstallTests.Product };
     internal static async Task Run(Action<bool,string> check)
     {
-        await MultiItem(check);
         if (OperatingSystem.IsWindows()) await NativePrepare(check);
         var app=App(); var requests=UninstallBatch.Select([app,app]);
         check(requests.Length==1,"WORK6 lote: seleção duplicada resulta em uma autorização");
@@ -80,6 +79,7 @@ internal static class Work6UninstallFlowTests
         before=launches;
         result=await new UninstallBatch().RunAsync(requests,true,Scan,(_,_)=>{launches++;throw new TimeoutException();},Wait);
         check(result.Single().State==UninstallState.Pending && launches==before+1,"WORK6 lote: fornecedor sem retorno fica pendente, sem sucesso ou repetição");
+        await MultiItem(check);
     }
     internal static async Task MultiItem(Action<bool,string> check)
     {
@@ -92,7 +92,7 @@ internal static class Work6UninstallFlowTests
         int index=0; var launched=new List<string>();
         var snapshots=new[]{both,onlySecond,onlySecond,onlySecond,empty,empty};
         var result=await new UninstallBatch().RunAsync(requests,true,
-            ()=>Task.FromResult(snapshots[index++]),
+            ()=>Task.FromResult(snapshots[Math.Min(index++,snapshots.Length-1)]),
             (r,_)=>{ launched.Add(r.Original.InventoryId); return Task.FromResult<int?>(0); },_=>Task.CompletedTask);
         check(result.Count==2 && result.All(r=>r.State==UninstallState.RegistrationAbsent) &&
             launched.SequenceEqual(new[]{first.InventoryId,second.InventoryId}),
@@ -107,7 +107,7 @@ internal static class Work6UninstallFlowTests
         var changed=new ProgramEntry { Name=second.Name,Publisher=second.Publisher,Version=second.Version,
             InventoryId=second.InventoryId,MsiProductCode=other,UninstallString=second.UninstallString+" /quiet" };
         index=0;launched.Clear();snapshots=[both,onlySecond,onlySecond,new([changed],true)];
-        result=await new UninstallBatch().RunAsync(requests,true,()=>Task.FromResult(snapshots[index++]),
+        result=await new UninstallBatch().RunAsync(requests,true,()=>Task.FromResult(snapshots[Math.Min(index++,snapshots.Length-1)]),
             (r,_)=>{launched.Add(r.Original.InventoryId);return Task.FromResult<int?>(0);},_=>Task.CompletedTask);
         check(result.Count==2 && result[1].State==UninstallState.Blocked && launched.SequenceEqual(new[]{first.InventoryId}),
             "WORK6 lote: comando do segundo item trocado durante lote não herda autorização antiga");
