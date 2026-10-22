@@ -1,3 +1,10 @@
+## v5.13.11.41 TESTE — ajustes apos testes reais PC FORTE (CI pendente)
+- Reparo e rede: manter tres cartoes por linha quando a largura comportar, sem limite de 316 px nem faixas laterais vazias; colunas se adaptam a janelas pequenas. Acoes e salvaguardas permanecem iguais.
+- Atualizacoes: o caso real de registros simultaneos do 7-Zip 26.04 (x64) e 26.05 (x64 edition) passa a reconhecer a mesma familia/editor. Registro antigo continua auditavel, sem recomendar atualizar uma versao que ja foi instalada; nenhuma exclusao automatica.
+- Regressao: casos negativos para editor divergente, instalacao antiga isolada e catalogo 26.06, mais teste de ocupacao horizontal da grade Reparo e Rede.
+- Windows Update: ofertas variam entre consultas; nenhuma alteracao nas autorizacoes. A intermitencia da KB2267602 sera validada separadamente.
+- Status: revisao experimental na branch, nao substituir a .40 no PC ate validar CI e pacote.
+
 ## v5.13.11.40 TESTE — Correcoes PC FORTE
 - Desinstalacao: assinatura Authenticode valida com editor divergente vira aviso confirmado, enquanto adulteracao/revogacao/inconclusivo continuam bloqueados.
 - Cartoes Reparar e rede reescritos em portugues simples; comandos nativos continuam com as mesmas salvaguardas.
