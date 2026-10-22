@@ -12,6 +12,13 @@ void Check(bool result, string what)
     passed++;
 }
 
+if (args.Contains("--work6-preview"))
+{
+    int failures=0;
+    await Work6PreviewTests.Run((ok,label)=>{ Console.WriteLine((ok?"PASS ":"FAIL ")+label); if(!ok) failures++; });
+    if(failures>0) throw new Exception($"WORK6 preview: {failures} falhas reproduzidas");
+    return;
+}
 if (args.Contains("--work6-uninstall-flow")) { await Work6UninstallFlowTests.Run(Check); return; }
 if (args.Contains("--work6-uninstall-policy"))
 {
@@ -26,6 +33,7 @@ if (args.Contains("--benchmark")) { ResidualBenchmark.Run(); return; }
 Work6UninstallTests.Policy(Check);
 await Work6UninstallFlowTests.Run(Check);
 SimulatedUninstallScenarioTests.Run(Check);
+await Work6PreviewTests.Run(Check);
 SimulatedResidualScenarioTests.Run(Check);
 ResidualCorrelationTests.Run(Check);
 ResidualInspectionTests.Run(Check);
