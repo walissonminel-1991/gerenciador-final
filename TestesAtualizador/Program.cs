@@ -6,6 +6,13 @@ void Verify(bool condition, string label)
     checkedCount++;
     Console.WriteLine("OK " + label);
 }
+if (args.Contains("--work6-authorization"))
+{
+    var failures = new List<string>();
+    Work6AuthorizationTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures.Add(label); });
+    if (failures.Count > 0) throw new InvalidOperationException($"WORK6: {failures.Count} falhas reproduzidas");
+    return;
+}
 ProgramEntry Item(string name, string installed, string available, string publisher = "Microsoft Corporation", string source = "", bool inventoryOnly = false)
     => new() { Name = name, Version = installed, AvailableVersion = available, Publisher = publisher, Source = source, IsUpdate = true, InventoryOnly = inventoryOnly };
 var x64 = VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64) - 12.0.30501",
@@ -345,6 +352,7 @@ try
 }
 finally { Directory.Delete(isolated, true); }
 
+Work6AuthorizationTests.Run(Verify);
 SimulatedUpdateScenarioTests.Run(Verify);
 if (OperatingSystem.IsWindows()) AuthenticodeTests.Run(Verify);
 else Console.WriteLine("SKIP: provedor Authenticode e contexto nativo exigem Windows; nao equivalem a aprovacao.");
@@ -368,3 +376,4 @@ namespace GerenciadorAplicativos
         public string UninstallString { get; init; } = "";
     }
 }
+
