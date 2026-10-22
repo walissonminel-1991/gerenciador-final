@@ -9,14 +9,22 @@ mutants = [
     ('cancel-before-launch', 'UpdateLaunchGate.cs',
      '            token.ThrowIfCancellationRequested();\n            // A partir',
      '            // MUTANT: cancellation removed\n            // A partir',
-     'TestesAtualizador', '--work6-flow', 'cancelamento entre revalidação'),
+     'TestesAtualizador', '--work6-flow', 'WORK6 fluxo: cancelamento entre'),
     ('duplicate-launch', 'UpdateLaunchGate.cs',
      'if (Interlocked.Exchange(ref attempted, 1) != 0)', 'if (false)',
      'TestesAtualizador', '--work6-flow', 'tentativa concorrente rejeitada'),
     ('stale-authorized', 'UpdateResultHistory.cs',
      'RequiresReview = true, IsStale = true', 'RequiresReview = false, IsStale = true',
-     'TestesMultifontes', '', 'preserva oito evidências antigas'),
+     'TestesMultifontes', '', 'preserva oito evid'),
 ]
+mutants.extend([
+    ('partial-uninstall-authorized','UninstallBatch.cs',
+     'if(!before.Complete || matching.Length!=1', 'if(matching.Length!=1',
+     'TestesResiduos','--work6-uninstall-flow','W6-U-PARTIAL'),
+    ('transient-absence-confirmed','UninstallBatch.cs',
+     'if(absent==2)', 'if(absent==1)',
+     'TestesResiduos','--work6-uninstall-flow','W6-U-STABLE'),
+])
 if os.name == 'nt':
     mutants.append(('hardlink-accepted', 'InstallerFileGuard.cs',
         ' ||\n            (!directory && info.Links != 1)', '',
@@ -27,13 +35,13 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     for name in files:
         path=pathlib.Path(name)
         if not name or path.suffix not in ('.cs','.csproj','.props','.json'): continue
-        if len(path.parts)>1 and path.parts[0] not in ('TestesAtualizador','TestesMultifontes'): continue
+        if len(path.parts)>1 and path.parts[0] not in ('TestesAtualizador','TestesMultifontes','TestesResiduos'): continue
         (target/path).parent.mkdir(parents=True,exist_ok=True)
         shutil.copyfile(root/path,target/path)
     def run(project, argument):
         return subprocess.run([dotnet,'run','--project',project,'-p:EnableWindowsTargeting=true','--',argument],
-            cwd=target, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=150)
-    for project,argument in [('TestesAtualizador','--work6-flow'),('TestesMultifontes','')]:
+            cwd=target, text=True, encoding="utf-8", errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=150)
+    for project,argument in [('TestesAtualizador','--work6-flow'),('TestesMultifontes',''),('TestesResiduos','--work6-uninstall-flow')]:
         baseline=run(project,argument)
         if baseline.returncode: raise RuntimeError('baseline failed: '+baseline.stdout[-2000:])
         print('BASELINE PASS',project,flush=True)

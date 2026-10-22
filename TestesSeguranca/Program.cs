@@ -67,12 +67,11 @@ if (OperatingSystem.IsWindows())
     string system = Environment.GetFolderPath(Environment.SpecialFolder.System);
     foreach (var (registered, expected) in new[]
     {
-        ("MsiExec.exe", "msiexec.exe"), ("msiexec", "msiexec.exe"),
-        ("rundll32", "rundll32.exe"), ("RUNDLL32.EXE", "rundll32.exe"), ("cmd.exe", "cmd.exe")
+        ("MsiExec.exe", "msiexec.exe"), ("msiexec", "msiexec.exe")
     })
         Check(WindowsSystemTools.ResolveRegisteredUninstaller(registered) == Path.Combine(system, expected),
             "desinstalador Windows registrado sem caminho vincula a System32: " + registered);
-    foreach (string invalid in new[] { "uninstall.exe", @".\msiexec.exe", @"..\uninstall.exe", "tool.exe /run" })
+    foreach (string invalid in new[] { "uninstall.exe", @".\msiexec.exe", @"..\uninstall.exe", "tool.exe /run", "rundll32", "RUNDLL32.EXE", "cmd.exe", @"C:\Windows\System32\cmd.exe" })
     {
         bool denied = false;
         try { WindowsSystemTools.ResolveRegisteredUninstaller(invalid); }
@@ -309,3 +308,4 @@ if (OperatingSystem.IsWindows())
     finally { if (created) File.Delete(planted); }
 }
 Console.WriteLine("OK: busca nativa restrita ao sistema, com fixture homonima.");
+

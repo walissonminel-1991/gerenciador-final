@@ -10,6 +10,7 @@ internal static class SimulatedUninstallScenarioTests
         {
             Name = "SumatraPDF", Publisher = "Krzysztof Kowalczyk",
             InventoryId = "LocalMachine|Registry64|Sumatra-Fixture",
+            MsiProductCode="{00000000-0000-0000-0000-000000000123}",
             UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000123}"
         };
         var protectedComponent = new ProgramEntry
@@ -30,7 +31,7 @@ internal static class SimulatedUninstallScenarioTests
         check(UninstallLaunchDiagnostics.Explain(1223).Contains("cancelada", StringComparison.OrdinalIgnoreCase) &&
             UninstallLaunchDiagnostics.Explain(5).Contains("negado", StringComparison.OrdinalIgnoreCase) &&
             UninstallLaunchDiagnostics.Explain(740).Contains("eleva", StringComparison.OrdinalIgnoreCase),
-            "SIMULACAO DESINSTALACAO: cancelamento, acesso negado e UAC nao disparam repeticao");
+            "SIMULACAO DESINSTALACAO: mensagens identificam cancelamento, acesso negado e UAC (não observa lançamentos)");
 
         // O desinstalador simulado falhou/cancelou; snapshot continua igual.
         check(UninstallResiduals.StillInstalled(installed, [installed]),
@@ -53,3 +54,4 @@ internal static class SimulatedUninstallScenarioTests
             "SIMULACAO DESINSTALACAO: ausencia nao autoriza apagar arquivo ou pasta");
     }
 }
+

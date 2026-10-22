@@ -29,45 +29,20 @@ internal static class MaintenanceAudit
 {
     private const int MaxExamples = 12;
     private const int MaxDevices = 3500;
-    private static readonly HashSet<string> SystemUninstallers = new(StringComparer.OrdinalIgnoreCase)
-    { "msiexec.exe", "rundll32.exe", "cmd.exe", "msiexec", "rundll32" };
-
-    private static string Expand(string value) =>
-        Environment.ExpandEnvironmentVariables(value).Trim('"', ' ');
-
     // Don't infer that an MSI entry or browser redirect is invalid based on a
     // missing user-facing installer filename; never launch anything to validate.
     internal static string CheckUninstaller(string? command, bool inventoryOnly)
     {
         if (inventoryOnly) return "protected";
         if (string.IsNullOrWhiteSpace(command)) return "absent";
-        string raw = command.Trim();
-        // AppServices.TryParseUninstaller is separate from this audit; never
-        // reinterpret an arbitrary command or test executable by invoking it.
-        string filename;
-        if (raw.StartsWith('"'))
-        {
-            int end = raw.IndexOf('"', 1);
-            if (end <= 1) return "unknown";
-            filename = raw[1..end];
-        }
-        else
-        {
-            var match = Regex.Match(raw, @"^.+?\.exe(?=\s|$)",
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            if (!match.Success) return "unknown";
-            filename = match.Value;
-        }
-        filename = Expand(filename);
-        if (SystemUninstallers.Contains(filename)) return "available";
-        if (!Path.IsPathFullyQualified(filename)) return "unknown";
+        if (!UninstallCommand.TryParse(command, out var parsed)) return "unknown";
+        string filename = parsed.FileName;
+        if (filename.Equals("msiexec.exe", StringComparison.OrdinalIgnoreCase) ||
+            filename.Equals("msiexec", StringComparison.OrdinalIgnoreCase)) return "available";
         try
         {
-            string complete = Path.GetFullPath(filename);
-            if (File.Exists(complete)) return "available";
-            // The user may have unmounted a volume or lost permissions. Mark as
-            // suspect, but do not remove its uninstall entry automatically.
-            return "missing";
+            if (!Path.IsPathFullyQualified(filename)) return "unknown";
+            return File.Exists(Path.GetFullPath(filename)) ? "available" : "missing";
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or
             UnauthorizedAccessException or NotSupportedException) { return "unknown"; }

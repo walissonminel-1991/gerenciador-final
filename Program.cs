@@ -344,35 +344,9 @@ internal static class AppServices
     public static bool TryParseUninstaller(string? command, out string fileName, out string arguments)
     {
         fileName = ""; arguments = "";
-        string raw = command?.Trim() ?? "";
-        if (raw.Length is 0 or > 32767 || raw.Any(char.IsControl)) return false;
-        if (raw.StartsWith('"'))
-        {
-            int end = raw.IndexOf('"', 1);
-            if (end <= 1) return false;
-            fileName = raw[1..end];
-            arguments = raw[(end + 1)..].Trim();
-        }
-        else
-        {
-            var executable = Regex.Match(raw, @"^.+?\.exe(?=\s|$)",
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            if (executable.Success)
-            {
-                int end = executable.Length;
-                fileName = raw[..end].Trim().Trim('"');
-                arguments = raw[end..].Trim();
-            }
-            else
-            {
-                string[] parts = raw.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-                fileName = parts[0];
-                arguments = parts.Length > 1 ? parts[1] : "";
-            }
-        }
-        if (Path.GetFileName(fileName).Equals("msiexec.exe", StringComparison.OrdinalIgnoreCase))
-            arguments = Regex.Replace(arguments, @"(?i)(^|\s)/I(?=\s*\{)", "$1/X");
-        return fileName.Length > 0;
+        if (!UninstallCommand.TryParse(command, out var parsed)) return false;
+        fileName = parsed.FileName; arguments = parsed.Arguments;
+        return true;
     }
 
 }
@@ -789,6 +763,13 @@ internal sealed partial class MainForm : Form
                 e.Cancel = true;
                 _residualScanCts.Cancel();
                 Status("Cancelando análise de resíduos. Tente fechar novamente em instantes.");
+                return;
+            }
+            if (_uninstallCts is not null)
+            {
+                e.Cancel = true;
+                _uninstallCts.Cancel();
+                Status("Cancelando espera e demais itens. O desinstalador do fabricante pode continuar; não repetir.");
                 return;
             }
             if (_installerDownloadCts is not null)
@@ -2655,167 +2636,96 @@ internal sealed partial class MainForm : Form
         else Status("Nenhum aplicativo selecionado");
     }
 
+    private CancellationTokenSource? _uninstallCts;
     private async Task UninstallEntriesAsync(IReadOnlyCollection<ProgramEntry> apps)
     {
-        var entries = apps.ToArray();
-        if (entries.Length == 0) { Status("Nenhum aplicativo marcado"); return; }
-        if (entries.Any(x => !ActionableInventory.CanUninstall(x)))
+        if (apps.Count == 0) { Status("Nenhum aplicativo marcado"); return; }
+        var prepared = new List<PreparedUninstaller>();
+        try
         {
-            Status("Desinstalação indisponível para um ou mais itens selecionados.");
-            Log("Desinstalação bloqueada: item protegido ou instalador não encontrado.");
-            return;
+            // Congelar comandos e prender EXEs antes de mostrar a confirmação.
+            var requests = UninstallBatch.Select(apps);
+            foreach (var request in requests)
+                prepared.Add(await Task.Run(() => RegisteredUninstaller.Prepare(request,
+                    (path, signer) => VerifiedUpdaters.VerifyAuthenticode(path, signer, out _))));
+            string preview = string.Join("\n\n", prepared.Select(p =>
+                "• " + p.Request.Original.Name + "\n" + p.StartInfo.FileName + " " + p.StartInfo.Arguments));
+            bool consent = DarkConfirmDialog.Confirm(this,
+                $"Deseja desinstalar {prepared.Count} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
+                "Confirmar desinstalação") == DialogResult.Yes;
+            using var cancellation = new CancellationTokenSource();
+            _uninstallCts = cancellation;
+            var outcomes = await new UninstallBatch().RunAsync(requests, consent,
+                async () => {
+                    var scan = await Task.Run(AppServices.ScanAllInstalledApps);
+                    return new UninstallSnapshot(scan.Items, !scan.Incomplete);
+                },
+                (request, token) => {
+                    Status("Aguardando desinstalação de " + request.Original.Name + "...");
+                    return prepared.Single(p => p.Request == request).LaunchAsync(token);
+                }, token => Task.Delay(500, token), cancellation.Token);
+            foreach (var outcome in outcomes)
+            {
+                DiagnosticTrace.Write("DESINSTALACAO.RESULTADO estado=" + outcome.State +
+                    " codigo=" + (outcome.Code?.ToString() ?? "indeterminado"));
+                Log(outcome.Request.Original.Name + ": " + outcome.State +
+                    (outcome.Code is int code ? " (" + code + ")" : "") + ". Nenhuma repetição automática.");
+                if (outcome.State == UninstallState.RegistrationAbsent)
+                    await ReviewUninstallOutcomeAsync(outcome.Request.Original);
+            }
+            if (consent) await RefreshCatalogAsync();
+            int absent = outcomes.Count(x => x.State == UninstallState.RegistrationAbsent);
+            int pending = outcomes.Count(x => x.State == UninstallState.Pending);
+            int failures = outcomes.Count(x => x.State is UninstallState.Blocked or UninstallState.StartFailed or UninstallState.ProcessFailed or UninstallState.StillPresent);
+            Status(!consent ? "Desinstalação cancelada" :
+                $"Desinstalação: {absent} registro(s) ausente(s), {pending} pendente(s), {failures} falha(s). Sem exclusão de resíduos.");
         }
-        string preview = string.Join("\n", entries.Take(8).Select(x => "• " + x.Name));
-        if (entries.Length > 8) preview += $"\n... e mais {entries.Length - 8}.";
-        if (DarkConfirmDialog.Confirm(this,
-            $"Deseja desinstalar {entries.Length} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
-            "Confirmar desinstalação") != DialogResult.Yes)
-        { Status("Desinstalação cancelada"); return; }
-
-        int started = 0, failed = 0, confirmed = 0;
-        var completed = new List<ProgramEntry>();
-        foreach (ProgramEntry entry in entries)
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
         {
-            try
-            {
-                // O comando principal pode ter desaparecido enquanto a variante
-                // silenciosa ainda existe; utilizar apenas a alternativa verificada.
-                string command = MaintenanceAudit.CheckUninstaller(entry.UninstallString, false) == "available"
-                    ? entry.UninstallString : entry.QuietUninstallString;
-                if (MaintenanceAudit.CheckUninstaller(command, false) == "missing")
-                {
-                    failed++;
-                    Log("O desinstalador registrado não existe no caminho informado para " +
-                        entry.Name + ". Nenhuma exclusão será tentada.");
-                    DiagnosticTrace.Write("DESINSTALACAO.ARQUIVO_AUSENTE");
-                    continue;
-                }
-                if (!AppServices.TryParseUninstaller(command, out string exe, out string args))
-                {
-                    failed++;
-                    Log("Sem desinstalador registrado: " + entry.Name);
-                    continue;
-                }
-                exe = WindowsSystemTools.ResolveRegisteredUninstaller(exe);
-                using Process? proc = Process.Start(new ProcessStartInfo
-                {
-                    FileName = exe, Arguments = args, UseShellExecute = true,
-                    WorkingDirectory = Path.GetDirectoryName(exe)!
-                });
-                if (proc is null)
-                {
-                    failed++;
-                    Log("Não foi possível iniciar: " + entry.Name);
-                    continue;
-                }
-                started++;
-                Status("Aguardando desinstalação de " + entry.Name + "...");
-                DiagnosticTrace.Write("DESINSTALACAO.FORNECEDOR_INICIADO");
-                using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-                try
-                {
-                    await proc.WaitForExitAsync(timeout.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    // Alguns fornecedores continuam em outros processos. Não inferir sucesso.
-                    Log("O desinstalador continua trabalhando. Confira depois em Atualizar lista.");
-                    DiagnosticTrace.Write("DESINSTALACAO.AGUA_RETORNO_PENDENTE");
-                    continue;
-                }
-                // Código de saída não basta: confirmar remoção no Registro.
-                bool removed = false;
-                for (int retry = 0; retry < 7; retry++)
-                {
-                    var inventory = await Task.Run(AppServices.GetInstalledPrograms);
-                    if (!UninstallResiduals.StillInstalled(entry, inventory))
-                    {
-                        removed = true;
-                        break;
-                    }
-                    if (retry < 6) await Task.Delay(500);
-                }
-                if (removed)
-                {
-                    completed.Add(entry);
-                    confirmed++;
-                    DiagnosticTrace.Write("DESINSTALACAO.REGISTRO_AUSENTE");
-                    Log("O registro de desinstalação não está mais presente: " + entry.Name +
-                        ". A conclusão de janelas do fornecedor e a exclusividade dos vestígios " +
-                        "ainda exigem conferência.");
-                }
-                else
-                {
-                    failed++;
-                    DiagnosticTrace.Write("DESINSTALACAO.REGISTRO_AINDA_PRESENTE");
-                    Log("Registro de desinstalação ainda associado a " + entry.Name +
-                        ". Feche todas as janelas do fornecedor e clique em Atualizar lista para revalidar. " +
-                        "Nenhuma limpeza de resíduos foi permitida.");
-                }
-                // Atualizar a lista ANTES de apresentar o relatório: o usuário
-                // não deve ver o software como instalado por trás da revisão.
-                // A ausência da entrada ainda não confirma que todas as janelas
-                // de um desinstalador terceirizado tenham terminado.
-                if (removed)
-                {
-                    await RefreshCatalogAsync();
-                    Status("Registro removido; confira se a janela do desinstalador do fabricante já terminou.");
-                }
-                // A auditoria é separada das políticas que podem apagar arquivos.
-                // Mesmo sem receita de limpeza, mostra locais específicos e possíveis
-                // componentes relacionados, sempre SEM tocar no disco ou Registro.
-                var currentInventory = await Task.Run(AppServices.ScanAllInstalledApps);
-                var audit = await Task.Run(() => ResidualAudit.Inspect(entry, currentInventory.Items,
-                    currentInventory.Incomplete));
-                var previewStates = new List<ResidualPreviewState>();
-                using (var previewTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(8)))
-                    foreach (var candidate in UninstallResiduals.Inspect(entry))
-                        previewStates.Add(await ResidualPreview.CaptureAsync(candidate, previewTimeout.Token));
-                if (previewStates.Count > 0)
-                    audit = ResidualReportMerger.Merge(new[] { audit,
-                        ResidualPreview.Describe(entry.Name, previewStates) }, currentInventory.Incomplete).Single();
-                DiagnosticTrace.Write($"DESINSTALACAO.AUDITORIA encontrados={audit.Findings.Count} relacionados={audit.RelatedRegisteredPrograms.Count} removido={audit.UninstallConfirmed}");
-                if (audit.Findings.Count > 0 || audit.RelatedRegisteredPrograms.Count > 0)
-                {
-                    Log($"Auditoria de {entry.Name}: {audit.Findings.Count} local(is) possível(is) e " +
-                        $"{audit.RelatedRegisteredPrograms.Count} componente(s) relacionado(s) ainda registrado(s).");
-                    ResidualAuditDialog.ShowResults(this, audit, async token =>
-                    {
-                        var fresh = await Task.Run(AppServices.ScanAllInstalledApps, token);
-                        var refreshedAudit = await Task.Run(() => ResidualAudit.Inspect(entry, fresh.Items, fresh.Incomplete), token);
-                        bool unchanged = true;
-                        foreach (var state in previewStates)
-                            unchanged &= await ResidualPreview.IsUnchangedAsync(state, token);
-                        return ResidualReportMerger.Merge(new[] { refreshedAudit,
-                            ResidualPreview.Describe(entry.Name, previewStates, unchanged) }, fresh.Incomplete).Single();
-                    });
-                }
-                else
-                {
-                    Log("Auditoria adicional: nenhum local específico reconhecido para " + entry.Name +
-                        ". Isso não comprova ausência de outros vestígios.");
-                }
-            }
-            catch (Win32Exception ex)
-            {
-                failed++;
-                Log("Falha ao iniciar desinstalação de " + entry.Name + ": " +
-                    UninstallLaunchDiagnostics.Explain(ex.NativeErrorCode));
-                DiagnosticTrace.Write($"DESINSTALACAO.INICIO_FALHA codigo_win32={ex.NativeErrorCode}");
-                DiagnosticTrace.Failure("DESINSTALACAO.FALHA", ex);
-            }
-            catch (Exception ex)
-            {
-                failed++;
-                Log("Falha ao desinstalar " + entry.Name + ": " + ex.GetType().Name);
-                DiagnosticTrace.Failure("DESINSTALACAO.FALHA", ex);
-            }
+            DiagnosticTrace.Failure("DESINSTALACAO.PREPARACAO_BLOQUEADA", ex);
+            Log("Desinstalação não iniciada: " + ex.Message);
+            Status("Desinstalador não identificado com segurança; confira o fabricante ou Aplicativos do Windows.");
         }
+        finally
+        {
+            _uninstallCts = null;
+            foreach (var plan in prepared) plan.Dispose();
+        }
+    }
 
-        Log("Revisão de resíduos somente leitura nesta candidata. Nenhum arquivo adicional foi apagado.");
-        await RefreshCatalogAsync();
-        Status($"Desinstalação: {confirmed} registro(s) ausente(s), {failed} falha(s). " +
-            "Auditoria adicional concluída; possíveis resíduos desconhecidos não foram apagados.");
+    private async Task ReviewUninstallOutcomeAsync(ProgramEntry entry)
+    {
+        var currentInventory = await Task.Run(AppServices.ScanAllInstalledApps);
+        var audit = await Task.Run(() => ResidualAudit.Inspect(entry, currentInventory.Items,
+            currentInventory.Incomplete));
+        var previewStates = new List<ResidualPreviewState>();
+        using (var previewTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(8)))
+            foreach (var candidate in UninstallResiduals.Inspect(entry))
+                previewStates.Add(await ResidualPreview.CaptureAsync(candidate, previewTimeout.Token));
+        if (previewStates.Count > 0)
+            audit = ResidualReportMerger.Merge(new[] { audit,
+                ResidualPreview.Describe(entry.Name, previewStates) }, currentInventory.Incomplete).Single();
+        DiagnosticTrace.Write($"DESINSTALACAO.AUDITORIA encontrados={audit.Findings.Count} relacionados={audit.RelatedRegisteredPrograms.Count} removido={audit.UninstallConfirmed}");
+        if (audit.Findings.Count > 0 || audit.RelatedRegisteredPrograms.Count > 0)
+        {
+            Log($"Auditoria de {entry.Name}: {audit.Findings.Count} local(is) possível(is) e " +
+                $"{audit.RelatedRegisteredPrograms.Count} componente(s) relacionado(s) ainda registrado(s).");
+            ResidualAuditDialog.ShowResults(this, audit, async token =>
+            {
+                var fresh = await Task.Run(AppServices.ScanAllInstalledApps, token);
+                var refreshedAudit = await Task.Run(() => ResidualAudit.Inspect(entry, fresh.Items, fresh.Incomplete), token);
+                bool unchanged = true;
+                foreach (var state in previewStates)
+                    unchanged &= await ResidualPreview.IsUnchangedAsync(state, token);
+                return ResidualReportMerger.Merge(new[] { refreshedAudit,
+                    ResidualPreview.Describe(entry.Name, previewStates, unchanged) }, fresh.Incomplete).Single();
+            });
+        }
+        else
+        {
+            Log("Auditoria adicional: nenhum local específico reconhecido para " + entry.Name +
+                ". Isso não comprova ausência de outros vestígios.");
+        }
     }
 
     private Task ReviewDeepUninstallResiduesAsync() => WithResidualCancellationAsync(ReviewDeepUninstallResiduesCoreAsync);

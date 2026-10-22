@@ -28,8 +28,6 @@ internal static class WindowsSystemTools
         string? systemName = name.ToLowerInvariant() switch
         {
             "msiexec" or "msiexec.exe" => "msiexec.exe",
-            "rundll32" or "rundll32.exe" => "rundll32.exe",
-            "cmd.exe" => "cmd.exe",
             _ => null
         };
         if (systemName is not null)
@@ -41,8 +39,8 @@ internal static class WindowsSystemTools
         }
         // Sem caminho absoluto nao e possivel identificar qual arquivo o
         // fabricante registrou; ShellExecute nao deve completar essa identidade.
-        if (!Path.IsPathFullyQualified(name))
+        if (UninstallCommand.IsHost(name) || !Path.IsPathFullyQualified(name))
             throw new InvalidDataException("Desinstalador registrado sem caminho absoluto verificavel.");
-        return Path.GetFullPath(name);
+        return InstallerFileGuard.ValidateLocalPath(name);
     }
 }

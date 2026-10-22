@@ -7,6 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../RegisteredUninstaller.cs" Link="RegisteredUninstaller.cs" />
+    <Compile Include="../WindowsSystemTools.cs" Link="WindowsSystemTools.cs" />
+    <Compile Include="../UninstallCommand.cs" Link="UninstallCommand.cs" />
+    <Compile Include="../UninstallBatch.cs" Link="UninstallBatch.cs" />
     <Compile Include="../UninstallResiduals.cs" Link="UninstallResiduals.cs" />
     <Compile Include="../AdvancedUninstallCleaner.cs" Link="AdvancedUninstallCleaner.cs" />
     <Compile Include="../UninstallRuleCatalog.cs" Link="UninstallRuleCatalog.cs" />

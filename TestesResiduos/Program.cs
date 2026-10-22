@@ -12,6 +12,7 @@ void Check(bool result, string what)
     passed++;
 }
 
+if (args.Contains("--work6-uninstall-flow")) { await Work6UninstallFlowTests.Run(Check); return; }
 if (args.Contains("--work6-uninstall-policy"))
 {
     int failures=0;
@@ -22,6 +23,8 @@ if (args.Contains("--work6-uninstall-policy"))
 if (args.Contains("--benchmark")) { ResidualBenchmark.Run(); return; }
 // Bateria integrada, na ordem solicitada: o atualizador corre no projeto separado,
  // aqui simulamos desinstalacao e somente depois politica de residuos.
+Work6UninstallTests.Policy(Check);
+await Work6UninstallFlowTests.Run(Check);
 SimulatedUninstallScenarioTests.Run(Check);
 SimulatedResidualScenarioTests.Run(Check);
 ResidualCorrelationTests.Run(Check);
@@ -142,9 +145,9 @@ var gameOnly = new ProgramEntry { Name = "BioShock Infinite", InventoryOnly = tr
     InventorySource = "Biblioteca de jogos: Steam" };
 var staleApp = new ProgramEntry { Name = "Jogo removido",
     UninstallString = "\"Z:\\GF-Teste-Desinstalador-Ausente\\uninstall.exe\"" };
-var regular = new ProgramEntry { Name = "Programa MSI", UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000001}" };
+var regular = new ProgramEntry { Name = "Programa MSI", MsiProductCode="{00000000-0000-0000-0000-000000000001}", UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000001}" };
 var quiet = new ProgramEntry { Name = "Outra instalação MSI",
-    UninstallString = "", QuietUninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000002}" };
+    MsiProductCode="{00000000-0000-0000-0000-000000000002}", UninstallString = "", QuietUninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000002}" };
 var protectedWin32 = new ProgramEntry { Name = "Microsoft GameInput",
     UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000003}" };
 Check(!ActionableInventory.CanUninstall(systemOnly) &&
@@ -275,7 +278,7 @@ Console.WriteLine("OK Identidade ARP independente de catálogos e receitas");
 
 // Auditoria realista de uma máquina antiga: apps sem desinstalador válido,
 // drivers PnP desconectados por trocas de hardware e falsos positivos críticos.
-Check(MaintenanceAudit.CheckUninstaller("MsiExec.exe /X{ABC123}", false) == "available",
+Check(MaintenanceAudit.CheckUninstaller("MsiExec.exe /X{00000000-0000-0000-0000-000000000123}", false) == "available",
     "O serviço oficial MSI é reconhecido sem executar nada");
 Check(MaintenanceAudit.CheckUninstaller("", false) == "absent",
     "Entrada sem desinstalador aparece na avaliação");
@@ -287,9 +290,9 @@ Check(MaintenanceAudit.CheckUninstaller('"' + missingExecutable + '"', false) ==
     "Caminho absoluto removido pode ser identificado sem apagar entrada de Registro");
 Check(MaintenanceAudit.CheckUninstaller("uninstall.exe /S", false) == "unknown",
     "Comandos relativos não são sinalizados indevidamente como arquivos ausentes");
-Check(MaintenanceAudit.CheckUninstaller('"' + Path.Combine(Path.GetDirectoryName(missingExecutable)!, "msiexec.exe") + '"', false) == "missing",
+Check(MaintenanceAudit.CheckUninstaller('"' + Path.Combine(Path.GetDirectoryName(missingExecutable)!, "msiexec.exe") + '"', false) != "available",
     "Arquivo ausente chamado msiexec nao recebe confianca pelo nome");
-var alternateUninstall = new ProgramEntry { Name = "Duas alternativas", UninstallString = '"' + missingExecutable + '"', QuietUninstallString = "msiexec.exe /X{ABC123}" };
+var alternateUninstall = new ProgramEntry { Name = "Duas alternativas", UninstallString = '"' + missingExecutable + '"', QuietUninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000123}" };
 Check(MaintenanceAudit.InspectPrograms(new[] { alternateUninstall }).Available == 1 &&
       MaintenanceAudit.InspectPrograms(new[] { alternateUninstall }).Missing == 0,
     "Diagnostico usa alternativa silenciosa valida sem falso desinstalador ausente");
@@ -298,7 +301,7 @@ var brokenInventory = new[]
     new ProgramEntry { Name = "Antigo Editor", UninstallString = '"' + missingExecutable + '"',
         CatalogIdentity = "antigo-editor" },
     new ProgramEntry { Name = "Microsoft Store Runtime", InventoryOnly = true },
-    new ProgramEntry { Name = "Outra Ferramenta", UninstallString = "msiexec.exe /X {GUID}" }
+    new ProgramEntry { Name = "Outra Ferramenta", UninstallString = "msiexec.exe /X {00000000-0000-0000-0000-000000000124}" }
 };
 var maintenance = MaintenanceAudit.Inspect(brokenInventory, inspectDevices: false);
 Check(maintenance.Installed == 3 && maintenance.Recognized == 1 &&

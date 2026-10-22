@@ -15,11 +15,12 @@ internal static class LayoutTests
         Application.EnableVisualStyles();
         if (!AppServices.TryParseUninstaller(@"C:\cache.exe_folder\uninstall.exe /S", out var uninstallPath, out var uninstallArgs) ||
             uninstallPath != @"C:\cache.exe_folder\uninstall.exe" || uninstallArgs != "/S" ||
-            !AppServices.TryParseUninstaller("MsiExec.exe /I{ABCD}", out _, out var msiArgs) ||
-            msiArgs != "/X{ABCD}" ||
+            !AppServices.TryParseUninstaller("MsiExec.exe /I{00000000-0000-0000-0000-000000000123}", out _, out var msiArgs) ||
+            msiArgs != "/X{00000000-0000-0000-0000-000000000123}" ||
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
+        ConfirmReviewTests.Run();
         ResidualExplorerTests.Run();
         // PC fraco v5.13.11.21: 19 MSIX estão no inventário, mas não
         // aparecem na lista de ações. O filtro explícito revela sem permitir

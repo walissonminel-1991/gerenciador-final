@@ -1,0 +1,118 @@
+using GerenciadorAplicativos;
+using System.ComponentModel;
+internal static class Work6UninstallFlowTests
+{
+    private static ProgramEntry App(string id="A",string version="1.0",string? command=null) => new() {
+        Name="Fixture "+id, Publisher="Fixture Publisher", Version=version, InventoryId="CurrentUser|Registry64|"+id,
+        MsiProductCode=Work6UninstallTests.Product, UninstallString=command??"msiexec.exe /X"+Work6UninstallTests.Product };
+    internal static async Task Run(Action<bool,string> check)
+    {
+        if (OperatingSystem.IsWindows()) await NativePrepare(check);
+        var app=App(); var requests=UninstallBatch.Select([app,app]);
+        check(requests.Length==1,"WORK6 lote: seleção duplicada resulta em uma autorização");
+        bool rejected=false;
+        try { UninstallBatch.Select([app,App(version:"2.0")]); } catch(InvalidDataException) { rejected=true; }
+        check(rejected,"WORK6 lote: duplicata contraditória rejeitada");
+        check(UninstallCommand.TryParse("MsiExec.exe /I "+Work6UninstallTests.Product+" /qn /norestart",out var msi) &&
+            msi.Arguments=="/X"+Work6UninstallTests.Product+" /qn /norestart", "WORK6 parser: manutenção MSI /I converte somente GUID íntegro para /X");
+        check(!UninstallBatch.BoundToProduct(msi,new ProgramEntry { MsiProductCode="{00000000-0000-0000-0000-000000000999}" }),
+            "WORK6 parser: GUID de outro produto bloqueado");
+        foreach(string raw in new[]{@"\\server\share\msiexec.exe /X"+Work6UninstallTests.Product,
+            @".\uninstall.exe /S", "\"C:\\App\\uninstall.exe\"/S", "\"C:\\App\\uninstall.exe\" /S & cmd.exe",
+            "\"C:\\App\\uninstall.exe\" /LOG \"unterminated", @"C:\Windows\System32\powershell.exe -Command fixture" })
+            check(!UninstallCommand.TryParse(raw,out _),"WORK6 parser: caminho/sintaxe ambígua não produz intenção executável");
+        check(UninstallCommand.TryParse("\"C:\\Program Files\\Vendor\\uninstall.exe\" /LOG \"C:\\A&B.log\"",out _),
+            "WORK6 parser: argumento literal citado não é confundido com shell");
+        int launches=0, scans=0;
+        Task<int?> Launch(UninstallRequest _,CancellationToken token) { launches++; return Task.FromResult<int?>(0); }
+        Task Wait(CancellationToken _) => Task.CompletedTask;
+        Task<UninstallSnapshot> Scan() { scans++; return Task.FromResult(new UninstallSnapshot([app],true)); }
+        var result=await new UninstallBatch().RunAsync(requests,false,Scan,Launch,Wait);
+        check(result.Single().State==UninstallState.Refused && launches==0 && scans==0,"WORK6 lote: recusa do usuário produz zero leitura e zero lançamento");
+        async Task<IReadOnlyList<UninstallOutcome>> Scenario(UninstallSnapshot[] snapshots,Func<UninstallRequest,CancellationToken,Task<int?>>? launcher=null) {
+            int i=0; return await new UninstallBatch().RunAsync(requests,true,()=>Task.FromResult(snapshots[Math.Min(i++,snapshots.Length-1)]),launcher??Launch,Wait);
+        }
+        var present=new UninstallSnapshot([app],true); var absent=new UninstallSnapshot([],true);
+        int before=launches;
+        result=await Scenario([present,absent,absent]);
+        check(result.Single().State==UninstallState.RegistrationAbsent && launches==before+1,"WORK6 lote: uma execução e duas ausências completas confirmam somente ausência do registro");
+        result=await Scenario([present,absent,present]);
+        check(result.Single().State==UninstallState.StillPresent,"W6-U-STABLE ausência transitória seguida de presença não confirma remoção");
+        before=launches;
+        result=await Scenario([new([App(version:"2.0")],true)]);
+        check(result.Single().State==UninstallState.Blocked && launches==before,"WORK6 lote: seleção alterada antes do lançamento bloqueia execução");
+        result=await Scenario([new([app],false)]);
+        check(result.Single().State==UninstallState.Blocked && launches==before,"W6-U-PARTIAL inventário parcial anterior produz zero lançamentos");
+        result=await Scenario([present,new([],false)]);
+        check(result.Single().State==UninstallState.Pending,"WORK6 lote: inventário posterior parcial não prova ausência");
+        foreach(int code in new[]{2,3,5,193,740,1223}) {
+            before=launches; var batch=new UninstallBatch();
+            var original=new List<UninstallRequest>(requests);
+            result=await batch.RunAsync(original,true,Scan,(_,_)=>{ launches++; throw new Win32Exception(code); },Wait);
+            await batch.RunAsync(original,true,Scan,Launch,Wait);
+            check(launches==before+1 && result.Single().State==(code==1223 ? UninstallState.Cancelled : UninstallState.StartFailed),
+                "WORK6 lote: Win32 "+code+" não dispara nova tentativa");
+        }
+        before=launches;
+        result=await Scenario([present],(_,_)=>{launches++;return Task.FromResult<int?>(null);});
+        check(result.Single().State==UninstallState.StartFailed && launches==before+1,"WORK6 lote: Process.Start null não confirma nem repete");
+        result=await Scenario([present],(_,_)=>Task.FromResult<int?>(1603));
+        check(result.Single().State==UninstallState.ProcessFailed,"WORK6 lote: erro do fornecedor não permite confirmar por ausência");
+        var second=App("B"); // mesmo ProductCode: ambiguidade de contexto deve bloquear antes de executar
+        result=await Scenario([new([app,second],true)]);
+        check(result.Single().State==UninstallState.Blocked,"WORK6 lote: MSI duplicado em outro registro não escolhe contexto implicitamente");
+        using var cancel=new CancellationTokenSource();
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release=new TaskCompletionSource<UninstallSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gate=new UninstallBatch(); before=launches;
+        var pending=gate.RunAsync(requests,true,()=>{entered.SetResult();return release.Task;},Launch,Wait,cancel.Token);
+        await entered.Task;
+        var concurrent=await gate.RunAsync(requests,true,Scan,Launch,Wait);
+        cancel.Cancel();release.SetResult(present);
+        check((await pending).Single().State==UninstallState.Cancelled && launches==before && concurrent.Count==0,
+            "WORK6 lote: cancelamento durante revalidação e concorrência não lançam fornecedor");
+        var mutable=new List<UninstallRequest>(requests); entered=new(TaskCreationOptions.RunContinuationsAsynchronously); release=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        gate=new(); pending=gate.RunAsync(mutable,true,()=>{entered.TrySetResult();return release.Task;},Launch,Wait);
+        await entered.Task; mutable.Clear(); release.SetResult(present);
+        result=await pending;
+        check(result.Count==1 && result[0].State==UninstallState.StillPresent,"WORK6 lote: coleção externa modificada não muda seleção autorizada");
+        before=launches;
+        result=await new UninstallBatch().RunAsync(requests,true,Scan,(_,_)=>{launches++;throw new TimeoutException();},Wait);
+        check(result.Single().State==UninstallState.Pending && launches==before+1,"WORK6 lote: fornecedor sem retorno fica pendente, sem sucesso ou repetição");
+    }
+    private static async Task NativePrepare(Action<bool,string> check)
+    {
+        string folder=Path.Combine(Path.GetTempPath(),"GF-W6-Uninstall-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try {
+            string file=Path.Combine(folder,"uninstall.exe");
+            File.WriteAllText(file,"fixture maliciosa não executável");
+            var app=new ProgramEntry { Name="Fixture", Publisher="Fixture Publisher", InventoryId="CurrentUser|Registry64|Fixture",
+                InstallLocation=folder,UninstallString="\""+file+"\" /S" };
+            var request=UninstallBatch.Select([app]).Single();
+            bool denied=false;
+            try { using var unused=RegisteredUninstaller.Prepare(request,(_,_)=>true); }
+            catch(InvalidDataException) { denied=true; }
+            check(denied,"WORK6 nativo: arquivo existente com nome uninstall.exe não basta para autorizar");
+            File.Copy(Environment.ProcessPath!,file,true); // cópia do apphost; jamais executar
+            denied=false;
+            try { using var unused=RegisteredUninstaller.Prepare(request,(_,_)=>false); }
+            catch(System.Security.Cryptography.CryptographicException) { denied=true; }
+            check(denied,"WORK6 nativo: PE existente sem identidade assinada autorizada é bloqueado");
+            using var prepared=RegisteredUninstaller.Prepare(request,(_,_)=>true); // fronteira criptográfica simulada
+            check(prepared.StartInfo.FileName==file && prepared.StartInfo.Arguments=="/S" &&
+                prepared.StartInfo.UseShellExecute && string.IsNullOrEmpty(prepared.StartInfo.Verb),
+                "WORK6 nativo: intenção contém só caminho validado, argumentos registrados e UAC normal do fornecedor");
+            var external=prepared.StartInfo; external.FileName="cmd.exe";
+            check(prepared.StartInfo.FileName==file,"WORK6 nativo: cópia da intenção não altera executável autorizado");
+            bool pinned=false;
+            try { File.Move(file,file+".replaced"); } catch(IOException) { pinned=true; }
+            check(pinned,"WORK6 nativo: substituição do EXE entre revisão e lançamento é bloqueada");
+            prepared.Dispose(); denied=false;
+            try { await prepared.LaunchAsync(CancellationToken.None); }
+            catch(InvalidOperationException) { denied=true; }
+            check(denied,"WORK6 nativo: plano descartado jamais inicia processo");
+        } finally { Directory.Delete(folder,true); }
+    }
+
+}
