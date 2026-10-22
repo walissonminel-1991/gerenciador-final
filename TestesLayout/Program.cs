@@ -639,10 +639,10 @@ internal static class LayoutTests
             .First(flow => flow.Content.Controls.OfType<Panel>().Any(card =>
                 Descendants(card).OfType<ModernButton>()
                     .Any(button => button.Text == "Verificar Windows")));
-        var repairCards = repairFlow.Content.Controls.OfType<Panel>().ToArray();
-        if (repairCards.Length != 7)
+        var repairCardPanels = repairFlow.Content.Controls.OfType<Panel>().ToArray();
+        if (repairCardPanels.Length != 7)
             throw new Exception("Grade de Reparo e Rede perdeu algum dos sete cartoes.");
-        var firstRow = repairCards.Where(card => card.Top == repairCards.Min(x => x.Top))
+        var firstRow = repairCardPanels.Where(card => card.Top == repairCardPanels.Min(x => x.Top))
             .OrderBy(card => card.Left).ToArray();
         if (repairFlow.ClientSize.Width >= 1100)
         {
