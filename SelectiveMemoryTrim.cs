@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace GerenciadorAplicativos;
 
@@ -13,6 +14,7 @@ internal static class SelectiveMemoryTrim
     private const uint QueryLimited = 0x1000;
     private const uint SetQuota = 0x0100;
     private const long MinimumWorkingSet = 128L * 1024 * 1024;
+    private static int trimming;
     private static readonly string[] Excluded = [
         "av", "antivirus", "defender", "security", "vpn", "antitrack", "driver",
         "service", "system", "svchost", "lsass", "csrss", "wininit", "winlogon",
@@ -26,6 +28,33 @@ internal static class SelectiveMemoryTrim
     private static extern bool CloseHandle(IntPtr handle);
     [DllImport("kernel32.dll", SetLastError = true, EntryPoint = "K32EmptyWorkingSet")]
     private static extern bool EmptyWorkingSet(IntPtr process);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetProcessTimes(IntPtr process, out long created, out long exited,
+        out long kernel, out long user);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint GetProcessId(IntPtr process);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetExitCodeProcess(IntPtr process, out uint exitCode);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    private static extern bool QueryFullProcessImageNameW(IntPtr process, uint flags,
+        StringBuilder executable, ref uint size);
+
+    internal static bool SameAuthorizedIdentity(MemoryTrimTarget target, int pid, DateTime startedUtc, string path) =>
+        target.Pid == pid && target.StartedUtc == startedUtc &&
+        !string.IsNullOrWhiteSpace(path) && path.Equals(target.Executable, StringComparison.OrdinalIgnoreCase);
+
+    internal static bool TryReadHandleIdentity(IntPtr handle, out int pid, out DateTime startedUtc, out string path)
+    {
+        pid = 0; startedUtc = default; path = "";
+        if (handle == IntPtr.Zero || !OperatingSystem.IsWindows() ||
+            !GetProcessTimes(handle, out long created, out _, out _, out _) ||
+            !GetExitCodeProcess(handle, out uint exit) || exit != 259) return false;
+        uint id = GetProcessId(handle);
+        var buffer = new StringBuilder(32768); uint size = (uint)buffer.Capacity;
+        if (id is 0 or > int.MaxValue || !QueryFullProcessImageNameW(handle, 0, buffer, ref size)) return false;
+        pid = (int)id; startedUtc = DateTime.FromFileTimeUtc(created); path = buffer.ToString();
+        return path.Length > 0;
+    }
 
     internal static bool IsCandidate(int pid, int ownPid, int session, int ownSession,
         string name, string path, string windowsFolder, long bytes, bool hasWindow)
@@ -33,6 +62,7 @@ internal static class SelectiveMemoryTrim
         if (pid <= 4 || pid == ownPid || session != ownSession ||
             hasWindow || bytes < MinimumWorkingSet ||
             string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path) ||
+            string.IsNullOrWhiteSpace(windowsFolder) ||
             !path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             return false;
         if (Excluded.Any(word => name.Contains(word, StringComparison.OrdinalIgnoreCase)))
@@ -74,7 +104,7 @@ internal static class SelectiveMemoryTrim
     internal static bool TryTrimAuthorized(MemoryTrimTarget target, out string result)
     {
         result = "O processo mudou ou a operação não está disponível.";
-        if (!OperatingSystem.IsWindows()) return false;
+        if (!OperatingSystem.IsWindows() || Interlocked.CompareExchange(ref trimming, 1, 0) != 0) return false;
         try
         {
             using var current = Process.GetCurrentProcess();
@@ -90,6 +120,10 @@ internal static class SelectiveMemoryTrim
             if (handle == IntPtr.Zero) { result = "O Windows não permitiu ajustar a memória desse aplicativo."; return false; }
             try
             {
+                // Identidade obtida do MESMO handle entregue a EmptyWorkingSet.
+                // Reutilizar um PID entre as duas consultas nao transfere consentimento.
+                if (!TryReadHandleIdentity(handle, out int pid, out DateTime startedUtc, out string executable) ||
+                    !SameAuthorizedIdentity(target, pid, startedUtc, executable)) return false;
                 if (!EmptyWorkingSet(handle))
                 { result = "O Windows não conseguiu reduzir a memória desse aplicativo."; return false; }
             }
@@ -99,7 +133,8 @@ internal static class SelectiveMemoryTrim
             return true;
         }
         catch (Exception ex) when (ex is InvalidOperationException or
-            System.ComponentModel.Win32Exception or UnauthorizedAccessException or NotSupportedException)
+            System.ComponentModel.Win32Exception or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         { return false; }
+        finally { Volatile.Write(ref trimming, 0); }
     }
 }

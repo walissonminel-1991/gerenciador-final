@@ -52,10 +52,13 @@ internal static class UninstallerSignaturePolicy
     // O usuario conserva a opcao de remover pelo Windows, nunca via EXE comprometido.
     internal static bool IsKnownCompromise(string? issue) =>
         issue is "WinVerifyTrust=0x80096010" or "WinVerifyTrust=0x80096004" or
-            "WinVerifyTrust=0x800B010C";
+            "WinVerifyTrust=0x800B010C" or "WinVerifyTrust=0x800B0111";
     internal static bool IsUntrustedButNotProvenTampered(string? issue) =>
-        issue is not null && issue.StartsWith("WinVerifyTrust=0x", StringComparison.Ordinal) &&
-        !IsUnsigned(issue) && !IsKnownCompromise(issue);
+        // Somente falhas de cadeia/validade conhecidas podem ser apresentadas
+        // como advertencia. Erro desconhecido nao equivale a EXE integro.
+        issue is "WinVerifyTrust=0x800B0109" or "WinVerifyTrust=0x800B010A" or
+            "WinVerifyTrust=0x800B0101" or "WinVerifyTrust=0x800B010E" or
+            "WinVerifyTrust=0x80092012" or "WinVerifyTrust=0x80092013";
 }
 
 internal static class RegisteredUninstaller

@@ -1,6 +1,14 @@
 using GerenciadorAplicativos;
 
 int passed = 0;
+if (args.Contains("--work6-uninstall-flow")) { await Work6UninstallFlowTests.Run(Check); return; }
+if (args.Contains("--work7-uninstall"))
+{
+    int failures = 0;
+    await Work7UninstallTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+    if (failures > 0) throw new Exception($"WORK7: {failures} defeitos de desinstalação reproduzidos");
+    return;
+}
 {
     string win = @"C:\Windows";
     string app = @"C:\Program Files\Cliente\worker.exe";
@@ -39,7 +47,6 @@ if (args.Contains("--work6-preview"))
     if(failures>0) throw new Exception($"WORK6 preview: {failures} falhas reproduzidas");
     return;
 }
-if (args.Contains("--work6-uninstall-flow")) { await Work6UninstallFlowTests.Run(Check); return; }
 if (args.Contains("--work6-uninstall-policy"))
 {
     int failures=0;
@@ -52,6 +59,7 @@ if (args.Contains("--benchmark")) { ResidualBenchmark.Run(); return; }
  // aqui simulamos desinstalacao e somente depois politica de residuos.
 Work6UninstallTests.Policy(Check);
 await Work6UninstallFlowTests.Run(Check);
+await Work7UninstallTests.Run(Check);
 SimulatedUninstallScenarioTests.Run(Check);
 await Work6PreviewTests.Run(Check);
 SimulatedResidualScenarioTests.Run(Check);
@@ -720,7 +728,7 @@ if (OperatingSystem.IsWindows())
         Directory.CreateDirectory(other);
         File.WriteAllText(Path.Combine(other, "dados.txt"), "preservar");
         var safe = FoobarProfileCleanup.InspectRoots(roaming, local, true, [], false);
-        Check(safe.Eligible && safe.Folders.Count == 1 && safe.Files == 1 &&
+        Check(safe.Eligible && !safe.CanExecute && safe.Folders.Count == 1 && safe.Files == 1 &&
             safe.Folders.Single() == foobar,
             "R4: preview dos perfis do foobar sem incluir outros aplicativos.");
         Check(!FoobarProfileCleanup.InspectRoots(roaming, local, false, [], false).Eligible &&
@@ -733,17 +741,17 @@ if (OperatingSystem.IsWindows())
         var obsProfile = FoobarProfileCleanup.InspectRoots(roaming, local, true, [], false,
             "OBS Studio", ["obs-studio"]);
         Check(obsProfile.Eligible && obsProfile.Files == 1 &&
-            FoobarProfileCleanup.DeleteCheckedFolder(obs) &&
+            FoobarProfileCleanup.DeleteSyntheticFolderForTests(obs, sandboxRoot) &&
             !Directory.Exists(obs) && File.Exists(Path.Combine(other, "dados.txt")),
             "R4: limpeza de pasta OBS sintética não toca dados de outro aplicativo.");
         Check(!FoobarProfileCleanup.InspectRoots(roaming, local, true, ["OBS Studio"], false,
             "OBS Studio", ["obs-studio"]).Eligible,
             "R4: OBS instalado nunca pode ter seu perfil limpo.");
-        Check(FoobarProfileCleanup.DeleteCheckedFolder(foobar) &&
+        Check(FoobarProfileCleanup.DeleteSyntheticFolderForTests(foobar, sandboxRoot) &&
             !Directory.Exists(foobar) &&
             File.Exists(Path.Combine(other, "dados.txt")),
             "R4: exclusao em fixture isolada remove apenas perfil foobar.");
-        Check(!FoobarProfileCleanup.DeleteCheckedFolder(other + "-absent"),
+        Check(!FoobarProfileCleanup.DeleteSyntheticFolderForTests(other + "-absent", sandboxRoot),
             "R4: alvo inexistente nunca vira operacao destrutiva.");
         Check(File.Exists(Path.Combine(other, "dados.txt")),
             "R4: dados de outros programas permanecem inalterados na simulacao.");

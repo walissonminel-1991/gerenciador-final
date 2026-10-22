@@ -7,6 +7,7 @@ namespace GerenciadorAplicativos;
 // ou chaves Microsoft/Windows. O usuario autoriza os locais explicitamente.
 internal sealed record FoobarProfilePlan(IReadOnlyList<string> Folders, int Files, long Bytes, string Blocker)
 {
+    internal bool CanExecute => false; // Resumo nao concede autorizacao de exclusao.
     internal bool Eligible => Blocker.Length == 0 && Folders.Count > 0;
 }
 internal sealed record FoobarProfileResult(int FoldersDeleted, int RegistryKeysDeleted,
@@ -85,9 +86,15 @@ internal static class FoobarProfileCleanup
         { return Block("Falha de leitura do perfil; preservar."); }
     }
 
-    // Operacao estrita reutilizada em fixtures isoladas do CI.
-    internal static bool DeleteCheckedFolder(string folder)
+#if GF_PROGRESSIVE
+    // Ausente do assembly de producao; aceita somente a arvore sintética do CI.
+    internal static bool DeleteSyntheticFolderForTests(string folder, string fixtureRoot)
     {
+        string root = Path.GetFullPath(fixtureRoot).TrimEnd(Path.DirectorySeparatorChar);
+        if (!Path.GetFileName(root).StartsWith("GF-Foobar-Fixture-", StringComparison.Ordinal) ||
+            !root.StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.OrdinalIgnoreCase) ||
+            !Path.GetFullPath(folder).StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            return false;
         if (!SafeChain(folder) || ContainsLink(folder)) return false;
         string staged = folder + ".gf-limpeza-" + Guid.NewGuid().ToString("N");
         try
@@ -113,6 +120,7 @@ internal static class FoobarProfileCleanup
             return false;
         }
     }
+#endif
     internal static bool Same(FoobarProfilePlan a, FoobarProfilePlan b) =>
         a.Files == b.Files && a.Bytes == b.Bytes &&
         a.Folders.SequenceEqual(b.Folders, StringComparer.OrdinalIgnoreCase);

@@ -21,6 +21,7 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
         ConfirmReviewTests.Run();
+        Work7SafetyTests.Run();
         ResidualExplorerTests.Run();
         // PC fraco v5.13.11.21: 19 MSIX estão no inventário, mas não
         // aparecem na lista de ações. O filtro explícito revela sem permitir
@@ -636,9 +637,7 @@ internal static class LayoutTests
         // PC FORTE .40: tres colunas ja existiam, mas cada card era limitado
         // a 316 px; sobravam faixas laterais mesmo com largura suficiente.
         var repairFlow = Descendants(form).OfType<DarkScrollableFlow>()
-            .First(flow => flow.Content.Controls.OfType<Panel>().Any(card =>
-                Descendants(card).OfType<ModernButton>()
-                    .Any(button => button.Text == "Verificar Windows")));
+            .Single(flow => flow.Name == "RepairActions");
         var repairCardPanels = repairFlow.Content.Controls.OfType<Panel>().ToArray();
         if (repairCardPanels.Length != 7)
             throw new Exception("Grade de Reparo e Rede perdeu algum dos sete cartoes.");

@@ -65,20 +65,27 @@ internal sealed class UninstallBatch
                 invoked=true;
                 int? exit=await launch(request,token);
                 if(exit is null) { results.Add(new(request,UninstallState.StartFailed)); continue; }
-                if(exit is not (0 or 3010)) { results.Add(new(request,UninstallState.ProcessFailed,exit)); continue; }
                 int absent=0;
+                bool sawAbsence=false, complete=true;
                 for(int attempt=0;attempt<7;attempt++) {
                     token.ThrowIfCancellationRequested();
                     var after=await scan();
-                    if(!after.Complete) { results.Add(new(request,UninstallState.Pending,exit)); break; }
+                    if(!after.Complete) { complete=false; break; }
                     absent=UninstallResiduals.StillInstalled(request.Original,after.Items) ? 0 : absent+1;
-                    if(absent==2) { results.Add(new(request,UninstallState.RegistrationAbsent,exit)); break; }
+                    sawAbsence |= absent > 0;
                     // O fornecedor pode atualizar o Registro segundos ou minutos depois
                     // do processo inicial. Esta janela curta nao comprova
                     // falha definitiva nem autoriza um segundo lançamento.
-                    if(attempt==6) results.Add(new(request,UninstallState.Pending,exit));
-                    else await betweenChecks(token);
+                    if(attempt<6) await betweenChecks(token);
                 }
+                // Observar a janela inteira: dois registros ausentes por um
+                // instante podem reaparecer durante a manutencao do fornecedor.
+                // Saida nao zero exige verificar o estado, mas nunca autoriza
+                // limpeza; 3010 exige reinicio e tambem permanece pendente.
+                var state = complete && exit==0 && absent>=3 ? UninstallState.RegistrationAbsent :
+                    complete && exit is not (0 or 3010) && !sawAbsence ? UninstallState.ProcessFailed :
+                    UninstallState.Pending;
+                results.Add(new(request,state,exit));
             }
             catch(Win32Exception ex) {
                 results.Add(new(request,ex.NativeErrorCode==1223 ? UninstallState.Cancelled : UninstallState.StartFailed,ex.NativeErrorCode));
@@ -87,7 +94,10 @@ internal sealed class UninstallBatch
             catch(TimeoutException) { results.Add(new(request,UninstallState.Pending)); break; }
             catch(OperationCanceledException) { results.Add(new(request,invoked ? UninstallState.Pending : UninstallState.Cancelled)); break; }
             catch(Exception ex) when(ex is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or System.Security.Cryptography.CryptographicException)
-            { results.Add(new(request,UninstallState.Blocked)); }
+            { results.Add(new(request,invoked ? UninstallState.Pending : UninstallState.Blocked)); }
+            // Um processo filho pode continuar trabalhando depois do lancador.
+            // Nao sobrepor outro desinstalador quando a conclusao e desconhecida.
+            if(results.LastOrDefault()?.State==UninstallState.Pending) break;
         }
         return results;
     }

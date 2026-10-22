@@ -22,7 +22,7 @@ mutants.extend([
      'if(!before.Complete || matching.Length!=1', 'if(matching.Length!=1',
      'TestesResiduos','--work6-uninstall-flow','W6-U-PARTIAL'),
     ('transient-absence-confirmed','UninstallBatch.cs',
-     'if(absent==2)', 'if(absent==1)',
+     'complete && exit==0 && absent>=3', 'complete && exit==0 && sawAbsence',
      'TestesResiduos','--work6-uninstall-flow','W6-U-STABLE'),
 ])
 mutants.extend([
@@ -56,7 +56,7 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
         (target/path).parent.mkdir(parents=True,exist_ok=True)
         shutil.copyfile(root/path,target/path)
     def run(project, argument):
-        return subprocess.run([dotnet,'run','--project',project,'-p:EnableWindowsTargeting=true','--',argument],
+        return subprocess.run([dotnet,'run','--project',project,'-p:EnableWindowsTargeting=true','-p:UseSharedCompilation=false','--',argument],
             cwd=target, text=True, encoding="utf-8", errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=150)
     for project,argument in [('TestesAtualizador','--work6-flow'),('TestesMultifontes',''),('TestesResiduos','--work6-uninstall-flow')]:
         baseline=run(project,argument)

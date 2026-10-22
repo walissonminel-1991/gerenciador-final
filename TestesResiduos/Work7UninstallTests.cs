@@ -1,0 +1,67 @@
+using GerenciadorAplicativos;
+
+internal static class Work7UninstallTests
+{
+    internal static async Task Run(Action<bool, string> check)
+    {
+        check(InventoryReconciler.UpdateInstallLocation(new ProgramEntry {
+            UninstallString = "\"C:\\Program Files\\7-Zip\\Uninstall.exe\"" }) == @"C:\Program Files\7-Zip",
+            "W7-ID pasta omitida no ARP usa somente EXE absoluto registrado, para correlação consultiva");
+        foreach (string command in new[] { "msiexec.exe /X{00000000-0000-0000-0000-000000000781}",
+            @"..\7-Zip\uninstall.exe", @"\\server\share\uninstall.exe", "cmd.exe /c fixture" })
+            check(InventoryReconciler.UpdateInstallLocation(new ProgramEntry { UninstallString = command }) == "",
+                "W7-ID comando sem pasta exclusiva verificável não vira diretório de instalação");
+        ProgramEntry App(string id) => new() { Name = "Fixture " + id, Publisher = "Fixture",
+            InventoryId = "CurrentUser|Registry64|" + id,
+            MsiProductCode = id == "A" ? "{00000000-0000-0000-0000-000000000781}" : "{00000000-0000-0000-0000-000000000782}",
+            UninstallString = "msiexec.exe /X" + (id == "A" ? "{00000000-0000-0000-0000-000000000781}" : "{00000000-0000-0000-0000-000000000782}") };
+        var app = App("A");
+        var selected = UninstallBatch.Select([app]);
+        var present = new UninstallSnapshot([app], true);
+        var absent = new UninstallSnapshot([], true);
+        Task Wait(CancellationToken _) => Task.CompletedTask;
+        int scans = 0, launches = 0;
+        async Task<UninstallOutcome> Scenario(int code, params UninstallSnapshot[] snapshots)
+        {
+            scans = launches = 0;
+            return (await new UninstallBatch().RunAsync(selected, true,
+                () => Task.FromResult(snapshots[Math.Min(scans++, snapshots.Length - 1)]),
+                (_, _) => { launches++; return Task.FromResult<int?>(code); }, Wait)).Single();
+        }
+        var result = await Scenario(2, present, absent);
+        check(result.State == UninstallState.Pending && result.Code == 2 && scans >= 3 && launches == 1,
+            "W7-UN erro com ausência posterior fica pendente; não declara fracasso nem autoriza limpeza");
+        result = await Scenario(2, present);
+        check(result.State == UninstallState.ProcessFailed && scans > 1 && launches == 1,
+            "W7-UN código não zero com presença persistente confirma falha após consultar estado");
+        result = await Scenario(2, present, new UninstallSnapshot([], false));
+        check(result.State == UninstallState.Pending && launches == 1,
+            "W7-UN código não zero e inventário parcial não prova falha definitiva");
+        result = await Scenario(3010, present, absent);
+        check(result.State == UninstallState.Pending && result.Code == 3010,
+            "W7-UN reinicialização necessária não autoriza limpeza antecipada");
+        result = await Scenario(0, present, absent, absent, present);
+        check(result.State == UninstallState.Pending,
+            "W7-UN duas ausências transitórias seguidas de retorno não confirmam remoção");
+        result = await Scenario(0, present, present, absent);
+        check(result.State == UninstallState.RegistrationAbsent && launches == 1,
+            "W7-UN ausência estável após sucesso confirma somente registro ausente");
+        scans = 0;
+        result = (await new UninstallBatch().RunAsync(selected, true,
+            () => ++scans == 1 ? Task.FromResult(present) : throw new IOException("fixture"),
+            (_, _) => Task.FromResult<int?>(0), Wait)).Single();
+        check(result.State == UninstallState.Pending,
+            "W7-UN falha de leitura após início do fornecedor conserva operação pendente");
+        var second = App("B");
+        var both = new UninstallSnapshot([app, second], true);
+        launches = 0;
+        var batch = await new UninstallBatch().RunAsync(UninstallBatch.Select([app, second]), true,
+            () => Task.FromResult(both), (_, _) => { launches++; return Task.FromResult<int?>(0); }, Wait);
+        check(batch.Count == 1 && batch[0].State == UninstallState.Pending && launches == 1,
+            "W7-UN lote não inicia outro fornecedor enquanto o primeiro está pendente");
+        check(!UninstallerSignaturePolicy.IsUntrustedButNotProvenTampered("WinVerifyTrust=0x800B0111"),
+            "W7-SIGN desconfiança explícita do Windows bloqueia execução");
+        check(!UninstallerSignaturePolicy.IsUntrustedButNotProvenTampered("WinVerifyTrust=0x80004005"),
+            "W7-SIGN erro não classificado não recebe permissão por omissão");
+    }
+}
