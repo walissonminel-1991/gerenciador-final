@@ -165,7 +165,7 @@ internal static class ResidualExplorerTests
         using (var window = new ResidualExplorerDialog(empty))
         {
             window.Show(); Until(() => window.Ready && !window.Busy, "Parcial vazio não carregou");
-            Require(window.SummaryText.Contains("ANÁLISE PARCIAL") && window.SummaryText.Contains("Exclusão indisponível"), "Parcial vazio foi escondido"); window.Close();
+            Require(window.SummaryText.Contains("ANÁLISE PARCIAL") && window.SummaryText.Contains("outras exclusões bloqueadas"), "Parcial vazio foi escondido"); window.Close();
         }
         // PC fraco .23: o botão Resumo deve distinguir falha pontual
         // de origem inteira indisponível, sem misturar indicadores.
