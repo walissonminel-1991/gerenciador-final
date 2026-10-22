@@ -27,6 +27,7 @@ Foram lidos os diagnósticos privados .39 e .40, sem publicá-los no repositóri
 | C1 | Limpeza foobar/OBS/VLC comparava só pasta, quantidade e bytes; não fixava conteúdo, identidade de arquivos ou chave de Registro. Exclusão recursiva permitia mudança após prévia e relato incompleto em cancelamento. | Suspender todos os pontos de exclusão desses perfis. A UI explica a preservação, sem confirmação enganosa. Executor destrutivo sintético só é compilado no projeto de testes, fora da aplicação. | **Mitigado. R4 continua suspenso.** |
 | D1 | A regressão de margens selecionava o painel externo e reprovava com contagem incorreta. | Nomear a grade `RepairActions` e selecioná-la de forma única. Continuam exigidos sete cartões, três colunas quando cabíveis e ocupação mínima de largura. | Correção do teste; layout nativo aguarda CI. |
 | E1 | O PID era reaberto depois de consultar início/caminho, sem conferir a identidade no handle usado pelo ajuste de memória. | Consultar PID, início e executável pelo mesmo handle entregue a `EmptyWorkingSet`; serializar ajustes. Testes não esvaziam working set de processos. | Corrigido estruturalmente; ganho físico e AVG pendentes. |
+| F2 | O teste de fontes ao vivo retornava aprovação mesmo com fontes falhando, contrariando o contrato do job manual. | Consulta real anterior: 19/20 fontes OK, feed Windows Proton expirado, mas exit code zero. Três controles negativos reproduziram a aceitação incorreta. Exigir diagnóstico único e sucesso de todas as fontes esperadas. | Corrigido no teste; disponibilidade externa segue uma fotografia, não garantia. |
 | F1 | Compilação/pacote eram independentes da regressão e podiam ser publicados para teste com CI vermelha. | Build depende dos dois workflows reutilizáveis: regressões Windows e política. Grupos de concorrência distintos evitam cancelamento do próprio chamador. Actions externas continuam fixadas por SHA, sem credenciais persistentes. | Corrigido no workflow; validar o encadeamento na CI. |
 
 Quando `InstallLocation` estiver ausente, apenas a pasta de um desinstalador EXE absoluto e validado pode auxiliar a correlação consultiva. MSI, hosts, UNC e caminhos relativos não geram essa evidência. Isso não concede autorização para executar instaladores ou apagar pastas.
@@ -46,7 +47,7 @@ Quando `InstallLocation` estiver ausente, apenas a pasta de um desinstalador EXE
 | Categoria | Execução local | Limite |
 |---|---|---|
 | Motor/identidade | Casos WORK 7: 4/14 antes, 14/14 depois; mais 20 casos existentes aprovados. | Fotografia sintética; não examina o Registro do PC FORTE. |
-| Fusão/fontes | Três falhas reproduzidas antes: versão oficial superior suprimida, revisão apagada e nome “x64 edition” sem fonte. Suíte final local: 155/155. | HTTPS simulado; não prova atualizações instaláveis. |
+| Fusão/fontes | Três falhas reproduzidas antes: versão oficial superior suprimida, revisão apagada e nome “x64 edition” sem fonte. Suíte final local: 159/159. | HTTPS simulado; não prova atualizações instaláveis. |
 | Desinstalação | Nove falhas em dez cenários novos antes; dez após correção, mais cinco controles de caminho. Fluxo WORK 6 relacionado também aprovado localmente. | Fornecedor é callback; nenhum desinstalador real é iniciado. |
 | Políticas | Dois controles novos falharam antes (alcance destrutivo dos perfis e resultado WUA não verificado). Depois: 18/18 políticas locais. | Análise estática não equivale a segurança universal. |
 | Cross-build | Aplicação e TestesLayout compilados para Windows no Linux com analisadores, sem avisos/erros na rodada local. | Compilar no Linux não executa WinForms, WUA, Authenticode ou SetupAPI. |
@@ -54,7 +55,24 @@ Quando `InstallLocation` estiver ausente, apenas a pasta de um desinstalador EXE
 | Mutação | Controles existentes preservados; execução final registrada abaixo. | Teste só vale se o comportamento correto passa e a retirada da proteção reprova pela causa esperada. |
 | Layout/desempenho | Mantida matriz de 132 combinações de resolução/aba, modelos DPI e ciclos de bandeja. Benchmark sintético de classificação/navegação adicionado à CI. | Runner não reproduz monitores, AVG, carga ou todos os DPI físicos dos dois PCs. |
 
-Os testes nativos e a CI final ainda estão em andamento nesta revisão do relatório. Os resultados finais, commits e links serão consolidados após sua conclusão. Não há build homologada da .42 neste ponto.
+Primeira CI WORK 7: [39861447294](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39861447294), commit `e982022`. Passaram 127/127 atualizador, 155/155 multifontes nessa revisão, 475/475 resíduos, 10/10 mutações e controles nativos R4/RAM. A suíte parou em uma assertiva de preservação: a nova frase tinha omitido a informação “outros itens preservados”. A mensagem foi corrigida, preservando a assertiva. A nova dependência de CI funcionou: build/pacote ficaram **skipped**, sem gerar candidata reprovada.
+
+A rodada seguinte inclui essa correção e o teste de fontes ao vivo reforçado (159 casos multifontes). Resultados finais serão consolidados após conclusão; ainda não há pacote .42 homologado nesta revisão do relatório.
+
+Rede somente leitura no host local: RuckZuck retornou **631 entradas**. A consulta HTTPS de fontes observou **19/20 OK**, com `proton-pass-windows=TaskCanceledException`; o teste antigo retornou sucesso incorretamente e motivou F2. Nenhuma instalação, autenticação de usuário, upload ou download de instalador fez parte dessas consultas. O timeout do feed não foi mascarado com redução dos critérios de segurança. Na consulta posterior, com a política reforçada, **20/20 fontes responderam** e o teste passou. A recuperação não apaga o primeiro timeout nem comprova disponibilidade contínua.
+
+## Benchmark Windows sintético (primeira rodada)
+
+SDK/runtime 10.0.13, quatro CPUs do runner; três amostras por cenário. Não houve leitura de resíduos reais nem comparação de ganho com a versão anterior.
+
+| Apps / evidências sintéticas | Classificação, mínimo–máximo | Grupos retornados | Contador `unexamined` |
+|---|---|---|---|
+| 500 / 5.000 | 45,4–116,3 ms | 2.500 | 0 |
+| 1.000 / 10.000 | 90,3–139,3 ms | 5.000 | 0 |
+| 1.000 / 20.000 | 90,6–249,8 ms | 10.000 | 0 |
+| 1.000 / 50.000 | 109,8–114,6 ms | 15.000 | 20.000 |
+
+O cenário de 50.000 esbarra no limite de orçamento: o tempo menor **não significa que tudo foi examinado**. Navegação do índice consumiu 6,4–74,5 ms nas amostras, com uma passagem de filtro por cenário. Essas medições não substituem P5/P6 nos computadores físicos.
 
 ## Segurança e privacidade
 

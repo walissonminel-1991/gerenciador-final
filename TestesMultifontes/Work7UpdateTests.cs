@@ -13,6 +13,15 @@ internal static class Work7UpdateTests
         check(merged[0].State == MatchState.Candidate && merged[0].Catalog?.ProductVersion == "26.06",
             "W7-MERGE registro antigo não suprime uma versão oficial ainda não instalada");
         var ordinary = new InstalledApp("OBS Studio", "31.0", "OBS Project");
+        var release = new OfficialRelease(ordinary, "32.0", "GitHub oficial", "", "obs", "obs");
+        check(!LiveSourceValidation.Accepts(new([release], [new("a", "ok", 1), new("b", "TaskCanceledException", 1)]), 2),
+            "W7-LIVE uma fonte indisponível reprova a consulta completa");
+        check(!LiveSourceValidation.Accepts(new([release], [new("a", "ok", 1)]), 2),
+            "W7-LIVE diagnóstico ausente não vira aprovação");
+        check(!LiveSourceValidation.Accepts(new([release], [new("a", "ok", 1), new("a", "ok", 1)]), 2),
+            "W7-LIVE fonte repetida não completa cobertura faltante");
+        check(LiveSourceValidation.Accepts(new([release], [new("a", "ok", 1), new("b", "ok", 1)]), 2),
+            "W7-LIVE cobertura completa continua aprovada");
         var reviewed = new UpdateMatch(ordinary, new("OBS", "OBS Studio", "32.0", "OBS Project"), MatchState.Candidate)
             { RequiresReview = true };
         check(MultiSourceMatcher.Merge([ordinary], [reviewed], []).Single().RequiresReview,

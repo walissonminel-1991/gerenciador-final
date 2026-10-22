@@ -341,6 +341,8 @@ if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
     // Usa SOMENTE GETs HTTPS de dados públicos; nenhum programa instalado é consultado no CI.
     OfficialReleaseSources.ClearCacheForTests();
     using var source = new OfficialReleaseSources();
+    int expectedSources = OfficialReleaseSources.ApplicableSourceCount([obs, firefox, notepad, powertoys, shell, sevenzip,
+        desktop, sumatra, thunderbird, edge, terminal, proton, gameInput, outlook, sharex, handbrake, rufus, qb]);
     var live = await source.QueryAsync([obs, firefox, notepad, powertoys, shell, sevenzip,
         desktop, sumatra, thunderbird, edge, terminal, proton, gameInput, outlook,
         sharex, handbrake, rufus, qb],
@@ -348,8 +350,9 @@ if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
     foreach (var item in live.Diagnostics)
         Console.WriteLine($"FONTE_AO_VIVO {item.Provider} status={item.Status} tempo_ms={item.Milliseconds}");
     Console.WriteLine($"FONTE_AO_VIVO_TOTAL resultados={live.Findings.Count}");
-    if (live.Findings.Count < 1)
-        throw new Exception("Nenhum provedor oficial disponível no teste ao vivo.");
+    if (!LiveSourceValidation.Accepts(live, expectedSources))
+        throw new Exception("Consulta externa incompleta: " + live.Diagnostics.Count(d => d.Status == "ok") +
+            "/" + expectedSources + " fontes disponíveis. Uma resposta parcial não equivale a aprovação.");
 }
 
 internal sealed class Fixture(bool failMozilla = false, bool badTags = false, int delay = 0,

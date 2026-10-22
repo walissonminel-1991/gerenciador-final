@@ -651,6 +651,25 @@ internal static class LayoutTests
                 occupied < repairFlow.Content.ClientSize.Width * 0.85)
                 throw new Exception("Reparo e Rede deve usar 3 colunas e preencher a largura disponivel.");
         }
+        Rectangle savedRepairBounds = form.Bounds;
+        try
+        {
+            Directory.CreateDirectory("LayoutCaptures");
+            foreach (var screen in new[] { new Size(1440, 900), new Size(2560, 1440) })
+            {
+                form.Bounds = StartupWindowSizing.Fit(new Rectangle(0, 0, screen.Width, screen.Height - 48));
+                form.PerformLayout(); Application.DoEvents();
+                var row = repairCardPanels.Where(card => card.Top == repairCardPanels.Min(c => c.Top))
+                    .OrderBy(card => card.Left).ToArray();
+                if (row.Length != 3 || row[^1].Right - row[0].Left < repairFlow.Content.ClientSize.Width * 0.85)
+                    throw new Exception("Reparo deve preencher tres colunas nos dois tamanhos de referencia.");
+                using var capture = new Bitmap(form.Width, form.Height);
+                form.DrawToBitmap(capture, new Rectangle(Point.Empty, form.Size));
+                capture.Save(Path.Combine("LayoutCaptures", $"Reparo-{screen.Width}x{screen.Height}.png"),
+                    System.Drawing.Imaging.ImageFormat.Png);
+            }
+        }
+        finally { form.Bounds = savedRepairBounds; form.PerformLayout(); Application.DoEvents(); }
         nav.SelectTab(5);
         Application.DoEvents();
         TestMemoryPanel(form);
