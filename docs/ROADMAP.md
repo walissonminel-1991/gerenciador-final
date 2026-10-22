@@ -1,15 +1,45 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.34 TESTE (CI aprovada; comparação normal/administrador realizada no PC FORTE; PC FRACO adiado) · Progresso: 26/42 (61,9%).**
+**v5.13.11.34 TESTE (CI aprovada; comparação normal/administrador realizada no PC FORTE; PC FRACO adiado) · Progresso: 27/42 (64,3%).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
-## Estado atual — MISSÃO WORK 5
+## Avanço validado — U6 encerrado, 27/42 (64,3%)
+
+A comparação real do PC FORTE mostrou nove entradas em `winget upgrade`
+e oito no Gerenciador Final .34, das quais duas exigiam revisão.
+**Reconciliação completa dos nove produtos**, sem afirmar que sejam
+instaláveis: seis candidatos consultivos sem conflito documentado
+(7-Zip, EA app, FanControl, Jellyfin Server, K-Lite Mega e Outlook),
+dois casos com fontes/versionamento em revisão (Plex Media Server e
+Proton Pass) e um item propositalmente somente inventário
+(Microsoft GameInput, componente protegido do Windows).
+
+Fontes oficiais e catálogos HTTP(S), sem executar WinGet COM/CLI;
+identidades do servidor Jellyfin e Plex protegidas contra confusão
+com players. Fixture automatizada de nove produtos e cenário de
+GameInput protegido na suíte multifontes, CI Windows aprovada:
+[regressões](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39698959079),
+[build](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39698959083),
+[política](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39698959189).
+Código de teste aprovado: `5067a419`. Essa aprovação encerra
+**U6 (explicar divergências de cobertura)**, e não U8 (instalação
+real), G1–G5 ou validação antivírus. Sem nova build/versão,
+sem novas dependências ou botões.
+
+**Diretriz permanente de produto:** o usuário decide se inicia
+o executável como administrador. Não criar botão administrativo,
+não forçar elevação nem alterar o manifesto padrão. Uma possível
+recomendação de uso elevado só será avaliada no final do projeto,
+se um benefício material for comprovado. A comparação A/B feita
+não aumentou a cobertura de aplicativos nem de atualizações.
+
+## Estado histórico — MISSÃO WORK 5
 
 [Auditoria e matriz dos nove produtos](MISSAO-WORK5.md): contrato WinGet desligado,
 sem executor COM/CLI. Cinco produtos com novas consultas HTTPS; evidências e
 conflitos multifontes preservados, instalação direta bloqueada quando houver revisão.
 Progresso real por fontes e diagnóstico de contexto/etapas com perfil de teste temporário.
-U6/I7 e testes físicos/AVG continuam abertos; nenhum novo checkpoint contabilizado.
+Na conclusão original da missão, U6/I7 e testes físicos/AVG continuavam abertos; U6 foi encerrado depois pela comparação .34 e CI, conforme seção de avanço.
 
 ## Resultado do teste A/B administrativo (.34)
 
@@ -90,9 +120,10 @@ A validação da .32 no PC FRACO ainda está pendente.
 - [Estado dos 42 checkpoints em JSON](PROGRESSO.json)
 - [Histórico de versões](../CHANGELOG.md) e [organização](ORGANIZACAO-REPOSITORIO.md)
 
-R6 e U6 receberam melhorias verificáveis, mas continuam sem evidência de campo
-suficiente. D2 ganhou o elo Store; histórico Windows e pacotes sem associação
-permanecem pendentes. **Nenhum dos 16 checkpoints abertos foi encerrado.**
+R6 continua exigindo evidências concretas de classificação. U6 foi concluído
+por comparação real e regressão dos nove produtos. D2 ganhou o elo Store;
+histórico Windows e pacotes sem associação permanecem pendentes.
+**Restam 15 checkpoints em aberto.**
 R4 e G1–G5 continuam bloqueados. Consultas não concedem permissão de excluir.
 
 ## Checklist
@@ -117,14 +148,14 @@ R4 e G1–G5 continuam bloqueados. Consultas não concedem permissão de excluir
 - [ ] R6 — Resolver casos históricos ambíguos com evidências adicionais. Evidência: Adicionada proteção para inventário incompleto; a atribuição dos vestígios específicos ainda depende de evidências dos computadores.
 - [ ] R7 — Desinstalação e preservação de dados validadas nos computadores. Evidência: Validação presencial adiada
 
-### Atualizações — 6/8 (75%)
+### Atualizações — 7/8 (87,5%)
 
 - [x] U1 — Consulta e fusão de múltiplas fontes. Evidência: OfficialReleaseSources.cs; RuckZuckCatalog.cs
 - [x] U2 — Comparação de versões e proteção de identidades. Evidência: Matching.cs; TestesMotor; TestesMultifontes
 - [x] U3 — Receitas verificadas e alternativas oficiais. Evidência: VerifiedUpdaters.cs; WindowsTerminalUpdater.cs
 - [x] U4 — Confirmação posterior rejeita editor divergente e entrada somente leitura. Evidência: VerifiedUpdaters.cs; TestesAtualizador v5.13.10.17
 - [x] U5 — Vincular confirmação à instalação original e conferir arquitetura/escopo Sumatra. Evidência: VerifiedUpdaters.ConfirmInstallation; TestesAtualizador aprovados. Identidade alterada permanece indeterminada; não equivale à validação real de todos os instaladores.
-- [ ] U6 — Explicar divergências de cobertura com WinGet. Evidência: Contagens por motivo implementadas sem nomes nos logs; comparação com WinGet depende de capturas equivalentes da mesma máquina.
+- [x] U6 — Explicar divergências de cobertura com WinGet. Evidência: 9 produtos na consulta WinGet do PC FORTE reconciliados com 8 do GF .34 (6 candidatos consultivos, 2 em revisão, 1 GameInput protegido); teste de 9 identidades aprovado na CI Windows 39698959079. Não comprova instalação compatível.
 - [x] U7 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] U8 — Instalação e versão final validadas nos computadores. Evidência: Validação presencial adiada
 
@@ -170,12 +201,7 @@ bateria B após backup/consentimento. Drivers continuam apenas leitura.
 
 - **R6** exige resolver amostras históricas ambíguas concretas, não somente
   aprimorar textos ou aumentar a quantidade de achados.
-- **U6:** comparação equivalente obtida em 21/10 no PC FORTE: 9
-  candidatas WinGet versus 3 GF. Duas versões coincidem; uma versão
-  mais nova foi anunciada no changelog oficial no mesmo dia, antes
-  de constar no catálogo comunitário. Seis candidatas ficaram fora
-  da lista do GF; falta atribuição segura caso a caso e teste de
-  compatibilidade/origem. Checkpoint permanece aberto.
+- **U6 encerrado:** o resultado original era WinGet 9 versus GF .32 3; na .34, o GF reconciliou os nove como 6 candidatos consultivos, 2 em revisão e 1 GameInput protegido. CI comprova regras de identidade e proteção, não compatibilidade de instaladores.
 - **I7, R7, U8, P5, V5 e D4** dependem das validações presenciais previstas
   nos dois computadores; testes CI não substituem essa evidência.
 - **R4** permanece suspenso até prova da exclusividade e segurança da
@@ -200,7 +226,7 @@ e só depois em hardware de teste não crítico. Proibidos a remoção em massa,
 limpeza heurística de Driver Store, substituição silenciosa de drivers do
 sistema e promessa de rollback quando não disponível.
 
-**Decisão de checkpoint nesta missão:** manter **26/42 (61,9%)**;
+**Decisão atual após a validação U6:** **27/42 (64,3%)**;
 as melhorias foram implementadas e verificadas, mas os critérios de campo dos
 checkpoints abertos não foram satisfeitos. A branch
 de teste e o PR #40 permanecem Draft, sem merge/release.

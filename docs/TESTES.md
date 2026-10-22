@@ -1,5 +1,36 @@
 # Roteiro de testes — v5.13.11.34 TESTE
 
+## Avanço validado — U6 encerrado, 27/42 (64,3%)
+
+A comparação real do PC FORTE mostrou nove entradas em `winget upgrade`
+e oito no Gerenciador Final .34, das quais duas exigiam revisão.
+**Reconciliação completa dos nove produtos**, sem afirmar que sejam
+instaláveis: seis candidatos consultivos sem conflito documentado
+(7-Zip, EA app, FanControl, Jellyfin Server, K-Lite Mega e Outlook),
+dois casos com fontes/versionamento em revisão (Plex Media Server e
+Proton Pass) e um item propositalmente somente inventário
+(Microsoft GameInput, componente protegido do Windows).
+
+Fontes oficiais e catálogos HTTP(S), sem executar WinGet COM/CLI;
+identidades do servidor Jellyfin e Plex protegidas contra confusão
+com players. Fixture automatizada de nove produtos e cenário de
+GameInput protegido na suíte multifontes, CI Windows aprovada:
+[regressões](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39698959079),
+[build](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39698959083),
+[política](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39698959189).
+Código de teste aprovado: `5067a419`. Essa aprovação encerra
+**U6 (explicar divergências de cobertura)**, e não U8 (instalação
+real), G1–G5 ou validação antivírus. Sem nova build/versão,
+sem novas dependências ou botões.
+
+**Diretriz permanente de produto:** o usuário decide se inicia
+o executável como administrador. Não criar botão administrativo,
+não forçar elevação nem alterar o manifesto padrão. Uma possível
+recomendação de uso elevado só será avaliada no final do projeto,
+se um benefício material for comprovado. A comparação A/B feita
+não aumentou a cobertura de aplicativos nem de atualizações.
+
+
 ## Resultado da comparação normal × administrador no PC FORTE (.34)
 
 Teste real com o mesmo pacote **v5.13.11.34 TESTE**, em sessões

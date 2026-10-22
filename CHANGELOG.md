@@ -1,5 +1,10 @@
 # Histórico de versões — Gerenciador Final
 
+## 21/10/2026 — U6 concluído, 27/42 (documentação e teste, sem nova build)
+
+Comparação WinGet 9 vs GF .34 8 reconciliada: seis candidatos consultivos, dois com revisão, GameInput protegido. Regressão de nove identidades e falha fechada aprovada nas Actions 39698959079/39698959083/39698959189. Mantido executável .34, sem novo botão administrativo, elevação automática ou WinGet COM/CLI. A futura recomendação de execução administrativa ficará a critério de benefícios comprovados ao fim do desenvolvimento.
+
+
 ## v5.13.11.34 TESTE — correspondência conservadora de servidores (CI aprovada)
 
 Segunda bateria da .33 no PC FORTE confirmou que o inventário real registra
