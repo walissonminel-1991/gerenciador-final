@@ -567,6 +567,9 @@ internal sealed partial class MainForm : Form
     private Button? _refreshDisksButton;
     private bool _refreshingDisks;
     private bool _busy;
+    private Button? _repairWindowsButton;
+    private bool _windowsRepairable;
+    private DateTimeOffset _windowsScannedAt;
     private bool _multiSelectMode;
     private bool _catalogoVerificado; // Resultado local do RuckZuck (sem instalacao)
     private bool _inventoryIncomplete; // A ausência em uma fonte com falha não comprova desinstalação.
@@ -1323,13 +1326,14 @@ internal sealed partial class MainForm : Form
         // continuam no diagnóstico do computador, sem alterações automáticas.
         var repairActions = CreateToolsFlow(new[]
         {
-            Tool("Verificar e reparar Windows",
-                "Repara a imagem do Windows e depois verifica e repara os arquivos protegidos. Pode demorar e precisar da Internet.",
-                AppServices.Green,
-                () => ConfirmThenRun("windows-repair",
-                    "O Gerenciador executará DISM /RestoreHealth e, se ele concluir sem erro, SFC /scannow.\n\n" +
-                    "Isso pode demorar bastante, utilizar a Internet e modificar arquivos de sistema. " +
-                    "Salve seu trabalho antes de continuar.\n\nExecutar o reparo?")),
+            Tool("Verificar Windows",
+                "DISM /ScanHealth e SFC /verifyonly. Somente diagnóstico, sem reparo; pode demorar.",
+                AppServices.Blue,
+                () => ExecuteAsync("Verificando integridade do Windows...", VerifyWindowsIntegrityAsync)),
+            Tool("Reparar Windows",
+                "Disponível após diagnóstico desta sessão identificar corrupção reparável. " +
+                "Executa DISM /RestoreHealth e SFC /scannow com confirmação.",
+                AppServices.Green, RepairWindowsAfterVerificationAsync),
             Tool("Analisar rede",
                 "Verifica adaptador, gateway, DNS e acesso HTTPS. Não altera configurações.",
                 AppServices.Blue,
@@ -1346,7 +1350,10 @@ internal sealed partial class MainForm : Form
                 AppServices.Green,
                 () => ConfirmThenRun("create-restore-point",
                     "Solicitar um ponto de restauração ao Windows? Requer autorização administrativa e Proteção do Sistema habilitada. " +
-                    "Não substitui backup e o Windows pode reutilizar um ponto recente."))
+                    "Não substitui backup e o Windows pode reutilizar um ponto recente.")),
+            Tool("Escolher ponto de restauração",
+                "Abre o assistente oficial do Windows para escolher um ponto e confirmar a recuperação.",
+                AppServices.Gray, ChooseRestorePointAsync)
         });
         var repairLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
             Margin = Padding.Empty, BackColor = AppServices.Background };
@@ -1436,6 +1443,11 @@ internal sealed partial class MainForm : Form
             {
                 _repairNetworkButton = button;
                 button.Enabled = false; // A correção depende de um diagnóstico anterior.
+            }
+            if (tool.Name == "Reparar Windows")
+            {
+                _repairWindowsButton = button;
+                button.Enabled = false;
             }
             button.Click += async (_, _) =>
             {
@@ -1888,7 +1900,7 @@ internal sealed partial class MainForm : Form
             _programList.ActionsEnabled = false;
             UpdateBulkButtons();
             // Somente operações explícitas exibem o progresso animado.
-            _search.Enabled = false;
+            // Pesquisa local continua acessivel durante manutencao longa.
             _progress.Visible = true;
             _progress.Style = ProgressBarStyle.Marquee;
             _progress.MarqueeAnimationSpeed = 24;
@@ -1904,7 +1916,6 @@ internal sealed partial class MainForm : Form
                 _progress.Style = ProgressBarStyle.Blocks;
                 _progress.Value = 0;
                 _progress.Visible = false;
-                _search.Enabled = true;
                 _programList.ActionsEnabled = true;
             }
             _status.Text = _operationResult;
@@ -1914,6 +1925,7 @@ internal sealed partial class MainForm : Form
                 _checkUpdatesButton.Enabled = true;
             if (_repairNetworkButton is not null)
                 _repairNetworkButton.Enabled = GetSuggestedNetworkRepair(_lastNetworkScan) is not null;
+            RefreshWindowsRepairButton();
             if (_installSelectedUpdates is not null)
                 _installSelectedUpdates.Enabled = _activeSystemView == "update" && _updateSelection.Count > 0;
             if (_nav.SelectedIndex == 2)
@@ -3035,6 +3047,60 @@ internal sealed partial class MainForm : Form
             : "Análise concluída. Instalações e perfis foram classificados sem exclusões.");
     }
 
+    private async Task VerifyWindowsIntegrityAsync()
+    {
+        _windowsRepairable = false;
+        _windowsScannedAt = default;
+        RefreshWindowsRepairButton();
+        await RunElevatedAsync("windows-check");
+    }
+
+    private void RefreshWindowsRepairButton()
+    {
+        if (_repairWindowsButton is { IsDisposed: false } button)
+            button.Enabled = !_busy && _windowsRepairable &&
+                DateTimeOffset.UtcNow - _windowsScannedAt < TimeSpan.FromMinutes(30);
+    }
+
+    private async Task RepairWindowsAfterVerificationAsync()
+    {
+        if (_busy || !_windowsRepairable ||
+            DateTimeOffset.UtcNow - _windowsScannedAt >= TimeSpan.FromMinutes(30))
+        {
+            _windowsRepairable = false;
+            RefreshWindowsRepairButton();
+            Status("Nova verificação necessária antes de reparar.");
+            return;
+        }
+        _windowsRepairable = false; // Uma autorizacao por diagnostico.
+        RefreshWindowsRepairButton();
+        await ConfirmThenRun("windows-repair",
+            "O diagnóstico identificou corrupção reparável. Executar DISM /RestoreHealth e " +
+            "SFC /scannow? Pode demorar e modificar arquivos do Windows.");
+    }
+
+    private Task ChooseRestorePointAsync()
+    {
+        if (_busy) return Task.CompletedTask;
+        if (DarkConfirmDialog.Confirm(this,
+            "Abrir o assistente oficial de Restauração do Sistema? Você poderá escolher e " +
+            "confirmar um ponto no próprio Windows. Aplicativos e atualizações posteriores " +
+            "podem ser removidos e pode ser necessário reiniciar. Não substitui backup.",
+            "Escolher ponto de restauração") != DialogResult.Yes) return Task.CompletedTask;
+        try
+        {
+            string system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+            if (string.IsNullOrWhiteSpace(system) || !Path.IsPathFullyQualified(system))
+                throw new InvalidOperationException("Diretório do Windows indisponível.");
+            string path = Path.Combine(system, "rstrui.exe");
+            if (!File.Exists(path)) throw new FileNotFoundException("Assistente indisponível.", path);
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            Log("Assistente oficial aberto; nenhuma restauração foi iniciada pelo Gerenciador.");
+        }
+        catch (Exception ex) { Log("Assistente de restauração indisponível: " + ex.Message); }
+        return Task.CompletedTask;
+    }
+
     private static string SimpleConfirmation(string task)
     {
         if (SingleVolumeOptimization.TryParseTask(task, out string volume))
@@ -3146,10 +3212,28 @@ internal sealed partial class MainForm : Form
             bool gotResult = false;
             while (await reader.ReadLineAsync() is { } line)
             {
-                if (line.StartsWith("LOG|", StringComparison.Ordinal)) Log(line[4..]);
+                if (task == "windows-check" &&
+                    line == "RESULT|WINCHECK:REPAIRABLE")
+                {
+                    _windowsRepairable = true;
+                    _windowsScannedAt = DateTimeOffset.UtcNow;
+                    Log("Corrupção reparável identificada; reparo opcional disponível.");
+                }
+                else if (task == "windows-check" && line == "RESULT|WINCHECK:HEALTHY")
+                {
+                    _windowsRepairable = false;
+                    Log("DISM/SFC não indicaram reparo necessário.");
+                }
+                else if (task == "windows-check" && line == "RESULT|WINCHECK:INCONCLUSIVE")
+                {
+                    _windowsRepairable = false;
+                    Log("Verificação inconclusiva. Reparo não liberado automaticamente.");
+                }
+                else if (line.StartsWith("LOG|", StringComparison.Ordinal)) Log(line[4..]);
                 else if (line.StartsWith("DONE|", StringComparison.Ordinal))
                 {
                     string code = line[5..];
+                    if (task == "windows-check" && code != "0") _windowsRepairable = false;
                     if (SafeMaintenanceAudit.ElevatedExit(task, code) is { } audit)
                         DiagnosticTrace.Write(audit);
                     Status(code == "0" ? "Operação concluída" : "Operação concluída com avisos");
@@ -3158,6 +3242,7 @@ internal sealed partial class MainForm : Form
             }
             if (!gotResult)
             {
+                if (task == "windows-check") _windowsRepairable = false;
                 if (SafeMaintenanceAudit.NoReturn(task) is { } audit)
                     DiagnosticTrace.Write(audit);
                 Status("Operação interrompida ou sem retorno");
@@ -3188,7 +3273,7 @@ internal static class WorkerHost
 {
     private static readonly HashSet<string> Allowed = new(StringComparer.OrdinalIgnoreCase)
     {
-        "clean-windows-temp", "clear-update-cache", "cleanmgr-auto", "windows-repair",
+        "clean-windows-temp", "clear-update-cache", "cleanmgr-auto", "windows-check", "windows-repair",
         "flush-dns", "network-repair-winsock", "network-reset", "hibernate-on", "hibernate-off",
         "power-plan-balanced", "power-plan-saver", "power-plan-ultimate", "create-restore-point"
     };
@@ -3213,7 +3298,15 @@ internal static class WorkerHost
             }
             Send("HELLO", token);
             int exit;
-            try { exit = await ExecuteAsync(task, line => Send("LOG", line)); }
+            try
+            {
+                exit = await ExecuteAsync(task, line =>
+                {
+                    if (task == "windows-check" && line.StartsWith("WINCHECK:", StringComparison.Ordinal))
+                        Send("RESULT", line);
+                    else Send("LOG", line);
+                });
+            }
             catch (Exception ex) { Send("LOG", "ERRO: " + ex.Message); exit = 1; }
             Send("DONE", exit.ToString());
             return exit;
@@ -3316,6 +3409,22 @@ internal static class WorkerHost
                 log("Executando a Limpeza de Disco automática do Windows...");
                 log("A limpeza de arquivos do sistema será tentada no mesmo processo elevado, sem abrir a janela do utilitário.");
                 return await Run("cleanmgr.exe", "/VERYLOWDISK");
+            case "windows-check":
+            {
+                log("Etapa 1/2: DISM /ScanHealth (sem reparo).");
+                var dism = await AppServices.RunCommandAsync("dism.exe",
+                    new[] { "/Online", "/Cleanup-Image", "/ScanHealth" },
+                    line => { if (!string.IsNullOrWhiteSpace(line)) log(line.TakeText(350)); });
+                log("Etapa 2/2: SFC /verifyonly (sem reparo).");
+                var sfc = await AppServices.RunCommandAsync("sfc.exe",
+                    new[] { "/verifyonly" },
+                    line => { if (!string.IsNullOrWhiteSpace(line)) log(line.TakeText(350)); });
+                var result = WindowsIntegrityAssessment.Interpret(
+                    dism.ExitCode, dism.StandardOutput + dism.StandardError,
+                    sfc.ExitCode, sfc.StandardOutput + sfc.StandardError);
+                log("WINCHECK:" + result.ToString().ToUpperInvariant());
+                return 0; // inconclusivo nao libera reparo.
+            }
             case "windows-repair":
             {
                 log("Etapa 1/2 — DISM: examinando e, se necessário, reparando a imagem do Windows.");

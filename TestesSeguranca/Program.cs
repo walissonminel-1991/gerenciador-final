@@ -38,6 +38,26 @@ Check(SingleVolumeOptimization.TaskForRoot(@"\\servidor\compartilhado") is null 
     "Somente volumes locais, prontos e suportados podem ser otimizados.");
 Console.WriteLine("OK: otimizacao limitada a um volume e comandos injetados rejeitados.");
 
+Check(WindowsIntegrityAssessment.Interpret(0,
+    "No component store corruption detected.", 0,
+    "Windows Resource Protection did not find any integrity violations.") == IntegrityState.Healthy,
+    "Ausencia comprovada nao habilita reparo.");
+Check(WindowsIntegrityAssessment.Interpret(0,
+    "The component store is repairable.", 0,
+    "Windows Resource Protection found integrity violations.") == IntegrityState.Repairable,
+    "Corrupcao explicita identificada.");
+Check(WindowsIntegrityAssessment.Interpret(0,
+    "O armazenamento de componentes pode ser reparado.", 0,
+    "A Proteção de Recursos do Windows encontrou violações de integridade.") == IntegrityState.Repairable,
+    "Texto PT-BR explicitamente reconhecido.");
+Check(WindowsIntegrityAssessment.Interpret(0, "Completed successfully.", 0,
+    "Verification 100% complete.") == IntegrityState.Inconclusive &&
+    WindowsIntegrityAssessment.Interpret(1, "The component store is repairable.", 0,
+        "Windows Resource Protection found integrity violations.") == IntegrityState.Inconclusive &&
+    WindowsIntegrityAssessment.Interpret(0, "No component store corruption detected.", 1,
+        "Windows Resource Protection did not find any integrity violations.") == IntegrityState.Inconclusive,
+    "Saida desconhecida ou erro nao autoriza reparo.");
+Console.WriteLine("OK: DISM e SFC consultivos com gating conservador.");
 Check(SafeMaintenanceAudit.Begin("clean-user-temp") == "LIMPEZA.INICIO tipo=temporarios_usuario",
     "inicio de limpeza deve usar tipo fixo");
 Check(SafeMaintenanceAudit.LocalResult("clean-user-temp", 47, 0, 17, 0, 0) ==
