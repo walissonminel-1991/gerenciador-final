@@ -154,6 +154,19 @@ Check(links.Packages[0].ConflictingSignatures && links.WithoutInf == 2,
     "Conflitos de assinatura e INF ausente/invalido ficam explicitos");
 Check(DriverPackageLinks.Analyze(new([], true, "parcial")).Partial,
     "Correlacao conserva limitacao da origem");
+// Prova negativa sem WMI: cancelamento nao aceita resultado atrasado.
+var coordinator = new DriverQueryCoordinator();
+var oldToken = coordinator.Begin(TimeSpan.FromSeconds(25));
+Check(coordinator.InProgress && coordinator.CanPublish(oldToken),
+    "Drivers: leitura corrente pode publicar enquanto valida");
+Check(coordinator.RequestCancel() && !coordinator.CanPublish(oldToken) &&
+    !coordinator.RequestCancel(), "Drivers: cancelamento impede publicacao e duplicatas");
+coordinator.End(oldToken);
+Check(!coordinator.InProgress, "Drivers: estado liberado apos cancelamento");
+var nextToken = coordinator.Begin(TimeSpan.FromSeconds(25));
+Check(coordinator.CanPublish(nextToken) && !coordinator.CanPublish(oldToken),
+    "Drivers: token de leitura anterior nunca autoriza substituir nova lista");
+coordinator.End(nextToken);
 // CI Windows sempre exercita a ABI nativa somente leitura; fixtures continuam portáveis.
 if (args.Contains("--live") || OperatingSystem.IsWindows())
 {

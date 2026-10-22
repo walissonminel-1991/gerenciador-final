@@ -220,23 +220,43 @@ internal sealed partial class MainForm
                 Render();
             }
         };
+        var driverQuery = new DriverQueryCoordinator();
+        bool resultPublished = false;
+        root.Disposed += (_, _) => driverQuery.RequestCancel();
         refresh.Click += async (_, _) =>
         {
-            if (_driverReadTask is { IsCompleted: false })
+            if (driverQuery.InProgress)
             {
-                state.Text = "A consulta anterior ainda está em andamento.";
+                if (resultPublished)
+                {
+                    state.Text = "Finalizando o histórico da consulta já concluída.";
+                    return;
+                }
+                if (driverQuery.RequestCancel())
+                {
+                    refresh.Text = "Cancelando...";
+                    refresh.Enabled = false;
+                    state.Text = "Cancelamento solicitado. Lista anterior preservada.";
+                    DiagnosticTrace.Write("DRIVERS.CANCELAMENTO_SOLICITADO");
+                }
                 return;
             }
-            refresh.Enabled = false;
+            if (_driverReadTask is { IsCompleted: false })
+            {
+                state.Text = "A leitura nativa anterior ainda está encerrando.";
+                return;
+            }
+            var token = driverQuery.Begin(TimeSpan.FromSeconds(20));
+            resultPublished = false;
+            refresh.Text = "Cancelar";
             state.Text = "Consultando drivers em segundo plano…";
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            var token = timeout.Token;
             _driverReadTask = Task.Run(() => DriverStoreAudit.CaptureWithPackages(token));
             try
             {
                 var result = await _driverReadTask.WaitAsync(token);
-                if (root.IsDisposed) return;
+                if (root.IsDisposed || !driverQuery.CanPublish(token)) return;
                 snapshot = result.Items;
+                resultPublished = true;
                 Render();
                 var links = DriverPackageLinks.Analyze(result);
                 state.Text = $"{result.Status}: {result.Items.Count} associações, " +
@@ -280,8 +300,10 @@ internal sealed partial class MainForm
             }
             catch (OperationCanceledException)
             {
-                if (!root.IsDisposed) state.Text =
-                    "Tempo esgotado. Leitura anterior preservada. Nenhuma alteração foi feita.";
+                if (!root.IsDisposed) state.Text = refresh.Text == "Cancelando..."
+                    ? "Consulta cancelada. Lista anterior preservada; sem alterações."
+                    : "Tempo esgotado. Lista anterior preservada; sem alterações.";
+                DiagnosticTrace.Write("DRIVERS.CONSULTA_CANCELADA");
             }
             catch (Exception ex)
             {
@@ -289,7 +311,36 @@ internal sealed partial class MainForm
                 if (!root.IsDisposed) state.Text =
                     "Consulta indisponível. Nenhuma alteração foi feita.";
             }
-            finally { if (!refresh.IsDisposed) refresh.Enabled = true; }
+            finally
+            {
+                driverQuery.End(token);
+                if (!refresh.IsDisposed)
+                {
+                    refresh.Text = "Consultar drivers";
+                    // WMI pode ignorar temporariamente um cancelamento nativo.
+                    // Nunca iniciar segunda consulta enquanto a primeira vive.
+                    if (_driverReadTask is { IsCompleted: false } pending)
+                    {
+                        refresh.Enabled = false;
+                        state.Text = "Aguardando fim da leitura nativa; lista anterior preservada.";
+                        _ = pending.ContinueWith(_ =>
+                        {
+                            if (!root.IsDisposed && root.IsHandleCreated)
+                            {
+                                try
+                                {
+                                    root.BeginInvoke((Action)(() =>
+                                    {
+                                        if (!refresh.IsDisposed) refresh.Enabled = true;
+                                    }));
+                                }
+                                catch (InvalidOperationException) { }
+                            }
+                        });
+                    }
+                    else refresh.Enabled = true;
+                }
+            }
         };
         // Em resolucoes menores, deixar a area da lista prevalecer.
         // O rodape detalhado permanece acessivel pela descricao/tooltip.
