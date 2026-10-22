@@ -1486,6 +1486,10 @@ internal sealed partial class MainForm : Form
                 int maxColumns = compact ? 4 : 3;
                 int columns = Math.Clamp(usable / Math.Max(1, desired + margin),
                     1, maxColumns);
+                // Em telas muito estreitas, um unico cartao legivel e preferivel
+                // a dois botoes cujo texto ultrapassa o proprio cartao.
+                if (compact && usable < (int)Math.Ceiling(520 * scale))
+                    columns = 1;
                 int cardWidth = Math.Min((int)Math.Ceiling(316 * scale),
                     Math.Max((int)Math.Ceiling(196 * scale),
                         usable / columns - margin));
@@ -1506,6 +1510,18 @@ internal sealed partial class MainForm : Form
                 foreach (var (card, description) in measuredCards)
                 {
                     if (card.Width != cardWidth) card.Width = cardWidth;
+                    // A largura inicial do botao podia ultrapassar o card
+                    // em viewports estreitos (reproducao real na CI 800x600).
+                    var cardButton = card.Controls.OfType<TableLayoutPanel>()
+                        .SelectMany(layout => layout.Controls.OfType<Button>()).FirstOrDefault();
+                    if (cardButton is not null)
+                    {
+                        int ideal = Math.Clamp(TextRenderer.MeasureText(
+                            cardButton.Text, cardButton.Font).Width + 24, 112, 215);
+                        int fit = Math.Min(ideal, Math.Max(90,
+                            cardWidth - card.Padding.Horizontal - 6));
+                        if (cardButton.Width != fit) cardButton.Width = fit;
+                    }
                     int labelWidth = Math.Max(90,
                         cardWidth - card.Padding.Horizontal - description.Padding.Horizontal - 4);
                     int textHeight = TextRenderer.MeasureText(description.Text,
