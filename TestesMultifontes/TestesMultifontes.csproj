@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="../RuckZuckModels.cs" Link="Models.cs" />
     <Compile Include="../Matching.cs" Link="Matching.cs" />
+    <Compile Include="../ProtectedApplications.cs" Link="ProtectedApplications.cs" />
     <Compile Include="../WingetConsultativeProvider.cs" Link="WingetConsultativeProvider.cs" />
     <Compile Include="../OfficialReleaseSources.cs" Link="Sources.cs" />
     <Compile Include="../ApplicationIdentityCatalog.cs" Link="ApplicationIdentityCatalog.cs" />
