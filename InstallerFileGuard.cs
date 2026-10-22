@@ -65,7 +65,7 @@ internal static class InstallerFileGuard
         return full;
     }
 
-    internal static IDisposable PinDirectory(string directory, bool allowLeafWrites = false)
+    internal static DirectoryLease PinDirectory(string directory, bool allowLeafWrites = false)
     {
         string full = ValidateLocalPath(directory);
         var chain = new Stack<string>();
@@ -83,6 +83,7 @@ internal static class InstallerFileGuard
                 var handle = CreateFileW(part, 0x80000000, sharing, IntPtr.Zero, 3,
                     0x02000000 | 0x00200000, IntPtr.Zero);
                 lease.Handles.Add(handle);
+                lease.Paths.Add(part);
                 CheckHandle(handle, directory: true);
             }
             return lease;
@@ -113,13 +114,27 @@ internal static class InstallerFileGuard
             ((long)info.Written.dwHighDateTime << 32) | (uint)info.Written.dwLowDateTime);
     }
 
-    private sealed class DirectoryLease : IDisposable
+    internal sealed record DirectoryIdentity(string Path, uint Volume, ulong Index);
+    internal sealed class DirectoryLease : IDisposable
     {
         internal readonly List<SafeFileHandle> Handles = new();
+        internal readonly List<string> Paths = new();
+        internal IReadOnlyList<DirectoryIdentity> Identities()
+        {
+            var identities = new List<DirectoryIdentity>();
+            for (int i = 0; i < Handles.Count; i++)
+            {
+                if (!GetFileInformationByHandle(Handles[i], out var info))
+                    throw new IOException("Identidade do diretório indisponível.");
+                identities.Add(new(Paths[i], info.Volume, ((ulong)info.IndexHigh << 32) | info.IndexLow));
+            }
+            return identities.AsReadOnly();
+        }
         public void Dispose()
         {
             for (int i = Handles.Count - 1; i >= 0; i--) Handles[i].Dispose();
             Handles.Clear();
+            Paths.Clear();
         }
     }
 

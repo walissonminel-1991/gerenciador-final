@@ -25,6 +25,21 @@ internal static class Work6PreviewTests
             Directory.Move(parent,oldParent);Directory.CreateDirectory(parent);
             Directory.Move(Path.Combine(oldParent,"root"),root);
             check(!await ResidualPreview.IsUnchangedAsync(preview),"W6-R-PARENT ancestral substituído invalida prévia mesmo com raiz e arquivos idênticos");
+            string alias=Path.Combine(outer,"outside-reference.exe");
+            if(!CreateHardLinkW(alias,first,IntPtr.Zero)) throw new System.ComponentModel.Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error());
+            bool escaped=false; ResidualPreviewState? linked=null;
+            try { linked=await ResidualPreview.CaptureAsync(candidate); }
+            catch(InvalidDataException) { escaped=true; }
+            check(!escaped && linked is { Complete:false },"W6-R-LINK hardlink fora da raiz produz prévia parcial sem exceção escapar");
+            File.Delete(alias);
+            using(var oversized=new FileStream(first,FileMode.Open,FileAccess.Write,FileShare.None)) oversized.SetLength(32L*1024*1024+1);
+            var limited=await ResidualPreview.CaptureAsync(candidate);
+            check(!limited.Complete && ResidualPreview.Describe("Fixture",[limited]).Incomplete,
+                "W6-R-LIMIT arquivo acima do orçamento permanece parcial e desconhecido");
+
         } finally { Directory.Delete(outer,true); }
     }
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet=System.Runtime.InteropServices.CharSet.Unicode, SetLastError=true)]
+    private static extern bool CreateHardLinkW(string link,string existing,IntPtr security);
+
 }

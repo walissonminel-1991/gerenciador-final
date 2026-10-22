@@ -4,7 +4,10 @@ namespace GerenciadorAplicativos;
 // Usa o guard de arquivos já existente, não um segundo motor de descoberta.
 internal sealed record ResidualFileState(string Path, InstallerFileGuard.FileIdentity Identity, string Digest);
 internal sealed record ResidualPreviewState(ResidualCandidate Candidate,
-    IReadOnlyList<ResidualFileState> Files, bool Complete);
+    IReadOnlyList<ResidualFileState> Files, bool Complete)
+{
+    internal IReadOnlyList<InstallerFileGuard.DirectoryIdentity> DirectoryChain { get; init; } = [];
+}
 internal sealed record ResidualDecisionContext(bool InventoryComplete, bool LauncherExited,
     bool AuxiliaryProcessesFinished, bool ActiveResources, bool ExclusiveOwnership,
     bool ExplicitPolicy, bool SpecificConsent, bool SnapshotUnchanged,
@@ -48,38 +51,47 @@ internal static class ResidualPreview
             candidate.Files.Distinct(StringComparer.OrdinalIgnoreCase).Count() == candidate.Files.Count &&
             candidate.Files.All(ResidualReadSafety.IsLocalAbsolute);
         long total = 0;
-        if (!complete || !ResidualReadSafety.IsUnlinkedDirectory(candidate.Root))
-            return new(candidate, files, false);
-        if (!SameTargets(candidate)) return new(candidate, files, false);
-        foreach (string path in candidate.Files)
+        if (!complete || token.IsCancellationRequested || !ResidualReadSafety.IsUnlinkedDirectory(candidate.Root))
+            return new(candidate, files.AsReadOnly(), false);
+        try
         {
-            if (token.IsCancellationRequested) { complete = false; break; }
-            try
+            // Uma mesma cadeia presa durante TODA a captura: arquivos de duas
+            // raízes sucessivas não podem formar uma prévia aparentemente íntegra.
+            using var directories = InstallerFileGuard.PinDirectory(candidate.Root, allowLeafWrites: true);
+            var chain = directories.Identities();
+            if (!SameTargets(candidate, token)) return new(candidate, files.AsReadOnly(), false);
+            foreach (string path in candidate.Files)
             {
-                if (!string.Equals(Path.GetDirectoryName(path), candidate.Root, StringComparison.OrdinalIgnoreCase))
-                { complete = false; continue; }
-                using var stream = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
-                var identity = InstallerFileGuard.ReadIdentity(stream);
-                if (identity.Links != 1 || identity.Size > (ulong)MaxFileBytes ||
-                    total + (long)identity.Size > MaxTotalBytes)
-                { complete = false; continue; }
-                total += (long)identity.Size;
-                string digest = await InstallerFileGuard.DigestAsync(stream, token).ConfigureAwait(false);
-                if (identity != InstallerFileGuard.ReadIdentity(stream)) { complete = false; continue; }
-                files.Add(new(path, identity, digest));
+                if (token.IsCancellationRequested) { complete = false; break; }
+                try
+                {
+                    if (!string.Equals(Path.GetDirectoryName(path), candidate.Root, StringComparison.OrdinalIgnoreCase))
+                    { complete = false; continue; }
+                    using var stream = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
+                    var identity = InstallerFileGuard.ReadIdentity(stream);
+                    if (identity.Links != 1 || identity.Size > (ulong)MaxFileBytes || total + (long)identity.Size > MaxTotalBytes)
+                    { complete = false; continue; }
+                    total += (long)identity.Size;
+                    string digest = await InstallerFileGuard.DigestAsync(stream, token).ConfigureAwait(false);
+                    if (identity != InstallerFileGuard.ReadIdentity(stream)) { complete = false; continue; }
+                    files.Add(new(path, identity, digest));
+                }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
+                    System.Security.SecurityException or ArgumentException or NotSupportedException or OperationCanceledException)
+                { complete = false; }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-                System.Security.SecurityException or ArgumentException or NotSupportedException or OperationCanceledException)
-            { complete = false; }
+            return new(candidate, files.AsReadOnly(), complete && !token.IsCancellationRequested &&
+                files.Count == candidate.Files.Count && SameTargets(candidate, token)) { DirectoryChain = chain };
         }
-        return new(candidate, files.AsReadOnly(), complete && !token.IsCancellationRequested &&
-            files.Count == candidate.Files.Count && SameTargets(candidate));
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
+            System.Security.SecurityException or ArgumentException or NotSupportedException or OperationCanceledException)
+        { return new(candidate, files.AsReadOnly(), false); }
     }
 
-    private static bool SameTargets(ResidualCandidate candidate)
+    private static bool SameTargets(ResidualCandidate candidate, CancellationToken token)
     {
         var current = UninstallResiduals.InspectDirectory(candidate.Product, candidate.Root,
-            candidate.Files.Select(Path.GetFileName).OfType<string>().ToArray());
+            candidate.Files.Select(Path.GetFileName).OfType<string>().ToArray(), token);
         return current is not null && current.Preserved == 0 &&
             current.Files.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(candidate.Files);
     }
@@ -88,18 +100,21 @@ internal static class ResidualPreview
         CancellationToken token = default)
     {
         if (!accepted.Complete || token.IsCancellationRequested || accepted.Candidate.Preserved != 0 ||
-            accepted.Files.Count != accepted.Candidate.Files.Count) return false;
+            accepted.DirectoryChain.Count == 0 || accepted.Files.Count != accepted.Candidate.Files.Count ||
+            accepted.Files.Select(f => f.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() != accepted.Files.Count ||
+            !accepted.Files.Select(f => f.Path).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(accepted.Candidate.Files)) return false;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(8));
         token = deadline.Token;
         // Só os alvos originalmente exibidos. Nunca acrescentar arquivos novos.
         var refreshed = UninstallResiduals.InspectDirectory(accepted.Candidate.Product,
-            accepted.Candidate.Root, accepted.Candidate.Files.Select(Path.GetFileName).OfType<string>().ToArray());
+            accepted.Candidate.Root, accepted.Candidate.Files.Select(Path.GetFileName).OfType<string>().ToArray(), token);
         if (refreshed is null || refreshed.Preserved != accepted.Candidate.Preserved ||
             !refreshed.Files.ToHashSet(StringComparer.OrdinalIgnoreCase)
                 .SetEquals(accepted.Candidate.Files)) return false;
         var current = await CaptureAsync(refreshed, token).ConfigureAwait(false);
-        return !token.IsCancellationRequested && current.Complete && accepted.Files.Count == current.Files.Count &&
+        return !token.IsCancellationRequested && current.Complete && accepted.DirectoryChain.SequenceEqual(current.DirectoryChain) &&
+            accepted.Files.Count == current.Files.Count &&
             accepted.Files.All(a => current.Files.Any(c =>
                 string.Equals(a.Path, c.Path, StringComparison.OrdinalIgnoreCase) &&
                 a.Identity == c.Identity && a.Digest == c.Digest));

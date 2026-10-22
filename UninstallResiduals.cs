@@ -110,9 +110,9 @@ internal static class UninstallResiduals
     // Usado também pelos testes com raiz temporária. Em produção, a raiz só pode
     // vir da lista fixa GetPolicy, não de caminho fornecido pelo usuário/Registro.
     internal static ResidualCandidate? InspectDirectory(string product, string root,
-        IReadOnlyCollection<string> allowedNames)
+        IReadOnlyCollection<string> allowedNames, CancellationToken token = default)
     {
-        if (!SafeRoot(root)) return null;
+        if (token.IsCancellationRequested || !SafeRoot(root)) return null;
         try
         {
             var files = new List<string>();
@@ -120,6 +120,7 @@ internal static class UninstallResiduals
             int visited = 0;
             foreach (string path in Directory.EnumerateFileSystemEntries(root, "*", SearchOption.TopDirectoryOnly))
             {
+                if (token.IsCancellationRequested) return null;
                 if (++visited > 1000) return null; // Pasta estranha: nenhum apagamento.
                 var attributes = File.GetAttributes(path);
                 if ((attributes & FileAttributes.ReparsePoint) != 0 ||
