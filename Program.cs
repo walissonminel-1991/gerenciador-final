@@ -3035,8 +3035,13 @@ internal sealed partial class MainForm : Form
             : "Análise concluída. Instalações e perfis foram classificados sem exclusões.");
     }
 
-    private static string SimpleConfirmation(string task) => task switch
+    private static string SimpleConfirmation(string task)
     {
+        if (SingleVolumeOptimization.TryParseTask(task, out string volume))
+            return "Deseja otimizar somente a unidade " + volume +
+                "? O Windows escolherá o procedimento adequado. Esta operação pode demorar.";
+        return task switch
+        {
         "clean-user-temp" => "Deseja limpar os arquivos temporários antigos do usuário?",
         "clean-windows-temp" => "Deseja limpar os arquivos temporários antigos do Windows?",
         "clear-update-cache" => "Deseja limpar o cache do Windows Update? A consulta de atualizações ficará temporariamente indisponível.",
@@ -3046,7 +3051,8 @@ internal sealed partial class MainForm : Form
         "network-reset" => "Deseja redefinir a rede? A conexão pode ser interrompida.",
         "create-restore-point" => "Deseja criar um ponto de restauração?",
         _ => "Deseja executar esta operação?"
-    };
+        };
+    }
 
     private async Task ConfirmThenRun(string task, string question)
     {
