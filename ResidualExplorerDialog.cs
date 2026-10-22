@@ -21,7 +21,7 @@ internal sealed class ResidualExplorerDialog : Form
     private readonly ModernButton next = Button("Próxima", "ResidualNext", 86);
     private readonly ModernButton cancel = Button("Cancelar", "ResidualCancel", 86);
     private readonly ModernButton inspect = Button("Inspecionar local", "ResidualInspect", 150);
-    private readonly ModernButton cleanFoobar = Button("Limpar perfis foobar", "ResidualCleanFoobar", 160);
+    private readonly ModernButton cleanFoobar = Button("Limpar dados do app", "ResidualCleanFoobar", 160);
     private readonly Label pageLabel = new() { Width = 110, Height = 32, TextAlign = ContentAlignment.MiddleCenter };
     private readonly Label locationLabel = new() { Width = 74, Height = 30, TextAlign = ContentAlignment.MiddleCenter };
     private readonly ModernButton locationPrevious = Button("Locais ‹", "ResidualLocationPrevious", 75);
@@ -62,7 +62,7 @@ internal sealed class ResidualExplorerDialog : Form
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, Padding = new Padding(12), BackColor = BackColor };
         foreach (float height in new[] { 83f, 34f, 37f }) root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        summary.Text = "Preparando resultados...\nExclusão restrita a perfis do foobar2000 com confirmação; outras exclusões bloqueadas.";
+        summary.Text = "Preparando resultados...\nLimpeza com confirmação para perfis próprios do foobar2000, OBS e VLC; outros itens preservados.";
         root.Controls.Add(summary, 0, 0);
         search.BackColor = Color.FromArgb(30, 40, 52); search.ForeColor = ForeColor; search.BorderStyle = BorderStyle.FixedSingle;
         root.Controls.Add(search, 0, 1);
@@ -112,7 +112,7 @@ internal sealed class ResidualExplorerDialog : Form
             cleanFoobar.Enabled = false;
             try
             {
-                string result = await FoobarProfileCleanupFlow.ConfirmAndCleanAsync(this, lifetimeToken);
+                string result = await ScopedAppProfileCleanup.ConfirmAndCleanAsync(this, selectedReport?.Product ?? "", lifetimeToken);
                 if (!IsDisposed) details.SetText(result);
             }
             catch (OperationCanceledException) { }
@@ -161,7 +161,7 @@ internal sealed class ResidualExplorerDialog : Form
     {
         CurrentPage = page;
         summary.Text = (page.Coverage.Incomplete ? "ANÁLISE PARCIAL — " + page.Coverage.ReasonSummary + ".\n" : "Análise dos locais consultados; não é varredura completa do computador.\n") +
-            $"{page.Matching} de {page.TotalAvailable} grupos; {page.Reports.Count} nesta página, {page.NotLoaded} nas demais. {page.LocationsAvailable} locais disponíveis.\nExclusão restrita a perfis do foobar2000 com confirmação; outras exclusões bloqueadas.";
+            $"{page.Matching} de {page.TotalAvailable} grupos; {page.Reports.Count} nesta página, {page.NotLoaded} nas demais. {page.LocationsAvailable} locais disponíveis.\nLimpeza com confirmação para perfis próprios do foobar2000, OBS e VLC; outros itens preservados.";
         summary.ForeColor = page.Coverage.Incomplete ? Color.FromArgb(255, 209, 138) : ForeColor;
         groups.EmptyMessage = page.Matching == 0 && filter.SelectedIndex == (int)ResidualFilter.Review &&
             page.Coverage.Incomplete
@@ -220,7 +220,7 @@ internal sealed class ResidualExplorerDialog : Form
                 : "Arquivo preservado; não é aberto nesta inspeção.");
         // A finalidade do item selecionado deve aparecer antes do resumo longo.
         if (inspectionResult is not null) text += "\r\n\r\n" + inspectionResult.Explanation + "\r\n" + inspectionResult.Coverage.Describe();
-        details.SetText(text + "\r\n\r\nExclusão restrita a perfis do foobar2000 com confirmação; outras exclusões bloqueadas."); UpdateActions();
+        details.SetText(text + "\r\n\r\nLimpeza com confirmação para perfis próprios do foobar2000, OBS e VLC; outros itens preservados."); UpdateActions();
     }
     internal Task InspectSelectedAsync()
     {
@@ -240,7 +240,7 @@ internal sealed class ResidualExplorerDialog : Form
         });
     }
     private bool Current(int id, CancellationToken token) => !IsDisposed && !token.IsCancellationRequested && id == generation;
-    internal void CancelCurrent() { operation?.Cancel(); summary.Text = "Consulta cancelada. Resultados anteriores preservados; dados não apagados.\nExclusão restrita a perfis do foobar2000 com confirmação; outras exclusões bloqueadas."; }
+    internal void CancelCurrent() { operation?.Cancel(); summary.Text = "Consulta cancelada. Resultados anteriores preservados; dados não apagados.\nLimpeza com confirmação para perfis próprios do foobar2000, OBS e VLC; outros itens preservados."; }
     private async Task RunAsync(Func<CancellationToken, int, Task> work)
     {
         operation?.Cancel(); var own = CancellationTokenSource.CreateLinkedTokenSource(lifetimeToken); operation = own;
@@ -248,7 +248,7 @@ internal sealed class ResidualExplorerDialog : Form
         try { await worker.WaitAsync(own.Token); entered = true; await work(own.Token, id); }
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
-        { if (Current(id, own.Token)) summary.Text = "Análise parcial — não foi possível consultar todos os dados. Resultados anteriores preservados.\nExclusão restrita a perfis do foobar2000 com confirmação; outras exclusões bloqueadas."; }
+        { if (Current(id, own.Token)) summary.Text = "Análise parcial — não foi possível consultar todos os dados. Resultados anteriores preservados.\nLimpeza com confirmação para perfis próprios do foobar2000, OBS e VLC; outros itens preservados."; }
         finally
         {
             if (entered) worker.Release();
@@ -260,7 +260,7 @@ internal sealed class ResidualExplorerDialog : Form
     {
         cancel.Enabled = Busy; previous.Enabled = CurrentPage?.PageIndex > 0; next.Enabled = CurrentPage is not null && CurrentPage.PageIndex + 1 < CurrentPage.PageCount;
         inspect.Enabled = !Busy && locations.SelectedRow is not null && (locations.SelectedRow.Target is not ResidualInspectionEntry entry || entry.CanInspect);
-        cleanFoobar.Visible = selectedReport?.Product.Equals("foobar2000", StringComparison.OrdinalIgnoreCase) == true;
+        cleanFoobar.Visible = selectedReport is not null && ScopedAppProfileCleanup.Recognize(selectedReport.Product) is not null;
         cleanFoobar.Enabled = !Busy && cleanFoobar.Visible;
     }
     internal static Rectangle FitBounds(Rectangle requested, Rectangle workingArea)

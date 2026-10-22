@@ -165,7 +165,7 @@ internal static class ResidualExplorerTests
         using (var window = new ResidualExplorerDialog(empty))
         {
             window.Show(); Until(() => window.Ready && !window.Busy, "Parcial vazio não carregou");
-            Require(window.SummaryText.Contains("ANÁLISE PARCIAL") && window.SummaryText.Contains("outras exclusões bloqueadas"), "Parcial vazio foi escondido"); window.Close();
+            Require(window.SummaryText.Contains("ANÁLISE PARCIAL") && window.SummaryText.Contains("outros itens preservados"), "Parcial vazio foi escondido"); window.Close();
         }
         // PC fraco .23: o botão Resumo deve distinguir falha pontual
         // de origem inteira indisponível, sem misturar indicadores.
@@ -249,7 +249,7 @@ internal static class ResidualExplorerTests
                     window.DetailText.IndexOf(entries[i].PreservationExplanation, StringComparison.Ordinal) <
                         window.DetailText.IndexOf("COBERTURA DAS ANÁLISES", StringComparison.Ordinal) &&
                     window.DetailText.Contains("Pista pelo nome; finalidade e vínculo não confirmados") &&
-                    window.DetailText.Contains("outras exclusões bloqueadas") &&
+                    window.DetailText.Contains("outros itens preservados") &&
                     Find(window, "ResidualInspect").Enabled == entries[i].CanInspect,
                     "Detalhe deve explicar preservação e incerteza sem autorizar ação adicional");
                 var editor = Descendants(window).OfType<TextBox>().Single(t => t.Multiline);

@@ -49,8 +49,8 @@ internal sealed class ResidualAuditDialog : Form
         {
             Dock = DockStyle.Fill,
             Text = intro + "\n\n" +
-                (report.Product.StartsWith("foobar2000", StringComparison.OrdinalIgnoreCase)
-                    ? "Limpeza voluntária limitada aos perfis do foobar2000."
+                (ScopedAppProfileCleanup.Recognize(report.Product) is not null
+                    ? "Limpeza voluntária limitada aos perfis próprios deste aplicativo."
                     : "Exclusão indisponível para este aplicativo na versão de teste."),
             ForeColor = Color.FromArgb(226, 238, 249),
             TextAlign = ContentAlignment.MiddleLeft,
@@ -99,11 +99,11 @@ internal sealed class ResidualAuditDialog : Form
             };
             bar.Controls.Add(recheck);
         }
-        if (report.Product.StartsWith("foobar2000", StringComparison.OrdinalIgnoreCase))
+        if (ScopedAppProfileCleanup.Recognize(report.Product) is not null)
         {
             var cleanup = new ModernButton
             {
-                Text = "Limpar perfis foobar", Size = new Size(160, 34),
+                Text = "Limpar dados do app", Size = new Size(160, 34),
                 BackColor = AppServices.Red, ForeColor = Color.White
             };
             cleanup.Click += async (_, _) =>
@@ -111,7 +111,7 @@ internal sealed class ResidualAuditDialog : Form
                 cleanup.Enabled = false;
                 try
                 {
-                    string result = await FoobarProfileCleanupFlow.ConfirmAndCleanAsync(this, reviewCancellation.Token);
+                    string result = await ScopedAppProfileCleanup.ConfirmAndCleanAsync(this, report.Product, reviewCancellation.Token);
                     if (!IsDisposed) text.SetText(result);
                 }
                 catch (OperationCanceledException) { }

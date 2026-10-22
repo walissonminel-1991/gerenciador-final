@@ -727,6 +727,18 @@ if (OperatingSystem.IsWindows())
             !FoobarProfileCleanup.InspectRoots(roaming, local, true, ["foobar2000 v2.26"], false).Eligible &&
             !FoobarProfileCleanup.InspectRoots(roaming, local, true, [], true).Eligible,
             "R4: inventario parcial, produto instalado ou processo ativo bloqueiam limpeza.");
+        string obs = Path.Combine(local, "obs-studio");
+        Directory.CreateDirectory(obs);
+        File.WriteAllText(Path.Combine(obs, "scene.json"), "fixture");
+        var obsProfile = FoobarProfileCleanup.InspectRoots(roaming, local, true, [], false,
+            "OBS Studio", ["obs-studio"]);
+        Check(obsProfile.Eligible && obsProfile.Files == 1 &&
+            FoobarProfileCleanup.DeleteCheckedFolder(obs) &&
+            !Directory.Exists(obs) && File.Exists(Path.Combine(other, "dados.txt")),
+            "R4: limpeza de pasta OBS sintética não toca dados de outro aplicativo.");
+        Check(!FoobarProfileCleanup.InspectRoots(roaming, local, true, ["OBS Studio"], false,
+            "OBS Studio", ["obs-studio"]).Eligible,
+            "R4: OBS instalado nunca pode ter seu perfil limpo.");
         Check(FoobarProfileCleanup.DeleteCheckedFolder(foobar) &&
             !Directory.Exists(foobar) &&
             File.Exists(Path.Combine(other, "dados.txt")),

@@ -28,10 +28,15 @@ internal static class FoobarProfileCleanup
 
     // Fixture roots apenas nos testes. O fluxo real usa KnownFolders do Windows.
     internal static FoobarProfilePlan InspectRoots(string roaming, string local,
-        bool inventoryComplete, IEnumerable<string> installedNames, bool processRunning)
+        bool inventoryComplete, IEnumerable<string> installedNames, bool processRunning,
+        string product = "foobar2000", IReadOnlyList<string>? profiles = null)
     {
+        profiles ??= Names;
+        if (profiles.Count is < 1 or > 2 ||
+            profiles.Any(p => p is not ("foobar2000" or "foobar2000-v2" or "obs-studio" or "vlc")))
+            return Block("Perfil desconhecido: preservar.");
         if (!inventoryComplete) return Block("Inventário parcial: preservar.");
-        if (ResidualAudit.TrackedApplicationStillPresent("foobar2000", installedNames))
+        if (ResidualAudit.TrackedApplicationStillPresent(product, installedNames))
             return Block("foobar2000 continua registrado; não excluir.");
         if (processRunning) return Block("foobar2000.exe ainda está em execução.");
         var folders = new List<string>(); int files = 0; long bytes = 0;
@@ -41,7 +46,7 @@ internal static class FoobarProfileCleanup
             {
                 if (!ResidualReadSafety.IsLocalAbsolute(root) || !SafeChain(root))
                     return Block("Pasta de perfil ausente, redirecionada ou não validada.");
-                foreach (string name in Names)
+                foreach (string name in profiles)
                 {
                     string folder = Path.Combine(root, name);
                     if (!Directory.Exists(folder))
