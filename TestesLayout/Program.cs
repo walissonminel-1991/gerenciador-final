@@ -651,25 +651,29 @@ internal static class LayoutTests
                 occupied < repairFlow.Content.ClientSize.Width * 0.85)
                 throw new Exception("Reparo e Rede deve usar 3 colunas e preencher a largura disponivel.");
         }
-        Rectangle savedRepairBounds = form.Bounds;
+        Size savedRepairSurface = surface.Size;
         try
         {
             Directory.CreateDirectory("LayoutCaptures");
             foreach (var screen in new[] { new Size(1440, 900), new Size(2560, 1440) })
             {
-                form.Bounds = StartupWindowSizing.Fit(new Rectangle(0, 0, screen.Width, screen.Height - 48));
-                form.PerformLayout(); Application.DoEvents();
+                // Simular o viewport, como na matriz acima. Redimensionar o
+                // Form seria limitado pelo monitor fisico do runner (e pela
+                // politica de 60%), nao pelo monitor sintetico deste cenario.
+                var opening = StartupWindowSizing.Fit(new Rectangle(0, 0, screen.Width, screen.Height - 48));
+                surface.Size = new Size(opening.Width - 16, opening.Height - 39);
+                surface.PerformLayout(); Application.DoEvents();
                 var row = repairCardPanels.Where(card => card.Top == repairCardPanels.Min(c => c.Top))
                     .OrderBy(card => card.Left).ToArray();
                 if (row.Length != 3 || row[^1].Right - row[0].Left < repairFlow.Content.ClientSize.Width * 0.85)
-                    throw new Exception("Reparo deve preencher tres colunas nos dois tamanhos de referencia.");
-                using var capture = new Bitmap(form.Width, form.Height);
-                form.DrawToBitmap(capture, new Rectangle(Point.Empty, form.Size));
+                    throw new Exception($"Reparo deve preencher tres colunas: monitor={screen}, viewport={repairFlow.ClientSize}, colunas={row.Length}.");
+                using var capture = new Bitmap(surface.Width, surface.Height);
+                surface.DrawToBitmap(capture, new Rectangle(Point.Empty, surface.Size));
                 capture.Save(Path.Combine("LayoutCaptures", $"Reparo-{screen.Width}x{screen.Height}.png"),
                     System.Drawing.Imaging.ImageFormat.Png);
             }
         }
-        finally { form.Bounds = savedRepairBounds; form.PerformLayout(); Application.DoEvents(); }
+        finally { surface.Size = savedRepairSurface; surface.PerformLayout(); Application.DoEvents(); }
         nav.SelectTab(5);
         Application.DoEvents();
         TestMemoryPanel(form);
