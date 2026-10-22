@@ -1,0 +1,55 @@
+# MISSÃO WORK 6 — auditoria, correções e regressões
+
+## Base e critérios
+
+Base remota `1bd1ff89b5b7c47d3c41a60dd4c347a0d9da00dc`, PR #40 Draft, branch experimental; main `9ac3dc167b9e67ac50628749d5ad33c563c09376` preservada. Roadmap: **27/42 (64,3%)**, sem checkpoint novo. Ordem: atualização → desinstalação → resíduos. Nenhuma instalação, desinstalação ou exclusão de dados reais autorizada; fixtures exclusivamente temporárias. R4 permanece suspenso.
+
+## Inventário de risco inicial
+
+| Risco | Evidência no código base | Reprodução necessária |
+|---|---|---|
+| P1: proteção somente inventário contornada no autorizador | `Resolve` não verifica `InventoryOnly` nem nome protegido; receita GameInput ainda acessível | OBS somente inventário e GameInput sem flag devem retornar null |
+| P2: fabricante parcial autoriza OBS | `Contains("OBS") / Contains("Project")` | fabricante adversarial contendo esses fragmentos |
+| P2: confirmação falsa com receita adulterada | confirmação compara versão recebida sem validar receita inteira | reduzir alvo para versão já instalada; deve recusar |
+| P2: consulta parcial apaga candidatos anteriores | substituição integral da lista e invalidação em timeout | 15 fontes → falhas parciais/totais; preservar evidência marcada como antiga, sem ação automática |
+| P1: comando registrado não é autorização de shell | auditoria aceita cmd/rundll32 por nome | parser compartilhado, comandos hostis e launch count zero |
+| P2: lote pode repetir seleção e executar comando alterado | array sem deduplicação nem revalidação de identidade antes de cada item | fake de inventário/lançador e contagem exata |
+| P2: prévia requer vínculo de identidade e cobertura | capturas temporárias reais e comparação por handle/digest | alteração, substituição e cobertura parcial invalidam; nunca exclusão |
+
+Severidade expressa risco no ponto de execução e defesa em profundidade; não afirma exploração externa demonstrada. Testes antigos de mensagens/constantes não comprovam ausência de lançamento. Simulações isoladas anteriores (7+6+13) não são fluxo integrado do sistema operacional. Suites Windows anteriores: atualizador 104, resíduos/desinstalação 379. Resultados novos e evidências serão registrados após execução.
+
+## Fase A — atualização
+
+Reprodução anterior à correção: quatro falhas locais independentes em `--work6-authorization`, com controle OBS legítimo positivo. Commit remoto `3f601a24223e9c474cbf8d07bbbed5114bdab27f`; [regressão Windows vermelha](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39703481779), job `119577926659`: `Falha: WORK6 somente inventário bloqueia autorização no endpoint`. Não é falha de rede/compilação; o teste alcançou o autorizador e encontrou o defeito. Etapas posteriores foram skipped, não aprovadas.
+
+Correções: autorização EXE verifica proteção e fabricante exato; GameInput deixa de ser receita aprovada inclusive no ponto de download/lançamento; confirmação exige receita completa, família original e identidade única. Leitura de pacote recusa hardlinks. Prazo cobre corpo do download, além dos headers. Espera do instalador limitada a 15 minutos, sem matar processo nem repetir; arquivo protegido permanece retido. Gate usado pelo fluxo real revalida inventário completo imediatamente antes de lançar, mede estado terminal e não aceita exit zero sem confirmação.
+
+Histórico consultivo em memória conserva último resultado completo por até 30 minutos monotônicos para o MESMO inventário. Falhas sucessivas não renovam prazo. Consulta parcial/cancelada não apaga candidatos conhecidos nem os apresenta como consulta recente; tooltip declara evidência anterior, requer revisão e bloqueia receita. Novo inventário ou consulta completa substitui o histórico. Nenhum novo acesso a WinGet/PowerShell/administrador.
+
+Validação local: 5 controles de autorização após reproduzir 4 defeitos; 9 controles do gate com lançador falso (zero/uma chamada, concorrência, cancelamento determinístico via TCS, 0/3010/1603, UAC1223, timeout, ausência de versão); 7 cenários de histórico incluídos em 139/139 multifontes; 15/15 políticas. Compilação cruzada sem avisos. Hardlink exige Windows e está na regressão nativa. Nenhuma instalação foi realizada. Aprovação integral Windows será registrada separadamente.
+
+Revisão da primeira correção: [CI 39703829987](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39703829987) detectou uma expectativa antiga que aceitava confirmação pela receita Visual C++ sem SHA, já consultiva. A proteção nova foi mantida: teste agora exige recusa dessa receita e usa OBS aprovado como controle positivo de identidade/escopo. Não se removeu a exigência de integridade para obter verde. Três mutações em cópias descartáveis foram rejeitadas: retirar cancelamento pré-lançamento, permitir tentativa concorrente e liberar ação de evidência antiga; baselines das mesmas cópias passaram. Script reproduzível `scripts/test_work6_mutations.py`.
+
+**Portão A aprovado antes de iniciar implementação B:** código `2e5c80c8102f1056ea6afeba8f35505b82bfec15`, [regressão Windows integral 39704030845](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39704030845), job `119579714336`, todas as etapas obrigatórias success. Fontes/downloads opcionais skipped. Controle de mutações passa a integrar CI; Windows inclui quarta mutação removendo a proteção hardlink. Job opcional deixa de solicitar download de GameInput, agora protegido; verifica o bloqueio sem rede.
+
+## Fase B — desinstalação
+
+**Reprodução antes da correção:** cinco falhas locais, controle MSI positivo. Auditoria aceitava `cmd /c`, `rundll32`, GUID incompleto, MSI com `TRANSFORMS` remoto e uma segunda operação `/i`. Commit de reprodução `330eb9c78dc370b87c7870d3f87d8a9019dbd71b` preserva esses testes. Novos testes usam o código real de parser/auditoria e o orquestrador efetivamente conectado à UI, não `Explain()` como prova de não repetição.
+
+Correções: parser único; caminhos locais absolutos; aspas equilibradas e separação do executável; interpretadores recusados inclusive pelo `OriginalFilename` de PE renomeado; MSI `/I` só vira `/X` com GUID completo, switches limitados e vínculo ao ProductCode da entrada. MSI homônimo fora de System32 e contexto MSI duplicado são bloqueados. EXE registrado precisa ser PE, sem links/redirecionamento, com assinatura Windows confiável de fabricante exato ou alias do catálogo local. Arquivo e ancestrais ficam presos entre revisão e criação do processo; soltar depois de Start permite a auto-remoção legítima do fornecedor. Nenhuma elevação forçada adicional; `Verb` vazio.
+
+**Limite de compatibilidade explícito:** assinatura ausente/editor não vinculável não prova malware; o GF recusa iniciar e orienta o fabricante/Aplicativos do Windows. Não se concede confiança por nome ou existência. Uninstallers legítimos sem assinatura ou com outro editor corporativo precisam de análise específica e validação presencial; não há fallback silencioso para shell nem aprovação genérica de caminho. A auditoria de disponibilidade não é atestado de confiança do executável. A confirmação dark existente mostra os comandos completos e permite rolagem, sem novo diálogo administrativo.
+
+Seleção deduplicada e congelada, identidades contraditórias recusadas; comando/versão/editor/escopo revalidados por item contra inventário completo. Recusa, erro 2/3/5/193/740/1223, Start null, timeout, cancelamento, saída não zero e registro presente são estados distintos. Não existe retry automático; timeout/UAC cancelado interrompem lote. Fechar janela cancela espera/demais itens e informa que o fornecedor pode continuar. Duas leituras completas consecutivas de ausência são necessárias; ausência transitória e snapshot parcial não confirmam remoção. Revisão de resíduos continua somente leitura e ocorre apenas após ausência comprovada do registro.
+
+Validação local: 6 controles de política após 5 falhas reproduzidas; 29 asserts do orquestrador/parser, com zero/uma chamada medida e TCS para concorrência/cancelamento. Windows acrescenta 6 controles nativos de PE, assinatura recusada, intenção defensiva, lease e plano descartado (sem Process.Start). Cinco mutações em cópias isoladas rejeitadas localmente; Windows também remove o bloqueio de hardlink. Testes antigos com `{ABC123}`/`{GUID}` tinham GUIDs inválidos e agora usam GUID completo, preservando sua intenção. Compilações cruzadas da aplicação/layout e build da segurança sem avisos; políticas 15/15.
+
+Revisão do novo runner de mutação: CI `39704296126` encontrou diferença de decodificação de stdout no Windows (o mutante falhou no assert correto, mas o runner não reconheceu texto acentuado). Correção define UTF-8 e IDs ASCII para controles críticos; falha não foi ocultada nem convertida em sucesso.
+
+Complemento B: parser recusa caminho sem aspas com múltiplos términos `.exe` ambíguos. Quatro controles adicionais exercitam lote com dois produtos de GUIDs distintos: execução única em ordem, interrupção por UAC, interrupção por timeout e troca do comando do segundo item durante o primeiro. O teste nativo de confirmação longa passou no runner Windows; controles de mutação também passaram com a correção de UTF-8.
+
+## Fase C — identificação, classificação e revalidação de resíduos
+
+**Portão B aprovado antes de C:** `71e76b9194fe840c50c8468c2be72c51cdfb1b5a`, [regressões 39705546911](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39705546911) e compilação `39705546950`, políticas `39705546879`: success. Windows: 420/420 resíduos/desinstalação, 119/119 atualizador, 139/139 multifontes, 6/6 mutações rejeitadas. Complemento de lotes distintos e ambiguidade de caminho validado localmente antes desta fase.
+
+Hipótese C a reproduzir em Windows: prévia pode aceitar pasta/ancestral substituído se os arquivos originais forem movidos de volta, mantendo identidade e digest. Outro controle verifica duplicação de um estado que omite outro alvo. Trata-se de integridade da revalidação somente leitura, não prova de exclusão: `CanExecute=false` e todos os endpoints destrutivos permanecem bloqueados.
