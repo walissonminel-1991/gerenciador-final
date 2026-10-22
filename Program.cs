@@ -3235,7 +3235,7 @@ internal sealed partial class MainForm : Form
                 {
                     string logLine = line[4..];
                     Log(logLine);
-                    if (task is "windows-check" or "windows-repair" &&
+                    if ((task is "windows-check" or "windows-repair") &&
                         windowsProgress.Update(logLine, out int percentage) &&
                         !IsDisposed)
                     {
