@@ -298,10 +298,10 @@
     }
   ],
   "latest_real_test": {
-    "version": "5.13.11.34 TESTE",
-    "environment": "PC FORTE, Windows x64, 2560x1440",
-    "status": "Validação de inventário e atualizações PC FORTE em modos normal e elevado; PC FRACO ainda pendente",
-    "observations": "174 aplicativos, 27 MSIX, 8 candidatos incluindo 2 em revisão, 15/15 fontes HTTPS OK. Execução normal e elevada com contagens iguais; resíduos 45/164, 2 erros de leitura normal vs 0 elevado. Sem mudanças no Windows; WinGet COM/CLI desligado."
+    "version": "5.13.11.40 TESTE",
+    "environment": "PC FORTE, Windows x64",
+    "status": "Última bateria física fornecida à WORK 7; correções .42 ainda sem validação presencial",
+    "observations": "172 aplicativos/27 MSIX, depois 171 sem prova de qual produto saiu; oito possíveis atualizações e quatro resultados incertos/em revisão; segunda consulta 13/13 fontes. Registros 7-Zip 26.04/26.05 simultâneos, foobar com código 2 e conclusão inconclusiva, resíduos parciais 47 grupos/172 locais. Limpeza de perfis suspensa na .42. Não comprova aprovação AVG."
   },
   "latest_real_test_pc_fraco": {
     "version": "5.13.11.24 TESTE",
@@ -337,8 +337,8 @@
       "native_store_partial": true
     }
   },
-  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690280795",
-  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690283814",
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
@@ -356,15 +356,15 @@
     "authenticode_signed": false
   },
   "artifact": {
-    "id": 12388392363,
-    "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
-    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690280795/artifacts/12388392363",
-    "expires_at": "2026-10-28T22:59:31Z",
-    "size_bytes": 58901357,
-    "zip_sha256": "05de671112f91c6423540ce6de8d8764f60668cc5d455a26bcf304f06459ae9b",
+    "id": 12465616744,
+    "name": "GerenciadorFinal-v5.13.11.42-0de83072-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692/artifacts/12465616744",
+    "expires_at": "2026-10-29T23:02:19Z",
+    "size_bytes": 58938891,
+    "zip_sha256": "fba3c3a89b02d2a25f6cb3d1b69bb3ab9b956ed15289027ed3f09fc42a780caf",
     "verified_manifest_files": 273,
-    "source_sha": "7ba87d92618f571180f35819cf51e5984e530483",
-    "merge_sha": "4ea9f4b32ebf8be17eda51abab377ece3b7b67c2",
+    "source_sha": "616b184f7fa4eaf60f2d8369b1bc55cde270795e",
+    "merge_sha": "0de8307213a072857d0427cbad18701cb9b80034",
     "authenticode_signed": false
   },
   "mission_work5": {
@@ -441,5 +441,46 @@
     "progress": "27/42"
   },
   "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692/artifacts/12465616744",
-  "artifact_name": "GerenciadorFinal-v5.13.11.42-0de83072-TESTE-win-x64"
+  "artifact_name": "GerenciadorFinal-v5.13.11.42-0de83072-TESTE-win-x64",
+  "historical_artifact_work5": {
+    "id": 12388392363,
+    "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39690280795/artifacts/12388392363",
+    "expires_at": "2026-10-28T22:59:31Z",
+    "size_bytes": 58901357,
+    "zip_sha256": "05de671112f91c6423540ce6de8d8764f60668cc5d455a26bcf304f06459ae9b",
+    "verified_manifest_files": 273,
+    "source_sha": "7ba87d92618f571180f35819cf51e5984e530483",
+    "merge_sha": "4ea9f4b32ebf8be17eda51abab377ece3b7b67c2",
+    "authenticode_signed": false
+  },
+  "mission_work7": {
+    "status": "Código final e CI Windows aprovados; ZIP conferido sem execução local; testes físicos da .42 pendentes",
+    "report": "docs/MISSAO-WORK7-RESULTADO.md",
+    "code_commit": "616b184f7fa4eaf60f2d8369b1bc55cde270795e",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692",
+    "validation": {
+      "identity_work7": "18/18",
+      "matching_existing": "20/20",
+      "catalog": "17/17",
+      "multisource": "159/159",
+      "installers": "127/127",
+      "uninstall_residues": "482/482",
+      "uninstall_work7": "22/22",
+      "mutation_controls": "10/10",
+      "msix": "47/47",
+      "close": "30/30",
+      "policy": "18/18",
+      "layout_resolution_tabs": 132,
+      "tray_cycles": 12,
+      "tray_ms_runner": 635,
+      "optional_network_download_jobs": "skipped; consultas HTTPS locais descritas separadamente no relatório"
+    },
+    "residual_deletion_enabled": false,
+    "driver_maintenance_enabled": false,
+    "real_pc_operations_performed": false,
+    "completed_checkpoints": [],
+    "physical_test_status": "PC FORTE e PC FRACO pendentes; AVG não validado",
+    "progress": "27/42"
+  }
 }
