@@ -68,6 +68,8 @@ jobs:
         run: python scripts/test_work6_mutations.py
       - name: Testes drivers e historico
         run: dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release
+      - name: Identidade de previas de residuos (sem exclusao)
+        run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --work6-preview
       - name: Testes residuos sem exclusao
         run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release
       - name: Testes layout e RAM
