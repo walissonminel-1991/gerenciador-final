@@ -633,6 +633,25 @@ internal static class LayoutTests
                 "Criar ponto de restauração").ToArray();
         if (repairTools.Length != 3 || repairTools.Any(b => b.Width > 215))
             throw new Exception("Botoes de ferramentas ainda ocupam cartoes inteiros.");
+        // PC FORTE .40: tres colunas ja existiam, mas cada card era limitado
+        // a 316 px; sobravam faixas laterais mesmo com largura suficiente.
+        var repairFlow = Descendants(form).OfType<DarkScrollableFlow>()
+            .First(flow => flow.Content.Controls.OfType<Panel>().Any(card =>
+                Descendants(card).OfType<ModernButton>()
+                    .Any(button => button.Text == "Verificar Windows")));
+        var repairCards = repairFlow.Content.Controls.OfType<Panel>().ToArray();
+        if (repairCards.Length != 7)
+            throw new Exception("Grade de Reparo e Rede perdeu algum dos sete cartoes.");
+        var firstRow = repairCards.Where(card => card.Top == repairCards.Min(x => x.Top))
+            .OrderBy(card => card.Left).ToArray();
+        if (repairFlow.ClientSize.Width >= 1100)
+        {
+            int occupied = firstRow.Length == 0 ? 0 :
+                firstRow[^1].Right - firstRow[0].Left;
+            if (firstRow.Length != 3 ||
+                occupied < repairFlow.Content.ClientSize.Width * 0.85)
+                throw new Exception("Reparo e Rede deve usar 3 colunas e preencher a largura disponivel.");
+        }
         nav.SelectTab(5);
         Application.DoEvents();
         TestMemoryPanel(form);
