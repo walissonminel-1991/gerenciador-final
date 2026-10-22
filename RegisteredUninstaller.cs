@@ -5,12 +5,13 @@ namespace GerenciadorAplicativos;
 // Preparado ANTES da confirmação. Lease permanece até Process.Start retornar;
 // depois é solto para permitir que o próprio fornecedor remova seus arquivos.
 internal sealed class PreparedUninstaller(UninstallRequest request, ProcessStartInfo start, IDisposable? lease,
-    bool unsignedWarning = false) : IDisposable
+    bool unsignedWarning = false, bool publisherWarning = false) : IDisposable
 {
     private IDisposable? held=lease;
     private int attempted;
     internal UninstallRequest Request => request;
     internal bool UnsignedWarning => unsignedWarning;
+    internal bool PublisherWarning => publisherWarning;
     internal ProcessStartInfo StartInfo => new() { FileName=start.FileName, Arguments=start.Arguments,
         UseShellExecute=start.UseShellExecute, WorkingDirectory=start.WorkingDirectory };
     internal async Task<int?> LaunchAsync(CancellationToken token)
@@ -43,6 +44,9 @@ internal static class UninstallerSignaturePolicy
     internal static bool IsUnsigned(string? winTrustIssue) =>
         string.Equals(winTrustIssue, "WinVerifyTrust=0x800B0100",
             StringComparison.OrdinalIgnoreCase);
+    // 'editor=' e produzido somente apos WinVerifyTrust devolver SUCESSO.
+    internal static bool IsVerifiedPublisherMismatch(string? issue) =>
+        issue is { Length: > 7 } && issue.StartsWith("editor=", StringComparison.Ordinal);
 }
 
 internal static class RegisteredUninstaller
@@ -55,6 +59,7 @@ internal static class RegisteredUninstaller
         string file=WindowsSystemTools.ResolveRegisteredUninstaller(request.Command.FileName);
         FileStream? held=null;
         bool unsignedWarning = false;
+        bool publisherWarning = false;
         try {
             if(request.Command.ProductCode is not null) {
                 string systemMsi=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"msiexec.exe");
@@ -85,22 +90,24 @@ internal static class RegisteredUninstaller
                 if (!authenticated)
                 {
                     var signersToCheck = signers.Length > 0 ? signers : [""];
-                    bool unsigned = signatureIssue is not null &&
-                        signersToCheck.All(s => UninstallerSignaturePolicy.IsUnsigned(
-                            signatureIssue(file, s)));
-                    if (!unsigned)
+                    var issues = signersToCheck.Select(s => signatureIssue is null
+                        ? "" : signatureIssue(file, s)).ToArray();
+                    bool unsigned = issues.All(UninstallerSignaturePolicy.IsUnsigned);
+                    bool publisherMismatch = issues.All(UninstallerSignaturePolicy.IsVerifiedPublisherMismatch);
+                    if (!unsigned && !publisherMismatch)
                         throw new System.Security.Cryptography.CryptographicException(
-                            "Desinstalador com assinatura inválida, identidade divergente " +
-                            "ou estado de assinatura inconclusivo. O programa não foi desinstalado; " +
-                            "use seu desinstalador oficial ou o Windows.");
-                    unsignedWarning = true;
+                            "O Windows nao confirmou a confianca do desinstalador. " +
+                            "Assinatura possivelmente danificada, revogada ou verificação inconclusiva. " +
+                            "Nenhum comando foi executado. Use o desinstalador oficial ou o Windows.");
+                    unsignedWarning = unsigned;
+                    publisherWarning = publisherMismatch;
                 }
             }
             var start=new ProcessStartInfo {
                 FileName=file, Arguments=request.Command.Arguments, UseShellExecute=true,
                 WorkingDirectory=Environment.GetFolderPath(Environment.SpecialFolder.System)
             };
-            var result=new PreparedUninstaller(request,start,held,unsignedWarning); held=null; return result;
+            var result=new PreparedUninstaller(request,start,held,unsignedWarning,publisherWarning); held=null; return result;
         } finally { held?.Dispose(); }
     }
 }

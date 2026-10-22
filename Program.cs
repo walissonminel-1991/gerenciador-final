@@ -1328,32 +1328,31 @@ internal sealed partial class MainForm : Form
         var repairActions = CreateToolsFlow(new[]
         {
             Tool("Verificar Windows",
-                "DISM /ScanHealth e SFC /verifyonly. Somente diagnóstico, sem reparo; pode demorar.",
+                "Verifica arquivos importantes do Windows, sem alterar nada. Pode demorar.",
                 AppServices.Blue,
                 () => ExecuteAsync("Verificando integridade do Windows...", VerifyWindowsIntegrityAsync)),
             Tool("Reparar Windows",
-                "Disponível após diagnóstico desta sessão identificar corrupção reparável. " +
-                "Executa DISM /RestoreHealth e SFC /scannow com confirmação.",
+                "Fica disponível somente quando uma verificação encontra problemas que podem ser corrigidos. Pede confirmação.",
                 AppServices.Green, RepairWindowsAfterVerificationAsync),
             Tool("Analisar rede",
-                "Verifica adaptador, gateway, DNS e acesso HTTPS. Não altera configurações.",
+                "Verifica se a conexão com a internet está funcionando. Não altera configurações.",
                 AppServices.Blue,
                 RunNetworkDiagnosticAsync),
             Tool("Reparar rede",
-                "Após analisar, aplica uma correção direcionada a DNS ou Winsock quando indicada. Pode exigir reinício.",
+                "Fica disponível quando a análise identifica um problema de conexão que pode ser corrigido.",
                 AppServices.Blue,
                 RepairNetworkAfterDiagnosisAsync),
-            Tool("Redefinir rede", "Opção avançada: redefine Winsock e TCP/IP mesmo sem diagnóstico. Pode exigir reinicialização.",
+            Tool("Restaurar configurações da rede", "Opção avançada: restaura as configurações da conexão. A internet pode cair e o Windows pode precisar reiniciar.",
                 AppServices.Orange,
-                () => ConfirmThenRun("network-reset", "Redefinir Winsock e TCP/IP? A conexão pode cair. Talvez seja necessário reiniciar o Windows.")),
+                () => ConfirmThenRun("network-reset", "Restaurar as configurações da conexão? A internet pode cair. Talvez seja necessário reiniciar o Windows.")),
             Tool("Criar ponto de restauração",
-                "Solicita um ponto de recuperação. Exige Proteção do Sistema; não substitui backup.",
+                "Guarda um ponto para ajudar a desfazer alterações no Windows. Não substitui cópia dos arquivos.",
                 AppServices.Green,
                 () => ConfirmThenRun("create-restore-point",
                     "Solicitar um ponto de restauração ao Windows? Requer autorização administrativa e Proteção do Sistema habilitada. " +
                     "Não substitui backup e o Windows pode reutilizar um ponto recente.")),
             Tool("Escolher ponto de restauração",
-                "Abre o assistente oficial do Windows para escolher um ponto e confirmar a recuperação.",
+                "Permite escolher um ponto anterior pela ferramenta de recuperação do Windows.",
                 AppServices.Gray, ChooseRestorePointAsync)
         });
         var repairLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
@@ -2750,9 +2749,9 @@ internal sealed partial class MainForm : Form
             string preview = string.Join("\n\n", prepared.Select(p =>
                 "• " + p.Request.Original.Name + "\n" + p.StartInfo.FileName + " " + p.StartInfo.Arguments +
                 (p.UnsignedWarning ?
-                    "\nAVISO: DESINSTALADOR NÃO ASSINADO. O arquivo corresponde ao comando registrado " +
-                    "para o aplicativo, mas sua autoria não pôde ser confirmada por assinatura. " +
-                    "Deseja confiar nesse desinstalador e continuar?" : "")));
+                    "\nAVISO: DESINSTALADOR SEM ASSINATURA DIGITAL. Confira o aplicativo e confirme se deseja continuar." :
+                 p.PublisherWarning ?
+                    "\nAVISO: ASSINATURA VÁLIDA, MAS EDITOR DIFERENTE DO CADASTRO. Confira o programa e confirme se deseja continuar." : "")));
             bool consent = DarkConfirmDialog.Confirm(this,
                 $"Deseja desinstalar {prepared.Count} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
                 "Confirmar desinstalação") == DialogResult.Yes;
@@ -3115,8 +3114,8 @@ internal sealed partial class MainForm : Form
         _windowsRepairable = false; // Uma autorizacao por diagnostico.
         RefreshWindowsRepairButton();
         await ConfirmThenRun("windows-repair",
-            "O diagnóstico identificou corrupção reparável. Executar DISM /RestoreHealth e " +
-            "SFC /scannow? Pode demorar e modificar arquivos do Windows.");
+            "Foram encontrados problemas em arquivos do Windows. Deseja tentar corrigir? " +
+            "A operação pode demorar e alterar arquivos do sistema.");
     }
 
     private Task ChooseRestorePointAsync()
@@ -3264,7 +3263,7 @@ internal sealed partial class MainForm : Form
                 else if (task == "windows-check" && line == "RESULT|WINCHECK:HEALTHY")
                 {
                     _windowsRepairable = false;
-                    Log("DISM/SFC não indicaram reparo necessário.");
+                    Log("A verificação não encontrou problemas que exijam reparo.");
                 }
                 else if (task == "windows-check" && line == "RESULT|WINCHECK:INCONCLUSIVE")
                 {

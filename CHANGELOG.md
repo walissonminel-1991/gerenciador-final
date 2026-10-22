@@ -1,3 +1,9 @@
+## v5.13.11.40 TESTE — Correcoes PC FORTE
+- Desinstalacao: assinatura Authenticode valida com editor divergente vira aviso confirmado, enquanto adulteracao/revogacao/inconclusivo continuam bloqueados.
+- Cartoes Reparar e rede reescritos em portugues simples; comandos nativos continuam com as mesmas salvaguardas.
+- Limpeza de perfis passa a ser contextual a produtos suportados e exige ausencia no inventario, confirmacao e revalidacao.
+- RAM: diagnostico leve do uso e disponibilidade, inspirado no RAMMap; nenhuma limpeza agressiva de memoria em espera.
+
 # Histórico de versões — Gerenciador Final
 
 ## v5.13.11.39 TESTE — PC FORTE, lote integrado

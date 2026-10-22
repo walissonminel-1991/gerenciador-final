@@ -7,6 +7,10 @@ internal static class Work6UninstallFlowTests
         MsiProductCode=Work6UninstallTests.Product, UninstallString=command??"msiexec.exe /X"+Work6UninstallTests.Product };
     internal static async Task Run(Action<bool,string> check)
     {
+        check(UninstallerSignaturePolicy.IsVerifiedPublisherMismatch("editor=Outro editor") &&
+            !UninstallerSignaturePolicy.IsVerifiedPublisherMismatch("WinVerifyTrust=0x80096010") &&
+            !UninstallerSignaturePolicy.IsVerifiedPublisherMismatch("editor="),
+            "R7: assinatura valida, editor diferente, pede consentimento.");
         check(UninstallerSignaturePolicy.IsUnsigned("WinVerifyTrust=0x800B0100") &&
             !UninstallerSignaturePolicy.IsUnsigned("WinVerifyTrust=0x80096010") &&
             !UninstallerSignaturePolicy.IsUnsigned("WinVerifyTrust=0x800B0109") &&
@@ -156,6 +160,10 @@ internal static class Work6UninstallFlowTests
                 check(unsigned.UnsignedWarning &&
                     unsigned.StartInfo.FileName==file,
                     "R7: app Win32 comum sem assinatura pode ser desinstalado com aviso.");
+            using (var mismatch = RegisteredUninstaller.Prepare(request,(_,_)=>false,
+                signatureIssue: (_,_)=>"editor=Outro editor"))
+                check(mismatch.PublisherWarning && !mismatch.UnsignedWarning,
+                    "R7: editor divergente validado pelo Windows nao bloqueia programa comum.");
             foreach (string badSignature in new[] { "WinVerifyTrust=0x80096010",
                 "WinVerifyTrust=0x800B0109", "editor divergente" })
             {
