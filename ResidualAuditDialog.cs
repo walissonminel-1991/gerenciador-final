@@ -108,7 +108,7 @@ internal sealed class ResidualAuditDialog : Form
                 cleanup.Enabled = false;
                 try
                 {
-                    string result = await FoobarProfileCleanup.ConfirmAndCleanAsync(this, reviewCancellation.Token);
+                    string result = await FoobarProfileCleanupFlow.ConfirmAndCleanAsync(this, reviewCancellation.Token);
                     if (!IsDisposed) text.SetText(result);
                 }
                 catch (OperationCanceledException) { }

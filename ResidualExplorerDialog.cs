@@ -112,7 +112,7 @@ internal sealed class ResidualExplorerDialog : Form
             cleanFoobar.Enabled = false;
             try
             {
-                string result = await FoobarProfileCleanup.ConfirmAndCleanAsync(this, lifetimeToken);
+                string result = await FoobarProfileCleanupFlow.ConfirmAndCleanAsync(this, lifetimeToken);
                 if (!IsDisposed) details.SetText(result);
             }
             catch (OperationCanceledException) { }
