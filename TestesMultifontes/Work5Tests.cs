@@ -46,6 +46,25 @@ internal static class Work5Tests
             realMatches[2].State == MatchState.Unmatched &&
             realMatches[3].State == MatchState.Unmatched,
             "Servidores com sufixo recebem consulta; Plex player e Jellyfin player jamais herdam atualização");
+        // U6: a comparacao com nove pacotes conhecidos nao autoriza
+        // atualizacao de componentes protegidos do Windows.
+        var compared = apps.ToArray();
+        compared[5] = jellyVersioned;
+        compared[8] = plexVersioned;
+        compared[7] = apps[7] with { EligibleForUpdates = false };
+        check(ProtectedApplications.IsInventoryOnly(compared[7].Name, false) &&
+            !ProtectedApplications.IsInventoryOnly(compared[0].Name, false),
+            "GameInput protegido; aplicativos comuns continuam elegiveis");
+        var comparedScan = await source.QueryAsync(compared, default);
+        var comparedMatches = MultiSourceMatcher.Merge(compared, null, comparedScan.Findings);
+        check(comparedMatches.Count == 9 &&
+            comparedMatches.Count(x => x.State == MatchState.Candidate) == 8 &&
+            comparedMatches[7].State == MatchState.Unmatched &&
+            comparedScan.Findings.All(x => !ReferenceEquals(x.Installed, compared[7])) &&
+            comparedMatches[5].Catalog?.ProductVersion == "12.2" &&
+            comparedMatches[8].Catalog?.ProductVersion == "1.43.5.11029" &&
+            comparedMatches[2].HasSourceConflict && comparedMatches[2].RequiresReview,
+            "U6: nove produtos, oito candidatos, GameInput protegido e Proton em revisao");
         var invalidSuffixes = new[] {
             apps[5] with { Name = "Jellyfin Server 12.1.0 Preview" },
             apps[5] with { Name = "Jellyfin Server 12.1.0 extra.exe" },
