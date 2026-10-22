@@ -7,6 +7,10 @@ internal static class Work6UninstallFlowTests
         MsiProductCode=Work6UninstallTests.Product, UninstallString=command??"msiexec.exe /X"+Work6UninstallTests.Product };
     internal static async Task Run(Action<bool,string> check)
     {
+        check(UninstallerSignaturePolicy.IsUntrustedButNotProvenTampered("WinVerifyTrust=0x800B0109") &&
+            !UninstallerSignaturePolicy.IsUntrustedButNotProvenTampered("WinVerifyTrust=0x80096010") &&
+            UninstallerSignaturePolicy.IsKnownCompromise("WinVerifyTrust=0x80096010"),
+            "R7: cadeia nao confiavel gera escolha; adulteracao reconhecida nunca executa EXE.");
         check(UninstallerSignaturePolicy.IsVerifiedPublisherMismatch("editor=Outro editor") &&
             !UninstallerSignaturePolicy.IsVerifiedPublisherMismatch("WinVerifyTrust=0x80096010") &&
             !UninstallerSignaturePolicy.IsVerifiedPublisherMismatch("editor="),
@@ -164,8 +168,12 @@ internal static class Work6UninstallFlowTests
                 signatureIssue: (_,_)=>"editor=Outro editor"))
                 check(mismatch.PublisherWarning && !mismatch.UnsignedWarning,
                     "R7: editor divergente validado pelo Windows nao bloqueia programa comum.");
+            using (var untrustedChain = RegisteredUninstaller.Prepare(request,(_,_)=>false,
+                signatureIssue: (_,_)=>"WinVerifyTrust=0x800B0109"))
+                check(untrustedChain.TrustWarning && !untrustedChain.UnsignedWarning,
+                    "R7: cadeia sem confianca continua com opcao de usuario, mediante aviso.");
             foreach (string badSignature in new[] { "WinVerifyTrust=0x80096010",
-                "WinVerifyTrust=0x800B0109", "editor divergente" })
+                "WinVerifyTrust=0x800B010C", "editor divergente" })
             {
                 denied=false;
                 try {

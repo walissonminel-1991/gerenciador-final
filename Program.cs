@@ -2751,7 +2751,10 @@ internal sealed partial class MainForm : Form
                 (p.UnsignedWarning ?
                     "\nAVISO: DESINSTALADOR SEM ASSINATURA DIGITAL. Confira o aplicativo e confirme se deseja continuar." :
                  p.PublisherWarning ?
-                    "\nAVISO: ASSINATURA VÁLIDA, MAS EDITOR DIFERENTE DO CADASTRO. Confira o programa e confirme se deseja continuar." : "")));
+                    "\nAVISO: ASSINATURA VÁLIDA, MAS EDITOR DIFERENTE DO CADASTRO. Confira o programa e confirme se deseja continuar." :
+                 p.TrustWarning ?
+                    "\nATENÇÃO: O WINDOWS NÃO CONFIRMOU A CONFIANÇA DA ASSINATURA DIGITAL. O programa está registrado " +
+                    "como desinstalador deste aplicativo, mas pode ser perigoso. Verifique o caminho e confirme explicitamente." : "")));
             bool consent = DarkConfirmDialog.Confirm(this,
                 $"Deseja desinstalar {prepared.Count} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
                 "Confirmar desinstalação") == DialogResult.Yes;
@@ -2785,8 +2788,18 @@ internal sealed partial class MainForm : Form
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
         {
             DiagnosticTrace.Failure("DESINSTALACAO.PREPARACAO_BLOQUEADA", ex);
-            Log("Desinstalação não iniciada: " + ex.Message);
-            Status("Desinstalador não identificado com segurança; confira o fabricante ou Aplicativos do Windows.");
+            Log("A execução desse desinstalador não foi iniciada: " + ex.Message);
+            Status("Remoção direta indisponível; o Windows continua oferecendo desinstalação.");
+            if (apps.Count == 1 && DarkConfirmDialog.Confirm(this,
+                "O aplicativo não está protegido contra desinstalação, mas o comando registrado " +
+                "não pôde ser executado com segurança.\n\n" +
+                "Deseja abrir a remoção oficial do Windows para desinstalá-lo manualmente? " +
+                "Nenhum arquivo será executado por este botão.",
+                "Remover aplicativo pelo Windows") == DialogResult.Yes)
+            {
+                try { Process.Start(new ProcessStartInfo("ms-settings:appsfeatures") { UseShellExecute = true }); }
+                catch (Exception error) { Log("A remoção do Windows não abriu: " + error.Message); }
+            }
         }
         finally
         {

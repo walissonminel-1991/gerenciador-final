@@ -5,13 +5,14 @@ namespace GerenciadorAplicativos;
 // Preparado ANTES da confirmação. Lease permanece até Process.Start retornar;
 // depois é solto para permitir que o próprio fornecedor remova seus arquivos.
 internal sealed class PreparedUninstaller(UninstallRequest request, ProcessStartInfo start, IDisposable? lease,
-    bool unsignedWarning = false, bool publisherWarning = false) : IDisposable
+    bool unsignedWarning = false, bool publisherWarning = false, bool trustWarning = false) : IDisposable
 {
     private IDisposable? held=lease;
     private int attempted;
     internal UninstallRequest Request => request;
     internal bool UnsignedWarning => unsignedWarning;
     internal bool PublisherWarning => publisherWarning;
+    internal bool TrustWarning => trustWarning;
     internal ProcessStartInfo StartInfo => new() { FileName=start.FileName, Arguments=start.Arguments,
         UseShellExecute=start.UseShellExecute, WorkingDirectory=start.WorkingDirectory };
     internal async Task<int?> LaunchAsync(CancellationToken token)
@@ -47,6 +48,14 @@ internal static class UninstallerSignaturePolicy
     // 'editor=' e produzido somente apos WinVerifyTrust devolver SUCESSO.
     internal static bool IsVerifiedPublisherMismatch(string? issue) =>
         issue is { Length: > 7 } && issue.StartsWith("editor=", StringComparison.Ordinal);
+    // Erros que indicam adulteracao, revogacao ou ausencia da assinatura.
+    // O usuario conserva a opcao de remover pelo Windows, nunca via EXE comprometido.
+    internal static bool IsKnownCompromise(string? issue) =>
+        issue is "WinVerifyTrust=0x80096010" or "WinVerifyTrust=0x80096004" or
+            "WinVerifyTrust=0x800B010C";
+    internal static bool IsUntrustedButNotProvenTampered(string? issue) =>
+        issue is not null && issue.StartsWith("WinVerifyTrust=0x", StringComparison.Ordinal) &&
+        !IsUnsigned(issue) && !IsKnownCompromise(issue);
 }
 
 internal static class RegisteredUninstaller
@@ -60,6 +69,7 @@ internal static class RegisteredUninstaller
         FileStream? held=null;
         bool unsignedWarning = false;
         bool publisherWarning = false;
+        bool trustWarning = false;
         try {
             if(request.Command.ProductCode is not null) {
                 string systemMsi=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"msiexec.exe");
@@ -94,20 +104,22 @@ internal static class RegisteredUninstaller
                         ? "" : signatureIssue(file, s)).ToArray();
                     bool unsigned = issues.All(UninstallerSignaturePolicy.IsUnsigned);
                     bool publisherMismatch = issues.All(UninstallerSignaturePolicy.IsVerifiedPublisherMismatch);
-                    if (!unsigned && !publisherMismatch)
+                    bool untrusted = issues.All(UninstallerSignaturePolicy.IsUntrustedButNotProvenTampered);
+                    if (!unsigned && !publisherMismatch && !untrusted)
                         throw new System.Security.Cryptography.CryptographicException(
-                            "O Windows nao confirmou a confianca do desinstalador. " +
-                            "Assinatura possivelmente danificada, revogada ou verificação inconclusiva. " +
-                            "Nenhum comando foi executado. Use o desinstalador oficial ou o Windows.");
+                            "O desinstalador apresenta assinatura adulterada/revogada ou dados invalidos. " +
+                            "Por seguranca, o executavel nao sera iniciado pelo GF. " +
+                            "A desinstalacao ainda pode ser feita pelos Aplicativos do Windows.");
                     unsignedWarning = unsigned;
                     publisherWarning = publisherMismatch;
+                    trustWarning = untrusted;
                 }
             }
             var start=new ProcessStartInfo {
                 FileName=file, Arguments=request.Command.Arguments, UseShellExecute=true,
                 WorkingDirectory=Environment.GetFolderPath(Environment.SpecialFolder.System)
             };
-            var result=new PreparedUninstaller(request,start,held,unsignedWarning,publisherWarning); held=null; return result;
+            var result=new PreparedUninstaller(request,start,held,unsignedWarning,publisherWarning,trustWarning); held=null; return result;
         } finally { held?.Dispose(); }
     }
 }
