@@ -13,6 +13,10 @@ void Check(bool result, string what)
 }
 
 if (args.Contains("--benchmark")) { ResidualBenchmark.Run(); return; }
+// Bateria integrada, na ordem solicitada: o atualizador corre no projeto separado,
+ // aqui simulamos desinstalacao e somente depois politica de residuos.
+SimulatedUninstallScenarioTests.Run(Check);
+SimulatedResidualScenarioTests.Run(Check);
 ResidualCorrelationTests.Run(Check);
 ResidualInspectionTests.Run(Check);
 ResidualProgressiveTests.Run(Check);
