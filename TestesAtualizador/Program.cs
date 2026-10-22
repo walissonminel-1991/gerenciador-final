@@ -234,17 +234,21 @@ Verify(VerifiedUpdaters.IsInstalledVersionAtLeast("obs-x64-32.2.2", "32.2.2",
 Verify(!VerifiedUpdaters.IsInstalledVersionAtLeast("receita-desconhecida", "1.0",
     new[] { Item("OBS Studio", "32.2.2", "", "OBS Project") }),
     "Receita desconhecida nao confirma instalacao");
-var originalVc = Item("Microsoft Visual C++ 2013 Redistributable (x64)", "12.0.30501", "12.0.40664");
-originalVc.InventoryId = "LocalMachine|Registry64|VC2013";
-var updatedVc = Item(originalVc.Name, "12.0.40664", "");
+Verify(!VerifiedUpdaters.ConfirmInstallation(x64!,
+    new ProgramEntry { Name="Microsoft Visual C++ 2013 Redistributable (x64)", Publisher="Microsoft Corporation", Version="12.0.30501", InventoryId="LocalMachine|Registry64|VC2013" },
+    [new ProgramEntry { Name="Microsoft Visual C++ 2013 Redistributable (x64)", Publisher="Microsoft Corporation", Version="12.0.40664", InventoryId="LocalMachine|Registry64|VC2013" }]),
+    "Receita consultiva VC sem SHA não pode confirmar instalação autorizada");
+var originalVc = Item("OBS Studio", "31.1.2", "32.2.2", "OBS Project");
+originalVc.InventoryId = "LocalMachine|Registry64|OBS";
+var updatedVc = Item(originalVc.Name, "32.2.2", "", "OBS Project");
 updatedVc.InventoryId = originalVc.InventoryId;
-Verify(VerifiedUpdaters.ConfirmInstallation(x64!, originalVc, new[] { updatedVc }), "Confirmar a identidade selecionada");
-updatedVc.InventoryId = "CurrentUser|Registry64|VC2013";
-Verify(!VerifiedUpdaters.ConfirmInstallation(x64!, originalVc, new[] { updatedVc }), "Outra instalacao por usuario nao confirma a selecionada");
-updatedVc.InventoryId = "LocalMachine|Registry32|VC2013";
-Verify(!VerifiedUpdaters.ConfirmInstallation(x64!, originalVc, new[] { updatedVc }), "Outra vista do Registro nao confirma a selecionada");
+Verify(VerifiedUpdaters.ConfirmInstallation(obs!, originalVc, new[] { updatedVc }), "Confirmar a identidade selecionada com receita aprovada");
+updatedVc.InventoryId = "CurrentUser|Registry64|OBS";
+Verify(!VerifiedUpdaters.ConfirmInstallation(obs!, originalVc, new[] { updatedVc }), "Outra instalacao por usuario nao confirma a selecionada");
+updatedVc.InventoryId = "LocalMachine|Registry32|OBS";
+Verify(!VerifiedUpdaters.ConfirmInstallation(obs!, originalVc, new[] { updatedVc }), "Outra vista do Registro nao confirma a selecionada");
 originalVc.InventoryId = "";
-Verify(!VerifiedUpdaters.ConfirmInstallation(x64!, originalVc, new[] { updatedVc }), "Identidade ausente permanece indeterminada");
+Verify(!VerifiedUpdaters.ConfirmInstallation(obs!, originalVc, new[] { updatedVc }), "Identidade ausente permanece indeterminada");
 Console.WriteLine($"{checkedCount}/{checkedCount} testes incluindo confirmacao posterior aprovados");
 if (args.Contains("--verify-terminal", StringComparer.OrdinalIgnoreCase))
 {
