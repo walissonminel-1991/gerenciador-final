@@ -31,11 +31,11 @@ internal static class LayoutTests
             InventoryOnly = true, InventorySource = "Aplicativo empacotado (MSIX)"
         };
         if (ActionableInventory.ShouldShow(inventoryOnly) ||
-            ActionableInventory.ShouldShowInMainList(inventoryOnly, "Todos") ||
+            !ActionableInventory.ShouldShowInMainList(inventoryOnly, "Todos") ||
             ActionableInventory.ShouldShowInMainList(inventoryOnly, "Com atualização") ||
             !ActionableInventory.ShouldShowInMainList(inventoryOnly, "Inventário") ||
             ActionableInventory.CanUninstall(inventoryOnly))
-            throw new Exception("MSIX somente leitura deve aparecer exclusivamente na visualizacao de inventario.");
+            throw new Exception("MSIX somente leitura deve aparecer em Todos sem ações autorizadas.");
         var normal = new ProgramEntry { Name = "Aplicativo com ação", CanUninstall = true };
         if (!ActionableInventory.ShouldShowInMainList(normal, "Todos") ||
             !ActionableInventory.ShouldShowInMainList(normal, "Inventário"))
@@ -366,13 +366,15 @@ internal static class LayoutTests
                     if (search is null || search.Controls.OfType<Button>()
                         .Any(button => button.Text == "Atualizar lista"))
                         throw new Exception("Atualizar lista nao deve aparecer junto da pesquisa.");
-                    var inventoryFilter = Descendants(form).OfType<Button>()
-                        .SingleOrDefault(button => button.Text == "Inventário");
-                    if (inventoryFilter is null || !inventoryFilter.Visible ||
-                        inventoryFilter.Parent is not TableLayoutPanel heading ||
-                        heading.ColumnCount != 5 ||
-                        heading.Controls.OfType<Button>().Count() != 4)
-                        throw new Exception("Filtro de inventario MSIX ausente ou fora da faixa de Aplicativos.");
+                    var allFilter = Descendants(form).OfType<Button>()
+                        .SingleOrDefault(button => button.Text == "Todos");
+                    if (allFilter is null || !allFilter.Visible ||
+                        allFilter.Parent is not TableLayoutPanel heading ||
+                        heading.ColumnCount != 3 ||
+                        heading.Controls.OfType<Button>().Count() != 2 ||
+                        heading.Controls.OfType<Button>().Any(b =>
+                            b.Text is "Possíveis" or "Inventário"))
+                        throw new Exception("Filtros redundantes permaneceram ou Todos ficou inacessivel.");
                     foreach (var filterButton in heading.Controls.OfType<Button>())
                     {
                         if (filterButton.Right > heading.ClientSize.Width + 2 ||

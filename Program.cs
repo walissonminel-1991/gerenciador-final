@@ -576,9 +576,7 @@ internal sealed partial class MainForm : Form
     private Button? _selectManyButton;
     private Button? _clearSelectionButton;
     private Button? _allFilterButton;
-    private Button? _updatesFilterButton;
     private Button? _selectedFilterButton;
-    private Button? _inventoryFilterButton;
     private string _operationResult = "Pronto";
     private readonly Font _rowTitle = new("Segoe UI", 10F, FontStyle.Bold);
     private readonly Font _rowInfo = new("Segoe UI", 8.8F);
@@ -977,13 +975,11 @@ internal sealed partial class MainForm : Form
 
         var heading = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 5, Margin = Padding.Empty
+            Dock = DockStyle.Fill, ColumnCount = 3, Margin = Padding.Empty
         };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 76));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 94));
         _listTitle.Dock = DockStyle.Fill;
         _listTitle.AutoEllipsis = false;
         _listTitle.SizeChanged += (_, _) => RenderTitle();
@@ -992,14 +988,12 @@ internal sealed partial class MainForm : Form
         _listTitle.TextAlign = ContentAlignment.MiddleLeft;
         heading.Controls.Add(_listTitle, 0, 0);
         _allFilterButton = AddFilter(heading, "Todos", 1);
-        _updatesFilterButton = AddFilter(heading, "Com atualização", 2, "Possíveis");
-        _selectedFilterButton = AddFilter(heading, "Marcados", 3);
-        _inventoryFilterButton = AddFilter(heading, "Inventário", 4);
-        _toolTips.SetToolTip(_inventoryFilterButton,
-            "Mostra todos os aplicativos identificados, inclusive Microsoft Store/MSIX e jogos. " +
-            "Itens sem ação autorizada são somente leitura; não podem ser desinstalados pelo GF.");
-        _toolTips.SetToolTip(_updatesFilterButton, "Mostra possíveis atualizações indicadas por catálogos externos. " +
-            "A Microsoft Store pode não oferecer a mesma versão neste momento.");
+        _selectedFilterButton = AddFilter(heading, "Marcados", 2);
+        _toolTips.SetToolTip(_allFilterButton,
+            "Mostra todos os aplicativos identificados; candidatos de atualização ficam no topo. " +
+            "Entradas sem ação autorizada permanecem somente leitura.");
+        _toolTips.SetToolTip(_selectedFilterButton,
+            "Mostra apenas aplicativos marcados para operações autorizadas.");
         root.Controls.Add(heading, 0, 2);
 
         _programList.Dock = DockStyle.Fill;
@@ -1093,12 +1087,11 @@ internal sealed partial class MainForm : Form
             }
         }
         if (!loaded || IsDisposed) return;
+        _appFilter = "Todos";
         await LoadUpdatesAsync(forceRefresh: true);
-        if (_catalogoVerificado && !IsDisposed)
-        {
-            _appFilter = "Com atualização";
-            RenderPrograms();
-        }
+        // Não selecionar automaticamente somente os candidatos: preservar
+        // a lista inteira, com possíveis atualizações no topo.
+        if (!IsDisposed) RenderPrograms();
     }
 
     private Button AddFilter(TableLayoutPanel heading, string title, int column, string? visibleTitle = null)
@@ -1112,8 +1105,6 @@ internal sealed partial class MainForm : Form
             if (_busy) return;
             _appFilter = title == "Marcados" ? "Selecionados" : title;
             RenderPrograms();
-            if (title == "Com atualização" && !_catalogoVerificado)
-                Status("Clique em Atualizar e verificar para consultar o catálogo online.");
         };
         heading.Controls.Add(button, column, 0);
         return button;
@@ -1214,7 +1205,7 @@ internal sealed partial class MainForm : Form
             if (item.CanUninstall)
                 DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red,
                     _programList.ActionVisual(item, "uninstall"));
-            else if (!item.IsUpdate && _appFilter == "Inventário")
+            else if (!item.IsUpdate)
                 TextRenderer.DrawText(e.Graphics, "Somente leitura", _rowInfo,
                     AppRowGeometry.UninstallButton(e.Bounds), Muted,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
@@ -2266,15 +2257,11 @@ internal sealed partial class MainForm : Form
         _programList.SetItems(match);
         _programList.ScrollToTop();
         _emptyState.Text = query.Length > 0
-            ? (_appFilter == "Inventário"
-                ? "Nenhuma entrada do inventário corresponde à pesquisa."
-                : "Nenhuma ação corresponde à pesquisa. Clique em Inventário para consultar todos os aplicativos detectados.")
+            ? "Nenhum aplicativo corresponde à pesquisa."
             : _appFilter == "Selecionados" ? "Nenhum aplicativo marcado."
-            : _appFilter == "Com atualização" && _catalogoVerificado ? "Nenhuma possível atualização encontrada neste catálogo."
-            : _appFilter == "Com atualização" ? "Possíveis atualizações ainda não verificadas."
             : _consultaCatalogoCts is not null
-                ? "Consultando atualizações para encontrar outros aplicativos disponíveis..."
-                : "Nenhum aplicativo com desinstalação ou atualização disponível.";
+                ? "Consulta online ativa; inventário local vazio."
+                : "Nenhum aplicativo identificado. Se o inventário estiver parcial, tente novamente.";
         _emptyState.Visible = match.Length == 0;
         if (_emptyState.Visible) _emptyState.BringToFront();
         RenderTitle();
@@ -2302,11 +2289,9 @@ internal sealed partial class MainForm : Form
         // inclusive o Windows Update, ficam acessiveis na dica integral.
         string count = _catalogoVerificado ? updates.ToString() : "—";
         _listTitle.Text = _inventoryIncomplete
-            ? (width < 220 ? $"Apps: {displayed} · PARCIAL" : $"Inventário PARCIAL: {summary.Total}")
-            : _appFilter == "Inventário"
-            ? (width < 220 ? $"Inventário: {summary.Total}" : $"Inventário: {summary.Total} · leitura")
-            : width < 220 ? $"Aplicativos: {displayed}"
-            : $"Aplicativos: {displayed} · Atualizações: {count}";
+            ? (width < 220 ? $"Apps: {summary.Total} · PARCIAL" : $"Apps: {summary.Total} · inventário PARCIAL")
+            : width < 220 ? $"Apps: {summary.Total}"
+            : $"Apps: {summary.Total} · Possíveis atualizações: {count}";
         _toolTips.SetToolTip(_listTitle, full);
         _listTitle.AccessibleDescription = full;
     }
@@ -2323,8 +2308,7 @@ internal sealed partial class MainForm : Form
     {
         foreach (var (button, name) in new[]
         {
-            (_allFilterButton, "Todos"), (_updatesFilterButton, "Com atualização"),
-            (_selectedFilterButton, "Selecionados"), (_inventoryFilterButton, "Inventário")
+            (_allFilterButton, "Todos"), (_selectedFilterButton, "Selecionados")
         })
         {
             if (button is null) continue;
