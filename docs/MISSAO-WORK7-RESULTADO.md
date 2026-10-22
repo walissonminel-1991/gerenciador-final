@@ -1,6 +1,6 @@
 # MISSÃO WORK 7 — auditoria e candidata v5.13.11.42 TESTE
 
-Data: 22/10/2026. **Código final validado: `c88d6fcea906d16e64cdd5ad3f9bef592f2ce038`.** Branch: `piloto-diagnostico-github-v5.13.11.2`. [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40), mantido Draft. Roadmap: **27/42 (64,3%)**, sem novos checkpoints físicos concluídos.
+Data: 22/10/2026. **Código validado antes do reforço MSI/EXE: `c88d6fcea906d16e64cdd5ad3f9bef592f2ce038`.** Branch: `piloto-diagnostico-github-v5.13.11.2`. [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40), mantido Draft. Roadmap: **27/42 (64,3%)**, sem novos checkpoints físicos concluídos.
 
 ## Estado inicial
 
@@ -22,8 +22,9 @@ Foram lidos os diagnósticos privados .39 e .40, sem publicá-los no repositóri
 | A6 | A consulta manual reutilizava a primeira fotografia indefinidamente; uma falha podia conservar seleção acionável antiga. | Consulta explícita usa `force: true`; falha limpa seleção/ofertas, invalida o estado de sucesso e impede instalação. Consulta simultânea na mesma janela não inicia outra busca. | Corrigido; validação presencial pendente. |
 | A8 | UTF-16 malformado em nome/editor do Registro ou catálogo lançava exceção durante normalização e interrompia a consulta. | Quatro regressões reproduziram a falha. Normalização rejeita a identidade inválida, sem consertá-la para outro produto e sem interromper as demais fontes. | Corrigido e aprovado no Windows: 18/18 controles de identidade, sem correspondências para os quatro casos malformados. |
 | A7 | Se apenas parte da seleção continuasse elegível, o lote podia instalar esse subconjunto. Download parcial não impedia a etapa de instalação. | Exigir a seleção inteira, com revisão e licença, e download inteiramente bem-sucedido antes de instalar. | Corrigido; nenhum download/instalador real executado pelos testes desta correção. |
-| B1 | Qualquer código de saída não zero virava falha sem observar estado posterior. | Examinar sete fotografias posteriores. Erro com ausência, fonte parcial ou estado alterado fica pendente; erro com presença persistente vira falha. Código original preservado. | Corrigido; conclusão real do foobar permanece não comprovada. |
+| B1 | Qualquer código de saída não zero virava falha sem observar estado posterior. | Examinar sete fotografias posteriores. Erro com ausência, fonte parcial ou estado alterado fica pendente; EXE com código não padronizado não é declarado falha definitiva. Erro MSI com presença persistente pode ser classificado como falha. Código original preservado. | Corrigido; conclusão real do foobar permanece não comprovada. |
 | B2 | Duas ausências transitórias encerravam a conferência; um lote podia iniciar outro fornecedor com o anterior pendente. | Observar a janela inteira, exigir três ausências finais e interromper lote em pendência. Código 3010 exige reinicialização e não libera limpeza. | Corrigido; ausência de Registro não equivale a remoção integral. |
+| B4 | Cancelamento MSI 1602 podia seguir para outro item; 1618/1641 eram tratados como falha, e comando silencioso sem política de reboot poderia reiniciar. Dois registros com o mesmo EXE/argumentos não tinham exclusividade. | Seis regressões reproduziram as falhas. Interromper lote em cancelamento/ocupação/reinício; acrescentar `/norestart`; manter EXE não zero pendente e bloquear intenção EXE compartilhada, com explicação. Controle positivo mantém comandos de produtos diferentes. | Corrigido localmente; CI Windows do reforço em andamento. |
 | B3 | O tratamento genérico de erros WinVerifyTrust permitia advertência para desconfiança explícita ou erro desconhecido. | Lista explícita de falhas conhecidas de cadeia/validade; adulteração, revogação, desconfiança explícita e estados desconhecidos bloqueiam o EXE. Ausência de assinatura e editor divergente validado continuam com aviso. | Corrigido. |
 | C1 | Limpeza foobar/OBS/VLC comparava só pasta, quantidade e bytes; não fixava conteúdo, identidade de arquivos ou chave de Registro. Exclusão recursiva permitia mudança após prévia e relato incompleto em cancelamento. | Suspender todos os pontos de exclusão desses perfis. A UI explica a preservação, sem confirmação enganosa. Executor destrutivo sintético só é compilado no projeto de testes, fora da aplicação. | **Mitigado. R4 continua suspenso.** |
 | D1 | A regressão de margens selecionava o painel externo e reprovava com contagem incorreta. | Nomear a grade `RepairActions` e selecioná-la de forma única. Continuam exigidos sete cartões, três colunas quando cabíveis e ocupação mínima de largura. | Corrigido e aprovado na CI Windows, com capturas dos dois tamanhos de referência. |
@@ -37,7 +38,7 @@ Quando `InstallLocation` estiver ausente, apenas a pasta de um desinstalador EXE
 
 - **Inventário/atualizações:** `InventoryReconciler.cs`, `Matching.cs`, `RuckZuckModels.cs`, `OfficialReleaseSources.cs`, `Program.cs`. Metadados de instalação passam ao matcher; comparação não apaga registros. Fontes incertas continuam consultivas.
 - **Windows Update:** `WindowsUpdateSearchPolicy.cs`, `AdvancedFeatures.cs`, `IntegratedSystemUi.cs`. Contrato de identidade/revisão compartilhado; nenhum teste novo instala atualizações.
-- **Desinstalação:** `UninstallBatch.cs`, `RegisteredUninstaller.cs`. Espera limitada por estado e interrupção de lote. Não há segunda tentativa automática nem remoção forçada de arquivos do fornecedor.
+- **Desinstalação:** `UninstallBatch.cs`, `UninstallCommand.cs`, `RegisteredUninstaller.cs`. Espera limitada por estado e interrupção de lote. Não há segunda tentativa automática nem remoção forçada de arquivos do fornecedor.
 - **Resíduos:** `FoobarProfileCleanup.cs`, `FoobarProfileCleanupFlow.cs`, `ScopedAppProfileCleanup.cs`, `ResidualExplorerDialog.cs`. Leitura/classificação preservadas; exclusão de perfis suspensa por falta de prova. O resumo agregado permanece um resumo, não uma autorização.
 - **RAM:** `SelectiveMemoryTrim.cs`. Mesmo handle para conferir identidade e ajustar. A API continua seletiva; não há limpeza de standby ou componentes essenciais.
 - **Testes:** novos `Work7IdentityTests`, `Work7UpdateTests`, `Work7UninstallTests`, `Work7SafetyTests`; entradas das suítes atualizadas. `Work6UninstallFlowTests` passa a alterar a fotografia quando o fornecedor simulado é lançado, em vez de fazer outro produto desaparecer por número de leituras. Mantidas as mesmas exigências de ordem, identidade e uma execução por produto.
@@ -103,18 +104,26 @@ Continuam abertos U8, R7, R4, I7, P5/P6, V5 e os demais checkpoints de campo/ges
 
 Após a consolidação documental `174e8915` (também aprovada em CI), quatro entradas sintéticas com surrogates UTF-16 isolados reproduziram `ArgumentException` em nomes/editor do inventário e do catálogo. A CI verde anterior não cobria essa família. A normalização passa a retornar identidade vazia para esse caso, que resulta em `Unmatched`, sem autorizar correspondência e sem parar a consulta. As 14 regressões de identidade existentes continuam; agora são **18/18**, mais 20 casos anteriores do motor. [Nova CI 39865168838](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39865168838), fonte `c88d6fcea906d16e64cdd5ad3f9bef592f2ce038`: **success** nas regressões, política e build. Permanecem aprovados 159/159 multifontes, 127/127 atualizador, 475/475 resíduos/desinstalação, 10/10 mutações, 47/47 MSIX, 30/30 encerramento, 132 combinações de layout e 12 ciclos de bandeja (601 ms no runner). Os quatro casos UTF-16 passaram também no Windows.
 
-O pacote final abaixo inclui esse ajuste. Foi baixado sem execução local; seus 273 hashes e o digest do ZIP foram conferidos. O ZIP das 56 capturas finais tem SHA-256 `884add4ce01a69b0639b6ba8977079369043355b091af01067922c03fd98a549`; suas imagens foram comparadas às capturas já inspecionadas. As 56 imagens finais são byte a byte idênticas às capturas já inspecionadas; a estrutura e as duas referências de Reparo foram preservadas.
+O pacote histórico `25aa54bf` inclui esse ajuste Unicode. Foi baixado sem execução local; seus 273 hashes e o digest do ZIP foram conferidos. O ZIP das 56 capturas finais tem SHA-256 `884add4ce01a69b0639b6ba8977079369043355b091af01067922c03fd98a549`; suas imagens foram comparadas às capturas já inspecionadas. As 56 imagens finais são byte a byte idênticas às capturas já inspecionadas; a estrutura e as duas referências de Reparo foram preservadas.
 
-## Entrega final — pacote com a correção Unicode
+## Reforço adicional de MSI e exclusividade do EXE
 
-- [CI final aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39865168838); [download do portátil TESTE final](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39865168838/artifacts/12464340667).
+Seis regressões falharam antes da correção: códigos MSI 1602, 1618 e 1641; EXE com código não padronizado e Registro persistente; dois registros para o mesmo comando EXE; MSI silencioso sem `/norestart`. A semântica foi confrontada com a documentação oficial da Microsoft. O GF agora interrompe o lote nesses estados, mostra cancelamentos no resumo, mantém códigos EXE desconhecidos pendentes e impede executar um comando idêntico associado a duas instalações. Não usa semelhança de nomes para decidir. Comandos distintos no mesmo EXE têm controle positivo para preservar remoções legítimas.
+
+Os seis controles novos falharam no código anterior; depois da correção, **22/22 controles WORK 7 de desinstalação** passaram localmente, incluindo o controle positivo de argumentos de outro produto. O fluxo WORK 6 relacionado também passou. A tentativa da suíte completa no Linux parou no controle de seleção RAM com caminhos Windows, antes da desinstalação; não foi contada como aprovação nem enfraquecida. A execução integral permanece exigida no runner Windows.
+
+O MSI recebe `/norestart` também quando o Registro omite a opção; nenhum teste executa instalação, remoção ou reinício real. O pacote a seguir é anterior a esse reforço e deve aguardar a próxima candidata conferida.
+
+## Pacote conferido antes do reforço MSI/EXE — correção Unicode
+
+- [CI anterior aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39865168838); [portátil anterior ao reforço MSI/EXE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39865168838/artifacts/12464340667).
 - Artefato: `GerenciadorFinal-v5.13.11.42-25aa54bf-TESTE-win-x64`.
 - ZIP: **58.938.207 bytes**; **273 hashes internos conferidos**; SHA-256 `bc7ac91b51108bcafbc03335c08a065f1818ccb455615834794cccd5987e887a`.
 - EXE: SHA-256 `88f3bd1752873c2e459ae77d7b4165ca0587270d3c1d61b7314f2f9a70886a86`.
 - DLL principal: SHA-256 `6243412c32ce00af8ff97da8c782d898d947bc05032aebb7232c4b7254860667`.
 - Fonte `c88d6fcea906d16e64cdd5ad3f9bef592f2ce038`; merge sintético `25aa54bfcec405b1bc7ddb3b80e114f1dc4c615d`; base `410d65e23546976db456337c71e4705f10217d36`; run `39865168838`. `BUILD-INFO`, manifesto e ativação SxS conferidos.
-- Código e correções preservados em commits; o ajuste final é `c88d6fc`. A consolidação documental posterior não muda os arquivos C# desta candidata. Branch experimental e PR Draft mantidos.
-- Continua sem assinatura/validação AVG e sem testes físicos da .42. U8/R7/R4 e demais portões de campo permanecem abertos; **27/42 (64,3%)**. O pacote `f4d1d46c` abaixo é anterior ao ajuste UTF-16; use `25aa54bf` para a próxima bateria.
+- Código e correções preservados em commits; o ajuste Unicode é `c88d6fc`. A consolidação documental posterior não muda os arquivos C# desta candidata. Branch experimental e PR Draft mantidos.
+- Continua sem assinatura/validação AVG e sem testes físicos da .42. U8/R7/R4 e demais portões de campo permanecem abertos; **27/42 (64,3%)**. O pacote `f4d1d46c` abaixo é anterior ao ajuste UTF-16; ambos são históricos; aguardar a candidata com o reforço MSI/EXE.
 
 ## Pacote anteriormente conferido e integridade
 
@@ -176,3 +185,5 @@ scripts/test_work6_mutations.py
 ```
 
 Referências das APIs: [OperationResultCode](https://learn.microsoft.com/en-us/windows/win32/api/wuapi/ne-wuapi-operationresultcode), [ISearchResult.ResultCode](https://learn.microsoft.com/en-us/windows/win32/api/wuapi/nf-wuapi-isearchresult-get_resultcode), [EmptyWorkingSet](https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-emptyworkingset) e [GetProcessTimes](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocesstimes).
+
+Referências MSI: [códigos de retorno](https://learn.microsoft.com/en-us/windows/win32/msi/error-codes) e [opções e política de reinício](https://learn.microsoft.com/en-us/windows/win32/msi/standard-installer-command-line-options).

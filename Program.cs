@@ -2790,15 +2790,17 @@ internal sealed partial class MainForm : Form
                     " codigo=" + (outcome.Code?.ToString() ?? "indeterminado"));
                 Log(outcome.Request.Original.Name + ": " + outcome.State +
                     (outcome.Code is int code ? " (" + code + ")" : "") + ". Nenhuma repetição automática.");
+                if(outcome.Reason.Length>0) Log(outcome.Reason);
                 if (outcome.State == UninstallState.RegistrationAbsent)
                     await ReviewUninstallOutcomeAsync(outcome.Request.Original);
             }
             if (consent) await RefreshCatalogAsync();
             int absent = outcomes.Count(x => x.State == UninstallState.RegistrationAbsent);
             int pending = outcomes.Count(x => x.State == UninstallState.Pending);
+            int cancelled = outcomes.Count(x => x.State == UninstallState.Cancelled);
             int failures = outcomes.Count(x => x.State is UninstallState.Blocked or UninstallState.StartFailed or UninstallState.ProcessFailed or UninstallState.StillPresent);
             Status(!consent ? "Desinstalação cancelada" :
-                $"Desinstalação: {absent} registro(s) ausente(s), {pending} pendente(s) de confirmação, {failures} falha(s). Sem exclusão de resíduos.");
+                $"Desinstalação: {absent} registro(s) ausente(s), {pending} pendente(s), {cancelled} cancelada(s), {failures} falha(s). Sem exclusão de resíduos.");
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
         {

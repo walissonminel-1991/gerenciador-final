@@ -63,5 +63,40 @@ internal static class Work7UninstallTests
             "W7-SIGN desconfiança explícita do Windows bloqueia execução");
         check(!UninstallerSignaturePolicy.IsUntrustedButNotProvenTampered("WinVerifyTrust=0x80004005"),
             "W7-SIGN erro não classificado não recebe permissão por omissão");
+        foreach (var (code, expected) in new[] { (1602, UninstallState.Cancelled),
+            (1618, UninstallState.Pending), (1641, UninstallState.Pending) })
+        {
+            launches = 0;
+            var special = await new UninstallBatch().RunAsync(UninstallBatch.Select([app, second]), true,
+                () => Task.FromResult(both), (_, _) => { launches++; return Task.FromResult<int?>(code); }, Wait);
+            check(special.Count == 1 && special[0].State == expected && special[0].Code == code && launches == 1,
+                "W7-MSI cancelamento/ocupado/reinício não inicia o próximo item, código " + code);
+        }
+        var exe = new ProgramEntry { Name = "Fixture EXE", Publisher = "Fixture", InventoryId = "CurrentUser|Registry64|EXE",
+            UninstallString = "\"C:\\GF-Fixture\\uninstall.exe\"" };
+        if (!UninstallCommand.TryParse(exe.UninstallString, out var parsedExe)) throw new Exception("Fixture EXE inválida");
+        var delayed = await new UninstallBatch().RunAsync([new(exe, parsedExe)], true,
+            () => Task.FromResult(new UninstallSnapshot([exe], true)), (_, _) => Task.FromResult<int?>(2), Wait);
+        check(delayed.Single().State == UninstallState.Pending && delayed.Single().Code == 2,
+            "W7-EXE código desconhecido com registro persistente não comprova fracasso do processo filho");
+        var alias = new ProgramEntry { Name = "Fixture outro registro", Publisher = exe.Publisher,
+            InventoryId = "CurrentUser|Registry64|EXE-ALIAS", UninstallString = exe.UninstallString };
+        launches = 0;
+        var shared = await new UninstallBatch().RunAsync([new(exe, parsedExe)], true,
+            () => Task.FromResult(new UninstallSnapshot([exe, alias], true)),
+            (_, _) => { launches++; return Task.FromResult<int?>(0); }, Wait);
+        check(shared.Single().State == UninstallState.Blocked && launches == 0,
+            "W7-EXE dois registros com o mesmo comando não autorizam remover a instalação errada");
+        var separateProduct = new ProgramEntry { Name = "Fixture outro produto", Publisher = exe.Publisher,
+            InventoryId = "CurrentUser|Registry64|EXE-OTHER-PRODUCT", UninstallString = exe.UninstallString + " /product:other" };
+        bool removed = false; launches = 0;
+        var independent = await new UninstallBatch().RunAsync([new(exe, parsedExe)], true,
+            () => Task.FromResult(new UninstallSnapshot(removed ? [separateProduct] : [exe, separateProduct], true)),
+            (_, _) => { removed = true; launches++; return Task.FromResult<int?>(0); }, Wait);
+        check(independent.Single().State == UninstallState.RegistrationAbsent && launches == 1,
+            "W7-EXE comando de outro produto no mesmo executável não bloqueia remoção legítima");
+        check(UninstallCommand.TryParse("msiexec.exe /X" + app.MsiProductCode + " /qn", out var noRestart) &&
+            noRestart.Arguments.Contains("/norestart", StringComparison.OrdinalIgnoreCase),
+            "W7-MSI comando silencioso registrado não autoriza reinicialização automática");
     }
 }

@@ -4,7 +4,7 @@ namespace GerenciadorAplicativos;
 internal sealed record UninstallRequest(ProgramEntry Original, ParsedUninstallCommand Command);
 internal sealed record UninstallSnapshot(IReadOnlyCollection<ProgramEntry> Items, bool Complete);
 internal enum UninstallState { Refused, Blocked, Cancelled, StartFailed, ProcessFailed, Pending, StillPresent, RegistrationAbsent }
-internal sealed record UninstallOutcome(UninstallRequest Request, UninstallState State, int? Code = null);
+internal sealed record UninstallOutcome(UninstallRequest Request, UninstallState State, int? Code = null, string Reason = "");
 
 internal sealed class UninstallBatch
 {
@@ -61,10 +61,27 @@ internal sealed class UninstallBatch
                     (request.Command.ProductCode is not null && before.Items.Count(x =>
                         x.MsiProductCode.Equals(request.Command.ProductCode,StringComparison.OrdinalIgnoreCase)) != 1))
                 { results.Add(new(request,UninstallState.Blocked)); continue; }
+                if(request.Command.ProductCode is null && before.Items.Any(other =>
+                    !other.InventoryId.Equals(request.Original.InventoryId,StringComparison.OrdinalIgnoreCase) &&
+                    SharesExeIntent(request.Command,other)))
+                {
+                    results.Add(new(request,UninstallState.Blocked,Reason:
+                        "Mais de um registro aponta para o mesmo desinstalador. Não é possível remover só a entrada selecionada com segurança; confira o aplicativo pelo Windows."));
+                    continue;
+                }
                 token.ThrowIfCancellationRequested();
                 invoked=true;
                 int? exit=await launch(request,token);
                 if(exit is null) { results.Add(new(request,UninstallState.StartFailed)); continue; }
+                if(request.Command.ProductCode is not null && exit==1602)
+                { results.Add(new(request,UninstallState.Cancelled,exit,"Cancelada pelo usuário no instalador.")); break; }
+                if(request.Command.ProductCode is not null && exit is 1604 or 1618 or 1641 or 3010)
+                {
+                    string reason=exit==1618 ? "Outra instalação ou remoção está em andamento. Aguarde antes de tentar novamente." :
+                        exit is 1641 or 3010 ? "O instalador informou reinício. Confira o estado depois; o GF não solicitou reinicialização." :
+                        "O Windows suspendeu a remoção; a conclusão permanece pendente.";
+                    results.Add(new(request,UninstallState.Pending,exit,reason)); break;
+                }
                 int absent=0;
                 bool sawAbsence=false, complete=true;
                 for(int attempt=0;attempt<7;attempt++) {
@@ -83,9 +100,10 @@ internal sealed class UninstallBatch
                 // Saida nao zero exige verificar o estado, mas nunca autoriza
                 // limpeza; 3010 exige reinicio e tambem permanece pendente.
                 var state = complete && exit==0 && absent>=3 ? UninstallState.RegistrationAbsent :
-                    complete && exit is not (0 or 3010) && !sawAbsence ? UninstallState.ProcessFailed :
+                    complete && request.Command.ProductCode is not null && exit is not (0 or 3010) && !sawAbsence ? UninstallState.ProcessFailed :
                     UninstallState.Pending;
-                results.Add(new(request,state,exit));
+                results.Add(new(request,state,exit,request.Command.ProductCode is null && exit!=0 ?
+                    "O desinstalador retornou um código não padronizado. A conclusão permanece pendente; processos auxiliares ainda podem estar trabalhando." : ""));
             }
             catch(Win32Exception ex) {
                 results.Add(new(request,ex.NativeErrorCode==1223 ? UninstallState.Cancelled : UninstallState.StartFailed,ex.NativeErrorCode));
@@ -112,4 +130,10 @@ internal sealed class UninstallBatch
         MatchesQuiet(request);
     private static bool MatchesQuiet(UninstallRequest request) =>
         UninstallCommand.TryParse(request.Original.QuietUninstallString,out var quiet) && quiet==request.Command;
+
+    private static bool SharesExeIntent(ParsedUninstallCommand selected, ProgramEntry other) =>
+        new[]{other.UninstallString,other.QuietUninstallString}.Any(raw =>
+            UninstallCommand.TryParse(raw,out var command) && command.ProductCode is null &&
+            command.FileName.Replace('/','\\').Equals(selected.FileName.Replace('/','\\'),StringComparison.OrdinalIgnoreCase) &&
+            command.Arguments.Equals(selected.Arguments,StringComparison.Ordinal));
 }

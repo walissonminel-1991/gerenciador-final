@@ -16,7 +16,7 @@ internal static class LayoutTests
         if (!AppServices.TryParseUninstaller(@"C:\cache.exe_folder\uninstall.exe /S", out var uninstallPath, out var uninstallArgs) ||
             uninstallPath != @"C:\cache.exe_folder\uninstall.exe" || uninstallArgs != "/S" ||
             !AppServices.TryParseUninstaller("MsiExec.exe /I{00000000-0000-0000-0000-000000000123}", out _, out var msiArgs) ||
-            msiArgs != "/X{00000000-0000-0000-0000-000000000123}" ||
+            msiArgs != "/X{00000000-0000-0000-0000-000000000123} /norestart" ||
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");

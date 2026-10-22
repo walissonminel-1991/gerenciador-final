@@ -30,7 +30,7 @@ internal static class Work6UninstallFlowTests
         check(UninstallCommand.TryParse("MsiExec.exe /I "+Work6UninstallTests.Product+" /qn /norestart",out var msi) &&
             msi.Arguments=="/X"+Work6UninstallTests.Product+" /qn /norestart", "WORK6 parser: manutenção MSI /I converte somente GUID íntegro para /X");
         check(UninstallCommand.TryParse("msiexec.exe /I \""+Work6UninstallTests.Product+"\" /qn",out var quoted) &&
-            quoted.ProductCode==Work6UninstallTests.Product && quoted.Arguments=="/X"+Work6UninstallTests.Product+" /qn",
+            quoted.ProductCode==Work6UninstallTests.Product && quoted.Arguments=="/X"+Work6UninstallTests.Product+" /qn /norestart",
             "W6-U-QUOTED GUID MSI entre aspas é legítimo e mantém vínculo ao produto");
         check(!UninstallBatch.BoundToProduct(msi,new ProgramEntry { MsiProductCode="{00000000-0000-0000-0000-000000000999}" }),
             "WORK6 parser: GUID de outro produto bloqueado");

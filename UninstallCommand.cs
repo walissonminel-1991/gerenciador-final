@@ -47,7 +47,11 @@ internal static class UninstallCommand
         if(msi) {
             var match=Msi.Match(arguments);
             if(!match.Success || !Guid.TryParse(match.Groups["product"].Value,out var guid) || guid==Guid.Empty) return false;
-            parsed=new(file,"/X"+guid.ToString("B").ToUpperInvariant()+match.Groups["options"].Value,guid.ToString("B").ToUpperInvariant());
+            string options=match.Groups["options"].Value;
+            // /quiet e /passive podem reiniciar sem perguntar quando falta
+            // uma politica de reboot. O GF nunca autoriza esse reinicio.
+            if(!options.Contains("/norestart",StringComparison.OrdinalIgnoreCase)) options+=" /norestart";
+            parsed=new(file,"/X"+guid.ToString("B").ToUpperInvariant()+options,guid.ToString("B").ToUpperInvariant());
             return true;
         }
         parsed=new(file,arguments,null); return true;
