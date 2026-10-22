@@ -1,5 +1,10 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.35 TESTE — MISSÃO WORK 6 (CI aprovada, validação física pendente)
+
+Fluxos de atualizações, desinstalação e prévia de resíduos reforçados: revalidação de autorização, uma tentativa de lançamento, fontes parciais preservadas como revisão, pacote MSIX retido até fim do fornecedor, parser estrito para MSI/EXE, vínculo ao registro de instalação, ausência confirmada por leituras completas, proteção de arquivos e cadeia de diretórios nas prévias. Novo lote de testes de fluxo e 10/10 controles adversariais por mutação, além da suíte regressiva. CI Windows em 39708331526, build em 39708331528 e política em 39708331607 aprovadas. **Não houve instalações, desinstalações ou exclusões reais**, nem validação presencial da .35; U8/R7/R4 continuam abertos. Detalhes em [docs/MISSAO-WORK6-RESULTADO.md](docs/MISSAO-WORK6-RESULTADO.md). Roadmap 27/42.
+
+
 ## 21/10/2026 — U6 concluído, 27/42 (documentação e teste, sem nova build)
 
 Comparação WinGet 9 vs GF .34 8 reconciliada: seis candidatos consultivos, dois com revisão, GameInput protegido. Regressão de nove identidades e falha fechada aprovada nas Actions 39698959079/39698959083/39698959189. Mantido executável .34, sem novo botão administrativo, elevação automática ou WinGet COM/CLI. A futura recomendação de execução administrativa ficará a critério de benefícios comprovados ao fim do desenvolvimento.

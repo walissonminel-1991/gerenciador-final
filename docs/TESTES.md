@@ -1,4 +1,10 @@
-# Roteiro de testes — v5.13.11.34 TESTE
+# Roteiro de testes — v5.13.11.35 TESTE
+
+## Próxima bateria: primeiro contato .35 no PC FORTE
+
+As simulações WORK 6 e as três Actions passaram, mas a .35 **não** foi executada ainda no PC do usuário. Em primeira sessão, manter AVG ativo, selecionar perfil PC FORTE, verificar inventário, consultar atualizações e navegar pelas telas; não instalar, desinstalar ou excluir resíduos. Preservar diagnóstico local e encaminhar privadamente se houver diferença importante, UAC inesperado ou bloqueio AVG. O teste de instalação real (U8) e de desinstalação (R7) só deverá ocorrer separadamente, em ambiente descartável/autorizado, e R4 permanece proibido nesta candidata.
+
+[Resultado da MISSÃO WORK 6, evidências e critérios](MISSAO-WORK6-RESULTADO.md).
 
 ## Avanço validado — U6 encerrado, 27/42 (64,3%)
 

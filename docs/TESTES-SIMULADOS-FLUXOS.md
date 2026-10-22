@@ -1,5 +1,7 @@
 # GERENCIADOR FINAL — simulações integradas de atualização, desinstalação e resíduos
 
+> **Atualização pós-WORK 6:** a bateria aqui descrita é o baseline inicial da .34. O Work adicionou testes de orquestração, cópias descartáveis, prévia nativa e 10/10 mutações rejeitadas na candidata .35. Veja [o fechamento técnico da WORK 6](MISSAO-WORK6-RESULTADO.md). Os gates originais U8/R7/R4 não foram alterados.
+
 > Preparação em 21/10/2026, branch experimental do PR #40. Implementação de
 > testes **não altera a versão v5.13.11.34 TESTE distribuída**.
 > Evidência automatizada e validação de ação efetiva são coisas distintas.

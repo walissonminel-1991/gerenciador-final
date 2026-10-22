@@ -1,7 +1,11 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.34 TESTE (CI aprovada; comparação normal/administrador realizada no PC FORTE; PC FRACO adiado) · Progresso: 27/42 (64,3%).**
+**v5.13.11.35 TESTE (MISSÃO WORK 6; CI aprovada, teste físico .35 pendente; última validação presencial .34 no PC FORTE) · Progresso: 27/42 (64,3%).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
+
+## MISSÃO WORK 6 — atualização, desinstalação e resíduos
+
+O Work chegou ao código `1c4c460` com **13 commits** de alterações e 3 Actions de CI aprovadas. Contratos de autorização, revalidação e prévia foram reforçados. Os 10/10 controles negativos por mutação falharam corretamente quando uma proteção foi removida artificialmente. **U8, R7 e R4 continuam pendentes**: não houve operações reais autorizadas e R4 permanece suspenso. Nenhum botão de administrador foi criado. [Fechamento técnico, matrizes, links e próximo lote](MISSAO-WORK6-RESULTADO.md). Roadmap segue 27/42.
 
 ## Avanço validado — U6 encerrado, 27/42 (64,3%)
 

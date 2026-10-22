@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.34 TESTE",
+  "version": "5.13.11.35 TESTE",
   "date": "2026-10-21",
-  "code_commit": "9c411fba3177c111888d5fc7a62b4bd0b3211511",
+  "code_commit": "1c4c460c7380edfa95318af7c7dec3fa15b84c07",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39694660843",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39708331526",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -418,5 +418,26 @@
       "protected_inventory_only": 1
     },
     "safe_admin_policy": "Sem novos controles, elevacao automatica nem mudança de manifesto."
+  },
+  "work6_summary": {
+    "status": "CI aprovada; .35 pendente teste presencial",
+    "code_commit": "1c4c460c7380edfa95318af7c7dec3fa15b84c07",
+    "updates": "127/127; rechecagem, tentativa unica, fonte incompleta, MSIX protegido",
+    "multi_source": "139/139; evidencia obsoleta revisao",
+    "uninstall_residues": "434/434; selecao e comandos, parser, snapshots e previa com identidade",
+    "mutation_controls": "10/10 rejeitadas em fontes temporarias",
+    "ci_runs": {
+      "windows": 39708331526,
+      "build": 39708331528,
+      "policy": 39708331607
+    },
+    "unsigned_artifact_id": 12395853049,
+    "physical_test_status": "pendente no PC FORTE e PC FRACO",
+    "checkpoints_unchanged": [
+      "U8",
+      "R7",
+      "R4"
+    ],
+    "progress": "27/42"
   }
 }
