@@ -394,7 +394,9 @@ internal static class LayoutTests
                         .Any(button => button.Text == "Atualizar lista"))
                         throw new Exception("Atualizar lista nao deve aparecer junto da pesquisa.");
                     var allFilter = Descendants(form).OfType<Button>()
-                        .SingleOrDefault(button => button.Text == "Todos");
+                        .SingleOrDefault(button => button.Text == "Todos" &&
+                            button.Parent is TableLayoutPanel parent &&
+                            parent.Controls.OfType<Button>().Count() == 2);
                     if (allFilter is null || !allFilter.Visible ||
                         allFilter.Parent is not TableLayoutPanel heading ||
                         heading.ColumnCount != 3 ||
