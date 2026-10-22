@@ -12,6 +12,13 @@ void Check(bool result, string what)
     passed++;
 }
 
+if (args.Contains("--work6-uninstall-policy"))
+{
+    int failures=0;
+    Work6UninstallTests.Policy((ok,label)=> { Console.WriteLine((ok?"PASS ":"FAIL ")+label); if(!ok) failures++; });
+    if(failures>0) throw new Exception($"WORK6 uninstall: {failures} falhas reproduzidas");
+    return;
+}
 if (args.Contains("--benchmark")) { ResidualBenchmark.Run(); return; }
 // Bateria integrada, na ordem solicitada: o atualizador corre no projeto separado,
  // aqui simulamos desinstalacao e somente depois politica de residuos.
@@ -897,3 +904,4 @@ namespace GerenciadorAplicativos
         public bool IsUpdate { get; set; }
     }
 }
+
