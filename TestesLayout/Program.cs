@@ -159,20 +159,39 @@ internal static class LayoutTests
             !PrivacyConsentPresentation.Explanation(TelemetryConsent.LocalOnly)
                 .Contains("versão anterior", StringComparison.Ordinal))
             throw new Exception("Estado persistente de privacidade nao e claro.");
-        // Os tres cartoes de Inicializacao precisam caber, com margens,
-        // sem mudar a quantidade de colunas das outras subabas.
+        // Requisito universal: calcular pela largura interna e DPI, nao
+        // apenas pelo monitor 1440x900. Limites exatos e demais 21 resolucoes.
         if (StartupCardLayout.ColumnsForSpace(1000) != 3 ||
             StartupCardLayout.ColumnsForSpace(885) != 3 ||
             StartupCardLayout.ColumnsForSpace(884) != 2 ||
             StartupCardLayout.ColumnsForSpace(720) != 2 ||
             StartupCardLayout.ColumnsForSpace(590) != 2 ||
             StartupCardLayout.ColumnsForSpace(589) != 1 ||
-            StartupCardLayout.CardWidth(1000, 3) > 325 ||
-            StartupCardLayout.CardWidth(885, 3) < 250 ||
-            3 * (StartupCardLayout.CardWidth(885, 3) + 9) > 885 ||
-            885 - 3 * (StartupCardLayout.CardWidth(885, 3) + 9) >= 3 ||
-            590 - 2 * (StartupCardLayout.CardWidth(590, 2) + 9) >= 2)
-            throw new Exception("Inicializacao nao comporta tres cartoes proporcionais.");
+            StartupCardLayout.CardWidth(1000, 3) > 325)
+            throw new Exception("Inicializacao perdeu limites de colunas em 100% DPI.");
+        foreach (var (resolutionName, resolution) in StartupWindowSizing.ValidationMatrix
+            .Concat(new[] { ("PC FRACO", new Size(1440, 900)) }))
+        {
+            if (resolution.Width < 1280 || resolution.Height < 720) continue;
+            var window = StartupWindowSizing.Fit(new Rectangle(0, 0,
+                resolution.Width, Math.Max(300, resolution.Height - 48)));
+            foreach (int dpi in new[] { 96, 120, 144, 192 })
+            {
+                // Simular padding da janela/sistema e scrollbar; conferir
+                // largura sem rolagem horizontal em todas as escalas.
+                int space = Math.Max(1, window.Width - 92);
+                int columns = StartupCardLayout.ColumnsForSpace(space, dpi);
+                int width = StartupCardLayout.CardWidth(space, columns, dpi);
+                int occupied = columns * (width + StartupCardLayout.MarginWidth(dpi));
+                if (columns < 1 || columns > StartupCardLayout.MaxColumns ||
+                    width < 1 || occupied > space ||
+                    space - occupied >= columns)
+                    throw new Exception($"Grade Inicializacao incorreta: {resolutionName}, DPI={dpi}, {columns}x{width} em {space}.");
+                if (columns > 1 && width < (int)Math.Ceiling(286d * dpi / 96d))
+                    throw new Exception($"Inicializacao compactou demasiado: {resolutionName}, DPI={dpi}.");
+            }
+        }
+        Console.WriteLine("OK: Inicializacao em todas as resolucoes >=720p, DPI 100/125/150/200%.");
         TestStartupBounds();
         TestWorkspaceProportions();
         TestRamHistoryAndSampling();

@@ -1,4 +1,15 @@
-# Roteiro de testes — v5.13.11.37 TESTE
+# Roteiro de testes — v5.13.11.38 TESTE
+
+## Contrato responsivo — aba Inicialização
+- A largura de cada card depende da largura real do painel e DPI, nunca exclusivamente de 1440×900. Grade usa 1, 2, 3 ou mais colunas segundo espaço; não cortar ações nem provocar scroll horizontal.
+- Validar início de 720p (1280×720), 1366×768, 1440×900, 1600×900, 1920×1080, 2560×1440, ultrawide e 4K; testar escala 100%, 125%, 150%, 200% em CI.
+- O painel deve redistribuir automaticamente ao redimensionar a janela ou alterar o DPI/monitor; barras verticais são permitidas quando a lista de entradas excede a altura. Preservar nomes completos nas dicas e descrições acessíveis.
+- No PC FRACO: tirar captura da Inicialização com 18 itens, confirmar uso equilibrado da largura e funcionamento da rolagem, sem modificar entradas.
+- O log da .37 confirma botao Drivers: cancelamento solicitado antes de cancelamento efetivo e consulta posterior 117 associações. Resíduos 12 grupos/41 locais, status parcial. MSIX continua com falha 0x800703FA.
+- A .37 também executou limpadores de temporários, cache Windows Update, limpeza de disco e shader cache. **Essas operações reais não são necessárias na próxima bateria**, limitar à consulta.
+- Política segura inalterada: nenhum reparo de drivers, desinstalação ou exclusão de resíduos em teste.
+
+
 
 ## PC FRACO: critérios antes de avançar
 - Todos: lista completa, possíveis atualizações primeiro e demais em ordem alfabética; entradas somente leitura sem ações perigosas. Sem botões Possíveis/Inventário; manter Marcados.

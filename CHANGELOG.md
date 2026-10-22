@@ -1,5 +1,12 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.38 TESTE — layout responsivo universal para Inicialização
+- A largura dos cartões agora segue a largura real do viewport, após aplicar scrollbar e padding. Sem reservar duas vezes espaços laterais.
+- Número de colunas automático em todos os monitores >=720p e escalas DPI; também mantém o comportamento de degradação para telas antigas menores.
+- Redimensionamento reage à mudança de tamanho do conteúdo, inclusive quando a barra vertical aparece/desaparece; proteção contra reentrância.
+- Testes sintéticos cobrem todas as 21 resoluções do projeto mais PC FRACO e DPI 100/125/150/200%. Nenhuma ação destrutiva nova; MSIX parcial sem alterações.
+- CI e validação física pendentes; roadmap permanece 27/42.
+
 ## v5.13.11.37 TESTE — ajustes PC FRACO
 - Todos mostra todos os itens de inventário, inclusive protegidos somente leitura; atualizações primeiro.
 - Removidos filtros redundantes Possíveis e Inventário; Marcados preservado.

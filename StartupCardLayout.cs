@@ -1,13 +1,27 @@
 namespace GerenciadorAplicativos;
 
+// Um unico modelo de largura para TODAS as resolucoes e escalas.
+// Trabalha com a area util da janela, nao com o tamanho nominal do monitor.
 internal static class StartupCardLayout
 {
-    // "space" ja reserva margens/rolagem do painel, entao nao contabilizar
-    // colunas ficticias. >=885 acomoda 3 cartoes de ~278 px sem texto cortado
-    // (texto longo fica integralmente disponivel na dica e acessibilidade).
-    internal static int ColumnsForSpace(int space) =>
-        space >= 885 ? 3 : space >= 590 ? 2 : 1;
+    internal const int BaseMinCardWidth = 286;
+    internal const int BaseCardMargin = 9;
+    internal const int MaxColumns = 12;
 
-    internal static int CardWidth(int space, int columns) =>
-        Math.Max(250, (space - 9 * Math.Max(1, columns)) / Math.Max(1, columns));
+    private static int Scale(int size, int dpi) =>
+        (int)Math.Ceiling(size * Math.Max(1d, dpi / 96d));
+
+    internal static int MarginWidth(int dpi = 96) => Scale(BaseCardMargin, dpi);
+
+    internal static int ColumnsForSpace(int space, int dpi = 96)
+    {
+        int cell = Scale(BaseMinCardWidth, dpi) + MarginWidth(dpi);
+        return Math.Clamp(Math.Max(0, space) / Math.Max(1, cell), 1, MaxColumns);
+    }
+
+    internal static int CardWidth(int space, int columns, int dpi = 96)
+    {
+        int count = Math.Clamp(columns, 1, MaxColumns);
+        return Math.Max(1, (Math.Max(0, space) - count * MarginWidth(dpi)) / count);
+    }
 }

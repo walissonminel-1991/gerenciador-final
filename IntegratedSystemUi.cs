@@ -26,6 +26,7 @@ internal sealed partial class MainForm
     private bool _windowsUpdateChecked;
     private string? _windowsUpdateScanFailure;
     private string _activeSystemView = "memory";
+    private bool _fittingSystemCards;
 
     private Control BuildIntegratedSystemPanel()
     {
@@ -109,6 +110,9 @@ internal sealed partial class MainForm
         _systemPanelCards.Content.BackColor = PanelBackground;
         _systemPanelCards.Content.Padding = new Padding(3, 4, 3, 3);
         _systemPanelCards.Resize += (_, _) => ResizeIntegratedCards();
+        // Quando a barra de rolagem aparece/desaparece, o viewport real muda
+        // mesmo que o tamanho do controle externo nao se altere.
+        _systemPanelCards.Content.SizeChanged += (_, _) => ResizeIntegratedCards();
         var contentHost = new Panel { Dock = DockStyle.Fill, BackColor = PanelBackground, Margin = Padding.Empty };
         contentHost.Controls.Add(_systemPanelCards);
         contentHost.Controls.Add(BuildMemoryRamDashboard());
@@ -464,27 +468,35 @@ internal sealed partial class MainForm
 
     private void ResizeIntegratedCards()
     {
-        if (_systemPanelCards is null || _systemPanelCards.IsDisposed) return;
-        FlowLayoutPanel flow = _systemPanelCards.Content;
-        // A barra escura ocupa largura propria: nao descontar duas vezes
-        // 42px de margem e 17px por card. Reservar barra e padding de fato.
-        int space = Math.Max(0, _systemPanelCards.ClientSize.Width -
-            (int)Math.Ceiling(18d * _systemPanelCards.DeviceDpi / 96d) -
-            flow.Padding.Horizontal - 2);
-        if (space < 280) return;
-        // Tres por linha apenas em Inicializacao; manter as demais views.
-        int columns = _activeSystemView == "startup"
-            ? StartupCardLayout.ColumnsForSpace(space)
-            : space >= 720 ? 2 : 1;
-        int cardWidth = StartupCardLayout.CardWidth(space, columns);
-        flow.SuspendLayout();
+        if (_fittingSystemCards || _systemPanelCards is null ||
+            _systemPanelCards.IsDisposed) return;
+        _fittingSystemCards = true;
         try
         {
-            foreach (Control control in flow.Controls)
-                if (control.Width != cardWidth) control.Width = cardWidth;
+            FlowLayoutPanel flow = _systemPanelCards.Content;
+            // Usar viewport fisico JA reduzido pela scrollbar escura.
+            // Evita reserva dupla e contempla 720p, ultrawide, 4K e DPI.
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                int space = flow.ClientSize.Width - flow.Padding.Horizontal;
+                if (space <= 0) break;
+                int columns = _activeSystemView == "startup"
+                    ? StartupCardLayout.ColumnsForSpace(space, flow.DeviceDpi)
+                    : space >= 720 * Math.Max(1, flow.DeviceDpi / 96d) ? 2 : 1;
+                int cardWidth = StartupCardLayout.CardWidth(space, columns, flow.DeviceDpi);
+                int beforeWidth = flow.ClientSize.Width;
+                flow.SuspendLayout();
+                try
+                {
+                    foreach (Control control in flow.Controls)
+                        if (control.Width != cardWidth) control.Width = cardWidth;
+                }
+                finally { flow.ResumeLayout(true); }
+                _systemPanelCards.Reflow();
+                if (flow.ClientSize.Width == beforeWidth) break;
+            }
         }
-        finally { flow.ResumeLayout(true); }
-        _systemPanelCards.Reflow();
+        finally { _fittingSystemCards = false; }
     }
 
     private async Task RefreshStartupEntriesAsync()
