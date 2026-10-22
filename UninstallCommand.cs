@@ -28,6 +28,10 @@ internal static class UninstallCommand
             int end=match.Success ? match.Length : raw.IndexOf(' ');
             if(end<0) end=raw.Length;
             file=raw[..end]; arguments=raw[end..].Trim();
+            if (!arguments.StartsWith('/') && !arguments.StartsWith('-') &&
+                !arguments.Contains('"') && Regex.IsMatch(arguments,@"\.exe(?=\s|$)",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant))
+                return false; // múltiplos términos possíveis em caminho sem aspas
+
         }
         file=Environment.ExpandEnvironmentVariables(file);
         if(file.Contains('"') || IsHost(file) || !SafeArguments(arguments)) return false;

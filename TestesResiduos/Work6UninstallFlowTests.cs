@@ -7,6 +7,7 @@ internal static class Work6UninstallFlowTests
         MsiProductCode=Work6UninstallTests.Product, UninstallString=command??"msiexec.exe /X"+Work6UninstallTests.Product };
     internal static async Task Run(Action<bool,string> check)
     {
+        await MultiItem(check);
         if (OperatingSystem.IsWindows()) await NativePrepare(check);
         var app=App(); var requests=UninstallBatch.Select([app,app]);
         check(requests.Length==1,"WORK6 lote: seleção duplicada resulta em uma autorização");
@@ -18,7 +19,7 @@ internal static class Work6UninstallFlowTests
         check(!UninstallBatch.BoundToProduct(msi,new ProgramEntry { MsiProductCode="{00000000-0000-0000-0000-000000000999}" }),
             "WORK6 parser: GUID de outro produto bloqueado");
         foreach(string raw in new[]{@"\\server\share\msiexec.exe /X"+Work6UninstallTests.Product,
-            @".\uninstall.exe /S", "\"C:\\App\\uninstall.exe\"/S", "\"C:\\App\\uninstall.exe\" /S & cmd.exe",
+            @".\uninstall.exe /S", @"C:\cache.exe folder\uninstall.exe /S", "\"C:\\App\\uninstall.exe\"/S", "\"C:\\App\\uninstall.exe\" /S & cmd.exe",
             "\"C:\\App\\uninstall.exe\" /LOG \"unterminated", @"C:\Windows\System32\powershell.exe -Command fixture" })
             check(!UninstallCommand.TryParse(raw,out _),"WORK6 parser: caminho/sintaxe ambígua não produz intenção executável");
         check(UninstallCommand.TryParse("\"C:\\Program Files\\Vendor\\uninstall.exe\" /LOG \"C:\\A&B.log\"",out _),
@@ -79,6 +80,37 @@ internal static class Work6UninstallFlowTests
         before=launches;
         result=await new UninstallBatch().RunAsync(requests,true,Scan,(_,_)=>{launches++;throw new TimeoutException();},Wait);
         check(result.Single().State==UninstallState.Pending && launches==before+1,"WORK6 lote: fornecedor sem retorno fica pendente, sem sucesso ou repetição");
+    }
+    internal static async Task MultiItem(Action<bool,string> check)
+    {
+        var first=App();
+        const string other="{00000000-0000-0000-0000-000000000456}";
+        var second=new ProgramEntry { Name="Fixture B",Publisher="Fixture Publisher",Version="1.0",
+            InventoryId="CurrentUser|Registry64|B",MsiProductCode=other,UninstallString="msiexec.exe /X"+other };
+        var requests=UninstallBatch.Select([first,second]);
+        var both=new UninstallSnapshot([first,second],true); var onlySecond=new UninstallSnapshot([second],true); var empty=new UninstallSnapshot([],true);
+        int index=0; var launched=new List<string>();
+        var snapshots=new[]{both,onlySecond,onlySecond,onlySecond,empty,empty};
+        var result=await new UninstallBatch().RunAsync(requests,true,
+            ()=>Task.FromResult(snapshots[index++]),
+            (r,_)=>{ launched.Add(r.Original.InventoryId); return Task.FromResult<int?>(0); },_=>Task.CompletedTask);
+        check(result.Count==2 && result.All(r=>r.State==UninstallState.RegistrationAbsent) &&
+            launched.SequenceEqual(new[]{first.InventoryId,second.InventoryId}),
+            "WORK6 lote: dois produtos explicitamente selecionados executam uma vez cada e na ordem autorizada");
+        foreach(Exception error in new Exception[]{new System.ComponentModel.Win32Exception(1223),new TimeoutException()}) {
+            launched.Clear();
+            result=await new UninstallBatch().RunAsync(requests,true,()=>Task.FromResult(both),
+                (r,_)=>{launched.Add(r.Original.InventoryId);throw error;},_=>Task.CompletedTask);
+            check(result.Count==1 && launched.SequenceEqual(new[]{first.InventoryId}),
+                "WORK6 lote: UAC cancelado ou timeout no primeiro produto interrompe os demais");
+        }
+        var changed=new ProgramEntry { Name=second.Name,Publisher=second.Publisher,Version=second.Version,
+            InventoryId=second.InventoryId,MsiProductCode=other,UninstallString=second.UninstallString+" /quiet" };
+        index=0;launched.Clear();snapshots=[both,onlySecond,onlySecond,new([changed],true)];
+        result=await new UninstallBatch().RunAsync(requests,true,()=>Task.FromResult(snapshots[index++]),
+            (r,_)=>{launched.Add(r.Original.InventoryId);return Task.FromResult<int?>(0);},_=>Task.CompletedTask);
+        check(result.Count==2 && result[1].State==UninstallState.Blocked && launched.SequenceEqual(new[]{first.InventoryId}),
+            "WORK6 lote: comando do segundo item trocado durante lote não herda autorização antiga");
     }
     private static async Task NativePrepare(Action<bool,string> check)
     {
