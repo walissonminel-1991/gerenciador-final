@@ -1171,7 +1171,7 @@ internal sealed partial class MainForm : Form
             : item.IsUpdate
             ? $"Possível atualização ({item.Source})  ·  {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
             : item.ComparisonState == MatchState.SupersededRegistration
-            ? $"Cadastro antigo do Visual C++ · versão {DisplayAppVersion(item.AvailableVersion)} também instalada"
+            ? $"Registro anterior · versão {DisplayAppVersion(item.AvailableVersion)} também instalada; conferir duplicidade"
             : item.ComparisonState == MatchState.DifferentMajor
             ? $"Revisar: versões principais diferentes · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} (coexistem)"
             : Matching.IsUncertain(item.ComparisonState)
