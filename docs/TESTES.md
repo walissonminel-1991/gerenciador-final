@@ -1,5 +1,47 @@
 # Roteiro de testes — v5.13.11.34 TESTE
 
+## Resultado da comparação normal × administrador no PC FORTE (.34)
+
+Teste real com o mesmo pacote **v5.13.11.34 TESTE**, em sessões
+separadas. Diagnóstico da segunda sessão confirmou
+`TESTES.WINGET_CONTEXTO ... elevado=1` (normal anterior:
+`elevado=0`). O provedor WinGet COM/CLI permaneceu **desativado**;
+`path=0` no contexto normal e `path=1` no elevado é diferença do
+ambiente PATH, não prova de WinGet habilitado ou da necessidade de UAC.
+
+**Comparação com fontes completas:**
+- Inventário: **174 vs 174**, com 292 registros examinados, 140
+  desinstaláveis, 27 MSIX, zero erros e zero itens MSIX retidos.
+- Atualizações: **8 vs 8** candidatas, das quais 2 em revisão,
+  **15/15 fontes OK** nas primeiras consultas. Nenhuma instalada.
+- Drivers: 178 associações WMI, 63 INFs, 176 PnP e três associações
+  sem INF em ambos; nenhuma operação de driver.
+- Resíduos gerais: consulta normal examinou **3.925** entradas,
+  44 candidatos, duas falhas parciais de leitura em AppData/ProgramData,
+  867 grupos avaliados (212 protegidos, 611 sem evidência).
+  Consulta elevada examinou **3.929** entradas, 44 candidatos,
+  **zero falhas de leitura**, 871 grupos avaliados (212 protegidos,
+  615 sem evidência). Contagem final de 45 grupos/164 locais mantida.
+- Consulta elevada ainda **parcial** devido a EntryLimit,
+  DepthLimit e LinkSkipped; limites de segurança intactos.
+- Encerramento normal; nenhum alerta AVG documentado nas capturas
+  enviadas. Sem excluir resíduos nem operar drivers.
+
+**Interpretação restrita:** a elevação coincidiu com melhoria de
+acessibilidade na leitura de diretórios, mas uma rodada A/B não prova
+que as duas falhas anteriores decorreram apenas de ACL/UAC; arquivos
+em uso e alterações transitórias são explicações alternativas.
+**Elevação não ampliou aplicativos nem atualizações** no PC FORTE
+e não inspecionou automaticamente perfis de outros usuários.
+
+Próximo passo: manter execução padrão não elevada, decidir sobre
+futura opção consultiva `Diagnóstico aprofundado` com UAC
+voluntário e privilégios mínimos, preservando o processo principal
+sem elevação. Se útil, repetir A/B com fontes OK e mesma conta.
+Não implementar limpeza/exclusão elevada nem enfraquecer proteção
+de resíduos para incrementar estatísticas. Roadmap segue **26/42**.
+Não publicar logs privados/caminhos de usuário no repositório.
+
 ## Validação física .34 no PC FORTE e teste A/B de privilégios (21/10/2026)
 
 Capturas e diagnóstico privado `.34` confirmaram **174 aplicativos,

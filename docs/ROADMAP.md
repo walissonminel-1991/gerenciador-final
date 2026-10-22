@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.34 TESTE (CI aprovada; validação física PC FORTE concluída; comparação normal/administrador pendente; PC FRACO adiado) · Progresso: 26/42 (61,9%).**
+**v5.13.11.34 TESTE (CI aprovada; comparação normal/administrador realizada no PC FORTE; PC FRACO adiado) · Progresso: 26/42 (61,9%).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
 ## Estado atual — MISSÃO WORK 5
@@ -10,6 +10,23 @@ sem executor COM/CLI. Cinco produtos com novas consultas HTTPS; evidências e
 conflitos multifontes preservados, instalação direta bloqueada quando houver revisão.
 Progresso real por fontes e diagnóstico de contexto/etapas com perfil de teste temporário.
 U6/I7 e testes físicos/AVG continuam abertos; nenhum novo checkpoint contabilizado.
+
+## Resultado do teste A/B administrativo (.34)
+
+PC FORTE: mesma build sob sessões normais/elevadas. **174 aplicativos,
+27 MSIX e 8 candidatos (2 em revisão)** nos dois contextos, com
+15/15 fontes OK na comparação válida e 178 drivers/63 INFs.
+Os resíduos gerais tiveram 2 falhas de leitura no modo normal
+contra 0 elevado; 3.925 versus 3.929 entradas e 867 versus
+871 grupos examinados. Os 44 candidatos gerais e os 45 grupos/
+164 locais finais **não mudaram**. Análise continua parcial por
+limites de entradas/profundidade e links redirecionados.
+Uma execução A/B é evidência de ganho observado na leitura,
+não atribuição causal definitiva a permissões. Não há motivo
+demonstrado para exigir administrador na consulta de atualizações,
+e o WinGet real permanece desativado.
+[Detalhes](TESTES.md#resultado-da-comparacao-normal--administrador-no-pc-forte-34).
+Roadmap permanece 26/42 e a política de menor privilégio se mantém.
 
 ## Validação presencial .34 e comparação de privilégios
 
