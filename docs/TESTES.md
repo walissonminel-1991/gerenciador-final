@@ -1,5 +1,55 @@
 # Roteiro de testes — v5.13.11.34 TESTE
 
+## Validação física .34 no PC FORTE e teste A/B de privilégios (21/10/2026)
+
+Capturas e diagnóstico privado `.34` confirmaram **174 aplicativos,
+27 MSIX, 140 com desinstalador, 34 sem**, zero erros de inventário;
+consulta inicial **8 candidatos (2 em revisão)** com **15/15 fontes
+HTTPS OK**. Jellyfin Server versionado reconhecido e Media Player
+separado, Plex Media Server versionado reconhecido e Plex player
+separado. O Plex Server permaneceu em revisão de fontes; instalação
+direta não foi autorizada. Nenhuma instalação efetuada.
+
+**Oscilação de rede/consulta:** nova atualização mostrou 6 candidatos
+com 8/15 fontes OK; depois 2 candidatos com 4/15 fontes OK e 11
+indisponíveis, sem mudança no inventário (174). Erros de rede
+`HttpRequestException` apresentados em diversas fontes. A contagem
+menor em consulta parcial **não representa desaparecimento de
+atualizações nem prova de bloqueio AVG**. Não concluir comparação
+de privilégios utilizando resultados de fontes degradadas.
+
+Contexto consultivo da sessão: `TESTES.WINGET_CONTEXTO pacote=1
+alias=1 path=0 elevado=0 parcial=0`; executor WinGet COM/CLI
+permanece desligado. Drivers 178 associações/63 INFs; resíduos 45
+grupos/164 locais, parciais, sem exclusão. Histórico PnP sem
+novos/ausentes/alterados. Encerramento normal. Nenhuma
+validação específica do PC FRACO nesta sessão.
+
+**Experimento A/B administrativo solicitado pelo usuário:**
+não criar outra build nem modificar manifestação ou privilégio padrão.
+Usar **exatamente a mesma pasta .34** e rodar uma sessão normal,
+fechar completamente, e uma sessão `Executar como administrador`
+somente com aceite UAC manual. Manter AVG ativo, não abrir shell
+nem executar WinGet, não instalar/atualizar/desinstalar, não limpar,
+não inspecionar conteúdo privado ou gerenciar drivers. Em ambas:
+ativar `Teste PC FORTE`, `Atualizar lista`,
+`Verificar atualizações`, conferir conclusão com fontes OK, encerrar
+normalmente e exportar os dois logs **privadamente**. Não anexar
+logs/caminhos privados ao repositório. Em sessão elevada esperar
+`elevado=1`; no perfil normal `elevado=0`.
+
+Comparar: `quantidade`, `examinados`, `erros`, `MSIX
+aplicativos/falhas`, `desinstalaveis`, `candidatos`,
+`fontes_ok/consultadas`, `incertos`, `parcial`, tempo e
+presença do pacote/alias. A elevação não acessa automaticamente
+todos os usuários, pois ARP lê HKLM + HKCU e MSIX é do usuário
+ativo; se UAC exigir credenciais de **outro usuário**, HKCU/MSIX
+podem mudar e o teste não é diretamente comparável.
+Sem alterações no código, WinGet continua desligado.
+Checkpoint U6 e demais etapas do roadmap permanecem abertos.
+Não ativar execução administrativa como padrão nem reduzir
+validação de identidade.
+
 ## Bateria de correção Jellyfin/Plex no PC FORTE (.34, CI aprovada)
 
 Build oficial de testes [v5.13.11.34 (artefato GitHub Actions)](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39694660841/artifacts/12390097297).

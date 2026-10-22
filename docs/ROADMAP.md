@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.34 TESTE (CI aprovada; teste físico .34 pendente; PC FRACO adiado) · Progresso: 26/42 (61,9%).**
+**v5.13.11.34 TESTE (CI aprovada; validação física PC FORTE concluída; comparação normal/administrador pendente; PC FRACO adiado) · Progresso: 26/42 (61,9%).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
 ## Estado atual — MISSÃO WORK 5
@@ -10,6 +10,24 @@ sem executor COM/CLI. Cinco produtos com novas consultas HTTPS; evidências e
 conflitos multifontes preservados, instalação direta bloqueada quando houver revisão.
 Progresso real por fontes e diagnóstico de contexto/etapas com perfil de teste temporário.
 U6/I7 e testes físicos/AVG continuam abertos; nenhum novo checkpoint contabilizado.
+
+## Validação presencial .34 e comparação de privilégios
+
+No PC FORTE, versão .34 observou 174 aplicativos/27 MSIX,
+8 candidatos (2 em revisão), 15/15 fontes disponíveis no
+primeiro ciclo. Jellyfin e Plex Server versionados reconhecidos
+sem confundir os players. Consultas posteriores sofreram
+indisponibilidade de fontes (8/15 e 4/15), derrubando candidatos
+para 6 e 2, **sem redução comprovada da cobertura instalada**.
+Houve encerramento normal; WinGet executável não foi invocado.
+
+Próxima bateria proposta: mesmo executável .34 em sessões
+isoladas normal e elevada por UAC manual, somente leitura,
+monitorando `elevado`, inventário, MSIX, falhas e fontes OK.
+Sem comparar consultas parciais com completas. Elevação não
+equivale a inventariar todos os perfis de usuário. Nenhuma
+elevação permanente da aplicação. PC FRACO permanece adiado.
+[Critérios e observações](TESTES.md#validacao-fisica-34-no-pc-forte-e-teste-ab-de-privilegios-21102026).
 
 ## Validação presencial — .33 PC FORTE
 
