@@ -6,6 +6,22 @@ namespace GerenciadorAplicativos;
 // Não combinar duas instalações só porque usam nome e versão iguais.
 internal static class InventoryReconciler
 {
+    // Somente correlacao consultiva. Muitos ARPs omitem InstallLocation, mas
+    // registram o EXE absoluto do desinstalador no diretorio do produto.
+    // Nunca inferir uma pasta a partir de MSI, host, UNC ou caminho relativo.
+    internal static string UpdateInstallLocation(ProgramEntry entry)
+    {
+        if (!string.IsNullOrWhiteSpace(entry.InstallLocation)) return entry.InstallLocation;
+        foreach (string raw in new[] { entry.UninstallString, entry.QuietUninstallString })
+            if (UninstallCommand.TryParse(raw, out var command) && command.ProductCode is null)
+            {
+                string path = command.FileName.Replace('/', '\\');
+                int slash = path.LastIndexOf('\\');
+                if (slash > 2) return path[..slash];
+            }
+        return "";
+    }
+
     internal static List<ProgramEntry> RequireComplete(IEnumerable<ProgramEntry> entries, int readFailures)
     {
         if (readFailures != 0)

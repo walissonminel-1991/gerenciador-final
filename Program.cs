@@ -1355,6 +1355,7 @@ internal sealed partial class MainForm : Form
                 "Permite escolher um ponto anterior pela ferramenta de recuperação do Windows.",
                 AppServices.Gray, ChooseRestorePointAsync)
         });
+        repairActions.Name = "RepairActions";
         var repairLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
             Margin = Padding.Empty, BackColor = AppServices.Background };
         // Proporções responsivas: em janelas menores os cartões usam a rolagem escura.
@@ -2074,7 +2075,8 @@ internal sealed partial class MainForm : Form
                 Regex.IsMatch(x.Name, @"(?i)\b(x86|32-bit)\b") ? "x86" : "unknown",
             Scope: x.InventoryId.StartsWith("CurrentUser|", StringComparison.Ordinal) ? "user" :
                 x.InventoryId.StartsWith("LocalMachine|", StringComparison.Ordinal) ? "machine" : "unknown",
-            InstallType: x.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) ? "msix" : "unknown")).ToArray();
+            InstallType: x.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) ? "msix" : "unknown",
+            InventoryId: x.InventoryId, InstallLocation: InventoryReconciler.UpdateInstallLocation(x))).ToArray();
         using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.Updates);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
         var watch = Stopwatch.StartNew();
@@ -2178,7 +2180,7 @@ internal sealed partial class MainForm : Form
                 ("incertos", uncertain), ("registro_antigo", superseded),
                 ("fontes", others.Diagnostics.Count), ("ruckzuck_ok", rz.Matches is null ? 0 : 1));
             if (superseded > 0)
-                Log($"Visual C++: {superseded} registro(s) antigo(s) já atendidos por versões recentes.");
+                Log($"Inventário: {superseded} registro(s) antigo(s) correlacionados a versões recentes da mesma instalação.");
             if (rz.Matches is null)
                 Log($"RuckZuck indisponível ({rz.Error}); outras fontes continuam utilizáveis.");
             else

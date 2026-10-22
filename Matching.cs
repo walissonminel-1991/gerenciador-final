@@ -8,7 +8,7 @@ namespace GerenciadorAplicativos;
 internal static class Matching
 {
     private static readonly Regex Architecture = new(@"\s*(?:\((?:x64|x86|64.bit|32.bit)(?:\s+edition)?\)|\b(?:x64|x86|64.bit|32.bit)\b)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex AnyArchitecture = new(@"(?<![a-z0-9])(?:x64|x86|64[\s-]?bit|32[\s-]?bit)(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex AnyArchitecture = new(@"(?<![a-z0-9])(?:arm64|x64|x86|64[\s-]?bit|32[\s-]?bit)(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex TrailingVersion = new(@"\s+v?\d+(?:\.\d+){1,3}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex VersionPattern = new(@"^v?\d+(?:\.\d+){0,3}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex NonLetters = new(@"[^a-z0-9]+", RegexOptions.Compiled);
@@ -58,7 +58,31 @@ internal static class Matching
         var m = AnyArchitecture.Match(name ?? "");
         if (!m.Success) return "";
         string value = m.Value.ToLowerInvariant();
-        return value is "x64" or "64bit" or "64-bit" or "64 bit" ? "x64" : "x86";
+        return value == "arm64" ? "arm64" :
+            value is "x64" or "64bit" or "64-bit" or "64 bit" ? "x64" : "x86";
+    }
+
+    internal static bool HasConflictingArchitecture(InstalledApp app)
+    {
+        string named = GetArchitecture(app.Name);
+        string declared = app.Architecture.ToLowerInvariant();
+        return named.Length > 0 && declared is not ("unknown" or "") && declared != named;
+    }
+
+    private static bool SameContext(InstalledApp a, InstalledApp b) =>
+        a.Scope.Equals(b.Scope, StringComparison.OrdinalIgnoreCase) &&
+        a.Channel.Equals(b.Channel, StringComparison.OrdinalIgnoreCase) &&
+        a.InstallType.Equals(b.InstallType, StringComparison.OrdinalIgnoreCase);
+
+    private static string LocalInstallPath(string path)
+    {
+        string value = path.Trim().Replace('/', '\\').TrimEnd('\\');
+        if (!Regex.IsMatch(value, @"^[a-z]:\\[^\\]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) ||
+            value.AsSpan(2).Contains(':') || value.IndexOfAny(['%', '*', '?', '"']) >= 0 ||
+            value.Split('\\').Skip(1).Any(p => p.Length == 0 || p is "." or ".." ||
+                p.EndsWith(' ') || p.EndsWith('.')))
+            return "";
+        return value;
     }
 
     private static bool IsSideBySideRuntime(string name)
@@ -113,15 +137,33 @@ internal static class Matching
     // Correspondencia deliberadamente estrita: nao une produtos com nomes parecidos.
     private static bool Same7ZipX64Family(InstalledApp installed, InstalledApp other)
     {
-        static bool IsOfficialX64(string name) =>
-            Regex.IsMatch(name.Trim(),
-                @"^7-Zip\s+\d+(?:\.\d+){1,3}\s+\(x64(?:\s+edition)?\)$",
+        static bool IsOfficialX64(InstalledApp app)
+        {
+            var match = Regex.Match(app.Name.Trim(),
+                @"^7-Zip\s+(?<version>\d+(?:\.\d+){1,3})\s+\(x64(?:\s+edition)?\)$",
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        return IsOfficialX64(installed.Name) &&
-            IsOfficialX64(other.Name) &&
+            return match.Success && CompareVersions(match.Groups["version"].Value, app.Version) == 0 &&
+                (app.Architecture is "unknown" or "x64");
+        }
+        static bool RegisteredScope(InstalledApp app) => app.Scope switch
+        {
+            "machine" => app.InventoryId.StartsWith("LocalMachine|", StringComparison.OrdinalIgnoreCase),
+            "user" => app.InventoryId.StartsWith("CurrentUser|", StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
+        string path = LocalInstallPath(installed.InstallLocation);
+        return IsOfficialX64(installed) && IsOfficialX64(other) &&
+            SameContext(installed, other) && RegisteredScope(installed) && RegisteredScope(other) &&
+            path.Length > 0 && path.Equals(LocalInstallPath(other.InstallLocation), StringComparison.OrdinalIgnoreCase) &&
             NormalizePublisher(installed.Publisher) == "igor pavlov" &&
             NormalizePublisher(other.Publisher) == "igor pavlov";
     }
+
+    internal static bool IsSupersededRegistration(InstalledApp app,
+        IEnumerable<InstalledApp> installed, string latestVersion) =>
+        installed.Any(other => !ReferenceEquals(other, app) && other.EligibleForUpdates &&
+            ((SameContext(app, other) && SameVisualCpp2013Family(app, other)) || Same7ZipX64Family(app, other)) &&
+            CompareVersions(other.Version, latestVersion) is >= 0);
 
     internal static IReadOnlyList<UpdateMatch> Evaluate(IEnumerable<InstalledApp> installed, IEnumerable<CatalogEntry> catalog)
     {
@@ -143,6 +185,13 @@ internal static class Matching
                 output.Add(new(app, null, MatchState.Unmatched));
                 continue;
             }
+            string namedArch = GetArchitecture(app.Name);
+            string explicitArch = app.Architecture.ToLowerInvariant();
+            if (HasConflictingArchitecture(app))
+            {
+                output.Add(new(app, null, MatchState.Ambiguous));
+                continue;
+            }
             var name = NormalizeName(app.Name);
             var publisher = NormalizePublisher(app.Publisher);
             if (name.Length == 0 || publisher.Length == 0 || !byName.TryGetValue(name, out var nameMatches))
@@ -157,7 +206,7 @@ internal static class Matching
                 output.Add(new(app, null, MatchState.Unmatched));
                 continue;
             }
-            string installedArch = GetArchitecture(app.Name);
+            string installedArch = explicitArch is "unknown" or "" ? namedArch : explicitArch;
             bool isRuntime = IsSideBySideRuntime(app.Name);
             bool requiresExactArch = isRuntime ||
                 (name.Contains("visual c", StringComparison.Ordinal) && name.Contains("redistributable", StringComparison.Ordinal));
@@ -206,11 +255,7 @@ internal static class Matching
                 < 0 => MatchState.Candidate,
                 _ => MatchState.EqualOrNewer
             };
-            if (state == MatchState.Candidate &&
-                installedRows.Any(other => other.EligibleForUpdates &&
-                    (SameVisualCpp2013Family(app, other) || Same7ZipX64Family(app, other)) &&
-                    other != app &&
-                    CompareVersions(other.Version, newest.ProductVersion) is >= 0))
+            if (state == MatchState.Candidate && IsSupersededRegistration(app, installedRows, newest.ProductVersion))
             {
                 // Mantemos o registro antigo visível em "Todos", mas não afirmamos
                 // que exista uma atualização pendente para a arquitetura atendida.

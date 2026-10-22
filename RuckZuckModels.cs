@@ -2,7 +2,8 @@ namespace GerenciadorAplicativos;
 
 internal sealed record InstalledApp(string Name, string Version, string Publisher,
     bool EligibleForUpdates = true, string Architecture = "unknown",
-    string Channel = "unknown", string Scope = "unknown", string InstallType = "unknown");
+    string Channel = "unknown", string Scope = "unknown", string InstallType = "unknown",
+    string InventoryId = "", string InstallLocation = "");
 internal sealed record CatalogEntry(string ShortName, string ProductName, string ProductVersion, string Manufacturer);
 internal enum MatchState { Candidate, EqualOrNewer, NotComparable, Unmatched, Ambiguous, DifferentMajor, SupersededRegistration }
 internal sealed record UpdateObservation(string CanonicalId, string SourceId, string Provider,

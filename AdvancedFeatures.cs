@@ -237,32 +237,12 @@ internal static class StartupManager
     }
 }
 
-internal sealed record WinUpdateChoice(string Id, string Title, string Kb, bool Downloaded, bool EulaAccepted);
 internal static class WindowsUpdateClient
 {
-    // Uma oferta do Windows Update e identificada por GUID + REVISAO.
-    // Se o fornecedor revisar a oferta apos a selecao, exigir nova consulta.
-    internal static string? VerifiedIdentity(string? rawId, int revision)
-    {
-        if (!Guid.TryParse(rawId, out Guid guid) || guid == Guid.Empty || revision <= 0)
-            return null;
-        return guid.ToString("D") + "@" +
-            revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
-    }
-
-    // Mesmo contrato entre consulta, seleção da UI e worker elevado. Um GUID
-    // sem revisão não identifica a oferta que o usuário confirmou.
-    internal static string? CanonicalSelectedIdentity(string? value)
-    {
-        if (value is null || value.Length is < 38 or > 47 || value[36] != '@' ||
-            !Guid.TryParseExact(value[..36], "D", out Guid guid) ||
-            !int.TryParse(value.AsSpan(37), NumberStyles.None, CultureInfo.InvariantCulture, out int revision))
-            return null;
-        string? canonical = VerifiedIdentity(guid.ToString("D"), revision);
-        // A revisão canônica não tem sinal, espaços nem zeros adicionais.
-        return canonical is not null && value.AsSpan(37).SequenceEqual(canonical.AsSpan(37))
-            ? canonical : null;
-    }
+    internal static string? VerifiedIdentity(string? rawId, int revision) =>
+        WindowsUpdateSearchPolicy.VerifiedIdentity(rawId, revision);
+    internal static string? CanonicalSelectedIdentity(string? value) =>
+        WindowsUpdateSearchPolicy.CanonicalSelectedIdentity(value);
 
     public static Task<IReadOnlyList<WinUpdateChoice>> ScanAsync() => StaWorker.Run<IReadOnlyList<WinUpdateChoice>>(() =>
     {
@@ -270,6 +250,7 @@ internal static class WindowsUpdateClient
         dynamic searcher = session.CreateUpdateSearcher();
         searcher.Online = true;
         dynamic found = searcher.Search("IsInstalled=0 and IsHidden=0 and Type='Software'");
+        WindowsUpdateSearchPolicy.RequireSuccessfulSearch((int)found.ResultCode);
         int count = (int)found.Updates.Count;
         var choices = new List<WinUpdateChoice>();
         for (int i = 0; i < count; i++)
@@ -280,11 +261,11 @@ internal static class WindowsUpdateClient
             string rawId = (string)entry.Identity.UpdateID;
             int revision = (int)entry.Identity.RevisionNumber;
             string? id = VerifiedIdentity(rawId, revision);
-            if (id is null) continue;
+            if (id is null) throw new InvalidDataException("Oferta do Windows Update sem identidade válida.");
             choices.Add(new WinUpdateChoice(id,
                 (string)entry.Title, kb.Trim(), (bool)entry.IsDownloaded, (bool)entry.EulaAccepted));
         }
-        return choices;
+        return WindowsUpdateSearchPolicy.ValidateOffers(choices);
     });
 
     public static Task<int> InstallAsync(IReadOnlySet<string> ids, Action<string> log) => StaWorker.Run(() =>
@@ -295,6 +276,7 @@ internal static class WindowsUpdateClient
         searcher.Online = true;
         log("Verificando novamente as atualizações selecionadas antes de instalar...");
         dynamic found = searcher.Search("IsInstalled=0 and IsHidden=0 and Type='Software'");
+        WindowsUpdateSearchPolicy.RequireSuccessfulSearch((int)found.ResultCode);
         Type collectionType = Type.GetTypeFromProgID("Microsoft.Update.UpdateColl")
             ?? throw new NotSupportedException("A coleção do Windows Update não está disponível.");
         dynamic selected = Activator.CreateInstance(collectionType)!;
@@ -304,7 +286,7 @@ internal static class WindowsUpdateClient
             string rawId = (string)entry.Identity.UpdateID;
             int revision = (int)entry.Identity.RevisionNumber;
             string? id = VerifiedIdentity(rawId, revision);
-            if (id is null) continue;
+            if (id is null) throw new InvalidDataException("Oferta do Windows Update sem identidade válida.");
             if (!ids.Contains(id)) continue;
             if (!(bool)entry.EulaAccepted)
             {
@@ -315,12 +297,14 @@ internal static class WindowsUpdateClient
             selected.Add(entry);
             log("Selecionada: " + (string)entry.Title);
         }
-        if ((int)selected.Count == 0) { log("Nenhuma atualização elegível para instalação."); return 2; }
+        if ((int)selected.Count != ids.Count) { log("A seleção mudou, deixou de ser oferecida ou exige licença. Consulte novamente; nenhuma instalação iniciada."); return 2; }
         log("Baixando " + (int)selected.Count + " atualizações pelo serviço oficial do Windows...");
         dynamic downloader = session.CreateUpdateDownloader();
         downloader.Updates = selected;
         dynamic downloadResult = downloader.Download();
-        log("Resultado do download: " + Convert.ToString(downloadResult.ResultCode));
+        int downloadStatus = (int)downloadResult.ResultCode;
+        log("Resultado do download: " + downloadStatus);
+        if (downloadStatus != 2) { log("Download incompleto; instalação não iniciada."); return 1; }
         log("Instalando atualizações baixadas. O Windows poderá solicitar etapas adicionais...");
         dynamic installer = session.CreateUpdateInstaller();
         installer.Updates = selected;

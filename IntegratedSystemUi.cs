@@ -579,7 +579,7 @@ internal sealed partial class MainForm
 
     private async Task ScanWindowsUpdatesAsync()
     {
-        await ScanWindowsUpdatesInBackgroundAsync();
+        await ScanWindowsUpdatesInBackgroundAsync(force: true);
     }
 
     private async Task ScanWindowsUpdatesInBackgroundAsync(bool force = false)
@@ -601,6 +601,8 @@ internal sealed partial class MainForm
             return;
         }
         _windowsUpdateScanning = true;
+        _updateSelection.Clear();
+        if (_installSelectedUpdates is not null) _installSelectedUpdates.Enabled = false;
         RenderTitle();
         if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
         {
@@ -630,11 +632,16 @@ internal sealed partial class MainForm
         {
             if (IsDisposed) return;
             _windowsUpdateScanFailure = ex.GetType().Name;
+            _windowsUpdateChecked = false;
+            _updateCatalog = [];
+            _updateSelection.Clear();
+            if (_installSelectedUpdates is not null) _installSelectedUpdates.Enabled = false;
             RenderTitle();
             DiagnosticTrace.Failure("WINDOWS_UPDATE.CONSULTA_FALHA", ex);
             Log("Windows Update: consulta indisponível (" + _windowsUpdateScanFailure + ").");
             if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
             {
+                ReplaceSystemCards([]);
                 _systemPanelTitle.Text = "Windows Update · consulta indisponível";
                 _systemPanelSummary.Text = "O Windows Update não pôde ser consultado. Nenhuma instalação foi iniciada.";
             }
@@ -685,6 +692,7 @@ internal sealed partial class MainForm
         toggle.Margin = Padding.Empty;
         toggle.Click += (_, _) =>
         {
+            if (_windowsUpdateScanning || !_windowsUpdateChecked || _windowsUpdateScanFailure is not null) return;
             if (!_updateSelection.Add(update.Id)) _updateSelection.Remove(update.Id);
             toggle.Text = _updateSelection.Contains(update.Id) ? "✓ Selecionada" : "Selecionar atualização";
             toggle.BackColor = _updateSelection.Contains(update.Id) ? AppServices.Green : AppServices.Blue;
@@ -701,7 +709,8 @@ internal sealed partial class MainForm
 
     private async Task InstallSelectedWindowsUpdatesAsync()
     {
-        if (_busy || _updateSelection.Count == 0) return;
+        if (_busy || _windowsUpdateScanning || !_windowsUpdateChecked ||
+            _windowsUpdateScanFailure is not null || _updateSelection.Count == 0) return;
         if (_updateSelection.Count > 30)
         {
             MessageBox.Show(this, "Selecione no máximo 30 atualizações por operação para facilitar o acompanhamento.",

@@ -24,6 +24,7 @@ var cases = new (InstalledApp app, CatalogEntry[] catalog, MatchState expected)[
         [new("OBS Studio", "OBS Studio", "32.2.2", "OBS Project")], MatchState.Candidate),
 };
 int failed = 0;
+failed += Work7IdentityTests.Run();
 foreach (var (app, catalog, expected) in cases)
 {
     var actual = Matching.Evaluate([app], catalog).Single().State;
@@ -62,8 +63,10 @@ if (newerOnly[0].State != MatchState.Candidate)
 // A entrada antiga continua visivel, mas a atualizacao ja foi atendida.
 var installed7Zip = new[]
 {
-    new InstalledApp("7-Zip 26.04 (x64)", "26.04", "Igor Pavlov"),
-    new InstalledApp("7-Zip 26.05 (x64 edition)", "26.05.0.0", "Igor Pavlov")
+    new InstalledApp("7-Zip 26.04 (x64)", "26.04", "Igor Pavlov", Scope: "machine",
+        InventoryId: "LocalMachine|Registry64|7-Zip-old", InstallLocation: @"C:\Program Files\7-Zip"),
+    new InstalledApp("7-Zip 26.05 (x64 edition)", "26.05.0.0", "Igor Pavlov", Scope: "machine",
+        InventoryId: "LocalMachine|Registry64|7-Zip-new", InstallLocation: @"C:\Program Files\7-Zip")
 };
 var zipCatalog = new[]
 {

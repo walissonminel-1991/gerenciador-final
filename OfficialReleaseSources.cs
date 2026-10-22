@@ -166,7 +166,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         Regex.IsMatch(a.Name, @"^(Mozilla )?Thunderbird\s*\((?:Release|Stable)\)$", RegexOptions.IgnoreCase);
     private static bool SevenZip(InstalledApp a) =>
         Publisher(a, "igor pavlov") &&
-        Regex.IsMatch(a.Name, @"^7-Zip\s+\d{2}\.\d{1,2}(?:\s+\((?:x64|x86)\))?$",
+        Regex.IsMatch(a.Name, @"^7-Zip\s+\d{2}\.\d{1,2}(?:\s+\((?:x64|x86)(?:\s+edition)?\))?$",
             RegexOptions.IgnoreCase);
     private static bool GitHubDesktop(InstalledApp a) =>
         Publisher(a, "github") &&
@@ -520,7 +520,8 @@ internal static class MultiSourceMatcher
     private static bool Compatible(InstalledApp app, OfficialRelease release)
     {
         string? canonical = ApplicationIdentityCatalog.Resolve(app.Name, app.Publisher)?.Id;
-        return (release.CanonicalId.Length == 0 || release.CanonicalId == canonical) &&
+        return !Matching.HasConflictingArchitecture(app) &&
+            (release.CanonicalId.Length == 0 || release.CanonicalId == canonical) &&
             !Conflicting(app.Architecture, release.Architecture) &&
             !Conflicting(app.Channel, release.Channel) &&
             !Conflicting(app.Scope, release.Scope) &&
@@ -584,9 +585,9 @@ internal static class MultiSourceMatcher
             if (original.Catalog is { } catalog) usableVersions.Add(catalog.ProductVersion);
             bool conflict = usableVersions.Count > 1 && usableVersions.Skip(1)
                 .Any(v => Matching.CompareVersions(usableVersions[0], v) is not 0);
-            bool review = conflict || all.Count != compatible.Length || chosen?.EvidenceKind == "desktop-changelog";
+            bool review = original.RequiresReview || conflict || all.Count != compatible.Length || chosen?.EvidenceKind == "desktop-changelog";
             var merged = original;
-            if (chosen is not null && original.State != MatchState.SupersededRegistration)
+            if (chosen is not null)
             {
                 int? delta = Matching.CompareVersions(app.Version, chosen.LatestVersion);
                 if (delta is not null)
@@ -595,7 +596,9 @@ internal static class MultiSourceMatcher
                     bool majorChange = canonical == "jellyfin-server" &&
                         app.Version.Split('.')[0] != chosen.LatestVersion.Split('.')[0];
                     var state = delta >= 0 ? MatchState.EqualOrNewer :
-                        majorChange ? MatchState.DifferentMajor : MatchState.Candidate;
+                        majorChange ? MatchState.DifferentMajor :
+                        Matching.IsSupersededRegistration(app, installed, chosen.LatestVersion)
+                            ? MatchState.SupersededRegistration : MatchState.Candidate;
                     review |= majorChange;
                     merged = new UpdateMatch(app, delta >= 0 ? null :
                         new CatalogEntry(app.Name, app.Name, chosen.LatestVersion, app.Publisher),

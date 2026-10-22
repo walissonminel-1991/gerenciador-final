@@ -10,6 +10,14 @@ void Assert(bool ok, string label)
     Console.WriteLine("OK " + label);
 }
 Work6HistoryTests.Run(Assert);
+if (args.Contains("--work7"))
+{
+    int failures = 0;
+    Work7UpdateTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+    if (failures > 0) throw new Exception($"WORK7: {failures} defeitos reproduzidos");
+    return;
+}
+Work7UpdateTests.Run(Assert);
 static InstalledApp App(string n, string ver, string maker) => new(n, ver, maker);
 Assert(new UpdateMatch(new InstalledApp("Inventario", "1.0", "Editor", false), null, MatchState.Unmatched).DiagnosticReason.Contains("SOMENTE INVENTÁRIO"),
     "Cobertura distingue entrada inelegivel de ausencia no catalogo");
