@@ -232,13 +232,13 @@ internal sealed partial class MainForm
                     state.Text = "Finalizando o histórico da consulta já concluída.";
                     return;
                 }
-                if (driverQuery.RequestCancel())
-                {
-                    refresh.Text = "Cancelando...";
-                    refresh.Enabled = false;
-                    state.Text = "Cancelamento solicitado. Lista anterior preservada.";
-                    DiagnosticTrace.Write("DRIVERS.CANCELAMENTO_SOLICITADO");
-                }
+                // Cancel() pode retomar WaitAsync/catch/finally imediatamente
+                // na thread da UI. Mudar estado ANTES de cancelar evita a
+                // corrida da .36 que deixava Cancelando... desabilitado.
+                refresh.Text = "Cancelando...";
+                state.Text = "Cancelamento solicitado. Lista anterior preservada.";
+                DiagnosticTrace.Write("DRIVERS.CANCELAMENTO_SOLICITADO");
+                driverQuery.RequestCancel();
                 return;
             }
             if (_driverReadTask is { IsCompleted: false })
@@ -317,28 +317,12 @@ internal sealed partial class MainForm
                 if (!refresh.IsDisposed)
                 {
                     refresh.Text = "Consultar drivers";
-                    // WMI pode ignorar temporariamente um cancelamento nativo.
-                    // Nunca iniciar segunda consulta enquanto a primeira vive.
-                    if (_driverReadTask is { IsCompleted: false } pending)
-                    {
-                        refresh.Enabled = false;
-                        state.Text = "Aguardando fim da leitura nativa; lista anterior preservada.";
-                        _ = pending.ContinueWith(_ =>
-                        {
-                            if (!root.IsDisposed && root.IsHandleCreated)
-                            {
-                                try
-                                {
-                                    root.BeginInvoke((Action)(() =>
-                                    {
-                                        if (!refresh.IsDisposed) refresh.Enabled = true;
-                                    }));
-                                }
-                                catch (InvalidOperationException) { }
-                            }
-                        });
-                    }
-                    else refresh.Enabled = true;
+                    // WMI pode ignorar o cancelamento nativo por algum tempo.
+                    // Nunca bloquear a interface: o teste de _driverReadTask
+                    // no inicio do clique continua impedindo consultas simultaneas.
+                    refresh.Enabled = true;
+                    if (_driverReadTask is { IsCompleted: false })
+                        state.Text = "Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.";
                 }
             }
         };

@@ -169,7 +169,9 @@ internal static class LayoutTests
             StartupCardLayout.ColumnsForSpace(589) != 1 ||
             StartupCardLayout.CardWidth(1000, 3) > 325 ||
             StartupCardLayout.CardWidth(885, 3) < 250 ||
-            3 * (StartupCardLayout.CardWidth(885, 3) + 9) > 885)
+            3 * (StartupCardLayout.CardWidth(885, 3) + 9) > 885 ||
+            885 - 3 * (StartupCardLayout.CardWidth(885, 3) + 9) >= 3 ||
+            590 - 2 * (StartupCardLayout.CardWidth(590, 2) + 9) >= 2)
             throw new Exception("Inicializacao nao comporta tres cartoes proporcionais.");
         TestStartupBounds();
         TestWorkspaceProportions();

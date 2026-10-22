@@ -167,6 +167,24 @@ var nextToken = coordinator.Begin(TimeSpan.FromSeconds(25));
 Check(coordinator.CanPublish(nextToken) && !coordinator.CanPublish(oldToken),
     "Drivers: token de leitura anterior nunca autoriza substituir nova lista");
 coordinator.End(nextToken);
+// Regressao para Cancel() sincronico retomando o await e restaurando
+// o botao antes do manipulador Click terminar: ultima escrita deve ser
+// da continuacao, nunca uma desabilitacao posterior.
+var race = new DriverQueryCoordinator();
+var raceToken = race.Begin(TimeSpan.FromSeconds(20));
+string textButton = "Cancelar";
+bool buttonEnabled = true;
+using (raceToken.Register(() =>
+{
+    textButton = "Consultar drivers";
+    buttonEnabled = true;
+}))
+{
+    textButton = "Cancelando...";
+    Check(race.RequestCancel() && textButton == "Consultar drivers" &&
+        buttonEnabled, "Drivers: cancelamento reentrante nao deixa botao travado");
+}
+race.End(raceToken);
 // CI Windows sempre exercita a ABI nativa somente leitura; fixtures continuam portáveis.
 if (args.Contains("--live") || OperatingSystem.IsWindows())
 {

@@ -9,5 +9,5 @@ internal static class StartupCardLayout
         space >= 885 ? 3 : space >= 590 ? 2 : 1;
 
     internal static int CardWidth(int space, int columns) =>
-        Math.Max(250, space / Math.Max(1, columns) - 17);
+        Math.Max(250, (space - 9 * Math.Max(1, columns)) / Math.Max(1, columns));
 }

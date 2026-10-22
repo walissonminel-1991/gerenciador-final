@@ -466,10 +466,13 @@ internal sealed partial class MainForm
     {
         if (_systemPanelCards is null || _systemPanelCards.IsDisposed) return;
         FlowLayoutPanel flow = _systemPanelCards.Content;
-        int space = _systemPanelCards.ClientSize.Width - 42;
+        // A barra escura ocupa largura propria: nao descontar duas vezes
+        // 42px de margem e 17px por card. Reservar barra e padding de fato.
+        int space = Math.Max(0, _systemPanelCards.ClientSize.Width -
+            (int)Math.Ceiling(18d * _systemPanelCards.DeviceDpi / 96d) -
+            flow.Padding.Horizontal - 2);
         if (space < 280) return;
-        // Tres por linha apenas em Inicializacao quando houver largura real;
-        // outros painéis conservam a distribuicao antiga para evitar regressao.
+        // Tres por linha apenas em Inicializacao; manter as demais views.
         int columns = _activeSystemView == "startup"
             ? StartupCardLayout.ColumnsForSpace(space)
             : space >= 720 ? 2 : 1;
