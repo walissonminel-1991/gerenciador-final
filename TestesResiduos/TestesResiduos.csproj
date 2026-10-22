@@ -25,6 +25,7 @@
     <Compile Include="../ResidualReportMerger.cs" Link="ResidualReportMerger.cs" />
     <Compile Include="../ResidualInspection.cs" Link="ResidualInspection.cs" />
     <Compile Include="../LocalPerformanceMetrics.cs" Link="LocalPerformanceMetrics.cs" />
+    <Compile Include="../SelectiveMemoryTrim.cs" Link="SelectiveMemoryTrim.cs" />
     <Compile Include="../ResidualPathIndex.cs" Link="ResidualPathIndex.cs" />
     <Compile Include="../ResidualResultIndex.cs" Link="ResidualResultIndex.cs" />
     <Compile Include="../ResidualScanBudget.cs" Link="ResidualScanBudget.cs" />
