@@ -1581,13 +1581,13 @@ internal sealed partial class MainForm : Form
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var previewButton = CreateSecondaryButton("Analisar limpeza");
         previewButton.Dock = DockStyle.Fill;
-        previewButton.Margin = new Padding(0, 5, 8, 5);
+        previewButton.Margin = new Padding(0, 3, 8, 3);
         previewButton.Click += async (_, _) => await ShowCleanupPreviewAsync();
         _actionControls.Add(previewButton);
         previewRow.Controls.Add(previewButton, 0, 0);
         var fullAudit = CreateSecondaryButton("Diagnóstico completo");
         fullAudit.Dock = DockStyle.Fill;
-        fullAudit.Margin = new Padding(0, 5, 8, 5);
+        fullAudit.Margin = new Padding(0, 3, 8, 3);
         fullAudit.Click += async (_, _) =>
             await ExecuteAsync("Analisando instalações, dispositivos e proteção...", RunMaintenanceAuditAsync);
         fullAudit.AccessibleName = "Diagnóstico completo";
@@ -1608,7 +1608,7 @@ internal sealed partial class MainForm : Form
         var testMode = new ComboBox
         {
             Name = "TestDiagnosticProfile", Dock = DockStyle.Fill,
-            Margin = new Padding(3, 5, 0, 5), DropDownStyle = ComboBoxStyle.DropDownList,
+            Margin = new Padding(3, 3, 0, 3), DropDownStyle = ComboBoxStyle.DropDownList,
             BackColor = Color.FromArgb(37, 48, 61), ForeColor = Ink,
             FlatStyle = FlatStyle.Flat
         };
