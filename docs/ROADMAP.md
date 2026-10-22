@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.42 TESTE — MISSÃO WORK 7 com [CI aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39863103739) e pacote de teste conferido; validação física da .42 pendente. A .41 não foi homologada: falha de regressão Windows. Última bateria física fornecida: .40 PC FORTE. Progresso mantido: 27/42 (64,3%). [Auditoria atual](MISSAO-WORK7-RESULTADO.md).**
+**v5.13.11.42 TESTE — MISSÃO WORK 7 com [CI aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39865168838) e pacote de teste conferido; validação física da .42 pendente. A .41 não foi homologada: falha de regressão Windows. Última bateria física fornecida: .40 PC FORTE. Progresso mantido: 27/42 (64,3%). [Auditoria atual](MISSAO-WORK7-RESULTADO.md).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
 ## MISSÃO WORK 6 — atualização, desinstalação e resíduos

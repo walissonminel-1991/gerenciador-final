@@ -1,6 +1,6 @@
 # MISSÃO WORK 7 — auditoria e candidata v5.13.11.42 TESTE
 
-Data: 22/10/2026. **Código validado antes do último ajuste Unicode: `bc9fd8a094ef934428ea7c66150278b9aa5f0ca7`.** Branch: `piloto-diagnostico-github-v5.13.11.2`. [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40), mantido Draft. Roadmap: **27/42 (64,3%)**, sem novos checkpoints físicos concluídos.
+Data: 22/10/2026. **Código final validado: `c88d6fcea906d16e64cdd5ad3f9bef592f2ce038`.** Branch: `piloto-diagnostico-github-v5.13.11.2`. [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40), mantido Draft. Roadmap: **27/42 (64,3%)**, sem novos checkpoints físicos concluídos.
 
 ## Estado inicial
 
@@ -20,7 +20,7 @@ Foram lidos os diagnósticos privados .39 e .40, sem publicá-los no repositóri
 | A4 | A fonte oficial ignorava “7-Zip 26.05 (x64 edition)”, embora o catálogo reconhecesse o produto. | Gramática oficial aceita somente a variante prevista, mantendo editor e identidade. | Corrigido. |
 | A5 | WUA `SucceededWithErrors` poderia ser apresentado como busca concluída, inclusive vazia. | Exigir `ResultCode=2` em consulta e revalidação antes da instalação. Ofertas inválidas ou revisões contraditórias tornam a consulta inconclusiva. | Corrigido; não prova a causa das diferenças .39/.40. |
 | A6 | A consulta manual reutilizava a primeira fotografia indefinidamente; uma falha podia conservar seleção acionável antiga. | Consulta explícita usa `force: true`; falha limpa seleção/ofertas, invalida o estado de sucesso e impede instalação. Consulta simultânea na mesma janela não inicia outra busca. | Corrigido; validação presencial pendente. |
-| A8 | UTF-16 malformado em nome/editor do Registro ou catálogo lançava exceção durante normalização e interrompia a consulta. | Quatro regressões reproduziram a falha. Normalização rejeita a identidade inválida, sem consertá-la para outro produto e sem interromper as demais fontes. | Corrigido localmente; nova CI em execução. |
+| A8 | UTF-16 malformado em nome/editor do Registro ou catálogo lançava exceção durante normalização e interrompia a consulta. | Quatro regressões reproduziram a falha. Normalização rejeita a identidade inválida, sem consertá-la para outro produto e sem interromper as demais fontes. | Corrigido e aprovado no Windows: 18/18 controles de identidade, sem correspondências para os quatro casos malformados. |
 | A7 | Se apenas parte da seleção continuasse elegível, o lote podia instalar esse subconjunto. Download parcial não impedia a etapa de instalação. | Exigir a seleção inteira, com revisão e licença, e download inteiramente bem-sucedido antes de instalar. | Corrigido; nenhum download/instalador real executado pelos testes desta correção. |
 | B1 | Qualquer código de saída não zero virava falha sem observar estado posterior. | Examinar sete fotografias posteriores. Erro com ausência, fonte parcial ou estado alterado fica pendente; erro com presença persistente vira falha. Código original preservado. | Corrigido; conclusão real do foobar permanece não comprovada. |
 | B2 | Duas ausências transitórias encerravam a conferência; um lote podia iniciar outro fornecedor com o anterior pendente. | Observar a janela inteira, exigir três ausências finais e interromper lote em pendência. Código 3010 exige reinicialização e não libera limpeza. | Corrigido; ausência de Registro não equivale a remoção integral. |
@@ -60,7 +60,7 @@ Primeira CI WORK 7: [39861447294](https://github.com/walissonminel-1991/gerencia
 
 A segunda CI, [39862410092](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39862410092), commit `4ff82d2`, aprovou 159/159 multifontes, 475/475 resíduos, 10/10 mutações, controles nativos R4/RAM, **132 combinações de resolução/aba e 12 ciclos de bandeja**. A captura adicional de referências falhou porque redimensionava o Form, sujeito ao limite do monitor físico do runner, em vez de simular o viewport. A captura foi corrigida para usar a mesma superfície da matriz, sem reduzir a exigência de três colunas e 85% de ocupação. O ZIP de capturas dessa rodada foi baixado e seu SHA-256 conferido (`42c1ef38b6fccf869d57eb3019946f19d472056e12f2b2ad3fc1b2c645772b34`). A inspeção visual de 1440×900 e 1366×768 mostrou três colunas, botões e descrições legíveis. O pacote executável continuou bloqueado pela CI.
 
-**Rodada final aprovada:** [39863103739](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39863103739), fonte `bc9fd8a094ef934428ea7c66150278b9aa5f0ca7`. Política, regressões Windows e compilação portátil: **success**. Foram aprovados 14/14 casos novos de identidade mais 20 existentes, 17/17 catálogo, 159/159 multifontes, 127/127 atualizador, 475/475 resíduos/desinstalação, 10/10 mutações, 47/47 MSIX e 30/30 encerramento. Também passaram WSC, drivers/histórico, prévias com identidade, privacidade, modelos de RAM, 132 combinações de resolução/aba, 12 ciclos de bandeja (608 ms no runner) e as duas capturas específicas de Reparo. A aplicação e a suíte de layout compilaram com analisadores e zero avisos/erros.
+**Rodada aprovada antes do ajuste Unicode:** [39863103739](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39863103739), fonte `bc9fd8a094ef934428ea7c66150278b9aa5f0ca7`. Política, regressões Windows e compilação portátil: **success**. Foram aprovados 14/14 casos novos de identidade mais 20 existentes, 17/17 catálogo, 159/159 multifontes, 127/127 atualizador, 475/475 resíduos/desinstalação, 10/10 mutações, 47/47 MSIX e 30/30 encerramento. Também passaram WSC, drivers/histórico, prévias com identidade, privacidade, modelos de RAM, 132 combinações de resolução/aba, 12 ciclos de bandeja (608 ms no runner) e as duas capturas específicas de Reparo. A aplicação e a suíte de layout compilaram com analisadores e zero avisos/erros.
 
 O pacote foi gerado somente depois dessas validações. Foram baixados o ZIP e as 56 capturas sintéticas, sem executar o binário Windows no host local. O ZIP de capturas tem SHA-256 `d08a0ca5ef4a1b24777d5569f04e3501fef00737e2ddd1c47afbad31c4d48f12`. A inspeção visual incluiu Reparo em 1440×900/2560×1440 e Limpeza/Sistema em 1440×900. A captura maior conserva três colunas, tipografia legível e largura ocupada; não comprova DPI/hardware físicos.
 
@@ -97,11 +97,24 @@ Continuam abertos U8, R7, R4, I7, P5/P6, V5 e os demais checkpoints de campo/ges
 
 **PC FRACO:** repetir consultas e registrar fonte MSIX/parcialidade; falha não pode significar que apps foram removidos. Conferir 1440×900 e DPI real, botões acessíveis, rolagem, três cartões quando houver largura e redução de colunas quando necessária. Cancelar consulta de drivers e confirmar que lista/botão se recuperam. Fazer ciclos de bandeja; registrar RAM/CPU, tempo e alertas do AVG.
 
-**Bateria posterior, somente após autorização específica:** uma atualização por vez, com versão antes/depois e editor/arquitetura; uma desinstalação inofensiva com registro de estado e preferências preservadas. Não repetir fornecedor automaticamente quando pendente. R4 e qualquer operação de driver continuam indisponíveis; não executar reparos reais ou exclusões como parte do roteiro de consulta.
+**Bateria posterior, somente após autorização específica:** uma atualização por vez, com versão antes/depois e editor/arquitetura; uma desinstalação inofensiva com registro de estado e preferências preservadas. Não repetir fornecedor automaticamente quando pendente. R4 e qualquer alteração de driver continuam indisponíveis; não executar reparos reais ou exclusões como parte do roteiro de consulta.
 
 ## Ajuste final de entradas malformadas
 
-Após a consolidação documental `174e8915` (também aprovada em CI), quatro entradas sintéticas com surrogates UTF-16 isolados reproduziram `ArgumentException` em nomes/editor do inventário e do catálogo. A CI verde anterior não cobria essa família. A normalização passa a retornar identidade vazia para esse caso, que resulta em `Unmatched`, sem autorizar correspondência e sem parar a consulta. As 14 regressões de identidade existentes continuam; agora são 18. Pacote com esse ajuste só será homologado após a nova CI e conferência de hashes.
+Após a consolidação documental `174e8915` (também aprovada em CI), quatro entradas sintéticas com surrogates UTF-16 isolados reproduziram `ArgumentException` em nomes/editor do inventário e do catálogo. A CI verde anterior não cobria essa família. A normalização passa a retornar identidade vazia para esse caso, que resulta em `Unmatched`, sem autorizar correspondência e sem parar a consulta. As 14 regressões de identidade existentes continuam; agora são **18/18**, mais 20 casos anteriores do motor. [Nova CI 39865168838](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39865168838), fonte `c88d6fcea906d16e64cdd5ad3f9bef592f2ce038`: **success** nas regressões, política e build. Permanecem aprovados 159/159 multifontes, 127/127 atualizador, 475/475 resíduos/desinstalação, 10/10 mutações, 47/47 MSIX, 30/30 encerramento, 132 combinações de layout e 12 ciclos de bandeja (601 ms no runner). Os quatro casos UTF-16 passaram também no Windows.
+
+O pacote final abaixo inclui esse ajuste. Foi baixado sem execução local; seus 273 hashes e o digest do ZIP foram conferidos. O ZIP das 56 capturas finais tem SHA-256 `884add4ce01a69b0639b6ba8977079369043355b091af01067922c03fd98a549`; suas imagens foram comparadas às capturas já inspecionadas. As 56 imagens finais são byte a byte idênticas às capturas já inspecionadas; a estrutura e as duas referências de Reparo foram preservadas.
+
+## Entrega final — pacote com a correção Unicode
+
+- [CI final aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39865168838); [download do portátil TESTE final](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39865168838/artifacts/12464340667).
+- Artefato: `GerenciadorFinal-v5.13.11.42-25aa54bf-TESTE-win-x64`.
+- ZIP: **58.938.207 bytes**; **273 hashes internos conferidos**; SHA-256 `bc7ac91b51108bcafbc03335c08a065f1818ccb455615834794cccd5987e887a`.
+- EXE: SHA-256 `88f3bd1752873c2e459ae77d7b4165ca0587270d3c1d61b7314f2f9a70886a86`.
+- DLL principal: SHA-256 `6243412c32ce00af8ff97da8c782d898d947bc05032aebb7232c4b7254860667`.
+- Fonte `c88d6fcea906d16e64cdd5ad3f9bef592f2ce038`; merge sintético `25aa54bfcec405b1bc7ddb3b80e114f1dc4c615d`; base `410d65e23546976db456337c71e4705f10217d36`; run `39865168838`. `BUILD-INFO`, manifesto e ativação SxS conferidos.
+- Código e correções preservados em commits; o ajuste final é `c88d6fc`. A consolidação documental posterior não muda os arquivos C# desta candidata. Branch experimental e PR Draft mantidos.
+- Continua sem assinatura/validação AVG e sem testes físicos da .42. U8/R7/R4 e demais portões de campo permanecem abertos; **27/42 (64,3%)**. O pacote `f4d1d46c` abaixo é anterior ao ajuste UTF-16; use `25aa54bf` para a próxima bateria.
 
 ## Pacote anteriormente conferido e integridade
 
@@ -119,7 +132,7 @@ Após a consolidação documental `174e8915` (também aprovada em CI), quatro en
 
 Atualizações, desinstalações e preservação foram auditadas/corrigidas e aprovadas nas suítes, sem fechar os portões físicos. Próxima etapa: bateria de consulta nos dois PCs, depois U8/R7 supervisionados. Não retomar R4 antes de projetar e testar um executor que fixe identidade/conteúdo por alvo, confira o Registro e relate cancelamento/parcialidade. Não inferir remoção por contagem global, não repetir desinstalador pendente e não liberar atualização por fonte incompleta.
 
-A lista completa de arquivos alterados pode ser conferida em `git diff --name-only 908a333545831d74876dbb260a755ee2f7ac4f09..bc9fd8a094ef934428ea7c66150278b9aa5f0ca7`:
+A lista completa de arquivos alterados pode ser conferida em `git diff --name-only 908a333545831d74876dbb260a755ee2f7ac4f09..c88d6fcea906d16e64cdd5ad3f9bef592f2ce038`:
 
 ```text
 .github/workflows/build-windows.yml

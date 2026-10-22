@@ -1,9 +1,9 @@
 {
   "version": "5.13.11.42 TESTE",
   "date": "2026-10-22",
-  "code_commit": "bc9fd8a094ef934428ea7c66150278b9aa5f0ca7",
+  "code_commit": "c88d6fcea906d16e64cdd5ad3f9bef592f2ce038",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39863103739",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39865168838",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
