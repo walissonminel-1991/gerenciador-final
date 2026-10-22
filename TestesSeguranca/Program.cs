@@ -11,8 +11,8 @@ static void Check(bool ok, string why)
 {
     if (!ok) throw new Exception("Seguranca: " + why);
 }
-Check(SingleVolumeOptimization.TaskForRoot(@"C:\\") == "optimize-volume:C" &&
-    SingleVolumeOptimization.TaskForRoot(@"D:\\") == "optimize-volume:D" &&
+Check(SingleVolumeOptimization.TaskForRoot(@"C:\") == "optimize-volume:C" &&
+    SingleVolumeOptimization.TaskForRoot(@"D:\") == "optimize-volume:D" &&
     SingleVolumeOptimization.TryParseTask("optimize-volume:C", out var onlyC) &&
     onlyC == "C:" &&
     SingleVolumeOptimization.TryParseTask("optimize-volume:D", out var onlyD) &&

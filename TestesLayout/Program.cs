@@ -498,7 +498,7 @@ internal static class LayoutTests
                         System.Reflection.BindingFlags.NonPublic |
                         System.Reflection.BindingFlags.Instance)!;
                     using var diskFixture = (Control)diskBuilder.Invoke(form,
-                        new object[] { new DiskUsageInfo(@"C:\\", "Sistema",
+                        new object[] { new DiskUsageInfo(@"C:\", "Sistema",
                             250000000000L, 100000000000L, "NTFS") })!;
                     var diskButton = Descendants(diskFixture).OfType<Button>()
                         .SingleOrDefault(b => b.Name == "OptimizeVolumeC");
@@ -509,7 +509,7 @@ internal static class LayoutTests
                         titleRow.Controls.OfType<Label>().Count() != 1)
                         throw new Exception($"Otimizar deve aparecer junto ao nome da unidade: {name}");
                     using var unsupportedFixture = (Control)diskBuilder.Invoke(form,
-                        new object[] { new DiskUsageInfo(@"D:\\", "Nao elegivel",
+                        new object[] { new DiskUsageInfo(@"D:\", "Nao elegivel",
                             250000000000L, 100000000000L, "exFAT") })!;
                     if (Descendants(unsupportedFixture).OfType<Button>()
                         .SingleOrDefault(b => b.Name == "OptimizeVolumeD") is not { Enabled: false })
