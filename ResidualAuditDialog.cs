@@ -96,6 +96,28 @@ internal sealed class ResidualAuditDialog : Form
             };
             bar.Controls.Add(recheck);
         }
+        if (report.Product.StartsWith("foobar2000", StringComparison.OrdinalIgnoreCase))
+        {
+            var cleanup = new ModernButton
+            {
+                Text = "Limpar perfis foobar", Size = new Size(160, 34),
+                BackColor = AppServices.Red, ForeColor = Color.White
+            };
+            cleanup.Click += async (_, _) =>
+            {
+                cleanup.Enabled = false;
+                try
+                {
+                    string result = await FoobarProfileCleanup.ConfirmAndCleanAsync(this, reviewCancellation.Token);
+                    if (!IsDisposed) text.SetText(result);
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+                { if (!IsDisposed) text.SetText("Limpeza não concluída: " + ex.Message); }
+                finally { if (!IsDisposed) cleanup.Enabled = true; }
+            };
+            bar.Controls.Add(cleanup);
+        }
         layout.Controls.Add(bar, 0, 2);
         Controls.Add(layout);
         AcceptButton = close;

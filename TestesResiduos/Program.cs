@@ -682,6 +682,39 @@ Check(ResidualAudit.IsTrackedExecutableReference(
     !ResidualAudit.IsTrackedExecutableReference(
         @"\\servidor\compartilhado\foobar2000.exe", "foobar2000.exe"),
     "R4: correlacao exige executavel exato, sem confundir componentes de terceiros ou rede.");
+// R4 - a nova operacao de limpeza deve negar inventario parcial, foobar
+// instalado ou aberto; nunca olhar outros aplicativos como residuo.
+if (OperatingSystem.IsWindows())
+{
+    string sandboxRoot = Path.Combine(Path.GetTempPath(), "GF-Foobar-Fixture-" + Guid.NewGuid().ToString("N"));
+    string roaming = Path.Combine(sandboxRoot, "roaming");
+    string local = Path.Combine(sandboxRoot, "local");
+    Directory.CreateDirectory(roaming);
+    Directory.CreateDirectory(local);
+    try
+    {
+        string foobar = Path.Combine(roaming, "foobar2000-v2");
+        Directory.CreateDirectory(foobar);
+        File.WriteAllText(Path.Combine(foobar, "prefs.ini"), "fixture");
+        string other = Path.Combine(roaming, "OutroPrograma");
+        Directory.CreateDirectory(other);
+        File.WriteAllText(Path.Combine(other, "dados.txt"), "preservar");
+        var safe = FoobarProfileCleanup.InspectRoots(roaming, local, true, [], false);
+        Check(safe.Eligible && safe.Folders.Count == 1 && safe.Files == 1 &&
+            safe.Folders.Single() == foobar,
+            "R4: preview dos perfis do foobar sem incluir outros aplicativos.");
+        Check(!FoobarProfileCleanup.InspectRoots(roaming, local, false, [], false).Eligible &&
+            !FoobarProfileCleanup.InspectRoots(roaming, local, true, ["foobar2000 v2.26"], false).Eligible &&
+            !FoobarProfileCleanup.InspectRoots(roaming, local, true, [], true).Eligible,
+            "R4: inventario parcial, produto instalado ou processo ativo bloqueiam limpeza.");
+        Check(File.Exists(Path.Combine(other, "dados.txt")),
+            "R4: dados de outros programas permanecem inalterados na simulacao.");
+    }
+    finally
+    {
+        try { Directory.Delete(sandboxRoot, recursive: true); } catch (IOException) { }
+    }
+}
 // Auditoria ampliada: detectar dados remanescentes sem autorizar exclusão.
 Check(ResidualAudit.CanonicalName(new ProgramEntry
     { Name = "DroidCam Client", Publisher = "Dev47Apps" }) == "DroidCam",

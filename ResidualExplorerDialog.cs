@@ -21,6 +21,7 @@ internal sealed class ResidualExplorerDialog : Form
     private readonly ModernButton next = Button("Próxima", "ResidualNext", 86);
     private readonly ModernButton cancel = Button("Cancelar", "ResidualCancel", 86);
     private readonly ModernButton inspect = Button("Inspecionar local", "ResidualInspect", 150);
+    private readonly ModernButton cleanFoobar = Button("Limpar perfis foobar", "ResidualCleanFoobar", 160);
     private readonly Label pageLabel = new() { Width = 110, Height = 32, TextAlign = ContentAlignment.MiddleCenter };
     private readonly Label locationLabel = new() { Width = 74, Height = 30, TextAlign = ContentAlignment.MiddleCenter };
     private readonly ModernButton locationPrevious = Button("Locais ‹", "ResidualLocationPrevious", 75);
@@ -86,7 +87,8 @@ internal sealed class ResidualExplorerDialog : Form
         var locationBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
         locationBar.Controls.AddRange([locationPrevious, locationLabel, locationNext, back]); right.Controls.Add(locationBar, 0, 2);
         var inspectBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
-        inspectBar.Controls.Add(inspect); right.Controls.Add(inspectBar, 0, 3); split.Panel2.Controls.Add(right);
+        inspectBar.Controls.Add(inspect); inspectBar.Controls.Add(cleanFoobar);
+        right.Controls.Add(inspectBar, 0, 3); split.Panel2.Controls.Add(right);
         root.Controls.Add(split, 0, 3);
         var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty, Padding = new Padding(0, 6, 0, 0) };
         var coverage = Button("Resumo", "ResidualCoverage", 78); var close = Button("Fechar", "ResidualClose", 78);
@@ -105,6 +107,19 @@ internal sealed class ResidualExplorerDialog : Form
         locationNext.Click += (_, _) => { locationPage++; ShowLocations(); };
         back.Click += (_, _) => { inspectionResult = null; locationPage = 0; ShowLocations(); };
         inspect.Click += async (_, _) => await InspectSelectedAsync();
+        cleanFoobar.Click += async (_, _) =>
+        {
+            cleanFoobar.Enabled = false;
+            try
+            {
+                string result = await FoobarProfileCleanup.ConfirmAndCleanAsync(this, lifetimeToken);
+                if (!IsDisposed) details.SetText(result);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            { if (!IsDisposed) details.SetText("Limpeza interrompida: " + ex.Message); }
+            finally { if (!IsDisposed) UpdateActions(); }
+        };
         split.SizeChanged += (_, _) => ArrangeBody();
         Shown += async (_, _) => await RunAsync(async (token, id) =>
         {
@@ -171,6 +186,7 @@ internal sealed class ResidualExplorerDialog : Form
         inspection = selectedReport is null ? null : new ResidualInspectionSession(selectedReport);
         if (selectedReport is null) { locations.SetRows([]); details.SetText(index?.Coverage.Describe() ?? "Preparando resultados..."); return; }
         ShowLocations();
+        UpdateActions();
     }
     private void ShowLocations()
     {
@@ -244,6 +260,8 @@ internal sealed class ResidualExplorerDialog : Form
     {
         cancel.Enabled = Busy; previous.Enabled = CurrentPage?.PageIndex > 0; next.Enabled = CurrentPage is not null && CurrentPage.PageIndex + 1 < CurrentPage.PageCount;
         inspect.Enabled = !Busy && locations.SelectedRow is not null && (locations.SelectedRow.Target is not ResidualInspectionEntry entry || entry.CanInspect);
+        cleanFoobar.Visible = selectedReport?.Product.Equals("foobar2000", StringComparison.OrdinalIgnoreCase) == true;
+        cleanFoobar.Enabled = !Busy && cleanFoobar.Visible;
     }
     internal static Rectangle FitBounds(Rectangle requested, Rectangle workingArea)
     {

@@ -1,5 +1,12 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.39 TESTE — PC FORTE, lote integrado
+
+- Executor explícito de limpeza dos perfis pessoais foobar2000/foobar2000-v2 no usuário atual. Antes de permitir exclusão, duas leituras completas do inventário, ausência de foobar.exe, escopo estrito, prévia, confirmação e nova verificação. Bloqueia links simbólicos, junções, perfis profundos e alterações de alvos; não alcança discos de música, Program Files, outros usuários, ProgramData nem chaves compartilhadas do Windows.
+- Limpeza contextual nas janelas existentes de resíduos, sem abrir ferramentas externas; chave própria HKCU\\SOFTWARE\\foobar2000 tratada separadamente. Exclui realmente após confirmação, portanto não pode ser desfeita.
+- Inventário: fotografa registros completos na sessão e informa quantidade de entradas adicionadas/não observadas na atualização manual. Não instala softwares automaticamente nem mantém monitor residente.
+- Verificar Windows continua apenas diagnóstico, liberando Reparar Windows somente quando necessário e mediante confirmação. Testes incluídos para os limites da limpeza. Release somente após CI e sem exceções de antivírus.
+
 ## Desinstalação livre de aplicativos Win32 comuns — nova política (a validar)
 
 - O desinstalador EXE registrado **sem assinatura** deixa de ser bloqueado fora do perfil de laboratório. A janela de confirmação informa a ausência de prova de autoria, mas permite continuar por decisão do usuário.

@@ -572,7 +572,8 @@ internal sealed partial class MainForm : Form
     private DateTimeOffset _windowsScannedAt;
     private bool _multiSelectMode;
     private bool _catalogoVerificado; // Resultado local do RuckZuck (sem instalacao)
-    private bool _inventoryIncomplete; // A ausência em uma fonte com falha não comprova desinstalação.
+    private bool _inventoryIncomplete;
+    private HashSet<string>? _completeInstallBaseline; // A ausência em uma fonte com falha não comprova desinstalação.
     private CancellationTokenSource? _consultaCatalogoCts;
     private CancellationTokenSource? _installerDownloadCts;
     private CancellationTokenSource? _residualScanCts;
@@ -1969,6 +1970,26 @@ internal sealed partial class MainForm : Form
             });
             items = scan.Items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
             _inventoryIncomplete = scan.Incomplete;
+            // Monitoramento por fotografias completas, sem servico residente:
+            // detectar entradas surgidas/removidas enquanto o GF permaneceu aberto.
+            // Nao interpretar inventario parcial como desinstalacao.
+            if (!_inventoryIncomplete)
+            {
+                var currentKeys = items.Select(x => x.InventoryId)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (_completeInstallBaseline is not null)
+                {
+                    var created = currentKeys.Except(_completeInstallBaseline, StringComparer.OrdinalIgnoreCase)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var removed = _completeInstallBaseline.Except(currentKeys, StringComparer.OrdinalIgnoreCase).Count();
+                    if (created.Count > 0 || removed > 0)
+                        Log($"Nesta sessão: {created.Count} novo(s) registro(s) de instalação; " +
+                            $"{removed} não observado(s) desde a última leitura completa. " +
+                            "Confirme pela versão e pelo instalador antes de concluir.");
+                }
+                _completeInstallBaseline = currentKeys;
+            }
             if (_inventoryIncomplete)
                 Log("ATENÇÃO: inventário PARCIAL. Uma ou mais fontes não puderam ser consultadas; aplicativos ausentes desta lista podem continuar instalados. Clique em Atualizar e verificar para tentar novamente. Nenhum aplicativo foi removido.");
             DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count} examinados={scan.Registry.Inspected} ocultos={scan.Registry.HiddenComponents} updates_arp={scan.Registry.UpdateEntries} erros={scan.Registry.ReadFailures} duplicados={scan.Registry.Duplicates}");
