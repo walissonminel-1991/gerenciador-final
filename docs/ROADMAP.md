@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.36 TESTE (correções após teste físico .35 no PC FRACO; CI e repetição presencial ainda necessárias) · Progresso: 27/42 (64,3%).**
+**v5.13.11.37 TESTE (ajustes após avaliação física .36 no PC FRACO; CI e teste físico .37 pendentes) · Progresso: 27/42 (64,3%).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
 ## MISSÃO WORK 6 — atualização, desinstalação e resíduos

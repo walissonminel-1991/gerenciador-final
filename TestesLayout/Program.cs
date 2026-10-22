@@ -206,6 +206,31 @@ internal static class LayoutTests
             allLines.Split("Lote de diagnostico ").Length != 151)
             throw new Exception("Registro perdeu linhas ou redesenhou por mensagem.");
         Console.WriteLine("OK: 150 linhas em uma pintura do Registro.");
+        // Fixture local de renderizacao para evitar o filtro silencioso.
+        var fixtureField = typeof(MainForm).GetField("_installed",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new Exception("Fixture de inventario ausente.");
+        var fixture = (List<ProgramEntry>)fixtureField.GetValue(form)!;
+        fixture.AddRange(new[]
+        {
+            new ProgramEntry { Name = "Zulu", CanUninstall = true },
+            new ProgramEntry { Name = "Alfa", IsUpdate = true, CanUninstall = true, AvailableVersion = "2" },
+            new ProgramEntry { Name = "Beta", InventoryOnly = true }
+        });
+        var renderFixture = typeof(MainForm).GetMethod("RenderPrograms",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new Exception("Fixture RenderPrograms ausente.");
+        renderFixture.Invoke(form, null);
+        var fixtureList = Descendants(form).OfType<DarkProgramList>().Single();
+        if (fixtureList.Items.Count != 3 ||
+            fixtureList.Items[0].Name != "Alfa" ||
+            fixtureList.Items[1].Name != "Beta" ||
+            fixtureList.Items[2].Name != "Zulu" ||
+            fixtureList.Items[1].CanUninstall)
+            throw new Exception("Todos deve incluir apps protegidos e manter atualizacoes no topo.");
+        fixture.Clear();
+        renderFixture.Invoke(form, null);
+        Console.WriteLine("OK: Todos preserva todas as entradas e ordena atualizacoes primeiro.");
         var nav = Descendants(form).OfType<DarkTabHost>().First();
         string[] expectedTitles =
         {

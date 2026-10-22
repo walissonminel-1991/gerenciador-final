@@ -1,4 +1,15 @@
-# Roteiro de testes — v5.13.11.36 TESTE
+# Roteiro de testes — v5.13.11.37 TESTE
+
+## PC FRACO: critérios antes de avançar
+- Todos: lista completa, possíveis atualizações primeiro e demais em ordem alfabética; entradas somente leitura sem ações perigosas. Sem botões Possíveis/Inventário; manter Marcados.
+- Atualizar e verificar: ao terminar ou cancelar, não selecionar somente os candidatos. Busca textual permanece valendo.
+- Drivers: repetir consulta e cancelar próximo da conclusão; o botão não deve ficar travado em Cancelando, nem desativado permanentemente. Leitura WMI nativa ainda viva bloqueia apenas outra consulta.
+- Inicialização e sistema > Inicialização: preencher horizontalmente as três colunas sem excesso de faixa vazia à direita. Verificar DPI alto e resoluções menores; nenhuma edição real.
+- Resíduos: baseline 12 grupos e 41 locais com análise parcial; exclusão não autorizada.
+- MSIX: 0x800703FA persistente na .36; não declarar leitura completa. Nenhuma operação real de atualização, desinstalação ou driver.
+
+Roadmap permanece 27/42 até validação física e evidências.
+
 
 ## Bateria prioritária no PC FRACO, 1440×900
 1. Extrair a nova candidata em pasta separada e confirmar versionamento, integridade, AVG e ausência de alertas; não criar exceções no antivírus.

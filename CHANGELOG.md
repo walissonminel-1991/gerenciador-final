@@ -1,5 +1,14 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.37 TESTE — ajustes PC FRACO
+- Todos mostra todos os itens de inventário, inclusive protegidos somente leitura; atualizações primeiro.
+- Removidos filtros redundantes Possíveis e Inventário; Marcados preservado.
+- Atualizar e verificar não reduz a lista apenas aos candidatos no final.
+- Drivers: correção de corrida reentrante no botão Cancelar e interface sempre acessível enquanto WMI encerra.
+- Inicialização: cartões mais largos, menos espaço desperdiçado à direita.
+- MSIX persistente e resíduos parciais continuam protegidos; sem autorizações destrutivas.
+- CI e teste físico desta candidata pendentes; roadmap 27/42.
+
 ## v5.13.11.36 TESTE — ajustes PC FRACO (CI e validação física pendentes)
 
 Botão **Atualizar e verificar** unifica inventário local e versões HTTPS; a etapa online mantém cancelamento. Consulta de Drivers pode ser cancelada e preserva a lista anterior, sem resultados tardios ou operações de driver. Limpeza e desempenho usa grade de quatro colunas em largura suficiente e painel de discos mais compacto, mantendo rolagem segura em telas pequenas. Erro MSIX `0x800703FA` recebe uma única repetição adicional de leitura, sem fingir cobertura completa. Foram adicionados testes negativos de estado/cancelamento e tratamento MSIX. Sem alteração das proteções de exclusão e sem checkpoints novos (27/42).
