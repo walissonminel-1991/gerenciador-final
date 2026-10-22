@@ -365,7 +365,7 @@ internal static class LayoutTests
                      resolution == new Size(2560, 1440)) && (tab == 2 || tab == 3))
                 {
                     int expected = tab == 2 ? 4 : 3;
-                    int toolCount = tab == 2 ? 8 : 5;
+                    int toolCount = tab == 2 ? 8 : 7;
                     var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
                         .FirstOrDefault(x => x.EmbeddedInPage &&
                             x.Content.Controls.Count == toolCount);
@@ -383,7 +383,7 @@ internal static class LayoutTests
                 // duas ou tres linhas e nao sacrificar textos em PC FRACO.
                 if ((tab == 2 || tab == 3) && resolution == new Size(1440, 900))
                 {
-                    int count = tab == 2 ? 8 : 5;
+                    int count = tab == 2 ? 8 : 7;
                     var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
                         .Single(x => x.EmbeddedInPage && x.Content.Controls.Count == count);
                     var cards = toolFlow.Content.Controls.OfType<Panel>().ToArray();
