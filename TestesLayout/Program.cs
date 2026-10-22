@@ -250,6 +250,11 @@ internal static class LayoutTests
         fixture.Clear();
         renderFixture.Invoke(form, null);
         Console.WriteLine("OK: Todos preserva todas as entradas e ordena atualizacoes primeiro.");
+        var repairCards = Descendants(form).OfType<Button>().ToArray();
+        if (!repairCards.Any(b => b.Text == "Verificar Windows") ||
+            !repairCards.Any(b => b.Text == "Escolher ponto de restauração") ||
+            repairCards.SingleOrDefault(b => b.Text == "Reparar Windows") is not { Enabled: false })
+            throw new Exception("Reparo do Windows deve iniciar bloqueado; assistente de restauracao deve existir.");
         var nav = Descendants(form).OfType<DarkTabHost>().First();
         string[] expectedTitles =
         {

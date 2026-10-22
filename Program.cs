@@ -3123,7 +3123,8 @@ internal sealed partial class MainForm : Form
     private async Task ConfirmThenRun(string task, string question)
     {
         if (_busy) return;
-        if (DarkConfirmDialog.Confirm(this, SimpleConfirmation(task), "Confirmar operação") != DialogResult.Yes)
+        string confirmation = task == "windows-repair" ? question : SimpleConfirmation(task);
+        if (DarkConfirmDialog.Confirm(this, confirmation, "Confirmar operação") != DialogResult.Yes)
         {
             if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
                 DiagnosticTrace.Write(audit);
@@ -3189,6 +3190,7 @@ internal sealed partial class MainForm : Form
         using (child)
         using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(35)))
         {
+            var windowsProgress = new WindowsMaintenanceProgress();
             try { await server.WaitForConnectionAsync(timeout.Token); }
             catch (OperationCanceledException)
             {
@@ -3229,7 +3231,21 @@ internal sealed partial class MainForm : Form
                     _windowsRepairable = false;
                     Log("Verificação inconclusiva. Reparo não liberado automaticamente.");
                 }
-                else if (line.StartsWith("LOG|", StringComparison.Ordinal)) Log(line[4..]);
+                else if (line.StartsWith("LOG|", StringComparison.Ordinal))
+                {
+                    string logLine = line[4..];
+                    Log(logLine);
+                    if (task is "windows-check" or "windows-repair" &&
+                        windowsProgress.Update(logLine, out int percentage) &&
+                        !IsDisposed)
+                    {
+                        _progress.MarqueeAnimationSpeed = 0;
+                        _progress.Style = ProgressBarStyle.Continuous;
+                        _progress.Value = percentage;
+                        Status("Manutenção Windows — progresso da etapa: " +
+                            percentage.ToString() + "%");
+                    }
+                }
                 else if (line.StartsWith("DONE|", StringComparison.Ordinal))
                 {
                     string code = line[5..];

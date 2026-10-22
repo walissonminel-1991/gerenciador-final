@@ -69,6 +69,19 @@ Check(failedAgain.Items.Single(x => x.PackageName == terminal!.PackageName).Vers
 var confirmedAfter = sessionSnapshot.Read(() => new([terminal!], 1, "ok"));
 Check(confirmedAfter.Items.Count == 1 && !confirmedAfter.Items[0].Stale && confirmedAfter.Items[0].RecipeEligible,
     "MSIX: nova leitura completa confirma presença e deixa de reter item ausente");
+// Reproduzir PC FRACO: leitura completa (19 MSIX), falha COM e nova leitura
+// completa na mesma sessao, sem considerar a falha como desinstalacao.
+var intermittentMsix = new LocalMsixSnapshot();
+var baselineMsix = intermittentMsix.Read(() => new([terminal!, outlook!], 123, "ok"));
+var outageMsix = intermittentMsix.Read(() => new([], 0, "COMException(0x800703FA)",
+    Failures: 1, FailureStage: "activation"));
+var restoredMsix = intermittentMsix.Read(() => new([terminal!, outlook!], 123, "ok"));
+Check(baselineMsix.Items.Count == 2 &&
+    outageMsix.Items.Count == 2 && outageMsix.Items.All(x => x.Stale && !x.RecipeEligible) &&
+    restoredMsix.Items.Count == 2 && restoredMsix.Items.All(x => !x.Stale) &&
+    LocalMsixInventory.ConfirmedMicrosoftVersion(outageMsix, terminal!.PackageName) is null &&
+    LocalMsixInventory.ConfirmedMicrosoftVersion(restoredMsix, terminal.PackageName) is not null,
+    "MSIX: intermitencia recupera inventario sem liberar receita a partir de snapshot stale");
 Check(new LocalMsixSnapshot().Read(() => new([], 0, "indisponível", Failures: 1)).Items.Count == 0,
     "MSIX: processo sem leitura completa não inventa histórico de outra sessão");
 Check(sessionSnapshot.Read(() => new([], 0, "ok")).Items.Count == 0 &&

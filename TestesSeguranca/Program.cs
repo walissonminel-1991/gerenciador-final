@@ -58,6 +58,16 @@ Check(WindowsIntegrityAssessment.Interpret(0, "Completed successfully.", 0,
         "Windows Resource Protection did not find any integrity violations.") == IntegrityState.Inconclusive,
     "Saida desconhecida ou erro nao autoriza reparo.");
 Console.WriteLine("OK: DISM e SFC consultivos com gating conservador.");
+var progressMonitor = new WindowsMaintenanceProgress();
+Check(!progressMonitor.Update("47.5%", out _) &&
+    !progressMonitor.Update("Etapa 1/2 — DISM", out _) &&
+    progressMonitor.Update("[======== 47.5% ]", out int phaseDism) &&
+    phaseDism == 23 &&
+    !progressMonitor.Update("Etapa 2/2 — SFC", out _) &&
+    progressMonitor.Update("Verificação 84% concluída", out int phaseSfc) &&
+    phaseSfc == 92 &&
+    !progressMonitor.Update("Etapa concluída", out _),
+    "Barra de progresso so avanca em porcentagens reais de etapas DISM/SFC.");
 Check(SafeMaintenanceAudit.Begin("clean-user-temp") == "LIMPEZA.INICIO tipo=temporarios_usuario",
     "inicio de limpeza deve usar tipo fixo");
 Check(SafeMaintenanceAudit.LocalResult("clean-user-temp", 47, 0, 17, 0, 0) ==
