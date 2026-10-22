@@ -1498,15 +1498,28 @@ internal sealed partial class MainForm : Form
                 // a dois botoes cujo texto ultrapassa o proprio cartao.
                 if (compact && usable < (int)Math.Ceiling(520 * scale))
                     columns = 1;
-                int cardWidth = Math.Min((int)Math.Ceiling(316 * scale),
-                    Math.Max((int)Math.Ceiling(196 * scale),
-                        usable / columns - margin));
-                int rowWidth = columns * (cardWidth + margin);
-                int side = Math.Max(7, (viewport - rowWidth) / 2);
-                // O espaço lateral fica dividido entre os dois lados, em
-                // vez de formar uma faixa vazia apenas à direita.
-                Padding balanced = new Padding(side, compact && columns == 4 ? 3 : 7, 7,
-                    compact && columns == 4 ? 3 : 7);
+                // Reparo e Rede usa tres colunas QUE PREENCHAM a area disponivel.
+                // O antigo teto de 316 px centralizava apenas ~950 px numa
+                // janela de ~1500 px, deixando grandes faixas vazias dos lados.
+                // Limpeza compacta mantem o layout anterior de quatro colunas.
+                int cardWidth;
+                int leftInset;
+                if (compact)
+                {
+                    cardWidth = Math.Min((int)Math.Ceiling(316 * scale),
+                        Math.Max((int)Math.Ceiling(196 * scale),
+                            usable / columns - margin));
+                    int rowWidth = columns * (cardWidth + margin);
+                    leftInset = Math.Max(7, (viewport - rowWidth) / 2);
+                }
+                else
+                {
+                    int inset = (int)Math.Ceiling(7 * scale);
+                    cardWidth = Math.Max(1, (viewport - 2 * inset - columns * margin) / columns);
+                    leftInset = inset;
+                }
+                Padding balanced = new Padding(leftInset, compact && columns == 4 ? 3 : 7,
+                    compact ? 7 : leftInset, compact && columns == 4 ? 3 : 7);
                 if (flow.Padding != balanced) flow.Padding = balanced;
                 // A altura depende do texto real e da largura atual.
                 // Um card com duas linhas nao pode reservar a altura de
