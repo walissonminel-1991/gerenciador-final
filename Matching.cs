@@ -107,6 +107,22 @@ internal static class Matching
                GetArchitecture(installed.Name) == GetArchitecture(other.Name);
     }
 
+    // Uma atualizacao manual de 7-Zip pode deixar duas entradas ARP (26.04 e 26.05).
+    // O registro antigo continua visivel no inventario, mas nao deve oferecer
+    // nova atualizacao se a mesma edicao x64 do editor oficial ja esta atualizada.
+    // Correspondencia deliberadamente estrita: nao une produtos com nomes parecidos.
+    private static bool Same7ZipX64Family(InstalledApp installed, InstalledApp other)
+    {
+        static bool IsOfficialX64(string name) =>
+            Regex.IsMatch(name.Trim(),
+                @"^7-Zip\s+\d+(?:\.\d+){1,3}\s+\(x64(?:\s+edition)?\)$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return IsOfficialX64(installed.Name) &&
+            IsOfficialX64(other.Name) &&
+            NormalizePublisher(installed.Publisher) == "igor pavlov" &&
+            NormalizePublisher(other.Publisher) == "igor pavlov";
+    }
+
     internal static IReadOnlyList<UpdateMatch> Evaluate(IEnumerable<InstalledApp> installed, IEnumerable<CatalogEntry> catalog)
     {
         // O registro do Windows pode preservar entradas antigas do Visual C++ após
@@ -192,7 +208,7 @@ internal static class Matching
             };
             if (state == MatchState.Candidate &&
                 installedRows.Any(other => other.EligibleForUpdates &&
-                    SameVisualCpp2013Family(app, other) &&
+                    (SameVisualCpp2013Family(app, other) || Same7ZipX64Family(app, other)) &&
                     other != app &&
                     CompareVersions(other.Version, newest.ProductVersion) is >= 0))
             {
