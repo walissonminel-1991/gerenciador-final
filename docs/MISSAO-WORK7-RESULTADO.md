@@ -1,6 +1,16 @@
 # MISSÃO WORK 7 — auditoria e candidata v5.13.11.42 TESTE
 
-Data: 22/10/2026. **Código validado antes do reforço MSI/EXE: `c88d6fcea906d16e64cdd5ad3f9bef592f2ce038`.** Branch: `piloto-diagnostico-github-v5.13.11.2`. [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40), mantido Draft. Roadmap: **27/42 (64,3%)**, sem novos checkpoints físicos concluídos.
+Data: 22/10/2026. **Código final validado: `616b184f7fa4eaf60f2d8369b1bc55cde270795e`.** Branch: `piloto-diagnostico-github-v5.13.11.2`. [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40), mantido Draft. Roadmap: **27/42 (64,3%)**, sem novos checkpoints físicos concluídos.
+
+## Candidata conferida para a próxima bateria
+
+- **[Baixar v5.13.11.42-0de83072 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692/artifacts/12465616744)** · **[CI aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692)**. Fonte `616b184f7fa4eaf60f2d8369b1bc55cde270795e`; merge sintético `0de8307213a072857d0427cbad18701cb9b80034`; base `410d65e23546976db456337c71e4705f10217d36`. A consolidação documental posterior registra estas evidências sem alterar C# ou workflows do código conferido.
+- Política, regressões Windows e build: **success**. 18/18 novos controles de identidade + 20 existentes; 17/17 catálogo; 159/159 multifontes; 127/127 atualizador; **482/482 resíduos/desinstalação** (22 controles WORK 7, incluindo os seis novos defeitos e o controle positivo); 10/10 mutações; 47/47 MSIX; 30/30 encerramento. WSC, drivers, privacidade, R4/RAM nativos, benchmark, 132 combinações de layout e 12 ciclos de bandeja (635 ms) aprovados. Compilação com analisadores: zero avisos/erros. As regressões terminaram às 23:01:13 UTC; o build iniciou às 23:01:16, depois da aprovação.
+- Portátil self-contained, Windows x64; usuário final não precisa do SDK. ZIP: **58.938.891 bytes**; **273 hashes internos conferidos independentemente**. SHA-256 do ZIP: `fba3c3a89b02d2a25f6cb3d1b69bb3ab9b956ed15289027ed3f09fc42a780caf`.
+- EXE SHA-256: `7610747ef8699891c8a5e42989e5090fc23c5711f4f10cc7bed335efa00fec73`. DLL principal: `0bcf998c2f33a55a5274648a2fa509ffa678d63fa1beab57d379e9ebc5b6430c`.
+- `BUILD-INFO`, versão, fonte/base/merge/run e cobertura integral do manifesto conferidos após baixar o ZIP, sem executar o binário Windows localmente. Manifesto Win32 e ativação SxS aprovados no runner. Artefato `12465616744`, nome `GerenciadorFinal-v5.13.11.42-0de83072-TESTE-win-x64`, retenção até 29/10/2026.
+- As 56 capturas desta rodada também foram baixadas; SHA-256 do ZIP `ccc9d69a9970970b8c08f92c3dfb81a5721c195353ecfc4bf53f6c200c6ea435`. Cinquenta e cinco são idênticas às capturas já inspecionadas. A diferença de 1280×800 na aba Limpeza foi inspecionada: somente o realce do botão Diagnóstico completo, sem alteração de geometria ou corte. As duas referências de Reparo permanecem idênticas.
+- Jobs opcionais de rede/downloads e atestação restrita à main: **skipped**. Pacote sem assinatura Authenticode, sem aprovação AVG e sem homologação física. **R4 continua suspenso; U8/R7/P5/P6/V5 continuam abertos.** Não é release estável. PR Draft e main preservadas; **27/42 (64,3%)**.
 
 ## Estado inicial
 
@@ -24,7 +34,7 @@ Foram lidos os diagnósticos privados .39 e .40, sem publicá-los no repositóri
 | A7 | Se apenas parte da seleção continuasse elegível, o lote podia instalar esse subconjunto. Download parcial não impedia a etapa de instalação. | Exigir a seleção inteira, com revisão e licença, e download inteiramente bem-sucedido antes de instalar. | Corrigido; nenhum download/instalador real executado pelos testes desta correção. |
 | B1 | Qualquer código de saída não zero virava falha sem observar estado posterior. | Examinar sete fotografias posteriores. Erro com ausência, fonte parcial ou estado alterado fica pendente; EXE com código não padronizado não é declarado falha definitiva. Erro MSI com presença persistente pode ser classificado como falha. Código original preservado. | Corrigido; conclusão real do foobar permanece não comprovada. |
 | B2 | Duas ausências transitórias encerravam a conferência; um lote podia iniciar outro fornecedor com o anterior pendente. | Observar a janela inteira, exigir três ausências finais e interromper lote em pendência. Código 3010 exige reinicialização e não libera limpeza. | Corrigido; ausência de Registro não equivale a remoção integral. |
-| B4 | Cancelamento MSI 1602 podia seguir para outro item; 1618/1641 eram tratados como falha, e comando silencioso sem política de reboot poderia reiniciar. Dois registros com o mesmo EXE/argumentos não tinham exclusividade. | Seis regressões reproduziram as falhas. Interromper lote em cancelamento/ocupação/reinício; acrescentar `/norestart`; manter EXE não zero pendente e bloquear intenção EXE compartilhada, com explicação. Controle positivo mantém comandos de produtos diferentes. | Corrigido localmente; CI Windows do reforço em andamento. |
+| B4 | Cancelamento MSI 1602 podia seguir para outro item; 1618/1641 eram tratados como falha, e comando silencioso sem política de reboot poderia reiniciar. Dois registros com o mesmo EXE/argumentos não tinham exclusividade. | Seis regressões reproduziram as falhas. Interromper lote em cancelamento/ocupação/reinício; acrescentar `/norestart`; manter EXE não zero pendente e bloquear intenção EXE compartilhada, com explicação. Controle positivo mantém comandos de produtos diferentes. | Corrigido e aprovado na CI Windows, com 482/482 resíduos/desinstalação. |
 | B3 | O tratamento genérico de erros WinVerifyTrust permitia advertência para desconfiança explícita ou erro desconhecido. | Lista explícita de falhas conhecidas de cadeia/validade; adulteração, revogação, desconfiança explícita e estados desconhecidos bloqueiam o EXE. Ausência de assinatura e editor divergente validado continuam com aviso. | Corrigido. |
 | C1 | Limpeza foobar/OBS/VLC comparava só pasta, quantidade e bytes; não fixava conteúdo, identidade de arquivos ou chave de Registro. Exclusão recursiva permitia mudança após prévia e relato incompleto em cancelamento. | Suspender todos os pontos de exclusão desses perfis. A UI explica a preservação, sem confirmação enganosa. Executor destrutivo sintético só é compilado no projeto de testes, fora da aplicação. | **Mitigado. R4 continua suspenso.** |
 | D1 | A regressão de margens selecionava o painel externo e reprovava com contagem incorreta. | Nomear a grade `RepairActions` e selecioná-la de forma única. Continuam exigidos sete cartões, três colunas quando cabíveis e ocupação mínima de largura. | Corrigido e aprovado na CI Windows, com capturas dos dois tamanhos de referência. |
@@ -112,7 +122,7 @@ Seis regressões falharam antes da correção: códigos MSI 1602, 1618 e 1641; E
 
 Os seis controles novos falharam no código anterior; depois da correção, **22/22 controles WORK 7 de desinstalação** passaram localmente, incluindo o controle positivo de argumentos de outro produto. O fluxo WORK 6 relacionado também passou. A tentativa da suíte completa no Linux parou no controle de seleção RAM com caminhos Windows, antes da desinstalação; não foi contada como aprovação nem enfraquecida. A execução integral permanece exigida no runner Windows.
 
-O MSI recebe `/norestart` também quando o Registro omite a opção; nenhum teste executa instalação, remoção ou reinício real. O pacote a seguir é anterior a esse reforço e deve aguardar a próxima candidata conferida.
+O MSI recebe `/norestart` também quando o Registro omite a opção; nenhum teste executa instalação, remoção ou reinício real. O reforço está no commit `616b184f`, aprovado na CI Windows abaixo. Os pacotes `25aa54bf` e `f4d1d46c` são históricos; a candidata para a próxima bateria é `0de83072`.
 
 ## Pacote conferido antes do reforço MSI/EXE — correção Unicode
 
@@ -123,7 +133,7 @@ O MSI recebe `/norestart` também quando o Registro omite a opção; nenhum test
 - DLL principal: SHA-256 `6243412c32ce00af8ff97da8c782d898d947bc05032aebb7232c4b7254860667`.
 - Fonte `c88d6fcea906d16e64cdd5ad3f9bef592f2ce038`; merge sintético `25aa54bfcec405b1bc7ddb3b80e114f1dc4c615d`; base `410d65e23546976db456337c71e4705f10217d36`; run `39865168838`. `BUILD-INFO`, manifesto e ativação SxS conferidos.
 - Código e correções preservados em commits; o ajuste Unicode é `c88d6fc`. A consolidação documental posterior não muda os arquivos C# desta candidata. Branch experimental e PR Draft mantidos.
-- Continua sem assinatura/validação AVG e sem testes físicos da .42. U8/R7/R4 e demais portões de campo permanecem abertos; **27/42 (64,3%)**. O pacote `f4d1d46c` abaixo é anterior ao ajuste UTF-16; ambos são históricos; aguardar a candidata com o reforço MSI/EXE.
+- Continua sem assinatura/validação AVG e sem testes físicos da .42. U8/R7/R4 e demais portões de campo permanecem abertos; **27/42 (64,3%)**. O pacote `f4d1d46c` abaixo é anterior ao ajuste UTF-16; ambos são históricos; a candidata com o reforço MSI/EXE é `0de83072`.
 
 ## Pacote anteriormente conferido e integridade
 
@@ -141,7 +151,7 @@ O MSI recebe `/norestart` também quando o Registro omite a opção; nenhum test
 
 Atualizações, desinstalações e preservação foram auditadas/corrigidas e aprovadas nas suítes, sem fechar os portões físicos. Próxima etapa: bateria de consulta nos dois PCs, depois U8/R7 supervisionados. Não retomar R4 antes de projetar e testar um executor que fixe identidade/conteúdo por alvo, confira o Registro e relate cancelamento/parcialidade. Não inferir remoção por contagem global, não repetir desinstalador pendente e não liberar atualização por fonte incompleta.
 
-A lista completa de arquivos alterados pode ser conferida em `git diff --name-only 908a333545831d74876dbb260a755ee2f7ac4f09..c88d6fcea906d16e64cdd5ad3f9bef592f2ce038`:
+A lista completa de arquivos alterados pode ser conferida em `git diff --name-only 908a333545831d74876dbb260a755ee2f7ac4f09..616b184f7fa4eaf60f2d8369b1bc55cde270795e`:
 
 ```text
 .github/workflows/build-windows.yml
@@ -175,6 +185,7 @@ TestesResiduos/Program.cs
 TestesResiduos/Work6UninstallFlowTests.cs
 TestesResiduos/Work7UninstallTests.cs
 UninstallBatch.cs
+UninstallCommand.cs
 WindowsUpdateSearchPolicy.cs
 app.manifest
 docs/MISSAO-WORK7-RESULTADO.md
