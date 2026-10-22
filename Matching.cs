@@ -7,7 +7,7 @@ namespace GerenciadorAplicativos;
 // Conservador: um nome parecido nunca é suficiente para declarar uma atualização.
 internal static class Matching
 {
-    private static readonly Regex Architecture = new(@"\s*(?:\((?:x64|x86|64.bit|32.bit)\)|\b(?:x64|x86|64.bit|32.bit)\b)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex Architecture = new(@"\s*(?:\((?:x64|x86|64.bit|32.bit)(?:\s+edition)?\)|\b(?:x64|x86|64.bit|32.bit)\b)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex AnyArchitecture = new(@"(?<![a-z0-9])(?:x64|x86|64[\s-]?bit|32[\s-]?bit)(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex TrailingVersion = new(@"\s+v?\d+(?:\.\d+){1,3}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex VersionPattern = new(@"^v?\d+(?:\.\d+){0,3}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
