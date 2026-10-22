@@ -7,30 +7,13 @@ internal static class Work6UninstallFlowTests
         MsiProductCode=Work6UninstallTests.Product, UninstallString=command??"msiexec.exe /X"+Work6UninstallTests.Product };
     internal static async Task Run(Action<bool,string> check)
     {
-        if (OperatingSystem.IsWindows())
-        {
-            string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            var npp = new ProgramEntry { Name = "Notepad++ (64-bit x64)", Publisher = "Notepad++ Team",
-                InventoryId = "LocalMachine|Registry64|npp", InstallLocation = Path.Combine(pf, "Notepad++") };
-            check(LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(npp,
-                    Path.Combine(npp.InstallLocation, "uninstall.exe"), "uninstall.exe") &&
-                !LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(npp,
-                    Path.Combine(npp.InstallLocation, "update.exe"), "update.exe") &&
-                !LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(npp,
-                    Path.Combine(pf, "Microsoft", "uninstall.exe"), "uninstall.exe"),
-                "LAB-U: excepcao so admite desinstalador original do produto registrado.");
-            var fb = new ProgramEntry { Name = "foobar2000 v2.26.1 (x64)",
-                Publisher = "Peter Pawlowski", InventoryId = "LocalMachine|Registry64|foobar",
-                InstallLocation = Path.Combine(pf, "foobar2000") };
-            check(LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(fb,
-                    Path.Combine(fb.InstallLocation, "uninstall.exe"), "") &&
-                !LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(
-                    new ProgramEntry { Name = fb.Name, Publisher = "Editor Desconhecido",
-                        InventoryId = fb.InventoryId, InstallLocation = fb.InstallLocation },
-                    Path.Combine(fb.InstallLocation, "uninstall.exe"), ""),
-                "LAB-U: foobar2000 limitado ao editor informado no inventario.");
-            await NativePrepare(check);
-        }
+        check(UninstallerSignaturePolicy.IsUnsigned("WinVerifyTrust=0x800B0100") &&
+            !UninstallerSignaturePolicy.IsUnsigned("WinVerifyTrust=0x80096010") &&
+            !UninstallerSignaturePolicy.IsUnsigned("WinVerifyTrust=0x800B0109") &&
+            !UninstallerSignaturePolicy.IsUnsigned("editor divergente") &&
+            !UninstallerSignaturePolicy.IsUnsigned(""),
+            "R7: so falta de assinatura, nunca assinatura adulterada, passa com aviso.");
+        if (OperatingSystem.IsWindows()) await NativePrepare(check);
         var app=App(); var requests=UninstallBatch.Select([app,app]);
         check(requests.Length==1,"WORK6 lote: seleção duplicada resulta em uma autorização");
         bool rejected=false;
@@ -165,10 +148,29 @@ internal static class Work6UninstallFlowTests
             }
             check(renamedHostsDenied,"WORK6 nativo: hosts Windows renomeados como uninstall.exe continuam bloqueados");
             File.Copy(Environment.ProcessPath!,file,true); // cópia do apphost; jamais executar
+            // O mesmo executavel de fixture e os mesmos bytes sao usados
+            // para provar que o estado UNSIGNED permite consentimento, mas
+            // arquivo com assinatura invalida nao e liberado.
+            using (var unsigned = RegisteredUninstaller.Prepare(request,(_,_)=>false,
+                signatureIssue: (_,_)=>"WinVerifyTrust=0x800B0100"))
+                check(unsigned.UnsignedWarning &&
+                    unsigned.StartInfo.FileName==file,
+                    "R7: app Win32 comum sem assinatura pode ser desinstalado com aviso.");
+            foreach (string badSignature in new[] { "WinVerifyTrust=0x80096010",
+                "WinVerifyTrust=0x800B0109", "editor divergente" })
+            {
+                denied=false;
+                try {
+                    using var unused=RegisteredUninstaller.Prepare(request,(_,_)=>false,
+                        signatureIssue: (_,_)=>badSignature);
+                }
+                catch(System.Security.Cryptography.CryptographicException) { denied=true; }
+                check(denied,"R7: status de assinatura invalida nao e confundido com ausencia.");
+            }
             denied=false;
             try { using var unused=RegisteredUninstaller.Prepare(request,(_,_)=>false); }
             catch(System.Security.Cryptography.CryptographicException) { denied=true; }
-            check(denied,"WORK6 nativo: PE existente sem identidade assinada autorizada é bloqueado");
+            check(denied,"R7: falha sem diagnostico confiavel de assinatura nao e liberada.");
             using var prepared=RegisteredUninstaller.Prepare(request,(_,_)=>true); // fronteira criptográfica simulada
             check(prepared.StartInfo.FileName==file && prepared.StartInfo.Arguments=="/S" &&
                 prepared.StartInfo.UseShellExecute && string.IsNullOrEmpty(prepared.StartInfo.Verb),

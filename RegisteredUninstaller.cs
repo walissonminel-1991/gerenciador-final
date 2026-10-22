@@ -5,12 +5,12 @@ namespace GerenciadorAplicativos;
 // Preparado ANTES da confirmação. Lease permanece até Process.Start retornar;
 // depois é solto para permitir que o próprio fornecedor remova seus arquivos.
 internal sealed class PreparedUninstaller(UninstallRequest request, ProcessStartInfo start, IDisposable? lease,
-    bool unsignedTestException = false) : IDisposable
+    bool unsignedWarning = false) : IDisposable
 {
     private IDisposable? held=lease;
     private int attempted;
     internal UninstallRequest Request => request;
-    internal bool UnsignedTestException => unsignedTestException;
+    internal bool UnsignedWarning => unsignedWarning;
     internal ProcessStartInfo StartInfo => new() { FileName=start.FileName, Arguments=start.Arguments,
         UseShellExecute=start.UseShellExecute, WorkingDirectory=start.WorkingDirectory };
     internal async Task<int?> LaunchAsync(CancellationToken token)
@@ -35,55 +35,26 @@ internal sealed class PreparedUninstaller(UninstallRequest request, ProcessStart
     }
 }
 
-// Politica de laboratorio: nunca habilitar para qualquer outro aplicativo,
- // nem aceitar a assinatura INVALIDA como se fosse assinatura AUSENTE.
-internal static class LabUnsignedUninstallerPolicy
+// Autenticidade nao e requisito para o usuario remover programa comum.
+// Falta de assinatura e advertencia; assinatura quebrada/editor divergente
+// permanecem erros da INTENCAO executavel (nao bloqueio do aplicativo).
+internal static class UninstallerSignaturePolicy
 {
-    internal static bool IsMatchingRegisteredLabProduct(ProgramEntry entry, string executable,
-        string originalFilename)
-    {
-        bool notepad = entry.Name.StartsWith("Notepad++", StringComparison.OrdinalIgnoreCase) &&
-            (entry.Publisher.Equals("Notepad++ Team", StringComparison.OrdinalIgnoreCase) ||
-             entry.Publisher.Equals("Don HO", StringComparison.OrdinalIgnoreCase));
-        bool foobar = entry.Name.StartsWith("foobar2000", StringComparison.OrdinalIgnoreCase) &&
-            entry.Publisher.Equals("Peter Pawlowski", StringComparison.OrdinalIgnoreCase);
-        if (!notepad && !foobar || string.IsNullOrWhiteSpace(entry.InventoryId) ||
-            string.IsNullOrWhiteSpace(entry.InstallLocation) ||
-            !string.IsNullOrWhiteSpace(entry.MsiProductCode)) return false;
-        try
-        {
-            string folder = Path.GetFullPath(entry.InstallLocation).TrimEnd('\\', '/');
-            string file = Path.GetFullPath(executable);
-            string expectedFolder = notepad ? "Notepad++" : "foobar2000";
-            if (!Path.GetFileName(folder).Equals(expectedFolder, StringComparison.OrdinalIgnoreCase) ||
-                !file.Equals(Path.Combine(folder, "uninstall.exe"), StringComparison.OrdinalIgnoreCase) ||
-                !string.IsNullOrWhiteSpace(originalFilename) &&
-                    !originalFilename.Equals("uninstall.exe", StringComparison.OrdinalIgnoreCase))
-                return false;
-            // Permitir somente Program Files, nao AppData/Downloads/Temp,
-            // e evitar caminhos compartilhados como a propria raiz.
-            return new[] { Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) }
-                .Where(ResidualReadSafety.IsLocalAbsolute)
-                .Any(root => folder.StartsWith(
-                    Path.GetFullPath(root).TrimEnd('\\') + Path.DirectorySeparatorChar,
-                    StringComparison.OrdinalIgnoreCase));
-        }
-        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException)
-        { return false; }
-    }
+    internal static bool IsUnsigned(string? winTrustIssue) =>
+        string.Equals(winTrustIssue, "WinVerifyTrust=0x800B0100",
+            StringComparison.OrdinalIgnoreCase);
 }
 
 internal static class RegisteredUninstaller
 {
     internal static PreparedUninstaller Prepare(UninstallRequest request, Func<string,string,bool> trustedSigner,
-        bool allowUnsignedInLab = false, Func<string,string,string>? signatureIssue = null)
+        Func<string,string,string>? signatureIssue = null)
     {
         if(!UninstallBatch.BoundToProduct(request.Command,request.Original))
             throw new InvalidDataException("Comando não pertence ao produto selecionado.");
         string file=WindowsSystemTools.ResolveRegisteredUninstaller(request.Command.FileName);
         FileStream? held=null;
-        bool unsignedTestException = false;
+        bool unsignedWarning = false;
         try {
             if(request.Command.ProductCode is not null) {
                 string systemMsi=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"msiexec.exe");
@@ -105,29 +76,31 @@ internal static class RegisteredUninstaller
                 var signers=(known?.Publishers ?? new[]{publisher}).Where(x=>!string.IsNullOrWhiteSpace(x)).ToArray();
                 bool authenticated = signers.Length > 0 &&
                     signers.Any(s => trustedSigner(file, s));
-                // Usuario selecionou PC FORTE no perfil de testes e confirmou
-                // expressamente o app descartavel. Restrito ao caso
-                // TRUST_E_NOSIGNATURE; assinatura expirada, invalida ou
-                // outro editor NUNCA vira excecao.
+                // Muitos desinstaladores EXE Win32 legitimos nao sao assinados.
+                // O programa registrado continua sob revisao de caminho,
+                // gramática, formato PE, hosts/atalhos proibidos e pinning.
+                // Somente AUSENCIA confirmada de assinatura segue para
+                // consentimento explicito; assinatura adulterada ou editor
+                // divergente nunca recebe o tratamento de "sem assinatura".
                 if (!authenticated)
                 {
-                    bool unsignedOnly = allowUnsignedInLab &&
-                        LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(request.Original, file, original) &&
-                        ResidualReadSafety.IsUnlinkedDirectory(Path.GetDirectoryName(file) ?? "") &&
-                        signers.Length > 0 && signatureIssue is not null &&
-                        signers.All(s => signatureIssue(file, s) == "WinVerifyTrust=0x800B0100");
-                    if (!unsignedOnly)
+                    var signersToCheck = signers.Length > 0 ? signers : [""];
+                    bool unsigned = signatureIssue is not null &&
+                        signersToCheck.All(s => UninstallerSignaturePolicy.IsUnsigned(
+                            signatureIssue(file, s)));
+                    if (!unsigned)
                         throw new System.Security.Cryptography.CryptographicException(
-                            "Identidade do desinstalador não confirmada por assinatura confiável. " +
-                            "Um produto fora da exceção explícita de laboratório segue bloqueado.");
-                    unsignedTestException = true;
+                            "Desinstalador com assinatura inválida, identidade divergente " +
+                            "ou estado de assinatura inconclusivo. O programa não foi desinstalado; " +
+                            "use seu desinstalador oficial ou o Windows.");
+                    unsignedWarning = true;
                 }
             }
             var start=new ProcessStartInfo {
                 FileName=file, Arguments=request.Command.Arguments, UseShellExecute=true,
                 WorkingDirectory=Environment.GetFolderPath(Environment.SpecialFolder.System)
             };
-            var result=new PreparedUninstaller(request,start,held,unsignedTestException); held=null; return result;
+            var result=new PreparedUninstaller(request,start,held,unsignedWarning); held=null; return result;
         } finally { held?.Dispose(); }
     }
 }

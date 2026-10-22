@@ -1,3 +1,7 @@
+## Política de liberdade na desinstalação (22/10/2026)
+
+O usuário decide desinstalar aplicativos Win32 comuns, independentemente do perfil de testes. Ausência comprovada de assinatura Authenticode **não bloqueia** o desinstalador registrado; a interface apresenta advertência explícita e solicita consentimento. Cadeia inválida, assinatura alterada, editor divergente, arquivo não-PE, host de sistema disfarçado, caminho remoto/relativo/reparse e comando ambíguo continuam impedidos de execução **por este fluxo** (não significam que o usuário está proibido de remover o aplicativo por outra rota oficial). A lista de proteção de componentes do Windows e as limitações MSIX são mantidas para revisão separada. Não automatizar exclusão de resíduos pessoais.
+
 ## Implementacao inspirada em monitoramento de desinstaladores (22/10/2026)
 
 Manual oficial IObit descreve *Install Monitor* que registra criacoes de arquivos e Registro durante instalacao, e varredura de sobras feita apos uma desinstalacao, inclusive de outro desinstalador. Como GF e portatil, sem servico persistente, nao tem log de instalacoes anteriores. Implementada uma correlacao historica limitada a Notepad++ e foobar2000, usando familias de perfis documentadas (inclusive AppData/foobar2000-v2) e indices de referencias Windows pelos nomes dos executaveis; nunca le dados nem apaga chaves compartilhadas. A cobertura e inferior ao monitor que estava rodando antes da instalacao.

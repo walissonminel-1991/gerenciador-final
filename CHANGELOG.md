@@ -1,6 +1,13 @@
 # Histórico de versões — Gerenciador Final
 
-## Excecao opt-in de desinstalador sem assinatura para laboratorio (a validar)
+## Desinstalação livre de aplicativos Win32 comuns — nova política (a validar)
+
+- O desinstalador EXE registrado **sem assinatura** deixa de ser bloqueado fora do perfil de laboratório. A janela de confirmação informa a ausência de prova de autoria, mas permite continuar por decisão do usuário.
+- O executável ainda deve ter origem local registrada, formato PE válido, argumento seguro, identidade de produto revalidada e caminho sem redirecionamentos. Regressões: sem assinatura aceito com aviso; assinatura adulterada, editor divergente e erro de verificação não são confundidos com ausência.
+- MSI segue procedimento nativo do Windows. Nada foi desinstalado pela CI; o programa não tenta remover drivers nem serviços protegidos sem rota nativa.
+- Bloqueio de um **comando perigoso** não torna seu aplicativo intocável: nesses casos o usuário pode seguir pela desinstalação oficial do fabricante/Windows.
+
+## Excecao opt-in de desinstalador sem assinatura para laboratorio (histórico superado)
 
 - Exclusivamente no perfil `PC_FORTE`, para `Notepad++` e `foobar2000` com nome e fabricante conhecidos, uninstall.exe em pasta exata sob Program Files, arquivo PE e sem reparse point. Apenas quando WinVerifyTrust informa `TRUST_E_NOSIGNATURE`, nao em cadeia invalida, revogacao, editor divergente ou erro qualquer.
 - A confirmacao existente explicita a ausência de prova criptografica; unica tentativa, congelamento do EXE ate Process.Start e inventario posterior preservados. Nenhuma excecao para outros aplicativos, fora do perfil de teste ou sem autorizacao.

@@ -2721,7 +2721,6 @@ internal sealed partial class MainForm : Form
             foreach (var request in requests)
                 prepared.Add(await Task.Run(() => RegisteredUninstaller.Prepare(request,
                     (path, signer) => VerifiedUpdaters.VerifyAuthenticode(path, signer, out _),
-                    allowUnsignedInLab: TestDiagnosticDetail.LabPcForteSelected,
                     signatureIssue: (path, signer) =>
                     {
                         VerifiedUpdaters.VerifyAuthenticode(path, signer, out string issue);
@@ -2729,9 +2728,10 @@ internal sealed partial class MainForm : Form
                     })));
             string preview = string.Join("\n\n", prepared.Select(p =>
                 "• " + p.Request.Original.Name + "\n" + p.StartInfo.FileName + " " + p.StartInfo.Arguments +
-                (p.UnsignedTestException ?
-                    "\nATENÇÃO: DESINSTALADOR SEM ASSINATURA DIGITAL. Exceção somente para teste no PC FORTE, com autorização explícita. " +
-                    "A identidade do executável não é comprovável criptograficamente." : "")));
+                (p.UnsignedWarning ?
+                    "\nAVISO: DESINSTALADOR NÃO ASSINADO. O arquivo corresponde ao comando registrado " +
+                    "para o aplicativo, mas sua autoria não pôde ser confirmada por assinatura. " +
+                    "Deseja confiar nesse desinstalador e continuar?" : "")));
             bool consent = DarkConfirmDialog.Confirm(this,
                 $"Deseja desinstalar {prepared.Count} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
                 "Confirmar desinstalação") == DialogResult.Yes;
