@@ -26,7 +26,14 @@ internal static class Matching
 
     private static string Normalize(string value)
     {
-        var decomposed = value.ToLowerInvariant().Normalize(NormalizationForm.FormD);
+        string decomposed;
+        try { decomposed = value.ToLowerInvariant().Normalize(NormalizationForm.FormD); }
+        catch (ArgumentException)
+        {
+            // Registro/catalogo podem conter UTF-16 invalido. Nao interromper
+            // todas as fontes nem corrigir texto que poderia virar outra identidade.
+            return "";
+        }
         var sb = new StringBuilder(decomposed.Length);
         foreach (var ch in decomposed)
             if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark) sb.Append(ch);

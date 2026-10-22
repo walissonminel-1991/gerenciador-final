@@ -1,6 +1,6 @@
 # MISSÃO WORK 7 — auditoria e candidata v5.13.11.42 TESTE
 
-Data: 22/10/2026. **Código final validado: `bc9fd8a094ef934428ea7c66150278b9aa5f0ca7`.** Branch: `piloto-diagnostico-github-v5.13.11.2`. [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40), mantido Draft. Roadmap: **27/42 (64,3%)**, sem novos checkpoints físicos concluídos.
+Data: 22/10/2026. **Código validado antes do último ajuste Unicode: `bc9fd8a094ef934428ea7c66150278b9aa5f0ca7`.** Branch: `piloto-diagnostico-github-v5.13.11.2`. [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40), mantido Draft. Roadmap: **27/42 (64,3%)**, sem novos checkpoints físicos concluídos.
 
 ## Estado inicial
 
@@ -20,6 +20,7 @@ Foram lidos os diagnósticos privados .39 e .40, sem publicá-los no repositóri
 | A4 | A fonte oficial ignorava “7-Zip 26.05 (x64 edition)”, embora o catálogo reconhecesse o produto. | Gramática oficial aceita somente a variante prevista, mantendo editor e identidade. | Corrigido. |
 | A5 | WUA `SucceededWithErrors` poderia ser apresentado como busca concluída, inclusive vazia. | Exigir `ResultCode=2` em consulta e revalidação antes da instalação. Ofertas inválidas ou revisões contraditórias tornam a consulta inconclusiva. | Corrigido; não prova a causa das diferenças .39/.40. |
 | A6 | A consulta manual reutilizava a primeira fotografia indefinidamente; uma falha podia conservar seleção acionável antiga. | Consulta explícita usa `force: true`; falha limpa seleção/ofertas, invalida o estado de sucesso e impede instalação. Consulta simultânea na mesma janela não inicia outra busca. | Corrigido; validação presencial pendente. |
+| A8 | UTF-16 malformado em nome/editor do Registro ou catálogo lançava exceção durante normalização e interrompia a consulta. | Quatro regressões reproduziram a falha. Normalização rejeita a identidade inválida, sem consertá-la para outro produto e sem interromper as demais fontes. | Corrigido localmente; nova CI em execução. |
 | A7 | Se apenas parte da seleção continuasse elegível, o lote podia instalar esse subconjunto. Download parcial não impedia a etapa de instalação. | Exigir a seleção inteira, com revisão e licença, e download inteiramente bem-sucedido antes de instalar. | Corrigido; nenhum download/instalador real executado pelos testes desta correção. |
 | B1 | Qualquer código de saída não zero virava falha sem observar estado posterior. | Examinar sete fotografias posteriores. Erro com ausência, fonte parcial ou estado alterado fica pendente; erro com presença persistente vira falha. Código original preservado. | Corrigido; conclusão real do foobar permanece não comprovada. |
 | B2 | Duas ausências transitórias encerravam a conferência; um lote podia iniciar outro fornecedor com o anterior pendente. | Observar a janela inteira, exigir três ausências finais e interromper lote em pendência. Código 3010 exige reinicialização e não libera limpeza. | Corrigido; ausência de Registro não equivale a remoção integral. |
@@ -98,7 +99,11 @@ Continuam abertos U8, R7, R4, I7, P5/P6, V5 e os demais checkpoints de campo/ges
 
 **Bateria posterior, somente após autorização específica:** uma atualização por vez, com versão antes/depois e editor/arquitetura; uma desinstalação inofensiva com registro de estado e preferências preservadas. Não repetir fornecedor automaticamente quando pendente. R4 e qualquer operação de driver continuam indisponíveis; não executar reparos reais ou exclusões como parte do roteiro de consulta.
 
-## Entrega GitHub e integridade
+## Ajuste final de entradas malformadas
+
+Após a consolidação documental `174e8915` (também aprovada em CI), quatro entradas sintéticas com surrogates UTF-16 isolados reproduziram `ArgumentException` em nomes/editor do inventário e do catálogo. A CI verde anterior não cobria essa família. A normalização passa a retornar identidade vazia para esse caso, que resulta em `Unmatched`, sem autorizar correspondência e sem parar a consulta. As 14 regressões de identidade existentes continuam; agora são 18. Pacote com esse ajuste só será homologado após a nova CI e conferência de hashes.
+
+## Pacote anteriormente conferido e integridade
 
 - Branch: `piloto-diagnostico-github-v5.13.11.2`; [PR #40 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/40). `main` preservada.
 - Commits: `0383ddef` (atualizações/WUA), `2c9c1073` (desinstalação/perfis/RAM), `e982022c` (gates e .42), `4ff82d2f` (fonte ao vivo e explicação de preservação), `bc9fd8a0` (captura por viewport). Consolidação documental posterior não altera C# nem executáveis da candidata conferida.

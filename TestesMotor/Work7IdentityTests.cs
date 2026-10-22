@@ -37,6 +37,17 @@ internal static class Work7IdentityTests
             "arquitetura explícita contraditória bloqueia a correspondência");
         Check(State(old, latest with { InstallLocation = @"c:/Program Files/7-Zip/" }) == MatchState.SupersededRegistration,
             "separadores e capitalização não inventam instalações distintas");
+        foreach (var (app, entries) in new (InstalledApp, CatalogEntry[])[] {
+            (old with { Name = "7-Zip\uD800" }, catalog),
+            (old with { Publisher = "Igor Pavlov\uDC00" }, catalog),
+            (old, [new("7-Zip\uD800", "7-Zip\uD800", "26.05", "Igor Pavlov")]),
+            (old, [new("7-Zip", "7-Zip", "26.05", "Igor Pavlov\uDC00")]) })
+        {
+            bool rejectedWithoutCrash = false;
+            try { rejectedWithoutCrash = Matching.Evaluate([app], entries).Single().State == MatchState.Unmatched; }
+            catch (ArgumentException) { }
+            Check(rejectedWithoutCrash, "UTF-16 malformado em nome/editor/catálogo não interrompe a consulta nem autoriza identidade");
+        }
         Console.WriteLine($"W7-ID: {total - failed}/{total}");
         return failed;
     }
