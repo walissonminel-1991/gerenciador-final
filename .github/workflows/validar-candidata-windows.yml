@@ -64,6 +64,8 @@ jobs:
         run: dotnet run --project TestesMultifontes/TestesMultifontes.csproj -c Release
       - name: Testes instaladores verificados
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release
+      - name: Controles negativos por mutacao em copias isoladas
+        run: python scripts/test_work6_mutations.py
       - name: Testes drivers e historico
         run: dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release
       - name: Testes residuos sem exclusao
@@ -134,7 +136,7 @@ jobs:
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads
       - name: SumatraPDF x86 e x64 (sem execucao)
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-sumatra
-      - name: GameInput (sem execucao)
-        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-gameinput
+      - name: GameInput protegido (sem download ou execucao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work6-authorization
       - name: Windows Terminal MSIX (sem instalacao)
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-terminal

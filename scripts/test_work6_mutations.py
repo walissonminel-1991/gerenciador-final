@@ -2,7 +2,7 @@
 Usage: python scripts/test_work6_mutations.py /absolute/path/to/dotnet
 No installer/uninstaller is launched. Windows-native cases remain in CI.
 """
-import pathlib, shutil, subprocess, sys, tempfile
+import os, pathlib, shutil, subprocess, sys, tempfile
 root = pathlib.Path(__file__).resolve().parents[1]
 dotnet = sys.argv[1] if len(sys.argv) > 1 else 'dotnet'
 mutants = [
@@ -17,6 +17,10 @@ mutants = [
      'RequiresReview = true, IsStale = true', 'RequiresReview = false, IsStale = true',
      'TestesMultifontes', '', 'preserva oito evidências antigas'),
 ]
+if os.name == 'nt':
+    mutants.append(('hardlink-accepted', 'InstallerFileGuard.cs',
+        ' ||\n            (!directory && info.Links != 1)', '',
+        'TestesAtualizador', '--work6-flow', 'hardlink externo'))
 files = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
 with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     target=pathlib.Path(temporary)
@@ -44,4 +48,4 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
                 raise RuntimeError('survived/invalid mutation '+name+': '+result.stdout[-2000:])
             print('KILLED',name,'by',expected,flush=True)
         finally: path.write_text(original)
-print('3/3 nontrivial mutations rejected; disposable sources removed')
+print(f'{len(mutants)}/{len(mutants)} nontrivial mutations rejected; disposable sources removed')
