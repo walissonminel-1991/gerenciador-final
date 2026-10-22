@@ -740,6 +740,10 @@ internal static class LayoutTests
         if (history.Samples.Count != MemoryRamHistory.Capacity ||
             history.ConfirmedReclaimedBytes != 0)
             throw new Exception("RAM: historico ilimitado ou inventou limpeza.");
+        if (WindowsMemoryDetails.Bytes(1024, 4096) != 4194304 ||
+            WindowsMemoryDetails.Bytes(ulong.MaxValue, 4096) != 0 ||
+            WindowsMemoryDetails.Bytes(1000, 0) != 0)
+            throw new Exception("RAMMap: conversao de paginas de memoria deve impedir overflow.");
         var current = MemoryRamReader.Capture();
         if (current is null || current.TotalBytes == 0 ||
             current.AvailableBytes > current.TotalBytes)

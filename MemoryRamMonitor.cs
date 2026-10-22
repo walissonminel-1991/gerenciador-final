@@ -56,3 +56,45 @@ internal sealed class MemoryRamHistory
         if (_samples.Count > retained) _samples.RemoveRange(0, _samples.Count - retained);
     }
 }
+
+// Dados resumidos de todo o Windows, independentes do cache interno do GF.
+// SystemCache inclui standby E conjunto de trabalho de cache do sistema:
+// nao e uma promessa de bytes descartaveis nem de RAM recuperada.
+internal sealed record WindowsMemoryDetails(ulong CacheBytes, ulong CommittedBytes, ulong CommitLimitBytes)
+{
+    internal static ulong Bytes(ulong pages, ulong pageSize) =>
+        pageSize == 0 || pages > ulong.MaxValue / pageSize ? 0 : pages * pageSize;
+}
+
+internal static class WindowsMemoryDetailsReader
+{
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PerformanceInfo
+    {
+        public uint Size;
+        public UIntPtr CommitTotal, CommitLimit, CommitPeak, PhysicalTotal, PhysicalAvailable,
+            SystemCache, KernelTotal, KernelPaged, KernelNonpaged, PageSize;
+        public uint HandleCount, ProcessCount, ThreadCount;
+    }
+    [DllImport("psapi.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetPerformanceInfo(ref PerformanceInfo data, uint size);
+
+    internal static WindowsMemoryDetails? Capture()
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        var info = new PerformanceInfo { Size = (uint)Marshal.SizeOf<PerformanceInfo>() };
+        try
+        {
+            if (!GetPerformanceInfo(ref info, info.Size)) return null;
+            ulong page = info.PageSize.ToUInt64();
+            if (page < 1024 || page > 1048576) return null;
+            return new(
+                WindowsMemoryDetails.Bytes(info.SystemCache.ToUInt64(), page),
+                WindowsMemoryDetails.Bytes(info.CommitTotal.ToUInt64(), page),
+                WindowsMemoryDetails.Bytes(info.CommitLimit.ToUInt64(), page));
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        { return null; }
+    }
+}

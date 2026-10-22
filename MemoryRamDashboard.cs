@@ -79,6 +79,8 @@ internal sealed partial class MainForm
     private readonly WindowsLowMemorySignal _memoryPressureSignal = new();
     private Button? _autoMemoryButton;
     private MemoryTrimTarget? _memoryAuthorizedTarget;
+    private int _memoryTrimOperations;
+    private WindowsMemoryDetails? _windowsMemoryDetails;
 
     private Control BuildMemoryRamDashboard()
     {
@@ -219,6 +221,7 @@ internal sealed partial class MainForm
     {
         if (IsDisposed) return;
         _memoryHistory.Add(sample);
+        _windowsMemoryDetails = WindowsMemoryDetailsReader.Capture();
         _memoryChart?.SetSamples(_memoryHistory.Samples);
         _systemPanelTitle.Text = "Memória RAM · acompanhamento em tempo real";
         _systemPanelSummary.Text = "Histórico local. Aplicativos em segundo plano só são ajustados com sua autorização.";
@@ -233,10 +236,20 @@ internal sealed partial class MainForm
 
     private void UpdateMemoryCacheLabels()
     {
-        _memoryCleanedLabel.Text = $"Cache GF descartado: {_appCacheCounter.DiscardedBufferBytes / 1024d:N0} KB";
-        _memoryCandidatesLabel.Text = _memoryAuthorizedTarget is null
-            ? "Nenhum aplicativo autorizado para ajuste automático"
-            : "Autorizado nesta sessão: " + _memoryAuthorizedTarget.Name;
+        _memoryCleanedLabel.Text = $"Ajustes de RAM: {_memoryTrimOperations} · Cache GF: {_appCacheCounter.DiscardedBufferBytes / 1024d:N0} KB";
+        if (_windowsMemoryDetails is { } info)
+        {
+            string cache = (info.CacheBytes / 1073741824d).ToString("N1", CultureInfo.CurrentCulture);
+            string committed = (info.CommittedBytes / 1073741824d).ToString("N1", CultureInfo.CurrentCulture);
+            _memoryCandidatesLabel.Text = $"Cache do Windows: {cache} GB · Comprometida: {committed} GB";
+            _toolTips.SetToolTip(_memoryCandidatesLabel, "Cache inclui dados em espera, reutilizáveis pelo Windows. Memória comprometida não é igual à memória física ocupada.");
+        }
+        else
+            _memoryCandidatesLabel.Text = "Detalhes do cache do Windows não disponíveis.";
+        if (_autoMemoryButton is not null)
+            _toolTips.SetToolTip(_autoMemoryButton, _memoryAuthorizedTarget is null
+                ? "Escolha um aplicativo em Aliviar RAM para autorizar ajustes automáticos nesta sessão."
+                : "Automático autorizado somente para: " + _memoryAuthorizedTarget.Name);
     }
 
     private void RunSafeMemoryCleanup(bool automatic)
@@ -276,6 +289,7 @@ internal sealed partial class MainForm
             return;
         _memoryAuthorizedTarget = candidate;
         bool changed = SelectiveMemoryTrim.TryTrimAuthorized(candidate, out string message);
+        if (changed) _memoryTrimOperations++;
         _memoryCleanupPolicy.RecordRun(DateTime.UtcNow);
         Status(message);
         DiagnosticTrace.Write("RAM.PROCESSO_ESCOLHIDO resultado=" + (changed ? "ok" : "indisponivel"));
@@ -289,6 +303,7 @@ internal sealed partial class MainForm
         if (_memoryAuthorizedTarget is not null)
         {
             bool ok = SelectiveMemoryTrim.TryTrimAuthorized(_memoryAuthorizedTarget, out _);
+            if (ok) _memoryTrimOperations++;
             DiagnosticTrace.Write("RAM.PROCESSO_AUTORIZADO resultado=" + (ok ? "ok" : "indisponivel"));
             if (!ok) _memoryAuthorizedTarget = null;
         }
