@@ -765,6 +765,13 @@ internal sealed partial class MainForm : Form
                 Status("Cancelando análise de resíduos. Tente fechar novamente em instantes.");
                 return;
             }
+            if (_deploymentWaitCts is not null)
+            {
+                e.Cancel = true;
+                _deploymentWaitCts.Cancel();
+                Status("Parando espera do pacote. O Windows pode continuar; a fonte será preservada. Não repetir.");
+                return;
+            }
             if (_uninstallCts is not null)
             {
                 e.Cancel = true;
@@ -2401,9 +2408,11 @@ internal sealed partial class MainForm : Form
         }
     }
 
+    private CancellationTokenSource? _deploymentWaitCts;
+
     private async Task UpdateWindowsTerminalAsync(ProgramEntry entry)
     {
-        if (_busy) return;
+        if (_busy || !_installed.Contains(entry)) return;
         TerminalUpdateRecipe? recipe = WindowsTerminalUpdater.Resolve(entry);
         if (recipe is null)
         {
@@ -2426,6 +2435,7 @@ internal sealed partial class MainForm : Form
         await ExecuteAsync("Preparando atualizacao oficial do Windows Terminal...", async () =>
         {
             string folder = Path.Combine(Path.GetTempPath(), "GerenciadorFinal-Terminal-" + Guid.NewGuid().ToString("N"));
+            bool deploymentPhase = false;
             try
             {
                 DiagnosticTrace.Write("TERMINAL_GITHUB.INICIO");
@@ -2460,19 +2470,29 @@ internal sealed partial class MainForm : Form
                     return;
                 }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.PROCESSOS_VERIFICADOS_FECHADOS");
-                await WindowsTerminalUpdater.DeployAsync(bundle, Status);
-                DiagnosticTrace.Write("TERMINAL_GITHUB.INSTALADOR_CONCLUIDO");
-                Version? installed = WindowsTerminalUpdater.CurrentUserVersion();
-                bool confirmed = installed is not null && installed >= targetVersion;
+                deploymentPhase = true;
+                using var wait = new CancellationTokenSource();
+                _deploymentWaitCts = wait;
+                UpdateAttemptResult result;
+                try
+                {
+                    result = await new UpdateLaunchGate().RunAsync(
+                        () => Task.FromResult(_installed.Contains(entry) && WindowsTerminalUpdater.Resolve(entry) == recipe &&
+                        WindowsTerminalUpdater.CurrentUserVersion() == before),
+                        async () => { await WindowsTerminalUpdater.DeployAsync(bundle, Status, wait.Token); return 0; },
+                        () => Task.FromResult(WindowsTerminalUpdater.CurrentUserVersion() is Version installed && installed >= targetVersion), wait.Token);
+                }
+                finally { _deploymentWaitCts = null; }
+                bool confirmed = result.State == UpdateAttemptState.Confirmed;
                 if (!confirmed)
                 {
-                    Status("O Windows concluiu a operacao, mas a versao nova nao foi confirmada.");
-                    Log("Windows Terminal: instalacao nao confirmada; nenhum sucesso presumido.");
+                    Status("Windows Terminal: resultado não confirmado (" + result.State + "). Confira a versão; não repetir enquanto pendente.");
+                    Log("Windows Terminal: nenhuma instalação confirmada. O provedor pode continuar após o prazo; não repetir automaticamente.");
                     DiagnosticTrace.Write("TERMINAL_GITHUB.VERSAO_NAO_CONFIRMADA");
                     return;
                 }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.VERSAO_CONFIRMADA");
-                Log("Windows Terminal " + installed + " confirmado pelo identificador MSIX Microsoft.WindowsTerminal.");
+                Log("Windows Terminal " + targetVersion + " confirmado pelo identificador MSIX Microsoft.WindowsTerminal.");
                 await LoadInstalledAsync();
                 await LoadUpdatesAsync();
                 _appFilter = _catalogoVerificado ? previousFilter : "Todos";
@@ -2481,19 +2501,20 @@ internal sealed partial class MainForm : Form
             }
             catch (OperationCanceledException)
             {
-                Status("Download do Terminal cancelado.");
-                Log("Download cancelado; nenhum pacote foi instalado.");
+                Status(deploymentPhase ? "Espera ou consulta interrompida; confira a versão atual do Terminal." : "Preparação do Terminal cancelada.");
+                Log(deploymentPhase ? "O Windows pode ter aplicado ou continuar aplicando o pacote. Nenhuma repetição automática." :
+                    "Preparação cancelada antes de enviar pacote ao instalador do Windows.");
             }
             catch (Exception ex)
             {
                 DiagnosticTrace.Failure("TERMINAL_GITHUB.FALHA", ex);
                 Log("Windows Terminal: falha no pacote ou instalacao " + ex.GetType().Name +
-                    ". Feche o Terminal e tente novamente; se persistir, utilize a Microsoft Store.");
+                    ". Confira o estado do Windows e a versão; a operação pode ter sido iniciada. Nenhuma repetição automática.");
                 Status("Nao foi possivel concluir a atualizacao do Windows Terminal.");
             }
             finally
             {
-                try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+                try { if (!WindowsTerminalUpdater.IsFolderProtected(folder) && Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
                 catch (IOException) { Log("Nao foi possivel remover o pacote MSIX temporario."); }
                 catch (UnauthorizedAccessException) { Log("Sem permissao para remover o pacote MSIX temporario."); }
             }

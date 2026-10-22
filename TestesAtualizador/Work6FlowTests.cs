@@ -5,6 +5,7 @@ internal static class Work6FlowTests
 {
     internal static async Task RunAsync(Action<bool,string> check)
     {
+        await PendingDeploymentTests.Run(check);
         int launches=0, confirmations=0;
         Task<int> Launch() { launches++; return Task.FromResult(0); }
         Task<bool> Confirm() { confirmations++; return Task.FromResult(true); }

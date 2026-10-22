@@ -15,6 +15,9 @@ internal static class Work6UninstallFlowTests
         check(rejected,"WORK6 lote: duplicata contraditória rejeitada");
         check(UninstallCommand.TryParse("MsiExec.exe /I "+Work6UninstallTests.Product+" /qn /norestart",out var msi) &&
             msi.Arguments=="/X"+Work6UninstallTests.Product+" /qn /norestart", "WORK6 parser: manutenção MSI /I converte somente GUID íntegro para /X");
+        check(UninstallCommand.TryParse("msiexec.exe /I \""+Work6UninstallTests.Product+"\" /qn",out var quoted) &&
+            quoted.ProductCode==Work6UninstallTests.Product && quoted.Arguments=="/X"+Work6UninstallTests.Product+" /qn",
+            "W6-U-QUOTED GUID MSI entre aspas é legítimo e mantém vínculo ao produto");
         check(!UninstallBatch.BoundToProduct(msi,new ProgramEntry { MsiProductCode="{00000000-0000-0000-0000-000000000999}" }),
             "WORK6 parser: GUID de outro produto bloqueado");
         foreach(string raw in new[]{@"\\server\share\msiexec.exe /X"+Work6UninstallTests.Product,
@@ -126,6 +129,15 @@ internal static class Work6UninstallFlowTests
             try { using var unused=RegisteredUninstaller.Prepare(request,(_,_)=>true); }
             catch(InvalidDataException) { denied=true; }
             check(denied,"WORK6 nativo: arquivo existente com nome uninstall.exe não basta para autorizar");
+            bool renamedHostsDenied=true;
+            foreach(string host in new[]{"cmd.exe","rundll32.exe","msiexec.exe"}) {
+                File.Copy(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),host),file,true);
+                bool refused=false;
+                try { using var unused=RegisteredUninstaller.Prepare(request,(_,_)=>true); }
+                catch(InvalidDataException) { refused=true; }
+                renamedHostsDenied &= refused;
+            }
+            check(renamedHostsDenied,"WORK6 nativo: hosts Windows renomeados como uninstall.exe continuam bloqueados");
             File.Copy(Environment.ProcessPath!,file,true); // cópia do apphost; jamais executar
             denied=false;
             try { using var unused=RegisteredUninstaller.Prepare(request,(_,_)=>false); }

@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../PendingDeployment.cs" Link="PendingDeployment.cs" />
     <Compile Include="../UpdateLaunchGate.cs" Link="UpdateLaunchGate.cs" />
     <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />

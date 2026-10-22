@@ -7,7 +7,7 @@ internal sealed record ParsedUninstallCommand(string FileName, string Arguments,
 internal static class UninstallCommand
 {
     private const string GuidPattern = @"\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}";
-    private static readonly Regex Msi = new(@"^/[ix]\s*("+GuidPattern+@")((?:\s+(?:/quiet|/passive|/qn|/qb[!+\-]?|/norestart|REBOOT=ReallySuppress))*)$",
+    private static readonly Regex Msi = new(@"^/[ix]\s*(?:""(?<product>"+GuidPattern+@")""|(?<product>"+GuidPattern+@"))(?<options>(?:\s+(?:/quiet|/passive|/qn|/qb[!+\-]?|/norestart|REBOOT=ReallySuppress))*)$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly HashSet<string> Hosts = new(StringComparer.OrdinalIgnoreCase)
     { "cmd", "powershell", "pwsh", "wscript", "cscript", "mshta", "rundll32", "regsvr32", "regasm", "reg", "sc", "schtasks", "wmic", "forfiles", "msbuild", "installutil", "conhost", "explorer", "control", "python", "pythonw", "python3", "node", "nodejs", "java", "javaw", "bash", "sh", "wsl", "dotnet", "ruby", "perl", "php", "csi", "certutil", "bitsadmin", "curl", "ftp", "hh", "odbcconf", "iexpress" };
@@ -46,8 +46,8 @@ internal static class UninstallCommand
             !Path.GetFullPath(file).Equals(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"msiexec.exe"),StringComparison.OrdinalIgnoreCase))) return false;
         if(msi) {
             var match=Msi.Match(arguments);
-            if(!match.Success || !Guid.TryParse(match.Groups[1].Value,out var guid) || guid==Guid.Empty) return false;
-            parsed=new(file,"/X"+guid.ToString("B").ToUpperInvariant()+match.Groups[2].Value,guid.ToString("B").ToUpperInvariant());
+            if(!match.Success || !Guid.TryParse(match.Groups["product"].Value,out var guid) || guid==Guid.Empty) return false;
+            parsed=new(file,"/X"+guid.ToString("B").ToUpperInvariant()+match.Groups["options"].Value,guid.ToString("B").ToUpperInvariant());
             return true;
         }
         parsed=new(file,arguments,null); return true;

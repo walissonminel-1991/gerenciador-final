@@ -15,6 +15,18 @@ internal sealed record TerminalUpdateRecipe(string Version, Uri Download, string
 
 internal static class WindowsTerminalUpdater
 {
+    private static readonly PendingDeployment Deployment = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string,byte> ProtectedFolders =
+        new(StringComparer.OrdinalIgnoreCase);
+    internal static bool IsFolderProtected(string folder) => ProtectedFolders.ContainsKey(Path.GetFullPath(folder));
+    private sealed class SourceLease(FileStream stream, string folder) : IDisposable
+    {
+        public void Dispose()
+        {
+            try { stream.Dispose(); }
+            finally { ProtectedFolders.TryRemove(folder, out _); }
+        }
+    }
     // O bundle publicado pela Microsoft usa 3001.x; a versao do aplicativo e 1.x.
     private const string TargetVersion = "1.25.2733.0";
     private const string BundleTargetVersion = "3001.25.2733.0";
@@ -26,7 +38,7 @@ internal static class WindowsTerminalUpdater
 
     internal static TerminalUpdateRecipe? Resolve(ProgramEntry entry)
     {
-        if (entry.UpdateRequiresReview || !entry.IsUpdate || !entry.InventoryOnly ||
+        if (Deployment.IsPending || entry.UpdateRequiresReview || !entry.IsUpdate || !entry.InventoryOnly ||
             !entry.Publisher.Trim().Equals("Microsoft Corporation", StringComparison.OrdinalIgnoreCase) ||
             !entry.Source.Equals("GitHub oficial", StringComparison.Ordinal) ||
             (entry.Name != "Windows Terminal" && entry.Name != "Terminal do Windows"))
@@ -156,17 +168,31 @@ internal static class WindowsTerminalUpdater
                 ". Receita deve corresponder exatamente.");
     }
 
-    internal static async Task DeployAsync(string verifiedBundle, Action<string> report)
+    internal static async Task DeployAsync(string verifiedBundle, Action<string> report, CancellationToken token = default)
     {
         if (!Path.IsPathFullyQualified(verifiedBundle) ||
             !verifiedBundle.EndsWith(".msixbundle", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Arquivo MSIX verificado nao encontrado.");
         // Nova validacao imediatamente antes de entregar o arquivo ao Windows.
         // Manter a protecao ate o Windows concluir a leitura/deployment.
-        using var verifiedLock = InstallerFileGuard.OpenRead(verifiedBundle);
-        await InstallerFileGuard.RequireDigestAsync(verifiedLock, AssetDigest);
-        ValidateBundleIdentity(verifiedBundle);
-        report("Atualizando o Windows Terminal com o instalador nativo do Windows...");
+        var verifiedLock = InstallerFileGuard.OpenRead(verifiedBundle);
+        bool transferred = false;
+        try
+        {
+            await InstallerFileGuard.RequireDigestAsync(verifiedLock, AssetDigest, token);
+            ValidateBundleIdentity(verifiedBundle);
+            report("Atualizando o Windows Terminal com o instalador nativo do Windows...");
+            string folder = Path.GetDirectoryName(Path.GetFullPath(verifiedBundle))!;
+            ProtectedFolders[folder] = 0;
+            transferred = true;
+            await Deployment.RunAsync(() => BeginNativeDeploymentAsync(verifiedBundle),
+                new SourceLease(verifiedLock, folder), TimeSpan.FromMinutes(10), token);
+        }
+        finally { if (!transferred) verifiedLock.Dispose(); }
+    }
+
+    private static async Task BeginNativeDeploymentAsync(string verifiedBundle)
+    {
         var operation = new PackageManager().AddPackageAsync(
             new Uri(verifiedBundle), Array.Empty<Uri>(), DeploymentOptions.None);
         var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -185,7 +211,8 @@ internal static class WindowsTerminalUpdater
                 catch (Exception ex) { completed.TrySetException(ex); }
             }
         };
-        await completed.Task;
+        try { await completed.Task; }
+        finally { GC.KeepAlive(operation); }
         // Nao marcar como sucesso ate reconsultar a identidade do pacote instalado.
     }
 }

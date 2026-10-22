@@ -25,6 +25,15 @@ mutants.extend([
      'if(absent==2)', 'if(absent==1)',
      'TestesResiduos','--work6-uninstall-flow','W6-U-STABLE'),
 ])
+mutants.extend([
+    ('pending-source-discarded-early','PendingDeployment.cs',
+     'else _=ReleaseWhenDone(operation,source,released);','else Release(source,released);',
+     'TestesAtualizador','--work6-flow','W6-MSIX-LEASE'),
+    ('quoted-msi-regression','UninstallCommand.cs',
+     '(?:""(?<product>"+GuidPattern+@")""|(?<product>"+GuidPattern+@"))',
+     '(?<product>"+GuidPattern+@")',
+     'TestesResiduos','--work6-uninstall-flow','W6-U-QUOTED'),
+])
 if os.name == 'nt':
     mutants.append(('hardlink-accepted', 'InstallerFileGuard.cs',
         ' ||\n            (!directory && info.Links != 1)', '',
