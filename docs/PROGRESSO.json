@@ -1,9 +1,9 @@
 {
   "version": "5.13.11.42 TESTE",
   "date": "2026-10-22",
-  "code_commit": "908a333545831d74876dbb260a755ee2f7ac4f09",
-  "ci_status": "pending",
-  "ci_url": "",
+  "code_commit": "bc9fd8a094ef934428ea7c66150278b9aa5f0ca7",
+  "ci_status": "success",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39863103739",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -78,7 +78,7 @@
           "id": "R4",
           "title": "Limpeza específica após confirmação e revalidação da remoção",
           "done": false,
-          "evidence": "Execução real suspensa por segurança desde v5.13.11.15; prévia/simulação somente leitura. Ver docs/ROADMAP.md.",
+          "evidence": "WORK 7: exclusao dos perfis foobar/OBS/VLC suspensa; resumo agregado nao comprova integridade. CanExecute=false e executor sintetico ausente do aplicativo. Validacao fisica e executor seguro permanecem pendentes.",
           "blocked_by": "exclusividade_consentimento_e_validacao_real"
         },
         {

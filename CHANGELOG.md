@@ -1,4 +1,4 @@
-## v5.13.11.42 TESTE — MISSÃO WORK 7 (em validação)
+## v5.13.11.42 TESTE — MISSÃO WORK 7 (CI aprovada; testes físicos pendentes)
 
 - 7-Zip: correlação de registros antigos exige escopo, identidade de Registro, mesma pasta local e metadados coerentes; fonte oficial aceita o nome real “x64 edition”. Novas versões oficiais deixam de ser suprimidas por catálogo antigo.
 - Windows Update: resultado parcial não vira sucesso vazio; consulta manual é renovada, seleção antiga é invalidada em falha e revisão/licença alterada impede iniciar o lote. Download incompleto não avança para instalação.
@@ -6,6 +6,7 @@
 - Resíduos: suspensa exclusão dos perfis foobar2000/OBS/VLC, pois o resumo agregado não comprova integridade dos alvos. Executor sintético não faz parte da aplicação distribuída. R4 permanece aberto.
 - RAM: revalidação de PID, início e caminho no mesmo handle usado no ajuste; exclusão mútua das operações. Nenhum working set real é alterado pelos testes.
 - CI: pacote portátil depende das regressões Windows e da política de segurança. Teste de reparo passa a selecionar a grade correta sem retirar exigências de cartões/largura.
+- CI do código `bc9fd8a` aprovada: 159/159 multifontes, 127/127 atualizador, 475/475 resíduos, 10/10 mutações, 47/47 MSIX, 30/30 encerramento e 132 combinações de layout. [Pacote conferido](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39863103739/artifacts/12462353118), 273 hashes verificados; sem execução local do binário Windows.
 - Roadmap 27/42 (64,3%); U8/R7/R4 e validações físicas permanecem abertos. [Evidências e limitações](docs/MISSAO-WORK7-RESULTADO.md).
 
 ## v5.13.11.41 TESTE — ajustes apos testes reais PC FORTE (CI pendente)
