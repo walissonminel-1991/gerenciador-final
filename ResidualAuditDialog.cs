@@ -48,7 +48,10 @@ internal sealed class ResidualAuditDialog : Form
         layout.Controls.Add(new Label
         {
             Dock = DockStyle.Fill,
-            Text = intro + "\n\nExclusão indisponível nesta versão de teste.",
+            Text = intro + "\n\n" +
+                (report.Product.StartsWith("foobar2000", StringComparison.OrdinalIgnoreCase)
+                    ? "Limpeza voluntária limitada aos perfis do foobar2000."
+                    : "Exclusão indisponível para este aplicativo na versão de teste."),
             ForeColor = Color.FromArgb(226, 238, 249),
             TextAlign = ContentAlignment.MiddleLeft,
             Font = new Font("Segoe UI", 10F),

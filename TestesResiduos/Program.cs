@@ -707,6 +707,12 @@ if (OperatingSystem.IsWindows())
             !FoobarProfileCleanup.InspectRoots(roaming, local, true, ["foobar2000 v2.26"], false).Eligible &&
             !FoobarProfileCleanup.InspectRoots(roaming, local, true, [], true).Eligible,
             "R4: inventario parcial, produto instalado ou processo ativo bloqueiam limpeza.");
+        Check(FoobarProfileCleanup.DeleteCheckedFolder(foobar) &&
+            !Directory.Exists(foobar) &&
+            File.Exists(Path.Combine(other, "dados.txt")),
+            "R4: exclusao em fixture isolada remove apenas perfil foobar.");
+        Check(!FoobarProfileCleanup.DeleteCheckedFolder(other + "-absent"),
+            "R4: alvo inexistente nunca vira operacao destrutiva.");
         Check(File.Exists(Path.Combine(other, "dados.txt")),
             "R4: dados de outros programas permanecem inalterados na simulacao.");
     }

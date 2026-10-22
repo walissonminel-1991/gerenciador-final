@@ -54,7 +54,7 @@ internal sealed class ResidualExplorerDialog : Form
         source = reports; inspectOverride = inspector; lifetimeToken = lifetime.Token;
         locations.EmptyMessage = "Nenhum item neste nível. Consulte o resumo; os dados foram preservados.";
         criteria = "\u001f" + ResidualFilter.All + "\u001f" + ResidualSource.None;
-        Text = "Investigação de resíduos — somente leitura"; StartPosition = FormStartPosition.CenterParent;
+        Text = "Investigação de resíduos"; StartPosition = FormStartPosition.CenterParent;
         BackColor = AppServices.Background; ForeColor = Color.FromArgb(235, 242, 250); Font = new Font("Segoe UI", 9f);
         ShowInTaskbar = false; MinimizeBox = false; MaximizeBox = false;
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
@@ -62,7 +62,7 @@ internal sealed class ResidualExplorerDialog : Form
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, Padding = new Padding(12), BackColor = BackColor };
         foreach (float height in new[] { 83f, 34f, 37f }) root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        summary.Text = "Preparando resultados...\nExclusão indisponível nesta versão de teste.";
+        summary.Text = "Preparando resultados...\nExclusão restrita a perfis do foobar2000 com confirmação; outras exclusões bloqueadas.";
         root.Controls.Add(summary, 0, 0);
         search.BackColor = Color.FromArgb(30, 40, 52); search.ForeColor = ForeColor; search.BorderStyle = BorderStyle.FixedSingle;
         root.Controls.Add(search, 0, 1);
@@ -161,7 +161,7 @@ internal sealed class ResidualExplorerDialog : Form
     {
         CurrentPage = page;
         summary.Text = (page.Coverage.Incomplete ? "ANÁLISE PARCIAL — " + page.Coverage.ReasonSummary + ".\n" : "Análise dos locais consultados; não é varredura completa do computador.\n") +
-            $"{page.Matching} de {page.TotalAvailable} grupos; {page.Reports.Count} nesta página, {page.NotLoaded} nas demais. {page.LocationsAvailable} locais disponíveis.\nExclusão indisponível nesta versão de teste.";
+            $"{page.Matching} de {page.TotalAvailable} grupos; {page.Reports.Count} nesta página, {page.NotLoaded} nas demais. {page.LocationsAvailable} locais disponíveis.\nExclusão restrita a perfis do foobar2000 com confirmação; outras exclusões bloqueadas.";
         summary.ForeColor = page.Coverage.Incomplete ? Color.FromArgb(255, 209, 138) : ForeColor;
         groups.EmptyMessage = page.Matching == 0 && filter.SelectedIndex == (int)ResidualFilter.Review &&
             page.Coverage.Incomplete
@@ -220,7 +220,7 @@ internal sealed class ResidualExplorerDialog : Form
                 : "Arquivo preservado; não é aberto nesta inspeção.");
         // A finalidade do item selecionado deve aparecer antes do resumo longo.
         if (inspectionResult is not null) text += "\r\n\r\n" + inspectionResult.Explanation + "\r\n" + inspectionResult.Coverage.Describe();
-        details.SetText(text + "\r\n\r\nExclusão indisponível nesta versão de teste."); UpdateActions();
+        details.SetText(text + "\r\n\r\nExclusão restrita a perfis do foobar2000 com confirmação; outras exclusões bloqueadas."); UpdateActions();
     }
     internal Task InspectSelectedAsync()
     {
@@ -240,7 +240,7 @@ internal sealed class ResidualExplorerDialog : Form
         });
     }
     private bool Current(int id, CancellationToken token) => !IsDisposed && !token.IsCancellationRequested && id == generation;
-    internal void CancelCurrent() { operation?.Cancel(); summary.Text = "Consulta cancelada. Resultados anteriores preservados; dados não apagados.\nExclusão indisponível nesta versão de teste."; }
+    internal void CancelCurrent() { operation?.Cancel(); summary.Text = "Consulta cancelada. Resultados anteriores preservados; dados não apagados.\nExclusão restrita a perfis do foobar2000 com confirmação; outras exclusões bloqueadas."; }
     private async Task RunAsync(Func<CancellationToken, int, Task> work)
     {
         operation?.Cancel(); var own = CancellationTokenSource.CreateLinkedTokenSource(lifetimeToken); operation = own;
@@ -248,7 +248,7 @@ internal sealed class ResidualExplorerDialog : Form
         try { await worker.WaitAsync(own.Token); entered = true; await work(own.Token, id); }
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or System.Security.SecurityException)
-        { if (Current(id, own.Token)) summary.Text = "Análise parcial — não foi possível consultar todos os dados. Resultados anteriores preservados.\nExclusão indisponível nesta versão de teste."; }
+        { if (Current(id, own.Token)) summary.Text = "Análise parcial — não foi possível consultar todos os dados. Resultados anteriores preservados.\nExclusão restrita a perfis do foobar2000 com confirmação; outras exclusões bloqueadas."; }
         finally
         {
             if (entered) worker.Release();

@@ -80,6 +80,34 @@ internal static class FoobarProfileCleanup
         { return Block("Falha de leitura do perfil; preservar."); }
     }
 
+    // Operacao estrita reutilizada em fixtures isoladas do CI.
+    internal static bool DeleteCheckedFolder(string folder)
+    {
+        if (!SafeChain(folder) || ContainsLink(folder)) return false;
+        string staged = folder + ".gf-limpeza-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            Directory.Move(folder, staged);
+            if (ContainsLink(staged))
+            {
+                Directory.Move(staged, folder);
+                return false;
+            }
+            Directory.Delete(staged, recursive: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            ArgumentException or NotSupportedException or System.Security.SecurityException)
+        {
+            try
+            {
+                if (Directory.Exists(staged) && !Directory.Exists(folder) &&
+                    !ContainsLink(staged)) Directory.Move(staged, folder);
+            }
+            catch (Exception) { /* A falha sera exibida e nao afeta outras pastas. */ }
+            return false;
+        }
+    }
     internal static bool Same(FoobarProfilePlan a, FoobarProfilePlan b) =>
         a.Files == b.Files && a.Bytes == b.Bytes &&
         a.Folders.SequenceEqual(b.Folders, StringComparer.OrdinalIgnoreCase);

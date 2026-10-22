@@ -16,7 +16,7 @@ internal static class FoobarProfileCleanupFlow
         var a = FoobarProfileCleanup.Inspect(!one.Incomplete, one.Items.Select(x => x.Name), running);
         var b = FoobarProfileCleanup.Inspect(!two.Incomplete, two.Items.Select(x => x.Name), running);
         return a.Eligible && b.Eligible && FoobarProfileCleanup.Same(a, b)
-            ? b : Block("Duas consultas completas não confirmaram os mesmos perfis.");
+            ? b : FoobarProfileCleanup.Block("Duas consultas completas não confirmaram os mesmos perfis.");
     }
 
     internal static async Task<FoobarProfileResult> DeleteConfirmedAsync(
@@ -38,17 +38,8 @@ internal static class FoobarProfileCleanupFlow
             token.ThrowIfCancellationRequested();
             try
             {
-                if (!FoobarProfileCleanup.SafeChain(folder)) { failed++; continue; }
-                // Renomeacao atomica no proprio volume, sempre com nome novo.
-                string staged = folder + ".gf-limpeza-" + Guid.NewGuid().ToString("N");
-                Directory.Move(folder, staged);
-                if (FoobarProfileCleanup.ContainsLink(staged))
-                {
-                    Directory.Move(staged, folder);
-                    failed++; continue;
-                }
-                Directory.Delete(staged, recursive: true);
-                deleted++;
+                if (FoobarProfileCleanup.DeleteCheckedFolder(folder)) deleted++;
+                else failed++;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                 ArgumentException or NotSupportedException or System.Security.SecurityException)
