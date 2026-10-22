@@ -249,7 +249,7 @@ internal static class ResidualExplorerTests
                     window.DetailText.IndexOf(entries[i].PreservationExplanation, StringComparison.Ordinal) <
                         window.DetailText.IndexOf("COBERTURA DAS ANÁLISES", StringComparison.Ordinal) &&
                     window.DetailText.Contains("Pista pelo nome; finalidade e vínculo não confirmados") &&
-                    window.DetailText.Contains("Exclusão indisponível") &&
+                    window.DetailText.Contains("outras exclusões bloqueadas") &&
                     Find(window, "ResidualInspect").Enabled == entries[i].CanInspect,
                     "Detalhe deve explicar preservação e incerteza sem autorizar ação adicional");
                 var editor = Descendants(window).OfType<TextBox>().Single(t => t.Multiline);
