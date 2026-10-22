@@ -7,7 +7,28 @@ internal static class Work6UninstallFlowTests
         MsiProductCode=Work6UninstallTests.Product, UninstallString=command??"msiexec.exe /X"+Work6UninstallTests.Product };
     internal static async Task Run(Action<bool,string> check)
     {
-        if (OperatingSystem.IsWindows()) await NativePrepare(check);
+        if (OperatingSystem.IsWindows())
+        {
+            string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var npp = new ProgramEntry { Name = "Notepad++ (64-bit x64)", Publisher = "Notepad++ Team",
+                InventoryId = "LocalMachine|Registry64|npp", InstallLocation = Path.Combine(pf, "Notepad++") };
+            check(LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(npp,
+                    Path.Combine(npp.InstallLocation, "uninstall.exe"), "uninstall.exe") &&
+                !LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(npp,
+                    Path.Combine(npp.InstallLocation, "update.exe"), "update.exe") &&
+                !LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(npp,
+                    Path.Combine(pf, "Microsoft", "uninstall.exe"), "uninstall.exe"),
+                "LAB-U: excepcao so admite desinstalador original do produto registrado.");
+            var fb = npp with { Name = "foobar2000 v2.26.1 (x64)",
+                Publisher = "Peter Pawlowski", InstallLocation = Path.Combine(pf, "foobar2000") };
+            check(LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(fb,
+                    Path.Combine(fb.InstallLocation, "uninstall.exe"), "") &&
+                !LabUnsignedUninstallerPolicy.IsMatchingRegisteredLabProduct(
+                    fb with { Publisher = "Editor Desconhecido" },
+                    Path.Combine(fb.InstallLocation, "uninstall.exe"), ""),
+                "LAB-U: foobar2000 limitado ao editor informado no inventario.");
+            await NativePrepare(check);
+        }
         var app=App(); var requests=UninstallBatch.Select([app,app]);
         check(requests.Length==1,"WORK6 lote: seleção duplicada resulta em uma autorização");
         bool rejected=false;

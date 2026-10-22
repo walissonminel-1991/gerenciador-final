@@ -2720,9 +2720,13 @@ internal sealed partial class MainForm : Form
             var requests = UninstallBatch.Select(apps);
             foreach (var request in requests)
                 prepared.Add(await Task.Run(() => RegisteredUninstaller.Prepare(request,
-                    (path, signer) => VerifiedUpdaters.VerifyAuthenticode(path, signer, out _))));
+                    (path, signer) => VerifiedUpdaters.VerifyAuthenticode(path, signer, out _),
+                    allowUnsignedInLab: TestDiagnosticDetail.LabPcForteSelected)));
             string preview = string.Join("\n\n", prepared.Select(p =>
-                "• " + p.Request.Original.Name + "\n" + p.StartInfo.FileName + " " + p.StartInfo.Arguments));
+                "• " + p.Request.Original.Name + "\n" + p.StartInfo.FileName + " " + p.StartInfo.Arguments +
+                (p.UnsignedTestException ?
+                    "\nATENÇÃO: DESINSTALADOR SEM ASSINATURA DIGITAL. Exceção somente para teste no PC FORTE, com autorização explícita. " +
+                    "A identidade do executável não é comprovável criptograficamente." : "")));
             bool consent = DarkConfirmDialog.Confirm(this,
                 $"Deseja desinstalar {prepared.Count} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
                 "Confirmar desinstalação") == DialogResult.Yes;

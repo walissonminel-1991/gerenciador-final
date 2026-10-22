@@ -23,6 +23,7 @@ internal static class TestDiagnosticDetail
     };
     private static readonly TestDiagnosticSession Session = new();
     internal static bool Enabled => Session.Enabled;
+    internal static bool LabPcForteSelected => Session.LabPcForteSelected;
     internal static void SetProfile(int option, Func<string, bool> sink) => Session.SetProfile(option, sink);
     internal static bool Record(string domain, params (string Key, int Value)[] values) => Session.Record(domain, values);
 
@@ -51,6 +52,7 @@ internal sealed class TestDiagnosticSession
     private Func<string, bool>? writer;
     private int profile, attempts;
     internal bool Enabled { get { lock (gate) return profile != 0 && attempts < 160; } }
+    internal bool LabPcForteSelected { get { lock (gate) return profile == 1; } }
     private bool Write(Func<string, bool> sink, string line)
     {
         if (attempts >= 160) return false;

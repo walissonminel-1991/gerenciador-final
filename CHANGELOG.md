@@ -1,5 +1,11 @@
 # Histórico de versões — Gerenciador Final
 
+## Excecao opt-in de desinstalador sem assinatura para laboratorio (a validar)
+
+- Exclusivamente no perfil `PC_FORTE`, para `Notepad++` e `foobar2000` com nome e fabricante conhecidos, uninstall.exe em pasta exata sob Program Files, arquivo PE e sem reparse point. Apenas quando WinVerifyTrust informa `TRUST_E_NOSIGNATURE`, nao em cadeia invalida, revogacao, editor divergente ou erro qualquer.
+- A confirmacao existente explicita a ausência de prova criptografica; unica tentativa, congelamento do EXE ate Process.Start e inventario posterior preservados. Nenhuma excecao para outros aplicativos, fora do perfil de teste ou sem autorizacao.
+- Arquivos sem assinatura digital permanecem potencialmente inseguros. Nenhum processo real foi executado pelo CI.
+
 ## Lote conservador de correlacao de residuos (a validar)
 
 - Correlacao historica independente para Notepad++ e foobar2000 (inclusive o perfil `foobar2000-v2` documentado pelo fabricante); busca somente em pastas do proprio produto e indices delimitados de referencias do Windows por nome exato do executavel.
