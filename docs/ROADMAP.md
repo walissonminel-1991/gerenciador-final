@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.38 TESTE é a última build gerada; lote posterior em desenvolvimento (diagnóstico/reparo DISM/SFC, restauração oficial, otimização individual, retry MSIX). Ainda sem CI da nova revisão ou build liberada · Progresso: 27/42 (64,3%).**
+**v5.13.11.42 TESTE — MISSÃO WORK 7 em validação. A .41 não foi homologada: falha de regressão Windows. Última bateria física fornecida: .40 PC FORTE. Progresso mantido: 27/42 (64,3%). [Auditoria atual](MISSAO-WORK7-RESULTADO.md).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
 ## MISSÃO WORK 6 — atualização, desinstalação e resíduos

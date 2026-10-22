@@ -46,6 +46,17 @@ def read(path: str) -> str:
 
 
 class PoliticasDeSeguranca(unittest.TestCase):
+    def test_work7_perfis_nao_autorizam_exclusao_por_resumo(self):
+        for name in ("FoobarProfileCleanupFlow.cs", "ScopedAppProfileCleanup.cs"):
+            code = read(name)
+            for forbidden in ("DeleteSubKeyTree(", "DeleteCheckedFolder(", "Directory.Delete("):
+                self.assertNotIn(forbidden, code, name)
+        self.assertIn("CanExecute => false", read("FoobarProfileCleanup.cs"))
+
+    def test_work7_windows_update_exige_resultado_completo(self):
+        code = read("AdvancedFeatures.cs")
+        self.assertGreaterEqual(code.count("WindowsUpdateSearchPolicy.RequireSuccessfulSearch((int)found.ResultCode)"), 2)
+
     def test_actions_fixadas_e_sem_credenciais_persistentes(self):
         folder = ROOT / ".github/workflows"
         workflows = [folder / name for name in sorted(workflow_inventory(folder))]
@@ -57,6 +68,14 @@ class PoliticasDeSeguranca(unittest.TestCase):
             code = file.read_text(encoding="utf-8")
             self.assertIn("contents: read", code, str(file))
             for action in re.findall(r"uses:\s*([^\s#]+)", code):
+                # Fluxos locais revisados usam o mesmo commit do chamador.
+                if action.startswith("./.github/workflows/"):
+                    self.assertEqual(file.name, "build-windows.yml")
+                    self.assertIn(action, {
+                        "./.github/workflows/validar-candidata-windows.yml",
+                        "./.github/workflows/triagem-diagnostico-github.yml",
+                    })
+                    continue
                 self.assertRegex(action, r"^actions/[a-z-]+@[a-f0-9]{40}$", str(file))
             if "actions/checkout@" in code:
                 self.assertIn("persist-credentials: false", code, str(file))
@@ -65,6 +84,16 @@ class PoliticasDeSeguranca(unittest.TestCase):
         self.assertIn("name: Regressões Windows", read(".github/workflows/validar-candidata-windows.yml"))
         self.assertIn("name: Compilação Windows x64", read(".github/workflows/build-windows.yml"))
         self.assertIn("name: Política de segurança e privacidade", read(".github/workflows/triagem-diagnostico-github.yml"))
+
+    def test_work7_pacote_exige_regressoes_e_politicas(self):
+        build = read(".github/workflows/build-windows.yml")
+        self.assertRegex(build, r"(?m)^  build:\n    name: Compilação Windows x64\n    needs: \[validar, politica\]")
+        self.assertIn("validar:\n    uses: ./.github/workflows/validar-candidata-windows.yml", build)
+        self.assertIn("politica:\n    uses: ./.github/workflows/triagem-diagnostico-github.yml", build)
+        for name in ("validar-candidata-windows.yml", "triagem-diagnostico-github.yml"):
+            code = read(".github/workflows/" + name)
+            self.assertIn("\n  workflow_call:", code)
+            self.assertNotIn("group: ${{ github.workflow }}-${{ github.ref }}", code)
 
     def test_inventario_ci_nao_ignora_yaml_e_permite_expansao_revisada(self):
         import tempfile

@@ -1,10 +1,7 @@
 name: Validar candidata Windows
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
     inputs:
       verificar_fontes_reais:
@@ -19,7 +16,7 @@ on:
         default: false
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: regressao-windows-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -72,6 +69,8 @@ jobs:
         run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --work6-preview
       - name: Testes residuos sem exclusao
         run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release
+      - name: Benchmark sintetico de classificacao e navegacao (sem arquivos reais)
+        run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --benchmark
       - name: Testes layout e RAM
         run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release
       - name: Testes inventario MSIX

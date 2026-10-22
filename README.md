@@ -4,7 +4,7 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Versão do código em desenvolvimento:** v5.13.11.38 TESTE (Inicialização responsiva em todas as resoluções >=720p, com DPI dinâmico e viewport real; aguardando CI e teste físico). Última bateria presencial: v5.13.11.34 no PC FORTE. **[MISSÃO WORK 6 e resultados](docs/MISSAO-WORK6-RESULTADO.md)** · **[Missão anterior](docs/MISSAO-WORK5.md)** · **[Histórico](CHANGELOG.md)**. Sem release estável nem aprovação pelo AVG.
+**Versão do código em desenvolvimento:** v5.13.11.42 TESTE — MISSÃO WORK 7, em validação. Última bateria presencial: v5.13.11.40 no PC FORTE. A .41 falhou na regressão de layout e não foi homologada. **[Auditoria WORK 7](docs/MISSAO-WORK7-RESULTADO.md)** · **[WORK 6](docs/MISSAO-WORK6-RESULTADO.md)** · **[Histórico](CHANGELOG.md)**. Sem release estável nem aprovação pelo AVG.
 
 **Estado atual e continuidade:** [roadmap funcional](docs/ROADMAP.md) · [guia de organização do repositório](docs/ORGANIZACAO-REPOSITORIO.md) · [revisão e roteiro vigente](docs/OPERACAO-FAXINA-FINAL.md). Artefatos de TESTE e verificações na [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). **Exclusão de resíduos indisponível; MSIX pode ficar temporariamente parcial com erro 0x80040154, inclusive após uma tentativa adicional.**
 
@@ -14,7 +14,7 @@
 - Limpeza seletiva de arquivos temporários, Lixeira e caches, com informações de unidades e otimização pelo Windows.
 - Diagnóstico de rede, reparos específicos mediante consentimento, redefinição avançada e reparo do Windows por DISM/SFC.
 - Planos de energia e hibernação com opções explícitas.
-- Gráfico de RAM com acompanhamento na bandeja, limpeza opcional apenas de caches internos do GF (não de memória de outros aplicativos), inicialização, Windows Update e informações do computador.
+- Gráfico de RAM com acompanhamento na bandeja, descarte de caches internos e ajuste seletivo do working set de um aplicativo em segundo plano autorizado pelo usuário (não equivale a liberar RAM permanentemente), inicialização, Windows Update e informações do computador.
 - Aba DRIVERS de consulta somente leitura com histórico local e correlação consultiva de INF publicado/Driver Store por APIs do Windows; não instala, remove nem reverte drivers.
 - Auditoria histórica de possíveis resíduos somente leitura, com proteção de instalações, dados pessoais e fabricantes compartilhados. A inspeção explica pistas de favoritos, sessões, credenciais, backups e fontes de instalação, mantendo caches preservados.
 - Consultas multifontes com versões divergentes preservadas, origem na dica da linha e bloqueio do instalador direto em conflitos; cinco novos produtos consultivos e comparação Proton com feed estável Windows priorizado. WinGet COM/CLI permanece desativado, sem executor distribuído.

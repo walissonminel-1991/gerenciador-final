@@ -14,8 +14,13 @@ permissions:
   contents: read
 
 jobs:
+  validar:
+    uses: ./.github/workflows/validar-candidata-windows.yml
+  politica:
+    uses: ./.github/workflows/triagem-diagnostico-github.yml
   build:
     name: Compilação Windows x64
+    needs: [validar, politica]
     permissions:
       contents: read
     outputs:

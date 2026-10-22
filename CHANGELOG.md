@@ -1,3 +1,13 @@
+## v5.13.11.42 TESTE — MISSÃO WORK 7 (em validação)
+
+- 7-Zip: correlação de registros antigos exige escopo, identidade de Registro, mesma pasta local e metadados coerentes; fonte oficial aceita o nome real “x64 edition”. Novas versões oficiais deixam de ser suprimidas por catálogo antigo.
+- Windows Update: resultado parcial não vira sucesso vazio; consulta manual é renovada, seleção antiga é invalidada em falha e revisão/licença alterada impede iniciar o lote. Download incompleto não avança para instalação.
+- Desinstalação: códigos não zero também consultam estado posterior; ausência transitória não confirma remoção, reinício exigido permanece pendente e lote para enquanto um fornecedor estiver pendente. Desconfiança explícita e erros de assinatura desconhecidos são recusados.
+- Resíduos: suspensa exclusão dos perfis foobar2000/OBS/VLC, pois o resumo agregado não comprova integridade dos alvos. Executor sintético não faz parte da aplicação distribuída. R4 permanece aberto.
+- RAM: revalidação de PID, início e caminho no mesmo handle usado no ajuste; exclusão mútua das operações. Nenhum working set real é alterado pelos testes.
+- CI: pacote portátil depende das regressões Windows e da política de segurança. Teste de reparo passa a selecionar a grade correta sem retirar exigências de cartões/largura.
+- Roadmap 27/42 (64,3%); U8/R7/R4 e validações físicas permanecem abertos. [Evidências e limitações](docs/MISSAO-WORK7-RESULTADO.md).
+
 ## v5.13.11.41 TESTE — ajustes apos testes reais PC FORTE (CI pendente)
 - Reparo e rede: manter tres cartoes por linha quando a largura comportar, sem limite de 316 px nem faixas laterais vazias; colunas se adaptam a janelas pequenas. Acoes e salvaguardas permanecem iguais.
 - Atualizacoes: o caso real de registros simultaneos do 7-Zip 26.04 (x64) e 26.05 (x64 edition) passa a reconhecer a mesma familia/editor. Registro antigo continua auditavel, sem recomendar atualizar uma versao que ja foi instalada; nenhuma exclusao automatica.

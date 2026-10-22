@@ -1,7 +1,7 @@
 {
-  "version": "5.13.11.38 TESTE",
-  "date": "2026-10-21",
-  "code_commit": "1c4c460c7380edfa95318af7c7dec3fa15b84c07",
+  "version": "5.13.11.42 TESTE",
+  "date": "2026-10-22",
+  "code_commit": "908a333545831d74876dbb260a755ee2f7ac4f09",
   "ci_status": "pending",
   "ci_url": "",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
