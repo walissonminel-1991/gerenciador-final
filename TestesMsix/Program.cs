@@ -126,13 +126,15 @@ Check(LocalMsixInventory.FailureStatus(new InvalidOperationException("teste"))
 // Regressão real do PC fraco: REGDB_E_CLASSNOTREG eliminou 19 entradas
 // MSIX da leitura. Retry é limitado, não substitui apps por lista inventada.
 int attempts = 0;
+int retryDelayCalls = 0;
 var recovered = LocalMsixInventory.ReadWithRetry(() =>
 {
     attempts++;
     return attempts == 1
         ? new LocalMsixResult([], 0, "COMException(0x80040154)", Failures: 1)
         : new LocalMsixResult([generic!], 1, "ok");
-});
+}, () => retryDelayCalls++);
+Check(retryDelayCalls == 1, "MSIX: backoff executado uma vez entre tentativas transitorias");
 Check(attempts == 2 && recovered.Retried && recovered.Status == "ok" &&
     recovered.Items.Count == 1 && recovered.Failures == 0,
     "MSIX: erro de ativação recuperado com uma única segunda tentativa");
@@ -146,11 +148,13 @@ Check(attempts == 2 && persistent.Retried && persistent.Failures > 0 &&
     persistent.Status != "ok" && persistent.Items.Count == 0,
     "MSIX: falha persistente permanece parcial sem simular lista vazia completa");
 attempts = 0;
+retryDelayCalls = 0;
 var denied = LocalMsixInventory.ReadWithRetry(() =>
 {
     attempts++;
     return new LocalMsixResult([], 0, "COMException(0x80070005)", Failures: 1);
-});
+}, () => retryDelayCalls++);
+Check(retryDelayCalls == 0, "MSIX: nao atrasar falha nao recuperavel");
 Check(attempts == 1 && !denied.Retried &&
     denied.Status == "COMException(0x80070005)",
     "MSIX: erro de permissão não é repetido indiscriminadamente");

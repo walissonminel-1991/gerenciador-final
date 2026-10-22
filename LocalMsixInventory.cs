@@ -58,15 +58,22 @@ internal static class LocalMsixInventory
     // auxiliar, elevacao ou acesso a outros perfis. Se persistir, falha
     // explicitamente: lista MSIX vazia nunca significa zero apps instalados.
     private static readonly LocalMsixSnapshot Snapshot = new();
-    internal static LocalMsixResult ReadCurrentUser() => Snapshot.Read(() => ReadWithRetry(ReadOnce));
+    internal static LocalMsixResult ReadCurrentUser() =>
+        Snapshot.Read(() => ReadWithRetry(ReadOnce, () => Thread.Sleep(250)));
 
-    internal static LocalMsixResult ReadWithRetry(Func<LocalMsixResult> read)
+    internal static LocalMsixResult ReadWithRetry(Func<LocalMsixResult> read,
+        Action? beforeRetry = null)
     {
         var first = read();
         // Uma enumeração já iniciada tem evidência parcial útil. Não a trocar
         // por outra tentativa que pode falhar antes do primeiro pacote.
         if (!IsTransientMsixFailure(first.Status) || first.Seen != 0 || first.Items.Count != 0)
             return first;
+        // Falhas COM 0x80040154/0x800703FA podem ser transitorias: um
+        // intervalo curto evita repetir imediatamente a mesma ativacao
+        // enquanto o Registro/COM ainda esta sendo atualizado. Apenas em
+        // worker de inventario, sem bloquear a thread da interface.
+        beforeRetry?.Invoke();
         var second = read();
         return second with { Retried = true };
     }

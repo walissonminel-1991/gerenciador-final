@@ -1,3 +1,13 @@
+## Lote funcional em desenvolvimento — sem nova build para teste físico (22/10/2026)
+
+* **Windows**: dividir "Verificar Windows" (DISM ScanHealth + SFC verifyonly) e "Reparar Windows" (RestoreHealth + scannow). Reparação só habilita quando o texto explicitamente reconhecer corrupção nesta sessão; resultados inconclusivos não habilitam.
+* **Restauração**: "Criar ponto" permanece; "Escolher ponto de restauração" abre exclusivamente rstrui.exe oficial após confirmação, sem escolher/aplicar ponto automaticamente.
+* **Responsividade**: permitir pesquisa local e navegação com DISM/SFC ativo; ações conflitantes seguem protegidas por _busy. Progresso deriva dos percentuais reais das etapas; não fingir progresso quando a ferramenta não fornece valores.
+* **Discos**: otimização /O de uma unidade selecionada em cada card, revalidada no worker elevado. Opção global eliminada, letras arbitrárias/injeção rejeitadas.
+* **MSIX**: um retry limitado após pausa curta só para HRESULTs transitórios; manter a fotografia anterior como "presença não confirmada", sem habilitar receitas. Incluir regressão completa→falha 0x800703FA→recuperação completa.
+* **Atualização, desinstalação e resíduos**: regressões existentes devem rodar completas, sem operações reais sobre usuário. Não mudar bloqueio da exclusão de resíduos.
+* **Critério de saída**: build, regressões e política CI verdes + auditoria do diff; só então consolidar lote e solicitar bateria única no PC FRACO. Nada de microtestes e nada de aumentar 27/42 antes da validação.
+
 # Roteiro de testes — v5.13.11.38 TESTE
 
 ## Contrato responsivo — aba Inicialização

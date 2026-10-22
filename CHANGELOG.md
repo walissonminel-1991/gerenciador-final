@@ -1,5 +1,13 @@
 # Histórico de versões — Gerenciador Final
 
+## Lote de manutenção após .38 — não publicado, CI pendente (22/10/2026)
+
+- DISM/SFC divididos em diagnóstico consultivo e reparo após interpretação conservadora + confirmação. Progresso baseado em percentuais da saída; pesquisa local permanece disponível.
+- Escolha de pontos de restauração somente pelo assistente oficial rstrui.exe; nenhuma restauração iniciada automaticamente.
+- Otimizar agora atua em uma unidade específica, preserva defrag /O, valida o volume novamente após UAC e remove o botão global.
+- MSIX intermitente recebe retry único após pequena pausa no worker de inventário; snapshot parcial não concede direitos de atualização.
+- Regressões de segurança, interface, diagnósticos e MSIX ampliadas. Sem nova build pública, sem checkpoints adicionais no roadmap.
+
 ## v5.13.11.38 TESTE — layout responsivo universal para Inicialização
 - A largura dos cartões agora segue a largura real do viewport, após aplicar scrollbar e padding. Sem reservar duas vezes espaços laterais.
 - Número de colunas automático em todos os monitores >=720p e escalas DPI; também mantém o comportamento de degradação para telas antigas menores.

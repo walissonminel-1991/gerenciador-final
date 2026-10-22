@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.38 TESTE (layout de Inicialização para todas as resoluções >=720p; validação CI/física pendentes; .37 já testada no PC FRACO) · Progresso: 27/42 (64,3%).**
+**v5.13.11.38 TESTE é a última build gerada; lote posterior em desenvolvimento (diagnóstico/reparo DISM/SFC, restauração oficial, otimização individual, retry MSIX). Ainda sem CI da nova revisão ou build liberada · Progresso: 27/42 (64,3%).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
 ## MISSÃO WORK 6 — atualização, desinstalação e resíduos
