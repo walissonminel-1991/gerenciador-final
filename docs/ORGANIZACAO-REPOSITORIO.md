@@ -7,12 +7,13 @@ Este documento diferencia **arquivos ativos**, **evidências históricas** e
 
 - [README principal](../README.md) — propósito, limitações, compilação e versão
   experimental vigente
-- [ROADMAP](ROADMAP.md) — checkpoints funcionais; progresso 26/42
+- [ROADMAP](ROADMAP.md) — checkpoints funcionais; progresso 27/42 (64,3%)
 - [PROGRESSO.json](PROGRESSO.json) — estado dos 42 checkpoints em formato legível
   por ferramentas; R4 continua suspenso, sem remoção de resíduos
 - [CHANGELOG](../CHANGELOG.md) — histórico de alterações por versão
 - [TESTES](TESTES.md) — procedimento geral, segurança e validações
-- [Revisão da faxina e roteiro vigente](OPERACAO-FAXINA-FINAL.md) — missão Work 4, candidata .31; últimos testes reais .30 PC FORTE e .24 PC FRACO
+- [Revisão histórica da faxina](OPERACAO-FAXINA-FINAL.md) — decisões e evidências das etapas anteriores
+- [MISSÃO WORK 6 — resultado](MISSAO-WORK6-RESULTADO.md) — candidata .35; CI aprovada, testes físicos da .35 ainda pendentes
 
 ## Código e testes
 
@@ -65,10 +66,14 @@ pelo GitHub Actions. Artefatos de teste têm retenção curta no workflow.
 
 ## Situação atual de teste
 
-A v5.13.11.24 demonstrou que o MSIX pode falhar com
+No PC FRACO, a v5.13.11.24 demonstrou que o MSIX pode falhar com
 `COMException(0x80040154)` mesmo após o retry e reduzir
 temporariamente a cobertura de 74 para 55 entradas no PC fraco.
 Os aplicativos ausentes da lista **não** foram comprovadamente removidos.
 A investigação de resíduos permanece parcial/somente leitura.
-PR #40 continua Draft; `main` não deve receber código experimental
-sem revisão e testes supervisionados.
+A v5.13.11.35 TESTE está no PR #40 (Draft), com validação física ainda pendente.
+A `main` mantém a v5.13.11.0 e recebeu somente a limpeza de 50 arquivos
+históricos pelo [PR #41](https://github.com/walissonminel-1991/gerenciador-final/pull/41),
+sem incorporação do código experimental. Na `main` há dois workflows atuais;
+na branch experimental são três. Não mesclar o PR #40 sem revisão e testes
+supervisionados.

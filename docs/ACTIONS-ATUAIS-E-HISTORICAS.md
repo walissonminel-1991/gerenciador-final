@@ -1,6 +1,6 @@
 # GitHub Actions — manutenção e arquivo histórico
 
-## Workflows ativos (somente três)
+## Workflows ativos na branch experimental do PR #40 (três)
 
 | Arquivo | Finalidade |
 | --- | --- |
@@ -51,6 +51,12 @@ falhar; uma execução de PR com esses jobs ignorados não comprova fontes ao vi
 Scripts de distribuição têm `--print-version`, validado no Windows sem publicar.
 `BUILD-INFO.txt` distingue SHA fonte, base e SHA do merge sintético testado.
 
-A limpeza permanece exclusivamente na branch da PR #40. A `main` ainda contém
-42 workflows históricos até integração futura; não houve remoção de execuções,
-artefatos ou releases. [Diagnóstico consolidado](OPERACAO-FAXINA-FINAL.md).
+Em **22/10/2026**, o [PR #41](https://github.com/walissonminel-1991/gerenciador-final/pull/41)
+integrou na `main` exclusivamente as 50 exclusões históricas: 40 workflows
+obsoletos e 10 guias versionados. [Compilação Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39768905807)
+e [regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39768905843)
+aprovadas na revisão da limpeza. A `main` possui **dois** workflows atuais
+(`build-windows.yml` e `validar-candidata-windows.yml`); o terceiro,
+`triagem-diagnostico-github.yml`, permanece somente na branch experimental.
+O PR #40 continua Draft, sem merge do código .35. Não houve remoção de runs,
+artefatos antigos, tags, releases ou branches. [Diagnóstico consolidado](OPERACAO-FAXINA-FINAL.md).
