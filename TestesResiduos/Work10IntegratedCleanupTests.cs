@@ -95,7 +95,7 @@ internal static class Work10IntegratedCleanupTests
             StartupTrayRegistration.Command(executable, recovery: true).EndsWith("--tray --post-reboot"),
             "W13 inicializacao na bandeja usa comando literal com aspas, sem shell");
         bool rejected = false;
-        try { StartupTrayRegistration.Command(@"C:\\GF.exe\" --bad"); }
+        try { StartupTrayRegistration.Command(@"C:\GF.exe" + (char)34 + " --bad"); }
         catch (InvalidDataException) { rejected = true; }
         check(rejected, "W13 inicializacao recusa argumentos arbitrarios");
 
