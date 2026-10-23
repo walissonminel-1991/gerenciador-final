@@ -27,6 +27,7 @@ internal sealed partial class MainForm
     private string? _windowsUpdateScanFailure;
     private string _activeSystemView = "memory";
     private bool _fittingSystemCards;
+    private long _systemViewGeneration;
 
     private Control BuildIntegratedSystemPanel()
     {
@@ -45,18 +46,19 @@ internal sealed partial class MainForm
         };
         for (int i = 0; i < 4; i++) actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
         AddIntegratedAction(actions, 0, "Memória RAM", "Consumo e memória disponível. Histórico local, também na bandeja.", AppServices.Blue,
-            async () => { _activeSystemView = "memory"; await RefreshMemoryRamAsync(); });
+            async () => { await RefreshMemoryRamAsync(); });
         AddIntegratedAction(actions, 1, "Inicialização", "Ative ou desative entradas do seu usuário de modo reversível.", AppServices.Gray,
-            async () => { _activeSystemView = "startup"; await RefreshStartupEntriesAsync(); });
+            async () => { await RefreshStartupEntriesAsync(); });
         AddIntegratedAction(actions, 2, "Windows Update", "Procure, selecione e instale atualizações oficiais.", AppServices.Green,
-            async () => { _activeSystemView = "update"; await ScanWindowsUpdatesAsync(); });
+            async () => { await ScanWindowsUpdatesAsync(); });
         AddIntegratedAction(actions, 3, "Este computador", "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos.", AppServices.Blue,
             async () =>
             {
-                _activeSystemView = "hardware";
+                long request = _systemViewGeneration;
                 await ExecuteAsync("Consultando hardware...", async () =>
                 {
                     var snapshot = await StaWorker.Run(DetailedHardware.Capture);
+                    if (!IsCurrentSystemView("hardware", request)) return;
                     ShowHardwareCompact(snapshot);
                     Status("Hardware consultado");
                     Log("Informações detalhadas de hardware atualizadas.");
@@ -149,6 +151,7 @@ internal sealed partial class MainForm
     {
         // Navegação imediata: não deixar cartões do modo anterior sob título
         // da nova aba enquanto operações assíncronas ainda consultam o Windows.
+        ++_systemViewGeneration;
         bool changing = _activeSystemView != view;
         _activeSystemView = view; // Coleta em background permanece independente.
         if (changing && view is "startup" or "update" or "hardware")
@@ -167,6 +170,10 @@ internal sealed partial class MainForm
             _systemPanelCards.Visible = view != "hardware" && !showMemory;
         _systemDetails.PerformLayout();
     }
+
+    private bool IsCurrentSystemView(string view, long request) =>
+        !IsDisposed && !Disposing && _nav.SelectedIndex == 5 &&
+        _activeSystemView == view && _systemViewGeneration == request;
 
     private void AddIntegratedAction(TableLayoutPanel parent, int column, string caption, string description,
         Color color, Func<Task> action)
@@ -506,10 +513,16 @@ internal sealed partial class MainForm
 
     private async Task RefreshStartupEntriesAsync(Func<Task<IReadOnlyList<StartupItem>>>? read = null)
     {
+        long request = _systemViewGeneration;
+        if (IsCurrentSystemView("startup", request))
+        {
+            _systemPanelTitle.Text = "Inicialização · consultando...";
+            _systemPanelSummary.Text = "Consultando entradas do seu usuário e de todos os usuários.";
+        }
         await ExecuteAsync("Carregando itens de inicialização...", async () =>
         {
             var entries = await (read?.Invoke() ?? Task.Run(StartupManager.Read));
-            if (IsDisposed || _activeSystemView != "startup" || _nav.SelectedIndex != 5) return;
+            if (!IsCurrentSystemView("startup", request)) return;
             _systemPanelTitle.Text = "Inicialização · ativar e desativar";
             _systemPanelSummary.Text = "Entradas do seu usuário podem ser alternadas e restauradas. Entradas de todos os usuários são apenas leitura. Serviços e tarefas agendadas não estão incluídos.";
             ReplaceSystemCards(entries.Select(BuildStartupCard).ToArray());
@@ -552,11 +565,13 @@ internal sealed partial class MainForm
             if (DarkConfirmDialog.Confirm(this,
                 $"Deseja {verb} '{item.Name}' na inicialização do Windows?",
                 "Confirmar inicialização") != DialogResult.Yes) return;
+            long request = _systemViewGeneration;
             await ExecuteAsync("Alterando inicialização...", async () =>
             {
                 await Task.Run(() => StartupManager.Toggle(item));
                 Log($"Inicialização: {item.Name} — " + (item.Enabled ? "desativado" : "reativado") + ".");
                 var entries = await Task.Run(StartupManager.Read);
+                if (!IsCurrentSystemView("startup", request)) return;
                 ReplaceSystemCards(entries.Select(BuildStartupCard).ToArray());
                 Status("Inicialização alterada. Efeito no próximo login.");
             });

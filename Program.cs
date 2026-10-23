@@ -658,6 +658,7 @@ internal sealed partial class MainForm : Form
         AddToolsPages();
         _nav.SelectedIndexChanged += async (_, _) =>
         {
+            ++_systemViewGeneration; // sair e voltar invalida consultas da visita anterior
             if (!startServices) return;
             // Navegação: Aplicativos, DRIVERS, Limpeza, Reparo, Energia, Sistema.
             if (_nav.SelectedIndex == 2)
@@ -1921,33 +1922,36 @@ internal sealed partial class MainForm : Form
         }
         _status.Text = description;
         try { await work(); }
-        catch (Exception ex) { ReportError(ex); }
+        catch (Exception ex) { if (!IsDisposed && !Disposing) ReportError(ex); }
         finally
         {
-            if (!quietStartup)
-            {
-                _progress.MarqueeAnimationSpeed = 0;
-                _progress.Style = ProgressBarStyle.Blocks;
-                _progress.Value = 0;
-                _progress.Visible = false;
-                _programList.ActionsEnabled = true;
-            }
-            _status.Text = _operationResult;
             _busy = false;
-            UpdateBulkButtons();
-            if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
-                _checkUpdatesButton.Enabled = true;
-            if (_repairNetworkButton is not null)
-                _repairNetworkButton.Enabled = GetSuggestedNetworkRepair(_lastNetworkScan) is not null;
-            RefreshWindowsRepairButton();
-            if (_installSelectedUpdates is not null)
-                _installSelectedUpdates.Enabled = _activeSystemView == "update" && _updateSelection.Count > 0;
-            if (_nav.SelectedIndex == 2)
-                _ = RefreshDiskUsageAsync();
-            if (_nav.SelectedIndex == 4)
-                _ = RefreshEnergyInfoAsync();
-            ExitAfterCurrentOperation();
-            if (!IsDisposed && HasPendingResidualReview) BeginInvoke((Action)TryShowPendingResidualReview);
+            if (!IsDisposed && !Disposing)
+            {
+                if (!quietStartup)
+                {
+                    _progress.MarqueeAnimationSpeed = 0;
+                    _progress.Style = ProgressBarStyle.Blocks;
+                    _progress.Value = 0;
+                    _progress.Visible = false;
+                    _programList.ActionsEnabled = true;
+                }
+                _status.Text = _operationResult;
+                UpdateBulkButtons();
+                if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
+                    _checkUpdatesButton.Enabled = true;
+                if (_repairNetworkButton is not null)
+                    _repairNetworkButton.Enabled = GetSuggestedNetworkRepair(_lastNetworkScan) is not null;
+                RefreshWindowsRepairButton();
+                if (_installSelectedUpdates is not null)
+                    _installSelectedUpdates.Enabled = _activeSystemView == "update" && _updateSelection.Count > 0;
+                if (_nav.SelectedIndex == 2)
+                    _ = RefreshDiskUsageAsync();
+                if (_nav.SelectedIndex == 4)
+                    _ = RefreshEnergyInfoAsync();
+                ExitAfterCurrentOperation();
+                if (!IsDisposed && HasPendingResidualReview) BeginInvoke((Action)TryShowPendingResidualReview);
+            }
         }
     }
 
