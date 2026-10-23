@@ -260,6 +260,12 @@ Check(!dualZipStarted && dualZipOutcomes.Single().State == UninstallState.Blocke
 
 // Testes de limpeza completa em raiz DESCARTÁVEL. Nenhum aplicativo ou chave real
 // é removido, inclusive quando o teste pede consentimento implícito.
+Check(SmallAppResidualCleanup.ExplainAccessFailure(
+          ["registro_abrir_pai_SecurityException_hr8013150A"]).Contains("preservada", StringComparison.Ordinal) &&
+      SmallAppResidualCleanup.ExplainAccessFailure(
+          ["registro_abrir_pai_UnauthorizedAccessException_hr80070005"]).Contains("permissao", StringComparison.Ordinal) &&
+      SmallAppResidualCleanup.ExplainAccessFailure(["registro_alterado"]) == "",
+      "Erro de permissao no Registro recebe explicacao sem forcar elevacao");
 Check(SmallAppResidualCleanup.Supported("Notepad++") &&
       SmallAppResidualCleanup.Supported("SumatraPDF") &&
       !SmallAppResidualCleanup.Supported("Notepad++ Backup"),
