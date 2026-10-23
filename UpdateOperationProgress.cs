@@ -11,7 +11,7 @@ internal enum UpdateStage
 }
 
 // Download em azul mede bytes; somente versão confirmada recebe resultado verde e 100%.
-internal sealed record UpdateProgress(UpdateStage Stage, long Bytes = 0, long? Total = null)
+internal sealed record UpdateProgress(UpdateStage Stage, long Bytes = 0, long? Total = null, bool DownloadCompleted = false)
 {
     internal int? Percent => Stage == UpdateStage.Confirmed ? 100 :
         Stage == UpdateStage.Downloading && Total is > 0 && Bytes >= 0
@@ -116,10 +116,10 @@ internal sealed class UpdateOperation
             bool changed = snapshot.Progress.Stage != progress.Stage;
             snapshot = snapshot with { Progress = progress, DurationMs = clock.ElapsedMilliseconds };
             int bucket = (progress.Percent ?? -10) / 10;
-            if (changed || bucket != reportedBucket)
+            if (changed || bucket != reportedBucket || progress.DownloadCompleted)
             {
                 reportedBucket = bucket;
-                Record("ETAPA");
+                Record(progress.DownloadCompleted ? "DOWNLOAD_CONCLUIDO" : "ETAPA");
             }
         }
     }
@@ -167,7 +167,8 @@ internal sealed class UpdateOperation
         {
             // Tipo fechado; nunca registrar Message, URL, linha de comando ou caminho externo.
             Record("ERRO_" + exception.GetType().Name);
-            Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Failed, reason: reason);
+            Finish(installerStarted ? UpdateStage.Pending : exception is System.ComponentModel.Win32Exception ? UpdateStage.Blocked : UpdateStage.Failed,
+                exit: exception is System.ComponentModel.Win32Exception native ? native.NativeErrorCode : exception.HResult, reason: reason);
         }
     }
     private void Record(string evt)
@@ -215,6 +216,6 @@ internal static class UpdateDownloadTransfer
         token.ThrowIfCancellationRequested();
         if (bytes < minimum || expected is long total && total != bytes)
             throw new InvalidDataException("Download incompleto.");
-        report?.Invoke(new(UpdateStage.Downloading, bytes, expected));
+        report?.Invoke(new(UpdateStage.Downloading, bytes, expected, DownloadCompleted: true));
     }
 }

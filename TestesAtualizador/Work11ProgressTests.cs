@@ -36,7 +36,7 @@ internal static class Work11ProgressTests
         using (var output = new MemoryStream())
         {
             await UpdateDownloadTransfer.CopyAsync(response, output, 1, 1000, default, updates.Add);
-            check(updates.All(p => p.Percent is null) && updates.Last().Bytes == 300,
+            check(updates.All(p => p.Percent is null) && updates.Last().Bytes == 300 && updates.Last().DownloadCompleted,
                 "W11 sem Content-Length indica atividade sem porcentagem");
         }
         check(await Rejected(Response(new ChunkStream(400, 100, failAt: 200), 400), typeof(IOException)),
@@ -126,6 +126,10 @@ internal static class Work11ProgressTests
             check(op.Snapshot.Progress.Stage==UpdateStage.Failed && op.Snapshot.Reason.Contains(stage==UpdateStage.ValidatingSignature?"Assinatura":"SHA-256"),
                 "W11 rejeicao criptografica identifica etapa "+stage);
         }
+        var launchBlocked=new UpdateOperationStore().Begin(App(),"2.0")!;
+        launchBlocked.Fail(new Win32Exception(5),false);
+        check(launchBlocked.Snapshot.Progress.Stage==UpdateStage.Blocked && launchBlocked.Snapshot.ExitCode==5,
+            "W11 Windows bloqueia inicio com motivo e codigo nativo preservados");
         var diag=new UpdateOperationStore(_=>throw new IOException("C:\\Users\\PRIVATE\\secret"));
         var noLog=diag.Begin(App(),"2.0")!;noLog.Complete(new(UpdateAttemptState.Confirmed));
         check(noLog.Snapshot.DiagnosticFailed && noLog.Snapshot.Progress.Stage==UpdateStage.Confirmed,

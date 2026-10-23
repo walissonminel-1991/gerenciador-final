@@ -2547,6 +2547,30 @@ internal sealed partial class MainForm : Form
         }
     }
 
+    private async Task RefreshInventoryAfterUpdateAsync(string previousFilter, UpdateOperation operation)
+    {
+        if (IsDisposed || Disposing) return;
+        try
+        {
+            await LoadInstalledAsync();
+            if (IsDisposed || Disposing) return;
+            await LoadUpdatesAsync();
+            if (IsDisposed || Disposing) return;
+            _appFilter = _catalogoVerificado ? previousFilter : "Todos";
+            RenderPrograms();
+        }
+        catch (Exception ex)
+        {
+            DiagnosticTrace.Failure("ATUALIZACAO.RECARGA_FALHA", ex);
+            Log("Não foi possível renovar a lista; o resultado da atualização foi preservado.");
+        }
+        finally
+        {
+            if (!IsDisposed && !Disposing)
+                Status(operation.Snapshot.Details + (_catalogoVerificado ? " · Lista consultada." : " · Catálogo indisponível."));
+        }
+    }
+
     private UpdateOperation? BeginUpdateOperation(ProgramEntry entry, string target)
     {
         var operation = _updateOperations.Begin(entry, target);
@@ -2644,6 +2668,7 @@ internal sealed partial class MainForm : Form
                 bool confirmed = result.State == UpdateAttemptState.Confirmed;
                 if (!confirmed)
                 {
+                    if (installerStarted) await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
                     Status(operation.Snapshot.Details);
                     Log("Windows Terminal: nenhuma instalação confirmada. O provedor pode continuar após o prazo; não repetir automaticamente.");
                     DiagnosticTrace.Write("TERMINAL_GITHUB.VERSAO_NAO_CONFIRMADA");
@@ -2651,11 +2676,7 @@ internal sealed partial class MainForm : Form
                 }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.VERSAO_CONFIRMADA");
                 Log("Windows Terminal " + targetVersion + " confirmado pelo identificador MSIX Microsoft.WindowsTerminal.");
-                await LoadInstalledAsync();
-                await LoadUpdatesAsync();
-                _appFilter = _catalogoVerificado ? previousFilter : "Todos";
-                RenderPrograms();
-                Status(operation.Snapshot.Details + " · Lista renovada.");
+                await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
             }
             catch (OperationCanceledException)
             {
@@ -2670,6 +2691,7 @@ internal sealed partial class MainForm : Form
                 Log("Windows Terminal: falha no pacote ou instalacao " + ex.GetType().Name +
                     ". Confira o estado do Windows e a versão; a operação pode ter sido iniciada. Nenhuma repetição automática.");
                 operation.Fail(ex, installerStarted);
+                if (installerStarted) await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
                 Status(operation.Snapshot.Details);
             }
             finally
@@ -2789,6 +2811,7 @@ internal sealed partial class MainForm : Form
                 if (result.State is UpdateAttemptState.Blocked or UpdateAttemptState.Cancelled or UpdateAttemptState.Failed)
                 {
                     Log("Atualização não confirmada: " + result.State + ". Não haverá nova tentativa automática.");
+                    if (installerStarted) await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
                     Status(operation.Snapshot.Details);
                     return;
                 }
@@ -2806,18 +2829,7 @@ internal sealed partial class MainForm : Form
                     Status("Instalador terminou; versão ainda não confirmada.");
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.VERSAO_NAO_CONFIRMADA");
                 }
-                await LoadInstalledAsync();
-                // O catálogo é consultado novamente, sem exigir clique em Verificar.
-                // A visualização anterior volta depois da consulta, evitando lista vazia.
-                Log("Atualizando automaticamente a lista de versões disponíveis...");
-                await LoadUpdatesAsync();
-                _appFilter = _catalogoVerificado ? previousFilter : "Todos";
-                RenderPrograms();
-                Status(confirmed
-                    ? (_catalogoVerificado ? "Atualização confirmada; lista de atualizações renovada."
-                        : "Atualização confirmada; catálogo remoto temporariamente indisponível.")
-                    : "Instalador finalizado; confira a versão pelo aplicativo.");
-                Status(operation.Snapshot.Details + (_catalogoVerificado ? " · Lista renovada." : " · Catálogo indisponível."));
+                await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
             }
             catch (OperationCanceledException)
             {
@@ -2837,6 +2849,7 @@ internal sealed partial class MainForm : Form
                 DiagnosticTrace.Failure("INSTALACAO_OFICIAL.FALHA", ex);
                 Log("Falha de atualização: " + ex.GetType().Name + ". Nenhuma conclusão presumida.");
                 operation.Fail(ex, installerStarted);
+                if (installerStarted) await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
                 Status(operation.Snapshot.Details);
             }
             finally
