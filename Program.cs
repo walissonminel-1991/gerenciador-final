@@ -2869,10 +2869,7 @@ internal sealed partial class MainForm : Form
             }
             else if (plan.Files.Count > 0 || plan.Registry.Count > 0 || plan.Directories.Count > 0)
             {
-                bool clean = DarkConfirmDialog.Confirm(this,
-                    SevenZipCompleteCleanup.Describe(plan) +
-                    "\n\nDeseja excluir definitivamente SOMENTE os itens exibidos na prévia?",
-                    "7-Zip — limpeza completa autorizada") == DialogResult.Yes;
+                bool clean = SevenZipCleanupReviewDialog.Confirm(this, plan);
                 if (clean)
                 {
                     var result = await SevenZipCompleteCleanup.ExecuteAsync(entry, plan,
