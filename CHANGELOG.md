@@ -1,3 +1,13 @@
+## v5.13.11.44 TESTE — piloto de desinstalação completa (NÃO HOMOLOGADA)
+
+- Seleção silenciosa: MSI apenas com ProductCode registrado correspondente, /qn /norestart; 7-Zip EXE x64 apenas quando identidade, diretório, arquivos e comando oficial são confirmados. Outros EXEs continuam com o desinstalador habitual; não há opção genérica insegura de modo silencioso.
+- Pós-desinstalação do 7-Zip: captura precisa de arquivos, tamanhos e SHA-256 em Program Files/7-Zip, AppData/Roaming/7-Zip e AppData/Local/7-Zip; também apenas HKCU/HKLM\\SOFTWARE\\7-Zip. Não percorre Downloads, Documentos, Imagens, Músicas, pastas pessoais arbitrárias, Registro interno MSI nem drivers.
+- Cada exclusão exige inventário completo, ausência do 7-Zip e de seus processos, prévia integral rolável, confirmação explícita, nova comparação de nomes/conteúdo/Registro. Os arquivos são conferidos antes de excluir; pastas só são eliminadas vazias; chaves exclusivas são verificadas por digest. Falhas de permissão preservam os itens e são contabilizadas, sem elevação automática.
+- Diagnósticos novos registram contagens, bytes e categorias de falha, sem registrar nomes/caminhos pessoais. Desinstalações pendentes, canceladas ou não confirmadas não podem iniciar limpeza.
+- Regressões com MSI sintético e árvore de arquivos descartável; alteração após a prévia deve impedir toda a limpeza.
+- **Bloqueio de release:** manifesto e arquivo do projeto devem ter versões iguais e todas as GitHub Actions devem passar. Nenhum pacote .44 deve ser distribuído até isso acontecer.
+- Testes físicos PC FORTE ainda não executados. Limpeza genérica para todos os aplicativos ainda não foi autorizada; expandir por identidades/produtos verificados.
+
 ## v5.13.11.43 TESTE — atualização silenciosa 7-Zip, candidata experimental (validação CI/física pendente)
 
 - PC FORTE: após coexistência de 7-Zip EXE 26.04 e MSI 26.05, remover o EXE deixou um MSI registrado sem arquivos executáveis. Novo atualizador exige instalação EXE x64 única, íntegra, na pasta padrão, com identidade e desinstalador esperados; se houver MSI, outra edição ou arquivos ausentes, bloqueia.
