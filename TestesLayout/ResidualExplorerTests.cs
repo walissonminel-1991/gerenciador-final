@@ -49,6 +49,13 @@ internal static class ResidualExplorerTests
             Until(() => window.Ready && !window.Busy, "Explorador não carregou a fotografia");
             Require(window.CurrentPage!.Matching == 1000 && window.Groups.Rows.Count == 50 && window.SummaryText.Contains("950"), "Explorador perdeu grupos antes da página");
             window.Refresh(); Application.DoEvents();
+            // Regressão PC FORTE: duas linhas de botões do modal ficavam
+            // praticamente coladas; o botão Limpar deve ter margem própria.
+            var navButton = Find(window, "ResidualLocationPrevious");
+            var cleanRowButton = Find(window, "ResidualInspect");
+            int verticalGap = cleanRowButton.RectangleToScreen(cleanRowButton.ClientRectangle).Top -
+                navButton.RectangleToScreen(navButton.ClientRectangle).Bottom;
+            Require(verticalGap >= 8, $"Linhas de navegação e limpeza próximas demais: {verticalGap}px em {size}");
             Require(window.Groups.Controls.Count == 1 && window.Groups.PaintedRows is > 0 and < 25, "Lista criou controles ou desenhou todos os mil grupos");
             foreach (var button in Descendants(window).OfType<Button>().Where(b => b.Visible))
             {
