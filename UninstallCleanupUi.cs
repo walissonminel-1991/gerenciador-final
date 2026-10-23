@@ -70,13 +70,13 @@ internal sealed partial class MainForm
             using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
                 FileName = command,
-                Arguments = "/r /t 60",
+                Arguments = "/r /t 0",
                 UseShellExecute = false,
                 CreateNoWindow = true
             });
             if (process is null) throw new IOException("Windows nao iniciou comando de reinicio.");
-            DiagnosticTrace.Write("REINICIO.RESIDUOS estado=solicitado atraso_segundos=60");
-            Status("Reinicialização solicitada para 60 segundos. Salve seu trabalho.");
+            DiagnosticTrace.Write("REINICIO.RESIDUOS estado=solicitado atraso_segundos=0");
+            Status("Reinicialização solicitada ao Windows, sem forçar o fechamento de aplicativos.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
             System.ComponentModel.Win32Exception or InvalidOperationException or ArgumentException)
