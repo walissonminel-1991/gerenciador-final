@@ -62,6 +62,7 @@ internal static class Work9ResidualTests
         foreach (var hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
         foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
             await RegistryCases(hive, view, check);
+        await IsolatedMachineViews(check);
     }
 
     private static Task<(bool Complete, IReadOnlyCollection<ProgramEntry> Apps)> Empty() =>
@@ -84,6 +85,36 @@ internal static class Work9ResidualTests
             _ => Task.CompletedTask, cancel.Token);
         check(results.Single().State == UninstallState.Pending && launches == 1,
             "W9-UN cancelamento na ultima pos-conferencia deixa resultado pendente");
+    }
+
+    private static async Task IsolatedMachineViews(Action<bool, string> check)
+    {
+        string leaf = "GF-W9-Views-" + Guid.NewGuid().ToString("N");
+        string subkey = @"Software\" + leaf + @"\Notepad++";
+        using var root32 = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32);
+        using var root64 = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+        try
+        {
+            using (var key = root32.CreateSubKey(subkey)) key.SetValue("View", "32");
+            using (var key = root64.CreateSubKey(subkey)) key.SetValue("View", "64-KEEP");
+            SmallAppResidualCleanup.SyntheticFolders = [Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))];
+            SmallAppResidualCleanup.SyntheticRegistryKeys = [(RegistryHive.LocalMachine, RegistryView.Registry32, subkey)];
+            var accepted = SmallAppResidualCleanup.Capture("Notepad++", true, []);
+            var outcome = await SmallAppResidualCleanup.DeleteAsync(accepted, Empty);
+            using var removed = root32.OpenSubKey(subkey);
+            using var preserved = root64.OpenSubKey(subkey);
+            check(outcome.Keys == 1 && outcome.Failed == 0 && removed is null &&
+                (string?)preserved?.GetValue("View") == "64-KEEP",
+                "W9-R5 mesmo caminho HKLM 32/64 remove somente a visao autorizada");
+        }
+        finally
+        {
+            SmallAppResidualCleanup.SyntheticFolders = null;
+            SmallAppResidualCleanup.SyntheticRegistryKeys = null;
+            using var software32 = root32.OpenSubKey("Software", true);
+            using var software64 = root64.OpenSubKey("Software", true);
+            software32!.DeleteSubKeyTree(leaf, false); software64!.DeleteSubKeyTree(leaf, false);
+        }
     }
 
     private static async Task RegistryCases(RegistryHive hive, RegistryView view, Action<bool, string> check)

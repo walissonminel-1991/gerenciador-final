@@ -71,9 +71,22 @@ internal static class SevenZipCompleteCleanup
         !current.Any(p => Regex.IsMatch(p.Name,
             @"^7-Zip(?:\s|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
 
-    internal static bool NoSevenZipProcesses() =>
-        !new[] { "7zFM", "7zG", "7z", "7za", "7zr" }
-            .Any(name => Process.GetProcessesByName(name).Length != 0);
+    internal static bool NoSevenZipProcesses()
+    {
+        string[] names = ["7zFM", "7zG", "7z", "7za", "7zr"];
+        try
+        {
+            foreach (string name in names)
+            {
+                var processes = Process.GetProcessesByName(name);
+                try { if (processes.Length != 0) return false; }
+                finally { foreach (var process in processes) process.Dispose(); }
+            }
+            return true;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or
+            InvalidOperationException or UnauthorizedAccessException) { return false; }
+    }
 
     private static IReadOnlyList<string> Roots()
     {

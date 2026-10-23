@@ -100,7 +100,16 @@ internal static class SmallAppResidualCleanup
     {
         string[] names = product.Equals(Npp, StringComparison.OrdinalIgnoreCase)
             ? ["notepad++"] : ["SumatraPDF"];
-        try { return names.All(name => Process.GetProcessesByName(name).Length == 0); }
+        try
+        {
+            foreach (string name in names)
+            {
+                var processes = Process.GetProcessesByName(name);
+                try { if (processes.Length != 0) return false; }
+                finally { foreach (var process in processes) process.Dispose(); }
+            }
+            return true;
+        }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or
             InvalidOperationException or UnauthorizedAccessException) { return false; }
     }
