@@ -16,7 +16,10 @@ internal static class Work9ResidualTests
             Directory.CreateDirectory(fixture);
             string file = Path.Combine(fixture, "empty.conf");
             File.WriteAllBytes(file, []);
-            var empty = SmallAppResidualCleanup.Capture("Notepad++", true, []);
+            SmallAppSnapshot empty;
+            try { empty = SmallAppResidualCleanup.Capture("Notepad++", true, []); }
+            catch (InvalidDataException)
+            { empty = new("Notepad++", [], [], [], false, "Zero-byte fixture rejected"); }
             check(empty.Complete && empty.Files.Count == 1 && empty.Files[0].Bytes == 0,
                 "W9-R1 arquivo de configuracao vazio e valido na previa residual");
             File.Delete(file);
