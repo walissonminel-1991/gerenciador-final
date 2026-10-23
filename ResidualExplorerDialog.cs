@@ -37,7 +37,7 @@ internal sealed class ResidualExplorerDialog : Form
     private readonly System.Windows.Forms.Timer debounce = new() { Interval = 220 };
     private readonly Dictionary<int, string> selections = new();
     private int generation, locationPage;
-    private bool binding, resourcesDisposed, sevenZipCleaned;
+    private bool binding, resourcesDisposed, sevenZipCleaned, smallAppWriteBlocked;
     private string criteria = "";
     private ResidualAuditReport? selectedReport;
     private ResidualInspectionSession? inspection;
@@ -188,6 +188,7 @@ internal sealed class ResidualExplorerDialog : Form
     {
         if (!binding && Busy) operation?.Cancel();
         selectedReport = groups.SelectedRow?.Target as ResidualAuditReport;
+        smallAppWriteBlocked = false;
         inspectionResult = null; locationPage = 0;
         inspection = selectedReport is null ? null : new ResidualInspectionSession(selectedReport);
         if (selectedReport is null) { locations.SetRows([]); details.SetText(index?.Coverage.Describe() ?? "Preparando resultados..."); return; }
@@ -216,7 +217,7 @@ internal sealed class ResidualExplorerDialog : Form
     private void ShowLocation()
     {
         if (selectedReport is null) return;
-        string text = selectedReport.Product + "\r\n" + (selectedReport.UninstallConfirmed ? "Registro de desinstalação ausente; auxiliares ainda podem estar ativos." : "O programa ainda pode estar instalado. Vínculo exclusivo não comprovado.") + "\r\n\r\n";
+        string text = selectedReport.Product + "\r\n" + (selectedReport.UninstallConfirmed ? "Registro de desinstalação ausente; auxiliares ainda podem estar ativos." : "O vínculo exclusivo não foi comprovado nesta investigação geral. A presença de uma referência não comprova que o aplicativo ainda esteja instalado.") + "\r\n\r\n";
         if (locations.SelectedRow?.Target is ResidualAuditFinding f) text += f.DecisionLabel + "\r\n" + f.Location + "\r\n" + f.Evidence;
         else if (locations.SelectedRow?.Target is ResidualInspectionEntry e) text += e.Location + "\r\n" +
             e.PreservationExplanation + "\r\nPista pelo nome; finalidade e vínculo não confirmados. Conteúdo não lido. " +
@@ -354,6 +355,16 @@ internal sealed class ResidualExplorerDialog : Form
                     "Outras referências históricas podem existir em áreas compartilhadas.");
                 return;
             }
+            var blocked = SmallAppResidualCleanup.RegistryWritePreflight(preview);
+            if (blocked is not null)
+            {
+                smallAppWriteBlocked = true;
+                details.SetText("Limpeza não iniciada. " + blocked);
+                DiagnosticTrace.Write("RESIDUOS_APLICATIVO_PERMISSAO tipo=" +
+                    (product == "Notepad++" ? "npp" : "sumatra") +
+                    " estado=bloqueado_sem_escrita chaves=" + preview.Keys.Count);
+                return;
+            }
             if (!SevenZipCleanupReviewDialog.Confirm(this, preview))
             {
                 details.SetText("Limpeza recusada. Nenhum item foi alterado.");
@@ -438,7 +449,7 @@ internal sealed class ResidualExplorerDialog : Form
             !sevenZipCleaned;
         cleanSevenZip.Enabled = !Busy && cleanSevenZip.Visible;
         cleanSmallApp.Visible = SmallAppResidualCleanup.Supported(selectedReport?.Product);
-        cleanSmallApp.Enabled = !Busy && cleanSmallApp.Visible;
+        cleanSmallApp.Enabled = !Busy && cleanSmallApp.Visible && !smallAppWriteBlocked;
     }
     internal static Rectangle FitBounds(Rectangle requested, Rectangle workingArea)
     {
