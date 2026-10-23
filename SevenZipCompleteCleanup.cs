@@ -233,6 +233,33 @@ internal static class SevenZipCompleteCleanup
         { return false; }
     }
 
+    // Estado da interface produzido SOMENTE a partir da última conferência,
+    // nunca a partir de uma lista antiga que pode conter itens já excluídos.
+    // O relatório por si só não autoriza qualquer exclusão.
+    internal static ResidualAuditReport? RecoveryReport(SevenZipCleanupPlan plan)
+    {
+        if (!plan.Complete ||
+            plan.Files.Count + plan.Directories.Count + plan.Registry.Count == 0)
+            return null;
+        var findings = plan.Files.Select(file => new ResidualAuditFinding(
+            file.Path, "Arquivo próprio — conferir limpeza", 1,
+            "Vínculo com a pasta exata do aplicativo; autorização separada necessária.",
+            ResidualDisposition.Review, ResidualSource.Installation))
+            .Concat(plan.Directories.Select(path => new ResidualAuditFinding(
+                path, "Pasta própria — conferir limpeza", 1,
+                "Diretório exato; só será removido se ficar vazio.",
+                ResidualDisposition.Review, ResidualSource.Installation)))
+            .Concat(plan.Registry.Select(key => new ResidualAuditFinding(
+                (key.Hive == RegistryHive.LocalMachine
+                    ? @"HKEY_LOCAL_MACHINE\\" : @"HKEY_CURRENT_USER\\") + key.SubKey,
+                "Configuração própria do 7-Zip", key.Entries,
+                "Árvore específica verificada por resumo criptográfico; não é cadastro MSI.",
+                ResidualDisposition.Review, ResidualSource.Registry)))
+            .ToArray();
+        return new ResidualAuditReport(RecoveryIdentity().Name, true, findings,
+            Array.Empty<string>(), Historical: true);
+    }
+
     internal static string Describe(SevenZipCleanupPlan plan)
     {
         if (!plan.Complete) return "Limpeza bloqueada: " + plan.Reason;
