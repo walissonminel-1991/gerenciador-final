@@ -63,11 +63,11 @@ internal static class VerifiedUpdaters
             "obs-x64-32.2.2" => new(recipe.Identifier, "OBS Studio", "32.2.2",
                 Obs, ObsDigest, "OBS Project, LLC", "", true, "https://obsproject.com/download"),
             "notepadpp-x64-8.9.8.1" => new(recipe.Identifier, "Notepad++", "8.9.8.1",
-                Npp64, NppDigest, "Notepad++", "", true, "https://notepad-plus-plus.org/downloads/"),
+                Npp64, NppDigest, "Notepad++", "/S", false, "https://notepad-plus-plus.org/downloads/"),
             "sevenzip-exe-x64-26.05" => CreateSevenZipRecipe(),
             "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" =>
                 CreateSumatraRecipe(new ProgramEntry(), recipe.Identifier == "sumatrapdf-x64-3.6.1",
-                    recipe.Arguments == "-install -all-users"),
+                    recipe.Arguments == "-install -silent -all-users"),
             _ => null
         };
         return approved is not null && recipe == approved &&
@@ -247,7 +247,7 @@ internal static class VerifiedUpdaters
             TryVersion(entry.AvailableVersion, out var nppAvailable) && nppAvailable == NppVersion)
         {
             return new("notepadpp-x64-8.9.8.1", "Notepad++", "8.9.8.1", Npp64, NppDigest,
-                "Notepad++", "", true, "https://notepad-plus-plus.org/downloads/");
+                "Notepad++", "/S", false, "https://notepad-plus-plus.org/downloads/");
         }
         if (entry.Name.Equals("SumatraPDF", StringComparison.OrdinalIgnoreCase) &&
             entry.Source == "GitHub oficial" &&
@@ -415,8 +415,8 @@ internal static class VerifiedUpdaters
         => new(x64 ? "sumatrapdf-x64-3.6.1" : "sumatrapdf-x86-3.6.1",
             "SumatraPDF", "3.6.1", x64 ? SumatraX64 : SumatraX86,
             x64 ? SumatraX64Digest : SumatraX86Digest,
-            "Krzysztof Kowalczyk", allUsers ? "-install -all-users" : "-install",
-            true, "https://www.sumatrapdfreader.org/download-free-pdf-viewer");
+            "Krzysztof Kowalczyk", allUsers ? "-install -silent -all-users" : "-install -silent",
+            false, "https://www.sumatrapdfreader.org/download-free-pdf-viewer");
 
     // Um candidato sempre recebe uma acao explicita, mas apenas receitas locais
     // assinadas e verificadas autorizam iniciar um instalador.
