@@ -178,6 +178,43 @@ internal static class Work10IntegratedCleanupTests
     }
     private static async Task MutationsAndCancellation(Action<bool, string> check)
     {
+        // Regressao real para erro 5: FileDispositionInfo legado nao remove
+        // FILE_ATTRIBUTE_READONLY; a exclusao Ex nao deve mudar ACL/atributos.
+        using (var f = new Fixture())
+        {
+            string file = f.File("settings.cfg", "READONLY FIXTURE");
+            File.SetAttributes(file, File.GetAttributes(file) | FileAttributes.ReadOnly);
+            try
+            {
+                var plan = f.Plan();
+                check(plan.Files.Count == 1, "W12 arquivo readonly permanece elegivel para conferencia por handle");
+                var output = await IntegratedResidualCleanup.DeleteAsync(plan, true, Empty);
+                check(output.Verified && output.Files == 1 && output.Directories == 1 &&
+                    !File.Exists(file) && !Directory.Exists(f.Root),
+                    "W12 readonly real e pasta vazia removidos sem alterar ACL");
+            }
+            finally
+            {
+                if (File.Exists(file)) File.SetAttributes(file, FileAttributes.Normal);
+            }
+        }
+        using (var f = new Fixture())
+        {
+            string file = f.File("settings.cfg", "SAME CONTENT");
+            var plan = f.Plan();
+            // Atributo muda apos a captura, mas identidade e hash sao preservados.
+            File.SetAttributes(file, File.GetAttributes(file) | FileAttributes.ReadOnly);
+            try
+            {
+                var output = await IntegratedResidualCleanup.DeleteAsync(plan, true, Empty);
+                check(output.Files == 1 && output.Verified && !File.Exists(file),
+                    "W12 readonly aplicado apos captura nao impede exclusao de conteudo identico");
+            }
+            finally
+            {
+                if (File.Exists(file)) File.SetAttributes(file, FileAttributes.Normal);
+            }
+        }
         using (var f = new Fixture())
         {
             string file = f.File("settings.cfg"); var accepted = f.Plan(); System.IO.File.WriteAllText(file, "NEW CONTENT");
