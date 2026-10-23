@@ -1,3 +1,11 @@
+## v5.13.11.47 TESTE — Conciliação de resultados depois da limpeza residual
+
+- Evidência real PC FORTE 23/10/2026: a DLL e pasta de 7-Zip desapareceram após reinício; limpeza de Registro precisou de duas autorizações, na primeira 1 chave removida e erro `registro_caminho_invalido_win32_87`; na segunda 1 chave removida sem falhas e conferência específica final 0 arquivos, 0 pastas, 0 chaves.
+- Corrigida a tela de investigação: após cada limpeza específica, grupo e locais são reconstruídos a partir da nova fotografia. Quando não sobrar nenhum alvo, o grupo de 7-Zip some imediatamente da lista sem necessidade de reiniciar o GF. Limpeza parcial mostra somente os itens remanescentes.
+- Provedor único de relatórios específicos evita divergência entre consulta inicial e conferência posterior. Não amplia abrangência de limpeza, não altera permissões, não reinicia nem encerra o Explorer.
+- Teste sintético comprova que um grupo com quatro alvos não permanece após a exclusão dos quatro; zero alvo não produz relatório residual.
+- Limpeza completa do computador NÃO declarada: integrações compartilhadas e demais rastros sugeridos por terceiros exigem prova de exclusividade. CI deve passar antes de disponibilizar candidato.
+
 ## v5.13.11.46 TESTE — identificação exata do bloqueio de exclusão
 
 - PC FORTE: com v5.13.11.45 elevada, a DLL de 101888 bytes e as chaves permaneceram. ACL mostrada pelo usuário: Administradores e SYSTEM com FullControl na pasta e no arquivo, sem atributo somente leitura. Causa real ainda não determinada.
