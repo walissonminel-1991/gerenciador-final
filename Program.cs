@@ -2617,11 +2617,22 @@ internal sealed partial class MainForm : Form
             Status("Atualização automática indisponível para este programa.");
             return;
         }
+        // 7-Zip EXE e MSI podem compartilhar a pasta: o teste PC FORTE demonstrou
+        // que remover uma variante deixou a outra registrada, porem sem EXE.
+        // Nao baixar nem iniciar o instalador se houver coexistencia ou danos.
+        if (recipe.Identifier == "sevenzip-exe-x64-26.05" &&
+            !VerifiedUpdaters.SingleSevenZipRegistration(entry,
+                await Task.Run(AppServices.GetInstalledPrograms)))
+        {
+            Status("7-Zip: instalação incompleta ou outra edição também registrada. Atualização silenciosa bloqueada.");
+            Log("7-Zip: atualização não iniciada; confirme a instalação EXE x64 única e íntegra.");
+            return;
+        }
         // O clique explícito em "Atualizar" autoriza preparar a atualização escolhida.
         // Sem caixa de diálogo redundante. UAC e janelas legítimas dos instaladores continuam.
         Status("Atualizando " + recipe.ProductName + ": preparando instalador oficial verificado...");
         Log("Atualização solicitada diretamente na lista: " + recipe.ProductName +
-            " (" + recipe.Identifier + "). Origem e assinatura serão conferidas antes da execução.");
+            " (" + recipe.Identifier + "). Origem e SHA-256 serão conferidos; assinatura digital exigida quando aplicável.");
         string previousFilter = _appFilter;
         await ExecuteAsync("Preparando atualização de " + recipe.ProductName + "...", async () =>
         {
@@ -2667,9 +2678,14 @@ internal sealed partial class MainForm : Form
                 }
                 Status("Instalador verificado. Aguardando conclusão...");
                 var result = await new UpdateLaunchGate().RunAsync(
-                    async () => _installed.Contains(entry) && VerifiedUpdaters.Resolve(entry) == recipe &&
-                        VerifiedUpdaters.SameInstallationForUpdate(entry,
-                        await Task.Run(AppServices.GetInstalledPrograms)),
+                    async () =>
+                    {
+                        if (!_installed.Contains(entry) || VerifiedUpdaters.Resolve(entry) != recipe) return false;
+                        var current = await Task.Run(AppServices.GetInstalledPrograms);
+                        return VerifiedUpdaters.SameInstallationForUpdate(entry, current) &&
+                            (recipe.Identifier != "sevenzip-exe-x64-26.05" ||
+                             VerifiedUpdaters.SingleSevenZipRegistration(entry, current));
+                    },
                     () => VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status),
                     async () => VerifiedUpdaters.ConfirmInstallation(recipe, entry,
                         await Task.Run(AppServices.GetInstalledPrograms)));
@@ -2684,7 +2700,7 @@ internal sealed partial class MainForm : Form
                 int? exit = result.ExitCode;
                 if (confirmed)
                 {
-                    Log("Atualização confirmada no Registro do Windows: " + recipe.ProductName + " " + recipe.Version);
+                    Log("Atualização confirmada no Registro e nos arquivos exigidos pela receita: " + recipe.ProductName + " " + recipe.Version);
                     Status(exit == 3010 ? "Atualizado; reinicialização pode ser necessária." : "Atualização concluída e versão confirmada.");
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.VERSAO_CONFIRMADA");
                 }
