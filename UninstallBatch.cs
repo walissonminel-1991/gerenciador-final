@@ -60,6 +60,7 @@ internal sealed class UninstallBatch
             try {
                 token.ThrowIfCancellationRequested();
                 var before=await scan();
+                token.ThrowIfCancellationRequested();
                 var matching=before.Items.Where(x=>x.InventoryId.Equals(request.Original.InventoryId,StringComparison.OrdinalIgnoreCase)).ToArray();
                 if(!before.Complete || matching.Length!=1 || !SameRegistration(request.Original,matching[0]) ||
                     !BoundToProduct(request.Command,matching[0]) ||
@@ -105,6 +106,7 @@ internal sealed class UninstallBatch
                 for(int attempt=0;attempt<7;attempt++) {
                     token.ThrowIfCancellationRequested();
                     var after=await scan();
+                    token.ThrowIfCancellationRequested();
                     if(!after.Complete) { complete=false; break; }
                     absent=UninstallResiduals.StillInstalled(request.Original,after.Items) ? 0 : absent+1;
                     sawAbsence |= absent > 0;
