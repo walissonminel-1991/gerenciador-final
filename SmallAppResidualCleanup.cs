@@ -80,7 +80,18 @@ internal static class SmallAppResidualCleanup
         // Um perfil existente jamais autoriza desinstalar o próprio aplicativo.
         return !apps.Any(p => product.Equals(Npp, StringComparison.OrdinalIgnoreCase)
             ? p.Name.StartsWith(Npp, StringComparison.OrdinalIgnoreCase)
-            : p.Name.Equals(Sumatra, StringComparison.OrdinalIgnoreCase));
+            : p.Name.Equals(Sumatra, StringComparison.OrdinalIgnoreCase) ||
+              p.Name.StartsWith("SumatraPDF ", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool UnregisteredExecutableFound(string product)
+    {
+#if GF_PROGRESSIVE
+        if (SyntheticFolders is not null) return false;
+#endif
+        string binary = product.Equals(Npp, StringComparison.OrdinalIgnoreCase)
+            ? "notepad++.exe" : "SumatraPDF.exe";
+        return Folders(product).Any(folder => File.Exists(Path.Combine(folder, binary)));
     }
 
     private static bool ProcessesClosed(string product)
@@ -159,9 +170,9 @@ internal static class SmallAppResidualCleanup
         IReadOnlyCollection<ProgramEntry> apps, CancellationToken token = default)
     {
         if (!Supported(product) || !inventoryComplete || !AbsenceConfirmed(product, apps) ||
-            !ProcessesClosed(product))
+            !ProcessesClosed(product) || UnregisteredExecutableFound(product))
             return new(product, [], [], [], false,
-                "Produto não identificado, instalação ainda presente, inventário parcial ou processo ativo.");
+                "Produto não identificado, instalação/EXE ainda presente, inventário parcial ou processo ativo.");
         var files = new List<SmallAppFile>();
         var directories = new List<string>();
         var keys = new List<SmallAppKey>();
