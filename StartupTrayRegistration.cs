@@ -1,4 +1,3 @@
-using System.Windows.Forms;
 using Microsoft.Win32;
 
 namespace GerenciadorAplicativos;
@@ -24,7 +23,7 @@ internal static class StartupTrayRegistration
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunPath, false);
         return string.Equals(key?.GetValue(ValueName) as string,
-            Command(Application.ExecutablePath), StringComparison.OrdinalIgnoreCase);
+            Command((Environment.ProcessPath ?? throw new InvalidOperationException("Executavel nao identificado."))), StringComparison.OrdinalIgnoreCase);
     }
     internal static void SetEnabled(bool enabled)
     {
@@ -36,7 +35,7 @@ internal static class StartupTrayRegistration
         }
         using var key = Registry.CurrentUser.CreateSubKey(RunPath, true)
             ?? throw new IOException("Nao foi possivel configurar inicializacao.");
-        key.SetValue(ValueName, Command(Application.ExecutablePath), RegistryValueKind.String);
+        key.SetValue(ValueName, Command((Environment.ProcessPath ?? throw new InvalidOperationException("Executavel nao identificado."))), RegistryValueKind.String);
     }
     // Somente com a autorizacao especifica para reiniciar, e somente se
     // o inicio permanente nao estiver habilitado. Executa apos proximo login.
@@ -45,7 +44,7 @@ internal static class StartupTrayRegistration
         if (IsEnabled()) return;
         using var key = Registry.CurrentUser.CreateSubKey(RunOncePath, true)
             ?? throw new IOException("Nao foi possivel configurar retorno apos reinicio.");
-        key.SetValue(RecoveryValueName, Command(Application.ExecutablePath, recovery: true),
+        key.SetValue(RecoveryValueName, Command((Environment.ProcessPath ?? throw new InvalidOperationException("Executavel nao identificado.")), recovery: true),
             RegistryValueKind.String);
     }
     internal static void ClearOneTimeRecovery()
