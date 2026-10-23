@@ -3125,25 +3125,9 @@ internal sealed partial class MainForm : Form
         var recoveryEntry = SevenZipCompleteCleanup.RecoveryIdentity();
         var scoped7zip = await Task.Run(() => SevenZipCompleteCleanup.Capture(
             recoveryEntry, !inventoryIncomplete, updatedInventory, token), token);
-        var scoped7zipReports = scoped7zip.Complete &&
-            (scoped7zip.Files.Count + scoped7zip.Directories.Count + scoped7zip.Registry.Count > 0)
-            ? new[] { new ResidualAuditReport(recoveryEntry.Name, true,
-                scoped7zip.Files.Select(file => new ResidualAuditFinding(file.Path,
-                    "Arquivo próprio — conferir limpeza", 1,
-                    "Vínculo com a pasta exata do aplicativo; autorização separada necessária.",
-                    ResidualDisposition.Review, ResidualSource.Installation))
-                .Concat(scoped7zip.Directories.Select(path => new ResidualAuditFinding(path,
-                    "Pasta própria — conferir limpeza", 1,
-                    "Diretório exato; só será removido se ficar vazio.",
-                    ResidualDisposition.Review, ResidualSource.Installation)))
-                .Concat(scoped7zip.Registry.Select(key => new ResidualAuditFinding(
-                    (key.Hive == Microsoft.Win32.RegistryHive.LocalMachine
-                        ? @"HKEY_LOCAL_MACHINE\" : @"HKEY_CURRENT_USER\") + key.SubKey,
-                    "Configuração própria do 7-Zip", key.Entries,
-                    "Árvore específica verificada por resumo criptográfico, não é registro MSI.",
-                    ResidualDisposition.Review, ResidualSource.Registry)))
-                .ToArray(), Array.Empty<string>(), Historical: true) }
-            : Array.Empty<ResidualAuditReport>();
+        var scoped7zipReport = SevenZipCompleteCleanup.RecoveryReport(scoped7zip);
+        var scoped7zipReports = scoped7zipReport is null
+            ? Array.Empty<ResidualAuditReport>() : new[] { scoped7zipReport };
         DiagnosticTrace.Write($"RESIDUOS_7ZIP_RECUPERACAO completa={scoped7zip.Complete} " +
             $"arquivos={scoped7zip.Files.Count} pastas={scoped7zip.Directories.Count} " +
             $"chaves={scoped7zip.Registry.Count}");
