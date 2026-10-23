@@ -197,9 +197,9 @@ var unsafeMsiNpp = new ProgramEntry
     MsiProductCode = "{00000000-0000-0000-0000-000000000045}",
     UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000045}"
 };
-Verify(!VerifiedUpdaters.SingleSafeSilentInstallation(npp, unsafeMsiNpp, [unsafeMsiNpp]),
+Verify(!VerifiedUpdaters.SingleSafeSilentInstallation(npp!, unsafeMsiNpp, [unsafeMsiNpp]),
     "Instalacao MSI Notepad++ nao pode ser substituida pelo EXE silencioso");
-Verify(!VerifiedUpdaters.SingleSafeSilentInstallation(npp, unsafeMsiNpp,
+Verify(!VerifiedUpdaters.SingleSafeSilentInstallation(npp!, unsafeMsiNpp,
     [unsafeMsiNpp, new ProgramEntry { Name = "Notepad++ (x86)",
       InventoryId = "LocalMachine|Registry32|NPP32" }]),
     "Variantes MSI/EXE coexistentes impedem atualizar sem revisar a identidade");
