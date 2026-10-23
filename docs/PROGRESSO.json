@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.49 TESTE",
+  "version": "5.13.11.52 TESTE",
   "date": "2026-10-23",
-  "code_commit": "dba59231b8a8d3d3c2d075a7b794c5817136cdc3",
+  "code_commit": "c200ab25c0352d741dc505719842657338905c48",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -66,7 +66,7 @@
           "id": "R2",
           "title": "Classificação conservadora de fabricantes compartilhados",
           "done": true,
-          "evidence": "BroadResidualDiscovery.cs; ResidualAuditDialog.cs"
+          "evidence": "BroadResidualDiscovery.cs; IntegratedResidualPolicy.cs; interface independente removida por requisito WORK10"
         },
         {
           "id": "R3",
@@ -78,8 +78,8 @@
           "id": "R4",
           "title": "Limpeza específica após confirmação e revalidação da remoção",
           "done": false,
-          "evidence": "Pilotos restritos Notepad++/SumatraPDF/7-Zip com previa e consentimento; CI WORK9 39980934418 aprovada. Busca geral somente leitura; homologacao fisica e atomicidade frente a mudanca externa pendentes.",
-          "blocked_by": "exclusividade_consentimento_e_validacao_real"
+          "evidence": "WORK10: integração, SIM/NÃO, exclusão por handle, Registro transacionado, worker administrativo e diagnóstico aprovados em CI 40021841254; 47 controles novos dentro de 576 testes. Homologação física/cobertura pendentes.",
+          "blocked_by": "homologacao_fisica_e_cobertura"
         },
         {
           "id": "R5",
@@ -338,8 +338,8 @@
       "native_store_partial": true
     }
   },
-  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553",
-  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553",
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
@@ -357,22 +357,23 @@
     "authenticode_signed": false
   },
   "artifact": {
-    "name": "GerenciadorFinal-v5.13.11.49-dba59231-TESTE-win-x64",
-    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553/artifacts/12516227552",
-    "source_commit": "dba59231b8a8d3d3c2d075a7b794c5817136cdc3",
-    "merge_commit": "a88af1db245f302da8973d227ff5673ce51a62dc",
+    "id": 12531531070,
+    "name": "GerenciadorFinal-v5.13.11.52-c200ab25-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254/artifacts/12531531070",
+    "source_commit": "c200ab25c0352d741dc505719842657338905c48",
+    "merge_commit": "e6a39c3002d4a0d8f419e00f57eedb4eac00c51c",
     "base_commit": "410d65e23546976db456337c71e4705f10217d36",
-    "zip_sha256": "abcb3e228ab2f02197c57c247956d51afc834cfdf4a5d8a742190940ee569fc8",
-    "zip_bytes": 58986440,
-    "expanded_bytes": 151369624,
+    "zip_sha256": "427a9c226b79b002ee048967c701a60e74833f1574edf15b9c58c4648344151c",
+    "zip_bytes": 58982852,
+    "expanded_bytes": 151344534,
     "files": 281,
     "verified_hashes": 280,
-    "file_version": "5.13.11.49",
+    "file_version": "5.13.11.52",
     "architecture": "AMD64",
     "self_contained": true,
     "signed": false,
     "avg_validated": false,
-    "expires_at": "2026-10-30T16:33:28Z"
+    "expires_at": "2026-10-30T20:50:18Z"
   },
   "mission_work5": {
     "status": "Código final e três Actions aprovados; ZIP conferido sem executar; testes físicos pendentes",
@@ -447,8 +448,8 @@
     ],
     "progress": "27/42"
   },
-  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553/artifacts/12516227552",
-  "artifact_name": "GerenciadorFinal-v5.13.11.49-dba59231-TESTE-win-x64",
+  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254/artifacts/12531531070",
+  "artifact_name": "GerenciadorFinal-v5.13.11.52-c200ab25-TESTE-win-x64",
   "historical_artifact_work5": {
     "id": 12388392363,
     "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
@@ -624,6 +625,102 @@
       "integral native dark theme",
       "physical RAM/CPU/disk/startup measures",
       "registry mutation atomicity"
+    ]
+  },
+  "historical_artifact_work9_part2": {
+    "name": "GerenciadorFinal-v5.13.11.49-dba59231-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553/artifacts/12516227552",
+    "source_commit": "dba59231b8a8d3d3c2d075a7b794c5817136cdc3",
+    "merge_commit": "a88af1db245f302da8973d227ff5673ce51a62dc",
+    "base_commit": "410d65e23546976db456337c71e4705f10217d36",
+    "zip_sha256": "abcb3e228ab2f02197c57c247956d51afc834cfdf4a5d8a742190940ee569fc8",
+    "zip_bytes": 58986440,
+    "expanded_bytes": 151369624,
+    "files": 281,
+    "verified_hashes": 280,
+    "file_version": "5.13.11.49",
+    "architecture": "AMD64",
+    "self_contained": true,
+    "signed": false,
+    "avg_validated": false,
+    "expires_at": "2026-10-30T16:33:28Z"
+  },
+  "mission_work10": {
+    "status": "implementation_and_ci_approved_physical_homologation_pending",
+    "report": "docs/MISSAO-WORK10.md",
+    "baseline": "e7b342934eb2c81add28b6f011c81cc5f4a64e99",
+    "validated_head": "c200ab25c0352d741dc505719842657338905c48",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254",
+    "commits": [
+      "e59bc4990522f699672ea0f377480f2df38ad048",
+      "e22031b7f92b50e98ac962ee3926729eac9ee273",
+      "ad91b40f714aae910f8fd24dd073d89bdd0d84fd",
+      "66c1b0ac90fef66aec153c3c76f80be3e0fe296e",
+      "91e93637c83703f2baf007202434f812f662e710",
+      "f9ff326537f68224eb690672d1ad70d5ab83e5c3",
+      "c200ab25c0352d741dc505719842657338905c48"
+    ],
+    "validation": {
+      "uninstall_residues": 576,
+      "work10_controls_included_not_additive": 47,
+      "mutations_rejected": 14,
+      "new_cleanup_mutations_included": 4,
+      "updates": 148,
+      "multi_source": 159,
+      "catalog": 17,
+      "msix": 47,
+      "safe_close": 30,
+      "main_ui_combinations": 132,
+      "main_ui_scenarios": 22,
+      "integrated_confirmation_size_scale_combinations": 44,
+      "layout_pngs": 56,
+      "policy_python": 29,
+      "policy_node": 10,
+      "optional_live_sources_downloads": "skipped"
+    },
+    "effective_deletion_evidence": [
+      "real_synthetic_files_and_empty_directories_absent",
+      "hklm_hkcu_32_64_keys_absent",
+      "hklm32_deleted_hklm64_same_path_preserved",
+      "real_pe_uninstaller_and_arp_removal",
+      "authenticated_separate_administrative_worker",
+      "permission_denial_uac_refusal_and_authorized_retry",
+      "transaction_root_and_child_concurrent_mutation_preserved"
+    ],
+    "synthetic_performance": {
+      "files": 120,
+      "inventory_calls": 2,
+      "milliseconds": 71,
+      "real_pc_measurement": false,
+      "inventory_is_synthetic": true
+    },
+    "package_verified": true,
+    "real_pc_operations_performed": false,
+    "uac_other_account_supported": false,
+    "interactive_uac_verified": false,
+    "manual_residual_ui_removed": true,
+    "legacy_executors_excluded_from_product": true,
+    "one_consent_per_batch": true,
+    "personal_shared_unknown_preserved": true,
+    "diagnostic_failure_cancels": true,
+    "completed_roadmap_checkpoints": [],
+    "advanced_but_open": [
+      "R4",
+      "R7"
+    ],
+    "unchanged_open": [
+      "U8",
+      "P5",
+      "P6",
+      "V5"
+    ],
+    "progress": "27/42",
+    "pending": [
+      "physical_PC_FORTE_PC_FRACO_homologation",
+      "interactive_UAC_same_account",
+      "broader_exclusive_ownership_coverage",
+      "AVG_SmartScreen_signing",
+      "native_Server2022_dark_frame"
     ]
   }
 }

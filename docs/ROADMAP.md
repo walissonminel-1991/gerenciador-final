@@ -1,5 +1,9 @@
 # GERENCIADOR FINAL — roadmap funcional
 
+**v5.13.11.52 TESTE — WORK10 aprovada na [CI 40021841254](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254), fonte c200ab25.** Limpeza residual integrada à desinstalação, confirmação única, executor consolidado, UAC e diagnóstico. Pacote com 280 hashes conferidos; 576/576 testes de resíduos e 14/14 mutações rejeitadas. [Relatório e limites](MISSAO-WORK10.md). R4 avançou na implementação/regressões; U8/R7/R4 físicos permanecem abertos. Progresso 27/42.
+
+### Validação anterior — WORK9 parte 2
+
 **v5.13.11.49 TESTE — WORK9 parte 2 aprovada na [CI 39987151553](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553), fonte dba59231.** Pacote x64 com 280 hashes conferidos; consolidação e regressões sem novo checkpoint. [Relatório da Parte 2](MISSAO-WORK9-PARTE2.md) e [roteiro físico vigente](TESTE-CONSOLIDADO.md). U8/R7/R4 permanecem abertos; progresso 27/42.
 
 ### Última validação anterior — Parte 1
@@ -146,12 +150,12 @@ A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permiss
 - [x] I6 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] I7 — Cobertura conferida nos dois computadores. Evidência: Validação presencial adiada
 
-### Desinstalação e resíduos — 4/7 (R4 em piloto restrito)
+### Desinstalação e resíduos — 4/7 (R4 integrado; homologação pendente)
 
 - [x] R1 — Proteção de jogos e instalações ativas. Evidência: GameLibraryAudit.cs; BroadResidualDiscovery.cs
-- [x] R2 — Classificação conservadora de fabricantes compartilhados. Evidência: BroadResidualDiscovery.cs; ResidualAuditDialog.cs
+- [x] R2 — Classificação conservadora de fabricantes compartilhados. Evidência: BroadResidualDiscovery.cs; IntegratedResidualPolicy.cs
 - [x] R3 — Auditoria histórica somente leitura. Evidência: HistoricalResidualAudit.cs; HistoricalDeviceAudit.cs
-- [ ] R4 — Limpeza real específica após confirmação e revalidação. Pilotos restritos Notepad++/SumatraPDF/7-Zip com regressões Windows; investigação geral continua somente leitura. Registro real da .48 e homologação física das correções WORK9 pendentes; atomicidade frente a mutação externa não comprovada. Evidência: SmallAppResidualCleanup.cs; SevenZipCompleteCleanup.cs; docs/MISSAO-WORK9-PARTE1.md
+- [ ] R4 — Limpeza específica integrada à desinstalação, confirmação única, exclusão verificada e UAC. Implementação e regressões Windows aprovadas; homologação física/cobertura pendentes. Evidência: IntegratedResidualCleanup.cs; IntegratedResidualBatch.cs; docs/MISSAO-WORK10.md
 - [x] R5 — Regressões de proteção aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] R6 — Resolver casos históricos ambíguos com evidências adicionais. Evidência: Adicionada proteção para inventário incompleto; a atribuição dos vestígios específicos ainda depende de evidências dos computadores.
 - [ ] R7 — Desinstalação e preservação de dados validadas nos computadores. Evidência: Validação presencial adiada
@@ -212,9 +216,8 @@ bateria B após backup/consentimento. Drivers continuam apenas leitura.
 - **U6 encerrado:** o resultado original era WinGet 9 versus GF .32 3; na .34, o GF reconciliou os nove como 6 candidatos consultivos, 2 em revisão e 1 GameInput protegido. CI comprova regras de identidade e proteção, não compatibilidade de instaladores.
 - **I7, R7, U8, P5, V5 e D4** dependem das validações presenciais previstas
   nos dois computadores; testes CI não substituem essa evidência.
-- **R4** permanece suspenso até prova da exclusividade e segurança da
-  exclusão real; nenhum programa de terceiro ou limpeza por heurística
-  substitui essa comprovação.
+- **R4** tem implementação integrada e exclusões reais sintéticas aprovadas na WORK10.
+  Permanece aberto para homologação física e ampliação de cobertura com atribuição exclusiva.
 - **D2** requer completar a correlação de dispositivos, pacotes do Driver
   Store e histórico confiável do Windows. A matriz WMI/INF/Store atual cobre apenas parte do objetivo;
   validar também a interpretação do histórico real.
