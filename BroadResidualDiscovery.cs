@@ -175,9 +175,11 @@ internal static class BroadResidualDiscovery
         return false;
     }
 
-    private static bool IsProtectedByNames(string product, IReadOnlyCollection<string> names)
+    private static bool IsProtectedByNames(string product, IReadOnlyCollection<string> names) =>
+        IsProtectedByNormalizedName(NormalizedCompare(product), names);
+
+    private static bool IsProtectedByNormalizedName(string candidate, IReadOnlyCollection<string> names)
     {
-        string candidate = NormalizedCompare(product);
         if (candidate.Length < 4) return true;
         if (HasNameRelation(candidate, names as string[] ?? names.Order(StringComparer.Ordinal).ToArray())) return true;
         return candidate switch
@@ -521,19 +523,18 @@ internal static class BroadResidualDiscovery
             })
             .Where(group =>
             {
-                if (IsProtectedByNames(group.First().Name, protectedNames) ||
-                    protectedGames.Contains(NormalizedCompare(group.First().Name)) || HasNameRelation(group.Key, runningNames))
+                if (IsProtectedByNormalizedName(group.Key, protectedNames) ||
+                    protectedGames.Contains(group.Key) || HasNameRelation(group.Key, runningNames))
                 { protectedGroups++; return false; }
                 if (!HasIndependentResidueEvidence(group)) { insufficientGroups++; return false; }
                 return true;
             })
             .Select(group =>
             {
-                if (group.GroupBy(e => ResidualReportMerger.LocationKey(e.Location), Comparer)
-                    .Any(g => g.Select(e => e.RootGroup).Distinct(Comparer).Count() > 1))
+                var locations = group.GroupBy(e => ResidualReportMerger.LocationKey(e.Location), Comparer).ToArray();
+                if (locations.Any(g => g.Select(e => e.RootGroup).Distinct(Comparer).Count() > 1))
                     issues |= ResidualScanIssue.ContradictoryEvidence;
-                var all = group.GroupBy(e => ResidualReportMerger.LocationKey(e.Location), Comparer)
-                    .Select(g => g.OrderByDescending(e => e.RootGroup == "Integration")
+                var all = locations.Select(g => g.OrderByDescending(e => e.RootGroup == "Integration")
                         .ThenByDescending(e => e.RootGroup == "AppData" || e.RootGroup == "ProgramData")
                         .ThenBy(e => e.Kind, StringComparer.Ordinal).First() with
                         { Kind = string.Join(" / ", g.Select(e => e.Kind).Distinct().Order(StringComparer.Ordinal)),

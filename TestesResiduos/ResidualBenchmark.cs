@@ -4,7 +4,7 @@ using System.Text.Json;
 
 internal static class ResidualBenchmark
 {
-    internal static void Run()
+    internal static void Run(bool comparable = false)
     {
         _ = BroadResidualDiscovery.Classify([], []); // aquecimento idêntico nos dois commits
         foreach (var (apps, evidenceCount) in new[] { (500, 5000), (1000, 10000), (1000, 20000), (1000, 50000) })
@@ -12,8 +12,11 @@ internal static class ResidualBenchmark
             var inventory = Enumerable.Range(0, apps).Select(i => new ProgramEntry { Name = "Instalado" + i, Publisher = "Fabricante" + i }).ToArray();
             var evidence = Enumerable.Range(0, evidenceCount).Select(i => new BroadResidualEvidence("Produto" + (i / 2),
                 "Local" + i, "Metadados fictícios", i % 2 == 0 ? "AppData" : "Registry")).ToArray();
+            if (comparable)
+                for (int warmup = 0; warmup < 5; warmup++)
+                    _ = BroadResidualDiscovery.Classify(evidence, inventory);
             var samples = new List<object>();
-            for (int iteration = 0; iteration < 3; iteration++)
+            for (int iteration = 0; iteration < (comparable ? 7 : 3); iteration++)
             {
                 GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
                 long beforeHeap = GC.GetTotalMemory(true), beforeAllocation = GC.GetTotalAllocatedBytes(true);
@@ -23,13 +26,18 @@ internal static class ResidualBenchmark
                 var clock = Stopwatch.StartNew();
                 var result = BroadResidualDiscovery.Classify(evidence, inventory);
                 double elapsed = clock.Elapsed.TotalMilliseconds;
+                process.Refresh();
+                double cpuElapsed = process.TotalProcessorTime.TotalMilliseconds - cpu;
                 long allocation = GC.GetTotalAllocatedBytes(true) - beforeAllocation;
                 long afterHeap = GC.GetTotalMemory(true);
                 process.Refresh();
-                samples.Add(new { iteration, elapsed_ms = elapsed, allocated_bytes = allocation,
+                string signature = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(result.Select(r => new
+                    { r.Product, Findings = r.Findings.Select(f => new { f.Location, f.Kind, f.Disposition, f.Sources, f.Evidence, f.Items, f.BasisDisposition }) })))));
+                samples.Add(new { iteration, elapsed_ms = elapsed, signature, allocated_bytes = allocation,
                     managed_before_bytes = beforeHeap, managed_after_bytes = afterHeap, ram_before_bytes = workingBefore,
                     ram_after_bytes = process.WorkingSet64, peak_process_bytes = process.PeakWorkingSet64,
-                    cpu_ms = process.TotalProcessorTime.TotalMilliseconds - cpu, returned = result.Count,
+                    cpu_ms = cpuElapsed, returned = result.Count,
                     found = result.Coverage.CandidatesFound, unexamined = result.Coverage.CandidatesNotEvaluated });
 #if GF_PROGRESSIVE
                 var indexClock = Stopwatch.StartNew();

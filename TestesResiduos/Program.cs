@@ -2,7 +2,8 @@ using GerenciadorAplicativos;
 using Microsoft.Win32;
 
 int passed = 0;
-if (args.Contains("--benchmark")) { ResidualBenchmark.Run(); return; }
+if (args.Contains("--benchmark") || args.Contains("--benchmark-work9"))
+{ ResidualBenchmark.Run(comparable: args.Contains("--benchmark-work9")); return; }
 if (args.Contains("--work9"))
 {
     int failures = 0;
