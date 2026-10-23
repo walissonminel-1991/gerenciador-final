@@ -1,13 +1,17 @@
 # GERENCIADOR FINAL — roadmap funcional
 
+**v5.13.11.49 TESTE — WORK9 parte 2 em validação de CI.** Consolidação do pacote, regressões e documentação, sem novo checkpoint. [Relatório da Parte 2](MISSAO-WORK9-PARTE2.md) e [roteiro físico vigente](TESTE-CONSOLIDADO.md). U8/R7/R4 permanecem abertos; progresso 27/42.
+
+### Última validação anterior — Parte 1
+
 **v5.13.11.48 TESTE — WORK9 parte 1: 13 causas corrigidas e 42 controles novos aprovados no Windows; [CI final 39980934418](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418) e pacote portátil conferido. Homologação física pendente. Progresso preservado: 27/42 (64,3%). [Relatório, evidências, desempenho e próximo teste](MISSAO-WORK9-PARTE1.md).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
-## MISSÃO WORK 6 — atualização, desinstalação e resíduos
+## Estado histórico — MISSÃO WORK 6: atualização, desinstalação e resíduos
 
 O Work chegou ao código `1c4c460` com **13 commits** de alterações e 3 Actions de CI aprovadas. Contratos de autorização, revalidação e prévia foram reforçados. Os 10/10 controles negativos por mutação falharam corretamente quando uma proteção foi removida artificialmente. **U8, R7 e R4 continuam pendentes**: não houve operações reais autorizadas e R4 permanece suspenso. Nenhum botão de administrador foi criado. [Fechamento técnico, matrizes, links e próximo lote](MISSAO-WORK6-RESULTADO.md). Roadmap segue 27/42.
 
-## Avanço validado — U6 encerrado, 27/42 (64,3%)
+## Evidência preservada — U6 encerrado, 27/42 (64,3%)
 
 A comparação real do PC FORTE mostrou nove entradas em `winget upgrade`
 e oito no Gerenciador Final .34, das quais duas exigiam revisão.

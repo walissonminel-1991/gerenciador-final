@@ -1,47 +1,53 @@
-# Validação do lote v5.13.10.18
+# Roteiro físico mínimo — candidata WORK9 .49
 
-Executar a mesma sequência no PC FRACO e no computador principal. Registrar qual máquina foi usada, a versão exata e o resultado. Não instalar SDK. Manter todos os arquivos do pacote portátil juntos.
+Este roteiro substitui o lote v5.13.10.18. Os registros antigos do PC FRACO
+estão no [arquivo histórico](TESTES-HISTORICOS-PC-FRACO.md). A aprovação em
+runner não significa que esta candidata já rodou nos dois PCs.
 
-## 1. Abertura e proteção
+## Preparação e consultas
 
-- Abrir o programa com o antivírus ativo.
-- Se houver bloqueio: registrar captura do alerta, nome da detecção, horário e a versão do Gerenciador Final. Não insistir em instalação/limpeza durante o bloqueio.
-- Conferir se o arquivo de diagnóstico identifica v5.13.10.18, incluindo a última revisão.
-- Abrir, minimizar para bandeja e restaurar três vezes. Registrar travamento, fechamento ou piscada observada.
+1. Usar somente o artefato indicado na PR #40 após CI aprovada. Extrair em pasta
+   nova, manter todos os arquivos juntos e conferir versão, BUILD-INFO e hashes.
+   Não instalar SDK. Manter AVG ativo; parar se houver bloqueio.
+2. PC FORTE: 2560×1440; PC FRACO: 1440×900. Registrar escala DPI, versão do
+   Windows, RAM total e GF. Não registrar usuário, caminho pessoal, serial ou IP.
+3. Abrir, minimizar/restaurar três vezes e fechar. Navegar rapidamente por
+   Aplicativos, Inicialização e Windows Update, inclusive sair e voltar à mesma
+   tela durante uma consulta. Nenhum cartão de uma tela deve aparecer na outra;
+   botões precisam recuperar o estado após cancelamento e descarte.
+4. Consultar inventário e atualizações. Comparar contagens Win32/MSIX, identidade,
+   versões e estados parciais, sem executar instaladores. Cancelar uma consulta
+   e repetir; resultado atrasado não deve substituir o atual. Falha COM ou fonte
+   indisponível precisa aparecer como parcial, sem inferir desinstalação.
+5. Consultar resíduos gerais e os pilotos específicos de Notepad++/SumatraPDF,
+   sem excluir. A ausência específica não comprova ausência geral. Registrar
+   contagens, motivos de parcialidade, classificação e legibilidade da prévia.
+6. Redimensionar em 100% e escala habitual, verificar foco, botões, rolagem,
+   sobreposição e tema. Consultar drivers somente leitura e cancelar perto do
+   fim; não instalar, reparar, remover ou reverter drivers.
+7. Na mesma condição de energia e carga, medir três aberturas e três consultas
+   de inventário/atualizações/resíduos de cada versão comparada, separando cache
+   frio/quente e fontes de rede. Medir também RAM, CPU e disco em repouso,
+   minimizado e após cancelar. Não atribuir diferença de rede ao código do GF.
 
-## 2. Inventário e atualização
+## Homologação funcional posterior, em ambiente descartável
 
-- Atualizar a lista local e comparar os aplicativos conhecidos com a lista de ações. O resumo completo está na descrição/dica do contador.
-- Consultar atualizações. Os logs gravam contagens por motivo, sem nomes de aplicativos.
-- Para investigar diferença com WinGet, comparar capturas feitas na mesma máquina e aproximadamente no mesmo horário. Separar canais Preview/ESR, arquitetura e instalações por usuário/computador. Revisar dados pessoais antes de compartilhar capturas.
-- Escolher apenas um aplicativo de teste para atualização. Conferir versão e instalação realmente atualizadas. Uma identidade alterada pelo instalador pode produzir resultado indeterminado, que não deve aparecer como sucesso confirmado.
+U8: atualizar uma instalação identificada de Notepad++ e SumatraPDF, preservando
+arquitetura/escopo; verificar assinatura, hash, versão do binário e Registro
+após concluir. Repetir com processo ativo e cancelamento. Não instalar versões
+antigas nos PCs pessoais para criar artificialmente esse cenário.
 
-## 3. Resíduos
+R7: desinstalar somente um aplicativo de teste autorizado, observar execução,
+retorno, reinício/pending e duas consultas posteriores; testar coexistência
+EXE/MSI e cancelamento sem apagar a instalação vizinha.
 
-- Começar pela análise somente leitura. Conferir se aplicativos ativos e perfis de fabricantes/jogos continuam preservados.
-- Registrar os casos ambíguos e seus motivos na interface. Não tratar falta de correspondência como autorização para apagar.
-- Para testar remoção, usar aplicativo dispensável instalado para este fim. Confirmar que configurações pessoais e dados compartilhados permanecem preservados.
-- Se ocorrer falha de leitura do Registro, a confirmação de ausência/limpeza deve ser interrompida.
+R4: em VM descartável, revisar a prévia inteira, confirmar apenas alvos próprios,
+revalidar ausência da família, excluir, conferir arquivos/pastas/chaves HKCU/HKLM
+32/64 e reiniciar para nova consulta. O erro `registro_ArgumentException` da .48
+tem de permanecer ausente. Qualquer alvo alterado, reinstalação, link, arquivo
+em uso ou falha de leitura deve ser preservado/explicado. Configurações, favoritos
+e histórico exigem decisão separada; locais compartilhados permanecem protegidos.
 
-## 4. Drivers
-
-- Abrir DRIVERS e clicar em Consultar drivers; a abertura do programa não inicia esta consulta.
-- Comparar alguns dispositivos com o Gerenciador de Dispositivos: fornecedor, versão e INF quando disponível.
-- Verificar se valores desconhecidos aparecem como indeterminados. Dispositivo não presente não significa pacote inútil.
-- A tabela mostra associações WMI de dispositivos e drivers, não o inventário completo do Driver Store nem histórico de trocas.
-- A assinatura apresentada é a informação fornecida pelo Windows, não validação nova de um pacote baixado.
-- Não há instalação, remoção ou reversão de drivers nesta versão.
-
-## 5. Desempenho e interface
-
-- Registrar tempo aproximado até a lista responder, CPU e RAM pelo Gerenciador de Tarefas após estabilizar, e comportamento na bandeja.
-- Conferir textos, botão Consultar drivers, tabela/rolagem e navegação na resolução e escala DPI reais.
-
-## O que esses testes desbloqueiam
-
-- Cobertura real do inventário e divergências de atualização (I7, U6, U8).
-- Classificação dos vestígios específicos e preservação após desinstalação (R6, R7).
-- Desempenho, AVG e acabamento nos equipamentos reais (P5, P6, V5).
-- Confiança na coleta de dispositivos/INF antes de ampliar histórico e selecionar fontes de drivers (D2, D4).
-
-A gestão completa de drivers ainda exige desenvolvimento e testes próprios. Este roteiro não a considera implementada, nem transforma a aprovação deste lote em conclusão de todo o roadmap.
+Não repetir limpezas em massa sugeridas por ferramentas externas. A missão Work
+não executa essas operações nos computadores pessoais. U8/R7/R4 só avançam com
+evidências reais suficientes, não com o número de testes sintéticos.

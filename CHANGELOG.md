@@ -1,3 +1,11 @@
+## v5.13.11.49 TESTE — WORK9: consolidação, pacote e CI
+
+- Preserva as 13 causas corrigidas e 42 controles adversariais da Parte 1, registrados em [WORK9 parte 1](docs/MISSAO-WORK9-PARTE1.md); U8/R7/R4 continuam sem homologação física.
+- Portátil inclui licença GF, privacidade, guia e avisos originais dos runtimes. Conferência independente exige origem, versão, AMD64, self-contained e cobertura exata de hashes antes do upload; dez testes sintéticos do pacote.
+- Retira três leitores de sistema comprovadamente sem uso; preserva implementações atuais e testes. Reduz repetições na CI sem retirar asserções; SDK compartilhado por global.json, permissões e NuGetAudit mantidos.
+- Consolida nove relatórios/planos PC FRACO com hashes e referências históricas; corrige README/roteiro/privacidade e preserva os dados do benchmark em JSON compacto.
+- Numeração sequencial de candidata, sem avanço do roadmap (27/42), merge, release estável ou operação nos PCs pessoais. O resultado efetivo da CI e o pacote aprovado ficam em [WORK9 parte 2](docs/MISSAO-WORK9-PARTE2.md).
+
 ## v5.13.11.48 TESTE — limpeza específica Notepad++/SumatraPDF e atualização silenciosa
 
 - Capturas PC FORTE: Notepad++ apresentou três vestígios históricos; SumatraPDF não apareceu na busca geral parcial, o que NÃO comprova ausência; IObit mostrou 41 registros de desinstalação e 2977 supostos arquivos desnecessários, incluindo instalações ativas e pastas compartilhadas do Windows. Nenhum item do IObit foi automaticamente autorizado.
@@ -248,7 +256,7 @@ Registro sanitizado de falhas e limites na descoberta de resíduos; interface e 
 - Busca por `MSIX` parecia vazia porque a lista exibia somente aplicativos com atualização/desinstalação, e o filtro **Possíveis** estava ativo. Não era ausência de pacotes.
 - Novo filtro **Inventário** na aba Aplicativos: mostra também Store/MSIX e jogos já identificados, sem exigir ação autorizada. Busca por origem `MSIX` revela esses aplicativos; dados sem ação têm identificação **Somente leitura** não clicável. A aba padrão **Todos** continua orientada a ações.
 - Testes de interface para filtro adicional em resoluções variadas e teste de política confirmando que entradas `InventoryOnly` nunca são desinstaláveis só por aparecerem.
-- Terceira bateria agregada: [PC fraco v5.13.11.21](docs/TESTE-PC-FRACO-2026-10-21-v5.13.11.21.md). Nenhum log bruto publicado.
+- Terceira bateria agregada: [PC fraco v5.13.11.21](docs/TESTES-HISTORICOS-PC-FRACO.md#registro-5). Nenhum log bruto publicado.
 - Permanecem análise parcial de resíduos, nenhuma exclusão autorizada, transmissão de diagnóstico remoto desabilitada e PR Draft. Roadmap **26/42**.
 
 
@@ -258,7 +266,7 @@ Registro sanitizado de falhas e limites na descoberta de resíduos; interface e 
 - Diagnosticado `COMException(0x80040154)` ao ativar a API WinRT de inventário MSIX. A leitura caiu de 19 aplicativos MSIX no teste anterior para zero; a lista geral mostrou 55 em vez de 74 entradas. **Não indica desinstalação de aplicativos.**
 - MSIX tenta mais uma vez somente nesse HRESULT, sem PowerShell, processos auxiliares, elevação nem leitura de outros perfis. Se a fonte continuar indisponível, o GF anuncia **Inventário PARCIAL** de forma persistente no cabeçalho e no registro; não transforma a falha em consulta completa.
 - Casos automáticos para recuperação, falha persistente, acesso negado, texto de interface e propagação da parcialidade para proteção de resíduos.
-- [Terceira bateria anonimizada](docs/TESTE-PC-FRACO-2026-10-21-v5.13.11.20.md). Nenhum arquivo de diagnóstico bruto publicado.
+- [Terceira bateria anonimizada](docs/TESTES-HISTORICOS-PC-FRACO.md#registro-4). Nenhum arquivo de diagnóstico bruto publicado.
 - Limpeza de resíduos, instalação/desinstalação e manutenção de drivers não foram liberadas como decorrência desta alteração. Roadmap permanece 26/42.
 
 
@@ -268,7 +276,7 @@ Registro sanitizado de falhas e limites na descoberta de resíduos; interface e 
 - Total de locais passa a indicar apenas locais correspondentes ao filtro; busca por conteúdo de um local não deve corresponder falsamente a outro local do mesmo grupo.
 - Listas vazias distinguem "Nenhum candidato revisável" em uma análise parcial de "Nenhum grupo/local corresponde aos filtros", sem sugerir ausência total de resíduos.
 - Casos de regressão adicionados ao motor e UI Windows para origem e classificação com dados comuns, perfil do usuário e Registro.
-- [Relatório agregado do PC fraco v5.13.11.19](docs/TESTE-PC-FRACO-2026-10-21-v5.13.11.19.md). Excluídos os arquivos brutos e dados pessoais. Exclusão de resíduos e envio remoto continuam desativados.
+- [Relatório agregado do PC fraco v5.13.11.19](docs/TESTES-HISTORICOS-PC-FRACO.md#registro-3). Excluídos os arquivos brutos e dados pessoais. Exclusão de resíduos e envio remoto continuam desativados.
 
 
 ## v5.13.11.19 — correções após testes reais no PC fraco (TESTE)
@@ -276,7 +284,7 @@ Registro sanitizado de falhas e limites na descoberta de resíduos; interface e 
 - Evidência real em monitor 1440×900 revelou agrupamento incorreto de subpastas genéricas como `Config`, `Logs`, `Updates`, `Scripts` e `Providers`; subpastas homônimas de fabricantes distintos podiam parecer um único aplicativo. A descoberta agora conserva esses locais associados ao nome do contêiner pai, sem os classificar como produtos independentes nem conceder autorização de exclusão.
 - Abrange enumeração de subpastas em perfis/instalações e de subchaves de Registro; testes com dois fabricantes fictícios verificam que nenhuma pasta `Config` vira grupo próprio.
 - Janela de investigação diferencia lista de grupos vazia de inspeção em nível sem itens; mantém o contexto e a proteção de dados.
-- Métricas agregadas e observações estão no [relatório de teste real](docs/TESTE-PC-FRACO-2026-10-21-v5.13.11.18.md), sem anexar diagnósticos brutos ou histórico de IDs de hardware.
+- Métricas agregadas e observações estão no [relatório de teste real](docs/TESTES-HISTORICOS-PC-FRACO.md#registro-2), sem anexar diagnósticos brutos ou histórico de IDs de hardware.
 - Não foram habilitadas limpeza, atualizações, drivers, remoção de resíduos nem envio de dados. Nova bateria real deverá confirmar agrupamentos e desempenho; progresso funcional continua 26/42.
 
 
@@ -300,7 +308,7 @@ Registro sanitizado de falhas e limites na descoberta de resíduos; interface e 
 - Revisão avançada preserva falhas/limites; decisão exige conferência de integrações e recusa reinstalação. Cinco entradas de exclusão continuam bloqueadas.
 - 310/310 verificações de resíduos na consolidação anterior à troca de versão; investigação testada nas oito resoluções de 800×600 a 4K, além da matriz geral de 132 combinações. Falhas de espera de animação e descarte duplo foram corrigidas, sem reduzir asserções.
 
-[Relatório completo](docs/MISSAO-WORK3-v5.13.11.17.md) · [benchmarks e limites](docs/BENCHMARKS-WORK3.md) · [checklist PC fraco](docs/CHECKLIST-PC-FRACO-v5.13.11.17.md) · [roteiro de histórico extenso](docs/TESTES-RESIDUOS-v5.13.11.17.md). Validações finais, commit de integração, ZIP e SHA-256 registrados na PR #40 após conferência. Pacote de testes sem assinatura; sem merge/release estável, envio remoto ou exclusão de resíduos. Roadmap funcional mantido em 26/42: hardware real e R4 continuam pendentes.
+[Relatório completo](docs/MISSAO-WORK3-v5.13.11.17.md) · [benchmarks e limites](docs/BENCHMARKS-WORK3.md) · [checklist PC fraco](docs/TESTES-HISTORICOS-PC-FRACO.md#registro-7) · [roteiro de histórico extenso](docs/TESTES-RESIDUOS-v5.13.11.17.md). Validações finais, commit de integração, ZIP e SHA-256 registrados na PR #40 após conferência. Pacote de testes sem assinatura; sem merge/release estável, envio remoto ou exclusão de resíduos. Roadmap funcional mantido em 26/42: hardware real e R4 continuam pendentes.
 
 ## v5.13.11.16 — integridade e segurança da análise de resíduos (TESTE)
 

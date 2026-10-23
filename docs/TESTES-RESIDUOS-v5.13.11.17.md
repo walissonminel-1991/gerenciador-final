@@ -4,7 +4,7 @@ A candidata é experimental e permanece sem assinatura. Usar o ZIP final associa
 
 ## Primeiro: PC FRACO, 1440×900
 
-Preencher [checklist de medições](CHECKLIST-PC-FRACO-v5.13.11.17.md). A bateria usa consultas de inventário/atualizações/resíduos, busca, filtros, paginação e inspeção somente leitura. Não instalar/desinstalar programas, limpar temporários, editar Registro ou operar drivers.
+Preencher [checklist de medições](TESTES-HISTORICOS-PC-FRACO.md#registro-7). A bateria usa consultas de inventário/atualizações/resíduos, busca, filtros, paginação e inspeção somente leitura. Não instalar/desinstalar programas, limpar temporários, editar Registro ou operar drivers.
 
 1. Registrar tempo até primeira janela funcional e inventário. Manter estado dos demais programas anotado.
 2. Consultar atualizações sem executar instaladores; observar tempo, CPU, RAM e troca de abas.

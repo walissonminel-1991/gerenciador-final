@@ -1,5 +1,7 @@
 # Operação Faxina Final — revisão consolidada
 
+**Índice histórico.** Para o estado atual, leia [WORK9 parte 2](MISSAO-WORK9-PARTE2.md), [roadmap](ROADMAP.md) e [roteiro vigente](TESTE-CONSOLIDADO.md). Os estados de versões abaixo valem somente para a etapa indicada.
+
 ## MISSÃO WORK 4 — v5.13.11.31 TESTE
 
 21/10/2026 · Roadmap **26/42 (61,9%)** · PR #40 permanece Draft.

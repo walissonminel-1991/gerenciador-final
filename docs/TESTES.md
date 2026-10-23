@@ -1,3 +1,79 @@
+# Regressões do GERENCIADOR FINAL
+
+Este é o procedimento vigente da candidata .49. CI e dados sintéticos não
+substituem homologação nos PCs. O [roteiro físico mínimo](TESTE-CONSOLIDADO.md)
+é separado dos testes automatizados.
+
+## Ambiente e execução
+
+Windows x64 com SDK indicado em `global.json`. O usuário final não precisa de
+SDK. Os projetos de regressão são executáveis de console: `dotnet test` sozinho
+não executa estas asserções. Na raiz do checkout:
+
+```powershell
+dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
+python -B -m unittest discover -s scripts -p 'test_p*.py' -v
+```
+
+Executar `dotnet run --project PASTA/PASTA.csproj -c Release` para cada projeto
+obrigatório abaixo. A CI mantém estes comandos explícitos para que o guardrail
+confira se algum projeto ficou sem caminho de execução.
+
+| Projeto | Contratos verificados |
+| --- | --- |
+| TestesSeguranca | WSC, arquivos temporários sintéticos, DLLs nativas e fronteiras de execução |
+| TestesMotor | Versões, identidade, ambiguidades e matching |
+| TestesCatalogo | RuckZuck simulado, cache e descarte |
+| TestesMultifontes | Fontes oficiais simuladas, conflitos, duplicidade e histórico |
+| TestesAtualizador | Receitas, hashes, assinaturas, MSI, processos, cancelamento e pós-confirmação |
+| TestesDrivers | Inventário/histórico consultivo; nenhum reparo de driver |
+| TestesResiduos | Desinstalação simulada e alvos descartáveis de arquivos/Registro, HKCU/HKLM e visões 32/64, revalidação e preservação |
+| TestesLayout | WinForms, navegação tardia, inventário, RAM, DPI, resoluções e capturas sintéticas |
+| TestesMsix | Falhas COM, retry limitado, fotografia parcial e cancelamento |
+| TestesTelemetria | Consentimento, expiração, esquema e privacidade local |
+| TestesFechamento | Bloqueios, encerramento seguro, concorrência e cancelamento |
+
+Os 42 controles WORK9 e as prévias WORK6 já integram as suítes completas; os
+modos `--work9` e `--work6-preview` permanecem disponíveis para reproduções
+focadas. Não somar essas execuções novamente ao total de cobertura.
+
+```powershell
+python scripts/test_work6_mutations.py
+node --test prototipos/telemetria-worker/test.mjs prototipos/telemetria-worker/staging-receiver.test.mjs
+dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release --no-build --no-restore -- --benchmark
+```
+
+Mutações ocorrem em cópias descartáveis; erro de compilação não conta como
+mutação rejeitada. O benchmark usa dados sintéticos e não mede velocidade de
+disco nem RAM residente. [Método comparativo WORK9](MISSAO-WORK9-PARTE1.md).
+
+## Pacote e integrações externas
+
+Somente depois das regressões e políticas: publicar win-x64 self-contained,
+validar o manifesto pelo `TestesManifesto/Testar-Ativacao.ps1`, gerar
+BUILD-INFO/SHA256SUMS e executar `scripts/verificar_pacote.py` com versão e
+SHAs esperados. A conferência independente exige cobertura exata de hashes,
+arquitetura AMD64, runtime incorporado, origem e avisos de licença. Python é
+uma ferramenta de auditoria/CI, não dependência do aplicativo distribuído.
+
+`TestesRede` e os modos `--live`/`--verify-downloads` são opcionais e acessíveis
+por `workflow_dispatch` em `validar-candidata-windows.yml`. Consultam fontes ou
+baixam e verificam instaladores, sem executá-los. Jobs ignorados em PR não
+validam a disponibilidade atual dessas fontes. Não utilizar os PCs pessoais
+para os testes destrutivos sintéticos.
+
+## Resultados e limites
+
+Resultados de cada revisão, falhas anteriores e evidências ficam nos relatórios
+[WORK9 parte 1](MISSAO-WORK9-PARTE1.md) e [parte 2](MISSAO-WORK9-PARTE2.md).
+A CI usa Windows Server 2022: não comprova execução física no PC FORTE/FRACO,
+compatibilidade universal do Windows 10/11 nem aprovação pelo AVG. O tema do
+conteúdo é escuro; decoração nativa e todos os diálogos ainda exigem revisão
+visual em Windows de uso real. U8/R7/R4 seguem pendentes no roadmap.
+
+<details>
+<summary>Arquivo de roteiros e resultados anteriores — não vigente</summary>
+
 ## Política de liberdade na desinstalação (22/10/2026)
 
 O usuário decide desinstalar aplicativos Win32 comuns, independentemente do perfil de testes. Ausência comprovada de assinatura Authenticode **não bloqueia** o desinstalador registrado; a interface apresenta advertência explícita e solicita consentimento. Cadeia inválida, assinatura alterada, editor divergente, arquivo não-PE, host de sistema disfarçado, caminho remoto/relativo/reparse e comando ambíguo continuam impedidos de execução **por este fluxo** (não significam que o usuário está proibido de remover o aplicativo por outra rota oficial). A lista de proteção de componentes do Windows e as limitações MSIX são mantidas para revisão separada. Não automatizar exclusão de resíduos pessoais.
@@ -538,3 +614,5 @@ após backup e consentimento específico. Não criar defeitos para acionar botõ
 Assinatura Authenticode, atestação de procedência e SHA-256 são evidências distintas;
 a candidata desta missão permanece experimental e sem assinatura.
 
+
+</details>

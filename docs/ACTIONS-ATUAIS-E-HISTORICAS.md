@@ -1,5 +1,14 @@
 # GitHub Actions — manutenção e arquivo histórico
 
+## Consolidação WORK9 (.49)
+
+O build depende das regressões e da política da mesma revisão. O SDK vem de global.json, Actions continuam fixadas por SHA e NuGetAudit permanece obrigatório. Os modos focados WORK9/WORK6 já fazem parte das suítes completas e não rodam duplicados; testes Node ficam na política Ubuntu. O benchmark reutiliza o build. Reutilizáveis incluem o chamador no grupo de concorrência para separar dispatch de chamadas por outro workflow.
+
+Antes do upload, conferir composição, versão, SHAs fonte/base/merge, AMD64, runtime self-contained, licenças e cobertura exata de hashes. Atestação continua somente na main. O nome do pacote identifica a fonte; a base e o merge sintético ficam no BUILD-INFO. Retenção de sete dias. [Resultados e tempos reais](MISSAO-WORK9-PARTE2.md).
+
+Os registros seguintes preservam as decisões das revisões anteriores.
+
+
 ## Workflows ativos na branch experimental do PR #40 (três)
 
 | Arquivo | Finalidade |

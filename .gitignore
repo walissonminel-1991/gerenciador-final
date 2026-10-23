@@ -8,6 +8,7 @@ TestResults/
 
 # Builds, installers and caches
 Distribuicao/
+/GerenciadorFinal-*.zip
 Instalador/
 Instalador-Teste/
 .cache/

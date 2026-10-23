@@ -11,3 +11,10 @@ Obrigado por ajudar a manter o Gerenciador Final seguro e fácil de usar.
 - O mantenedor verifica e aprova contribuições antes de integrá-las. A política de aprovação de releases assinadas será formalizada somente após aceitação no programa SignPath.
 
 As discussões devem manter respeito e foco em fatos técnicos, sem exposição de dados privados dos usuários.
+
+Para preparar o ambiente, use o SDK indicado em `global.json`. As suítes são
+executáveis de console (não usam `dotnet test`); os comandos vigentes estão em
+[TESTES](docs/TESTES.md). Antes de remover código, confira os curingas do
+projeto, recursos incorporados, testes que vinculam fontes e chamadas por
+reflexão. Uma alteração no pacote deve passar também pelos controles de
+composição e licenças, mantendo NuGetAudit ativo e a distribuição self-contained.

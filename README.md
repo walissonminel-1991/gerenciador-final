@@ -4,9 +4,9 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Versão do código em desenvolvimento:** v5.13.11.42 TESTE — MISSÃO WORK 7, [CI Windows aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692); [portátil `0de83072` conferido](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692/artifacts/12465616744), com 273 hashes verificados. Inclui o reforço de cancelamento MSI, política de reinício e exclusividade de EXE. Testes físicos da .42 ainda pendentes. A última revisão também rejeita identidades UTF-16 malformadas sem interromper a consulta. Última bateria presencial: v5.13.11.40 no PC FORTE. A .41 falhou na regressão de layout e não foi homologada. **[Auditoria WORK 7](docs/MISSAO-WORK7-RESULTADO.md)** · **[WORK 6](docs/MISSAO-WORK6-RESULTADO.md)** · **[Histórico](CHANGELOG.md)**. Sem release estável nem aprovação pelo AVG.
+**Candidata em validação:** v5.13.11.49 TESTE — MISSÃO WORK 9. Preserva as 13 correções da Parte 1 e consolida a distribuição, CI e documentação. A [auditoria da Parte 1](docs/MISSAO-WORK9-PARTE1.md) registra reproduções, correções e CI; a [consolidação da Parte 2](docs/MISSAO-WORK9-PARTE2.md) registra o pacote, a faxina e as limitações. O resultado da candidata será atualizado após a CI desta revisão. Sem release estável, assinatura ou homologação AVG.
 
-**Estado atual e continuidade:** [roadmap funcional](docs/ROADMAP.md) · [guia de organização do repositório](docs/ORGANIZACAO-REPOSITORIO.md) · [revisão e roteiro vigente](docs/OPERACAO-FAXINA-FINAL.md). Artefatos de TESTE e verificações na [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). **Exclusão de resíduos indisponível; MSIX pode ficar temporariamente parcial com erro 0x80040154, inclusive após uma tentativa adicional.**
+**Estado atual:** [roadmap 27/42](docs/ROADMAP.md) · [organização](docs/ORGANIZACAO-REPOSITORIO.md) · [roteiro físico vigente](docs/TESTE-CONSOLIDADO.md) · [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). U8, R7 e R4 continuam abertos. A busca geral de resíduos é parcial e somente leitura; há pilotos de limpeza específica para Notepad++, SumatraPDF e 7-Zip, com prévia, consentimento e revalidação. Configurações próprias exigem revisão separada. MSIX pode ficar parcial com falhas COM; ausência numa consulta incompleta não comprova desinstalação.
 
 ## Recursos
 
@@ -16,7 +16,7 @@
 - Planos de energia e hibernação com opções explícitas.
 - Gráfico de RAM com acompanhamento na bandeja, descarte de caches internos e ajuste seletivo do working set de um aplicativo em segundo plano autorizado pelo usuário (não equivale a liberar RAM permanentemente), inicialização, Windows Update e informações do computador.
 - Aba DRIVERS de consulta somente leitura com histórico local e correlação consultiva de INF publicado/Driver Store por APIs do Windows; não instala, remove nem reverte drivers.
-- Auditoria histórica de possíveis resíduos somente leitura, com proteção de instalações, dados pessoais e fabricantes compartilhados. A inspeção explica pistas de favoritos, sessões, credenciais, backups e fontes de instalação, mantendo caches preservados.
+- Investigação geral e histórica de possíveis resíduos somente leitura, com proteção de instalações, dados pessoais e fabricantes compartilhados; pilotos específicos de limpeza permanecem experimentais. A inspeção explica pistas de favoritos, sessões, credenciais, backups e fontes de instalação, mantendo caches preservados.
 - Consultas multifontes com versões divergentes preservadas, origem na dica da linha e bloqueio do instalador direto em conflitos; cinco novos produtos consultivos e comparação Proton com feed estável Windows priorizado. WinGet COM/CLI permanece desativado, sem executor distribuído.
 - Interface Windows Forms em português, tema escuro e ícone **GF** azul.
 - Diagnóstico colaborativo: coleta **local, voluntária e revogável**, com prévia em linguagem simples e botão **Simular sem enviar** usando dados fictícios (v5.13.11.8). Não existe envio real, anexo, formulário de Issue nem conta GitHub exigida do usuário. A arquitetura de compartilhamento futuro ainda depende de segurança e consentimento específico; veja [experiência de contribuição](docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md) e [roteiro de autenticação GitHub](docs/PILOTO-AUTENTICACAO-GITHUB.md).
@@ -29,11 +29,11 @@ Após termos uma versão revisada e liberada, os downloads oficiais serão publi
 
 **Situação da assinatura:** o projeto **não está assinado pela SignPath Foundation**. A inscrição será considerada depois da publicação e revisão. Versões sem assinatura podem apresentar avisos do Windows ou de antivírus. Não desative proteções nem configure exclusões para instalar o programa.
 
-O instalador do Windows usa **Inno Setup** e instala uma aplicação .NET **self-contained**, portanto o usuário final **não precisa instalar o SDK .NET**. As consultas de aplicativos usam RuckZuck e fontes oficiais HTTPS; não exigem a CLI WinGet. MSIX/Store e Windows Update dependem das APIs e serviços disponíveis no Windows.
+O portátil inclui uma aplicação .NET **self-contained**, portanto o usuário final **não precisa instalar o SDK .NET**. As consultas de aplicativos usam RuckZuck e fontes oficiais HTTPS; não exigem a CLI WinGet. MSIX/Store e Windows Update dependem das APIs e serviços disponíveis no Windows.
 
 ## Código-fonte e compilação
 
-Requisitos **somente para desenvolver/compilar**: Windows x64 e SDK do .NET 10. Para gerar o pacote portátil local:
+Requisitos **somente para desenvolver/compilar**: Windows x64 e SDK do .NET indicado em [global.json](global.json) (10.0.402, correções da mesma faixa permitidas). Para gerar o pacote portátil local:
 
 ```bat
 Compilar-OSS-Windows-x64.bat
@@ -66,7 +66,7 @@ Se o projeto for aceito, a política será atualizada para registrar o provedor 
 
 ## Como contribuir
 
-Leia [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir uma contribuição. Relatos de vulnerabilidades devem seguir [SECURITY.md](SECURITY.md). O projeto está sob a [licença MIT](LICENSE), sujeita à revisão final pelo titular do código e dos recursos gráficos antes de sua primeira publicação.
+Leia [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir uma contribuição. Relatos de vulnerabilidades devem seguir [SECURITY.md](SECURITY.md). O projeto está sob a [licença MIT](LICENSE), com os [avisos de terceiros](docs/THIRD-PARTY-NOTICES.md) preservados na distribuição.
 
 ## Sobre o nome e o ícone
 

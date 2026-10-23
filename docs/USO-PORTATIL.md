@@ -2,13 +2,13 @@
 
 O Gerenciador Final é destinado a Windows 10/11 x64. No computador de uso,
 **não é necessário instalar o SDK .NET**: a publicação do aplicativo inclui
-seu runtime. A pasta `Distribuicao` deve ser mantida inteira, pois o executável
+seu runtime. A pasta extraída deve ser mantida inteira, pois o executável
 precisa dos arquivos publicados ao seu lado.
 
 ## Executar
 
 1. Extraia o pacote portátil completo em uma pasta de sua preferência.
-2. Abra `GerenciadorFinal.exe` dentro da pasta `Distribuicao`.
+2. Abra `GerenciadorFinal.exe` na pasta extraída (o ZIP local pode conter uma subpasta `Distribuicao`).
 3. Utilize as consultas e diagnósticos antes de iniciar qualquer reparo.
 4. Leia as confirmações. Algumas tarefas pedem autorização UAC; não são
    executadas automaticamente pela simples abertura do aplicativo.
@@ -26,6 +26,8 @@ precisa dos arquivos publicados ao seu lado.
 - A criação de ponto de restauração requer a Proteção do Sistema configurada;
   não substitui o backup dos dados.
 - A ferramenta não promete ganho de desempenho e não substitui antivírus.
+
+A pesquisa geral de resíduos permanece somente leitura e pode ser parcial. Os pilotos de limpeza específica são experimentais: leia toda a prévia e preserve configurações/histórico que ainda desejar manter. Uma busca sem resultados não comprova ausência absoluta de resíduos.
 
 ## Segurança e distribuição
 
