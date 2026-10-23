@@ -18,7 +18,11 @@ internal sealed record SevenZipCleanupPlan(
     long TotalBytes, bool Complete, string Reason);
 internal sealed record SevenZipCleanupOutcome(
     int FilesDeleted, int DirectoriesDeleted, int KeysDeleted,
-    int Failures, int Preserved, bool Reinstalled);
+    int Failures, int Preserved, bool Reinstalled)
+{
+    // Códigos técnicos fixos, sem caminhos, nomes de usuário ou conteúdo.
+    internal IReadOnlyList<string> Problems { get; init; } = [];
+}
 
 internal static class SevenZipCompleteCleanup
 {
@@ -244,6 +248,7 @@ internal static class SevenZipCompleteCleanup
         if (!Equivalent(accepted, now))
             return new(0, 0, 0, 1, accepted.Files.Count, false);
         int deleted = 0, directories = 0, keys = 0, failed = 0, preserved = 0;
+        var problems = new List<string>();
         foreach (var file in accepted.Files)
         {
             token.ThrowIfCancellationRequested();
@@ -260,20 +265,21 @@ internal static class SevenZipCompleteCleanup
             {
                 if (!Roots().Any(root => Within(root, file.Path)) || !SafeDirectory(Path.GetDirectoryName(file.Path)!) ||
                     (File.GetAttributes(file.Path) & FileAttributes.ReparsePoint) != 0)
-                { failed++; continue; }
+                { failed++; problems.Add("arquivo_caminho_invalido"); continue; }
                 using (var handle = InstallerFileGuard.OpenRead(file.Path, allowDirectoryWrites: true))
                 {
                     var identity = InstallerFileGuard.ReadIdentity(handle);
                     if (identity.Links != 1 || (long)identity.Size != file.Size ||
                         !Convert.ToHexString(SHA256.HashData(handle)).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
-                    { failed++; continue; }
+                    { failed++; problems.Add("arquivo_conteudo_alterado"); continue; }
                 }
                 File.Delete(file.Path);
-                if (!File.Exists(file.Path)) deleted++; else failed++;
+                if (!File.Exists(file.Path)) deleted++;
+                else { failed++; problems.Add("arquivo_permaneceu"); }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                 ArgumentException or System.Security.SecurityException)
-            { failed++; }
+            { failed++; problems.Add(ProblemCode("arquivo", ex)); }
         }
         // Só diretórios VAZIOS. Se um item novo aparecer, jamais apagar recursivamente.
         foreach (string dir in accepted.Directories.OrderByDescending(x => x.Length))
@@ -287,11 +293,11 @@ internal static class SevenZipCompleteCleanup
                     Directory.Delete(dir, recursive: false);
                     directories++;
                 }
-                else preserved++;
+                else { preserved++; problems.Add("pasta_nao_vazia_ou_alterada"); }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                 ArgumentException or System.Security.SecurityException)
-            { failed++; }
+            { failed++; problems.Add(ProblemCode("pasta", ex)); }
         }
         // Não apagar chaves se nenhum arquivo foi removido por falha de integridade.
         if (failed == 0 && preserved == 0)
@@ -307,18 +313,38 @@ internal static class SevenZipCompleteCleanup
                         using var target = baseKey.OpenSubKey(key.SubKey, writable: false);
                         if (target is null || !TryRegistryFingerprint(target, out var digest, out var entries) ||
                             entries != key.Entries || digest != key.Sha256)
-                        { failed++; continue; }
+                        { failed++; problems.Add("registro_conteudo_alterado"); continue; }
                         target.Close();
                         baseKey.DeleteSubKeyTree(key.SubKey, throwOnMissingSubKey: true);
-                        if (baseKey.OpenSubKey(key.SubKey) is null) keys++; else failed++;
+                        if (baseKey.OpenSubKey(key.SubKey) is null) keys++;
+                        else { failed++; problems.Add("registro_permaneceu"); }
                     }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                         ArgumentException or System.Security.SecurityException or InvalidOperationException)
-                    { failed++; }
+                    { failed++; problems.Add(ProblemCode("registro", ex)); }
                 }
         }
-        else preserved += accepted.Registry.Count;
-        return new(deleted, directories, keys, failed, preserved, false);
+        else
+        {
+            preserved += accepted.Registry.Count;
+            if (accepted.Registry.Count > 0) problems.Add("registro_preservado_apos_falha_anterior");
+        }
+        return new(deleted, directories, keys, failed, preserved, false)
+            { Problems = problems.Distinct(StringComparer.Ordinal).ToArray() };
+    }
+
+    private static string ProblemCode(string stage, Exception exception)
+    {
+        if (exception is UnauthorizedAccessException or System.Security.SecurityException)
+            return stage + "_sem_permissao";
+        if (exception is IOException)
+        {
+            int code = exception.HResult & 0xffff;
+            if (code is 32 or 33) return stage + "_em_uso";
+            if (code == 5) return stage + "_sem_permissao";
+            return stage + "_erro_entrada_saida";
+        }
+        return stage + "_caminho_invalido";
     }
 
     private static bool Equivalent(SevenZipCleanupPlan a, SevenZipCleanupPlan b) =>
