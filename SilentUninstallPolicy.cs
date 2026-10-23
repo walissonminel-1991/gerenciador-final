@@ -25,6 +25,17 @@ internal static class SilentUninstallPolicy
             }
             return false;
         }
+        // Notepad++ oficial (NSIS): /S e parametro documentado do fabricante.
+        // Nao aplicar a programas cujo nome apenas se assemelha a Notepad++.
+        if (IsExactNotepadPlusPlus(app) &&
+            UninstallCommand.TryParse(app.UninstallString, out var nppOriginal) &&
+            nppOriginal.ProductCode is null && nppOriginal.Arguments.Length == 0 &&
+            nppOriginal.FileName.Equals(registered.FileName, StringComparison.OrdinalIgnoreCase) &&
+            UninstallCommand.TryParse("\"" + nppOriginal.FileName + "\" /S", out var nppSilent))
+        {
+            selected = nppSilent;
+            return true;
+        }
         // 7-Zip EXE, arquitetura x64, registro exato, executaveis integros e
         // desinstalador original na pasta padrao: parametro /S do NSIS.
         if (!IsExactSevenZipExe(app) ||
@@ -35,6 +46,43 @@ internal static class SilentUninstallPolicy
             return false;
         selected = silent;
         return true;
+    }
+
+    // Um campo QuietUninstallString nao autoriza trocar o desinstalador
+    // por outro EXE ou mudar o MSI ProductCode. O Registro e a identidade
+    // continuam sendo revalidados antes do lancamento.
+    internal static bool RegisteredQuietMatchesProduct(ProgramEntry app, ParsedUninstallCommand quiet)
+    {
+        if (app.InventoryOnly || ProtectedApplications.IsProtectedName(app.Name) ||
+            !UninstallBatch.BoundToProduct(quiet, app)) return false;
+        if (!UninstallCommand.TryParse(app.UninstallString, out var normal))
+            return true; // Instaladores podem registrar apenas QuietUninstallString.
+        if (normal.ProductCode is not null || quiet.ProductCode is not null)
+            return normal.ProductCode is not null && quiet.ProductCode is not null &&
+                normal.ProductCode.Equals(quiet.ProductCode, StringComparison.OrdinalIgnoreCase);
+        return normal.FileName.Equals(quiet.FileName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsExactNotepadPlusPlus(ProgramEntry app)
+    {
+        string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Notepad++");
+        if (!app.Name.Equals("Notepad++ (64-bit x64)", StringComparison.OrdinalIgnoreCase) ||
+            app.Publisher is not ("Notepad++ Team" or "Don HO") ||
+            !app.InventoryId.StartsWith("LocalMachine|Registry64|", StringComparison.OrdinalIgnoreCase) ||
+            !app.InstallLocation.TrimEnd('\\').Equals(folder, StringComparison.OrdinalIgnoreCase) ||
+            !UninstallCommand.TryParse(app.UninstallString, out var uninstall) ||
+            uninstall.ProductCode is not null || uninstall.Arguments.Length != 0 ||
+            !uninstall.FileName.Equals(Path.Combine(folder, "uninstall.exe"), StringComparison.OrdinalIgnoreCase))
+            return false;
+        try
+        {
+            return Directory.Exists(folder) && File.Exists(Path.Combine(folder, "notepad++.exe")) &&
+                File.Exists(uninstall.FileName) &&
+                (File.GetAttributes(folder) & FileAttributes.ReparsePoint) == 0 &&
+                (File.GetAttributes(uninstall.FileName) & FileAttributes.ReparsePoint) == 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            ArgumentException or NotSupportedException) { return false; }
     }
 
     internal static bool IsExactSevenZipExe(ProgramEntry app)
