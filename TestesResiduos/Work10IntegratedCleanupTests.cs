@@ -66,6 +66,7 @@ internal static class Work10IntegratedCleanupTests
         if (!OperatingSystem.IsWindows()) { Console.WriteLine("SKIP W10 Windows required"); return; }
         try
         {
+            RebootReviewAndTray(check);
             await Decisions(check);
             await RegistryViews(check);
             await MutationsAndCancellation(check);
@@ -86,6 +87,50 @@ internal static class Work10IntegratedCleanupTests
             Scopes.Clear();
         }
     }
+    private static void RebootReviewAndTray(Action<bool, string> check)
+    {
+        string executable = @"C:\\Program Files\\Gerenciador Final\\GerenciadorFinal.exe";
+        check(StartupTrayRegistration.Command(executable) ==
+            "\"" + executable + "\" --tray" &&
+            StartupTrayRegistration.Command(executable, recovery: true).EndsWith("--tray --post-reboot"),
+            "W13 inicializacao na bandeja usa comando literal com aspas, sem shell");
+        bool rejected = false;
+        try { StartupTrayRegistration.Command(@"C:\\GF.exe\" --bad"); }
+        catch (InvalidDataException) { rejected = true; }
+        check(rejected, "W13 inicializacao recusa argumentos arbitrarios");
+
+        long boot = RebootResidualReview.BootUtcTicks(DateTimeOffset.Parse("2026-10-23T15:00:00Z"), 3600_000);
+        check(!RebootResidualReview.IsLaterBoot(boot,
+                RebootResidualReview.BootUtcTicks(DateTimeOffset.Parse("2026-10-23T15:05:00Z"), 3900_000)) &&
+            RebootResidualReview.IsLaterBoot(boot,
+                RebootResidualReview.BootUtcTicks(DateTimeOffset.Parse("2026-10-23T16:00:00Z"), 120_000)),
+            "W13 segunda conferencia exige boot diferente, nao reabertura da janela");
+
+        check(RebootResidualReview.IsRetryable(new("f1", "file", ResidualItemState.Failed,
+                "sharing_violation", 32)) &&
+            !RebootResidualReview.IsRetryable(new("f2", "file", ResidualItemState.AccessDenied,
+                "permission_required", 5)),
+            "W13 somente bloqueios 32/33 sugerem reinicio, UAC erro 5 nao");
+
+        var app = new ProgramEntry { InventoryId = "GF-TEST-PENDING", Name = "Synthetic Test" };
+        var outcome = new UninstallOutcome(
+            new UninstallRequest(app, new ParsedUninstallCommand("msiexec.exe", "/X{00000000-0000-0000-0000-000000000001}", "{00000000-0000-0000-0000-000000000001}")),
+            UninstallState.Pending, 3010);
+        var pending = RebootResidualReview.Select([outcome], null);
+        check(RebootResidualReview.ProviderRequiresRestart(outcome) && pending.Length == 1 &&
+            pending[0].ProviderPending && pending[0].Targets.Length == 0,
+            "W13 codigo 3010 exige revisao sem alegar residuos eliminados");
+
+        var wrong = outcome with { Code = 5 };
+        check(!RebootResidualReview.ProviderRequiresRestart(wrong) &&
+            RebootResidualReview.Select([wrong], null).Length == 0,
+            "W13 acesso negado comum nao sugere reinicio infundado");
+
+        byte[] original = System.Text.Encoding.UTF8.GetBytes("GF SYNTHETIC REBOOT CHECK");
+        check(original.SequenceEqual(RebootResidualReview.TestRoundTrip(original)),
+            "W13 DPAPI protege e restaura dados apenas no mesmo usuario Windows");
+    }
+
     private static async Task Decisions(Action<bool, string> check)
     {
         using (var f = new Fixture())
