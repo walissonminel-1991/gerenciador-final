@@ -41,6 +41,10 @@ jobs:
         run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release
       - name: Testes inventario MSIX
         run: dotnet run --project TestesMsix/TestesMsix.csproj -c Release
+      - name: Testes privacidade e diagnostico local
+        run: dotnet run --project TestesTelemetria/TestesTelemetria.csproj -c Release
+      - name: Testes servidor prototipo sem deploy
+        run: node --test prototipos/telemetria-worker/test.mjs
       - name: Testes WSC somente leitura
         run: dotnet run --project TestesSeguranca/TestesSeguranca.csproj -c Release
       - name: Testes bloqueio de instaladores e encerramento seguro

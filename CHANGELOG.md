@@ -1,5 +1,13 @@
 # Histórico de versões — Gerenciador Final
 
+## v5.13.11.1 TESTE — privacidade e diagnostico colaborativo local
+- Consentimento explícito na primeira abertura, recusável e revogável pelo menu da bandeja; sem caixa pré-selecionada.
+- Resumo estrito com versão do GF, encerramento e contagens de 14 categorias técnicas, sem logs brutos, nomes, caminhos, inventário ou IDs persistentes.
+- Somente um relatório pendente local, substituído ao encerrar, com expiração de 7 dias e limpeza ao revogar; não utiliza a rede.
+- Código de referência para recepção HTTPS/Cloudflare D1 com TTL, ainda **não implantado**. Transmissão automática futura dependerá de novo consentimento e revisão de privacidade.
+- Testes próprios de opt-in, recusas, limites, sanitização, rotação e retenção.
+
+
 ## v5.13.11.0 CANDIDATA — novas fontes e consolidação para GitHub
 - Quatro novas consultas oficiais somente leitura: ShareX, HandBrake, Rufus e qBittorrent. URLs fixas GitHub Releases; nomes e editores conferidos em catálogo interno antes da chamada. Nenhuma instalação automática habilitada pelas novas fontes.
 - Regressões com fontes simuladas: candidatos, versões oficiais, falso editor, nomes parecidos, cache, pré-lançamento, falha de provedor e fusão sem duplicar linhas.

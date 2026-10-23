@@ -96,6 +96,9 @@ internal static class DiagnosticTrace
                     FileShare.ReadWrite, 1024, FileOptions.WriteThrough);
                 using var writer = new StreamWriter(stream, NoBom, bufferSize: 1024, leaveOpen: true);
                 writer.WriteLine($"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz}] {evt}");
+                // So categorias em allowlist sao somadas, e apenas apos consentimento.
+                // Nao enviar linhas brutas nem textos de excecoes para telemetria.
+                AnonymousTelemetryContext.Current?.Record(evt);
                 writer.Flush();
                 stream.Flush(flushToDisk: true);
                 return true;
