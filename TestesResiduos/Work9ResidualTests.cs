@@ -8,6 +8,7 @@ internal static class Work9ResidualTests
         if (!OperatingSystem.IsWindows())
         { Console.WriteLine("SKIP W9-R: Registro, locks e desinstalacao exigem Windows"); return; }
         await LateUninstallCancellation(check);
+        PersonalBoundary(check);
         string fixture = Path.Combine(Path.GetTempPath(), "GF-W9-Residual-" + Guid.NewGuid().ToString("N"));
         try
         {
@@ -63,6 +64,36 @@ internal static class Work9ResidualTests
         foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
             await RegistryCases(hive, view, check);
         await IsolatedMachineViews(check);
+    }
+
+    private static void PersonalBoundary(Action<bool, string> check)
+    {
+        string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments,
+            Environment.SpecialFolderOption.DoNotVerify);
+        if (string.IsNullOrWhiteSpace(documents)) throw new IOException("Pasta pessoal do runner indisponivel");
+        string fixture = Path.Combine(documents, "GF-W9-Personal-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(fixture);
+        string file = Path.Combine(fixture, "personal-data.txt");
+        File.WriteAllText(file, "GF SYNTHETIC PERSONAL DATA");
+        try
+        {
+            SmallAppResidualCleanup.SyntheticFolders = [fixture];
+            SmallAppResidualCleanup.SyntheticNoRegistry = true;
+            var preview = SmallAppResidualCleanup.Capture("Notepad++", true, []);
+            check(!preview.Complete && File.Exists(file),
+                "W9-R6 raiz de limpeza dentro de pasta pessoal nao recebe autorizacao");
+            SevenZipCompleteCleanup.SyntheticRoots = [fixture];
+            var zip = SevenZipCompleteCleanup.Capture(SevenZipCompleteCleanup.RecoveryIdentity(), true, []);
+            check(!zip.Complete && File.Exists(file),
+                "W9-R6 piloto 7-Zip tambem preserva limite de pasta pessoal");
+        }
+        finally
+        {
+            SmallAppResidualCleanup.SyntheticFolders = null;
+            SmallAppResidualCleanup.SyntheticNoRegistry = false;
+            SevenZipCompleteCleanup.SyntheticRoots = null;
+            Directory.Delete(fixture, recursive: true); // somente fixture deste teste
+        }
     }
 
     private static Task<(bool Complete, IReadOnlyCollection<ProgramEntry> Apps)> Empty() =>
