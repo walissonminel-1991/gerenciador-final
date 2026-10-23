@@ -260,8 +260,9 @@ internal sealed class ResidualExplorerDialog : Form
             }
             if (preview.Files.Count + preview.Directories.Count + preview.Registry.Count == 0)
             {
-                details.SetText("Nenhum resíduo específico do 7-Zip permanece nos locais consultados.");
                 sevenZipCleaned = true;
+                await RefreshScopedSevenZipIndexAsync(preview);
+                if (!IsDisposed) details.SetText("Nenhum resíduo específico do 7-Zip permanece nos locais consultados.");
                 return;
             }
             // Prévia exata e confirmação voluntária. Não existe reexecução automática.
@@ -286,6 +287,11 @@ internal sealed class ResidualExplorerDialog : Form
                 $"apos_pastas={after.Directories.Count} apos_chaves={after.Registry.Count}");
             sevenZipCleaned = after.Complete && after.Files.Count == 0 &&
                 after.Directories.Count == 0 && after.Registry.Count == 0;
+            // A consulta original era uma fotografia: invalidar obrigatoriamente
+            // os cartões/locais antes de exibir o resultado. Mesmo sucesso parcial
+            // não pode deixar uma chave removida na lista.
+            if (after.Complete) await RefreshScopedSevenZipIndexAsync(after);
+            if (IsDisposed) return;
             string explanation = result.Problems.Count == 0 ? "Nenhuma falha técnica registrada."
                 : string.Join(", ", result.Problems);
             details.SetText($"Limpeza específica do 7-Zip: {result.FilesDeleted} arquivo(s), " +
@@ -306,6 +312,22 @@ internal sealed class ResidualExplorerDialog : Form
             InvalidDataException or InvalidOperationException or System.Security.SecurityException)
         { details.SetText("Limpeza não concluída: " + ex.GetType().Name + ". Dados preservados quando possível."); }
         finally { if (!IsDisposed) UpdateActions(); }
+    }
+
+    private async Task RefreshScopedSevenZipIndexAsync(SevenZipCleanupPlan snapshot)
+    {
+        if (!snapshot.Complete || IsDisposed) return;
+        const string product = "7-Zip 26.05 (x64)";
+        var nextReports = source.Where(report =>
+            !report.Product.Equals(product, StringComparison.OrdinalIgnoreCase)).ToList();
+        var actual = SevenZipCompleteCleanup.RecoveryReport(snapshot);
+        if (actual is not null) nextReports.Add(actual);
+        source = nextReports;
+        index = new ResidualResultIndex(source, lifetimeToken);
+        selections.Clear();
+        // Não restaurar seleção da fotografia anterior, nem seus locais.
+        criteria = "";
+        await QueryAsync(0);
     }
 
     private bool Current(int id, CancellationToken token) => !IsDisposed && !token.IsCancellationRequested && id == generation;
