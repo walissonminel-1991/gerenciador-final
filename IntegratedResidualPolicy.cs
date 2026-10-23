@@ -57,6 +57,8 @@ internal static class IntegratedResidualPolicy
         if (ProtectedApplications.IsProtectedName(app.Name) || string.IsNullOrWhiteSpace(app.InventoryId))
             return new("unsupported", [], [], []);
         var known = ApplicationIdentityCatalog.Resolve(app.Name, app.Publisher);
+        if (known?.CleanupPolicy is null && app.Publisher.Equals("Microsoft Corporation", StringComparison.OrdinalIgnoreCase))
+            return new("unsupported_system_scope", [], [], []);
         var rule = UninstallRuleCatalog.Rules.SingleOrDefault(r => r.Id == known?.CleanupPolicy);
         var roots = rule?.Folders.ToList() ?? [];
         var keys = new List<ResidualKeyLocation>();
@@ -103,7 +105,9 @@ internal static class IntegratedResidualPolicy
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs")];
             if (!bases.Any(b => !string.IsNullOrWhiteSpace(b) && Paths.Equals(b, parent))) return null;
             string leaf = Path.GetFileName(path);
-            if (new[] { "Common Files", "WindowsApps", "Microsoft", "Windows", "Shared", "Packages" }.Contains(leaf, Paths))
+            if (new[] { "Common Files", "WindowsApps", "Microsoft", "Windows", "Shared", "Packages",
+                "Windows Defender", "Windows Defender Advanced Threat Protection", "Windows NT", "Windows Mail",
+                "Windows Media Player", "Windows Photo Viewer", "NVIDIA Corporation", "Intel", "AMD", "Realtek" }.Contains(leaf, Paths))
                 return null;
             string product = Regex.Replace(app.Name, @"\s+(?:v?\d+(?:\.\d+){1,4})(?:\s.*)?$", "",
                 RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
@@ -145,7 +149,8 @@ internal static class IntegratedResidualPolicy
     }
 
     internal static bool PersonalDirectory(string path) => new[] { "backup", "backups", "recordings", "documents",
-        "downloads", "pictures", "music", "videos", "playlists", "saved games", "saves", "projects" }
+        "downloads", "pictures", "music", "videos", "playlists", "saved games", "saves", "projects",
+        "steamapps", "games", "gog games", "epic games", "userdata", "libraries" }
         .Contains(Path.GetFileName(path), Paths);
 
     internal static bool EligibleFile(string path)

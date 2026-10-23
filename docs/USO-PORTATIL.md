@@ -27,7 +27,17 @@ precisa dos arquivos publicados ao seu lado.
   não substitui o backup dos dados.
 - A ferramenta não promete ganho de desempenho e não substitui antivírus.
 
-A pesquisa geral de resíduos permanece somente leitura e pode ser parcial. Os pilotos de limpeza específica são experimentais: leia toda a prévia e preserve configurações/histórico que ainda desejar manter. Uma busca sem resultados não comprova ausência absoluta de resíduos.
+Ao desinstalar um aplicativo pelo GF, aguarde a conferência da remoção. Quando
+houver resíduos exclusivos elegíveis, o GF mostrará uma única confirmação para
+os aplicativos removidos: **SIM** exclui os alvos apresentados permanentemente;
+**NÃO** preserva todos os resíduos. Sem alvos elegíveis, não há pergunta. Não há
+busca nem limpeza residual manual posterior.
+
+Arquivos pessoais, dados compartilhados, itens desconhecidos e alvos alterados
+são preservados. Falhas e pendências ficam em Registro e Diagnóstico. Quando
+necessário, o próprio fluxo solicita o UAC do Windows; recusar mantém os alvos
+protegidos. Autorizar com outra conta não é suportado nessa limpeza. A cobertura
+é progressiva: nenhum resultado comprova ausência de todo vestígio possível.
 
 ## Segurança e distribuição
 

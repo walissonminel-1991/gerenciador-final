@@ -46,9 +46,26 @@ internal static class ResidualRegistryGuard
     }
 
     internal static bool Fingerprint(RegistryKey key, RegistryView view, out string digest, out int entries,
-        SafeFileHandle? transaction = null)
+        SafeFileHandle? transaction = null, bool reserve = false)
         => RegistryTreeFingerprint.TryCapture(key, 3000, out digest, out entries,
-            openChild: (parent, name) => Open(parent, name, view, transaction));
+            openChild: (parent, name) => Open(parent, name, view, transaction, writable: reserve),
+            beforeKey: reserve ? Reserve : null, throwOnFailure: reserve);
+
+    // Uma abertura transacionada somente para leitura NAO impede que uma
+    // escrita externa posterior seja incorporada antes da primeira escrita.
+    // Reservar cada chave por uma escrita/remoção privada na transacao adquire
+    // a barreira de escrita antes do hash. O marcador nunca fica visivel fora
+    // da transacao e nao altera o conteudo usado no fingerprint.
+    private static void Reserve(RegistryKey key)
+    {
+        string marker;
+        do { marker = "__GF_CLEANUP_" + Guid.NewGuid().ToString("N"); }
+        while (key.GetValueNames().Contains(marker, StringComparer.OrdinalIgnoreCase));
+        int error = RegSetValueExW(key.Handle, marker, 0, 4, [0, 0, 0, 0], 4);
+        if (error != 0) throw new Win32Exception(error);
+        error = RegDeleteValueW(key.Handle, marker);
+        if (error != 0) throw new Win32Exception(error);
+    }
 
     internal static bool Delete(ResidualKeyEvidence item, CancellationToken token)
     {
@@ -59,7 +76,7 @@ internal static class ResidualRegistryGuard
             using var hive = RegistryKey.OpenBaseKey(item.Hive, item.View);
             using var key = Open(hive, item.Subkey, item.View, transaction, writable: true);
             if (key is null) return false;
-            if (!Fingerprint(key, item.View, out string digest, out int entries, transaction) ||
+            if (!Fingerprint(key, item.View, out string digest, out int entries, transaction, reserve: true) ||
                 digest != item.Digest || entries != item.Entries)
                 throw new InvalidDataException("registry_changed");
 #if GF_PROGRESSIVE
@@ -91,6 +108,10 @@ internal static class ResidualRegistryGuard
         int access, out SafeRegistryHandle result, SafeFileHandle transaction, IntPtr extended);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern int RegDeleteTreeW(SafeRegistryHandle key, string? subkey);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int RegSetValueExW(SafeRegistryHandle key, string name, int reserved, int type, byte[] data, int bytes);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int RegDeleteValueW(SafeRegistryHandle key, string name);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern int RegDeleteKeyTransactedW(SafeRegistryHandle key, string subkey,
         int view, int reserved, SafeFileHandle transaction, IntPtr extended);

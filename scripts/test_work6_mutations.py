@@ -39,6 +39,18 @@ if os.name == 'nt':
         ' ||\n            (!directory && info.Links != 1)', '',
         'TestesAtualizador', '--work6-flow', 'hardlink externo'))
     mutants.extend([
+        ('residual-consent-bypassed','IntegratedResidualCleanup.cs',
+         'if (!consent || !ValidPlan(plan)', 'if (!ValidPlan(plan)',
+         'TestesResiduos','--work10-core','W10 NO preserves file'),
+        ('residual-content-hash-bypassed','IntegratedResidualCleanup.cs',
+         'Convert.ToHexString(SHA256.HashData(handle)) != file.Digest', 'false',
+         'TestesResiduos','--work10-core','W10 same metadata with changed content'),
+        ('residual-registry-hash-bypassed','ResidualRegistryGuard.cs',
+         'digest != item.Digest || entries != item.Entries', 'false',
+         'TestesResiduos','--work10-core','W10 key changed after consent'),
+        ('residual-parent-identity-bypassed','IntegratedResidualCleanup.cs',
+         '!parents.Identities().SequenceEqual(file.Parents) ||', 'false ||',
+         'TestesResiduos','--work10-core','W10 moved identical file in replaced directory'),
         ('directory-replacement-accepted','ResidualPreview.cs',
          'accepted.DirectoryChain.SequenceEqual(current.DirectoryChain)', 'true',
          'TestesResiduos','--work6-preview','W6-R-ROOT'),
@@ -63,6 +75,9 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
         if baseline.returncode: raise RuntimeError('baseline failed: '+baseline.stdout[-2000:])
         print('BASELINE PASS',project,flush=True)
     if os.name == 'nt':
+        baseline=run('TestesResiduos','--work10-core')
+        if baseline.returncode: raise RuntimeError('WORK10 baseline failed: '+baseline.stdout[-3000:])
+        print('BASELINE PASS native integrated cleanup',flush=True)
         baseline=run('TestesResiduos','--work6-preview')
         if baseline.returncode: raise RuntimeError('preview baseline failed: '+baseline.stdout[-2000:])
         print('BASELINE PASS native preview',flush=True)

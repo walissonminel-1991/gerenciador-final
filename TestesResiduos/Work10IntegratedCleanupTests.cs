@@ -61,7 +61,7 @@ internal static class Work10IntegratedCleanupTests
     private static Task<ResidualElevationResponse?> NoElevation(IReadOnlyList<ResidualElevationRequest> _, CancellationToken __) =>
         Task.FromResult<ResidualElevationResponse?>(new("uac_declined", 1223, []));
 
-    internal static async Task RunAsync(Action<bool, string> check)
+    internal static async Task RunAsync(Action<bool, string> check, bool coreOnly = false)
     {
         if (!OperatingSystem.IsWindows()) { Console.WriteLine("SKIP W10 Windows required"); return; }
         try
@@ -73,6 +73,7 @@ internal static class Work10IntegratedCleanupTests
             await LinkBoundaries(check);
             await Permissions(check);
             await WireAndPerformance(check);
+            if (coreOnly) return;
             IntegratedResidualPolicy.SyntheticScope = null;
             await ActualUninstaller(check);
             await AuthenticatedWorker(check);
@@ -101,7 +102,7 @@ internal static class Work10IntegratedCleanupTests
             var contexts = Contexts(f);
             var result = await IntegratedResidualBatch.RunAsync([Removed(f.App)], contexts, Empty,
                 (_, _) => { prompts++; return Task.FromResult(false); }, (_, _) => { elevations++; return NoElevation([], default); }, _ => { });
-            check(prompts == 1 && elevations == 0 && result.Declined && System.IO.File.ReadAllText(file) == before &&
+            check(prompts == 1 && elevations == 0 && result.Declined && System.IO.File.Exists(file) && System.IO.File.ReadAllText(file) == before &&
                 f.KeyExists(RegistryHive.CurrentUser, RegistryView.Registry64), "W10 NO preserves file, directory and registry contents");
         }
         using (var f = new Fixture())
@@ -172,6 +173,15 @@ internal static class Work10IntegratedCleanupTests
         }
         using (var f = new Fixture())
         {
+            string file = f.File("settings.cfg", "ORIGINAL!"); var accepted = f.Plan();
+            var timestamp = System.IO.File.GetLastWriteTimeUtc(file);
+            System.IO.File.WriteAllText(file, "MODIFIED!"); System.IO.File.SetLastWriteTimeUtc(file, timestamp);
+            var result = await IntegratedResidualCleanup.DeleteAsync(accepted, true, Empty);
+            check(System.IO.File.Exists(file) && System.IO.File.ReadAllText(file) == "MODIFIED!" && result.Files == 0,
+                "W10 same metadata with changed content is protected by SHA256");
+        }
+        using (var f = new Fixture())
+        {
             string file = f.File("settings.cfg"); var accepted = f.Plan();
             var result = await IntegratedResidualCleanup.DeleteAsync(accepted, true, () => Task.FromResult(new UninstallSnapshot([f.App], true)));
             check(System.IO.File.Exists(file) && result.Files == 0 && !result.Verified, "W10 reinstall before execution blocks every deletion");
@@ -231,6 +241,19 @@ internal static class Work10IntegratedCleanupTests
             }
             finally { Directory.Delete(previous, true); }
         }
+        using (var f = new Fixture())
+        {
+            string original = f.File("settings.cfg"); var accepted = f.Plan(); string previous = f.Root + ".old";
+            Directory.Move(f.Root, previous); Directory.CreateDirectory(f.Root);
+            System.IO.File.Move(Path.Combine(previous, "settings.cfg"), original);
+            try
+            {
+                var result = await IntegratedResidualCleanup.DeleteAsync(accepted, true, Empty);
+                check(System.IO.File.Exists(original) && result.Files == 0,
+                    "W10 moved identical file in replaced directory requires original parent identity");
+            }
+            finally { Directory.Delete(previous, true); }
+        }
     }
     private static async Task SharingAndPrivacy(Action<bool, string> check)
     {
@@ -253,6 +276,13 @@ internal static class Work10IntegratedCleanupTests
             var context = IntegratedResidualCleanup.Prepare(f.App, new([f.App, other], true));
             var plan = IntegratedResidualCleanup.Capture(context, new([other], true));
             check(plan.Eligible == 0 && System.IO.File.Exists(file), "W10 shared installation root is not eligible");
+        }
+        using (var f = new Fixture())
+        {
+            Directory.CreateDirectory(Path.Combine(f.Root, "steamapps"));
+            string game = f.File("steamapps\\game.cfg"); f.File("settings.cfg");
+            var result = await IntegratedResidualCleanup.DeleteAsync(f.Plan(), true, Empty);
+            check(result.Files == 1 && System.IO.File.Exists(game), "W10 game-library directory remains preserved inside an application root");
         }
         using (var f = new Fixture())
         {

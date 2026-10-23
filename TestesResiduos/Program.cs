@@ -8,9 +8,9 @@ if (args.Length == 3 && args[0] == "--residual-worker-test")
 int passed = 0;
 if (args.Contains("--benchmark") || args.Contains("--benchmark-work9"))
 { ResidualBenchmark.Run(comparable: args.Contains("--benchmark-work9")); return; }
-if (args.Contains("--work10"))
+if (args.Contains("--work10") || args.Contains("--work10-core"))
 {
-    await Work10IntegratedCleanupTests.RunAsync((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("PASS " + label); });
+    await Work10IntegratedCleanupTests.RunAsync((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("PASS " + label); }, args.Contains("--work10-core"));
     return;
 }
 if (args.Contains("--work9"))

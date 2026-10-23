@@ -1,4 +1,4 @@
-# Roteiro físico mínimo — candidata WORK9 .49
+# Roteiro físico mínimo — candidata WORK10 .52
 
 Este roteiro substitui o lote v5.13.10.18. Os registros antigos do PC FRACO
 estão no [arquivo histórico](TESTES-HISTORICOS-PC-FRACO.md). A aprovação em
@@ -19,14 +19,14 @@ runner não significa que esta candidata já rodou nos dois PCs.
    versões e estados parciais, sem executar instaladores. Cancelar uma consulta
    e repetir; resultado atrasado não deve substituir o atual. Falha COM ou fonte
    indisponível precisa aparecer como parcial, sem inferir desinstalação.
-5. Consultar resíduos gerais e os pilotos específicos de Notepad++/SumatraPDF,
-   sem excluir. A ausência específica não comprova ausência geral. Registrar
-   contagens, motivos de parcialidade, classificação e legibilidade da prévia.
+5. Conferir que não existem botões de investigação/limpeza residual independente.
+   A limpeza avançada do Windows, temporários, caches, Lixeira e discos continuam
+   disponíveis. A confirmação de resíduos só pertence à desinstalação concluída.
 6. Redimensionar em 100% e escala habitual, verificar foco, botões, rolagem,
    sobreposição e tema. Consultar drivers somente leitura e cancelar perto do
    fim; não instalar, reparar, remover ou reverter drivers.
 7. Na mesma condição de energia e carga, medir três aberturas e três consultas
-   de inventário/atualizações/resíduos de cada versão comparada, separando cache
+   de inventário/atualizações de cada versão comparada, separando cache
    frio/quente e fontes de rede. Medir também RAM, CPU e disco em repouso,
    minimizado e após cancelar. Não atribuir diferença de rede ao código do GF.
 
@@ -41,12 +41,25 @@ R7: desinstalar somente um aplicativo de teste autorizado, observar execução,
 retorno, reinício/pending e duas consultas posteriores; testar coexistência
 EXE/MSI e cancelamento sem apagar a instalação vizinha.
 
-R4: em VM descartável, revisar a prévia inteira, confirmar apenas alvos próprios,
-revalidar ausência da família, excluir, conferir arquivos/pastas/chaves HKCU/HKLM
-32/64 e reiniciar para nova consulta. O erro `registro_ArgumentException` da .48
-tem de permanecer ausente. Qualquer alvo alterado, reinstalação, link, arquivo
-em uso ou falha de leitura deve ser preservado/explicado. Configurações, favoritos
-e histórico exigem decisão separada; locais compartilhados permanecem protegidos.
+R4: em VM descartável, desinstalar dois aplicativos de teste pelo GF. Conferir
+uma única confirmação SIM/NÃO, com arquivos, pastas, chaves e preservações por
+aplicativo. Primeiro escolher NÃO e conferir que os resíduos continuam presentes;
+não deve haver pergunta repetida. Reinstalar os aplicativos de teste na VM,
+desinstalá-los novamente e escolher SIM; conferir exclusão permanente e ausência
+posterior dos alvos elegíveis, inclusive após reiniciar a VM. Não usar um botão
+manual de busca: esse acesso foi removido.
+
+Incluir um resíduo HKLM32 sintético, sem iniciar o GF como administrador. SIM
+deve chamar o UAC legítimo dentro da operação quando necessário; testar recusa
+(preservação e erro 1223 no diagnóstico) e autorização com a mesma conta (remoção
+e conferência). Não alterar ACLs nem assumir propriedade. Credenciais de outra
+conta são recusadas e registradas. Uma remoção pendente/reinício/falha não pode
+oferecer limpeza daquele aplicativo, mesmo em lote.
+
+Conferir diagnósticos por aplicativo para alteração de conteúdo, reinstalação,
+link, arquivo em uso, cancelamento, permissão e resultados parciais. Arquivos
+pessoais, backups e locais compartilhados permanecem preservados. Na bandeja,
+a pergunta aguarda a restauração; cancelar não pode reabri-la depois.
 
 Não repetir limpezas em massa sugeridas por ferramentas externas. A missão Work
 não executa essas operações nos computadores pessoais. U8/R7/R4 só avançam com

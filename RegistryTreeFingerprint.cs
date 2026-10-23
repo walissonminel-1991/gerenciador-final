@@ -11,7 +11,8 @@ internal static class RegistryTreeFingerprint
 {
     internal static bool TryCapture(RegistryKey root, int maxEntries,
         out string digest, out int entries, int maxBytes = 4 * 1024 * 1024,
-        Func<RegistryKey, string, RegistryKey?>? openChild = null)
+        Func<RegistryKey, string, RegistryKey?>? openChild = null,
+        Action<RegistryKey>? beforeKey = null, bool throwOnFailure = false)
     {
         digest = ""; entries = 0;
         int count = 0, bytes = 0;
@@ -46,6 +47,7 @@ internal static class RegistryTreeFingerprint
             void Visit(RegistryKey key, int depth)
             {
                 if (depth > 12 || ++count > maxEntries) throw new InvalidDataException("Muitas chaves");
+                beforeKey?.Invoke(key);
                 string[] values = key.GetValueNames().Order(StringComparer.OrdinalIgnoreCase).ToArray();
                 Number(values.Length);
                 foreach (string name in values)
@@ -78,8 +80,8 @@ internal static class RegistryTreeFingerprint
             digest = Convert.ToHexString(hash.GetHashAndReset()); entries = count;
             return true;
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
-            System.Security.SecurityException or ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        catch (Exception ex) when (!throwOnFailure && (ex is IOException or InvalidDataException or UnauthorizedAccessException or
+            System.Security.SecurityException or ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception))
         { return false; }
     }
 }
