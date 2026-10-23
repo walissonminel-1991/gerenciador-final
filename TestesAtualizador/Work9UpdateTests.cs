@@ -47,6 +47,15 @@ internal static class Work9UpdateTests
             var sumRecipe = VerifiedUpdaters.Resolve(app)!;
             check(VerifiedUpdaters.SingleSafeSilentInstallation(sumRecipe, app, [app]),
                 "W9-U4 controle positivo Sumatra x64 local coerente com a receita");
+            var after = new ProgramEntry { Name = app.Name, Publisher = app.Publisher, Version = "3.6.1",
+                InventoryId = app.InventoryId, InstallLocation = folder, UninstallString = app.UninstallString };
+            check(!VerifiedUpdaters.ConfirmInstallation(sumRecipe, app, [after]),
+                "W9-U6 Registro novo sem versao PE comprovada nao confirma Sumatra");
+            string ownFile = typeof(Work9UpdateTests).Assembly.Location;
+            string ownVersion = System.Diagnostics.FileVersionInfo.GetVersionInfo(ownFile).FileVersion!;
+            check(VerifiedUpdaters.BinaryVersionAtLeast(ownFile, ownVersion) &&
+                !VerifiedUpdaters.BinaryVersionAtLeast(ownFile, "9999.0"),
+                "W9-U6 controle positivo le versao PE real sem executar arquivo");
             WritePe(exe, x64: false);
             check(!VerifiedUpdaters.SingleSafeSilentInstallation(sumRecipe, app, [app]),
                 "W9-U4 PE alterado para x86 durante download bloqueia pacote x64");

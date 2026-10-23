@@ -25,7 +25,11 @@ internal sealed class UpdateLaunchGate
             int exit = await launch();
             if (token.IsCancellationRequested) return new(UpdateAttemptState.Indeterminate, exit);
             if (exit is not (0 or 3010)) return new(UpdateAttemptState.Failed, exit);
-            return new(await confirm() ? UpdateAttemptState.Confirmed : UpdateAttemptState.Indeterminate, exit);
+            bool confirmed = await confirm();
+            // A conferencia pode aguardar inventario/rede. O cancelamento
+            // durante essa espera nao transforma uma operacao em sucesso.
+            if (token.IsCancellationRequested) return new(UpdateAttemptState.Indeterminate, exit);
+            return new(confirmed ? UpdateAttemptState.Confirmed : UpdateAttemptState.Indeterminate, exit);
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
         { return new(UpdateAttemptState.Cancelled); }

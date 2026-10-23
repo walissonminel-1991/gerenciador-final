@@ -334,7 +334,7 @@ internal static class VerifiedUpdaters
                 Environment.SpecialFolder.ProgramFiles), "Notepad++");
             if (!uninstall.FileName.Equals(Path.Combine(folder, "uninstall.exe"),
                     StringComparison.OrdinalIgnoreCase) ||
-                !File.Exists(Path.Combine(folder, "notepad++.exe"))) return false;
+                GetPortableExecutableMachine(Path.Combine(folder, "notepad++.exe")) != 0x8664) return false;
             if (!string.IsNullOrWhiteSpace(chosen.InstallLocation) &&
                 !chosen.InstallLocation.TrimEnd('\\').Equals(folder, StringComparison.OrdinalIgnoreCase))
                 return false;
@@ -347,7 +347,11 @@ internal static class VerifiedUpdaters
             return related.Length == 1 &&
                 related[0].InventoryId.Equals(chosen.InventoryId, StringComparison.OrdinalIgnoreCase) &&
                 string.IsNullOrWhiteSpace(chosen.MsiProductCode) &&
-                DetectSumatraInstallation(chosen) is not null;
+                UninstallCommand.TryParse(chosen.UninstallString, out var uninstall) &&
+                uninstall.ProductCode is null &&
+                DetectSumatraInstallation(chosen) is { } installation &&
+                installation.IsX64 == (recipe.Identifier == "sumatrapdf-x64-3.6.1") &&
+                installation.AllUsers == recipe.Arguments.Contains("-all-users", StringComparison.Ordinal);
         }
         return true;
     }
@@ -434,8 +438,7 @@ internal static class VerifiedUpdaters
     {
         try
         {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete);
+            using var stream = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
             using var reader = new BinaryReader(stream);
             if (stream.Length < 256 || reader.ReadUInt16() != 0x5A4D) return 0;
             stream.Position = 0x3C;
@@ -529,6 +532,20 @@ internal static class VerifiedUpdaters
                 if (!IsSevenZipExeInstallation(entry) || !SingleSevenZipRegistration(entry, snapshot))
                     continue;
             }
+            if (recipe.Identifier == "notepadpp-x64-8.9.8.1" ||
+                recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
+            {
+                string family = recipe.Identifier == "notepadpp-x64-8.9.8.1" ? "Notepad++" : "SumatraPDF";
+                if (snapshot.Count(p => p.Name.StartsWith(family, StringComparison.OrdinalIgnoreCase)) != 1 ||
+                    !string.IsNullOrWhiteSpace(entry.MsiProductCode) ||
+                    !entry.MsiProductCode.Equals(original.MsiProductCode, StringComparison.OrdinalIgnoreCase) ||
+                    !entry.InstallLocation.Equals(original.InstallLocation, StringComparison.OrdinalIgnoreCase) ||
+                    !entry.UninstallString.Equals(original.UninstallString, StringComparison.OrdinalIgnoreCase)) continue;
+                string? binary = family == "Notepad++"
+                    ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Notepad++", "notepad++.exe")
+                    : FindSumatraExecutable(entry);
+                if (binary is null || !BinaryVersionAtLeast(binary, recipe.Version)) continue;
+            }
             if (recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
             {
                 var installation = DetectSumatraInstallation(entry);
@@ -542,6 +559,18 @@ internal static class VerifiedUpdaters
         return false;
     }
 
+    internal static bool BinaryVersionAtLeast(string path, string expected)
+    {
+        try
+        {
+            using var held = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
+            return TryVersion(FileVersionInfo.GetVersionInfo(path).FileVersion, out var actual) &&
+                TryVersion(expected, out var target) && actual >= target;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        { return false; }
+    }
+
     internal static bool SameInstallationForUpdate(ProgramEntry original, IEnumerable<ProgramEntry> current)
     {
         if (string.IsNullOrWhiteSpace(original.InventoryId) || original.InventoryOnly ||
@@ -551,7 +580,9 @@ internal static class VerifiedUpdaters
             !ProtectedApplications.IsProtectedName(matches[0].Name) &&
             matches[0].Name.Equals(original.Name, StringComparison.OrdinalIgnoreCase) &&
             matches[0].Publisher.Equals(original.Publisher, StringComparison.OrdinalIgnoreCase) &&
-            matches[0].Version == original.Version && matches[0].InstallLocation == original.InstallLocation &&
+            matches[0].Version == original.Version &&
+            matches[0].MsiProductCode.Equals(original.MsiProductCode, StringComparison.OrdinalIgnoreCase) &&
+            matches[0].InstallLocation == original.InstallLocation &&
             matches[0].UninstallString == original.UninstallString;
     }
 

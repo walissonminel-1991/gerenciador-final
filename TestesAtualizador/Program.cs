@@ -181,7 +181,7 @@ Verify(VerifiedUpdaters.GetMicrosoftStoreUri(Item("Windows Terminal", "1.0", "2.
 var npp = VerifiedUpdaters.Resolve(Item("Notepad++ (64-bit x64)", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial"));
 Verify(npp?.Identifier == "notepadpp-x64-8.9.8.1" && npp.Sha256?.Length == 64 &&
        npp.RequiredSigner == "Notepad++", "Notepad++: receita fixada com digest e editor");
-Verify(npp.Arguments == "/S" && !npp.Interactive &&
+Verify(npp!.Arguments == "/S" && !npp.Interactive &&
        VerifiedUpdaters.IsApprovedRecipe(npp) &&
        !VerifiedUpdaters.IsApprovedRecipe(npp with { Arguments = "/s" }) &&
        !VerifiedUpdaters.IsApprovedRecipe(npp with { Arguments = "/S /closeRunningNpp" }),
@@ -271,7 +271,7 @@ Verify(VerifiedUpdaters.Resolve(Item("SumatraPDF", "3.6.1", "3.6.1",
             var updatedSumatra = Item("SumatraPDF", "3.6.1", "", "Krzysztof Kowalczyk");
             updatedSumatra.InventoryId = installed.InventoryId;
             updatedSumatra.InstallLocation = standardRoot;
-            Verify(VerifiedUpdaters.ConfirmInstallation(actual64!, installed, new[] { updatedSumatra }), "Sumatra confirma arquitetura e escopo originais");
+            Verify(!VerifiedUpdaters.ConfirmInstallation(actual64!, installed, new[] { updatedSumatra }), "Sumatra: cabecalho PE sem versao de arquivo nao comprova atualizacao");
             var wrongScope = VerifiedUpdaters.CreateSumatraRecipe(installed, true, true);
             Verify(!VerifiedUpdaters.ConfirmInstallation(wrongScope, installed, new[] { updatedSumatra }), "Sumatra local nao comprova pacote para todos os usuarios");
             stub[0x84] = 0x4C; stub[0x85] = 0x01; // I386
