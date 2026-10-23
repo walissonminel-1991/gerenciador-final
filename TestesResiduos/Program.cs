@@ -440,15 +440,15 @@ try
     File.SetAttributes(readonlySample, FileAttributes.ReadOnly);
     var readOnlyPlan = SevenZipCompleteCleanup.Capture(
         SevenZipCompleteCleanup.RecoveryIdentity(), true, []);
-    var denied = await SevenZipCompleteCleanup.ExecuteAsync(
+    var readOnlyResult = await SevenZipCompleteCleanup.ExecuteAsync(
         SevenZipCompleteCleanup.RecoveryIdentity(), readOnlyPlan,
         () => Task.FromResult((true, (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
-    Check(denied.FilesDeleted == 0 && denied.Failures > 0 &&
-          denied.Problems.Any(p => p.StartsWith("arquivo_excluir_sem_permissao", StringComparison.Ordinal)) &&
-          denied.Problems.Any(p => p.Contains("win32_5", StringComparison.Ordinal)) &&
-          File.Exists(readonlySample),
-          "Arquivo com atributo somente leitura permanece e reporta causa sem incluir o caminho");
-    File.SetAttributes(readonlySample, FileAttributes.Normal);
+    Check(readOnlyResult.FilesDeleted == 1 && readOnlyResult.Failures == 0 &&
+          !File.Exists(readonlySample),
+          "Arquivo readonly exclusivo e consentido usa FileDispositionInfoEx sem alterar ACL");
+    // A ferramenta legada e apenas fixture; se nao excluida em outro FS,
+    // restaurar o atributo antes de descartar a amostra sintética.
+    if (File.Exists(readonlySample)) File.SetAttributes(readonlySample, FileAttributes.Normal);
 }
 finally
 {
