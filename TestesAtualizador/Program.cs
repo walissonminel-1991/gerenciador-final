@@ -323,7 +323,9 @@ if (args.Contains("--verify-terminal", StringComparer.OrdinalIgnoreCase))
 }
 if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 {
-    var recipes = args.Contains("--verify-sumatra", StringComparer.OrdinalIgnoreCase)
+    var recipes = args.Contains("--verify-sevenzip", StringComparer.OrdinalIgnoreCase)
+        ? new[] { zipRecipe }
+        : args.Contains("--verify-sumatra", StringComparer.OrdinalIgnoreCase)
         ? new[] { sumX64, sumX86 }
         : args.Contains("--verify-gameinput", StringComparer.OrdinalIgnoreCase)
         ? new[] { gameRecipe }
