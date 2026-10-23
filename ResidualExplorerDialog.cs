@@ -296,7 +296,7 @@ internal sealed class ResidualExplorerDialog : Form
                     ? "Conferência posterior: nenhum resíduo específico nos locais autorizados."
                     : $"Conferência: {after.Files.Count} arquivo(s), {after.Directories.Count} pasta(s), " +
                       $"{after.Registry.Count} chave(s) ainda detectados. " +
-                      (result.Problems.Any(p => p.EndsWith("_sem_permissao", StringComparison.Ordinal))
+                      (result.Problems.Any(p => p.Contains("_sem_permissao", StringComparison.Ordinal))
                           ? "Para remover dados protegidos em Program Files ou HKLM, pode ser necessário executar " +
                             "o GF como administrador por escolha do usuário."
                           : "Preserve o resultado e investigue antes de nova tentativa.")));
