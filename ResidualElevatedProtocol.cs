@@ -71,6 +71,7 @@ internal static class ResidualElevatedProtocol
     internal static async Task<ResidualElevationResponse> ParentAsync(NamedPipeServerStream pipe,
         IReadOnlyList<ResidualElevationRequest> requests, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         if (!ValidRequests(requests)) return new("uac_invalid_request", 0, []);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         await WriteFrameAsync(pipe, requests.ToArray(), deadline.Token).ConfigureAwait(false);

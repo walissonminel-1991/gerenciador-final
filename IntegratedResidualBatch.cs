@@ -50,6 +50,7 @@ internal static class IntegratedResidualBatch
             if (plans.Count == 0) return new(results, 0, false, false, unavailable);
             // Congelar a selecao antes de atravessar a fronteira da interface.
             var accepted = plans.ToArray();
+            token.ThrowIfCancellationRequested();
             bool consent = await confirm(Array.AsReadOnly(accepted), token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             foreach (var plan in accepted)

@@ -39,6 +39,10 @@ internal static class IntegratedResidualCleanup
         int error = 0, string reason = "none", long milliseconds = 0, bool cancelled = false) =>
         FormattableString.Invariant($"DESINSTALACAO.RESIDUOS app={app.TechnicalId} etapa={stage} estado={state} arquivos={files} pastas={folders} chaves={keys} preservados={kept} falhas={failed} erro_windows={error} motivo={reason} duracao_ms={milliseconds} cancelamento={(cancelled ? 1 : 0)}");
 
+    internal static string RegistryStage(ResidualKeyEvidence key) =>
+        (key.Hive == RegistryHive.LocalMachine ? "hklm" : "hkcu") +
+        (key.View == RegistryView.Registry32 ? "32" : "64");
+
     internal static ResidualUninstallContext Prepare(ProgramEntry app, UninstallSnapshot inventory,
         CancellationToken token = default)
     {
@@ -218,7 +222,9 @@ internal static class IntegratedResidualCleanup
         void Set(string id, string kind, ResidualItemState state, string reason, int error = 0)
         {
             results.Add(new(id, kind, state, reason, error));
-            audit?.Invoke(Audit(plan.Context.App, kind, state.ToString(), error: error, reason: reason));
+            var address = kind == "registry" ? plan.Keys.FirstOrDefault(k => k.Id == id) : null;
+            string stage = address is null ? kind : RegistryStage(address);
+            audit?.Invoke(Audit(plan.Context.App, stage, state.ToString(), error: error, reason: reason));
         }
         if (!consent || !ValidPlan(plan) || onlyIds?.Any(id => !targets.Any(t => t.Id == id)) == true)
         {

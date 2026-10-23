@@ -2761,6 +2761,13 @@ internal sealed partial class MainForm : Form
         if (apps.Count == 0) { Status("Nenhum aplicativo marcado"); return; }
         var prepared = new List<PreparedUninstaller>();
         using var cancellation = new CancellationTokenSource();
+        int diagnosticUnavailable = 0;
+        void RecordResidualEvent(string line)
+        {
+            if (DiagnosticTrace.Write(line)) return;
+            Interlocked.Exchange(ref diagnosticUnavailable, 1);
+            cancellation.Cancel();
+        }
         _uninstallCts = cancellation;
         ShowUninstallCancellation(true);
         var contexts = new Dictionary<string, ResidualUninstallContext>(StringComparer.OrdinalIgnoreCase);
@@ -2779,10 +2786,10 @@ internal sealed partial class MainForm : Form
                 var context = await Task.Run(() => IntegratedResidualCleanup.Prepare(request.Original,
                     before, cancellation.Token), cancellation.Token);
                 contexts.Add(request.Original.InventoryId, context);
-                DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(context.App, "prepare", "captured",
+                RecordResidualEvent(IntegratedResidualCleanup.Audit(context.App, "prepare", "captured",
                     folders: context.Roots.Count, keys: context.Keys.Count, kept: context.Preserved));
                 foreach (var problem in context.Problems)
-                    DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(context.App, problem.Stage, "preserved",
+                    RecordResidualEvent(IntegratedResidualCleanup.Audit(context.App, problem.Stage, "preserved",
                         error: problem.Error, reason: problem.Reason));
                 prepared.Add(await Task.Run(() => RegisteredUninstaller.Prepare(request,
                     (path, signer) => VerifiedUpdaters.VerifyAuthenticode(path, signer, out _),
@@ -2797,6 +2804,7 @@ internal sealed partial class MainForm : Form
                 (p.UnsignedWarning ? "\nDesinstalador sem assinatura digital. Confira o aplicativo antes de continuar." :
                  p.PublisherWarning ? "\nAssinatura válida com editor diferente do cadastro. Confira o aplicativo." :
                  p.TrustWarning ? "\nO Windows não confirmou a confiança da assinatura. Confira o aplicativo." : "")));
+            cancellation.Token.ThrowIfCancellationRequested();
             bool consent = DarkConfirmDialog.Confirm(this,
                 $"Deseja desinstalar {prepared.Count} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
                 "Confirmar desinstalação") == DialogResult.Yes;
@@ -2809,7 +2817,7 @@ internal sealed partial class MainForm : Form
             foreach (var plan in prepared) plan.Dispose();
             prepared.Clear();
             foreach (var outcome in outcomes)
-                DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(outcome.Request.Original),
+                RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(outcome.Request.Original),
                     "uninstall", outcome.State.ToString(), error: outcome.Code ?? 0, milliseconds: outcome.DurationMilliseconds,
                     reason: outcome.DiagnosticReason.Length > 0 ? outcome.DiagnosticReason :
                         outcome.State == UninstallState.RegistrationAbsent ? "removal_confirmed" : "no_cleanup_authorized"));
@@ -2819,8 +2827,8 @@ internal sealed partial class MainForm : Form
                 Status("Conferindo resíduos dos aplicativos removidos...");
                 cleanup = await Task.Run(() => IntegratedResidualBatch.RunAsync(outcomes, contexts,
                     Inventory, (plans, token) => OnUninstallUiAsync(() => ConfirmUninstallCleanupAsync(plans, token)),
-                    (plans, token) => OnUninstallUiAsync(() => RunElevatedAsync(ResidualElevatedProtocol.TaskName, plans, token)),
-                    line => DiagnosticTrace.Write(line), cancellation.Token));
+                    (plans, token) => OnUninstallUiAsync(() => RunElevatedAsync(ResidualElevatedProtocol.TaskName, plans, token, RecordResidualEvent)),
+                    RecordResidualEvent, cancellation.Token));
                 await RefreshCatalogAsync();
             }
             int absent = outcomes.Count(x => x.State == UninstallState.RegistrationAbsent);
@@ -2840,13 +2848,13 @@ internal sealed partial class MainForm : Form
         catch (OperationCanceledException)
         {
             foreach (var app in apps)
-                DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(app), "operation", "cancelled", cancelled: true));
+                RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(app), "operation", "cancelled", cancelled: true));
             Status("Operação cancelada.");
         }
         catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex))
         {
             foreach (var app in apps)
-                DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(app), "operation", "failed",
+                RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(app), "operation", "failed",
                     failed: 1, error: IntegratedResidualCleanup.Error(ex), reason: "uninstall_preparation_or_execution"));
             Log("Não foi possível concluir — consulte o diagnóstico.");
             Status("Não foi possível concluir — consulte o diagnóstico.");
@@ -2856,6 +2864,11 @@ internal sealed partial class MainForm : Form
             _uninstallCts = null;
             ShowUninstallCancellation(false);
             foreach (var plan in prepared) plan.Dispose();
+            if (diagnosticUnavailable != 0)
+            {
+                Log("Não foi possível gravar o diagnóstico. A operação foi interrompida.");
+                Status("Operação interrompida — diagnóstico indisponível.");
+            }
         }
     }
 
@@ -3055,15 +3068,21 @@ internal sealed partial class MainForm : Form
     }
 
     private async Task<ResidualElevationResponse?> RunElevatedAsync(string task,
-        IReadOnlyList<ResidualElevationRequest>? residualRequests = null, CancellationToken cancellation = default)
+        IReadOnlyList<ResidualElevationRequest>? residualRequests = null, CancellationToken cancellation = default,
+        Action<string>? residualAudit = null)
     {
         // O UAC é solicitado, mas a tarefa não abre formulário/terminal próprio.
         // Mensagens trafegam apenas em memória pelo pipe nomeado desta sessão.
+        void RecordResidual(string line)
+        {
+            if (residualAudit is not null) residualAudit(line);
+            else DiagnosticTrace.Write(line);
+        }
         ResidualElevationResponse? ResidualUacFailure(string reason, int error = 0)
         {
             if (residualRequests is null) return null;
             foreach (var request in residualRequests)
-                DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed", error: error, reason: reason));
+                RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed", error: error, reason: reason));
             return new(reason, error, []);
         }
         if (residualRequests is not null && cancellation.IsCancellationRequested)
@@ -3087,7 +3106,7 @@ internal sealed partial class MainForm : Form
             if (residualRequests is not null)
             {
                 foreach (var request in residualRequests)
-                    DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "declined", error: 1223));
+                    RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "declined", error: 1223));
                 return new("uac_declined", 1223, []);
             }
             if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
@@ -3108,7 +3127,7 @@ internal sealed partial class MainForm : Form
             {
                 if (residualRequests is not null)
                     foreach (var request in residualRequests)
-                        DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed", reason: "worker_connect_timeout"));
+                        RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed", reason: "worker_connect_timeout"));
                 Log("Não foi possível conectar à tarefa administrativa. Verifique se o Windows ou antivírus bloqueou o programa.");
                 Status("Falha de comunicação com operação administrativa");
                 return ResidualUacFailure(cancellation.IsCancellationRequested ? "uac_cancelled" : "uac_connect_timeout");
@@ -3132,25 +3151,30 @@ internal sealed partial class MainForm : Form
                 try
                 {
                     foreach (var request in residualRequests)
-                        DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "authorized"));
+                        RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "authorized"));
                     var response = await Task.Run(() => ResidualElevatedProtocol.ParentAsync(server, residualRequests, cancellation));
+                    await Task.Run(() =>
+                    {
                     foreach (var request in residualRequests)
-                        DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac_result", response.State, error: response.Error));
+                        RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac_result", response.State, error: response.Error));
                     foreach (var result in response.Results)
                     {
                         var app = residualRequests.Single(r => r.Plan.Context.App.TechnicalId == result.AppId).Plan.Context.App;
                         foreach (var item in result.Items)
-                            DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(app, "uac_" + item.Kind, item.State.ToString(),
+                            RecordResidual(IntegratedResidualCleanup.Audit(app, "uac_" + (item.Kind == "registry"
+                                ? IntegratedResidualCleanup.RegistryStage(residualRequests.Single(r => r.Plan.Context.App.TechnicalId == result.AppId).Plan.Keys.Single(k => k.Id == item.Id))
+                                : item.Kind), item.State.ToString(),
                                 error: item.Error, reason: item.Reason));
                         foreach (var issue in result.Problems)
-                            DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(app, issue.Stage, "blocked", error: issue.Error, reason: issue.Reason));
+                            RecordResidual(IntegratedResidualCleanup.Audit(app, issue.Stage, "blocked", error: issue.Error, reason: issue.Reason));
                     }
+                    });
                     return response;
                 }
                 catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex) || ex is OperationCanceledException or System.Text.Json.JsonException)
                 {
                     foreach (var request in residualRequests)
-                        DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed",
+                        RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed",
                             error: IntegratedResidualCleanup.Error(ex), reason: "worker_communication_failed"));
                     return new("uac_communication_failed", IntegratedResidualCleanup.Error(ex), []);
                 }

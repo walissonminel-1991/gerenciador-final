@@ -112,6 +112,16 @@ internal static class Work10IntegratedCleanupTests
                 (_, _) => { prompts++; return Task.FromResult(true); }, NoElevation, _ => { });
             check(prompts == 0 && result.Offered == 0 && System.IO.File.Exists(personal), "W10 no eligible residue completes without prompt");
         }
+        using (var f = new Fixture())
+        {
+            string file = f.File("settings.cfg"); int prompts = 0;
+            using var cancellation = new CancellationTokenSource();
+            var result = await IntegratedResidualBatch.RunAsync([Removed(f.App)], Contexts(f), Empty,
+                (_, _) => { prompts++; return Task.FromResult(true); }, NoElevation,
+                _ => cancellation.Cancel(), cancellation.Token);
+            check(result.Cancelled && prompts == 0 && System.IO.File.Exists(file),
+                "W10 unavailable audit sink cancels before consent and preserves every target");
+        }
         using (var one = new Fixture())
         using (var two = new Fixture())
         using (var pending = new Fixture())
@@ -130,8 +140,11 @@ internal static class Work10IntegratedCleanupTests
         foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
         {
             using var f = new Fixture((hive, view)); var accepted = f.Plan();
-            var result = await IntegratedResidualCleanup.DeleteAsync(accepted, true, Empty);
-            check(accepted.Keys.Count == 1 && result.Keys == 1 && result.Verified && !f.KeyExists(hive, view),
+            var trace = new List<string>();
+            var result = await IntegratedResidualCleanup.DeleteAsync(accepted, true, Empty, audit: trace.Add);
+            string location = (hive == RegistryHive.LocalMachine ? "hklm" : "hkcu") + (view == RegistryView.Registry32 ? "32" : "64");
+            check(accepted.Keys.Count == 1 && result.Keys == 1 && result.Verified && !f.KeyExists(hive, view) &&
+                trace.Any(line => line.Contains("etapa=" + location + " ", StringComparison.Ordinal)),
                 "W10 real transactional deletion " + hive + "/" + view);
         }
         using (var f = new Fixture((RegistryHive.LocalMachine, RegistryView.Registry32), (RegistryHive.LocalMachine, RegistryView.Registry64)))
