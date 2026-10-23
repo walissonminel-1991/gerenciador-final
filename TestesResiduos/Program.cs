@@ -193,6 +193,76 @@ Check(!ActionableInventory.CanUninstall(systemOnly) &&
     "Nao exibir botao Desinstalar em MSIX, jogos, comandos ausentes ou componentes protegidos");
 Check(ActionableInventory.CanUninstall(regular) && ActionableInventory.CanUninstall(quiet),
     "Reconhecer desinstalacao MSI normal e silenciosa como operacoes disponiveis");
+
+// Piloto de desinstalação SILENCIOSA: apenas MSI com ProductCode consistente
+// e 7-Zip EXE íntegro. A mutação/remoção abaixo atinge SÓ fixtures temporárias.
+var signedMsi = new ProgramEntry
+{
+    Name = "Programa MSI sintético", Publisher = "Fabricante de teste",
+    InventoryId = "LocalMachine|Registry64|SyntheticMSI",
+    MsiProductCode = "{00000000-0000-0000-0000-000000000001}",
+    UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000001}"
+};
+var syntheticSilentRequest = UninstallBatch.Select([signedMsi]).Single();
+Check(syntheticSilentRequest.Command.ProductCode == signedMsi.MsiProductCode &&
+      syntheticSilentRequest.Command.Arguments.Contains("/qn", StringComparison.OrdinalIgnoreCase) &&
+      syntheticSilentRequest.Command.Arguments.Contains("/norestart", StringComparison.OrdinalIgnoreCase) &&
+      SilentUninstallPolicy.MatchesAuthorized(signedMsi, syntheticSilentRequest.Command),
+      "MSI recebe somente /qn /norestart com o mesmo ProductCode");
+var unsignedFake = new ProgramEntry
+{
+    Name = "7-Zip 26.05 (x64)", Publisher = "Igor Pavlov",
+    InventoryId = "LocalMachine|Registry64|7-Zip",
+    InstallLocation = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip") + "\\",
+    UninstallString = "\"" + Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+        "7-Zip", "Uninstall.exe") + "\""
+};
+Check(SevenZipCompleteCleanup.Eligible(unsignedFake) &&
+      !SevenZipCompleteCleanup.NoSevenZipRegistrations([unsignedFake]) &&
+      !SevenZipCompleteCleanup.Eligible(new ProgramEntry
+      {
+          Name = "7-Zip 26.05 (x64 edition)", Publisher = "Igor Pavlov",
+          InventoryId = unsignedFake.InventoryId, InstallLocation = unsignedFake.InstallLocation,
+          UninstallString = unsignedFake.UninstallString
+      }),
+    "Somente entrada EXE 7-Zip x64 exata autoriza a etapa residual; MSI ainda presente bloqueia");
+
+string zipFixture = Path.Combine(Path.GetTempPath(), "GF-Zip-Residual-Synthetic-" +
+    Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(zipFixture);
+try
+{
+    var subdir = Path.Combine(zipFixture, "Perfil");
+    Directory.CreateDirectory(subdir);
+    var first = Path.Combine(zipFixture, "7-zip.dll");
+    var second = Path.Combine(subdir, "config.ini");
+    await File.WriteAllTextAsync(first, "DLL de teste sem executavel");
+    await File.WriteAllTextAsync(second, "Preferencia sintética");
+    SevenZipCompleteCleanup.SyntheticRoots = [zipFixture];
+    var beforeZip = SevenZipCompleteCleanup.Capture(unsignedFake, true, []);
+    Check(beforeZip.Complete && beforeZip.Files.Count == 2 &&
+          beforeZip.Directories.Count == 2 && beforeZip.Registry.Count == 0,
+          "Preview mede conteúdo e identidade dos arquivos sintéticos, sem tocar no Registro real");
+    await File.AppendAllTextAsync(second, "modificado depois da previa");
+    var refusal = await SevenZipCompleteCleanup.ExecuteAsync(unsignedFake, beforeZip,
+        () => Task.FromResult((true, (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+    Check(refusal.FilesDeleted == 0 && refusal.Failures > 0 &&
+          File.Exists(first) && File.Exists(second),
+          "Alteração após prévia bloqueia integralmente a exclusão");
+    var acceptedZip = SevenZipCompleteCleanup.Capture(unsignedFake, true, []);
+    var removedZip = await SevenZipCompleteCleanup.ExecuteAsync(unsignedFake, acceptedZip,
+        () => Task.FromResult((true, (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+    Check(removedZip.FilesDeleted == 2 && removedZip.DirectoriesDeleted == 2 &&
+          removedZip.KeysDeleted == 0 && removedZip.Failures == 0 &&
+          !Directory.Exists(zipFixture),
+          "Exclusão consentida em fixture remove somente os arquivos/pastas comprovados");
+}
+finally
+{
+    SevenZipCompleteCleanup.SyntheticRoots = null;
+    if (Directory.Exists(zipFixture)) Directory.Delete(zipFixture, recursive: true);
+}
+
 regular.CanUninstall = ActionableInventory.CanUninstall(regular);
 quiet.CanUninstall = ActionableInventory.CanUninstall(quiet);
 Check(ActionableInventory.VisibleCount(new[] { systemOnly, gameOnly, staleApp, regular, quiet, protectedWin32 }) == 2,
