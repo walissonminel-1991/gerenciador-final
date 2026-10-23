@@ -188,6 +188,9 @@ internal static class RebootResidualReview
     [DllImport("kernel32.dll", ExactSpelling = true)]
     private static extern IntPtr LocalFree(IntPtr memory);
 
+    internal static byte[] TestRoundTrip(byte[] value) =>
+        Protect(Protect(value, decrypt: false), decrypt: true);
+
     private static byte[] Protect(byte[] data, bool decrypt)
     {
         if (data.Length is 0 or > MaximumFileBytes) throw new InvalidDataException("Dados de revisao invalidos.");
