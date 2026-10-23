@@ -777,7 +777,11 @@ internal sealed partial class MainForm : Form
                 BeginStartupChecks();
             try
             {
-                await RebootResidualReview.CheckAfterBootAsync(Log);
+                await RebootResidualReview.CheckAfterBootAsync(async () =>
+                {
+                    var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
+                    return new UninstallSnapshot(scan.Items, !scan.Incomplete);
+                }, DiagnosticTrace.Write, Log);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                 InvalidDataException or System.Security.Cryptography.CryptographicException or
