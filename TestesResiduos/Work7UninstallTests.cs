@@ -95,6 +95,52 @@ internal static class Work7UninstallTests
             (_, _) => { removed = true; launches++; return Task.FromResult<int?>(0); }, Wait);
         check(independent.Single().State == UninstallState.RegistrationAbsent && launches == 1,
             "W7-EXE comando de outro produto no mesmo executável não bloqueia remoção legítima");
+        // Reproduz falha real vista no PC FORTE: UninstallString tem GUI
+        // e QuietUninstallString do NSIS oferece /S. Nenhum EXE e executado.
+        string quietRoot = Path.Combine(Path.GetTempPath(), "GF-W7-Quiet-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(quietRoot);
+        try
+        {
+            string executable = Path.Combine(quietRoot, "uninstall.exe");
+            string otherExecutable = Path.Combine(quietRoot, "uninstall-other.exe");
+            File.Copy(Environment.ProcessPath ?? throw new IOException("Fixture Windows sem apphost"), executable);
+            File.Copy(executable, otherExecutable);
+            string normalCommand = "\"" + executable + "\"";
+            var supportsQuiet = new ProgramEntry
+            {
+                Name = "Fixture NSIS", Publisher = "Fixture",
+                InventoryId = "CurrentUser|Registry64|FixtureQuiet",
+                UninstallString = normalCommand,
+                QuietUninstallString = normalCommand + " /S"
+            };
+            var quietRequest = UninstallBatch.Select([supportsQuiet]).Single();
+            check(quietRequest.Command.Arguments == "/S" &&
+                quietRequest.Command.FileName.Equals(executable, StringComparison.OrdinalIgnoreCase) &&
+                SilentUninstallPolicy.MatchesAuthorized(supportsQuiet, quietRequest.Command),
+                "W7-QUIET comando quiet registrado prevalece sobre desinstalador interativo");
+
+            var wrongQuiet = new ProgramEntry
+            {
+                Name = supportsQuiet.Name, Publisher = supportsQuiet.Publisher,
+                InventoryId = supportsQuiet.InventoryId,
+                UninstallString = normalCommand,
+                QuietUninstallString = "\"" + otherExecutable + "\" /S"
+            };
+            var normalRequest = UninstallBatch.Select([wrongQuiet]).Single();
+            check(normalRequest.Command.Arguments == "" &&
+                normalRequest.Command.FileName.Equals(executable, StringComparison.OrdinalIgnoreCase),
+                "W7-QUIET campo quiet nao pode trocar o EXE do programa");
+
+            var noQuiet = new ProgramEntry
+            {
+                Name = "Unlocker 1.9.2", Publisher = "Unknown",
+                InventoryId = "CurrentUser|Registry64|UnlockerSynthetic",
+                UninstallString = normalCommand
+            };
+            check(UninstallBatch.Select([noQuiet]).Single().Command.Arguments == "",
+                "W7-QUIET sem contrato do fabricante nao inventa flags para Unlocker");
+        }
+        finally { Directory.Delete(quietRoot, recursive: true); }
         check(UninstallCommand.TryParse("msiexec.exe /X" + app.MsiProductCode + " /qn", out var noRestart) &&
             noRestart.Arguments.Contains("/norestart", StringComparison.OrdinalIgnoreCase),
             "W7-MSI comando silencioso registrado não autoriza reinicialização automática");
