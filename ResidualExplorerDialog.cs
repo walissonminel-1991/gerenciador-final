@@ -84,11 +84,15 @@ internal sealed class ResidualExplorerDialog : Form
         split.Panel1.Controls.Add(groups);
         var right = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Margin = Padding.Empty };
         right.RowStyles.Add(new RowStyle(SizeType.Percent, 46)); right.RowStyles.Add(new RowStyle(SizeType.Percent, 54));
-        right.RowStyles.Add(new RowStyle(SizeType.Absolute, 34)); right.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        // Separar a navegação dos controles de inspeção/limpeza para evitar
+        // cliques involuntários em ações de naturezas distintas.
+        right.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); right.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
         details.UseReadableFont(readable); right.Controls.Add(details, 0, 0); right.Controls.Add(locations, 0, 1);
-        var locationBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
+        var locationBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
+            Margin = Padding.Empty, Padding = new Padding(0, 1, 0, 6) };
         locationBar.Controls.AddRange([locationPrevious, locationLabel, locationNext, back]); right.Controls.Add(locationBar, 0, 2);
-        var inspectBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
+        var inspectBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
+            Margin = Padding.Empty, Padding = new Padding(0, 6, 0, 2) };
         inspectBar.Controls.Add(inspect); inspectBar.Controls.Add(cleanFoobar);
         inspectBar.Controls.Add(cleanSevenZip);
         inspectBar.Controls.Add(cleanSmallApp);
