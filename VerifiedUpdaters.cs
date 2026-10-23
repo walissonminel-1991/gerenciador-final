@@ -64,6 +64,7 @@ internal static class VerifiedUpdaters
                 Obs, ObsDigest, "OBS Project, LLC", "", true, "https://obsproject.com/download"),
             "notepadpp-x64-8.9.8.1" => new(recipe.Identifier, "Notepad++", "8.9.8.1",
                 Npp64, NppDigest, "Notepad++", "", true, "https://notepad-plus-plus.org/downloads/"),
+            "sevenzip-exe-x64-26.05" => CreateSevenZipRecipe(),
             "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" =>
                 CreateSumatraRecipe(new ProgramEntry(), recipe.Identifier == "sumatrapdf-x64-3.6.1",
                     recipe.Arguments == "-install -all-users"),
@@ -85,12 +86,27 @@ internal static class VerifiedUpdaters
         try
         {
             await InstallerFileGuard.RequireDigestAsync(locked, receipt.Digest);
-            if (!VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
+            if (!IsPinnedUnsignedSevenZip(recipe) &&
+                !VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
                 throw new CryptographicException("Assinatura alterada antes da execucao (" + issue + ").");
             return locked;
         }
         catch { locked.Dispose(); throw; }
     }
+
+    // SHA-256 do instalador EXE x64 26.05, conforme asset oficial ip7z/7zip.
+    // 7-Zip distribui EXE sem Authenticode: excecao EXCLUSIVA por hash fixo,
+    // sem permitir excecoes genericas a instaladores unsigned.
+    private const string SevenZipDigest = "FD99E86F57D8F429EF5ED045BF98315AF962E2309B0F1BA87A147A44C71647D0";
+    private const string SevenZipId = "sevenzip-exe-x64-26.05";
+    private static readonly Version SevenZipTarget = new(26, 5, 0, 0);
+    private static readonly Uri SevenZipExe = new("https://github.com/ip7z/7zip/releases/download/26.05/7z2605-x64.exe");
+    internal static VerifiedUpdateRecipe CreateSevenZipRecipe() =>
+        new(SevenZipId, "7-Zip", "26.05", SevenZipExe, SevenZipDigest,
+            "", "/S", false, "https://www.7-zip.org/download.html");
+
+    private static bool IsPinnedUnsignedSevenZip(VerifiedUpdateRecipe recipe) =>
+        recipe.Identifier == SevenZipId && recipe == CreateSevenZipRecipe();
 
     private static readonly Version VcTarget = new(12, 0, 40664, 0);
     private const string ObsDigest = "c3a0b880adbe64dc4bcb68f93016916ab5b55ae43fd227115287bf80257d92dc";
@@ -207,6 +223,11 @@ internal static class VerifiedUpdaters
                 "/install /quiet /norestart", false,
                 "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/");
         }
+        if (entry.Source == "GitHub oficial" && IsSevenZipExeInstallation(entry) &&
+            TryVersion(entry.AvailableVersion, out var zipAvailable) && zipAvailable == SevenZipTarget &&
+            TryVersion(entry.Version, out var zipInstalled) && zipInstalled < SevenZipTarget)
+            return CreateSevenZipRecipe();
+
         if (entry.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase) &&
             MatchesInstalledPublisher("obs-x64-32.2.2", entry.Publisher) &&
             TryVersion(entry.Version, out var obsInstalled) && obsInstalled < new Version(32, 2, 2, 0) &&
@@ -241,6 +262,57 @@ internal static class VerifiedUpdaters
                 return CreateSumatraRecipe(entry, detected.Value.IsX64, detected.Value.AllUsers);
         }
         return null;
+    }
+
+    // Distingue a instalacao EXE x64 padrao do pacote MSI visto no PC FORTE.
+    // Nome/editor/versao ou apenas o Registro nunca autorizam substituicao silenciosa.
+    internal static bool IsSevenZipRegistryCandidate(ProgramEntry entry)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(entry.Name,
+            @"^7-Zip\s+(?<version>\d+(?:\.\d+){1,3})\s+\(x64\)$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (!match.Success || !entry.Publisher.Equals("Igor Pavlov", StringComparison.OrdinalIgnoreCase) ||
+            !entry.InventoryId.Equals("LocalMachine|Registry64|7-Zip", StringComparison.OrdinalIgnoreCase) ||
+            !TryVersion(match.Groups["version"].Value, out var named) ||
+            !TryVersion(entry.Version, out var installed) || installed != named)
+            return false;
+        string canonical = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip");
+        string registered = entry.InstallLocation.Trim().TrimEnd(Path.DirectorySeparatorChar);
+        string uninstaller = entry.UninstallString.Trim().Trim('"');
+        return registered.Equals(canonical, StringComparison.OrdinalIgnoreCase) &&
+            uninstaller.Equals(Path.Combine(canonical, "Uninstall.exe"), StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsSevenZipExeInstallation(ProgramEntry entry)
+    {
+        if (!IsSevenZipRegistryCandidate(entry)) return false;
+        string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip");
+        try
+        {
+            if (!Directory.Exists(directory) ||
+                (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) return false;
+            foreach (string name in new[] { "7zFM.exe", "7z.exe", "7z.dll", "Uninstall.exe" })
+            {
+                string file = Path.Combine(directory, name);
+                if (!File.Exists(file) || (File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) return false;
+            }
+            // EXE sem arquivo funcional corresponde ao incidente real de instalacao quebrada.
+            var information = FileVersionInfo.GetVersionInfo(Path.Combine(directory, "7zFM.exe"));
+            return TryVersion(information.FileVersion, out var actual) &&
+                TryVersion(entry.Version, out var expected) && actual == expected;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            ArgumentException or NotSupportedException) { return false; }
+    }
+
+    internal static bool SingleSevenZipRegistration(ProgramEntry chosen, IEnumerable<ProgramEntry> inventory)
+    {
+        if (!IsSevenZipExeInstallation(chosen)) return false;
+        var family = inventory.Where(x => x.Name.StartsWith("7-Zip", StringComparison.OrdinalIgnoreCase) &&
+            (x.Name.Length == 5 || !char.IsLetterOrDigit(x.Name[5]))).ToArray();
+        return family.Length == 1 &&
+            family[0].InventoryId.Equals(chosen.InventoryId, StringComparison.OrdinalIgnoreCase);
     }
 
     // Valida local e arquitetura PE real: nunca converte uma instalação x86 em x64
@@ -391,6 +463,7 @@ internal static class VerifiedUpdaters
                 "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" =>
                     entry.Name.Equals("SumatraPDF", StringComparison.OrdinalIgnoreCase),
                 "gameinput-x64-3.5.283" => entry.Name.Equals("Microsoft GameInput", StringComparison.OrdinalIgnoreCase),
+                SevenZipId => IsSevenZipRegistryCandidate(entry),
                 _ => false
             };
             if (belongs && TryVersion(entry.Version, out var installed) && installed >= target)
@@ -414,6 +487,11 @@ internal static class VerifiedUpdaters
         {
             if (!original.InventoryId.Equals(entry.InventoryId, StringComparison.OrdinalIgnoreCase) ||
                 !IsInstalledVersionAtLeast(recipe.Identifier, recipe.Version, new[] { entry })) continue;
+            if (recipe.Identifier == SevenZipId)
+            {
+                if (!IsSevenZipExeInstallation(entry) || !SingleSevenZipRegistration(entry, snapshot))
+                    continue;
+            }
             if (recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
             {
                 var installation = DetectSumatraInstallation(entry);
@@ -450,6 +528,7 @@ internal static class VerifiedUpdaters
             "notepadpp-x64-8.9.8.1" => ["Don HO", "Notepad++", "Notepad Team", "Notepad++ Team"],
             "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" =>
                 ["Krzysztof Kowalczyk", "SumatraPDF", "SumatraPDF Reader"],
+            SevenZipId => ["Igor Pavlov"],
             _ => []
         };
         return allowed.Contains(publisher.Trim(), StringComparer.OrdinalIgnoreCase);
@@ -479,6 +558,11 @@ internal static class VerifiedUpdaters
                     (host == "files.sumatrapdfreader.org" &&
                      uri.AbsolutePath.Equals("/software/sumatrapdf/rel/3.6.1/" + suffix, StringComparison.Ordinal)));
         }
+        if (id == SevenZipId)
+            return (host == "github.com" &&
+                    uri.AbsolutePath.Equals("/ip7z/7zip/releases/download/26.05/7z2605-x64.exe",
+                        StringComparison.Ordinal)) ||
+                   host is "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
         if (id.StartsWith("obs-", StringComparison.Ordinal) ||
             id.StartsWith("notepadpp-", StringComparison.Ordinal))
             return host is "github.com" or "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
@@ -574,7 +658,8 @@ internal static class VerifiedUpdaters
                     return msi;
                 }
             }
-            if (!VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
+            if (!IsPinnedUnsignedSevenZip(recipe) &&
+                !VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
                 throw new CryptographicException("Assinatura Authenticode inválida ou editor não esperado (" + issue + ").");
             RememberDownload(path, recipe, actualDigest);
             return path;
@@ -740,6 +825,10 @@ internal static class VerifiedUpdaters
         try
         {
         ValidateInstallerDirectory(recipe, verifiedFile);
+        if (recipe.Identifier == SevenZipId &&
+            new[] { "7zFM", "7zG", "7z", "7za" }
+                .Any(name => Process.GetProcessesByName(name).Length != 0))
+            throw new InvalidOperationException("Feche os processos do 7-Zip antes de atualizar. Nenhum processo será encerrado automaticamente.");
         if (recipe.Identifier == "obs-x64-32.2.2" &&
             Process.GetProcessesByName("obs64").Any())
             throw new InvalidOperationException("Feche o OBS Studio antes de instalar a atualização.");
