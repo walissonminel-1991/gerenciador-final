@@ -5,6 +5,13 @@ using Microsoft.Win32.SafeHandles;
 namespace GerenciadorAplicativos;
 
 // Arquivo e ancestrais permanecem abertos; falha fechada se o Windows negar a trava.
+internal sealed class ResidualFileDeleteException(string step, int nativeError)
+    : IOException("Exclusao residual recusada na etapa " + step + ".",
+        unchecked((int)(0x80070000u | (uint)nativeError)))
+{
+    internal string Step { get; } = step;
+}
+
 internal static class InstallerFileGuard
 {
     // Instancia de producao vive ate o encerramento do GF; testes podem liberar explicitamente.
@@ -46,6 +53,8 @@ internal static class InstallerFileGuard
         try
         {
             handle = CreateFileW(full, 0x80000000u | (deleteAccess ? 0x00010000u : 0u), 1, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero);
+            if (deleteAccess && handle.IsInvalid)
+                throw new ResidualFileDeleteException("open_delete_handle", Marshal.GetLastWin32Error());
             CheckHandle(handle, directory: false);
             var stream = new PinnedStream(handle, parents);
             handle = null;
@@ -65,16 +74,21 @@ internal static class InstallerFileGuard
 
     private static void MarkResidualForDeletion(SafeFileHandle handle)
     {
-        byte disposition = 1; // FILE_DISPOSITION_INFO.DeleteFile (BOOLEAN)
-        if (!SetFileInformationByHandle(handle, 4, ref disposition, 1))
-        {
-            int error = Marshal.GetLastWin32Error();
-            if (error == 5) throw new UnauthorizedAccessException("O Windows negou a exclusao do residuo.");
-            throw new IOException("Nao foi possivel excluir o residuo protegido.",
-                unchecked((int)(0x80070000u | (uint)error)));
-        }
-        // O proprio objeto validado e removido ao fechar o handle. Nenhuma
-        // segunda abertura por caminho permite atingir um arquivo substituto.
+        // Windows 10 1809+: excluir residuos ReadOnly sem modificar atributos,
+        // ACLs ou proprietario. POSIX remove o nome ao fechar o handle;
+        // outro processo pode continuar lendo por um handle ja aberto.
+        // O chamador ja validou raiz, identidade e SHA-256 no MESMO handle.
+        const uint deletePosixIgnoreReadonly = 0x00000001u | 0x00000002u | 0x00000010u;
+        uint flags = deletePosixIgnoreReadonly;
+        if (SetFileInformationByHandleEx(handle, 21, ref flags, sizeof(uint))) return;
+        int error = Marshal.GetLastWin32Error();
+        // Fallback apenas quando o Windows/FS nao suporta a classe estendida.
+        // Negativa real de acesso ou compartilhamento continua sendo falha.
+        if (error is not (1 or 50 or 87))
+            throw new ResidualFileDeleteException("disposition_ex", error);
+        byte legacy = 1;
+        if (!SetFileInformationByHandle(handle, 4, ref legacy, 1))
+            throw new ResidualFileDeleteException("disposition_legacy", Marshal.GetLastWin32Error());
     }
 
     internal static void DeleteEmptyResidualDirectory(string path,
@@ -215,6 +229,11 @@ internal static class InstallerFileGuard
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetFileInformationByHandle(SafeFileHandle handle, int infoClass,
         ref byte disposition, uint size);
+
+    [DllImport("kernel32.dll", EntryPoint = "SetFileInformationByHandle", ExactSpelling = true, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetFileInformationByHandleEx(SafeFileHandle handle, int infoClass,
+        ref uint dispositionFlags, uint size);
 
     internal static async Task<string> DigestAsync(FileStream stream, CancellationToken token = default)
     {
