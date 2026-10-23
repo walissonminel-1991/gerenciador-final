@@ -56,7 +56,7 @@ internal sealed partial class MainForm
         }
         bool accepted = DarkConfirmDialog.Confirm(this,
             "O desinstalador solicitou reinicialização ou um arquivo residual " +
-            "permaneceu em uso. Deseja reiniciar o Windows agora?\\n\\n" +
+            "permaneceu em uso. Deseja reiniciar o Windows agora?\n\n" +
             "O GF voltará na bandeja após o próximo login e verificará os resíduos, " +
             "sem excluir arquivos automaticamente. Salve seus trabalhos antes de continuar. " +
             "Se não reiniciar agora, a verificação poderá ocorrer quando abrir o GF após uma reinicialização.",
