@@ -308,7 +308,7 @@ finally
 foreach (RegistryView view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
 {
     string fixture = "GF-Residual-Synthetic-" + Guid.NewGuid().ToString("N");
-    string subkey = @"Software\\" + fixture + @"\\Notepad++";
+    string subkey = @"Software\" + fixture + @"\Notepad++";
     try
     {
         using (var hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, view))
