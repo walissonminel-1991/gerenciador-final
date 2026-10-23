@@ -19,6 +19,15 @@ internal sealed record SmallAppCleanupResult(int Files, int Directories, int Key
 
 internal static class SmallAppResidualCleanup
 {
+    // Orientacao legivel para falha de permissao; nunca solicita elevacao,
+    // altera ACL ou transforma um item preservado em sucesso.
+    internal static string ExplainAccessFailure(IReadOnlyList<string> problems) =>
+        problems.Any(p => p.StartsWith("registro_abrir_pai_SecurityException_", StringComparison.Ordinal) ||
+                          p.StartsWith("registro_abrir_pai_UnauthorizedAccessException_", StringComparison.Ordinal))
+            ? "O Windows negou permissao de escrita na chave-pai do Registro nesta sessao. " +
+              "A chave foi preservada. O GF nao modifica permissoes nem solicita " +
+              "privilegios de administrador automaticamente."
+            : "";
     private const int MaxEntries = 800;
     private const long MaxBytes = 192L * 1024 * 1024;
     private const string Npp = "Notepad++";
