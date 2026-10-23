@@ -1,4 +1,5 @@
 using GerenciadorAplicativos;
+using Microsoft.Win32;
 
 int passed = 0;
 if (args.Contains("--work6-uninstall-flow")) { await Work6UninstallFlowTests.Run(Check); return; }
@@ -300,6 +301,62 @@ finally
     SmallAppResidualCleanup.SyntheticFolders = null;
     SmallAppResidualCleanup.SyntheticNoRegistry = false;
     if (Directory.Exists(smallFixture)) Directory.Delete(smallFixture, recursive: true);
+}
+
+// Regressao Windows: a .48 validava apenas arquivos, pois desativava o Registro.
+// Alvos descartaveis e exclusivos, sob HKCU; nenhuma chave de aplicativo real.
+foreach (RegistryView view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
+{
+    string fixture = "GF-Residual-Synthetic-" + Guid.NewGuid().ToString("N");
+    string subkey = @"Software\\" + fixture + @"\\Notepad++";
+    try
+    {
+        using (var hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, view))
+        using (var own = hive.CreateSubKey(subkey))
+        {
+            if (own is null) throw new IOException("Nao criou chave sintética");
+            own.SetValue("Marker", "GF-TESTE");
+            using var nested = own.CreateSubKey("Profile");
+            if (nested is null) throw new IOException("Nao criou subchave sintética");
+            nested.SetValue("Value", 42);
+        }
+        SmallAppResidualCleanup.SyntheticFolders =
+            [Path.Combine(Path.GetTempPath(), fixture, "nao-existe")];
+        SmallAppResidualCleanup.SyntheticNoRegistry = false;
+        SmallAppResidualCleanup.SyntheticRegistryKeys =
+            [(RegistryHive.CurrentUser, view, subkey)];
+        var previewRegistry = SmallAppResidualCleanup.Capture("Notepad++", true, []);
+        Check(previewRegistry.Complete && previewRegistry.Keys.Count == 1 &&
+              previewRegistry.Files.Count == 0, 
+              "Registro sintético deve aparecer na prévia na visão " + view);
+        // Mudança entre prévia e ação invalida a autorização.
+        using (var hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, view))
+        using (var own = hive.OpenSubKey(subkey, writable: true))
+            own?.SetValue("Marker", "ALTERADO");
+        var blockedRegistry = await SmallAppResidualCleanup.DeleteAsync(previewRegistry,
+            () => Task.FromResult((true,
+                (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+        Check(blockedRegistry.Keys == 0 && blockedRegistry.Failed != 0,
+              "Alteração do Registro bloqueia remoção na visão " + view);
+        var currentRegistry = SmallAppResidualCleanup.Capture("Notepad++", true, []);
+        var cleanedRegistry = await SmallAppResidualCleanup.DeleteAsync(currentRegistry,
+            () => Task.FromResult((true,
+                (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+        using var verificationHive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, view);
+        using var remainingRegistry = verificationHive.OpenSubKey(subkey, writable: false);
+        Check(cleanedRegistry.Keys == 1 && cleanedRegistry.Failed == 0 &&
+              remainingRegistry is null,
+              "Exclusão da subchave sintética e pós-conferência na visão " + view);
+    }
+    finally
+    {
+        SmallAppResidualCleanup.SyntheticRegistryKeys = null;
+        SmallAppResidualCleanup.SyntheticFolders = null;
+        SmallAppResidualCleanup.SyntheticNoRegistry = false;
+        using var hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, view);
+        using var software = hive.OpenSubKey(@"Software", writable: true);
+        software?.DeleteSubKeyTree(fixture, throwOnMissingSubKey: false);
+    }
 }
 
 string zipFixture = Path.Combine(Path.GetTempPath(), "GF-Zip-Residual-Synthetic-" +
