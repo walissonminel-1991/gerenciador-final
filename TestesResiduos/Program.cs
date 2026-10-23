@@ -218,6 +218,7 @@ var unsignedFake = new ProgramEntry
         "7-Zip", "Uninstall.exe") + "\""
 };
 Check(SevenZipCompleteCleanup.Eligible(unsignedFake) &&
+      SevenZipCompleteCleanup.Eligible(SevenZipCompleteCleanup.RecoveryIdentity()) &&
       !SevenZipCompleteCleanup.NoSevenZipRegistrations([unsignedFake]) &&
       !SevenZipCompleteCleanup.Eligible(new ProgramEntry
       {
@@ -274,8 +275,21 @@ try
         () => Task.FromResult((true, (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
     Check(removedZip.FilesDeleted == 2 && removedZip.DirectoriesDeleted == 2 &&
           removedZip.KeysDeleted == 0 && removedZip.Failures == 0 &&
-          !Directory.Exists(zipFixture),
+          removedZip.Problems.Count == 0 && !Directory.Exists(zipFixture),
           "Exclusão consentida em fixture remove somente os arquivos/pastas comprovados");
+    Directory.CreateDirectory(zipFixture);
+    var readonlySample = Path.Combine(zipFixture, "7-zip.dll");
+    await File.WriteAllTextAsync(readonlySample, "fixture sem permissao de remocao");
+    File.SetAttributes(readonlySample, FileAttributes.ReadOnly);
+    var readOnlyPlan = SevenZipCompleteCleanup.Capture(
+        SevenZipCompleteCleanup.RecoveryIdentity(), true, []);
+    var denied = await SevenZipCompleteCleanup.ExecuteAsync(
+        SevenZipCompleteCleanup.RecoveryIdentity(), readOnlyPlan,
+        () => Task.FromResult((true, (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+    Check(denied.FilesDeleted == 0 && denied.Failures > 0 &&
+          denied.Problems.Contains("arquivo_sem_permissao") && File.Exists(readonlySample),
+          "Arquivo com atributo somente leitura permanece e reporta causa sem incluir o caminho");
+    File.SetAttributes(readonlySample, FileAttributes.Normal);
 }
 finally
 {
