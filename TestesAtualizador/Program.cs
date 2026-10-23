@@ -1,4 +1,5 @@
 using GerenciadorAplicativos;
+if (args.Contains("--work11-installer-fixture")) return;
 int checkedCount = 0;
 void Verify(bool condition, string label)
 {
@@ -6,6 +7,7 @@ void Verify(bool condition, string label)
     checkedCount++;
     Console.WriteLine("OK " + label);
 }
+if (args.Contains("--work11")) { await Work11ProgressTests.RunAsync(Verify); return; }
 if (args.Contains("--work9"))
 {
     int failures = 0;
@@ -440,6 +442,7 @@ try
 finally { Directory.Delete(isolated, true); }
 
 await Work9UpdateTests.RunAsync(Verify);
+await Work11ProgressTests.RunAsync(Verify);
 Work6AuthorizationTests.Run(Verify);
 await Work6FlowTests.RunAsync(Verify);
 SimulatedUpdateScenarioTests.Run(Verify);

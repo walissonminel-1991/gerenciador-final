@@ -16,6 +16,8 @@ internal sealed record VerifiedUpdateRecipe(
     string? Sha256, string RequiredSigner, string Arguments, bool Interactive,
     string OfficialPage);
 
+internal sealed class UpdateSignatureException(string message) : CryptographicException(message);
+
 internal static class VerifiedUpdaters
 {
     private static readonly InstallerFileGuard.SessionProtection SessionLocks = new();
@@ -88,7 +90,7 @@ internal static class VerifiedUpdaters
             await InstallerFileGuard.RequireDigestAsync(locked, receipt.Digest);
             if (!IsPinnedUnsignedSevenZip(recipe) &&
                 !VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
-                throw new CryptographicException("Assinatura alterada antes da execucao (" + issue + ").");
+                throw new UpdateSignatureException("Assinatura alterada antes da execucao (" + issue + ").");
             return locked;
         }
         catch { locked.Dispose(); throw; }
@@ -638,7 +640,7 @@ internal static class VerifiedUpdaters
     }
 
     internal static async Task<string> DownloadAndVerifyAsync(VerifiedUpdateRecipe recipe,
-        string directory, Action<string> report, CancellationToken cancel)
+        string directory, Action<string> report, CancellationToken cancel, Action<UpdateProgress>? progress = null)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancel);
         deadline.CancelAfter(TimeSpan.FromMinutes(8));
@@ -673,27 +675,12 @@ internal static class VerifiedUpdaters
             if (response.Content.Headers.ContentLength is long length && length > maxBytes)
                 throw new InvalidDataException("Arquivo excede o limite de segurança.");
             report("Baixando instalador do fabricante...");
-            await using var source = await response.Content.ReadAsStreamAsync(cancel);
             await using (var dest = new FileStream(path, FileMode.CreateNew, FileAccess.Write,
                 FileShare.None, 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                var buffer = new byte[128 * 1024];
-                long total = 0;
-                long reported = 0;
-                int n;
-                while ((n = await source.ReadAsync(buffer, cancel)) > 0)
-                {
-                    total += n;
-                    if (total > maxBytes) throw new InvalidDataException("Arquivo excede o limite de segurança.");
-                    await dest.WriteAsync(buffer.AsMemory(0, n), cancel);
-                    if (total - reported >= 10 * 1024 * 1024)
-                    {
-                        reported = total;
-                        report("Baixando instalador oficial: " + (total / (1024 * 1024)).ToString("N0") + " MB");
-                    }
-                }
-                if (total < 50_000) throw new InvalidDataException("Arquivo recebido está incompleto.");
+                await UpdateDownloadTransfer.CopyAsync(response, dest, 50_000, maxBytes, cancel, progress);
             }
+            progress?.Invoke(new(UpdateStage.VerifyingIntegrity));
             report("Verificando integridade e assinatura digital...");
             using var downloaded = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
             string actualDigest = await InstallerFileGuard.DigestAsync(downloaded, cancel);
@@ -720,15 +707,17 @@ internal static class VerifiedUpdaters
                     // daquele NUPKG. Releia o conteudo autenticado e compare por
                     // handle apos fechar a extracao e prender o arquivo no disco.
                     string msiDigest = await RequireArchiveDigestAsync(lockedMsi, entries[0], cancel);
+                    progress?.Invoke(new(UpdateStage.ValidatingSignature));
                     if (!VerifyAuthenticode(msi, recipe.RequiredSigner, out string msiIssue))
-                        throw new CryptographicException("MSI Microsoft sem assinatura válida (" + msiIssue + ").");
+                        throw new UpdateSignatureException("MSI Microsoft sem assinatura válida (" + msiIssue + ").");
                     RememberDownload(msi, recipe, msiDigest);
                     return msi;
                 }
             }
+            if (!IsPinnedUnsignedSevenZip(recipe)) progress?.Invoke(new(UpdateStage.ValidatingSignature));
             if (!IsPinnedUnsignedSevenZip(recipe) &&
                 !VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
-                throw new CryptographicException("Assinatura Authenticode inválida ou editor não esperado (" + issue + ").");
+                throw new UpdateSignatureException("Assinatura Authenticode inválida ou editor não esperado (" + issue + ").");
             RememberDownload(path, recipe, actualDigest);
             return path;
         }
@@ -884,7 +873,7 @@ internal static class VerifiedUpdaters
     [DllImport("wintrust.dll", ExactSpelling = true)]
     private static extern IntPtr WTHelperGetProvCertFromChain(IntPtr signer, uint index);
 
-    internal static async Task<int> LaunchAsync(VerifiedUpdateRecipe recipe, string verifiedFile, Action<string> report)
+    internal static async Task<int> LaunchAsync(VerifiedUpdateRecipe recipe, string verifiedFile, Action<string> report, Action? started = null)
     {
         // Preserva arquivo e ancestrais ate o GF encerrar, inclusive apos a saida do bootstrapper.
         // Recibo e hash sao locais a esta sessao; nao sao lidos de arquivo adulteravel.
@@ -919,6 +908,7 @@ internal static class VerifiedUpdaters
             UseShellExecute = true, Verb = "runas",
             WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System)
         }) ?? throw new InvalidOperationException("Instalador não foi iniciado.");
+        started?.Invoke();
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(15));
         try { await process.WaitForExitAsync(deadline.Token); }
         catch (OperationCanceledException)

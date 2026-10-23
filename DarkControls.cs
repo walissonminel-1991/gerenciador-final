@@ -168,6 +168,14 @@ internal sealed class DarkVScrollBar : Control
 
 internal static class AppRowGeometry
 {
+    // Em cartões estreitos, reaproveitar a segunda linha; nos largos, ocupar a lacuna antes dos botões.
+    public static Rectangle OperationArea(Rectangle bounds, int prefix = 0)
+    {
+        int left = bounds.Left + 58 + prefix, right = UpdateButton(bounds).Left - 10;
+        return bounds.Width >= 940
+            ? new Rectangle(right - 255, bounds.Top + 12, 255, 43)
+            : new Rectangle(left, bounds.Top + 33, Math.Max(1, right - left), 28);
+    }
     public static Rectangle Checkbox(Rectangle bounds) => new(bounds.Left + 17, bounds.Top + 23, 18, 18);
     public static Rectangle UpdateButton(Rectangle bounds) => new(bounds.Right - 318, bounds.Top + 16, 112, 33);
     public static Rectangle SiteButton(Rectangle bounds) => new(bounds.Right - 200, bounds.Top + 16, 80, 33);
@@ -179,6 +187,39 @@ internal sealed class DarkProgramList : Control
     private readonly List<ProgramEntry> _items = new();
     private readonly ToolTip _itemTips = new() { InitialDelay = 450, AutoPopDelay = 12000 };
     private int _tipRow = -1;
+    private readonly Dictionary<int, UpdateOperationSnapshot?> _paintedOperations = new();
+    private readonly System.Windows.Forms.Timer _operationTimer = new() { Interval = 100 };
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    internal Func<ProgramEntry, UpdateOperationSnapshot?>? OperationFor { get; set; }
+    internal bool OperationTimerRunning => _operationTimer.Enabled;
+    internal int OperationFrame => (int)(Environment.TickCount64 / 80 % 18);
+    internal void RefreshOperations()
+    {
+        if (IsDisposed || Disposing) return;
+        _tipRow = -1;
+        if (Visible && IsHandleCreated && _items.Any(p => OperationFor?.Invoke(p)?.Active == true))
+            _operationTimer.Start();
+        else _operationTimer.Stop();
+        InvalidateOperationRows();
+    }
+    private void InvalidateOperationRows()
+    {
+        if (IsDisposed || Disposing || !Visible) return;
+        int first = Math.Max(0, _scrollOffset / _itemHeight);
+        int last = Math.Min(_items.Count - 1, (_scrollOffset + ClientSize.Height) / _itemHeight);
+        for (int i = first; i <= last; i++)
+        {
+            var operation = OperationFor?.Invoke(_items[i]);
+            if (operation?.Active == true || !_paintedOperations.TryGetValue(i, out var previous) || previous != operation)
+                Invalidate(new Rectangle(0, i * _itemHeight - _scrollOffset, ClientSize.Width, _itemHeight));
+            _paintedOperations[i] = operation;
+        }
+    }
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+        if (_operationTimer is not null) RefreshOperations();
+    }
     private readonly DarkVScrollBar _scrollbar = new();
     private int _selectedIndex = -1;
     private int _scrollOffset;
@@ -240,6 +281,7 @@ internal sealed class DarkProgramList : Control
         Controls.Add(_scrollbar);
         Resize += (_, _) => UpdateMetrics();
         _feedbackTimer.Tick += (_, _) => AdvanceButtonAnimation();
+        _operationTimer.Tick += (_, _) => RefreshOperations();
     }
 
     private void ResetActionVisuals()
@@ -270,8 +312,9 @@ internal sealed class DarkProgramList : Control
         if (index < 0 || index >= _items.Count) return (null, "");
         var item = _items[index];
         var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
-        if (item.CanUninstall && AppRowGeometry.UninstallButton(bounds).Contains(point)) return (item, "uninstall");
-        if (item.IsUpdate && AppRowGeometry.UpdateButton(bounds).Contains(point))
+        if (item.CanUninstall && OperationFor?.Invoke(item)?.Active != true && AppRowGeometry.UninstallButton(bounds).Contains(point)) return (item, "uninstall");
+        if (item.IsUpdate && OperationFor?.Invoke(item)?.PreventRetry != true &&
+            AppRowGeometry.UpdateButton(bounds).Contains(point))
         {
             string? primaryAction = VerifiedUpdaters.GetPrimaryAction(item);
             if (primaryAction is not null) return (item, primaryAction);
@@ -304,7 +347,7 @@ internal sealed class DarkProgramList : Control
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _itemTips.Dispose(); }
+        if (disposing) { _operationTimer.Stop(); _operationTimer.Dispose(); _feedbackTimer.Stop(); _feedbackTimer.Dispose(); _itemTips.Dispose(); }
         base.Dispose(disposing);
     }
 
@@ -315,7 +358,9 @@ internal sealed class DarkProgramList : Control
         ResetActionVisuals();
         ProgramEntry? prior = SelectedItem;
         _items.Clear();
+        _paintedOperations.Clear();
         _items.AddRange(entries);
+        RefreshOperations();
         _tipRow = -1;
         int oldSelected = _selectedIndex;
         _selectedIndex = prior is null ? -1 : _items.FindIndex(x => ReferenceEquals(x, prior));
@@ -362,6 +407,7 @@ internal sealed class DarkProgramList : Control
             for (int i = first; i <= last; i++)
             {
                 var rect = new Rectangle(0, i * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
+                if (!rect.IntersectsWith(e.ClipRectangle)) continue;
                 DrawItem?.Invoke(this, new DrawItemEventArgs(e.Graphics, Font, rect, i,
                     i == _selectedIndex ? DrawItemState.Selected : DrawItemState.Default));
             }
@@ -379,7 +425,8 @@ internal sealed class DarkProgramList : Control
             string text = index >= 0 && index < _items.Count
                 ? _items[index].Name + "\nVersão atual: " + _items[index].Version +
                   "\nDisponível: " + _items[index].AvailableVersion +
-                  "\nFonte: " + _items[index].Source + "\n" + _items[index].UpdateEvidence
+                  "\nFonte: " + _items[index].Source + "\n" + _items[index].UpdateEvidence +
+                  (OperationFor?.Invoke(_items[index]) is { } operation ? "\n" + operation.Details : "")
                 : "";
             _itemTips.SetToolTip(this, text);
         }

@@ -58,6 +58,17 @@ if os.name == 'nt':
          ' ||\n            accepted.Files.Select(f => f.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() != accepted.Files.Count ||\n            !accepted.Files.Select(f => f.Path).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(accepted.Candidate.Files)', '',
          'TestesResiduos','--work6-preview','W6-R-DUP'),
     ])
+mutants.extend([
+    ('w11-truncated-download-accepted', 'UpdateOperationProgress.cs',
+     'if (bytes < minimum || expected is long total && total != bytes)', 'if (bytes < minimum)',
+     'TestesAtualizador', '--work11', 'W11 EOF antecipado'),
+    ('w11-pending-retried', 'UpdateOperationProgress.cs',
+     '(snapshot.Active || snapshot.Progress.Stage == UpdateStage.Pending ||', '(snapshot.Active ||',
+     'TestesAtualizador', '--work11', 'W11 cancelamento depois de lancar'),
+    ('w11-uncertain-success', 'UpdateOperationProgress.cs',
+     '_ => UpdateStage.Pending\n    }, result.ExitCode', '_ => UpdateStage.Confirmed\n    }, result.ExitCode',
+     'TestesAtualizador', '--work11', 'W11 retorno zero sem versao'),
+])
 files = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
 with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     target=pathlib.Path(temporary)
@@ -70,7 +81,7 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     def run(project, argument):
         return subprocess.run([dotnet,'run','--project',project,'-p:EnableWindowsTargeting=true','-p:UseSharedCompilation=false','--',argument],
             cwd=target, text=True, encoding="utf-8", errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=150)
-    for project,argument in [('TestesAtualizador','--work6-flow'),('TestesMultifontes',''),('TestesResiduos','--work6-uninstall-flow')]:
+    for project,argument in [('TestesAtualizador','--work6-flow'),('TestesMultifontes',''),('TestesResiduos','--work6-uninstall-flow'),('TestesAtualizador','--work11')]:
         baseline=run(project,argument)
         if baseline.returncode: raise RuntimeError('baseline failed: '+baseline.stdout[-2000:])
         print('BASELINE PASS',project,flush=True)

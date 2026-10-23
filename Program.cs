@@ -561,6 +561,7 @@ internal sealed partial class MainForm : Form
     private static readonly Color Accent = Color.FromArgb(111, 184, 255);
     private readonly ToolTip _toolTips = new() { AutomaticDelay = 350, AutoPopDelay = 8500, ReshowDelay = 120 };
     private readonly DarkProgramList _programList = new();
+    private readonly UpdateOperationStore _updateOperations = new(DiagnosticTrace.Write);
     private readonly Label _emptyState = new();
     private readonly TextBox _search = new();
     private readonly DarkLogView _log = new();
@@ -1013,6 +1014,7 @@ internal sealed partial class MainForm : Form
         _programList.ItemHeight = 67;
         _programList.BackColor = PanelBackground;
         _programList.ForeColor = Ink;
+        _programList.OperationFor = _updateOperations.Find;
         _programList.DrawItem += DrawProgramCard;
         _toolTips.SetToolTip(_programList,
             "Atualizar usa um instalador oficial verificado quando há integração validada. " +
@@ -1163,7 +1165,10 @@ internal sealed partial class MainForm : Form
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 
         int left = e.Bounds.Left + 58 + prefix;
-        int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 320);
+        var operation = _updateOperations.Find(item);
+        Rectangle operationArea = AppRowGeometry.OperationArea(e.Bounds, prefix);
+        int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 328);
+        if (operation is not null && e.Bounds.Width >= 940) width = Math.Max(18, operationArea.Left - left - 12);
         TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
             new Rectangle(left, e.Bounds.Top + 5, width, 29), selected ? Accent : Ink,
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
@@ -1187,11 +1192,13 @@ internal sealed partial class MainForm : Form
             : item.InventoryOnly
             ? $"Versão: {DisplayAppVersion(item.Version)} · Componente Windows/Store (somente leitura)"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
+        if (operation is null || e.Bounds.Width >= 940)
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
-            new Rectangle(left, e.Bounds.Top + 34, Math.Max(20, e.Bounds.Width - left + e.Bounds.Left - 320), 28),
+            new Rectangle(left, e.Bounds.Top + 34, width, 28),
             item.IsUpdate ? Color.FromArgb(133, 221, 176) : Muted,
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
 
+        if (operation is not null) DrawUpdateOperation(e.Graphics, operationArea, operation);
         if (!multiselect)
         {
             if (item.IsUpdate)
@@ -1207,7 +1214,10 @@ internal sealed partial class MainForm : Form
                         "store" => "Ver na Store",
                         _ => "Como fazer"
                     };
-                    Color color = primaryAction is "update" or "terminal" ? AppServices.Green : AppServices.Gray;
+                    if (operation?.PreventRetry == true) label = operation.Active ? "Em andamento" :
+                        operation.Progress.Stage == UpdateStage.Confirmed ? "Concluído" : "Pendente";
+                    Color color = operation?.PreventRetry == true ? AppServices.Gray :
+                        primaryAction is "update" or "terminal" ? AppServices.Green : AppServices.Gray;
                     DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), label, color,
                         _programList.ActionVisual(item, primaryAction));
                 }
@@ -1224,6 +1234,60 @@ internal sealed partial class MainForm : Form
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
                     TextFormatFlags.NoPrefix);
         }
+    }
+
+    private void DrawUpdateOperation(Graphics graphics, Rectangle area, UpdateOperationSnapshot state)
+    {
+        Color color = state.Progress.Stage switch
+        {
+            UpdateStage.Confirmed => Color.FromArgb(120, 222, 165),
+            UpdateStage.Failed => Color.FromArgb(255, 133, 143),
+            UpdateStage.Pending or UpdateStage.Blocked or UpdateStage.AuthorizationDeclined => Color.FromArgb(245, 204, 103),
+            UpdateStage.Cancelled => Muted,
+            _ => Color.FromArgb(114, 196, 255)
+        };
+        string label = state.Text;
+        // Preservar o número e o resultado essencial mesmo no DPI mais alto.
+        if (TextRenderer.MeasureText(graphics, label, _rowInfo).Width > area.Width)
+            label = state.Progress.Stage switch
+            {
+                UpdateStage.Downloading => state.Progress.Percent is int p ? $"Baixando — {p}%" : "Baixando...",
+                UpdateStage.Confirmed => state.RestartRequired ? "✓ 100% · Reinicie" : "✓ 100% · Concluída",
+                UpdateStage.Failed => "Falha · veja detalhes",
+                UpdateStage.Pending => "Resultado pendente",
+                UpdateStage.Blocked => "Atualização bloqueada",
+                UpdateStage.AuthorizationDeclined => "UAC recusado",
+                UpdateStage.Cancelled => "Cancelada",
+                UpdateStage.VerifyingIntegrity => "Conferindo integridade...",
+                UpdateStage.ValidatingIdentity => "Conferindo pacote...",
+                UpdateStage.ValidatingSignature => "Conferindo assinatura...",
+                UpdateStage.Confirming => "Conferindo versão...",
+                _ => state.Progress.Stage == UpdateStage.Installing ? "Instalando..." : "Preparando..."
+            };
+        TextRenderer.DrawText(graphics, label, _rowInfo,
+            new Rectangle(area.X, area.Y - 2, area.Width, area.Height - 4), color,
+            TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        var track = new Rectangle(area.X + 1, area.Bottom - 5, area.Width - 2, 4);
+        if (track.Width < 4) return;
+        using var background = new SolidBrush(Color.FromArgb(20, 30, 42));
+        using var fill = new SolidBrush(color);
+        using var rounded = ModernButton.RoundRect(track, 2);
+        graphics.FillPath(background, rounded);
+        var oldClip = graphics.Save();
+        try
+        {
+            graphics.SetClip(rounded, CombineMode.Intersect);
+            if (state.Progress.Percent is int percent)
+                graphics.FillRectangle(fill, track.X, track.Y, track.Width * percent / 100, track.Height);
+            else if (state.Active)
+            {
+                int segment = Math.Max(12, track.Width / 4);
+                int offset = (_programList.OperationFrame * (track.Width + segment) / 18) - segment;
+                graphics.FillRectangle(fill, track.X + offset, track.Y, segment, track.Height);
+            }
+            else graphics.FillRectangle(fill, track);
+        }
+        finally { graphics.Restore(oldClip); }
     }
 
     private static string DisplayAppVersion(string version)
@@ -1878,8 +1942,13 @@ internal sealed partial class MainForm : Form
 
     private void Status(string text)
     {
-        if (IsDisposed) return;
-        if (InvokeRequired) { BeginInvoke(new Action<string>(Status), text); return; }
+        if (IsDisposed || Disposing || !IsHandleCreated) return;
+        if (InvokeRequired)
+        {
+            try { BeginInvoke(new Action<string>(Status), text); }
+            catch (InvalidOperationException) { }
+            return;
+        }
         _operationResult = text;
         _status.Text = text;
         _toolTips.SetToolTip(_status, text);
@@ -2478,6 +2547,18 @@ internal sealed partial class MainForm : Form
         }
     }
 
+    private UpdateOperation? BeginUpdateOperation(ProgramEntry entry, string target)
+    {
+        var operation = _updateOperations.Begin(entry, target);
+        if (operation is null)
+        {
+            Status("Atualização já iniciada, pendente ou sem identidade suficiente. Confira a versão antes de tentar novamente.");
+            return null;
+        }
+        _programList.RefreshOperations();
+        return operation;
+    }
+
     private CancellationTokenSource? _deploymentWaitCts;
 
     private async Task UpdateWindowsTerminalAsync(ProgramEntry entry)
@@ -2504,6 +2585,9 @@ internal sealed partial class MainForm : Form
         string previousFilter = _appFilter;
         await ExecuteAsync("Preparando atualizacao oficial do Windows Terminal...", async () =>
         {
+            var operation = BeginUpdateOperation(entry, recipe.Version);
+            if (operation is null) return;
+            bool installerStarted = false;
             string folder = Path.Combine(Path.GetTempPath(), "GerenciadorFinal-Terminal-" + Guid.NewGuid().ToString("N"));
             bool deploymentPhase = false;
             try
@@ -2517,7 +2601,7 @@ internal sealed partial class MainForm : Form
                     try
                     {
                         bundle = await WindowsTerminalUpdater.DownloadAndVerifyAsync(
-                            recipe, folder, Status, downloadCts.Token);
+                            recipe, folder, Status, downloadCts.Token, operation.Report);
                     }
                     finally
                     {
@@ -2529,6 +2613,7 @@ internal sealed partial class MainForm : Form
                 DiagnosticTrace.Write("TERMINAL_GITHUB.MSIX_VALIDADO");
                 // O fechamento e a confirmacao acontecem APOS verificar o pacote
                 // e ANTES de acionar o mecanismo de instalacao do Windows.
+                operation.Report(new(UpdateStage.Revalidating));
                 bool closed = await UpdateProcessCoordinator.EnsureClosedAsync(
                     UpdateProcessTarget.WindowsTerminal,
                     question => DarkConfirmDialog.Confirm(this, question, "Fechar Windows Terminal para atualizar") == DialogResult.Yes,
@@ -2536,7 +2621,8 @@ internal sealed partial class MainForm : Form
                 if (!closed)
                 {
                     DiagnosticTrace.Write("TERMINAL_GITHUB.FECHAMENTO_RECUSADO_OU_INSEGURO");
-                    Status("Atualização interrompida: Windows Terminal precisa estar fechado.");
+                    operation.Finish(UpdateStage.Blocked, reason: "O Windows Terminal precisa estar fechado para atualizar.");
+                    Status(operation.Snapshot.Details);
                     return;
                 }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.PROCESSOS_VERIFICADOS_FECHADOS");
@@ -2549,14 +2635,16 @@ internal sealed partial class MainForm : Form
                     result = await new UpdateLaunchGate().RunAsync(
                         () => Task.FromResult(_installed.Contains(entry) && WindowsTerminalUpdater.Resolve(entry) == recipe &&
                         WindowsTerminalUpdater.CurrentUserVersion() == before),
-                        async () => { await WindowsTerminalUpdater.DeployAsync(bundle, Status, wait.Token); return 0; },
-                        () => Task.FromResult(WindowsTerminalUpdater.CurrentUserVersion() is Version installed && installed >= targetVersion), wait.Token);
+                        async () => { await WindowsTerminalUpdater.DeployAsync(bundle, Status, wait.Token, () => installerStarted = true); return 0; },
+                        () => Task.FromResult(WindowsTerminalUpdater.CurrentUserVersion() is Version installed && installed >= targetVersion), wait.Token, operation.Report);
                 }
                 finally { _deploymentWaitCts = null; }
+                operation.Complete(result);
+                _programList.RefreshOperations();
                 bool confirmed = result.State == UpdateAttemptState.Confirmed;
                 if (!confirmed)
                 {
-                    Status("Windows Terminal: resultado não confirmado (" + result.State + "). Confira a versão; não repetir enquanto pendente.");
+                    Status(operation.Snapshot.Details);
                     Log("Windows Terminal: nenhuma instalação confirmada. O provedor pode continuar após o prazo; não repetir automaticamente.");
                     DiagnosticTrace.Write("TERMINAL_GITHUB.VERSAO_NAO_CONFIRMADA");
                     return;
@@ -2567,10 +2655,11 @@ internal sealed partial class MainForm : Form
                 await LoadUpdatesAsync();
                 _appFilter = _catalogoVerificado ? previousFilter : "Todos";
                 RenderPrograms();
-                Status("Windows Terminal atualizado com sucesso. Lista de aplicativos renovada.");
+                Status(operation.Snapshot.Details + " · Lista renovada.");
             }
             catch (OperationCanceledException)
             {
+                operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Cancelled);
                 Status(deploymentPhase ? "Espera ou consulta interrompida; confira a versão atual do Terminal." : "Preparação do Terminal cancelada.");
                 Log(deploymentPhase ? "O Windows pode ter aplicado ou continuar aplicando o pacote. Nenhuma repetição automática." :
                     "Preparação cancelada antes de enviar pacote ao instalador do Windows.");
@@ -2580,10 +2669,13 @@ internal sealed partial class MainForm : Form
                 DiagnosticTrace.Failure("TERMINAL_GITHUB.FALHA", ex);
                 Log("Windows Terminal: falha no pacote ou instalacao " + ex.GetType().Name +
                     ". Confira o estado do Windows e a versão; a operação pode ter sido iniciada. Nenhuma repetição automática.");
-                Status("Nao foi possivel concluir a atualizacao do Windows Terminal.");
+                operation.Fail(ex, installerStarted);
+                Status(operation.Snapshot.Details);
             }
             finally
             {
+                if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
+                if (!_programList.IsDisposed) _programList.RefreshOperations();
                 try { if (!WindowsTerminalUpdater.IsFolderProtected(folder) && Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
                 catch (IOException) { Log("Nao foi possivel remover o pacote MSIX temporario."); }
                 catch (UnauthorizedAccessException) { Log("Sem permissao para remover o pacote MSIX temporario."); }
@@ -2600,28 +2692,6 @@ internal sealed partial class MainForm : Form
             Status("Atualização automática indisponível para este programa.");
             return;
         }
-        // 7-Zip EXE e MSI podem compartilhar a pasta: o teste PC FORTE demonstrou
-        // que remover uma variante deixou a outra registrada, porem sem EXE.
-        // Nao baixar nem iniciar o instalador se houver coexistencia ou danos.
-        if (recipe.Identifier == "sevenzip-exe-x64-26.05" &&
-            !VerifiedUpdaters.SingleSevenZipRegistration(entry,
-                await Task.Run(AppServices.GetInstalledPrograms)))
-        {
-            Status("7-Zip: instalação incompleta ou outra edição também registrada. Atualização silenciosa bloqueada.");
-            Log("7-Zip: atualização não iniciada; confirme a instalação EXE x64 única e íntegra.");
-            return;
-        }
-        if (recipe.Identifier == "notepadpp-x64-8.9.8.1" ||
-            recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
-        {
-            var current = await Task.Run(AppServices.GetInstalledPrograms);
-            if (!VerifiedUpdaters.SingleSafeSilentInstallation(recipe, entry, current))
-            {
-                Status("Instalação ambígua ou incompatível com atualização silenciosa. Dados preservados.");
-                Log("Atualização silenciosa bloqueada: edição MSI/EXE divergente, outro registro ou pasta não validada.");
-                return;
-            }
-        }
         // O clique explícito em "Atualizar" autoriza preparar a atualização escolhida.
         // Sem caixa de diálogo redundante. UAC e janelas legítimas dos instaladores continuam.
         Status("Atualizando " + recipe.ProductName + ": preparando instalador oficial verificado...");
@@ -2630,9 +2700,36 @@ internal sealed partial class MainForm : Form
         string previousFilter = _appFilter;
         await ExecuteAsync("Preparando atualização de " + recipe.ProductName + "...", async () =>
         {
+            var operation = BeginUpdateOperation(entry, recipe.Version);
+            if (operation is null) return;
+            bool installerStarted = false;
             string folder = Path.Combine(Path.GetTempPath(), "GerenciadorFinal-Update-" + Guid.NewGuid().ToString("N"));
             try
             {
+                // 7-Zip EXE e MSI podem compartilhar a pasta: o teste PC FORTE demonstrou
+                // que remover uma variante deixou a outra registrada, porem sem EXE.
+                // Nao baixar nem iniciar o instalador se houver coexistencia ou danos.
+                if (recipe.Identifier == "sevenzip-exe-x64-26.05" &&
+                    !VerifiedUpdaters.SingleSevenZipRegistration(entry,
+                        await Task.Run(AppServices.GetInstalledPrograms)))
+                {
+                    Status("7-Zip: instalação incompleta ou outra edição também registrada. Atualização silenciosa bloqueada.");
+                    Log("7-Zip: atualização não iniciada; confirme a instalação EXE x64 única e íntegra.");
+                    operation.Finish(UpdateStage.Blocked, reason: "Instalação incompleta ou edições coexistentes; confira a instalação.");
+                    return;
+                }
+                if (recipe.Identifier == "notepadpp-x64-8.9.8.1" ||
+                    recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
+                {
+                    var current = await Task.Run(AppServices.GetInstalledPrograms);
+                    if (!VerifiedUpdaters.SingleSafeSilentInstallation(recipe, entry, current))
+                    {
+                        Status("Instalação ambígua ou incompatível com atualização silenciosa. Dados preservados.");
+                        Log("Atualização silenciosa bloqueada: edição MSI/EXE divergente, outro registro ou pasta não validada.");
+                        operation.Finish(UpdateStage.Blocked, reason: "Edição, arquitetura, escopo ou pasta incompatível com a receita.");
+                        return;
+                    }
+                }
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.INICIO receita=" + recipe.Identifier);
                 string verifiedInstaller;
                 using (var downloadCts = new CancellationTokenSource(TimeSpan.FromMinutes(8)))
@@ -2641,7 +2738,7 @@ internal sealed partial class MainForm : Form
                     if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar download";
                     try
                     {
-                        verifiedInstaller = await VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder, Status, downloadCts.Token);
+                        verifiedInstaller = await VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder, Status, downloadCts.Token, operation.Report);
                     }
                     finally
                     {
@@ -2654,6 +2751,7 @@ internal sealed partial class MainForm : Form
                 // Fluxo compartilhado por instaladores que substituem arquivos em uso.
                 // Restart Manager identifica processos pelos ARQUIVOS bloqueados,
                 // nunca pelo simples fato de um navegador estar aberto.
+                operation.Report(new(UpdateStage.Revalidating));
                 if (UpdateBlockingPreflight.MainProcessFor(recipe.Identifier) is not null)
                 {
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.PREFLIGHT_INICIO");
@@ -2665,7 +2763,8 @@ internal sealed partial class MainForm : Form
                     if (!ready)
                     {
                         DiagnosticTrace.Write("INSTALACAO_OFICIAL.PREFLIGHT_BLOQUEADO");
-                        Status("Atualização não iniciada: há arquivos em uso ou fechamento não autorizado.");
+                        operation.Finish(UpdateStage.Blocked, reason: "Há arquivos em uso ou o fechamento não foi autorizado.");
+                        Status(operation.Snapshot.Text);
                         return;
                     }
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.PREFLIGHT_APROVADO");
@@ -2681,14 +2780,16 @@ internal sealed partial class MainForm : Form
                             (recipe.Identifier != "sevenzip-exe-x64-26.05" ||
                              VerifiedUpdaters.SingleSevenZipRegistration(entry, current));
                     },
-                    () => VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status),
+                    () => VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status, () => installerStarted = true),
                     async () => VerifiedUpdaters.ConfirmInstallation(recipe, entry,
-                        await Task.Run(AppServices.GetInstalledPrograms)));
-                DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM estado=" + result.State);
+                        await Task.Run(AppServices.GetInstalledPrograms)), progress: operation.Report);
+                operation.Complete(result);
+                _programList.RefreshOperations();
+                DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM estado=" + result.State + " retorno=" + result.ExitCode);
                 if (result.State is UpdateAttemptState.Blocked or UpdateAttemptState.Cancelled or UpdateAttemptState.Failed)
                 {
                     Log("Atualização não confirmada: " + result.State + ". Não haverá nova tentativa automática.");
-                    Status("Atualização bloqueada, cancelada ou não concluída; atualize o inventário antes de tentar novamente.");
+                    Status(operation.Snapshot.Details);
                     return;
                 }
                 bool confirmed = result.State == UpdateAttemptState.Confirmed;
@@ -2715,15 +2816,19 @@ internal sealed partial class MainForm : Form
                 Status(confirmed
                     ? (_catalogoVerificado ? "Atualização confirmada; lista de atualizações renovada."
                         : "Atualização confirmada; catálogo remoto temporariamente indisponível.")
-                    : "Instalador finalizado; confira a versão no Registro.");
+                    : "Instalador finalizado; confira a versão pelo aplicativo.");
+                Status(operation.Snapshot.Details + (_catalogoVerificado ? " · Lista renovada." : " · Catálogo indisponível."));
             }
             catch (OperationCanceledException)
             {
-                Log("Download de atualização cancelado; nenhum instalador foi executado.");
-                Status("Download cancelado.");
+                operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Cancelled,
+                    reason: installerStarted ? "A espera foi cancelada; o instalador pode continuar. Não repetir." : "Preparação ou download interrompido.");
+                Log(operation.Snapshot.Details);
+                Status(operation.Snapshot.Details);
             }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
             {
+                operation.Finish(UpdateStage.AuthorizationDeclined);
                 Log("Autorização UAC cancelada; nenhum instalador concluído.");
                 Status("Atualização cancelada pelo Windows.");
             }
@@ -2731,10 +2836,13 @@ internal sealed partial class MainForm : Form
             {
                 DiagnosticTrace.Failure("INSTALACAO_OFICIAL.FALHA", ex);
                 Log("Falha de atualização: " + ex.GetType().Name + ". Nenhuma conclusão presumida.");
-                Status("Falha ao atualizar: " + ex.Message);
+                operation.Fail(ex, installerStarted);
+                Status(operation.Snapshot.Details);
             }
             finally
             {
+                if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
+                if (!_programList.IsDisposed) _programList.RefreshOperations();
                 if (VerifiedUpdaters.IsFolderProtected(folder))
                     Log("Pacote temporario protegido nesta sessao. Mantenha o GF aberto ate todos os instaladores terminarem.");
                 else

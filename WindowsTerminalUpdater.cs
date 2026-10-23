@@ -73,7 +73,7 @@ internal static class WindowsTerminalUpdater
     }
 
     internal static async Task<string> DownloadAndVerifyAsync(TerminalUpdateRecipe recipe, string folder,
-        Action<string> report, CancellationToken token)
+        Action<string> report, CancellationToken token, Action<UpdateProgress>? progress = null)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromMinutes(5));
@@ -110,21 +110,12 @@ internal static class WindowsTerminalUpdater
                 throw new InvalidDataException("Tamanho inesperado do pacote MSIX.");
             string path = Path.Combine(folder, "Microsoft.WindowsTerminal-" + TargetVersion + ".msixbundle");
             report("Baixando pacote oficial do Windows Terminal...");
-            await using (var input = await response.Content.ReadAsStreamAsync(token))
             await using (var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write,
                 FileShare.None, 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                var buffer = new byte[128 * 1024];
-                long bytes = 0;
-                int n;
-                while ((n = await input.ReadAsync(buffer, token)) > 0)
-                {
-                    bytes += n;
-                    if (bytes > maxBytes) throw new InvalidDataException("Pacote acima do limite.");
-                    await output.WriteAsync(buffer.AsMemory(0, n), token);
-                }
-                if (bytes < 200_000) throw new InvalidDataException("Pacote incompleto.");
+                await UpdateDownloadTransfer.CopyAsync(response, output, 200_000, maxBytes, token, progress);
             }
+            progress?.Invoke(new(UpdateStage.VerifyingIntegrity));
             report("Conferindo SHA-256 e identidade Microsoft do MSIX...");
             await using (var stream = File.OpenRead(path))
             {
@@ -132,6 +123,7 @@ internal static class WindowsTerminalUpdater
                 if (!digest.Equals(AssetDigest, StringComparison.OrdinalIgnoreCase))
                     throw new CryptographicException("SHA-256 diverge do release oficial Microsoft.");
             }
+            progress?.Invoke(new(UpdateStage.ValidatingIdentity));
             ValidateBundleIdentity(path);
             // Integridade foi conferida por SHA. Na instalacao, o Windows tambem
             // exige assinatura e confianca da familia MSIX Microsoft.WindowsTerminal.
@@ -168,7 +160,7 @@ internal static class WindowsTerminalUpdater
                 ". Receita deve corresponder exatamente.");
     }
 
-    internal static async Task DeployAsync(string verifiedBundle, Action<string> report, CancellationToken token = default)
+    internal static async Task DeployAsync(string verifiedBundle, Action<string> report, CancellationToken token = default, Action? started = null)
     {
         if (!Path.IsPathFullyQualified(verifiedBundle) ||
             !verifiedBundle.EndsWith(".msixbundle", StringComparison.OrdinalIgnoreCase))
@@ -185,16 +177,17 @@ internal static class WindowsTerminalUpdater
             string folder = Path.GetDirectoryName(Path.GetFullPath(verifiedBundle))!;
             ProtectedFolders[folder] = 0;
             transferred = true;
-            await Deployment.RunAsync(() => BeginNativeDeploymentAsync(verifiedBundle),
+            await Deployment.RunAsync(() => BeginNativeDeploymentAsync(verifiedBundle, started),
                 new SourceLease(verifiedLock, folder), TimeSpan.FromMinutes(10), token);
         }
         finally { if (!transferred) verifiedLock.Dispose(); }
     }
 
-    private static async Task BeginNativeDeploymentAsync(string verifiedBundle)
+    private static async Task BeginNativeDeploymentAsync(string verifiedBundle, Action? started)
     {
         var operation = new PackageManager().AddPackageAsync(
             new Uri(verifiedBundle), Array.Empty<Uri>(), DeploymentOptions.None);
+        started?.Invoke();
         var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         operation.Completed = (o, status) =>
         {
@@ -205,10 +198,9 @@ internal static class WindowsTerminalUpdater
                 try
                 {
                     var result = o.GetResults();
-                    completed.TrySetException(new InvalidOperationException(
-                        "O Windows recusou o pacote MSIX: " + result.ErrorText));
+                    completed.TrySetException(new UpdateInstallerFailureException(result.ExtendedErrorCode?.HResult ?? unchecked((int)0x80004005)));
                 }
-                catch (Exception ex) { completed.TrySetException(ex); }
+                catch (Exception ex) { completed.TrySetException(new UpdateInstallerFailureException(ex.HResult)); }
             }
         };
         try { await completed.Task; }
