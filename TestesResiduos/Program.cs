@@ -260,6 +260,21 @@ Check(!dualZipStarted && dualZipOutcomes.Single().State == UninstallState.Blocke
 
 // Testes de limpeza completa em raiz DESCARTÁVEL. Nenhum aplicativo ou chave real
 // é removido, inclusive quando o teste pede consentimento implícito.
+var inaccessibleKey = new SmallAppKey(RegistryHive.LocalMachine, RegistryView.Registry32,
+    @"Software\Notepad++", "fingerprint-ficticio", 1);
+var inaccessibleSnapshot = new SmallAppSnapshot("Notepad++", [], [],
+    [inaccessibleKey], true, "prévia de teste");
+string? blockedForRights = SmallAppResidualCleanup.RegistryWritePreflight(
+    inaccessibleSnapshot, _ => false);
+Check(blockedForRights is not null && blockedForRights.Contains("HKLM (32 bits)", StringComparison.Ordinal) &&
+      blockedForRights.Contains("Não serão repetidas", StringComparison.Ordinal) &&
+      SmallAppResidualCleanup.RegistryWritePreflight(inaccessibleSnapshot, _ => true) is null &&
+      SmallAppResidualCleanup.RegistryWritePreflight(
+          inaccessibleSnapshot with { Files = [new SmallAppFile(
+              @"C:\GF-Synthetic\profile.xml", 0, "", default)] }, _ => false) is null &&
+      SmallAppResidualCleanup.RegistryWritePreflight(
+          inaccessibleSnapshot with { Complete = false }, _ => false) is null,
+      "Prévia somente com Registro sem escrita bloqueia tentativas repetidas sem excluir");
 Check(SmallAppResidualCleanup.ExplainAccessFailure(
           ["registro_abrir_pai_SecurityException_hr8013150A"]).Contains("preservada", StringComparison.Ordinal) &&
       SmallAppResidualCleanup.ExplainAccessFailure(
