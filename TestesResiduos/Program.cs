@@ -287,7 +287,9 @@ try
         SevenZipCompleteCleanup.RecoveryIdentity(), readOnlyPlan,
         () => Task.FromResult((true, (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
     Check(denied.FilesDeleted == 0 && denied.Failures > 0 &&
-          denied.Problems.Contains("arquivo_sem_permissao") && File.Exists(readonlySample),
+          denied.Problems.Any(p => p.StartsWith("arquivo_excluir_sem_permissao", StringComparison.Ordinal)) &&
+          denied.Problems.Any(p => p.Contains("win32_5", StringComparison.Ordinal)) &&
+          File.Exists(readonlySample),
           "Arquivo com atributo somente leitura permanece e reporta causa sem incluir o caminho");
     File.SetAttributes(readonlySample, FileAttributes.Normal);
 }
