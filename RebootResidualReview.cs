@@ -104,7 +104,9 @@ internal static class RebootResidualReview
         return items;
     }
 
-    internal static async Task CheckAfterBootAsync(Action<string> report)
+    internal static async Task CheckAfterBootAsync(
+        Func<Task<UninstallSnapshot>> readInventory, Func<string, bool> audit,
+        Action<string> report)
     {
         var items = Read();
         if (items.Length == 0) return;
@@ -113,7 +115,7 @@ internal static class RebootResidualReview
         if (ready.Length == 0) return;
         // Nao ha exclusao automatica depois do boot. Apenas conferencia; os
         // dados preservados nunca se tornam nova autoridade de limpeza.
-        var inventory = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
+        var inventory = await readInventory();
         foreach (var item in ready)
         {
             int absent = 0, remaining = 0, unknown = 0;
@@ -127,12 +129,12 @@ internal static class RebootResidualReview
                 }
             }
             bool installed = inventory.Items.Any(x => x.InventoryId.Equals(item.InventoryId, StringComparison.OrdinalIgnoreCase));
-            string status = inventory.Incomplete || unknown > 0 ? "indeterminate" :
+            string status = !inventory.Complete || unknown > 0 ? "indeterminate" :
                 installed ? "application_present" :
                 item.ProviderPending ? "provider_pending_review" :
                 remaining > 0 ? "partial" : "verified_absent";
-            string line = $"REINICIO.RESIDUOS app={item.AppId} estado={status} ausentes={absent} presentes={remaining} incertos={unknown} inventario_parcial={inventory.Incomplete} instalacao_presente={installed} revisao_apos_boot=1";
-            if (!DiagnosticTrace.Write(line))
+            string line = $"REINICIO.RESIDUOS app={item.AppId} estado={status} ausentes={absent} presentes={remaining} incertos={unknown} inventario_parcial={!inventory.Complete} instalacao_presente={installed} revisao_apos_boot=1";
+            if (!audit(line))
                 throw new IOException("Diagnostico de revisao indisponivel.");
             report(status == "verified_absent"
                 ? "Após reiniciar: resíduos verificados como ausentes."
