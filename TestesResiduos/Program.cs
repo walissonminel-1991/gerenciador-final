@@ -227,6 +227,26 @@ Check(SevenZipCompleteCleanup.Eligible(unsignedFake) &&
       }),
     "Somente entrada EXE 7-Zip x64 exata autoriza a etapa residual; MSI ainda presente bloqueia");
 
+var dualZipMsi = new ProgramEntry
+{
+    Name = "7-Zip 26.05 (x64 edition)", Version = "26.05",
+    Publisher = "Igor Pavlov",
+    InventoryId = "LocalMachine|Registry64|{23170F69-40C1-2702-2605-000001000000}",
+    MsiProductCode = "{23170F69-40C1-2702-2605-000001000000}",
+    UninstallString = "msiexec.exe /X{23170F69-40C1-2702-2605-000001000000}"
+};
+Check(UninstallCommand.TryParse(unsignedFake.UninstallString, out var fakeUninstaller),
+    "Comando EXE antigo consegue ser interpretado na simulação");
+bool dualZipStarted = false;
+var dualZipOutcomes = await new UninstallBatch().RunAsync(
+    [new UninstallRequest(unsignedFake, fakeUninstaller)], true,
+    () => Task.FromResult(new UninstallSnapshot([unsignedFake, dualZipMsi], true)),
+    (_, _) => { dualZipStarted = true; return Task.FromResult<int?>(0); },
+    _ => Task.CompletedTask);
+Check(!dualZipStarted && dualZipOutcomes.Single().State == UninstallState.Blocked &&
+      dualZipOutcomes.Single().Reason.Contains("compartilhar arquivos", StringComparison.Ordinal),
+    "EXE e MSI 7-Zip coexistentes: GF não inicia desinstalador silencioso nem interativo");
+
 string zipFixture = Path.Combine(Path.GetTempPath(), "GF-Zip-Residual-Synthetic-" +
     Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(zipFixture);
