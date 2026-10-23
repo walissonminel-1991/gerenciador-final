@@ -51,6 +51,23 @@ internal static class SevenZipCompleteCleanup
     internal static string[]? SyntheticRoots;
 #endif
 
+    // Recuperação explícita do piloto PC FORTE, após a remoção da entrada ARP.
+    // NUNCA é tratada como prova de instalação ou como autorização de limpeza.
+    // A captura ainda exige inventário completo, ausência de variantes,
+    // prévia de todos os caminhos e confirmação do usuário.
+    internal static ProgramEntry RecoveryIdentity()
+    {
+        string root = Path.Combine(Environment.GetFolderPath(
+            Environment.SpecialFolder.ProgramFiles), "7-Zip");
+        return new ProgramEntry
+        {
+            Name = "7-Zip 26.05 (x64)", Publisher = "Igor Pavlov",
+            Version = "26.05", InventoryId = "LocalMachine|Registry64|7-Zip",
+            InstallLocation = root,
+            UninstallString = "\\"" + Path.Combine(root, "Uninstall.exe") + "\\""
+        };
+    }
+
     internal static bool NoSevenZipRegistrations(IEnumerable<ProgramEntry> current) =>
         !current.Any(p => Regex.IsMatch(p.Name,
             @"^7-Zip(?:\s|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
