@@ -247,7 +247,15 @@ internal static class SevenZipCompleteCleanup
         foreach (var file in accepted.Files)
         {
             token.ThrowIfCancellationRequested();
-            if (!NoSevenZipProcesses()) { preserved += accepted.Files.Count - deleted; break; }
+            // A reinstalação pode ocorrer DURANTE a limpeza. Conferir novamente
+            // antes de cada arquivo é deliberadamente mais lento, porém bloqueia
+            // exclusão de uma nova instalação iniciada depois da prévia.
+            var gate = await inventory();
+            if (!gate.Complete || !NoSevenZipRegistrations(gate.Items) || !NoSevenZipProcesses())
+            {
+                preserved += accepted.Files.Count - deleted;
+                break;
+            }
             try
             {
                 if (!Roots().Any(root => Within(root, file.Path)) || !SafeDirectory(Path.GetDirectoryName(file.Path)!) ||
