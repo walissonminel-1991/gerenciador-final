@@ -22,14 +22,15 @@ internal static class Work9InventoryTests
             check(!visible.Items.Any(p => p.InventoryId.EndsWith("|" + fixture, StringComparison.Ordinal)),
                 "W9-I controle positivo instalacao oculta nao altera a lista visual");
             var safety = AppServices.GetInstalledPrograms();
+            var previous = new ProgramEntry { Name = "Notepad++", Publisher = "Don HO" };
             check(safety.Any(p => p.InventoryId.EndsWith("|" + fixture, StringComparison.Ordinal) && p.InventoryOnly) &&
-                !SmallAppResidualCleanup.AbsenceConfirmed("Notepad++", safety),
+                UninstallResiduals.StillInstalled(previous, safety),
                 "W9-I registro SystemComponent oculto impede falsa ausencia para limpeza");
             var fullSafety = AppServices.ScanAllInstalledAppsForSafety();
             check(fullSafety.Items.Any(p => p.InventoryId.EndsWith("|" + fixture, StringComparison.Ordinal) &&
                     p.InventoryOnly && !ActionableInventory.CanUninstall(p) &&
                     p.UninstallString.Length > 0 && p.InstallLocation == @"C:\GF-W9-Synthetic-Hidden") &&
-                !SmallAppResidualCleanup.AbsenceConfirmed("Notepad++", fullSafety.Items),
+                UninstallResiduals.StillInstalled(previous, fullSafety.Items),
                 "W9-I consulta completa de protecao conserva presenca e caminho sem conceder acao");
             using (var key = hive.OpenSubKey(parent + "\\" + fixture, true))
             { key!.SetValue("SystemComponent", 0, RegistryValueKind.DWord); key.SetValue("ReleaseType", "Update"); }

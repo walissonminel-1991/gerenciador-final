@@ -331,13 +331,13 @@ internal static class LayoutTests
                         throw new Exception($"Hit-test incorreto: {name}, aba {i}");
                 }
 
-                // Em monitores largos, nao comprimir oito ferramentas numa
-                // linha de cinco nem cinco comandos de rede numa unica linha.
+                // Limpeza integrada removeu duas ferramentas independentes.
+                // As seis ferramentas Windows restantes devem ocupar ate tres colunas.
                 if ((resolution == new Size(1920, 1080) ||
                      resolution == new Size(2560, 1440)) && (tab == 2 || tab == 3))
                 {
-                    int expected = tab == 2 ? 4 : 3;
-                    int toolCount = tab == 2 ? 8 : 7;
+                    int expected = 3;
+                    int toolCount = tab == 2 ? 6 : 7;
                     var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
                         .FirstOrDefault(x => x.EmbeddedInPage &&
                             x.Content.Controls.Count == toolCount);
@@ -355,7 +355,7 @@ internal static class LayoutTests
                 // duas ou tres linhas e nao sacrificar textos em PC FRACO.
                 if ((tab == 2 || tab == 3) && resolution == new Size(1440, 900))
                 {
-                    int count = tab == 2 ? 8 : 7;
+                    int count = tab == 2 ? 6 : 7;
                     var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
                         .Single(x => x.EmbeddedInPage && x.Content.Controls.Count == count);
                     var cards = toolFlow.Content.Controls.OfType<Panel>().ToArray();

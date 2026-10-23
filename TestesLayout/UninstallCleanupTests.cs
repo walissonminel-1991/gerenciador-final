@@ -69,6 +69,9 @@ internal static class UninstallCleanupTests
             Require(typeof(MainForm).Assembly.GetType("GerenciadorAplicativos.ResidualExplorerDialog") is null &&
                 typeof(MainForm).Assembly.GetType("GerenciadorAplicativos.ResidualAuditDialog") is null,
                 "Janelas antigas não devem permanecer no aplicativo");
+            Require(typeof(MainForm).Assembly.GetType("GerenciadorAplicativos.SmallAppResidualCleanup") is null &&
+                typeof(MainForm).Assembly.GetType("GerenciadorAplicativos.SevenZipCompleteCleanup") is null,
+                "Executores antigos devem permanecer somente nas regressões, sem duplicar o motor distribuído");
             Require(Children(host).Any(c => c.Text == "Limpeza avançada") && Children(host).Any(c => c.Text == "Esvaziar Lixeira"),
                 "Remoção da investigação não pode eliminar ferramentas de limpeza do Windows");
             host.MinimizeToTray(); var task = host.ConfirmUninstallCleanupAsync(plans, default);

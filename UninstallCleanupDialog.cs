@@ -23,12 +23,14 @@ internal sealed class UninstallCleanupDialog : Form
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
             Padding = new Padding(18), BackColor = BackColor };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
         root.Controls.Add(new Label { Text = "Desinstalação concluída.", Dock = DockStyle.Fill,
             ForeColor = AppServices.Blue, Font = new Font(Font, FontStyle.Bold) }, 0, 0);
-        root.Controls.Add(new Label { Text = "Foram encontrados resíduos do aplicativo removido.\nDeseja excluir permanentemente os resíduos identificados?",
+        root.Controls.Add(new Label { Text = "Foram encontrados resíduos do aplicativo removido.\nDeseja excluir permanentemente os resíduos identificados?\n" +
+            $"Total: {plans.Sum(p => p.Files.Count)} arquivo(s), {plans.Sum(p => p.Directories.Count)} pasta(s), {plans.Sum(p => p.Keys.Count)} chave(s).\n" +
+            "Itens pessoais, compartilhados e não verificáveis serão preservados.",
             Dock = DockStyle.Fill, ForeColor = Color.White }, 0, 1);
         var summary = new DarkLogView { Name = "UninstallCleanupSummary", Dock = DockStyle.Fill,
             Margin = new Padding(0, 4, 0, 8) };
@@ -75,10 +77,20 @@ internal sealed class UninstallCleanupDialog : Form
     internal static string Describe(IReadOnlyList<IntegratedResidualPlan> plans)
     {
         var text = new StringBuilder();
+        text.AppendLine("RESUMO POR APLICATIVO");
         foreach (var plan in plans)
         {
             text.AppendLine(plan.Context.App.Name.Replace('\r', ' ').Replace('\n', ' '));
             text.AppendLine($"{plan.Files.Count} arquivo(s), {plan.Directories.Count} pasta(s) e {plan.Keys.Count} chave(s) do Registro.");
+            text.AppendLine($"Preservados: {plan.Preserved} local(is) com dados pessoais, compartilhados ou não reconhecidos.");
+            text.AppendLine();
+        }
+        text.AppendLine("SIM exclui os itens abaixo permanentemente. NÃO mantém todos os resíduos.");
+        text.AppendLine();
+        text.AppendLine("ITENS POR APLICATIVO");
+        foreach (var plan in plans)
+        {
+            text.AppendLine(plan.Context.App.Name.Replace('\r', ' ').Replace('\n', ' '));
             foreach (var file in plan.Files) text.AppendLine("  Arquivo: " + file.Path);
             foreach (var folder in plan.Directories) text.AppendLine("  Pasta: " + folder.Path);
             foreach (var key in plan.Keys) text.AppendLine("  Registro: " +

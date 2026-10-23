@@ -1492,44 +1492,19 @@ internal sealed partial class MainForm : Form
                 int usable = Math.Max(1, viewport - flow.Padding.Horizontal);
                 int desired = (int)Math.Ceiling((compact ? 216 : 244) * scale);
                 int margin = (int)Math.Ceiling(8 * scale);
-                // Cinco cartões de reparo lado a lado deixam as descrições
-                // comprimidas. Usar 3 colunas no reparo e 4 na limpeza,
-                // distribuindo as fileiras de forma equilibrada.
-                int maxColumns = compact ? 4 : 3;
-                int columns = Math.Clamp(usable / Math.Max(1, desired + margin),
-                    1, maxColumns);
-                // Em telas muito estreitas, um unico cartao legivel e preferivel
-                // a dois botoes cujo texto ultrapassa o proprio cartao.
-                if (compact && usable < (int)Math.Ceiling(520 * scale))
-                    columns = 1;
-                // Reparo e Rede usa tres colunas QUE PREENCHAM a area disponivel.
-                // O antigo teto de 316 px centralizava apenas ~950 px numa
-                // janela de ~1500 px, deixando grandes faixas vazias dos lados.
-                // Limpeza compacta mantem o layout anterior de quatro colunas.
-                int cardWidth;
-                int leftInset;
-                if (compact)
-                {
-                    cardWidth = Math.Min((int)Math.Ceiling(316 * scale),
-                        Math.Max((int)Math.Ceiling(196 * scale),
-                            usable / columns - margin));
-                    int rowWidth = columns * (cardWidth + margin);
-                    leftInset = Math.Max(7, (viewport - rowWidth) / 2);
-                }
-                else
-                {
-                    int inset = (int)Math.Ceiling(7 * scale);
-                    cardWidth = Math.Max(1, (viewport - 2 * inset - columns * margin) / columns);
-                    leftInset = inset;
-                }
-                Padding balanced = new Padding(leftInset, compact && columns == 4 ? 3 : 7,
-                    compact ? 7 : leftInset, compact && columns == 4 ? 3 : 7);
+                // Seis ferramentas de limpeza e os comandos de reparo usam
+                // ate tres colunas, preenchendo a largura sem espacos de cards removidos.
+                int columns = Math.Clamp(usable / Math.Max(1, desired + margin), 1, 3);
+                if (compact && usable < (int)Math.Ceiling(520 * scale)) columns = 1;
+                int inset = (int)Math.Ceiling(7 * scale);
+                int cardWidth = Math.Max(1, (viewport - 2 * inset - columns * margin) / columns);
+                Padding balanced = new Padding(inset, 7, inset, 7);
                 if (flow.Padding != balanced) flow.Padding = balanced;
                 // A altura depende do texto real e da largura atual.
                 // Um card com duas linhas nao pode reservar a altura de
                 // outro com quatro linhas, e nenhum texto deve ser cortado.
                 int buttonRow = (int)Math.Ceiling(33 * scale);
-                int minHeight = (int)Math.Ceiling((compact && columns == 4 ? 72 : 78) * scale);
+                int minHeight = (int)Math.Ceiling(78 * scale);
                 int maxHeight = (int)Math.Ceiling(160 * scale);
                 int cardHeight = minHeight;
                 foreach (var (card, description) in measuredCards)
@@ -1557,7 +1532,7 @@ internal sealed partial class MainForm : Form
                         TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
                     int required = buttonRow + card.Padding.Vertical +
                         description.Padding.Vertical + textHeight +
-                        (int)Math.Ceiling((compact && columns == 4 ? 2 : 5) * scale);
+                        (int)Math.Ceiling(5 * scale);
                     cardHeight = Math.Max(cardHeight, required);
                 }
                 cardHeight = Math.Clamp(cardHeight, minHeight, maxHeight);
@@ -3158,7 +3133,7 @@ internal sealed partial class MainForm : Form
                 {
                     foreach (var request in residualRequests)
                         DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "authorized"));
-                    var response = await ResidualElevatedProtocol.ParentAsync(server, residualRequests, cancellation);
+                    var response = await Task.Run(() => ResidualElevatedProtocol.ParentAsync(server, residualRequests, cancellation));
                     foreach (var request in residualRequests)
                         DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac_result", response.State, error: response.Error));
                     foreach (var result in response.Results)

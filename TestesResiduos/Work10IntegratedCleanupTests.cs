@@ -148,17 +148,18 @@ internal static class Work10IntegratedCleanupTests
             var result = await IntegratedResidualCleanup.DeleteAsync(accepted, true, Empty);
             check(result.Keys == 0 && !result.Verified && f.KeyExists(RegistryHive.CurrentUser, RegistryView.Registry64), "W10 key changed after consent remains intact");
         }
+        foreach (string concurrentSubkey in new[] { "", @"\Nested" })
         using (var f = new Fixture((RegistryHive.CurrentUser, RegistryView.Registry64)))
         {
             var accepted = f.Plan(); bool externalWriteBlocked = false;
             ResidualRegistryGuard.BeforeCommit = _ =>
             {
-                try { using var key = Registry.CurrentUser.OpenSubKey(f.KeyPath, true); key!.SetValue("Marker", "CONCURRENT CONTENT"); }
+                try { using var key = Registry.CurrentUser.OpenSubKey(f.KeyPath + concurrentSubkey, true); key!.SetValue("Marker", "CONCURRENT CONTENT"); }
                 catch (IOException) { externalWriteBlocked = true; throw; }
             };
             var result = await IntegratedResidualCleanup.DeleteAsync(accepted, true, Empty);
             check(result.Keys == 0 && f.KeyExists(RegistryHive.CurrentUser, RegistryView.Registry64) && !result.Verified,
-                "W10 concurrent registry write conflicts/rolls back instead of deleting changed tree (blocked=" + externalWriteBlocked + ")");
+                "W10 concurrent registry write conflicts/rolls back instead of deleting changed tree " + concurrentSubkey + " (blocked=" + externalWriteBlocked + ")");
             ResidualRegistryGuard.BeforeCommit = null;
         }
     }
@@ -338,11 +339,20 @@ internal static class Work10IntegratedCleanupTests
                 (_, _) => Task.FromResult(true), (_, _) => { attempts++; return NoElevation([], default); }, logs.Add);
             check(attempts == 1 && !batch.Results.Single().Verified && f.KeyExists(RegistryHive.CurrentUser, RegistryView.Registry64) &&
                 batch.Results.Single().Problems.Any(p => p.Error == 1223), "W10 UAC refusal preserves denied target and records 1223");
-            using (var key = root.OpenSubKey(f.KeyPath, RegistryKeyPermissionCheck.ReadWriteSubTree, RegistryRights.ChangePermissions)) RestoreRights(key!);
+            attempts = 0;
             batch = await IntegratedResidualBatch.RunAsync([Removed(f.App)], Contexts(f), Empty,
-                (_, _) => Task.FromResult(true), NoElevation, logs.Add);
-            check(batch.Results.Single().Keys == 1 && !f.KeyExists(RegistryHive.CurrentUser, RegistryView.Registry64),
-                "W10 authorized rights allow real deletion without ACL changes in production code");
+                (_, _) => Task.FromResult(true), async (requests, token) =>
+                {
+                    attempts++;
+                    using (var key = root.OpenSubKey(f.KeyPath, RegistryKeyPermissionCheck.ReadWriteSubTree, RegistryRights.ChangePermissions)) RestoreRights(key!);
+                    var results = new List<IntegratedCleanupResult>();
+                    foreach (var request in requests)
+                        results.Add(await IntegratedResidualCleanup.DeleteAsync(request.Plan, true, Empty, token, request.TargetIds));
+                    return new ResidualElevationResponse("uac_authorized", 0, results);
+                }, logs.Add);
+            check(attempts == 1 && batch.Results.Single().Keys == 1 && batch.Results.Single().Verified &&
+                !f.KeyExists(RegistryHive.CurrentUser, RegistryView.Registry64),
+                "W10 authorized elevation retries only the denied key and merges actual deletion (ACL restored only in disposable fixture)");
         }
         finally
         {
