@@ -45,12 +45,22 @@ var reviewTerminal = new ProgramEntry { Name = "Windows Terminal", Version = "1.
     Publisher = "Microsoft Corporation", Source = "GitHub oficial", IsUpdate = true, InventoryOnly = true, UpdateRequiresReview = true };
 Verify(WindowsTerminalUpdater.Resolve(reviewTerminal) is null && VerifiedUpdaters.GetPrimaryAction(reviewTerminal) == "store",
     "Divergência bloqueia instalador MSIX direto e conserva rota oficial Store");
-// PC FORTE: EXE antigo + MSI novo no mesmo computador; o Registro pode sobreviver
-// mesmo quando a desinstalacao EXE destruiu os binarios da instalacao MSI.
-var zip = Item("7-Zip 26.04 (x64)", "26.04", "26.05", "Igor Pavlov", "GitHub oficial");
-zip.InventoryId = "LocalMachine|Registry64|7-Zip";
-zip.InstallLocation = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip") + "\\";
-zip.UninstallString = "\"" + Path.Combine(zip.InstallLocation, "Uninstall.exe") + "\"";
+// PC FORTE: EXE antigo + MSI novo. A coexistencia pode deixar um registro
+// MSI sem binarios apos desinstalar o EXE. Testar somente com metadados sintéticos.
+ProgramEntry ZipItem(string name = "7-Zip 26.04 (x64)", string version = "26.04",
+    string publisher = "Igor Pavlov", string inventoryId = "LocalMachine|Registry64|7-Zip",
+    string? location = null, string? uninstall = null)
+{
+    string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip");
+    return new ProgramEntry
+    {
+        Name = name, Version = version, AvailableVersion = "26.05",
+        Publisher = publisher, Source = "GitHub oficial", IsUpdate = true,
+        InventoryId = inventoryId, InstallLocation = location ?? folder + "\\",
+        UninstallString = uninstall ?? "\"" + Path.Combine(folder, "Uninstall.exe") + "\""
+    };
+}
+var zip = ZipItem();
 var zipRecipe = VerifiedUpdaters.CreateSevenZipRecipe();
 Verify(VerifiedUpdaters.IsApprovedRecipe(zipRecipe) &&
        zipRecipe.Identifier == "sevenzip-exe-x64-26.05" &&
@@ -67,21 +77,21 @@ Verify(!VerifiedUpdaters.IsApprovedRecipe(zipRecipe with { Sha256 = new string('
        !VerifiedUpdaters.IsApprovedRecipe(zipRecipe with { Download = new Uri("https://example.com/7z2605-x64.exe") }) &&
        !VerifiedUpdaters.IsApprovedRecipe(zipRecipe with { RequiredSigner = "Microsoft" }),
        "7-Zip: hash, argumentos, origem e politica de assinatura nao alteraveis");
-var zipMsi = Item("7-Zip 26.05 (x64 edition)", "26.05", "26.05", "Igor Pavlov", "GitHub oficial");
-zipMsi.InventoryId = "LocalMachine|Registry64|{23170F69-40C1-2702-2605-000001000000}";
-zipMsi.UninstallString = "MsiExec.exe /I{23170F69-40C1-2702-2605-000001000000}";
+var zipMsi = ZipItem(name: "7-Zip 26.05 (x64 edition)", version: "26.05",
+    inventoryId: "LocalMachine|Registry64|{23170F69-40C1-2702-2605-000001000000}",
+    location: "", uninstall: "MsiExec.exe /I{23170F69-40C1-2702-2605-000001000000}");
 Verify(!VerifiedUpdaters.IsSevenZipRegistryCandidate(zipMsi) &&
-       !VerifiedUpdaters.SingleSevenZipRegistration(zip, [zip,zipMsi]) &&
-       !VerifiedUpdaters.IsSevenZipRegistryCandidate(zip with { InventoryId = zipMsi.InventoryId }) &&
-       !VerifiedUpdaters.IsSevenZipRegistryCandidate(zip with { UninstallString = zipMsi.UninstallString }),
+       !VerifiedUpdaters.SingleSevenZipRegistration(zip, [zip, zipMsi]) &&
+       !VerifiedUpdaters.IsSevenZipRegistryCandidate(ZipItem(inventoryId: zipMsi.InventoryId)) &&
+       !VerifiedUpdaters.IsSevenZipRegistryCandidate(ZipItem(uninstall: zipMsi.UninstallString)),
        "7-Zip: MSI coexistente e identidade equivocada bloqueiam atualizacao");
-Verify(!VerifiedUpdaters.IsSevenZipRegistryCandidate(zip with { Name = "7-Zip 26.04 (x86)" }) &&
-       !VerifiedUpdaters.IsSevenZipRegistryCandidate(zip with { Publisher = "Editor desconhecido" }) &&
-       !VerifiedUpdaters.IsSevenZipRegistryCandidate(zip with { InstallLocation = @"D:\Apps\7-Zip" }) &&
-       !VerifiedUpdaters.IsSevenZipRegistryCandidate(zip with { Version = "26.03" }) &&
+Verify(!VerifiedUpdaters.IsSevenZipRegistryCandidate(ZipItem(name: "7-Zip 26.04 (x86)")) &&
+       !VerifiedUpdaters.IsSevenZipRegistryCandidate(ZipItem(publisher: "Editor desconhecido")) &&
+       !VerifiedUpdaters.IsSevenZipRegistryCandidate(ZipItem(location: @"D:\Apps\7-Zip")) &&
+       !VerifiedUpdaters.IsSevenZipRegistryCandidate(ZipItem(version: "26.03")) &&
        !VerifiedUpdaters.IsInstalledVersionAtLeast(zipRecipe.Identifier, "26.05", [zip]),
        "7-Zip: arquitetura, editor, pasta e versao divergentes rejeitados");
-var zipNew = zip with { Name = "7-Zip 26.05 (x64)", Version = "26.05" };
+var zipNew = ZipItem(name: "7-Zip 26.05 (x64)", version: "26.05");
 Verify(VerifiedUpdaters.IsSevenZipRegistryCandidate(zipNew) &&
        VerifiedUpdaters.IsInstalledVersionAtLeast(zipRecipe.Identifier, "26.05", [zipNew]) &&
        !VerifiedUpdaters.IsInstalledVersionAtLeast(zipRecipe.Identifier, "26.05", [zipMsi]),
