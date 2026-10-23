@@ -376,10 +376,12 @@ internal sealed class ResidualExplorerDialog : Form
                 $"apos_chaves={after.Keys.Count}");
             if (after.Complete) await RefreshSmallAppIndexAsync(product!, after);
             if (IsDisposed) return;
+            string accessExplanation = SmallAppResidualCleanup.ExplainAccessFailure(result.Problems);
             details.SetText($"Limpeza de {product}: {result.Files} arquivo(s), " +
                 $"{result.Directories} pasta(s), {result.Keys} chave(s) excluídos.\r\n" +
                 $"{result.Failed} falhas e {result.Preserved} preservados.\r\n" +
                 $"Falhas: {(result.Problems.Count == 0 ? "nenhuma" : string.Join(", ", result.Problems))}.\r\n" +
+                (accessExplanation.Length == 0 ? "" : accessExplanation + "\r\n") +
                 (after.Complete && after.Files.Count + after.Directories.Count + after.Keys.Count == 0
                     ? "Conferência: zero alvos específicos encontrados. " +
                       "Referências históricas em áreas compartilhadas não foram avaliadas para exclusão."
