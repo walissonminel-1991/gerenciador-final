@@ -25,7 +25,13 @@ internal sealed class UninstallBatch
             foreach(string command in new[]{app.UninstallString,app.QuietUninstallString})
                 if(MaintenanceAudit.CheckUninstaller(command,false)=="available" &&
                     UninstallCommand.TryParse(command,out var candidate) && BoundToProduct(candidate,app))
-                { parsed=candidate; break; }
+                {
+                    // Preferir silêncio somente quando um contrato local estrito
+                    // aprova a derivação do comando. Nunca executar flags remotas.
+                    parsed = SilentUninstallPolicy.TrySelect(app, candidate, out var silent)
+                        ? silent : candidate;
+                    break;
+                }
             if(parsed is null) throw new InvalidDataException("Comando de desinstalação não verificável para a seleção.");
             requests.Add(new(app,parsed));
         }
@@ -126,10 +132,7 @@ internal sealed class UninstallBatch
             Guid.TryParse(command.ProductCode,out var actual) && expected==actual;
     }
     private static bool MatchesRegisteredCommand(UninstallRequest request) =>
-        UninstallCommand.TryParse(request.Original.UninstallString,out var normal) && normal==request.Command ||
-        MatchesQuiet(request);
-    private static bool MatchesQuiet(UninstallRequest request) =>
-        UninstallCommand.TryParse(request.Original.QuietUninstallString,out var quiet) && quiet==request.Command;
+        SilentUninstallPolicy.MatchesAuthorized(request.Original, request.Command);
 
     private static bool SharesExeIntent(ParsedUninstallCommand selected, ProgramEntry other) =>
         new[]{other.UninstallString,other.QuietUninstallString}.Any(raw =>
