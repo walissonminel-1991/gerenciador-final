@@ -98,7 +98,9 @@ internal static class SmallAppResidualCleanup
     {
         string[] names = product.Equals(Npp, StringComparison.OrdinalIgnoreCase)
             ? ["notepad++"] : ["SumatraPDF"];
-        return names.All(name => Process.GetProcessesByName(name).Length == 0);
+        try { return names.All(name => Process.GetProcessesByName(name).Length == 0); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or
+            InvalidOperationException or UnauthorizedAccessException) { return false; }
     }
 
     private static bool Under(string root, string path)
