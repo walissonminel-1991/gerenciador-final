@@ -1,7 +1,6 @@
 using Microsoft.Win32;
 using System.Diagnostics;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace GerenciadorAplicativos;
 
@@ -9,7 +8,7 @@ namespace GerenciadorAplicativos;
 // O usuário escolhe eliminar configurações do aplicativo em uma prévia integral.
 // Não percorre Documentos/Downloads/Imagens/Músicas, MuiCache, HKCR, Windows nem
 // outros perfis. Não realiza limpeza automática durante a investigação.
-internal sealed record SmallAppFile(string Path, long Bytes, string Digest);
+internal sealed record SmallAppFile(string Path, long Bytes, string Digest, InstallerFileGuard.FileIdentity Identity);
 internal sealed record SmallAppKey(RegistryHive Hive, RegistryView View, string Subkey,
     string Digest, int Entries);
 internal sealed record SmallAppSnapshot(string Product, IReadOnlyList<SmallAppFile> Files,
@@ -122,54 +121,8 @@ internal static class SmallAppResidualCleanup
         return true;
     }
 
-    private static bool ReadKeyHash(RegistryKey root, out string hash, out int entries)
-    {
-        hash = ""; entries = 0;
-        int count = 0;
-        try
-        {
-            var sb = new StringBuilder();
-            void Visit(RegistryKey current, int depth)
-            {
-                if (depth > 12 || ++count > MaxEntries)
-                    throw new InvalidDataException("Registro excedeu limites");
-                foreach (string name in current.GetValueNames().Order(StringComparer.OrdinalIgnoreCase))
-                {
-                    if (++count > MaxEntries) throw new InvalidDataException("Muitos valores");
-                    object? value = current.GetValue(name, null,
-                        RegistryValueOptions.DoNotExpandEnvironmentNames);
-                    string text = value switch
-                    {
-                        byte[] bytes when bytes.Length <= 1024 * 1024 => Convert.ToHexString(bytes),
-                        string s => s,
-                        string[] arr => string.Join('\u001f', arr),
-                        int n => n.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        long l => l.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        null => "",
-                        _ => throw new InvalidDataException("Tipo ou tamanho não suportado")
-                    };
-                    if (text.Length > 1024 * 1024 || sb.Length + text.Length > 4 * 1024 * 1024)
-                        throw new InvalidDataException("Valor grande demais");
-                    sb.Append("V").Append(name).Append(':').Append(current.GetValueKind(name))
-                        .Append(':').Append(text.Length).Append(':').Append(text).Append('\n');
-                }
-                foreach (string name in current.GetSubKeyNames().Order(StringComparer.OrdinalIgnoreCase))
-                {
-                    sb.Append("K").Append(name).Append('\n');
-                    using var child = current.OpenSubKey(name, writable: false);
-                    if (child is null) throw new IOException("Chave mudou");
-                    Visit(child, depth + 1);
-                }
-            }
-            Visit(root, 0);
-            entries = count;
-            hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString())));
-            return true;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-            System.Security.SecurityException or ArgumentException or InvalidDataException)
-        { return false; }
-    }
+    private static bool ReadKeyHash(RegistryKey root, out string hash, out int entries) =>
+        RegistryTreeFingerprint.TryCapture(root, MaxEntries, out hash, out entries);
 
     internal static SmallAppSnapshot Capture(string product, bool inventoryComplete,
         IReadOnlyCollection<ProgramEntry> apps, CancellationToken token = default)
@@ -187,7 +140,8 @@ internal static class SmallAppResidualCleanup
             foreach (string root in Folders(product).Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 token.ThrowIfCancellationRequested();
-                if (!Directory.Exists(root)) continue;
+                try { _ = File.GetAttributes(root); }
+                catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException) { continue; }
                 if (!SafeDir(root))
                     return new(product, [], [], [], false, "Diretório redirecionado ou inacessível.");
                 var pending = new Stack<string>();
@@ -209,14 +163,14 @@ internal static class SmallAppResidualCleanup
                         if (Directory.Exists(path)) { pending.Push(path); continue; }
                         if (!File.Exists(path))
                             return new(product, [], [], [], false, "Objeto desconhecido na pasta.");
-                        using var handle = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
+                        using var handle = InstallerFileGuard.OpenResidual(path);
                         var identity = InstallerFileGuard.ReadIdentity(handle);
                         if (identity.Links != 1 || identity.Size > (ulong)MaxBytes ||
                             bytes > MaxBytes - (long)identity.Size)
                             return new(product, [], [], [], false, "Arquivo compartilhado ou grande demais.");
                         bytes += (long)identity.Size;
                         files.Add(new(path, (long)identity.Size,
-                            Convert.ToHexString(SHA256.HashData(handle))));
+                            Convert.ToHexString(SHA256.HashData(handle)), identity));
                         if (directories.Count + files.Count > MaxEntries)
                             return new(product, [], [], [], false, "Limite de arquivos atingido.");
                     }
@@ -236,7 +190,7 @@ internal static class SmallAppResidualCleanup
                 true, "Prévia completa dos locais exclusivos. Exclusão somente após confirmação.");
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
             ArgumentException or NotSupportedException or System.Security.SecurityException)
         { return new(product, [], [], [], false, "Consulta interrompida: " + ex.GetType().Name); }
     }
@@ -297,7 +251,9 @@ internal static class SmallAppResidualCleanup
     {
         if (!accepted.Complete || !Supported(accepted.Product))
             return new(0, 0, 0, 1, 0, ["previa_invalida"]);
+        token.ThrowIfCancellationRequested();
         var current = await inventory();
+        token.ThrowIfCancellationRequested();
         if (!current.Complete || !AbsenceConfirmed(accepted.Product, current.Apps) ||
             !ProcessesClosed(accepted.Product))
             return new(0, 0, 0, 1, accepted.Files.Count, ["produto_presente"]);
@@ -310,12 +266,13 @@ internal static class SmallAppResidualCleanup
         {
             token.ThrowIfCancellationRequested();
             var check = await inventory();
+            token.ThrowIfCancellationRequested();
             if (!check.Complete || !AbsenceConfirmed(accepted.Product, check.Apps) ||
                 !ProcessesClosed(accepted.Product))
             {
-                preserved += accepted.Files.Count - deleted;
+                preserved += accepted.Files.Count - deleted + accepted.Directories.Count + accepted.Keys.Count;
                 problems.Add("instalacao_alterada");
-                break;
+                return new(deleted, folders, keys, failed, preserved, problems);
             }
             try
             {
@@ -323,35 +280,43 @@ internal static class SmallAppResidualCleanup
                     !SafeDir(Path.GetDirectoryName(file.Path)!) ||
                     (File.GetAttributes(file.Path) & FileAttributes.ReparsePoint) != 0)
                 { failed++; problems.Add("caminho_alterado"); continue; }
-                using (var handle = InstallerFileGuard.OpenRead(file.Path, allowDirectoryWrites: true))
+                using (var handle = InstallerFileGuard.OpenResidual(file.Path, deleteAccess: true))
                 {
                     var identity = InstallerFileGuard.ReadIdentity(handle);
-                    if (identity.Links != 1 || (long)identity.Size != file.Bytes ||
+                    if (identity != file.Identity || identity.Links != 1 || (long)identity.Size != file.Bytes ||
                         Convert.ToHexString(SHA256.HashData(handle)) != file.Digest)
                     { failed++; problems.Add("arquivo_alterado"); continue; }
-                }
 #if GF_PROGRESSIVE
-                SyntheticBeforeFileDelete?.Invoke(file.Path);
+                    SyntheticBeforeFileDelete?.Invoke(file.Path);
 #endif
-                File.Delete(file.Path);
+                    token.ThrowIfCancellationRequested();
+                    InstallerFileGuard.MarkResidualForDeletion(handle);
+                }
                 if (File.Exists(file.Path)) { failed++; problems.Add("arquivo_permaneceu"); }
                 else deleted++;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                 ArgumentException or System.Security.SecurityException)
             { failed++; problems.Add("arquivo_" + ex.GetType().Name); }
         }
         foreach (string dir in accepted.Directories.OrderByDescending(x => x.Length))
         {
             token.ThrowIfCancellationRequested();
+            var check = await inventory();
+            token.ThrowIfCancellationRequested();
+            if (!check.Complete || !AbsenceConfirmed(accepted.Product, check.Apps) ||
+                !ProcessesClosed(accepted.Product) || UnregisteredExecutableFound(accepted.Product))
+                return new(deleted, folders, keys, failed, preserved + accepted.Directories.Count - folders +
+                    accepted.Keys.Count, ["instalacao_alterada"]);
             try
             {
+                using var parentLease = InstallerFileGuard.PinDirectory(Path.GetDirectoryName(dir)!, allowLeafWrites: true);
                 if (Folders(accepted.Product).Any(root => Under(root, dir)) && SafeDir(dir) &&
                     !Directory.EnumerateFileSystemEntries(dir).Any())
                 { Directory.Delete(dir, recursive: false); folders++; }
                 else { preserved++; problems.Add("pasta_nao_vazia"); }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                 ArgumentException or System.Security.SecurityException)
             { failed++; problems.Add("pasta_" + ex.GetType().Name); }
         }
@@ -361,6 +326,7 @@ internal static class SmallAppResidualCleanup
             {
                 token.ThrowIfCancellationRequested();
                 var check = await inventory();
+                token.ThrowIfCancellationRequested();
                 if (!check.Complete || !AbsenceConfirmed(accepted.Product, check.Apps) ||
                     !ProcessesClosed(accepted.Product))
                 { preserved++; problems.Add("instalacao_alterada"); break; }
@@ -389,13 +355,14 @@ internal static class SmallAppResidualCleanup
                     { failed++; problems.Add("registro_alterado"); continue; }
                     key.Close();
                     phase = "excluir";
+                    token.ThrowIfCancellationRequested();
                     parent.DeleteSubKeyTree(leaf, throwOnMissingSubKey: true);
                     phase = "conferir";
                     using var remaining = parent.OpenSubKey(leaf, writable: false);
                     if (remaining is null) keys++;
                     else { failed++; problems.Add("registro_permaneceu"); }
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                     ArgumentException or System.Security.SecurityException or InvalidOperationException)
                 {
                     failed++;

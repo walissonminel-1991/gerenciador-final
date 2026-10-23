@@ -31,25 +31,47 @@ internal static class InstallerFileGuard
     }
 
     internal static FileStream OpenRead(string path, bool allowDirectoryWrites = false)
+        => OpenReadCore(path, allowDirectoryWrites, allowEmpty: false, deleteAccess: false);
+
+    // Exclusivo de residuos. Um marcador vazio e valido; instaladores continuam
+    // proibindo tamanho zero. DELETE nao altera ACL nem contorna permissoes.
+    internal static FileStream OpenResidual(string path, bool deleteAccess = false)
+        => OpenReadCore(path, allowDirectoryWrites: true, allowEmpty: true, deleteAccess);
+
+    private static FileStream OpenReadCore(string path, bool allowDirectoryWrites, bool allowEmpty, bool deleteAccess)
     {
         string full = ValidateLocalPath(path);
         var parents = PinDirectory(Path.GetDirectoryName(full)!, allowDirectoryWrites);
         SafeFileHandle? handle = null;
         try
         {
-            handle = CreateFileW(full, 0x80000000, 1, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero);
+            handle = CreateFileW(full, 0x80000000u | (deleteAccess ? 0x00010000u : 0u), 1, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero);
             CheckHandle(handle, directory: false);
             var stream = new PinnedStream(handle, parents);
             handle = null;
             try
             {
-                if (stream.Length <= 0 || stream.Length > 300L * 1024 * 1024)
+                if ((!allowEmpty && stream.Length == 0) || stream.Length > 300L * 1024 * 1024)
                     throw new InvalidDataException("Tamanho do pacote fora do limite.");
                 return stream;
             }
             catch { stream.Dispose(); throw; }
         }
         catch { handle?.Dispose(); parents.Dispose(); throw; }
+    }
+
+    internal static void MarkResidualForDeletion(FileStream held)
+    {
+        byte disposition = 1; // FILE_DISPOSITION_INFO.DeleteFile (BOOLEAN)
+        if (!SetFileInformationByHandle(held.SafeFileHandle, 4, ref disposition, 1))
+        {
+            int error = Marshal.GetLastWin32Error();
+            if (error == 5) throw new UnauthorizedAccessException("O Windows negou a exclusao do residuo.");
+            throw new IOException("Nao foi possivel excluir o residuo protegido.",
+                unchecked((int)(0x80070000u | (uint)error)));
+        }
+        // O proprio objeto validado e removido ao fechar o handle. Nenhuma
+        // segunda abertura por caminho permite atingir um arquivo substituto.
     }
 
     internal static string ValidateLocalPath(string path)
@@ -167,6 +189,11 @@ internal static class InstallerFileGuard
     [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetFileInformationByHandle(SafeFileHandle handle, out FileInformation info);
+
+    [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetFileInformationByHandle(SafeFileHandle handle, int infoClass,
+        ref byte disposition, uint size);
 
     internal static async Task<string> DigestAsync(FileStream stream, CancellationToken token = default)
     {

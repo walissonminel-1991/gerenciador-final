@@ -1,7 +1,6 @@
 using Microsoft.Win32;
 using System.Diagnostics;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace GerenciadorAplicativos;
@@ -9,7 +8,7 @@ namespace GerenciadorAplicativos;
 // Piloto real de limpeza completa, EXCLUSIVO para 7-Zip EXE x64.
 // A política só conhece três pastas de propriedade direta e duas chaves próprias.
 // Sem exploração do perfil pessoal, do Registro MSI, de COM, do Windows ou de atalhos genéricos.
-internal sealed record SevenZipFileEvidence(string Path, long Size, string Sha256);
+internal sealed record SevenZipFileEvidence(string Path, long Size, string Sha256, InstallerFileGuard.FileIdentity Identity);
 internal sealed record SevenZipRegistryEvidence(RegistryHive Hive, string SubKey, string Sha256, int Entries);
 internal sealed record SevenZipCleanupPlan(
     IReadOnlyList<SevenZipFileEvidence> Files,
@@ -105,7 +104,8 @@ internal static class SevenZipCompleteCleanup
             foreach (var root in Roots())
             {
                 cancel.ThrowIfCancellationRequested();
-                if (!Directory.Exists(root)) continue;
+                try { _ = File.GetAttributes(root); }
+                catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException) { continue; }
                 // Inclui pais para impedir junções e redirecionamentos.
                 if (!SafeDirectory(root))
                     return new([], [], [], 0, false, "Diretório com link ou caminho não verificável.");
@@ -131,14 +131,14 @@ internal static class SevenZipCompleteCleanup
                             continue;
                         }
                         if (!File.Exists(path)) return new([], [], [], 0, false, "Objeto de tipo desconhecido.");
-                        using var handle = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
+                        using var handle = InstallerFileGuard.OpenResidual(path);
                         var identity = InstallerFileGuard.ReadIdentity(handle);
                         if (identity.Links != 1 || identity.Size > (ulong)MaxBytes ||
                             total + (long)identity.Size > MaxBytes)
                             return new([], [], [], 0, false, "Arquivo compartilhado ou limite de tamanho.");
                         total += (long)identity.Size;
                         string digest = Convert.ToHexString(SHA256.HashData(handle)).ToLowerInvariant();
-                        files.Add(new(path, (long)identity.Size, digest));
+                        files.Add(new(path, (long)identity.Size, digest, identity));
                         if (files.Count + directories.Count > MaxItems)
                             return new([], [], [], 0, false, "Limite de arquivos atingido.");
                     }
@@ -161,7 +161,7 @@ internal static class SevenZipCompleteCleanup
                 true, "Prévia capturada; requer autorização específica e revalidação completa.");
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
             ArgumentException or System.Security.SecurityException or InvalidOperationException)
         { return new([], [], [], 0, false, "Fonte indisponível: " + ex.GetType().Name); }
     }
@@ -185,53 +185,8 @@ internal static class SevenZipCompleteCleanup
         return true;
     }
 
-    private static bool TryRegistryFingerprint(RegistryKey root, out string digest, out int entries)
-    {
-        digest = ""; entries = 0;
-        int count = 0;
-        try
-        {
-            var builder = new StringBuilder();
-            void Walk(RegistryKey node, int depth)
-            {
-                if (depth > 12 || ++count > MaxItems) throw new InvalidDataException("Registro fora dos limites");
-                foreach (string name in node.GetValueNames().OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
-                {
-                    if (++count > MaxItems) throw new InvalidDataException("Muitos valores");
-                    object? value = node.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
-                    string content = value switch
-                    {
-                        byte[] bytes when bytes.Length < 1024 * 1024 => Convert.ToHexString(bytes),
-                        string[] strings => string.Join("\u001f", strings),
-                        string s => s,
-                        int i => i.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        long l => l.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        null => "",
-                        _ => throw new InvalidDataException("Tipo de valor inesperado")
-                    };
-                    if (content.Length > 1024 * 1024 || builder.Length + content.Length > 8 * 1024 * 1024)
-                        throw new InvalidDataException("Valor grande demais");
-                    builder.Append("V:").Append(name).Append(':').Append(node.GetValueKind(name))
-                        .Append(':').Append(content.Length).Append(':').Append(content).Append('\n');
-                }
-                foreach (string name in node.GetSubKeyNames().OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
-                {
-                    builder.Append("K:").Append(name).Append('\n');
-                    using var child = node.OpenSubKey(name, writable: false);
-                    if (child is null) throw new IOException("Chave mudou");
-                    Walk(child, depth + 1);
-                }
-            }
-            Walk(root, 0);
-            digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())))
-                .ToLowerInvariant();
-            entries = count;
-            return true;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-            ArgumentException or System.Security.SecurityException or InvalidDataException)
-        { return false; }
-    }
+    private static bool TryRegistryFingerprint(RegistryKey root, out string digest, out int entries) =>
+        RegistryTreeFingerprint.TryCapture(root, MaxItems, out digest, out entries, maxBytes: 8 * 1024 * 1024);
 
     // Estado da interface produzido SOMENTE a partir da última conferência,
     // nunca a partir de uma lista antiga que pode conter itens já excluídos.
@@ -285,7 +240,9 @@ internal static class SevenZipCompleteCleanup
         CancellationToken token = default)
     {
         if (!accepted.Complete) return new(0, 0, 0, 1, 0, false);
+        token.ThrowIfCancellationRequested();
         var before = await inventory();
+        token.ThrowIfCancellationRequested();
         if (!before.Complete || !NoSevenZipRegistrations(before.Items) || !NoSevenZipProcesses())
             return new(0, 0, 0, 1, accepted.Files.Count, true);
         var now = Capture(previous, before.Complete, before.Items, token);
@@ -300,10 +257,12 @@ internal static class SevenZipCompleteCleanup
             // antes de cada arquivo é deliberadamente mais lento, porém bloqueia
             // exclusão de uma nova instalação iniciada depois da prévia.
             var gate = await inventory();
+            token.ThrowIfCancellationRequested();
             if (!gate.Complete || !NoSevenZipRegistrations(gate.Items) || !NoSevenZipProcesses())
             {
-                preserved += accepted.Files.Count - deleted;
-                break;
+                preserved += accepted.Files.Count - deleted + accepted.Directories.Count + accepted.Registry.Count;
+                return new(deleted, directories, keys, failed, preserved, true)
+                    { Problems = ["instalacao_alterada"] };
             }
             string stage = "verificar_caminho";
             try
@@ -312,21 +271,22 @@ internal static class SevenZipCompleteCleanup
                     (File.GetAttributes(file.Path) & FileAttributes.ReparsePoint) != 0)
                 { failed++; problems.Add("arquivo_caminho_invalido"); continue; }
                 stage = "abrir_verificacao";
-                using (var handle = InstallerFileGuard.OpenRead(file.Path, allowDirectoryWrites: true))
+                using (var handle = InstallerFileGuard.OpenResidual(file.Path, deleteAccess: true))
                 {
                     stage = "verificar_conteudo";
                     var identity = InstallerFileGuard.ReadIdentity(handle);
-                    if (identity.Links != 1 || (long)identity.Size != file.Size ||
+                    if (identity != file.Identity || identity.Links != 1 || (long)identity.Size != file.Size ||
                         !Convert.ToHexString(SHA256.HashData(handle)).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
                     { failed++; problems.Add("arquivo_conteudo_alterado"); continue; }
+                    stage = "excluir";
+                    token.ThrowIfCancellationRequested();
+                    InstallerFileGuard.MarkResidualForDeletion(handle);
                 }
-                stage = "excluir";
-                File.Delete(file.Path);
                 stage = "confirmar_exclusao";
                 if (!File.Exists(file.Path)) deleted++;
                 else { failed++; problems.Add("arquivo_permaneceu"); }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                 ArgumentException or System.Security.SecurityException)
             { failed++; problems.Add(ProblemCode("arquivo_" + stage, ex)); }
         }
@@ -334,8 +294,14 @@ internal static class SevenZipCompleteCleanup
         foreach (string dir in accepted.Directories.OrderByDescending(x => x.Length))
         {
             token.ThrowIfCancellationRequested();
+            var directoryGate = await inventory();
+            token.ThrowIfCancellationRequested();
+            if (!directoryGate.Complete || !NoSevenZipRegistrations(directoryGate.Items) || !NoSevenZipProcesses())
+                return new(deleted, directories, keys, failed, preserved + accepted.Directories.Count - directories +
+                    accepted.Registry.Count, true) { Problems = ["instalacao_alterada"] };
             try
             {
+                using var parentLease = InstallerFileGuard.PinDirectory(Path.GetDirectoryName(dir)!, allowLeafWrites: true);
                 if (Roots().Any(root => Within(root, dir)) && SafeDirectory(dir) &&
                     !Directory.EnumerateFileSystemEntries(dir).Any())
                 {
@@ -344,7 +310,7 @@ internal static class SevenZipCompleteCleanup
                 }
                 else { preserved++; problems.Add("pasta_nao_vazia_ou_alterada"); }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                 ArgumentException or System.Security.SecurityException)
             { failed++; problems.Add(ProblemCode("pasta", ex)); }
         }
@@ -352,6 +318,7 @@ internal static class SevenZipCompleteCleanup
         if (failed == 0 && preserved == 0)
         {
             var recheck = await inventory();
+            token.ThrowIfCancellationRequested();
             if (recheck.Complete && NoSevenZipRegistrations(recheck.Items) && NoSevenZipProcesses())
                 foreach (var key in accepted.Registry)
                 {
@@ -359,16 +326,24 @@ internal static class SevenZipCompleteCleanup
                     try
                     {
                         using var baseKey = RegistryKey.OpenBaseKey(key.Hive, RegistryView.Registry64);
-                        using var target = baseKey.OpenSubKey(key.SubKey, writable: false);
+                        int separator = key.SubKey.LastIndexOf('\\');
+                        if (separator <= 0 || separator == key.SubKey.Length - 1)
+                        { failed++; problems.Add("registro_subchave_invalida"); continue; }
+                        using var parent = baseKey.OpenSubKey(key.SubKey[..separator], writable: true);
+                        if (parent is null) { failed++; problems.Add("registro_pai_ausente"); continue; }
+                        string leaf = key.SubKey[(separator + 1)..];
+                        using var target = parent.OpenSubKey(leaf, writable: false);
                         if (target is null || !TryRegistryFingerprint(target, out var digest, out var entries) ||
                             entries != key.Entries || digest != key.Sha256)
                         { failed++; problems.Add("registro_conteudo_alterado"); continue; }
                         target.Close();
-                        baseKey.DeleteSubKeyTree(key.SubKey, throwOnMissingSubKey: true);
-                        if (baseKey.OpenSubKey(key.SubKey) is null) keys++;
+                        token.ThrowIfCancellationRequested();
+                        parent.DeleteSubKeyTree(leaf, throwOnMissingSubKey: true);
+                        using var remaining = parent.OpenSubKey(leaf);
+                        if (remaining is null) keys++;
                         else { failed++; problems.Add("registro_permaneceu"); }
                     }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                    catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                         ArgumentException or System.Security.SecurityException or InvalidOperationException)
                     { failed++; problems.Add(ProblemCode("registro", ex)); }
                 }
