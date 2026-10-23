@@ -3,7 +3,8 @@ namespace GerenciadorAplicativos;
 internal sealed record ResidualElevationRequest(IntegratedResidualPlan Plan, IReadOnlyList<string> TargetIds);
 internal sealed record ResidualElevationResponse(string State, int Error, IReadOnlyList<IntegratedCleanupResult> Results);
 internal sealed record ResidualBatchResult(IReadOnlyList<IntegratedCleanupResult> Results,
-    int Offered, bool Declined, bool Cancelled, int Unavailable);
+    int Offered, bool Declined, bool Cancelled, int Unavailable,
+    IReadOnlyList<IntegratedResidualPlan>? RebootPlans = null);
 
 // Uma decisao de limpeza por selecao, independentemente da quantidade de apps.
 // Toda I/O permanece no chamador em segundo plano; a unica dependencia visual e
@@ -100,7 +101,13 @@ internal static class IntegratedResidualBatch
                 audit(IntegratedResidualCleanup.Audit(plan.Context.App, "final", result.Verified ? "complete" : "partial",
                     result.Files, result.Directories, result.Keys, result.Preserved, result.Failed, cancelled: result.Cancelled));
             }
-            return new(results, plans.Count, false, results.Any(r => r.Cancelled) || token.IsCancellationRequested, unavailable);
+            // Apenas falha de compartilhamento (32/33) indica possivel
+            // beneficio de reinicializacao. Acesso negado 5 nao indica isso.
+            var rebootPlans = accepted.Where(plan => results.Any(r =>
+                r.AppId == plan.Context.App.TechnicalId && !r.Verified &&
+                r.Items.Any(RebootResidualReview.IsRetryable))).ToArray();
+            return new(results, plans.Count, false, results.Any(r => r.Cancelled) || token.IsCancellationRequested,
+                unavailable, rebootPlans);
         }
         catch (OperationCanceledException)
         {
