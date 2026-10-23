@@ -38,6 +38,54 @@ internal sealed partial class MainForm
         return UninstallCleanupDialog.Confirm(this, plans);
     }
     private void ResumeUninstallCleanupConfirmation() => uninstallRestore?.TrySetResult(true);
+    private void OfferRestartReview(IReadOnlyList<RebootReviewItem> review)
+    {
+        try
+        {
+            // Persistir ANTES de solicitar reinicio. Nenhum nome/caminho e
+            // registrado em texto aberto; DPAPI protege os dados do usuario.
+            RebootResidualReview.Save(review);
+            DiagnosticTrace.Write("REINICIO.RESIDUOS estado=pendente quantidade=" + review.Count);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or
+            UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
+        {
+            DiagnosticTrace.Write("REINICIO.RESIDUOS estado=persistencia_falhou motivo=" + ex.GetType().Name);
+            Status("Revisão após reinício indisponível. Nenhum reinício foi solicitado.");
+            return;
+        }
+        bool accepted = DarkConfirmDialog.Confirm(this,
+            "O desinstalador solicitou reinicialização ou um arquivo residual " +
+            "permaneceu em uso. Deseja reiniciar o Windows agora?\\n\\n" +
+            "O GF voltará na bandeja após o próximo login e verificará os resíduos, " +
+            "sem excluir arquivos automaticamente. Salve seus trabalhos antes de continuar. " +
+            "Se não reiniciar agora, a verificação poderá ocorrer quando abrir o GF após uma reinicialização.",
+            "Reiniciar para conferir a limpeza") == DialogResult.Yes;
+        DiagnosticTrace.Write("REINICIO.RESIDUOS decisao=" + (accepted ? "sim" : "nao"));
+        if (!accepted) return;
+        try
+        {
+            StartupTrayRegistration.QueueOneTimeRecovery();
+            string command = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "shutdown.exe");
+            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = command,
+                Arguments = "/r /t 60",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            if (process is null) throw new IOException("Windows nao iniciou comando de reinicio.");
+            DiagnosticTrace.Write("REINICIO.RESIDUOS estado=solicitado atraso_segundos=60");
+            Status("Reinicialização solicitada para 60 segundos. Salve seu trabalho.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            System.ComponentModel.Win32Exception or InvalidOperationException or ArgumentException)
+        {
+            DiagnosticTrace.Write("REINICIO.RESIDUOS estado=falha_solicitar motivo=" + ex.GetType().Name);
+            Status("O Windows não iniciou a reinicialização. A pendência foi preservada.");
+        }
+    }
+
     private void ShowUninstallCancellation(bool visible)
     {
         if (uninstallCancel is not null) uninstallCancel.Visible = visible;
