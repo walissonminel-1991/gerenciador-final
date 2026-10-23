@@ -23,11 +23,17 @@ internal static class IntegratedResidualCleanup
 {
     internal const int MaxItems = 5000;
     private const long MaxBytes = 256L * 1024 * 1024;
-    internal static bool Expected(Exception ex) => ex is IOException or UnauthorizedAccessException or
+    internal static bool Expected(Exception ex) => ex is IOException or InvalidDataException or UnauthorizedAccessException or
         System.Security.SecurityException or InvalidOperationException or ArgumentException or
         NotSupportedException or Win32Exception or CryptographicException;
     internal static int Error(Exception ex) => ex is Win32Exception w ? w.NativeErrorCode :
-        ex.InnerException is Win32Exception inner ? inner.NativeErrorCode : ex.HResult & 0xFFFF;
+        ex.InnerException is Win32Exception inner ? inner.NativeErrorCode :
+        ((uint)ex.HResult & 0xFFFF0000u) == 0x80070000u ? ex.HResult & 0xFFFF : 0;
+    private static string Reason(Exception ex, string fallback) => ex is InvalidDataException &&
+        new[] { "registry_changed", "file_changed", "directory_changed", "directory_not_empty", "personal_boundary",
+            "inventory_changed", "application_present_or_unknown", "application_running", "root_changed", "scan_budget",
+            "scan_depth", "shared_or_size_limit" }.Contains(ex.Message, StringComparer.Ordinal)
+            ? ex.Message : Error(ex) is 32 or 33 ? "sharing_violation" : Error(ex) == 6800 ? "registry_transaction_conflict" : fallback;
     internal static string Audit(ResidualAppIdentity app, string stage, string state,
         int files = 0, int folders = 0, int keys = 0, int kept = 0, int failed = 0,
         int error = 0, string reason = "none", long milliseconds = 0, bool cancelled = false) =>
@@ -165,7 +171,7 @@ internal static class IntegratedResidualCleanup
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) when (Expected(ex))
         { return new(context, [], [], [], preserved, false,
-            problems.Append(new ResidualProblem("capture", "scan_incomplete", Error(ex))).ToArray()); }
+            problems.Append(new ResidualProblem("capture", Reason(ex, "scan_incomplete"), Error(ex))).ToArray()); }
     }
 
     internal static bool ValidContext(ResidualUninstallContext context)
@@ -222,13 +228,15 @@ internal static class IntegratedResidualCleanup
         // Armar antes da consulta fecha a janela consulta -> inicio do monitor.
         using var monitor = new ResidualRegistrationMonitor();
         UninstallSnapshot? current = null;
+        long lastInventory = 0;
         async Task Guard(bool force = false)
         {
             token.ThrowIfCancellationRequested();
-            if (force || current is null || monitor.Changed)
+            if (force || current is null || monitor.Changed || clock.ElapsedMilliseconds - lastInventory >= 1500)
             {
                 monitor.Rearm();
                 current = await inventory().ConfigureAwait(false);
+                lastInventory = clock.ElapsedMilliseconds;
                 token.ThrowIfCancellationRequested();
                 if (monitor.Changed) throw new InvalidDataException("inventory_changed");
             }
@@ -265,6 +273,8 @@ internal static class IntegratedResidualCleanup
                                 throw new InvalidDataException("file_changed");
                             await Guard().ConfigureAwait(false);
                             token.ThrowIfCancellationRequested();
+                            if (InstallerFileGuard.ReadIdentity(handle) != file.Identity)
+                                throw new InvalidDataException("file_changed");
                             InstallerFileGuard.MarkResidualForDeletion(handle);
                         }
                         if (!Missing(file.Path)) throw new IOException("file_remains");
@@ -303,7 +313,7 @@ internal static class IntegratedResidualCleanup
                     bool access = ex is UnauthorizedAccessException or System.Security.SecurityException || error == 5;
                     Set(target.Id, target.Kind, access ? ResidualItemState.AccessDenied :
                         ex is InvalidDataException ? ResidualItemState.Preserved : ResidualItemState.Failed,
-                        access ? "permission_required" : ex is InvalidDataException ? "target_changed_or_unsafe" : "operation_failed", error);
+                        access ? "permission_required" : Reason(ex, ex is InvalidDataException ? "target_changed_or_unsafe" : "operation_failed"), error);
                 }
             }
             await Guard(true).ConfigureAwait(false);
@@ -329,7 +339,7 @@ internal static class IntegratedResidualCleanup
             }
         }
         catch (OperationCanceledException) { cancelled = true; problems.Add(new("delete", "cancelled")); }
-        catch (Exception ex) when (Expected(ex)) { problems.Add(new("delete", "installation_or_inventory_changed", Error(ex))); }
+        catch (Exception ex) when (Expected(ex)) { problems.Add(new("delete", Reason(ex, "installation_or_inventory_changed"), Error(ex))); }
         foreach (var target in targets.Where(t => !results.Any(r => r.Id == t.Id)))
             Set(target.Id, target.Kind, cancelled ? ResidualItemState.Cancelled : ResidualItemState.Preserved,
                 cancelled ? "cancelled" : "installation_or_inventory_changed");

@@ -24,6 +24,9 @@ internal static class IntegratedResidualBatch
         {
             token.ThrowIfCancellationRequested();
             var current = await inventory().ConfigureAwait(false);
+            foreach (var skipped in contexts.Values.Where(context => !outcomes.Any(o =>
+                o.Request.Original.InventoryId.Equals(context.App.InventoryId, StringComparison.OrdinalIgnoreCase))))
+                audit(IntegratedResidualCleanup.Audit(skipped.App, "uninstall", "skipped", reason: "not_attempted_after_pending_or_cancel"));
             foreach (var outcome in outcomes)
             {
                 var original = outcome.Request.Original;
@@ -54,6 +57,18 @@ internal static class IntegratedResidualBatch
                 audit(IntegratedResidualCleanup.Audit(plan.Context.App, "decision", consent ? "yes" : "no"));
                 results.Add(await IntegratedResidualCleanup.DeleteAsync(plan, consent, inventory, token, audit: audit).ConfigureAwait(false));
                 if (results[^1].Cancelled) break;
+            }
+            if (results.Any(r => r.Cancelled) || token.IsCancellationRequested)
+            {
+                foreach (var remaining in accepted.Where(p => !results.Any(r => r.AppId == p.Context.App.TechnicalId)))
+                {
+                    var pending = remaining.Files.Select(f => new ResidualItemResult(f.Id, "file", ResidualItemState.Cancelled, "cancelled"))
+                        .Concat(remaining.Keys.Select(k => new ResidualItemResult(k.Id, "registry", ResidualItemState.Cancelled, "cancelled")))
+                        .Concat(remaining.Directories.Select(d => new ResidualItemResult(d.Id, "directory", ResidualItemState.Cancelled, "cancelled"))).ToArray();
+                    results.Add(new(remaining.Context.App.TechnicalId, pending, remaining.Preserved, true, false, [new("batch", "cancelled")]));
+                    audit(IntegratedResidualCleanup.Audit(remaining.Context.App, "batch", "cancelled", kept: pending.Length, cancelled: true));
+                }
+                return new(results, plans.Count, false, true, unavailable);
             }
             if (!consent) return new(results, plans.Count, true, false, unavailable);
             var requests = accepted.Select(plan => new ResidualElevationRequest(plan,

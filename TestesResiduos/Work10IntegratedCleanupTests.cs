@@ -70,6 +70,7 @@ internal static class Work10IntegratedCleanupTests
             await RegistryViews(check);
             await MutationsAndCancellation(check);
             await SharingAndPrivacy(check);
+            await LinkBoundaries(check);
             await Permissions(check);
             await WireAndPerformance(check);
             IntegratedResidualPolicy.SyntheticScope = null;
@@ -313,6 +314,54 @@ internal static class Work10IntegratedCleanupTests
             key?.SetAccessControl(original);
         }
     }
+    private static async Task LinkBoundaries(Action<bool, string> check)
+    {
+        using (var f = new Fixture())
+        {
+            string target = Path.Combine(Path.GetTempPath(), "GF-W10-Link-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(target); string personal = Path.Combine(target, "settings.cfg");
+            System.IO.File.WriteAllText(personal, "LINK TARGET KEEP");
+            try
+            {
+                Directory.CreateSymbolicLink(Path.Combine(f.Root, "LinkedFolder"), target);
+                f.File("normal.cfg"); var accepted = f.Plan();
+                var result = await IntegratedResidualCleanup.DeleteAsync(accepted, true, Empty);
+                check(result.Files == 1 && System.IO.File.ReadAllText(personal) == "LINK TARGET KEEP" &&
+                    accepted.Preserved > 0 && Directory.Exists(f.Root), "W10 directory symlink is not traversed or deleted");
+            }
+            finally { Directory.Delete(Path.Combine(f.Root, "LinkedFolder")); Directory.Delete(target, true); }
+        }
+        using (var f = new Fixture((RegistryHive.CurrentUser, RegistryView.Registry64)))
+        {
+            string ownParent = f.KeyPath[..f.KeyPath.LastIndexOf('\\')];
+            string destination = @"Software\GF-W10-LinkTarget-" + Guid.NewGuid().ToString("N");
+            using (var key = Registry.CurrentUser.CreateSubKey(destination + @"\Notepad++")) key.SetValue("Marker", "REGISTRY LINK TARGET KEEP");
+            Registry.CurrentUser.DeleteSubKeyTree(ownParent, false);
+            IntPtr handle = IntPtr.Zero;
+            try
+            {
+                int created = RegCreateKeyExW(Registry.CurrentUser.Handle.DangerousGetHandle(), ownParent, 0, null,
+                    2, 0x2001F, IntPtr.Zero, out handle, out _);
+                check(created == 0, "W10 registry symbolic-link fixture created");
+                byte[] bytes = Encoding.Unicode.GetBytes(@"\Registry\User\" + WindowsIdentity.GetCurrent().User!.Value + "\\" + destination);
+                check(RegSetValueExW(handle, "SymbolicLinkValue", 0, 6, bytes, bytes.Length) == 0,
+                    "W10 registry symbolic-link target set");
+                RegCloseKey(handle); handle = IntPtr.Zero;
+                var context = f.Prepare(); var accepted = IntegratedResidualCleanup.Capture(context, new([], true));
+                var result = await IntegratedResidualCleanup.DeleteAsync(accepted, true, Empty);
+                using var kept = Registry.CurrentUser.OpenSubKey(destination + @"\Notepad++");
+                check(accepted.Keys.Count == 0 && result.Keys == 0 && (string?)kept?.GetValue("Marker") == "REGISTRY LINK TARGET KEEP",
+                    "W10 registry link in an intermediate path never authorizes target deletion");
+            }
+            finally
+            {
+                if (handle != IntPtr.Zero) RegCloseKey(handle);
+                // RegDeleteKey supprime o link, sem percorrer seu destino.
+                RegDeleteKeyW(Registry.CurrentUser.Handle.DangerousGetHandle(), ownParent);
+                Registry.CurrentUser.DeleteSubKeyTree(destination, false);
+            }
+        }
+    }
     private static async Task WireAndPerformance(Action<bool, string> check)
     {
         using var f = new Fixture();
@@ -420,4 +469,13 @@ internal static class Work10IntegratedCleanupTests
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CreateHardLinkW(string path, string existing, IntPtr security);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int RegCreateKeyExW(IntPtr key, string subkey, int reserved, string? keyClass,
+        int options, int access, IntPtr security, out IntPtr result, out int disposition);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int RegSetValueExW(IntPtr key, string name, int reserved, int type, byte[] data, int size);
+    [DllImport("advapi32.dll", ExactSpelling = true)]
+    private static extern int RegCloseKey(IntPtr key);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int RegDeleteKeyW(IntPtr key, string name);
 }

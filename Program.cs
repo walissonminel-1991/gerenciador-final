@@ -2836,7 +2836,8 @@ internal sealed partial class MainForm : Form
             foreach (var outcome in outcomes)
                 DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(outcome.Request.Original),
                     "uninstall", outcome.State.ToString(), error: outcome.Code ?? 0,
-                    reason: outcome.State == UninstallState.RegistrationAbsent ? "removal_confirmed" : "no_cleanup_authorized"));
+                    reason: outcome.DiagnosticReason.Length > 0 ? outcome.DiagnosticReason :
+                        outcome.State == UninstallState.RegistrationAbsent ? "removal_confirmed" : "no_cleanup_authorized"));
             ResidualBatchResult? cleanup = null;
             if (consent)
             {
@@ -3083,6 +3084,15 @@ internal sealed partial class MainForm : Form
     {
         // O UAC é solicitado, mas a tarefa não abre formulário/terminal próprio.
         // Mensagens trafegam apenas em memória pelo pipe nomeado desta sessão.
+        ResidualElevationResponse? ResidualUacFailure(string reason, int error = 0)
+        {
+            if (residualRequests is null) return null;
+            foreach (var request in residualRequests)
+                DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed", error: error, reason: reason));
+            return new(reason, error, []);
+        }
+        if (residualRequests is not null && cancellation.IsCancellationRequested)
+            return ResidualUacFailure("uac_cancelled");
         string pipeName = "GA5122_" + Guid.NewGuid().ToString("N");
         string token = Guid.NewGuid().ToString("N");
         using var server = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1,
@@ -3111,9 +3121,12 @@ internal sealed partial class MainForm : Form
             Log("Operação cancelada na confirmação do UAC.");
             return null;
         }
+        catch (Exception ex) when (residualRequests is not null && IntegratedResidualCleanup.Expected(ex))
+        { return ResidualUacFailure("uac_start_failed", IntegratedResidualCleanup.Error(ex)); }
         using (child)
-        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(35)))
+        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation))
         {
+            timeout.CancelAfter(TimeSpan.FromSeconds(35));
             var windowsProgress = new WindowsMaintenanceProgress();
             try { await server.WaitForConnectionAsync(timeout.Token); }
             catch (OperationCanceledException)
@@ -3122,11 +3135,12 @@ internal sealed partial class MainForm : Form
                     foreach (var request in residualRequests)
                         DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed", reason: "worker_connect_timeout"));
                 Log("Não foi possível conectar à tarefa administrativa. Verifique se o Windows ou antivírus bloqueou o programa.");
-                Status("Falha de comunicação com operação administrativa"); return null;
+                Status("Falha de comunicação com operação administrativa");
+                return ResidualUacFailure(cancellation.IsCancellationRequested ? "uac_cancelled" : "uac_connect_timeout");
             }
             // Token nao substitui a identidade do cliente informada pelo kernel.
             if (!PipePeerVerifier.IsExpectedClient(server, child.Id))
-            { Status("Conexao administrativa rejeitada: processo inesperado."); return null; }
+            { Status("Conexao administrativa rejeitada: processo inesperado."); return ResidualUacFailure("uac_peer_rejected"); }
             using var reader = new StreamReader(server, Encoding.UTF8, detectEncodingFromByteOrderMarks: true,
                 bufferSize: 4096, leaveOpen: true);
             string? handshake;
@@ -3134,10 +3148,10 @@ internal sealed partial class MainForm : Form
             {
                 try { handshake = await reader.ReadLineAsync(handshakeTimeout.Token); }
                 catch (OperationCanceledException)
-                { Status("Tempo esgotado na autenticacao da tarefa administrativa."); return null; }
+                { Status("Tempo esgotado na autenticacao da tarefa administrativa."); return ResidualUacFailure("uac_handshake_timeout"); }
             }
             if (handshake != "HELLO|" + token)
-            { Status("Falha de autenticação da tarefa administrativa"); return null; }
+            { Status("Falha de autenticação da tarefa administrativa"); return ResidualUacFailure("uac_handshake_failed"); }
             if (residualRequests is not null)
             {
                 try
@@ -3145,6 +3159,8 @@ internal sealed partial class MainForm : Form
                     foreach (var request in residualRequests)
                         DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "authorized"));
                     var response = await ResidualElevatedProtocol.ParentAsync(server, residualRequests, cancellation);
+                    foreach (var request in residualRequests)
+                        DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac_result", response.State, error: response.Error));
                     foreach (var result in response.Results)
                     {
                         var app = residualRequests.Single(r => r.Plan.Context.App.TechnicalId == result.AppId).Plan.Context.App;

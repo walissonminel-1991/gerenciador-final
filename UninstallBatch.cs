@@ -4,7 +4,8 @@ namespace GerenciadorAplicativos;
 internal sealed record UninstallRequest(ProgramEntry Original, ParsedUninstallCommand Command);
 internal sealed record UninstallSnapshot(IReadOnlyCollection<ProgramEntry> Items, bool Complete);
 internal enum UninstallState { Refused, Blocked, Cancelled, StartFailed, ProcessFailed, Pending, StillPresent, RegistrationAbsent }
-internal sealed record UninstallOutcome(UninstallRequest Request, UninstallState State, int? Code = null, string Reason = "");
+internal sealed record UninstallOutcome(UninstallRequest Request, UninstallState State, int? Code = null, string Reason = "",
+    string DiagnosticReason = "");
 
 internal sealed class UninstallBatch
 {
@@ -67,7 +68,9 @@ internal sealed class UninstallBatch
                     !MatchesRegisteredCommand(request) ||
                     (request.Command.ProductCode is not null && before.Items.Count(x =>
                         x.MsiProductCode.Equals(request.Command.ProductCode,StringComparison.OrdinalIgnoreCase)) != 1))
-                { results.Add(new(request,UninstallState.Blocked)); continue; }
+                { results.Add(new(request,UninstallState.Blocked, DiagnosticReason:
+                    !before.Complete ? "inventory_incomplete" : matching.Length != 1 || !SameRegistration(request.Original, matching[0])
+                    ? "registration_changed" : "command_or_product_mismatch")); continue; }
                 // PC FORTE: 7-Zip EXE e MSI compartilharam arquivos e a remoção
                 // da variante EXE comprometeu a instalação MSI ainda registrada.
                 // Não executar nenhuma delas isoladamente enquanto houver outra
@@ -75,7 +78,7 @@ internal sealed class UninstallBatch
                 if (request.Original.Name.StartsWith("7-Zip", StringComparison.OrdinalIgnoreCase) &&
                     before.Items.Count(other => other.Name.StartsWith("7-Zip", StringComparison.OrdinalIgnoreCase)) > 1)
                 {
-                    results.Add(new(request, UninstallState.Blocked, Reason:
+                    results.Add(new(request, UninstallState.Blocked, DiagnosticReason: "shared_editions", Reason:
                         "Há mais de uma edição do 7-Zip registrada. As instalações podem compartilhar arquivos; " +
                         "não é seguro desinstalar uma isoladamente pelo GF."));
                     continue;
@@ -84,7 +87,7 @@ internal sealed class UninstallBatch
                     !other.InventoryId.Equals(request.Original.InventoryId,StringComparison.OrdinalIgnoreCase) &&
                     SharesExeIntent(request.Command,other)))
                 {
-                    results.Add(new(request,UninstallState.Blocked,Reason:
+                    results.Add(new(request,UninstallState.Blocked,DiagnosticReason: "shared_uninstaller", Reason:
                         "Mais de um registro aponta para o mesmo desinstalador. Não é possível remover só a entrada selecionada com segurança; confira o aplicativo pelo Windows."));
                     continue;
                 }
@@ -129,10 +132,12 @@ internal sealed class UninstallBatch
                 results.Add(new(request,ex.NativeErrorCode==1223 ? UninstallState.Cancelled : UninstallState.StartFailed,ex.NativeErrorCode));
                 if(ex.NativeErrorCode==1223) break;
             }
-            catch(TimeoutException) { results.Add(new(request,UninstallState.Pending)); break; }
-            catch(OperationCanceledException) { results.Add(new(request,invoked ? UninstallState.Pending : UninstallState.Cancelled)); break; }
+            catch(TimeoutException) { results.Add(new(request,UninstallState.Pending, DiagnosticReason: "provider_timeout")); break; }
+            catch(OperationCanceledException) { results.Add(new(request,invoked ? UninstallState.Pending : UninstallState.Cancelled,
+                DiagnosticReason: "cancelled")); break; }
             catch(Exception ex) when(ex is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or System.Security.Cryptography.CryptographicException)
-            { results.Add(new(request,invoked ? UninstallState.Pending : UninstallState.Blocked)); }
+            { results.Add(new(request,invoked ? UninstallState.Pending : UninstallState.Blocked,
+                ex.HResult, DiagnosticReason: "uninstall_validation_or_inventory_failure")); }
             // Um processo filho pode continuar trabalhando depois do lancador.
             // Nao sobrepor outro desinstalador quando a conclusao e desconhecida.
             if(results.LastOrDefault()?.State==UninstallState.Pending) break;

@@ -30,7 +30,7 @@ internal static class PipePeerVerifier
             using (token)
             using (var owner = new WindowsIdentity(token.DangerousGetHandle()))
             using (var current = WindowsIdentity.GetCurrent())
-                if (owner.User != current.User) { reason = "uac_account_changed"; return false; }
+                if (!Equals(owner.User, current.User)) { reason = "uac_account_changed"; return false; }
             string? path = parent.MainModule?.FileName;
             string? self = Environment.ProcessPath;
             // No host dotnet.exe, a igualdade de host nao autentica o assembly.

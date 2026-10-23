@@ -15,6 +15,27 @@ internal static class ResidualRegistryGuard
     internal static RegistryKey? Open(RegistryKey parent, string child, RegistryView view,
         SafeFileHandle? transaction = null, bool writable = false)
     {
+        var parts = child.Split('\\');
+        if (parts.Any(p => p.Length == 0 || p is "." or "..")) throw new InvalidDataException("registry_path");
+        RegistryKey? current = null;
+        try
+        {
+            for (int i = 0; i < parts.Length; i++)
+            {
+                var next = OpenSingle(current ?? parent, parts[i], view, transaction, writable && i == parts.Length - 1);
+                current?.Dispose(); current = next;
+                if (current is null) return null;
+                if (current.GetValueNames().Contains("SymbolicLinkValue", StringComparer.OrdinalIgnoreCase))
+                    throw new InvalidDataException("registry_link");
+            }
+            var result = current; current = null; return result;
+        }
+        finally { current?.Dispose(); }
+    }
+
+    private static RegistryKey? OpenSingle(RegistryKey parent, string child, RegistryView view,
+        SafeFileHandle? transaction, bool writable)
+    {
         int rights = Read | (int)view | (writable ? Write | DeleteRight : 0);
         int error = transaction is null
             ? RegOpenKeyExW(parent.Handle, child, 8, rights, out var handle)
