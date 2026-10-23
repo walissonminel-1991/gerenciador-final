@@ -24,12 +24,15 @@ internal sealed class UninstallBatch
             }
             seen.Add(app.InventoryId,app);
             ParsedUninstallCommand? parsed=null;
-            foreach(string command in new[]{app.UninstallString,app.QuietUninstallString})
+            // O valor QuietUninstallString do Registro deve preceder UninstallString:
+            // a ordem antiga abria a GUI do Notepad++ mesmo com /S registrado.
+            // Rejeitar comandos quiet que apontam para outro executavel/produto.
+            foreach(string command in new[]{app.QuietUninstallString,app.UninstallString})
                 if(MaintenanceAudit.CheckUninstaller(command,false)=="available" &&
-                    UninstallCommand.TryParse(command,out var candidate) && BoundToProduct(candidate,app))
+                    UninstallCommand.TryParse(command,out var candidate) && BoundToProduct(candidate,app) &&
+                    (!string.Equals(command, app.QuietUninstallString, StringComparison.Ordinal) ||
+                        SilentUninstallPolicy.RegisteredQuietMatchesProduct(app, candidate)))
                 {
-                    // Preferir silêncio somente quando um contrato local estrito
-                    // aprova a derivação do comando. Nunca executar flags remotas.
                     parsed = SilentUninstallPolicy.TrySelect(app, candidate, out var silent)
                         ? silent : candidate;
                     break;
