@@ -3131,10 +3131,23 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write($"RESIDUOS_7ZIP_RECUPERACAO completa={scoped7zip.Complete} " +
             $"arquivos={scoped7zip.Files.Count} pastas={scoped7zip.Directories.Count} " +
             $"chaves={scoped7zip.Registry.Count}");
+        // Perfis exclusivos previamente desinstalados: varredura independente da
+        // cobertura geral. Estado completo apenas para os ALVOS específicos.
+        var scopedSmallReports = new List<ResidualAuditReport>();
+        foreach (string product in new[] { "Notepad++", "SumatraPDF" })
+        {
+            var scoped = await Task.Run(() => SmallAppResidualCleanup.Capture(
+                product, !inventoryIncomplete, updatedInventory, token), token);
+            var ownReport = SmallAppResidualCleanup.Report(scoped);
+            if (ownReport is not null) scopedSmallReports.Add(ownReport);
+            DiagnosticTrace.Write($"RESIDUOS_APLICATIVO_PROPRIO tipo={(product == "Notepad++" ? "npp" : "sumatra")} " +
+                $"completo={scoped.Complete} arquivos={scoped.Files.Count} " +
+                $"pastas={scoped.Directories.Count} chaves={scoped.Keys.Count}");
+        }
         // Unir todas as fontes por produto/local, preservando motivos divergentes.
         var allReports = ResidualReportMerger.Merge(historical.Concat(boosterReports).Concat(winMergeReports)
             .Concat(notepadReports).Concat(foobarReports).Concat(scoped7zipReports)
-            .Concat(broad.Reports), inventoryIncomplete || broad.Incomplete,
+            .Concat(scopedSmallReports).Concat(broad.Reports), inventoryIncomplete || broad.Incomplete,
             ResidualCoverage.Combine(new[] { broad.Coverage, historical.Coverage }));
         var coverage = allReports.Coverage;
         // Apenas códigos de origens conhecidas, contagens e flags. Sem caminhos.
