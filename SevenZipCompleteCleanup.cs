@@ -42,6 +42,11 @@ internal static class SevenZipCompleteCleanup
             command.FileName.Equals(Path.Combine(dir, "Uninstall.exe"), StringComparison.OrdinalIgnoreCase);
     }
 
+#if GF_PROGRESSIVE
+    // Disponivel apenas no assembly de testes. Jamais compila no aplicativo publicado.
+    internal static string[]? SyntheticRoots;
+#endif
+
     internal static bool NoSevenZipRegistrations(IEnumerable<ProgramEntry> current) =>
         !current.Any(p => Regex.IsMatch(p.Name,
             @"^7-Zip(?:\s|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
@@ -50,12 +55,18 @@ internal static class SevenZipCompleteCleanup
         !new[] { "7zFM", "7zG", "7z", "7za", "7zr" }
             .Any(name => Process.GetProcessesByName(name).Length != 0);
 
-    private static IReadOnlyList<string> Roots() =>
-    [
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip"),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "7-Zip"),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "7-Zip")
-    ];
+    private static IReadOnlyList<string> Roots()
+    {
+#if GF_PROGRESSIVE
+        if (SyntheticRoots is not null) return SyntheticRoots;
+#endif
+        return
+        [
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "7-Zip"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "7-Zip")
+        ];
+    }
 
     internal static SevenZipCleanupPlan Capture(ProgramEntry previous, bool inventoryComplete,
         IEnumerable<ProgramEntry> current, CancellationToken cancel = default)
@@ -112,6 +123,9 @@ internal static class SevenZipCompleteCleanup
                     }
                 }
             }
+#if GF_PROGRESSIVE
+            if (SyntheticRoots is null)
+#endif
             foreach (RegistryHive hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
             {
                 cancel.ThrowIfCancellationRequested();
@@ -173,6 +187,8 @@ internal static class SevenZipCompleteCleanup
                         null => "",
                         _ => throw new InvalidDataException("Tipo de valor inesperado")
                     };
+                    if (content.Length > 1024 * 1024 || builder.Length + content.Length > 8 * 1024 * 1024)
+                        throw new InvalidDataException("Valor grande demais");
                     builder.Append("V:").Append(name).Append(':').Append(node.GetValueKind(name))
                         .Append(':').Append(content.Length).Append(':').Append(content).Append('\n');
                 }
