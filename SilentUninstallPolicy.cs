@@ -39,7 +39,7 @@ internal static class SilentUninstallPolicy
 
     internal static bool IsExactSevenZipExe(ProgramEntry app)
     {
-        if (!Regex.IsMatch(app.Name, @"^7-Zip\\s+\\d+\\.\\d{1,2}\\s+\\(x64\\)$",
+        if (!Regex.IsMatch(app.Name, @"^7-Zip\s+\d+\.\d{1,2}\s+\(x64\)$",
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) ||
             !app.Publisher.Equals("Igor Pavlov", StringComparison.OrdinalIgnoreCase) ||
             !app.InventoryId.Equals("LocalMachine|Registry64|7-Zip",
