@@ -63,6 +63,10 @@ internal static class Work9UpdateTests
             var msi = Sumatra("msiexec.exe /X{00000000-0000-0000-0000-000000000092}");
             check(!VerifiedUpdaters.SingleSafeSilentInstallation(sumRecipe, msi, [msi]),
                 "W9-U5 comando MSI sem campo ProductCode nao autoriza substituir pelo EXE");
+            File.WriteAllBytes(exe, []);
+            check(VerifiedUpdaters.Resolve(app) is null && !VerifiedUpdaters.BinaryVersionAtLeast(exe, "3.6.1"),
+                "W9-U6 binario vazio recusa receita e confirmacao sem excecao inesperada");
+            WritePe(exe, x64: true);
             string moved = folder + ".GF-W9-" + Guid.NewGuid().ToString("N");
             Directory.Move(folder, moved);
             try

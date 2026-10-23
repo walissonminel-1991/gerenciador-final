@@ -447,7 +447,7 @@ internal static class VerifiedUpdaters
             stream.Position = offset;
             return reader.ReadUInt32() == 0x00004550 ? reader.ReadUInt16() : (ushort)0;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return 0; }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException) { return 0; }
     }
 
     // Testável sem precisar escrever no Registro do Windows.
@@ -567,7 +567,7 @@ internal static class VerifiedUpdaters
             return TryVersion(FileVersionInfo.GetVersionInfo(path).FileVersion, out var actual) &&
                 TryVersion(expected, out var target) && actual >= target;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
         { return false; }
     }
 
