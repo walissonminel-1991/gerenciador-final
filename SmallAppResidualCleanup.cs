@@ -69,7 +69,9 @@ internal static class SmallAppResidualCleanup
                 return $"Foi encontrada {snapshot.Keys.Count} chave(s) exclusiva(s) de Registro. " +
                     $"O Windows não concedeu acesso de escrita à chave-pai em {location} ({view}) " +
                     "nesta sessão. Não serão repetidas tentativas de exclusão sem essa permissão. " +
-                    "Os resíduos permanecem preservados; o GF não eleva privilégios nem altera ACLs. " +
+                    "Você pode optar por fechar o GF e abri-lo com 'Executar como administrador' " +
+                    "para autorizar a limpeza pelo próprio GF, sem comandos manuais. " +
+                    "Os resíduos permanecem preservados; o GF não altera permissões do Windows. " +
                     "A consulta não comprova que o aplicativo está instalado.";
             }
         }
