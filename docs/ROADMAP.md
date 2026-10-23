@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.49 TESTE — WORK9 parte 2 em validação de CI.** Consolidação do pacote, regressões e documentação, sem novo checkpoint. [Relatório da Parte 2](MISSAO-WORK9-PARTE2.md) e [roteiro físico vigente](TESTE-CONSOLIDADO.md). U8/R7/R4 permanecem abertos; progresso 27/42.
+**v5.13.11.49 TESTE — WORK9 parte 2 aprovada na [CI 39987151553](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553), fonte dba59231.** Pacote x64 com 280 hashes conferidos; consolidação e regressões sem novo checkpoint. [Relatório da Parte 2](MISSAO-WORK9-PARTE2.md) e [roteiro físico vigente](TESTE-CONSOLIDADO.md). U8/R7/R4 permanecem abertos; progresso 27/42.
 
 ### Última validação anterior — Parte 1
 

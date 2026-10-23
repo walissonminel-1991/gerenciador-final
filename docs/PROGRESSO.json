@@ -1,9 +1,9 @@
 {
   "version": "5.13.11.49 TESTE",
   "date": "2026-10-23",
-  "code_commit": "2458e5c0edfe9928e7a428f25600d42ccfdea6ac",
-  "ci_status": "pending",
-  "ci_url": null,
+  "code_commit": "dba59231b8a8d3d3c2d075a7b794c5817136cdc3",
+  "ci_status": "success",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -338,8 +338,8 @@
       "native_store_partial": true
     }
   },
-  "build_url": null,
-  "policy_url": null,
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
@@ -356,7 +356,24 @@
     "merge_sha": "8656bb1edc3103e4df33dd2fe210456f13e6b219",
     "authenticode_signed": false
   },
-  "artifact": null,
+  "artifact": {
+    "name": "GerenciadorFinal-v5.13.11.49-dba59231-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553/artifacts/12516227552",
+    "source_commit": "dba59231b8a8d3d3c2d075a7b794c5817136cdc3",
+    "merge_commit": "a88af1db245f302da8973d227ff5673ce51a62dc",
+    "base_commit": "410d65e23546976db456337c71e4705f10217d36",
+    "zip_sha256": "abcb3e228ab2f02197c57c247956d51afc834cfdf4a5d8a742190940ee569fc8",
+    "zip_bytes": 58986440,
+    "expanded_bytes": 151369624,
+    "files": 281,
+    "verified_hashes": 280,
+    "file_version": "5.13.11.49",
+    "architecture": "AMD64",
+    "self_contained": true,
+    "signed": false,
+    "avg_validated": false,
+    "expires_at": "2026-10-30T16:33:28Z"
+  },
   "mission_work5": {
     "status": "Código final e três Actions aprovados; ZIP conferido sem executar; testes físicos pendentes",
     "winget_real_enabled": false,
@@ -430,8 +447,8 @@
     ],
     "progress": "27/42"
   },
-  "artifact_url": null,
-  "artifact_name": null,
+  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553/artifacts/12516227552",
+  "artifact_name": "GerenciadorFinal-v5.13.11.49-dba59231-TESTE-win-x64",
   "historical_artifact_work5": {
     "id": 12388392363,
     "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
@@ -546,13 +563,15 @@
     "executed_locally": false
   },
   "mission_work9_part2": {
-    "status": "implementation_complete_ci_pending",
+    "status": "ci_and_independent_package_verified_physical_validation_pending",
     "report": "docs/MISSAO-WORK9-PARTE2.md",
     "baseline": "473a9558c33d12a3ce29c1ac51a6aed8730414ef",
     "implementation_commits": [
       "68ba7824c6508aa6c28c92918055fdee9e2dba7a",
       "6df8479ec4990b291e1ba1019f65c30a46054ef6",
-      "2458e5c0edfe9928e7a428f25600d42ccfdea6ac"
+      "2458e5c0edfe9928e7a428f25600d42ccfdea6ac",
+      "2411e7ffcd4fdde16bef085cfb4fe46d62fff800",
+      "dba59231b8a8d3d3c2d075a7b794c5817136cdc3"
     ],
     "tracked_before": {
       "files": 254,
@@ -566,6 +585,45 @@
     },
     "completed_checkpoints": 27,
     "progress": "27/42",
-    "real_pc_operations_performed": false
+    "real_pc_operations_performed": false,
+    "validated_head": "dba59231b8a8d3d3c2d075a7b794c5817136cdc3",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553",
+    "tracked_after": {
+      "files": 251,
+      "bytes": 2778518
+    },
+    "package_verified": true,
+    "remote_branches_tags_releases_deleted": false,
+    "ci_seconds": {
+      "before": {
+        "regression": 188,
+        "build": 78,
+        "policy": 4
+      },
+      "after": {
+        "regression": 188,
+        "build": 73,
+        "policy": 7
+      }
+    },
+    "native_validation": {
+      "updates": 148,
+      "multi_source": 159,
+      "residue_uninstall": 527,
+      "msix": 47,
+      "safe_close": 30,
+      "mutations": 10,
+      "layout_combinations": 132,
+      "ui_scenarios": 22,
+      "tray_cycles": 12,
+      "work9_checks_included_not_additive": 42
+    },
+    "pending": [
+      "U8/R7/R4 physical homologation",
+      "live sources/downloads in this round",
+      "integral native dark theme",
+      "physical RAM/CPU/disk/startup measures",
+      "registry mutation atomicity"
+    ]
   }
 }

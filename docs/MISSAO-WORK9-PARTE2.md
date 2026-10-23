@@ -20,16 +20,25 @@ sequência reservada para esta candidata: **5.13.11.49 TESTE**.
 
 | Problema | Evidência/causa | Correção e validação |
 | --- | --- | --- |
-| Portátil sem licença GF, avisos de runtime, privacidade e guia (média) | ZIP anterior tem 274 arquivos; o verificador novo reprova sete ausências obrigatórias | Publish inclui sete documentos/avisos, três copiados dos próprios packs resolvidos. Cross-publish local passou 281 arquivos/280 hashes; validação Windows desta candidata ainda será registrada abaixo. |
+| Portátil sem licença GF, avisos de runtime, privacidade e guia (média) | ZIP anterior tem 274 arquivos; o verificador novo reprova sete ausências obrigatórias | Publish inclui sete documentos/avisos, três copiados dos próprios packs resolvidos. Cross-publish local e pacote final Windows passaram: 281 arquivos/280 hashes. O ZIP baixado também foi conferido independentemente, sem executar o EXE. |
 | Conferência do pacote limitada a hashes gerados no mesmo job (média) | Não havia teste independente da cobertura exata, composição e origem do portátil | Verificador de leitura sem execução exige SHA de fonte/base/merge, versão, PE AMD64, self-contained, licenças e cobertura exata do manifesto. Onze testes adversariais incluem corrupção, omissão/extra, traversal, duplicata, certificado acidental, arquitetura e origem erradas. |
 | README e organização davam instruções antigas (média) | Apontavam .42/.35 e afirmavam exclusão integralmente indisponível, embora existissem pilotos restritos posteriores | Estado corrente, pesquisa geral somente leitura, pilotos e homologação pendente separados; roteiro único para o próximo teste. Privacidade consolidada sem mudar consentimento/armazenamento. |
 | Leitores antigos mantinham caminhos paralelos (baixa/manutenção) | IntegratedSystemReader.Processes/StartupEntries/WindowsUpdate sem chamadas diretas ou por reflexão; somente Computer é usado por DetailedHardware | Retiradas 168 linhas, interop de serviço e imports exclusivos; arquivo 257→89 linhas. Compilação com analisadores sem avisos/erros. Leituras atuais permanecem em RAM/StartupManager/WindowsUpdateClient. |
 | Repetição de cenários na CI (custo/manutenção) | WORK9 rodava em três modos focados e novamente nas suítes; prévia WORK6 duplicada; testes Node repetidos no Windows e política Ubuntu | Suítes completas continuam obrigatórias, mutações preservadas, benchmark reutiliza build. Modos focados permanecem disponíveis. Concurrency de reutilizáveis inclui nome do chamador para não cancelar uma execução manual independente. |
 
-Commits da implementação: `68ba7824` (leitores), `6df8479e` (pacote, versão e
-verificador), `2458e5c0` (CI). Commits de consolidação e fechamento serão
-registrados após a revisão final. A candidata ainda não está aprovada nesta
-versão inicial do relatório; resultado efetivo da CI abaixo prevalece.
+Commits temáticos (todos filhos do HEAD inicial, sem rollback):
+
+| Commit | Arquivos e finalidade |
+| --- | --- |
+| `68ba7824` | IntegratedSystemPanel.cs: três leitores sem uso, imports e interop exclusivo |
+| `6df8479e` | GerenciadorAplicativos.csproj, app.manifest, global.json, build-windows.yml, avisos de terceiros, verificador e seus testes: candidata .49 e pacote |
+| `2458e5c0` | validar-candidata-windows.yml e triagem-diagnostico-github.yml: deduplicação e concorrência |
+| `2411e7ff` | README, CHANGELOG, PRIVACY, SECURITY, CONTRIBUTING, gitignore e documentação: nove consolidações, referências, roteiro, organização e benchmark compacto |
+| `dba59231` | PRIVACY.md, verificar_pacote.py, test_pacote.py e registros: links válidos no portátil e teste adversarial |
+
+Fonte final aprovada: **dba59231b8a8d3d3c2d075a7b794c5817136cdc3**.
+O fechamento documental posterior modifica somente README, roadmap/progresso e
+este relatório; não altera fontes, workflows, manifesto ou documentos distribuídos.
 
 Antes do fechamento, a revisão do portátil detectou links relativos de privacidade
 para documentos ausentes no ZIP. Um teste novo reproduziu duas aceitações
@@ -70,7 +79,11 @@ nessa categoria é contabilizada. As 50 exclusões de missões anteriores não
 entram nestes números. Não houve rewrite, force push, merge, remoção de branch,
 tag, release, run ou artefato remoto.
 
-Contagem e tamanho finais serão fechados no checkpoint após a CI.
+Contagem final desta missão: **251 arquivos / 2.778.518 bytes** na árvore
+versionada, contra 254 / 2.780.038. Redução líquida de três arquivos e
+1.520 bytes. O total inclui os novos verificadores, licenças/índice e este
+relatório: não confundir bytes líquidos com os 39.974 bytes poupados isoladamente
+no JSON. O armazenamento do histórico Git não foi reduzido nem reescrito.
 
 ## GitHub Actions e regressões
 
@@ -92,9 +105,43 @@ cross-publish win-x64 self-contained, 29 testes Python aprovados (18 políticas 
 de benchmark e reprodução negativa no ZIP anterior. Cross-publish foi uma
 árvore de trabalho editada e não é artefato distribuído nem teste Windows nativo.
 
-**CI da .49: pendente nesta gravação inicial.** Só fornecer o link de pacote após
-regressões, política, publish e conferência independente do ZIP final aprovados.
-Jobs externos ignorados não serão apresentados como fontes ao vivo aprovadas.
+**CI da .49 aprovada:** [run 39987151553](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553), fonte dba59231; política 120529235838,
+regressão 120529235636 e build 120530720736, todos success. O run inicial
+39986611985 foi cancelado pela correção posterior dos links; não é usado como
+validação final. Atestação main-only e jobs de fontes/downloads externos ficaram
+skipped, conforme sua condição; não se afirma que fontes ao vivo foram testadas.
+
+| Execução | Evidência efetiva |
+| --- | --- |
+| Windows: atualizador / multifontes / catálogo | 148/148, 159/159 e 17/17; modos focados já incluídos, sem contagem dupla |
+| Windows: matching e identidade | 20/20 do motor e 18 controles de identidade |
+| Windows: resíduos/desinstalação | 527/527, incluindo Registro HKCU/HKLM e Registry32/Registry64, folha/irmã e isolamento HKLM de mesmo caminho |
+| Windows: MSIX / fechamento | 47/47 e 30/30; nenhum processo real encerrado |
+| Controles negativos | 10/10 mutações rejeitadas por asserções pertinentes, não por erro de compilação |
+| UI Windows | 132 combinações de resolução/aba, 22 cenários, DPI 100/125/150/200%, 12 ciclos de bandeja com HWND estável (578 ms no runner) |
+| Demais regressões Windows | Segurança/WSC, drivers/WMI somente leitura, privacidade e diagnóstico local aprovados |
+| Política Ubuntu | 29/29 Python (18 políticas + 11 pacote), 167 arquivos-fonte examinados e 10/10 testes Node |
+| Publish e conferência externa ao runner | Manifesto Win32 .49/ativação SxS, metadados FileVersion de EXE e DLL .49, 281 arquivos e 280 hashes; runtime .NET/WindowsDesktop 10.0.13, AMD64, manifesto asInvoker |
+
+Os 42 controles da Parte 1 passaram novamente dentro dessas suítes. A inspeção
+visual das capturas atuais de 1280×720/1440×900 e do modal de resíduos confirmou
+conteúdo escuro e ações acessíveis; a moldura nativa e setas de combos continuam
+claras no Server 2022, portanto o requisito de escuro integral não foi declarado
+concluído. A indisponibilidade transitória do ambiente local foi superada; o ZIP
+final foi baixado e verificado antes do encerramento, sem execução.
+
+**Artefato aprovado somente para TESTE:**
+[GerenciadorFinal-v5.13.11.49-dba59231-TESTE-win-x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553/artifacts/12516227552),
+retenção até 30/10/2026 16:33:28 UTC. Fonte dba59231; merge sintético testado
+`a88af1db245f302da8973d227ff5673ce51a62dc`; base 410d65e2. O digest do ZIP
+baixado é idêntico ao digest informado pelo upload/GitHub:
+
+```text
+abcb3e228ab2f02197c57c247956d51afc834cfdf4a5d8a742190940ee569fc8
+```
+
+O EXE não foi executado no ambiente local; a conferência leu PE, metadados,
+manifesto, conteúdo e hashes. CI aprovada não homologa AVG nem os PCs pessoais.
 
 ## Desempenho e composição
 
@@ -122,10 +169,20 @@ ocupava 1.311.744 bytes de DLL. A adição de avisos aumenta ligeiramente o paco
 não se promete redução de megabytes sacrificando o runtime completo.
 
 CI baseline: regressão Windows **188 s**, publicação **78 s**, política **4 s**
-(run 39980934418). Novos tempos serão registrados como observação de runners,
-não benchmark causal: carga e caches das VMs podem variar. Não houve medição
+(run 39980934418). Nesta revisão: regressão **188 s** (sem ganho observado), publicação **73 s** e
+política **7 s**. São observações de runners, não benchmark causal; carga e caches
+das VMs variam. A redução de duplicações diminuiu invocações de dotnet run de 16
+para 12 no job principal, sem remover asserções, mas não foi traduzida em promessa
+de aceleração. Não houve medição
 física nova de startup, inventário/rede, RAM, CPU ou disco no PC FORTE/FRACO.
 Não se atribui ganho a esses indicadores sem medir.
+
+Comparação final do pacote: ZIP **58.986.440 bytes** (+18.459), extraído
+**151.369.624 bytes** (+83.978), **281 arquivos** (+sete documentos/avisos).
+A DLL própria caiu de 1.311.744 para **1.304.064 bytes** (−7.680) após retirar
+código sem uso. Isso reduz IL distribuído; não prova menor RAM ou startup.
+O aumento líquido do portátil é explicado pelos documentos/avisos adicionados,
+sem trocar o runtime completo por dependência externa.
 
 ## Estado do produto e limites para distribuição
 
@@ -152,8 +209,21 @@ AppServices; separação ampla foi evitada porque exigiria nova rodada funcional
 
 ## Checkpoint de retomada
 
-Implementação e limpeza locais prontas para revisão; CI e ZIP final ainda a
-conferir. Próxima ação: publicar os commits na branch experimental, aguardar as
-três validações obrigatórias e registrar o SHA final/run/artefato/digest aqui e
-na PR. Se falhar, não apresentar a candidata como aprovada. Sem operações nos
-PCs pessoais e sem mudança na main.
+Fonte/último commit validado: **dba59231b8a8d3d3c2d075a7b794c5817136cdc3**,
+CI 39987151553 success, pacote .49 com digest e 280 hashes conferidos. O HEAD de
+fechamento documental é registrado na PR #40; diff posterior restrito a
+README/ROADMAP/PROGRESSO/este relatório. Main preservada em 410d65e2.
+
+Concluído: preservação das correções da Parte 1, cinco commits temáticos,
+consolidação de nove registros, leitores mortos removidos, pacote/licenças/links,
+CI sem duplicações de cenários e validação x64 real no runner. Nenhuma correção
+parcial de produto está apresentada como pronta. Refatoração ampla de Program,
+fontes/downloads ao vivo nesta rodada, escuro nativo integral e medições físicas
+continuam pendentes, explicitamente separados da aprovação técnica de TESTE.
+
+Próxima ação exata: no workflow validar-candidata-windows, executar manualmente
+verificar_fontes_reais e verificar_downloads sem executar instaladores; depois
+seguir o roteiro de consultas comparáveis nos dois PCs e homologar U8/R7/R4 em
+VM descartável antes de ampliar uso. Riscos para distribuição estável: Registro
+externamente alterado sem transação atômica, cobertura geral parcial, falta de
+homologação física e antivírus/assinatura. Não fazer merge nem release estável.

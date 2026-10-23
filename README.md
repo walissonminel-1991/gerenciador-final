@@ -4,7 +4,7 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Candidata em validação:** v5.13.11.49 TESTE — MISSÃO WORK 9. Preserva as 13 correções da Parte 1 e consolida a distribuição, CI e documentação. A [auditoria da Parte 1](docs/MISSAO-WORK9-PARTE1.md) registra reproduções, correções e CI; a [consolidação da Parte 2](docs/MISSAO-WORK9-PARTE2.md) registra o pacote, a faxina e as limitações. O resultado da candidata será atualizado após a CI desta revisão. Sem release estável, assinatura ou homologação AVG.
+**Candidata aprovada na CI para TESTE:** v5.13.11.49 — MISSÃO WORK 9, fonte `dba59231`. [CI Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553) · [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553/artifacts/12516227552), com 280 hashes e digest do ZIP conferidos. Preserva as 13 correções da [Parte 1](docs/MISSAO-WORK9-PARTE1.md) e consolida pacote, CI e documentação na [Parte 2](docs/MISSAO-WORK9-PARTE2.md). Homologação física pendente; sem release estável, assinatura ou aprovação AVG. Artefato temporário com retenção até 30/10/2026.
 
 **Estado atual:** [roadmap 27/42](docs/ROADMAP.md) · [organização](docs/ORGANIZACAO-REPOSITORIO.md) · [roteiro físico vigente](docs/TESTE-CONSOLIDADO.md) · [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). U8, R7 e R4 continuam abertos. A busca geral de resíduos é parcial e somente leitura; há pilotos de limpeza específica para Notepad++, SumatraPDF e 7-Zip, com prévia, consentimento e revalidação. Configurações próprias exigem revisão separada. MSIX pode ficar parcial com falhas COM; ausência numa consulta incompleta não comprova desinstalação.
 
