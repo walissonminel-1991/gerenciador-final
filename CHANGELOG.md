@@ -1,3 +1,13 @@
+## v5.13.11.48 TESTE — limpeza específica Notepad++/SumatraPDF e atualização silenciosa
+
+- Capturas PC FORTE: Notepad++ apresentou três vestígios históricos; SumatraPDF não apareceu na busca geral parcial, o que NÃO comprova ausência; IObit mostrou 41 registros de desinstalação e 2977 supostos arquivos desnecessários, incluindo instalações ativas e pastas compartilhadas do Windows. Nenhum item do IObit foi automaticamente autorizado.
+- Investigação específica independente para Notepad++ e SumatraPDF após inventário íntegro e ausência de toda a família instalada. Verificação de pastas próprias em AppData e Program Files e de chaves específicas em HKCU e HKLM (32/64 bits). Links, hardlinks, caminhos externos, limites excedidos, processo ativo e executável ainda presente bloqueiam limpeza.
+- Janela de revisão rolável mostra TODOS os alvos; exclusão requer autorização explícita e revalidação por SHA-256/Registro e inventário. Pastas só são removidas vazias. Rastros compartilhados (MuiCache/HKCR/Packages), perfis de outros usuários e Documentos/Downloads/Imagens/Músicas permanecem fora.
+- Atualização silenciosa via instaladores locais verificados e fixados: Notepad++ EXE x64 `/S` (maiúsculo, conforme documentação oficial) e SumatraPDF `-install -silent`, mantendo `-all-users` se aplicável. Evita encerramento forçado e bloqueia edições MSI ou múltiplas instalações. OBS continua interativo.
+- Corrige transição de Inicialização para Windows Update: limpa os cartões anteriores imediatamente e impede conclusão tardia da consulta de Inicialização de renderizar na aba Windows Update.
+- Testes sintéticos: limpeza segura de diretório descartável, recusa por variação do conteúdo, bloqueio de aplicativo instalado, recusa de parâmetros adulterados e instalações sobrepostas. Nenhuma instalação/desinstalação real pelo CI.
+- **Não utilizar no PC FORTE até políticas, testes Windows e pacote x64 estarem aprovados.** Antes da instalação de versões antigas, a limpeza autorizada deve ser verificada após reinicialização.
+
 ## v5.13.11.47 TESTE — Conciliação de resultados depois da limpeza residual
 
 - Evidência real PC FORTE 23/10/2026: a DLL e pasta de 7-Zip desapareceram após reinício; limpeza de Registro precisou de duas autorizações, na primeira 1 chave removida e erro `registro_caminho_invalido_win32_87`; na segunda 1 chave removida sem falhas e conferência específica final 0 arquivos, 0 pastas, 0 chaves.
