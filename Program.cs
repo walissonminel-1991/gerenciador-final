@@ -2628,6 +2628,17 @@ internal sealed partial class MainForm : Form
             Log("7-Zip: atualização não iniciada; confirme a instalação EXE x64 única e íntegra.");
             return;
         }
+        if (recipe.Identifier == "notepadpp-x64-8.9.8.1" ||
+            recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
+        {
+            var current = await Task.Run(AppServices.GetInstalledPrograms);
+            if (!VerifiedUpdaters.SingleSafeSilentInstallation(recipe, entry, current))
+            {
+                Status("Instalação ambígua ou incompatível com atualização silenciosa. Dados preservados.");
+                Log("Atualização silenciosa bloqueada: edição MSI/EXE divergente, outro registro ou pasta não validada.");
+                return;
+            }
+        }
         // O clique explícito em "Atualizar" autoriza preparar a atualização escolhida.
         // Sem caixa de diálogo redundante. UAC e janelas legítimas dos instaladores continuam.
         Status("Atualizando " + recipe.ProductName + ": preparando instalador oficial verificado...");
@@ -2683,6 +2694,7 @@ internal sealed partial class MainForm : Form
                         if (!_installed.Contains(entry) || VerifiedUpdaters.Resolve(entry) != recipe) return false;
                         var current = await Task.Run(AppServices.GetInstalledPrograms);
                         return VerifiedUpdaters.SameInstallationForUpdate(entry, current) &&
+                            VerifiedUpdaters.SingleSafeSilentInstallation(recipe, entry, current) &&
                             (recipe.Identifier != "sevenzip-exe-x64-26.05" ||
                              VerifiedUpdaters.SingleSevenZipRegistration(entry, current));
                     },
