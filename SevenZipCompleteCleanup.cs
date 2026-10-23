@@ -223,6 +223,9 @@ internal static class SevenZipCompleteCleanup
             "\n\nArquivos: " + plan.Files.Count + " · Bytes: " + plan.TotalBytes +
             "\nChaves próprias do Registro: " + string.Join(", ", plan.Registry.Select(x =>
                 (x.Hive == RegistryHive.LocalMachine ? "HKLM" : "HKCU") + @"\Software\7-Zip")) +
+            "\n\nARQUIVOS EXATOS NA PRÉVIA:\n" +
+            string.Join("\n", plan.Files.OrderBy(x => x.Path, StringComparer.OrdinalIgnoreCase)
+                .Select(x => x.Path + " (" + x.Size + " bytes)")) +
             "\n\nNÃO remove Downloads, Documentos, Imagens, Músicas, dados em outros discos " +
             "ou o cadastro interno do Windows Installer.\n" +
             "Falha de permissões ou mudança desde a prévia preservará os itens restantes.";
