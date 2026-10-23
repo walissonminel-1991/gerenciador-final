@@ -22,6 +22,7 @@ internal sealed class ResidualExplorerDialog : Form
     private readonly ModernButton cancel = Button("Cancelar", "ResidualCancel", 86);
     private readonly ModernButton inspect = Button("Inspecionar local", "ResidualInspect", 150);
     private readonly ModernButton cleanFoobar = Button("Por que preservar?", "ResidualCleanFoobar", 160);
+    private readonly ModernButton cleanSevenZip = Button("Limpar 7-Zip", "ResidualCleanSevenZip", 145);
     private readonly Label pageLabel = new() { Width = 110, Height = 32, TextAlign = ContentAlignment.MiddleCenter };
     private readonly Label locationLabel = new() { Width = 74, Height = 30, TextAlign = ContentAlignment.MiddleCenter };
     private readonly ModernButton locationPrevious = Button("Locais ‹", "ResidualLocationPrevious", 75);
@@ -35,7 +36,7 @@ internal sealed class ResidualExplorerDialog : Form
     private readonly System.Windows.Forms.Timer debounce = new() { Interval = 220 };
     private readonly Dictionary<int, string> selections = new();
     private int generation, locationPage;
-    private bool binding, resourcesDisposed;
+    private bool binding, resourcesDisposed, sevenZipCleaned;
     private string criteria = "";
     private ResidualAuditReport? selectedReport;
     private ResidualInspectionSession? inspection;
@@ -88,6 +89,7 @@ internal sealed class ResidualExplorerDialog : Form
         locationBar.Controls.AddRange([locationPrevious, locationLabel, locationNext, back]); right.Controls.Add(locationBar, 0, 2);
         var inspectBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
         inspectBar.Controls.Add(inspect); inspectBar.Controls.Add(cleanFoobar);
+        inspectBar.Controls.Add(cleanSevenZip);
         right.Controls.Add(inspectBar, 0, 3); split.Panel2.Controls.Add(right);
         root.Controls.Add(split, 0, 3);
         var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty, Padding = new Padding(0, 6, 0, 0) };
@@ -120,6 +122,7 @@ internal sealed class ResidualExplorerDialog : Form
             { if (!IsDisposed) details.SetText("Limpeza interrompida: " + ex.Message); }
             finally { if (!IsDisposed) UpdateActions(); }
         };
+        cleanSevenZip.Click += async (_, _) => await CleanSevenZipResidualAsync();
         split.SizeChanged += (_, _) => ArrangeBody();
         Shown += async (_, _) => await RunAsync(async (token, id) =>
         {
@@ -239,6 +242,72 @@ internal sealed class ResidualExplorerDialog : Form
             inspectionResult = result; locationPage = 0; ShowLocations();
         });
     }
+    private async Task CleanSevenZipResidualAsync()
+    {
+        var recovery = SevenZipCompleteCleanup.RecoveryIdentity();
+        if (Busy || selectedReport?.Product != recovery.Name || sevenZipCleaned) return;
+        cleanSevenZip.Enabled = false;
+        try
+        {
+            var scan = await Task.Run(AppServices.ScanAllInstalledApps);
+            var preview = await Task.Run(() => SevenZipCompleteCleanup.Capture(
+                recovery, !scan.Incomplete, scan.Items, lifetimeToken), lifetimeToken);
+            if (!preview.Complete)
+            {
+                details.SetText("Limpeza preservada: " + preview.Reason +
+                    "\r\nNenhum arquivo ou chave foi excluído.");
+                return;
+            }
+            if (preview.Files.Count + preview.Directories.Count + preview.Registry.Count == 0)
+            {
+                details.SetText("Nenhum resíduo específico do 7-Zip permanece nos locais consultados.");
+                sevenZipCleaned = true;
+                return;
+            }
+            // Prévia exata e confirmação voluntária. Não existe reexecução automática.
+            if (!SevenZipCleanupReviewDialog.Confirm(this, preview))
+            {
+                details.SetText("Limpeza recusada. Todos os resíduos foram preservados.");
+                return;
+            }
+            var result = await SevenZipCompleteCleanup.ExecuteAsync(recovery, preview,
+                async () =>
+                {
+                    var latest = await Task.Run(AppServices.ScanAllInstalledApps);
+                    return (!latest.Incomplete, (IReadOnlyCollection<ProgramEntry>)latest.Items);
+                }, lifetimeToken);
+            var verified = await Task.Run(AppServices.ScanAllInstalledApps);
+            var after = await Task.Run(() => SevenZipCompleteCleanup.Capture(
+                recovery, !verified.Incomplete, verified.Items, lifetimeToken), lifetimeToken);
+            DiagnosticTrace.Write($"RESIDUOS_7ZIP_LIMPEZA_RECUPERADA arquivos={result.FilesDeleted} " +
+                $"pastas={result.DirectoriesDeleted} chaves={result.KeysDeleted} falhas={result.Failures} " +
+                $"preservados={result.Preserved} problemas={string.Join("+", result.Problems)} " +
+                $"apos_completo={after.Complete} apos_arquivos={after.Files.Count} " +
+                $"apos_pastas={after.Directories.Count} apos_chaves={after.Registry.Count}");
+            sevenZipCleaned = after.Complete && after.Files.Count == 0 &&
+                after.Directories.Count == 0 && after.Registry.Count == 0;
+            string explanation = result.Problems.Count == 0 ? "Nenhuma falha técnica registrada."
+                : string.Join(", ", result.Problems);
+            details.SetText($"Limpeza específica do 7-Zip: {result.FilesDeleted} arquivo(s), " +
+                $"{result.DirectoriesDeleted} pasta(s), {result.KeysDeleted} chave(s) eliminados.\r\n" +
+                $"{result.Failures} falhas e {result.Preserved} itens preservados.\r\n" +
+                $"Motivos: {explanation}.\r\n" +
+                (sevenZipCleaned
+                    ? "Conferência posterior: nenhum resíduo específico nos locais autorizados."
+                    : $"Conferência: {after.Files.Count} arquivo(s), {after.Directories.Count} pasta(s), " +
+                      $"{after.Registry.Count} chave(s) ainda detectados. " +
+                      (result.Problems.Any(p => p.EndsWith("_sem_permissao", StringComparison.Ordinal))
+                          ? "Para remover dados protegidos em Program Files ou HKLM, pode ser necessário executar " +
+                            "o GF como administrador por escolha do usuário."
+                          : "Preserve o resultado e investigue antes de nova tentativa.")));
+        }
+        catch (OperationCanceledException) { details.SetText("Limpeza interrompida; confira novamente antes de agir."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            InvalidDataException or InvalidOperationException or System.Security.SecurityException)
+        { details.SetText("Limpeza não concluída: " + ex.GetType().Name + ". Dados preservados quando possível."); }
+        finally { if (!IsDisposed) UpdateActions(); }
+    }
+
     private bool Current(int id, CancellationToken token) => !IsDisposed && !token.IsCancellationRequested && id == generation;
     internal void CancelCurrent() { operation?.Cancel(); summary.Text = "Consulta cancelada. Resultados anteriores preservados; dados não apagados.\nPerfis próprios e outros itens preservados. Limpeza suspensa até validar identidade e conteúdo dos alvos."; }
     private async Task RunAsync(Func<CancellationToken, int, Task> work)
@@ -262,6 +331,9 @@ internal sealed class ResidualExplorerDialog : Form
         inspect.Enabled = !Busy && locations.SelectedRow is not null && (locations.SelectedRow.Target is not ResidualInspectionEntry entry || entry.CanInspect);
         cleanFoobar.Visible = selectedReport is not null && ScopedAppProfileCleanup.Recognize(selectedReport.Product) is not null;
         cleanFoobar.Enabled = !Busy && cleanFoobar.Visible;
+        cleanSevenZip.Visible = selectedReport?.Product == SevenZipCompleteCleanup.RecoveryIdentity().Name &&
+            !sevenZipCleaned;
+        cleanSevenZip.Enabled = !Busy && cleanSevenZip.Visible;
     }
     internal static Rectangle FitBounds(Rectangle requested, Rectangle workingArea)
     {
