@@ -234,6 +234,30 @@ internal static class SmallAppResidualCleanup
         a.Keys.OrderBy(x => x.Hive).ThenBy(x => x.View).SequenceEqual(
             b.Keys.OrderBy(x => x.Hive).ThenBy(x => x.View));
 
+    internal static ResidualAuditReport? Report(SmallAppSnapshot snapshot)
+    {
+        if (!snapshot.Complete ||
+            snapshot.Files.Count + snapshot.Directories.Count + snapshot.Keys.Count == 0)
+            return null;
+        var findings = snapshot.Files.Select(file => new ResidualAuditFinding(
+                file.Path, "Arquivo próprio — conferir limpeza", 1,
+                "Alvo específico com integridade validada. Remoção exige autorização separada.",
+                ResidualDisposition.Review, ResidualSource.Installation))
+            .Concat(snapshot.Directories.Select(dir => new ResidualAuditFinding(
+                dir, "Pasta própria — conferir limpeza", 1,
+                "Pasta dedicada ao produto; pastas não vazias não são excluídas recursivamente sem prévia.",
+                ResidualDisposition.Review, ResidualSource.UserData)))
+            .Concat(snapshot.Keys.Select(key => new ResidualAuditFinding(
+                (key.Hive == RegistryHive.CurrentUser ? @"HKEY_CURRENT_USER\" : @"HKEY_LOCAL_MACHINE\") +
+                (key.View == RegistryView.Registry32 ? "(32 bits)\\" : "(64 bits)\\") + key.Subkey,
+                "Configuração própria — conferir limpeza", key.Entries,
+                "Chave própria exclusiva; conteúdo resumido por SHA-256, sem remover áreas compartilhadas.",
+                ResidualDisposition.Review, ResidualSource.Registry)))
+            .ToArray();
+        return new ResidualAuditReport(snapshot.Product, true, findings,
+            Array.Empty<string>(), Historical: true);
+    }
+
     internal static string Describe(SmallAppSnapshot snapshot)
     {
         if (!snapshot.Complete) return "Limpeza bloqueada: " + snapshot.Reason;
