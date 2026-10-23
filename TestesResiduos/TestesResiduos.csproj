@@ -10,6 +10,8 @@
     <Compile Include="../IntegratedResidualCleanup.cs" Link="IntegratedResidualCleanup.cs" />
     <Compile Include="../IntegratedResidualPolicy.cs" Link="IntegratedResidualPolicy.cs" />
     <Compile Include="../IntegratedResidualBatch.cs" Link="IntegratedResidualBatch.cs" />
+    <Compile Include="../RebootResidualReview.cs" Link="RebootResidualReview.cs" />
+    <Compile Include="../StartupTrayRegistration.cs" Link="StartupTrayRegistration.cs" />
     <Compile Include="../ResidualRegistryGuard.cs" Link="ResidualRegistryGuard.cs" />
     <Compile Include="../ResidualElevatedProtocol.cs" Link="ResidualElevatedProtocol.cs" />
     <Compile Include="../PipePeerVerifier.cs" Link="PipePeerVerifier.cs" />
