@@ -1,0 +1,131 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using Microsoft.Win32;
+using Microsoft.Win32.SafeHandles;
+
+namespace GerenciadorAplicativos;
+
+// Mesmo fingerprint usado pelas limpezas anteriores. As aberturas deste fluxo
+// nao seguem links e a remocao inteira participa de uma transacao do Registro.
+// Sem suporte a transacoes, o alvo e preservado; nunca ha fallback por caminho.
+internal static class ResidualRegistryGuard
+{
+    private const int Read = 0x20019, Write = 0x20006, DeleteRight = 0x10000;
+
+    internal static RegistryKey? Open(RegistryKey parent, string child, RegistryView view,
+        SafeFileHandle? transaction = null, bool writable = false)
+    {
+        int rights = Read | (int)view | (writable ? Write | DeleteRight : 0);
+        int error = transaction is null
+            ? RegOpenKeyExW(parent.Handle, child, 8, rights, out var handle)
+            : RegOpenKeyTransactedW(parent.Handle, child, 8, rights, out handle, transaction, IntPtr.Zero);
+        if (error == 2) { handle?.Dispose(); return null; }
+        if (error != 0) { handle?.Dispose(); throw new Win32Exception(error); }
+        return RegistryKey.FromHandle(handle, view);
+    }
+
+    internal static bool Fingerprint(RegistryKey key, RegistryView view, out string digest, out int entries,
+        SafeFileHandle? transaction = null)
+        => RegistryTreeFingerprint.TryCapture(key, 3000, out digest, out entries,
+            openChild: (parent, name) => Open(parent, name, view, transaction));
+
+    internal static bool Delete(ResidualKeyEvidence item, CancellationToken token)
+    {
+        using var transaction = CreateTransaction(IntPtr.Zero, IntPtr.Zero, 0, 0, 0, 10000, null);
+        if (transaction.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
+        try
+        {
+            using var hive = RegistryKey.OpenBaseKey(item.Hive, item.View);
+            using var key = Open(hive, item.Subkey, item.View, transaction, writable: true);
+            if (key is null) return false;
+            if (!Fingerprint(key, item.View, out string digest, out int entries, transaction) ||
+                digest != item.Digest || entries != item.Entries)
+                throw new InvalidDataException("registry_changed");
+#if GF_PROGRESSIVE
+            BeforeCommit?.Invoke(item);
+#endif
+            token.ThrowIfCancellationRequested();
+            // RegDeleteTree no handle transacionado remove o conteudo. A chave
+            // raiz exige RegDeleteKeyTransacted, nunca Registry.DeleteSubKeyTree.
+            int error = RegDeleteTreeW(key.Handle, null);
+            if (error != 0) throw new Win32Exception(error);
+            error = RegDeleteKeyTransactedW(hive.Handle, item.Subkey, (int)item.View, 0, transaction, IntPtr.Zero);
+            if (error != 0) throw new Win32Exception(error);
+            token.ThrowIfCancellationRequested();
+            if (!CommitTransaction(transaction)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            return true;
+        }
+        finally { RollbackTransaction(transaction); } // inocuo apos commit; fecha tambem em cancelamento
+    }
+
+#if GF_PROGRESSIVE
+    internal static Action<ResidualKeyEvidence>? BeforeCommit;
+#endif
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int RegOpenKeyExW(SafeRegistryHandle key, string subkey, int options,
+        int access, out SafeRegistryHandle result);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int RegOpenKeyTransactedW(SafeRegistryHandle key, string subkey, int options,
+        int access, out SafeRegistryHandle result, SafeFileHandle transaction, IntPtr extended);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int RegDeleteTreeW(SafeRegistryHandle key, string? subkey);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int RegDeleteKeyTransactedW(SafeRegistryHandle key, string subkey,
+        int view, int reserved, SafeFileHandle transaction, IntPtr extended);
+    [DllImport("ktmw32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    private static extern SafeFileHandle CreateTransaction(IntPtr security, IntPtr id, int options,
+        int isolation, int flags, int timeout, string? description);
+    [DllImport("ktmw32.dll", ExactSpelling = true, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CommitTransaction(SafeFileHandle transaction);
+    [DllImport("ktmw32.dll", ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool RollbackTransaction(SafeFileHandle transaction);
+}
+
+// Quatro notificacoes recursivas substituem um inventario completo por arquivo.
+// Qualquer mudanca invalida a fotografia e exige nova consulta antes de excluir.
+internal sealed class ResidualRegistrationMonitor : IDisposable
+{
+    private readonly List<(RegistryKey Key, EventWaitHandle Event)> watches = [];
+    internal ResidualRegistrationMonitor()
+    {
+        try
+        {
+            foreach (var hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
+            foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
+            {
+                using var root = RegistryKey.OpenBaseKey(hive, view);
+                // Observar o pai tambem detecta a criacao de Uninstall ausente.
+                var key = root.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall") ??
+                    root.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion");
+                if (key is null) throw new IOException("inventory_watch_unavailable");
+                var signal = new EventWaitHandle(false, EventResetMode.ManualReset);
+                watches.Add((key, signal));
+                Arm(key, signal);
+            }
+        }
+        catch { Dispose(); throw; }
+    }
+    internal bool Changed => watches.Any(w => w.Event.WaitOne(0));
+    internal void Rearm()
+    {
+        foreach (var w in watches)
+            if (w.Event.WaitOne(0)) { w.Event.Reset(); Arm(w.Key, w.Event); }
+    }
+    private static void Arm(RegistryKey key, EventWaitHandle signal)
+    {
+        int error = RegNotifyChangeKeyValue(key.Handle, true, 0x1000000F, signal.SafeWaitHandle, true);
+        if (error != 0) throw new Win32Exception(error);
+    }
+    public void Dispose()
+    {
+        foreach (var w in watches) { w.Key.Dispose(); w.Event.Dispose(); }
+        watches.Clear();
+    }
+    [DllImport("advapi32.dll", ExactSpelling = true)]
+    private static extern int RegNotifyChangeKeyValue(SafeRegistryHandle key,
+        [MarshalAs(UnmanagedType.Bool)] bool subtree, int filter, SafeWaitHandle signal,
+        [MarshalAs(UnmanagedType.Bool)] bool asynchronous);
+}

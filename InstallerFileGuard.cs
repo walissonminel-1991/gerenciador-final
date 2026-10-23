@@ -61,9 +61,12 @@ internal static class InstallerFileGuard
     }
 
     internal static void MarkResidualForDeletion(FileStream held)
+        => MarkResidualForDeletion(held.SafeFileHandle);
+
+    private static void MarkResidualForDeletion(SafeFileHandle handle)
     {
         byte disposition = 1; // FILE_DISPOSITION_INFO.DeleteFile (BOOLEAN)
-        if (!SetFileInformationByHandle(held.SafeFileHandle, 4, ref disposition, 1))
+        if (!SetFileInformationByHandle(handle, 4, ref disposition, 1))
         {
             int error = Marshal.GetLastWin32Error();
             if (error == 5) throw new UnauthorizedAccessException("O Windows negou a exclusao do residuo.");
@@ -72,6 +75,24 @@ internal static class InstallerFileGuard
         }
         // O proprio objeto validado e removido ao fechar o handle. Nenhuma
         // segunda abertura por caminho permite atingir um arquivo substituto.
+    }
+
+    internal static void DeleteEmptyResidualDirectory(string path,
+        IReadOnlyList<DirectoryIdentity> expected, CancellationToken token)
+    {
+        string full = ValidateLocalPath(path);
+        using var parents = PinDirectory(Path.GetDirectoryName(full)!, allowLeafWrites: true);
+        using var handle = CreateFileW(full, 0x80010000, 1, IntPtr.Zero, 3,
+            0x02000000 | 0x00200000, IntPtr.Zero);
+        CheckHandle(handle, directory: true);
+        if (!GetFileInformationByHandle(handle, out var info))
+            throw new IOException("directory_identity_unavailable");
+        var chain = parents.Identities().Append(new DirectoryIdentity(full, info.Volume,
+            ((ulong)info.IndexHigh << 32) | info.IndexLow));
+        if (!chain.SequenceEqual(expected)) throw new InvalidDataException("directory_changed");
+        if (Directory.EnumerateFileSystemEntries(full).Any()) throw new InvalidDataException("directory_not_empty");
+        token.ThrowIfCancellationRequested();
+        MarkResidualForDeletion(handle); // somente pasta vazia, objeto validado por handle
     }
 
     internal static string ValidateLocalPath(string path)

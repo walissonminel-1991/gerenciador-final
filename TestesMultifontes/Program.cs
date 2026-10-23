@@ -37,7 +37,7 @@ var fakeSeven = App("7-Zip 25.00 (x64)", "25.00", "Editor Suspeito");
 var esr = App("Mozilla Firefox ESR", "115.0.0", "Mozilla Corporation");
 var thunderbirdEsr = App("Thunderbird ESR", "128.0", "Mozilla Corporation");
 var unknownThunderbird = App("Mozilla Thunderbird", "140.0", "Mozilla Corporation");
-Assert(ApplicationIdentityCatalog.RuleCount == 26,
+Assert(ApplicationIdentityCatalog.RuleCount == 27,
     "Catálogo unificado reconhece 26 famílias verificadas");
 Assert(ApplicationIdentityCatalog.Rules.Count(r => r.OfficialSource is not null) == 23,
     "Vinte e três identidades de fontes oficiais referenciam identidade estável");

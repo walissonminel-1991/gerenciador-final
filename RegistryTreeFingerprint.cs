@@ -10,7 +10,8 @@ namespace GerenciadorAplicativos;
 internal static class RegistryTreeFingerprint
 {
     internal static bool TryCapture(RegistryKey root, int maxEntries,
-        out string digest, out int entries, int maxBytes = 4 * 1024 * 1024)
+        out string digest, out int entries, int maxBytes = 4 * 1024 * 1024,
+        Func<RegistryKey, string, RegistryKey?>? openChild = null)
     {
         digest = ""; entries = 0;
         int count = 0, bytes = 0;
@@ -68,7 +69,7 @@ internal static class RegistryTreeFingerprint
                 foreach (string name in children)
                 {
                     Text(name);
-                    using var child = key.OpenSubKey(name, writable: false);
+                    using var child = openChild is null ? key.OpenSubKey(name, writable: false) : openChild(key, name);
                     if (child is null) throw new IOException("Arvore alterada");
                     Visit(child, depth + 1);
                 }
@@ -78,7 +79,7 @@ internal static class RegistryTreeFingerprint
             return true;
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
-            System.Security.SecurityException or ArgumentException or InvalidOperationException)
+            System.Security.SecurityException or ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
         { return false; }
     }
 }

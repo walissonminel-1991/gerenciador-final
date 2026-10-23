@@ -367,6 +367,20 @@
       ],
       "officialSource": "klite-mega",
       "cleanupPolicy": null
+    },
+    {
+      "id": "foobar2000",
+      "name": "foobar2000",
+      "names": [
+        "foobar2000",
+        "foobar2000 *"
+      ],
+      "publishers": [
+        "Peter Pawlowski",
+        "foobar2000"
+      ],
+      "officialSource": null,
+      "cleanupPolicy": "foobar2000"
     }
   ]
 }
