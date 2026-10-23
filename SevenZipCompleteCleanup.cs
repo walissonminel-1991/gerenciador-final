@@ -278,25 +278,30 @@ internal static class SevenZipCompleteCleanup
                 preserved += accepted.Files.Count - deleted;
                 break;
             }
+            string stage = "verificar_caminho";
             try
             {
                 if (!Roots().Any(root => Within(root, file.Path)) || !SafeDirectory(Path.GetDirectoryName(file.Path)!) ||
                     (File.GetAttributes(file.Path) & FileAttributes.ReparsePoint) != 0)
                 { failed++; problems.Add("arquivo_caminho_invalido"); continue; }
+                stage = "abrir_verificacao";
                 using (var handle = InstallerFileGuard.OpenRead(file.Path, allowDirectoryWrites: true))
                 {
+                    stage = "verificar_conteudo";
                     var identity = InstallerFileGuard.ReadIdentity(handle);
                     if (identity.Links != 1 || (long)identity.Size != file.Size ||
                         !Convert.ToHexString(SHA256.HashData(handle)).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
                     { failed++; problems.Add("arquivo_conteudo_alterado"); continue; }
                 }
+                stage = "excluir";
                 File.Delete(file.Path);
+                stage = "confirmar_exclusao";
                 if (!File.Exists(file.Path)) deleted++;
                 else { failed++; problems.Add("arquivo_permaneceu"); }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                 ArgumentException or System.Security.SecurityException)
-            { failed++; problems.Add(ProblemCode("arquivo", ex)); }
+            { failed++; problems.Add(ProblemCode("arquivo_" + stage, ex)); }
         }
         // Só diretórios VAZIOS. Se um item novo aparecer, jamais apagar recursivamente.
         foreach (string dir in accepted.Directories.OrderByDescending(x => x.Length))
@@ -352,16 +357,21 @@ internal static class SevenZipCompleteCleanup
 
     private static string ProblemCode(string stage, Exception exception)
     {
-        if (exception is UnauthorizedAccessException or System.Security.SecurityException)
-            return stage + "_sem_permissao";
-        if (exception is IOException)
+        // O HResult faz parte do tipo, nao do caminho nem do usuario.
+        // Guardar apenas codigos de erro Win32 conhecidos; outros viram codigo generico.
+        int code = exception.HResult & 0xffff;
+        string error = exception switch
         {
-            int code = exception.HResult & 0xffff;
-            if (code is 32 or 33) return stage + "_em_uso";
-            if (code == 5) return stage + "_sem_permissao";
-            return stage + "_erro_entrada_saida";
-        }
-        return stage + "_caminho_invalido";
+            UnauthorizedAccessException or System.Security.SecurityException => "sem_permissao",
+            IOException when code is 32 or 33 => "em_uso",
+            IOException when code is 5 => "sem_permissao",
+            IOException => "erro_entrada_saida",
+            _ => "caminho_invalido"
+        };
+        string win32 = code is 2 or 3 or 5 or 19 or 32 or 33 or 80 or 87 or 183
+            ? "_win32_" + code.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : "";
+        return stage + "_" + error + win32;
     }
 
     private static bool Equivalent(SevenZipCleanupPlan a, SevenZipCleanupPlan b) =>
