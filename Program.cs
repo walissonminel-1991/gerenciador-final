@@ -1442,10 +1442,16 @@ internal sealed partial class MainForm : Form
             // Um titulo curto nao precisa ocupar todo o cartao.
             // Largura proporcional ao texto, mantendo espaco clicavel.
             int preferredButtonWidth = TextRenderer.MeasureText(
-                tool.Name, button.Font).Width + 24;
+                tool.Name, button.Font, new Size(int.MaxValue, 33),
+                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 30;
             button.Dock = DockStyle.None;
             button.Anchor = AnchorStyles.Left | AnchorStyles.Top;
-            button.Size = new Size(Math.Clamp(preferredButtonWidth, 112, 215), 30);
+            // Cartoes de reparo largos podem acomodar o titulo completo:
+            // limitar artificialmente a 215px fazia ModernButton diminuir
+            // a fonte de alguns botoes, apesar do espaco livre.
+            button.Size = new Size(compact
+                ? Math.Clamp(preferredButtonWidth, 112, 215)
+                : Math.Max(112, preferredButtonWidth), 30);
             button.Margin = Padding.Empty;
             button.MinimumSize = new Size(0, 29);
             button.AccessibleName = tool.Name;
@@ -1550,8 +1556,11 @@ internal sealed partial class MainForm : Form
                         .SelectMany(layout => layout.Controls.OfType<Button>()).FirstOrDefault();
                     if (cardButton is not null)
                     {
-                        int ideal = Math.Clamp(TextRenderer.MeasureText(
-                            cardButton.Text, cardButton.Font).Width + 24, 112, 215);
+                        int measured = TextRenderer.MeasureText(
+                            cardButton.Text, cardButton.Font, new Size(int.MaxValue, 33),
+                            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 30;
+                        int ideal = compact ? Math.Clamp(measured, 112, 215)
+                            : Math.Max(112, measured);
                         int fit = Math.Min(ideal, Math.Max(90,
                             cardWidth - card.Padding.Horizontal - 6));
                         if (cardButton.Width != fit) cardButton.Width = fit;
