@@ -106,7 +106,10 @@ internal static class InstallerFileGuard
         if (!chain.SequenceEqual(expected)) throw new InvalidDataException("directory_changed");
         if (Directory.EnumerateFileSystemEntries(full).Any()) throw new InvalidDataException("directory_not_empty");
         token.ThrowIfCancellationRequested();
-        MarkResidualForDeletion(handle); // somente pasta vazia, objeto validado por handle
+        byte disposition = 1;
+        if (!SetFileInformationByHandle(handle, 4, ref disposition, 1))
+            throw new ResidualFileDeleteException("directory_disposition", Marshal.GetLastWin32Error());
+        // Somente a pasta vazia, validada por identidade, usa o modo legado.
     }
 
     internal static string ValidateLocalPath(string path)
