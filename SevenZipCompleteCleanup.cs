@@ -117,6 +117,8 @@ internal static class SevenZipCompleteCleanup
             foreach (var root in Roots())
             {
                 cancel.ThrowIfCancellationRequested();
+                if (!ResidualPersonalDataBoundary.IsOutside(root))
+                    return new([], [], [], 0, false, "Pasta pessoal sobreposta ou limites pessoais nao verificaveis.");
                 try { _ = File.GetAttributes(root); }
                 catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException) { continue; }
                 // Inclui pais para impedir junções e redirecionamentos.
@@ -280,7 +282,8 @@ internal static class SevenZipCompleteCleanup
             string stage = "verificar_caminho";
             try
             {
-                if (!Roots().Any(root => Within(root, file.Path)) || !SafeDirectory(Path.GetDirectoryName(file.Path)!) ||
+                if (!Roots().Any(root => Within(root, file.Path)) || !ResidualPersonalDataBoundary.IsOutside(file.Path) ||
+                    !SafeDirectory(Path.GetDirectoryName(file.Path)!) ||
                     (File.GetAttributes(file.Path) & FileAttributes.ReparsePoint) != 0)
                 { failed++; problems.Add("arquivo_caminho_invalido"); continue; }
                 stage = "abrir_verificacao";
@@ -315,7 +318,8 @@ internal static class SevenZipCompleteCleanup
             try
             {
                 using var parentLease = InstallerFileGuard.PinDirectory(Path.GetDirectoryName(dir)!, allowLeafWrites: true);
-                if (Roots().Any(root => Within(root, dir)) && SafeDirectory(dir) &&
+                if (Roots().Any(root => Within(root, dir)) &&
+                    ResidualPersonalDataBoundary.IsOutside(dir) && SafeDirectory(dir) &&
                     !Directory.EnumerateFileSystemEntries(dir).Any())
                 {
                     Directory.Delete(dir, recursive: false);

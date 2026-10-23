@@ -149,6 +149,8 @@ internal static class SmallAppResidualCleanup
             foreach (string root in Folders(product).Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 token.ThrowIfCancellationRequested();
+                if (!ResidualPersonalDataBoundary.IsOutside(root))
+                    return new(product, [], [], [], false, "Pasta pessoal sobreposta ou limites pessoais nao verificaveis.");
                 try { _ = File.GetAttributes(root); }
                 catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException) { continue; }
                 if (!SafeDir(root))
@@ -286,6 +288,7 @@ internal static class SmallAppResidualCleanup
             try
             {
                 if (!Folders(accepted.Product).Any(root => Under(root, file.Path)) ||
+                    !ResidualPersonalDataBoundary.IsOutside(file.Path) ||
                     !SafeDir(Path.GetDirectoryName(file.Path)!) ||
                     (File.GetAttributes(file.Path) & FileAttributes.ReparsePoint) != 0)
                 { failed++; problems.Add("caminho_alterado"); continue; }
@@ -320,7 +323,8 @@ internal static class SmallAppResidualCleanup
             try
             {
                 using var parentLease = InstallerFileGuard.PinDirectory(Path.GetDirectoryName(dir)!, allowLeafWrites: true);
-                if (Folders(accepted.Product).Any(root => Under(root, dir)) && SafeDir(dir) &&
+                if (Folders(accepted.Product).Any(root => Under(root, dir)) &&
+                    ResidualPersonalDataBoundary.IsOutside(dir) && SafeDir(dir) &&
                     !Directory.EnumerateFileSystemEntries(dir).Any())
                 { Directory.Delete(dir, recursive: false); folders++; }
                 else { preserved++; problems.Add("pasta_nao_vazia"); }

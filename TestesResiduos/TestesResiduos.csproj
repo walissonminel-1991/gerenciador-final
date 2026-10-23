@@ -16,6 +16,7 @@
     <Compile Include="../SevenZipCompleteCleanup.cs" Link="SevenZipCompleteCleanup.cs" />
     <Compile Include="../SmallAppResidualCleanup.cs" Link="SmallAppResidualCleanup.cs" />
     <Compile Include="../RegistryTreeFingerprint.cs" Link="RegistryTreeFingerprint.cs" />
+    <Compile Include="../ResidualPersonalDataBoundary.cs" Link="ResidualPersonalDataBoundary.cs" />
     <Compile Include="../UninstallResiduals.cs" Link="UninstallResiduals.cs" />
     <Compile Include="../AdvancedUninstallCleaner.cs" Link="AdvancedUninstallCleaner.cs" />
     <Compile Include="../UninstallRuleCatalog.cs" Link="UninstallRuleCatalog.cs" />
