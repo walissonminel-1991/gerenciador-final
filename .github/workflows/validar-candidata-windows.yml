@@ -137,6 +137,8 @@ jobs:
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads
       - name: SumatraPDF x86 e x64 (sem execucao)
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-sumatra
+      - name: 7-Zip EXE x64 verificado por SHA-256 (sem instalacao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-sevenzip
       - name: GameInput protegido (sem download ou execucao)
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work6-authorization
       - name: Windows Terminal MSIX (sem instalacao)
