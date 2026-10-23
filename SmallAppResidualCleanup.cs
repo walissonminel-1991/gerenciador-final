@@ -28,6 +28,54 @@ internal static class SmallAppResidualCleanup
               "A chave foi preservada. O GF nao modifica permissoes nem solicita " +
               "privilegios de administrador automaticamente."
             : "";
+    // Consulta somente a possibilidade de abrir a chave-pai para escrita,
+    // sem escrever nem modificar permissões. Usar antes de oferecer a
+    // confirmação quando o único resíduo específico é o Registro.
+    // Não substitui revalidação de identidade/conteúdo na exclusão.
+    internal static string? RegistryWritePreflight(SmallAppSnapshot snapshot,
+        Func<SmallAppKey, bool>? canOpenParent = null)
+    {
+        if (!snapshot.Complete || !Supported(snapshot.Product) ||
+            snapshot.Files.Count != 0 || snapshot.Directories.Count != 0 ||
+            snapshot.Keys.Count == 0)
+            return null;
+
+        foreach (var key in snapshot.Keys)
+        {
+            bool writable = false;
+            try
+            {
+                if (canOpenParent is not null)
+                    writable = canOpenParent(key);
+                else
+                {
+                    int separator = key.Subkey.LastIndexOf('\\');
+                    if (separator <= 0 || separator == key.Subkey.Length - 1)
+                        return "Chave residual com caminho inválido. Nenhuma exclusão tentada.";
+                    using var root = RegistryKey.OpenBaseKey(key.Hive, key.View);
+                    using var parent = root.OpenSubKey(key.Subkey[..separator], writable: true);
+                    writable = parent is not null;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                ArgumentException or System.Security.SecurityException or InvalidOperationException)
+            {
+                writable = false;
+            }
+            if (!writable)
+            {
+                string location = key.Hive == RegistryHive.LocalMachine ? "HKLM" : "HKCU";
+                string view = key.View == RegistryView.Registry32 ? "32 bits" : "64 bits";
+                return $"Foi encontrada {snapshot.Keys.Count} chave(s) exclusiva(s) de Registro. " +
+                    $"O Windows não concedeu acesso de escrita à chave-pai em {location} ({view}) " +
+                    "nesta sessão. Não serão repetidas tentativas de exclusão sem essa permissão. " +
+                    "Os resíduos permanecem preservados; o GF não eleva privilégios nem altera ACLs. " +
+                    "A consulta não comprova que o aplicativo está instalado.";
+            }
+        }
+        return null;
+    }
+
     private const int MaxEntries = 800;
     private const long MaxBytes = 192L * 1024 * 1024;
     private const string Npp = "Notepad++";
