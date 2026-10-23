@@ -1,5 +1,9 @@
 # GERENCIADOR FINAL — roadmap funcional
 
+**v5.13.11.53 TESTE — WORK11 aprovada na [CI 40028404988](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40028404988), fonte 78424b8e.** Progresso individual real, instalação indeterminada, resultados distintos e preservados no inventário. Atualizadores 186/186, resíduos 576/576, mutações 17/17; 36 combinações novas de UI. Pacote x64 e 280 hashes conferidos fora do runner. [Relatório e limites](MISSAO-WORK11.md). Homologação física .53 pendente; progresso preservado **27/42**.
+
+### Validação anterior — WORK10
+
 **v5.13.11.52 TESTE — WORK10 aprovada na [CI 40021841254](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254), fonte c200ab25.** Limpeza residual integrada à desinstalação, confirmação única, executor consolidado, UAC e diagnóstico. Pacote com 280 hashes conferidos; 576/576 testes de resíduos e 14/14 mutações rejeitadas. [Relatório e limites](MISSAO-WORK10.md). R4 avançou na implementação/regressões; U8/R7/R4 físicos permanecem abertos. Progresso 27/42.
 
 ### Validação anterior — WORK9 parte 2

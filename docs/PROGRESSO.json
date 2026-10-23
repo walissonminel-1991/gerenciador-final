@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.52 TESTE",
+  "version": "5.13.11.53 TESTE",
   "date": "2026-10-23",
-  "code_commit": "c200ab25c0352d741dc505719842657338905c48",
+  "code_commit": "78424b8e6bc64ba6a9b4f546e6542ead608c7362",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40028404988",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -151,7 +151,7 @@
           "id": "U8",
           "title": "Instalação e versão final validadas nos computadores",
           "done": false,
-          "evidence": "Validação presencial adiada"
+          "evidence": "PC FORTE .52: 7-Zip 26.04→26.05 confirmado conforme relato da missão. WORK11 .53 implementa progresso/resultado; homologação de Notepad++, SumatraPDF e PC FRACO pendente."
         }
       ]
     },
@@ -298,11 +298,11 @@
     }
   ],
   "latest_real_test": {
-    "version": "5.13.11.48 TESTE",
+    "version": "5.13.11.52 TESTE",
     "date": "2026-10-23",
     "environment": "PC FORTE, Windows x64",
-    "status": "Falha física anterior às correções WORK9; nova implementação ainda sem homologação física",
-    "observations": "Notepad++: 6 arquivos e 4 pastas removidos, uma chave permaneceu; registro_ArgumentException repetiu após reiniciar. Busca geral parcial por entradas, leitura, profundidade e links. Ausência de achados específicos Sumatra não comprova ausência geral. Inventário 168; sem nova aprovação AVG."
+    "status": "7-Zip atualizado; deficiência de acompanhamento visual informada pelo mantenedor",
+    "observations": "Relato/transcrição da missão: inventário 168→171, candidatos 7→10; 7-Zip 26.04→26.05 confirmado, candidatos 10→9. Notepad++ 8.9.1 e SumatraPDF 3.5 preparados e preservados para próxima homologação. Não equivale à homologação da .53."
   },
   "latest_real_test_pc_fraco": {
     "version": "5.13.11.24 TESTE",
@@ -338,8 +338,8 @@
       "native_store_partial": true
     }
   },
-  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254",
-  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254",
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40028404988",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40028404988",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
@@ -357,23 +357,23 @@
     "authenticode_signed": false
   },
   "artifact": {
-    "id": 12531531070,
-    "name": "GerenciadorFinal-v5.13.11.52-c200ab25-TESTE-win-x64",
-    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254/artifacts/12531531070",
-    "source_commit": "c200ab25c0352d741dc505719842657338905c48",
-    "merge_commit": "e6a39c3002d4a0d8f419e00f57eedb4eac00c51c",
+    "id": 12533044951,
+    "name": "GerenciadorFinal-v5.13.11.53-78424b8e-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40028404988/artifacts/12533044951",
+    "source_commit": "78424b8e6bc64ba6a9b4f546e6542ead608c7362",
+    "merge_commit": "c824894c29285549a03b1d9e9bc6b9b0b24edd04",
     "base_commit": "410d65e23546976db456337c71e4705f10217d36",
-    "zip_sha256": "427a9c226b79b002ee048967c701a60e74833f1574edf15b9c58c4648344151c",
-    "zip_bytes": 58982852,
-    "expanded_bytes": 151344534,
+    "zip_sha256": "c9a98052ce145e7c70db3a19d70cd4ac602e6f48b1e39b11614afb8ae15168f3",
+    "zip_bytes": 58992475,
+    "expanded_bytes": 151369110,
     "files": 281,
     "verified_hashes": 280,
-    "file_version": "5.13.11.52",
+    "file_version": "5.13.11.53",
     "architecture": "AMD64",
     "self_contained": true,
     "signed": false,
     "avg_validated": false,
-    "expires_at": "2026-10-30T20:50:18Z"
+    "expires_at": "2026-10-30T21:44:53Z"
   },
   "mission_work5": {
     "status": "Código final e três Actions aprovados; ZIP conferido sem executar; testes físicos pendentes",
@@ -448,8 +448,8 @@
     ],
     "progress": "27/42"
   },
-  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254/artifacts/12531531070",
-  "artifact_name": "GerenciadorFinal-v5.13.11.52-c200ab25-TESTE-win-x64",
+  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40028404988/artifacts/12533044951",
+  "artifact_name": "GerenciadorFinal-v5.13.11.53-78424b8e-TESTE-win-x64",
   "historical_artifact_work5": {
     "id": 12388392363,
     "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
@@ -722,5 +722,73 @@
       "AVG_SmartScreen_signing",
       "native_Server2022_dark_frame"
     ]
+  },
+  "historical_artifact_work10": {
+    "id": 12531531070,
+    "name": "GerenciadorFinal-v5.13.11.52-c200ab25-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254/artifacts/12531531070",
+    "source_commit": "c200ab25c0352d741dc505719842657338905c48",
+    "merge_commit": "e6a39c3002d4a0d8f419e00f57eedb4eac00c51c",
+    "base_commit": "410d65e23546976db456337c71e4705f10217d36",
+    "zip_sha256": "427a9c226b79b002ee048967c701a60e74833f1574edf15b9c58c4648344151c",
+    "zip_bytes": 58982852,
+    "expanded_bytes": 151344534,
+    "files": 281,
+    "verified_hashes": 280,
+    "file_version": "5.13.11.52",
+    "architecture": "AMD64",
+    "self_contained": true,
+    "signed": false,
+    "avg_validated": false,
+    "expires_at": "2026-10-30T20:50:18Z"
+  },
+  "mission_work11": {
+    "status": "Implementação, regressões Windows, publicação e pacote conferidos; homologação física pendente",
+    "report": "docs/MISSAO-WORK11.md",
+    "code_commit": "78424b8e6bc64ba6a9b4f546e6542ead608c7362",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40028404988",
+    "progress_per_installation": true,
+    "real_download_percent": true,
+    "indeterminate_installation": true,
+    "session_result_limit": 256,
+    "result_survives_inventory_rebuild": true,
+    "pending_retry_blocked": true,
+    "one_list_timer_ms": 100,
+    "download_notification_interval_ms": 120,
+    "validation": {
+      "installers": "186/186",
+      "new_work11_controls": 38,
+      "mutations": "17/17",
+      "new_mutations": 3,
+      "residuals_uninstall": "576/576",
+      "multisource": "159/159",
+      "catalog": "17/17",
+      "msix": "47/47",
+      "close": "30/30",
+      "new_ui_combinations": 36,
+      "existing_ui_resolution_tabs": 132,
+      "existing_ui_scenarios": 22,
+      "existing_work10_ui_combinations": 44,
+      "policy_python": 29,
+      "policy_node": 10,
+      "optional_external_jobs": "skipped"
+    },
+    "real_pc_operations_performed": false,
+    "field_validation": "PC FORTE e PC FRACO pendentes; Notepad++ e SumatraPDF antigos preservados",
+    "completed_roadmap_checkpoints": [],
+    "progress": "27/42",
+    "package_verified": true,
+    "synthetic_performance": {
+      "environment": "Windows Server 2022 runner",
+      "cached_lookups": 100000,
+      "milliseconds": 25,
+      "allocated_bytes": 608,
+      "real_pc_measurement": false
+    },
+    "package_delta_from_52": {
+      "zip_bytes": 9623,
+      "expanded_bytes": 24576,
+      "runtime_unchanged": true
+    }
   }
 }

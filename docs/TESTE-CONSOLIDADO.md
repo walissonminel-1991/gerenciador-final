@@ -1,8 +1,39 @@
-# Roteiro físico mínimo — candidata WORK10 .52
+# Roteiro físico mínimo — candidata WORK11 .53
 
 Este roteiro substitui o lote v5.13.10.18. Os registros antigos do PC FRACO
 estão no [arquivo histórico](TESTES-HISTORICOS-PC-FRACO.md). A aprovação em
 runner não significa que esta candidata já rodou nos dois PCs.
+
+## Primeira bateria — PC FORTE (aplicativos já preparados)
+
+1. Usar a candidata .53 identificada na PR #40, após aprovação da CI. Conferir
+   versão e hashes. Não reinstalar versões antigas nem repetir o 7-Zip: o teste
+   .52 já o atualizou de 26.04 para 26.05.
+2. Confirmar que Notepad++ 8.9.1 e SumatraPDF 3.5 continuam instalados nas
+   arquiteturas e escopos existentes. Os destinos das receitas desta candidata
+   são 8.9.8.1 e 3.6.1. Se o inventário não corresponder, registrar e parar esse
+   caso, sem alterar a instalação para forçar o teste.
+3. Atualizar somente o Notepad++ pelo cartão. Observar estado azul, download
+   com porcentagem quando houver tamanho informado, validação, instalação
+   indeterminada e conferência. Não deve aparecer porcentagem inventada durante
+   a instalação. O UAC legítimo do Windows pode aparecer.
+4. Esperar a consulta automática terminar. Exigir verde com confirmação e 100%
+   para considerar sucesso; conferir também a versão pelo próprio Notepad++.
+   Pesquisar o aplicativo, sair/voltar de abas e renovar a lista: o resultado
+   deve permanecer ligado à mesma instalação durante a sessão.
+5. Repetir uma única vez para SumatraPDF 3.5 → 3.6.1, conferindo a versão no
+   próprio aplicativo. O progresso do Notepad++ não pode migrar para o Sumatra.
+6. Se houver vermelho, amarelo, cancelamento ou recusa UAC, registrar o estado e
+   o diagnóstico; não repetir automaticamente um resultado pendente. Não
+   provocar falhas apagando arquivos, desligando proteções ou adulterando pacotes.
+7. Enviar o diagnóstico .53 e capturas do progresso/resultado, indicando versão
+   antes/depois e se apareceu instalador interativo. Um download muito rápido
+   pode exibir poucas amostras; o resultado final precisa continuar visível.
+
+No **PC FRACO (1440×900)**, começar por consulta e navegação, sem preparar novas
+instalações. Conferir largura, DPI habitual, leitura do estado, botões, bandeja,
+Inicialização/Windows Update, consumo em repouso e ausência da ferramenta
+residual manual. Estados adversos adicionais pertencem ao ambiente descartável.
 
 ## Preparação e consultas
 
