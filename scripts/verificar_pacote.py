@@ -1,0 +1,116 @@
+"""Verify a published directory without executing it; Python standard library only."""
+import argparse
+import hashlib
+import json
+from pathlib import Path, PurePosixPath
+import re
+import struct
+
+
+REQUIRED = frozenset({
+    "GerenciadorFinal.exe", "GerenciadorFinal.dll", "GerenciadorFinal.deps.json",
+    "GerenciadorFinal.runtimeconfig.json", "coreclr.dll", "hostfxr.dll",
+    "System.Windows.Forms.dll", "Microsoft.Windows.SDK.NET.dll", "WinRT.Runtime.dll",
+    "BUILD-INFO.txt", "LICENSE.txt", "LEIA-ME.md", "PRIVACY.md",
+    "THIRD-PARTY-NOTICES.md", "Licencas/DotNET/LICENSE.txt",
+    "Licencas/DotNET/THIRD-PARTY-NOTICES.txt", "Licencas/WindowsDesktop/LICENSE.txt",
+})
+
+
+def portable_name(name: str) -> bool:
+    parts = name.split("/")
+    return bool(name) and all(
+        part not in {"", ".", ".."} and not part.endswith((" ", "."))
+        and not re.search(r'[\\:\x00-\x1f<>"|?*]', part)
+        for part in parts
+    ) and not PurePosixPath(name).is_absolute()
+
+
+def verify(root: Path, version: str, source: str, build: str, base: str = "") -> dict:
+    if not re.fullmatch(r"\d+(?:\.\d+){3}", version):
+        raise ValueError("versao esperada invalida")
+    if any(not re.fullmatch(r"[a-f0-9]{40}", sha) for sha in (source, build)):
+        raise ValueError("SHA esperado invalido")
+    if base and not re.fullmatch(r"[a-f0-9]{40}", base):
+        raise ValueError("SHA base invalido")
+    if not root.is_dir() or root.is_symlink():
+        raise ValueError("diretorio de distribuicao invalido")
+    files = {}
+    folded = set()
+    for path in root.rglob("*"):
+        name = path.relative_to(root).as_posix()
+        if path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction()):
+            raise ValueError("link no pacote: " + name)
+        if not portable_name(name) or name.casefold() in folded:
+            raise ValueError("nome ambiguo no pacote: " + name)
+        folded.add(name.casefold())
+        if path.is_dir():
+            continue
+        if not path.is_file() or path.stat().st_size == 0:
+            raise ValueError("arquivo vazio ou especial: " + name)
+        if name.startswith(".") or any(part.startswith(".") for part in path.relative_to(root).parts):
+            raise ValueError("arquivo oculto inesperado: " + name)
+        # SDK output only: runtime binaries plus the explicit notices/manifests.
+        if name not in REQUIRED | {"SHA256SUMS.txt"} and not (
+            ("/" not in name and path.suffix.lower() in {".dll", ".exe"})
+            or re.fullmatch(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*/[A-Za-z0-9_.]+\.resources\.dll", name)
+        ):
+            raise ValueError("arquivo inesperado: " + name)
+        files[name] = path
+    missing = REQUIRED - files.keys()
+    if missing:
+        raise ValueError("arquivos obrigatorios ausentes: " + ", ".join(sorted(missing)))
+    if "SHA256SUMS.txt" not in files:
+        raise ValueError("manifesto de integridade ausente")
+    checksums = {}
+    for line in files["SHA256SUMS.txt"].read_text(encoding="utf-8-sig").splitlines():
+        match = re.fullmatch(r"([a-f0-9]{64})  (.+)", line)
+        if not match or not portable_name(match[2]) or match[2] in checksums:
+            raise ValueError("entrada invalida ou duplicada no manifesto")
+        checksums[match[2]] = match[1]
+    if checksums.keys() != files.keys() - {"SHA256SUMS.txt"}:
+        raise ValueError("manifesto nao cobre exatamente todos os arquivos")
+    for name, digest in checksums.items():
+        with files[name].open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
+                raise ValueError("hash divergente: " + name)
+    info = files["BUILD-INFO.txt"].read_text(encoding="utf-8-sig").splitlines()
+    for line in (f"Versao: {version}", f"Commit fonte: {source}", f"Commit Git: {build}",
+                 f"Base da PR (quando aplicavel): {base}"):
+        key = line.split(":", 1)[0] + ":"
+        if [entry for entry in info if entry.startswith(key)] != [line]:
+            raise ValueError("origem/versao divergente: " + key)
+    with files["GerenciadorFinal.exe"].open("rb") as stream:
+        header = stream.read(64)
+        if len(header) != 64 or header[:2] != b"MZ":
+            raise ValueError("executavel sem cabecalho PE")
+        offset = struct.unpack_from("<I", header, 60)[0]
+        if offset < 64 or offset > files["GerenciadorFinal.exe"].stat().st_size - 6:
+            raise ValueError("offset PE invalido")
+        stream.seek(offset)
+        if stream.read(6) != b"PE\0\0\x64\x86":
+            raise ValueError("executavel nao e PE AMD64")
+    options = json.loads(files["GerenciadorFinal.runtimeconfig.json"].read_text(encoding="utf-8"))["runtimeOptions"]
+    frameworks = options.get("includedFrameworks", [])
+    if options.get("framework") or options.get("frameworks") or not {
+        "Microsoft.NETCore.App", "Microsoft.WindowsDesktop.App"
+    }.issubset({f["name"] for f in frameworks}):
+        raise ValueError("distribuicao nao e self-contained WinForms")
+    return {"files": len(files), "verified_hashes": len(checksums),
+            "expanded_bytes": sum(p.stat().st_size for p in files.values()),
+            "version": version, "source": source, "build": build,
+            "runtime": frameworks, "architecture": "AMD64"}
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("directory", type=Path)
+    parser.add_argument("--version", required=True)
+    parser.add_argument("--source", required=True)
+    parser.add_argument("--build", required=True)
+    parser.add_argument("--base", default="")
+    args = parser.parse_args()
+    try:
+        print(json.dumps(verify(args.directory, args.version, args.source, args.build, args.base), indent=2))
+    except (ValueError, KeyError, OSError, TypeError) as error:
+        parser.exit(1, "Pacote reprovado: " + str(error) + "\n")

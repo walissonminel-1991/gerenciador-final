@@ -39,7 +39,7 @@ jobs:
       - name: Preparar SDK .NET 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Identificar pacote pela versao e commit
         id: pacote
@@ -48,9 +48,10 @@ jobs:
           [xml]$project = Get-Content 'GerenciadorAplicativos.csproj' -Raw
           $version = [string]$project.Project.PropertyGroup.Version
           if ($version -notmatch '^[0-9]+([.][0-9]+){3}$') { throw 'Versao invalida no projeto' }
-          $shortCommit = $env:GITHUB_SHA.Substring(0, 8).ToLowerInvariant()
+          $shortCommit = $env:GF_SOURCE_SHA.Substring(0, 8).ToLowerInvariant()
           $artifactName = "GerenciadorFinal-v$version-$shortCommit-TESTE-win-x64"
           "nome=$artifactName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "versao=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Artefato identificado como: $artifactName"
 
       - name: Publicar para Windows x64 (self-contained)
@@ -109,6 +110,14 @@ jobs:
           }
           if ($verified -ne $files.Count) { throw 'Contagem de arquivos do checksum divergente' }
           Write-Host "Integridade aprovada: $verified arquivos."
+
+      - name: Validar composicao, origem, runtime e integridade antes do upload
+        shell: pwsh
+        run: |
+          $arguments = @('scripts/verificar_pacote.py', 'Distribuicao', '--version', '${{ steps.pacote.outputs.versao }}', '--source', $env:GF_SOURCE_SHA, '--build', $env:GITHUB_SHA)
+          if ($env:GF_BASE_SHA) { $arguments += @('--base', $env:GF_BASE_SHA) }
+          python @arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Conservar artefato para testes (nao assinado)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

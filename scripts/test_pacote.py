@@ -1,0 +1,120 @@
+"""Adversarial package fixtures: no installer is executed and no personal data is used."""
+import hashlib
+import json
+from pathlib import Path
+import struct
+import tempfile
+import unittest
+
+from verificar_pacote import REQUIRED, verify
+
+VERSION, SOURCE, BUILD, BASE = "5.13.11.49", "a" * 40, "b" * 40, "c" * 40
+
+
+class PacoteTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="GF-Package-")
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        for name in REQUIRED:
+            file = self.root / name
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(b"synthetic fixture")
+        header = bytearray(134)
+        header[:2] = b"MZ"
+        struct.pack_into("<I", header, 60, 128)
+        header[128:] = b"PE\0\0\x64\x86"
+        (self.root / "GerenciadorFinal.exe").write_bytes(header)
+        self.info = f"Versao: {VERSION}\nCommit fonte: {SOURCE}\nCommit Git: {BUILD}\nBase da PR (quando aplicavel): {BASE}\n"
+        (self.root / "BUILD-INFO.txt").write_text(self.info, encoding="utf-8")
+        self.options = {"runtimeOptions": {"includedFrameworks": [
+            {"name": name, "version": "10.0.13"}
+            for name in ("Microsoft.NETCore.App", "Microsoft.WindowsDesktop.App")]}}
+        (self.root / "GerenciadorFinal.runtimeconfig.json").write_text(json.dumps(self.options))
+        self.hashes()
+
+    def hashes(self):
+        lines = [hashlib.sha256(p.read_bytes()).hexdigest() + "  " + p.relative_to(self.root).as_posix()
+                 for p in sorted(self.root.rglob("*")) if p.is_file() and p.name != "SHA256SUMS.txt"]
+        (self.root / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def check(self):
+        return verify(self.root, VERSION, SOURCE, BUILD, BASE)
+
+    def test_complete_package(self):
+        self.assertEqual(self.check()["verified_hashes"], len(REQUIRED))
+
+    def test_localized_runtime_resources(self):
+        path = self.root / "pt-BR/System.Windows.Forms.resources.dll"
+        path.parent.mkdir()
+        path.write_bytes(b"synthetic localized resource")
+        self.hashes()
+        self.assertEqual(self.check()["verified_hashes"], len(REQUIRED) + 1)
+
+    def test_missing_notices(self):
+        for name in ("LICENSE.txt", "Licencas/DotNET/THIRD-PARTY-NOTICES.txt"):
+            with self.subTest(name=name):
+                path = self.root / name
+                original = path.read_bytes()
+                path.unlink()
+                with self.assertRaisesRegex(ValueError, "obrigatorios ausentes"):
+                    self.check()
+                path.write_bytes(original)
+
+    def test_corrupt_download(self):
+        (self.root / "GerenciadorFinal.dll").write_bytes(b"corruption")
+        with self.assertRaisesRegex(ValueError, "hash divergente"):
+            self.check()
+
+    def test_unlisted_and_missing_files(self):
+        extra = self.root / "unexpected.dll"
+        extra.write_bytes(b"stale previous build")
+        with self.assertRaisesRegex(ValueError, "exatamente"):
+            self.check()
+        self.hashes()
+        extra.unlink()
+        with self.assertRaisesRegex(ValueError, "exatamente"):
+            self.check()
+
+    def test_development_file_even_if_hashed(self):
+        (self.root / "credentials.pfx").write_bytes(b"synthetic non-secret")
+        self.hashes()
+        with self.assertRaisesRegex(ValueError, "inesperado"):
+            self.check()
+
+    def test_traversal_and_duplicate_checksums(self):
+        manifest = self.root / "SHA256SUMS.txt"
+        original = manifest.read_text()
+        for line in ("0" * 64 + "  ../outside.dll\n", original.splitlines()[0] + "\n"):
+            with self.subTest(line=line):
+                manifest.write_text(original + line)
+                with self.assertRaisesRegex(ValueError, "invalida ou duplicada"):
+                    self.check()
+
+    def test_wrong_architecture(self):
+        file = self.root / "GerenciadorFinal.exe"
+        file.write_bytes(file.read_bytes()[:-2] + b"\x4c\x01")
+        self.hashes()
+        with self.assertRaisesRegex(ValueError, "AMD64"):
+            self.check()
+
+    def test_wrong_or_duplicate_provenance(self):
+        file = self.root / "BUILD-INFO.txt"
+        for info in (self.info.replace(SOURCE, BUILD), self.info + f"Commit fonte: {SOURCE}\n",
+                     self.info.replace(VERSION, "5.13.11.48")):
+            with self.subTest(info=info):
+                file.write_text(info)
+                self.hashes()
+                with self.assertRaisesRegex(ValueError, "origem/versao"):
+                    self.check()
+
+    def test_framework_dependent_rejected(self):
+        self.options["runtimeOptions"]["frameworks"] = self.options["runtimeOptions"].pop("includedFrameworks")
+        (self.root / "GerenciadorFinal.runtimeconfig.json").write_text(json.dumps(self.options))
+        self.hashes()
+        with self.assertRaisesRegex(ValueError, "self-contained"):
+            self.check()
+
+
+if __name__ == "__main__":
+    unittest.main()
