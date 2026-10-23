@@ -1,3 +1,10 @@
+## v5.13.11.46 TESTE — identificação exata do bloqueio de exclusão
+
+- PC FORTE: com v5.13.11.45 elevada, a DLL de 101888 bytes e as chaves permaneceram. ACL mostrada pelo usuário: Administradores e SYSTEM com FullControl na pasta e no arquivo, sem atributo somente leitura. Causa real ainda não determinada.
+- Instrumentação da limpeza isolada: distinguir falha em verificar caminho, abrir arquivo, calcular/verificar hash, chamar File.Delete e confirmar exclusão. Registrar apenas fase e códigos Win32 restritos, sem incluir nomes, caminhos pessoais ou conteúdos.
+- Não houve mudança na autorização de exclusão nem tentativa de contornar bloqueios; a v46 ainda exige inventário íntegro, prévia, confirmação, validação SHA-256, proteção contra reparse/hardlinks e pós-verificação.
+- Teste Windows exige identificar a etapa File.Delete e Win32 5 para arquivo sintético marcado como somente leitura. Nenhuma exclusão real no PC FORTE durante CI.
+
 ## v5.13.11.45 TESTE — diagnóstico e retomada de limpeza 7-Zip após remoção
 
 - PC FORTE v44: desinstalação silenciosa confirmou saída 0 e remoção do registro, mas limpeza deixou arquivo `7-zip.dll` (101888 bytes), pasta e duas chaves; 0 exclusões, 1 falha e 3 preservações. O log anterior não conservou a classe da falha; suspeita de autorização/arquivo em uso permanece hipótese.
