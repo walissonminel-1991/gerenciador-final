@@ -51,7 +51,9 @@ internal static class Program
                     "Ocorreu um erro inesperado.\n\n" + e.Exception.Message,
                     "Gerenciador Final", MessageBoxButtons.OK, MessageBoxIcon.Error);
             };
-            Application.Run(new MainForm());
+            bool startInTray = args.Length is 1 or 2 && args.Contains("--tray", StringComparer.Ordinal)
+                && args.All(x => x is "--tray" or "--post-reboot");
+            Application.Run(new MainForm(startInTray: startInTray));
             DiagnosticTrace.Write("APP.ENCERRAMENTO_NORMAL");
             return 0;
         }
@@ -617,7 +619,7 @@ internal sealed partial class MainForm : Form
         catch (EntryPointNotFoundException) { }
     }
 
-    public MainForm(bool startServices = true)
+    public MainForm(bool startServices = true, bool startInTray = false)
     {
         Text = "Gerenciador Final — " + DiagnosticTrace.VersionLabel + " TESTE";
         Font = new Font("Segoe UI", 9.5F);
@@ -636,6 +638,8 @@ internal sealed partial class MainForm : Form
         StartPosition = FormStartPosition.Manual;
         _diagnoseWindowLifecycle = startServices;
         InitializeWindowChrome();
+        // Evita exibir a janela no arranque automatico antes do primeiro Hide().
+        if (startInTray) Opacity = 0;
         MinimumSize = StartupWindowSizing.AllowedMinimum(opening);
         MaximumSize = StartupWindowSizing.MaximumSizeFor(display);
         Bounds = opening;
@@ -749,8 +753,17 @@ internal sealed partial class MainForm : Form
         // em segundo plano, sem janelas auxiliares e sem executar instaladores.
         Shown += async (_, _) =>
         {
-            RestoreWithinMonitor();
-            FitWorkspace();
+            if (startInTray)
+            {
+                MinimizeToTray();
+                Opacity = 1;
+                DiagnosticTrace.Write("INICIALIZACAO.BANDEJA_AUTO estado=oculto");
+            }
+            else
+            {
+                RestoreWithinMonitor();
+                FitWorkspace();
+            }
             if (!startServices) return;
             LocalPerformanceMetrics.CompleteStartup();
             Log("Métricas agregadas de tempo, RAM e CPU do GF ficam apenas no diagnóstico local; nenhum envio remoto.");
@@ -761,6 +774,17 @@ internal sealed partial class MainForm : Form
                 quietStartup: true);
             if (!IsDisposed)
                 BeginStartupChecks();
+            try
+            {
+                await RebootResidualReview.CheckAfterBootAsync(Log);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                InvalidDataException or System.Security.Cryptography.CryptographicException or
+                System.Text.Json.JsonException)
+            {
+                DiagnosticTrace.Write("REINICIO.RESIDUOS estado=review_unavailable motivo=" + ex.GetType().Name);
+                Log("Não foi possível concluir a conferência de resíduos após o reinício.");
+            }
         };
         FormClosing += (_, e) =>
         {
@@ -2965,6 +2989,13 @@ internal sealed partial class MainForm : Form
                 : cleanup?.Offered > 0 ? "Limpeza concluída." : "Desinstalação concluída.";
             Status(result);
             Log(result);
+            if (consent && cleanup?.Declined != true && cleanup?.Cancelled != true &&
+                !cancellation.IsCancellationRequested)
+            {
+                var review = RebootResidualReview.Select(outcomes, cleanup);
+                if (review.Length > 0)
+                    OfferRestartReview(review);
+            }
         }
         catch (OperationCanceledException)
         {
