@@ -315,6 +315,43 @@ internal static class VerifiedUpdaters
             family[0].InventoryId.Equals(chosen.InventoryId, StringComparison.OrdinalIgnoreCase);
     }
 
+    // Evita repetir o incidente 7-Zip: um instalador EXE jamais substitui
+    // silenciosamente uma edição MSI ou duas variantes registradas ao mesmo tempo.
+    internal static bool SingleSafeSilentInstallation(VerifiedUpdateRecipe recipe,
+        ProgramEntry chosen, IEnumerable<ProgramEntry> inventory)
+    {
+        var items = inventory.ToArray();
+        if (recipe.Identifier == "notepadpp-x64-8.9.8.1")
+        {
+            var related = items.Where(p => p.Name.StartsWith("Notepad++",
+                StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (related.Length != 1 ||
+                !related[0].InventoryId.Equals(chosen.InventoryId, StringComparison.OrdinalIgnoreCase) ||
+                !string.IsNullOrWhiteSpace(chosen.MsiProductCode) ||
+                !UninstallCommand.TryParse(chosen.UninstallString, out var uninstall) ||
+                uninstall.ProductCode is not null) return false;
+            string folder = Path.Combine(Environment.GetFolderPath(
+                Environment.SpecialFolder.ProgramFiles), "Notepad++");
+            if (!uninstall.FileName.Equals(Path.Combine(folder, "uninstall.exe"),
+                    StringComparison.OrdinalIgnoreCase) ||
+                !File.Exists(Path.Combine(folder, "notepad++.exe"))) return false;
+            if (!string.IsNullOrWhiteSpace(chosen.InstallLocation) &&
+                !chosen.InstallLocation.TrimEnd('\\').Equals(folder, StringComparison.OrdinalIgnoreCase))
+                return false;
+            return true;
+        }
+        if (recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
+        {
+            var related = items.Where(p => p.Name.StartsWith("SumatraPDF",
+                StringComparison.OrdinalIgnoreCase)).ToArray();
+            return related.Length == 1 &&
+                related[0].InventoryId.Equals(chosen.InventoryId, StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrWhiteSpace(chosen.MsiProductCode) &&
+                DetectSumatraInstallation(chosen) is not null;
+        }
+        return true;
+    }
+
     // Valida local e arquitetura PE real: nunca converte uma instalação x86 em x64
     // nem altera a instalação por usuário para instalação global.
     internal static (bool IsX64, bool AllUsers)? DetectSumatraInstallation(ProgramEntry entry)
