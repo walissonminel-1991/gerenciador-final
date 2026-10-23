@@ -2,6 +2,14 @@ using GerenciadorAplicativos;
 using Microsoft.Win32;
 
 int passed = 0;
+if (args.Contains("--benchmark")) { ResidualBenchmark.Run(); return; }
+if (args.Contains("--work9"))
+{
+    int failures = 0;
+    await Work9ResidualTests.RunAsync((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+    if (failures != 0) throw new Exception($"WORK9 residues: {failures} falhas reproduzidas");
+    return;
+}
 if (args.Contains("--work6-uninstall-flow")) { await Work6UninstallFlowTests.Run(Check); return; }
 if (args.Contains("--work7-uninstall"))
 {
@@ -55,9 +63,9 @@ if (args.Contains("--work6-uninstall-policy"))
     if(failures>0) throw new Exception($"WORK6 uninstall: {failures} falhas reproduzidas");
     return;
 }
-if (args.Contains("--benchmark")) { ResidualBenchmark.Run(); return; }
 // Bateria integrada, na ordem solicitada: o atualizador corre no projeto separado,
  // aqui simulamos desinstalacao e somente depois politica de residuos.
+await Work9ResidualTests.RunAsync(Check);
 Work6UninstallTests.Policy(Check);
 await Work6UninstallFlowTests.Run(Check);
 await Work7UninstallTests.Run(Check);

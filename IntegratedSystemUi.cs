@@ -504,11 +504,11 @@ internal sealed partial class MainForm
         finally { _fittingSystemCards = false; }
     }
 
-    private async Task RefreshStartupEntriesAsync()
+    private async Task RefreshStartupEntriesAsync(Func<Task<IReadOnlyList<StartupItem>>>? read = null)
     {
         await ExecuteAsync("Carregando itens de inicialização...", async () =>
         {
-            var entries = await Task.Run(StartupManager.Read);
+            var entries = await (read?.Invoke() ?? Task.Run(StartupManager.Read));
             if (IsDisposed || _activeSystemView != "startup" || _nav.SelectedIndex != 5) return;
             _systemPanelTitle.Text = "Inicialização · ativar e desativar";
             _systemPanelSummary.Text = "Entradas do seu usuário podem ser alternadas e restauradas. Entradas de todos os usuários são apenas leitura. Serviços e tarefas agendadas não estão incluídos.";

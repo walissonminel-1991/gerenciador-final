@@ -6,6 +6,13 @@ void Verify(bool condition, string label)
     checkedCount++;
     Console.WriteLine("OK " + label);
 }
+if (args.Contains("--work9"))
+{
+    int failures = 0;
+    await Work9UpdateTests.RunAsync((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+    if (failures != 0) throw new Exception($"WORK9 updates: {failures} falhas reproduzidas");
+    return;
+}
 if (args.Contains("--work6-flow"))
 { await Work6FlowTests.RunAsync(Verify); return; }
 if (args.Contains("--work6-authorization"))
@@ -432,6 +439,7 @@ try
 }
 finally { Directory.Delete(isolated, true); }
 
+await Work9UpdateTests.RunAsync(Verify);
 Work6AuthorizationTests.Run(Verify);
 await Work6FlowTests.RunAsync(Verify);
 SimulatedUpdateScenarioTests.Run(Verify);

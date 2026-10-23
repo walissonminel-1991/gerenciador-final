@@ -42,6 +42,15 @@ jobs:
       - name: Compilar aplicacao
         shell: pwsh
         run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
+      - name: WORK9 reproducoes adversariais isoladas
+        shell: pwsh
+        run: |
+          $failed = @()
+          foreach ($project in @('TestesAtualizador', 'TestesResiduos', 'TestesLayout')) {
+            dotnet run --project "$project/$project.csproj" -c Release -- --work9
+            if ($LASTEXITCODE -ne 0) { $failed += $project }
+          }
+          if ($failed.Count -gt 0) { throw "WORK9 falhou: $($failed -join ', ')" }
       - name: Conferir versao dos scripts de distribuicao sem publicar
         shell: pwsh
         run: |

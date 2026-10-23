@@ -5,7 +5,7 @@ using GerenciadorAplicativos;
 internal static class LayoutTests
 {
     [STAThread]
-    static void Main()
+    static void Main(string[] args)
     {
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
@@ -20,6 +20,14 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
+        if (args.Contains("--work9"))
+        {
+            int failures = 0;
+            Work9NavigationTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+            if (failures != 0) throw new Exception($"WORK9 UI: {failures} falhas reproduzidas");
+            return;
+        }
+        Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         ConfirmReviewTests.Run();
         Work7SafetyTests.Run();
         ResidualExplorerTests.Run();

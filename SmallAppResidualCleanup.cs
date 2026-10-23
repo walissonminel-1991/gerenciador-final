@@ -27,6 +27,7 @@ internal static class SmallAppResidualCleanup
 #if GF_PROGRESSIVE
     internal static string[]? SyntheticFolders;
     internal static bool SyntheticNoRegistry;
+    internal static Action<string>? SyntheticBeforeFileDelete;
     internal static (RegistryHive Hive, RegistryView View, string Subkey)[]? SyntheticRegistryKeys;
 #endif
 
@@ -329,6 +330,9 @@ internal static class SmallAppResidualCleanup
                         Convert.ToHexString(SHA256.HashData(handle)) != file.Digest)
                     { failed++; problems.Add("arquivo_alterado"); continue; }
                 }
+#if GF_PROGRESSIVE
+                SyntheticBeforeFileDelete?.Invoke(file.Path);
+#endif
                 File.Delete(file.Path);
                 if (File.Exists(file.Path)) { failed++; problems.Add("arquivo_permaneceu"); }
                 else deleted++;
