@@ -12,6 +12,7 @@
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
     <Compile Include="../ProtectedApplications.cs" Link="ProtectedApplications.cs" />
     <Compile Include="../VerifiedUpdaters.cs" Link="VerifiedUpdaters.cs" />
+    <Compile Include="../UninstallCommand.cs" Link="UninstallCommand.cs" />
     <Compile Include="../WindowsTerminalUpdater.cs" Link="WindowsTerminalUpdater.cs" />
     <Compile Include="../LocalMsixInventory.cs" Link="LocalMsixInventory.cs" />
     <Compile Include="../LocalMsixSnapshot.cs" Link="LocalMsixSnapshot.cs" />
