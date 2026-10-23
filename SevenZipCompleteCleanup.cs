@@ -64,7 +64,7 @@ internal static class SevenZipCompleteCleanup
             Name = "7-Zip 26.05 (x64)", Publisher = "Igor Pavlov",
             Version = "26.05", InventoryId = "LocalMachine|Registry64|7-Zip",
             InstallLocation = root,
-            UninstallString = "\\"" + Path.Combine(root, "Uninstall.exe") + "\\""
+            UninstallString = "\"" + Path.Combine(root, "Uninstall.exe") + "\""
         };
     }
 
