@@ -1,3 +1,12 @@
+## v5.13.11.45 TESTE — diagnóstico e retomada de limpeza 7-Zip após remoção
+
+- PC FORTE v44: desinstalação silenciosa confirmou saída 0 e remoção do registro, mas limpeza deixou arquivo `7-zip.dll` (101888 bytes), pasta e duas chaves; 0 exclusões, 1 falha e 3 preservações. O log anterior não conservou a classe da falha; suspeita de autorização/arquivo em uso permanece hipótese.
+- Limpeza restrita agora registra códigos estáveis de erro por arquivo/pasta/Registro sem coletar caminhos pessoais ou conteúdo. UI mostra categoria e orienta quando permissão de administrador pode ser necessária, sem adicionar botão de privilégio.
+- Nova entrada histórica específica 7-Zip 26.05 (x64) mostra resíduos existentes após desinstalação, com opção `Limpar 7-Zip` dentro do investigador. Revalida ausência de qualquer edição do 7-Zip e processos ativos, apresenta prévia completa e exige autorização; permite retomar sem reinstalar o software.
+- Corrige o caso em que a investigação geral, apesar de encontrar candidatos, não apresentava nenhum grupo ao filtrar ZIP em varredura parcial; a análise específica é independente da cobertura geral, sem relaxar seus limites.
+- Regressão sintética de arquivo somente leitura exige falha explícita; valida preservação e reconciliação. A limpeza não cobre entradas genéricas HKCR/Windows apontadas por ferramentas externas até atribuir propriedade específica.
+- Candidata permanece experimental, sem remoções reais pelo CI; só distribuir se políticas, testes Windows e compilação passarem.
+
 ## v5.13.11.44 TESTE — piloto de desinstalação completa (NÃO HOMOLOGADA)
 
 - Seleção silenciosa: MSI apenas com ProductCode registrado correspondente, /qn /norestart; 7-Zip EXE x64 apenas quando identidade, diretório, arquivos e comando oficial são confirmados. Outros EXEs continuam com o desinstalador habitual; não há opção genérica insegura de modo silencioso.
