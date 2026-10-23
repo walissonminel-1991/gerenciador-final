@@ -174,6 +174,11 @@ Verify(VerifiedUpdaters.GetMicrosoftStoreUri(Item("Windows Terminal", "1.0", "2.
 var npp = VerifiedUpdaters.Resolve(Item("Notepad++ (64-bit x64)", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial"));
 Verify(npp?.Identifier == "notepadpp-x64-8.9.8.1" && npp.Sha256?.Length == 64 &&
        npp.RequiredSigner == "Notepad++", "Notepad++: receita fixada com digest e editor");
+Verify(npp.Arguments == "/S" && !npp.Interactive &&
+       VerifiedUpdaters.IsApprovedRecipe(npp) &&
+       !VerifiedUpdaters.IsApprovedRecipe(npp with { Arguments = "/s" }) &&
+       !VerifiedUpdaters.IsApprovedRecipe(npp with { Arguments = "/S /closeRunningNpp" }),
+       "Notepad++ NSIS: /S maiusculo silencioso, sem fechamento forçado ou flags adulteradas");
 Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Desconhecido", "GitHub oficial")) is null,
        "Notepad++: rejeitar editor desconhecido");
 Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.2", "Don HO", "GitHub oficial")) is null,
@@ -195,11 +200,15 @@ var sumX86 = VerifiedUpdaters.CreateSumatraRecipe(Item("SumatraPDF", "3.5", "3.6
 Verify(sumX64.Identifier == "sumatrapdf-x64-3.6.1" &&
        sumX64.Sha256?.Length == 64 && sumX64.RequiredSigner == "Krzysztof Kowalczyk" &&
        sumX64.Download.Host == "www.sumatrapdfreader.org" &&
-       sumX64.Arguments == "-install",
-       "SumatraPDF x64: instalador oficial por usuario com SHA e assinatura");
+       sumX64.Arguments == "-install -silent" && !sumX64.Interactive &&
+       VerifiedUpdaters.IsApprovedRecipe(sumX64) &&
+       !VerifiedUpdaters.IsApprovedRecipe(sumX64 with { Arguments = "-install" }),
+       "SumatraPDF x64: instalador oficial silencioso por usuario com SHA e assinatura");
 Verify(sumX86.Identifier == "sumatrapdf-x86-3.6.1" &&
-       sumX86.Arguments.Contains("-all-users") && sumX86.Download != sumX64.Download,
-       "SumatraPDF x86: preservar arquitetura e escopo global");
+       sumX86.Arguments == "-install -silent -all-users" &&
+       !sumX86.Interactive && VerifiedUpdaters.IsApprovedRecipe(sumX86) &&
+       sumX86.Download != sumX64.Download,
+       "SumatraPDF x86: execução silenciosa preserva arquitetura e escopo global");
 Verify(VerifiedUpdaters.Resolve(Item("SumatraPDF", "3.5", "3.6.1",
        "Empresa desconhecida", "GitHub oficial")) is null,
        "SumatraPDF: impedir fabricante falso");
