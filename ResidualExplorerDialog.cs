@@ -23,6 +23,7 @@ internal sealed class ResidualExplorerDialog : Form
     private readonly ModernButton inspect = Button("Inspecionar local", "ResidualInspect", 150);
     private readonly ModernButton cleanFoobar = Button("Por que preservar?", "ResidualCleanFoobar", 160);
     private readonly ModernButton cleanSevenZip = Button("Limpar 7-Zip", "ResidualCleanSevenZip", 145);
+    private readonly ModernButton cleanSmallApp = Button("Limpar resíduos", "ResidualCleanSmallApp", 145);
     private readonly Label pageLabel = new() { Width = 110, Height = 32, TextAlign = ContentAlignment.MiddleCenter };
     private readonly Label locationLabel = new() { Width = 74, Height = 30, TextAlign = ContentAlignment.MiddleCenter };
     private readonly ModernButton locationPrevious = Button("Locais ‹", "ResidualLocationPrevious", 75);
@@ -90,6 +91,7 @@ internal sealed class ResidualExplorerDialog : Form
         var inspectBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
         inspectBar.Controls.Add(inspect); inspectBar.Controls.Add(cleanFoobar);
         inspectBar.Controls.Add(cleanSevenZip);
+        inspectBar.Controls.Add(cleanSmallApp);
         right.Controls.Add(inspectBar, 0, 3); split.Panel2.Controls.Add(right);
         root.Controls.Add(split, 0, 3);
         var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty, Padding = new Padding(0, 6, 0, 0) };
@@ -123,6 +125,7 @@ internal sealed class ResidualExplorerDialog : Form
             finally { if (!IsDisposed) UpdateActions(); }
         };
         cleanSevenZip.Click += async (_, _) => await CleanSevenZipResidualAsync();
+        cleanSmallApp.Click += async (_, _) => await CleanSmallAppResidueAsync();
         split.SizeChanged += (_, _) => ArrangeBody();
         Shown += async (_, _) => await RunAsync(async (token, id) =>
         {
@@ -330,6 +333,82 @@ internal sealed class ResidualExplorerDialog : Form
         await QueryAsync(0);
     }
 
+    private async Task CleanSmallAppResidueAsync()
+    {
+        string? product = selectedReport?.Product;
+        if (Busy || !SmallAppResidualCleanup.Supported(product)) return;
+        cleanSmallApp.Enabled = false;
+        try
+        {
+            var scan = await Task.Run(AppServices.ScanAllInstalledApps);
+            var preview = await Task.Run(() => SmallAppResidualCleanup.Capture(
+                product!, !scan.Incomplete, scan.Items, lifetimeToken), lifetimeToken);
+            if (!preview.Complete)
+            {
+                details.SetText("Limpeza preservada: " + preview.Reason);
+                return;
+            }
+            if (preview.Files.Count + preview.Directories.Count + preview.Keys.Count == 0)
+            {
+                details.SetText("Nenhum resíduo específico permanece nos locais autorizados. " +
+                    "Outras referências históricas podem existir em áreas compartilhadas.");
+                return;
+            }
+            if (!SevenZipCleanupReviewDialog.Confirm(this, preview))
+            {
+                details.SetText("Limpeza recusada. Nenhum item foi alterado.");
+                return;
+            }
+            var result = await SmallAppResidualCleanup.DeleteAsync(preview,
+                async () =>
+                {
+                    var current = await Task.Run(AppServices.ScanAllInstalledApps);
+                    return (!current.Incomplete, (IReadOnlyCollection<ProgramEntry>)current.Items);
+                }, lifetimeToken);
+            var verified = await Task.Run(AppServices.ScanAllInstalledApps);
+            var after = await Task.Run(() => SmallAppResidualCleanup.Capture(
+                product!, !verified.Incomplete, verified.Items, lifetimeToken), lifetimeToken);
+            DiagnosticTrace.Write($"RESIDUOS_APLICATIVO_LIMPEZA tipo={(product == "Notepad++" ? "npp" : "sumatra")} " +
+                $"arquivos={result.Files} pastas={result.Directories} chaves={result.Keys} " +
+                $"falhas={result.Failed} preservados={result.Preserved} " +
+                $"problemas={string.Join("+", result.Problems)} apos_completo={after.Complete} " +
+                $"apos_arquivos={after.Files.Count} apos_pastas={after.Directories.Count} " +
+                $"apos_chaves={after.Keys.Count}");
+            if (after.Complete) await RefreshSmallAppIndexAsync(product!, after);
+            if (IsDisposed) return;
+            details.SetText($"Limpeza de {product}: {result.Files} arquivo(s), " +
+                $"{result.Directories} pasta(s), {result.Keys} chave(s) excluídos.\r\n" +
+                $"{result.Failed} falhas e {result.Preserved} preservados.\r\n" +
+                $"Falhas: {(result.Problems.Count == 0 ? "nenhuma" : string.Join(", ", result.Problems))}.\r\n" +
+                (after.Complete && after.Files.Count + after.Directories.Count + after.Keys.Count == 0
+                    ? "Conferência: zero alvos específicos encontrados. " +
+                      "Referências históricas em áreas compartilhadas não foram avaliadas para exclusão."
+                    : "Conferência específica incompleta ou com itens restantes: " +
+                      after.Files.Count + " arquivo(s), " + after.Directories.Count +
+                      " pasta(s), " + after.Keys.Count + " chave(s). Preserve o resultado."));
+        }
+        catch (OperationCanceledException)
+        { if (!IsDisposed) details.SetText("Limpeza interrompida. Confira novamente o inventário."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            InvalidOperationException or ArgumentException or System.Security.SecurityException)
+        { if (!IsDisposed) details.SetText("Limpeza não concluída: " + ex.GetType().Name); }
+        finally { if (!IsDisposed) UpdateActions(); }
+    }
+
+    private async Task RefreshSmallAppIndexAsync(string product, SmallAppSnapshot snapshot)
+    {
+        if (!snapshot.Complete || IsDisposed) return;
+        var reports = source.Where(x =>
+            !x.Product.Equals(product, StringComparison.OrdinalIgnoreCase)).ToList();
+        var current = SmallAppResidualCleanup.Report(snapshot);
+        if (current is not null) reports.Add(current);
+        source = reports;
+        index = new ResidualResultIndex(source, lifetimeToken);
+        selections.Clear();
+        criteria = "";
+        await QueryAsync(0);
+    }
+
     private bool Current(int id, CancellationToken token) => !IsDisposed && !token.IsCancellationRequested && id == generation;
     internal void CancelCurrent() { operation?.Cancel(); summary.Text = "Consulta cancelada. Resultados anteriores preservados; dados não apagados.\nPerfis próprios e outros itens preservados. Limpeza suspensa até validar identidade e conteúdo dos alvos."; }
     private async Task RunAsync(Func<CancellationToken, int, Task> work)
@@ -356,6 +435,8 @@ internal sealed class ResidualExplorerDialog : Form
         cleanSevenZip.Visible = selectedReport?.Product == SevenZipCompleteCleanup.RecoveryIdentity().Name &&
             !sevenZipCleaned;
         cleanSevenZip.Enabled = !Busy && cleanSevenZip.Visible;
+        cleanSmallApp.Visible = SmallAppResidualCleanup.Supported(selectedReport?.Product);
+        cleanSmallApp.Enabled = !Busy && cleanSmallApp.Visible;
     }
     internal static Rectangle FitBounds(Rectangle requested, Rectangle workingArea)
     {
