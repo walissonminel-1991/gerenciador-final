@@ -7,6 +7,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../IntegratedResidualCleanup.cs" Link="IntegratedResidualCleanup.cs" />
+    <Compile Include="../IntegratedResidualPolicy.cs" Link="IntegratedResidualPolicy.cs" />
+    <Compile Include="../IntegratedResidualBatch.cs" Link="IntegratedResidualBatch.cs" />
+    <Compile Include="../ResidualRegistryGuard.cs" Link="ResidualRegistryGuard.cs" />
+    <Compile Include="../ResidualElevatedProtocol.cs" Link="ResidualElevatedProtocol.cs" />
+    <Compile Include="../PipePeerVerifier.cs" Link="PipePeerVerifier.cs" />
     <Compile Include="../RegisteredUninstaller.cs" Link="RegisteredUninstaller.cs" />
     <Compile Include="../FoobarProfileCleanup.cs" Link="FoobarProfileCleanup.cs" />
     <Compile Include="../WindowsSystemTools.cs" Link="WindowsSystemTools.cs" />

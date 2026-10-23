@@ -1,9 +1,18 @@
 using GerenciadorAplicativos;
 using Microsoft.Win32;
 
+if (args.Length == 2 && args[0] == "--synthetic-uninstall")
+{ Environment.Exit(Work10IntegratedCleanupTests.UninstallFixture(args[1])); return; }
+if (args.Length == 3 && args[0] == "--residual-worker-test")
+{ Environment.Exit(await Work10IntegratedCleanupTests.WorkerFixture(args[1], args[2])); return; }
 int passed = 0;
 if (args.Contains("--benchmark") || args.Contains("--benchmark-work9"))
 { ResidualBenchmark.Run(comparable: args.Contains("--benchmark-work9")); return; }
+if (args.Contains("--work10"))
+{
+    await Work10IntegratedCleanupTests.RunAsync((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("PASS " + label); });
+    return;
+}
 if (args.Contains("--work9"))
 {
     int failures = 0;
@@ -67,6 +76,7 @@ if (args.Contains("--work6-uninstall-policy"))
 // Bateria integrada, na ordem solicitada: o atualizador corre no projeto separado,
  // aqui simulamos desinstalacao e somente depois politica de residuos.
 await Work9ResidualTests.RunAsync(Check);
+await Work10IntegratedCleanupTests.RunAsync(Check);
 Work6UninstallTests.Policy(Check);
 await Work6UninstallFlowTests.Run(Check);
 await Work7UninstallTests.Run(Check);
@@ -271,7 +281,7 @@ Check(blockedForRights is not null && blockedForRights.Contains("HKLM (32 bits)"
       SmallAppResidualCleanup.RegistryWritePreflight(inaccessibleSnapshot, _ => true) is null &&
       SmallAppResidualCleanup.RegistryWritePreflight(
           inaccessibleSnapshot with { Files = [new SmallAppFile(
-              @"C:\GF-Synthetic\profile.xml", 0, "", default)] }, _ => false) is null &&
+              @"C:\GF-Synthetic\profile.xml", 0, "", default!)] }, _ => false) is null &&
       SmallAppResidualCleanup.RegistryWritePreflight(
           inaccessibleSnapshot with { Complete = false }, _ => false) is null,
       "Prévia somente com Registro sem escrita bloqueia tentativas repetidas sem excluir");
@@ -1226,7 +1236,7 @@ Check(nothingApproved.Folders.Count == 0 && nothingApproved.RegistryKeys.Count =
     "Confirmacao sem alvos nao autoriza limpar novos residuos");
 Console.WriteLine("Testes do catálogo de desinstalação embarcado.");
 var rules = UninstallRuleCatalog.Rules;
-Check(rules.Count == 6, "Seis políticas específicas validadas e incorporadas ao executável");
+Check(rules.Count == 7, "Sete políticas específicas validadas e incorporadas ao executável");
 Check(rules.Any(x => x.Id == "sumatrapdf" && x.RegistryKeys.Single() == @"Software\SumatraPDF"),
     "Política SumatraPDF tem HKCU exclusivo");
 Check(rules.Any(x => x.Id == "obs" && x.Folders.Count == 1 && x.RegistryKeys.Count == 0),

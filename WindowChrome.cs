@@ -229,7 +229,7 @@ internal sealed partial class MainForm
         finally { _trayTransitioning = false; }
         Activate();
         DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.FIM");
-        if (HasPendingResidualReview) BeginInvoke((Action)TryShowPendingResidualReview);
+        ResumeUninstallCleanupConfirmation();
         // Recolher RAM global, sem enumeracao de PIDs na restauracao.
         if (_nav.SelectedIndex == 5 && _activeSystemView == "memory")
         {

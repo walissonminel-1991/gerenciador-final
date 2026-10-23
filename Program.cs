@@ -587,7 +587,6 @@ internal sealed partial class MainForm : Form
     private HashSet<string>? _completeInstallBaseline; // A ausência em uma fonte com falha não comprova desinstalação.
     private CancellationTokenSource? _consultaCatalogoCts;
     private CancellationTokenSource? _installerDownloadCts;
-    private CancellationTokenSource? _residualScanCts;
     private int _catalogoGeneration; // Descarta resultados de consultas anteriores ao recarregamento local.
     private string _appFilter = "Todos";
     private readonly HashSet<ProgramEntry> _checkedApps = new();
@@ -775,13 +774,6 @@ internal sealed partial class MainForm : Form
                 e.Cancel = true;
                 _consultaCatalogoCts.Cancel();
                 Status("Cancelando a consulta. Tente fechar novamente em alguns instantes.");
-                return;
-            }
-            if (_residualScanCts is not null)
-            {
-                e.Cancel = true;
-                _residualScanCts.Cancel();
-                Status("Cancelando análise de resíduos. Tente fechar novamente em instantes.");
                 return;
             }
             if (_deploymentWaitCts is not null)
@@ -1300,7 +1292,7 @@ internal sealed partial class MainForm : Form
                 "Apaga permanentemente os itens da Lixeira. Não é possível desfazer.",
                 AppServices.Red,
                 () => ExecuteAsync("Esvaziando Lixeira...", EmptyRecycleBinAsync)),
-            Tool("Limpeza de Disco automática",
+            Tool("Limpeza avançada",
                 "Executa a limpeza nativa do Windows, sem abrir outra janela.",
                 AppServices.Blue,
                 () => ConfirmThenRun("cleanmgr-auto", "Executar a Limpeza de Disco automaticamente? O Windows pode solicitar autorização.")),
@@ -1308,14 +1300,7 @@ internal sealed partial class MainForm : Form
                 "Remove cache gráfico antigo. Jogos podem precisar recompilar shaders.",
                 AppServices.Gray,
                 () => ConfirmThenRun("clean-directx-cache", "Remover arquivos antigos do cache D3DSCache? Jogos poderão recompilar os shaders e ficar temporariamente mais lentos na primeira execução.")),
-            Tool("Resíduos de aplicativos",
-                "Investiga vestígios antigos em pastas, atalhos e Registro, sem apagar dados incertos.",
-                AppServices.Gray,
-                () => ExecuteAsync("Verificando resíduos de aplicativos...", ReviewOldUninstallResiduesAsync)),
-            Tool("Limpeza avançada",
-                "Revisa perfis e configurações. Somente leitura nesta versão de teste.",
-                AppServices.Orange,
-                () => ExecuteAsync("Verificando resíduos para limpeza avançada...", ReviewDeepUninstallResiduesAsync))
+
         }, compact: true);
         var cleaningLayout = new TableLayoutPanel
         {
@@ -1858,7 +1843,7 @@ internal sealed partial class MainForm : Form
         _status.ForeColor = Muted;
         _status.TextAlign = ContentAlignment.MiddleRight;
         top.Controls.Add(_status, 1, 0);
-        AddResidualCancelButton(top);
+        AddUninstallCancelButton(top);
         root.Controls.Add(top, 0, 0);
         _progress.Dock = DockStyle.Fill;
         _progress.Margin = new Padding(0, 0, 0, 2);
@@ -1970,7 +1955,6 @@ internal sealed partial class MainForm : Form
                 if (_nav.SelectedIndex == 4)
                     _ = RefreshEnergyInfoAsync();
                 ExitAfterCurrentOperation();
-                if (!IsDisposed && HasPendingResidualReview) BeginInvoke((Action)TryShowPendingResidualReview);
             }
         }
     }
@@ -2801,212 +2785,102 @@ internal sealed partial class MainForm : Form
     {
         if (apps.Count == 0) { Status("Nenhum aplicativo marcado"); return; }
         var prepared = new List<PreparedUninstaller>();
+        using var cancellation = new CancellationTokenSource();
+        _uninstallCts = cancellation;
+        ShowUninstallCancellation(true);
+        var contexts = new Dictionary<string, ResidualUninstallContext>(StringComparer.OrdinalIgnoreCase);
+        async Task<UninstallSnapshot> Inventory()
+        {
+            var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
+            return new(scan.Items, !scan.Incomplete);
+        }
         try
         {
-            // Congelar comandos e prender EXEs antes de mostrar a confirmação.
             var requests = UninstallBatch.Select(apps);
+            var before = await Inventory();
             foreach (var request in requests)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                var context = await Task.Run(() => IntegratedResidualCleanup.Prepare(request.Original,
+                    before, cancellation.Token), cancellation.Token);
+                contexts.Add(request.Original.InventoryId, context);
+                DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(context.App, "prepare", "captured",
+                    folders: context.Roots.Count, keys: context.Keys.Count, kept: context.Preserved));
+                foreach (var problem in context.Problems)
+                    DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(context.App, problem.Stage, "preserved",
+                        error: problem.Error, reason: problem.Reason));
                 prepared.Add(await Task.Run(() => RegisteredUninstaller.Prepare(request,
                     (path, signer) => VerifiedUpdaters.VerifyAuthenticode(path, signer, out _),
                     signatureIssue: (path, signer) =>
                     {
                         VerifiedUpdaters.VerifyAuthenticode(path, signer, out string issue);
                         return issue;
-                    })));
+                    }), cancellation.Token));
+            }
             string preview = string.Join("\n\n", prepared.Select(p =>
-                "• " + p.Request.Original.Name + "\n" + p.StartInfo.FileName + " " + p.StartInfo.Arguments +
-                (p.UnsignedWarning ?
-                    "\nAVISO: DESINSTALADOR SEM ASSINATURA DIGITAL. Confira o aplicativo e confirme se deseja continuar." :
-                 p.PublisherWarning ?
-                    "\nAVISO: ASSINATURA VÁLIDA, MAS EDITOR DIFERENTE DO CADASTRO. Confira o programa e confirme se deseja continuar." :
-                 p.TrustWarning ?
-                    "\nATENÇÃO: O WINDOWS NÃO CONFIRMOU A CONFIANÇA DA ASSINATURA DIGITAL. O programa está registrado " +
-                    "como desinstalador deste aplicativo, mas pode ser perigoso. Verifique o caminho e confirme explicitamente." : "")));
+                "• " + p.Request.Original.Name +
+                (p.UnsignedWarning ? "\nDesinstalador sem assinatura digital. Confira o aplicativo antes de continuar." :
+                 p.PublisherWarning ? "\nAssinatura válida com editor diferente do cadastro. Confira o aplicativo." :
+                 p.TrustWarning ? "\nO Windows não confirmou a confiança da assinatura. Confira o aplicativo." : "")));
             bool consent = DarkConfirmDialog.Confirm(this,
                 $"Deseja desinstalar {prepared.Count} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
                 "Confirmar desinstalação") == DialogResult.Yes;
-            using var cancellation = new CancellationTokenSource();
-            _uninstallCts = cancellation;
-            var outcomes = await new UninstallBatch().RunAsync(requests, consent,
-                async () => {
-                    var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
-                    return new UninstallSnapshot(scan.Items, !scan.Incomplete);
-                },
-                (request, token) => {
+            var outcomes = await new UninstallBatch().RunAsync(requests, consent, Inventory,
+                (request, token) =>
+                {
                     Status("Aguardando desinstalação de " + request.Original.Name + "...");
                     return prepared.Single(p => p.Request == request).LaunchAsync(token);
                 }, token => Task.Delay(500, token), cancellation.Token);
+            foreach (var plan in prepared) plan.Dispose();
+            prepared.Clear();
             foreach (var outcome in outcomes)
+                DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(outcome.Request.Original),
+                    "uninstall", outcome.State.ToString(), error: outcome.Code ?? 0,
+                    reason: outcome.State == UninstallState.RegistrationAbsent ? "removal_confirmed" : "no_cleanup_authorized"));
+            ResidualBatchResult? cleanup = null;
+            if (consent)
             {
-                DiagnosticTrace.Write("DESINSTALACAO.RESULTADO estado=" + outcome.State +
-                    " codigo=" + (outcome.Code?.ToString() ?? "indeterminado"));
-                Log(outcome.Request.Original.Name + ": " + outcome.State +
-                    (outcome.Code is int code ? " (" + code + ")" : "") + ". Nenhuma repetição automática.");
-                if(outcome.Reason.Length>0) Log(outcome.Reason);
-                if (outcome.State == UninstallState.RegistrationAbsent)
-                    await ReviewUninstallOutcomeAsync(outcome.Request.Original);
+                Status("Conferindo resíduos dos aplicativos removidos...");
+                cleanup = await Task.Run(() => IntegratedResidualBatch.RunAsync(outcomes, contexts,
+                    Inventory, (plans, token) => OnUninstallUiAsync(() => ConfirmUninstallCleanupAsync(plans, token)),
+                    (plans, token) => OnUninstallUiAsync(() => RunElevatedAsync(ResidualElevatedProtocol.TaskName, plans, token)),
+                    line => DiagnosticTrace.Write(line), cancellation.Token));
+                await RefreshCatalogAsync();
             }
-            if (consent) await RefreshCatalogAsync();
             int absent = outcomes.Count(x => x.State == UninstallState.RegistrationAbsent);
             int pending = outcomes.Count(x => x.State == UninstallState.Pending);
-            int cancelled = outcomes.Count(x => x.State == UninstallState.Cancelled);
-            int failures = outcomes.Count(x => x.State is UninstallState.Blocked or UninstallState.StartFailed or UninstallState.ProcessFailed or UninstallState.StillPresent);
-            Status(!consent ? "Desinstalação cancelada" :
-                $"Desinstalação: {absent} registro(s) ausente(s), {pending} pendente(s), {cancelled} cancelada(s), {failures} falha(s). Limpeza específica só mediante prévia e autorização.");
+            int failed = outcomes.Count(x => x.State is UninstallState.Blocked or UninstallState.StartFailed or
+                UninstallState.ProcessFailed or UninstallState.StillPresent);
+            string result = !consent || cleanup?.Cancelled == true || outcomes.Any(x => x.State == UninstallState.Cancelled)
+                ? "Operação cancelada." : failed > 0 || pending > 0
+                ? $"Desinstalação: {absent} concluída(s), {pending} pendente(s), {failed} falha(s). Detalhes no diagnóstico."
+                : cleanup?.Declined == true ? "Desinstalação concluída. Resíduos preservados."
+                : cleanup?.Unavailable > 0 || cleanup?.Results.Any(r => !r.Verified) == true
+                ? "Limpeza parcial — detalhes no diagnóstico."
+                : cleanup?.Offered > 0 ? "Limpeza concluída." : "Desinstalação concluída.";
+            Status(result);
+            Log(result);
         }
-        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
+        catch (OperationCanceledException)
         {
-            DiagnosticTrace.Failure("DESINSTALACAO.PREPARACAO_BLOQUEADA", ex);
-            Log("A execução desse desinstalador não foi iniciada: " + ex.Message);
-            Status("Remoção direta indisponível; o Windows continua oferecendo desinstalação.");
-            if (apps.Count == 1 && DarkConfirmDialog.Confirm(this,
-                "O aplicativo não está protegido contra desinstalação, mas o comando registrado " +
-                "não pôde ser executado com segurança.\n\n" +
-                "Deseja abrir a remoção oficial do Windows para desinstalá-lo manualmente? " +
-                "Nenhum arquivo será executado por este botão.",
-                "Remover aplicativo pelo Windows") == DialogResult.Yes)
-            {
-                try { Process.Start(new ProcessStartInfo("ms-settings:appsfeatures") { UseShellExecute = true }); }
-                catch (Exception error) { Log("A remoção do Windows não abriu: " + error.Message); }
-            }
+            foreach (var app in apps)
+                DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(app), "operation", "cancelled", cancelled: true));
+            Status("Operação cancelada.");
+        }
+        catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex))
+        {
+            foreach (var app in apps)
+                DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(app), "operation", "failed",
+                    failed: 1, error: IntegratedResidualCleanup.Error(ex), reason: "uninstall_preparation_or_execution"));
+            Log("Não foi possível concluir — consulte o diagnóstico.");
+            Status("Não foi possível concluir — consulte o diagnóstico.");
         }
         finally
         {
             _uninstallCts = null;
+            ShowUninstallCancellation(false);
             foreach (var plan in prepared) plan.Dispose();
         }
-    }
-
-    private async Task ReviewUninstallOutcomeAsync(ProgramEntry entry)
-    {
-        var currentInventory = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
-        var audit = await Task.Run(() => ResidualAudit.Inspect(entry, currentInventory.Items,
-            currentInventory.Incomplete));
-        var previewStates = new List<ResidualPreviewState>();
-        using (var previewTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(8)))
-            foreach (var candidate in UninstallResiduals.Inspect(entry))
-                previewStates.Add(await ResidualPreview.CaptureAsync(candidate, previewTimeout.Token));
-        if (previewStates.Count > 0)
-            audit = ResidualReportMerger.Merge(new[] { audit,
-                ResidualPreview.Describe(entry.Name, previewStates) }, currentInventory.Incomplete).Single();
-        DiagnosticTrace.Write($"DESINSTALACAO.AUDITORIA encontrados={audit.Findings.Count} relacionados={audit.RelatedRegisteredPrograms.Count} removido={audit.UninstallConfirmed}");
-        if (SevenZipCompleteCleanup.Eligible(entry))
-        {
-            // Pós-desinstalação: o lote só chega aqui com ausência estável
-            // e código de saída 0. Uma segunda leitura completa é obrigatória.
-            var checkedInventory = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
-            var plan = await Task.Run(() => SevenZipCompleteCleanup.Capture(entry,
-                !checkedInventory.Incomplete, checkedInventory.Items));
-            DiagnosticTrace.Write($"DESINSTALACAO.LIMPEZA_PREVIA produto=7zip completa={plan.Complete} " +
-                $"arquivos={plan.Files.Count} pastas={plan.Directories.Count} chaves={plan.Registry.Count} bytes={plan.TotalBytes}");
-            if (!plan.Complete)
-            {
-                Log("7-Zip: limpeza preservada. " + plan.Reason);
-            }
-            else if (plan.Files.Count > 0 || plan.Registry.Count > 0 || plan.Directories.Count > 0)
-            {
-                bool clean = SevenZipCleanupReviewDialog.Confirm(this, plan);
-                if (clean)
-                {
-                    var result = await SevenZipCompleteCleanup.ExecuteAsync(entry, plan,
-                        async () =>
-                        {
-                            var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
-                            return (!scan.Incomplete, (IReadOnlyCollection<ProgramEntry>)scan.Items);
-                        });
-                    DiagnosticTrace.Write($"DESINSTALACAO.LIMPEZA_RESULTADO produto=7zip " +
-                        $"arquivos={result.FilesDeleted} pastas={result.DirectoriesDeleted} " +
-                        $"chaves={result.KeysDeleted} falhas={result.Failures} " +
-                        $"preservados={result.Preserved} reinstalado={result.Reinstalled} " +
-                        $"motivos={string.Join("+", result.Problems)}");
-                    Status(result.Failures == 0 && result.Preserved == 0 && !result.Reinstalled
-                        ? "7-Zip: limpeza concluída; arquivos, pastas e chaves conferidos."
-                        : "7-Zip: limpeza parcial ou bloqueada; itens restantes foram preservados.");
-                    Log($"7-Zip: {result.FilesDeleted} arquivo(s), {result.DirectoriesDeleted} pasta(s), " +
-                        $"{result.KeysDeleted} chave(s) removidos; {result.Failures} falha(s) e " +
-                        $"{result.Preserved} preservado(s). Motivos: " +
-                        (result.Problems.Count == 0 ? "nenhum" : string.Join(", ", result.Problems)) +
-                        ". Nenhum item pessoal genérico foi analisado.");
-                    // O resultado visual deve ser o NOVO estado. Uma prévia antiga
-                    // depois de apagar arquivos inventaria resíduos inexistentes.
-                    var checkedAgain = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
-                    var afterCleanup = await Task.Run(() => SevenZipCompleteCleanup.Capture(
-                        entry, !checkedAgain.Incomplete, checkedAgain.Items));
-                    DiagnosticTrace.Write($"DESINSTALACAO.LIMPEZA_POS_CONFERENCIA produto=7zip completa={afterCleanup.Complete} " +
-                        $"arquivos={afterCleanup.Files.Count} pastas={afterCleanup.Directories.Count} chaves={afterCleanup.Registry.Count}");
-                    if (afterCleanup.Complete && afterCleanup.Files.Count == 0 &&
-                        afterCleanup.Directories.Count == 0 && afterCleanup.Registry.Count == 0)
-                    {
-                        Log("7-Zip: conferência posterior concluída sem resíduos nos alvos específicos.");
-                        return;
-                    }
-                    audit = await Task.Run(() => ResidualAudit.Inspect(
-                        entry, checkedAgain.Items, checkedAgain.Incomplete));
-                    previewStates.Clear();
-                    using (var afterPreviewTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(8)))
-                        foreach (var candidate in UninstallResiduals.Inspect(entry))
-                            previewStates.Add(await ResidualPreview.CaptureAsync(candidate,
-                                afterPreviewTimeout.Token));
-                    if (previewStates.Count > 0)
-                        audit = ResidualReportMerger.Merge(new[] { audit,
-                            ResidualPreview.Describe(entry.Name, previewStates) },
-                            checkedAgain.Incomplete).Single();
-                }
-                else DiagnosticTrace.Write("DESINSTALACAO.LIMPEZA_RECUSADA produto=7zip");
-            }
-            else DiagnosticTrace.Write("DESINSTALACAO.LIMPEZA_VAZIA produto=7zip");
-        }
-        if (audit.Findings.Count > 0 || audit.RelatedRegisteredPrograms.Count > 0)
-        {
-            Log($"Auditoria de {entry.Name}: {audit.Findings.Count} local(is) possível(is) e " +
-                $"{audit.RelatedRegisteredPrograms.Count} componente(s) relacionado(s) ainda registrado(s).");
-            ResidualAuditDialog.ShowResults(this, audit, async token =>
-            {
-                var fresh = await Task.Run(AppServices.ScanAllInstalledAppsForSafety, token);
-                var refreshedAudit = await Task.Run(() => ResidualAudit.Inspect(entry, fresh.Items, fresh.Incomplete), token);
-                bool unchanged = true;
-                foreach (var state in previewStates)
-                    unchanged &= await ResidualPreview.IsUnchangedAsync(state, token);
-                return ResidualReportMerger.Merge(new[] { refreshedAudit,
-                    ResidualPreview.Describe(entry.Name, previewStates, unchanged) }, fresh.Incomplete).Single();
-            });
-        }
-        else
-        {
-            Log("Auditoria adicional: nenhum local específico reconhecido para " + entry.Name +
-                ". Isso não comprova ausência de outros vestígios.");
-        }
-    }
-
-    private Task ReviewDeepUninstallResiduesAsync() => WithResidualCancellationAsync(ReviewDeepUninstallResiduesCoreAsync);
-    private async Task ReviewDeepUninstallResiduesCoreAsync(CancellationToken token)
-    {
-        // Não é a limpeza padrão, não pode ser disparada automaticamente.
-        Status("Analisando catálogo com " + UninstallRuleCatalog.Count +
-            " regras de aplicativos para limpeza avançada...");
-        DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_INICIO");
-        var snapshot = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
-        token.ThrowIfCancellationRequested();
-        var deep = await Task.Run(() => AdvancedUninstallCleaner.InspectWithCoverage(snapshot.Items, token));
-        var candidates = deep.Items;
-        token.ThrowIfCancellationRequested();
-        DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_FIM programas=" + candidates.Count);
-        if (candidates.Count == 0 && !deep.Coverage.Incomplete)
-        {
-            Log("Limpeza avançada: nenhum dado ou chave do Registro conhecido encontrado.");
-            Status("Nenhum resíduo avançado reconhecido; outros vestígios não podem ser descartados.");
-            return;
-        }
-        var reports = candidates.Select(item => new ResidualAuditReport(item.App.Name, false,
-            item.Folders.Select(folder => new ResidualAuditFinding(folder,
-                "Dados e configurações — preservar", 1,
-                "Pode conter preferências, playlists, backups e perfis. Exclusão desativada nesta candidata.", ResidualDisposition.PreserveData, ResidualSource.UserData))
-            .Concat(item.RegistryKeys.Select(key => new ResidualAuditFinding(@"HKEY_CURRENT_USER\" + key,
-                "Configurações — preservar", 1,
-                "Ausência na lista de programas não comprova exclusividade ou desinstalação.", ResidualDisposition.PreserveData, ResidualSource.Registry))).ToArray(),
-            Array.Empty<string>(), Historical: true)).ToArray();
-        PresentResidualReports(ResidualReportMerger.Merge(reports, snapshot.Incomplete, deep.Coverage));
-        Status("Revisão concluída. Dados preservados; exclusão desativada nesta candidata.");
     }
 
     private async Task RunMaintenanceAuditAsync()
@@ -3088,177 +2962,6 @@ internal sealed partial class MainForm : Form
             ? "Diagnóstico parcial: consulte as informações e limitações no registro."
             : $"Diagnóstico: {report.MissingUninstallers} desinstaladores ausentes; " +
               $"{report.HistoricalPnP?.NotPresent ?? 0} instâncias PnP sem confirmação (não são drivers).");
-    }
-
-    private Task ReviewOldUninstallResiduesAsync() => WithResidualCancellationAsync(ReviewOldUninstallResiduesCoreAsync);
-    private async Task ReviewOldUninstallResiduesCoreAsync(CancellationToken token)
-    {
-        // A análise histórica cobre produtos que já desapareceram do inventário.
-        // NUNCA autoriza exclusão de chaves HKLM/HKCU, saves ou integrações.
-        Status("Verificando vestígios antigos sem modificar o computador...");
-        DiagnosticTrace.Write("RESIDUOS_HISTORICOS.CONSULTA_INICIO");
-        // Usar uma unica fotografia atual de Win32, MSIX e bibliotecas de jogos.
-        // Assim aplicativos Store ou jogos ativos nao viram falsos vestigios.
-        var inventorySnapshot = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
-        token.ThrowIfCancellationRequested();
-        var updatedInventory = inventorySnapshot.Items;
-        bool inventoryIncomplete = inventorySnapshot.Incomplete;
-        if (inventoryIncomplete)
-            Log("Inventário de proteção PARCIAL: ausência na lista não comprova remoção. Os achados históricos continuam somente leitura.");
-        var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory, inventoryIncomplete, token));
-        // Driver Booster é excluído pela regra genérica para nomes de drivers.
-        // Complementar com locais específicos da família IObit, sem inferir
-        // que arquivos compartilhados são lixo nem autorizar sua remoção.
-        var boosterEvidence = await Task.Run(() => ResidualAudit.Inspect(
-            new ProgramEntry { Name = "Driver Booster" }, updatedInventory));
-        bool boosterStillRegistered = updatedInventory.Any(ResidualAudit.IsDriverBoosterProduct);
-        var boosterReports = boosterEvidence.Findings.Count == 0 && !boosterEvidence.Incomplete
-            ? Array.Empty<ResidualAuditReport>()
-            : new[] { new ResidualAuditReport("Driver Booster (IObit)", false,
-                boosterEvidence.Findings.Select(f => f with
-                {
-                    Disposition = inventoryIncomplete ? ResidualDisposition.Unknown : ResidualDisposition.InstallationCheck,
-                    Evidence = f.Evidence + " Situação do Driver Booster exige conferência; ausência não comprova desinstalação.",
-                    Kind = (boosterStillRegistered || inventoryIncomplete
-                        ? "Instalação não confirmada — " : "Vestígio não confirmado — ") + f.Kind
-                }).ToArray(), Array.Empty<string>(), Historical: true,
-                Incomplete: boosterEvidence.Incomplete, Coverage: boosterEvidence.Coverage) };
-        var historicalWinMerge = await Task.Run(
-            () => ResidualAudit.InspectHistoricalWinMerge(updatedInventory));
-        var winMergeReports = historicalWinMerge.Findings.Count == 0 && !historicalWinMerge.Incomplete
-            ? Array.Empty<ResidualAuditReport>()
-            : new[] { historicalWinMerge };
-        var historicalNotepad = await Task.Run(() =>
-            ResidualAudit.InspectHistoricalNotepadPlusPlus(updatedInventory, inventoryIncomplete));
-        var notepadReports = historicalNotepad.Findings.Count == 0
-            ? Array.Empty<ResidualAuditReport>()
-            : new[] { historicalNotepad };
-        var historicalFoobar = await Task.Run(() =>
-            ResidualAudit.InspectHistoricalFoobar2000(updatedInventory, inventoryIncomplete));
-        var foobarReports = historicalFoobar.Findings.Count == 0
-            ? Array.Empty<ResidualAuditReport>()
-            : new[] { historicalFoobar };
-        DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)} booster_locais={boosterEvidence.Findings.Count} winmerge_locais={historicalWinMerge.Findings.Count}");
-        Status("Analisando locais comuns de aplicativos e Registro, sem alterar arquivos...");
-        DiagnosticTrace.Write("RESIDUOS_GERAIS.CONSULTA_INICIO");
-        // Independe de ter observado a instalação ou a remoção do programa.
-        // Todas as fontes são somente leitura, com tempo e quantidade limitados.
-        // Jogos detectados apenas por manifestos Steam/Epic nao pertencem ao ARP.
-        // Proteger seus dados ativos antes de sugerir vestigios historicos.
-        var gameInventory = inventorySnapshot.Games;
-        var broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory,
-            gameInventory.ActiveNames, gameInventory.Partial, inventoryIncomplete, token));
-        int installCandidates = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)));
-        int publisherData = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal)));
-        // Flags agregadas não identificáveis permitem diferenciar limite,
-        // acesso e profundidade no PC fraco, sem expor caminhos locais.
-        var scanIssues = broad.Coverage?.Issues ??
-            (broad.Incomplete ? ResidualScanIssue.ReportIncomplete : ResidualScanIssue.None);
-        DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} raizes_restritas={broad.RestrictedRoots} fontes_nao_consultadas_ou_inacessiveis={broad.Coverage?.SourcesUnavailable?.Count ?? 0} fontes_leitura_parcial={broad.Coverage?.SourcesWithReadFailures?.Count ?? 0} parcial={broad.Incomplete} motivos={scanIssues.ToString().Replace(", ", "+")}");
-        // PC FORTE: recuperar uma análise própria do 7-Zip 26.05 já removido.
-        // O relatório geral pode ser parcial, mas esta fotografia separada
-        // revalida integralmente seus alvos e NÃO autoriza apagar por si só.
-        var recoveryEntry = SevenZipCompleteCleanup.RecoveryIdentity();
-        var scoped7zip = await Task.Run(() => SevenZipCompleteCleanup.Capture(
-            recoveryEntry, !inventoryIncomplete, updatedInventory, token), token);
-        var scoped7zipReport = SevenZipCompleteCleanup.RecoveryReport(scoped7zip);
-        var scoped7zipReports = scoped7zipReport is null
-            ? Array.Empty<ResidualAuditReport>() : new[] { scoped7zipReport };
-        DiagnosticTrace.Write($"RESIDUOS_7ZIP_RECUPERACAO completa={scoped7zip.Complete} " +
-            $"arquivos={scoped7zip.Files.Count} pastas={scoped7zip.Directories.Count} " +
-            $"chaves={scoped7zip.Registry.Count}");
-        // Perfis exclusivos previamente desinstalados: varredura independente da
-        // cobertura geral. Estado completo apenas para os ALVOS específicos.
-        var scopedSmallReports = new List<ResidualAuditReport>();
-        foreach (string product in new[] { "Notepad++", "SumatraPDF" })
-        {
-            var scoped = await Task.Run(() => SmallAppResidualCleanup.Capture(
-                product, !inventoryIncomplete, updatedInventory, token), token);
-            var ownReport = SmallAppResidualCleanup.Report(scoped);
-            if (ownReport is not null) scopedSmallReports.Add(ownReport);
-            DiagnosticTrace.Write($"RESIDUOS_APLICATIVO_PROPRIO tipo={(product == "Notepad++" ? "npp" : "sumatra")} " +
-                $"completo={scoped.Complete} arquivos={scoped.Files.Count} " +
-                $"pastas={scoped.Directories.Count} chaves={scoped.Keys.Count}");
-        }
-        // Unir todas as fontes por produto/local, preservando motivos divergentes.
-        var allReports = ResidualReportMerger.Merge(historical.Concat(boosterReports).Concat(winMergeReports)
-            .Concat(notepadReports).Concat(foobarReports).Concat(scoped7zipReports)
-            .Concat(scopedSmallReports).Concat(broad.Reports), inventoryIncomplete || broad.Incomplete,
-            ResidualCoverage.Combine(new[] { broad.Coverage, historical.Coverage }));
-        var coverage = allReports.Coverage;
-        // Apenas códigos de origens conhecidas, contagens e flags. Sem caminhos.
-        foreach (var detail in broad.Coverage?.SourceDetails ?? [])
-            TestDiagnosticDetail.Record("ORIGEM", ("codigo", ResidualCoverage.SourceCode(detail.Source)),
-                ("entradas", detail.Entries),
-                ("limite_entradas", detail.Issues.HasFlag(ResidualScanIssue.EntryLimit) ? 1 : 0),
-                ("profundidade", detail.Issues.HasFlag(ResidualScanIssue.DepthLimit) ? 1 : 0),
-                ("leitura", detail.Issues.HasFlag(ResidualScanIssue.ReadFailure) ? 1 : 0),
-                ("links", detail.Issues.HasFlag(ResidualScanIssue.LinkSkipped) ? 1 : 0),
-                ("tempo", detail.Issues.HasFlag(ResidualScanIssue.Timeout) ? 1 : 0),
-                ("cancelamento", detail.Issues.HasFlag(ResidualScanIssue.Cancelled) ? 1 : 0),
-                ("indisponivel", detail.Issues.HasFlag(ResidualScanIssue.SourceUnavailable) ? 1 : 0));
-        TestDiagnosticDetail.Record("RESIDUOS",
-            ("grupos", allReports.Count), ("locais", allReports.Sum(x => x.Findings.Count)),
-            ("examinados", coverage.EntriesExamined),
-            ("grupos_avaliados", broad.Coverage?.CandidatesExamined ?? 0),
-            ("candidatos_gerais", broad.Reports.Count),
-            ("filtrados_ativos", broad.Coverage?.ProtectedGroups ?? 0),
-            ("filtrados_sem_evidencia", broad.Coverage?.InsufficientGroups ?? 0),
-            ("grupos_omitidos", coverage.ReportsOmitted), ("locais_omitidos", coverage.LocationsOmitted),
-            ("fontes", coverage.SourcesConsulted?.Count ?? 0),
-            ("indisponiveis", coverage.SourcesUnavailable?.Count ?? 0),
-            ("falhas_leitura", coverage.SourcesWithReadFailures?.Count ?? 0),
-            ("nao_avaliados_desconhecidos", coverage.CandidatesNotEvaluated is null ? 1 : 0),
-            ("parcial", allReports.Incomplete ? 1 : 0));
-        TestDiagnosticDetail.Record("LIMITES",
-            ("entradas", scanIssues.HasFlag(ResidualScanIssue.EntryLimit) ? 1 : 0),
-            ("leitura", scanIssues.HasFlag(ResidualScanIssue.ReadFailure) ? 1 : 0),
-            ("profundidade", scanIssues.HasFlag(ResidualScanIssue.DepthLimit) ? 1 : 0),
-            ("links", scanIssues.HasFlag(ResidualScanIssue.LinkSkipped) ? 1 : 0),
-            ("tempo", scanIssues.HasFlag(ResidualScanIssue.Timeout) ? 1 : 0),
-            ("cancelamento", scanIssues.HasFlag(ResidualScanIssue.Cancelled) ? 1 : 0),
-            ("inventario", scanIssues.HasFlag(ResidualScanIssue.InventoryPartial) ? 1 : 0),
-            ("fonte", scanIssues.HasFlag(ResidualScanIssue.SourceUnavailable) ? 1 : 0),
-            ("grupos", scanIssues.HasFlag(ResidualScanIssue.GroupLimit) ? 1 : 0),
-            ("locais", scanIssues.HasFlag(ResidualScanIssue.LocationLimit) ? 1 : 0));
-        var failures = broad.Coverage?.SourcesWithReadFailures ?? [];
-        var unavailable = broad.Coverage?.SourcesUnavailable ?? [];
-        static bool IsRegistry(string value) => value.StartsWith("HKEY_", StringComparison.Ordinal);
-        static bool IsAppdata(string value) => value == "AppData";
-        // Classificar apenas tokens FIXOS conhecidos da varredura, nao caminhos
-        // reais nem nomes de programas; cobertura parcial continua parcial.
-        static bool IsIntegration(string source) =>
-            source is "Processes" or "AppPaths" or "RunServices";
-        static bool IsOther(string source) =>
-            !IsRegistry(source) && !IsAppdata(source) &&
-            source is not ("ProgramData" or "ProgramFiles" or "StartMenu") &&
-            !IsIntegration(source);
-        TestDiagnosticDetail.Record("FONTES",
-            ("falha_registro", failures.Count(IsRegistry)),
-            ("falha_appdata", failures.Count(IsAppdata)),
-            ("falha_programdata", failures.Count(x => x == "ProgramData")),
-            ("falha_programfiles", failures.Count(x => x == "ProgramFiles")),
-            ("falha_startmenu", failures.Count(x => x == "StartMenu")),
-            ("falha_integracoes", failures.Count(IsIntegration)),
-            ("falha_outras", failures.Count(IsOther)),
-            ("indisp_registro", unavailable.Count(IsRegistry)),
-            ("indisp_appdata", unavailable.Count(IsAppdata)),
-            ("indisp_outras", unavailable.Count(x => !IsRegistry(x) && !IsAppdata(x))));
-        if (allReports.Count > 0 || allReports.Incomplete)
-        {
-            Log($"Auditoria de dados e instalações: {allReports.Count} grupos para revisão (não são lixo confirmado). " +
-                $"Verificados {broad.EntriesSeen} nomes em {broad.RootsChecked} origens." +
-                (broad.Incomplete ? " Análise PARCIAL: " + (broad.Coverage?.ReasonSummary ?? "cobertura indisponível") + ". Preserve os dados." : ""));
-            PresentResidualReports(allReports);
-        }
-        else
-        {
-            Log("Nenhum indício reconhecido nos locais analisados. Isso NÃO comprova ausência total de vestígios." +
-                (broad.Incomplete ? " Análise parcial devido a limites de acesso ou tempo." : ""));
-        }
-        Status(allReports.Incomplete
-            ? ResidualCoverage.PartialMessage
-            : "Análise concluída. Instalações e perfis foram classificados sem exclusões.");
     }
 
     private async Task VerifyWindowsIntegrityAsync()
@@ -3375,13 +3078,14 @@ internal sealed partial class MainForm : Form
         await ExecuteAsync("Executando manutenção do Windows...", () => RunElevatedAsync(task));
     }
 
-    private async Task RunElevatedAsync(string task)
+    private async Task<ResidualElevationResponse?> RunElevatedAsync(string task,
+        IReadOnlyList<ResidualElevationRequest>? residualRequests = null, CancellationToken cancellation = default)
     {
         // O UAC é solicitado, mas a tarefa não abre formulário/terminal próprio.
         // Mensagens trafegam apenas em memória pelo pipe nomeado desta sessão.
         string pipeName = "GA5122_" + Guid.NewGuid().ToString("N");
         string token = Guid.NewGuid().ToString("N");
-        using var server = new NamedPipeServerStream(pipeName, PipeDirection.In, 1,
+        using var server = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1,
             PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         string exe = Environment.ProcessPath ?? Application.ExecutablePath;
         var start = new ProcessStartInfo { FileName = exe, UseShellExecute = true, Verb = "runas" };
@@ -3395,11 +3099,17 @@ internal sealed partial class MainForm : Form
         try { child = Process.Start(start) ?? throw new InvalidOperationException("O Windows não iniciou o processo administrativo."); }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
+            if (residualRequests is not null)
+            {
+                foreach (var request in residualRequests)
+                    DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "declined", error: 1223));
+                return new("uac_declined", 1223, []);
+            }
             if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
                 DiagnosticTrace.Write(audit);
             Status("Autorização administrativa cancelada");
             Log("Operação cancelada na confirmação do UAC.");
-            return;
+            return null;
         }
         using (child)
         using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(35)))
@@ -3408,12 +3118,15 @@ internal sealed partial class MainForm : Form
             try { await server.WaitForConnectionAsync(timeout.Token); }
             catch (OperationCanceledException)
             {
+                if (residualRequests is not null)
+                    foreach (var request in residualRequests)
+                        DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed", reason: "worker_connect_timeout"));
                 Log("Não foi possível conectar à tarefa administrativa. Verifique se o Windows ou antivírus bloqueou o programa.");
-                Status("Falha de comunicação com operação administrativa"); return;
+                Status("Falha de comunicação com operação administrativa"); return null;
             }
             // Token nao substitui a identidade do cliente informada pelo kernel.
             if (!PipePeerVerifier.IsExpectedClient(server, child.Id))
-            { Status("Conexao administrativa rejeitada: processo inesperado."); return; }
+            { Status("Conexao administrativa rejeitada: processo inesperado."); return null; }
             using var reader = new StreamReader(server, Encoding.UTF8, detectEncodingFromByteOrderMarks: true,
                 bufferSize: 4096, leaveOpen: true);
             string? handshake;
@@ -3421,10 +3134,36 @@ internal sealed partial class MainForm : Form
             {
                 try { handshake = await reader.ReadLineAsync(handshakeTimeout.Token); }
                 catch (OperationCanceledException)
-                { Status("Tempo esgotado na autenticacao da tarefa administrativa."); return; }
+                { Status("Tempo esgotado na autenticacao da tarefa administrativa."); return null; }
             }
             if (handshake != "HELLO|" + token)
-            { Status("Falha de autenticação da tarefa administrativa"); return; }
+            { Status("Falha de autenticação da tarefa administrativa"); return null; }
+            if (residualRequests is not null)
+            {
+                try
+                {
+                    foreach (var request in residualRequests)
+                        DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "authorized"));
+                    var response = await ResidualElevatedProtocol.ParentAsync(server, residualRequests, cancellation);
+                    foreach (var result in response.Results)
+                    {
+                        var app = residualRequests.Single(r => r.Plan.Context.App.TechnicalId == result.AppId).Plan.Context.App;
+                        foreach (var item in result.Items)
+                            DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(app, "uac_" + item.Kind, item.State.ToString(),
+                                error: item.Error, reason: item.Reason));
+                        foreach (var issue in result.Problems)
+                            DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(app, issue.Stage, "blocked", error: issue.Error, reason: issue.Reason));
+                    }
+                    return response;
+                }
+                catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex) || ex is OperationCanceledException or System.Text.Json.JsonException)
+                {
+                    foreach (var request in residualRequests)
+                        DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed",
+                            error: IntegratedResidualCleanup.Error(ex), reason: "worker_communication_failed"));
+                    return new("uac_communication_failed", IntegratedResidualCleanup.Error(ex), []);
+                }
+            }
             bool gotResult = false;
             while (await reader.ReadLineAsync() is { } line)
             {
@@ -3479,6 +3218,7 @@ internal sealed partial class MainForm : Form
                 Log("A tarefa foi interrompida antes de enviar o resultado.");
             }
         }
+        return null;
     }
 
     private Task EmptyRecycleBinAsync()
@@ -3513,11 +3253,12 @@ internal static class WorkerHost
         bool updateTask = TryParseUpdateTask(task, out _);
         bool restorePower = TryParseRestorePowerTask(task, out _);
         bool optimizeVolume = SingleVolumeOptimization.TryParseTask(task, out _);
-        if ((!Allowed.Contains(task) && !updateTask && !restorePower && !optimizeVolume) || !Regex.IsMatch(pipeName, @"^GA5122_[a-f0-9]{32}$") ||
+        bool residualTask = task == ResidualElevatedProtocol.TaskName;
+        if ((!Allowed.Contains(task) && !updateTask && !restorePower && !optimizeVolume && !residualTask) || !Regex.IsMatch(pipeName, @"^GA5122_[a-f0-9]{32}$") ||
             !Regex.IsMatch(token, @"^[a-f0-9]{32}$")) return 2;
         try
         {
-            using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous);
+            using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
             await pipe.ConnectAsync(timeout.Token);
             using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096) { AutoFlush = true };
@@ -3527,6 +3268,12 @@ internal static class WorkerHost
                     writer.WriteLine(kind + "|" + message.Replace('\r', ' ').Replace('\n', ' ').TakeText(750));
             }
             Send("HELLO", token);
+            if (residualTask)
+                return await ResidualElevatedProtocol.ServeAsync(pipe, async () =>
+                {
+                    var inventory = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
+                    return new UninstallSnapshot(inventory.Items, !inventory.Incomplete);
+                });
             int exit;
             try
             {
