@@ -147,7 +147,12 @@ internal sealed partial class MainForm
 
     private void SetSystemView(string view)
     {
-        _activeSystemView = view; // A coleta permanece ativa na bandeja, com cadencia reduzida.
+        // Navegação imediata: não deixar cartões do modo anterior sob título
+        // da nova aba enquanto operações assíncronas ainda consultam o Windows.
+        bool changing = _activeSystemView != view;
+        _activeSystemView = view; // Coleta em background permanece independente.
+        if (changing && view is "startup" or "update" or "hardware")
+            ReplaceSystemCards([]);
         if (_systemDetails is null || _installSelectedUpdates is null) return;
         bool showInstall = view == "update";
         bool showMemory = view == "memory";
@@ -504,6 +509,7 @@ internal sealed partial class MainForm
         await ExecuteAsync("Carregando itens de inicialização...", async () =>
         {
             var entries = await Task.Run(StartupManager.Read);
+            if (IsDisposed || _activeSystemView != "startup" || _nav.SelectedIndex != 5) return;
             _systemPanelTitle.Text = "Inicialização · ativar e desativar";
             _systemPanelSummary.Text = "Entradas do seu usuário podem ser alternadas e restauradas. Entradas de todos os usuários são apenas leitura. Serviços e tarefas agendadas não estão incluídos.";
             ReplaceSystemCards(entries.Select(BuildStartupCard).ToArray());
@@ -589,6 +595,7 @@ internal sealed partial class MainForm
         {
             if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
             {
+                ReplaceSystemCards([]);
                 _systemPanelTitle.Text = "Windows Update · consultando...";
                 _systemPanelSummary.Text = "Busca automática em andamento. Nenhuma atualização será instalada sem confirmação.";
             }
@@ -606,6 +613,7 @@ internal sealed partial class MainForm
         RenderTitle();
         if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
         {
+            ReplaceSystemCards([]);
             _systemPanelTitle.Text = "Windows Update · consultando...";
             _systemPanelSummary.Text = "Consulta oficial do Windows em segundo plano; pode demorar alguns minutos.";
         }
