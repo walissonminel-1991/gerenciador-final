@@ -195,21 +195,24 @@ internal static class RebootResidualReview
         try
         {
             Marshal.Copy(data, 0, input.Data, data.Length);
-            bool ok = decrypt
-                ? CryptUnprotectData(ref input, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
-                    IntPtr.Zero, 1, out var ignored)
-                : CryptProtectData(ref input, "Revisao GF", IntPtr.Zero, IntPtr.Zero,
-                    IntPtr.Zero, 1, out ignored);
+            Blob output;
+            bool ok;
+            if (decrypt)
+                ok = CryptUnprotectData(ref input, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
+                    IntPtr.Zero, 1, out output);
+            else
+                ok = CryptProtectData(ref input, "Revisao GF", IntPtr.Zero, IntPtr.Zero,
+                    IntPtr.Zero, 1, out output);
             if (!ok) throw new CryptographicException("O Windows nao validou os dados de revisao.");
             try
             {
-                if (ignored.Size is < 1 or > MaximumFileBytes)
+                if (output.Size is < 1 or > MaximumFileBytes)
                     throw new InvalidDataException("Saida de protecao fora do limite.");
-                byte[] bytes = new byte[ignored.Size];
-                Marshal.Copy(ignored.Data, bytes, 0, bytes.Length);
+                byte[] bytes = new byte[output.Size];
+                Marshal.Copy(output.Data, bytes, 0, bytes.Length);
                 return bytes;
             }
-            finally { if (ignored.Data != IntPtr.Zero) LocalFree(ignored.Data); }
+            finally { if (output.Data != IntPtr.Zero) LocalFree(output.Data); }
         }
         finally { Marshal.FreeHGlobal(input.Data); }
     }
