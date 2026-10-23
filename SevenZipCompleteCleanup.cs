@@ -167,15 +167,16 @@ internal static class SevenZipCompleteCleanup
     private static bool TryRegistryFingerprint(RegistryKey root, out string digest, out int entries)
     {
         digest = ""; entries = 0;
+        int count = 0;
         try
         {
             var builder = new StringBuilder();
             void Walk(RegistryKey node, int depth)
             {
-                if (depth > 12 || ++entries > MaxItems) throw new InvalidDataException("Registro fora dos limites");
+                if (depth > 12 || ++count > MaxItems) throw new InvalidDataException("Registro fora dos limites");
                 foreach (string name in node.GetValueNames().OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
                 {
-                    if (++entries > MaxItems) throw new InvalidDataException("Muitos valores");
+                    if (++count > MaxItems) throw new InvalidDataException("Muitos valores");
                     object? value = node.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
                     string content = value switch
                     {
@@ -203,6 +204,7 @@ internal static class SevenZipCompleteCleanup
             Walk(root, 0);
             digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())))
                 .ToLowerInvariant();
+            entries = count;
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
