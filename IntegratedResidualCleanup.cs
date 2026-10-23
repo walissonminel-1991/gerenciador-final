@@ -317,9 +317,14 @@ internal static class IntegratedResidualCleanup
                 {
                     int error = Error(ex);
                     bool access = ex is UnauthorizedAccessException or System.Security.SecurityException || error == 5;
+                    string failureReason = ex is ResidualFileDeleteException deletion
+                        ? deletion.Step + (access ? "_access_denied" :
+                            error is 32 or 33 ? "_sharing_violation" : "_windows_error")
+                        : access ? "permission_required"
+                        : Reason(ex, ex is InvalidDataException ? "target_changed_or_unsafe" : "operation_failed");
                     Set(target.Id, target.Kind, access ? ResidualItemState.AccessDenied :
                         ex is InvalidDataException ? ResidualItemState.Preserved : ResidualItemState.Failed,
-                        access ? "permission_required" : Reason(ex, ex is InvalidDataException ? "target_changed_or_unsafe" : "operation_failed"), error);
+                        failureReason, error);
                 }
             }
             await Guard(true).ConfigureAwait(false);
