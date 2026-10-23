@@ -525,10 +525,73 @@ internal sealed partial class MainForm
             if (!IsCurrentSystemView("startup", request)) return;
             _systemPanelTitle.Text = "Inicialização · ativar e desativar";
             _systemPanelSummary.Text = "Entradas do seu usuário podem ser alternadas e restauradas. Entradas de todos os usuários são apenas leitura. Serviços e tarefas agendadas não estão incluídos.";
-            ReplaceSystemCards(entries.Select(BuildStartupCard).ToArray());
+            ReplaceSystemCards(new[] { BuildStartupTrayCard() }
+                .Concat(entries.Select(BuildStartupCard)).ToArray());
             Status($"{entries.Count} entradas de inicialização consultadas");
             Log($"Inicialização: {entries.Count} entradas consultadas.");
         });
+    }
+
+    private Control BuildStartupTrayCard()
+    {
+        bool enabled;
+        try { enabled = StartupTrayRegistration.IsEnabled(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            System.Security.SecurityException or InvalidDataException)
+        {
+            enabled = false;
+            DiagnosticTrace.Write("INICIALIZACAO.BANDEJA estado=consulta_indisponivel motivo=" + ex.GetType().Name);
+        }
+        var card = new TableLayoutPanel
+        {
+            Name = "GFStartupTrayCard",
+            Width = 390, Height = 108, RowCount = 3, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
+            Padding = new Padding(8, 5, 8, 5)
+        };
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
+        card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
+        card.Controls.Add(new Label
+        {
+            Text = "Gerenciador Final · iniciar com o Windows",
+            Dock = DockStyle.Fill, ForeColor = Ink,
+            Font = new Font("Segoe UI", 9.2F, FontStyle.Bold)
+        }, 0, 0);
+        card.Controls.Add(new Label
+        {
+            Text = "Opcional: abrir direto na bandeja após entrar na sua conta.",
+            Dock = DockStyle.Fill, ForeColor = Muted,
+            Font = new Font("Segoe UI", 8.1F), AutoEllipsis = true
+        }, 0, 1);
+        var toggle = CreateButton(enabled ? "Desativar início automático" : "Ativar início na bandeja",
+            enabled ? AppServices.Orange : AppServices.Green, Color.White);
+        toggle.Dock = DockStyle.Fill;
+        toggle.Margin = Padding.Empty;
+        toggle.Click += (_, _) =>
+        {
+            if (_busy) return;
+            if (DarkConfirmDialog.Confirm(this,
+                enabled ? "Desativar a inicialização do GF com o Windows?" :
+                "Deseja iniciar o GF na bandeja quando entrar no Windows? Sem pedir administrador.",
+                "Inicialização do Gerenciador Final") != DialogResult.Yes) return;
+            try
+            {
+                StartupTrayRegistration.SetEnabled(!enabled);
+                DiagnosticTrace.Write("INICIALIZACAO.BANDEJA estado=" + (!enabled ? "ativado" : "desativado"));
+                Status(!enabled ? "GF iniciará na bandeja no próximo login." :
+                    "Início automático do GF desativado.");
+                _ = RefreshStartupEntriesAsync();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                System.Security.SecurityException or InvalidDataException)
+            {
+                DiagnosticTrace.Write("INICIALIZACAO.BANDEJA estado=falha motivo=" + ex.GetType().Name);
+                Status("Não foi possível alterar o início automático. Confira o diagnóstico.");
+            }
+        };
+        card.Controls.Add(toggle, 0, 2);
+        return card;
     }
 
     private Control BuildStartupCard(StartupItem item)
@@ -572,7 +635,8 @@ internal sealed partial class MainForm
                 Log($"Inicialização: {item.Name} — " + (item.Enabled ? "desativado" : "reativado") + ".");
                 var entries = await Task.Run(StartupManager.Read);
                 if (!IsCurrentSystemView("startup", request)) return;
-                ReplaceSystemCards(entries.Select(BuildStartupCard).ToArray());
+                ReplaceSystemCards(new[] { BuildStartupTrayCard() }
+                .Concat(entries.Select(BuildStartupCard)).ToArray());
                 Status("Inicialização alterada. Efeito no próximo login.");
             });
         };
