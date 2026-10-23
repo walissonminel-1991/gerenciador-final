@@ -767,7 +767,8 @@ internal sealed partial class MainForm : Form
             if (!startServices) return;
             LocalPerformanceMetrics.CompleteStartup();
             Log("Métricas agregadas de tempo, RAM e CPU do GF ficam apenas no diagnóstico local; nenhum envio remoto.");
-            OfferAnonymousDiagnosticConsent(firstRun: true);
+            // Nao abrir dialogos na sessao que iniciou oculta na bandeja.
+            if (!startInTray) OfferAnonymousDiagnosticConsent(firstRun: true);
             // Na abertura, a lista ainda esta vazia: nao animar barra de
             // progresso nem alternar Enabled/Visible de dezenas de controles.
             await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync,
