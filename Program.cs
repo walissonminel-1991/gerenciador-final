@@ -212,14 +212,20 @@ internal static class AppServices
     // Uma leitura parcial nao pode virar evidencia de desinstalacao.
     public static List<ProgramEntry> GetInstalledPrograms()
     {
-        var scan = ScanInstalledPrograms();
+        var scan = ScanInstalledPrograms(includeHidden: true);
         return InventoryReconciler.RequireComplete(scan.Items, scan.ReadFailures);
     }
 
-    internal static UnifiedInventoryScan ScanAllInstalledApps()
+    internal static UnifiedInventoryScan ScanAllInstalledApps() => ScanAllInstalledApps(includeHidden: false);
+
+    // A lista visual pode omitir componentes ocultos. Uma verificacao de
+    // presenca para executar/limpar nunca pode interpretar essa omissao como ausencia.
+    internal static UnifiedInventoryScan ScanAllInstalledAppsForSafety() => ScanAllInstalledApps(includeHidden: true);
+
+    private static UnifiedInventoryScan ScanAllInstalledApps(bool includeHidden)
     {
         using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.Inventory);
-        var registry = ScanInstalledPrograms();
+        var registry = ScanInstalledPrograms(includeHidden);
         var result = registry.Items.ToList();
         var msix = LocalMsixInventory.ReadCurrentUser();
         var present = registry.Items.Select(x =>
@@ -263,7 +269,9 @@ internal static class AppServices
 
     // ARP x64/x86 para máquina e usuário atual. Usa nomes reais do Windows,
     // INDEPENDENTE do catálogo de atualizações. Nunca executa uninstallers.
-    internal static RegistryInventoryScan ScanInstalledPrograms()
+    internal static RegistryInventoryScan ScanInstalledPrograms() => ScanInstalledPrograms(includeHidden: false);
+
+    private static RegistryInventoryScan ScanInstalledPrograms(bool includeHidden)
     {
         var entries = new List<ProgramEntry>();
         int inspected = 0, hidden = 0, updates = 0, failures = 0;
@@ -291,17 +299,20 @@ internal static class AppServices
                         using var child = uninstall.OpenSubKey(registryKey, writable: false);
                         if (child is null) { failures++; continue; }
                         string name = Convert.ToString(child.GetValue("DisplayName"))?.Trim() ?? "";
-                        if (string.IsNullOrWhiteSpace(name) || name.Length > 240) continue;
+                        if (string.IsNullOrWhiteSpace(name)) continue;
+                        bool longName = name.Length > 240;
+                        if (longName && !includeHidden) continue;
+                        if (longName) name = name[..240];
                         string release = Convert.ToString(child.GetValue("ReleaseType")) ?? "";
-                        if (release.Equals("Update", StringComparison.OrdinalIgnoreCase) ||
+                        bool updateRecord = release.Equals("Update", StringComparison.OrdinalIgnoreCase) ||
                             release.Equals("Security Update", StringComparison.OrdinalIgnoreCase) ||
                             release.Equals("Hotfix", StringComparison.OrdinalIgnoreCase) ||
-                            release.Equals("Update Rollup", StringComparison.OrdinalIgnoreCase))
-                        { updates++; continue; }
+                            release.Equals("Update Rollup", StringComparison.OrdinalIgnoreCase);
+                        if (updateRecord) { updates++; if (!includeHidden) continue; }
                         bool systemComponent = Convert.ToInt32(child.GetValue("SystemComponent") ?? 0) == 1;
                         if (systemComponent && !ProtectedApplications.IsProtectedName(name))
-                        { hidden++; continue; }
-                        bool protectedApp = ProtectedApplications.IsInventoryOnly(name, systemComponent);
+                        { hidden++; if (!includeHidden) continue; }
+                        bool protectedApp = longName || updateRecord || ProtectedApplications.IsInventoryOnly(name, systemComponent);
                         string publisher = Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "";
                         UnifiedAppRule? known = ApplicationIdentityCatalog.Resolve(name, publisher);
                         string scope = hive == RegistryHive.CurrentUser ? "Usuário atual" : "Computador";
@@ -319,11 +330,11 @@ internal static class AppServices
                             InventorySource = $"Registro: {scope} ({architecture})",
                             InventoryId = registryIdentity,
                             MsiProductCode = InventoryReconciler.ProductCodeFromRegistryKey(registryKey) ?? "",
-                            UninstallString = protectedApp ? "" :
+                            UninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("UninstallString")) ?? "",
-                            QuietUninstallString = protectedApp ? "" :
+                            QuietUninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
-                            InstallLocation = protectedApp ? "" :
+                            InstallLocation = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("InstallLocation"))?.Trim() ?? "",
                             InventoryOnly = protectedApp
                         });
@@ -2809,7 +2820,7 @@ internal sealed partial class MainForm : Form
             _uninstallCts = cancellation;
             var outcomes = await new UninstallBatch().RunAsync(requests, consent,
                 async () => {
-                    var scan = await Task.Run(AppServices.ScanAllInstalledApps);
+                    var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
                     return new UninstallSnapshot(scan.Items, !scan.Incomplete);
                 },
                 (request, token) => {
@@ -2859,7 +2870,7 @@ internal sealed partial class MainForm : Form
 
     private async Task ReviewUninstallOutcomeAsync(ProgramEntry entry)
     {
-        var currentInventory = await Task.Run(AppServices.ScanAllInstalledApps);
+        var currentInventory = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
         var audit = await Task.Run(() => ResidualAudit.Inspect(entry, currentInventory.Items,
             currentInventory.Incomplete));
         var previewStates = new List<ResidualPreviewState>();
@@ -2874,7 +2885,7 @@ internal sealed partial class MainForm : Form
         {
             // Pós-desinstalação: o lote só chega aqui com ausência estável
             // e código de saída 0. Uma segunda leitura completa é obrigatória.
-            var checkedInventory = await Task.Run(AppServices.ScanAllInstalledApps);
+            var checkedInventory = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
             var plan = await Task.Run(() => SevenZipCompleteCleanup.Capture(entry,
                 !checkedInventory.Incomplete, checkedInventory.Items));
             DiagnosticTrace.Write($"DESINSTALACAO.LIMPEZA_PREVIA produto=7zip completa={plan.Complete} " +
@@ -2891,7 +2902,7 @@ internal sealed partial class MainForm : Form
                     var result = await SevenZipCompleteCleanup.ExecuteAsync(entry, plan,
                         async () =>
                         {
-                            var scan = await Task.Run(AppServices.ScanAllInstalledApps);
+                            var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
                             return (!scan.Incomplete, (IReadOnlyCollection<ProgramEntry>)scan.Items);
                         });
                     DiagnosticTrace.Write($"DESINSTALACAO.LIMPEZA_RESULTADO produto=7zip " +
@@ -2909,7 +2920,7 @@ internal sealed partial class MainForm : Form
                         ". Nenhum item pessoal genérico foi analisado.");
                     // O resultado visual deve ser o NOVO estado. Uma prévia antiga
                     // depois de apagar arquivos inventaria resíduos inexistentes.
-                    var checkedAgain = await Task.Run(AppServices.ScanAllInstalledApps);
+                    var checkedAgain = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
                     var afterCleanup = await Task.Run(() => SevenZipCompleteCleanup.Capture(
                         entry, !checkedAgain.Incomplete, checkedAgain.Items));
                     DiagnosticTrace.Write($"DESINSTALACAO.LIMPEZA_POS_CONFERENCIA produto=7zip completa={afterCleanup.Complete} " +
@@ -2942,7 +2953,7 @@ internal sealed partial class MainForm : Form
                 $"{audit.RelatedRegisteredPrograms.Count} componente(s) relacionado(s) ainda registrado(s).");
             ResidualAuditDialog.ShowResults(this, audit, async token =>
             {
-                var fresh = await Task.Run(AppServices.ScanAllInstalledApps, token);
+                var fresh = await Task.Run(AppServices.ScanAllInstalledAppsForSafety, token);
                 var refreshedAudit = await Task.Run(() => ResidualAudit.Inspect(entry, fresh.Items, fresh.Incomplete), token);
                 bool unchanged = true;
                 foreach (var state in previewStates)
@@ -2965,7 +2976,7 @@ internal sealed partial class MainForm : Form
         Status("Analisando catálogo com " + UninstallRuleCatalog.Count +
             " regras de aplicativos para limpeza avançada...");
         DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_INICIO");
-        var snapshot = await Task.Run(AppServices.ScanAllInstalledApps);
+        var snapshot = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
         token.ThrowIfCancellationRequested();
         var deep = await Task.Run(() => AdvancedUninstallCleaner.InspectWithCoverage(snapshot.Items, token));
         var candidates = deep.Items;
@@ -2993,7 +3004,7 @@ internal sealed partial class MainForm : Form
     {
         Status("Conferindo instalações registradas e dispositivos do Windows...");
         DiagnosticTrace.Write("DIAGNOSTICO_COMPLETO.INICIO");
-        var inventory = await Task.Run(AppServices.ScanAllInstalledApps);
+        var inventory = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
         var maintenanceTask = Task.Run(() => MaintenanceAudit.Inspect(inventory.Items,
             inventoryIncomplete: inventory.Incomplete));
         var games = inventory.Games;
@@ -3079,7 +3090,7 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write("RESIDUOS_HISTORICOS.CONSULTA_INICIO");
         // Usar uma unica fotografia atual de Win32, MSIX e bibliotecas de jogos.
         // Assim aplicativos Store ou jogos ativos nao viram falsos vestigios.
-        var inventorySnapshot = await Task.Run(AppServices.ScanAllInstalledApps);
+        var inventorySnapshot = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
         token.ThrowIfCancellationRequested();
         var updatedInventory = inventorySnapshot.Items;
         bool inventoryIncomplete = inventorySnapshot.Incomplete;

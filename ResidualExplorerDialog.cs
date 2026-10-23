@@ -252,7 +252,7 @@ internal sealed class ResidualExplorerDialog : Form
         cleanSevenZip.Enabled = false;
         try
         {
-            var scan = await Task.Run(AppServices.ScanAllInstalledApps);
+            var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
             var preview = await Task.Run(() => SevenZipCompleteCleanup.Capture(
                 recovery, !scan.Incomplete, scan.Items, lifetimeToken), lifetimeToken);
             if (!preview.Complete)
@@ -277,10 +277,10 @@ internal sealed class ResidualExplorerDialog : Form
             var result = await SevenZipCompleteCleanup.ExecuteAsync(recovery, preview,
                 async () =>
                 {
-                    var latest = await Task.Run(AppServices.ScanAllInstalledApps);
+                    var latest = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
                     return (!latest.Incomplete, (IReadOnlyCollection<ProgramEntry>)latest.Items);
                 }, lifetimeToken);
-            var verified = await Task.Run(AppServices.ScanAllInstalledApps);
+            var verified = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
             var after = await Task.Run(() => SevenZipCompleteCleanup.Capture(
                 recovery, !verified.Incomplete, verified.Items, lifetimeToken), lifetimeToken);
             DiagnosticTrace.Write($"RESIDUOS_7ZIP_LIMPEZA_RECUPERADA arquivos={result.FilesDeleted} " +
@@ -340,7 +340,7 @@ internal sealed class ResidualExplorerDialog : Form
         cleanSmallApp.Enabled = false;
         try
         {
-            var scan = await Task.Run(AppServices.ScanAllInstalledApps);
+            var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
             var preview = await Task.Run(() => SmallAppResidualCleanup.Capture(
                 product!, !scan.Incomplete, scan.Items, lifetimeToken), lifetimeToken);
             if (!preview.Complete)
@@ -362,10 +362,10 @@ internal sealed class ResidualExplorerDialog : Form
             var result = await SmallAppResidualCleanup.DeleteAsync(preview,
                 async () =>
                 {
-                    var current = await Task.Run(AppServices.ScanAllInstalledApps);
+                    var current = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
                     return (!current.Incomplete, (IReadOnlyCollection<ProgramEntry>)current.Items);
                 }, lifetimeToken);
-            var verified = await Task.Run(AppServices.ScanAllInstalledApps);
+            var verified = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
             var after = await Task.Run(() => SmallAppResidualCleanup.Capture(
                 product!, !verified.Incomplete, verified.Items, lifetimeToken), lifetimeToken);
             DiagnosticTrace.Write($"RESIDUOS_APLICATIVO_LIMPEZA tipo={(product == "Notepad++" ? "npp" : "sumatra")} " +
