@@ -15,7 +15,7 @@ internal sealed record IntegratedCleanupResult(string AppId, IReadOnlyList<Resid
     internal int Directories => Items.Count(i => i.Kind == "directory" && i.State == ResidualItemState.Deleted);
     internal int Keys => Items.Count(i => i.Kind == "registry" && i.State == ResidualItemState.Deleted);
     internal int Failed => Items.Count(i => i.State is ResidualItemState.Failed or ResidualItemState.AccessDenied);
-    internal int Preserved => IntentionallyPreserved + Items.Count(i => i.State is ResidualItemState.Preserved or ResidualItemState.Cancelled);
+    internal int Preserved => IntentionallyPreserved + Items.Count(i => i.State is not (ResidualItemState.Deleted or ResidualItemState.Absent));
     internal string[] ElevationIds => Items.Where(i => i.State == ResidualItemState.AccessDenied).Select(i => i.Id).ToArray();
 }
 

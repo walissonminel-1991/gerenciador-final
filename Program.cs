@@ -2835,7 +2835,7 @@ internal sealed partial class MainForm : Form
             prepared.Clear();
             foreach (var outcome in outcomes)
                 DiagnosticTrace.Write(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(outcome.Request.Original),
-                    "uninstall", outcome.State.ToString(), error: outcome.Code ?? 0,
+                    "uninstall", outcome.State.ToString(), error: outcome.Code ?? 0, milliseconds: outcome.DurationMilliseconds,
                     reason: outcome.DiagnosticReason.Length > 0 ? outcome.DiagnosticReason :
                         outcome.State == UninstallState.RegistrationAbsent ? "removal_confirmed" : "no_cleanup_authorized"));
             ResidualBatchResult? cleanup = null;

@@ -55,7 +55,8 @@ internal sealed class UninstallCleanupDialog : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        try { int dark = 1; _ = NativeMethods.DwmSetWindowAttribute(Handle, 20, ref dark, 4); }
+        try { int dark = 1; if (NativeMethods.DwmSetWindowAttribute(Handle, 20, ref dark, 4) != 0)
+                _ = NativeMethods.DwmSetWindowAttribute(Handle, 19, ref dark, 4); }
         catch (DllNotFoundException) { }
         catch (EntryPointNotFoundException) { }
     }

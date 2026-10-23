@@ -1,11 +1,12 @@
 using System.ComponentModel;
+using System.Diagnostics;
 namespace GerenciadorAplicativos;
 
 internal sealed record UninstallRequest(ProgramEntry Original, ParsedUninstallCommand Command);
 internal sealed record UninstallSnapshot(IReadOnlyCollection<ProgramEntry> Items, bool Complete);
 internal enum UninstallState { Refused, Blocked, Cancelled, StartFailed, ProcessFailed, Pending, StillPresent, RegistrationAbsent }
 internal sealed record UninstallOutcome(UninstallRequest Request, UninstallState State, int? Code = null, string Reason = "",
-    string DiagnosticReason = "");
+    string DiagnosticReason = "", long DurationMilliseconds = 0);
 
 internal sealed class UninstallBatch
 {
@@ -58,6 +59,7 @@ internal sealed class UninstallBatch
             if(!consent) { results.Add(new(request,UninstallState.Refused)); continue; }
             if(!seen.Add(request.Original.InventoryId)) continue;
             bool invoked=false;
+            var duration = Stopwatch.StartNew();
             try {
                 token.ThrowIfCancellationRequested();
                 var before=await scan();
@@ -137,7 +139,13 @@ internal sealed class UninstallBatch
                 DiagnosticReason: "cancelled")); break; }
             catch(Exception ex) when(ex is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or System.Security.Cryptography.CryptographicException)
             { results.Add(new(request,invoked ? UninstallState.Pending : UninstallState.Blocked,
-                ex.HResult, DiagnosticReason: "uninstall_validation_or_inventory_failure")); }
+                ((uint)ex.HResult & 0xFFFF0000u) == 0x80070000u ? ex.HResult & 0xFFFF : 0,
+                DiagnosticReason: "uninstall_validation_or_inventory_failure")); }
+            finally
+            {
+                if (results.LastOrDefault() is { } outcome && outcome.Request == request)
+                    results[^1] = outcome with { DurationMilliseconds = duration.ElapsedMilliseconds };
+            }
             // Um processo filho pode continuar trabalhando depois do lancador.
             // Nao sobrepor outro desinstalador quando a conclusao e desconhecida.
             if(results.LastOrDefault()?.State==UninstallState.Pending) break;
