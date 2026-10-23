@@ -51,6 +51,15 @@ class PacoteTests(unittest.TestCase):
         self.hashes()
         self.assertEqual(self.check()["verified_hashes"], len(REQUIRED) + 1)
 
+    def test_documentation_links_resolve_in_the_package(self):
+        file = self.root / "PRIVACY.md"
+        for link in ("docs/absent.md", "../outside.md"):
+            with self.subTest(link=link):
+                file.write_text(f"[More information]({link})", encoding="utf-8")
+                self.hashes()
+                with self.assertRaisesRegex(ValueError, "link interno"):
+                    self.check()
+
     def test_missing_notices(self):
         for name in ("LICENSE.txt", "Licencas/DotNET/THIRD-PARTY-NOTICES.txt"):
             with self.subTest(name=name):

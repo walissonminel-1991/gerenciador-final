@@ -21,7 +21,7 @@ sequência reservada para esta candidata: **5.13.11.49 TESTE**.
 | Problema | Evidência/causa | Correção e validação |
 | --- | --- | --- |
 | Portátil sem licença GF, avisos de runtime, privacidade e guia (média) | ZIP anterior tem 274 arquivos; o verificador novo reprova sete ausências obrigatórias | Publish inclui sete documentos/avisos, três copiados dos próprios packs resolvidos. Cross-publish local passou 281 arquivos/280 hashes; validação Windows desta candidata ainda será registrada abaixo. |
-| Conferência do pacote limitada a hashes gerados no mesmo job (média) | Não havia teste independente da cobertura exata, composição e origem do portátil | Verificador de leitura sem execução exige SHA de fonte/base/merge, versão, PE AMD64, self-contained, licenças e cobertura exata do manifesto. Dez testes adversariais incluem corrupção, omissão/extra, traversal, duplicata, certificado acidental, arquitetura e origem erradas. |
+| Conferência do pacote limitada a hashes gerados no mesmo job (média) | Não havia teste independente da cobertura exata, composição e origem do portátil | Verificador de leitura sem execução exige SHA de fonte/base/merge, versão, PE AMD64, self-contained, licenças e cobertura exata do manifesto. Onze testes adversariais incluem corrupção, omissão/extra, traversal, duplicata, certificado acidental, arquitetura e origem erradas. |
 | README e organização davam instruções antigas (média) | Apontavam .42/.35 e afirmavam exclusão integralmente indisponível, embora existissem pilotos restritos posteriores | Estado corrente, pesquisa geral somente leitura, pilotos e homologação pendente separados; roteiro único para o próximo teste. Privacidade consolidada sem mudar consentimento/armazenamento. |
 | Leitores antigos mantinham caminhos paralelos (baixa/manutenção) | IntegratedSystemReader.Processes/StartupEntries/WindowsUpdate sem chamadas diretas ou por reflexão; somente Computer é usado por DetailedHardware | Retiradas 168 linhas, interop de serviço e imports exclusivos; arquivo 257→89 linhas. Compilação com analisadores sem avisos/erros. Leituras atuais permanecem em RAM/StartupManager/WindowsUpdateClient. |
 | Repetição de cenários na CI (custo/manutenção) | WORK9 rodava em três modos focados e novamente nas suítes; prévia WORK6 duplicada; testes Node repetidos no Windows e política Ubuntu | Suítes completas continuam obrigatórias, mutações preservadas, benchmark reutiliza build. Modos focados permanecem disponíveis. Concurrency de reutilizáveis inclui nome do chamador para não cancelar uma execução manual independente. |
@@ -30,6 +30,14 @@ Commits da implementação: `68ba7824` (leitores), `6df8479e` (pacote, versão e
 verificador), `2458e5c0` (CI). Commits de consolidação e fechamento serão
 registrados após a revisão final. A candidata ainda não está aprovada nesta
 versão inicial do relatório; resultado efetivo da CI abaixo prevalece.
+
+Antes do fechamento, a revisão do portátil detectou links relativos de privacidade
+para documentos ausentes no ZIP. Um teste novo reproduziu duas aceitações
+indevidas (link ausente e caminho externo); após a correção, os 29 testes Python
+passaram. A conferência do publish também reprovou o PRIVACY.md anterior e
+passou com os endereços oficiais completos. O verificador passou a conferir
+links internos dos Markdown distribuídos, além dos hashes. A CI inicial da .49
+não deve ser usada como aprovação dessa correção posterior.
 
 ## Inventário e faxina
 
@@ -79,8 +87,8 @@ usa agora SHA curto da fonte; BUILD-INFO conserva também merge sintético/base/
 SHA256SUMS cobre todos os arquivos além do próprio manifesto. Retenção: sete dias.
 
 Validação local já executada: build Release com analisadores (zero avisos/erros),
-cross-publish win-x64 self-contained, 28 testes Python aprovados (18 políticas +
-10 de pacote), links relativos sem alvos ausentes, identidade estrutural do JSON
+cross-publish win-x64 self-contained, 29 testes Python aprovados (18 políticas +
+11 de pacote), links relativos sem alvos ausentes, identidade estrutural do JSON
 de benchmark e reprodução negativa no ZIP anterior. Cross-publish foi uma
 árvore de trabalho editada e não é artefato distribuído nem teste Windows nativo.
 

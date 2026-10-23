@@ -26,7 +26,7 @@ sua exclusão falha.
 Simular sem enviar usa apenas ocorrências fictícias: não lê dados da máquina,
 não grava arquivos nem faz conexões. Está disponível também a quem recusou.
 O receptor experimental permanece desligado em produção; não há conta GitHub,
-Issue, anexo ou formulário de envio no GF. [Arquitetura e critérios futuros](docs/INFRAESTRUTURA-ENVIO-SEGURO.md).
+Issue, anexo ou formulário de envio no GF. [Arquitetura e critérios futuros](https://github.com/walissonminel-1991/gerenciador-final/blob/piloto-diagnostico-github-v5.13.11.2/docs/INFRAESTRUTURA-ENVIO-SEGURO.md).
 
 ## Diagnóstico da candidata TESTE
 
@@ -52,7 +52,7 @@ de gateway. Operações administrativas podem produzir logs do Windows e mudar
 arquivos temporários, configurações ou serviços após confirmação. O instalador
 Inno Setup não cria exclusões em antivírus ou regras adicionais de firewall.
 O runtime Windows e o relatório de falhas do próprio sistema seguem também os
-[termos dos componentes Microsoft](docs/THIRD-PARTY-NOTICES.md); desligar a coleta
+[termos dos componentes Microsoft](https://github.com/walissonminel-1991/gerenciador-final/blob/piloto-diagnostico-github-v5.13.11.2/docs/THIRD-PARTY-NOTICES.md); desligar a coleta
 opcional do GF não altera configurações globais do Windows.
 
 Exportar hardware para PNG é uma ação local do usuário. Confira o conteúdo

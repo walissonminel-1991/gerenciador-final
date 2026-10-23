@@ -1,7 +1,7 @@
 ## v5.13.11.49 TESTE — WORK9: consolidação, pacote e CI
 
 - Preserva as 13 causas corrigidas e 42 controles adversariais da Parte 1, registrados em [WORK9 parte 1](docs/MISSAO-WORK9-PARTE1.md); U8/R7/R4 continuam sem homologação física.
-- Portátil inclui licença GF, privacidade, guia e avisos originais dos runtimes. Conferência independente exige origem, versão, AMD64, self-contained e cobertura exata de hashes antes do upload; dez testes sintéticos do pacote.
+- Portátil inclui licença GF, privacidade, guia e avisos originais dos runtimes. Conferência independente exige origem, versão, AMD64, self-contained e cobertura exata de hashes antes do upload; onze testes sintéticos do pacote, incluindo links internos dos documentos.
 - Retira três leitores de sistema comprovadamente sem uso; preserva implementações atuais e testes. Reduz repetições na CI sem retirar asserções; SDK compartilhado por global.json, permissões e NuGetAudit mantidos.
 - Consolida nove relatórios/planos PC FRACO com hashes e referências históricas; corrige README/roteiro/privacidade e preserva os dados do benchmark em JSON compacto.
 - Numeração sequencial de candidata, sem avanço do roadmap (27/42), merge, release estável ou operação nos PCs pessoais. O resultado efetivo da CI e o pacote aprovado ficam em [WORK9 parte 2](docs/MISSAO-WORK9-PARTE2.md).

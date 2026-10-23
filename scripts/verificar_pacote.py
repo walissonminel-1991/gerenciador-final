@@ -5,6 +5,7 @@ import json
 from pathlib import Path, PurePosixPath
 import re
 import struct
+from urllib.parse import unquote, urlsplit
 
 
 REQUIRED = frozenset({
@@ -74,6 +75,17 @@ def verify(root: Path, version: str, source: str, build: str, base: str = "") ->
         with files[name].open("rb") as stream:
             if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
                 raise ValueError("hash divergente: " + name)
+    for name, path in files.items():
+        if path.suffix.lower() != ".md":
+            continue
+        for link in re.findall(r'!?\[[^\]]*\]\(([^\s)]+)(?:\s+"[^"]*")?\)',
+                               path.read_text(encoding="utf-8-sig")):
+            target = urlsplit(link.strip("<>"))
+            if target.scheme or target.netloc or not target.path:
+                continue
+            resolved = (path.parent / unquote(target.path)).resolve()
+            if not resolved.is_relative_to(root.resolve()) or not resolved.is_file():
+                raise ValueError("link interno ausente ou externo ao pacote: " + name)
     info = files["BUILD-INFO.txt"].read_text(encoding="utf-8-sig").splitlines()
     for line in (f"Versao: {version}", f"Commit fonte: {source}", f"Commit Git: {build}",
                  f"Base da PR (quando aplicavel): {base}"):

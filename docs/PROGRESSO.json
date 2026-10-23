@@ -560,7 +560,7 @@
     },
     "local_validation": {
       "analyzer_build": "passed",
-      "python": 28,
+      "python": 29,
       "node": 10,
       "cross_publish_hashes": 280
     },
