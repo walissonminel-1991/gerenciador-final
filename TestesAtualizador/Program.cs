@@ -190,6 +190,19 @@ Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Don HO", 
 Verify(VerifiedUpdaters.GetPrimaryAction(Item("Notepad++ (64-bit x64)", "8.8.8", "8.9.8.1",
        "Notepad++ Team", "GitHub oficial")) == "update",
        "Notepad++ Team x64 deve apresentar botao Atualizar");
+var unsafeMsiNpp = new ProgramEntry
+{
+    Name = "Notepad++ (64-bit x64)", Publisher = "Don HO",
+    InventoryId = "LocalMachine|Registry64|SyntheticMSI",
+    MsiProductCode = "{00000000-0000-0000-0000-000000000045}",
+    UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000045}"
+};
+Verify(!VerifiedUpdaters.SingleSafeSilentInstallation(npp, unsafeMsiNpp, [unsafeMsiNpp]),
+    "Instalacao MSI Notepad++ nao pode ser substituida pelo EXE silencioso");
+Verify(!VerifiedUpdaters.SingleSafeSilentInstallation(npp, unsafeMsiNpp,
+    [unsafeMsiNpp, new ProgramEntry { Name = "Notepad++ (x86)",
+      InventoryId = "LocalMachine|Registry32|NPP32" }]),
+    "Variantes MSI/EXE coexistentes impedem atualizar sem revisar a identidade");
 Verify(VerifiedUpdaters.Resolve(Item("Notepad++ (64-bit x64)", "8.8.8", "8.9.8.1",
        "Editor desconhecido", "GitHub oficial")) is null,
        "Notepad++: publisher desconhecido nao ativa botao");
