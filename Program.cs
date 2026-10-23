@@ -3116,9 +3116,39 @@ internal sealed partial class MainForm : Form
         var scanIssues = broad.Coverage?.Issues ??
             (broad.Incomplete ? ResidualScanIssue.ReportIncomplete : ResidualScanIssue.None);
         DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} raizes_restritas={broad.RestrictedRoots} fontes_nao_consultadas_ou_inacessiveis={broad.Coverage?.SourcesUnavailable?.Count ?? 0} fontes_leitura_parcial={broad.Coverage?.SourcesWithReadFailures?.Count ?? 0} parcial={broad.Incomplete} motivos={scanIssues.ToString().Replace(", ", "+")}");
+        // PC FORTE: recuperar uma análise própria do 7-Zip 26.05 já removido.
+        // O relatório geral pode ser parcial, mas esta fotografia separada
+        // revalida integralmente seus alvos e NÃO autoriza apagar por si só.
+        var recoveryEntry = SevenZipCompleteCleanup.RecoveryIdentity();
+        var scoped7zip = await Task.Run(() => SevenZipCompleteCleanup.Capture(
+            recoveryEntry, !inventoryIncomplete, updatedInventory, token), token);
+        var scoped7zipReports = scoped7zip.Complete &&
+            (scoped7zip.Files.Count + scoped7zip.Directories.Count + scoped7zip.Registry.Count > 0)
+            ? new[] { new ResidualAuditReport(recoveryEntry.Name, true,
+                scoped7zip.Files.Select(file => new ResidualAuditFinding(file.Path,
+                    "Arquivo próprio — conferir limpeza", 1,
+                    "Vínculo com a pasta exata do aplicativo; autorização separada necessária.",
+                    ResidualDisposition.Review, ResidualSource.Installation))
+                .Concat(scoped7zip.Directories.Select(path => new ResidualAuditFinding(path,
+                    "Pasta própria — conferir limpeza", 1,
+                    "Diretório exato; só será removido se ficar vazio.",
+                    ResidualDisposition.Review, ResidualSource.Installation)))
+                .Concat(scoped7zip.Registry.Select(key => new ResidualAuditFinding(
+                    (key.Hive == Microsoft.Win32.RegistryHive.LocalMachine
+                        ? @"HKEY_LOCAL_MACHINE\" : @"HKEY_CURRENT_USER\") + key.SubKey,
+                    "Configuração própria do 7-Zip", key.Entries,
+                    "Árvore específica verificada por resumo criptográfico, não é registro MSI.",
+                    ResidualDisposition.Review, ResidualSource.Registry)))
+                .ToArray(), Array.Empty<string>(), Historical: true) }
+            : Array.Empty<ResidualAuditReport>();
+        DiagnosticTrace.Write($"RESIDUOS_7ZIP_RECUPERACAO completa={scoped7zip.Complete} " +
+            $"arquivos={scoped7zip.Files.Count} pastas={scoped7zip.Directories.Count} " +
+            $"chaves={scoped7zip.Registry.Count}");
         // Unir todas as fontes por produto/local, preservando motivos divergentes.
         var allReports = ResidualReportMerger.Merge(historical.Concat(boosterReports).Concat(winMergeReports)
-            .Concat(notepadReports).Concat(foobarReports).Concat(broad.Reports), inventoryIncomplete || broad.Incomplete, ResidualCoverage.Combine(new[] { broad.Coverage, historical.Coverage }));
+            .Concat(notepadReports).Concat(foobarReports).Concat(scoped7zipReports)
+            .Concat(broad.Reports), inventoryIncomplete || broad.Incomplete,
+            ResidualCoverage.Combine(new[] { broad.Coverage, historical.Coverage }));
         var coverage = allReports.Coverage;
         // Apenas códigos de origens conhecidas, contagens e flags. Sem caminhos.
         foreach (var detail in broad.Coverage?.SourceDetails ?? [])
