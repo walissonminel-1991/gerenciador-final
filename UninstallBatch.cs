@@ -67,6 +67,18 @@ internal sealed class UninstallBatch
                     (request.Command.ProductCode is not null && before.Items.Count(x =>
                         x.MsiProductCode.Equals(request.Command.ProductCode,StringComparison.OrdinalIgnoreCase)) != 1))
                 { results.Add(new(request,UninstallState.Blocked)); continue; }
+                // PC FORTE: 7-Zip EXE e MSI compartilharam arquivos e a remoção
+                // da variante EXE comprometeu a instalação MSI ainda registrada.
+                // Não executar nenhuma delas isoladamente enquanto houver outra
+                // edição registrada. Sem tentativa de limpeza ou correção forçada.
+                if (request.Original.Name.StartsWith("7-Zip", StringComparison.OrdinalIgnoreCase) &&
+                    before.Items.Count(other => other.Name.StartsWith("7-Zip", StringComparison.OrdinalIgnoreCase)) > 1)
+                {
+                    results.Add(new(request, UninstallState.Blocked, Reason:
+                        "Há mais de uma edição do 7-Zip registrada. As instalações podem compartilhar arquivos; " +
+                        "não é seguro desinstalar uma isoladamente pelo GF."));
+                    continue;
+                }
                 if(request.Command.ProductCode is null && before.Items.Any(other =>
                     !other.InventoryId.Equals(request.Original.InventoryId,StringComparison.OrdinalIgnoreCase) &&
                     SharesExeIntent(request.Command,other)))
