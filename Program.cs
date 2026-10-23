@@ -2881,13 +2881,16 @@ internal sealed partial class MainForm : Form
                     DiagnosticTrace.Write($"DESINSTALACAO.LIMPEZA_RESULTADO produto=7zip " +
                         $"arquivos={result.FilesDeleted} pastas={result.DirectoriesDeleted} " +
                         $"chaves={result.KeysDeleted} falhas={result.Failures} " +
-                        $"preservados={result.Preserved} reinstalado={result.Reinstalled}");
+                        $"preservados={result.Preserved} reinstalado={result.Reinstalled} " +
+                        $"motivos={string.Join("+", result.Problems)}");
                     Status(result.Failures == 0 && result.Preserved == 0 && !result.Reinstalled
                         ? "7-Zip: limpeza concluída; arquivos, pastas e chaves conferidos."
                         : "7-Zip: limpeza parcial ou bloqueada; itens restantes foram preservados.");
                     Log($"7-Zip: {result.FilesDeleted} arquivo(s), {result.DirectoriesDeleted} pasta(s), " +
                         $"{result.KeysDeleted} chave(s) removidos; {result.Failures} falha(s) e " +
-                        $"{result.Preserved} preservado(s). Nenhum item pessoal genérico foi analisado.");
+                        $"{result.Preserved} preservado(s). Motivos: " +
+                        (result.Problems.Count == 0 ? "nenhum" : string.Join(", ", result.Problems)) +
+                        ". Nenhum item pessoal genérico foi analisado.");
                     // O resultado visual deve ser o NOVO estado. Uma prévia antiga
                     // depois de apagar arquivos inventaria resíduos inexistentes.
                     var checkedAgain = await Task.Run(AppServices.ScanAllInstalledApps);
