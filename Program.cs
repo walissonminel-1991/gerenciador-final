@@ -2888,6 +2888,30 @@ internal sealed partial class MainForm : Form
                     Log($"7-Zip: {result.FilesDeleted} arquivo(s), {result.DirectoriesDeleted} pasta(s), " +
                         $"{result.KeysDeleted} chave(s) removidos; {result.Failures} falha(s) e " +
                         $"{result.Preserved} preservado(s). Nenhum item pessoal genérico foi analisado.");
+                    // O resultado visual deve ser o NOVO estado. Uma prévia antiga
+                    // depois de apagar arquivos inventaria resíduos inexistentes.
+                    var checkedAgain = await Task.Run(AppServices.ScanAllInstalledApps);
+                    var afterCleanup = await Task.Run(() => SevenZipCompleteCleanup.Capture(
+                        entry, !checkedAgain.Incomplete, checkedAgain.Items));
+                    DiagnosticTrace.Write($"DESINSTALACAO.LIMPEZA_POS_CONFERENCIA produto=7zip completa={afterCleanup.Complete} " +
+                        $"arquivos={afterCleanup.Files.Count} pastas={afterCleanup.Directories.Count} chaves={afterCleanup.Registry.Count}");
+                    if (afterCleanup.Complete && afterCleanup.Files.Count == 0 &&
+                        afterCleanup.Directories.Count == 0 && afterCleanup.Registry.Count == 0)
+                    {
+                        Log("7-Zip: conferência posterior concluída sem resíduos nos alvos específicos.");
+                        return;
+                    }
+                    audit = await Task.Run(() => ResidualAudit.Inspect(
+                        entry, checkedAgain.Items, checkedAgain.Incomplete));
+                    previewStates.Clear();
+                    using (var afterPreviewTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(8)))
+                        foreach (var candidate in UninstallResiduals.Inspect(entry))
+                            previewStates.Add(await ResidualPreview.CaptureAsync(candidate,
+                                afterPreviewTimeout.Token));
+                    if (previewStates.Count > 0)
+                        audit = ResidualReportMerger.Merge(new[] { audit,
+                            ResidualPreview.Describe(entry.Name, previewStates) },
+                            checkedAgain.Incomplete).Single();
                 }
                 else DiagnosticTrace.Write("DESINSTALACAO.LIMPEZA_RECUSADA produto=7zip");
             }
