@@ -27,6 +27,7 @@ internal static class SmallAppResidualCleanup
 #if GF_PROGRESSIVE
     internal static string[]? SyntheticFolders;
     internal static bool SyntheticNoRegistry;
+    internal static (RegistryHive Hive, RegistryView View, string Subkey)[]? SyntheticRegistryKeys;
 #endif
 
     internal static bool Supported(string? product) =>
@@ -59,6 +60,7 @@ internal static class SmallAppResidualCleanup
     {
 #if GF_PROGRESSIVE
         if (SyntheticNoRegistry) return [];
+        if (SyntheticRegistryKeys is not null) return SyntheticRegistryKeys;
 #endif
         if (product.Equals(Npp, StringComparison.OrdinalIgnoreCase))
             return
@@ -358,24 +360,44 @@ internal static class SmallAppResidualCleanup
                 if (!check.Complete || !AbsenceConfirmed(accepted.Product, check.Apps) ||
                     !ProcessesClosed(accepted.Product))
                 { preserved++; problems.Add("instalacao_alterada"); break; }
+                string phase = "validar";
                 try
                 {
                     if (!Keys(accepted.Product).Any(x => x.Hive == item.Hive &&
                         x.View == item.View && x.Subkey == item.Subkey))
                     { failed++; problems.Add("registro_fora_escopo"); continue; }
+                    // Excluir somente a subchave autorizada, abrindo a chave-pai
+                    // na visao 32/64 bits correta. Nunca excluir da raiz HKLM.
+                    int separator = item.Subkey.LastIndexOf('\\');
+                    if (separator <= 0 || separator == item.Subkey.Length - 1)
+                    { failed++; problems.Add("registro_subchave_invalida"); continue; }
+                    string parentPath = item.Subkey[..separator];
+                    string leaf = item.Subkey[(separator + 1)..];
+                    phase = "abrir_pai";
                     using var root = RegistryKey.OpenBaseKey(item.Hive, item.View);
-                    using var key = root.OpenSubKey(item.Subkey, writable: false);
+                    using var parent = root.OpenSubKey(parentPath, writable: true);
+                    if (parent is null)
+                    { failed++; problems.Add("registro_pai_ausente"); continue; }
+                    phase = "revalidar";
+                    using var key = parent.OpenSubKey(leaf, writable: false);
                     if (key is null || !ReadKeyHash(key, out string digest, out int entries) ||
                         digest != item.Digest || entries != item.Entries)
                     { failed++; problems.Add("registro_alterado"); continue; }
                     key.Close();
-                    root.DeleteSubKeyTree(item.Subkey, throwOnMissingSubKey: true);
-                    if (root.OpenSubKey(item.Subkey) is null) keys++;
+                    phase = "excluir";
+                    parent.DeleteSubKeyTree(leaf, throwOnMissingSubKey: true);
+                    phase = "conferir";
+                    using var remaining = parent.OpenSubKey(leaf, writable: false);
+                    if (remaining is null) keys++;
                     else { failed++; problems.Add("registro_permaneceu"); }
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                     ArgumentException or System.Security.SecurityException or InvalidOperationException)
-                { failed++; problems.Add("registro_" + ex.GetType().Name); }
+                {
+                    failed++;
+                    problems.Add("registro_" + phase + "_" + ex.GetType().Name +
+                        "_hr" + ((uint)ex.HResult).ToString("X8"));
+                }
             }
         }
         else preserved += accepted.Keys.Count;
