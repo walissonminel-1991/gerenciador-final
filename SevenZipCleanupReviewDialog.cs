@@ -8,8 +8,11 @@ namespace GerenciadorAplicativos;
 internal sealed class SevenZipCleanupReviewDialog : Form
 {
     internal SevenZipCleanupReviewDialog(SevenZipCleanupPlan plan)
+        : this("7-Zip", SevenZipCompleteCleanup.Describe(plan)) { }
+
+    private SevenZipCleanupReviewDialog(string product, string report)
     {
-        Text = "7-Zip — revisar limpeza residual";
+        Text = product + " — revisar limpeza residual";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         ShowInTaskbar = false;
@@ -29,14 +32,14 @@ internal sealed class SevenZipCleanupReviewDialog : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
         layout.Controls.Add(new Label
         {
-            Text = "Limpeza completa após desinstalar 7-Zip. Confira os caminhos abaixo. " +
+            Text = "Limpeza completa de resíduos exclusivos de " + product + ". Confira os caminhos abaixo. " +
                    "Somente esses itens serão considerados; qualquer mudança bloqueia a operação. " +
                    "A exclusão é permanente e não será executada sem sua autorização.",
             ForeColor = ForeColor, Dock = DockStyle.Fill, Padding = new Padding(4),
             TextAlign = ContentAlignment.MiddleLeft
         }, 0, 0);
         var details = new DarkLogView { Dock = DockStyle.Fill };
-        details.SetText(SevenZipCompleteCleanup.Describe(plan));
+        details.SetText(report);
         layout.Controls.Add(details, 0, 1);
         var controls = new FlowLayoutPanel
         {
@@ -63,6 +66,14 @@ internal sealed class SevenZipCleanupReviewDialog : Form
         Controls.Add(layout);
         AcceptButton = agree;
         CancelButton = cancel;
+    }
+
+    internal static bool Confirm(Form owner, SmallAppSnapshot plan)
+    {
+        if (!plan.Complete) return false;
+        using var dialog = new SevenZipCleanupReviewDialog(
+            plan.Product, SmallAppResidualCleanup.Describe(plan));
+        return dialog.ShowDialog(owner) == DialogResult.Yes;
     }
 
     internal static bool Confirm(Form owner, SevenZipCleanupPlan plan)
