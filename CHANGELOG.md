@@ -1,3 +1,13 @@
+## v5.13.11.43 TESTE — atualização silenciosa 7-Zip, candidata experimental (validação CI/física pendente)
+
+- PC FORTE: após coexistência de 7-Zip EXE 26.04 e MSI 26.05, remover o EXE deixou um MSI registrado sem arquivos executáveis. Novo atualizador exige instalação EXE x64 única, íntegra, na pasta padrão, com identidade e desinstalador esperados; se houver MSI, outra edição ou arquivos ausentes, bloqueia.
+- Receita estritamente local para **7-Zip 26.05 x64 EXE**, sem depender de URL/argumentos do catálogo: `https://github.com/ip7z/7zip/releases/download/26.05/7z2605-x64.exe`, SHA-256 `fd99e86f57d8f429ef5ed045bf98315af962e2309b0f1ba87a147a44c71647d0` (corroborado pelo espelho oficial SourceForge do projeto). Argumento de instalação silenciosa `/S` documentado pelo fabricante.
+- O EXE 7-Zip é tratado **apenas nessa receita** como artefato de SHA-256 fixado sem exigência de assinatura Authenticode; outros instaladores preservam as verificações existentes de assinatura. Arquivo bloqueado, hash revisitado antes de executar, origem HTTPS restringida e UAC conservado.
+- Antes de executar, revalida a instalação/identidade e verifica processos 7-Zip abertos sem encerrá-los automaticamente; após executar, exige mesmo registro, uma única instalação e versão dos arquivos essenciais para confirmar sucesso. Nenhuma exclusão de dados ou migração EXE/MSI.
+- Testes sintéticos adversariais de identidade EXE/MSI, arquitetura, edição, pasta, versão, fabricante, hash e argumentos; sem execução de instaladores reais nas GitHub Actions por padrão.
+- Apenas o 7-Zip EXE x64 recebeu essa receita. Outros aplicativos só poderão atualizar silenciosamente após validação própria de instalador, modo silencioso, integridade, privilégios e pós-condições.
+- Mantém a branch experimental e PR em Draft. Não homologar a build no PC FORTE sem CI aprovada e revisão dos testes.
+
 ## v5.13.11.42 TESTE — MISSÃO WORK 7 (CI aprovada; testes físicos pendentes)
 
 - MSI/EXE: seis defeitos adicionais reproduzidos. Cancelamento 1602, ocupação 1618, suspensão 1604 e reinício 1641/3010 interrompem o lote; MSI recebe `/norestart`. EXE com código desconhecido fica pendente. Dois registros com comando EXE idêntico bloqueiam execução; argumentos de produtos distintos continuam permitidos. Reforço aprovado na CI Windows.
