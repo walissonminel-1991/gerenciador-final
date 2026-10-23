@@ -641,9 +641,22 @@ internal static class LayoutTests
         Application.DoEvents();
         var repairTools = Descendants(form).OfType<ModernButton>()
             .Where(b => b.Text is "Analisar rede" or "Reparar rede" or
-                "Criar ponto de restauração").ToArray();
-        if (repairTools.Length != 3 || repairTools.Any(b => b.Width > 215))
-            throw new Exception("Botoes de ferramentas ainda ocupam cartoes inteiros.");
+                "Criar ponto de restauração" or "Restaurar configurações da rede" or
+                "Escolher ponto de restauração").ToArray();
+        if (repairTools.Length != 5 || repairTools.Any(b =>
+            b.Width >= b.Parent!.ClientSize.Width))
+            throw new Exception("Botoes de reparo nao devem ultrapassar a largura util do cartao.");
+        // Regressao PC FORTE .49: titulo longo no cartao de 3 colunas
+        // encolhia a fonte porque a largura tinha teto fixo de 215 px.
+        var longRepair = repairTools.Single(b =>
+            b.Text == "Restaurar configurações da rede");
+        int naturalWidth = TextRenderer.MeasureText(longRepair.Text, longRepair.Font,
+            new Size(int.MaxValue, 33), TextFormatFlags.NoPadding |
+            TextFormatFlags.NoPrefix).Width;
+        if (longRepair.Width <= 215 || longRepair.Width - 27 < naturalWidth)
+            throw new Exception("Rotulo de restauracao ainda reduz a fonte apesar do espaco do cartao.");
+        if (repairTools.Select(b => b.Font.SizeInPoints).Distinct().Count() != 1)
+            throw new Exception("Botoes de reparo devem compartilhar a mesma fonte.");
         // PC FORTE .40: tres colunas ja existiam, mas cada card era limitado
         // a 316 px; sobravam faixas laterais mesmo com largura suficiente.
         var repairFlow = Descendants(form).OfType<DarkScrollableFlow>()
