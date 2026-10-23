@@ -248,6 +248,60 @@ Check(!dualZipStarted && dualZipOutcomes.Single().State == UninstallState.Blocke
       dualZipOutcomes.Single().Reason.Contains("compartilhar arquivos", StringComparison.Ordinal),
     "EXE e MSI 7-Zip coexistentes: GF não inicia desinstalador silencioso nem interativo");
 
+// Testes de limpeza completa em raiz DESCARTÁVEL. Nenhum aplicativo ou chave real
+// é removido, inclusive quando o teste pede consentimento implícito.
+Check(SmallAppResidualCleanup.Supported("Notepad++") &&
+      SmallAppResidualCleanup.Supported("SumatraPDF") &&
+      !SmallAppResidualCleanup.Supported("Notepad++ Backup"),
+      "Politica de limpeza exige o produto exato, nunca um nome parecido");
+var installedNpp = new ProgramEntry { Name = "Notepad++ (64-bit x64)", Publisher = "Don HO" };
+Check(!SmallAppResidualCleanup.AbsenceConfirmed("Notepad++", [installedNpp]) &&
+      SmallAppResidualCleanup.AbsenceConfirmed("Notepad++", []),
+      "Bloquear qualquer desinstalacao incompleta ou variante ainda instalada");
+string smallFixture = Path.Combine(Path.GetTempPath(), "GF-Small-Residual-" +
+    Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(smallFixture);
+try
+{
+    var child = Path.Combine(smallFixture, "config");
+    Directory.CreateDirectory(child);
+    string config = Path.Combine(child, "settings.xml");
+    await File.WriteAllTextAsync(config, "configuração de teste");
+    SmallAppResidualCleanup.SyntheticFolders = [smallFixture];
+    SmallAppResidualCleanup.SyntheticNoRegistry = true;
+    var blocked = SmallAppResidualCleanup.Capture("Notepad++", true, [installedNpp]);
+    Check(!blocked.Complete && blocked.Files.Count == 0 &&
+          SmallAppResidualCleanup.Report(blocked) is null,
+          "Inventario com Notepad++ registrado proibe captura autorizativa");
+    var previewSmall = SmallAppResidualCleanup.Capture("Notepad++", true, []);
+    Check(previewSmall.Complete && previewSmall.Files.Count == 1 &&
+          previewSmall.Directories.Count == 2 &&
+          SmallAppResidualCleanup.Report(previewSmall)?.Findings.Count == 3,
+          "Preview isolada identifica arquivo e pastas dedicadas");
+    await File.AppendAllTextAsync(config, "mudou após a prévia");
+    var refusedSmall = await SmallAppResidualCleanup.DeleteAsync(previewSmall,
+        () => Task.FromResult((true,
+            (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+    Check(refusedSmall.Files == 0 && refusedSmall.Failed > 0 &&
+          File.Exists(config), "Alteração após a prévia impede toda a limpeza");
+    var newPreview = SmallAppResidualCleanup.Capture("Notepad++", true, []);
+    var removedSmall = await SmallAppResidualCleanup.DeleteAsync(newPreview,
+        () => Task.FromResult((true,
+            (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+    Check(removedSmall.Files == 1 && removedSmall.Directories == 2 &&
+          removedSmall.Keys == 0 && removedSmall.Failed == 0 &&
+          !Directory.Exists(smallFixture) &&
+          SmallAppResidualCleanup.Report(SmallAppResidualCleanup.Capture(
+              "Notepad++", true, [])) is null,
+          "Limpeza sintética remove apenas alvos autorizados e reexame zera o grupo");
+}
+finally
+{
+    SmallAppResidualCleanup.SyntheticFolders = null;
+    SmallAppResidualCleanup.SyntheticNoRegistry = false;
+    if (Directory.Exists(smallFixture)) Directory.Delete(smallFixture, recursive: true);
+}
+
 string zipFixture = Path.Combine(Path.GetTempPath(), "GF-Zip-Residual-Synthetic-" +
     Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(zipFixture);
