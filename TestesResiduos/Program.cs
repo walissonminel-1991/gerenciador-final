@@ -264,6 +264,8 @@ try
     Check(beforeZip.Complete && beforeZip.Files.Count == 2 &&
           beforeZip.Directories.Count == 2 && beforeZip.Registry.Count == 0,
           "Preview mede conteúdo e identidade dos arquivos sintéticos, sem tocar no Registro real");
+    Check(SevenZipCompleteCleanup.RecoveryReport(beforeZip)?.Findings.Count == 4,
+        "Cartões residuais derivam exclusivamente da fotografia específica atual");
     await File.AppendAllTextAsync(second, "modificado depois da previa");
     var refusal = await SevenZipCompleteCleanup.ExecuteAsync(unsignedFake, beforeZip,
         () => Task.FromResult((true, (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
@@ -277,6 +279,10 @@ try
           removedZip.KeysDeleted == 0 && removedZip.Failures == 0 &&
           removedZip.Problems.Count == 0 && !Directory.Exists(zipFixture),
           "Exclusão consentida em fixture remove somente os arquivos/pastas comprovados");
+    var verifiedEmpty = SevenZipCompleteCleanup.Capture(unsignedFake, true, []);
+    Check(verifiedEmpty.Complete && SevenZipCompleteCleanup.RecoveryReport(verifiedEmpty) is null &&
+          new ResidualResultIndex(Array.Empty<ResidualAuditReport>()).Count == 0,
+          "Após limpar todos os alvos, grupo antigo não pode continuar no índice");
     Directory.CreateDirectory(zipFixture);
     var readonlySample = Path.Combine(zipFixture, "7-zip.dll");
     await File.WriteAllTextAsync(readonlySample, "fixture sem permissao de remocao");
