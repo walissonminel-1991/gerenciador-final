@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.42 TESTE — MISSÃO WORK 7, incluindo reforço MSI/EXE, com [CI aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692) e [pacote `0de83072` conferido](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692/artifacts/12465616744); validação física da .42 pendente. A .41 não foi homologada: falha de regressão Windows. Última bateria física fornecida: .40 PC FORTE. Progresso mantido: 27/42 (64,3%). [Auditoria atual](MISSAO-WORK7-RESULTADO.md).**
+**v5.13.11.48 TESTE — WORK9 parte 1: 13 causas corrigidas e 42 controles novos aprovados no Windows; [CI final 39980934418](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418) e pacote portátil conferido. Homologação física pendente. Progresso preservado: 27/42 (64,3%). [Relatório, evidências, desempenho e próximo teste](MISSAO-WORK9-PARTE1.md).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
 ## MISSÃO WORK 6 — atualização, desinstalação e resíduos
@@ -128,7 +128,7 @@ R6 continua exigindo evidências concretas de classificação. U6 foi concluído
 por comparação real e regressão dos nove produtos. D2 ganhou o elo Store;
 histórico Windows e pacotes sem associação permanecem pendentes.
 **Restam 15 checkpoints em aberto.**
-R4 e G1–G5 continuam bloqueados. Consultas não concedem permissão de excluir.
+A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permissão de excluir; os pilotos restritos exigem prévia e consentimento separados.
 
 ## Checklist
 
@@ -142,12 +142,12 @@ R4 e G1–G5 continuam bloqueados. Consultas não concedem permissão de excluir
 - [x] I6 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] I7 — Cobertura conferida nos dois computadores. Evidência: Validação presencial adiada
 
-### Desinstalação e resíduos — 4/7 (R4 suspenso na v5.13.11.15)
+### Desinstalação e resíduos — 4/7 (R4 em piloto restrito)
 
 - [x] R1 — Proteção de jogos e instalações ativas. Evidência: GameLibraryAudit.cs; BroadResidualDiscovery.cs
 - [x] R2 — Classificação conservadora de fabricantes compartilhados. Evidência: BroadResidualDiscovery.cs; ResidualAuditDialog.cs
 - [x] R3 — Auditoria histórica somente leitura. Evidência: HistoricalResidualAudit.cs; HistoricalDeviceAudit.cs
-- [ ] R4 — Limpeza real específica após confirmação e revalidação. Suspensa na v5.13.11.15: somente prévia e simulação até comprovar exclusividade, integridade do consentimento e segurança de execução. Evidência: ResidualPreview.cs; UninstallResiduals.cs; AdvancedUninstallCleaner.cs
+- [ ] R4 — Limpeza real específica após confirmação e revalidação. Pilotos restritos Notepad++/SumatraPDF/7-Zip com regressões Windows; investigação geral continua somente leitura. Registro real da .48 e homologação física das correções WORK9 pendentes; atomicidade frente a mutação externa não comprovada. Evidência: SmallAppResidualCleanup.cs; SevenZipCompleteCleanup.cs; docs/MISSAO-WORK9-PARTE1.md
 - [x] R5 — Regressões de proteção aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] R6 — Resolver casos históricos ambíguos com evidências adicionais. Evidência: Adicionada proteção para inventário incompleto; a atribuição dos vestígios específicos ainda depende de evidências dos computadores.
 - [ ] R7 — Desinstalação e preservação de dados validadas nos computadores. Evidência: Validação presencial adiada

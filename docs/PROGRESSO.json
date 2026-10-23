@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.42 TESTE",
-  "date": "2026-10-22",
-  "code_commit": "616b184f7fa4eaf60f2d8369b1bc55cde270795e",
+  "version": "5.13.11.48 TESTE",
+  "date": "2026-10-23",
+  "code_commit": "c4b2fab68af1d35577f4f8b2e36214bc5ee9a4f9",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -78,7 +78,7 @@
           "id": "R4",
           "title": "Limpeza específica após confirmação e revalidação da remoção",
           "done": false,
-          "evidence": "WORK 7: exclusao dos perfis foobar/OBS/VLC suspensa; resumo agregado nao comprova integridade. CanExecute=false e executor sintetico ausente do aplicativo. Validacao fisica e executor seguro permanecem pendentes.",
+          "evidence": "Pilotos restritos Notepad++/SumatraPDF/7-Zip com previa e consentimento; CI WORK9 39980934418 aprovada. Busca geral somente leitura; homologacao fisica e atomicidade frente a mudanca externa pendentes.",
           "blocked_by": "exclusividade_consentimento_e_validacao_real"
         },
         {
@@ -298,10 +298,11 @@
     }
   ],
   "latest_real_test": {
-    "version": "5.13.11.40 TESTE",
+    "version": "5.13.11.48 TESTE",
+    "date": "2026-10-23",
     "environment": "PC FORTE, Windows x64",
-    "status": "Última bateria física fornecida à WORK 7; correções .42 ainda sem validação presencial",
-    "observations": "172 aplicativos/27 MSIX, depois 171 sem prova de qual produto saiu; oito possíveis atualizações e quatro resultados incertos/em revisão; segunda consulta 13/13 fontes. Registros 7-Zip 26.04/26.05 simultâneos, foobar com código 2 e conclusão inconclusiva, resíduos parciais 47 grupos/172 locais. Limpeza de perfis suspensa na .42. Não comprova aprovação AVG."
+    "status": "Falha física anterior às correções WORK9; nova implementação ainda sem homologação física",
+    "observations": "Notepad++: 6 arquivos e 4 pastas removidos, uma chave permaneceu; registro_ArgumentException repetiu após reiniciar. Busca geral parcial por entradas, leitura, profundidade e links. Ausência de achados específicos Sumatra não comprova ausência geral. Inventário 168; sem nova aprovação AVG."
   },
   "latest_real_test_pc_fraco": {
     "version": "5.13.11.24 TESTE",
@@ -337,8 +338,8 @@
       "native_store_partial": true
     }
   },
-  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692",
-  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692",
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
@@ -356,16 +357,17 @@
     "authenticode_signed": false
   },
   "artifact": {
-    "id": 12465616744,
-    "name": "GerenciadorFinal-v5.13.11.42-0de83072-TESTE-win-x64",
-    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692/artifacts/12465616744",
-    "expires_at": "2026-10-29T23:02:19Z",
-    "size_bytes": 58938891,
-    "zip_sha256": "fba3c3a89b02d2a25f6cb3d1b69bb3ab9b956ed15289027ed3f09fc42a780caf",
+    "id": 12513013594,
+    "name": "GerenciadorFinal-v5.13.11.48-bd09f1c3-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418/artifacts/12513013594",
+    "expires_at": "2026-10-30T15:49:23Z",
+    "size_bytes": 58967981,
+    "zip_sha256": "0bb42dfab1122f58fcf4888540f9f850c3b4573ba71f677ad2e1c7a1282025ad",
     "verified_manifest_files": 273,
-    "source_sha": "616b184f7fa4eaf60f2d8369b1bc55cde270795e",
-    "merge_sha": "0de8307213a072857d0427cbad18701cb9b80034",
-    "authenticode_signed": false
+    "source_sha": "c4b2fab68af1d35577f4f8b2e36214bc5ee9a4f9",
+    "merge_sha": "bd09f1c3be0d62bc75c33bbb520e6f3e1db72bb6",
+    "authenticode_signed": false,
+    "executed_locally": false
   },
   "mission_work5": {
     "status": "Código final e três Actions aprovados; ZIP conferido sem executar; testes físicos pendentes",
@@ -440,8 +442,8 @@
     ],
     "progress": "27/42"
   },
-  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692/artifacts/12465616744",
-  "artifact_name": "GerenciadorFinal-v5.13.11.42-0de83072-TESTE-win-x64",
+  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418/artifacts/12513013594",
+  "artifact_name": "GerenciadorFinal-v5.13.11.48-bd09f1c3-TESTE-win-x64",
   "historical_artifact_work5": {
     "id": 12388392363,
     "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
@@ -481,6 +483,65 @@
     "real_pc_operations_performed": false,
     "completed_checkpoints": [],
     "physical_test_status": "PC FORTE e PC FRACO pendentes; AVG não validado",
+    "progress": "27/42"
+  },
+  "historical_artifact_work7": {
+    "id": 12465616744,
+    "name": "GerenciadorFinal-v5.13.11.42-0de83072-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692/artifacts/12465616744",
+    "expires_at": "2026-10-29T23:02:19Z",
+    "size_bytes": 58938891,
+    "zip_sha256": "fba3c3a89b02d2a25f6cb3d1b69bb3ab9b956ed15289027ed3f09fc42a780caf",
+    "verified_manifest_files": 273,
+    "source_sha": "616b184f7fa4eaf60f2d8369b1bc55cde270795e",
+    "merge_sha": "0de8307213a072857d0427cbad18701cb9b80034",
+    "authenticode_signed": false
+  },
+  "historical_real_test_work7": {
+    "version": "5.13.11.40 TESTE",
+    "environment": "PC FORTE, Windows x64",
+    "status": "Última bateria física fornecida à WORK 7; correções .42 ainda sem validação presencial",
+    "observations": "172 aplicativos/27 MSIX, depois 171 sem prova de qual produto saiu; oito possíveis atualizações e quatro resultados incertos/em revisão; segunda consulta 13/13 fontes. Registros 7-Zip 26.04/26.05 simultâneos, foobar com código 2 e conclusão inconclusiva, resíduos parciais 47 grupos/172 locais. Limpeza de perfis suspensa na .42. Não comprova aprovação AVG."
+  },
+  "mission_work9_part1": {
+    "status": "Código e CI Windows aprovados; pacote conferido sem executar; homologação física pendente",
+    "report": "docs/MISSAO-WORK9-PARTE1.md",
+    "baseline": "d065f9c6e3f1bf025aa7df256089be8e215cae39",
+    "validated_head": "c4b2fab68af1d35577f4f8b2e36214bc5ee9a4f9",
+    "last_production_change": "e8f0bfe447d8c84bffd9b934ed4af15143efa263",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418",
+    "confirmed_root_causes": 13,
+    "negative_assertions_reproduced": 27,
+    "validation": {
+      "work9_windows_controls": "42/42",
+      "installers": "148/148",
+      "multisource": "159/159",
+      "catalog": "17/17",
+      "comparison": "20/20 + 18 identity controls",
+      "uninstall_residues": "527/527",
+      "mutation_controls": "10/10 rejected",
+      "msix": "47/47",
+      "close": "30/30",
+      "policy": "18/18",
+      "layout_resolution_tabs": 132,
+      "layout_scenarios": 22,
+      "tray_cycles": 12,
+      "optional_network_downloads": "skipped"
+    },
+    "benchmark": "docs/benchmarks/WORK9-classificacao.json",
+    "benchmark_environment": "Linux x64, synthetic classification; not physical PC performance",
+    "residual_policy": "General investigation read-only; exact scoped pilots with fresh preview and consent; R4 not homologated",
+    "driver_maintenance_enabled": false,
+    "real_pc_operations_performed": false,
+    "completed_checkpoints": [],
+    "checkpoints_unchanged": [
+      "U8",
+      "R7",
+      "R4",
+      "P5",
+      "P6",
+      "V5"
+    ],
     "progress": "27/42"
   }
 }

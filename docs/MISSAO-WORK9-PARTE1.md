@@ -4,8 +4,13 @@ Data: 23/10/2026. Branch `piloto-diagnostico-github-v5.13.11.2`, PR #40 Draft.
 Base conferida antes das alterações: `d065f9c6e3f1bf025aa7df256089be8e215cae39`.
 Versão preservada: **5.13.11.48 TESTE**. Roadmap preservado: **27/42**.
 
-<!-- WORK9_VALIDATION -->
-Validação final em andamento. Este checkpoint não autoriza distribuição estável.
+**Validação final aprovada:** [GitHub Actions 39980934418](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418) — política, regressões Windows e pacote. HEAD testado: `c4b2fab68af1d35577f4f8b2e36214bc5ee9a4f9`; última alteração de produção: `e8f0bfe447d8c84bffd9b934ed4af15143efa263`.
+
+**13 causas corrigidas**, com 27 asserções negativas reproduzidas antes das respectivas correções. As 42 verificações específicas WORK9 passaram no Windows, além das regressões completas. Os controles adicionais de versão PE e liberação de recursos não foram contados como correções independentes.
+
+**Pacote final conferido sem execução:** [GerenciadorFinal-v5.13.11.48-bd09f1c3-TESTE-win-x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418/artifacts/12513013594), 58,967,981 bytes, 273 hashes internos conferidos. ZIP SHA-256 `0bb42dfab1122f58fcf4888540f9f850c3b4573ba71f677ad2e1c7a1282025ad`. Runtime .NET/Windows Desktop incluído; PE x64 e BUILD-INFO correspondentes ao HEAD testado. Retenção até 30/10/2026. Sem assinatura Authenticode ou homologação AVG.
+
+O fechamento documental posterior mantém as fontes, os manifestos e os comandos de CI idênticos ao HEAD acima. U8/R7/R4 e testes físicos continuam pendentes.
 
 ## Arquitetura reconstruída e revisão
 
@@ -40,7 +45,7 @@ Gravidade descreve o impacto possível, sem atribuição de CVE. As asserções 
 | R4 | Alta: árvore com irmãos A/B e árvore A/B aninhada tinham a mesma representação; arrays REG_MULTI_SZ distintos também podiam colidir antes do SHA-256. | Formato com contagens, tipos e comprimentos, preservando fronteiras e unidades UTF-16. Rotina única, incremental e limitada. `W9-R4`, `RegistryTreeFingerprint.cs`, `d1445f14`. |
 | UI1 | Média: voltar à mesma tela tornava novamente válido um resultado antigo, pois só o nome da tela era conferido. | Geração da visita invalidada ao trocar tela ou aba principal; startup, alternância e hardware conferem a visita antes de aplicar resultado. Finalização evita controles descartados. `W9-UI1/UI2`, `c69eba25`. |
 | I1 | Alta: registros ocultos por `SystemComponent` eram omitidos também do inventário que confirmava ausência. | Consulta de segurança inclui registros ocultos, de atualização e nomes extensos, mantendo-os somente leitura. Caminhos/comandos continuam como evidência para proteção, sem conceder execução. Lista visual preservada. `W9-I`, `e62d106a`. |
-| R6 | Alta: conhecer uma raiz de aplicativo não impedia sobreposição com uma pasta pessoal configurada. | Limite explícito para pastas especiais atuais, inclusive Downloads; recusa sobreposição e falha de consulta. Aplicado à captura e à revalidação dos alvos dos dois pilotos. `W9-R6`, `ResidualPersonalDataBoundary.cs`. |
+| R6 | Alta: conhecer uma raiz de aplicativo não impedia sobreposição com uma pasta pessoal configurada. | Limite explícito para pastas especiais atuais, inclusive Downloads; recusa sobreposição e falha de consulta. Aplicado à captura e à revalidação dos alvos dos dois pilotos. `W9-R6`, `ResidualPersonalDataBoundary.cs`, `e8f0bfe4`. |
 
 Reforços adicionais, sem contabilizá-los como defeitos separados: liberação de objetos `Process`, leitura de raízes sem confundir permissão negada com ausência, cancelamento antes da mutação, proteção do pai ao remover diretório vazio e pós-conferência do Registro sem perder handles. Não houve alteração de ACL, tomada de propriedade ou exceção automática de antivírus.
 
@@ -54,9 +59,26 @@ Reforços adicionais, sem contabilizá-los como defeitos separados: liberação 
 
 6. [39980176037](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980176037), código `c3f2e826`: os dois pilotos aceitaram uma raiz sintética dentro de Documentos; ambas as asserções negativas de limite pessoal falharam. Nenhum arquivo pessoal foi excluído no ensaio.
 
+7. [Execução final 39980934418](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418): **148/148 atualizador, 159/159 multifontes, 17/17 catálogo, 20/20 comparação + 18 controles de identidade, 527/527 resíduos/desinstalação, 10/10 mutações rejeitadas, 47/47 MSIX, 30/30 encerramento**; 132 combinações de layout, 22 cenários, 12 ciclos de bandeja e compilação com analisadores sem avisos/erros. Política Python 18/18 e protótipos Node também passaram. Fontes/downloads externos e atestação da main: skipped.
+
 Os testes WORK9 de Registro criam chaves exclusivas `GF-W9-*`, alteram sua hierarquia/conteúdo, recusam prévias antigas, apagam apenas folhas autorizadas e conferem a preservação de irmãs. O teste adicional cria o mesmo caminho nas duas visões HKLM e comprova que limpar Registry32 preserva Registry64. HKCU pode compartilhar dados entre visões; não foi apresentado como duas instalações físicas independentes.
 
 A correção experimental `24068d93`/`d065f9c6` posterior à .48 já passou pelos controles positivos de abertura da chave-pai, visão, exclusão e pós-conferência. Não foi atribuída uma nova correção ao que já estava corrigido. Ainda falta confirmar a chave real do Notepad++ no PC FORTE.
+
+## Arquivos e commits
+
+[Comparação completa de arquivos e histórico da implementação](https://github.com/walissonminel-1991/gerenciador-final/compare/d065f9c6e3f1bf025aa7df256089be8e215cae39...c4b2fab68af1d35577f4f8b2e36214bc5ee9a4f9). O commit `c9f2a907` normalizou finais de linha dos blobs de texto, sem mudança semântica.
+
+| Grupo | Arquivos principais | Commits |
+| --- | --- | --- |
+| Atualizações | `VerifiedUpdaters.cs`, `UpdateLaunchGate.cs` e regressões em `TestesAtualizador/Program.cs`/`Work9UpdateTests.cs` | `556919ff`, `7b7959ff` |
+| Desinstalação | `UninstallBatch.cs` | `7b534add` |
+| Limpeza | `InstallerFileGuard.cs`, `RegistryTreeFingerprint.cs`, `SmallAppResidualCleanup.cs`, `SevenZipCompleteCleanup.cs`, `ResidualPersonalDataBoundary.cs`, projeto/testes residuais | `d1445f14`, `dc5d8c65`, `e8f0bfe4` |
+| Inventário | `Program.cs`, `ResidualExplorerDialog.cs`, `TestesLayout/Work9InventoryTests.cs` | `e62d106a`, reprodução `0ac9981d` |
+| Navegação | `IntegratedSystemUi.cs`, `Program.cs`, `TestesLayout/Work9NavigationTests.cs` | `c69eba25`, reprodução `90c7c783` |
+| Harness/CI | `TestesLayout/Program.cs`, `TestesResiduos/Program.cs`, `TestesResiduos/Work9ResidualTests.cs`, `.github/workflows/validar-candidata-windows.yml` | `90c7c783`, `3bc36dc2`, `0ac9981d`, `c3f2e826`, `dc5d8c65` |
+| Desempenho | `BroadResidualDiscovery.cs`, `TestesResiduos/ResidualBenchmark.cs`, `docs/benchmarks/WORK9-classificacao.json` | `386a2872` |
+| Checkpoint | Este relatório, `docs/ROADMAP.md` e `docs/PROGRESSO.json`; flags dos 42 checkpoints preservadas | `c4b2fab6` e fechamento documental posterior |
 
 ## Desempenho medido
 
@@ -94,6 +116,6 @@ As regressões cobrem 132 combinações resolução/aba, 22 cenários de tela e 
 
 ## Checkpoint para retomar a parte 2
 
-Código e evidências estão na branch experimental; `main`, releases estáveis e merge do PR não foram alterados. A próxima ação é conferir a CI final e sua origem, realizar a bateria física mínima e só então organizar documentação/workflows obsoletos sem apagar histórico necessário. Preservar os testes negativos e não transformar testes simulados em checkpoints físicos concluídos.
+Código e evidências estão na branch experimental; `main`, releases estáveis e merge do PR não foram alterados. A próxima ação é realizar a bateria física mínima com o pacote final conferido e depois organizar documentação/workflows obsoletos sem apagar histórico necessário. Nenhuma correção de código desta parte ficou sem regressão Windows; limitações físicas, atomicidade do Registro e cobertura geral permanecem abertas. Preservar os testes negativos e não transformar testes simulados em checkpoints físicos concluídos.
 
 Referências de API usadas na implementação: [exclusão pelo handle](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfileinformationbyhandle), [estrutura de disposição](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_disposition_info), [pastas conhecidas](https://learn.microsoft.com/en-us/windows/win32/shell/knownfolderid) e [consulta sem verificar/criar a pasta](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/ne-shlobj_core-known_folder_flag).
