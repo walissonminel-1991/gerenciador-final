@@ -2816,7 +2816,7 @@ internal sealed partial class MainForm : Form
             int cancelled = outcomes.Count(x => x.State == UninstallState.Cancelled);
             int failures = outcomes.Count(x => x.State is UninstallState.Blocked or UninstallState.StartFailed or UninstallState.ProcessFailed or UninstallState.StillPresent);
             Status(!consent ? "Desinstalação cancelada" :
-                $"Desinstalação: {absent} registro(s) ausente(s), {pending} pendente(s), {cancelled} cancelada(s), {failures} falha(s). Sem exclusão de resíduos.");
+                $"Desinstalação: {absent} registro(s) ausente(s), {pending} pendente(s), {cancelled} cancelada(s), {failures} falha(s). Limpeza específica só mediante prévia e autorização.");
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
         {
@@ -2854,6 +2854,48 @@ internal sealed partial class MainForm : Form
             audit = ResidualReportMerger.Merge(new[] { audit,
                 ResidualPreview.Describe(entry.Name, previewStates) }, currentInventory.Incomplete).Single();
         DiagnosticTrace.Write($"DESINSTALACAO.AUDITORIA encontrados={audit.Findings.Count} relacionados={audit.RelatedRegisteredPrograms.Count} removido={audit.UninstallConfirmed}");
+        if (SevenZipCompleteCleanup.Eligible(entry))
+        {
+            // Pós-desinstalação: o lote só chega aqui com ausência estável
+            // e código de saída 0. Uma segunda leitura completa é obrigatória.
+            var checkedInventory = await Task.Run(AppServices.ScanAllInstalledApps);
+            var plan = await Task.Run(() => SevenZipCompleteCleanup.Capture(entry,
+                !checkedInventory.Incomplete, checkedInventory.Items));
+            DiagnosticTrace.Write($"DESINSTALACAO.LIMPEZA_PREVIA produto=7zip completa={plan.Complete} " +
+                $"arquivos={plan.Files.Count} pastas={plan.Directories.Count} chaves={plan.Registry.Count} bytes={plan.TotalBytes}");
+            if (!plan.Complete)
+            {
+                Log("7-Zip: limpeza preservada. " + plan.Reason);
+            }
+            else if (plan.Files.Count > 0 || plan.Registry.Count > 0 || plan.Directories.Count > 0)
+            {
+                bool clean = DarkConfirmDialog.Confirm(this,
+                    SevenZipCompleteCleanup.Describe(plan) +
+                    "\n\nDeseja excluir definitivamente SOMENTE os itens exibidos na prévia?",
+                    "7-Zip — limpeza completa autorizada") == DialogResult.Yes;
+                if (clean)
+                {
+                    var result = await SevenZipCompleteCleanup.ExecuteAsync(entry, plan,
+                        async () =>
+                        {
+                            var scan = await Task.Run(AppServices.ScanAllInstalledApps);
+                            return (!scan.Incomplete, (IReadOnlyCollection<ProgramEntry>)scan.Items);
+                        });
+                    DiagnosticTrace.Write($"DESINSTALACAO.LIMPEZA_RESULTADO produto=7zip " +
+                        $"arquivos={result.FilesDeleted} pastas={result.DirectoriesDeleted} " +
+                        $"chaves={result.KeysDeleted} falhas={result.Failures} " +
+                        $"preservados={result.Preserved} reinstalado={result.Reinstalled}");
+                    Status(result.Failures == 0 && result.Preserved == 0 && !result.Reinstalled
+                        ? "7-Zip: limpeza concluída; arquivos, pastas e chaves conferidos."
+                        : "7-Zip: limpeza parcial ou bloqueada; itens restantes foram preservados.");
+                    Log($"7-Zip: {result.FilesDeleted} arquivo(s), {result.DirectoriesDeleted} pasta(s), " +
+                        $"{result.KeysDeleted} chave(s) removidos; {result.Failures} falha(s) e " +
+                        $"{result.Preserved} preservado(s). Nenhum item pessoal genérico foi analisado.");
+                }
+                else DiagnosticTrace.Write("DESINSTALACAO.LIMPEZA_RECUSADA produto=7zip");
+            }
+            else DiagnosticTrace.Write("DESINSTALACAO.LIMPEZA_VAZIA produto=7zip");
+        }
         if (audit.Findings.Count > 0 || audit.RelatedRegisteredPrograms.Count > 0)
         {
             Log($"Auditoria de {entry.Name}: {audit.Findings.Count} local(is) possível(is) e " +
