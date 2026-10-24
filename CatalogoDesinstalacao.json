@@ -76,6 +76,22 @@
         "Roaming\\audacity"
       ],
       "registryKeys": []
+    },
+    {
+      "id": "foobar2000",
+      "displayName": "foobar2000",
+      "installedNames": [
+        "foobar2000*"
+      ],
+      "folders": [
+        "Roaming\\foobar2000",
+        "Roaming\\foobar2000-v2",
+        "Local\\foobar2000",
+        "Local\\foobar2000-v2"
+      ],
+      "registryKeys": [
+        "Software\\foobar2000"
+      ]
     }
   ]
 }

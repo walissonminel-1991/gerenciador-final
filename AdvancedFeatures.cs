@@ -40,20 +40,23 @@ internal static class DetailedHardware
             rows = scope.ExecQuery(query);
             foreach (object item in (System.Collections.IEnumerable)rows)
             {
-                dynamic entry = item;
-                var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (string col in columns)
+                try
                 {
-                    try
+                    dynamic entry = item;
+                    var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (string col in columns)
                     {
-                        object? val = entry.Properties_.Item(col).Value;
-                        dict[col] = val is null ? "" : Convert.ToString(val, CultureInfo.CurrentCulture) ?? "";
+                        try
+                        {
+                            object? val = entry.Properties_.Item(col).Value;
+                            dict[col] = val is null ? "" : Convert.ToString(val, CultureInfo.CurrentCulture) ?? "";
+                        }
+                        catch { dict[col] = ""; }
                     }
-                    catch { dict[col] = ""; }
+                    result.Add(dict);
+                    if (result.Count >= 16) break;
                 }
-                result.Add(dict);
-                if (result.Count >= 16) break;
-                Marshal.FinalReleaseComObject(item);
+                finally { if (Marshal.IsComObject(item)) Marshal.FinalReleaseComObject(item); }
             }
         }
         finally
@@ -234,15 +237,20 @@ internal static class StartupManager
     }
 }
 
-internal sealed record WinUpdateChoice(string Id, string Title, string Kb, bool Downloaded, bool EulaAccepted);
 internal static class WindowsUpdateClient
 {
+    internal static string? VerifiedIdentity(string? rawId, int revision) =>
+        WindowsUpdateSearchPolicy.VerifiedIdentity(rawId, revision);
+    internal static string? CanonicalSelectedIdentity(string? value) =>
+        WindowsUpdateSearchPolicy.CanonicalSelectedIdentity(value);
+
     public static Task<IReadOnlyList<WinUpdateChoice>> ScanAsync() => StaWorker.Run<IReadOnlyList<WinUpdateChoice>>(() =>
     {
         dynamic session = CreateSession();
         dynamic searcher = session.CreateUpdateSearcher();
         searcher.Online = true;
         dynamic found = searcher.Search("IsInstalled=0 and IsHidden=0 and Type='Software'");
+        WindowsUpdateSearchPolicy.RequireSuccessfulSearch((int)found.ResultCode);
         int count = (int)found.Updates.Count;
         var choices = new List<WinUpdateChoice>();
         for (int i = 0; i < count; i++)
@@ -251,11 +259,13 @@ internal static class WindowsUpdateClient
             string kb = "";
             try { foreach (object number in entry.KBArticleIDs) { kb += "KB" + number + " "; } } catch { }
             string rawId = (string)entry.Identity.UpdateID;
-            string id = Guid.TryParse(rawId, out Guid parsed) ? parsed.ToString("D") : rawId;
+            int revision = (int)entry.Identity.RevisionNumber;
+            string? id = VerifiedIdentity(rawId, revision);
+            if (id is null) throw new InvalidDataException("Oferta do Windows Update sem identidade válida.");
             choices.Add(new WinUpdateChoice(id,
                 (string)entry.Title, kb.Trim(), (bool)entry.IsDownloaded, (bool)entry.EulaAccepted));
         }
-        return choices;
+        return WindowsUpdateSearchPolicy.ValidateOffers(choices);
     });
 
     public static Task<int> InstallAsync(IReadOnlySet<string> ids, Action<string> log) => StaWorker.Run(() =>
@@ -266,6 +276,7 @@ internal static class WindowsUpdateClient
         searcher.Online = true;
         log("Verificando novamente as atualizações selecionadas antes de instalar...");
         dynamic found = searcher.Search("IsInstalled=0 and IsHidden=0 and Type='Software'");
+        WindowsUpdateSearchPolicy.RequireSuccessfulSearch((int)found.ResultCode);
         Type collectionType = Type.GetTypeFromProgID("Microsoft.Update.UpdateColl")
             ?? throw new NotSupportedException("A coleção do Windows Update não está disponível.");
         dynamic selected = Activator.CreateInstance(collectionType)!;
@@ -273,7 +284,9 @@ internal static class WindowsUpdateClient
         {
             dynamic entry = found.Updates.Item(i);
             string rawId = (string)entry.Identity.UpdateID;
-            string id = Guid.TryParse(rawId, out Guid parsed) ? parsed.ToString("D") : rawId;
+            int revision = (int)entry.Identity.RevisionNumber;
+            string? id = VerifiedIdentity(rawId, revision);
+            if (id is null) throw new InvalidDataException("Oferta do Windows Update sem identidade válida.");
             if (!ids.Contains(id)) continue;
             if (!(bool)entry.EulaAccepted)
             {
@@ -284,12 +297,14 @@ internal static class WindowsUpdateClient
             selected.Add(entry);
             log("Selecionada: " + (string)entry.Title);
         }
-        if ((int)selected.Count == 0) { log("Nenhuma atualização elegível para instalação."); return 2; }
+        if ((int)selected.Count != ids.Count) { log("A seleção mudou, deixou de ser oferecida ou exige licença. Consulte novamente; nenhuma instalação iniciada."); return 2; }
         log("Baixando " + (int)selected.Count + " atualizações pelo serviço oficial do Windows...");
         dynamic downloader = session.CreateUpdateDownloader();
         downloader.Updates = selected;
         dynamic downloadResult = downloader.Download();
-        log("Resultado do download: " + Convert.ToString(downloadResult.ResultCode));
+        int downloadStatus = (int)downloadResult.ResultCode;
+        log("Resultado do download: " + downloadStatus);
+        if (downloadStatus != 2) { log("Download incompleto; instalação não iniciada."); return 1; }
         log("Instalando atualizações baixadas. O Windows poderá solicitar etapas adicionais...");
         dynamic installer = session.CreateUpdateInstaller();
         installer.Updates = selected;
@@ -305,57 +320,5 @@ internal static class WindowsUpdateClient
         Type type = Type.GetTypeFromProgID("Microsoft.Update.Session")
             ?? throw new NotSupportedException("Windows Update Agent indisponível nesta versão do Windows.");
         return Activator.CreateInstance(type)!;
-    }
-}
-
-internal sealed class ProcessHistorySampler
-{
-    private readonly Dictionary<int, (string Name, TimeSpan Cpu, DateTime At, Queue<double> CpuSamples, long Ram)> _history = new();
-    private int _samples;
-
-    public SystemInfoSnapshot TakeSample()
-    {
-        var now = DateTime.UtcNow;
-        var seen = new HashSet<int>();
-        foreach (Process process in Process.GetProcesses())
-        {
-            using (process)
-            {
-                try
-                {
-                    int pid = process.Id;
-                    seen.Add(pid);
-                    string name = process.ProcessName;
-                    TimeSpan cpuTime = process.TotalProcessorTime;
-                    long memory = process.WorkingSet64;
-                    if (!_history.TryGetValue(pid, out var previous) || previous.Cpu > cpuTime || previous.Name != name)
-                    {
-                        _history[pid] = (name, cpuTime, now, new Queue<double>(), memory);
-                        continue;
-                    }
-                    double elapsed = Math.Max(0.1, (now - previous.At).TotalSeconds);
-                    double used = Math.Clamp((cpuTime - previous.Cpu).TotalSeconds / (elapsed * Math.Max(1, Environment.ProcessorCount)) * 100, 0, 100);
-                    previous.CpuSamples.Enqueue(used);
-                    if (previous.CpuSamples.Count > 36) previous.CpuSamples.Dequeue();
-                    _history[pid] = (name, cpuTime, now, previous.CpuSamples, memory);
-                }
-                catch { }
-            }
-        }
-        foreach (int oldPid in _history.Keys.Where(k => !seen.Contains(k)).ToArray()) _history.Remove(oldPid);
-        _samples++;
-        var ordered = _history.Select(k => (Pid: k.Key, k.Value.Name, k.Value.Ram, Samples: k.Value.CpuSamples.ToArray()))
-            .Where(x => x.Samples.Length > 0)
-            .OrderByDescending(x => Math.Max(x.Samples.Max(), x.Samples.Average() * 1.5))
-            .ThenByDescending(x => x.Ram).Take(14).ToList();
-        var cards = ordered.Select(x =>
-        {
-            string bars = string.Concat(x.Samples.TakeLast(26).Select(v => "▁▂▃▄▅▆▇█"[Math.Clamp((int)Math.Round(v / 12.5), 0, 7)]));
-            return new SystemInfoEntry(x.Name + " · PID " + x.Pid,
-                $"CPU média: {x.Samples.Average():N1}% · Pico: {x.Samples.Max():N1}% · RAM: {x.Ram / 1048576d:N0} MB\nHistórico CPU: {bars}");
-        }).ToArray();
-        return new SystemInfoSnapshot("Processos · histórico em memória",
-            $"{_samples} coleta(s); até 36 amostras por processo (aprox. 3 minutos). CPU em % do total de processadores lógicos. Histórico descartado ao fechar o programa.",
-            cards.Length > 0 ? cards : new[] { new SystemInfoEntry("Aguardando dados", "A primeira medição estabelece a referência. Aguarde alguns segundos para ver CPU e memória.") });
     }
 }

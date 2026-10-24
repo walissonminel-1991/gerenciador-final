@@ -1,0 +1,33 @@
+# EXEMPLO DE HOMOLOGACAO — NAO IMPLANTAR SEM AVALIACAO DE PRIVACIDADE.
+# Copiar manualmente fora deste arquivo .example; nunca adicionar segredos ao Git.
+name = "gf-diagnosticos-homologacao"
+main = "staging-receiver.mjs"
+compatibility_date = "2026-10-20"
+workers_dev = false
+
+[vars]
+# BLOQUEADO por padrao: o operador deve habilitar explicitamente APENAS staging.
+STAGING_ENABLED = "false"
+
+[secrets]
+required = ["STAGING_TOKEN"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gf-homologacao-privado"
+database_id = "PREENCHER_COM_ID_D1_SEPARADO"
+
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+
+[ratelimits.simple]
+limit = 10
+period = 60
+
+[triggers]
+crons = ["0 4 * * *"]
+
+# STAGING_TOKEN exclusivamente em secrets gerenciados no servidor, minimo 32.
+# O receptor de homologacao NAO pode ser chamado por versoes publicas do GF.
+# O servico de producao para usuarios comuns exigira outro mecanismo antiabuso.

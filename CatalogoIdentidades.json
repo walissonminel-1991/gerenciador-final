@@ -232,14 +232,15 @@
       "names": [
         "Plex",
         "Plex Media Server",
-        "Plex Media Server (*"
+        "Plex Media Server (*",
+        "Plex Media Server *"
       ],
       "publishers": [
         "Plex, Inc.",
         "Plex",
         "Plex GmbH"
       ],
-      "officialSource": null,
+      "officialSource": "plex",
       "cleanupPolicy": null
     },
     {
@@ -314,6 +315,72 @@
       ],
       "officialSource": "qbittorrent",
       "cleanupPolicy": null
+    },
+    {
+      "id": "ea-desktop",
+      "name": "EA app",
+      "names": [
+        "EA app"
+      ],
+      "publishers": [
+        "Electronic Arts"
+      ],
+      "officialSource": "ea-desktop",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "fancontrol",
+      "name": "FanControl",
+      "names": [
+        "FanControl"
+      ],
+      "publishers": [
+        "Remi Mercier Software Inc",
+        "Rem0o"
+      ],
+      "officialSource": "fancontrol",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "jellyfin-server",
+      "name": "Jellyfin Server",
+      "names": [
+        "Jellyfin Server",
+        "Jellyfin Server *"
+      ],
+      "publishers": [
+        "The Jellyfin Project"
+      ],
+      "officialSource": "jellyfin-server",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "klite-mega",
+      "name": "K-Lite Mega Codec Pack",
+      "names": [
+        "K-Lite Mega Codec Pack",
+        "K-Lite Mega Codec Pack *"
+      ],
+      "publishers": [
+        "KLCP",
+        "Codec Guide"
+      ],
+      "officialSource": "klite-mega",
+      "cleanupPolicy": null
+    },
+    {
+      "id": "foobar2000",
+      "name": "foobar2000",
+      "names": [
+        "foobar2000",
+        "foobar2000 *"
+      ],
+      "publishers": [
+        "Peter Pawlowski",
+        "foobar2000"
+      ],
+      "officialSource": null,
+      "cleanupPolicy": "foobar2000"
     }
   ]
 }

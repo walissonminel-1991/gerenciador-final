@@ -1,30 +1,150 @@
-# GERENCIADOR FINAL — progresso verificável
+# GERENCIADOR FINAL — roadmap funcional
 
-## Complemento de desenvolvimento — v5.13.11.0 CANDIDATA (20/10/2026)
+**v5.13.11.59 TESTE — descoberta automática aprovada na CI.** [CI 40138799763](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763), fonte `26bbc17a`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319). 318 atualizadores, 81 controles de descoberta, 645 resíduos e 27 mutações. Catálogo/manifestos autenticados e seleção genérica MSI/NSIS/Inno; WinGet COM/CLI segue desativado. [Evidências e limites](MISSAO-WORK13.md). Pacote, SHA-256 e 281 hashes reconferidos fora do runner. Roadmap **27/42**; U8/R7/R4 físicos abertos.
 
-O marcador original de 30/45 checkpoints (67%) permanece inalterado: testes de código e aprovação em hardware real não são equivalentes. A partir de v5.13.10.19, novas entregas em branches de desenvolvimento incluem revisão de resíduos do Driver Booster, diagnóstico de AVG/MSIX, painel de RAM e otimização conservadora de cache do próprio aplicativo, SHA-256 e identificação versionada de pacotes.
+### Validação anterior — WORK11
 
-A candidata v5.13.11.0 acrescenta **quatro fontes oficiais verificadas** (ShareX, HandBrake, Rufus e qBittorrent), totalizando 18 fontes oficiais de versões com identidade vinculada, além do catálogo RuckZuck. Inclui bateria automatizada consolidada de verificações de fontes, identidade, atualização, segurança e UI. As fontes novas são apenas consultivas; não constituem receitas de instalação nem conferem assinatura dos pacotes.
+**v5.13.11.53 TESTE — WORK11 aprovada na [CI 40028404988](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40028404988), fonte 78424b8e.** Progresso individual real, instalação indeterminada, resultados distintos e preservados no inventário. Atualizadores 186/186, resíduos 576/576, mutações 17/17; 36 combinações novas de UI. Pacote x64 e 280 hashes conferidos fora do runner. [Relatório e limites](MISSAO-WORK11.md). Homologação física .53 pendente; progresso preservado **27/42**.
 
-**Pendências críticas antes de publicação estável:** avaliação de `IDP.Generic` pelo AVG; revisão e execução no PC FRACO e segundo computador; variação de leitura MSIX; divergências reais de WinGet; cobertura, qualidade e reversão de drivers; assinatura Authenticode.
+### Validação anterior — WORK10
 
+**v5.13.11.52 TESTE — WORK10 aprovada na [CI 40021841254](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254), fonte c200ab25.** Limpeza residual integrada à desinstalação, confirmação única, executor consolidado, UAC e diagnóstico. Pacote com 280 hashes conferidos; 576/576 testes de resíduos e 14/14 mutações rejeitadas. [Relatório e limites](MISSAO-WORK10.md). R4 avançou na implementação/regressões; U8/R7/R4 físicos permanecem abertos. Progresso 27/42.
 
-Base: 5.13.10.18 TESTE · 2026-10-20
+### Validação anterior — WORK9 parte 2
 
-Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.
+**v5.13.11.49 TESTE — WORK9 parte 2 aprovada na [CI 39987151553](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553), fonte dba59231.** Pacote x64 com 280 hashes conferidos; consolidação e regressões sem novo checkpoint. [Relatório da Parte 2](MISSAO-WORK9-PARTE2.md) e [roteiro físico vigente](TESTE-CONSOLIDADO.md). U8/R7/R4 permanecem abertos; progresso 27/42.
 
-Código desta rodada: `5171c895725e779df3ccba8d54a8faf56735950d`
+### Última validação anterior — Parte 1
 
-CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
+**v5.13.11.48 TESTE — WORK9 parte 1: 13 causas corrigidas e 42 controles novos aprovados no Windows; [CI final 39980934418](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418) e pacote portátil conferido. Homologação física pendente. Progresso preservado: 27/42 (64,3%). [Relatório, evidências, desempenho e próximo teste](MISSAO-WORK9-PARTE1.md).**
+Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
-## Entregas deste lote
+## Estado histórico — MISSÃO WORK 6: atualização, desinstalação e resíduos
 
-- Confirmação de atualização vinculada à instalação escolhida; validação adicional de arquitetura e escopo do SumatraPDF.
-- Diagnóstico agregado dos motivos de cobertura, sem nomes de aplicativos nos novos registros de diagnóstico.
-- Recusa de confirmação de ausência quando a leitura do Registro falha; evidência explícita de inventário parcial na auditoria histórica.
-- Correção da avaliação de desinstalador ausente e consideração da alternativa silenciosa.
-- Aba DRIVERS com consulta local sob demanda, fornecedor, versão, INF, presença e assinatura informada pelo Windows.
-- Arquivo de diagnóstico identifica também a revisão da versão.
+O Work chegou ao código `1c4c460` com **13 commits** de alterações e 3 Actions de CI aprovadas. Contratos de autorização, revalidação e prévia foram reforçados. Os 10/10 controles negativos por mutação falharam corretamente quando uma proteção foi removida artificialmente. **U8, R7 e R4 continuam pendentes**: não houve operações reais autorizadas e R4 permanece suspenso. Nenhum botão de administrador foi criado. [Fechamento técnico, matrizes, links e próximo lote](MISSAO-WORK6-RESULTADO.md). Roadmap segue 27/42.
+
+## Evidência preservada — U6 encerrado, 27/42 (64,3%)
+
+A comparação real do PC FORTE mostrou nove entradas em `winget upgrade`
+e oito no Gerenciador Final .34, das quais duas exigiam revisão.
+**Reconciliação completa dos nove produtos**, sem afirmar que sejam
+instaláveis: seis candidatos consultivos sem conflito documentado
+(7-Zip, EA app, FanControl, Jellyfin Server, K-Lite Mega e Outlook),
+dois casos com fontes/versionamento em revisão (Plex Media Server e
+Proton Pass) e um item propositalmente somente inventário
+(Microsoft GameInput, componente protegido do Windows).
+
+Fontes oficiais e catálogos HTTP(S), sem executar WinGet COM/CLI;
+identidades do servidor Jellyfin e Plex protegidas contra confusão
+com players. Fixture automatizada de nove produtos e cenário de
+GameInput protegido na suíte multifontes, CI Windows aprovada:
+[regressões](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39698959079),
+[build](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39698959083),
+[política](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39698959189).
+Código de teste aprovado: `5067a419`. Essa aprovação encerra
+**U6 (explicar divergências de cobertura)**, e não U8 (instalação
+real), G1–G5 ou validação antivírus. Sem nova build/versão,
+sem novas dependências ou botões.
+
+**Diretriz permanente de produto:** o usuário decide se inicia
+o executável como administrador. Não criar botão administrativo,
+não forçar elevação nem alterar o manifesto padrão. Uma possível
+recomendação de uso elevado só será avaliada no final do projeto,
+se um benefício material for comprovado. A comparação A/B feita
+não aumentou a cobertura de aplicativos nem de atualizações.
+
+## Estado histórico — MISSÃO WORK 5
+
+[Auditoria e matriz dos nove produtos](MISSAO-WORK5.md): contrato WinGet desligado,
+sem executor COM/CLI. Cinco produtos com novas consultas HTTPS; evidências e
+conflitos multifontes preservados, instalação direta bloqueada quando houver revisão.
+Progresso real por fontes e diagnóstico de contexto/etapas com perfil de teste temporário.
+Na conclusão original da missão, U6/I7 e testes físicos/AVG continuavam abertos; U6 foi encerrado depois pela comparação .34 e CI, conforme seção de avanço.
+
+## Resultado do teste A/B administrativo (.34)
+
+PC FORTE: mesma build sob sessões normais/elevadas. **174 aplicativos,
+27 MSIX e 8 candidatos (2 em revisão)** nos dois contextos, com
+15/15 fontes OK na comparação válida e 178 drivers/63 INFs.
+Os resíduos gerais tiveram 2 falhas de leitura no modo normal
+contra 0 elevado; 3.925 versus 3.929 entradas e 867 versus
+871 grupos examinados. Os 44 candidatos gerais e os 45 grupos/
+164 locais finais **não mudaram**. Análise continua parcial por
+limites de entradas/profundidade e links redirecionados.
+Uma execução A/B é evidência de ganho observado na leitura,
+não atribuição causal definitiva a permissões. Não há motivo
+demonstrado para exigir administrador na consulta de atualizações,
+e o WinGet real permanece desativado.
+[Detalhes](TESTES.md#resultado-da-comparacao-normal--administrador-no-pc-forte-34).
+Roadmap permanece 26/42 e a política de menor privilégio se mantém.
+
+## Validação presencial .34 e comparação de privilégios
+
+No PC FORTE, versão .34 observou 174 aplicativos/27 MSIX,
+8 candidatos (2 em revisão), 15/15 fontes disponíveis no
+primeiro ciclo. Jellyfin e Plex Server versionados reconhecidos
+sem confundir os players. Consultas posteriores sofreram
+indisponibilidade de fontes (8/15 e 4/15), derrubando candidatos
+para 6 e 2, **sem redução comprovada da cobertura instalada**.
+Houve encerramento normal; WinGet executável não foi invocado.
+
+Próxima bateria proposta: mesmo executável .34 em sessões
+isoladas normal e elevada por UAC manual, somente leitura,
+monitorando `elevado`, inventário, MSIX, falhas e fontes OK.
+Sem comparar consultas parciais com completas. Elevação não
+equivale a inventariar todos os perfis de usuário. Nenhuma
+elevação permanente da aplicação. PC FRACO permanece adiado.
+[Critérios e observações](TESTES.md#validacao-fisica-34-no-pc-forte-e-teste-ab-de-privilegios-21102026).
+
+## Validação presencial — .33 PC FORTE
+
+Bateria privada de 21/10/2026: 174 aplicativos/27 MSIX completos;
+**6** candidatas multifontes versus **3** na .32, todas as 13 fontes
+consultadas OK e WinGet COM/CLI **não executado**. Contexto local:
+App Installer e alias observados, pasta de alias fora de PATH;
+consulta executada sem elevação. Cobertura agregada esclareceu:
+fontes novas 1/2/4 geraram candidatas, fonte 3 sem identidade
+canônica, fonte 5 inelegível (somente inventário), fonte 6
+identidade/canal não aceito; três fontes de produto 7/8/9
+divergem e bloqueiam instalação direta. A UI deve diferenciar
+candidatas totais das que exigem revisão.
+
+Drivers 178/63 sem alterações e resíduos 45 grupos/164 locais
+parciais, sem exclusão. Nenhum alerta AVG nas evidências desta
+sessão, mas apenas teste local limitado; PC FRACO ainda pendente.
+U6 permanece aberto até explicar individualmente as três
+barreiras, sem relativizar critérios de segurança.
+[Detalhes e códigos](TESTES.md#primeira-bateria-real-33--pc-forte-21102026).
+Roadmap preservado 26/42. Nenhuma build nova.
+
+## Baseline — MISSÃO WORK 4
+
+Retenção MSIX em memória, identidade de snapshot na fusão de atualizações,
+TTL monotônico, limites de resíduos por origem, enumeração protegida e correlação
+consultiva INF ↔ Driver Store implementados. Diagnóstico opt-in permanece local,
+com teto total de 160 tentativas. Código `de6ee62` aprovado nas três Actions;
+[matriz de testes, pacote e hashes](OPERACAO-FAXINA-FINAL.md#candidata-aprovada-e-pacote-conferido).
+
+O teste real mais recente do PC FORTE é a **.32** (174 apps, 27 MSIX,
+178 associações/63 INFs, 45 grupos/164 locais de resíduos parciais).
+A auditoria estruturada de limpezas foi comprovada: temporários de usuário
+com 0 removidos/30 preservados; temporários Windows e cleanmgr com retorno 0.
+A operação de Lixeira retornou 0x8000FFFF (E_UNEXPECTED) na interface
+e ainda exige diagnóstico sem nova exclusão. No PC FRACO, a última
+bateria registrada é a **.24**, com MSIX 0x80040154 persistente e
+55 entradas observadas; não equivale à remoção dos aplicativos não enumerados.
+A validação da .32 no PC FRACO ainda está pendente.
+
+- [Matriz de achados, dependências, avanços e limites](OPERACAO-FAXINA-FINAL.md)
+- [Roteiro objetivo PC FORTE/PC FRACO, somente leitura primeiro](TESTES.md)
+- [Estado dos 42 checkpoints em JSON](PROGRESSO.json)
+- [Histórico de versões](../CHANGELOG.md) e [organização](ORGANIZACAO-REPOSITORIO.md)
+
+R6 continua exigindo evidências concretas de classificação. U6 foi concluído
+por comparação real e regressão dos nove produtos. D2 ganhou o elo Store;
+histórico Windows e pacotes sem associação permanecem pendentes.
+**Restam 15 checkpoints em aberto.**
+A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permissão de excluir; os pilotos restritos exigem prévia e consentimento separados.
 
 ## Checklist
 
@@ -38,32 +158,32 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [x] I6 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] I7 — Cobertura conferida nos dois computadores. Evidência: Validação presencial adiada
 
-### Desinstalação e resíduos — 5/7 (71%)
+### Desinstalação e resíduos — 4/7 (R4 integrado; homologação pendente)
 
 - [x] R1 — Proteção de jogos e instalações ativas. Evidência: GameLibraryAudit.cs; BroadResidualDiscovery.cs
-- [x] R2 — Classificação conservadora de fabricantes compartilhados. Evidência: BroadResidualDiscovery.cs; ResidualAuditDialog.cs
+- [x] R2 — Classificação conservadora de fabricantes compartilhados. Evidência: BroadResidualDiscovery.cs; IntegratedResidualPolicy.cs
 - [x] R3 — Auditoria histórica somente leitura. Evidência: HistoricalResidualAudit.cs; HistoricalDeviceAudit.cs
-- [x] R4 — Limpeza específica após confirmação e revalidação da remoção. Evidência: Program.cs; UninstallResiduals.cs
+- [ ] R4 — Limpeza específica integrada à desinstalação, confirmação única, exclusão verificada e UAC. Implementação e regressões Windows aprovadas; homologação física/cobertura pendentes. Evidência: IntegratedResidualCleanup.cs; IntegratedResidualBatch.cs; docs/MISSAO-WORK10.md
 - [x] R5 — Regressões de proteção aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] R6 — Resolver casos históricos ambíguos com evidências adicionais. Evidência: Adicionada proteção para inventário incompleto; a atribuição dos vestígios específicos ainda depende de evidências dos computadores.
 - [ ] R7 — Desinstalação e preservação de dados validadas nos computadores. Evidência: Validação presencial adiada
 
-### Atualizações — 6/8 (75%)
+### Atualizações — 7/8 (87,5%)
 
 - [x] U1 — Consulta e fusão de múltiplas fontes. Evidência: OfficialReleaseSources.cs; RuckZuckCatalog.cs
 - [x] U2 — Comparação de versões e proteção de identidades. Evidência: Matching.cs; TestesMotor; TestesMultifontes
 - [x] U3 — Receitas verificadas e alternativas oficiais. Evidência: VerifiedUpdaters.cs; WindowsTerminalUpdater.cs
 - [x] U4 — Confirmação posterior rejeita editor divergente e entrada somente leitura. Evidência: VerifiedUpdaters.cs; TestesAtualizador v5.13.10.17
 - [x] U5 — Vincular confirmação à instalação original e conferir arquitetura/escopo Sumatra. Evidência: VerifiedUpdaters.ConfirmInstallation; TestesAtualizador aprovados. Identidade alterada permanece indeterminada; não equivale à validação real de todos os instaladores.
-- [ ] U6 — Explicar divergências de cobertura com WinGet. Evidência: Contagens por motivo implementadas sem nomes nos logs; comparação com WinGet depende de capturas equivalentes da mesma máquina.
+- [x] U6 — Explicar divergências de cobertura com WinGet. Evidência: 9 produtos na consulta WinGet do PC FORTE reconciliados com 8 do GF .34 (6 candidatos consultivos, 2 em revisão, 1 GameInput protegido); teste de 9 identidades aprovado na CI Windows 39698959079. Não comprova instalação compatível.
 - [x] U7 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] U8 — Instalação e versão final validadas nos computadores. Evidência: Validação presencial adiada
 
 ### Desempenho e estabilidade — 4/6 (67%)
 
-- [x] P1 — Cadência de monitoramento conforme visibilidade. Evidência: ProcessSamplingPolicy.cs v5.13.10.16
+- [x] P1 — Cadência de monitoramento conforme visibilidade. Evidência atual: IntegratedSystemUi.UpdateProcessSamplingCadence e ProcessSamplingPolicy.cs; amostragem global de RAM.
 - [x] P2 — Consultas de caminhos fora da interface. Evidência: Program.cs v5.13.10.17
-- [x] P3 — Atualização incremental e registro em lotes. Evidência: ProcessMonitorUi.cs; DarkControls.cs
+- [x] P3 — Atualização incremental e registro em lotes. Evidência atual: MemoryRamDashboard.cs; DarkControls.cs. A antiga tabela de processos foi substituída pelo acesso ao Gerenciador de Tarefas do Windows.
 - [x] P4 — Regressões de monitoramento e bandeja aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] P5 — Medir tempo de abertura, CPU e RAM nos computadores. Evidência: Validação presencial adiada
 - [ ] P6 — Diagnosticar bloqueio AVG e verificar estabilidade real. Evidência: Causa e resolução ainda não comprovadas
@@ -79,7 +199,7 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 ### Investigação de drivers — 2/4 (50%)
 
 - [x] D1 — Comparação histórica PnP somente leitura. Evidência: HistoricalDeviceAudit.cs
-- [ ] D2 — Correlacionar dispositivos, pacotes e histórico Windows. Evidência: Correlação dispositivo/INF/presença implementada em parte. Driver Store completo e histórico Windows continuam pendentes.
+- [ ] D2 — Correlacionar dispositivos, pacotes e histórico Windows. Evidência: WMI/INF/presença e vínculo publicado ↔ Store via SetupAPI implementados na .31. Histórico Windows e pacotes sem associação continuam pendentes.
 - [x] D3 — Inventário funcional na aba DRIVERS. Evidência: Tabela WMI sob demanda; teste real de coleta no runner Windows e matriz de layout aprovados. Sem instalação/remoção.
 - [ ] D4 — Validar interpretação nos computadores. Evidência: Etapa futura
 
@@ -91,13 +211,44 @@ CI: success — https://github.com/walissonminel-1991/gerenciador-final/actions/
 - [ ] G4 — Reversão quando suportada e recuperação de falhas. Evidência: Etapa futura
 - [ ] G5 — Validar fluxo controlado nos computadores. Evidência: Etapa futura
 
-## Próxima etapa: validar o lote nos dois computadores
+## Próxima etapa prioritária
 
-1. Seguir [TESTE-CONSOLIDADO.md](TESTE-CONSOLIDADO.md) primeiro no PC FRACO e depois no principal.
-2. Comparar inventário e atualizações na mesma máquina e horário; coletar os casos históricos ambíguos.
-3. Conferir a consulta de drivers com o Gerenciador de Dispositivos; registrar dados ausentes e divergências.
-4. Medir abertura, CPU/RAM, bandeja e legibilidade; registrar eventual alerta AVG sem desativá-lo.
-5. Corrigir divergências observadas antes de ampliar Driver Store/histórico e iniciar gestão de pacotes.
+Seguir [TESTES](TESTES.md): primeiro bateria A no PC FORTE, refinar casos
+históricos, repetir A no PC FRACO; operações individuais de apps somente na
+bateria B após backup/consentimento. Drivers continuam apenas leitura.
+
+### Evidências para avançar sem maquiar o percentual
+
+- **R6** exige resolver amostras históricas ambíguas concretas, não somente
+  aprimorar textos ou aumentar a quantidade de achados.
+- **U6 encerrado:** o resultado original era WinGet 9 versus GF .32 3; na .34, o GF reconciliou os nove como 6 candidatos consultivos, 2 em revisão e 1 GameInput protegido. CI comprova regras de identidade e proteção, não compatibilidade de instaladores.
+- **I7, R7, U8, P5, V5 e D4** dependem das validações presenciais previstas
+  nos dois computadores; testes CI não substituem essa evidência.
+- **R4** tem implementação integrada e exclusões reais sintéticas aprovadas na WORK10.
+  Permanece aberto para homologação física e ampliação de cobertura com atribuição exclusiva.
+- **D2** requer completar a correlação de dispositivos, pacotes do Driver
+  Store e histórico confiável do Windows. A matriz WMI/INF/Store atual cobre apenas parte do objetivo;
+  validar também a interpretação do histórico real.
+- **G1–G5** continuam em zero: não há motor seguro de obtenção, validação,
+  instalação, remoção ou reversão de drivers nesta versão.
+
+### Critérios de abertura da gestão de drivers
+
+Antes de qualquer escrita, obter identificação inequívoca de hardware e do
+pacote **oficial** correspondente (G1); verificar compatibilidade de
+SO/arquitetura, integridade, assinatura e origem do pacote (G2). Apenas depois
+poderá existir uma operação por dispositivo, com confirmação clara, restauração
+ou recuperação previamente validada e verificação pós-instalação (G3).
+Reversão precisa respeitar suporte real do Windows e registrar falhas (G4).
+G5 demanda testes supervisionados **inicialmente em ambiente descartável**,
+e só depois em hardware de teste não crítico. Proibidos a remoção em massa,
+limpeza heurística de Driver Store, substituição silenciosa de drivers do
+sistema e promessa de rollback quando não disponível.
+
+**Decisão atual após a validação U6:** **27/42 (64,3%)**;
+as melhorias foram implementadas e verificadas, mas os critérios de campo dos
+checkpoints abertos não foram satisfeitos. A branch
+de teste e o PR #40 permanecem Draft, sem merge/release.
 
 ## Desenvolvimento posterior
 
@@ -105,10 +256,19 @@ A gestão de drivers permanece não implementada: fontes oficiais, compatibilida
 
 ## Limites da validação
 
-- A CI cobre compilação, nove grupos de regressão, consulta WMI real no runner, layout/bandeja/monitoramento e ativação do pacote. Consultar o resultado acima antes de considerar o lote aprovado.
+- A CI cobre compilação, regressões de comparação, catálogos, instaladores, drivers, resíduos, MSIX, privacidade, encerramento, layout/bandeja/RAM e ativação do pacote. WMI/SetupAPI somente leitura são exercitados no runner Windows; fontes online e downloads mantêm jobs manuais opcionais. Consultar o resultado acima antes de considerar o lote aprovado.
 - O runner Windows não reproduz o AVG, os dispositivos, a resolução nem a carga dos computadores do usuário.
 - A CI não executa instaladores reais de aplicativos, não valida fontes online ao vivo e não comprova compatibilidade universal.
 - A tabela de drivers não enumera todo o Driver Store e não permite instalar, remover ou reverter pacotes.
 - Identidade alterada por um instalador permanece indeterminada, mesmo quando a atualização pode ter funcionado.
-- As alterações estão numa branch de teste; a branch principal não foi substituída.
+- A `main` contém a candidata v5.13.11.0. As correções posteriores estão na branch do PR #40 até sua integração.
 - A lista tem escopo explícito e pode crescer com novos achados. Seus percentuais não medem a proporção de todo o produto pronta.
+
+## Manutenção de repositório — 21/10/2026
+
+A branch de teste removeu workflows e guias obsoletos, preservando
+três Actions atuais e todas as regressões necessárias. Veja
+[ACTIONS-ATUAIS-E-HISTORICAS.md](ACTIONS-ATUAIS-E-HISTORICAS.md)
+para o escopo e limitações. Esta limpeza não corrige MSIX nem
+habilita manutenção destrutiva; não altera a contagem de checkpoints.
+

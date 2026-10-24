@@ -5,7 +5,7 @@ using GerenciadorAplicativos;
 internal static class LayoutTests
 {
     [STAThread]
-    static void Main()
+    static void Main(string[] args)
     {
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
@@ -13,9 +13,159 @@ internal static class LayoutTests
             _ => Environment.FailFast("Timeout no teste de layout"),
             null, TimeSpan.FromMinutes(4), Timeout.InfiniteTimeSpan);
         Application.EnableVisualStyles();
+        if (!AppServices.TryParseUninstaller(@"C:\cache.exe_folder\uninstall.exe /S", out var uninstallPath, out var uninstallArgs) ||
+            uninstallPath != @"C:\cache.exe_folder\uninstall.exe" || uninstallArgs != "/S" ||
+            !AppServices.TryParseUninstaller("MsiExec.exe /I{00000000-0000-0000-0000-000000000123}", out _, out var msiArgs) ||
+            msiArgs != "/X{00000000-0000-0000-0000-000000000123} /norestart" ||
+            AppServices.TryParseUninstaller(null, out _, out _) ||
+            AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
+            throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
+        if (args.Contains("--work9"))
+        {
+            int failures = 0;
+            Work9InventoryTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+            Work9NavigationTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+            if (failures != 0) throw new Exception($"WORK9 UI: {failures} falhas reproduzidas");
+            return;
+        }
+        Work9InventoryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
+        Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
+        Work11ProgressLayoutTests.Run();
+        Work12UninstallLayoutTests.Run();
+        ConfirmReviewTests.Run();
+        Work7SafetyTests.Run();
+        UninstallCleanupTests.Run();
+        // PC fraco v5.13.11.21: 19 MSIX estão no inventário, mas não
+        // aparecem na lista de ações. O filtro explícito revela sem permitir
+        // atualização nem desinstalação somente pelo nome ou origem.
+        var inventoryOnly = new ProgramEntry
+        {
+            Name = "Leitor MSIX fictício", Version = "1.2.3.4",
+            InventoryOnly = true, InventorySource = "Aplicativo empacotado (MSIX)"
+        };
+        if (ActionableInventory.ShouldShow(inventoryOnly) ||
+            !ActionableInventory.ShouldShowInMainList(inventoryOnly, "Todos") ||
+            ActionableInventory.ShouldShowInMainList(inventoryOnly, "Com atualização") ||
+            !ActionableInventory.ShouldShowInMainList(inventoryOnly, "Inventário") ||
+            ActionableInventory.CanUninstall(inventoryOnly))
+            throw new Exception("MSIX somente leitura deve aparecer em Todos sem ações autorizadas.");
+        var normal = new ProgramEntry { Name = "Aplicativo com ação", CanUninstall = true };
+        if (!ActionableInventory.ShouldShowInMainList(normal, "Todos") ||
+            !ActionableInventory.ShouldShowInMainList(normal, "Inventário"))
+            throw new Exception("Visualizacao de inventario nao pode ocultar aplicativos tradicionais.");
 
         if (DiagnosticTrace.FormatVersion(new Version(5, 13, 10, 18)) != "v5.13.10.18")
             throw new Exception("Diagnostico perdeu a revisao da compilacao.");
+        const string knownId = "a2a4b6b8-1212-4343-8585-919191919191";
+        if (WindowsUpdateClient.VerifiedIdentity(knownId, 12) != knownId + "@12" ||
+            WindowsUpdateClient.VerifiedIdentity(knownId, 13) == knownId + "@12" ||
+            WindowsUpdateClient.VerifiedIdentity("invalido", 12) is not null ||
+            WindowsUpdateClient.VerifiedIdentity(knownId, 0) is not null)
+            throw new Exception("Windows Update deve preservar GUID e revisao antes de instalar.");
+        string selectedIdentity = WindowsUpdateClient.CanonicalSelectedIdentity(
+            WindowsUpdateClient.VerifiedIdentity(knownId, 12))
+            ?? throw new Exception("Selecao recusou identidade produzida pela consulta.");
+        if (!WorkerHost.TryParseUpdateTask("wu-install:" + selectedIdentity, out var parsedSelection) ||
+            !parsedSelection.SetEquals([knownId + "@12"]) || parsedSelection.Contains(knownId + "@13"))
+            throw new Exception("UI e worker precisam preservar a mesma revisao confirmada, sem instalar no teste.");
+        foreach (string invalidIdentity in new[] { knownId, knownId + "@0", knownId + "@-1", knownId + "@01",
+            knownId + "@2147483648", knownId + "@12\n", Guid.Empty.ToString("D") + "@12", "invalido@12" })
+            if (WindowsUpdateClient.CanonicalSelectedIdentity(invalidIdentity) is not null ||
+                WorkerHost.TryParseUpdateTask("wu-install:" + invalidIdentity, out _))
+                throw new Exception("Identidade Windows Update ambigua foi aceita.");
+        foreach (string invalidTask in new[] { "wu-install:", "wu-install:" + selectedIdentity + ",",
+            "wu-install:" + selectedIdentity + "," + selectedIdentity,
+            "wu-install:" + string.Join(",", Enumerable.Range(1, 31).Select(r => knownId + "@" + r)) })
+            if (WorkerHost.TryParseUpdateTask(invalidTask, out _))
+                throw new Exception("Worker aceitou selecao vazia, duplicada ou acima do limite.");
+        // Regressao da captura real: WinForms TextBox junta parágrafos se receber
+        // somente LF em SetText. Validar CRLF idempotente, inclusive com CR solto.
+        if (DarkLogView.NormalizeWindowsLineBreaks("um\n\ndois") != "um\r\n\r\ndois" ||
+            DarkLogView.NormalizeWindowsLineBreaks("um\r\n\r\ndois") != "um\r\n\r\ndois" ||
+            DarkLogView.NormalizeWindowsLineBreaks("um\rdois") != "um\r\ndois")
+            throw new Exception("Normalizacao de paragrafo WinForms falhou.");
+        // Permite experimentar a contribuicao sem gravar dados ou autorizar coleta.
+        string dryRunFolder = Path.Combine(Path.GetTempPath(),
+            "GF-Preview-Only-" + Guid.NewGuid().ToString("N"));
+        var dryRunRecorder = new AnonymousTelemetry(dryRunFolder);
+        using (var privacy = new TelemetryPrivacyDialog(dryRunRecorder))
+        {
+            privacy.Show();
+            Application.DoEvents();
+            var simulate = Descendants(privacy).OfType<Button>().SingleOrDefault(
+                b => b.Name == "PrivacyOfflineSimulation")
+                ?? throw new Exception("Botao de simulacao segura ausente.");
+            var preview = Descendants(privacy).OfType<DarkLogView>().SingleOrDefault(
+                view => view.Name == "PrivacyLocalPreview")
+                ?? throw new Exception("Previa de coleta acessivel ausente.");
+            if (!preview.RenderedText.Contains("COLETA DESATIVADA"))
+                throw new Exception("Consentimento ausente nao foi explicado claramente.");
+            if (!preview.RenderedText.Contains("COLETA DESATIVADA\r\n\r\n"))
+                throw new Exception("Previa inicial nao preservou separacao de paragrafos.");
+            simulate.PerformClick();
+            // ModernButton somente despacha Click depois de 145 ms de feedback.
+            // Testar o clique REAL, sem executar diretamente o callback.
+            for (int attempt = 0; attempt < 30 &&
+                !preview.RenderedText.Contains("SIMULAÇÃO CONCLUÍDA"); attempt++)
+            {
+                System.Threading.Thread.Sleep(20);
+                Application.DoEvents();
+            }
+            if (!preview.RenderedText.Contains("SIMULAÇÃO CONCLUÍDA"))
+                throw new Exception("Simulacao nao respondeu ao clique animado.");
+            if (!preview.RenderedText.Contains("Nenhuma conexão de envio foi feita.") ||
+                !preview.RenderedText.Contains("INVENTADOS"))
+                throw new Exception("Simulacao nao explicou os dados ficticios.");
+            if (!preview.RenderedText.Contains("SIMULAÇÃO CONCLUÍDA — NADA FOI ENVIADO\r\n\r\n") ||
+                !preview.RenderedText.Contains("EXEMPLO COM DADOS INVENTADOS\r\n"))
+                throw new Exception("Simulacao perdeu a estrutura de linhas no TextBox Windows.");
+            if (dryRunRecorder.Consent != TelemetryConsent.NotAsked ||
+                Directory.Exists(dryRunFolder))
+                throw new Exception("Simulacao alterou consentimento ou arquivos locais.");
+            if (privacy.DialogResult != DialogResult.None)
+                throw new Exception("Simulacao aprovou ou recusou consentimento sem autorizacao.");
+            privacy.Close();
+        }
+        if (PrivacyConsentPresentation.ButtonLabel(TelemetryConsent.LocalOnly) != "Coleta local ativa" ||
+            PrivacyConsentPresentation.ButtonLabel(TelemetryConsent.Declined) != "Coleta desativada" ||
+            !PrivacyConsentPresentation.Explanation(TelemetryConsent.LocalOnly)
+                .Contains("Nenhum diagnóstico é enviado", StringComparison.Ordinal) ||
+            !PrivacyConsentPresentation.Explanation(TelemetryConsent.LocalOnly)
+                .Contains("versão anterior", StringComparison.Ordinal))
+            throw new Exception("Estado persistente de privacidade nao e claro.");
+        // Requisito universal: calcular pela largura interna e DPI, nao
+        // apenas pelo monitor 1440x900. Limites exatos e demais 21 resolucoes.
+        if (StartupCardLayout.ColumnsForSpace(1000) != 3 ||
+            StartupCardLayout.ColumnsForSpace(885) != 3 ||
+            StartupCardLayout.ColumnsForSpace(884) != 2 ||
+            StartupCardLayout.ColumnsForSpace(720) != 2 ||
+            StartupCardLayout.ColumnsForSpace(590) != 2 ||
+            StartupCardLayout.ColumnsForSpace(589) != 1 ||
+            StartupCardLayout.CardWidth(1000, 3) > 325)
+            throw new Exception("Inicializacao perdeu limites de colunas em 100% DPI.");
+        foreach (var (resolutionName, resolution) in StartupWindowSizing.ValidationMatrix
+            .Concat(new[] { ("PC FRACO", new Size(1440, 900)) }))
+        {
+            if (resolution.Width < 1280 || resolution.Height < 720) continue;
+            var window = StartupWindowSizing.Fit(new Rectangle(0, 0,
+                resolution.Width, Math.Max(300, resolution.Height - 48)));
+            foreach (int dpi in new[] { 96, 120, 144, 192 })
+            {
+                // Simular padding da janela/sistema e scrollbar; conferir
+                // largura sem rolagem horizontal em todas as escalas.
+                int space = Math.Max(1, window.Width - 92);
+                int columns = StartupCardLayout.ColumnsForSpace(space, dpi);
+                int width = StartupCardLayout.CardWidth(space, columns, dpi);
+                int occupied = columns * (width + StartupCardLayout.MarginWidth(dpi));
+                if (columns < 1 || columns > StartupCardLayout.MaxColumns ||
+                    width < 1 || occupied > space ||
+                    space - occupied >= columns)
+                    throw new Exception($"Grade Inicializacao incorreta: {resolutionName}, DPI={dpi}, {columns}x{width} em {space}.");
+                if (columns > 1 && width < (int)Math.Ceiling(286d * dpi / 96d))
+                    throw new Exception($"Inicializacao compactou demasiado: {resolutionName}, DPI={dpi}.");
+            }
+        }
+        Console.WriteLine("OK: Inicializacao em todas as resolucoes >=720p, DPI 100/125/150/200%.");
         TestStartupBounds();
         TestWorkspaceProportions();
         TestRamHistoryAndSampling();
@@ -49,6 +199,36 @@ internal static class LayoutTests
             allLines.Split("Lote de diagnostico ").Length != 151)
             throw new Exception("Registro perdeu linhas ou redesenhou por mensagem.");
         Console.WriteLine("OK: 150 linhas em uma pintura do Registro.");
+        // Fixture local de renderizacao para evitar o filtro silencioso.
+        var fixtureField = typeof(MainForm).GetField("_installed",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new Exception("Fixture de inventario ausente.");
+        var fixture = (List<ProgramEntry>)fixtureField.GetValue(form)!;
+        fixture.AddRange(new[]
+        {
+            new ProgramEntry { Name = "Zulu", CanUninstall = true },
+            new ProgramEntry { Name = "Alfa", IsUpdate = true, CanUninstall = true, AvailableVersion = "2" },
+            new ProgramEntry { Name = "Beta", InventoryOnly = true }
+        });
+        var renderFixture = typeof(MainForm).GetMethod("RenderPrograms",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new Exception("Fixture RenderPrograms ausente.");
+        renderFixture.Invoke(form, null);
+        var fixtureList = Descendants(form).OfType<DarkProgramList>().Single();
+        if (fixtureList.Items.Count != 3 ||
+            fixtureList.Items[0].Name != "Alfa" ||
+            fixtureList.Items[1].Name != "Beta" ||
+            fixtureList.Items[2].Name != "Zulu" ||
+            fixtureList.Items[1].CanUninstall)
+            throw new Exception("Todos deve incluir apps protegidos e manter atualizacoes no topo.");
+        fixture.Clear();
+        renderFixture.Invoke(form, null);
+        Console.WriteLine("OK: Todos preserva todas as entradas e ordena atualizacoes primeiro.");
+        var repairCards = Descendants(form).OfType<Button>().ToArray();
+        if (!repairCards.Any(b => b.Text == "Verificar Windows") ||
+            !repairCards.Any(b => b.Text == "Escolher ponto de restauração") ||
+            repairCards.SingleOrDefault(b => b.Text == "Reparar Windows") is not { Enabled: false })
+            throw new Exception("Reparo do Windows deve iniciar bloqueado; assistente de restauracao deve existir.");
         var nav = Descendants(form).OfType<DarkTabHost>().First();
         string[] expectedTitles =
         {
@@ -63,14 +243,47 @@ internal static class LayoutTests
         Control placeholder = Descendants(form).SingleOrDefault(c =>
             c.Name == "DriversPlaceholder")
             ?? throw new Exception("Pagina DRIVERS ausente.");
-        if (!placeholder.Visible || Descendants(placeholder).OfType<Button>().Count() != 1 ||
-            !Descendants(placeholder).OfType<DataGridView>().Any(g => g.Name == "DriverInventoryGrid" && g.ReadOnly))
-            throw new Exception("DRIVERS precisa permitir apenas consulta e mostrar tabela somente leitura.");
-        if (!Descendants(placeholder).OfType<Label>().Any(c =>
-                c.Text.Contains("nenhuma instalação, remoção ou alteração")))
-            throw new Exception("Aviso de modulo futuro ausente.");
-        if (!Descendants(form).Any(c => c.Name == "DriverInventoryViewport" && c is DarkScrollableFlow))
-            throw new Exception("DRIVERS deve reutilizar rolagem escura da aplicacao.");
+        var driverCards = Descendants(placeholder).OfType<DarkDriverList>().SingleOrDefault()
+            ?? throw new Exception("DRIVERS deve usar cartoes do mesmo padrao dos aplicativos.");
+        if (!placeholder.Visible || Descendants(placeholder).OfType<DataGridView>().Any() ||
+            Descendants(placeholder).OfType<Button>()
+                .Count(b => b.Name == "DriverInventoryRefresh") != 1)
+            throw new Exception("DRIVERS nao pode usar grade antiga nem oferecer alteracao de drivers.");
+        if (!Descendants(placeholder).OfType<TextBox>().Any(t =>
+                t.Name == "DriverInventorySearch") ||
+            !Descendants(placeholder).OfType<Label>().Any(c =>
+                c.Text.Contains("Nenhuma alteração em drivers")))
+            throw new Exception("Busca ou aviso de consulta segura ausente.");
+        if (Descendants(placeholder).OfType<DarkScrollableFlow>().Any())
+            throw new Exception("DRIVERS nao deve mostrar rolagem duplicada.");
+        if (!Descendants(placeholder).OfType<Button>().Any(b =>
+                b.Text == "Outros" &&
+                b.AccessibleDescription?.Contains("indeterminada", StringComparison.Ordinal) == true) ||
+            Descendants(placeholder).OfType<Button>().Any(b => b.Text == "Não confirmados"))
+            throw new Exception("Filtro DRIVERS deve caber inteiro e explicar os casos incertos.");
+        var privacyStatus = Descendants(form).OfType<Button>()
+            .SingleOrDefault(b => b.Name == "PrivacyStatusButton")
+            ?? throw new Exception("Indicador de privacidade ausente do cabecalho.");
+        if (privacyStatus.Text != PrivacyConsentPresentation.ButtonLabel(
+                AnonymousTelemetryContext.Current?.Consent ?? TelemetryConsent.NotAsked) ||
+            privacyStatus.AccessibleDescription?.Contains("Clique", StringComparison.Ordinal) != true)
+            throw new Exception("Consentimento existente nao esta visivel nem revisavel.");
+        var fakeDrivers = Enumerable.Range(0, 184).Select(i => new DriverInventoryEntry(
+            "TEST\\\\ID" + i, "Dispositivo sintetico " + i,
+            "Fabricante de teste", "1.2.3." + i, "oem" + i + ".inf",
+            true, i % 3 == 0 ? true : i % 3 == 1 ? false : null)).ToArray();
+        driverCards.SetItems(fakeDrivers);
+        if (driverCards.Items.Count != 184 || driverCards.SelectedItem is not null)
+            throw new Exception("Lista de drivers virtualizada perdeu registros ou selecionou automaticamente.");
+        if (DriverListFilters.Apply(fakeDrivers, "Todos", "").Length != 184 ||
+            DriverListFilters.Apply(fakeDrivers, "Presentes", "").Length != 62 ||
+            DriverListFilters.Apply(fakeDrivers, "Não confirmados", "").Length != 122 ||
+            DriverListFilters.Apply(fakeDrivers, "Todos", "oem18.inf").Length != 1 ||
+            DriverListFilters.Apply(fakeDrivers, "Todos", fakeDrivers[183].DeviceId).Length != 1 ||
+            DriverListFilters.Apply(fakeDrivers, "Todos", "fabricante DE TESTE").Length != 184)
+            throw new Exception("Pesquisa e filtros DRIVERS falharam na amostra de 184 itens.");
+        // Todos os drivers continuam apenas texto; filtros nao fazem instalacoes.
+        driverCards.SetItems(Array.Empty<DriverInventoryEntry>());
         Directory.CreateDirectory("LayoutCaptures");
 
         int tested = 0;
@@ -120,13 +333,13 @@ internal static class LayoutTests
                         throw new Exception($"Hit-test incorreto: {name}, aba {i}");
                 }
 
-                // Em monitores largos, nao comprimir oito ferramentas numa
-                // linha de cinco nem cinco comandos de rede numa unica linha.
+                // Limpeza integrada removeu duas ferramentas independentes.
+                // As seis ferramentas Windows restantes devem ocupar ate tres colunas.
                 if ((resolution == new Size(1920, 1080) ||
                      resolution == new Size(2560, 1440)) && (tab == 2 || tab == 3))
                 {
-                    int expected = tab == 2 ? 4 : 3;
-                    int toolCount = tab == 2 ? 8 : 5;
+                    int expected = 3;
+                    int toolCount = tab == 2 ? 6 : 7;
                     var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
                         .FirstOrDefault(x => x.EmbeddedInPage &&
                             x.Content.Controls.Count == toolCount);
@@ -144,7 +357,7 @@ internal static class LayoutTests
                 // duas ou tres linhas e nao sacrificar textos em PC FRACO.
                 if ((tab == 2 || tab == 3) && resolution == new Size(1440, 900))
                 {
-                    int count = tab == 2 ? 8 : 5;
+                    int count = tab == 2 ? 6 : 7;
                     var toolFlow = Descendants(form).OfType<DarkScrollableFlow>()
                         .Single(x => x.EmbeddedInPage && x.Content.Controls.Count == count);
                     var cards = toolFlow.Content.Controls.OfType<Panel>().ToArray();
@@ -165,21 +378,40 @@ internal static class LayoutTests
                 {
                     var commands = Descendants(form).OfType<TableLayoutPanel>()
                         .FirstOrDefault(panel => panel.Controls.OfType<Button>()
-                            .Any(button => button.Text == "Verificar atualizações"));
-                    string[] expectedCommands = { "Atualizar lista", "Verificar atualizações",
+                            .Any(button => button.Text == "Atualizar e verificar"));
+                    string[] expectedCommands = { "Atualizar e verificar",
                         "Selecionar vários", "Desinstalar selecionados", "Limpar seleção" };
                     if (commands is null ||
                         !commands.Controls.OfType<Button>()
                             .Select(button => button.Text).SequenceEqual(expectedCommands))
-                        throw new Exception("Os cinco comandos de Aplicativos nao estao juntos.");
+                        throw new Exception("Os quatro comandos de Aplicativos nao estao juntos.");
                     var search = Descendants(form).OfType<TableLayoutPanel>()
                         .FirstOrDefault(panel => panel.Controls.OfType<TextBox>()
                             .Any(t => t.PlaceholderText.Contains("Nome, versão")));
                     if (search is null || search.Controls.OfType<Button>()
                         .Any(button => button.Text == "Atualizar lista"))
                         throw new Exception("Atualizar lista nao deve aparecer junto da pesquisa.");
+                    var allFilter = Descendants(form).OfType<Button>()
+                        .SingleOrDefault(button => button.Text == "Todos" &&
+                            button.Parent is TableLayoutPanel parent &&
+                            parent.Controls.OfType<Button>().Count() == 2);
+                    if (allFilter is null || !allFilter.Visible ||
+                        allFilter.Parent is not TableLayoutPanel heading ||
+                        heading.ColumnCount != 3 ||
+                        heading.Controls.OfType<Button>().Count() != 2 ||
+                        heading.Controls.OfType<Button>().Any(b =>
+                            b.Text is "Possíveis" or "Inventário"))
+                        throw new Exception("Filtros redundantes permaneceram ou Todos ficou inacessivel.");
+                    foreach (var filterButton in heading.Controls.OfType<Button>())
+                    {
+                        if (filterButton.Right > heading.ClientSize.Width + 2 ||
+                            filterButton.Left < 0 ||
+                            filterButton.Width < 45)
+                            throw new Exception("Filtro de aplicativos cortado: " +
+                                name + " / " + filterButton.Text);
+                    }
                     bool expectCompact = commands.ClientSize.Width <
-                        (int)Math.Ceiling(870d * Math.Max(1, commands.DeviceDpi) / 96d);
+                        (int)Math.Ceiling(745d * Math.Max(1, commands.DeviceDpi) / 96d);
                     if (commands.RowCount != (expectCompact ? 2 : 1))
                         throw new Exception("Acoes com numero incorreto de linhas: " + resolution);
                     foreach (Button button in commands.Controls.OfType<Button>())
@@ -234,19 +466,69 @@ internal static class LayoutTests
                         throw new Exception($"Rolagem fantasma: {name} aba={tab}");
                 }
 
+                if (tab == 2)
+                {
+                    if (Descendants(form).OfType<Button>().Any(b =>
+                        b.AccessibleName == "Otimizar unidades"))
+                        throw new Exception("Nao deve existir otimizacao global de todos os discos.");
+                    // Cartao sintetico: a nova acao fica ao lado do nome
+                    // e aponta exclusivamente para o volume representado.
+                    var diskBuilder = typeof(MainForm).GetMethod("CreateDiskCard",
+                        System.Reflection.BindingFlags.NonPublic |
+                        System.Reflection.BindingFlags.Instance)!;
+                    using var diskFixture = (Control)diskBuilder.Invoke(form,
+                        new object[] { new DiskUsageInfo(@"C:\", "Sistema",
+                            250000000000L, 100000000000L, "NTFS") })!;
+                    var diskButton = Descendants(diskFixture).OfType<Button>()
+                        .SingleOrDefault(b => b.Name == "OptimizeVolumeC");
+                    if (diskButton is null || !diskButton.Enabled ||
+                        diskButton.Text != "Otimizar" ||
+                        (string?)diskButton.Tag != "optimize-volume:C" ||
+                        diskButton.Parent is not TableLayoutPanel titleRow ||
+                        titleRow.Controls.OfType<Label>().Count() != 1)
+                        throw new Exception($"Otimizar deve aparecer junto ao nome da unidade: {name}");
+                    using var unsupportedFixture = (Control)diskBuilder.Invoke(form,
+                        new object[] { new DiskUsageInfo(@"D:\", "Nao elegivel",
+                            250000000000L, 100000000000L, "exFAT") })!;
+                    if (Descendants(unsupportedFixture).OfType<Button>()
+                        .SingleOrDefault(b => b.Name == "OptimizeVolumeD") is not { Enabled: false })
+                        throw new Exception("Unidade nao elegivel deve ter otimizacao desabilitada.");
+                    var profile = Descendants(form).OfType<ComboBox>()
+                        .SingleOrDefault(c => c.Name == "TestDiagnosticProfile");
+                    var preview = profile?.Parent?.Parent as TableLayoutPanel;
+                    int minButtonHeight = preview?.Controls.OfType<Button>()
+                        .Select(b => b.Height).DefaultIfEmpty(0).Min() ?? 0;
+                    if (preview is null || preview.RowCount != 1 ||
+                        preview.Height < 32 || minButtonHeight < 24 ||
+                        profile!.Height < 16 ||
+                        !preview.RectangleToScreen(preview.ClientRectangle)
+                            .Contains(profile.RectangleToScreen(profile.ClientRectangle)))
+                        throw new Exception($"Linha do diagnostico de testes cortada: {name} {resolution} " +
+                            $"preview={preview?.Height} botao={minButtonHeight} combo={profile?.Height} " +
+                            $"DPI={preview?.DeviceDpi} linhas={preview?.RowCount}");
+                }
                 var allButtons = Descendants(form).OfType<Button>()
                     .Where(b => b.Visible).ToArray();
                 // DRIVERS permite consulta, sem instalacao ou remocao.
                 if (tab == 1)
                 {
-                    var driverViewport = Descendants(form).OfType<DarkScrollableFlow>().Single(x => x.Name == "DriverInventoryViewport");
-                    if (placeholder.Height > driverViewport.ClientSize.Height && !driverViewport.HasVerticalScrollbar)
-                        throw new Exception($"DRIVERS precisa de rolagem quando o conteudo nao cabe: {name}");
-                    var driverGrid = Descendants(placeholder).OfType<DataGridView>().Single();
-                    if (driverGrid.Height < 100)
-                        throw new Exception($"Tabela DRIVERS sem altura util: {name} {resolution}");
-                    if (Descendants(placeholder).OfType<Button>().Any(b => b.Name != "DriverInventoryRefresh"))
-                        throw new Exception("DRIVERS ganhou uma acao diferente da consulta.");
+                    bool tinyDrivers = placeholder.Height < 230;
+                    int minDriverHeight = tinyDrivers ? 73 : 100;
+                    if (driverCards.Height < minDriverHeight ||
+                        driverCards.Width < placeholder.Width - 70)
+                        throw new Exception($"DRIVERS nao aproveita o espaco para cartoes: {name} {resolution} " +
+                            $"lista={driverCards.Size} raiz={placeholder.Size}");
+                    var mobileFilter = Descendants(placeholder).OfType<ComboBox>()
+                        .SingleOrDefault(c => c.Name == "DriverCompactFilter");
+                    if (mobileFilter is null || mobileFilter.Visible != tinyDrivers ||
+                        mobileFilter.Items.Count != 3)
+                        throw new Exception($"Filtro compacto DRIVERS inacessivel: {name} {resolution}");
+                    if (Descendants(placeholder).OfType<DataGridView>().Any() ||
+                        Descendants(placeholder).OfType<Button>().Any(b =>
+                            b.Text.Contains("Desinstalar", StringComparison.OrdinalIgnoreCase) ||
+                            b.Text.Contains("Atualizar driver", StringComparison.OrdinalIgnoreCase) ||
+                            b.Text.Contains("Remover driver", StringComparison.OrdinalIgnoreCase)))
+                        throw new Exception("DRIVERS ganhou acao destrutiva.");
                 }
                 else if (allButtons.Length == 0)
                     throw new Exception($"Nenhum botao apresentado: {name} {resolution} aba={tab}");
@@ -322,16 +604,72 @@ internal static class LayoutTests
         Application.DoEvents();
         var repairTools = Descendants(form).OfType<ModernButton>()
             .Where(b => b.Text is "Analisar rede" or "Reparar rede" or
-                "Criar ponto de restauração").ToArray();
-        if (repairTools.Length != 3 || repairTools.Any(b => b.Width > 215))
-            throw new Exception("Botoes de ferramentas ainda ocupam cartoes inteiros.");
+                "Criar ponto de restauração" or "Restaurar configurações da rede" or
+                "Escolher ponto de restauração").ToArray();
+        if (repairTools.Length != 5 || repairTools.Any(b =>
+            b.Width >= b.Parent!.ClientSize.Width))
+            throw new Exception("Botoes de reparo nao devem ultrapassar a largura util do cartao.");
+        // Regressao PC FORTE .49: titulo longo no cartao de 3 colunas
+        // encolhia a fonte porque a largura tinha teto fixo de 215 px.
+        var longRepair = repairTools.Single(b =>
+            b.Text == "Restaurar configurações da rede");
+        int naturalWidth = TextRenderer.MeasureText(longRepair.Text, longRepair.Font,
+            new Size(int.MaxValue, 33), TextFormatFlags.NoPadding |
+            TextFormatFlags.NoPrefix).Width;
+        if (longRepair.Width <= 215 || longRepair.Width - 27 < naturalWidth)
+            throw new Exception("Rotulo de restauracao ainda reduz a fonte apesar do espaco do cartao.");
+        if (repairTools.Select(b => b.Font.SizeInPoints).Distinct().Count() != 1)
+            throw new Exception("Botoes de reparo devem compartilhar a mesma fonte.");
+        // PC FORTE .40: tres colunas ja existiam, mas cada card era limitado
+        // a 316 px; sobravam faixas laterais mesmo com largura suficiente.
+        var repairFlow = Descendants(form).OfType<DarkScrollableFlow>()
+            .Single(flow => flow.Name == "RepairActions");
+        var repairCardPanels = repairFlow.Content.Controls.OfType<Panel>().ToArray();
+        if (repairCardPanels.Length != 7)
+            throw new Exception("Grade de Reparo e Rede perdeu algum dos sete cartoes.");
+        var firstRow = repairCardPanels.Where(card => card.Top == repairCardPanels.Min(x => x.Top))
+            .OrderBy(card => card.Left).ToArray();
+        if (repairFlow.ClientSize.Width >= 1100)
+        {
+            int occupied = firstRow.Length == 0 ? 0 :
+                firstRow[^1].Right - firstRow[0].Left;
+            if (firstRow.Length != 3 ||
+                occupied < repairFlow.Content.ClientSize.Width * 0.85)
+                throw new Exception("Reparo e Rede deve usar 3 colunas e preencher a largura disponivel.");
+        }
+        Size savedRepairSurface = surface.Size;
+        try
+        {
+            Directory.CreateDirectory("LayoutCaptures");
+            foreach (var screen in new[] { new Size(1440, 900), new Size(2560, 1440) })
+            {
+                // Simular o viewport, como na matriz acima. Redimensionar o
+                // Form seria limitado pelo monitor fisico do runner (e pela
+                // politica de 60%), nao pelo monitor sintetico deste cenario.
+                var opening = StartupWindowSizing.Fit(new Rectangle(0, 0, screen.Width, screen.Height - 48));
+                surface.Size = new Size(opening.Width - 16, opening.Height - 39);
+                surface.PerformLayout(); Application.DoEvents();
+                var row = repairCardPanels.Where(card => card.Top == repairCardPanels.Min(c => c.Top))
+                    .OrderBy(card => card.Left).ToArray();
+                if (row.Length != 3 || row[^1].Right - row[0].Left < repairFlow.Content.ClientSize.Width * 0.85)
+                    throw new Exception($"Reparo deve preencher tres colunas: monitor={screen}, viewport={repairFlow.ClientSize}, colunas={row.Length}.");
+                using var capture = new Bitmap(surface.Width, surface.Height);
+                surface.DrawToBitmap(capture, new Rectangle(Point.Empty, surface.Size));
+                capture.Save(Path.Combine("LayoutCaptures", $"Reparo-{screen.Width}x{screen.Height}.png"),
+                    System.Drawing.Imaging.ImageFormat.Png);
+            }
+        }
+        finally { surface.Size = savedRepairSurface; surface.PerformLayout(); Application.DoEvents(); }
         nav.SelectTab(5);
         Application.DoEvents();
         TestMemoryPanel(form);
         var pageViewports = Descendants(form).OfType<DarkScrollableFlow>()
             .Where(flow => flow.IsPageViewport).ToArray();
-        if (pageViewports.Length != 5)
-            throw new Exception($"Esperadas cinco paginas com rolagem controlada; encontradas {pageViewports.Length}");
+        // DRIVERS agora usa a mesma lista virtualizada de Aplicativos,
+        // sem rolagem externa duplicada. Outras quatro paginas a preservam.
+        if (pageViewports.Length != 4)
+            throw new Exception($"Esperadas quatro paginas com rolagem controlada e " +
+                $"DRIVERS com lista propria; encontradas {pageViewports.Length}");
         var systemCards = Descendants(form).OfType<DarkScrollableFlow>()
             .SelectMany(flow => flow.Content.Controls.Cast<Control>());
         if (systemCards.Any(c => c is TableLayoutPanel panel &&
@@ -429,6 +767,10 @@ internal static class LayoutTests
         if (history.Samples.Count != MemoryRamHistory.Capacity ||
             history.ConfirmedReclaimedBytes != 0)
             throw new Exception("RAM: historico ilimitado ou inventou limpeza.");
+        if (WindowsMemoryDetails.Bytes(1024, 4096) != 4194304 ||
+            WindowsMemoryDetails.Bytes(ulong.MaxValue, 4096) != 0 ||
+            WindowsMemoryDetails.Bytes(1000, 0) != 0)
+            throw new Exception("RAMMap: conversao de paginas de memoria deve impedir overflow.");
         var current = MemoryRamReader.Capture();
         if (current is null || current.TotalBytes == 0 ||
             current.AvailableBytes > current.TotalBytes)
@@ -440,7 +782,9 @@ internal static class LayoutTests
     {
         var graph = Descendants(form).OfType<MemoryRamChart>().Single();
         if (!graph.Visible ||
-            Descendants(form).OfType<Button>().All(x => x.Text != "Tarefas do Windows") ||
+            Descendants(form).OfType<Button>().All(x =>
+                x.Name != "OpenWindowsTaskManager" || x.Text != "Abrir tarefas" ||
+                x.AccessibleName?.Contains("Gerenciador de Tarefas", StringComparison.Ordinal) != true) ||
             Descendants(form).OfType<Button>().All(x => x.Name != "MemoryAutoOptimization") ||
             Descendants(form).OfType<Button>().All(x => x.Name != "MemoryManualOptimization") ||
             Descendants(form).OfType<Label>().All(x => x.Name != "MemoryCandidates"))

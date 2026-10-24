@@ -1,12 +1,15 @@
 # Política de segurança
 
+> **Política vigente:** a coleta de eventos técnicos continua opcional e local. A interface de publicação manual de diagnósticos no GitHub e a leitura de Issues pelo Actions foram removidas; o protótipo de recepção permanece indisponível. Instaladores sem SHA-256 fixado não recebem autorização de execução. Nenhuma atualização/receita de fabricante pode ser garantida sem risco; testes reais e aprovação humana continuam obrigatórios antes de distribuição. [Detalhes](docs/SEGURANCA-v5.13.11.7.md).
+
+
 ## Estado
 
 O projeto está em preparação para a primeira publicação aberta. **Nenhum binário está atualmente certificado como seguro ou assinado pela SignPath Foundation.**
 
 ## Como reportar vulnerabilidades
 
-Após criar o repositório público, o mantenedor deve habilitar **Private vulnerability reporting** em Settings → Security → Private vulnerability reporting. Use então a opção **Report a vulnerability** disponível na aba Security do repositório. Se ela ainda não estiver configurada, **não publique um exploit nem credenciais em uma Issue pública**; aguarde a habilitação do canal privado.
+Use a opção **Report a vulnerability** na aba Security, se disponível. O mantenedor deve habilitar **Private vulnerability reporting** em Settings → Security para disponibilizar esse canal. Se ela ainda não estiver configurada, **não publique um exploit nem credenciais em uma Issue pública**; aguarde a habilitação do canal privado.
 
 Ao reportar, inclua a versão, configuração Windows, comportamento esperado, passos seguros para reprodução e o impacto observado. Não compartilhe dados pessoais ou credenciais.
 
@@ -33,4 +36,9 @@ O AVG CyberCapture bloqueou uma compilação portátil anterior e a encaminhou p
 
 ## Distribuicao v5.13.10.16 de testes
 
-O pacote de testes gera um arquivo SHA256SUMS.txt com hashes SHA-256 do executavel e dos principais arquivos de aplicativo. Esse arquivo permite detectar mudancas apos baixar, **nao autentica a origem sem um canal confiavel nem substitui uma assinatura Authenticode**. O AVG CyberCapture pode continuar bloqueando binarios desconhecidos; o projeto nao tenta contornar esse bloqueio. Aguardar decisao do fornecedor e reportar possivel falso positivo por canal oficial.
+O pacote de testes gera um arquivo SHA256SUMS.txt com hashes SHA-256 de todos os arquivos distribuídos, exceto o próprio manifesto. Esse arquivo permite detectar mudancas apos baixar, **nao autentica a origem sem um canal confiavel nem substitui uma assinatura Authenticode**. O AVG CyberCapture pode continuar bloqueando binarios desconhecidos; o projeto nao tenta contornar esse bloqueio. Aguardar decisao do fornecedor e reportar possivel falso positivo por canal oficial.
+
+
+## Revisao defensiva v5.13.11.5
+
+Consulte [o relatorio de seguranca](docs/SEGURANCA-v5.13.11.5.md) sobre comprovantes de instaladores, revalidacao de arquivos, identidade de processos no pipe e gravacao local. Os controles reduzem riscos especificos e nao equivalem a certificacao, ausencia de falsos positivos ou imunidade contra adulteracao por administrador/kernel.

@@ -1,7 +1,19 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions DisableDelayedExpansion
+rem A versao vem do projeto para nao rotular novas builds com versoes antigas.
+set "GF_BUILD_VERSION="
+for /f "tokens=*" %%L in ('findstr /R /C:"<Version>[0-9][0-9.]*</Version>" "%~dp0GerenciadorAplicativos.csproj"') do for /f "tokens=2 delims=<>" %%V in ("%%L") do set "GF_BUILD_VERSION=%%V"
+if not defined GF_BUILD_VERSION (
+  echo ERRO: versao ausente no projeto.
+  exit /b 1
+)
+rem Consulta sem efeitos para regressao Windows dos nomes de distribuicao.
+if /I "%~1"=="--print-version" (
+  echo %GF_BUILD_VERSION%
+  exit /b 0
+)
 cd /d "%~dp0"
-title GERENCIADOR FINAL v5.12.3 - CRIAR INSTALADOR
+title GERENCIADOR FINAL v%GF_BUILD_VERSION% - CRIAR INSTALADOR
 
 rem Somente para o COMPUTADOR DE COMPILACAO.
 rem O usuario final NAO precisa do SDK .NET nem de Inno Setup.
@@ -15,7 +27,7 @@ set "NUGET_PACKAGES=%~dp0.cache\nuget\packages"
 rem PUBLICACAO PUBLICA: um certificado valido e obrigatorio.
 rem Certificado no repositorio CurrentUser\My, com chave acessivel pelo SignTool.
 echo.
-echo ASSINATURA DIGITAL - GERENCIADOR FINAL v5.12.3
+echo ASSINATURA DIGITAL - GERENCIADOR FINAL v%GF_BUILD_VERSION%
 if not defined GF_CERT_SHA1 (
   echo Digite a impressao digital SHA1 de seu certificado de ASSINATURA DE CODIGO.
   echo Nao informe senhas ou chaves privadas neste script.
@@ -32,21 +44,9 @@ if errorlevel 1 goto sdk_missing
 goto publish
 
 :sdk_missing
-echo.
-echo O SDK .NET 10 e necessario SOMENTE para criar o instalador.
-echo Nao sera instalado nos computadores dos usuarios finais.
-where winget.exe >nul 2>&1
-if errorlevel 1 goto no_winget
-echo.
-choice /C SN /N /M "Deseja instalar o SDK .NET 10 neste computador de compilacao? [S/N] "
-if errorlevel 2 goto no_sdk
-winget install --id Microsoft.DotNet.SDK.10 --exact --source winget --accept-source-agreements --accept-package-agreements
-if errorlevel 1 goto sdk_install_failed
-call :find_dotnet
-if not defined DOTNET_EXE goto sdk_install_failed
-"%DOTNET_EXE%" --list-sdks 2>nul | findstr /B /C:"10.0." >nul
-if errorlevel 1 goto sdk_install_failed
-goto publish
+echo SDK .NET 10 ausente na maquina de compilacao. Nenhuma dependencia sera instalada.
+echo Prepare o ambiente de desenvolvimento com o SDK oficial antes de compilar.
+goto no_sdk
 
 :find_dotnet
 set "DOTNET_EXE="
@@ -58,7 +58,7 @@ exit /b 0
 set "DIST_DIR=%~dp0Distribuicao"
 echo.
 echo =========================================================
-echo  GERENCIADOR FINAL v5.12.3 - INSTALADOR WINDOWS x64
+echo  GERENCIADOR FINAL v%GF_BUILD_VERSION% - INSTALADOR WINDOWS x64
 echo =========================================================
 echo Publicando aplicativo com runtime .NET incluido...
 if exist "%DIST_DIR%" rmdir /S /Q "%DIST_DIR%"
@@ -73,17 +73,8 @@ call :find_iscc
 if defined ISCC_EXE goto compile
 
 echo.
-echo Inno Setup nao foi encontrado. Ele so e necessario na maquina de compilacao.
-where winget.exe >nul 2>&1
-if errorlevel 1 goto no_inno
-echo.
-choice /C SN /N /M "Deseja instalar Inno Setup na maquina de compilacao? [S/N] "
-if errorlevel 2 goto no_inno
-winget install --id JRSoftware.InnoSetup --exact --source winget --accept-source-agreements --accept-package-agreements
-if errorlevel 1 goto inno_install_failed
-call :find_iscc
-if not defined ISCC_EXE goto inno_install_failed
-goto compile
+echo Inno Setup nao foi encontrado. Prepare manualmente o ambiente de compilacao.
+goto no_inno
 
 :find_iscc
 set "ISCC_EXE="
@@ -104,7 +95,7 @@ if not exist "%DIST_DIR%\GerenciadorFinal.dll" goto signing_failed
 call "%~dp0Assinar-GF.cmd" "%DIST_DIR%\GerenciadorFinal.dll"
 if errorlevel 1 goto signing_failed
 
-set "RESULT=%~dp0Instalador\GerenciadorFinal-Setup-v5.12.3-Windows-x64.exe"
+set "RESULT=%~dp0Instalador\GerenciadorFinal-Setup-v%GF_BUILD_VERSION%-Windows-x64.exe"
 if exist "%RESULT%" del /q "%RESULT%"
 if exist "%RESULT%" goto compiler_failed
 
@@ -125,7 +116,7 @@ echo.
 echo Instalador assinado. Confira o registro de hashes SHA256 na pasta Instalador.
 echo Distribua somente depois dos testes de seguranca e instalacao.
 echo Nao e necessario SDK ou runtime .NET separado no destino.
-echo WinGet pode precisar de App Installer da Microsoft para recursos de atualizacao.
+echo Consultas de atualizacao usam fontes HTTPS; MSIX requer recursos do Windows.
 echo IMPORTANTE: o projeto nao adiciona exclusoes de antivirus nem firewall.
 echo.
 pause
@@ -140,23 +131,12 @@ goto fail
 :verification_failed
 echo ERRO: assinaturas do instalador/arquivos nao validadas.
 goto fail
-:no_winget
-echo Nao ha WinGet neste computador para instalar ferramentas de compilacao.
-echo Instale o SDK oficial somente nesta maquina e execute o publicador novamente:
-echo https://dotnet.microsoft.com/download/dotnet/10.0
-goto fail
 :no_sdk
 echo Compilacao cancelada. Falta o SDK .NET 10 na maquina de compilacao.
-goto fail
-:sdk_install_failed
-echo ERRO: instalacao/verificacao do SDK falhou. Consulte a mensagem acima.
 goto fail
 :no_inno
 echo Publiquei o aplicativo, mas nao foi possivel criar o instalador sem Inno Setup.
 echo Instale o Inno Setup pelo site oficial https://jrsoftware.org/isinfo.php e tente novamente.
-goto fail
-:inno_install_failed
-echo ERRO: Inno Setup nao foi detectado apos a instalacao.
 goto fail
 :publish_failed
 echo ERRO: publicacao falhou ou GerenciadorFinal.exe nao foi criado.

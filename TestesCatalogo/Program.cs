@@ -115,6 +115,7 @@ for (int i = 0; i < elapsed.Length; i++)
 Array.Sort(elapsed);
 Console.WriteLine($"PERFORMANCE.COMPARACAO_142x631_MEDIANA_MS={elapsed[10]} P95_MS={elapsed[18]}");
 Test(elapsed[18] < 5000, "Comparacao abaixo de limite generoso de 5 segundos");
+await CatalogLifetimeTests.Run(Test);
 Console.WriteLine($"{passed}/{passed} testes de catalogo/cache/precisao aprovados");
 
 internal sealed class FakeHandler(string lookup, string json, int delayMs = 0, bool throttle = false) : HttpMessageHandler

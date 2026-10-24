@@ -11,7 +11,7 @@
     <ApplicationIcon>Assets\GerenciadorFinal.ico</ApplicationIcon>
     <AssemblyName>GerenciadorFinal</AssemblyName>
     <RootNamespace>GerenciadorAplicativos</RootNamespace>
-    <Version>5.13.11.0</Version>
+    <Version>5.13.11.59</Version>
     <Title>Gerenciador Final</Title>
     <Description>Gerenciador Final: atualizações, diagnóstico e manutenção do Windows.</Description>
     <PublishSingleFile>false</PublishSingleFile>
@@ -19,11 +19,36 @@
   </PropertyGroup>
   <!-- Os projetos de testes sao compilados separadamente. -->
   <ItemGroup>
-    <Compile Remove="TestesMotor/**/*.cs;TestesRede/**/*.cs;TestesAtualizador/**/*.cs;TestesCatalogo/**/*.cs;TestesMultifontes/**/*.cs;TestesMsix/**/*.cs;TestesFechamento/**/*.cs;TestesResiduos/**/*.cs;TestesLayout/**/*.cs;TestesSeguranca/**/*.cs;TestesDrivers/**/*.cs;ProcessMonitor.cs;ProcessMonitorUi.cs" />
+    <Compile Remove="TestesMotor/**/*.cs;TestesRede/**/*.cs;TestesAtualizador/**/*.cs;TestesCatalogo/**/*.cs;TestesMultifontes/**/*.cs;TestesMsix/**/*.cs;TestesFechamento/**/*.cs;TestesResiduos/**/*.cs;TestesLayout/**/*.cs;TestesSeguranca/**/*.cs;TestesDrivers/**/*.cs;TestesTelemetria/**/*.cs" />
+    <!-- Os pilotos anteriores permanecem como fixtures de regressao no projeto
+         TestesResiduos. O produto distribui um unico executor residual integrado. -->
+    <Compile Remove="SmallAppResidualCleanup.cs;SevenZipCompleteCleanup.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="CatalogoDesinstalacao.json" LogicalName="GerenciadorFinal.UninstallCatalog" />
     <EmbeddedResource Include="CatalogoIdentidades.json" LogicalName="GerenciadorFinal.ApplicationIdentityCatalog" />
     <EmbeddedResource Include="CatalogoAuditoriaHistorica.json" LogicalName="GerenciadorFinal.HistoricalOrphanCatalog" />
   </ItemGroup>
+  <!-- Publicar avisos a partir dos mesmos packs resolvidos, sem copiar SDKs. -->
+  <ItemGroup>
+    <None Update="LICENSE" CopyToPublishDirectory="PreserveNewest" TargetPath="LICENSE.txt" />
+    <None Update="PRIVACY.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="docs/USO-PORTATIL.md" CopyToPublishDirectory="PreserveNewest" TargetPath="LEIA-ME.md" />
+    <None Update="docs/THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" TargetPath="THIRD-PARTY-NOTICES.md" />
+  </ItemGroup>
+  <Target Name="CollectDistributionNotices" AfterTargets="ComputeFilesToPublish" Condition="'$(SelfContained)' == 'true'">
+    <ItemGroup>
+      <_GfCorePack Include="@(ResolvedRuntimePack)" Condition="'%(ResolvedRuntimePack.FrameworkName)' == 'Microsoft.NETCore.App'" />
+      <_GfDesktopPack Include="@(ResolvedRuntimePack)" Condition="'%(ResolvedRuntimePack.FrameworkName)' == 'Microsoft.WindowsDesktop.App'" />
+      <_GfNotice Include="@(_GfCorePack->'%(PackageDirectory)/LICENSE.TXT')" RelativePath="Licencas/DotNET/LICENSE.txt" />
+      <_GfNotice Include="@(_GfCorePack->'%(PackageDirectory)/THIRD-PARTY-NOTICES.TXT')" RelativePath="Licencas/DotNET/THIRD-PARTY-NOTICES.txt" />
+      <_GfNotice Include="@(_GfDesktopPack->'%(PackageDirectory)/LICENSE')" RelativePath="Licencas/WindowsDesktop/LICENSE.txt" />
+      <ResolvedFileToPublish Include="@(_GfNotice)" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+    <Error Condition="'@(_GfCorePack)' == '' Or '@(_GfDesktopPack)' == ''" Text="Packs de runtime ausentes; nao publicar sem avisos de terceiros." />
+    <Error Condition="!Exists('%(_GfNotice.Identity)')" Text="Aviso de terceiro ausente: %(_GfNotice.RelativePath)" />
+  </Target>
+  <ItemGroup><PackageReference Include="YamlDotNet" Version="18.1.0" /></ItemGroup>
 </Project>
+
+

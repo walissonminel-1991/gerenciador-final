@@ -2,7 +2,7 @@ namespace GerenciadorAplicativos;
 
 // Inspeção POS-desinstalação. Jamais varre o disco inteiro ou remove configurações,
 // documentos, pastas compartilhadas e chaves de Registro de forma heurística.
-// Só autoriza arquivos executáveis de nome EXATO em diretorios de programas conhecidos.
+// Examina nomes exatos em diretórios conhecidos; exclusão permanece bloqueada.
 internal sealed record ResidualCandidate(string Product, string Root, IReadOnlyList<string> Files, int Preserved);
 internal sealed record ResidualCleanupResult(int RemovedFiles, int RemovedDirectories, int Failed, int Preserved);
 
@@ -42,6 +42,12 @@ internal static class UninstallResiduals
     // Se mesmo aplicativo ainda aparece no Registro não apagar nada.
     internal static bool StillInstalled(ProgramEntry original, IReadOnlyCollection<ProgramEntry> installed)
     {
+        if (installed.Any(p =>
+            (!string.IsNullOrWhiteSpace(original.MsiProductCode) &&
+                original.MsiProductCode.Equals(p.MsiProductCode, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrWhiteSpace(original.InventoryId) &&
+                original.InventoryId.Equals(p.InventoryId, StringComparison.OrdinalIgnoreCase)) ||
+            ResidualReadSafety.PathsOverlap(original.InstallLocation, p.InstallLocation))) return true;
         // Mesmo ID em todas as etapas: se uma variante continua instalada,
         // o software NÃO está removido e nenhum resíduo pode ser apagado.
         var identity = ApplicationIdentityCatalog.Resolve(original.Name, original.Publisher);
@@ -89,7 +95,7 @@ internal static class UninstallResiduals
     {
         try
         {
-            if (!Path.IsPathFullyQualified(root) || !Directory.Exists(root)) return false;
+            if (!ResidualReadSafety.IsUnlinkedDirectory(root)) return false;
             var dir = new DirectoryInfo(root);
             if ((dir.Attributes & FileAttributes.ReparsePoint) != 0) return false;
             // Impede navegar por junções nos pais de instalações ou perfis.
@@ -104,9 +110,9 @@ internal static class UninstallResiduals
     // Usado também pelos testes com raiz temporária. Em produção, a raiz só pode
     // vir da lista fixa GetPolicy, não de caminho fornecido pelo usuário/Registro.
     internal static ResidualCandidate? InspectDirectory(string product, string root,
-        IReadOnlyCollection<string> allowedNames)
+        IReadOnlyCollection<string> allowedNames, CancellationToken token = default)
     {
-        if (!SafeRoot(root)) return null;
+        if (token.IsCancellationRequested || !SafeRoot(root)) return null;
         try
         {
             var files = new List<string>();
@@ -114,6 +120,7 @@ internal static class UninstallResiduals
             int visited = 0;
             foreach (string path in Directory.EnumerateFileSystemEntries(root, "*", SearchOption.TopDirectoryOnly))
             {
+                if (token.IsCancellationRequested) return null;
                 if (++visited > 1000) return null; // Pasta estranha: nenhum apagamento.
                 var attributes = File.GetAttributes(path);
                 if ((attributes & FileAttributes.ReparsePoint) != 0 ||
@@ -132,52 +139,13 @@ internal static class UninstallResiduals
         { return null; }
     }
 
-    internal static ResidualCleanupResult Clean(ProgramEntry original, ResidualCandidate candidate)
-    {
-        var policy = GetPolicy(original);
-        if (policy is null || !policy.Product.Equals(candidate.Product, StringComparison.Ordinal) ||
-            !policy.Roots.Any(root => PathComparer.Equals(root, candidate.Root)))
-            return new(0, 0, 1, 0);
-        // Voltar ao disco agora; nunca confiar em caminhos capturados antes do dialogo.
-        ResidualCandidate? refreshed = InspectDirectory(policy.Product, candidate.Root, policy.KnownFileNames);
-        if (refreshed is null) return new(0, 0, 0, 0);
-        return CleanCandidateFiles(refreshed, policy.KnownFileNames);
-    }
+    // Candidata de auditoria: nomes exatos e nova enumeração não provam
+    // propriedade exclusiva nem preservam o consentimento sobre o conteúdo.
+    // Nenhuma chamada interna pode contornar o bloqueio de exclusão.
+    internal static ResidualCleanupResult Clean(ProgramEntry original, ResidualCandidate candidate) =>
+        new(0, 0, 1, candidate.Preserved + candidate.Files.Count);
 
-    // Testável com pasta TEMP, mas a chamada de produção Clean() exige a política
-    // e os diretórios fixos previamente aprovados.
     internal static ResidualCleanupResult CleanCandidateFiles(
-        ResidualCandidate refreshed, IReadOnlyCollection<string> allowedNames)
-    {
-        if (!SafeRoot(refreshed.Root)) return new(0, 0, 1, 0);
-        var recheck = InspectDirectory(refreshed.Product, refreshed.Root, allowedNames);
-        if (recheck is null) return new(0, 0, 0, 0);
-        int removed = 0, errors = 0, directories = 0;
-        foreach (string file in recheck.Files)
-        {
-            try
-            {
-                if (!SafeRoot(recheck.Root) ||
-                    !PathComparer.Equals(Path.GetDirectoryName(file), recheck.Root) ||
-                    !allowedNames.Contains(Path.GetFileName(file), PathComparer))
-                { errors++; continue; }
-                if ((File.GetAttributes(file) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
-                { errors++; continue; }
-                File.Delete(file);
-                removed++;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            { errors++; }
-        }
-        try
-        {
-            if (SafeRoot(recheck.Root) && !Directory.EnumerateFileSystemEntries(recheck.Root).Any())
-            {
-                Directory.Delete(recheck.Root);
-                directories++;
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { errors++; }
-        return new(removed, directories, errors, recheck.Preserved);
-    }
+        ResidualCandidate refreshed, IReadOnlyCollection<string> allowedNames) =>
+        new(0, 0, 1, refreshed.Preserved + refreshed.Files.Count);
 }

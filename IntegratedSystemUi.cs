@@ -26,6 +26,8 @@ internal sealed partial class MainForm
     private bool _windowsUpdateChecked;
     private string? _windowsUpdateScanFailure;
     private string _activeSystemView = "memory";
+    private bool _fittingSystemCards;
+    private long _systemViewGeneration;
 
     private Control BuildIntegratedSystemPanel()
     {
@@ -44,18 +46,19 @@ internal sealed partial class MainForm
         };
         for (int i = 0; i < 4; i++) actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
         AddIntegratedAction(actions, 0, "Memória RAM", "Consumo e memória disponível. Histórico local, também na bandeja.", AppServices.Blue,
-            async () => { _activeSystemView = "memory"; await RefreshMemoryRamAsync(); });
+            async () => { await RefreshMemoryRamAsync(); });
         AddIntegratedAction(actions, 1, "Inicialização", "Ative ou desative entradas do seu usuário de modo reversível.", AppServices.Gray,
-            async () => { _activeSystemView = "startup"; await RefreshStartupEntriesAsync(); });
+            async () => { await RefreshStartupEntriesAsync(); });
         AddIntegratedAction(actions, 2, "Windows Update", "Procure, selecione e instale atualizações oficiais.", AppServices.Green,
-            async () => { _activeSystemView = "update"; await ScanWindowsUpdatesAsync(); });
+            async () => { await ScanWindowsUpdatesAsync(); });
         AddIntegratedAction(actions, 3, "Este computador", "Detalhes de CPU, GPU, RAM, BIOS, placa-mãe e discos.", AppServices.Blue,
             async () =>
             {
-                _activeSystemView = "hardware";
+                long request = _systemViewGeneration;
                 await ExecuteAsync("Consultando hardware...", async () =>
                 {
                     var snapshot = await StaWorker.Run(DetailedHardware.Capture);
+                    if (!IsCurrentSystemView("hardware", request)) return;
                     ShowHardwareCompact(snapshot);
                     Status("Hardware consultado");
                     Log("Informações detalhadas de hardware atualizadas.");
@@ -109,6 +112,9 @@ internal sealed partial class MainForm
         _systemPanelCards.Content.BackColor = PanelBackground;
         _systemPanelCards.Content.Padding = new Padding(3, 4, 3, 3);
         _systemPanelCards.Resize += (_, _) => ResizeIntegratedCards();
+        // Quando a barra de rolagem aparece/desaparece, o viewport real muda
+        // mesmo que o tamanho do controle externo nao se altere.
+        _systemPanelCards.Content.SizeChanged += (_, _) => ResizeIntegratedCards();
         var contentHost = new Panel { Dock = DockStyle.Fill, BackColor = PanelBackground, Margin = Padding.Empty };
         contentHost.Controls.Add(_systemPanelCards);
         contentHost.Controls.Add(BuildMemoryRamDashboard());
@@ -143,7 +149,13 @@ internal sealed partial class MainForm
 
     private void SetSystemView(string view)
     {
-        _activeSystemView = view; // A coleta permanece ativa na bandeja, com cadencia reduzida.
+        // Navegação imediata: não deixar cartões do modo anterior sob título
+        // da nova aba enquanto operações assíncronas ainda consultam o Windows.
+        ++_systemViewGeneration;
+        bool changing = _activeSystemView != view;
+        _activeSystemView = view; // Coleta em background permanece independente.
+        if (changing && view is "startup" or "update" or "hardware")
+            ReplaceSystemCards([]);
         if (_systemDetails is null || _installSelectedUpdates is null) return;
         bool showInstall = view == "update";
         bool showMemory = view == "memory";
@@ -158,6 +170,10 @@ internal sealed partial class MainForm
             _systemPanelCards.Visible = view != "hardware" && !showMemory;
         _systemDetails.PerformLayout();
     }
+
+    private bool IsCurrentSystemView(string view, long request) =>
+        !IsDisposed && !Disposing && _nav.SelectedIndex == 5 &&
+        _activeSystemView == view && _systemViewGeneration == request;
 
     private void AddIntegratedAction(TableLayoutPanel parent, int column, string caption, string description,
         Color color, Func<Task> action)
@@ -464,50 +480,139 @@ internal sealed partial class MainForm
 
     private void ResizeIntegratedCards()
     {
-        if (_systemPanelCards is null || _systemPanelCards.IsDisposed) return;
-        FlowLayoutPanel flow = _systemPanelCards.Content;
-        int space = _systemPanelCards.ClientSize.Width - 42;
-        if (space < 280) return;
-        int columns = space >= 720 ? 2 : 1;
-        int cardWidth = Math.Max(250, space / columns - 17);
-        flow.SuspendLayout();
+        if (_fittingSystemCards || _systemPanelCards is null ||
+            _systemPanelCards.IsDisposed) return;
+        _fittingSystemCards = true;
         try
         {
-            foreach (Control control in flow.Controls)
-                if (control.Width != cardWidth) control.Width = cardWidth;
+            FlowLayoutPanel flow = _systemPanelCards.Content;
+            // Usar viewport fisico JA reduzido pela scrollbar escura.
+            // Evita reserva dupla e contempla 720p, ultrawide, 4K e DPI.
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                int space = flow.ClientSize.Width - flow.Padding.Horizontal;
+                if (space <= 0) break;
+                int columns = _activeSystemView == "startup"
+                    ? StartupCardLayout.ColumnsForSpace(space, flow.DeviceDpi)
+                    : space >= 720 * Math.Max(1, flow.DeviceDpi / 96d) ? 2 : 1;
+                int cardWidth = StartupCardLayout.CardWidth(space, columns, flow.DeviceDpi);
+                int beforeWidth = flow.ClientSize.Width;
+                flow.SuspendLayout();
+                try
+                {
+                    foreach (Control control in flow.Controls)
+                        if (control.Width != cardWidth) control.Width = cardWidth;
+                }
+                finally { flow.ResumeLayout(true); }
+                _systemPanelCards.Reflow();
+                if (flow.ClientSize.Width == beforeWidth) break;
+            }
         }
-        finally { flow.ResumeLayout(true); }
-        _systemPanelCards.Reflow();
+        finally { _fittingSystemCards = false; }
     }
 
-    private async Task RefreshStartupEntriesAsync()
+    private async Task RefreshStartupEntriesAsync(Func<Task<IReadOnlyList<StartupItem>>>? read = null)
     {
+        long request = _systemViewGeneration;
+        if (IsCurrentSystemView("startup", request))
+        {
+            _systemPanelTitle.Text = "Inicialização · consultando...";
+            _systemPanelSummary.Text = "Consultando entradas do seu usuário e de todos os usuários.";
+        }
         await ExecuteAsync("Carregando itens de inicialização...", async () =>
         {
-            var entries = await Task.Run(StartupManager.Read);
+            var entries = await (read?.Invoke() ?? Task.Run(StartupManager.Read));
+            if (!IsCurrentSystemView("startup", request)) return;
             _systemPanelTitle.Text = "Inicialização · ativar e desativar";
             _systemPanelSummary.Text = "Entradas do seu usuário podem ser alternadas e restauradas. Entradas de todos os usuários são apenas leitura. Serviços e tarefas agendadas não estão incluídos.";
-            ReplaceSystemCards(entries.Select(BuildStartupCard).ToArray());
+            ReplaceSystemCards(new[] { BuildStartupTrayCard() }
+                .Concat(entries.Select(BuildStartupCard)).ToArray());
             Status($"{entries.Count} entradas de inicialização consultadas");
             Log($"Inicialização: {entries.Count} entradas consultadas.");
         });
+    }
+
+    private Control BuildStartupTrayCard()
+    {
+        bool enabled;
+        try { enabled = StartupTrayRegistration.IsEnabled(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+            System.Security.SecurityException or InvalidDataException)
+        {
+            enabled = false;
+            DiagnosticTrace.Write("INICIALIZACAO.BANDEJA estado=consulta_indisponivel motivo=" + ex.GetType().Name);
+        }
+        var card = new TableLayoutPanel
+        {
+            Name = "GFStartupTrayCard",
+            Width = 390, Height = 108, RowCount = 3, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
+            Padding = new Padding(8, 5, 8, 5)
+        };
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
+        card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
+        card.Controls.Add(new Label
+        {
+            Text = "Gerenciador Final · iniciar com o Windows",
+            Dock = DockStyle.Fill, ForeColor = Ink,
+            Font = new Font("Segoe UI", 9.2F, FontStyle.Bold)
+        }, 0, 0);
+        card.Controls.Add(new Label
+        {
+            Text = "Opcional: abrir direto na bandeja após entrar na sua conta.",
+            Dock = DockStyle.Fill, ForeColor = Muted,
+            Font = new Font("Segoe UI", 8.1F), AutoEllipsis = true
+        }, 0, 1);
+        var toggle = CreateButton(enabled ? "Desativar início automático" : "Ativar início na bandeja",
+            enabled ? AppServices.Orange : AppServices.Green, Color.White);
+        toggle.Dock = DockStyle.Fill;
+        toggle.Margin = Padding.Empty;
+        toggle.Click += (_, _) =>
+        {
+            if (_busy) return;
+            if (DarkConfirmDialog.Confirm(this,
+                enabled ? "Desativar a inicialização do GF com o Windows?" :
+                "Deseja iniciar o GF na bandeja quando entrar no Windows? Sem pedir administrador.",
+                "Inicialização do Gerenciador Final") != DialogResult.Yes) return;
+            try
+            {
+                StartupTrayRegistration.SetEnabled(!enabled);
+                DiagnosticTrace.Write("INICIALIZACAO.BANDEJA estado=" + (!enabled ? "ativado" : "desativado"));
+                Status(!enabled ? "GF iniciará na bandeja no próximo login." :
+                    "Início automático do GF desativado.");
+                _ = RefreshStartupEntriesAsync();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                System.Security.SecurityException or InvalidDataException)
+            {
+                DiagnosticTrace.Write("INICIALIZACAO.BANDEJA estado=falha motivo=" + ex.GetType().Name);
+                Status("Não foi possível alterar o início automático. Confira o diagnóstico.");
+            }
+        };
+        card.Controls.Add(toggle, 0, 2);
+        return card;
     }
 
     private Control BuildStartupCard(StartupItem item)
     {
         var card = new TableLayoutPanel
         {
-            Width = 390, Height = 123, RowCount = 3, ColumnCount = 1,
+            Name = "StartupEntryCard",
+            Width = 390, Height = 108, RowCount = 3, ColumnCount = 1,
             BackColor = Color.FromArgb(38, 50, 63), Margin = new Padding(2, 2, 7, 5),
             Padding = new Padding(8, 5, 8, 5)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 33));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
         var name = new Label { Text = item.Name, Dock = DockStyle.Fill, ForeColor = Ink,
-            Font = new Font("Segoe UI", 9.6F, FontStyle.Bold), AutoEllipsis = false };
+            Font = new Font("Segoe UI", 9.2F, FontStyle.Bold),
+            AutoEllipsis = true, AccessibleDescription = item.Name };
         var desc = new Label { Text = item.Details, Dock = DockStyle.Fill, ForeColor = Muted,
-            Font = new Font("Segoe UI", 8.3F), AutoEllipsis = false };
+            Font = new Font("Segoe UI", 8.1F),
+            AutoEllipsis = true, AccessibleDescription = item.Details };
+        _toolTips.SetToolTip(name, item.Name);
         _toolTips.SetToolTip(desc, item.Details);
         card.Controls.Add(name, 0, 0);
         card.Controls.Add(desc, 0, 1);
@@ -523,12 +628,15 @@ internal sealed partial class MainForm
             if (DarkConfirmDialog.Confirm(this,
                 $"Deseja {verb} '{item.Name}' na inicialização do Windows?",
                 "Confirmar inicialização") != DialogResult.Yes) return;
+            long request = _systemViewGeneration;
             await ExecuteAsync("Alterando inicialização...", async () =>
             {
                 await Task.Run(() => StartupManager.Toggle(item));
                 Log($"Inicialização: {item.Name} — " + (item.Enabled ? "desativado" : "reativado") + ".");
                 var entries = await Task.Run(StartupManager.Read);
-                ReplaceSystemCards(entries.Select(BuildStartupCard).ToArray());
+                if (!IsCurrentSystemView("startup", request)) return;
+                ReplaceSystemCards(new[] { BuildStartupTrayCard() }
+                .Concat(entries.Select(BuildStartupCard)).ToArray());
                 Status("Inicialização alterada. Efeito no próximo login.");
             });
         };
@@ -556,7 +664,7 @@ internal sealed partial class MainForm
 
     private async Task ScanWindowsUpdatesAsync()
     {
-        await ScanWindowsUpdatesInBackgroundAsync();
+        await ScanWindowsUpdatesInBackgroundAsync(force: true);
     }
 
     private async Task ScanWindowsUpdatesInBackgroundAsync(bool force = false)
@@ -566,6 +674,7 @@ internal sealed partial class MainForm
         {
             if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
             {
+                ReplaceSystemCards([]);
                 _systemPanelTitle.Text = "Windows Update · consultando...";
                 _systemPanelSummary.Text = "Busca automática em andamento. Nenhuma atualização será instalada sem confirmação.";
             }
@@ -578,9 +687,12 @@ internal sealed partial class MainForm
             return;
         }
         _windowsUpdateScanning = true;
+        _updateSelection.Clear();
+        if (_installSelectedUpdates is not null) _installSelectedUpdates.Enabled = false;
         RenderTitle();
         if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
         {
+            ReplaceSystemCards([]);
             _systemPanelTitle.Text = "Windows Update · consultando...";
             _systemPanelSummary.Text = "Consulta oficial do Windows em segundo plano; pode demorar alguns minutos.";
         }
@@ -607,11 +719,16 @@ internal sealed partial class MainForm
         {
             if (IsDisposed) return;
             _windowsUpdateScanFailure = ex.GetType().Name;
+            _windowsUpdateChecked = false;
+            _updateCatalog = [];
+            _updateSelection.Clear();
+            if (_installSelectedUpdates is not null) _installSelectedUpdates.Enabled = false;
             RenderTitle();
             DiagnosticTrace.Failure("WINDOWS_UPDATE.CONSULTA_FALHA", ex);
             Log("Windows Update: consulta indisponível (" + _windowsUpdateScanFailure + ").");
             if (_activeSystemView == "update" && _nav.SelectedIndex == 5)
             {
+                ReplaceSystemCards([]);
                 _systemPanelTitle.Text = "Windows Update · consulta indisponível";
                 _systemPanelSummary.Text = "O Windows Update não pôde ser consultado. Nenhuma instalação foi iniciada.";
             }
@@ -662,6 +779,7 @@ internal sealed partial class MainForm
         toggle.Margin = Padding.Empty;
         toggle.Click += (_, _) =>
         {
+            if (_windowsUpdateScanning || !_windowsUpdateChecked || _windowsUpdateScanFailure is not null) return;
             if (!_updateSelection.Add(update.Id)) _updateSelection.Remove(update.Id);
             toggle.Text = _updateSelection.Contains(update.Id) ? "✓ Selecionada" : "Selecionar atualização";
             toggle.BackColor = _updateSelection.Contains(update.Id) ? AppServices.Green : AppServices.Blue;
@@ -678,7 +796,8 @@ internal sealed partial class MainForm
 
     private async Task InstallSelectedWindowsUpdatesAsync()
     {
-        if (_busy || _updateSelection.Count == 0) return;
+        if (_busy || _windowsUpdateScanning || !_windowsUpdateChecked ||
+            _windowsUpdateScanFailure is not null || _updateSelection.Count == 0) return;
         if (_updateSelection.Count > 30)
         {
             MessageBox.Show(this, "Selecione no máximo 30 atualizações por operação para facilitar o acompanhamento.",
@@ -686,7 +805,8 @@ internal sealed partial class MainForm
             return;
         }
         string[] selected;
-        try { selected = _updateSelection.Select(s => Guid.Parse(s).ToString("D")).ToArray(); }
+        try { selected = _updateSelection.Select(s => WindowsUpdateClient.CanonicalSelectedIdentity(s)
+            ?? throw new FormatException("Identidade de atualização sem revisão válida.")).ToArray(); }
         catch (FormatException)
         {
             MessageBox.Show(this, "O Windows retornou um identificador inválido. Procure as atualizações novamente.",

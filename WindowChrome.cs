@@ -48,6 +48,12 @@ internal sealed partial class MainForm
         };
         _trayMenu.Items.Add(new ToolStripMenuItem("Abrir", null, (_, _) => RestoreFromTray())
         { Name = "TrayOpen" });
+        _trayMenu.Items.Add(new ToolStripMenuItem(
+            "Privacidade e diagnóstico", null, (_, _) =>
+            {
+                RestoreFromTray();
+                OfferAnonymousDiagnosticConsent();
+            }) { Name = "TrayPrivacy" });
         _trayMenu.Items.Add(new ToolStripSeparator());
         _trayMenu.Items.Add(new ToolStripMenuItem("Sair", null, (_, _) => RequestTrayExit())
         { Name = "TrayExit" });
@@ -223,6 +229,7 @@ internal sealed partial class MainForm
         finally { _trayTransitioning = false; }
         Activate();
         DiagnosticTrace.Write("JANELA.BANDEJA_RESTAURAR.FIM");
+        ResumeUninstallCleanupConfirmation();
         // Recolher RAM global, sem enumeracao de PIDs na restauracao.
         if (_nav.SelectedIndex == 5 && _activeSystemView == "memory")
         {

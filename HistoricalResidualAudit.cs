@@ -83,7 +83,7 @@ internal static class HistoricalResidualAudit
         var parts = id.Split('\\');
         return parts.Length == 2 &&
             parts[0] is "Local" or "Roaming" or "StartMenu" &&
-            parts[1].Length is >= 4 and <= 60 &&
+            parts[1].Length is >= 3 and <= 60 &&
             !new[] { "Microsoft", "Windows", "Programs", "Packages", "Temp",
                 "Shared", "Common", "Cache", "Drivers", "System", "Startup" }
                 .Contains(parts[1], StringComparer.OrdinalIgnoreCase) &&
@@ -120,45 +120,37 @@ internal static class HistoricalResidualAudit
         string basePath = Environment.GetFolderPath(folder);
         if (string.IsNullOrWhiteSpace(basePath)) return null;
         string path = Path.Combine(basePath, parts[1]);
-        if (parts[0] != "StartMenu") return ResidualAudit.SafeAuditRoot(path) ? path : null;
-        // Windows Start Menu is in a shared-looking Microsoft subtree; for this
-        // fixed exact child, inspect only without proposing any unlink/delete.
-        try
-        {
-            if (!Directory.Exists(path)) return null;
-            for (DirectoryInfo? parent = new DirectoryInfo(path);
-                parent is not null; parent = parent.Parent)
-                if (parent.Exists && (parent.Attributes & FileAttributes.ReparsePoint) != 0)
-                    return null;
-            return path;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
-        { return null; }
+        return path;
     }
 
-    private static ResidualAuditFinding? InspectFolder(string id, string warning)
+    private static ResidualAuditFinding? InspectFolder(string id, string warning, ResidualScanBudget budget)
     {
         string? folder = ResolveFolder(id);
-        if (folder is null) return null;
+        if (folder is null) { budget.MarkIncomplete(ResidualScanIssue.SourceUnavailable); return null; }
+        if (!budget.CanContinue() || !ResidualReadSafety.CanInspectDirectory(folder, budget)) return null;
         try
         {
             int items = 0;
             foreach (FileSystemInfo file in new DirectoryInfo(folder).EnumerateFileSystemInfos())
             {
-                if (++items > 1500) return null;
-                if ((file.Attributes & FileAttributes.ReparsePoint) != 0) return null;
+                if (!budget.Visit() || ++items > 1500)
+                { budget.MarkIncomplete(ResidualScanIssue.EntryLimit); break; }
+                if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
+                { budget.MarkIncomplete(ResidualScanIssue.LinkSkipped); break; }
             }
             return items == 0 ? null :
                 new(folder, "Diretório histórico (somente leitura)", items,
-                    "Pode conter dados ainda úteis. " + warning);
+                    "Pode conter dados ainda úteis. " + warning, ResidualDisposition.PreserveData,
+                    id.StartsWith("StartMenu\\", StringComparison.Ordinal) ? ResidualSource.Shortcut : ResidualSource.UserData);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        { return null; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        { budget.MarkIncomplete(); return null; }
     }
 
-    private static ResidualAuditFinding? InspectRegistry(string id, string warning)
+    private static ResidualAuditFinding? InspectRegistry(string id, string warning, ResidualScanBudget budget)
     {
-        if (!AllowedRegistryIdentifier(id)) return null;
+        if (!budget.Visit()) return null;
+        if (!AllowedRegistryIdentifier(id)) { budget.MarkIncomplete(); return null; }
         string[] parts = id.Split('\\');
         RegistryHive hive = parts[0] == "HKLM32" ?
             RegistryHive.LocalMachine : RegistryHive.CurrentUser;
@@ -173,10 +165,10 @@ internal static class HistoricalResidualAudit
                 @"HKEY_CURRENT_USER\Software\") + string.Join("\\", parts.Skip(2));
             return new(path, "Chave de Registro (somente leitura)",
                 Math.Max(1, key.ValueCount + key.SubKeyCount),
-                "Existência não significa que possa ser excluída. " + warning);
+                "Existência não significa que possa ser excluída. " + warning, ResidualDisposition.PreserveData, ResidualSource.Registry);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-            System.Security.SecurityException or ArgumentException) { return null; }
+            System.Security.SecurityException or ArgumentException) { budget.MarkIncomplete(); return null; }
     }
 
     internal static bool IsRuleInstalled(Rule rule, IReadOnlyCollection<ProgramEntry> inventory)
@@ -188,20 +180,27 @@ internal static class HistoricalResidualAudit
                 app.Name.StartsWith(alias + " (", StringComparison.OrdinalIgnoreCase)));
     }
 
-    internal static IReadOnlyList<ResidualAuditReport> Inspect(
-        IReadOnlyCollection<ProgramEntry> inventory)
+    internal static ResidualReportSet Inspect(
+        IReadOnlyCollection<ProgramEntry> inventory, bool inventoryIncomplete = false,
+        CancellationToken cancellationToken = default)
     {
+        var budget = new ResidualScanBudget(cancellationToken);
+        budget.Source("HistoricalCatalog");
+        if (Rules.Count == 0) budget.Unavailable("HistoricalCatalog");
+        if (inventoryIncomplete) budget.MarkIncomplete(ResidualScanIssue.InventoryPartial);
         var result = new List<ResidualAuditReport>();
         foreach (var rule in Rules)
         {
+            if (!budget.CanContinue()) break;
             if (IsRuleInstalled(rule, inventory)) continue;
-            var findings = rule.Folders.Select(f => InspectFolder(f, rule.Warn))
-                .Concat(rule.Registry.Select(k => InspectRegistry(k, rule.Warn)))
-                .Where(x => x is not null).Select(x => x!).Take(15).ToArray();
+            var findings = rule.Folders.Select(f => InspectFolder(f, rule.Warn, budget))
+                .Concat(rule.Registry.Select(k => InspectRegistry(k, rule.Warn, budget)))
+                .Where(x => x is not null).Select(x => x!).ToArray();
             if (findings.Length > 0)
                 result.Add(new ResidualAuditReport(rule.Name, false, findings,
                     Array.Empty<string>(), Historical: true));
         }
-        return result;
+        return ResidualReportMerger.Merge(result, coverage: budget.Coverage with
+            { CandidatesFound = result.Count, CandidatesNotEvaluated = budget.Incomplete ? null : 0 });
     }
 }

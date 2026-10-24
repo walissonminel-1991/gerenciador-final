@@ -19,52 +19,30 @@ internal sealed record MaintenanceReport(int Installed, int Recognized,
     // Separar inventário real do Windows de reconhecimento de receitas específicas.
     public int WithPublisher { get; init; }
     public int WithVersion { get; init; }
+    public bool InventoryIncomplete { get; init; }
     public RegistryDeviceEvidence? HistoricalPnP { get; init; }
+    public bool Incomplete => InventoryIncomplete || Devices.Partial ||
+        (Devices.Supported && (HistoricalPnP is null || HistoricalPnP.Partial));
 }
 
 internal static class MaintenanceAudit
 {
     private const int MaxExamples = 12;
     private const int MaxDevices = 3500;
-    private static readonly HashSet<string> SystemUninstallers = new(StringComparer.OrdinalIgnoreCase)
-    { "msiexec.exe", "rundll32.exe", "cmd.exe", "msiexec", "rundll32" };
-
-    private static string Expand(string value) =>
-        Environment.ExpandEnvironmentVariables(value).Trim('"', ' ');
-
     // Don't infer that an MSI entry or browser redirect is invalid based on a
     // missing user-facing installer filename; never launch anything to validate.
     internal static string CheckUninstaller(string? command, bool inventoryOnly)
     {
         if (inventoryOnly) return "protected";
         if (string.IsNullOrWhiteSpace(command)) return "absent";
-        string raw = command.Trim();
-        // AppServices.TryParseUninstaller is separate from this audit; never
-        // reinterpret an arbitrary command or test executable by invoking it.
-        string filename;
-        if (raw.StartsWith('"'))
-        {
-            int end = raw.IndexOf('"', 1);
-            if (end <= 1) return "unknown";
-            filename = raw[1..end];
-        }
-        else
-        {
-            var match = Regex.Match(raw, @"^.+?\.exe(?=\s|$)",
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-            if (!match.Success) return "unknown";
-            filename = match.Value;
-        }
-        filename = Expand(filename);
-        if (SystemUninstallers.Contains(filename)) return "available";
-        if (!Path.IsPathFullyQualified(filename)) return "unknown";
+        if (!UninstallCommand.TryParse(command, out var parsed)) return "unknown";
+        string filename = parsed.FileName;
+        if (filename.Equals("msiexec.exe", StringComparison.OrdinalIgnoreCase) ||
+            filename.Equals("msiexec", StringComparison.OrdinalIgnoreCase)) return "available";
         try
         {
-            string complete = Path.GetFullPath(filename);
-            if (File.Exists(complete)) return "available";
-            // The user may have unmounted a volume or lost permissions. Mark as
-            // suspect, but do not remove its uninstall entry automatically.
-            return "missing";
+            if (!Path.IsPathFullyQualified(filename)) return "unknown";
+            return File.Exists(Path.GetFullPath(filename)) ? "available" : "missing";
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or
             UnauthorizedAccessException or NotSupportedException) { return "unknown"; }
@@ -154,13 +132,14 @@ internal static class MaintenanceAudit
                     object? Get(string prop)
                     {
                         try { return device.Properties_.Item(prop).Value; }
-                        catch { return null; }
+                        catch { partial = true; return null; }
                     }
                     string name = Convert.ToString(Get("Name"), CultureInfo.CurrentCulture) ?? "";
                     string category = Convert.ToString(Get("PNPClass"), CultureInfo.CurrentCulture) ?? "";
                     string id = Convert.ToString(Get("PNPDeviceID"), CultureInfo.CurrentCulture) ?? "";
                     object? rawPresent = Get("Present");
                     bool? present = rawPresent is bool b ? b : null;
+                    if (present is null || string.IsNullOrWhiteSpace(id)) partial = true;
                     if (present == true && id.Length >= 6) activeIds.Add(id);
                     if (ReviewDisconnectedDevice(present, category, id, name))
                     {
@@ -170,7 +149,7 @@ internal static class MaintenanceAudit
                     }
                     int error = 0;
                     try { error = Convert.ToInt32(Get("ConfigManagerErrorCode") ?? 0); }
-                    catch (Exception) { }
+                    catch (Exception) { partial = true; }
                     if (present == true && error != 0 && error != 22)
                         errors++; // disabled is a choice, not proof of malfunction
                 }
@@ -198,7 +177,7 @@ internal static class MaintenanceAudit
     }
 
     internal static MaintenanceReport Inspect(IReadOnlyCollection<ProgramEntry> apps,
-        bool inspectDevices = true)
+        bool inspectDevices = true, bool inventoryIncomplete = false)
     {
         var inventory = InspectPrograms(apps);
         DeviceAudit device = inspectDevices ? Devices() : new(0, 0, 0, false, false, []);
@@ -209,6 +188,10 @@ internal static class MaintenanceAudit
             ? HistoricalDeviceAudit.Inspect(device.PresentIds)
             : null;
         var findings = inventory.Concerns.ToList();
+        if (inventoryIncomplete)
+            findings.Add(new("Inventário", "Consulta parcial de aplicativos",
+                "Uma ou mais fontes de aplicativos não puderam ser lidas por completo. " +
+                "Ausência nesta consulta não comprova desinstalação."));
         if (device.Disconnected > 0)
             findings.Add(new("Hardware", "Dispositivos desconectados",
                 $"{device.Disconnected} registros PnP desconectados (não significa driver inútil). " +
@@ -234,6 +217,7 @@ internal static class MaintenanceAudit
         {
             WithPublisher = apps.Count(a => !string.IsNullOrWhiteSpace(a.Publisher)),
             WithVersion = apps.Count(a => !string.IsNullOrWhiteSpace(a.Version)),
+            InventoryIncomplete = inventoryIncomplete,
             HistoricalPnP = historical
         };
     }

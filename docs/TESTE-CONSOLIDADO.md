@@ -1,47 +1,33 @@
-# Validação do lote v5.13.10.18
+# Roteiro físico mínimo — WORK12 .57 TESTE
 
-Executar a mesma sequência no PC FRACO e no computador principal. Registrar qual máquina foi usada, a versão exata e o resultado. Não instalar SDK. Manter todos os arquivos do pacote portátil juntos.
+Usar somente o pacote indicado na [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40) após aprovação da CI. A PR identifica a fonte, o artefato e os hashes. [Correções, testes automatizados e limites](MISSAO-WORK12.md). Roteiros antigos estão nos relatórios históricos; este documento substitui a bateria .53 com versões antigas de aplicativos.
 
-## 1. Abertura e proteção
+## Preparação
 
-- Abrir o programa com o antivírus ativo.
-- Se houver bloqueio: registrar captura do alerta, nome da detecção, horário e a versão do Gerenciador Final. Não insistir em instalação/limpeza durante o bloqueio.
-- Conferir se o arquivo de diagnóstico identifica v5.13.10.18, incluindo a última revisão.
-- Abrir, minimizar para bandeja e restaurar três vezes. Registrar travamento, fechamento ou piscada observada.
+Extrair o portátil em pasta própria, manter os arquivos juntos e conferir versão .57, BUILD-INFO e SHA256SUMS. Não instalar SDK. Manter AVG ativo; registrar eventual bloqueio. O programa continua TESTE e sem assinatura.
 
-## 2. Inventário e atualização
+Não reinstalar Notepad++/SumatraPDF nem repetir as limpezas antigas só para reproduzir os defeitos das versões .55/.56. Os casos de ausência, erro 5, preservação, SIM/NÃO, arquivo ocupado e cancelamento pertencem à bateria automatizada com alvos sintéticos.
 
-- Atualizar a lista local e comparar os aplicativos conhecidos com a lista de ações. O resumo completo está na descrição/dica do contador.
-- Consultar atualizações. Os logs gravam contagens por motivo, sem nomes de aplicativos.
-- Para investigar diferença com WinGet, comparar capturas feitas na mesma máquina e aproximadamente no mesmo horário. Separar canais Preview/ESR, arquitetura e instalações por usuário/computador. Revisar dados pessoais antes de compartilhar capturas.
-- Escolher apenas um aplicativo de teste para atualização. Conferir versão e instalação realmente atualizadas. Uma identidade alterada pelo instalador pode produzir resultado indeterminado, que não deve aparecer como sucesso confirmado.
+## PC FORTE — uma operação quando houver aplicativo dispensável
 
-## 3. Resíduos
+1. Abrir Aplicativos. Se houver um programa comum que o usuário já queira remover, solicitar **uma única desinstalação**. Se não houver, encerrar esta etapa sem instalar programas apenas para criar trabalho.
+2. Conferir o andamento desde a preparação: modo silencioso/interativo explicado na prévia, “Desinstalador trabalhando...” e “Conferindo remoção...”. Operações sem medida real devem usar animação, sem porcentagem inventada. A interface e Cancelar permanecem responsivos; cancelar a espera não promete encerrar o fornecedor.
+3. Somente após remoção confirmada, observar a verificação automática. Havendo resíduos comprovados, a pergunta SIM/NÃO deve identificar os alvos. SIM autoriza a exclusão permanente revalidada; NÃO mantém os resíduos. Em seleção múltipla há uma decisão para a seleção e resultado separado por aplicativo.
+4. Ler o resumo final: removidos, preservados e seus motivos; ausência apenas nos locais verificados; erro de acesso ou cobertura limitada como parcial/inconclusiva. Não deve existir apenas “concluída” escondendo falhas. Ausência de elegíveis dispensa uma pergunta vazia de limpeza.
+5. Não esperar pergunta de reinício quando nenhum fornecedor ou arquivo bloqueado justificar isso. Se houver causa real, o GF explica e pede consentimento; a revisão pós-boot é somente leitura. Não há exclusão automática adicional.
 
-- Começar pela análise somente leitura. Conferir se aplicativos ativos e perfis de fabricantes/jogos continuam preservados.
-- Registrar os casos ambíguos e seus motivos na interface. Não tratar falta de correspondência como autorização para apagar.
-- Para testar remoção, usar aplicativo dispensável instalado para este fim. Confirmar que configurações pessoais e dados compartilhados permanecem preservados.
-- Se ocorrer falha de leitura do Registro, a confirmação de ausência/limpeza deve ser interrompida.
+Modo interativo pode abrir a janela do próprio fabricante. UAC legítimo também pode aparecer. Unlocker sem quiet/motor comprovado não recebe parâmetros improvisados. UAC com outra conta continua recusado no worker de limpeza; permissões não são alteradas para contornar uma negativa.
 
-## 4. Drivers
+## PC FRACO — leitura, layout e bandeja
 
-- Abrir DRIVERS e clicar em Consultar drivers; a abertura do programa não inicia esta consulta.
-- Comparar alguns dispositivos com o Gerenciador de Dispositivos: fornecedor, versão e INF quando disponível.
-- Verificar se valores desconhecidos aparecem como indeterminados. Dispositivo não presente não significa pacote inútil.
-- A tabela mostra associações WMI de dispositivos e drivers, não o inventário completo do Driver Store nem histórico de trocas.
-- A assinatura apresentada é a informação fornecida pelo Windows, não validação nova de um pacote baixado.
-- Não há instalação, remoção ou reversão de drivers nesta versão.
+Em 1440×900 e no DPI habitual, conferir Aplicativos, Inicialização e Windows Update; foco, botões, espaço do cartão e ausência de sobreposição. Não exige nova desinstalação.
 
-## 5. Desempenho e interface
+Ativar/desativar “Iniciar com o Windows” e, se desejado, manter ativado até o próximo login normal. O portátil precisa permanecer na mesma pasta. Ao iniciar com Windows, deve ficar na bandeja; Abrir restaura a janela, Sair encerra. Uma decisão ou um resumo pendente deve aparecer ao reabrir, sem janela inesperada enquanto oculto.
 
-- Registrar tempo aproximado até a lista responder, CPU e RAM pelo Gerenciador de Tarefas após estabilizar, e comportamento na bandeja.
-- Conferir textos, botão Consultar drivers, tabela/rolagem e navegação na resolução e escala DPI reais.
+No PC FORTE, a referência é 2560×1440; no FRACO, 1440×900. Geometria, estados e resoluções/DPI simulados já passam pela CI, mas isso não homologa DPI físico nem antivírus dos PCs.
 
-## O que esses testes desbloqueiam
+## Se houver falha
 
-- Cobertura real do inventário e divergências de atualização (I7, U6, U8).
-- Classificação dos vestígios específicos e preservação após desinstalação (R6, R7).
-- Desempenho, AVG e acabamento nos equipamentos reais (P5, P6, V5).
-- Confiança na coleta de dispositivos/INF antes de ampliar histórico e selecionar fontes de drivers (D2, D4).
+Usar o diagnóstico do próprio GF e indicar versão, PC FORTE/FRACO, modo silencioso/interativo, etapa e mensagem final. Não repetir automaticamente uma operação pendente, apagar resíduos por fora, desligar proteções ou alterar ACLs. Não publicar logs brutos com nomes, caminhos pessoais, serial ou IP na PR pública.
 
-A gestão completa de drivers ainda exige desenvolvimento e testes próprios. Este roteiro não a considera implementada, nem transforma a aprovação deste lote em conclusão de todo o roadmap.
+Os testes de reinstalação durante a limpeza, links, compartilhamento, ACL negada, UAC simulado, atraso do fornecedor, retorno indeterminado e cancelamento são executados em ambiente descartável. Não precisam ser provocados repetidamente nos computadores pessoais. Boot físico e UAC interativo real ainda dependem de homologação posterior. U8/R7/R4 físicos e roadmap 27/42 permanecem abertos.

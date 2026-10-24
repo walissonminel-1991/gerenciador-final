@@ -6,6 +6,18 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../UninstallCommand.cs" Link="UninstallCommand.cs" />
+    <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
+    <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
+    <Compile Include="../SafeTemporaryCleanup.cs" Link="SafeTemporaryCleanup.cs" />
+    <Compile Include="../SafeMaintenanceAudit.cs" Link="SafeMaintenanceAudit.cs" />
+    <Compile Include="../WindowsIntegrityAssessment.cs" Link="WindowsIntegrityAssessment.cs" />
+    <Compile Include="../WindowsMaintenanceProgress.cs" Link="WindowsMaintenanceProgress.cs" />
+    <Compile Include="../SingleVolumeOptimization.cs" Link="SingleVolumeOptimization.cs" />
+    <Compile Include="../PipePeerVerifier.cs" Link="PipePeerVerifier.cs" />
+    <Compile Include="../WindowsSystemTools.cs" Link="WindowsSystemTools.cs" />
+    <Compile Include="../RestorePointService.cs" Link="RestorePointService.cs" />
     <Compile Include="../SecurityCenterHealth.cs" Link="SecurityCenterHealth.cs"/>
   </ItemGroup>
 </Project>
+

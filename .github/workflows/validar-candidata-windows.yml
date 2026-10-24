@@ -1,15 +1,30 @@
 name: Validar candidata Windows
 
 on:
-  pull_request:
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
+    inputs:
+      verificar_fontes_reais:
+        description: 'Consultar fontes HTTPS e drivers do runner (somente leitura)'
+        required: false
+        type: boolean
+        default: false
+      verificar_downloads:
+        description: 'Baixar e validar instaladores oficiais, sem executar/instalar'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: regressao-windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   validar:
+    name: Regressões Windows
     runs-on: windows-2022
     timeout-minutes: 35
     env:
@@ -18,13 +33,32 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: .NET 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
       - name: Compilar aplicacao
         shell: pwsh
         run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
+      - name: Conferir versao dos scripts de distribuicao sem publicar
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content 'GerenciadorAplicativos.csproj' -Raw
+          $expected = [string]$project.Project.PropertyGroup.Version
+          foreach ($script in @('Publicar-Portatil-Windows-x64.bat', 'Criar-Instalador-Windows-x64.bat', 'Verificar-Assinaturas-GF.cmd')) {
+            $actual = & ".\$script" --print-version
+            if ($LASTEXITCODE -ne 0 -or "$actual".Trim() -ne $expected) { throw "Versao incorreta: $script" }
+          }
+      - name: Reproduzir falhas reais WORK12 em alvos sinteticos
+        run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --work12
+      - name: Descoberta automatica e adversarios sem instalar programas
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --automatic
+      - name: Reproduzir casos WORK13 de atualizacao em isolamento
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work13
+      - name: Testes WSC somente leitura
+        run: dotnet run --project TestesSeguranca/TestesSeguranca.csproj -c Release
       - name: Testes motor de comparacao
         run: dotnet run --project TestesMotor/TestesMotor.csproj -c Release
       - name: Testes RuckZuck simulados
@@ -33,15 +67,83 @@ jobs:
         run: dotnet run --project TestesMultifontes/TestesMultifontes.csproj -c Release
       - name: Testes instaladores verificados
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release
+      - name: Controles negativos por mutacao em copias isoladas
+        run: python scripts/test_work6_mutations.py
       - name: Testes drivers e historico
         run: dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release
-      - name: Testes residuos sem exclusao
+      - name: Testes residuos e desinstalacao com alvos sinteticos descartaveis
         run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release
+      - name: Benchmark sintetico de classificacao e navegacao (sem arquivos reais)
+        run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release --no-build --no-restore -- --benchmark
       - name: Testes layout e RAM
         run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release
       - name: Testes inventario MSIX
         run: dotnet run --project TestesMsix/TestesMsix.csproj -c Release
-      - name: Testes WSC somente leitura
-        run: dotnet run --project TestesSeguranca/TestesSeguranca.csproj -c Release
+      - name: Testes privacidade e diagnostico local
+        run: dotnet run --project TestesTelemetria/TestesTelemetria.csproj -c Release
       - name: Testes bloqueio de instaladores e encerramento seguro
         run: dotnet run --project TestesFechamento/TestesFechamento.csproj -c Release
+      - name: Capturas sinteticas da investigacao de residuos
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Residuos-layout-${{ github.sha }}
+          path: LayoutCaptures/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Fontes/drivers de hardware permanecem opt-in. Catalogo autenticado e downloads
+  # oficiais sao obrigatorios em PR, sem executar instaladores.
+  fontes-reais:
+    name: Fontes externas e drivers do runner (somente leitura)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.verificar_fontes_reais }}
+    runs-on: windows-2022
+    timeout-minutes: 15
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: .NET 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Catalogo RuckZuck via HTTPS GET
+        run: dotnet run --project TestesRede/TestesRede.csproj -c Release
+      - name: Fontes oficiais via HTTPS GET
+        run: dotnet run --project TestesMultifontes/TestesMultifontes.csproj -c Release -- --live
+      - name: Drivers do runner sem alteracoes
+        run: dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release -- --live
+
+  downloads-verificados:
+    name: Integridade dos instaladores oficiais (sem instalacao)
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.verificar_downloads) }}
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: .NET 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Catalogo Microsoft autenticado em isolamento (sem WinGet ou instalacao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-catalog --verify-engine-downloads
+      - name: WORK13 hashes identidade e Authenticode (sem execucao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-work13
+      - name: SumatraPDF x86 e x64 (sem execucao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-sumatra
+      - name: 7-Zip EXE x64 verificado por SHA-256 (sem instalacao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-sevenzip
+      - name: GameInput protegido (sem download ou execucao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work6-authorization
+      - name: Windows Terminal MSIX (sem instalacao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-terminal

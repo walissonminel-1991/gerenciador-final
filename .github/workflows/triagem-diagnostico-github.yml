@@ -1,0 +1,29 @@
+name: Validar politica de diagnostico sem arquivos
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: politica-diagnostico-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  politica:
+    name: Política de segurança e privacidade
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Codigo sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Exigir ausencia de envio manual e codigo remoto nao confiavel
+        run: |
+          python3 -B -m unittest discover -s scripts -p 'test_p*.py' -v
+          python3 scripts/verificar_pacote.py . --metadata
+      - name: Simular receptor HTTPS isolado (Node, sem rede externa)
+        run: node --test prototipos/telemetria-worker/test.mjs prototipos/telemetria-worker/staging-receiver.test.mjs
