@@ -94,11 +94,16 @@ internal sealed class UpdateOperationStore(Func<string, bool>? diagnostic = null
         IEnumerable<ProgramEntry> inventory, UpdateOperation operation)
     {
         var snapshot = inventory.ToArray();
-        if (recipe.Identifier is not ("vc2013-x64" or "vc2013-x86") ||
-            operation.Snapshot.Progress.Stage != UpdateStage.Confirmed ||
-            !VerifiedUpdaters.ConfirmInstallation(recipe, original, snapshot)) return false;
-        string marker = recipe.Identifier == "vc2013-x64" ? "(x64)" : "(x86)";
-        var after = snapshot.Single(p => p.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable " + marker, StringComparison.OrdinalIgnoreCase));
+        if(operation.Snapshot.Progress.Stage!=UpdateStage.Confirmed)return false;
+        ProgramEntry? after;
+        if(AutomaticUpdateDiscovery.IsAutomatic(recipe)) after=AutomaticUpdateDiscovery.ConfirmedEntry(recipe,snapshot);
+        else
+        {
+            if(recipe.Identifier is not ("vc2013-x64" or "vc2013-x86") || !VerifiedUpdaters.ConfirmInstallation(recipe,original,snapshot))return false;
+            string marker=recipe.Identifier=="vc2013-x64"?"(x64)":"(x86)";
+            after=snapshot.Single(p=>p.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable "+marker,StringComparison.OrdinalIgnoreCase));
+        }
+        if(after is null)return false;
         string? oldKey = KeyFor(original), newKey = KeyFor(after);
         lock (gate)
         {

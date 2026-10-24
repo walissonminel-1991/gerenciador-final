@@ -98,6 +98,19 @@ if os.name == 'nt':
         'version >= target && BinaryMatches(VcBinary(x64), recipe.Version, x64, exact: false, sameFamily: true)',
         'version >= target',
         'TestesAtualizador', '--work13', 'W13 GUID novo com DLL antiga'))
+mutants.extend([
+    ('auto-copy-authorized','AutomaticUpdateDiscovery.cs',
+     'ReferenceEquals(recipe,permit.Recipe)', 'recipe==permit.Recipe',
+     'TestesAtualizador','--automatic','AUTO copia ou adulteracao'),
+    ('auto-forged-scan-authorized','AutomaticUpdateDiscovery.cs',
+     'if(!IssuedScans.TryGetValue(scan,out var issued) || issued.Expires<=DateTimeOffset.UtcNow)return;',
+     'if(!IssuedScans.TryGetValue(scan,out var issued))issued=new(scan.Plans.ToArray(),DateTimeOffset.UtcNow.AddMinutes(2));',
+     'TestesAtualizador','--automatic','AUTO dados ou catalogo forjado'),
+])
+if os.name == 'nt':
+    mutants.append(('auto-architecture-change-ignored','AutomaticAppInstallation.cs',
+        'VerifiedUpdaters.GetPortableExecutableMachine(Binary)!=(Architecture=="x64"?0x8664:0x14c) ||', '',
+        'TestesAtualizador','--automatic','AUTO arquitetura alterada depois'))
 files = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
 with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     target=pathlib.Path(temporary)
@@ -110,7 +123,7 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     def run(project, argument):
         return subprocess.run([dotnet,'run','--project',project,'-p:EnableWindowsTargeting=true','-p:UseSharedCompilation=false','--',argument],
             cwd=target, text=True, encoding="utf-8", errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=150)
-    for project,argument in [('TestesAtualizador','--work6-flow'),('TestesMultifontes',''),('TestesResiduos','--work6-uninstall-flow'),('TestesAtualizador','--work11'),('TestesAtualizador','--work13')]:
+    for project,argument in [('TestesAtualizador','--work6-flow'),('TestesMultifontes',''),('TestesResiduos','--work6-uninstall-flow'),('TestesAtualizador','--work11'),('TestesAtualizador','--work13'),('TestesAtualizador','--automatic')]:
         baseline=run(project,argument)
         if baseline.returncode: raise RuntimeError('baseline failed: '+baseline.stdout[-2000:])
         print('BASELINE PASS',project,flush=True)

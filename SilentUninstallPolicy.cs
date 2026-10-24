@@ -50,6 +50,9 @@ internal static class SilentUninstallPolicy
         }
         // 7-Zip EXE, arquitetura x64, registro exato, executaveis integros e
         // desinstalador original na pasta padrao: parametro /S do NSIS.
+        if (InstallerEngineEvidence.GenericNsisUninstaller(app,registered) &&
+            UninstallCommand.TryParse("\""+registered.FileName+"\" /S",out var detected))
+        { selected=detected; return true; }
         if (!IsExactSevenZipExe(app) ||
             !UninstallCommand.TryParse(app.UninstallString, out var normal) ||
             normal.ProductCode is not null || normal.Arguments.Length != 0 ||

@@ -74,6 +74,7 @@ internal sealed class ProgramEntry
     public string Name { get; init; } = "";
     public string Version { get; init; } = "";
     public string Publisher { get; init; } = "";
+    public string DisplayIcon { get; init; } = "";
     public string UninstallString { get; init; } = "";
     public string QuietUninstallString { get; init; } = "";
     public string InstallLocation { get; init; } = "";
@@ -334,6 +335,7 @@ internal static class AppServices
                             MsiProductCode = InventoryReconciler.ProductCodeFromRegistryKey(registryKey) ?? "",
                             UninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("UninstallString")) ?? "",
+                            DisplayIcon = Convert.ToString(child.GetValue("DisplayIcon")) ?? "",
                             QuietUninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
                             InstallLocation = protectedApp && !includeHidden ? "" :
@@ -2177,7 +2179,7 @@ internal sealed partial class MainForm : Form
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
         var watch = Stopwatch.StartNew();
         _consultaCatalogoCts = cancellation;
-        int totalSources = Math.Max(1, OfficialReleaseSources.ApplicableSourceCount(installed) + 1);
+        int totalSources = Math.Max(1, OfficialReleaseSources.ApplicableSourceCount(installed) + 2);
         if (!_busy)
         {
             // Consulta somente leitura: duração incerta, indicar atividade sem inventar percentual.
@@ -2231,20 +2233,30 @@ internal sealed partial class MainForm : Form
                 }
                 finally { ((IProgress<ProviderDiagnostic>)sourceProgress).Report(new("ruckzuck", "concluida", timer.ElapsedMilliseconds)); }
             }
+            async Task<AutomaticDiscoveryResult> ReadAutomaticAsync()
+            {
+                var discovered=await AutomaticUpdateDiscovery.QueryAsync(snapshot,installed,cancellation.Token);
+                ((IProgress<ProviderDiagnostic>)sourceProgress).Report(discovered.Diagnostic);
+                return discovered;
+            }
+            var autoTask=ReadAutomaticAsync();
             var ruckTask = ReadRuckZuckAsync();
             var officialTask = official.QueryAsync(installed, cancellation.Token, forceRefresh, sourceProgress);
-            await Task.WhenAll(ruckTask, officialTask);
+            await Task.WhenAll(ruckTask, officialTask, autoTask);
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
             var rz = await ruckTask;
             var others = await officialTask;
+            var automatic = await autoTask;
             var freshMerged = await Task.Run(
-                () => MultiSourceMatcher.Merge(installed, rz.Matches, others.Findings), cancellation.Token);
+                () => MultiSourceMatcher.Merge(installed, rz.Matches, others.Findings.Concat(automatic.Findings).ToArray()), cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
-            bool partial = rz.Matches is null || others.Diagnostics.Any(x => x.Status != "ok");
+            bool partial = rz.Matches is null || others.Diagnostics.Any(x => x.Status != "ok") || automatic.Diagnostic.Status!="ok";
             var merged = _updateHistory.Apply(installed, freshMerged, partial);
             AplicarCandidatos(merged);
+            AutomaticUpdateDiscovery.Attach(automatic);
+            Log("Descoberta automática: "+automatic.Findings.Count+" instalador(es) identificado(s); catálogo "+automatic.Diagnostic.Status+".");
             foreach (var (sourceId, sourceCode) in new[] { ("ea-desktop", 1), ("fancontrol", 2),
                 ("jellyfin-server", 3), ("klite-mega", 4), ("gameinput-winget", 5), ("plex", 6),
                 ("proton-pass-desktop", 7), ("proton-pass-winget", 8), ("proton-pass-windows", 9) })
@@ -2288,7 +2300,7 @@ internal sealed partial class MainForm : Form
                 $"fontes_consultadas={others.Diagnostics.Count} fontes_ok={others.Diagnostics.Count(x => x.Status == "ok")} " +
                 $"incertos={uncertain} ruckzuck_entradas={rz.Count} " +
                 $"ruckzuck_ms={rz.NetworkMs} comparacao_ms={rz.CompareMs} total_ms={watch.ElapsedMilliseconds}");
-            Log("Instalação automática permanece limitada a instaladores oficiais com receitas verificadas.");
+            Log("Execução direta exige receita verificada ou descoberta autenticada, com conferência do arquivo e da instalação.");
             int sourceFailures = others.Diagnostics.Count(x => x.Status != "ok") + (rz.Matches is null ? 1 : 0);
             int conflicts = merged.Count(m => m.HasSourceConflict);
             int requiringReview = merged.Count(m => m.State == MatchState.Candidate && m.RequiresReview);
@@ -2598,7 +2610,7 @@ internal sealed partial class MainForm : Form
         {
             await LoadInstalledAsync();
             if (IsDisposed || Disposing) return;
-            if (operation.Snapshot.Progress.Stage == UpdateStage.Confirmed && operation.Snapshot.Target == "12.0.40664.0" &&
+            if (operation.Snapshot.Progress.Stage == UpdateStage.Confirmed &&
                 operationOrigins.TryGetValue(operation.Snapshot.Id, out var origin) && VerifiedUpdaters.Resolve(origin) is { } proven)
                 _updateOperations.BindConfirmedInstallation(proven, origin, _installed, operation);
             await LoadUpdatesAsync();
@@ -2825,6 +2837,14 @@ internal sealed partial class MainForm : Form
                     }
                 }
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.ARQUIVO_VALIDADO receita=" + recipe.Identifier);
+                if (AutomaticUpdateDiscovery.IsAutomatic(recipe))
+                {
+                    operation.Report(new(UpdateStage.Revalidating));
+                    bool ready=await AutomaticProcessPreflight.ReadyAsync(AutomaticUpdateDiscovery.Binary(recipe),
+                        question=>DarkConfirmDialog.Confirm(this,question,"Fechar aplicativo para atualizar")==DialogResult.Yes,
+                        message=>{Status(message);Log(message);});
+                    if(!ready){operation.Finish(UpdateStage.Blocked,reason:"Aplicativo aberto ou fechamento não autorizado.");return;}
+                }
                 // Fluxo compartilhado por instaladores que substituem arquivos em uso.
                 // Restart Manager identifica processos pelos ARQUIVOS bloqueados,
                 // nunca pelo simples fato de um navegador estar aberto.

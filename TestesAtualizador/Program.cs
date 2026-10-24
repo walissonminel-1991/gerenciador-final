@@ -3,17 +3,47 @@ if (args.Contains("--work11-installer-fixture")) return;
 if (args.Contains("--work13-slow-fixture")) { await Task.Delay(1000); return; }
 if (args.Contains("--verify-catalog"))
 {
-    using var token = new CancellationTokenSource(TimeSpan.FromSeconds(75));
+    using var token = new CancellationTokenSource(TimeSpan.FromMinutes(4));
     using var catalog = await PackageCatalogIndex.DownloadAsync(token.Token);
     foreach (var item in new[] { ("OBS Studio", "OBS Project"), ("VLC media player", "VideoLAN"), ("ShareX", "ShareX Team"), ("SumatraPDF", "Krzysztof Kowalczyk") })
     {
         var rows = catalog.Find(item.Item1, item.Item2, "", token.Token);
         if (rows.Count != 1) throw new Exception("Catalogo nao identifica fixture publica " + item.Item1);
         var bytes = await PackageCatalogIndex.ReadManifestAsync(rows[0], token.Token);
+        if(item.Item1!="SumatraPDF")
+        {
+            string kind=item.Item1=="ShareX"?"inno":"nullsoft";
+            var parsed=AutomaticPackageManifest.Select(bytes,rows[0],"x64","machine",kind);
+            if(parsed is null)throw new Exception("Manifesto publico sem contrato esperado "+rows[0].Id);
+            Console.WriteLine("MANIFESTO.AUTOMATICO "+parsed.PackageId+" "+parsed.Version+" "+parsed.Type+" "+parsed.Arguments);
+            if(args.Contains("--verify-engine-downloads") && item.Item1 is "VLC media player" or "ShareX")
+            {
+                string temp=Path.Combine(Path.GetTempPath(),"GF-Engine-Proof-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(temp);
+                try
+                {
+                    using var client=new HttpClient(AutomaticUpdateDiscovery.DownloadHandler());Uri uri=parsed.Download;
+                    for(int redirects=0;redirects<8;redirects++)
+                    {
+                        if(!AutomaticPackageManifest.IsPublicHttps(uri))throw new Exception("Redirect nao autorizado");
+                        using var response=await client.GetAsync(uri,HttpCompletionOption.ResponseHeadersRead,token.Token);
+                        if((int)response.StatusCode is >=300 and <400){uri=new Uri(uri,response.Headers.Location??throw new Exception("Redirect vazio"));continue;}
+                        string file=Path.Combine(temp,"payload.exe");
+                        await using(var output=new FileStream(file,FileMode.CreateNew,FileAccess.Write,FileShare.None))
+                            await UpdateDownloadTransfer.CopyAsync(response,output,50000,260L*1024*1024,token.Token);
+                        using(var held=InstallerFileGuard.OpenRead(file,allowDirectoryWrites:true))await InstallerFileGuard.RequireDigestAsync(held,parsed.Sha256,token.Token);
+                        if(!TrustedFileSignature.TryGetSigner(file,out var signer,out _) || InstallerEngineEvidence.Detect(file)!=parsed.Type)
+                            throw new Exception("Assinatura ou motor real nao correspondem ao manifesto");
+                        Console.WriteLine("ENGINE.REAL_VALIDADO "+parsed.PackageId+" "+parsed.Type+" signer="+signer);break;
+                    }
+                }
+                finally{Directory.Delete(temp,true);}
+            }
+        }
         Console.WriteLine("CATALOGO.AUTENTICADO " + rows[0].Id + " bytes=" + bytes.Length);
     }
     return;
 }
+if(args.Contains("--automatic")){AutomaticDiscoveryTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
 int checkedCount = 0;
 void Verify(bool condition, string label)
 {
@@ -465,6 +495,7 @@ try
 }
 finally { Directory.Delete(isolated, true); }
 
+AutomaticDiscoveryTests.Run(Verify);
 await Work13UpdateTests.RunAsync(Verify);
 await Work9UpdateTests.RunAsync(Verify);
 await Work11ProgressTests.RunAsync(Verify);
@@ -490,8 +521,11 @@ namespace GerenciadorAplicativos
         public bool UpdateRequiresReview { get; init; }
         public bool InventoryOnly { get; init; }
         public string InstallLocation { get; set; } = "";
+        public string DisplayIcon { get; init; } = "";
         public string UninstallString { get; init; } = "";
         public string MsiProductCode { get; init; } = "";
     }
 }
 
+
+namespace GerenciadorAplicativos { internal sealed record OfficialRelease(InstalledApp Installed,string LatestVersion,string Provider,string OfficialPage,string SourceId="",string CanonicalId="",DateTimeOffset ObservedAt=default,string Architecture="unknown",string Channel="unknown",string Scope="unknown",string InstallType="unknown",string EvidenceKind="published-version"); internal sealed record ProviderDiagnostic(string Provider,string Status,long Milliseconds,bool UsedMemoryCache=false); }

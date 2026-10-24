@@ -11,6 +11,10 @@ internal static class Work11ProgressLayoutTests
     {InventoryId=id,Name=name,Version=version,Publisher="GF Tests",InstallLocation=@"C:\GF-Synthetic"};
     internal static void Run()
     {
+        Require(typeof(AutomaticAppInstallation).GetField("SyntheticBaseRoot",BindingFlags.Static|BindingFlags.NonPublic) is null,
+            "produto nao permite redirecionar raizes de instalacao para fixtures");
+        Require(typeof(AutomaticUpdateDiscovery).GetMethod("SimulateIssued",BindingFlags.Static|BindingFlags.NonPublic) is null,
+            "produto nao contem emissao sintetica de autorizacao automatica");
         Require(typeof(UpdateInstallationContract).GetField("SyntheticRoot", BindingFlags.Static|BindingFlags.NonPublic) is null,
             "produto distribuido nao contem redirecionamento sintetico dos testes WORK13");
         using var form=new MainForm(startServices:false);

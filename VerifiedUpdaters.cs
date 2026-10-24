@@ -30,6 +30,13 @@ internal static class VerifiedUpdaters
     internal static void ValidateInstallerDirectory(VerifiedUpdateRecipe recipe, string file)
     {
         string folder = Path.GetDirectoryName(file)!;
+        if (AutomaticUpdateDiscovery.IsAutomatic(recipe))
+        {
+            string expected=recipe.Identifier+AutomaticUpdateDiscovery.Extension(recipe);
+            if(Directory.EnumerateFileSystemEntries(folder).Any(p=>Path.GetFileName(p)!=expected || (File.GetAttributes(p)&(FileAttributes.Directory|FileAttributes.ReparsePoint))!=0))
+                throw new InvalidDataException("Pasta do pacote automatico alterada.");
+            return;
+        }
         string[] allowed = recipe.Identifier == "gameinput-x64-3.5.283"
             ? new[] { recipe.Identifier + ".nupkg", recipe.Identifier + ".msi" }
             : new[] { recipe.Identifier + ".exe" };
@@ -56,6 +63,7 @@ internal static class VerifiedUpdaters
     // A receita completa precisa ser uma das constantes locais, nao apenas ter ID conhecido.
     internal static bool IsApprovedRecipe(VerifiedUpdateRecipe recipe)
     {
+        if (AutomaticUpdateDiscovery.IsAutomatic(recipe)) return AutomaticUpdateDiscovery.IsApproved(recipe);
         VerifiedUpdateRecipe? approved = recipe.Identifier switch
         {
             "vc2013-x64" or "vc2013-x86" => new(recipe.Identifier, "Microsoft Visual C++ 2013",
@@ -89,7 +97,7 @@ internal static class VerifiedUpdaters
         try
         {
             await InstallerFileGuard.RequireDigestAsync(locked, receipt.Digest);
-            if (!IsPinnedUnsignedSevenZip(recipe) &&
+            if (!AutomaticUpdateDiscovery.IsAutomatic(recipe) && !IsPinnedUnsignedSevenZip(recipe) &&
                 !VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
                 throw new UpdateSignatureException("Assinatura alterada antes da execucao (" + issue + ").");
             ValidatePayloadIdentity(recipe, path);
@@ -215,7 +223,9 @@ internal static class VerifiedUpdaters
         return null;
     }
 
-    internal static VerifiedUpdateRecipe? Resolve(ProgramEntry entry)
+    internal static VerifiedUpdateRecipe? Resolve(ProgramEntry entry) => AutomaticUpdateDiscovery.Resolve(entry) ?? ResolveReviewed(entry);
+
+    internal static VerifiedUpdateRecipe? ResolveReviewed(ProgramEntry entry)
     {
         if (entry.InventoryOnly || ProtectedApplications.IsProtectedName(entry.Name) || entry.UpdateRequiresReview || !entry.IsUpdate || string.IsNullOrWhiteSpace(entry.AvailableVersion)) return null;
 
@@ -337,6 +347,7 @@ internal static class VerifiedUpdaters
     {
         if (!IsApprovedRecipe(recipe) || chosen.InventoryOnly || ProtectedApplications.IsProtectedName(chosen.Name)) return false;
         var items = inventory.ToArray();
+        if (AutomaticUpdateDiscovery.IsAutomatic(recipe)) return AutomaticUpdateDiscovery.Safe(recipe,chosen,items);
         if (UpdateInstallationContract.For(recipe.Identifier) is not null)
             return UpdateInstallationContract.IsSafe(recipe, chosen, items);
         if (recipe.Identifier is "vc2013-x64" or "vc2013-x86")
@@ -517,6 +528,7 @@ internal static class VerifiedUpdaters
     internal static bool ConfirmInstallation(VerifiedUpdateRecipe recipe, ProgramEntry original,
         IEnumerable<ProgramEntry> current)
     {
+        if (AutomaticUpdateDiscovery.IsAutomatic(recipe)) return AutomaticUpdateDiscovery.IsApproved(recipe) && AutomaticUpdateDiscovery.Confirm(recipe,current);
         // Confirma a instalacao escolhida, nao outra copia do mesmo produto.
         // Se o instalador trocar a identidade, manter resultado indeterminado.
         if (!IsApprovedRecipe(recipe) || original.InventoryOnly ||
@@ -607,6 +619,7 @@ internal static class VerifiedUpdaters
 
     private static bool IsAllowedRemoteUri(Uri uri, string id)
     {
+        if (id.StartsWith("auto-",StringComparison.Ordinal)) return AutomaticUpdateDiscovery.AllowedUri(uri);
         if (uri.Scheme != Uri.UriSchemeHttps || !uri.IsAbsoluteUri || !string.IsNullOrEmpty(uri.UserInfo) || uri.Port != 443)
             return false;
         string host = uri.Host.ToLowerInvariant();
@@ -654,8 +667,9 @@ internal static class VerifiedUpdaters
         Directory.CreateDirectory(directory);
         using var directoryLock = InstallerFileGuard.PinDirectory(directory, allowLeafWrites: true);
         bool gameInput = recipe.Identifier == "gameinput-x64-3.5.283";
-        string path = Path.Combine(directory, recipe.Identifier + (gameInput ? ".nupkg" : ".exe"));
-        using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
+        string path = Path.Combine(directory, recipe.Identifier + (gameInput ? ".nupkg" : AutomaticUpdateDiscovery.IsAutomatic(recipe)?AutomaticUpdateDiscovery.Extension(recipe):".exe"));
+        using HttpMessageHandler handler = AutomaticUpdateDiscovery.IsAutomatic(recipe) ? AutomaticUpdateDiscovery.DownloadHandler() :
+            new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(8) };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("GerenciadorFinal/5.12.18.1");
         Uri target = recipe.Download;
@@ -716,7 +730,7 @@ internal static class VerifiedUpdaters
                 }
             }
             if (!IsPinnedUnsignedSevenZip(recipe)) progress?.Invoke(new(UpdateStage.ValidatingSignature));
-            if (!IsPinnedUnsignedSevenZip(recipe) &&
+            if (!AutomaticUpdateDiscovery.IsAutomatic(recipe) && !IsPinnedUnsignedSevenZip(recipe) &&
                 !VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
                 throw new UpdateSignatureException("Assinatura Authenticode inválida ou editor não esperado (" + issue + ").");
             progress?.Invoke(new(UpdateStage.ValidatingIdentity));
@@ -739,6 +753,7 @@ internal static class VerifiedUpdaters
     internal static void ValidatePayloadIdentity(VerifiedUpdateRecipe recipe, string path)
     {
         if (!IsApprovedRecipe(recipe)) throw new InvalidDataException("Receita nao autorizada.");
+        if (AutomaticUpdateDiscovery.IsAutomatic(recipe)) { AutomaticUpdateDiscovery.VerifyFile(recipe,path); return; }
         using var held = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
         if (GetPortableExecutableMachine(path) is not (0x14c or 0x8664))
             throw new InvalidDataException("Arquitetura do pacote nao pertence a receita.");
@@ -767,6 +782,7 @@ internal static class VerifiedUpdaters
     };
     internal static void RequireProcessesClosed(VerifiedUpdateRecipe recipe)
     {
+        if (AutomaticUpdateDiscovery.IsAutomatic(recipe)) { AutomaticUpdateDiscovery.RequireClosed(recipe); return; }
         foreach (string name in ProcessNames(recipe))
         {
             var found = Process.GetProcessesByName(name);
@@ -801,7 +817,8 @@ internal static class VerifiedUpdaters
         {
         ValidateInstallerDirectory(recipe, verifiedFile);
         RequireProcessesClosed(recipe);
-        bool isMsi = recipe.Identifier == "gameinput-x64-3.5.283";
+        bool automatic=AutomaticUpdateDiscovery.IsAutomatic(recipe);
+        bool isMsi = recipe.Identifier == "gameinput-x64-3.5.283" || automatic && AutomaticUpdateDiscovery.Msi(recipe);
         if (isMsi && !verifiedFile.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Instalador GameInput não é um MSI verificado.");
         report(recipe.Interactive
@@ -811,18 +828,22 @@ internal static class VerifiedUpdaters
         SessionLocks.Retain(verifiedLock);
         retained = true;
         ProtectedFolders[Path.GetDirectoryName(Path.GetFullPath(verifiedFile))!] = 0;
-        using var process = Process.Start(new ProcessStartInfo
+        if(automatic)AutomaticUpdateDiscovery.Reserve(recipe);
+        Process? process;
+        try { process = Process.Start(new ProcessStartInfo
         {
             // Caminho System32 absoluto: nenhum executável homônimo vindo do pacote ou PATH.
             FileName = isMsi
                 ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "msiexec.exe")
                 : verifiedFile,
             Arguments = isMsi ? $"/i \"{verifiedFile}\" {recipe.Arguments}" : recipe.Arguments,
-            UseShellExecute = true, Verb = "runas",
+            UseShellExecute = true, Verb = !automatic || AutomaticUpdateDiscovery.Machine(recipe) ? "runas" : "",
             WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System)
-        }) ?? throw new InvalidOperationException("Instalador não foi iniciado.");
-        started?.Invoke();
-        return await WaitForInstallerExitAsync(process, TimeSpan.FromMinutes(15), token);
+        }); }
+        catch (Win32Exception ex) when(ex.NativeErrorCode==1223)
+        {if(automatic)AutomaticUpdateDiscovery.ReleaseBeforeStart(recipe);throw;}
+        if(process is null){started?.Invoke();throw new TimeoutException("O Windows recebeu a solicitacao, mas nao forneceu um processo para acompanhar.");}
+        using(process) { started?.Invoke(); return await WaitForInstallerExitAsync(process, TimeSpan.FromMinutes(15), token); }
         }
         finally { if (!retained) verifiedLock.Dispose(); }
     }

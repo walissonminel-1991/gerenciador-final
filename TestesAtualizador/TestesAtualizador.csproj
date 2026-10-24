@@ -13,6 +13,10 @@
     <Compile Include="../UpdateOperationProgress.cs" Link="UpdateOperationProgress.cs" />
     <Compile Include="../UpdateLaunchGate.cs" Link="UpdateLaunchGate.cs" />
     <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
+    <Compile Include="../MsiPackageEvidence.cs" Link="MsiPackageEvidence.cs" />
+    <Compile Include="../AutomaticUpdateDiscovery.cs" Link="AutomaticUpdateDiscovery.cs" />
+    <Compile Include="../AutomaticAppInstallation.cs" Link="AutomaticAppInstallation.cs" />
+    <Compile Include="../AutomaticPackageManifest.cs" Link="AutomaticPackageManifest.cs" />
     <Compile Include="../PackageCatalogIndex.cs" Link="PackageCatalogIndex.cs" />
     <Compile Include="../TrustedFileSignature.cs" Link="TrustedFileSignature.cs" />
     <Compile Include="../InstallerEngineEvidence.cs" Link="InstallerEngineEvidence.cs" />
@@ -27,4 +31,5 @@
     <Compile Include="../Matching.cs" Link="Matching.cs" />
     <Compile Include="../RuckZuckModels.cs" Link="RuckZuckModels.cs" />
   </ItemGroup>
+  <ItemGroup><PackageReference Include="YamlDotNet" Version="18.1.0" /></ItemGroup>
 </Project>

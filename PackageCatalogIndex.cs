@@ -21,9 +21,16 @@ internal sealed class PackageCatalogIndex : IDisposable
     private PackageCatalogIndex(string folder, FileStream pinned, string digest)
     {
         this.folder = folder; this.pinned = pinned; Digest = digest;
+        try
+        {
         if (sqlite3_open_v2(Path.Combine(folder, "index.db"), out database, 1, IntPtr.Zero) != 0) throw new InvalidDataException("Indice SQLite indisponivel.");
         if (Rows("SELECT value FROM metadata WHERE name='majorVersion'", [], 2).SingleOrDefault()?.SingleOrDefault() != "1")
             throw new InvalidDataException("Formato de catalogo nao homologado.");
+        var written=Rows("SELECT value FROM metadata WHERE name='lastwritetime'",[],2).SingleOrDefault()?.SingleOrDefault();
+        if(!long.TryParse(written,out long seconds) || DateTimeOffset.FromUnixTimeSeconds(seconds)<DateTimeOffset.UtcNow.AddDays(-7) ||
+            DateTimeOffset.FromUnixTimeSeconds(seconds)>DateTimeOffset.UtcNow.AddDays(1))throw new InvalidDataException("Catalogo fora da validade.");
+        }
+        catch{if(database!=IntPtr.Zero){sqlite3_close(database);database=IntPtr.Zero;}throw;}
     }
     internal static async Task<PackageCatalogIndex> DownloadAsync(CancellationToken token)
     {

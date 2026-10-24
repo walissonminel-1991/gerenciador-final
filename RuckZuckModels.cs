@@ -22,6 +22,7 @@ internal sealed record UpdateMatch(InstalledApp Installed, CatalogEntry? Catalog
     public string EvidenceDetails => (IsStale ? "Consulta atual incompleta: preservado último resultado completo desta sessão, por até 30 minutos; instalação direta bloqueada.\n" : "") + string.Join("\n", Observations.Select(o =>
         o.Provider + ": " + o.Version + " · " + (o.EvidenceKind switch
         {
+            "authenticated-installer-manifest" => "instalador identificado em catálogo autenticado; conferir assinatura e instalação ao iniciar",
             "windows-stable-feed" => "versão oferecida para Windows x64; assinatura não verificada",
             "community-index" => "versão no catálogo comunitário",
             "desktop-changelog" => "versão anunciada no changelog desktop",

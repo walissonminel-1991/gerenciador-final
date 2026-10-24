@@ -1,0 +1,112 @@
+using System.Net;
+using System.Text;
+using GerenciadorAplicativos;
+
+internal static class AutomaticDiscoveryTests
+{
+    private static readonly CatalogManifestReference Reference=new("Synthetic.Editor","GF Synthetic App","2.0.0","manifests/s/Synthetic/Editor/2.0.0/hash",new string('A',64));
+    internal static string Manifest(string type="nullsoft",string scope="machine",string arch="x64",string extra="")=>
+        "PackageIdentifier: Synthetic.Editor\nPackageVersion: 2.0.0\nPackageName: GF Synthetic App\nPublisher: GF Test Vendor\nManifestType: merged\nManifestVersion: 1.10.0\n"+
+        "Installers:\n- InstallerType: "+type+"\n  Architecture: "+arch+"\n  Scope: "+scope+"\n  InstallerUrl: https://vendor.example/releases/setup.exe\n  InstallerSha256: "+new string('A',64)+"\n"+extra;
+    internal static AutomaticInstaller? Select(string text,string kind="nullsoft")=>AutomaticPackageManifest.Select(Encoding.UTF8.GetBytes(text),Reference,"x64","machine",kind);
+    internal static void Run(Action<bool,string> check)
+    {
+        var installer=Select(Manifest())!;
+        check(installer is {Type:"nullsoft",Arguments:"/S"},"AUTO pacote desconhecido gera instrucao NSIS sem regra de aplicativo ou versao no codigo");
+        check(Select(Manifest("inno"),"inno") is {Arguments:var flags} && flags.Contains("/NOCLOSEAPPLICATIONS") && flags.Contains("/NORESTART"),"AUTO Inno silencioso preserva fechamento e reinicio sob controle");
+        check(Select(Manifest("msi",extra:"  ProductCode: '{00000000-0000-0000-0000-000000000059}'\n"),"msi") is {Arguments:"/qn /norestart"},"AUTO MSI exige ProductCode e parametros locais conhecidos");
+        foreach(var text in new[]{Manifest(arch:"x86"),Manifest(arch:"arm64"),Manifest(scope:"user"),Manifest(type:"zip"),Manifest(type:"exe"),Manifest(type:"msix")})
+            check(Select(text) is null,"AUTO arquitetura escopo ou motor diferente nao autoriza");
+        foreach(string bad in new[]{"  Dependencies:\n    PackageDependencies:\n    - PackageIdentifier: Unsafe.Dependency\n","  UpgradeBehavior: uninstallPrevious\n",
+            "  InstallerSwitches:\n    Custom: powershell.exe -Command arbitrary\n","  InstallerSwitches:\n    Silent: /S /DELETE\n",
+            "  AppsAndFeaturesEntries:\n  - ProductCode: First\n  - ProductCode: Second\n"})
+            check(Select(Manifest(extra:bad)) is null,"AUTO declaracao adicional insegura ou ambigua exige revisao");
+        foreach(string url in new[]{"http://vendor.example/a","https://localhost/a","https://127.0.0.1/a","https://[::1]/a","https://user:password@vendor.example/a","https://vendor.example:444/a","https://device.local/a"})
+            check(Select(Manifest().Replace("https://vendor.example/releases/setup.exe",url)) is null,"AUTO endereco nao autorizado recusado: "+url);
+        foreach(string ip in new[]{"127.0.0.1","10.0.0.1","172.16.0.1","192.168.1.1","169.254.1.1","100.64.0.1","::1","fe80::1","fc00::1","::ffff:127.0.0.1"})
+            check(!AutomaticUpdateDiscovery.PublicAddress(IPAddress.Parse(ip)),"AUTO DNS privado nao permite conexao: "+ip);
+        check(AutomaticUpdateDiscovery.PublicAddress(IPAddress.Parse("1.1.1.1")),"AUTO endereco publico tem controle positivo");
+        foreach(string text in new[]{Manifest().Replace("Synthetic.Editor","Another.Product"),Manifest().Replace("PackageVersion: 2.0.0","PackageVersion: 3.0.0"),
+            "x: &shared value\ny: *shared\n"+Manifest(),Manifest()+"---\nfoo: bar\n",Manifest()+"PackageIdentifier: Duplicate\n"})
+        {
+            bool denied=false;try{Select(text);}catch(Exception ex)when(ex is InvalidDataException or YamlDotNet.Core.YamlException or ArgumentException){denied=true;}
+            check(denied,"AUTO YAML identidade trocada aliases documentos e duplicatas rejeitados");
+        }
+        foreach(string name in new[]{"Microsoft GameInput","Contoso Server","Microsoft Visual C++ Redistributable","Windows Core","Device Driver","Runtime Shared"})
+            check(!AutomaticAppInstallation.Eligible(new(){Name=name,Publisher="GF",InventoryId="LocalMachine|Registry64|Synthetic"}),"AUTO dependencia ou pacote protegido nao entra na descoberta: "+name);
+        var app=new ProgramEntry{Name="GF Synthetic App",Publisher="GF Test Vendor",Version="1.0.0",AvailableVersion="2.0.0",IsUpdate=true,
+            InventoryId="LocalMachine|Registry64|GF-Synthetic",InstallLocation=@"C:\GF-Synthetic",UninstallString="\"C:\\GF-Synthetic\\uninstall.exe\""};
+        var installation=new AutomaticAppInstallation(AutomaticAppInstallation.Binding(app),app.Name,app.Publisher,app.Version,"machine","x64",app.InstallLocation,
+            @"C:\GF-Synthetic\app.exe",@"C:\GF-Synthetic\uninstall.exe","nullsoft","");
+        AutomaticUpdateDiscovery.Attach(new([],[(app,installation,installer)],new("forged","ok",0)));
+        check(AutomaticUpdateDiscovery.Resolve(app) is null,"AUTO dados ou catalogo forjado nao emitem permissao de execucao");
+        var issued=AutomaticUpdateDiscovery.SimulateIssued(app,installation,installer);
+        AutomaticUpdateDiscovery.Attach(issued);var recipe=AutomaticUpdateDiscovery.Resolve(app)!;
+        check(recipe is not null && VerifiedUpdaters.IsApprovedRecipe(recipe),"AUTO autoridade emitida pela consulta vincula receita a instalacao e alvo");
+        foreach(var changed in new[]{recipe! with{},recipe! with{Arguments="/DELETE"},recipe! with{Download=new Uri("https://evil.example/setup.exe")},recipe! with{Sha256=new string('0',64)}})
+            check(!VerifiedUpdaters.IsApprovedRecipe(changed),"AUTO copia ou adulteracao de receita nao transfere autoridade");
+        check(AutomaticUpdateDiscovery.Safe(recipe!,app,[])==false,"AUTO inventario posterior ausente nao autoriza instalacao");
+        AutomaticUpdateDiscovery.Reserve(recipe!);
+        bool duplicate=false;try{AutomaticUpdateDiscovery.Reserve(recipe!);}catch(InvalidOperationException){duplicate=true;}
+        check(duplicate && AutomaticUpdateDiscovery.Resolve(app) is null,"AUTO intencao ja enviada nao pode executar de novo mesmo com nova consulta");
+        AutomaticUpdateDiscovery.ReleaseBeforeStart(recipe!);
+        check(AutomaticUpdateDiscovery.Resolve(app) is not null,"AUTO UAC recusado antes de iniciar pode liberar preparacao posterior");
+        string oldCode="{00000000-0000-0000-0000-000000000001}",newCode="{00000000-0000-0000-0000-000000000002}",upgradeCode="{00000000-0000-0000-0000-000000000003}";
+        var oldMsi=new MsiPackageEvidence.Metadata(app.Name,app.Publisher,app.Version,oldCode,upgradeCode,"x64",false,"machine");
+        var newMsi=oldMsi with{Version=installer.Version,ProductCode=newCode};
+        var msiPlan=installer with{Type="msi",ProductCode=newCode,UpgradeCode=upgradeCode};
+        var msiApp=installation with{Kind="msi",ProductCode=oldCode};
+        MsiPackageEvidence.Validate(oldMsi,newMsi,msiPlan,msiApp);
+        check(true,"AUTO MSI familia de produto confirmada com ProductCode migrado");
+        foreach(var changed in new[]{newMsi with{Scope="user"},newMsi with{Architecture="x86"},newMsi with{Services=true},
+            newMsi with{UpgradeCode=newCode},newMsi with{ProductCode=oldCode},newMsi with{Name="Another"},newMsi with{Publisher="Other"},newMsi with{Version="1.0.0"}})
+        {
+            bool denied=false;try{MsiPackageEvidence.Validate(oldMsi,changed,msiPlan,msiApp);}catch(InvalidDataException){denied=true;}
+            check(denied,"AUTO MSI adulterado compartilhado ou divergente e recusado");
+        }
+        if(OperatingSystem.IsWindows())NativeFiles(check);
+        var header=new byte[64];byte[] marker=[0xef,0xbe,0xad,0xde,0x4e,0x75,0x6c,0x6c,0x73,0x6f,0x66,0x74,0x49,0x6e,0x73,0x74];marker.CopyTo(header,4);
+        BitConverter.GetBytes(100u).CopyTo(header,20);BitConverter.GetBytes(200u).CopyTo(header,24);
+        check(InstallerEngineEvidence.HasNsisHeader(header,1000),"AUTO estrutura NSIS valida reconhecida em bytes sinteticos");
+        header[0]=0xff;check(!InstallerEngineEvidence.HasNsisHeader(header,1000),"AUTO string NSIS com estrutura falsa rejeitada");
+        check(!InstallerEngineEvidence.HasInnoHeader("Inno Setup Setup Data (6.4.3)"u8) && InstallerEngineEvidence.HasInnoHeader("rDlPtS02 Inno Setup Setup Data (6.4.3)"u8),"AUTO Inno exige marcadores independentes");
+    }
+    private static void NativeFiles(Action<bool,string> check)
+    {
+        string root=Path.Combine(Path.GetTempPath(),"GF-Auto-Synthetic-"+Guid.NewGuid().ToString("N")),install=Path.Combine(root,"Application");
+        Directory.CreateDirectory(install);AutomaticAppInstallation.SyntheticBaseRoot=root;
+        try
+        {
+            string msi=Path.Combine(root,"synthetic.msi");MsiPackageEvidence.CreateSynthetic(msi);
+            var metadata=MsiPackageEvidence.Read(msi);
+            check(metadata is {Name:"GF Synthetic MSI",Version:"2.0.0",Scope:"machine",Architecture:"x64",Services:false},"AUTO APIs MSI leem pacote sintetico real sem instalar");
+            string binary=Path.Combine(install,"program.exe"),uninstall=Path.Combine(install,"uninstall.exe");
+            byte[] data=File.ReadAllBytes(typeof(AutomaticDiscoveryTests).Assembly.Location);
+            int pe=BitConverter.ToInt32(data,60);ushort characteristics=BitConverter.ToUInt16(data,pe+22);
+            BitConverter.GetBytes((ushort)((characteristics|2)&~0x2000)).CopyTo(data,pe+22);
+            File.WriteAllBytes(binary,data);
+            using(var stream=new FileStream(uninstall,FileMode.CreateNew,FileAccess.Write))
+            {
+                stream.Write(data);byte[] header=new byte[512];
+                byte[] marker=[0xef,0xbe,0xad,0xde,0x4e,0x75,0x6c,0x6c,0x73,0x6f,0x66,0x74,0x49,0x6e,0x73,0x74];marker.CopyTo(header,4);
+                BitConverter.GetBytes(100u).CopyTo(header,20);BitConverter.GetBytes(200u).CopyTo(header,24);stream.Write(header);
+            }
+            var app=new ProgramEntry{Name="TestesAtualizador",Publisher="GF Tests",Version="12.0.40664.0",InventoryId="LocalMachine|Registry64|Synthetic",
+                InstallLocation=install,UninstallString="\""+uninstall+"\"",DisplayIcon=binary};
+            var snapshot=AutomaticAppInstallation.Read(app);
+            check(snapshot is {Architecture:"x64",Kind:"nullsoft"} && snapshot.Current([app]),"AUTO arquivo PE e escopo reais corroboram instalacao sintetica");
+            var other=new ProgramEntry{Name=app.Name,Publisher=app.Publisher,Version=app.Version,InventoryId="LocalMachine|Registry64|Other"};
+            check(!snapshot!.Current([app,other]),"AUTO duas instalacoes da familia nao autorizam uma escolha arbitraria");
+            var shared=new ProgramEntry{Name="Other Product",Publisher="Other",InstallLocation=install,InventoryId="LocalMachine|Registry64|Shared"};
+            check(!snapshot.Current([app,shared]),"AUTO pasta compartilhada com outro produto nao autoriza");
+            byte[] x86=(byte[])data.Clone();BitConverter.GetBytes((ushort)0x14c).CopyTo(x86,pe+4);File.WriteAllBytes(binary,x86);
+            check(!snapshot.Current([app]),"AUTO arquitetura alterada depois da descoberta bloqueia execucao");
+            File.WriteAllBytes(binary,data);File.WriteAllBytes(uninstall,data);
+            check(!snapshot.Current([app]),"AUTO desinstalador mudou de mecanismo depois da descoberta");
+            File.WriteAllBytes(binary,[]);
+            check(AutomaticAppInstallation.Read(app) is null,"AUTO executavel ausente ou vazio nao comprova identidade");
+        }
+        finally{AutomaticAppInstallation.SyntheticBaseRoot=null;Directory.Delete(root,true);}
+    }
+
+}
