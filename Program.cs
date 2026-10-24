@@ -564,6 +564,7 @@ internal sealed partial class MainForm : Form
     private readonly ToolTip _toolTips = new() { AutomaticDelay = 350, AutoPopDelay = 8500, ReshowDelay = 120 };
     private readonly DarkProgramList _programList = new();
     private readonly UpdateOperationStore _updateOperations = new(DiagnosticTrace.Write);
+    private readonly UninstallOperationStore _uninstallOperations = new();
     private readonly Label _emptyState = new();
     private readonly TextBox _search = new();
     private readonly DarkLogView _log = new();
@@ -781,7 +782,7 @@ internal sealed partial class MainForm : Form
                 {
                     var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
                     return new UninstallSnapshot(scan.Items, !scan.Incomplete);
-                }, DiagnosticTrace.Write, Log);
+                }, DiagnosticTrace.Write, message => { Log(message); Status(message); ShowUninstallResult(message); });
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                 InvalidDataException or System.Security.Cryptography.CryptographicException or
@@ -1044,6 +1045,7 @@ internal sealed partial class MainForm : Form
         _programList.BackColor = PanelBackground;
         _programList.ForeColor = Ink;
         _programList.OperationFor = _updateOperations.Find;
+        _programList.UninstallOperationFor = _uninstallOperations.Find;
         _programList.DrawItem += DrawProgramCard;
         _toolTips.SetToolTip(_programList,
             "Atualizar usa um instalador oficial verificado quando há integração validada. " +
@@ -1195,9 +1197,11 @@ internal sealed partial class MainForm : Form
 
         int left = e.Bounds.Left + 58 + prefix;
         var operation = _updateOperations.Find(item);
+        var uninstall = _uninstallOperations.Find(item);
+        bool hasOperation = operation is not null || uninstall is not null;
         Rectangle operationArea = AppRowGeometry.OperationArea(e.Bounds, prefix);
         int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 328);
-        if (operation is not null && e.Bounds.Width >= 940) width = Math.Max(18, operationArea.Left - left - 12);
+        if (hasOperation && e.Bounds.Width >= 940) width = Math.Max(18, operationArea.Left - left - 12);
         TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
             new Rectangle(left, e.Bounds.Top + 5, width, 29), selected ? Accent : Ink,
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
@@ -1221,13 +1225,14 @@ internal sealed partial class MainForm : Form
             : item.InventoryOnly
             ? $"Versão: {DisplayAppVersion(item.Version)} · Componente Windows/Store (somente leitura)"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
-        if (operation is null || e.Bounds.Width >= 940)
+        if (!hasOperation || e.Bounds.Width >= 940)
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
             new Rectangle(left, e.Bounds.Top + 34, width, 28),
             item.IsUpdate ? Color.FromArgb(133, 221, 176) : Muted,
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
 
-        if (operation is not null) DrawUpdateOperation(e.Graphics, operationArea, operation);
+        if (uninstall is not null) DrawUninstallOperation(e.Graphics, operationArea, uninstall);
+        else if (operation is not null) DrawUpdateOperation(e.Graphics, operationArea, operation);
         if (!multiselect)
         {
             if (item.IsUpdate)
@@ -1255,7 +1260,9 @@ internal sealed partial class MainForm : Form
                         _programList.ActionVisual(item, "site"));
             }
             if (item.CanUninstall)
-                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red,
+                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
+                    uninstall?.PreventRetry == true ? uninstall.Active ? "Em andamento" : "Pendente" : "Desinstalar",
+                    uninstall?.PreventRetry == true ? AppServices.Gray : AppServices.Red,
                     _programList.ActionVisual(item, "uninstall"));
             else if (!item.IsUpdate)
                 TextRenderer.DrawText(e.Graphics, "Somente leitura", _rowInfo,
@@ -2909,6 +2916,11 @@ internal sealed partial class MainForm : Form
     private async Task UninstallEntriesAsync(IReadOnlyCollection<ProgramEntry> apps)
     {
         if (apps.Count == 0) { Status("Nenhum aplicativo marcado"); return; }
+        if (apps.Any(app => _uninstallOperations.Find(app)?.PreventRetry == true))
+        { Status("Uma desinstalação ainda está pendente. Confira o resumo antes de tentar novamente."); return; }
+        foreach (var app in apps) SetUninstallProgress(app, "preparing");
+        // Entregar o primeiro frame antes de consultas e verificacao de assinatura.
+        await Task.Yield();
         var prepared = new List<PreparedUninstaller>();
         using var cancellation = new CancellationTokenSource();
         int diagnosticUnavailable = 0;
@@ -2950,11 +2962,12 @@ internal sealed partial class MainForm : Form
                     }), cancellation.Token));
             }
             string preview = string.Join("\n\n", prepared.Select(p =>
-                "• " + p.Request.Original.Name +
+                "• " + p.Request.Original.Name + "\n" + SilentUninstallPolicy.DescribeMode(p.Request) +
                 (p.UnsignedWarning ? "\nDesinstalador sem assinatura digital. Confira o aplicativo antes de continuar." :
                  p.PublisherWarning ? "\nAssinatura válida com editor diferente do cadastro. Confira o aplicativo." :
                  p.TrustWarning ? "\nO Windows não confirmou a confiança da assinatura. Confira o aplicativo." : "")));
             cancellation.Token.ThrowIfCancellationRequested();
+            foreach (var app in apps) SetUninstallProgress(app, "awaiting_consent");
             bool consent = DarkConfirmDialog.Confirm(this,
                 $"Deseja desinstalar {prepared.Count} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
                 "Confirmar desinstalação") == DialogResult.Yes;
@@ -2963,14 +2976,21 @@ internal sealed partial class MainForm : Form
                 {
                     Status("Aguardando desinstalação de " + request.Original.Name + "...");
                     return prepared.Single(p => p.Request == request).LaunchAsync(token);
-                }, token => Task.Delay(500, token), cancellation.Token);
+                }, token => Task.Delay(500, token), cancellation.Token,
+                (request, stage) => SetUninstallProgress(request.Original, stage));
             foreach (var plan in prepared) plan.Dispose();
             prepared.Clear();
             foreach (var outcome in outcomes)
+            {
+                SetUninstallProgress(outcome.Request.Original, outcome.State == UninstallState.RegistrationAbsent ? "inspecting" :
+                    outcome.State == UninstallState.Pending ? "pending" : outcome.State is UninstallState.Refused or UninstallState.Cancelled ? "cancelled" : "failed");
                 RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(outcome.Request.Original),
                     "uninstall", outcome.State.ToString(), error: outcome.Code ?? 0, milliseconds: outcome.DurationMilliseconds,
                     reason: outcome.DiagnosticReason.Length > 0 ? outcome.DiagnosticReason :
                         outcome.State == UninstallState.RegistrationAbsent ? "removal_confirmed" : "no_cleanup_authorized"));
+            }
+            foreach (var app in apps.Where(app => !outcomes.Any(o => o.Request.Original.InventoryId == app.InventoryId)))
+                SetUninstallProgress(app, "cancelled");
             ResidualBatchResult? cleanup = null;
             if (consent)
             {
@@ -2978,22 +2998,22 @@ internal sealed partial class MainForm : Form
                 cleanup = await Task.Run(() => IntegratedResidualBatch.RunAsync(outcomes, contexts,
                     Inventory, (plans, token) => OnUninstallUiAsync(() => ConfirmUninstallCleanupAsync(plans, token)),
                     (plans, token) => OnUninstallUiAsync(() => RunElevatedAsync(ResidualElevatedProtocol.TaskName, plans, token, RecordResidualEvent)),
-                    RecordResidualEvent, cancellation.Token));
-                await RefreshCatalogAsync();
+                    RecordResidualEvent, cancellation.Token,
+                    (app, stage) => SetUninstallProgress(app.Entry(), stage)));
+                // A recarga visual nao apaga o resultado da operacao concluida.
+                try { await RefreshCatalogAsync(); }
+                catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex))
+                { Log("O inventário não pôde ser atualizado. O resumo da desinstalação foi preservado."); }
             }
-            int absent = outcomes.Count(x => x.State == UninstallState.RegistrationAbsent);
-            int pending = outcomes.Count(x => x.State == UninstallState.Pending);
-            int failed = outcomes.Count(x => x.State is UninstallState.Blocked or UninstallState.StartFailed or
-                UninstallState.ProcessFailed or UninstallState.StillPresent);
-            string result = !consent || cleanup?.Cancelled == true || outcomes.Any(x => x.State == UninstallState.Cancelled)
-                ? "Operação cancelada." : failed > 0 || pending > 0
-                ? $"Desinstalação: {absent} concluída(s), {pending} pendente(s), {failed} falha(s). Detalhes no diagnóstico."
-                : cleanup?.Declined == true ? "Desinstalação concluída. Resíduos preservados."
-                : cleanup?.Unavailable > 0 || cleanup?.Results.Any(r => !r.Verified) == true
-                ? "Limpeza parcial — detalhes no diagnóstico."
-                : cleanup?.Offered > 0 ? "Limpeza concluída." : "Desinstalação concluída.";
-            Status(result);
-            Log(result);
+            string summary = UninstallResultSummary.Describe(outcomes, cleanup);
+            foreach (var outcome in outcomes.Where(o => o.State == UninstallState.RegistrationAbsent))
+                SetUninstallProgress(outcome.Request.Original, "finished", summary);
+            string result = !consent || cleanup?.Cancelled == true ? "Operação cancelada — confira o resumo."
+                : outcomes.Any(o => o.State == UninstallState.Pending) ? "Conclusão pendente — confira o resumo."
+                : cleanup?.Unavailable > 0 ? "Verificação de resíduos parcial — confira o resumo."
+                : "Desinstalação finalizada — confira o resumo.";
+            Status(result); Log(result);
+            ShowUninstallResult(summary);
             if (consent && cleanup?.Declined != true && cleanup?.Cancelled != true &&
                 !cancellation.IsCancellationRequested)
             {
@@ -3006,15 +3026,21 @@ internal sealed partial class MainForm : Form
         {
             foreach (var app in apps)
                 RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(app), "operation", "cancelled", cancelled: true));
+            foreach (var app in apps.Where(app => _uninstallOperations.Find(app)?.Active == true))
+                SetUninstallProgress(app, "cancelled");
             Status("Operação cancelada.");
+            ShowUninstallResult("Operação interrompida. Uma desinstalação já iniciada pode continuar trabalhando. Nenhuma limpeza adicional foi autorizada. Consulte o diagnóstico.");
         }
         catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex))
         {
             foreach (var app in apps)
                 RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(app), "operation", "failed",
                     failed: 1, error: IntegratedResidualCleanup.Error(ex), reason: "uninstall_preparation_or_execution"));
+            foreach (var app in apps.Where(app => _uninstallOperations.Find(app)?.Active == true))
+                SetUninstallProgress(app, "failed");
             Log("Não foi possível concluir — consulte o diagnóstico.");
             Status("Não foi possível concluir — consulte o diagnóstico.");
+            ShowUninstallResult("Não foi possível concluir a operação. A ausência de resíduos não foi comprovada. Consulte o diagnóstico.");
         }
         finally
         {

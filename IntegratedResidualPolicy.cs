@@ -37,7 +37,15 @@ internal sealed record IntegratedResidualPlan(ResidualUninstallContext Context,
     IReadOnlyList<ResidualProblem> Problems)
 {
     internal int Eligible => Files.Count + Directories.Count + Keys.Count;
+    // Complete protege a selecao executavel; Conclusive descreve a cobertura,
+    // inclusive quando outra parte acessivel da selecao pode ser limpa.
+    internal bool Conclusive => Complete && Problems.All(p => p.Reason is
+        "personal_or_shared_root" or "shared_root" or "link_preserved" or
+        "personal_folder_preserved" or "personal_or_unknown_file" or "ownership_not_proven");
+    internal ResidualAssessment Assessment => !Conclusive ? ResidualAssessment.Inconclusive :
+        Eligible > 0 ? ResidualAssessment.Removable : Preserved > 0 ? ResidualAssessment.Preserved : ResidualAssessment.None;
 }
+internal enum ResidualAssessment { None, Removable, Preserved, Inconclusive }
 internal sealed record ResidualScope(string Policy, IReadOnlyList<string> Roots,
     IReadOnlyList<ResidualKeyLocation> Keys, IReadOnlyList<string> Processes);
 
@@ -71,7 +79,19 @@ internal static class IntegratedResidualPolicy
             keys.Add(new(hive, view, key));
         }
         string? install = DedicatedInstallRoot(identity, known);
-        if (install is not null) roots.Add(install);
+        if (install is not null)
+        {
+            roots.Add(install);
+            // Sem receita: nome exato + comando dentro da instalacao dedicada.
+            // A chave ainda exigira um valor de caminho corroborante ANTES e
+            // DEPOIS da desinstalacao; nome semelhante sozinho nao autoriza.
+            string product = Path.GetFileName(install);
+            if (rule is null && SafeProductLeaf(product))
+                foreach (var hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
+                foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
+                    if (hive != RegistryHive.CurrentUser || view != RegistryView.Registry32)
+                        keys.Add(new(hive, view, @"Software\" + product));
+        }
         // Locais canonicos mantidos pelas politicas anteriores, agora no mesmo motor.
         string? leaf = rule?.Id switch { "notepadpp" => "Notepad++", "sumatrapdf" => "SumatraPDF",
             "7zip" => "7-Zip", _ => null };
@@ -93,12 +113,21 @@ internal static class IntegratedResidualPolicy
     // Sem receita: somente uma instalacao dedicada, corroborada pelo comando
     // registrado, nome exato do produto e base conhecida. Nao inventa chaves
     // nem pastas de perfil por semelhanca de nomes.
-    private static string? DedicatedInstallRoot(ResidualAppIdentity app, UnifiedAppRule? known)
+    internal static string? DedicatedInstallRoot(ResidualAppIdentity app, UnifiedAppRule? known)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(app.InstallLocation)) return null;
-            string path = InstallerFileGuard.ValidateLocalPath(app.InstallLocation).TrimEnd('\\');
+            string raw = app.InstallLocation;
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                var commands = new[] { app.UninstallString, app.QuietUninstallString }
+                    .Select(value => UninstallCommand.TryParse(value, out var command) && command.ProductCode is null
+                        ? Path.GetDirectoryName(command.FileName) : null)
+                    .Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(Paths).ToArray();
+                if (commands.Length != 1) return null;
+                raw = commands[0]!;
+            }
+            string path = InstallerFileGuard.ValidateLocalPath(raw).TrimEnd('\\');
             string? parent = Path.GetDirectoryName(path);
             string[] bases = [Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
                 Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
@@ -109,9 +138,9 @@ internal static class IntegratedResidualPolicy
                 "Windows Defender", "Windows Defender Advanced Threat Protection", "Windows NT", "Windows Mail",
                 "Windows Media Player", "Windows Photo Viewer", "NVIDIA Corporation", "Intel", "AMD", "Realtek" }.Contains(leaf, Paths))
                 return null;
-            string product = Regex.Replace(app.Name, @"\s+(?:v?\d+(?:\.\d+){1,4})(?:\s.*)?$", "",
+            string product = Regex.Replace(app.Name, @"\s*\((?:x64|x86|64-bit(?: x64)?|32-bit(?: x86)?)\)$", "",
                 RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
-            product = Regex.Replace(product, @"\s*\((?:x64|x86|64-bit(?: x64)?|32-bit(?: x86)?)\)$", "",
+            product = Regex.Replace(product, @"\s+v?\d+(?:\.\d+){1,4}$", "",
                 RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
             static string Normalize(string value) => new(value.Where(char.IsAsciiLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
             if (Normalize(leaf).Length < 4 ||
@@ -122,6 +151,28 @@ internal static class IntegratedResidualPolicy
             return path;
         }
         catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex)) { return null; }
+    }
+
+    private static bool SafeProductLeaf(string leaf) => leaf.Length is >= 4 and <= 100 &&
+        leaf.All(c => char.IsAsciiLetterOrDigit(c) || c is ' ' or '-' or '_' or '+' or '.') &&
+        !new[] { "Microsoft", "Windows", "Policies", "Classes", "Common", "Shared", "Software", "Mozilla", "Google" }.Contains(leaf, Paths);
+
+    internal static bool RegistryOwned(ResidualUninstallContext context, RegistryKey key)
+    {
+        if (context.Policy != "registered-install") return true;
+        string? install = DedicatedInstallRoot(context.App, null);
+        if (install is null) return false;
+        foreach (string name in new[] { "InstallPath", "InstallDir", "InstallLocation", "Path", "ExecutablePath" })
+            if (key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames) is string value)
+                try
+                {
+                    string path = InstallerFileGuard.ValidateLocalPath(value.Trim('"')).TrimEnd('\\');
+                    if (Paths.Equals(install, path) || new[] { context.App.UninstallString, context.App.QuietUninstallString }
+                        .Any(raw => UninstallCommand.TryParse(raw, out var command) && Paths.Equals(command.FileName, path)))
+                        return true;
+                }
+                catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex)) { }
+        return false;
     }
 
     internal static bool Shared(string root, ResidualAppIdentity app, IReadOnlyCollection<ProgramEntry> inventory)

@@ -13,6 +13,7 @@ internal static class Work12RegressionTests
         string root = Path.Combine(Path.GetTempPath(), id);
         string keyPath = @"Software\" + id;
         Directory.CreateDirectory(root);
+        using var testHive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64);
         var app = new ProgramEntry { Name = id, Publisher = "GF Synthetic", InventoryId = id,
             InstallLocation = root, UninstallString = "\"" + Path.Combine(root, "uninstall.exe") + "\"" };
         var address = new ResidualKeyLocation(RegistryHive.CurrentUser, RegistryView.Registry64, keyPath);
@@ -23,10 +24,10 @@ internal static class Work12RegressionTests
         {
             // A chave nao existia antes, mas o desinstalador deixou configuracao nela.
             var context = IntegratedResidualCleanup.Prepare(app, new([app], true));
-            using (var key = Registry.CurrentUser.CreateSubKey(keyPath)) key.SetValue("InstallPath", root);
+            using (var key = testHive.CreateSubKey(keyPath)) key.SetValue("InstallPath", root);
             var plan = IntegratedResidualCleanup.Capture(context, new([], true));
             check(plan.Keys.Count == 1, "W12 chave da politica criada pelo desinstalador precisa ser encontrada");
-            Registry.CurrentUser.DeleteSubKeyTree(keyPath);
+            testHive.DeleteSubKeyTree(keyPath, false);
 
             // Reproduzir .56: erro 5 no preflight nunca equivale a ausencia.
             context = context with { Preserved = 1, Problems = [new("prepare", "registry_unreadable", 5)] };
@@ -38,8 +39,8 @@ internal static class Work12RegressionTests
                 "W12 erro 5 sem alvo elegivel deve terminar inconclusivo");
 
             // Consultar valores nao exige notificacoes nem permissoes de escrita.
-            using (var key = Registry.CurrentUser.CreateSubKey(keyPath)) key.SetValue("Marker", "SYNTHETIC");
-            using (var acl = Registry.CurrentUser.OpenSubKey(keyPath, RegistryKeyPermissionCheck.ReadWriteSubTree,
+            using (var key = testHive.CreateSubKey(keyPath)) key.SetValue("Marker", "SYNTHETIC");
+            using (var acl = testHive.OpenSubKey(keyPath, RegistryKeyPermissionCheck.ReadWriteSubTree,
                 RegistryRights.ChangePermissions | RegistryRights.ReadPermissions))
             {
                 var original = acl!.GetAccessControl();
@@ -54,10 +55,15 @@ internal static class Work12RegressionTests
                     readable = key is not null && ResidualRegistryGuard.Fingerprint(key, RegistryView.Registry64, out _, out _);
                 }
                 catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex)) { }
-                finally { acl.SetAccessControl(original); }
+                finally
+                {
+                    var restore = new RegistrySecurity();
+                    restore.SetSecurityDescriptorBinaryForm(original.GetSecurityDescriptorBinaryForm(), AccessControlSections.Access);
+                    acl.SetAccessControl(restore);
+                }
                 check(readable, "W12 inspecao nao deve exigir KEY_NOTIFY negado");
             }
-            Registry.CurrentUser.DeleteSubKeyTree(keyPath);
+            testHive.DeleteSubKeyTree(keyPath, false);
 
             // Sem receita e sem InstallLocation: comando registrado corrobora a pasta.
             IntegratedResidualPolicy.SyntheticScope = null;
@@ -70,7 +76,7 @@ internal static class Work12RegressionTests
         finally
         {
             IntegratedResidualPolicy.SyntheticScope = null;
-            Registry.CurrentUser.DeleteSubKeyTree(keyPath, false);
+            testHive.DeleteSubKeyTree(keyPath, false);
             if (Directory.Exists(root)) Directory.Delete(root, true);
         }
     }

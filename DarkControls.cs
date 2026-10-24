@@ -188,16 +188,19 @@ internal sealed class DarkProgramList : Control
     private readonly ToolTip _itemTips = new() { InitialDelay = 450, AutoPopDelay = 12000 };
     private int _tipRow = -1;
     private readonly Dictionary<int, UpdateOperationSnapshot?> _paintedOperations = new();
+    private readonly Dictionary<int, UninstallOperationSnapshot?> _paintedUninstalls = new();
     private readonly System.Windows.Forms.Timer _operationTimer = new() { Interval = 100 };
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal Func<ProgramEntry, UpdateOperationSnapshot?>? OperationFor { get; set; }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    internal Func<ProgramEntry, UninstallOperationSnapshot?>? UninstallOperationFor { get; set; }
     internal bool OperationTimerRunning => _operationTimer.Enabled;
     internal int OperationFrame => (int)(Environment.TickCount64 / 80 % 18);
     internal void RefreshOperations()
     {
         if (IsDisposed || Disposing) return;
         _tipRow = -1;
-        if (Visible && IsHandleCreated && _items.Any(p => OperationFor?.Invoke(p)?.Active == true))
+        if (Visible && IsHandleCreated && _items.Any(p => OperationFor?.Invoke(p)?.Active == true || UninstallOperationFor?.Invoke(p)?.Active == true))
             _operationTimer.Start();
         else _operationTimer.Stop();
         InvalidateOperationRows();
@@ -210,9 +213,13 @@ internal sealed class DarkProgramList : Control
         for (int i = first; i <= last; i++)
         {
             var operation = OperationFor?.Invoke(_items[i]);
-            if (operation?.Active == true || !_paintedOperations.TryGetValue(i, out var previous) || previous != operation)
+            var uninstall = UninstallOperationFor?.Invoke(_items[i]);
+            if (operation?.Active == true || uninstall?.Active == true ||
+                !_paintedUninstalls.TryGetValue(i, out var previousUninstall) || previousUninstall != uninstall ||
+                !_paintedOperations.TryGetValue(i, out var previous) || previous != operation)
                 Invalidate(new Rectangle(0, i * _itemHeight - _scrollOffset, ClientSize.Width, _itemHeight));
             _paintedOperations[i] = operation;
+            _paintedUninstalls[i] = uninstall;
         }
     }
     protected override void OnVisibleChanged(EventArgs e)
@@ -312,8 +319,8 @@ internal sealed class DarkProgramList : Control
         if (index < 0 || index >= _items.Count) return (null, "");
         var item = _items[index];
         var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
-        if (item.CanUninstall && OperationFor?.Invoke(item)?.Active != true && AppRowGeometry.UninstallButton(bounds).Contains(point)) return (item, "uninstall");
-        if (item.IsUpdate && OperationFor?.Invoke(item)?.PreventRetry != true &&
+        if (item.CanUninstall && UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.Active != true && AppRowGeometry.UninstallButton(bounds).Contains(point)) return (item, "uninstall");
+        if (item.IsUpdate && UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.PreventRetry != true &&
             AppRowGeometry.UpdateButton(bounds).Contains(point))
         {
             string? primaryAction = VerifiedUpdaters.GetPrimaryAction(item);
@@ -426,7 +433,8 @@ internal sealed class DarkProgramList : Control
                 ? _items[index].Name + "\nVersão atual: " + _items[index].Version +
                   "\nDisponível: " + _items[index].AvailableVersion +
                   "\nFonte: " + _items[index].Source + "\n" + _items[index].UpdateEvidence +
-                  (OperationFor?.Invoke(_items[index]) is { } operation ? "\n" + operation.Details : "")
+                  (UninstallOperationFor?.Invoke(_items[index]) is { } uninstall ? "\n" + uninstall.Details :
+                   OperationFor?.Invoke(_items[index]) is { } operation ? "\n" + operation.Details : "")
                 : "";
             _itemTips.SetToolTip(this, text);
         }

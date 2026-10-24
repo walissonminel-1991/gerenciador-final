@@ -52,7 +52,8 @@ internal sealed class UninstallBatch
     internal async Task<IReadOnlyList<UninstallOutcome>> RunAsync(IReadOnlyList<UninstallRequest> selected,
         bool consent, Func<Task<UninstallSnapshot>> scan,
         Func<UninstallRequest,CancellationToken,Task<int?>> launch,
-        Func<CancellationToken,Task> betweenChecks, CancellationToken token=default)
+        Func<CancellationToken,Task> betweenChecks, CancellationToken token=default,
+        Action<UninstallRequest, string>? progress = null)
     {
         var requests=selected.ToArray(); // seleção confirmada não é coleção viva da UI
         var results=new List<UninstallOutcome>();
@@ -65,6 +66,7 @@ internal sealed class UninstallBatch
             var duration = Stopwatch.StartNew();
             try {
                 token.ThrowIfCancellationRequested();
+                progress?.Invoke(request, "preparing");
                 var before=await scan();
                 token.ThrowIfCancellationRequested();
                 var matching=before.Items.Where(x=>x.InventoryId.Equals(request.Original.InventoryId,StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -98,6 +100,7 @@ internal sealed class UninstallBatch
                 }
                 token.ThrowIfCancellationRequested();
                 invoked=true;
+                progress?.Invoke(request, "working");
                 int? exit=await launch(request,token);
                 if(exit is null) { results.Add(new(request,UninstallState.StartFailed)); continue; }
                 if(request.Command.ProductCode is not null && exit==1602)
@@ -109,6 +112,7 @@ internal sealed class UninstallBatch
                         "O Windows suspendeu a remoção; a conclusão permanece pendente.";
                     results.Add(new(request,UninstallState.Pending,exit,reason)); break;
                 }
+                progress?.Invoke(request, "confirming");
                 int absent=0;
                 bool sawAbsence=false, complete=true;
                 for(int attempt=0;attempt<7;attempt++) {

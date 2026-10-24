@@ -33,9 +33,11 @@ internal static class RebootResidualReview
         {
             var targets = plan.Files.Select(f => new RebootReviewTarget("file", f.Path))
                 .Concat(plan.Directories.Select(d => new RebootReviewTarget("directory", d.Path)))
+                .Concat(plan.Problems.Any(p => p.Error is 32 or 33)
+                    ? plan.Context.Roots.Select(r => new RebootReviewTarget("directory", r.Path)) : [])
                 .Concat(plan.Keys.Select(k => new RebootReviewTarget("registry", k.Subkey,
                     k.Hive == RegistryHive.LocalMachine ? "HKLM" : "HKCU",
-                    k.View == RegistryView.Registry32 ? "32" : "64"))).ToArray();
+                    k.View == RegistryView.Registry32 ? "32" : "64"))).Distinct().ToArray();
             if (targets.Length is > 0 and <= MaximumTargets)
                 items.Add(new(plan.Context.App.TechnicalId, plan.Context.App.InventoryId,
                     boot, false, targets));
@@ -66,7 +68,12 @@ internal static class RebootResidualReview
         if (File.Exists(path)) combined.AddRange(Read());
         combined.AddRange(pending);
         // Limite estrito: nenhuma lista arbitraria sobrevive entre execucoes.
-        combined = combined.DistinctBy(i => i.AppId).Take(16).ToList();
+        combined = combined.GroupBy(i => i.AppId).Select(g =>
+        {
+            var latest = g.Last();
+            return latest with { ProviderPending = g.Any(i => i.ProviderPending),
+                Targets = g.SelectMany(i => i.Targets).Distinct().ToArray() };
+        }).Take(16).ToList();
         if (combined.Sum(i => i.Targets.Length) > MaximumTargets)
             throw new InvalidDataException("Limite da revisao de reinicio excedido.");
         byte[] plain = JsonSerializer.SerializeToUtf8Bytes(combined, Json);

@@ -10,7 +10,9 @@ namespace GerenciadorAplicativos;
 // Sem suporte a transacoes, o alvo e preservado; nunca ha fallback por caminho.
 internal static class ResidualRegistryGuard
 {
-    private const int Read = 0x20019, Write = 0x20006, DeleteRight = 0x10000;
+    // Inspecao: KEY_QUERY_VALUE | KEY_ENUMERATE_SUB_KEYS. Nao exigir
+    // READ_CONTROL/KEY_NOTIFY para ler; negacao continua sendo erro 5.
+    private const int Read = 0x00009, Write = 0x20006, DeleteRight = 0x10000;
 
     internal static RegistryKey? Open(RegistryKey parent, string child, RegistryView view,
         SafeFileHandle? transaction = null, bool writable = false)

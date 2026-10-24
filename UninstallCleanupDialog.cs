@@ -83,6 +83,8 @@ internal sealed class UninstallCleanupDialog : Form
             text.AppendLine(plan.Context.App.Name.Replace('\r', ' ').Replace('\n', ' '));
             text.AppendLine($"{plan.Files.Count} arquivo(s), {plan.Directories.Count} pasta(s) e {plan.Keys.Count} chave(s) do Registro.");
             text.AppendLine($"Preservados: {plan.Preserved} local(is) com dados pessoais, compartilhados ou não reconhecidos.");
+            if (!plan.Conclusive) text.AppendLine("Verificação parcial: somente os alvos comprovados serão removidos.");
+            foreach (string reason in plan.Problems.Select(UninstallResultSummary.Problem).Distinct()) text.AppendLine(reason);
             text.AppendLine();
         }
         text.AppendLine("SIM exclui os itens abaixo permanentemente. NÃO mantém todos os resíduos.");

@@ -37,7 +37,8 @@ internal sealed partial class MainForm
         if (IsDisposed || Disposing) throw new OperationCanceledException(token);
         return UninstallCleanupDialog.Confirm(this, plans);
     }
-    private void ResumeUninstallCleanupConfirmation() => uninstallRestore?.TrySetResult(true);
+    private void ResumeUninstallCleanupConfirmation()
+    { uninstallRestore?.TrySetResult(true); ResumeUninstallResult(); }
     private void OfferRestartReview(IReadOnlyList<RebootReviewItem> review)
     {
         try

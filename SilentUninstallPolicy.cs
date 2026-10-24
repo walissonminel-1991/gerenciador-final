@@ -25,6 +25,18 @@ internal static class SilentUninstallPolicy
             }
             return false;
         }
+        if (UninstallCommand.TryParse(app.QuietUninstallString, out var registeredQuiet) &&
+            registered == registeredQuiet && RegisteredQuietMatchesProduct(app, registeredQuiet))
+            return true; // preservar exatamente os argumentos registrados
+        // SumatraPDF 3.6.1: contrato conferido no fonte 3.6.1rel/Uninstaller.cpp.
+        if (IsVerifiedSumatra(app, registered) &&
+            UninstallCommand.TryParse("\"" + registered.FileName + "\" " + registered.Arguments + " -silent", out var sumatra))
+        { selected = sumatra; return true; }
+        // Inno: identidade do EXE + cabeçalho oficial do log adjacente.
+        // Nunca inferir o motor apenas por um nome unins000.exe.
+        if (IsVerifiedInno(registered) &&
+            UninstallCommand.TryParse("\"" + registered.FileName + "\" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART", out var inno))
+        { selected = inno; return true; }
         // Notepad++ oficial (NSIS): /S e parametro documentado do fabricante.
         // Nao aplicar a programas cujo nome apenas se assemelha a Notepad++.
         if (IsExactNotepadPlusPlus(app) &&
@@ -65,11 +77,13 @@ internal static class SilentUninstallPolicy
 
     internal static bool IsExactNotepadPlusPlus(ProgramEntry app)
     {
-        string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Notepad++");
-        if (!app.Name.Equals("Notepad++ (64-bit x64)", StringComparison.OrdinalIgnoreCase) ||
-            app.Publisher is not ("Notepad++ Team" or "Don HO") ||
-            !app.InventoryId.StartsWith("LocalMachine|Registry64|", StringComparison.OrdinalIgnoreCase) ||
-            !app.InstallLocation.TrimEnd('\\').Equals(folder, StringComparison.OrdinalIgnoreCase) ||
+        bool x86 = app.Name.Equals("Notepad++ (32-bit x86)", StringComparison.OrdinalIgnoreCase);
+        bool x64 = app.Name.Equals("Notepad++ (64-bit x64)", StringComparison.OrdinalIgnoreCase);
+        string folder = Path.Combine(Environment.GetFolderPath(x86
+            ? Environment.SpecialFolder.ProgramFilesX86 : Environment.SpecialFolder.ProgramFiles), "Notepad++");
+        if ((!x64 && !x86) || app.Publisher is not ("Notepad++ Team" or "Don HO") ||
+            !app.InventoryId.StartsWith(x86 ? "LocalMachine|Registry32|" : "LocalMachine|Registry64|", StringComparison.OrdinalIgnoreCase) ||
+            (!string.IsNullOrWhiteSpace(app.InstallLocation) && !app.InstallLocation.TrimEnd('\\').Equals(folder, StringComparison.OrdinalIgnoreCase)) ||
             !UninstallCommand.TryParse(app.UninstallString, out var uninstall) ||
             uninstall.ProductCode is not null || uninstall.Arguments.Length != 0 ||
             !uninstall.FileName.Equals(Path.Combine(folder, "uninstall.exe"), StringComparison.OrdinalIgnoreCase))
@@ -120,10 +134,58 @@ internal static class SilentUninstallPolicy
             ArgumentException or NotSupportedException) { return false; }
     }
 
+    internal static bool UsesSilentMode(UninstallRequest request)
+    {
+        if (UninstallCommand.TryParse(request.Original.QuietUninstallString, out var quiet) &&
+            request.Command == quiet && RegisteredQuietMatchesProduct(request.Original, quiet)) return true;
+        return new[] { request.Original.UninstallString, request.Original.QuietUninstallString }.Any(raw =>
+            UninstallCommand.TryParse(raw, out var command) && TrySelect(request.Original, command, out var selected) && selected == request.Command);
+    }
+    internal static string DescribeMode(UninstallRequest request) => UsesSilentMode(request)
+        ? "Modo silencioso disponível. O Windows ainda pode solicitar autorização."
+        : "Modo interativo: acompanhe a janela do fabricante para concluir a desinstalação.";
+
+    internal static bool IsVerifiedSumatra(ProgramEntry app, ParsedUninstallCommand command)
+    {
+        if (ApplicationIdentityCatalog.Resolve(app.Name, app.Publisher)?.Id != "sumatrapdf" ||
+            app.Version != "3.6.1" || command.ProductCode is not null ||
+            !Regex.IsMatch(command.Arguments, @"^-uninstall(?: -all-users)?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            return false;
+        string? root = IntegratedResidualPolicy.DedicatedInstallRoot(ResidualAppIdentity.From(app),
+            ApplicationIdentityCatalog.Resolve(app.Name, app.Publisher));
+        if (root is null || !command.FileName.Equals(Path.Combine(root, "SumatraPDF.exe"), StringComparison.OrdinalIgnoreCase)) return false;
+        try
+        {
+            using var held = InstallerFileGuard.OpenRead(command.FileName, allowDirectoryWrites: true);
+            return Version.TryParse(FileVersionInfo.GetVersionInfo(command.FileName).FileVersion, out var version) &&
+                version.Major == 3 && version.Minor == 6 && version.Build == 1;
+        }
+        catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex)) { return false; }
+    }
+
+    internal static bool IsVerifiedInno(ParsedUninstallCommand command)
+    {
+        if (command.ProductCode is not null || command.Arguments.Length != 0 ||
+            !Regex.IsMatch(Path.GetFileName(command.FileName), @"^unins[0-9]{3}\.exe$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) return false;
+        try
+        {
+            using var image = InstallerFileGuard.OpenRead(command.FileName, allowDirectoryWrites: true);
+            if (!string.Equals(FileVersionInfo.GetVersionInfo(command.FileName).FileDescription,
+                    "Setup/Uninstall", StringComparison.OrdinalIgnoreCase)) return false;
+            using var log = InstallerFileGuard.OpenRead(Path.ChangeExtension(command.FileName, ".dat"), allowDirectoryWrites: true);
+            Span<byte> header = stackalloc byte[64];
+            log.ReadExactly(header);
+            string id = System.Text.Encoding.ASCII.GetString(header).TrimEnd('\0');
+            return id is "Inno Setup Uninstall Log (b)" or "Inno Setup Uninstall Log (b) 64-bit";
+        }
+        catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex)) { return false; }
+    }
+
     internal static bool MatchesAuthorized(ProgramEntry app, ParsedUninstallCommand chosen)
     {
         foreach (string raw in new[] { app.UninstallString, app.QuietUninstallString })
             if (UninstallCommand.TryParse(raw, out var registered) &&
+                (!string.Equals(raw, app.QuietUninstallString, StringComparison.Ordinal) || RegisteredQuietMatchesProduct(app, registered)) &&
                 (chosen == registered || TrySelect(app, registered, out var approved) && chosen == approved))
                 return true;
         return false;

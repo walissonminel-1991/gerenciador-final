@@ -19,6 +19,7 @@
     <Compile Include="../FoobarProfileCleanup.cs" Link="FoobarProfileCleanup.cs" />
     <Compile Include="../WindowsSystemTools.cs" Link="WindowsSystemTools.cs" />
     <Compile Include="../UninstallCommand.cs" Link="UninstallCommand.cs" />
+    <Compile Include="../UninstallOperationProgress.cs" Link="UninstallOperationProgress.cs" />
     <Compile Include="../UninstallBatch.cs" Link="UninstallBatch.cs" />
     <Compile Include="../SilentUninstallPolicy.cs" Link="SilentUninstallPolicy.cs" />
     <Compile Include="../SevenZipCompleteCleanup.cs" Link="SevenZipCompleteCleanup.cs" />
