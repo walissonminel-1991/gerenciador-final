@@ -106,7 +106,8 @@ internal static class UpdateInstallationContract
     }
     internal static string? RuntimeScopeKey(ProgramEntry app)
     {
-        if (app.InventoryOnly || Scope(app.InventoryId).Length == 0 ||
+        if (!app.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable (", StringComparison.OrdinalIgnoreCase) ||
+            app.InventoryOnly || Scope(app.InventoryId).Length == 0 ||
             !new[] { "Microsoft", "Microsoft Corporation" }.Contains(app.Publisher, StringComparer.OrdinalIgnoreCase)) return null;
         return VcName(app.Name, true) ? Scope(app.InventoryId) + "|vc2013-x64" :
             VcName(app.Name, false) ? Scope(app.InventoryId) + "|vc2013-x86" : null;
