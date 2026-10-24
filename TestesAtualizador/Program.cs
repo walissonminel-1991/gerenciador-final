@@ -21,7 +21,7 @@ if (args.Contains("--verify-catalog"))
                 string temp=Path.Combine(Path.GetTempPath(),"GF-Engine-Proof-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(temp);
                 try
                 {
-                    using var client=new HttpClient(AutomaticUpdateDiscovery.DownloadHandler());Uri uri=parsed.Download;
+                    using var client=new HttpClient(AutomaticUpdateDiscovery.DownloadHandler());Uri uri=parsed.Download;bool validated=false;
                     for(int redirects=0;redirects<8;redirects++)
                     {
                         if(!AutomaticPackageManifest.IsPublicHttps(uri))throw new Exception("Redirect nao autorizado");
@@ -31,10 +31,24 @@ if (args.Contains("--verify-catalog"))
                         await using(var output=new FileStream(file,FileMode.CreateNew,FileAccess.Write,FileShare.None))
                             await UpdateDownloadTransfer.CopyAsync(response,output,50000,260L*1024*1024,token.Token);
                         using(var held=InstallerFileGuard.OpenRead(file,allowDirectoryWrites:true))await InstallerFileGuard.RequireDigestAsync(held,parsed.Sha256,token.Token);
-                        if(!TrustedFileSignature.TryGetSigner(file,out var signer,out _) || InstallerEngineEvidence.Detect(file)!=parsed.Type)
-                            throw new Exception("Assinatura ou motor real nao correspondem ao manifesto");
-                        Console.WriteLine("ENGINE.REAL_VALIDADO "+parsed.PackageId+" "+parsed.Type+" signer="+signer);break;
+                        string actualEngine=InstallerEngineEvidence.Detect(file);
+                        if(actualEngine!=parsed.Type)throw new Exception("Motor real "+actualEngine+" diverge de "+parsed.Type);
+                        if(TrustedFileSignature.TryGetSigner(file,out var signer,out var trustIssue))
+                            Console.WriteLine("ENGINE.REAL_VALIDADO "+parsed.PackageId+" "+parsed.Type+" signer="+signer);
+                        else
+                        {
+                            // ShareX 21.0.0 e um controle negativo real: hash oficial,
+                            // Inno valido, mas sem certificado no PE. O produto exige assinatura.
+                            using var input=File.OpenRead(file);
+                            using var pe=new System.Reflection.PortableExecutable.PEReader(input);
+                            var sample=new AutomaticAppInstallation("",parsed.Name,parsed.Publisher,parsed.Version,"machine","x64",temp,file,"","inno","");
+                            if(item.Item1!="ShareX" || pe.PEHeaders.PEHeader!.CertificateTableDirectory.Size!=0 || sample.SameSigner(file))
+                                throw new Exception("Assinatura real nao confirmada: "+trustIssue);
+                            Console.WriteLine("ENGINE.REAL_VALIDADO "+parsed.PackageId+" "+parsed.Type+" assinatura=ausente EXECUCAO_BLOQUEADA");
+                        }
+                        validated=true;break;
                     }
+                    if(!validated)throw new Exception("Limite de redirects atingido sem validar o instalador");
                 }
                 finally{Directory.Delete(temp,true);}
             }

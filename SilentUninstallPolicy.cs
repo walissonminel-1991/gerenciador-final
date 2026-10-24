@@ -191,23 +191,7 @@ internal static class SilentUninstallPolicy
         catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex)) { return false; }
     }
 
-    internal static bool IsVerifiedInno(ParsedUninstallCommand command)
-    {
-        if (command.ProductCode is not null || command.Arguments.Length != 0 ||
-            !Regex.IsMatch(Path.GetFileName(command.FileName), @"^unins[0-9]{3}\.exe$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) return false;
-        try
-        {
-            using var image = InstallerFileGuard.OpenRead(command.FileName, allowDirectoryWrites: true);
-            if (!string.Equals(FileVersionInfo.GetVersionInfo(command.FileName).FileDescription,
-                    "Setup/Uninstall", StringComparison.OrdinalIgnoreCase)) return false;
-            using var log = InstallerFileGuard.OpenRead(Path.ChangeExtension(command.FileName, ".dat"), allowDirectoryWrites: true);
-            Span<byte> header = stackalloc byte[64];
-            log.ReadExactly(header);
-            string id = System.Text.Encoding.ASCII.GetString(header).TrimEnd('\0');
-            return id is "Inno Setup Uninstall Log (b)" or "Inno Setup Uninstall Log (b) 64-bit";
-        }
-        catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex)) { return false; }
-    }
+    internal static bool IsVerifiedInno(ParsedUninstallCommand command) => InstallerEngineEvidence.IsVerifiedInnoUninstaller(command);
 
     internal static bool MatchesAuthorized(ProgramEntry app, ParsedUninstallCommand chosen)
     {

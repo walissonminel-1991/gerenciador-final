@@ -18,6 +18,8 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
     internal static AutomaticAppInstallation? Read(ProgramEntry app)
     {
         if (!Eligible(app) || !UninstallCommand.TryParse(app.UninstallString,out var uninstall)) return null;
+        if (uninstall.ProductCode is not null && (!Guid.TryParse(app.MsiProductCode,out var registeredCode) ||
+            registeredCode==Guid.Empty || !Guid.TryParse(uninstall.ProductCode,out var commandCode) || registeredCode!=commandCode)) return null;
         try
         {
             string scope=app.InventoryId.StartsWith("LocalMachine|",StringComparison.Ordinal)?"machine":
@@ -54,7 +56,7 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
             if(verified.Length!=1)return null;
             string architecture=VerifiedUpdaters.GetPortableExecutableMachine(verified[0]) switch{0x8664=>"x64",0x14c=>"x86",_=>""};
             if(architecture.Length==0)return null;
-            string kind=uninstall.ProductCode is not null?"msi":InstallerEngineEvidence.Detect(uninstall.FileName);
+            string kind=InstallerEngineEvidence.InstalledKind(uninstall);
             if(kind is not ("msi" or "nullsoft" or "inno"))return null;
             return new(Binding(app),app.Name,app.Publisher,app.Version,scope,architecture,root,verified[0],uninstall.FileName,kind,app.MsiProductCode,app.InventoryId);
         }
@@ -90,7 +92,7 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
         if(items.Any(p=>Binding(p)!=Key && p.InstallLocation.Trim().TrimEnd('\\') is {Length:>0} other &&
             (Root.StartsWith(other+"\\",StringComparison.OrdinalIgnoreCase) || other.StartsWith(Root+"\\",StringComparison.OrdinalIgnoreCase) || Root.Equals(other,StringComparison.OrdinalIgnoreCase))))return false;
         if(VerifiedUpdaters.GetPortableExecutableMachine(Binary)!=(Architecture=="x64"?0x8664:0x14c) ||
-            Kind!="msi" && InstallerEngineEvidence.Detect(Uninstaller)!=Kind)return false;
+            Kind!="msi" && InstallerEngineEvidence.InstalledKind(new(Uninstaller,"",null))!=Kind)return false;
         return items.Count(p=>Binding(p)==Key)==1 && items.Count(p=>Matching.NormalizeName(p.Name)==Matching.NormalizeName(Name) &&
             Matching.NormalizePublisher(p.Publisher)==Matching.NormalizePublisher(Publisher))==1 && BinaryMatches(Binary,Version,Name,true);
         }

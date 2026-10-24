@@ -9,6 +9,24 @@ namespace GerenciadorAplicativos;
 // Evidencia do formato no arquivo, nunca executa /? nem scripts para descobrir flags.
 internal static class InstallerEngineEvidence
 {
+    internal static string InstalledKind(ParsedUninstallCommand command)=>command.ProductCode is not null?"msi":
+        IsVerifiedInnoUninstaller(command)?"inno":Detect(command.FileName);
+    internal static bool IsVerifiedInnoUninstaller(ParsedUninstallCommand command)
+    {
+        if(command.ProductCode is not null || command.Arguments.Length!=0 ||
+            !Regex.IsMatch(Path.GetFileName(command.FileName),@"^unins[0-9]{3}\.exe$",RegexOptions.IgnoreCase|RegexOptions.CultureInvariant))return false;
+        try
+        {
+            using var image=InstallerFileGuard.OpenRead(command.FileName,allowDirectoryWrites:true);
+            if(!string.Equals(FileVersionInfo.GetVersionInfo(command.FileName).FileDescription,"Setup/Uninstall",StringComparison.OrdinalIgnoreCase))return false;
+            using var log=InstallerFileGuard.OpenRead(Path.ChangeExtension(command.FileName,".dat"),allowDirectoryWrites:true);
+            Span<byte> header=stackalloc byte[64];log.ReadExactly(header);
+            string id=Encoding.ASCII.GetString(header).TrimEnd('\0');
+            return id is "Inno Setup Uninstall Log (b)" or "Inno Setup Uninstall Log (b) 64-bit";
+        }
+        catch(Exception ex)when(ex is IOException or InvalidDataException or UnauthorizedAccessException or System.Security.SecurityException or
+            InvalidOperationException or ArgumentException or NotSupportedException or System.ComponentModel.Win32Exception or System.Security.Cryptography.CryptographicException){return false;}
+    }
     internal static string Detect(string path)
     {
         using var held = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
@@ -21,10 +39,13 @@ internal static class InstallerEngineEvidence
         byte[] first = new byte[(int)Math.Min(2 * 1024 * 1024, held.Length - overlay)];
         held.ReadExactly(first);
         if (HasNsisHeader(first, held.Length)) return "nullsoft";
-        var tail = new byte[(int)Math.Min(512 * 1024, held.Length)];
-        held.Position = held.Length - tail.Length; held.ReadExactly(tail);
-        return (first.AsSpan().IndexOf("Inno Setup Setup Data ("u8)>=0 || tail.AsSpan().IndexOf("Inno Setup Setup Data ("u8)>=0) &&
-            (first.AsSpan().IndexOf("rDlPtS02"u8)>=0 || tail.AsSpan().IndexOf("rDlPtS02"u8)>=0) ? "inno" : "unknown";
+        // Inno guarda a tabela no recurso do stub, antes do overlay. A tabela v2
+        // usa 12 bytes binarios, nao a string historica "rDlPtS02".
+        var prefix = new byte[(int)Math.Min(8 * 1024 * 1024, held.Length)];
+        held.Position=0;held.ReadExactly(prefix);
+        if(!TryInnoTable(prefix,held.Length,overlay,out long dataOffset))return "unknown";
+        Span<byte> identity=stackalloc byte[64];held.Position=dataOffset;held.ReadExactly(identity);
+        return identity.StartsWith("Inno Setup Setup Data ("u8) && identity.IndexOf((byte)0)>22 ? "inno" : "unknown";
     }
     internal static bool HasNsisHeader(ReadOnlySpan<byte> data, long fileLength)
     {
@@ -37,9 +58,31 @@ internal static class InstallerEngineEvidence
                 return true;
         return false;
     }
-    internal static bool HasInnoHeader(ReadOnlySpan<byte> data) =>
-        data.IndexOf("Inno Setup Setup Data ("u8) >= 0 &&
-        data.IndexOf("rDlPtS02"u8) >= 0;
+    // TSetupLdrOffsetTable: formato e CRC definidos em Shared.Struct.pas / SetupLdr.dpr.
+    internal static bool TryInnoTable(ReadOnlySpan<byte> data,long fileLength,long overlay,out long dataOffset)
+    {
+        dataOffset=0;
+        ReadOnlySpan<byte> magic=[0x72,0x44,0x6c,0x50,0x74,0x53,0xcd,0xe6,0xd7,0x7b,0x0b,0x2a];
+        for(int i=0;i+64<=data.Length;i++)
+        {
+            if(!data.Slice(i,12).SequenceEqual(magic))continue;
+            var table=data.Slice(i,64);
+            long total=BinaryPrimitives.ReadInt64LittleEndian(table[16..]),exe=BinaryPrimitives.ReadInt64LittleEndian(table[24..]);
+            long offset0=BinaryPrimitives.ReadInt64LittleEndian(table[40..]),offset1=BinaryPrimitives.ReadInt64LittleEndian(table[48..]);
+            if(BinaryPrimitives.ReadUInt32LittleEndian(table[12..])!=2 || total>fileLength || total<64 ||
+                offset0<overlay || offset0>total-64 || exe<=offset0 || exe>=total || offset1<overlay || offset1>offset0 ||
+                BinaryPrimitives.ReadUInt32LittleEndian(table[32..]) is 0 or >64*1024*1024 ||
+                InnoTableCrc(table[..60])!=BinaryPrimitives.ReadUInt32LittleEndian(table[60..]))continue;
+            dataOffset=offset0;return true;
+        }
+        return false;
+    }
+    internal static uint InnoTableCrc(ReadOnlySpan<byte> data)
+    {
+        uint crc=uint.MaxValue;
+        foreach(byte value in data){crc^=value;for(int bit=0;bit<8;bit++)crc=(crc>>1)^((crc&1)!=0?0xedb88320u:0);}
+        return ~crc;
+    }
 
     internal static string ProductKey(string text) => string.Concat(text.Normalize(NormalizationForm.FormKC).ToLowerInvariant().Where(c=>char.IsLetterOrDigit(c)||c=='+'));
     internal static string FamilyName(string text)

@@ -268,9 +268,13 @@ internal static class Work12RegressionTests
             check(request.Command.Arguments.Length == 0, "W12 nome unins000 sem log de motor nao autoriza flags");
             File.WriteAllBytes(dat, System.Text.Encoding.ASCII.GetBytes("Inno Setup Uninstall Log (b)".PadRight(64, '\0')));
             request = UninstallBatch.Select([app]).Single();
+            check(InstallerEngineEvidence.InstalledKind(request.Command with { Arguments = "" }) == "inno",
+                "W12 descoberta de atualizacao reconhece Inno instalado pelo log sem confundir setup e uninstaller");
             check(request.Command.Arguments == "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" && SilentUninstallPolicy.UsesSilentMode(request),
                 "W12 Inno comprovado usa parametros documentados e impede reboot automatico");
             File.WriteAllText(dat, "FAKE HEADER".PadRight(64));
+            check(!InstallerEngineEvidence.IsVerifiedInnoUninstaller(request.Command with { Arguments = "" }),
+                "W12 descoberta de atualizacao recusa log Inno adulterado");
             check(UninstallBatch.Select([app]).Single().Command.Arguments.Length == 0, "W12 log Inno adulterado recua para interacao");
             string other = Path.Combine(root, "other.exe"); File.Copy(fixture, other);
             var wrong = new ProgramEntry { Name = app.Name, InventoryId = app.InventoryId, UninstallString = app.UninstallString,

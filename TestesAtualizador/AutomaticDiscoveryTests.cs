@@ -15,6 +15,7 @@ internal static class AutomaticDiscoveryTests
         check(installer is {Type:"nullsoft",Arguments:"/S"},"AUTO pacote desconhecido gera instrucao NSIS sem regra de aplicativo ou versao no codigo");
         check(Select(Manifest("inno"),"inno") is {Arguments:var flags} && flags.Contains("/NOCLOSEAPPLICATIONS") && flags.Contains("/NORESTART"),"AUTO Inno silencioso preserva fechamento e reinicio sob controle");
         check(Select(Manifest("msi",extra:"  ProductCode: '{00000000-0000-0000-0000-000000000059}'\n"),"msi") is {Arguments:"/qn /norestart"},"AUTO MSI exige ProductCode e parametros locais conhecidos");
+        check(Select(Manifest("msi",extra:"  ProductCode: '{00000000-0000-0000-0000-000000000000}'\n"),"msi") is null,"AUTO ProductCode MSI vazio nao identifica produto");
         foreach(var text in new[]{Manifest(arch:"x86"),Manifest(arch:"arm64"),Manifest(scope:"user"),Manifest(type:"zip"),Manifest(type:"exe"),Manifest(type:"msix")})
             check(Select(text) is null,"AUTO arquitetura escopo ou motor diferente nao autoriza");
         foreach(string bad in new[]{"  Dependencies:\n    PackageDependencies:\n    - PackageIdentifier: Unsafe.Dependency\n","  UpgradeBehavior: uninstallPrevious\n",
@@ -69,7 +70,20 @@ internal static class AutomaticDiscoveryTests
         BitConverter.GetBytes(100u).CopyTo(header,20);BitConverter.GetBytes(200u).CopyTo(header,24);
         check(InstallerEngineEvidence.HasNsisHeader(header,1000),"AUTO estrutura NSIS valida reconhecida em bytes sinteticos");
         header[0]=0xff;check(!InstallerEngineEvidence.HasNsisHeader(header,1000),"AUTO string NSIS com estrutura falsa rejeitada");
-        check(!InstallerEngineEvidence.HasInnoHeader("Inno Setup Setup Data (6.4.3)"u8) && InstallerEngineEvidence.HasInnoHeader("rDlPtS02 Inno Setup Setup Data (6.4.3)"u8),"AUTO Inno exige marcadores independentes");
+        byte[] table=InnoTable(1000,700,800,600);
+        check(InstallerEngineEvidence.TryInnoTable(table,1000,500,out long offset) && offset==700,"AUTO Inno tabela binaria oficial v2 e offsets reconhecidos");
+        byte[] observed=Convert.FromHexString("72446c507453cde6d77b0b2a0200000067474b0800000000893f39080000000000884300ab95f2c4a5d637080000000000a40d0000000000000000003a7683af");
+        check(InstallerEngineEvidence.TryInnoTable(observed,139151207,893952,out long realOffset) && realOffset==137877157,"AUTO Inno tabela observada no ShareX oficial confere CRC independente");
+        table[60]^=1;check(!InstallerEngineEvidence.TryInnoTable(table,1000,500,out _),"AUTO Inno CRC adulterado nao comprova motor");
+        check(!InstallerEngineEvidence.TryInnoTable(InnoTable(1000,1100,1200,600),1000,500,out _),"AUTO Inno offsets fora do arquivo recusados");
+        check(!InstallerEngineEvidence.TryInnoTable("rDlPtS02 Inno Setup Setup Data (6.4.3)"u8,1000,500,out _),"AUTO Inno strings isoladas nao comprovam motor");
+    }
+    private static byte[] InnoTable(long total,long data,long exe,long files)
+    {
+        byte[] table=new byte[64];byte[] magic=[0x72,0x44,0x6c,0x50,0x74,0x53,0xcd,0xe6,0xd7,0x7b,0x0b,0x2a];magic.CopyTo(table,0);
+        BitConverter.GetBytes(2u).CopyTo(table,12);BitConverter.GetBytes(total).CopyTo(table,16);BitConverter.GetBytes(exe).CopyTo(table,24);
+        BitConverter.GetBytes(1000u).CopyTo(table,32);BitConverter.GetBytes(data).CopyTo(table,40);BitConverter.GetBytes(files).CopyTo(table,48);
+        BitConverter.GetBytes(InstallerEngineEvidence.InnoTableCrc(table.AsSpan(0,60))).CopyTo(table,60);return table;
     }
     private static void NativeFiles(Action<bool,string> check)
     {
@@ -95,6 +109,12 @@ internal static class AutomaticDiscoveryTests
                 InstallLocation=install,UninstallString="\""+uninstall+"\"",DisplayIcon=binary};
             var snapshot=AutomaticAppInstallation.Read(app);
             check(snapshot is {Architecture:"x64",Kind:"nullsoft"} && snapshot.Current([app]),"AUTO arquivo PE e escopo reais corroboram instalacao sintetica");
+            const string registeredCode="{00000000-0000-0000-0000-000000000059}";
+            ProgramEntry MsiApp(string code)=>new(){Name=app.Name,Publisher=app.Publisher,Version=app.Version,InventoryId=app.InventoryId,
+                InstallLocation=install,DisplayIcon=binary,MsiProductCode=code,UninstallString="msiexec.exe /X"+registeredCode};
+            check(AutomaticAppInstallation.Read(MsiApp(registeredCode)) is {Kind:"msi",ProductCode:registeredCode},"AUTO MSI comando e inventario identificam o mesmo produto");
+            check(AutomaticAppInstallation.Read(MsiApp("{00000000-0000-0000-0000-000000000060}")) is null,"AUTO MSI comando de outro produto nao autoriza atualizacao");
+            check(AutomaticAppInstallation.Read(MsiApp("")) is null,"AUTO MSI codigo ausente no inventario nao autoriza");
             var other=new ProgramEntry{Name=app.Name,Publisher=app.Publisher,Version=app.Version,InventoryId="LocalMachine|Registry64|Other"};
             check(!snapshot!.Current([app,other]),"AUTO duas instalacoes da familia nao autorizam uma escolha arbitraria");
             var shared=new ProgramEntry{Name="Other Product",Publisher="Other",InstallLocation=install,InventoryId="LocalMachine|Registry64|Shared"};
@@ -103,6 +123,12 @@ internal static class AutomaticDiscoveryTests
             check(!snapshot.Current([app]),"AUTO arquitetura alterada depois da descoberta bloqueia execucao");
             File.WriteAllBytes(binary,data);File.WriteAllBytes(uninstall,data);
             check(!snapshot.Current([app]),"AUTO desinstalador mudou de mecanismo depois da descoberta");
+            using(var output=new FileStream(uninstall,FileMode.Create,FileAccess.Write))
+            {
+                output.Write(data);byte[] suffix=new byte[512];InnoTable(data.Length+512,data.Length+256,data.Length+320,data.Length).CopyTo(suffix,0);
+                "Inno Setup Setup Data (6.7.0)"u8.CopyTo(suffix.AsSpan(256));output.Write(suffix);
+            }
+            check(InstallerEngineEvidence.Detect(uninstall)=="inno","AUTO Inno PE sintetico usa tabela e identidade no offset declarado");
             File.WriteAllBytes(binary,[]);
             check(AutomaticAppInstallation.Read(app) is null,"AUTO executavel ausente ou vazio nao comprova identidade");
         }

@@ -59,7 +59,7 @@ internal static class AutomaticPackageManifest
                 if (S(feature,"ProductCode") is {Length:>0} nested) { if (code.Length>0 && !code.Equals(nested,StringComparison.OrdinalIgnoreCase)) continue; code=nested; }
                 upgrade=S(feature,"UpgradeCode");
             }
-            if (type is "msi" or "wix" && !Guid.TryParse(code,out _)) continue;
+            if (type is "msi" or "wix" && (!Guid.TryParse(code,out var productCode) || productCode==Guid.Empty)) continue;
             options.Add(new(reference.Id,name,publisher,reference.Version,type,arch,targetScope,url,Get("InstallerSha256"),code,upgrade,args));
         }
         var unique = options.Distinct().ToArray();
