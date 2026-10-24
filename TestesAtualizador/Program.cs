@@ -199,8 +199,9 @@ Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Desconhec
        "Notepad++: rejeitar editor desconhecido");
 Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.2", "Don HO", "GitHub oficial")) is null,
        "Notepad++: rejeitar versao nao aprovada");
-Verify(VerifiedUpdaters.Resolve(Item("Notepad++ (x86)", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial")) is null,
-       "Notepad++: nao instalar pacote x64 no cadastro x86");
+Verify(VerifiedUpdaters.Resolve(Item("Notepad++ (x86)", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial")) is { Identifier: "notepadpp-x86-8.9.8.1" } x86Npp &&
+       x86Npp.Sha256 != npp.Sha256 && x86Npp.Download != npp.Download,
+       "Notepad++: cadastro x86 recebe somente pacote e hash x86 proprios");
 Verify(VerifiedUpdaters.Resolve(Item("Notepad++", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial")) is null,
        "Notepad++: bloquear arquitetura nao identificada");
 Verify(VerifiedUpdaters.GetPrimaryAction(Item("Notepad++ (64-bit x64)", "8.8.8", "8.9.8.1",

@@ -140,6 +140,26 @@ internal static class Work13UpdateTests
             check(!VerifiedUpdaters.ConfirmInstallation(vc, oldVc, [newVc]), "W13 copia em outro usuario nao confirma VC2013 global");
             newVc.InventoryId = "LocalMachine|Registry32|NewVc"; newVc = With(newVc, version: "99.0.0.0");
             check(!VerifiedUpdaters.ConfirmInstallation(vc, oldVc, [newVc]), "W13 versao falsa de outra familia nao confirma runtime compartilhado");
+            newVc = With(newVc, version: vc.Version);
+            WriteVersioned(dll, "99.0.40664.0");
+            check(!VerifiedUpdaters.ConfirmInstallation(vc, oldVc, [newVc]), "W13 DLL de outra familia nao comprova VC2013");
+            foreach (bool x64 in new[] { false, true })
+            {
+                string id = x64 ? "notepadpp-x64-8.9.8.1" : "notepadpp-x86-8.9.8.1";
+                var nppLayout = UpdateInstallationContract.For(id)!; Directory.CreateDirectory(nppLayout.Root);
+                var npp = new ProgramEntry { Name = x64 ? "Notepad++ (64-bit x64)" : "Notepad++ (32-bit x86)", Publisher = "Don HO", Version = "8.9.5",
+                    AvailableVersion = "8.9.8.1", IsUpdate = true, Source = "GitHub oficial", InventoryId = "LocalMachine|Registry32|Notepad++",
+                    InstallLocation = nppLayout.Root, UninstallString = "\"" + nppLayout.Uninstaller + "\"" };
+                var nppRecipe = VerifiedUpdaters.Resolve(npp)!;
+                WriteVersioned(nppLayout.Binary, "08.9.00005.0", x64);
+                check(VerifiedUpdaters.SingleSafeSilentInstallation(nppRecipe, npp, [npp]), "W13 Notepad++ preflight real arquitetura " + (x64 ? "x64" : "x86"));
+                var nppAfter = With(npp, version: "8.9.8.1");
+                check(!VerifiedUpdaters.ConfirmInstallation(nppRecipe, npp, [nppAfter]), "W13 Notepad++ registro novo com binario antigo " + id);
+                WriteVersioned(nppLayout.Binary, "08.9.00008.1", x64);
+                check(VerifiedUpdaters.ConfirmInstallation(nppRecipe, npp, [nppAfter]), "W13 Notepad++ confirmacao real com pacote correto " + id);
+                WriteVersioned(nppLayout.Binary, "08.9.00008.1", !x64);
+                check(!VerifiedUpdaters.ConfirmInstallation(nppRecipe, npp, [nppAfter]), "W13 Notepad++ arquitetura trocada nao confirma " + id);
+            }
             bool refused = false;
             try { VerifiedUpdaters.ValidatePayloadIdentity(obs, layout.Binary); } catch (InvalidDataException) { refused = true; }
             check(refused, "W13 PE sintetico sem identidade do instalador e recusado mesmo com versao compatível");

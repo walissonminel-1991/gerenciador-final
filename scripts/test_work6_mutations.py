@@ -7,8 +7,8 @@ root = pathlib.Path(__file__).resolve().parents[1]
 dotnet = sys.argv[1] if len(sys.argv) > 1 else 'dotnet'
 mutants = [
     ('cancel-before-launch', 'UpdateLaunchGate.cs',
-     '            token.ThrowIfCancellationRequested();\n            // A partir',
-     '            // MUTANT: cancellation removed\n            // A partir',
+     '            token.ThrowIfCancellationRequested();\n            // A partir deste ponto a chamada pode ter criado um processo externo.\n            progress?.Invoke(new(UpdateStage.Installing));\n            token.ThrowIfCancellationRequested();',
+     '            // MUTANT: as duas barreiras anteriores ao lancamento removidas\n            progress?.Invoke(new(UpdateStage.Installing));',
      'TestesAtualizador', '--work6-flow', 'WORK6 fluxo: cancelamento entre'),
     ('duplicate-launch', 'UpdateLaunchGate.cs',
      'if (Interlocked.Exchange(ref attempted, 1) != 0)', 'if (false)',
@@ -95,7 +95,7 @@ mutants.extend([
 ])
 if os.name == 'nt':
     mutants.append(('w13-vc-dll-bypassed', 'UpdateInstallationContract.cs',
-        'version >= target && BinaryMatches(VcBinary(x64), recipe.Version, x64, exact: false)',
+        'version >= target && BinaryMatches(VcBinary(x64), recipe.Version, x64, exact: false, sameFamily: true)',
         'version >= target',
         'TestesAtualizador', '--work13', 'W13 GUID novo com DLL antiga'))
 files = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')

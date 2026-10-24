@@ -82,14 +82,14 @@ internal static class UpdateInstallationContract
     internal static bool SamePath(string a, string b) =>
         a.TrimEnd('\\', '/').Equals(b.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
 
-    internal static bool BinaryMatches(string path, string version, bool x64, bool exact)
+    internal static bool BinaryMatches(string path, string version, bool x64, bool exact, bool sameFamily = false)
     {
         try
         {
             using var held = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
             return VerifiedUpdaters.GetPortableExecutableMachine(path) == (x64 ? 0x8664 : 0x14c) &&
                 VerifiedUpdaters.TryVersion(FileVersionInfo.GetVersionInfo(path).FileVersion, out var actual) &&
-                VerifiedUpdaters.TryVersion(version, out var expected) && (exact ? actual == expected : actual >= expected);
+                VerifiedUpdaters.TryVersion(version, out var expected) && (exact ? actual == expected : actual >= expected && (!sameFamily || actual.Major == expected.Major && actual.Minor == expected.Minor));
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
             ArgumentException or NotSupportedException or System.ComponentModel.Win32Exception) { return false; }
@@ -125,7 +125,7 @@ internal static class UpdateInstallationContract
             !VerifiedUpdaters.TryVersion(recipe.Version, out var target) || version.Major != 12 || version.Minor != 0) return false;
         // O bundle Microsoft pode trocar o GUID ARP. A migracao so e aceita
         // com uma unica familia/arquitetura no mesmo escopo E DLL real confirmada.
-        return confirming ? version >= target && BinaryMatches(VcBinary(x64), recipe.Version, x64, exact: false)
+        return confirming ? version >= target && BinaryMatches(VcBinary(x64), recipe.Version, x64, exact: false, sameFamily: true)
             : app.InventoryId == original.InventoryId && app.Version == original.Version && version < target &&
                 BinaryMatches(VcBinary(x64), original.Version, x64, exact: true);
     }
