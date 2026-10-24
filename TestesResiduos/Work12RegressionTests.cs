@@ -29,13 +29,16 @@ internal static class Work12RegressionTests
             check(plan.Keys.Count == 1, "W12 chave da politica criada pelo desinstalador precisa ser encontrada");
             testHive.DeleteSubKeyTree(keyPath, false);
 
-            // Reproduzir .56: erro 5 no preflight nunca equivale a ausencia.
+            // Reproduzir .56 com ZERO alvos, inclusive sem pasta vazia elegivel.
+            Directory.Delete(root);
+            // Erro 5 no preflight nunca equivale a ausencia.
             context = context with { Preserved = 1, Problems = [new("prepare", "registry_unreadable", 5)] };
             var audit = new List<string>();
             var batch = await IntegratedResidualBatch.RunAsync([removed],
                 new Dictionary<string, ResidualUninstallContext> { [id] = context }, Empty,
                 (_, _) => Task.FromResult(false), (_, _) => Task.FromResult<ResidualElevationResponse?>(null), audit.Add);
-            check(batch.Unavailable > 0 && !audit.Any(x => x.Contains("no_eligible_residue")),
+            check(batch.Offered == 0 && batch.Inspections!.Single().Eligible == 0 && batch.Unavailable > 0 &&
+                !audit.Any(x => x.Contains("no_eligible_residue")),
                 "W12 erro 5 sem alvo elegivel deve terminar inconclusivo");
 
             // Consultar valores nao exige notificacoes nem permissoes de escrita.
@@ -158,6 +161,12 @@ internal static class Work12RegressionTests
                         "W12 producao nao altera ACL nem remove negacao de acesso");
                     check(RebootResidualReview.Select([removed], partial).Length == 0,
                         "W12 erro 5 nao solicita reinicio");
+                    var onlyDenied = await IntegratedResidualBatch.RunAsync([removed], Context(context), Empty,
+                        (_, _) => throw new Exception("Sem elegiveis nao pode pedir limpeza"), NoElevation, _ => { });
+                    check(onlyDenied.Unavailable == 1 && onlyDenied.Offered == 0 &&
+                        onlyDenied.Inspections!.Single().Eligible == 0 &&
+                        UninstallResultSummary.Describe([removed], onlyDenied).Contains("não significa ausência"),
+                        "W12 ACL real erro 5 com zero elegiveis informa inconclusao sem pergunta vazia");
                 }
                 finally
                 {
