@@ -13,6 +13,9 @@
     <Compile Include="../UpdateOperationProgress.cs" Link="UpdateOperationProgress.cs" />
     <Compile Include="../UpdateLaunchGate.cs" Link="UpdateLaunchGate.cs" />
     <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
+    <Compile Include="../PackageCatalogIndex.cs" Link="PackageCatalogIndex.cs" />
+    <Compile Include="../TrustedFileSignature.cs" Link="TrustedFileSignature.cs" />
+    <Compile Include="../InstallerEngineEvidence.cs" Link="InstallerEngineEvidence.cs" />
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
     <Compile Include="../ProtectedApplications.cs" Link="ProtectedApplications.cs" />
     <Compile Include="../UpdateInstallationContract.cs" Link="UpdateInstallationContract.cs" />

@@ -133,6 +133,8 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
+      - name: Catalogo Microsoft autenticado em isolamento (sem WinGet ou instalacao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-catalog
       - name: WORK13 hashes identidade e Authenticode (sem execucao)
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-work13
       - name: SumatraPDF x86 e x64 (sem execucao)

@@ -1,6 +1,19 @@
 using GerenciadorAplicativos;
 if (args.Contains("--work11-installer-fixture")) return;
 if (args.Contains("--work13-slow-fixture")) { await Task.Delay(1000); return; }
+if (args.Contains("--verify-catalog"))
+{
+    using var token = new CancellationTokenSource(TimeSpan.FromSeconds(75));
+    using var catalog = await PackageCatalogIndex.DownloadAsync(token.Token);
+    foreach (var item in new[] { ("OBS Studio", "OBS Project"), ("VLC media player", "VideoLAN"), ("ShareX", "ShareX Team"), ("SumatraPDF", "Krzysztof Kowalczyk") })
+    {
+        var rows = catalog.Find(item.Item1, item.Item2, "", token.Token);
+        if (rows.Count != 1) throw new Exception("Catalogo nao identifica fixture publica " + item.Item1);
+        var bytes = await PackageCatalogIndex.ReadManifestAsync(rows[0], token.Token);
+        Console.WriteLine("CATALOGO.AUTENTICADO " + rows[0].Id + " bytes=" + bytes.Length);
+    }
+    return;
+}
 int checkedCount = 0;
 void Verify(bool condition, string label)
 {

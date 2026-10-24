@@ -42,6 +42,8 @@
     <Compile Include="../StartupWindowSizing.cs" Link="StartupWindowSizing.cs" />
     <Compile Include="../ResidualAudit.cs" Link="ResidualAudit.cs" />
     <Compile Include="../HistoricalResidualAudit.cs" Link="HistoricalResidualAudit.cs" />
+    <Compile Include="../TrustedFileSignature.cs" Link="TrustedFileSignature.cs" />
+    <Compile Include="../InstallerEngineEvidence.cs" Link="InstallerEngineEvidence.cs" />
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
     <Compile Include="../ResidualPreview.cs" Link="ResidualPreview.cs" />
     <Compile Include="../ResidualReportMerger.cs" Link="ResidualReportMerger.cs" />
