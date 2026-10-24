@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.57 TESTE — WORK12.** Ciclo integrado de desinstalação, cobertura residual explícita, progresso indeterminado, resumo final, comandos silenciosos verificados e recuperação passiva pós-boot. [Evidências e limites](MISSAO-WORK12.md); fonte/CI/pacote vigentes identificados na [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40). Roadmap permanece **27/42**; U8/R7/R4 físicos continuam abertos.
+**v5.13.11.58 TESTE — WORK13 (validação pendente).** Ampliação silenciosa com receitas fixas, prova de versão no disco, progresso individual e cancelamento da espera. [Evidências e limites](MISSAO-WORK13.md). Última aprovada: v5.13.11.57, [CI 40094285996](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40094285996). Roadmap permanece **27/42**; U8/R7/R4 físicos continuam abertos.
 
 ### Validação anterior — WORK11
 

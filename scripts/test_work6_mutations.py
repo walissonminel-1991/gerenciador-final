@@ -83,6 +83,21 @@ mutants.extend([
      '_ => UpdateStage.Pending\n    }, result.ExitCode', '_ => UpdateStage.Confirmed\n    }, result.ExitCode',
      'TestesAtualizador', '--work11', 'W11 retorno zero sem versao'),
 ])
+mutants.extend([
+    ('w13-final-cancel-bypassed', 'UpdateLaunchGate.cs',
+     '            token.ThrowIfCancellationRequested();\n            launched = true;',
+     '            launched = true;',
+     'TestesAtualizador', '--work13', 'W13 cancelamento no ultimo callback'),
+    ('w13-msix-publisher-prefix', 'WindowsTerminalUpdater.cs',
+     'publisher != "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"',
+     '!publisher.StartsWith("CN=Microsoft Corporation", StringComparison.Ordinal)',
+     'TestesAtualizador', '--work13', 'W13 MSIX publisher com prefixo'),
+])
+if os.name == 'nt':
+    mutants.append(('w13-vc-dll-bypassed', 'UpdateInstallationContract.cs',
+        'version >= target && BinaryMatches(VcBinary(x64), recipe.Version, x64, exact: false)',
+        'version >= target',
+        'TestesAtualizador', '--work13', 'W13 GUID novo com DLL antiga'))
 files = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
 with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     target=pathlib.Path(temporary)
@@ -95,7 +110,7 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     def run(project, argument):
         return subprocess.run([dotnet,'run','--project',project,'-p:EnableWindowsTargeting=true','-p:UseSharedCompilation=false','--',argument],
             cwd=target, text=True, encoding="utf-8", errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=150)
-    for project,argument in [('TestesAtualizador','--work6-flow'),('TestesMultifontes',''),('TestesResiduos','--work6-uninstall-flow'),('TestesAtualizador','--work11')]:
+    for project,argument in [('TestesAtualizador','--work6-flow'),('TestesMultifontes',''),('TestesResiduos','--work6-uninstall-flow'),('TestesAtualizador','--work11'),('TestesAtualizador','--work13')]:
         baseline=run(project,argument)
         if baseline.returncode: raise RuntimeError('baseline failed: '+baseline.stdout[-2000:])
         print('BASELINE PASS',project,flush=True)

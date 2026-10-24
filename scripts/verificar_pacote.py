@@ -114,15 +114,71 @@ def verify(root: Path, version: str, source: str, build: str, base: str = "") ->
             "runtime": frameworks, "architecture": "AMD64"}
 
 
+def verify_metadata(root: Path) -> dict:
+    import xml.etree.ElementTree as ET
+    project = ET.parse(root / "GerenciadorAplicativos.csproj").getroot().findtext("PropertyGroup/Version")
+    if not project or not re.fullmatch(r"\d+(?:\.\d+){3}", project):
+        raise ValueError("versao de projeto invalida")
+    manifest = ET.parse(root / "app.manifest").getroot().find("{urn:schemas-microsoft-com:asm.v1}assemblyIdentity")
+    if manifest is None or manifest.get("version") != project:
+        raise ValueError("manifesto e projeto divergentes")
+    progress = json.loads((root / "docs/PROGRESSO.json").read_text(encoding="utf-8"))
+    candidate = progress["candidate"]
+    if candidate["version"] != project + " TESTE" or candidate["status"] not in {"pending", "approved"}:
+        raise ValueError("candidata divergente ou estado invalido")
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    roadmap = (root / "docs/ROADMAP.md").read_text(encoding="utf-8")
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+    for text, pattern, label in [
+        (readme, r"Candidata TESTE: v(\d+(?:\.\d+){3})", "README"),
+        (roadmap, r"\*\*v(\d+(?:\.\d+){3}) TESTE", "ROADMAP"),
+        (changelog, r"^## (?:v)?(\d+(?:\.\d+){3}) TESTE", "CHANGELOG"),
+    ]:
+        match = re.search(pattern, text, re.MULTILINE)
+        if match is None or match[1] != project:
+            raise ValueError(label + " anuncia outra candidata")
+    approved = progress["version"].removesuffix(" TESTE")
+    if progress["ci_status"] != "success" or tuple(map(int, approved.split('.'))) > tuple(map(int, project.split('.'))):
+        raise ValueError("aprovacao invalida")
+    artifact = progress["artifact"]
+    source = progress["code_commit"]
+    if not re.fullmatch(r"[0-9a-f]{40}", source) or artifact["source_commit"] != source or artifact["file_version"] != approved:
+        raise ValueError("origem/versao do pacote aprovado divergente")
+    name = "GerenciadorFinal-v" + approved + "-" + source[:8] + "-TESTE-win-x64"
+    run = progress["ci_url"]
+    if not re.fullmatch(r"https://github.com/walissonminel-1991/gerenciador-final/actions/runs/\d+", run):
+        raise ValueError("CI sem origem aprovada")
+    if progress["build_url"] != run or progress["policy_url"] != run or artifact["url"] != run + "/artifacts/" + str(artifact["id"]) or progress["artifact_url"] != artifact["url"]:
+        raise ValueError("referencias de CI/artefato divergentes")
+    if artifact["name"] != name or progress["artifact_name"] != name or not re.fullmatch(r"[0-9a-f]{64}", artifact["zip_sha256"]):
+        raise ValueError("identidade/hash do pacote divergente")
+    if candidate["status"] == "approved" and approved != project:
+        raise ValueError("candidata declarada aprovada sem pacote correspondente")
+    tasks = {t["id"]: t for section in progress["sections"] for t in section["tasks"]}
+    for checkpoint in ("U8", "R7", "R4"):
+        if tasks[checkpoint]["done"]:
+            raise ValueError("homologacao fisica " + checkpoint + " requer evidencia e revisao explicita desta trava")
+    if candidate["winget_execution_enabled"] or candidate["physical_validation"] != "pending" or not (root / candidate["report"]).is_file():
+        raise ValueError("contratos da candidata divergentes")
+    return {"candidate": candidate["version"], "status": candidate["status"], "approved": progress["version"], "source": source}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
-    parser.add_argument("--version", required=True)
-    parser.add_argument("--source", required=True)
-    parser.add_argument("--build", required=True)
+    parser.add_argument("--metadata", action="store_true")
+    parser.add_argument("--version")
+    parser.add_argument("--source")
+    parser.add_argument("--build")
     parser.add_argument("--base", default="")
     args = parser.parse_args()
     try:
-        print(json.dumps(verify(args.directory, args.version, args.source, args.build, args.base), indent=2))
+        if args.metadata:
+            result = verify_metadata(args.directory)
+        else:
+            if not all((args.version, args.source, args.build)):
+                parser.error("pacote exige --version, --source e --build")
+            result = verify(args.directory, args.version, args.source, args.build, args.base)
+        print(json.dumps(result, indent=2))
     except (ValueError, KeyError, OSError, TypeError) as error:
         parser.exit(1, "Pacote reprovado: " + str(error) + "\n")

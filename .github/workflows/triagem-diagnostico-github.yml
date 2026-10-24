@@ -22,6 +22,8 @@ jobs:
         with:
           persist-credentials: false
       - name: Exigir ausencia de envio manual e codigo remoto nao confiavel
-        run: python3 -B -m unittest discover -s scripts -p 'test_p*.py' -v
+        run: |
+          python3 -B -m unittest discover -s scripts -p 'test_p*.py' -v
+          python3 scripts/verificar_pacote.py . --metadata
       - name: Simular receptor HTTPS isolado (Node, sem rede externa)
         run: node --test prototipos/telemetria-worker/test.mjs prototipos/telemetria-worker/staging-receiver.test.mjs

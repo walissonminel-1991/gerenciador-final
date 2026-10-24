@@ -118,7 +118,7 @@ jobs:
 
   downloads-verificados:
     name: Integridade dos instaladores oficiais (sem instalacao)
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.verificar_downloads }}
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.verificar_downloads) }}
     runs-on: windows-2022
     timeout-minutes: 30
     env:
@@ -133,8 +133,8 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
-      - name: OBS e Notepad++ (sem execucao)
-        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads
+      - name: WORK13 hashes identidade e Authenticode (sem execucao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-work13
       - name: SumatraPDF x86 e x64 (sem execucao)
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-sumatra
       - name: 7-Zip EXE x64 verificado por SHA-256 (sem instalacao)

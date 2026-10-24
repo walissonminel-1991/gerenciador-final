@@ -1,4 +1,13 @@
-## v5.13.11.49 TESTE — WORK9: consolidação, pacote e CI
+# Histórico de alterações
+
+## 5.13.11.58 TESTE — WORK13 (24/10/2026)
+
+- OBS NSIS `/S` comprovado, Visual C++ 2013 x64/x86 com SHA-256 oficiais independentes e Notepad++ x86. Receitas fixas; parâmetros remotos não são executados.
+- Contratos EXE preservam produto, pasta, arquitetura, escopo e exclusividade; Registro sem binário novo não confirma sucesso. VC2013 confirma também `msvcr120.dll` e admite migração comprovada de GUID sem perder o resultado.
+- Cancelamento imediatamente antes da execução impede o lançamento. Após executar, cancelar interrompe a espera e deixa resultado inconclusivo, sem matar o instalador ou repetir automaticamente.
+- Consultas MSIX com prazo e uma chamada em andamento; verificação Authenticode e espera fora da UI. Estrutura e publisher MSIX exatos, além do hash e confiança exigida pelo Windows.
+- Corrige páginas oficiais dos servidores Plex/Jellyfin; Acrobat, Proton divergente, pacotes protegidos e WinGet real preservam suas restrições.
+- Metadados de candidata e última aprovada separados e verificados automaticamente. U8/R7/R4 sem homologação física; [relatório WORK13](docs/MISSAO-WORK13.md).
 
 ## 5.13.11.57 TESTE — WORK12 (24/10/2026)
 
@@ -8,6 +17,8 @@
 - QuietUninstallString revalidado; NSIS Notepad++ x86/x64, SumatraPDF 3.6.1 e Inno comprovado. Unlocker sem contrato permanece interativo.
 - Cancelamento/timeout de processos reais separados; recuperação de pendências e resumo ao restaurar da bandeja. Reinício somente com motivo técnico; pós-boot permanece somente leitura.
 - Regressões Windows e mutações novas em fixtures descartáveis. [Relatório WORK12](docs/MISSAO-WORK12.md); a [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40) identifica a CI aprovada e o artefato. U8/R7/R4 físicos permanecem pendentes.
+
+## v5.13.11.49 TESTE — WORK9: consolidação, pacote e CI
 
 - Preserva as 13 causas corrigidas e 42 controles adversariais da Parte 1, registrados em [WORK9 parte 1](docs/MISSAO-WORK9-PARTE1.md); U8/R7/R4 continuam sem homologação física.
 - Portátil inclui licença GF, privacidade, guia e avisos originais dos runtimes. Conferência independente exige origem, versão, AMD64, self-contained e cobertura exata de hashes antes do upload; onze testes sintéticos do pacote, incluindo links internos dos documentos.

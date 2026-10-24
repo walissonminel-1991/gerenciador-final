@@ -6,7 +6,8 @@ import struct
 import tempfile
 import unittest
 
-from verificar_pacote import REQUIRED, verify
+from verificar_pacote import REQUIRED, verify, verify_metadata
+import shutil
 
 VERSION, SOURCE, BUILD, BASE = "5.13.11.49", "a" * 40, "b" * 40, "c" * 40
 
@@ -123,6 +124,54 @@ class PacoteTests(unittest.TestCase):
         self.hashes()
         with self.assertRaisesRegex(ValueError, "self-contained"):
             self.check()
+
+
+class MetadataTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="GF-Metadata-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        repo = Path(__file__).resolve().parents[1]
+        for name in ["GerenciadorAplicativos.csproj", "app.manifest", "README.md", "docs/ROADMAP.md", "CHANGELOG.md", "docs/PROGRESSO.json", "docs/MISSAO-WORK13.md"]:
+            file = self.root / name
+            file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(repo / name, file)
+
+    def test_repository_consistent(self):
+        verify_metadata(self.root)
+
+    def test_contradictory_candidate(self):
+        for name in ["README.md", "docs/ROADMAP.md", "CHANGELOG.md", "app.manifest"]:
+            with self.subTest(name=name):
+                path = self.root / name
+                original = path.read_text()
+                version = verify_metadata(self.root)["candidate"].split()[0]
+                path.write_text(original.replace(version, "0.0.0.1"))
+                with self.assertRaises(ValueError): verify_metadata(self.root)
+                path.write_text(original)
+
+    def test_wrong_approved_artifact(self):
+        path = self.root / "docs/PROGRESSO.json"
+        original = path.read_text()
+        for key, value in [("source_commit", "0" * 40), ("name", "another-package"), ("url", "https://example.com/installer"), ("zip_sha256", "invalid")]:
+            with self.subTest(key=key):
+                data = json.loads(original); data["artifact"][key] = value
+                path.write_text(json.dumps(data))
+                with self.assertRaises(ValueError): verify_metadata(self.root)
+        path.write_text(original)
+
+    def test_physical_checkpoints_remain_open(self):
+        path = self.root / "docs/PROGRESSO.json"; original = path.read_text()
+        for target in ("U8", "R7", "R4"):
+            data = json.loads(original)
+            next(t for section in data["sections"] for t in section["tasks"] if t["id"] == target)["done"] = True
+            path.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ValueError, "homologacao fisica"): verify_metadata(self.root)
+
+    def test_winget_real_not_enabled(self):
+        path = self.root / "docs/PROGRESSO.json"; data = json.loads(path.read_text())
+        data["candidate"]["winget_execution_enabled"] = True; path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, "contratos"): verify_metadata(self.root)
 
 
 if __name__ == "__main__":
