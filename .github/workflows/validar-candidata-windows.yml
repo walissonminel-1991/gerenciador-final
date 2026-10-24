@@ -51,6 +51,8 @@ jobs:
             $actual = & ".\$script" --print-version
             if ($LASTEXITCODE -ne 0 -or "$actual".Trim() -ne $expected) { throw "Versao incorreta: $script" }
           }
+      - name: Reproduzir falhas reais WORK12 em alvos sinteticos
+        run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --work12
       - name: Testes WSC somente leitura
         run: dotnet run --project TestesSeguranca/TestesSeguranca.csproj -c Release
       - name: Testes motor de comparacao
