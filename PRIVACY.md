@@ -57,3 +57,9 @@ opcional do GF não altera configurações globais do Windows.
 
 Exportar hardware para PNG é uma ação local do usuário. Confira o conteúdo
 antes de compartilhar imagens ou diagnósticos por canais externos ao GF.
+
+### Descoberta automática de instaladores
+
+O GF baixa `https://cdn.winget.microsoft.com/cache/source.msix` como arquivo de dados e confere a assinatura Microsoft. Não registra esse pacote nem executa WinGet COM/CLI. O índice é consultado localmente; os manifestos correspondentes usam caminhos públicos do catálogo. A lista do computador e seus caminhos não são enviados como parâmetros ou corpo de requisição. A URL pública do manifesto/pacote consultado identifica o produto ao servidor, como nas demais consultas de atualização. Downloads de instaladores só são iniciados após ação do usuário.
+
+O índice e as autorizações ficam na sessão, com limites e validade. Arquivos temporários do catálogo são removidos no encerramento normal, quando não há consulta em andamento. Interrupções do sistema podem deixar o diretório temporário para a manutenção normal do Windows. Dados de assinatura do executável instalado são usados apenas para validar o fornecedor, sem upload de arquivos ou certificados pessoais.

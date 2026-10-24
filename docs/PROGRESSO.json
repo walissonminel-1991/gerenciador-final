@@ -798,9 +798,9 @@
     }
   },
   "candidate": {
-    "version": "5.13.11.58 TESTE",
-    "status": "approved",
-    "mission": "WORK13",
+    "version": "5.13.11.59 TESTE",
+    "status": "pending",
+    "mission": "WORK13-AUTOMATICA",
     "report": "docs/MISSAO-WORK13.md",
     "physical_validation": "pending",
     "winget_execution_enabled": false

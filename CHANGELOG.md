@@ -1,5 +1,15 @@
 # Histórico de alterações
 
+## 5.13.11.59 TESTE — descoberta automática (24/10/2026)
+
+- Descoberta por catálogo Microsoft assinado e manifesto vinculado por SHA-256, sem WinGet COM/CLI, registro de pacotes ou regras por versão no novo mecanismo.
+- Autorizações efêmeras por instalação/manifesto; dados, IDs, receitas copiadas e catálogos consultivos não emitem permissão. Assinaturas do aplicativo e instalador precisam corresponder.
+- MSI: ProductCode, UpgradeCode, arquitetura, versão e escopo efetivos, com recusa de serviços/drivers. NSIS/Inno: formato real e parâmetros documentados, sem scripts de catálogo e sem encerrar aplicativos automaticamente.
+- Fechamento normal exige consentimento e identidade/usuário do processo; alteração de arquitetura, dados compartilhados, duplicações e resultado incerto bloqueiam execução ou repetição.
+- Desinstalação NSIS genérica com prova de motor, produto e assinaturas; mantém fallback interativo, SIM/NÃO residual, dados pessoais e recuperação da WORK12.
+- YAML limitado e sem aliases; download com HTTPS público, validação de DNS, hash, assinatura e identidade. SQLite do Windows, sem novo banco/serviço instalado; YamlDotNet MIT incluído no aviso de terceiros.
+- Testes sintéticos adversariais e validação de catálogo/manifestos/binários oficiais sem executar instaladores. [Relatório](docs/MISSAO-WORK13.md); homologação física pendente.
+
 ## 5.13.11.58 TESTE — WORK13 (24/10/2026)
 
 - Candidata aprovada na [CI 40099234162](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162), fonte `691ed096`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162/artifacts/12562141990) conferido por 280 hashes. Homologação física permanece pendente.

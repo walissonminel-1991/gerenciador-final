@@ -1,4 +1,28 @@
-# MISSÃO WORK13 — atualização silenciosa e confirmação
+# WORK13 — descoberta e execução silenciosa
+
+## Segunda etapa — candidata 5.13.11.59 TESTE
+
+Prioridade solicitada: transformar a descoberta em autorização genérica verificável, preservando a .58 e os contratos WORK12. HEAD inicial confirmado `0d53b94b8c03b39ed4e643d2126cc904a200214a`; main `410d65e23546976db456337c71e4705f10217d36`, PR #40 Draft, CI anterior `40100057873` aprovada. Esta etapa está em validação; o pacote aprovado anterior continua sendo o .58 abaixo.
+
+### Implementação real
+
+O novo leitor baixa o catálogo Microsoft como MSIX de dados, exige WinVerifyTrust/editor/identidade de catálogo e abre somente seu índice SQLite, usando a DLL do Windows. Não instala a origem nem ativa WinGet COM/CLI. Nome, fabricante e ProductCode são consultados localmente; nenhuma lista do usuário é enviada. O caminho e SHA do manifesto vêm do índice autenticado. Assim, versão, URL, hash, arquitetura e motor podem mudar sem incluir uma regra por aplicativo ou release no GF.
+
+Manifestos são lidos como YAML de dados, com limites e recusa de aliases, documentos múltiplos e ambiguidades. A seleção preserva arquitetura, escopo e tipo existentes. Suporta MSI/WiX, NSIS e Inno com parâmetros locais documentados; comandos/scripts livres não são executados. Exceções específicas já revisadas permanecem preferidas quando o hash corresponde. ZIP, EXE de mecanismo desconhecido, dependências, migrações de servidor, componentes protegidos ou identidade inconclusiva continuam sem autorização genérica.
+
+A autoridade fica somente em memória, vinculada à instalação e emitida pela consulta autenticada. Uma lista forjada ou cópia da receita não concede execução. No clique, hash, assinaturas da instalação e do pacote, motor e produto são verificados novamente. MSI exige continuidade de UpgradeCode, ProductCode alvo, arquitetura, versão e escopo, recusando tabelas de serviços/drivers. NSIS/Inno não recebem flags presumidas de outro motor. Downloads novos rejeitam HTTP, destinos privados, credenciais em URL e mudança de conteúdo.
+
+A lista integra os resultados do novo provedor ao histórico e à avaliação de conflitos existentes. Preparação, verificação e execução permanecem em segundo plano. Fechar aplicativo exige consentimento, caminho, sessão e usuário correspondentes; não há encerramento forçado no fluxo genérico. UAC continua apenas para escopo de máquina. Resultado zero é seguido de conferência da instalação e do binário; operação incerta não autoriza repetição por uma nova entrada de Registro.
+
+A desinstalação ganha descoberta NSIS genérica: estrutura do desinstalador, aplicativo correspondente no diretório, metadados e assinaturas coincidentes. Ausência dessa prova preserva o modo interativo. MSI, Inno, comandos quiet registrados e políticas específicas anteriores continuam ativos. A limpeza, SIM/NÃO, direitos mínimos, dados pessoais e recuperação pós-boot da WORK12 permanecem preservados.
+
+### Validação em andamento e limites
+
+Os testes puros já reproduzem tentativa de forjar autoridade, copiar receita, trocar arquitetura/escopo, injetar parâmetros, usar destinos privados, YAML ambíguo e migrar MSI de família errada. As regressões Windows exercitam arquivos e banco MSI sintéticos, mudança do binário após descoberta, diretório compartilhado, pacote ausente e ausência dos hooks de teste no produto. A etapa inicial `2388cffe` passou na CI `40134383273`, incluindo autenticação real do catálogo e de manifestos de quatro fabricantes, sem executar seus instaladores. A CI desta candidata adiciona conferência dos formatos reais NSIS/Inno em downloads oficiais.
+
+Cobertura genérica não equivale a compatibilidade universal: metadados incompletos, assinatura não confirmada, motor diferente, personalizações não documentadas e fontes divergentes podem exigir modo interativo, site ou Store. MSIX/Store genérico e servidores não recebem execução nova. Não houve atualização, desinstalação ou limpeza nos PCs pessoais. U8/R7/R4 seguem sem homologação física; roadmap 27/42. Evidências finais, commits e pacote serão registrados após aprovação da CI.
+
+## Primeira etapa — candidata .58
 
 Candidata 5.13.11.58 TESTE com CI aprovada e pacote conferido. Homologação física pendente. PR #40 permanece Draft; main preservada. Aprovada anterior: 5.13.11.57, fonte `529d85c0126aa79ae7d348f8895707f67e9d5725`, CI [40094285996](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40094285996). WORK12 e seus contratos foram examinados antes das alterações.
 
