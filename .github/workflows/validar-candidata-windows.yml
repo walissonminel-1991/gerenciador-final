@@ -53,6 +53,8 @@ jobs:
           }
       - name: Reproduzir falhas reais WORK12 em alvos sinteticos
         run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --work12
+      - name: Reproduzir casos WORK13 de atualizacao em isolamento
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work13
       - name: Testes WSC somente leitura
         run: dotnet run --project TestesSeguranca/TestesSeguranca.csproj -c Release
       - name: Testes motor de comparacao

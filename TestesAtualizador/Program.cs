@@ -7,6 +7,13 @@ void Verify(bool condition, string label)
     checkedCount++;
     Console.WriteLine("OK " + label);
 }
+if (args.Contains("--work13"))
+{
+    int failures = 0;
+    await Work13UpdateTests.RunAsync((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+    if (failures > 0) throw new Exception($"WORK13: {failures} falhas reproduzidas");
+    return;
+}
 if (args.Contains("--work11")) { await Work11ProgressTests.RunAsync(Verify); return; }
 if (args.Contains("--work9"))
 {
@@ -441,6 +448,7 @@ try
 }
 finally { Directory.Delete(isolated, true); }
 
+await Work13UpdateTests.RunAsync(Verify);
 await Work9UpdateTests.RunAsync(Verify);
 await Work11ProgressTests.RunAsync(Verify);
 Work6AuthorizationTests.Run(Verify);
