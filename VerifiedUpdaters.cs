@@ -947,14 +947,19 @@ internal static class VerifiedUpdaters
             WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System)
         }) ?? throw new InvalidOperationException("Instalador não foi iniciado.");
         started?.Invoke();
+        return await WaitForInstallerExitAsync(process, TimeSpan.FromMinutes(15), token);
+        }
+        finally { if (!retained) verifiedLock.Dispose(); }
+    }
+    internal static async Task<int> WaitForInstallerExitAsync(Process process, TimeSpan timeout, CancellationToken token = default)
+    {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(TimeSpan.FromMinutes(15));
+        deadline.CancelAfter(timeout);
         try { await process.WaitForExitAsync(deadline.Token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw new OperationCanceledException(token); }
         catch (OperationCanceledException)
         { throw new TimeoutException("Instalador iniciado; conclusão indeterminada. Não repetir automaticamente. Confira a versão após concluir o fabricante."); }
         return process.ExitCode;
-        }
-        finally { if (!retained) verifiedLock.Dispose(); }
     }
+
 }

@@ -6,7 +6,7 @@ namespace GerenciadorAplicativos;
 
 internal enum UpdateStage
 {
-    Preparing, Downloading, VerifyingIntegrity, ValidatingIdentity, ValidatingSignature, Revalidating,
+    Preparing, Downloading, VerifyingIntegrity, ValidatingSignature, ValidatingIdentity, Revalidating,
     Installing, Confirming, Confirmed, Failed, Pending, Blocked, Cancelled, AuthorizationDeclined
 }
 
@@ -51,6 +51,7 @@ internal sealed class UpdateOperationStore(Func<string, bool>? diagnostic = null
 {
     private readonly object gate = new();
     private readonly Dictionary<string, UpdateOperation> operations = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, UpdateOperation> runtimeAttempts = new(StringComparer.Ordinal);
     private sealed record KeyHolder(string? Key);
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<ProgramEntry, KeyHolder> identities = new();
     private string? KeyFor(ProgramEntry app) => identities.GetValue(app, p => new(InstallationKey(p))).Key;
@@ -69,6 +70,10 @@ internal sealed class UpdateOperationStore(Func<string, bool>? diagnostic = null
         if (key is null) return null;
         lock (gate)
         {
+            // Apenas bloqueio de repeticao: GUID novo nao autoriza atribuir sucesso.
+            string? runtime = UpdateInstallationContract.RuntimeScopeKey(app);
+            if (runtime is not null && runtimeAttempts.TryGetValue(runtime, out var pendingRuntime) &&
+                pendingRuntime.Snapshot.PreventRetry) return null;
             if (operations.TryGetValue(key, out var previous) && previous.Snapshot is var snapshot &&
                 (snapshot.Active || snapshot.Progress.Stage == UpdateStage.Pending ||
                  snapshot.Progress.Stage == UpdateStage.Confirmed && snapshot.Target == target)) return null;
@@ -81,6 +86,7 @@ internal sealed class UpdateOperationStore(Func<string, bool>? diagnostic = null
             }
             var operation = new UpdateOperation(key, target, diagnostic);
             operations[key] = operation;
+            if (runtime is not null) runtimeAttempts[runtime] = operation;
             return operation;
         }
     }
@@ -107,7 +113,15 @@ internal sealed class UpdateOperationStore(Func<string, bool>? diagnostic = null
     internal UpdateOperationSnapshot? Find(ProgramEntry app)
     {
         string? key = KeyFor(app);
-        lock (gate) return key is not null && operations.TryGetValue(key, out var op) ? op.Snapshot : null;
+        lock (gate)
+        {
+            if (key is not null && operations.TryGetValue(key, out var op)) return op.Snapshot;
+            string? runtime = UpdateInstallationContract.RuntimeScopeKey(app);
+            if (runtime is not null && runtimeAttempts.TryGetValue(runtime, out var pending) &&
+                pending.Snapshot.Progress.Stage == UpdateStage.Pending)
+                return pending.Snapshot with { Reason = "Há uma operação desta família pendente; a identidade da nova entrada ainda não foi confirmada." };
+            return null;
+        }
     }
 }
 

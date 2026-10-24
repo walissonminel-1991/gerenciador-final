@@ -104,6 +104,14 @@ internal static class UpdateInstallationContract
         return parts.Length == 3 && parts[0] == "LocalMachine" && parts[1] is "Registry32" or "Registry64" && parts[2].Length > 0
             ? parts[0] + "|" + parts[1] : "";
     }
+    internal static string? RuntimeScopeKey(ProgramEntry app)
+    {
+        if (app.InventoryOnly || Scope(app.InventoryId).Length == 0 ||
+            !new[] { "Microsoft", "Microsoft Corporation" }.Contains(app.Publisher, StringComparer.OrdinalIgnoreCase)) return null;
+        return VcName(app.Name, true) ? Scope(app.InventoryId) + "|vc2013-x64" :
+            VcName(app.Name, false) ? Scope(app.InventoryId) + "|vc2013-x86" : null;
+    }
+
     internal static string VcBinary(bool x64)
     {
 #if GF_PROGRESSIVE

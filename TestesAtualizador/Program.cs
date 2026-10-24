@@ -1,5 +1,6 @@
 using GerenciadorAplicativos;
 if (args.Contains("--work11-installer-fixture")) return;
+if (args.Contains("--work13-slow-fixture")) { await Task.Delay(1000); return; }
 int checkedCount = 0;
 void Verify(bool condition, string label)
 {

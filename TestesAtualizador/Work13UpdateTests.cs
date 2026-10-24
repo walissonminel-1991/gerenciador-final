@@ -29,6 +29,11 @@ internal static class Work13UpdateTests
         check(launches == 0 && result.State == UpdateAttemptState.Cancelled,
             "W13 cancelamento no ultimo callback antes de executar impede lancamento");
 
+        var progressOperation = new UpdateOperationStore().Begin(Obs(), obs.Version)!;
+        foreach (var stage in new[] { UpdateStage.VerifyingIntegrity, UpdateStage.ValidatingSignature, UpdateStage.ValidatingIdentity })
+            progressOperation.Report(new(stage));
+        check(progressOperation.Snapshot.Progress.Stage == UpdateStage.ValidatingIdentity,
+            "W13 identidade depois da assinatura aparece no progresso sem regressao de etapa");
         int reads = 0;
         check(await UpdateInstallationContract.ConfirmAfterAsync(() => Task.FromResult(++reads == 3), interval: TimeSpan.Zero) && reads == 3,
             "W13 bootstrapper demora: confirmacao aguarda evidencia posterior");
@@ -52,6 +57,24 @@ internal static class Work13UpdateTests
         check(VerifiedUpdaters.GetOfficialPage(new ProgramEntry { Name = "Plex Media Server", IsUpdate = true }) == "https://www.plex.tv/media-server-downloads/" &&
             VerifiedUpdaters.GetOfficialPage(new ProgramEntry { Name = "Jellyfin Server 12.1.0", IsUpdate = true }) == "https://jellyfin.org/downloads/windows/",
             "W13 servidores encaminhados ao produto correto");
+
+        foreach (bool cancelWait in new[] { false, true })
+        {
+            using var running = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = Environment.ProcessPath!, UseShellExecute = false, CreateNoWindow = true,
+                ArgumentList = { typeof(Work13UpdateTests).Assembly.Location, "--work13-slow-fixture" }
+            })!;
+            using var stop = new CancellationTokenSource();
+            if (cancelWait) stop.CancelAfter(30);
+            bool interrupted = false;
+            try { await VerifiedUpdaters.WaitForInstallerExitAsync(running, cancelWait ? TimeSpan.FromSeconds(5) : TimeSpan.FromMilliseconds(30), stop.Token); }
+            catch (OperationCanceledException) when (cancelWait) { interrupted = true; }
+            catch (TimeoutException) when (!cancelWait) { interrupted = true; }
+            check(interrupted && !running.HasExited, "W13 espera real interrompida sem matar processo sintetico: " + (cancelWait ? "cancelamento" : "prazo"));
+            await running.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            check(running.ExitCode == 0, "W13 processo sintetico conclui depois da espera interrompida sem repeticao: " + cancelWait);
+        }
 
         string root = Path.Combine(Path.GetTempPath(), "GF-W13-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -131,6 +154,11 @@ internal static class Work13UpdateTests
             check(!VerifiedUpdaters.ConfirmInstallation(vc, oldVc, [newVc]), "W13 GUID novo com DLL antiga nao confirma VC2013");
             WriteVersioned(dll, "12.0.40664.0");
             check(VerifiedUpdaters.ConfirmInstallation(vc, oldVc, [newVc]), "W13 migracao de GUID VC2013 confirmada por familia unica escopo e DLL");
+            var waitingStore = new UpdateOperationStore(); var waitingOperation = waitingStore.Begin(oldVc, vc.Version)!;
+            check(waitingStore.Begin(newVc, vc.Version) is null, "W13 GUID novo nao duplica runtime ainda ativo");
+            waitingOperation.Complete(new(UpdateAttemptState.Indeterminate));
+            check(waitingStore.Begin(newVc, vc.Version) is null && waitingStore.Find(newVc)?.Progress.Stage == UpdateStage.Pending,
+                "W13 GUID novo preserva pendencia sem receber falso sucesso ou nova execucao");
             var store = new UpdateOperationStore(); var operation = store.Begin(oldVc, vc.Version)!;
             check(!store.BindConfirmedInstallation(vc, oldVc, [newVc], operation), "W13 resultado ativo nao pode ser reassociado como sucesso");
             operation.Complete(new(UpdateAttemptState.Confirmed));

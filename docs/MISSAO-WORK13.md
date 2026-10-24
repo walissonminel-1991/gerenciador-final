@@ -14,7 +14,7 @@ PROGRESSO.json anunciava .53 enquanto README/roadmap anunciavam .57. O primeiro 
 
 - OBS 32.2.2: NSIS `/S`; Notepad++ 8.9.8.1: pacote x86 próprio além do x64 existente; VC2013 12.0.40664.0: x64/x86 com SHA fixo, `/install /quiet /norestart`. Nenhum argumento de catálogo remoto é executado.
 - Contrato EXE: família exclusiva, escopo de máquina, caminho/uninstaller canônicos, ausência de MSI, arquitetura PE e versão anterior no arquivo. Confirmação exige Registro e binário posterior compatíveis e mesma identidade/pasta/editor. Visão do Registro não é usada isoladamente para inferir arquitetura.
-- VC2013: preserva família/arquitetura e escopo; confirma também DLL `msvcr120.dll`. Admite GUID ARP novo somente com família única e DLL confirmada. Reassociação do resultado exige novamente esse contrato e estado confirmado.
+- VC2013: preserva família/arquitetura e escopo; confirma também DLL `msvcr120.dll`. Admite GUID ARP novo somente com família única e DLL confirmada. Reassociação do resultado exige novamente esse contrato e estado confirmado. Uma entrada com novo GUID não pode iniciar outra atualização da mesma família/escopo enquanto existir uma tentativa ativa, pendente ou já confirmada; pendência nunca é convertida em sucesso por essa associação.
 - Download: limite, contagem integral, SHA e WinVerifyTrust/editor, seguidos da identidade/versionamento PE. A arquitetura do stub NSIS/Burn pode ser x86 em pacotes x64; arquitetura instalada é corroborada no executável/DLL e a do payload é vinculada ao hash da receita.
 - Interface: assinatura e lançamento fora da UI; progresso individual existente, instalação indeterminada, botão existente para cancelar espera, prazo de consulta MSIX e no máximo uma consulta nativa em andamento. Cancelar depois de executar não mata processo, não afirma reversão e não repete automaticamente. Consulta posterior tolera até quatro observações separadas por dois segundos.
 - MSIX: publisher DN exato, namespace/identidade únicos, pacote x64 e entradas sem duplicação; hash fixo mantido e confiança obrigatória no deployment nativo Windows.
@@ -36,7 +36,7 @@ WinGet COM/CLI permanece desativado. O provedor consultivo isolado já testa com
 
 ## Validação e entrega
 
-Regressões Windows, assinatura dos instaladores oficiais (somente download, sem execução), testes adversariais e pacote serão registrados aqui após a CI. Testes novos usam cópias inertes do assembly em diretório temporário e inventários sintéticos; nenhum aplicativo pessoal é atualizado. Hooks de caminho existem somente no build de testes e a regressão da UI exige sua ausência no produto.
+Regressões Windows, assinatura dos instaladores oficiais (somente download, sem execução), testes adversariais e pacote serão registrados aqui após a CI. Testes novos usam cópias inertes do assembly em diretório temporário e inventários sintéticos; nenhum aplicativo pessoal é atualizado. Hooks de caminho existem somente no build de testes e a regressão da UI exige sua ausência no produto. Dois processos inertes reais comprovam timeout/cancelamento da espera sem encerramento forçado; eles terminam naturalmente sem instalar programas.
 
 A checagem de metadados verifica versão do projeto/manifesto/README/roadmap/changelog, origem/CI/nome/hash do pacote aprovado e protege U8/R7/R4 ainda pendentes. Não cria workflow adicional. A publicação portátil depende de todos os jobs obrigatórios aprovados, incluindo a verificação Authenticode dos downloads.
 
