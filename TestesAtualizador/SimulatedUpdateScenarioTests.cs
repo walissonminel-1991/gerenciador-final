@@ -22,8 +22,8 @@ internal static class SimulatedUpdateScenarioTests
             Name = original.Name, Version = "32.2.2", Publisher = original.Publisher,
             InventoryId = original.InventoryId
         };
-        check(VerifiedUpdaters.ConfirmInstallation(recipe!, original, [after]),
-            "SIMULACAO ATUALIZACAO: nova versao so seria confirmada pela mesma identidade no inventario posterior");
+        check(!VerifiedUpdaters.ConfirmInstallation(recipe!, original, [after]),
+            "SIMULACAO ATUALIZACAO: nova versao no Registro sem binario permanece inconclusiva");
         check(!VerifiedUpdaters.ConfirmInstallation(recipe!, original,
                 [new ProgramEntry { Name = "OBS Studio", Version = "32.2.2", Publisher = "OBS Project",
                     InventoryId = "CurrentUser|Registry64|OBS-Fixture" }]) &&

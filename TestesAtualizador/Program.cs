@@ -38,15 +38,15 @@ var x64 = VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributab
 var x86 = VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x86) - 12.0.30501",
  "12.0.30501.0", "12.0.40664.0"));
 Verify(x64?.Identifier == "vc2013-x64" && x64.Download.Host == "aka.ms" &&
-       !VerifiedUpdaters.IsApprovedRecipe(x64),
-       "Visual C++ x64 sem hash fixado: nao permite instalacao automatica");
+       VerifiedUpdaters.IsApprovedRecipe(x64) && !VerifiedUpdaters.IsApprovedRecipe(x64 with { Sha256 = null }),
+       "Visual C++ x64 hash oficial autorizado; receita sem SHA continua bloqueada");
 Verify(x86?.Identifier == "vc2013-x86" && x86.Download != x64!.Download &&
-       !VerifiedUpdaters.IsApprovedRecipe(x86),
-       "Visual C++ x86 sem hash fixado: somente orientacao oficial");
+       VerifiedUpdaters.IsApprovedRecipe(x86),
+       "Visual C++ x86 com hash oficial independente");
 Verify(x64!.Arguments.Contains("/quiet") && x64.Arguments.Contains("/norestart") &&
        VerifiedUpdaters.GetPrimaryAction(Item("Microsoft Visual C++ 2013 Redistributable (x64)",
-            "12.0.30501", "12.0.40664")) == "site",
-       "Visual C++ apresenta site oficial em vez de executar pacote sem SHA-256");
+            "12.0.30501", "12.0.40664")) == "update",
+       "Visual C++ oferece receita silenciosa com hash fixado e /norestart");
 Verify(VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64)",
  "12.0.30501.0", "12.0.40664.0", "Fabricante desconhecido")) is null, "Recusar editor nao Microsoft");
 Verify(VerifiedUpdaters.Resolve(Item("Microsoft Visual C++ 2013 Redistributable (x64)",
@@ -114,7 +114,7 @@ Verify(VerifiedUpdaters.IsSevenZipRegistryCandidate(zipNew) &&
        "7-Zip: novo EXE valido distinguido de registro MSI com versao recente");
 
 var obs = VerifiedUpdaters.Resolve(Item("OBS Studio", "31.1.2", "32.2.2", "OBS Project"));
-Verify(obs?.Identifier == "obs-x64-32.2.2" && obs.Sha256?.Length == 64 && obs.Interactive,
+Verify(obs?.Identifier == "obs-x64-32.2.2" && obs.Sha256?.Length == 64 && !obs.Interactive && obs.Arguments == "/S",
  "OBS instalador oficial e SHA-256 fixo");
 Verify(VerifiedUpdaters.Resolve(Item("OBS Studio", "31.1.2", "33.0.0", "OBS Project")) is null,
  "Recusar versao OBS nao validada");
@@ -327,12 +327,12 @@ Verify(!VerifiedUpdaters.IsInstalledVersionAtLeast("receita-desconhecida", "1.0"
 Verify(!VerifiedUpdaters.ConfirmInstallation(x64!,
     new ProgramEntry { Name="Microsoft Visual C++ 2013 Redistributable (x64)", Publisher="Microsoft Corporation", Version="12.0.30501", InventoryId="LocalMachine|Registry64|VC2013" },
     [new ProgramEntry { Name="Microsoft Visual C++ 2013 Redistributable (x64)", Publisher="Microsoft Corporation", Version="12.0.40664", InventoryId="LocalMachine|Registry64|VC2013" }]),
-    "Receita consultiva VC sem SHA não pode confirmar instalação autorizada");
+    "VC registro sem DLL real nao pode confirmar instalacao");
 var originalVc = Item("OBS Studio", "31.1.2", "32.2.2", "OBS Project");
 originalVc.InventoryId = "LocalMachine|Registry64|OBS";
 var updatedVc = Item(originalVc.Name, "32.2.2", "", "OBS Project");
 updatedVc.InventoryId = originalVc.InventoryId;
-Verify(VerifiedUpdaters.ConfirmInstallation(obs!, originalVc, new[] { updatedVc }), "Confirmar a identidade selecionada com receita aprovada");
+Verify(!VerifiedUpdaters.ConfirmInstallation(obs!, originalVc, new[] { updatedVc }), "Registro sozinho sem binario nao comprova OBS; controle positivo real em WORK13");
 updatedVc.InventoryId = "CurrentUser|Registry64|OBS";
 Verify(!VerifiedUpdaters.ConfirmInstallation(obs!, originalVc, new[] { updatedVc }), "Outra instalacao por usuario nao confirma a selecionada");
 updatedVc.InventoryId = "LocalMachine|Registry32|OBS";
@@ -361,7 +361,9 @@ if (args.Contains("--verify-terminal", StringComparer.OrdinalIgnoreCase))
 }
 if (args.Contains("--verify-downloads", StringComparer.OrdinalIgnoreCase))
 {
-    var recipes = args.Contains("--verify-sevenzip", StringComparer.OrdinalIgnoreCase)
+    var recipes = args.Contains("--verify-work13", StringComparer.OrdinalIgnoreCase)
+        ? new[] { x64, x86, VerifiedUpdaters.Resolve(Item("Notepad++ (32-bit x86)", "8.9.5", "8.9.8.1", "Don HO", "GitHub oficial")), obs, npp }
+        : args.Contains("--verify-sevenzip", StringComparer.OrdinalIgnoreCase)
         ? new[] { zipRecipe }
         : args.Contains("--verify-sumatra", StringComparer.OrdinalIgnoreCase)
         ? new[] { sumX64, sumX86 }
@@ -403,7 +405,7 @@ var forgedRecipes = new[]
     obs! with { Download = new Uri("https://github.com/outro/projeto/releases/download/x/installer.exe") },
     obs! with { Sha256 = new string('0', 64) },
     obs! with { Identifier = "../outside" },
-    obs! with { Interactive = false },
+    obs! with { Interactive = true },
     sumX64 with { Arguments = "-install -arbitrary" }
 };
 string blockedFolder = Path.Combine(Path.GetTempPath(), "GF-Blocked-Recipe-" + Guid.NewGuid().ToString("N"));

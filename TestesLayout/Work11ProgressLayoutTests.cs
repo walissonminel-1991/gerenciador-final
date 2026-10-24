@@ -11,6 +11,8 @@ internal static class Work11ProgressLayoutTests
     {InventoryId=id,Name=name,Version=version,Publisher="GF Tests",InstallLocation=@"C:\GF-Synthetic"};
     internal static void Run()
     {
+        Require(typeof(UpdateInstallationContract).GetField("SyntheticRoot", BindingFlags.Static|BindingFlags.NonPublic) is null,
+            "produto distribuido nao contem redirecionamento sintetico dos testes WORK13");
         using var form=new MainForm(startServices:false);
         form.Show();Application.DoEvents();
         var list=(DarkProgramList)typeof(MainForm).GetField("_programList",Private)!.GetValue(form)!;

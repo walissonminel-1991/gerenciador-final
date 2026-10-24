@@ -1105,6 +1105,12 @@ internal sealed partial class MainForm : Form
             Status("Cancelando download...");
             return;
         }
+        if (_deploymentWaitCts is not null)
+        {
+            _deploymentWaitCts.Cancel();
+            Status("Cancelando a espera. O instalador pode continuar; não repetir a atualização.");
+            return;
+        }
         if (_consultaCatalogoCts is not null)
         {
             _consultaCatalogoCts.Cancel();
@@ -2592,6 +2598,9 @@ internal sealed partial class MainForm : Form
         {
             await LoadInstalledAsync();
             if (IsDisposed || Disposing) return;
+            if (operation.Snapshot.Progress.Stage == UpdateStage.Confirmed && operation.Snapshot.Target == "12.0.40664.0" &&
+                operationOrigins.TryGetValue(operation.Snapshot.Id, out var origin) && VerifiedUpdaters.Resolve(origin) is { } proven)
+                _updateOperations.BindConfirmedInstallation(proven, origin, _installed, operation);
             await LoadUpdatesAsync();
             if (IsDisposed || Disposing) return;
             _appFilter = _catalogoVerificado ? previousFilter : "Todos";
@@ -2609,6 +2618,8 @@ internal sealed partial class MainForm : Form
         }
     }
 
+    private readonly Dictionary<Guid, ProgramEntry> operationOrigins = new();
+
     private UpdateOperation? BeginUpdateOperation(ProgramEntry entry, string target)
     {
         var operation = _updateOperations.Begin(entry, target);
@@ -2617,6 +2628,8 @@ internal sealed partial class MainForm : Form
             Status("Atualização já iniciada, pendente ou sem identidade suficiente. Confira a versão antes de tentar novamente.");
             return null;
         }
+        if (operationOrigins.Count >= 256) operationOrigins.Remove(operationOrigins.Keys.First());
+        operationOrigins[operation.Snapshot.Id] = entry;
         _programList.RefreshOperations();
         return operation;
     }
@@ -2632,18 +2645,6 @@ internal sealed partial class MainForm : Form
             Status("Esta versao do Windows Terminal nao possui pacote GitHub validado.");
             return;
         }
-        Version? before = WindowsTerminalUpdater.CurrentUserVersion();
-        if (before is null)
-        {
-            Status("Terminal MSIX nao identificado. Confira a instalacao na Store ou no site oficial.");
-            Log("Atualizacao GitHub bloqueada: identidade Microsoft.WindowsTerminal nao encontrada no inventario MSIX.");
-            return;
-        }
-        if (!Version.TryParse(recipe.Version, out var targetVersion) || before >= targetVersion)
-        {
-            Status("O Windows Terminal ja possui a versao selecionada.");
-            return;
-        }
         string previousFilter = _appFilter;
         await ExecuteAsync("Preparando atualizacao oficial do Windows Terminal...", async () =>
         {
@@ -2654,6 +2655,21 @@ internal sealed partial class MainForm : Form
             bool deploymentPhase = false;
             try
             {
+                using var wait = new CancellationTokenSource();
+                _deploymentWaitCts = wait;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar espera";
+                Version? before = await WindowsTerminalUpdater.CurrentUserVersionAsync(wait.Token);
+                if (before is null)
+                {
+                    Status("Terminal MSIX nao identificado. Confira a instalacao na Store ou no site oficial.");
+                    Log("Atualizacao GitHub bloqueada: identidade Microsoft.WindowsTerminal nao encontrada no inventario MSIX.");
+                    return;
+                }
+                if (!Version.TryParse(recipe.Version, out var targetVersion) || before >= targetVersion)
+                {
+                    Status("O Windows Terminal ja possui a versao selecionada.");
+                    return;
+                }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.INICIO");
                 string bundle;
                 using (var downloadCts = new CancellationTokenSource(TimeSpan.FromMinutes(6)))
@@ -2662,8 +2678,8 @@ internal sealed partial class MainForm : Form
                     if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar download";
                     try
                     {
-                        bundle = await WindowsTerminalUpdater.DownloadAndVerifyAsync(
-                            recipe, folder, Status, downloadCts.Token, operation.Report);
+                        bundle = await Task.Run(() => WindowsTerminalUpdater.DownloadAndVerifyAsync(
+                            recipe, folder, Status, downloadCts.Token, operation.Report));
                     }
                     finally
                     {
@@ -2689,18 +2705,18 @@ internal sealed partial class MainForm : Form
                 }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.PROCESSOS_VERIFICADOS_FECHADOS");
                 deploymentPhase = true;
-                using var wait = new CancellationTokenSource();
-                _deploymentWaitCts = wait;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar espera";
                 UpdateAttemptResult result;
                 try
                 {
                     result = await new UpdateLaunchGate().RunAsync(
-                        () => Task.FromResult(_installed.Contains(entry) && WindowsTerminalUpdater.Resolve(entry) == recipe &&
-                        WindowsTerminalUpdater.CurrentUserVersion() == before),
-                        async () => { await WindowsTerminalUpdater.DeployAsync(bundle, Status, wait.Token, () => installerStarted = true); return 0; },
-                        () => Task.FromResult(WindowsTerminalUpdater.CurrentUserVersion() is Version installed && installed >= targetVersion), wait.Token, operation.Report);
+                        async () => _installed.Contains(entry) && WindowsTerminalUpdater.Resolve(entry) == recipe &&
+                            await WindowsTerminalUpdater.CurrentUserVersionAsync(wait.Token) == before,
+                        async () => { await Task.Run(() => WindowsTerminalUpdater.DeployAsync(bundle, Status, wait.Token, () => installerStarted = true)); return 0; },
+                        async () => await UpdateInstallationContract.ConfirmAfterAsync(async () =>
+                            await WindowsTerminalUpdater.CurrentUserVersionAsync(wait.Token) is Version installed && installed >= targetVersion, wait.Token), wait.Token, operation.Report);
                 }
-                finally { _deploymentWaitCts = null; }
+                finally { _deploymentWaitCts = null; if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar"; }
                 operation.Complete(result);
                 _programList.RefreshOperations();
                 bool confirmed = result.State == UpdateAttemptState.Confirmed;
@@ -2734,6 +2750,8 @@ internal sealed partial class MainForm : Form
             }
             finally
             {
+                _deploymentWaitCts = null;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
                 if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
                 if (!_programList.IsDisposed) _programList.RefreshOperations();
                 try { if (!WindowsTerminalUpdater.IsFolderProtected(folder) && Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
@@ -2778,8 +2796,7 @@ internal sealed partial class MainForm : Form
                     operation.Finish(UpdateStage.Blocked, reason: "Instalação incompleta ou edições coexistentes; confira a instalação.");
                     return;
                 }
-                if (recipe.Identifier == "notepadpp-x64-8.9.8.1" ||
-                    recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
+                // Todas as receitas passam pelo contrato local antes de baixar.
                 {
                     var current = await Task.Run(AppServices.GetInstalledPrograms);
                     if (!VerifiedUpdaters.SingleSafeSilentInstallation(recipe, entry, current))
@@ -2798,7 +2815,7 @@ internal sealed partial class MainForm : Form
                     if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar download";
                     try
                     {
-                        verifiedInstaller = await VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder, Status, downloadCts.Token, operation.Report);
+                        verifiedInstaller = await Task.Run(() => VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder, Status, downloadCts.Token, operation.Report));
                     }
                     finally
                     {
@@ -2830,6 +2847,9 @@ internal sealed partial class MainForm : Form
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.PREFLIGHT_APROVADO");
                 }
                 Status("Instalador verificado. Aguardando conclusão...");
+                using var wait = new CancellationTokenSource();
+                _deploymentWaitCts = wait;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar espera";
                 var result = await new UpdateLaunchGate().RunAsync(
                     async () =>
                     {
@@ -2840,9 +2860,10 @@ internal sealed partial class MainForm : Form
                             (recipe.Identifier != "sevenzip-exe-x64-26.05" ||
                              VerifiedUpdaters.SingleSevenZipRegistration(entry, current));
                     },
-                    () => VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status, () => installerStarted = true),
-                    async () => VerifiedUpdaters.ConfirmInstallation(recipe, entry,
-                        await Task.Run(AppServices.GetInstalledPrograms)), progress: operation.Report);
+                    () => Task.Run(() => VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status, () => installerStarted = true, wait.Token)),
+                    async () => await UpdateInstallationContract.ConfirmAfterAsync(async () =>
+                        VerifiedUpdaters.ConfirmInstallation(recipe, entry, await Task.Run(AppServices.GetInstalledPrograms).WaitAsync(TimeSpan.FromSeconds(12), wait.Token)), wait.Token),
+                    wait.Token, progress: operation.Report);
                 operation.Complete(result);
                 _programList.RefreshOperations();
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM estado=" + result.State + " retorno=" + result.ExitCode);
@@ -2892,6 +2913,8 @@ internal sealed partial class MainForm : Form
             }
             finally
             {
+                _deploymentWaitCts = null;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
                 if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
                 if (!_programList.IsDisposed) _programList.RefreshOperations();
                 if (VerifiedUpdaters.IsFolderProtected(folder))

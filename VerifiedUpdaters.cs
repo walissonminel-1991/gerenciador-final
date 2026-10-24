@@ -60,12 +60,13 @@ internal static class VerifiedUpdaters
         {
             "vc2013-x64" or "vc2013-x86" => new(recipe.Identifier, "Microsoft Visual C++ 2013",
                 VcTarget.ToString(), recipe.Identifier == "vc2013-x64" ? Vc64 : Vc86,
-                null, "Microsoft Corporation", "/install /quiet /norestart", false,
+                recipe.Identifier == "vc2013-x64" ? Vc64Digest : Vc86Digest, "Microsoft Corporation", "/install /quiet /norestart", false,
                 "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/"),
             "obs-x64-32.2.2" => new(recipe.Identifier, "OBS Studio", "32.2.2",
-                Obs, ObsDigest, "OBS Project, LLC", "", true, "https://obsproject.com/download"),
+                Obs, ObsDigest, "OBS Project, LLC", "/S", false, "https://obsproject.com/download"),
             "notepadpp-x64-8.9.8.1" => new(recipe.Identifier, "Notepad++", "8.9.8.1",
                 Npp64, NppDigest, "Notepad++", "/S", false, "https://notepad-plus-plus.org/downloads/"),
+            "notepadpp-x86-8.9.8.1" => new(recipe.Identifier, "Notepad++", "8.9.8.1", Npp86, Npp86Digest, "Notepad++", "/S", false, "https://notepad-plus-plus.org/downloads/"),
             "sevenzip-exe-x64-26.05" => CreateSevenZipRecipe(),
             "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" =>
                 CreateSumatraRecipe(new ProgramEntry(), recipe.Identifier == "sumatrapdf-x64-3.6.1",
@@ -91,6 +92,7 @@ internal static class VerifiedUpdaters
             if (!IsPinnedUnsignedSevenZip(recipe) &&
                 !VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
                 throw new UpdateSignatureException("Assinatura alterada antes da execucao (" + issue + ").");
+            ValidatePayloadIdentity(recipe, path);
             return locked;
         }
         catch { locked.Dispose(); throw; }
@@ -125,6 +127,10 @@ internal static class VerifiedUpdaters
     private static readonly Version GameInputTarget = new(3, 5, 283, 0);
     private static readonly Uri GameInputPackage =
         new("https://globalcdn.nuget.org/packages/microsoft.gameinput.3.5.283.nupkg");
+    private const string Vc64Digest = "a4bba7701e355ae29c403431f871a537897c363e215cafe706615e270984f17c";
+    private const string Vc86Digest = "53b605d1100ab0a88b867447bbf9274b5938125024ba01f5105a9e178a3dcdbd";
+    private const string Npp86Digest = "EE848AA54DF153921678B343857A83861DA81CE0C9DBB217B6F55A8780E60F5E";
+    private static readonly Uri Npp86 = new("https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.9.8.1/npp.8.9.8.1.Installer.exe");
     private static readonly Uri Vc64 = new("https://aka.ms/highdpimfc2013x64enu");
     private static readonly Uri Vc86 = new("https://aka.ms/highdpimfc2013x86enu");
     private static readonly Uri Obs = new("https://github.com/obsproject/obs-studio/releases/download/32.2.2/OBS-Studio-32.2.2-Windows-x64-Installer.exe");
@@ -161,14 +167,15 @@ internal static class VerifiedUpdaters
         if (!entry.IsUpdate) return null;
         if (entry.Name == "EA app") return "https://www.ea.com/ea-app";
         if (entry.Name == "FanControl") return "https://getfancontrol.com/";
-        if (entry.Name == "Jellyfin Server") return "https://jellyfin.org/downloads/windows/";
+        if (System.Text.RegularExpressions.Regex.IsMatch(entry.Name, @"^Jellyfin Server(?: \d+(?:\.\d+){1,3})?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return "https://jellyfin.org/downloads/windows/";
         if (entry.Name.StartsWith("K-Lite Mega Codec Pack", StringComparison.OrdinalIgnoreCase))
             return "https://codecguide.com/download_k-lite_codec_pack_mega.htm";
         if (entry.Name.StartsWith("Adobe Acrobat", StringComparison.OrdinalIgnoreCase))
             return "https://helpx.adobe.com/br/acrobat/desktop/get-set-up/access-the-app/update-manual.html";
-        if (entry.Name.Equals("Plex", StringComparison.OrdinalIgnoreCase) ||
-            entry.Name.StartsWith("Plex Media Server", StringComparison.OrdinalIgnoreCase))
-            return "https://www.plex.tv/pt-br/apps-devices/";
+        if (entry.Name.StartsWith("Plex Media Server", StringComparison.OrdinalIgnoreCase))
+            return "https://www.plex.tv/media-server-downloads/";
+        if (entry.Name.Equals("Plex", StringComparison.OrdinalIgnoreCase)) return "https://www.plex.tv/pt-br/apps-devices/";
+
         if (entry.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase))
             return "https://obsproject.com/download";
         if (entry.Source == "Mozilla" &&
@@ -221,7 +228,7 @@ internal static class VerifiedUpdaters
             bool x86 = entry.Name.Contains("(x86)", StringComparison.OrdinalIgnoreCase);
             if (x64 == x86) return null;
             return new(x64 ? "vc2013-x64" : "vc2013-x86", "Microsoft Visual C++ 2013",
-                VcTarget.ToString(), x64 ? Vc64 : Vc86, null, "Microsoft Corporation",
+                VcTarget.ToString(), x64 ? Vc64 : Vc86, x64 ? Vc64Digest : Vc86Digest, "Microsoft Corporation",
                 "/install /quiet /norestart", false,
                 "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/");
         }
@@ -236,7 +243,7 @@ internal static class VerifiedUpdaters
             TryVersion(entry.AvailableVersion, out var obsAvailable) && obsAvailable == new Version(32, 2, 2, 0))
         {
             return new("obs-x64-32.2.2", "OBS Studio", "32.2.2", Obs, ObsDigest,
-                "OBS Project, LLC", "", true, "https://obsproject.com/download");
+                "OBS Project, LLC", "/S", false, "https://obsproject.com/download");
         }
         if (entry.Source == "GitHub oficial" &&
             (entry.Name.Equals("Notepad++ (64-bit x64)", StringComparison.OrdinalIgnoreCase) ||
@@ -251,6 +258,12 @@ internal static class VerifiedUpdaters
             return new("notepadpp-x64-8.9.8.1", "Notepad++", "8.9.8.1", Npp64, NppDigest,
                 "Notepad++", "/S", false, "https://notepad-plus-plus.org/downloads/");
         }
+        if (entry.Source == "GitHub oficial" &&
+            (entry.Name.Equals("Notepad++ (32-bit x86)", StringComparison.OrdinalIgnoreCase) || entry.Name.Equals("Notepad++ (x86)", StringComparison.OrdinalIgnoreCase)) &&
+            MatchesInstalledPublisher("notepadpp-x86-8.9.8.1", entry.Publisher) &&
+            TryVersion(entry.Version, out var npp32Installed) && npp32Installed < NppVersion &&
+            TryVersion(entry.AvailableVersion, out var npp32Available) && npp32Available == NppVersion)
+            return new("notepadpp-x86-8.9.8.1", "Notepad++", "8.9.8.1", Npp86, Npp86Digest, "Notepad++", "/S", false, "https://notepad-plus-plus.org/downloads/");
         if (entry.Name.Equals("SumatraPDF", StringComparison.OrdinalIgnoreCase) &&
             entry.Source == "GitHub oficial" &&
             (entry.Publisher.Equals("Krzysztof Kowalczyk", StringComparison.OrdinalIgnoreCase) ||
@@ -322,26 +335,12 @@ internal static class VerifiedUpdaters
     internal static bool SingleSafeSilentInstallation(VerifiedUpdateRecipe recipe,
         ProgramEntry chosen, IEnumerable<ProgramEntry> inventory)
     {
+        if (!IsApprovedRecipe(recipe) || chosen.InventoryOnly || ProtectedApplications.IsProtectedName(chosen.Name)) return false;
         var items = inventory.ToArray();
-        if (recipe.Identifier == "notepadpp-x64-8.9.8.1")
-        {
-            var related = items.Where(p => p.Name.StartsWith("Notepad++",
-                StringComparison.OrdinalIgnoreCase)).ToArray();
-            if (related.Length != 1 ||
-                !related[0].InventoryId.Equals(chosen.InventoryId, StringComparison.OrdinalIgnoreCase) ||
-                !string.IsNullOrWhiteSpace(chosen.MsiProductCode) ||
-                !UninstallCommand.TryParse(chosen.UninstallString, out var uninstall) ||
-                uninstall.ProductCode is not null) return false;
-            string folder = Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.ProgramFiles), "Notepad++");
-            if (!uninstall.FileName.Equals(Path.Combine(folder, "uninstall.exe"),
-                    StringComparison.OrdinalIgnoreCase) ||
-                GetPortableExecutableMachine(Path.Combine(folder, "notepad++.exe")) != 0x8664) return false;
-            if (!string.IsNullOrWhiteSpace(chosen.InstallLocation) &&
-                !chosen.InstallLocation.TrimEnd('\\').Equals(folder, StringComparison.OrdinalIgnoreCase))
-                return false;
-            return true;
-        }
+        if (UpdateInstallationContract.For(recipe.Identifier) is not null)
+            return UpdateInstallationContract.IsSafe(recipe, chosen, items);
+        if (recipe.Identifier is "vc2013-x64" or "vc2013-x86")
+            return UpdateInstallationContract.VcSafe(recipe, chosen, items);
         if (recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
         {
             var related = items.Where(p => p.Name.StartsWith("SumatraPDF",
@@ -436,7 +435,7 @@ internal static class VerifiedUpdaters
         return Path.GetDirectoryName(value) ?? "";
     }
 
-    private static ushort GetPortableExecutableMachine(string path)
+    internal static ushort GetPortableExecutableMachine(string path)
     {
         try
         {
@@ -500,6 +499,7 @@ internal static class VerifiedUpdaters
                 "vc2013-x64" => entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable (x64)", StringComparison.OrdinalIgnoreCase),
                 "vc2013-x86" => entry.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable (x86)", StringComparison.OrdinalIgnoreCase),
                 "obs-x64-32.2.2" => entry.Name.Equals("OBS Studio", StringComparison.OrdinalIgnoreCase),
+                "notepadpp-x86-8.9.8.1" => entry.Name is "Notepad++ (32-bit x86)" or "Notepad++ (x86)",
                 "notepadpp-x64-8.9.8.1" => entry.Name.Equals("Notepad++ (64-bit x64)", StringComparison.OrdinalIgnoreCase) ||
                                                entry.Name.Equals("Notepad++ (x64)", StringComparison.OrdinalIgnoreCase),
                 "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" =>
@@ -524,6 +524,10 @@ internal static class VerifiedUpdaters
             string.IsNullOrWhiteSpace(original.InventoryId) ||
             !IsInstalledVersionAtLeast(recipe.Identifier, "0.0", [original])) return false;
         var snapshot = current.ToArray();
+        if (UpdateInstallationContract.For(recipe.Identifier) is not null)
+            return UpdateInstallationContract.Confirm(recipe, original, snapshot);
+        if (recipe.Identifier is "vc2013-x64" or "vc2013-x86")
+            return UpdateInstallationContract.VcSafe(recipe, original, snapshot, confirming: true);
         if (snapshot.Count(x => x.InventoryId.Equals(original.InventoryId, StringComparison.OrdinalIgnoreCase)) != 1) return false;
         foreach (var entry in snapshot)
         {
@@ -534,18 +538,15 @@ internal static class VerifiedUpdaters
                 if (!IsSevenZipExeInstallation(entry) || !SingleSevenZipRegistration(entry, snapshot))
                     continue;
             }
-            if (recipe.Identifier == "notepadpp-x64-8.9.8.1" ||
-                recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
+            if (recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
             {
-                string family = recipe.Identifier == "notepadpp-x64-8.9.8.1" ? "Notepad++" : "SumatraPDF";
+                const string family = "SumatraPDF";
                 if (snapshot.Count(p => p.Name.StartsWith(family, StringComparison.OrdinalIgnoreCase)) != 1 ||
                     !string.IsNullOrWhiteSpace(entry.MsiProductCode) ||
                     !entry.MsiProductCode.Equals(original.MsiProductCode, StringComparison.OrdinalIgnoreCase) ||
                     !entry.InstallLocation.Equals(original.InstallLocation, StringComparison.OrdinalIgnoreCase) ||
                     !entry.UninstallString.Equals(original.UninstallString, StringComparison.OrdinalIgnoreCase)) continue;
-                string? binary = family == "Notepad++"
-                    ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Notepad++", "notepad++.exe")
-                    : FindSumatraExecutable(entry);
+                string? binary = FindSumatraExecutable(entry);
                 if (binary is null || !BinaryVersionAtLeast(binary, recipe.Version)) continue;
             }
             if (recipe.Identifier.StartsWith("sumatrapdf-", StringComparison.Ordinal))
@@ -595,7 +596,7 @@ internal static class VerifiedUpdaters
             "vc2013-x64" or "vc2013-x86" or "gameinput-x64-3.5.283" =>
                 ["Microsoft Corporation", "Microsoft"],
             "obs-x64-32.2.2" => ["OBS Project", "OBS Project, LLC"],
-            "notepadpp-x64-8.9.8.1" => ["Don HO", "Notepad++", "Notepad Team", "Notepad++ Team"],
+            "notepadpp-x64-8.9.8.1" or "notepadpp-x86-8.9.8.1" => ["Don HO", "Notepad++", "Notepad Team", "Notepad++ Team"],
             "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" =>
                 ["Krzysztof Kowalczyk", "SumatraPDF", "SumatraPDF Reader"],
             SevenZipId => ["Igor Pavlov"],
@@ -718,6 +719,8 @@ internal static class VerifiedUpdaters
             if (!IsPinnedUnsignedSevenZip(recipe) &&
                 !VerifyAuthenticode(path, recipe.RequiredSigner, out string issue))
                 throw new UpdateSignatureException("Assinatura Authenticode inválida ou editor não esperado (" + issue + ").");
+            progress?.Invoke(new(UpdateStage.ValidatingIdentity));
+            ValidatePayloadIdentity(recipe, path);
             RememberDownload(path, recipe, actualDigest);
             return path;
         }
@@ -731,6 +734,45 @@ internal static class VerifiedUpdaters
         string expected = Convert.ToHexString(await SHA256.HashDataAsync(source, cancel));
         await InstallerFileGuard.RequireDigestAsync(extracted, expected, cancel);
         return expected;
+    }
+
+    internal static void ValidatePayloadIdentity(VerifiedUpdateRecipe recipe, string path)
+    {
+        if (!IsApprovedRecipe(recipe)) throw new InvalidDataException("Receita nao autorizada.");
+        using var held = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
+        if (GetPortableExecutableMachine(path) is not (0x14c or 0x8664))
+            throw new InvalidDataException("Arquitetura do pacote nao pertence a receita.");
+        using (var image = new System.Reflection.PortableExecutable.PEReader(held, System.Reflection.PortableExecutable.PEStreamOptions.LeaveOpen))
+            if (image.PEHeaders.PEHeader is null || (image.PEHeaders.CoffHeader.Characteristics & System.Reflection.PortableExecutable.Characteristics.ExecutableImage) == 0 || (image.PEHeaders.CoffHeader.Characteristics &
+                System.Reflection.PortableExecutable.Characteristics.Dll) != 0)
+                throw new InvalidDataException("Pacote nao e instalador executavel.");
+        // O 7-Zip oficial e reconhecido pelo SHA fixo; seu stub nao fornece versao uniforme.
+        if (recipe.Identifier == SevenZipId) return;
+        var metadata = FileVersionInfo.GetVersionInfo(path);
+        if (!TryVersion(metadata.FileVersion, out var version) || !TryVersion(recipe.Version, out var target) || version != target)
+            throw new InvalidDataException("Versao real do instalador diverge da receita.");
+        bool product = recipe.Identifier.StartsWith("vc2013-", StringComparison.Ordinal)
+            ? metadata.ProductName == "Microsoft Visual C++ 2013 Redistributable (" + (recipe.Identifier == "vc2013-x64" ? "x64" : "x86") + ") - 12.0.40664"
+            : metadata.ProductName?.Equals(recipe.ProductName, StringComparison.OrdinalIgnoreCase) == true;
+        if (!product) throw new InvalidDataException("Produto real do instalador diverge da receita.");
+    }
+
+    internal static string[] ProcessNames(VerifiedUpdateRecipe recipe) => recipe.Identifier switch
+    {
+        SevenZipId => ["7zFM", "7zG", "7z", "7za"],
+        "obs-x64-32.2.2" => ["obs64"],
+        "notepadpp-x64-8.9.8.1" or "notepadpp-x86-8.9.8.1" => ["notepad++"],
+        "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" => ["SumatraPDF"],
+        _ => []
+    };
+    internal static void RequireProcessesClosed(VerifiedUpdateRecipe recipe)
+    {
+        foreach (string name in ProcessNames(recipe))
+        {
+            var found = Process.GetProcessesByName(name);
+            try { if (found.Length != 0) throw new InvalidOperationException("O aplicativo voltou a abrir. Feche-o antes de atualizar."); }
+            finally { foreach (var process in found) process.Dispose(); }
+        }
     }
 
     internal static bool VerifyAuthenticode(string path, string signer, out string issue)
@@ -873,28 +915,24 @@ internal static class VerifiedUpdaters
     [DllImport("wintrust.dll", ExactSpelling = true)]
     private static extern IntPtr WTHelperGetProvCertFromChain(IntPtr signer, uint index);
 
-    internal static async Task<int> LaunchAsync(VerifiedUpdateRecipe recipe, string verifiedFile, Action<string> report, Action? started = null)
+    internal static async Task<int> LaunchAsync(VerifiedUpdateRecipe recipe, string verifiedFile, Action<string> report, Action? started = null, CancellationToken token = default)
     {
         // Preserva arquivo e ancestrais ate o GF encerrar, inclusive apos a saida do bootstrapper.
         // Recibo e hash sao locais a esta sessao; nao sao lidos de arquivo adulteravel.
+        token.ThrowIfCancellationRequested();
         var verifiedLock = await OpenVerifiedForLaunchAsync(recipe, verifiedFile);
         bool retained = false;
         try
         {
         ValidateInstallerDirectory(recipe, verifiedFile);
-        if (recipe.Identifier == SevenZipId &&
-            new[] { "7zFM", "7zG", "7z", "7za" }
-                .Any(name => Process.GetProcessesByName(name).Length != 0))
-            throw new InvalidOperationException("Feche os processos do 7-Zip antes de atualizar. Nenhum processo será encerrado automaticamente.");
-        if (recipe.Identifier == "obs-x64-32.2.2" &&
-            Process.GetProcessesByName("obs64").Any())
-            throw new InvalidOperationException("Feche o OBS Studio antes de instalar a atualização.");
+        RequireProcessesClosed(recipe);
         bool isMsi = recipe.Identifier == "gameinput-x64-3.5.283";
         if (isMsi && !verifiedFile.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Instalador GameInput não é um MSI verificado.");
         report(recipe.Interactive
             ? "Abrindo instalador oficial para você concluir as opções necessárias..."
             : "Executando atualização oficial. O Windows pode solicitar autorização UAC...");
+        token.ThrowIfCancellationRequested();
         SessionLocks.Retain(verifiedLock);
         retained = true;
         ProtectedFolders[Path.GetDirectoryName(Path.GetFullPath(verifiedFile))!] = 0;
@@ -909,8 +947,10 @@ internal static class VerifiedUpdaters
             WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System)
         }) ?? throw new InvalidOperationException("Instalador não foi iniciado.");
         started?.Invoke();
-        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromMinutes(15));
         try { await process.WaitForExitAsync(deadline.Token); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw new OperationCanceledException(token); }
         catch (OperationCanceledException)
         { throw new TimeoutException("Instalador iniciado; conclusão indeterminada. Não repetir automaticamente. Confira a versão após concluir o fabricante."); }
         return process.ExitCode;

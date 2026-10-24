@@ -64,11 +64,11 @@ internal static class InstallerLockScanner
 
     internal static string[] NotepadResources()
     {
-        string root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Notepad++");
-        if (!Directory.Exists(root)) return [];
+        string[] roots = [Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Notepad++"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Notepad++")];
         try
         {
-            return Directory.EnumerateFiles(root, "*", SearchOption.TopDirectoryOnly)
+            return roots.Where(Directory.Exists).SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.TopDirectoryOnly))
                 .Where(f => f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
                             f.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
                 .Take(MaxResources).ToArray();

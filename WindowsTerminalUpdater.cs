@@ -50,6 +50,19 @@ internal static class WindowsTerminalUpdater
         return new TerminalUpdateRecipe(TargetVersion, PackageUri, AssetDigest);
     }
 
+    private static readonly object VersionGate = new();
+    private static Task<Version?>? versionRead;
+    internal static async Task<Version?> CurrentUserVersionAsync(CancellationToken token = default)
+    {
+        Task<Version?> task;
+        lock (VersionGate)
+        {
+            if (versionRead is null || versionRead.IsCompleted) versionRead = Task.Run(CurrentUserVersion);
+            task = versionRead;
+        }
+        return await task.WaitAsync(TimeSpan.FromSeconds(8), token);
+    }
+
     internal static Version? CurrentUserVersion()
     {
         // O nome/publisherId da familia MSIX, e nao apenas o texto exibido no Registro.
@@ -137,6 +150,9 @@ internal static class WindowsTerminalUpdater
         using var archive = ZipFile.OpenRead(path);
         if (archive.Entries.Count is < 1 or > 150)
             throw new InvalidDataException("Estrutura do MSIXBundle invalida.");
+        if (archive.Entries.Select(e => e.FullName).Distinct(StringComparer.OrdinalIgnoreCase).Count() != archive.Entries.Count ||
+            archive.Entries.Any(e => e.FullName.Split('/').Any(part => part is "." or "..") || e.FullName.Contains('\\')))
+            throw new InvalidDataException("Entradas MSIX duplicadas ou invalidas.");
         var manifest = archive.GetEntry("AppxMetadata/AppxBundleManifest.xml");
         var signature = archive.GetEntry("AppxSignature.p7x");
         if (manifest is null || signature is null || manifest.Length is < 80 or > 512_000)
@@ -148,12 +164,21 @@ internal static class WindowsTerminalUpdater
             XmlResolver = null
         });
         XDocument doc = XDocument.Load(xml);
-        var identity = doc.Descendants().FirstOrDefault(x => x.Name.LocalName == "Identity");
+        XNamespace ns = "http://schemas.microsoft.com/appx/2013/bundle";
+        var identities = doc.Root?.Elements(ns + "Identity").ToArray() ?? [];
+        if (doc.Root?.Name != ns + "Bundle" || identities.Length != 1)
+            throw new InvalidDataException("Estrutura de identidade MSIX invalida.");
+        var identity = identities[0];
+        var x64 = doc.Root.Element(ns + "Packages")?.Elements(ns + "Package").Where(e =>
+            (string?)e.Attribute("Type") == "application" && (string?)e.Attribute("Architecture") == "x64").ToArray() ?? [];
+        if (x64.Length != 1 || (string?)x64[0].Attribute("Version") != TargetVersion ||
+            archive.GetEntry((string?)x64[0].Attribute("FileName") ?? "") is null)
+            throw new InvalidDataException("Pacote x64 MSIX ausente ou divergente.");
         string name = identity?.Attribute("Name")?.Value ?? "(ausente)";
         string version = identity?.Attribute("Version")?.Value ?? "(ausente)";
         string publisher = identity?.Attribute("Publisher")?.Value ?? "(ausente)";
         if (name != PackageName || version != BundleTargetVersion ||
-            !publisher.StartsWith("CN=Microsoft Corporation", StringComparison.OrdinalIgnoreCase))
+            publisher != "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US")
             throw new InvalidDataException(
                 "Manifesto do pacote oficial: name=" + name +
                 " version=" + version + " publisher=" + publisher +

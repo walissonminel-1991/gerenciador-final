@@ -29,15 +29,50 @@ internal static class Work13UpdateTests
         check(launches == 0 && result.State == UpdateAttemptState.Cancelled,
             "W13 cancelamento no ultimo callback antes de executar impede lancamento");
 
+        int reads = 0;
+        check(await UpdateInstallationContract.ConfirmAfterAsync(() => Task.FromResult(++reads == 3), interval: TimeSpan.Zero) && reads == 3,
+            "W13 bootstrapper demora: confirmacao aguarda evidencia posterior");
+        reads = 0;
+        check(!await UpdateInstallationContract.ConfirmAfterAsync(() => { reads++; return Task.FromResult(false); }, interval: TimeSpan.Zero) && reads == 4,
+            "W13 exit zero com versao inalterada permanece inconclusivo apos limite");
+        using (var stopped = new CancellationTokenSource())
+        {
+            stopped.Cancel(); bool cancelled = false;
+            try { await UpdateInstallationContract.ConfirmAfterAsync(() => Task.FromResult(true), stopped.Token); }
+            catch (OperationCanceledException) { cancelled = true; }
+            check(cancelled, "W13 cancelamento da consulta posterior nao confirma sucesso");
+        }
+        var npp32 = VerifiedUpdaters.Resolve(new ProgramEntry { Name = "Notepad++ (32-bit x86)", Publisher = "Don HO", Version = "8.9.5",
+            AvailableVersion = "8.9.8.1", Source = "GitHub oficial", IsUpdate = true });
+        check(npp32 is { Identifier: "notepadpp-x86-8.9.8.1", Arguments: "/S", Interactive: false } && VerifiedUpdaters.IsApprovedRecipe(npp32),
+            "W13 Notepad++ x86 possui pacote e hash proprios");
+        foreach (string name in new[] { "Adobe Acrobat (64-bit)", "Proton Pass", "Plex Media Server", "Jellyfin Server", "Microsoft GameInput", "Microsoft Visual C++ 2015-2022 Redistributable (x64)" })
+            check(VerifiedUpdaters.Resolve(new ProgramEntry { Name = name, Publisher = "Microsoft Corporation", Version = "1.0", AvailableVersion = "99.0", IsUpdate = true }) is null,
+                "W13 nao improvisa instalador para " + name);
+        check(VerifiedUpdaters.GetOfficialPage(new ProgramEntry { Name = "Plex Media Server", IsUpdate = true }) == "https://www.plex.tv/media-server-downloads/" &&
+            VerifiedUpdaters.GetOfficialPage(new ProgramEntry { Name = "Jellyfin Server 12.1.0", IsUpdate = true }) == "https://jellyfin.org/downloads/windows/",
+            "W13 servidores encaminhados ao produto correto");
+
         string root = Path.Combine(Path.GetTempPath(), "GF-W13-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         try
         {
             string path = Path.Combine(root, "synthetic.msixbundle");
+            const string publisher = "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US";
+            WriteBundle(path, publisher);
+            WindowsTerminalUpdater.ValidateBundleIdentity(path);
+            check(true, "W13 MSIX identidade estrutural Microsoft exata aceita; assinatura testada separadamente");
+            File.Delete(path);
             WriteBundle(path, "CN=Microsoft Corporation Evil, O=Unrelated");
             bool refused = false;
             try { WindowsTerminalUpdater.ValidateBundleIdentity(path); } catch (InvalidDataException) { refused = true; }
             check(refused, "W13 MSIX publisher com prefixo Microsoft e sufixo hostil e recusado");
+            File.Delete(path); WriteBundle(path, publisher);
+            using (var duplicate = ZipFile.Open(path, ZipArchiveMode.Update)) duplicate.CreateEntry("AppxSignature.p7x");
+            refused = false; try { WindowsTerminalUpdater.ValidateBundleIdentity(path); } catch (InvalidDataException) { refused = true; }
+            check(refused, "W13 MSIX entradas duplicadas recusadas");
+            if (OperatingSystem.IsWindows()) RunBinaryContracts(root, obs, vc, check);
+            else Console.WriteLine("SKIP W13 contratos PE e escopo canonico: executados na CI Windows");
         }
         finally { Directory.Delete(root, true); }
     }
@@ -48,6 +83,89 @@ internal static class Work13UpdateTests
         using (var text = new StreamWriter(archive.CreateEntry("AppxMetadata/AppxBundleManifest.xml").Open()))
             text.Write("<Bundle xmlns=\"http://schemas.microsoft.com/appx/2013/bundle\"><Identity Name=\"Microsoft.WindowsTerminal\" Version=\"3001.25.2733.0\" Publisher=\"" +
                 publisher + "\"/><Packages><Package Type=\"application\" Architecture=\"x64\" FileName=\"synthetic.msix\" Version=\"1.25.2733.0\"/></Packages></Bundle>");
-        using var signature = new StreamWriter(archive.CreateEntry("AppxSignature.p7x").Open()); signature.Write("SYNTHETIC IDENTITY TEST ONLY");
+        using (var signature = new StreamWriter(archive.CreateEntry("AppxSignature.p7x").Open())) signature.Write("SYNTHETIC IDENTITY TEST ONLY");
+        archive.CreateEntry("synthetic.msix");
     }
+    private static ProgramEntry With(ProgramEntry entry, string? publisher = null, string? msi = null, bool? inventoryOnly = null, string? version = null) => new()
+    {
+        Name = entry.Name, Publisher = publisher ?? entry.Publisher, Version = version ?? entry.Version,
+        IsUpdate = entry.IsUpdate, AvailableVersion = entry.AvailableVersion, Source = entry.Source,
+        InventoryId = entry.InventoryId, InstallLocation = entry.InstallLocation, UninstallString = entry.UninstallString,
+        MsiProductCode = msi ?? entry.MsiProductCode, InventoryOnly = inventoryOnly ?? entry.InventoryOnly
+    };
+
+    private static void RunBinaryContracts(string root, VerifiedUpdateRecipe obs, VerifiedUpdateRecipe vc, Action<bool,string> check)
+    {
+        UpdateInstallationContract.SyntheticRoot = root;
+        try
+        {
+            var layout = UpdateInstallationContract.For(obs.Identifier)!;
+            Directory.CreateDirectory(Path.GetDirectoryName(layout.Binary)!);
+            WriteVersioned(layout.Binary, "31.1.00002.0");
+            WriteVersioned(layout.Uninstaller, "31.1.00002.0");
+            var original = Obs(location: layout.Root);
+            var after = Obs("32.2.2", layout.Root);
+            check(VerifiedUpdaters.SingleSafeSilentInstallation(obs, original, [original]), "W13 OBS antigo com binario real e pasta canonica autoriza preflight");
+            check(!VerifiedUpdaters.ConfirmInstallation(obs, original, [after]), "W13 Registro atualizado com binario antigo nao confirma");
+            WriteVersioned(layout.Binary, "32.2.00002.0");
+            check(VerifiedUpdaters.ConfirmInstallation(obs, original, [after]), "W13 OBS confirma apenas Registro e binario coerentes");
+            check(!VerifiedUpdaters.ConfirmInstallation(obs, original, [after, Obs("32.2.2", root)]), "W13 duas instalacoes posteriores nao confirmam uma copia arbitraria");
+            WriteVersioned(layout.Binary, "32.2.00002.0", x64: false);
+            check(!VerifiedUpdaters.ConfirmInstallation(obs, original, [after]), "W13 OBS x86 nao confirma atualizacao x64");
+            WriteVersioned(layout.Binary, "32.2.00002.0");
+            after = With(after, publisher: "Outro");
+            check(!VerifiedUpdaters.ConfirmInstallation(obs, original, [after]), "W13 fabricante alterado apos atualizar e inconclusivo");
+            after = With(after, publisher: original.Publisher);
+            original = With(original, msi: "{00000000-0000-0000-0000-000000000013}");
+            check(!VerifiedUpdaters.SingleSafeSilentInstallation(obs, original, [original]), "W13 instalacao MSI nao e substituida pelo NSIS");
+            original = With(original, msi: "", inventoryOnly: true);
+            check(!VerifiedUpdaters.SingleSafeSilentInstallation(obs, original, [original]), "W13 aplicativo protegido nao recebe EXE");
+
+            var oldVc = new ProgramEntry { Name = "Microsoft Visual C++ 2013 Redistributable (x64) - 12.0.30501", Publisher = "Microsoft Corporation",
+                Version = "12.0.30501.0", AvailableVersion = vc.Version, IsUpdate = true, InventoryId = "LocalMachine|Registry32|OldVc" };
+            var newVc = new ProgramEntry { Name = "Microsoft Visual C++ 2013 Redistributable (x64) - 12.0.40664", Publisher = oldVc.Publisher,
+                Version = vc.Version, InventoryId = "LocalMachine|Registry32|NewVc" };
+            string dll = UpdateInstallationContract.VcBinary(true); Directory.CreateDirectory(Path.GetDirectoryName(dll)!);
+            WriteVersioned(dll, "12.0.30501.0");
+            check(VerifiedUpdaters.SingleSafeSilentInstallation(vc, oldVc, [oldVc]), "W13 VC2013 antigo exige DLL da arquitetura e versao registradas");
+            check(!VerifiedUpdaters.ConfirmInstallation(vc, oldVc, [newVc]), "W13 GUID novo com DLL antiga nao confirma VC2013");
+            WriteVersioned(dll, "12.0.40664.0");
+            check(VerifiedUpdaters.ConfirmInstallation(vc, oldVc, [newVc]), "W13 migracao de GUID VC2013 confirmada por familia unica escopo e DLL");
+            var store = new UpdateOperationStore(); var operation = store.Begin(oldVc, vc.Version)!;
+            check(!store.BindConfirmedInstallation(vc, oldVc, [newVc], operation), "W13 resultado ativo nao pode ser reassociado como sucesso");
+            operation.Complete(new(UpdateAttemptState.Confirmed));
+            check(store.BindConfirmedInstallation(vc, oldVc, [newVc], operation) && store.Find(newVc)?.Id == operation.Snapshot.Id && store.Begin(newVc, vc.Version) is null,
+                "W13 resultado segue GUID comprovado sem duplicar atualizacao");
+            newVc.InventoryId = "CurrentUser|Registry32|NewVc";
+            check(!VerifiedUpdaters.ConfirmInstallation(vc, oldVc, [newVc]), "W13 copia em outro usuario nao confirma VC2013 global");
+            newVc.InventoryId = "LocalMachine|Registry32|NewVc"; newVc = With(newVc, version: "99.0.0.0");
+            check(!VerifiedUpdaters.ConfirmInstallation(vc, oldVc, [newVc]), "W13 versao falsa de outra familia nao confirma runtime compartilhado");
+            bool refused = false;
+            try { VerifiedUpdaters.ValidatePayloadIdentity(obs, layout.Binary); } catch (InvalidDataException) { refused = true; }
+            check(refused, "W13 PE sintetico sem identidade do instalador e recusado mesmo com versao compatível");
+        }
+        finally { UpdateInstallationContract.SyntheticRoot = null; }
+    }
+
+    // Copia inerte do assembly de testes, modifica somente recurso VERSIONINFO e arquitetura.
+    // Nunca e executada; todos os caminhos ficam na pasta temporaria sintetica.
+    private static void WriteVersioned(string path, string version, bool x64 = true)
+    {
+        byte[] data = File.ReadAllBytes(typeof(Work13UpdateTests).Assembly.Location);
+        byte[] oldText = System.Text.Encoding.Unicode.GetBytes("12.0.40664.0"), newText = System.Text.Encoding.Unicode.GetBytes(version);
+        if (newText.Length != oldText.Length) throw new Exception("Comprimento inesperado da versao sintetica");
+        for (int i = 0; i <= data.Length - oldText.Length; i++)
+            if (data.AsSpan(i, oldText.Length).SequenceEqual(oldText)) newText.CopyTo(data, i);
+        var v = Version.Parse(version);
+        for (int i = 0; i < data.Length - 52; i++)
+            if (BitConverter.ToUInt32(data, i) == 0xFEEF04BD)
+            {
+                BitConverter.GetBytes((uint)(v.Major << 16 | v.Minor)).CopyTo(data, i + 8);
+                BitConverter.GetBytes((uint)(v.Build << 16 | v.Revision)).CopyTo(data, i + 12);
+            }
+        int pe = BitConverter.ToInt32(data, 60);
+        BitConverter.GetBytes((ushort)(x64 ? 0x8664 : 0x14c)).CopyTo(data, pe + 4);
+        File.WriteAllBytes(path, data);
+    }
+
 }

@@ -7,7 +7,7 @@ internal static class UpdateBlockingPreflight
     internal static UpdateProcessTarget? MainProcessFor(string recipe) => recipe switch
     {
         "obs-x64-32.2.2" => UpdateProcessTarget.ObsStudio,
-        "notepadpp-x64-8.9.8.1" => UpdateProcessTarget.NotepadPlusPlus,
+        "notepadpp-x64-8.9.8.1" or "notepadpp-x86-8.9.8.1" => UpdateProcessTarget.NotepadPlusPlus,
         "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" => UpdateProcessTarget.SumatraPdf,
         _ => null
     };
@@ -30,7 +30,7 @@ internal static class UpdateBlockingPreflight
     private static string[] ResourcesFor(string recipe) => recipe switch
     {
         "obs-x64-32.2.2" => InstallerLockScanner.ObsResources(),
-        "notepadpp-x64-8.9.8.1" => InstallerLockScanner.NotepadResources(),
+        "notepadpp-x64-8.9.8.1" or "notepadpp-x86-8.9.8.1" => InstallerLockScanner.NotepadResources(),
         "sumatrapdf-x64-3.6.1" or "sumatrapdf-x86-3.6.1" => InstallerLockScanner.SumatraResources(),
         _ => []
     };

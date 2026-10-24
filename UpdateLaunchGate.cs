@@ -26,8 +26,9 @@ internal sealed class UpdateLaunchGate
             if (!await revalidate()) return new(UpdateAttemptState.Blocked);
             token.ThrowIfCancellationRequested();
             // A partir deste ponto a chamada pode ter criado um processo externo.
-            launched = true;
             progress?.Invoke(new(UpdateStage.Installing));
+            token.ThrowIfCancellationRequested();
+            launched = true;
             int exit = await launch();
             if (token.IsCancellationRequested) return new(UpdateAttemptState.Indeterminate, exit);
             if (exit is not (0 or 3010)) return new(UpdateAttemptState.Failed, exit);

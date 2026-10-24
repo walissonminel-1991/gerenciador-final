@@ -84,6 +84,26 @@ internal sealed class UpdateOperationStore(Func<string, bool>? diagnostic = null
             return operation;
         }
     }
+    internal bool BindConfirmedInstallation(VerifiedUpdateRecipe recipe, ProgramEntry original,
+        IEnumerable<ProgramEntry> inventory, UpdateOperation operation)
+    {
+        var snapshot = inventory.ToArray();
+        if (recipe.Identifier is not ("vc2013-x64" or "vc2013-x86") ||
+            operation.Snapshot.Progress.Stage != UpdateStage.Confirmed ||
+            !VerifiedUpdaters.ConfirmInstallation(recipe, original, snapshot)) return false;
+        string marker = recipe.Identifier == "vc2013-x64" ? "(x64)" : "(x86)";
+        var after = snapshot.Single(p => p.Name.StartsWith("Microsoft Visual C++ 2013 Redistributable " + marker, StringComparison.OrdinalIgnoreCase));
+        string? oldKey = KeyFor(original), newKey = KeyFor(after);
+        lock (gate)
+        {
+            if (oldKey is null || newKey is null || !operations.TryGetValue(oldKey, out var existing) ||
+                existing != operation || operations.TryGetValue(newKey, out var other) && other != operation) return false;
+            operations.Remove(oldKey);
+            operations[newKey] = operation;
+            return true;
+        }
+    }
+
     internal UpdateOperationSnapshot? Find(ProgramEntry app)
     {
         string? key = KeyFor(app);
