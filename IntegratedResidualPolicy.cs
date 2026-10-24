@@ -101,7 +101,7 @@ internal static class IntegratedResidualPolicy
                 roots.Add(Path.Combine(Environment.GetFolderPath(location), leaf));
         string[] processes = known?.Id switch
         {
-            "notepadpp" => ["notepad++"], "sumatrapdf" => ["SumatraPDF"],
+            "notepadpp" => ["notepad++"], "sumatrapdf" => ["SumatraPDF", "Sumatra-Uninstaller"],
             "sevenzip" => ["7zFM", "7zG", "7z", "7za", "7zr"],
             "obs" => ["obs64", "obs32"], "vlc" => ["vlc"],
             "audacity" => ["audacity"], "foobar2000" => ["foobar2000"], _ => []

@@ -92,7 +92,7 @@ internal sealed class UninstallBatch
                 }
                 if(request.Command.ProductCode is null && before.Items.Any(other =>
                     !other.InventoryId.Equals(request.Original.InventoryId,StringComparison.OrdinalIgnoreCase) &&
-                    SharesExeIntent(request.Command,other)))
+                    SharesExeIntent(request,other)))
                 {
                     results.Add(new(request,UninstallState.Blocked,DiagnosticReason: "shared_uninstaller", Reason:
                         "Mais de um registro aponta para o mesmo desinstalador. Não é possível remover só a entrada selecionada com segurança; confira o aplicativo pelo Windows."));
@@ -168,9 +168,15 @@ internal sealed class UninstallBatch
     private static bool MatchesRegisteredCommand(UninstallRequest request) =>
         SilentUninstallPolicy.MatchesAuthorized(request.Original, request.Command);
 
-    private static bool SharesExeIntent(ParsedUninstallCommand selected, ProgramEntry other) =>
-        new[]{other.UninstallString,other.QuietUninstallString}.Any(raw =>
-            UninstallCommand.TryParse(raw,out var command) && command.ProductCode is null &&
-            command.FileName.Replace('/','\\').Equals(selected.FileName.Replace('/','\\'),StringComparison.OrdinalIgnoreCase) &&
-            command.Arguments.Equals(selected.Arguments,StringComparison.Ordinal));
+    private static bool SharesExeIntent(UninstallRequest selected, ProgramEntry other)
+    {
+        var intents = new List<string> { SilentUninstallPolicy.ArgumentIntent(selected.Command.Arguments) };
+        if (UninstallCommand.TryParse(selected.Original.UninstallString, out var original) &&
+            original.FileName.Equals(selected.Command.FileName, StringComparison.OrdinalIgnoreCase))
+            intents.Add(SilentUninstallPolicy.ArgumentIntent(original.Arguments));
+        return new[] { other.UninstallString, other.QuietUninstallString }.Any(raw =>
+            UninstallCommand.TryParse(raw, out var command) && command.ProductCode is null &&
+            command.FileName.Replace('/', '\\').Equals(selected.Command.FileName.Replace('/', '\\'), StringComparison.OrdinalIgnoreCase) &&
+            intents.Contains(SilentUninstallPolicy.ArgumentIntent(command.Arguments), StringComparer.Ordinal));
+    }
 }

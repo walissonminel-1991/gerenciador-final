@@ -66,6 +66,13 @@ internal static class Work12UninstallLayoutTests
                 "resumo compacto mostra motivo em tema escuro e botao inteiro");
             dialog.Close(); combinations++;
         }
+        var report = typeof(MainForm).GetMethod("SetUninstallProgress", Private)!;
+        Task.Run(() => report.Invoke(host, [reconstructed, "working", null])).GetAwaiter().GetResult();
+        Application.DoEvents();
+        Require(list.OperationTimerRunning && list.UninstallOperationFor!(reconstructed)!.Stage == UninstallStage.Working,
+            "worker relata progresso sem acessar controles fora da thread visual");
+        Task.Run(() => report.Invoke(host, [reconstructed, "finished", null])).GetAwaiter().GetResult();
+        Application.DoEvents(); Require(!list.OperationTimerRunning, "conclusao no worker desliga animacao");
         host.MinimizeToTray(); host.ShowUninstallResult("Resultado pendente na bandeja"); Application.DoEvents();
         Require(!Application.OpenForms.OfType<UninstallResultDialog>().Any(), "bandeja nao abre resumo inesperado");
         using var closer = new System.Windows.Forms.Timer { Interval = 25 }; int shown = 0;

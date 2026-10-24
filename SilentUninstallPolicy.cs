@@ -72,7 +72,32 @@ internal static class SilentUninstallPolicy
         if (normal.ProductCode is not null || quiet.ProductCode is not null)
             return normal.ProductCode is not null && quiet.ProductCode is not null &&
                 normal.ProductCode.Equals(quiet.ProductCode, StringComparison.OrdinalIgnoreCase);
-        return normal.FileName.Equals(quiet.FileName, StringComparison.OrdinalIgnoreCase);
+        if (!normal.FileName.Equals(quiet.FileName, StringComparison.OrdinalIgnoreCase)) return false;
+        string intent = ArgumentIntent(normal.Arguments);
+        return intent.Length == 0 || intent == ArgumentIntent(quiet.Arguments);
+    }
+
+    // Retirar apenas controles de interface/reinicio conhecidos para comparar
+    // a identidade, sem reescrever o comando que sera executado.
+    internal static string ArgumentIntent(string arguments)
+    {
+        var tokens = new List<string>(); var current = new System.Text.StringBuilder();
+        bool quoted = false; int slashes = 0;
+        foreach (char ch in arguments)
+        {
+            if (ch == '"' && slashes % 2 == 0) quoted = !quoted;
+            if (char.IsWhiteSpace(ch) && !quoted)
+            {
+                if (current.Length > 0) { tokens.Add(current.ToString()); current.Clear(); }
+            }
+            else current.Append(ch);
+            slashes = ch == '\\' ? slashes + 1 : 0;
+        }
+        if (current.Length > 0) tokens.Add(current.ToString());
+        string[] controls = ["/S", "-s", "-silent", "/quiet", "/silent", "/verysilent",
+            "/suppressmsgboxes", "/norestart", "-norestart", "/qn", "/qb"];
+        return string.Concat(tokens.Where(t => !controls.Contains(t, StringComparer.OrdinalIgnoreCase))
+            .Select(t => t.Length + ":" + t));
     }
 
     internal static bool IsExactNotepadPlusPlus(ProgramEntry app)

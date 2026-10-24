@@ -2942,7 +2942,7 @@ internal sealed partial class MainForm : Form
         }
         try
         {
-            var requests = UninstallBatch.Select(apps);
+            var requests = await Task.Run(() => UninstallBatch.Select(apps), cancellation.Token);
             var before = await Inventory();
             foreach (var request in requests)
             {
@@ -2963,23 +2963,25 @@ internal sealed partial class MainForm : Form
                         return issue;
                     }), cancellation.Token));
             }
-            string preview = string.Join("\n\n", prepared.Select(p =>
+            string preview = await Task.Run(() => string.Join("\n\n", prepared.Select(p =>
                 "• " + p.Request.Original.Name + "\n" + SilentUninstallPolicy.DescribeMode(p.Request) +
                 (p.UnsignedWarning ? "\nDesinstalador sem assinatura digital. Confira o aplicativo antes de continuar." :
                  p.PublisherWarning ? "\nAssinatura válida com editor diferente do cadastro. Confira o aplicativo." :
-                 p.TrustWarning ? "\nO Windows não confirmou a confiança da assinatura. Confira o aplicativo." : "")));
+                 p.TrustWarning ? "\nO Windows não confirmou a confiança da assinatura. Confira o aplicativo." : ""))), cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             foreach (var app in apps) SetUninstallProgress(app, "awaiting_consent");
             bool consent = DarkConfirmDialog.Confirm(this,
                 $"Deseja desinstalar {prepared.Count} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
                 "Confirmar desinstalação") == DialogResult.Yes;
-            var outcomes = await new UninstallBatch().RunAsync(requests, consent, Inventory,
+            var outcomes = await Task.Run(() => new UninstallBatch().RunAsync(requests, consent, Inventory,
                 (request, token) =>
                 {
                     Status("Aguardando desinstalação de " + request.Original.Name + "...");
+                    RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(request.Original),
+                        "launch", SilentUninstallPolicy.UsesSilentMode(request) ? "silent" : "interactive"));
                     return prepared.Single(p => p.Request == request).LaunchAsync(token);
                 }, token => Task.Delay(500, token), cancellation.Token,
-                (request, stage) => SetUninstallProgress(request.Original, stage));
+                (request, stage) => SetUninstallProgress(request.Original, stage)));
             foreach (var plan in prepared) plan.Dispose();
             prepared.Clear();
             foreach (var outcome in outcomes)

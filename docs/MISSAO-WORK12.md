@@ -17,10 +17,43 @@ A .55 registrou operações `Pending`. Na .56, duas operações terminaram em `R
 | Pasta de instalação dedicada exigia `InstallLocation` preenchido. | Fallback estrito para a pasta do EXE registrado, com nome de produto corroborado e base de instalação delimitada. Pastas compartilhadas continuam bloqueadas. |
 | `KEY_READ` exigia também `KEY_NOTIFY`/`READ_CONTROL`, desnecessários à inspeção. | Consulta usa `KEY_QUERY_VALUE | KEY_ENUMERATE_SUB_KEYS`. A regressão reproduz erro 5 com `Notify` negado e leitura de valores permitida. Isso não demonstra qual ACL específica causou os erros no PC FORTE. |
 | Erros do Registro não discriminavam hive/visão; uma falha podia descartar também resultados acessíveis de outra parte do plano. | Etapas técnicas por hive/visão, verificação parcial explícita, preservação do alvo ilegível e limpeza somente dos outros alvos comprovados e consentidos. Nenhuma alteração de ACL. |
-| O desenho dos cartões e o timer conheciam somente atualizações. | Estado independente de desinstalação, mostrado desde a preparação, animação indeterminada, trabalho do fornecedor, conferência, decisão e limpeza. Sem porcentagens inventadas. |
+| O desenho dos cartões e o timer conheciam somente atualizações. | Estado independente de desinstalação, mostrado desde a preparação, animação indeterminada, trabalho do fornecedor, conferência, decisão e limpeza. Seleção, metadados e execução do fornecedor ficam em segundo plano; callbacks visuais são encaminhados à thread da interface. Sem porcentagens inventadas. |
 | O resultado existia apenas na linha de status/log. | Resumo final escuro e rolável por aplicativo, inclusive ausência, preservações, erro 5, cancelamento, falha e conclusão pendente. Aguarda reabertura quando o GF está na bandeja. |
-| Quiet validado na seleção não era novamente limitado ao mesmo produto em toda autorização. | Revalidação também na fronteira de execução. Argumentos registrados preservados exatamente. |
+| Quiet validado na seleção não era novamente limitado ao mesmo produto em toda autorização. | Revalidação também na fronteira de execução. Argumentos registrados preservados exatamente; quiet não pode trocar identificadores de produto no mesmo EXE nem mascarar um desinstalador compartilhado por dois registros. |
 | Cancelar a espera de um processo real era convertido em timeout. | Distingue cancelamento de prazo expirado; ambos deixam a conclusão do fornecedor pendente, sem matar nem relançar o processo. |
+
+## Arquivos modificados
+
+- `.github/workflows/validar-candidata-windows.yml`
+- `CHANGELOG.md`
+- `DarkControls.cs`
+- `GerenciadorAplicativos.csproj`
+- `IntegratedResidualBatch.cs`
+- `IntegratedResidualCleanup.cs`
+- `IntegratedResidualPolicy.cs`
+- `Program.cs`
+- `README.md`
+- `RebootResidualReview.cs`
+- `RegisteredUninstaller.cs`
+- `ResidualRegistryGuard.cs`
+- `SilentUninstallPolicy.cs`
+- `TestesLayout/Program.cs`
+- `TestesLayout/Work12UninstallLayoutTests.cs`
+- `TestesResiduos/Program.cs`
+- `TestesResiduos/SilentFixture/Program.cs`
+- `TestesResiduos/SilentFixture/SilentFixture.csproj`
+- `TestesResiduos/TestesResiduos.csproj`
+- `TestesResiduos/Work12RegressionTests.cs`
+- `UninstallBatch.cs`
+- `UninstallCleanupDialog.cs`
+- `UninstallCleanupUi.cs`
+- `UninstallOperationProgress.cs`
+- `UninstallProgressUi.cs`
+- `app.manifest`
+- `docs/MISSAO-WORK12.md`
+- `docs/ROADMAP.md`
+- `docs/TESTE-CONSOLIDADO.md`
+- `scripts/test_work6_mutations.py`
 
 ## Fluxo final
 

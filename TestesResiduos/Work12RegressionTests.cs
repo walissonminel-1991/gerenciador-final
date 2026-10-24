@@ -81,7 +81,7 @@ internal static class Work12RegressionTests
         }
         await IntegratedCycle(check);
         await UninstallerStates(check);
-        SilentEngines(check);
+        await SilentEngines(check);
         GenericOwnership(check);
         await ActualWaitCancellation(check);
     }
@@ -244,7 +244,7 @@ internal static class Work12RegressionTests
             "W12 operacao pendente protege identidade sem remapear pelo nome");
     }
 
-    private static void SilentEngines(Action<bool, string> check)
+    private static async Task SilentEngines(Action<bool, string> check)
     {
         string root = Path.Combine(Path.GetTempPath(), "GF-W12-Silent-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
         string fixture = Path.Combine(AppContext.BaseDirectory, "SyntheticSilent", "GF-SilentFixture.exe");
@@ -273,6 +273,18 @@ internal static class Work12RegressionTests
             request = UninstallBatch.Select([quiet]).Single();
             check(request.Command.Arguments == "/S /KEEP-SETTINGS" && SilentUninstallPolicy.UsesSilentMode(request),
                 "W12 comando quiet registrado mantem exatamente suas opcoes");
+            var differentProduct = new ProgramEntry { Name = "GF Synthetic shared engine", InventoryId = "GF-W12-Product-A",
+                UninstallString = "\"" + other + "\" /product:A", QuietUninstallString = "\"" + other + "\" /product:B /quiet" };
+            check(UninstallBatch.Select([differentProduct]).Single().Command.Arguments == "/product:A" &&
+                !SilentUninstallPolicy.MatchesAuthorized(differentProduct, new(other, "/product:B /quiet", null)),
+                "W12 quiet do mesmo EXE nao pode trocar identificador de produto");
+            var alias = new ProgramEntry { Name = "GF Synthetic alias", InventoryId = "GF-W12-Alias", UninstallString = app.UninstallString };
+            int launches = 0;
+            var shared = await new UninstallBatch().RunAsync(UninstallBatch.Select([quiet]), true,
+                () => Task.FromResult(new UninstallSnapshot([quiet, alias], true)),
+                (_, _) => { launches++; return Task.FromResult<int?>(0); }, _ => Task.CompletedTask);
+            check(launches == 0 && shared.Single().State == UninstallState.Blocked,
+                "W12 quiet nao mascara EXE compartilhado por dois registros sem identificador");
             var unlocker = new ProgramEntry { Name = "Unlocker 1.9.2", InventoryId = "GF-W12-Unlocker", UninstallString = "\"" + other + "\"" };
             request = UninstallBatch.Select([unlocker]).Single();
             check(request.Command.Arguments.Length == 0 && SilentUninstallPolicy.DescribeMode(request).Contains("interativo"),
