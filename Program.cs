@@ -2685,7 +2685,7 @@ internal sealed partial class MainForm : Form
                     {
                         _installerDownloadCts = null;
                         if (!IsDisposed && _checkUpdatesButton is not null)
-                            _checkUpdatesButton.Text = "Atualizar e verificar";
+                            _checkUpdatesButton.Text = "Cancelar espera";
                     }
                 }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.MSIX_VALIDADO");
@@ -2864,6 +2864,8 @@ internal sealed partial class MainForm : Form
                     async () => await UpdateInstallationContract.ConfirmAfterAsync(async () =>
                         VerifiedUpdaters.ConfirmInstallation(recipe, entry, await Task.Run(AppServices.GetInstalledPrograms).WaitAsync(TimeSpan.FromSeconds(12), wait.Token)), wait.Token),
                     wait.Token, progress: operation.Report);
+                _deploymentWaitCts = null;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
                 operation.Complete(result);
                 _programList.RefreshOperations();
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM estado=" + result.State + " retorno=" + result.ExitCode);

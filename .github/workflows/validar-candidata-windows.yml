@@ -90,8 +90,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Rede externa e downloads ficam fora da regressao deterministica de PR.
-  # Falhas desses testes manuais falham o job; nao sao convertidas em sucesso.
+  # Fontes dinamicas permanecem opt-in. Downloads de receitas fixas sao obrigatorios
+  # em PR e falham o job se a integridade/assinatura/identidade nao for comprovada.
   fontes-reais:
     name: Fontes externas e drivers do runner (somente leitura)
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.verificar_fontes_reais }}
