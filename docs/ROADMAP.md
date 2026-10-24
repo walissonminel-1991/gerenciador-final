@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.58 TESTE — WORK13 (validação pendente).** Ampliação silenciosa com receitas fixas, prova de versão no disco, progresso individual e cancelamento da espera. [Evidências e limites](MISSAO-WORK13.md). Última aprovada: v5.13.11.57, [CI 40094285996](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40094285996). Roadmap permanece **27/42**; U8/R7/R4 físicos continuam abertos.
+**v5.13.11.58 TESTE — WORK13; CI aprovada.** [CI 40099234162](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162), fonte `691ed096`; pacote portátil e 280 hashes conferidos. Ampliação silenciosa com receitas fixas, prova de versão no disco, progresso individual e cancelamento da espera. [Causas, testes e pacote](MISSAO-WORK13.md). Roadmap permanece **27/42**; U8/R7/R4 físicos continuam abertos.
 
 ### Validação anterior — WORK11
 

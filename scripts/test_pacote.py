@@ -160,6 +160,15 @@ class MetadataTests(unittest.TestCase):
                 with self.assertRaises(ValueError): verify_metadata(self.root)
         path.write_text(original)
 
+    def test_wrong_ci_link_in_documentation(self):
+        data = json.loads((self.root / "docs/PROGRESSO.json").read_text())
+        for name in ["README.md", "docs/ROADMAP.md"]:
+            with self.subTest(name=name):
+                path = self.root / name; original = path.read_text()
+                path.write_text(original.replace(data["ci_url"], "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/1"))
+                with self.assertRaisesRegex(ValueError, "documentacao"): verify_metadata(self.root)
+                path.write_text(original)
+
     def test_physical_checkpoints_remain_open(self):
         path = self.root / "docs/PROGRESSO.json"; original = path.read_text()
         for target in ("U8", "R7", "R4"):

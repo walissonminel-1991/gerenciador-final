@@ -2,6 +2,7 @@
 
 ## 5.13.11.58 TESTE — WORK13 (24/10/2026)
 
+- Candidata aprovada na [CI 40099234162](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162), fonte `691ed096`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162/artifacts/12562141990) conferido por 280 hashes. Homologação física permanece pendente.
 - OBS NSIS `/S` comprovado, Visual C++ 2013 x64/x86 com SHA-256 oficiais independentes e Notepad++ x86. Receitas fixas; parâmetros remotos não são executados.
 - Contratos EXE preservam produto, pasta, arquitetura, escopo e exclusividade; Registro sem binário novo não confirma sucesso. VC2013 confirma também `msvcr120.dll` e admite migração comprovada de GUID sem perder o resultado.
 - Cancelamento imediatamente antes da execução impede o lançamento. Após executar, cancelar interrompe a espera e deixa resultado inconclusivo, sem matar o instalador ou repetir automaticamente.

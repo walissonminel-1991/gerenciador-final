@@ -148,6 +148,10 @@ def verify_metadata(root: Path) -> dict:
     run = progress["ci_url"]
     if not re.fullmatch(r"https://github.com/walissonminel-1991/gerenciador-final/actions/runs/\d+", run):
         raise ValueError("CI sem origem aprovada")
+    readme_current = readme[readme.index("Candidata TESTE:"):].split("\n\n", 1)[0]
+    roadmap_current = roadmap[roadmap.index("**v"):].split("\n\n", 1)[0]
+    if run not in readme_current or run not in roadmap_current or (candidate["status"] == "approved" and artifact["url"] not in readme_current):
+        raise ValueError("documentacao aponta para CI/pacote divergente")
     if progress["build_url"] != run or progress["policy_url"] != run or artifact["url"] != run + "/artifacts/" + str(artifact["id"]) or progress["artifact_url"] != artifact["url"]:
         raise ValueError("referencias de CI/artefato divergentes")
     if artifact["name"] != name or progress["artifact_name"] != name or not re.fullmatch(r"[0-9a-f]{64}", artifact["zip_sha256"]):

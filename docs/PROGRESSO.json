@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.57 TESTE",
+  "version": "5.13.11.58 TESTE",
   "date": "2026-10-24",
-  "code_commit": "529d85c0126aa79ae7d348f8895707f67e9d5725",
+  "code_commit": "691ed0967c670965b329d2fd05e9a4c33e378623",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40094285996",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -338,32 +338,13 @@
       "native_store_partial": true
     }
   },
-  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40094285996",
-  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40094285996",
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
   "winget_pc_forte_32": "WinGet (somente leitura): 9 atualizações na sessão administrativa, comando indisponível em terminal não elevado; GF: 3; diferença=6. Proton: changelog oficial 1.43.0 de 21/10, manifesto WinGet 1.42.0. Lixeira ainda possui dois itens da build .32 após erro 0x8000FFFF. Sem instalação/exclusão adicional. U6 não encerrado.",
   "previous_validated_artifact": {
-    "id": 12533044951,
-    "name": "GerenciadorFinal-v5.13.11.53-78424b8e-TESTE-win-x64",
-    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40028404988/artifacts/12533044951",
-    "source_commit": "78424b8e6bc64ba6a9b4f546e6542ead608c7362",
-    "merge_commit": "c824894c29285549a03b1d9e9bc6b9b0b24edd04",
-    "base_commit": "410d65e23546976db456337c71e4705f10217d36",
-    "zip_sha256": "c9a98052ce145e7c70db3a19d70cd4ac602e6f48b1e39b11614afb8ae15168f3",
-    "zip_bytes": 58992475,
-    "expanded_bytes": 151369110,
-    "files": 281,
-    "verified_hashes": 280,
-    "file_version": "5.13.11.53",
-    "architecture": "AMD64",
-    "self_contained": true,
-    "signed": false,
-    "avg_validated": false,
-    "expires_at": "2026-10-30T21:44:53Z"
-  },
-  "artifact": {
     "id": 12559794940,
     "name": "GerenciadorFinal-v5.13.11.57-529d85c0-TESTE-win-x64",
     "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40094285996/artifacts/12559794940",
@@ -380,6 +361,25 @@
     "self_contained": true,
     "signed": false,
     "avg_validated": false
+  },
+  "artifact": {
+    "id": 12562141990,
+    "name": "GerenciadorFinal-v5.13.11.58-691ed096-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162/artifacts/12562141990",
+    "source_commit": "691ed0967c670965b329d2fd05e9a4c33e378623",
+    "merge_commit": "02ef71406fb0e92118ccd3d919034d3b5e64074f",
+    "base_commit": "410d65e23546976db456337c71e4705f10217d36",
+    "zip_sha256": "30be2c29a0f15d80b7f75fa5f79887e99d05132c87a5d76113e81328c5a04af5",
+    "zip_bytes": 59019225,
+    "expanded_bytes": 151444374,
+    "files": 281,
+    "verified_hashes": 280,
+    "file_version": "5.13.11.58",
+    "architecture": "AMD64",
+    "self_contained": true,
+    "signed": false,
+    "avg_validated": false,
+    "expires_at": "2026-10-31T13:48:29Z"
   },
   "mission_work5": {
     "status": "Código final e três Actions aprovados; ZIP conferido sem executar; testes físicos pendentes",
@@ -454,8 +454,8 @@
     ],
     "progress": "27/42"
   },
-  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40094285996/artifacts/12559794940",
-  "artifact_name": "GerenciadorFinal-v5.13.11.57-529d85c0-TESTE-win-x64",
+  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162/artifacts/12562141990",
+  "artifact_name": "GerenciadorFinal-v5.13.11.58-691ed096-TESTE-win-x64",
   "historical_artifact_work5": {
     "id": 12388392363,
     "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
@@ -799,7 +799,7 @@
   },
   "candidate": {
     "version": "5.13.11.58 TESTE",
-    "status": "pending",
+    "status": "approved",
     "mission": "WORK13",
     "report": "docs/MISSAO-WORK13.md",
     "physical_validation": "pending",

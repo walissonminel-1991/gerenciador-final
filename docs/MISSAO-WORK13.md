@@ -1,6 +1,6 @@
 # MISSÃO WORK13 — atualização silenciosa e confirmação
 
-Candidata 5.13.11.58 TESTE. Validação em andamento; não é uma release estável. PR #40 permanece Draft; main preservada. Aprovada anterior: 5.13.11.57, fonte `529d85c0126aa79ae7d348f8895707f67e9d5725`, CI [40094285996](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40094285996). WORK12 e seus contratos foram examinados antes das alterações.
+Candidata 5.13.11.58 TESTE com CI aprovada e pacote conferido. Homologação física pendente. PR #40 permanece Draft; main preservada. Aprovada anterior: 5.13.11.57, fonte `529d85c0126aa79ae7d348f8895707f67e9d5725`, CI [40094285996](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40094285996). WORK12 e seus contratos foram examinados antes das alterações.
 
 ## Causas comprovadas
 
@@ -34,11 +34,49 @@ Adobe continua na página oficial de atualização, sem confundir Acrobat/Reader
 
 WinGet COM/CLI permanece desativado. O provedor consultivo isolado já testa comandos sintéticos, timeout/cancelamento, inelegibilidade, conflito e desativação em todos os caminhos. Não há backend de execução com contrato completo de identidade, instalação, licença/consentimento, origem e pós-verificação. MSI/Inno genéricos e comandos RuckZuck não ganham autorização automática; parâmetros documentados sozinhos não comprovam o produto a instalar.
 
+## Arquivos alterados
+
+| Área | Arquivos |
+| --- | --- |
+| Autorização e confirmação | `VerifiedUpdaters.cs`, `UpdateInstallationContract.cs`, `UpdateLaunchGate.cs`, `WindowsTerminalUpdater.cs` |
+| Interface e processos | `Program.cs`, `UpdateOperationProgress.cs`, `UpdateProcessCoordinator.cs`, `UpdateBlockingPreflight.cs`, `InstallerLockScanner.cs` |
+| Regressões | `TestesAtualizador/Program.cs`, `Work13UpdateTests.cs`, `SimulatedUpdateScenarioTests.cs`, `TestesAtualizador.csproj`; `TestesLayout/Work11ProgressLayoutTests.cs`; `scripts/test_work6_mutations.py` |
+| Versão e documentação | `GerenciadorAplicativos.csproj`, `app.manifest`, `README.md`, `CHANGELOG.md`, `docs/ROADMAP.md`, `docs/PROGRESSO.json`, este relatório |
+| Consistência e CI | `scripts/verificar_pacote.py`, `scripts/test_pacote.py`, workflows existentes `validar-candidata-windows.yml` e `triagem-diagnostico-github.yml` |
+
+Não há novos workflows. As lógicas de desinstalação, política residual, consentimento, recuperação pós-boot e inicialização permanecem preservadas; suas regressões continuam obrigatórias. O ganho é de quatro para oito receitas Win32 silenciosas locais (contando arquiteturas, sem multiplicar escopos): três novos pacotes autorizados e OBS convertido a silencioso. Isso não mede cobertura universal nem o número de aplicativos elegíveis em um PC.
+
 ## Validação e entrega
 
-Regressões Windows, assinatura dos instaladores oficiais (somente download, sem execução), testes adversariais e pacote serão registrados aqui após a CI. Testes novos usam cópias inertes do assembly em diretório temporário e inventários sintéticos; nenhum aplicativo pessoal é atualizado. Hooks de caminho existem somente no build de testes e a regressão da UI exige sua ausência no produto. Dois processos inertes reais comprovam timeout/cancelamento da espera sem encerramento forçado; eles terminam naturalmente sem instalar programas.
+Fonte de produção: `691ed0967c670965b329d2fd05e9a4c33e378623`. [CI 40099234162](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162): regressões Windows, downloads verificados, política e compilação aprovados; pacote aprovado também na conferência independente. Compilação/analisadores sem erros ou avisos.
+
+| Conjunto | Resultado |
+| --- | --- |
+| Atualizadores determinísticos Windows | 237/237, incluindo 51 controles WORK13; a leitura adicional do bundle oficial resulta em 238/238 |
+| Mutações adversariais | 24/24 rejeitadas; três novas, além das proteções WORK12 preservadas |
+| Resíduos/desinstalação | 643/643, incluindo reproduções reais WORK12 em alvos sintéticos |
+| Multifontes / catálogo | 159/159 / 17/17 |
+| MSIX / fechamento seguro | 47/47 / 30/30 |
+| UI | 132 combinações resolução/aba, 36 de progresso, 44 de limpeza e 20 WORK12; bandeja, cancelamento, descarte e DPI simulado 100/125/150/200% |
+| Downloads Windows | Oito receitas Win32: sete com SHA, WinVerifyTrust/editor e identidade; 7-Zip conserva exceção já existente de hash fixo. Terminal: SHA, estrutura e publisher exatos; confiança final obrigatória no deployment Windows, não executado |
+| Fontes públicas reais | RuckZuck 631 entradas e 20/20 fontes oficiais disponíveis, em GETs somente leitura no ambiente Linux Work; não é validação nos PCs pessoais |
+| Política | 34 testes Python na CI do código e 10 Node; encerramento amplia para 35 Python, aprovados localmente |
+
+Capturas 1280×720 e 1440×900 [geradas no Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162/artifacts/12561699630) foram conferidas visualmente: cartões escuros, estados distintos e barras dentro dos limites, sem sobreposição. Simulação de geometria/DPI não é homologação de monitor físico. A consulta de resultado em cache fez 100.000 leituras em 38 ms/608 bytes no runner; não mede desempenho dos PCs.
+
+Testes novos usam cópias inertes do assembly em diretório temporário e inventários sintéticos. Dois processos inertes reais comprovam timeout/cancelamento da espera sem encerramento forçado e terminam naturalmente sem instalar programas. Hooks de caminho existem somente no build de testes; a regressão da UI exige sua ausência no produto. Nenhum software pessoal foi instalado, atualizado ou removido; nenhum reinício físico foi executado.
+
+A primeira rodada completa encontrou uma expectativa histórica que recusava qualquer receita x86 do Notepad++. A asserção agora exige identificador, URL e hash próprios de x86, e os controles PE comprovam recusa ao trocar arquitetura. O mutante antigo de cancelamento passou a ser equivalente após a segunda barreira: foi renovado para remover ambas; outro mutante remove apenas a barreira final e é detectado pelo callback de cancelamento. Nenhuma proteção foi removida para aprovar testes. CIs interrompidas por novos commits não são contadas como aprovação final. O job opcional de fontes/drivers reais Windows permaneceu skipped; fontes HTTP foram verificadas separadamente, sem alegar teste de hardware Windows.
 
 A checagem de metadados verifica versão do projeto/manifesto/README/roadmap/changelog, origem/CI/nome/hash do pacote aprovado e protege U8/R7/R4 ainda pendentes. Não cria workflow adicional. A publicação portátil depende de todos os jobs obrigatórios aprovados, incluindo a verificação Authenticode dos downloads.
+
+## Pacote aprovado selecionado
+
+[Portátil 5.13.11.58 TESTE Windows x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162/artifacts/12562141990), arquivo `GerenciadorFinal-v5.13.11.58-691ed096-TESTE-win-x64.zip`; expira em 31/10/2026 às 13:48 UTC. Fonte `691ed0967c670965b329d2fd05e9a4c33e378623`; build em `refs/pull/40/merge` `02ef71406fb0e92118ccd3d919034d3b5e64074f`; base `410d65e23546976db456337c71e4705f10217d36`. PR não foi integrado à main. Commits posteriores de documentação registram este pacote e não mudam a fonte de produção aqui identificada.
+
+SHA-256 do ZIP: `30be2c29a0f15d80b7f75fa5f79887e99d05132c87a5d76113e81328c5a04af5`.
+
+Conferidos fora do runner: 59.019.225 bytes ZIP, 151.444.374 bytes extraídos, 281 arquivos e 280 hashes exatos; SHA do ZIP igual ao digest do artefato GitHub. EXE PE AMD64, FileVersion 5.13.11.58, manifesto `asInvoker`, runtimes .NET/WindowsDesktop 10.0.13 incluídos; nenhum assembly de testes ou fixture distribuído. Sem assinatura GF ou homologação AVG. Em relação à .57 aprovada: +7.544 bytes ZIP e +19.968 bytes extraídos, mantendo os mesmos 281 arquivos e runtimes.
 
 ## Validação física mínima pendente
 
