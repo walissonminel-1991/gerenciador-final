@@ -115,6 +115,16 @@ internal static class AutomaticDiscoveryTests
             check(AutomaticAppInstallation.Read(MsiApp(registeredCode)) is {Kind:"msi",ProductCode:registeredCode},"AUTO MSI comando e inventario identificam o mesmo produto");
             check(AutomaticAppInstallation.Read(MsiApp("{00000000-0000-0000-0000-000000000060}")) is null,"AUTO MSI comando de outro produto nao autoriza atualizacao");
             check(AutomaticAppInstallation.Read(MsiApp("")) is null,"AUTO MSI codigo ausente no inventario nao autoriza");
+            var before=new ProgramEntry{Name=app.Name,Publisher=app.Publisher,Version="11.0.0",IsUpdate=true,AvailableVersion=app.Version,
+                InventoryId=app.InventoryId,InstallLocation=install,DisplayIcon=binary,UninstallString=app.UninstallString};
+            var after=new ProgramEntry{Name=app.Name,Publisher=app.Publisher.ToLowerInvariant(),Version=app.Version,
+                InventoryId=app.InventoryId,InstallLocation=install,DisplayIcon=binary,UninstallString=app.UninstallString};
+            var target=new AutomaticInstaller("Synthetic.Case",app.Name,app.Publisher,app.Version,"nullsoft","x64","machine",
+                new Uri("https://vendor.example/setup.exe"),new string('A',64),"","","/S");
+            var previous=snapshot! with{Key=AutomaticAppInstallation.Binding(before),Version=before.Version};
+            AutomaticUpdateDiscovery.Attach(AutomaticUpdateDiscovery.SimulateIssued(before,previous,target));
+            var caseRecipe=AutomaticUpdateDiscovery.Resolve(before)!;
+            check(ReferenceEquals(AutomaticUpdateDiscovery.ConfirmedEntry(caseRecipe,[after]),after),"AUTO fabricante com caixa diferente preserva resultado confirmado na lista");
             var other=new ProgramEntry{Name=app.Name,Publisher=app.Publisher,Version=app.Version,InventoryId="LocalMachine|Registry64|Other"};
             check(!snapshot!.Current([app,other]),"AUTO duas instalacoes da familia nao autorizam uma escolha arbitraria");
             var shared=new ProgramEntry{Name="Other Product",Publisher="Other",InstallLocation=install,InventoryId="LocalMachine|Registry64|Shared"};

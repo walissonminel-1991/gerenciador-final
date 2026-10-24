@@ -16,11 +16,25 @@ A lista integra os resultados do novo provedor ao histórico e à avaliação de
 
 A desinstalação ganha descoberta NSIS genérica: estrutura do desinstalador, aplicativo correspondente no diretório, metadados e assinaturas coincidentes. Ausência dessa prova preserva o modo interativo. MSI, Inno, comandos quiet registrados e políticas específicas anteriores continuam ativos. A limpeza, SIM/NÃO, direitos mínimos, dados pessoais e recuperação pós-boot da WORK12 permanecem preservados.
 
+### Arquivos desta etapa
+
+30 arquivos alterados desde `0d53b94b`, organizados nos commits `2388cffe` (catálogo autenticado), `4118c3d4` (descoberta/execução/testes), `41d8f92d` (versão, privacidade/licenças) e `f76be625` (Inno real e consistência MSI). Encerramento documental posterior registra a CI e o pacote; não modifica a lógica da build selecionada.
+
+| Área | Arquivos |
+| --- | --- |
+| Descoberta e identidade | `PackageCatalogIndex.cs`, `AutomaticPackageManifest.cs`, `AutomaticUpdateDiscovery.cs`, `AutomaticAppInstallation.cs`, `MsiPackageEvidence.cs` |
+| Assinatura, motor e processos | `TrustedFileSignature.cs`, `InstallerEngineEvidence.cs`, `AutomaticProcessPreflight.cs`, `SilentUninstallPolicy.cs` |
+| Integração | `Program.cs`, `VerifiedUpdaters.cs`, `RuckZuckModels.cs`, `UpdateOperationProgress.cs` |
+| Regressões | `TestesAtualizador/AutomaticDiscoveryTests.cs`, `TestesAtualizador/Program.cs`, `TestesAtualizador/TestesAtualizador.csproj`, `TestesResiduos/Work12RegressionTests.cs`, `TestesResiduos/TestesResiduos.csproj`, `TestesLayout/Work11ProgressLayoutTests.cs`, `scripts/test_work6_mutations.py`, workflow existente `validar-candidata-windows.yml` |
+| Versão e documentação | `GerenciadorAplicativos.csproj`, `app.manifest`, `README.md`, `CHANGELOG.md`, `PRIVACY.md`, `docs/PROGRESSO.json`, `docs/ROADMAP.md`, `docs/THIRD-PARTY-NOTICES.md`, este relatório |
+
 ### Validação em andamento e limites
 
 Falhas investigadas na CI `40137345146`: a primeira tentativa recebeu HTTP 403 do CDN antes da leitura do catálogo; a repetição autenticou catálogo/manifestos e validou VLC 3.0.24 com assinatura VideoLAN. ShareX 21.0.0 expôs duas causas: a detecção Inno procurava uma string antiga no overlay, mas a tabela binária v2 fica no stub/recurso; e esse instalador oficial tem diretório de certificados PE vazio. A leitura agora verifica a tabela, versão, CRC e offsets definidos no [código oficial Inno](https://github.com/jrsoftware/issrc/blob/7d30127fdb2ca8b7c0617e8d616e8625bf6ecd99/Projects/Src/Shared.Struct.pas#L422), conferindo a identidade no offset declarado. O teste real separa formato reconhecido de autorização: ShareX sem assinatura é recusado pela política do produto. Não foi removida a exigência de assinatura para aprovar a CI.
 
 A revisão também identificou que o desinstalador Inno instalado não contém a tabela do setup. A descoberta reutiliza a evidência WORK12 do PE `Setup/Uninstall` e log adjacente; as duas operações compartilham essa verificação. Foram acrescentadas recusas para ProductCode MSI ausente, vazio ou divergente entre comando e inventário, e falha explícita se os redirects de teste esgotarem sem validar um payload. Fixtures são temporárias; nenhum desses testes executa instaladores de terceiros.
+
+A conferência final de reassociação encontrou uma diferença de comparação: confirmação aceitava o mesmo fabricante com outra caixa, mas a busca da linha exigia texto idêntico. As duas etapas agora usam comparação sem diferença entre maiúsculas/minúsculas. Um teste nativo com PE sintético percorre a autorização, confirmação e recuperação da linha após essa mudança, evitando perder um resultado já comprovado.
 
 Os testes puros já reproduzem tentativa de forjar autoridade, copiar receita, trocar arquitetura/escopo, injetar parâmetros, usar destinos privados, YAML ambíguo e migrar MSI de família errada. As regressões Windows exercitam arquivos e banco MSI sintéticos, mudança do binário após descoberta, diretório compartilhado, pacote ausente e ausência dos hooks de teste no produto. A etapa inicial `2388cffe` passou na CI `40134383273`, incluindo autenticação real do catálogo e de manifestos de quatro fabricantes, sem executar seus instaladores. A CI desta candidata adiciona conferência dos formatos reais NSIS/Inno em downloads oficiais.
 

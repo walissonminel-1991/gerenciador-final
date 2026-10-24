@@ -134,7 +134,7 @@ internal static class AutomaticUpdateDiscovery
     {if(!Executed.TryAdd(ExecutionKey(Require(recipe)),0))throw new InvalidOperationException("Atualizacao desta instalacao ja enviada; confira a versao antes de repetir.");}
     internal static void ReleaseBeforeStart(VerifiedUpdateRecipe recipe)=>Executed.TryRemove(ExecutionKey(Require(recipe)),out _);
     internal static ProgramEntry? ConfirmedEntry(VerifiedUpdateRecipe recipe,IEnumerable<ProgramEntry> inventory)
-    {var list=inventory.ToArray();var p=Require(recipe);return p.Installation.Confirm(p.Installer,list)?list.Single(a=>Matching.NormalizeName(a.Name)==Matching.NormalizeName(p.Installation.Name) && a.Publisher==p.Installation.Publisher):null;}
+    {var list=inventory.ToArray();var p=Require(recipe);return p.Installation.Confirm(p.Installer,list)?list.Single(a=>Matching.NormalizeName(a.Name)==Matching.NormalizeName(p.Installation.Name) && a.Publisher.Equals(p.Installation.Publisher,StringComparison.OrdinalIgnoreCase)):null;}
     internal static bool PublicAddress(System.Net.IPAddress address)
     {
         if(address.IsIPv4MappedToIPv6)address=address.MapToIPv4();
