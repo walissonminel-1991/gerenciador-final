@@ -2,7 +2,7 @@
 
 ## 5.13.11.59 TESTE — descoberta automática (24/10/2026)
 
-- Aprovada na [CI 40138799763](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763), fonte `26bbc17a`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319). 318 testes de atualizadores (81 da descoberta), 645 resíduos e 27 mutações; 281 hashes internos conferidos pela CI. Reverificação externa do ZIP e homologação física pendentes.
+- Aprovada na [CI 40138799763](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763), fonte `26bbc17a`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319). 318 testes de atualizadores (81 da descoberta), 645 resíduos e 27 mutações; 281 hashes internos e SHA do ZIP reconferidos independentemente. Homologação física pendente.
 - Descoberta por catálogo Microsoft assinado e manifesto vinculado por SHA-256, sem WinGet COM/CLI, registro de pacotes ou regras por versão no novo mecanismo.
 - Autorizações efêmeras por instalação/manifesto; dados, IDs, receitas copiadas e catálogos consultivos não emitem permissão. Assinaturas do aplicativo e instalador precisam corresponder.
 - MSI: ProductCode, UpgradeCode, arquitetura, versão e escopo efetivos, com recusa de serviços/drivers. NSIS/Inno: formato real e parâmetros documentados, sem scripts de catálogo e sem encerrar aplicativos automaticamente.

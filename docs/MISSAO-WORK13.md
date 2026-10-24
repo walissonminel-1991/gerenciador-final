@@ -57,7 +57,7 @@ Cobertura genérica não equivale a compatibilidade universal: metadados incompl
 | Regressões de downloads anteriores | Oito Win32 e pacote Terminal preservados; sem executar instaladores |
 | Política e metadados | 35 testes Python e 10 Node aprovados |
 
-[Capturas geradas no Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12576989197) estão disponíveis. A geometria compacta e os estados passaram automaticamente; não houve nova inspeção visual manual destas capturas após a interrupção do ambiente local. Também não houve ensaio de monitor, antivírus, atualização, desinstalação ou reboot nos PCs pessoais.
+[Capturas geradas no Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12576989197) estão disponíveis. A geometria compacta e os estados passaram automaticamente. Após o retorno do ambiente local, as capturas de 1280×720 e 1440×900 foram conferidas visualmente: cartões escuros, textos/estados distintos e barras contidas, sem sobreposição. Também não houve ensaio de monitor, antivírus, atualização, desinstalação ou reboot nos PCs pessoais.
 
 ### Pacote .59 aprovado pela CI
 
@@ -67,7 +67,11 @@ SHA-256 do ZIP, fornecido pelo upload-artifact/GitHub e coincidente na API de ar
 
 A CI verificou antes do upload manifesto Win32/ativação SxS, identidade do projeto, origem, PE AMD64, self-contained e cobertura exata de **281 hashes em 282 arquivos**, **151.819.016 bytes** extraídos. ZIP: **59.169.235 bytes**. Runtimes .NET e WindowsDesktop **10.0.13**. Em relação à .58: +150.010 bytes no ZIP, +374.642 bytes extraídos e um arquivo; YamlDotNet é a nova dependência gerenciada, com licença incluída. GF sem assinatura; AVG e operação física não homologados.
 
-**Limite da conferência:** o ambiente de execução Work ficou indisponível depois dos commits de produção. A fonte foi preservada no GitHub e a CI Windows terminou normalmente, mas não foi possível baixar, extrair e recalcular este ZIP fora do runner nesta etapa. Não se afirma reverificação externa do pacote ou FileVersion independente. A conferência da CI e o digest do GitHub estão documentados separadamente dessa pendência. README, roadmap, changelog e PROGRESSO.json selecionam somente este pacote aprovado; commits posteriores de documentação não mudam sua fonte.
+**Conferência independente concluída após o retorno do ambiente Work:** ZIP baixado do artefato, SHA-256 igual ao digest do GitHub, 281 hashes internos exatos, 282 arquivos, origem e runtimes confirmados. PE AMD64 com FileVersion 5.13.11.59, ProductVersion 5.13.11.59+aaf1de4f56d9429b1e60d85bfcfbb5085884705d, manifesto `asInvoker` e diretório de certificados vazio. YamlDotNet.dll: 300.032 bytes; nenhum assembly de testes ou fixture distribuído. Não houve execução do GF ou de instalador no PC pessoal durante essa conferência.
+
+A [CI do encerramento documental 40139511277](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40139511277) também passou, após duas tentativas de rede recusadas: HTTP 403 no VLC e redirecionamento fora da política. A repetição manteve HTTPS público, hash e assinatura obrigatórios. GETs locais somente leitura mostraram a URL oficial encaminhando para o seletor de espelhos e dois destinos HTTPS com HTTP 200; o destino depende da origem da consulta. Disponibilidade do fornecedor permanece uma limitação real: erro ou destino não autorizado bloqueia a atualização, sem degradar a segurança. Nenhum resultado de falha foi convertido em sucesso; os logs de cada tentativa continuam na CI.
+
+README, roadmap, changelog e PROGRESSO.json selecionam este pacote aprovado; commits posteriores de documentação não mudam sua fonte de produção. Homologação física/AVG permanece pendente.
 
 ### Próximo teste físico mínimo .59
 

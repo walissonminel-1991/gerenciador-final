@@ -381,8 +381,14 @@
     "signed": false,
     "avg_validated": false,
     "expires_at": "2026-10-31T22:37:32Z",
-    "verification": "CI: manifesto, origem, runtime e cobertura exata dos hashes antes do upload",
-    "external_zip_recheck": "pending_environment_unavailable"
+    "verification": "CI e conferencia independente: ZIP, 281 hashes, origem, runtime, PE e manifesto",
+    "external_zip_recheck": "verified",
+    "external_executable_manifest": {
+      "file_version": "5.13.11.59",
+      "machine": "AMD64",
+      "requested_execution_level": "asInvoker",
+      "certificate_bytes": 0
+    }
   },
   "mission_work5": {
     "status": "Código final e três Actions aprovados; ZIP conferido sem executar; testes físicos pendentes",
@@ -823,7 +829,9 @@
         "ShareX 21.0.0: Inno reconhecido, sem assinatura e execucao bloqueada"
       ],
       "physical_validation": "pending",
-      "external_zip_recheck": "pending_environment_unavailable"
-    }
+      "external_zip_recheck": "verified",
+      "compact_ui_manual_review": "1280x720 e 1440x900: capturas sinteticas Windows conferidas"
+    },
+    "package_verified_independently": true
   }
 }
