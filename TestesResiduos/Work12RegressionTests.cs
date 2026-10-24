@@ -252,6 +252,8 @@ internal static class Work12RegressionTests
         try
         {
             File.Copy(fixture, exe);
+            check(System.Diagnostics.FileVersionInfo.GetVersionInfo(exe).FileDescription == "Setup/Uninstall",
+                "W12 fixture PE contem metadado real do motor Inno");
             var app = new ProgramEntry { Name = "GF Synthetic Inno", InventoryId = "GF-W12-Inno", Publisher = "GF Synthetic", UninstallString = "\"" + exe + "\"" };
             var request = UninstallBatch.Select([app]).Single();
             check(request.Command.Arguments.Length == 0, "W12 nome unins000 sem log de motor nao autoriza flags");

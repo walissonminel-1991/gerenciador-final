@@ -1,6 +1,6 @@
 namespace GerenciadorAplicativos;
 
-internal enum UninstallStage { Preparing, AwaitingConsent, Working, Confirming, Inspecting, AwaitingCleanup, Cleaning, Finished, Pending, Failed, Cancelled }
+internal enum UninstallStage { Preparing, AwaitingConsent, Working, Confirming, Inspecting, AwaitingCleanup, Cleaning, Finished, Partial, Pending, Failed, Cancelled }
 internal sealed record UninstallOperationSnapshot(UninstallStage Stage, string Text, string Details)
 {
     internal bool Active => Stage < UninstallStage.Finished;
@@ -13,9 +13,11 @@ internal sealed class UninstallOperationStore
 {
     private readonly object gate = new();
     private readonly Dictionary<string, UninstallOperationSnapshot> operations = new(StringComparer.Ordinal);
-    private static string Key(ProgramEntry app) => string.Join("|", new[] {
-        app.InventoryId, app.Name, app.Publisher, app.InstallLocation, app.MsiProductCode,
-        app.UninstallString, app.QuietUninstallString }.Select(s => s.ToUpperInvariant()));
+    private sealed record KeyHolder(string Value);
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<ProgramEntry, KeyHolder> identities = new();
+    private string Key(ProgramEntry app) => identities.GetValue(app, p => new(string.Concat(new[] {
+        p.InventoryId, p.Name, p.Publisher, p.InstallLocation, p.MsiProductCode,
+        p.UninstallString, p.QuietUninstallString }.Select(s => s.ToUpperInvariant()).Select(s => s.Length + ":" + s)))).Value;
     internal UninstallOperationSnapshot? Find(ProgramEntry app)
     { lock (gate) return operations.GetValueOrDefault(Key(app)); }
     internal void Set(ProgramEntry app, UninstallStage stage, string? details = null)
@@ -30,6 +32,7 @@ internal sealed class UninstallOperationStore
             UninstallStage.AwaitingCleanup => "Aguardando decisão sobre resíduos...",
             UninstallStage.Cleaning => "Limpando resíduos autorizados...",
             UninstallStage.Finished => "Concluída — veja o resumo",
+            UninstallStage.Partial => "Desinstalação concluída · limpeza parcial",
             UninstallStage.Pending => "Conclusão pendente — confira o resumo",
             UninstallStage.Failed => "Falha — confira o resumo",
             _ => "Operação cancelada"

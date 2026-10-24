@@ -6,6 +6,7 @@
     <AssemblyName>GF-SilentFixture</AssemblyName>
     <Description>Setup/Uninstall</Description>
     <Title>Setup/Uninstall</Title>
+    <AssemblyTitle>Setup/Uninstall</AssemblyTitle>
     <Product>SumatraPDF</Product>
     <Company>GF Synthetic Tests</Company>
     <FileVersion>3.6.1.0</FileVersion>

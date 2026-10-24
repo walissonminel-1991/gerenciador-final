@@ -81,7 +81,7 @@ internal static class IntegratedResidualCleanup
                 if (key is null)
                 { if (scope.Policy != "registered-install") keys.Add(address); continue; }
                 var probe = new ResidualUninstallContext(identity, scope.Policy, roots, [], scope.Processes, 0, []);
-                if (scope.Policy == "registered-install" && roots.Count == 0 || !IntegratedResidualPolicy.RegistryOwned(probe, key))
+                if ((scope.Policy == "registered-install" && roots.Count == 0) || !IntegratedResidualPolicy.RegistryOwned(probe, key))
                 { preserved++; problems.Add(new("prepare", "ownership_not_proven")); continue; }
                 keys.Add(address);
                 if (!ResidualRegistryGuard.Fingerprint(key, address.View, out _, out _))

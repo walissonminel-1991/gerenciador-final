@@ -14,7 +14,7 @@ internal sealed partial class MainForm
             "working" => UninstallStage.Working, "confirming" => UninstallStage.Confirming,
             "inspecting" => UninstallStage.Inspecting, "awaiting_cleanup" => UninstallStage.AwaitingCleanup,
             "cleaning" => UninstallStage.Cleaning, "finished" or "preserved" => UninstallStage.Finished,
-            "pending" => UninstallStage.Pending, "failed" => UninstallStage.Failed, _ => UninstallStage.Cancelled
+            "partial" => UninstallStage.Partial, "pending" => UninstallStage.Pending, "failed" => UninstallStage.Failed, _ => UninstallStage.Cancelled
         };
         _uninstallOperations.Set(app, stage, details);
         if (IsDisposed || Disposing || !IsHandleCreated) return;
@@ -29,7 +29,7 @@ internal sealed partial class MainForm
     private void DrawUninstallOperation(Graphics graphics, Rectangle area, UninstallOperationSnapshot state)
     {
         Color color = state.Stage == UninstallStage.Failed ? AppServices.Red :
-            state.Stage == UninstallStage.Pending ? Color.FromArgb(245, 204, 103) :
+            state.Stage is UninstallStage.Pending or UninstallStage.Partial ? Color.FromArgb(245, 204, 103) :
             state.Stage == UninstallStage.Finished ? Color.FromArgb(120, 222, 165) : Accent;
         TextRenderer.DrawText(graphics, state.Text, _rowInfo,
             new Rectangle(area.X, area.Y - 2, area.Width, area.Height - 4), color,

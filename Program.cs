@@ -3009,7 +3009,14 @@ internal sealed partial class MainForm : Form
             }
             string summary = UninstallResultSummary.Describe(outcomes, cleanup);
             foreach (var outcome in outcomes.Where(o => o.State == UninstallState.RegistrationAbsent))
-                SetUninstallProgress(outcome.Request.Original, "finished", summary);
+            {
+                string appId = ResidualAppIdentity.From(outcome.Request.Original).TechnicalId;
+                var inspection = cleanup?.Inspections?.SingleOrDefault(p => p.Context.App.TechnicalId == appId);
+                var cleaned = cleanup?.Results.SingleOrDefault(r => r.AppId == appId);
+                SetUninstallProgress(outcome.Request.Original, cleanup?.Cancelled == true ? "cancelled" :
+                    inspection is null || !inspection.Conclusive || cleaned is { Verified: false } && cleanup?.Declined != true ? "partial" : "finished",
+                    UninstallResultSummary.Describe([outcome], cleanup));
+            }
             string result = !consent || cleanup?.Cancelled == true ? "Operação cancelada — confira o resumo."
                 : outcomes.Any(o => o.State == UninstallState.Pending) ? "Conclusão pendente — confira o resumo."
                 : cleanup?.Unavailable > 0 ? "Verificação de resíduos parcial — confira o resumo."

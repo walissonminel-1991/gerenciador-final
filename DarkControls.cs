@@ -366,6 +366,7 @@ internal sealed class DarkProgramList : Control
         ProgramEntry? prior = SelectedItem;
         _items.Clear();
         _paintedOperations.Clear();
+        _paintedUninstalls.Clear();
         _items.AddRange(entries);
         RefreshOperations();
         _tipRow = -1;

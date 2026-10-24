@@ -1,97 +1,33 @@
-# Roteiro físico mínimo — candidata WORK11 .53
+# Roteiro físico mínimo — WORK12 .57 TESTE
 
-Este roteiro substitui o lote v5.13.10.18. Os registros antigos do PC FRACO
-estão no [arquivo histórico](TESTES-HISTORICOS-PC-FRACO.md). A aprovação em
-runner não significa que esta candidata já rodou nos dois PCs.
+Usar somente o pacote indicado na [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40) após aprovação da CI. A PR identifica a fonte, o artefato e os hashes. [Correções, testes automatizados e limites](MISSAO-WORK12.md). Roteiros antigos estão nos relatórios históricos; este documento substitui a bateria .53 com versões antigas de aplicativos.
 
-## Primeira bateria — PC FORTE (aplicativos já preparados)
+## Preparação
 
-1. Usar a candidata .53 identificada na PR #40, após aprovação da CI. Conferir
-   versão e hashes. Não reinstalar versões antigas nem repetir o 7-Zip: o teste
-   .52 já o atualizou de 26.04 para 26.05.
-2. Confirmar que Notepad++ 8.9.1 e SumatraPDF 3.5 continuam instalados nas
-   arquiteturas e escopos existentes. Os destinos das receitas desta candidata
-   são 8.9.8.1 e 3.6.1. Se o inventário não corresponder, registrar e parar esse
-   caso, sem alterar a instalação para forçar o teste.
-3. Atualizar somente o Notepad++ pelo cartão. Observar estado azul, download
-   com porcentagem quando houver tamanho informado, validação, instalação
-   indeterminada e conferência. Não deve aparecer porcentagem inventada durante
-   a instalação. O UAC legítimo do Windows pode aparecer.
-4. Esperar a consulta automática terminar. Exigir verde com confirmação e 100%
-   para considerar sucesso; conferir também a versão pelo próprio Notepad++.
-   Pesquisar o aplicativo, sair/voltar de abas e renovar a lista: o resultado
-   deve permanecer ligado à mesma instalação durante a sessão.
-5. Repetir uma única vez para SumatraPDF 3.5 → 3.6.1, conferindo a versão no
-   próprio aplicativo. O progresso do Notepad++ não pode migrar para o Sumatra.
-6. Se houver vermelho, amarelo, cancelamento ou recusa UAC, registrar o estado e
-   o diagnóstico; não repetir automaticamente um resultado pendente. Não
-   provocar falhas apagando arquivos, desligando proteções ou adulterando pacotes.
-7. Enviar o diagnóstico .53 e capturas do progresso/resultado, indicando versão
-   antes/depois e se apareceu instalador interativo. Um download muito rápido
-   pode exibir poucas amostras; o resultado final precisa continuar visível.
+Extrair o portátil em pasta própria, manter os arquivos juntos e conferir versão .57, BUILD-INFO e SHA256SUMS. Não instalar SDK. Manter AVG ativo; registrar eventual bloqueio. O programa continua TESTE e sem assinatura.
 
-No **PC FRACO (1440×900)**, começar por consulta e navegação, sem preparar novas
-instalações. Conferir largura, DPI habitual, leitura do estado, botões, bandeja,
-Inicialização/Windows Update, consumo em repouso e ausência da ferramenta
-residual manual. Estados adversos adicionais pertencem ao ambiente descartável.
+Não reinstalar Notepad++/SumatraPDF nem repetir as limpezas antigas só para reproduzir os defeitos das versões .55/.56. Os casos de ausência, erro 5, preservação, SIM/NÃO, arquivo ocupado e cancelamento pertencem à bateria automatizada com alvos sintéticos.
 
-## Preparação e consultas
+## PC FORTE — uma operação quando houver aplicativo dispensável
 
-1. Usar somente o artefato indicado na PR #40 após CI aprovada. Extrair em pasta
-   nova, manter todos os arquivos juntos e conferir versão, BUILD-INFO e hashes.
-   Não instalar SDK. Manter AVG ativo; parar se houver bloqueio.
-2. PC FORTE: 2560×1440; PC FRACO: 1440×900. Registrar escala DPI, versão do
-   Windows, RAM total e GF. Não registrar usuário, caminho pessoal, serial ou IP.
-3. Abrir, minimizar/restaurar três vezes e fechar. Navegar rapidamente por
-   Aplicativos, Inicialização e Windows Update, inclusive sair e voltar à mesma
-   tela durante uma consulta. Nenhum cartão de uma tela deve aparecer na outra;
-   botões precisam recuperar o estado após cancelamento e descarte.
-4. Consultar inventário e atualizações. Comparar contagens Win32/MSIX, identidade,
-   versões e estados parciais, sem executar instaladores. Cancelar uma consulta
-   e repetir; resultado atrasado não deve substituir o atual. Falha COM ou fonte
-   indisponível precisa aparecer como parcial, sem inferir desinstalação.
-5. Conferir que não existem botões de investigação/limpeza residual independente.
-   A limpeza avançada do Windows, temporários, caches, Lixeira e discos continuam
-   disponíveis. A confirmação de resíduos só pertence à desinstalação concluída.
-6. Redimensionar em 100% e escala habitual, verificar foco, botões, rolagem,
-   sobreposição e tema. Consultar drivers somente leitura e cancelar perto do
-   fim; não instalar, reparar, remover ou reverter drivers.
-7. Na mesma condição de energia e carga, medir três aberturas e três consultas
-   de inventário/atualizações de cada versão comparada, separando cache
-   frio/quente e fontes de rede. Medir também RAM, CPU e disco em repouso,
-   minimizado e após cancelar. Não atribuir diferença de rede ao código do GF.
+1. Abrir Aplicativos. Se houver um programa comum que o usuário já queira remover, solicitar **uma única desinstalação**. Se não houver, encerrar esta etapa sem instalar programas apenas para criar trabalho.
+2. Conferir o andamento desde a preparação: modo silencioso/interativo explicado na prévia, “Desinstalador trabalhando...” e “Conferindo remoção...”. Operações sem medida real devem usar animação, sem porcentagem inventada. A interface e Cancelar permanecem responsivos; cancelar a espera não promete encerrar o fornecedor.
+3. Somente após remoção confirmada, observar a verificação automática. Havendo resíduos comprovados, a pergunta SIM/NÃO deve identificar os alvos. SIM autoriza a exclusão permanente revalidada; NÃO mantém os resíduos. Em seleção múltipla há uma decisão para a seleção e resultado separado por aplicativo.
+4. Ler o resumo final: removidos, preservados e seus motivos; ausência apenas nos locais verificados; erro de acesso ou cobertura limitada como parcial/inconclusiva. Não deve existir apenas “concluída” escondendo falhas. Ausência de elegíveis dispensa uma pergunta vazia de limpeza.
+5. Não esperar pergunta de reinício quando nenhum fornecedor ou arquivo bloqueado justificar isso. Se houver causa real, o GF explica e pede consentimento; a revisão pós-boot é somente leitura. Não há exclusão automática adicional.
 
-## Homologação funcional posterior, em ambiente descartável
+Modo interativo pode abrir a janela do próprio fabricante. UAC legítimo também pode aparecer. Unlocker sem quiet/motor comprovado não recebe parâmetros improvisados. UAC com outra conta continua recusado no worker de limpeza; permissões não são alteradas para contornar uma negativa.
 
-U8: atualizar uma instalação identificada de Notepad++ e SumatraPDF, preservando
-arquitetura/escopo; verificar assinatura, hash, versão do binário e Registro
-após concluir. Repetir com processo ativo e cancelamento. Não instalar versões
-antigas nos PCs pessoais para criar artificialmente esse cenário.
+## PC FRACO — leitura, layout e bandeja
 
-R7: desinstalar somente um aplicativo de teste autorizado, observar execução,
-retorno, reinício/pending e duas consultas posteriores; testar coexistência
-EXE/MSI e cancelamento sem apagar a instalação vizinha.
+Em 1440×900 e no DPI habitual, conferir Aplicativos, Inicialização e Windows Update; foco, botões, espaço do cartão e ausência de sobreposição. Não exige nova desinstalação.
 
-R4: em VM descartável, desinstalar dois aplicativos de teste pelo GF. Conferir
-uma única confirmação SIM/NÃO, com arquivos, pastas, chaves e preservações por
-aplicativo. Primeiro escolher NÃO e conferir que os resíduos continuam presentes;
-não deve haver pergunta repetida. Reinstalar os aplicativos de teste na VM,
-desinstalá-los novamente e escolher SIM; conferir exclusão permanente e ausência
-posterior dos alvos elegíveis, inclusive após reiniciar a VM. Não usar um botão
-manual de busca: esse acesso foi removido.
+Ativar/desativar “Iniciar com o Windows” e, se desejado, manter ativado até o próximo login normal. O portátil precisa permanecer na mesma pasta. Ao iniciar com Windows, deve ficar na bandeja; Abrir restaura a janela, Sair encerra. Uma decisão ou um resumo pendente deve aparecer ao reabrir, sem janela inesperada enquanto oculto.
 
-Incluir um resíduo HKLM32 sintético, sem iniciar o GF como administrador. SIM
-deve chamar o UAC legítimo dentro da operação quando necessário; testar recusa
-(preservação e erro 1223 no diagnóstico) e autorização com a mesma conta (remoção
-e conferência). Não alterar ACLs nem assumir propriedade. Credenciais de outra
-conta são recusadas e registradas. Uma remoção pendente/reinício/falha não pode
-oferecer limpeza daquele aplicativo, mesmo em lote.
+No PC FORTE, a referência é 2560×1440; no FRACO, 1440×900. Geometria, estados e resoluções/DPI simulados já passam pela CI, mas isso não homologa DPI físico nem antivírus dos PCs.
 
-Conferir diagnósticos por aplicativo para alteração de conteúdo, reinstalação,
-link, arquivo em uso, cancelamento, permissão e resultados parciais. Arquivos
-pessoais, backups e locais compartilhados permanecem preservados. Na bandeja,
-a pergunta aguarda a restauração; cancelar não pode reabri-la depois.
+## Se houver falha
 
-Não repetir limpezas em massa sugeridas por ferramentas externas. A missão Work
-não executa essas operações nos computadores pessoais. U8/R7/R4 só avançam com
-evidências reais suficientes, não com o número de testes sintéticos.
+Usar o diagnóstico do próprio GF e indicar versão, PC FORTE/FRACO, modo silencioso/interativo, etapa e mensagem final. Não repetir automaticamente uma operação pendente, apagar resíduos por fora, desligar proteções ou alterar ACLs. Não publicar logs brutos com nomes, caminhos pessoais, serial ou IP na PR pública.
+
+Os testes de reinstalação durante a limpeza, links, compartilhamento, ACL negada, UAC simulado, atraso do fornecedor, retorno indeterminado e cancelamento são executados em ambiente descartável. Não precisam ser provocados repetidamente nos computadores pessoais. Boot físico e UAC interativo real ainda dependem de homologação posterior. U8/R7/R4 físicos e roadmap 27/42 permanecem abertos.

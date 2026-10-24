@@ -1,5 +1,14 @@
 ## v5.13.11.49 TESTE — WORK9: consolidação, pacote e CI
 
+## 5.13.11.57 TESTE — WORK12 (24/10/2026)
+
+- Desinstalação com andamento indeterminado desde o clique, etapas reais e resumo final escuro por aplicativo; resultado parcial permanece diferente de sucesso integral.
+- Resíduos: erros de acesso não equivalem a ausência; políticas reconsultam chaves criadas pelo desinstalador. Cobertura genérica por comando/pasta dedicados e chaves corroboradas, sem exclusão por mera semelhança.
+- Consulta do Registro com direitos mínimos; erros por hive/visão. Nenhuma mudança de ACL. Dados pessoais, compartilhamentos e alvos sem prova anterior preservados.
+- QuietUninstallString revalidado; NSIS Notepad++ x86/x64, SumatraPDF 3.6.1 e Inno comprovado. Unlocker sem contrato permanece interativo.
+- Cancelamento/timeout de processos reais separados; recuperação de pendências e resumo ao restaurar da bandeja. Reinício somente com motivo técnico; pós-boot permanece somente leitura.
+- Regressões Windows e mutações novas em fixtures descartáveis. [Relatório WORK12](docs/MISSAO-WORK12.md); a [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40) identifica a CI aprovada e o artefato. U8/R7/R4 físicos permanecem pendentes.
+
 - Preserva as 13 causas corrigidas e 42 controles adversariais da Parte 1, registrados em [WORK9 parte 1](docs/MISSAO-WORK9-PARTE1.md); U8/R7/R4 continuam sem homologação física.
 - Portátil inclui licença GF, privacidade, guia e avisos originais dos runtimes. Conferência independente exige origem, versão, AMD64, self-contained e cobertura exata de hashes antes do upload; onze testes sintéticos do pacote, incluindo links internos dos documentos.
 - Retira três leitores de sistema comprovadamente sem uso; preserva implementações atuais e testes. Reduz repetições na CI sem retirar asserções; SDK compartilhado por global.json, permissões e NuGetAudit mantidos.
