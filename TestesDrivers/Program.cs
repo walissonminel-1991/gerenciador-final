@@ -5,6 +5,71 @@ void Check(bool value, string message)
     if (!value) throw new Exception(message);
     Console.WriteLine("OK " + message);
 }
+Check(DriverInventory.ReportedDeviceName("Nome Windows", "Descricao alternativa") == "Nome Windows" &&
+    DriverInventory.ReportedDeviceName("  ", " Descricao PnP ") == "Descricao PnP" &&
+    DriverInventory.ReportedDeviceName(null, "") == "",
+    "Descricao PnP so e fallback para nome ausente, sem inventar identidade");
+var emitted = new List<string>();
+TestDiagnosticDetail.SetProfile(1, line => { emitted.Add(line); return true; });
+Check(TestDiagnosticDetail.Enabled && emitted.Single().Contains("PC_FORTE"),
+    "Coleta de testes e voluntaria e seleciona o computador");
+Check(TestDiagnosticDetail.Record("DRIVERS",
+    ("associacoes", 168), ("ids_unicos", 166), ("sem_nome", 3),
+    ("sem_fornecedor", 3), ("sem_versao", 1), ("versao_incomum", 2),
+    ("sem_inf", 3), ("assinatura_indeterminada", 1),
+    ("presenca_indeterminada", 2), ("nao_presentes", 0), ("parcial", 0)),
+    "Registra apenas contagens autorizadas sem nomes ou caminhos");
+Check(!TestDiagnosticDetail.TryFormat(1, "DRIVERS",
+    new (string, int)[] { ("id_dispositivo", 99) }, out _) &&
+    !TestDiagnosticDetail.Record("INDEVIDO", ("caminho", 1)) &&
+    !TestDiagnosticDetail.Record("AMBIENTE", ("largura", -1)),
+    "Contrato recusa chaves desconhecidas, categorias livres e valores invalidos");
+TestDiagnosticDetail.SetProfile(0, line => { emitted.Add(line); return true; });
+int countBeforeDisableCheck = emitted.Count;
+Check(!TestDiagnosticDetail.Enabled &&
+    !TestDiagnosticDetail.Record("AMBIENTE", ("largura", 1920), ("altura", 1080),
+        ("dpi", 96), ("logicos", 8)) && emitted.Count == countBeforeDisableCheck,
+    "Desligar coleta estendida impede gravacao adicional");
+TestDiagnosticDetail.SetProfile(2, line => { emitted.Add(line); return true; });
+int accepted = 0;
+for (int i = 0; i < 170; i++)
+    if (TestDiagnosticDetail.Record("AMBIENTE", ("largura", 1280),
+        ("altura", 720), ("dpi", 96), ("logicos", 4))) accepted++;
+Check(accepted == 156 && !TestDiagnosticDetail.Record("AMBIENTE",
+    ("largura", 1280), ("altura", 720), ("dpi", 96), ("logicos", 4)),
+    "Limite global de 160 observacoes nao reinicia ao alternar o perfil PC FORTE/FRACO");
+TestDiagnosticDetail.SetProfile(0, line => { emitted.Add(line); return true; });
+Check(TestDiagnosticDetail.TryFormat(1, "RESIDUOS",
+    new (string, int)[] {
+        ("grupos", 44), ("locais", 161), ("examinados", 4041),
+        ("grupos_avaliados", 867), ("candidatos_gerais", 43),
+        ("filtrados_ativos", 213), ("filtrados_sem_evidencia", 611),
+        ("grupos_omitidos", 0), ("locais_omitidos", 0), ("fontes", 13),
+        ("indisponiveis", 0), ("falhas_leitura", 2),
+        ("nao_avaliados_desconhecidos", 1), ("parcial", 1)
+    }, out string resumoResiduos) && resumoResiduos.Contains("grupos_avaliados=867") &&
+    213 + 611 + 43 == 867,
+    "Detalhamento de residuos separa grupos examinados e resultados exibidos");
+Check(TestDiagnosticDetail.TryFormat(1, "INVENTARIO", new (string, int)[] {
+    ("total", 174), ("sem_nome", 0), ("sem_editor", 9), ("sem_versao", 45),
+    ("desinstalaveis", 140), ("so_inventario", 33),
+    ("sem_desinstalacao", 34), ("sem_desinstalacao_fora_flag", 1),
+    ("parcial", 0)
+}, out var recordInventario) &&
+    recordInventario.Contains("so_inventario=33") &&
+    recordInventario.Contains("sem_desinstalacao=34"),
+    "Inventario distingue flag e disponibilidade de desinstalador sem perder entradas");
+Check(TestDiagnosticDetail.TryFormat(1, "FONTES", new (string, int)[] {
+    ("falha_registro", 0), ("falha_appdata", 1),
+    ("falha_programdata", 1), ("falha_programfiles", 0),
+    ("falha_startmenu", 0), ("falha_integracoes", 0),
+    ("falha_outras", 0), ("indisp_registro", 0),
+    ("indisp_appdata", 0), ("indisp_outras", 0)
+}, out var recordFontes) &&
+    recordFontes.Contains("falha_programdata=1"),
+    "Falha de fonte identificada apenas por categoria segura e nao pelo caminho real");
+DriverStoreTests.Run(Check);
+DiagnosticFailureTests.Run(Check);
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
 var c = a with { DeviceId = "USB\\THREE", Signed = null };
@@ -16,6 +81,18 @@ Check(result.Single(d => d.DeviceId == b.DeviceId).PresenceLabel == "Não presen
 Check(result.Single(d => d.DeviceId == c.DeviceId).Present is null && c.SignatureLabel == "Indeterminado", "Ausencia de evidencias nao inventa presenca nem assinatura");
 Check(DriverInventory.Correlate(new[] { a, a with { Signed = false } }, new Dictionary<string, bool?>()).Count == 2,
     "Evidencias conflitantes de assinatura nao sao fundidas");
+var named = DriverInventory.Correlate(new[] { a, b with { DeviceName = " " }, c with { DeviceName = "" } },
+    new Dictionary<string, bool?> { ["PCI\\TWO"] = true },
+    new Dictionary<string, string> { ["pci\\one"] = "Nome alternativo", ["pci\\two"] = "Dispositivo PnP" });
+Check(named.Single(d => d.DeviceId == b.DeviceId).DeviceName == "Dispositivo PnP" &&
+    named.Single(d => d.DeviceId == b.DeviceId).Present == true,
+    "Nome PnP preenche nome ausente apenas para o mesmo ID sem diferenciar caixa");
+Check(named.Single(d => d.DeviceId == a.DeviceId).DeviceName == a.DeviceName &&
+    named.Single(d => d.DeviceId == c.DeviceId).DeviceName == "",
+    "Correlacao preserva nome original e nao inventa nome para ID sem evidencia");
+Check(DriverInventory.Correlate(new[] { a with { Version = "versao do fabricante" } },
+    new Dictionary<string, bool?>())[0].Version == "versao do fabricante",
+    "Versao bruta do WMI preservada sem converter, truncar nem inventar incompatibilidade");
 // Historico usa exclusivamente um diretorio temporario isolado nestes testes.
 string folder = Path.Combine(Path.GetTempPath(), "GF-driver-history-tests-" + Guid.NewGuid().ToString("N"));
 string file = Path.Combine(folder, "history.json");
@@ -77,10 +154,48 @@ Check(links.Packages[0].ConflictingSignatures && links.WithoutInf == 2,
     "Conflitos de assinatura e INF ausente/invalido ficam explicitos");
 Check(DriverPackageLinks.Analyze(new([], true, "parcial")).Partial,
     "Correlacao conserva limitacao da origem");
-if (args.Contains("--live"))
+// Prova negativa sem WMI: cancelamento nao aceita resultado atrasado.
+var coordinator = new DriverQueryCoordinator();
+var oldToken = coordinator.Begin(TimeSpan.FromSeconds(25));
+Check(coordinator.InProgress && coordinator.CanPublish(oldToken),
+    "Drivers: leitura corrente pode publicar enquanto valida");
+Check(coordinator.RequestCancel() && !coordinator.CanPublish(oldToken) &&
+    !coordinator.RequestCancel(), "Drivers: cancelamento impede publicacao e duplicatas");
+coordinator.End(oldToken);
+Check(!coordinator.InProgress, "Drivers: estado liberado apos cancelamento");
+var nextToken = coordinator.Begin(TimeSpan.FromSeconds(25));
+Check(coordinator.CanPublish(nextToken) && !coordinator.CanPublish(oldToken),
+    "Drivers: token de leitura anterior nunca autoriza substituir nova lista");
+coordinator.End(nextToken);
+// Regressao para Cancel() sincronico retomando o await e restaurando
+// o botao antes do manipulador Click terminar: ultima escrita deve ser
+// da continuacao, nunca uma desabilitacao posterior.
+var race = new DriverQueryCoordinator();
+var raceToken = race.Begin(TimeSpan.FromSeconds(20));
+string textButton = "Cancelar";
+bool buttonEnabled = true;
+using (raceToken.Register(() =>
+{
+    textButton = "Consultar drivers";
+    buttonEnabled = true;
+}))
+{
+    textButton = "Cancelando...";
+    Check(race.RequestCancel() && textButton == "Consultar drivers" &&
+        buttonEnabled, "Drivers: cancelamento reentrante nao deixa botao travado");
+}
+race.End(raceToken);
+// CI Windows sempre exercita a ABI nativa somente leitura; fixtures continuam portáveis.
+if (args.Contains("--live") || OperatingSystem.IsWindows())
 {
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-    var live = await Task.Run(() => DriverInventory.Capture(timeout.Token)).WaitAsync(timeout.Token);
+    var live = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(timeout.Token)).WaitAsync(timeout.Token);
     Console.WriteLine($"WMI quantidade={live.Items.Count} parcial={live.Partial} status={live.Status}");
     Check(live.Items.Count > 0 && !live.Partial, "Consulta WMI somente leitura concluida no runner Windows");
+    foreach (var group in live.Store!.Packages.GroupBy(x => (x.State, x.FailureStage, x.NativeError)))
+        Console.WriteLine($"DRIVER_STORE_CI estado={group.Key.State} etapa={group.Key.FailureStage} erro=0x{unchecked((uint)group.Key.NativeError):X8} quantidade={group.Count()}");
+    Check(live.Store is not null && live.Store.Packages.Any(x => x.State == DriverStoreState.Mapped) &&
+        live.Store.Packages.All(x => !x.CanMaintain),
+        "SetupAPI nativa confirma ao menos um round trip INF/Driver Store no runner sem manutenção");
+    Console.WriteLine($"DRIVER_STORE_CI pacotes={live.Store!.Packages.Count} mapeados={live.Store.Packages.Count(x => x.State == DriverStoreState.Mapped)} parcial={live.Store.Partial}");
 }

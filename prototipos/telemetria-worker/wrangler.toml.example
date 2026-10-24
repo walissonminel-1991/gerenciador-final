@@ -1,0 +1,15 @@
+# Exemplo; copiar e configurar apenas apos aprovar politica de privacidade
+name = "gerenciador-final-diagnosticos"
+main = "worker.mjs"
+compatibility_date = "2026-10-20"
+
+[triggers]
+crons = ["0 4 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gf-diagnosticos-privado"
+database_id = "PREENCHER_COM_ID_D1_PRIVADO"
+
+# Configurar regras WAF/rate limiting e desativar logs detalhados
+# antes de permitir POST publico. NUNCA guardar tokens no executavel.

@@ -1,6 +1,60 @@
 using GerenciadorAplicativos;
+using Microsoft.Win32;
 
+if (args.Length == 2 && args[0] == "--synthetic-uninstall")
+{ Environment.Exit(Work10IntegratedCleanupTests.UninstallFixture(args[1])); return; }
+if (args.Length == 3 && args[0] == "--residual-worker-test")
+{ Environment.Exit(await Work10IntegratedCleanupTests.WorkerFixture(args[1], args[2])); return; }
 int passed = 0;
+if (args.Contains("--benchmark") || args.Contains("--benchmark-work9"))
+{ ResidualBenchmark.Run(comparable: args.Contains("--benchmark-work9")); return; }
+if (args.Contains("--work12"))
+{
+    int failures = 0;
+    await Work12RegressionTests.RunAsync((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+    if (failures > 0) throw new Exception($"WORK12: {failures} defeitos reproduzidos");
+    return;
+}
+if (args.Contains("--work10") || args.Contains("--work10-core"))
+{
+    await Work10IntegratedCleanupTests.RunAsync((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("PASS " + label); }, args.Contains("--work10-core"));
+    return;
+}
+if (args.Contains("--work9"))
+{
+    int failures = 0;
+    await Work9ResidualTests.RunAsync((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+    if (failures != 0) throw new Exception($"WORK9 residues: {failures} falhas reproduzidas");
+    return;
+}
+if (args.Contains("--work6-uninstall-flow")) { await Work6UninstallFlowTests.Run(Check); return; }
+if (args.Contains("--work7-uninstall"))
+{
+    int failures = 0;
+    await Work7UninstallTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+    if (failures > 0) throw new Exception($"WORK7: {failures} defeitos de desinstalação reproduzidos");
+    return;
+}
+{
+    string win = @"C:\Windows";
+    string app = @"C:\Program Files\Cliente\worker.exe";
+    bool yes = SelectiveMemoryTrim.IsCandidate(12345, 20000, 2, 2,
+        "Worker", app, win, 256L * 1024 * 1024, false);
+    bool system = SelectiveMemoryTrim.IsCandidate(12345, 20000, 2, 2,
+        "svchost", @"C:\Windows\System32\svchost.exe", win, 256L * 1024 * 1024, false);
+    bool active = SelectiveMemoryTrim.IsCandidate(12345, 20000, 2, 2,
+        "Worker", app, win, 256L * 1024 * 1024, true);
+    bool service = SelectiveMemoryTrim.IsCandidate(12345, 20000, 0, 2,
+        "Worker", app, win, 256L * 1024 * 1024, false);
+    bool security = SelectiveMemoryTrim.IsCandidate(12345, 20000, 2, 2,
+        "SecurityAgent", app, win, 256L * 1024 * 1024, false);
+    bool small = SelectiveMemoryTrim.IsCandidate(12345, 20000, 2, 2,
+        "Worker", app, win, 16L * 1024 * 1024, false);
+    if (!yes || system || active || service || security || small)
+        throw new Exception("RAM: selecao nao respeita limites para segundo plano e seguranca.");
+    passed++;
+}
+
 var largeDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1920, 1400));
 var regularDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(0, 0, 1920, 1040));
 var shiftedDesktop = StartupWindowSizing.Fit(new System.Drawing.Rectangle(-1920, 40, 1920, 1080));
@@ -11,6 +65,41 @@ void Check(bool result, string what)
     Console.WriteLine("OK " + what);
     passed++;
 }
+
+if (args.Contains("--work6-preview"))
+{
+    int failures=0;
+    await Work6PreviewTests.Run((ok,label)=>{ Console.WriteLine((ok?"PASS ":"FAIL ")+label); if(!ok) failures++; });
+    if(failures>0) throw new Exception($"WORK6 preview: {failures} falhas reproduzidas");
+    return;
+}
+if (args.Contains("--work6-uninstall-policy"))
+{
+    int failures=0;
+    Work6UninstallTests.Policy((ok,label)=> { Console.WriteLine((ok?"PASS ":"FAIL ")+label); if(!ok) failures++; });
+    if(failures>0) throw new Exception($"WORK6 uninstall: {failures} falhas reproduzidas");
+    return;
+}
+// Bateria integrada, na ordem solicitada: o atualizador corre no projeto separado,
+ // aqui simulamos desinstalacao e somente depois politica de residuos.
+await Work9ResidualTests.RunAsync(Check);
+await Work12RegressionTests.RunAsync(Check);
+await Work10IntegratedCleanupTests.RunAsync(Check);
+Work6UninstallTests.Policy(Check);
+await Work6UninstallFlowTests.Run(Check);
+await Work7UninstallTests.Run(Check);
+SimulatedUninstallScenarioTests.Run(Check);
+await Work6PreviewTests.Run(Check);
+SimulatedResidualScenarioTests.Run(Check);
+ResidualCorrelationTests.Run(Check);
+ResidualInspectionTests.Run(Check);
+ResidualProgressiveTests.Run(Check);
+ResidualPrecisionTests.Run(Check);
+ResidualIntegrityTests.Run(Check);
+await ResidualBlockingTests.Run(Check);
+ResidualMissionTests.Run(Check);
+ResidualSourceBudgetTests.Run(Check);
+if (args.Contains("--missao")) return;
 
 bool partialRejected = false;
 try { InventoryReconciler.RequireComplete(Array.Empty<ProgramEntry>(), 1); }
@@ -120,9 +209,9 @@ var gameOnly = new ProgramEntry { Name = "BioShock Infinite", InventoryOnly = tr
     InventorySource = "Biblioteca de jogos: Steam" };
 var staleApp = new ProgramEntry { Name = "Jogo removido",
     UninstallString = "\"Z:\\GF-Teste-Desinstalador-Ausente\\uninstall.exe\"" };
-var regular = new ProgramEntry { Name = "Programa MSI", UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000001}" };
+var regular = new ProgramEntry { Name = "Programa MSI", MsiProductCode="{00000000-0000-0000-0000-000000000001}", UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000001}" };
 var quiet = new ProgramEntry { Name = "Outra instalação MSI",
-    UninstallString = "", QuietUninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000002}" };
+    MsiProductCode="{00000000-0000-0000-0000-000000000002}", UninstallString = "", QuietUninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000002}" };
 var protectedWin32 = new ProgramEntry { Name = "Microsoft GameInput",
     UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000003}" };
 Check(!ActionableInventory.CanUninstall(systemOnly) &&
@@ -132,6 +221,249 @@ Check(!ActionableInventory.CanUninstall(systemOnly) &&
     "Nao exibir botao Desinstalar em MSIX, jogos, comandos ausentes ou componentes protegidos");
 Check(ActionableInventory.CanUninstall(regular) && ActionableInventory.CanUninstall(quiet),
     "Reconhecer desinstalacao MSI normal e silenciosa como operacoes disponiveis");
+
+// Piloto de desinstalação SILENCIOSA: apenas MSI com ProductCode consistente
+// e 7-Zip EXE íntegro. A mutação/remoção abaixo atinge SÓ fixtures temporárias.
+var signedMsi = new ProgramEntry
+{
+    Name = "Programa MSI sintético", Publisher = "Fabricante de teste",
+    InventoryId = "LocalMachine|Registry64|SyntheticMSI",
+    MsiProductCode = "{00000000-0000-0000-0000-000000000001}",
+    UninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000001}"
+};
+var syntheticSilentRequest = UninstallBatch.Select([signedMsi]).Single();
+Check(syntheticSilentRequest.Command.ProductCode == signedMsi.MsiProductCode &&
+      syntheticSilentRequest.Command.Arguments.Contains("/qn", StringComparison.OrdinalIgnoreCase) &&
+      syntheticSilentRequest.Command.Arguments.Contains("/norestart", StringComparison.OrdinalIgnoreCase) &&
+      SilentUninstallPolicy.MatchesAuthorized(signedMsi, syntheticSilentRequest.Command),
+      "MSI recebe somente /qn /norestart com o mesmo ProductCode");
+var unsignedFake = new ProgramEntry
+{
+    Name = "7-Zip 26.05 (x64)", Publisher = "Igor Pavlov",
+    InventoryId = "LocalMachine|Registry64|7-Zip",
+    InstallLocation = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip") + "\\",
+    UninstallString = "\"" + Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+        "7-Zip", "Uninstall.exe") + "\""
+};
+Check(SevenZipCompleteCleanup.Eligible(unsignedFake) &&
+      SevenZipCompleteCleanup.Eligible(SevenZipCompleteCleanup.RecoveryIdentity()) &&
+      !SevenZipCompleteCleanup.NoSevenZipRegistrations([unsignedFake]) &&
+      !SevenZipCompleteCleanup.Eligible(new ProgramEntry
+      {
+          Name = "7-Zip 26.05 (x64 edition)", Publisher = "Igor Pavlov",
+          InventoryId = unsignedFake.InventoryId, InstallLocation = unsignedFake.InstallLocation,
+          UninstallString = unsignedFake.UninstallString
+      }),
+    "Somente entrada EXE 7-Zip x64 exata autoriza a etapa residual; MSI ainda presente bloqueia");
+
+var dualZipMsi = new ProgramEntry
+{
+    Name = "7-Zip 26.05 (x64 edition)", Version = "26.05",
+    Publisher = "Igor Pavlov",
+    InventoryId = "LocalMachine|Registry64|{23170F69-40C1-2702-2605-000001000000}",
+    MsiProductCode = "{23170F69-40C1-2702-2605-000001000000}",
+    UninstallString = "msiexec.exe /X{23170F69-40C1-2702-2605-000001000000}"
+};
+Check(UninstallCommand.TryParse(unsignedFake.UninstallString, out var fakeUninstaller),
+    "Comando EXE antigo consegue ser interpretado na simulação");
+bool dualZipStarted = false;
+var dualZipOutcomes = await new UninstallBatch().RunAsync(
+    [new UninstallRequest(unsignedFake, fakeUninstaller)], true,
+    () => Task.FromResult(new UninstallSnapshot([unsignedFake, dualZipMsi], true)),
+    (_, _) => { dualZipStarted = true; return Task.FromResult<int?>(0); },
+    _ => Task.CompletedTask);
+Check(!dualZipStarted && dualZipOutcomes.Single().State == UninstallState.Blocked &&
+      dualZipOutcomes.Single().Reason.Contains("compartilhar arquivos", StringComparison.Ordinal),
+    "EXE e MSI 7-Zip coexistentes: GF não inicia desinstalador silencioso nem interativo");
+
+// Testes de limpeza completa em raiz DESCARTÁVEL. Nenhum aplicativo ou chave real
+// é removido, inclusive quando o teste pede consentimento implícito.
+var inaccessibleKey = new SmallAppKey(RegistryHive.LocalMachine, RegistryView.Registry32,
+    @"Software\Notepad++", "fingerprint-ficticio", 1);
+var inaccessibleSnapshot = new SmallAppSnapshot("Notepad++", [], [],
+    [inaccessibleKey], true, "prévia de teste");
+string? blockedForRights = SmallAppResidualCleanup.RegistryWritePreflight(
+    inaccessibleSnapshot, _ => false);
+Check(blockedForRights is not null && blockedForRights.Contains("HKLM (32 bits)", StringComparison.Ordinal) &&
+      blockedForRights.Contains("Não serão repetidas", StringComparison.Ordinal) &&
+      SmallAppResidualCleanup.RegistryWritePreflight(inaccessibleSnapshot, _ => true) is null &&
+      SmallAppResidualCleanup.RegistryWritePreflight(
+          inaccessibleSnapshot with { Files = [new SmallAppFile(
+              @"C:\GF-Synthetic\profile.xml", 0, "", default!)] }, _ => false) is null &&
+      SmallAppResidualCleanup.RegistryWritePreflight(
+          inaccessibleSnapshot with { Complete = false }, _ => false) is null,
+      "Prévia somente com Registro sem escrita bloqueia tentativas repetidas sem excluir");
+Check(SmallAppResidualCleanup.ExplainAccessFailure(
+          ["registro_abrir_pai_SecurityException_hr8013150A"]).Contains("preservada", StringComparison.Ordinal) &&
+      SmallAppResidualCleanup.ExplainAccessFailure(
+          ["registro_abrir_pai_UnauthorizedAccessException_hr80070005"]).Contains("permissao", StringComparison.Ordinal) &&
+      SmallAppResidualCleanup.ExplainAccessFailure(["registro_alterado"]) == "",
+      "Erro de permissao no Registro recebe explicacao sem forcar elevacao");
+Check(SmallAppResidualCleanup.Supported("Notepad++") &&
+      SmallAppResidualCleanup.Supported("SumatraPDF") &&
+      !SmallAppResidualCleanup.Supported("Notepad++ Backup"),
+      "Politica de limpeza exige o produto exato, nunca um nome parecido");
+var installedNpp = new ProgramEntry { Name = "Notepad++ (64-bit x64)", Publisher = "Don HO" };
+Check(!SmallAppResidualCleanup.AbsenceConfirmed("Notepad++", [installedNpp]) &&
+      SmallAppResidualCleanup.AbsenceConfirmed("Notepad++", []),
+      "Bloquear qualquer desinstalacao incompleta ou variante ainda instalada");
+string smallFixture = Path.Combine(Path.GetTempPath(), "GF-Small-Residual-" +
+    Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(smallFixture);
+try
+{
+    var child = Path.Combine(smallFixture, "config");
+    Directory.CreateDirectory(child);
+    string config = Path.Combine(child, "settings.xml");
+    await File.WriteAllTextAsync(config, "configuração de teste");
+    SmallAppResidualCleanup.SyntheticFolders = [smallFixture];
+    SmallAppResidualCleanup.SyntheticNoRegistry = true;
+    var blocked = SmallAppResidualCleanup.Capture("Notepad++", true, [installedNpp]);
+    Check(!blocked.Complete && blocked.Files.Count == 0 &&
+          SmallAppResidualCleanup.Report(blocked) is null,
+          "Inventario com Notepad++ registrado proibe captura autorizativa");
+    var previewSmall = SmallAppResidualCleanup.Capture("Notepad++", true, []);
+    Check(previewSmall.Complete && previewSmall.Files.Count == 1 &&
+          previewSmall.Directories.Count == 2 &&
+          SmallAppResidualCleanup.Report(previewSmall)?.Findings.Count == 3,
+          "Preview isolada identifica arquivo e pastas dedicadas");
+    await File.AppendAllTextAsync(config, "mudou após a prévia");
+    var refusedSmall = await SmallAppResidualCleanup.DeleteAsync(previewSmall,
+        () => Task.FromResult((true,
+            (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+    Check(refusedSmall.Files == 0 && refusedSmall.Failed > 0 &&
+          File.Exists(config), "Alteração após a prévia impede toda a limpeza");
+    var newPreview = SmallAppResidualCleanup.Capture("Notepad++", true, []);
+    var removedSmall = await SmallAppResidualCleanup.DeleteAsync(newPreview,
+        () => Task.FromResult((true,
+            (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+    Check(removedSmall.Files == 1 && removedSmall.Directories == 2 &&
+          removedSmall.Keys == 0 && removedSmall.Failed == 0 &&
+          !Directory.Exists(smallFixture) &&
+          SmallAppResidualCleanup.Report(SmallAppResidualCleanup.Capture(
+              "Notepad++", true, [])) is null,
+          "Limpeza sintética remove apenas alvos autorizados e reexame zera o grupo");
+}
+finally
+{
+    SmallAppResidualCleanup.SyntheticFolders = null;
+    SmallAppResidualCleanup.SyntheticNoRegistry = false;
+    if (Directory.Exists(smallFixture)) Directory.Delete(smallFixture, recursive: true);
+}
+
+// Regressao Windows: a .48 validava apenas arquivos, pois desativava o Registro.
+// Alvos descartaveis e exclusivos, sob HKCU; nenhuma chave de aplicativo real.
+foreach (RegistryView view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
+{
+    string fixture = "GF-Residual-Synthetic-" + Guid.NewGuid().ToString("N");
+    string subkey = @"Software\" + fixture + @"\Notepad++";
+    try
+    {
+        using (var hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, view))
+        using (var own = hive.CreateSubKey(subkey))
+        {
+            if (own is null) throw new IOException("Nao criou chave sintética");
+            own.SetValue("Marker", "GF-TESTE");
+            using var nested = own.CreateSubKey("Profile");
+            if (nested is null) throw new IOException("Nao criou subchave sintética");
+            nested.SetValue("Value", 42);
+        }
+        SmallAppResidualCleanup.SyntheticFolders =
+            [Path.Combine(Path.GetTempPath(), fixture, "nao-existe")];
+        SmallAppResidualCleanup.SyntheticNoRegistry = false;
+        SmallAppResidualCleanup.SyntheticRegistryKeys =
+            [(RegistryHive.CurrentUser, view, subkey)];
+        var previewRegistry = SmallAppResidualCleanup.Capture("Notepad++", true, []);
+        Check(previewRegistry.Complete && previewRegistry.Keys.Count == 1 &&
+              previewRegistry.Files.Count == 0, 
+              "Registro sintético deve aparecer na prévia na visão " + view);
+        // Mudança entre prévia e ação invalida a autorização.
+        using (var hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, view))
+        using (var own = hive.OpenSubKey(subkey, writable: true))
+            own?.SetValue("Marker", "ALTERADO");
+        var blockedRegistry = await SmallAppResidualCleanup.DeleteAsync(previewRegistry,
+            () => Task.FromResult((true,
+                (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+        Check(blockedRegistry.Keys == 0 && blockedRegistry.Failed != 0,
+              "Alteração do Registro bloqueia remoção na visão " + view);
+        var currentRegistry = SmallAppResidualCleanup.Capture("Notepad++", true, []);
+        var cleanedRegistry = await SmallAppResidualCleanup.DeleteAsync(currentRegistry,
+            () => Task.FromResult((true,
+                (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+        using var verificationHive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, view);
+        using var remainingRegistry = verificationHive.OpenSubKey(subkey, writable: false);
+        Check(cleanedRegistry.Keys == 1 && cleanedRegistry.Failed == 0 &&
+              remainingRegistry is null,
+              "Exclusão da subchave sintética e pós-conferência na visão " + view);
+    }
+    finally
+    {
+        SmallAppResidualCleanup.SyntheticRegistryKeys = null;
+        SmallAppResidualCleanup.SyntheticFolders = null;
+        SmallAppResidualCleanup.SyntheticNoRegistry = false;
+        using var hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, view);
+        using var software = hive.OpenSubKey(@"Software", writable: true);
+        software?.DeleteSubKeyTree(fixture, throwOnMissingSubKey: false);
+    }
+}
+
+string zipFixture = Path.Combine(Path.GetTempPath(), "GF-Zip-Residual-Synthetic-" +
+    Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(zipFixture);
+try
+{
+    var subdir = Path.Combine(zipFixture, "Perfil");
+    Directory.CreateDirectory(subdir);
+    var first = Path.Combine(zipFixture, "7-zip.dll");
+    var second = Path.Combine(subdir, "config.ini");
+    await File.WriteAllTextAsync(first, "DLL de teste sem executavel");
+    await File.WriteAllTextAsync(second, "Preferencia sintética");
+    SevenZipCompleteCleanup.SyntheticRoots = [zipFixture];
+    var beforeZip = SevenZipCompleteCleanup.Capture(unsignedFake, true, []);
+    Check(beforeZip.Complete && beforeZip.Files.Count == 2 &&
+          beforeZip.Directories.Count == 2 && beforeZip.Registry.Count == 0,
+          "Preview mede conteúdo e identidade dos arquivos sintéticos, sem tocar no Registro real");
+    Check(SevenZipCompleteCleanup.RecoveryReport(beforeZip)?.Findings.Count == 4,
+        "Cartões residuais derivam exclusivamente da fotografia específica atual");
+    await File.AppendAllTextAsync(second, "modificado depois da previa");
+    var refusal = await SevenZipCompleteCleanup.ExecuteAsync(unsignedFake, beforeZip,
+        () => Task.FromResult((true, (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+    Check(refusal.FilesDeleted == 0 && refusal.Failures > 0 &&
+          File.Exists(first) && File.Exists(second),
+          "Alteração após prévia bloqueia integralmente a exclusão");
+    var acceptedZip = SevenZipCompleteCleanup.Capture(unsignedFake, true, []);
+    var removedZip = await SevenZipCompleteCleanup.ExecuteAsync(unsignedFake, acceptedZip,
+        () => Task.FromResult((true, (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+    Check(removedZip.FilesDeleted == 2 && removedZip.DirectoriesDeleted == 2 &&
+          removedZip.KeysDeleted == 0 && removedZip.Failures == 0 &&
+          removedZip.Problems.Count == 0 && !Directory.Exists(zipFixture),
+          "Exclusão consentida em fixture remove somente os arquivos/pastas comprovados");
+    var verifiedEmpty = SevenZipCompleteCleanup.Capture(unsignedFake, true, []);
+    Check(verifiedEmpty.Complete && SevenZipCompleteCleanup.RecoveryReport(verifiedEmpty) is null &&
+          new ResidualResultIndex(Array.Empty<ResidualAuditReport>()).Count == 0,
+          "Após limpar todos os alvos, grupo antigo não pode continuar no índice");
+    Directory.CreateDirectory(zipFixture);
+    var readonlySample = Path.Combine(zipFixture, "7-zip.dll");
+    await File.WriteAllTextAsync(readonlySample, "fixture sem permissao de remocao");
+    File.SetAttributes(readonlySample, FileAttributes.ReadOnly);
+    var readOnlyPlan = SevenZipCompleteCleanup.Capture(
+        SevenZipCompleteCleanup.RecoveryIdentity(), true, []);
+    var readOnlyResult = await SevenZipCompleteCleanup.ExecuteAsync(
+        SevenZipCompleteCleanup.RecoveryIdentity(), readOnlyPlan,
+        () => Task.FromResult((true, (IReadOnlyCollection<ProgramEntry>)Array.Empty<ProgramEntry>())));
+    Check(readOnlyResult.FilesDeleted == 1 && readOnlyResult.Failures == 0 &&
+          !File.Exists(readonlySample),
+          "Arquivo readonly exclusivo e consentido usa FileDispositionInfoEx sem alterar ACL");
+    // A ferramenta legada e apenas fixture; se nao excluida em outro FS,
+    // restaurar o atributo antes de descartar a amostra sintética.
+    if (File.Exists(readonlySample)) File.SetAttributes(readonlySample, FileAttributes.Normal);
+}
+finally
+{
+    SevenZipCompleteCleanup.SyntheticRoots = null;
+    if (Directory.Exists(zipFixture)) Directory.Delete(zipFixture, recursive: true);
+}
+
 regular.CanUninstall = ActionableInventory.CanUninstall(regular);
 quiet.CanUninstall = ActionableInventory.CanUninstall(quiet);
 Check(ActionableInventory.VisibleCount(new[] { systemOnly, gameOnly, staleApp, regular, quiet, protectedWin32 }) == 2,
@@ -253,7 +585,7 @@ Console.WriteLine("OK Identidade ARP independente de catálogos e receitas");
 
 // Auditoria realista de uma máquina antiga: apps sem desinstalador válido,
 // drivers PnP desconectados por trocas de hardware e falsos positivos críticos.
-Check(MaintenanceAudit.CheckUninstaller("MsiExec.exe /X{ABC123}", false) == "available",
+Check(MaintenanceAudit.CheckUninstaller("MsiExec.exe /X{00000000-0000-0000-0000-000000000123}", false) == "available",
     "O serviço oficial MSI é reconhecido sem executar nada");
 Check(MaintenanceAudit.CheckUninstaller("", false) == "absent",
     "Entrada sem desinstalador aparece na avaliação");
@@ -265,9 +597,9 @@ Check(MaintenanceAudit.CheckUninstaller('"' + missingExecutable + '"', false) ==
     "Caminho absoluto removido pode ser identificado sem apagar entrada de Registro");
 Check(MaintenanceAudit.CheckUninstaller("uninstall.exe /S", false) == "unknown",
     "Comandos relativos não são sinalizados indevidamente como arquivos ausentes");
-Check(MaintenanceAudit.CheckUninstaller('"' + Path.Combine(Path.GetDirectoryName(missingExecutable)!, "msiexec.exe") + '"', false) == "missing",
+Check(MaintenanceAudit.CheckUninstaller('"' + Path.Combine(Path.GetDirectoryName(missingExecutable)!, "msiexec.exe") + '"', false) != "available",
     "Arquivo ausente chamado msiexec nao recebe confianca pelo nome");
-var alternateUninstall = new ProgramEntry { Name = "Duas alternativas", UninstallString = '"' + missingExecutable + '"', QuietUninstallString = "msiexec.exe /X{ABC123}" };
+var alternateUninstall = new ProgramEntry { Name = "Duas alternativas", UninstallString = '"' + missingExecutable + '"', QuietUninstallString = "msiexec.exe /X{00000000-0000-0000-0000-000000000123}" };
 Check(MaintenanceAudit.InspectPrograms(new[] { alternateUninstall }).Available == 1 &&
       MaintenanceAudit.InspectPrograms(new[] { alternateUninstall }).Missing == 0,
     "Diagnostico usa alternativa silenciosa valida sem falso desinstalador ausente");
@@ -276,7 +608,7 @@ var brokenInventory = new[]
     new ProgramEntry { Name = "Antigo Editor", UninstallString = '"' + missingExecutable + '"',
         CatalogIdentity = "antigo-editor" },
     new ProgramEntry { Name = "Microsoft Store Runtime", InventoryOnly = true },
-    new ProgramEntry { Name = "Outra Ferramenta", UninstallString = "msiexec.exe /X {GUID}" }
+    new ProgramEntry { Name = "Outra Ferramenta", UninstallString = "msiexec.exe /X {00000000-0000-0000-0000-000000000124}" }
 };
 var maintenance = MaintenanceAudit.Inspect(brokenInventory, inspectDevices: false);
 Check(maintenance.Installed == 3 && maintenance.Recognized == 1 &&
@@ -286,6 +618,18 @@ Check(maintenance.Concerns.Count == 1 &&
       maintenance.Concerns[0].Name == "Antigo Editor" &&
       maintenance.Concerns[0].Description.Contains("não remova o Registro"),
     "Falhas de registro recebem explicação segura em vez de remoção agressiva");
+var partialMaintenance = MaintenanceAudit.Inspect(brokenInventory,
+    inspectDevices: false, inventoryIncomplete: true);
+Check(partialMaintenance.InventoryIncomplete && partialMaintenance.Incomplete &&
+      partialMaintenance.Installed == brokenInventory.Length &&
+      partialMaintenance.Concerns.Any(c => c.Category == "Inventário" &&
+          c.Description.Contains("não comprova desinstalação")),
+    "Falha MSIX ou ARP preserva contagem observada e diagnóstico parcial");
+Check(!maintenance.InventoryIncomplete && !maintenance.Incomplete,
+    "Consulta sintética completa não recebe parcialidade artificial");
+Check((maintenance with { Devices = maintenance.Devices with { Supported = true } }).Incomplete &&
+      (maintenance with { Devices = maintenance.Devices with { Partial = true } }).Incomplete,
+    "PnP sem comparação histórica ou com falha de leitura continua parcial");
 Check(MaintenanceAudit.ReviewDisconnectedDevice(false, "Display",
       @"PCI\VEN_10DE&DEV_1234", "Placa de vídeo anterior"),
     "GPU PCI desconectada é candidata a revisão de hardware");
@@ -521,8 +865,8 @@ Console.WriteLine("OK Jogos ativos nao sao confundidos com residuos historicos")
 
 // Catálogo histórico: Origem, Vivaldi e uTorrent não podem ser limpos
 // automaticamente, e não devem aparecer como resíduos com produto instalado.
-Check(HistoricalResidualAudit.Rules.Count == 3,
-    "Três famílias históricas para auditoria não destrutiva");
+Check(HistoricalResidualAudit.Rules.Count == 5,
+    "Cinco famílias históricas para auditoria não destrutiva");
 Check(HistoricalResidualAudit.Rules.Any(r => r.Id == "origin-legacy" &&
     r.Registry.Contains(@"HKLM32\SOFTWARE\Origin") &&
     r.Folders.Contains(@"Local\Origin")),
@@ -563,6 +907,131 @@ try
 catch (InvalidDataException) { passed++; }
 Console.WriteLine("OK Catálogo recusa chave de sistema e diretórios genéricos");
 
+// WinMerge: registro do fabricante documentado, inspeção estritamente
+// somente leitura, inclusive quando a remoção ocorreu antes desta sessão.
+Check(ResidualAudit.WinMergeRegistrySubkey == @"SOFTWARE\Thingamahoochie\WinMerge",
+    "Auditoria conhece a chave WinMerge sem confundir com Software\\WinMerge");
+Check(ResidualAudit.IsWinMergeProduct(new ProgramEntry
+    { Name = "WinMerge x64", Publisher = "Thingamahoochie Software" }) &&
+    ResidualAudit.IsWinMergeProduct(new ProgramEntry
+    { Name = "WinMerge", Publisher = "Thingamahoochie Software" }) &&
+    !ResidualAudit.IsWinMergeProduct(new ProgramEntry
+    { Name = "WinMerge x64", Publisher = "Fabricante Incorreto" }) &&
+    !ResidualAudit.IsWinMergeProduct(new ProgramEntry
+    { Name = "WinMerge Driver", Publisher = "Thingamahoochie Software" }),
+    "Auditoria especifica WinMerge recusa produtos ambiguos e outros fabricantes");
+var winMergeInstalled = ResidualAudit.InspectHistoricalWinMerge(new[]
+    { new ProgramEntry { Name = "WinMerge x64", Publisher = "Thingamahoochie Software" } });
+Check(winMergeInstalled.Findings.Count == 0 &&
+    !winMergeInstalled.UninstallConfirmed && winMergeInstalled.Historical,
+    "Uma instalacao WinMerge ativa nunca e considerada residuo historico");
+var winMergeHistorical = ResidualAudit.InspectHistoricalWinMerge(Array.Empty<ProgramEntry>());
+Check(!winMergeHistorical.UninstallConfirmed && winMergeHistorical.Historical &&
+    winMergeHistorical.Findings.All(r =>
+        r.Location.Contains("WinMerge", StringComparison.OrdinalIgnoreCase) &&
+        r.Evidence.Contains("somente leitura", StringComparison.OrdinalIgnoreCase)),
+    "Somente locais especificos sao consultados; ausencia no inventario nao confirma remocao");
+
+// Notepad++ historico: nao basta encontrar AppData para autorizar
+// remocao. Protecao inclui outras arquiteturas e inventario parcial.
+var notepadActiveReport = ResidualAudit.InspectHistoricalNotepadPlusPlus(new[]
+    { new ProgramEntry { Name = "Notepad++ (x64)", Publisher = "Don HO" } });
+Check(notepadActiveReport.Findings.Count == 0 &&
+    !notepadActiveReport.UninstallConfirmed && notepadActiveReport.Historical,
+    "Notepad++ instalado em outra variante nao aparece como vestigio historico.");
+var notepadPartialReport = ResidualAudit.InspectHistoricalNotepadPlusPlus(
+    Array.Empty<ProgramEntry>(), inventoryIncomplete: true);
+Check(notepadPartialReport.Findings.Count == 0 &&
+    notepadPartialReport.Incomplete && !notepadPartialReport.UninstallConfirmed,
+    "Inventario parcial nao pode confirmar ausencia de Notepad++.");
+var notepadHistory = ResidualAudit.InspectHistoricalNotepadPlusPlus(
+    Array.Empty<ProgramEntry>());
+Check(notepadHistory.Historical && !notepadHistory.UninstallConfirmed &&
+    notepadHistory.Findings.All(f => !f.CanRemove &&
+        f.Disposition == ResidualDisposition.PreserveData &&
+        f.Location.Contains("Notepad++", StringComparison.OrdinalIgnoreCase)),
+    "Vestigios Notepad++ exatos sao consultivos e preservam preferencias; nenhuma chave Windows compartilhada.");
+Check(ResidualAudit.TrackedApplicationStillPresent("foobar2000",
+    new[] { "foobar2000 v2.26.1 (x64)" }) &&
+    !ResidualAudit.TrackedApplicationStillPresent("foobar2000",
+    new[] { "foobar2000fake" }) &&
+    ResidualAudit.TrackedApplicationStillPresent("Notepad++",
+        new[] { "Notepad++ (64-bit x64)" }),
+    "R4: identidades exatas de familia impedem classificar instalacao ativa como residuo.");
+var foobarTracked = ResidualAudit.InspectHistoricalFoobar2000(new[]
+    { new ProgramEntry { Name = "foobar2000 v2.26.1 (x64)", Publisher = "Peter Pawlowski" } });
+Check(foobarTracked.Findings.Count == 0 && foobarTracked.Historical,
+    "R4: foobar ativo nao aparece como vestigio historico.");
+var foobarIncomplete = ResidualAudit.InspectHistoricalFoobar2000(
+    Array.Empty<ProgramEntry>(), inventoryIncomplete: true);
+Check(foobarIncomplete.Incomplete && foobarIncomplete.Findings.Count == 0,
+    "R4: inventario parcial preserva foobar.");
+var foobarHistorical = ResidualAudit.InspectHistoricalFoobar2000(
+    Array.Empty<ProgramEntry>());
+Check(!foobarHistorical.UninstallConfirmed && foobarHistorical.Findings.All(f =>
+    !f.CanRemove && f.Disposition is ResidualDisposition.PreserveData or
+        ResidualDisposition.PreserveShared),
+    "R4: diretorios foobar e referencias Windows jamais ganham permissao de apagar.");
+Check(ResidualAudit.IsTrackedExecutableReference(
+    @"C:\Program Files\foobar2000\foobar2000.exe", "foobar2000.exe") &&
+    !ResidualAudit.IsTrackedExecutableReference(
+        @"C:\Program Files\Notepad++\notepad++.exe", "foobar2000.exe") &&
+    !ResidualAudit.IsTrackedExecutableReference(
+        @"C:\Windows\System32\notepad++.exe.old", "notepad++.exe") &&
+    !ResidualAudit.IsTrackedExecutableReference(
+        @"\\servidor\compartilhado\foobar2000.exe", "foobar2000.exe"),
+    "R4: correlacao exige executavel exato, sem confundir componentes de terceiros ou rede.");
+// R4 - a nova operacao de limpeza deve negar inventario parcial, foobar
+// instalado ou aberto; nunca olhar outros aplicativos como residuo.
+if (OperatingSystem.IsWindows())
+{
+    string sandboxRoot = Path.Combine(Path.GetTempPath(), "GF-Foobar-Fixture-" + Guid.NewGuid().ToString("N"));
+    string roaming = Path.Combine(sandboxRoot, "roaming");
+    string local = Path.Combine(sandboxRoot, "local");
+    Directory.CreateDirectory(roaming);
+    Directory.CreateDirectory(local);
+    try
+    {
+        string foobar = Path.Combine(roaming, "foobar2000-v2");
+        Directory.CreateDirectory(foobar);
+        File.WriteAllText(Path.Combine(foobar, "prefs.ini"), "fixture");
+        string other = Path.Combine(roaming, "OutroPrograma");
+        Directory.CreateDirectory(other);
+        File.WriteAllText(Path.Combine(other, "dados.txt"), "preservar");
+        var safe = FoobarProfileCleanup.InspectRoots(roaming, local, true, [], false);
+        Check(safe.Eligible && !safe.CanExecute && safe.Folders.Count == 1 && safe.Files == 1 &&
+            safe.Folders.Single() == foobar,
+            "R4: preview dos perfis do foobar sem incluir outros aplicativos.");
+        Check(!FoobarProfileCleanup.InspectRoots(roaming, local, false, [], false).Eligible &&
+            !FoobarProfileCleanup.InspectRoots(roaming, local, true, ["foobar2000 v2.26"], false).Eligible &&
+            !FoobarProfileCleanup.InspectRoots(roaming, local, true, [], true).Eligible,
+            "R4: inventario parcial, produto instalado ou processo ativo bloqueiam limpeza.");
+        string obs = Path.Combine(local, "obs-studio");
+        Directory.CreateDirectory(obs);
+        File.WriteAllText(Path.Combine(obs, "scene.json"), "fixture");
+        var obsProfile = FoobarProfileCleanup.InspectRoots(roaming, local, true, [], false,
+            "OBS Studio", ["obs-studio"]);
+        Check(obsProfile.Eligible && obsProfile.Files == 1 &&
+            FoobarProfileCleanup.DeleteSyntheticFolderForTests(obs, sandboxRoot) &&
+            !Directory.Exists(obs) && File.Exists(Path.Combine(other, "dados.txt")),
+            "R4: limpeza de pasta OBS sintética não toca dados de outro aplicativo.");
+        Check(!FoobarProfileCleanup.InspectRoots(roaming, local, true, ["OBS Studio"], false,
+            "OBS Studio", ["obs-studio"]).Eligible,
+            "R4: OBS instalado nunca pode ter seu perfil limpo.");
+        Check(FoobarProfileCleanup.DeleteSyntheticFolderForTests(foobar, sandboxRoot) &&
+            !Directory.Exists(foobar) &&
+            File.Exists(Path.Combine(other, "dados.txt")),
+            "R4: exclusao em fixture isolada remove apenas perfil foobar.");
+        Check(!FoobarProfileCleanup.DeleteSyntheticFolderForTests(other + "-absent", sandboxRoot),
+            "R4: alvo inexistente nunca vira operacao destrutiva.");
+        Check(File.Exists(Path.Combine(other, "dados.txt")),
+            "R4: dados de outros programas permanecem inalterados na simulacao.");
+    }
+    finally
+    {
+        try { Directory.Delete(sandboxRoot, recursive: true); } catch (IOException) { }
+    }
+}
 // Auditoria ampliada: detectar dados remanescentes sem autorizar exclusão.
 Check(ResidualAudit.CanonicalName(new ProgramEntry
     { Name = "DroidCam Client", Publisher = "Dev47Apps" }) == "DroidCam",
@@ -667,23 +1136,23 @@ try
     Check(deny.Failed == 1 && File.Exists(Path.Combine(root, "SumatraPDF.exe")),
         "Impedir exclusao com raiz TEMP fora da politica de producao");
     var cleaned = UninstallResiduals.CleanCandidateFiles(scan!, allowed);
-    Check(cleaned.RemovedFiles == 1 && cleaned.RemovedDirectories == 0 &&
-          cleaned.Preserved == 3 && cleaned.Failed == 0,
-          "Excluir apenas arquivo exato, mantendo dados e subpasta");
+    Check(cleaned.RemovedFiles == 0 && cleaned.RemovedDirectories == 0 &&
+          cleaned.Preserved == 4 && cleaned.Failed == 1,
+          "Candidata bloqueia exclusão direta e preserva todos os arquivos");
     Check(File.Exists(Path.Combine(root, "settings.txt")) &&
           File.Exists(Path.Combine(root, "notas-pessoais.pdf")) &&
           File.Exists(Path.Combine(custom, "user.dll")),
           "Nao remover configuracoes documentos ou plugins");
-    Check(UninstallResiduals.InspectDirectory("SumatraPDF", root, allowed) is null,
-          "Nova varredura nao sugere apagar dados pessoais");
+    Check(UninstallResiduals.InspectDirectory("SumatraPDF", root, allowed)?.Files.Count == 1,
+          "Nova varredura confirma que o executável também foi preservado");
     string root2 = Path.Combine(temp, "Notepad++");
     Directory.CreateDirectory(root2);
     File.WriteAllText(Path.Combine(root2, "notepad++.exe"), "simulated");
     var second = UninstallResiduals.InspectDirectory("Notepad++", root2,
         new[] { "notepad++.exe" })!;
     var result2 = UninstallResiduals.CleanCandidateFiles(second, new[] { "notepad++.exe" });
-    Check(result2.RemovedFiles == 1 && result2.RemovedDirectories == 1 &&
-          !Directory.Exists(root2), "Remover pasta SOMENTE quando ficar vazia");
+    Check(result2.RemovedFiles == 0 && result2.RemovedDirectories == 0 &&
+          Directory.Exists(root2), "Pasta e executável permanecem em simulação");
     string root3 = Path.Combine(temp, "unknown");
     Directory.CreateDirectory(root3);
     File.WriteAllText(Path.Combine(root3, "qualquer.exe"), "other");
@@ -716,8 +1185,8 @@ try
     Check(notAllowed.Files == 0 && notAllowed.Skipped > 0 && File.Exists(owned),
         "Não excluir dados fora da lista explícita de diretórios");
     var erased = AdvancedUninstallCleaner.DeleteApprovedTree(knownRoot, new[] { knownRoot });
-    Check(erased.Files == 2 && erased.Directories == 2 &&
-          !Directory.Exists(knownRoot), "Apagar pasta própria, preferências e backups com autorização");
+    Check(erased.Files == 0 && erased.Directories == 0 &&
+          File.Exists(owned) && File.Exists(backup), "Nem allowlist explícita contorna bloqueio de exclusão de dados");
     Check(File.Exists(shared), "Não tocar dados compartilhados ou diretórios vizinhos");
     var other = AdvancedUninstallCleaner.DeleteApprovedTree(testBase, new[] { knownRoot });
     Check(other.Files == 0 && Directory.Exists(testBase),
@@ -746,10 +1215,10 @@ try
           new[] { @"Software" }), "Nunca excluir raiz Software do usuário");
     using (var stillThere = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(testKey))
         Check(stillThere is not null, "Registro desconhecido permanece intacto");
-    Check(AdvancedUninstallCleaner.DeleteApprovedRegistryKey(testKey, new[] { testKey }),
-        "Remover subchave HKCU exclusiva após permissão explícita");
+    Check(!AdvancedUninstallCleaner.DeleteApprovedRegistryKey(testKey, new[] { testKey }),
+        "Chamada interna não contorna bloqueio de exclusão do Registro");
     using (var removedKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(testKey))
-        Check(removedKey is null, "Confirmar chave e valores removidos do Registro");
+        Check(removedKey is not null, "Confirmar chave e valores preservados no Registro");
 }
 finally
 {
@@ -758,9 +1227,24 @@ finally
 }
 Check(AdvancedUninstallCleaner.Inspect(new[] { sumatra, notepad }).Count == 0,
     "Modo profundo não apresenta programa ainda instalado");
+// Revalidar o disco nao amplia o consentimento dado no dialogo anterior.
+var originallyAccepted = new DeepCleanItem(sumatra,
+    new[] { @"C:\Approved", @"C:\NoLongerPresent" },
+    new[] { @"Software\Approved", @"Software\NoLongerPresent" }, 1, 0);
+var afterDialog = new DeepCleanItem(sumatra,
+    new[] { @"C:\Approved", @"C:\AppearedAfterConsent" },
+    new[] { @"Software\Approved", @"Software\AppearedAfterConsent" }, 2, 0);
+var restricted = AdvancedUninstallCleaner.RestrictToAccepted(originallyAccepted, afterDialog);
+Check(restricted.Folders.SequenceEqual(new[] { @"C:\Approved" }) &&
+    restricted.RegistryKeys.SequenceEqual(new[] { @"Software\Approved" }),
+    "Novas pastas/chaves apos confirmacao ficam preservadas; alvos desaparecidos nao reaparecem");
+var emptyApproval = originallyAccepted with { Folders = Array.Empty<string>(), RegistryKeys = Array.Empty<string>() };
+var nothingApproved = AdvancedUninstallCleaner.RestrictToAccepted(emptyApproval, afterDialog);
+Check(nothingApproved.Folders.Count == 0 && nothingApproved.RegistryKeys.Count == 0,
+    "Confirmacao sem alvos nao autoriza limpar novos residuos");
 Console.WriteLine("Testes do catálogo de desinstalação embarcado.");
 var rules = UninstallRuleCatalog.Rules;
-Check(rules.Count == 6, "Seis políticas específicas validadas e incorporadas ao executável");
+Check(rules.Count == 7, "Sete políticas específicas validadas e incorporadas ao executável");
 Check(rules.Any(x => x.Id == "sumatrapdf" && x.RegistryKeys.Single() == @"Software\SumatraPDF"),
     "Política SumatraPDF tem HKCU exclusivo");
 Check(rules.Any(x => x.Id == "obs" && x.Folders.Count == 1 && x.RegistryKeys.Count == 0),
@@ -830,3 +1314,4 @@ namespace GerenciadorAplicativos
         public bool IsUpdate { get; set; }
     }
 }
+

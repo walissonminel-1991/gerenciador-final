@@ -5,35 +5,60 @@ namespace GerenciadorAplicativos;
 
 // Complementa as receitas verificadas. Detecta, mas NUNCA apaga.
 // Um registro ainda existente ou uma pasta com nome semelhante NAO prova lixo.
-internal sealed record ResidualAuditFinding(string Location, string Kind, int Items, string Evidence);
+internal enum ResidualDisposition { Review, PreserveData, PreserveShared, Unknown, ValidatedCandidate, InstallationCheck }
+[Flags]
+internal enum ResidualSource { None = 0, UserData = 1, CommonData = 2, Installation = 4, Registry = 8, Shortcut = 16, Integration = 32 }
+internal sealed record ResidualAuditFinding(string Location, string Kind, int Items, string Evidence,
+    ResidualDisposition Disposition = ResidualDisposition.Review, ResidualSource Sources = ResidualSource.None,
+    ResidualDisposition? BasisDisposition = null)
+{
+    // Categoria não é uma capacidade de exclusão; candidata estritamente de leitura.
+    internal bool CanRemove => false;
+    internal string DecisionLabel => Disposition switch
+    {
+        ResidualDisposition.PreserveData => "Preservar dados",
+        ResidualDisposition.PreserveShared => "Preservar compartilhado",
+        ResidualDisposition.Unknown => BasisDisposition == ResidualDisposition.PreserveData
+            ? "Estado desconhecido — preservar dados" : BasisDisposition == ResidualDisposition.PreserveShared
+            ? "Estado desconhecido — preservar compartilhado" : "Estado desconhecido — preservar",
+        ResidualDisposition.InstallationCheck => "Instalação a conferir — preservar",
+        ResidualDisposition.ValidatedCandidate => "Revisar — simulação",
+        _ => "Revisar"
+    };
+}
 internal sealed record ResidualAuditReport(
     string Product, bool UninstallConfirmed, IReadOnlyList<ResidualAuditFinding> Findings,
-    IReadOnlyList<string> RelatedRegisteredPrograms, bool Historical = false);
+    IReadOnlyList<string> RelatedRegisteredPrograms, bool Historical = false, bool Incomplete = false, ResidualCoverage? Coverage = null);
 
 internal static class ResidualAudit
 {
     private const int ScanLimit = 2000;
     private const int MaxDetails = 16;
     internal static ResidualAuditReport Inspect(ProgramEntry previous,
-        IReadOnlyCollection<ProgramEntry> current)
+        IReadOnlyCollection<ProgramEntry> current, bool inventoryIncomplete = false)
     {
-        bool removed = !UninstallResiduals.StillInstalled(previous, current);
+        var budget = new ResidualScanBudget();
+        budget.Source("PostUninstall");
+        if (inventoryIncomplete) budget.MarkIncomplete(ResidualScanIssue.InventoryPartial);
+        bool removed = !inventoryIncomplete && !UninstallResiduals.StillInstalled(previous, current);
         var findings = new List<ResidualAuditFinding>();
         var examined = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string? familyName = CanonicalName(previous);
         // Caminho de instalação registrado: evidência, mas não autorização de exclusão.
         InspectFolder(previous.InstallLocation, "Instalação informada pelo fabricante",
-            findings, examined);
+            findings, examined, budget);
 
         if (familyName is not null)
         {
             foreach (string root in new[]
             {
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
-            })
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                Path.Combine(Path.GetDirectoryName(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)) ?? "", "LocalLow"),
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
+            }.Where(root => ResidualReadSafety.IsLocalAbsolute(root)))
                 InspectFolder(Path.Combine(root, familyName),
-                    "Possíveis preferências e arquivos do aplicativo", findings, examined);
+                    "Possíveis preferências e arquivos do aplicativo", findings, examined, budget, ResidualDisposition.PreserveData);
 
             if (IsApprovedRegistryLeaf(familyName))
             {
@@ -44,19 +69,227 @@ internal static class ResidualAudit
                     if (handle is not null)
                         findings.Add(new(@"HKEY_CURRENT_USER\" + key, "Registro do usuário",
                             Math.Min(ScanLimit, handle.ValueCount + handle.SubKeyCount),
-                            "Chave de nome exato; a propriedade ainda requer confirmação"));
+                            "Pode conter preferências; nome exato não comprova exclusividade", ResidualDisposition.PreserveData, ResidualSource.Registry));
                 }
                 catch (Exception ex) when (ex is UnauthorizedAccessException or
-                    System.Security.SecurityException or IOException) { }
+                    System.Security.SecurityException or IOException) { budget.MarkIncomplete(); }
             }
         }
+        // WinMerge guarda preferencias e integração em uma subchave do
+        // fabricante Thingamahoochie. Nome "WinMerge" diretamente sob Software
+        // NAO cobre esse caminho documentado. Apenas leitura, sem remoção.
+        if (removed && IsWinMergeProduct(previous))
+            InspectWinMergeRegistry(findings, budget);
         // Driver Booster é produto de terceiros, não um driver do Windows.
         // A regra geral suprime "driver" para evitar falsos positivos; esta
         // exceção é estritamente somente leitura e não habilita limpeza.
         if (IsDriverBoosterProduct(previous))
-            InspectDriverBoosterFamily(findings, examined);
+            InspectDriverBoosterFamily(findings, examined, budget);
+        for (int i = 0; i < findings.Count; i++)
+            if (current.Any(p => ResidualReadSafety.PathsOverlap(findings[i].Location, p.InstallLocation)))
+                findings[i] = findings[i] with { Disposition = ResidualDisposition.PreserveShared,
+                    Evidence = findings[i].Evidence + "; local usado por instalação ainda registrada: preservar" };
         string[] related = FindRelatedRegistrations(previous, current);
-        return new(previous.Name, removed, findings.Take(MaxDetails).ToArray(), related);
+        return new(previous.Name, removed && !budget.Incomplete, findings.Select(f => budget.Incomplete
+            ? f with { Disposition = ResidualDisposition.Unknown,
+                Evidence = f.Evidence + "; inventário parcial: estado desconhecido, preservar" } : f).ToArray(),
+            related, Incomplete: budget.Incomplete, Coverage: budget.Coverage);
+    }
+
+    // Referência: manual oficial do WinMerge, opcoes /cfg.
+    // O caminho pertence ao WinMerge, mas pode conter configuracoes a preservar
+    // e valores de integracao de terceiros: ele NUNCA vira receita de limpeza.
+    internal const string WinMergeRegistrySubkey = @"SOFTWARE\Thingamahoochie\WinMerge";
+
+    internal static bool IsWinMergeProduct(ProgramEntry app) =>
+        Regex.IsMatch(app.Name.Trim(), @"^WinMerge(?:\s+(?:x64|x86|64-bit|32-bit))?$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) &&
+        app.Publisher.Trim().Equals("Thingamahoochie Software",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static void InspectWinMergeRegistry(List<ResidualAuditFinding> findings, ResidualScanBudget budget)
+    {
+        foreach (var source in new[]
+        {
+            (Hive: RegistryHive.CurrentUser, View: RegistryView.Default,
+                Label: "HKEY_CURRENT_USER"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry64,
+                Label: "HKEY_LOCAL_MACHINE (64 bits)"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry32,
+                Label: "HKEY_LOCAL_MACHINE (32 bits)")
+        })
+        {
+            try
+            {
+                using var root = RegistryKey.OpenBaseKey(source.Hive, source.View);
+                using var key = root.OpenSubKey(WinMergeRegistrySubkey, writable: false);
+                if (key is null) continue;
+                findings.Add(new(source.Label + @"\" + WinMergeRegistrySubkey,
+                    "Configuração ou integração WinMerge — preservar",
+                    Math.Max(1, Math.Min(ScanLimit, key.ValueCount + key.SubKeyCount)),
+                    "Chave documentada do WinMerge. Pode conter preferências, histórico " +
+                    "e integração com o Explorador; somente leitura. " +
+                    "Não é prova de exclusividade nem autorização de exclusão.", ResidualDisposition.PreserveData, ResidualSource.Registry | ResidualSource.Integration));
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or
+                System.Security.SecurityException or IOException or ArgumentException)
+            {
+                budget.MarkIncomplete();
+            }
+        }
+    }
+
+    // Quando o programa foi removido ANTES de abrir o GF, nao ha entrada
+    // anterior no inventario para a auditoria convencional. Verificamos
+    // apenas pastas EXATAS de WinMerge e sua chave documentada, sem inferir
+    // exclusividade, sem tocar no Registro e sem habilitar exclusao.
+    internal static ResidualAuditReport InspectHistoricalWinMerge(
+        IReadOnlyCollection<ProgramEntry> installed)
+    {
+        var budget = new ResidualScanBudget();
+        budget.Source("WinMergeHistory");
+        bool stillPresent = installed.Any(p =>
+            Regex.IsMatch(p.Name.Trim(), @"^WinMerge(?:$|[\s\(])",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
+        if (stillPresent)
+            return new("WinMerge", false, [], [], Historical: true);
+        var findings = new List<ResidualAuditFinding>();
+        var examined = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string folder in new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinMerge"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinMerge")
+        }.Distinct(StringComparer.OrdinalIgnoreCase))
+            InspectFolder(folder, "Possível pasta de instalação antiga do WinMerge",
+                findings, examined, budget);
+        InspectWinMergeRegistry(findings, budget);
+        // Ausencia no inventario, sozinha, nao comprova uma desinstalacao.
+        return new("WinMerge", false, findings.ToArray(),
+            [], Historical: true, Incomplete: budget.Incomplete, Coverage: budget.Coverage);
+    }
+
+
+
+    // Auditoria correlacionada sem monitor residente: uma instalacao anterior
+    // pode deixar configuracoes quando o ARP desaparece. Nao presume
+    // exclusividade, nao apaga nada e nunca le conteudo de arquivos.
+    // Os caminhos foram definidos por identidade de produto, nao por
+    // buscas amplas em AppData ou chaves arbitrarias do Windows.
+    internal static ResidualAuditReport InspectHistoricalNotepadPlusPlus(
+        IReadOnlyCollection<ProgramEntry> installed, bool inventoryIncomplete = false) =>
+        InspectHistoricalTrackedApplication("Notepad++", "notepad++.exe",
+            new[] { "Notepad++" }, installed, inventoryIncomplete);
+
+    internal static ResidualAuditReport InspectHistoricalFoobar2000(
+        IReadOnlyCollection<ProgramEntry> installed, bool inventoryIncomplete = false) =>
+        InspectHistoricalTrackedApplication("foobar2000", "foobar2000.exe",
+            new[] { "foobar2000", "foobar2000-v2" }, installed, inventoryIncomplete);
+
+    internal static bool TrackedApplicationStillPresent(string product,
+        IEnumerable<string> installedNames) =>
+        installedNames.Any(name =>
+            name.StartsWith(product, StringComparison.OrdinalIgnoreCase) &&
+            (name.Length == product.Length || !char.IsLetterOrDigit(name[product.Length])));
+
+    private static ResidualAuditReport InspectHistoricalTrackedApplication(
+        string product, string processName, IReadOnlyList<string> folders,
+        IReadOnlyCollection<ProgramEntry> installed, bool inventoryIncomplete)
+    {
+        var budget = new ResidualScanBudget();
+        budget.Source("TrackedHistory");
+        if (inventoryIncomplete) budget.MarkIncomplete(ResidualScanIssue.InventoryPartial);
+        if (inventoryIncomplete || TrackedApplicationStillPresent(product, installed.Select(p => p.Name)))
+            return new(product, false, [], [], Historical: true,
+                Incomplete: inventoryIncomplete, Coverage: budget.Coverage);
+
+        var findings = new List<ResidualAuditFinding>();
+        var examined = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string basePath in new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
+        }.Where(ResidualReadSafety.IsLocalAbsolute))
+            foreach (string folder in folders)
+                InspectFolder(Path.Combine(basePath, folder),
+                    "Dados especificos historicos de " + product + "; preservar ate revisao",
+                    findings, examined, budget, ResidualDisposition.PreserveData);
+
+        foreach (var source in new[]
+        {
+            (Hive: RegistryHive.CurrentUser, View: RegistryView.Default, Label: "HKEY_CURRENT_USER"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry32, Label: "HKEY_LOCAL_MACHINE (32 bits)"),
+            (Hive: RegistryHive.LocalMachine, View: RegistryView.Registry64, Label: "HKEY_LOCAL_MACHINE (64 bits)")
+        })
+        foreach (string folder in folders)
+        {
+            string keyPath = @"SOFTWARE\" + folder;
+            try
+            {
+                using var root = RegistryKey.OpenBaseKey(source.Hive, source.View);
+                using var key = root.OpenSubKey(keyPath, writable: false);
+                if (key is null) continue;
+                findings.Add(new(source.Label + @"\" + keyPath,
+                    "Configuracoes especificas — preservar",
+                    Math.Max(1, Math.Min(ScanLimit, key.ValueCount + key.SubKeyCount)),
+                    "Nome exclusivo nao comprova origem ou autorizacao de limpeza. " +
+                    "Somente metadados, sem ler conteudos.",
+                    ResidualDisposition.PreserveData, ResidualSource.Registry));
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or
+                System.Security.SecurityException or IOException or ArgumentException)
+            { budget.MarkIncomplete(ResidualScanIssue.ReadFailure); }
+        }
+
+        // Sem varredura indiscriminada: somente alguns indices Windows
+        // conhecidos que usam caminho de executavel como NOME DO VALOR.
+        // Sao chaves COMPARTILHADAS: referenciar o aplicativo nao significa
+        // que a chave inteira possa ser removida ou alterada.
+        foreach (string relative in new[]
+        {
+            @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Compatibility Assistant\Store",
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\AppSwitched",
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\AppLaunch",
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\ShowJumpView"
+        })
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(relative, writable: false);
+                if (key is null) continue;
+                string[] names = key.GetValueNames();
+                if (names.Length > 2000)
+                {
+                    budget.MarkIncomplete(ResidualScanIssue.EntryLimit);
+                    continue;
+                }
+                int matches = names.Count(name => IsTrackedExecutableReference(name, processName));
+                if (matches == 0) continue;
+                findings.Add(new(@"HKEY_CURRENT_USER\" + relative,
+                    "Referencia historica em area compartilhada do Windows — preservar",
+                    matches,
+                    "O nome de um valor refere-se ao executavel. A chave pertence ao Windows; " +
+                    "nao ler valores nem excluir a chave, outros aplicativos dependem dela.",
+                    ResidualDisposition.PreserveShared,
+                    ResidualSource.Registry | ResidualSource.Integration));
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or
+                System.Security.SecurityException or IOException or ArgumentException)
+            { budget.MarkIncomplete(ResidualScanIssue.ReadFailure); }
+        }
+        return new(product, false, findings, [], Historical: true,
+            Incomplete: budget.Incomplete, Coverage: budget.Coverage);
+    }
+
+    internal static bool IsTrackedExecutableReference(string name, string executable)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 1000 ||
+            name.Contains('\0') || name.StartsWith(@"\\", StringComparison.Ordinal)) return false;
+        int last = Math.Max(name.LastIndexOf('\\'), name.LastIndexOf('/'));
+        string file = name[(last + 1)..];
+        return file.Equals(executable, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static bool IsDriverBoosterProduct(ProgramEntry app) =>
@@ -64,7 +297,7 @@ internal static class ResidualAudit
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static void InspectDriverBoosterFamily(
-        List<ResidualAuditFinding> findings, HashSet<string> examined)
+        List<ResidualAuditFinding> findings, HashSet<string> examined, ResidualScanBudget budget)
     {
         // Apenas caminhos específicos do produto. Pasta genérica IObit pode
         // pertencer a outros aplicativos da empresa e nunca é classificada
@@ -79,7 +312,7 @@ internal static class ResidualAudit
         };
         foreach (string folder in folders.Distinct(StringComparer.OrdinalIgnoreCase))
             InspectFolder(folder, "Dados específicos de Driver Booster; sem confirmação de exclusividade",
-                findings, examined);
+                findings, examined, budget);
 
         foreach (var source in new[]
         {
@@ -96,10 +329,10 @@ internal static class ResidualAudit
                     findings.Add(new(source.Label + @"\SOFTWARE\IObit\Driver Booster",
                         "Registro específico do produto", Math.Max(1, Math.Min(ScanLimit,
                             key.ValueCount + key.SubKeyCount)),
-                        "Pode pertencer a uma instalação ainda ativa; somente leitura, sem autorização de limpeza."));
+                        "Pode pertencer a uma instalação ainda ativa; somente leitura, sem autorização de limpeza.", ResidualDisposition.InstallationCheck, ResidualSource.Registry));
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or
-                System.Security.SecurityException or IOException) { }
+                System.Security.SecurityException or IOException) { budget.MarkIncomplete(); }
         }
     }
 
@@ -144,7 +377,7 @@ internal static class ResidualAudit
 
     internal static bool SafeAuditRoot(string? folder)
     {
-        if (string.IsNullOrWhiteSpace(folder)) return false;
+        if (string.IsNullOrWhiteSpace(folder) || !ResidualReadSafety.IsLocalAbsolute(folder.Trim().Trim('"'))) return false;
         try
         {
             string full = Path.GetFullPath(folder.Trim().Trim('"')).TrimEnd(Path.DirectorySeparatorChar);
@@ -155,10 +388,12 @@ internal static class ResidualAudit
                 Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                Path.Combine(Path.GetDirectoryName(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)) ?? "", "LocalLow")
             ];
             bool under = allowedBases.Any(basePath =>
             {
+                if (!ResidualReadSafety.IsLocalAbsolute(basePath)) return false;
                 string baseFull = Path.GetFullPath(basePath).TrimEnd(Path.DirectorySeparatorChar);
                 string relative = Path.GetRelativePath(baseFull, full);
                 string[] segments = relative.Split(Path.DirectorySeparatorChar);
@@ -180,9 +415,12 @@ internal static class ResidualAudit
     }
 
     private static void InspectFolder(string? folder, string label,
-        List<ResidualAuditFinding> findings, HashSet<string> examined)
+        List<ResidualAuditFinding> findings, HashSet<string> examined, ResidualScanBudget budget,
+        ResidualDisposition disposition = ResidualDisposition.Review)
     {
-        if (!SafeAuditRoot(folder)) return;
+        if (string.IsNullOrWhiteSpace(folder)) return;
+        if (!budget.CanContinue() || !ResidualReadSafety.CanInspectDirectory(folder.Trim().Trim('"'), budget)) return;
+        if (!SafeAuditRoot(folder)) { budget.MarkIncomplete(ResidualScanIssue.SourceUnavailable); return; }
         string full = Path.GetFullPath(folder!.Trim().Trim('"'));
         if (!examined.Add(full)) return;
         try
@@ -191,14 +429,18 @@ internal static class ResidualAudit
             foreach (string entry in Directory.EnumerateFileSystemEntries(full,
                 "*", SearchOption.TopDirectoryOnly))
             {
-                if (++files > ScanLimit) return; // suspiciously huge: report nothing
+                if (!budget.Visit() || ++files > ScanLimit)
+                { budget.MarkIncomplete(ResidualScanIssue.EntryLimit); break; }
                 if ((File.GetAttributes(entry) & FileAttributes.ReparsePoint) != 0)
-                    return;
+                { budget.MarkIncomplete(ResidualScanIssue.LinkSkipped); break; }
             }
             if (files > 0)
                 findings.Add(new(full, "Pasta", files,
-                    label + "; somente leitura, não é prova de exclusividade"));
+                    label + "; somente leitura, não é prova de exclusividade", disposition,
+                    new[] { Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) }
+                        .Any(root => ResidualInspectionSession.UnderRoot(full, root)) ? ResidualSource.Installation : ResidualSource.UserData));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        { budget.MarkIncomplete(); }
     }
 }

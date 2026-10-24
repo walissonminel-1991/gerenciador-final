@@ -1,0 +1,6 @@
+# Revisao humana do codigo e das rotinas de distribuicao.
+# Exige protecao de branch com "Require review from Code Owners" no GitHub;
+# este arquivo sozinho NAO impede merge sem aprovacao.
+* @walissonminel-1991
+.github/workflows/ @walissonminel-1991
+scripts/ @walissonminel-1991

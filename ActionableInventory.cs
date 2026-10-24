@@ -17,11 +17,17 @@ internal static class ActionableInventory
 
         // Um caminho absoluto que não existe NÃO representa uma ação utilizável.
         // Examinar ambas as alternativas registradas; não executar os comandos.
-        return MaintenanceAudit.CheckUninstaller(app.UninstallString, false) == "available" ||
-            MaintenanceAudit.CheckUninstaller(app.QuietUninstallString, false) == "available";
+        return new[] { app.UninstallString, app.QuietUninstallString }.Any(command =>
+            MaintenanceAudit.CheckUninstaller(command, false) == "available" &&
+            UninstallCommand.TryParse(command, out var parsed) && UninstallBatch.BoundToProduct(parsed, app));
     }
 
     internal static bool ShouldShow(ProgramEntry app) => app.CanUninstall || app.IsUpdate;
+
+    // Todos inclui entradas somente leitura, sem lhes conceder ações.
+    // "Inventário" permanece apenas como alias interno de compatibilidade.
+    internal static bool ShouldShowInMainList(ProgramEntry app, string filter) =>
+        filter is "Todos" or "Inventário" || ShouldShow(app);
 
     internal static int VisibleCount(IEnumerable<ProgramEntry> entries) =>
         entries.Count(ShouldShow);

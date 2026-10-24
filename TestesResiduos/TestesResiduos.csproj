@@ -1,11 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <DefineConstants>$(DefineConstants);GF_PROGRESSIVE</DefineConstants>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="SilentFixture/**/*.cs" />
+    <ProjectReference Include="SilentFixture/SilentFixture.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="CopySyntheticSilentFixture" AfterTargets="Build">
+    <ItemGroup><_SilentFixture Include="$(MSBuildProjectDirectory)/SilentFixture/bin/$(Configuration)/net10.0-windows/*" /></ItemGroup>
+    <Copy SourceFiles="@(_SilentFixture)" DestinationFolder="$(OutDir)SyntheticSilent" />
+  </Target>
+  <ItemGroup>
+    <Compile Include="../IntegratedResidualCleanup.cs" Link="IntegratedResidualCleanup.cs" />
+    <Compile Include="../IntegratedResidualPolicy.cs" Link="IntegratedResidualPolicy.cs" />
+    <Compile Include="../IntegratedResidualBatch.cs" Link="IntegratedResidualBatch.cs" />
+    <Compile Include="../RebootResidualReview.cs" Link="RebootResidualReview.cs" />
+    <Compile Include="../StartupTrayRegistration.cs" Link="StartupTrayRegistration.cs" />
+    <Compile Include="../ResidualRegistryGuard.cs" Link="ResidualRegistryGuard.cs" />
+    <Compile Include="../ResidualElevatedProtocol.cs" Link="ResidualElevatedProtocol.cs" />
+    <Compile Include="../PipePeerVerifier.cs" Link="PipePeerVerifier.cs" />
+    <Compile Include="../RegisteredUninstaller.cs" Link="RegisteredUninstaller.cs" />
+    <Compile Include="../FoobarProfileCleanup.cs" Link="FoobarProfileCleanup.cs" />
+    <Compile Include="../WindowsSystemTools.cs" Link="WindowsSystemTools.cs" />
+    <Compile Include="../UninstallCommand.cs" Link="UninstallCommand.cs" />
+    <Compile Include="../UninstallOperationProgress.cs" Link="UninstallOperationProgress.cs" />
+    <Compile Include="../UninstallBatch.cs" Link="UninstallBatch.cs" />
+    <Compile Include="../SilentUninstallPolicy.cs" Link="SilentUninstallPolicy.cs" />
+    <Compile Include="../SevenZipCompleteCleanup.cs" Link="SevenZipCompleteCleanup.cs" />
+    <Compile Include="../SmallAppResidualCleanup.cs" Link="SmallAppResidualCleanup.cs" />
+    <Compile Include="../RegistryTreeFingerprint.cs" Link="RegistryTreeFingerprint.cs" />
+    <Compile Include="../ResidualPersonalDataBoundary.cs" Link="ResidualPersonalDataBoundary.cs" />
     <Compile Include="../UninstallResiduals.cs" Link="UninstallResiduals.cs" />
     <Compile Include="../AdvancedUninstallCleaner.cs" Link="AdvancedUninstallCleaner.cs" />
     <Compile Include="../UninstallRuleCatalog.cs" Link="UninstallRuleCatalog.cs" />
@@ -14,6 +42,17 @@
     <Compile Include="../StartupWindowSizing.cs" Link="StartupWindowSizing.cs" />
     <Compile Include="../ResidualAudit.cs" Link="ResidualAudit.cs" />
     <Compile Include="../HistoricalResidualAudit.cs" Link="HistoricalResidualAudit.cs" />
+    <Compile Include="../TrustedFileSignature.cs" Link="TrustedFileSignature.cs" />
+    <Compile Include="../InstallerEngineEvidence.cs" Link="InstallerEngineEvidence.cs" />
+    <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
+    <Compile Include="../ResidualPreview.cs" Link="ResidualPreview.cs" />
+    <Compile Include="../ResidualReportMerger.cs" Link="ResidualReportMerger.cs" />
+    <Compile Include="../ResidualInspection.cs" Link="ResidualInspection.cs" />
+    <Compile Include="../LocalPerformanceMetrics.cs" Link="LocalPerformanceMetrics.cs" />
+    <Compile Include="../SelectiveMemoryTrim.cs" Link="SelectiveMemoryTrim.cs" />
+    <Compile Include="../ResidualPathIndex.cs" Link="ResidualPathIndex.cs" />
+    <Compile Include="../ResidualResultIndex.cs" Link="ResidualResultIndex.cs" />
+    <Compile Include="../ResidualScanBudget.cs" Link="ResidualScanBudget.cs" />
     <Compile Include="../BroadResidualDiscovery.cs" Link="BroadResidualDiscovery.cs" />
     <Compile Include="../MaintenanceAudit.cs" Link="MaintenanceAudit.cs" />
     <Compile Include="../ProtectedApplications.cs" Link="ProtectedApplications.cs" />

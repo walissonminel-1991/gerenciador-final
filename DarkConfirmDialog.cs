@@ -51,13 +51,18 @@ internal sealed class DarkConfirmDialog : Form
 
         _message = new Label
         {
-            Text = question, Dock = DockStyle.Fill, AutoSize = false,
+            Text = question, Dock = DockStyle.Top, AutoSize = true,
+            MaximumSize = new Size(440, 0),
             ForeColor = Color.FromArgb(234, 242, 249),
             Font = new Font("Segoe UI", 10F),
-            TextAlign = ContentAlignment.MiddleLeft,
+            TextAlign = ContentAlignment.TopLeft,
             Padding = new Padding(14, 0, 4, 0)
         };
-        panel.Controls.Add(_message, 1, 0);
+        var messageHost = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+        messageHost.Controls.Add(_message);
+        messageHost.SizeChanged += (_, _) => _message.MaximumSize =
+            new Size(Math.Max(100, messageHost.ClientSize.Width - SystemInformation.VerticalScrollBarWidth), 0);
+        panel.Controls.Add(messageHost, 1, 0);
         root.Controls.Add(panel, 0, 0);
 
         var actions = new FlowLayoutPanel

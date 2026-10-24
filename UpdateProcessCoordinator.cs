@@ -68,8 +68,7 @@ internal static class UpdateProcessCoordinator
                 path.Contains(@"__8wekyb3d8bbwe\", StringComparison.OrdinalIgnoreCase) &&
                 path.EndsWith(@"\WindowsTerminal.exe", StringComparison.OrdinalIgnoreCase),
             UpdateProcessTarget.ObsStudio =>
-                path.Contains(@"\obs-studio\", StringComparison.OrdinalIgnoreCase) &&
-                path.EndsWith(@"\bin\64bit\obs64.exe", StringComparison.OrdinalIgnoreCase),
+                path.Equals(Path.Combine(programFiles, "obs-studio", "bin", "64bit", "obs64.exe"), StringComparison.OrdinalIgnoreCase),
             UpdateProcessTarget.MicrosoftEdge =>
                 path.Equals(edgePath, StringComparison.OrdinalIgnoreCase) ||
                 path.Equals(edgeX86Path, StringComparison.OrdinalIgnoreCase),
@@ -83,7 +82,8 @@ internal static class UpdateProcessCoordinator
                 path.Equals(firefoxPath, StringComparison.OrdinalIgnoreCase) ||
                 path.Equals(firefoxX86Path, StringComparison.OrdinalIgnoreCase),
             UpdateProcessTarget.NotepadPlusPlus =>
-                path.Equals(nppPath, StringComparison.OrdinalIgnoreCase),
+                path.Equals(nppPath, StringComparison.OrdinalIgnoreCase) ||
+                path.Equals(Path.Combine(programFilesX86, "Notepad++", "notepad++.exe"), StringComparison.OrdinalIgnoreCase),
             UpdateProcessTarget.SumatraPdf =>
                 path.Equals(sumatraGlobal, StringComparison.OrdinalIgnoreCase) ||
                 path.Equals(sumatraGlobal32, StringComparison.OrdinalIgnoreCase) ||

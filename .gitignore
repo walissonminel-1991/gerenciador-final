@@ -8,6 +8,7 @@ TestResults/
 
 # Builds, installers and caches
 Distribuicao/
+/GerenciadorFinal-*.zip
 Instalador/
 Instalador-Teste/
 .cache/
@@ -30,3 +31,14 @@ artifacts/
 *.tmp
 Desktop.ini
 Thumbs.db
+
+# Saidas de testes e capturas geradas localmente
+LayoutCaptures/
+Distribuicao-*/
+coverage/
+*.trx
+*.coverage
+*.coveragexml
+*.sarif
+__pycache__/
+.pytest_cache/

@@ -2,12 +2,13 @@ using Microsoft.Win32;
 
 namespace GerenciadorAplicativos;
 
-// Opt-in AVANÇADO: elimina dados privados e configurações exclusivas de
-// aplicativos identificados. Não altera HKLM, serviços, histórico do Windows,
+// Revisão AVANÇADA somente leitura. Exclusão de dados e configurações
+// permanece bloqueada, inclusive nas chamadas internas. Não altera HKLM, serviços, histórico do Windows,
 // caches globais, associações compartilhadas ou outros perfis de usuário.
 // Excluir no NTFS não significa sobrescrita física/forense em SSD.
 internal sealed record DeepCleanItem(ProgramEntry App, IReadOnlyList<string> Folders,
     IReadOnlyList<string> RegistryKeys, long FileCount, int InaccessibleOrLinked);
+internal sealed record DeepCleanScan(IReadOnlyList<DeepCleanItem> Items, ResidualCoverage Coverage);
 internal sealed record DeepCleanResult(int Files, int Directories, int RegistryKeys,
     int Skipped, int Failed);
 
@@ -55,30 +56,6 @@ internal static class AdvancedUninstallCleaner
         { return false; }
     }
 
-    private static bool SafeDescendant(string path, string root)
-    {
-        try
-        {
-            string basePath = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
-            string full = Path.GetFullPath(path);
-            if (!full.Equals(basePath, StringComparison.OrdinalIgnoreCase) &&
-                !full.StartsWith(basePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                return false;
-            DirectoryInfo? parent = Directory.Exists(full)
-                ? new DirectoryInfo(full)
-                : new FileInfo(full).Directory;
-            while (parent is not null && parent.FullName.Length >= basePath.Length)
-            {
-                if (parent.Exists && (parent.Attributes & FileAttributes.ReparsePoint) != 0) return false;
-                if (parent.FullName.Equals(basePath, StringComparison.OrdinalIgnoreCase)) return true;
-                parent = parent.Parent;
-            }
-            return false;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
-            or NotSupportedException) { return false; }
-    }
-
     private static bool OwnRegistryPath(string key, IEnumerable<string> allowed)
     {
         if (string.IsNullOrWhiteSpace(key) || !key.StartsWith(@"Software\", StringComparison.OrdinalIgnoreCase))
@@ -86,13 +63,15 @@ internal static class AdvancedUninstallCleaner
         return allowed.Any(x => Compare.Equals(x, key));
     }
 
-    private static bool RegistryExists(string key)
+    private static bool RegistryExists(string key, ResidualScanBudget budget)
     {
+        if (!budget.Visit()) return false;
         try { using var handle = Registry.CurrentUser.OpenSubKey(key, writable: false); return handle is not null; }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException) { return false; }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        { budget.MarkIncomplete(); return false; }
     }
 
-    private static (long files, int skipped, bool complete) CountTree(string folder)
+    private static (long files, int skipped, bool complete) CountTree(string folder, ResidualScanBudget budget)
     {
         long files = 0;
         int skipped = 0, visited = 0;
@@ -103,16 +82,18 @@ internal static class AdvancedUninstallCleaner
             while (pending.Count > 0)
             {
                 var (dir, depth) = pending.Pop();
-                if (depth > MaxDepth) return (files, skipped, false);
+                if (!budget.CanContinue()) return (files, skipped, false);
+                if (depth > MaxDepth) { budget.MarkIncomplete(ResidualScanIssue.DepthLimit); return (files, skipped, false); }
                 var info = new DirectoryInfo(dir);
                 if (!info.Exists || (info.Attributes & FileAttributes.ReparsePoint) != 0)
                     return (files, skipped, false);
+                using var lease = OperatingSystem.IsWindows() ? InstallerFileGuard.PinDirectory(dir, allowLeafWrites: true) : null;
                 foreach (FileSystemInfo child in info.EnumerateFileSystemInfos())
                 {
-                    if (++visited > MaxEntries) return (files, skipped, false);
+                    if (!budget.Visit() || ++visited > MaxEntries) { budget.MarkIncomplete(ResidualScanIssue.EntryLimit); return (files, skipped, false); }
                     if ((child.Attributes & FileAttributes.ReparsePoint) != 0)
                     {
-                        skipped++;
+                        skipped++; budget.MarkIncomplete(ResidualScanIssue.LinkSkipped);
                         continue;
                     }
                     if ((child.Attributes & FileAttributes.Directory) != 0)
@@ -122,15 +103,20 @@ internal static class AdvancedUninstallCleaner
             }
             return (files, skipped, true);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        { return (files, skipped, false); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        { budget.MarkIncomplete(); return (files, skipped, false); }
     }
 
-    internal static IReadOnlyList<DeepCleanItem> Inspect(IReadOnlyCollection<ProgramEntry> installed)
+    internal static IReadOnlyList<DeepCleanItem> Inspect(IReadOnlyCollection<ProgramEntry> installed) => InspectWithCoverage(installed).Items;
+    internal static DeepCleanScan InspectWithCoverage(IReadOnlyCollection<ProgramEntry> installed, CancellationToken token = default)
     {
+        var budget = new ResidualScanBudget(token, TimeSpan.FromSeconds(10), MaxEntries);
+        budget.Source("DeepCatalog");
+        if (UninstallRuleCatalog.Count == 0) budget.Unavailable("DeepCatalog");
         var found = new List<DeepCleanItem>();
         foreach (var policy in KnownPolicies())
         {
+            if (!budget.CanContinue()) break;
             if (StillInstalled(policy.App, installed)) continue;
             var folders = new List<string>();
             var keys = new List<string>();
@@ -138,131 +124,45 @@ internal static class AdvancedUninstallCleaner
             int skipped = 0;
             foreach (string root in policy.Folders.Distinct(Compare))
             {
-                if (!Directory.Exists(root) || !AllowedPath(root, policy.Folders)) continue;
-                var inventory = CountTree(root);
+                if (!budget.CanContinue()) break;
+                if (!ResidualReadSafety.CanInspectDirectory(root, budget)) continue;
+                if (!AllowedPath(root, policy.Folders)) { budget.MarkIncomplete(ResidualScanIssue.SourceUnavailable); continue; }
+                var inventory = CountTree(root, budget);
                 if (!inventory.complete)
                 {
-                    skipped++;
-                    continue; // diretório com acesso incerto não é sequer oferecido
+                    skipped++; budget.MarkIncomplete();
+                    folders.Add(root); // revisão somente leitura; incerteza precisa ficar visível
+                    continue;
                 }
                 fileCount += inventory.files;
                 skipped += inventory.skipped;
                 folders.Add(root);
             }
             foreach (string key in policy.RegistryKeys)
-                if (OwnRegistryPath(key, policy.RegistryKeys) && RegistryExists(key)) keys.Add(key);
+                if (OwnRegistryPath(key, policy.RegistryKeys) && RegistryExists(key, budget)) keys.Add(key);
             if (folders.Count > 0 || keys.Count > 0)
                 found.Add(new DeepCleanItem(policy.App, folders, keys, fileCount, skipped));
         }
-        return found;
+        return new(found, budget.Coverage with { CandidatesFound = found.Count, CandidatesNotEvaluated = budget.Incomplete ? null : 0 });
     }
 
-    // Nunca seguir junctions/reparse ou ultrapassar a raiz. Escopo é o diretório
-    // exclusivo aprovado; as versões de teste usam apenas uma raiz em TEMP.
-    internal static DeepCleanResult DeleteApprovedTree(string root, IReadOnlyCollection<string> allowedRoots)
-    {
-        if (!AllowedPath(root, allowedRoots) || !Directory.Exists(root))
-            return new(0, 0, 0, 1, 0);
-        var inventory = CountTree(root);
-        if (!inventory.complete)
-            return new(0, 0, 0, 1 + inventory.skipped, 0);
-        var directories = new List<string>();
-        var files = new List<string>();
-        var pending = new Stack<string>();
-        pending.Push(root);
-        try
-        {
-            while (pending.Count > 0)
-            {
-                string dir = pending.Pop();
-                if (!AllowedPath(root, allowedRoots) || !SafeDescendant(dir, root))
-                    return new(0, 0, 0, 1, 0);
-                foreach (FileSystemInfo item in new DirectoryInfo(dir).EnumerateFileSystemInfos())
-                {
-                    if ((item.Attributes & FileAttributes.ReparsePoint) != 0) continue;
-                    if ((item.Attributes & FileAttributes.Directory) != 0)
-                    {
-                        pending.Push(item.FullName);
-                        directories.Add(item.FullName);
-                    }
-                    else files.Add(item.FullName);
-                }
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        { return new(0, 0, 0, 1, 0); }
-        int deleted = 0, removedDirs = 0, failed = 0;
-        foreach (string file in files)
-        {
-            try
-            {
-                if (!AllowedPath(root, allowedRoots) || !SafeDescendant(file, root))
-                { failed++; continue; }
-                var fi = new FileInfo(file);
-                if ((fi.Attributes & FileAttributes.ReparsePoint) != 0) { failed++; continue; }
-                fi.Delete(); deleted++;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { failed++; }
-        }
-        foreach (string dir in directories.OrderByDescending(x => x.Length).Append(root))
-        {
-            try
-            {
-                if (!AllowedPath(root, allowedRoots) || !SafeDescendant(dir, root))
-                { failed++; continue; }
-                var di = new DirectoryInfo(dir);
-                if (di.Exists && (di.Attributes & FileAttributes.ReparsePoint) == 0 &&
-                    !di.EnumerateFileSystemInfos().Any())
-                { di.Delete(); removedDirs++; }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { failed++; }
-        }
-        return new(deleted, removedDirs, 0, inventory.skipped, failed);
-    }
+    // Exclusão suspensa nesta candidata, também para chamadas diretas.
+    // Antes de reativar: snapshot por identidade/conteúdo, handles estáveis,
+    // exclusividade comprovada e bateria supervisionada em Windows.
+    internal static DeepCleanResult DeleteApprovedTree(string root, IReadOnlyCollection<string> allowedRoots) =>
+        new(0, 0, 0, 1, 0);
 
-    // Somente HKCU e caminho EXATO previamente autorizado. Não remove a raiz
-    // Software nem resultados de buscas por substring no Regedit.
-    internal static bool DeleteApprovedRegistryKey(string key, IReadOnlyCollection<string> allowlist)
-    {
-        if (!OwnRegistryPath(key, allowlist)) return false;
-        try
+    internal static bool DeleteApprovedRegistryKey(string key, IReadOnlyCollection<string> allowlist) => false;
+
+    // Uma nova pasta/chave surgida depois do dialogo precisa de nova autorizacao.
+    // A lista atual limita a politica; a lista aceita limita o consentimento.
+    internal static DeepCleanItem RestrictToAccepted(DeepCleanItem accepted, DeepCleanItem current) =>
+        current with
         {
-            using var software = Registry.CurrentUser.OpenSubKey("Software", writable: true);
-            if (software is null) return false;
-            string leaf = key[@"Software\".Length..];
-            if (leaf.Length == 0 || leaf.Contains('\\') || leaf.Contains('/')) return false;
-            using (var existing = software.OpenSubKey(leaf))
-                if (existing is null) return false;
-            software.DeleteSubKeyTree(leaf, throwOnMissingSubKey: false);
-            return true;
-        }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException
-            or IOException or ArgumentException) { return false; }
-    }
+            Folders = current.Folders.Where(p => accepted.Folders.Contains(p, Compare)).ToArray(),
+            RegistryKeys = current.RegistryKeys.Where(k => accepted.RegistryKeys.Contains(k, Compare)).ToArray()
+        };
 
     internal static DeepCleanResult Clean(DeepCleanItem accepted,
-        IReadOnlyCollection<ProgramEntry> currentInstalled)
-    {
-        var policy = KnownPolicies().FirstOrDefault(x =>
-            x.App.Name.Equals(accepted.App.Name, StringComparison.OrdinalIgnoreCase));
-        if (policy is null || StillInstalled(policy.App, currentInstalled))
-            return new(0, 0, 0, 1, 0);
-        // Recalcular os alvos da política, nunca confiar cegamente na lista antiga.
-        var current = Inspect(currentInstalled).FirstOrDefault(x =>
-            x.App.Name.Equals(accepted.App.Name, StringComparison.OrdinalIgnoreCase));
-        if (current is null) return new(0, 0, 0, 0, 0);
-        int files = 0, dirs = 0, reg = 0, skipped = current.InaccessibleOrLinked, failed = 0;
-        foreach (string folder in current.Folders)
-        {
-            var result = DeleteApprovedTree(folder, policy.Folders);
-            files += result.Files; dirs += result.Directories;
-            skipped += result.Skipped; failed += result.Failed;
-        }
-        foreach (string key in current.RegistryKeys)
-        {
-            if (DeleteApprovedRegistryKey(key, policy.RegistryKeys)) reg++;
-            else failed++;
-        }
-        return new(files, dirs, reg, skipped, failed);
-    }
+        IReadOnlyCollection<ProgramEntry> currentInstalled) => new(0, 0, 0, 1, 0);
 }

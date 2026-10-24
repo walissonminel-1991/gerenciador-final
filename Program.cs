@@ -32,6 +32,16 @@ internal static class Program
         }
         try
         {
+            LocalPerformanceMetrics.Sink = sample => DiagnosticTrace.Write(sample.Format());
+            LocalPerformanceMetrics.BeginStartup();
+            // Telemetria voluntaria jamais pode impedir a abertura do programa.
+            try { AnonymousTelemetryContext.Current = new AnonymousTelemetry(); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                System.Security.SecurityException or ArgumentException)
+            {
+                AnonymousTelemetryContext.Current = null;
+                DiagnosticTrace.Write("PRIVACIDADE.INIT_FALHA");
+            }
             ApplicationConfiguration.Initialize();
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += (_, e) =>
@@ -41,7 +51,9 @@ internal static class Program
                     "Ocorreu um erro inesperado.\n\n" + e.Exception.Message,
                     "Gerenciador Final", MessageBoxButtons.OK, MessageBoxIcon.Error);
             };
-            Application.Run(new MainForm());
+            bool startInTray = args.Length is 1 or 2 && args.Contains("--tray", StringComparer.Ordinal)
+                && args.All(x => x is "--tray" or "--post-reboot");
+            Application.Run(new MainForm(startInTray: startInTray));
             DiagnosticTrace.Write("APP.ENCERRAMENTO_NORMAL");
             return 0;
         }
@@ -53,6 +65,7 @@ internal static class Program
             catch { }
             return 1;
         }
+        finally { DiagnosticTrace.Stop(); }
     }
 }
 
@@ -78,6 +91,8 @@ internal sealed class ProgramEntry
     public string AvailableVersion { get; set; } = "";
     public string Source { get; set; } = "";
     public bool IsUpdate { get; set; }
+    public bool UpdateRequiresReview { get; set; }
+    public string UpdateEvidence { get; set; } = "";
     public MatchState ComparisonState { get; set; } = MatchState.Unmatched;
 }
 
@@ -85,10 +100,14 @@ internal sealed record RegistryInventoryScan(IReadOnlyList<ProgramEntry> Items,
     int Inspected, int HiddenComponents, int UpdateEntries, int ReadFailures, int Duplicates);
 internal sealed record UnifiedInventoryScan(IReadOnlyList<ProgramEntry> Items,
     RegistryInventoryScan Registry, LocalMsixResult Msix, int Added,
-    GameLibraryReport Games, int GamesAdded);
+    GameLibraryReport Games, int GamesAdded)
+{
+    internal bool Incomplete => Registry.ReadFailures > 0 || Msix.Failures > 0 || Msix.Status != "ok" || Games.Partial;
+}
 internal sealed record CommandResult(int ExitCode, string StandardOutput, string StandardError);
 internal sealed record CleanupResult(int FilesRemoved, int DirectoriesRemoved, int Failed, int ReparseSkipped, int Skipped, IReadOnlyList<string> Examples);
-internal sealed record DiskUsageInfo(string Root, string Label, long TotalBytes, long FreeBytes);
+internal sealed record DiskUsageInfo(string Root, string Label, long TotalBytes, long FreeBytes,
+    string FileSystem = "");
 
 internal static class AppServices
 {
@@ -108,7 +127,11 @@ internal static class AppServices
                 string label;
                 try { label = disk.VolumeLabel?.Trim() ?? ""; }
                 catch { label = ""; }
-                items.Add(new DiskUsageInfo(disk.Name, label, total, Math.Clamp(free, 0L, total)));
+                string fileSystem;
+                try { fileSystem = disk.DriveFormat; }
+                catch { fileSystem = ""; }
+                items.Add(new DiskUsageInfo(disk.Name, label, total,
+                    Math.Clamp(free, 0L, total), fileSystem));
             }
             catch (IOException) { /* Volume momentaneamente indisponível. */ }
             catch (UnauthorizedAccessException) { /* Volume protegido. */ }
@@ -143,7 +166,7 @@ internal static class AppServices
         Encoding commandEncoding = GetCommandEncoding();
         var psi = new ProcessStartInfo
         {
-            FileName = fileName,
+            FileName = WindowsSystemTools.Resolve(fileName),
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -191,13 +214,20 @@ internal static class AppServices
     // Uma leitura parcial nao pode virar evidencia de desinstalacao.
     public static List<ProgramEntry> GetInstalledPrograms()
     {
-        var scan = ScanInstalledPrograms();
+        var scan = ScanInstalledPrograms(includeHidden: true);
         return InventoryReconciler.RequireComplete(scan.Items, scan.ReadFailures);
     }
 
-    internal static UnifiedInventoryScan ScanAllInstalledApps()
+    internal static UnifiedInventoryScan ScanAllInstalledApps() => ScanAllInstalledApps(includeHidden: false);
+
+    // A lista visual pode omitir componentes ocultos. Uma verificacao de
+    // presenca para executar/limpar nunca pode interpretar essa omissao como ausencia.
+    internal static UnifiedInventoryScan ScanAllInstalledAppsForSafety() => ScanAllInstalledApps(includeHidden: true);
+
+    private static UnifiedInventoryScan ScanAllInstalledApps(bool includeHidden)
     {
-        var registry = ScanInstalledPrograms();
+        using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.Inventory);
+        var registry = ScanInstalledPrograms(includeHidden);
         var result = registry.Items.ToList();
         var msix = LocalMsixInventory.ReadCurrentUser();
         var present = registry.Items.Select(x =>
@@ -216,7 +246,7 @@ internal static class AppServices
                 Version = app.Version,
                 Publisher = app.Publisher,
                 InventoryOnly = true,
-                InventorySource = "Aplicativo empacotado (MSIX)",
+                InventorySource = app.Stale ? "MSIX — leitura anterior, presença não confirmada" : "Aplicativo empacotado (MSIX)",
                 InventoryId = "MSIX|" + app.PackageName,
                 VerifiedMsixIdentity = app.RecipeEligible,
                 CatalogIdentity = verified?.Id ?? "",
@@ -241,7 +271,9 @@ internal static class AppServices
 
     // ARP x64/x86 para máquina e usuário atual. Usa nomes reais do Windows,
     // INDEPENDENTE do catálogo de atualizações. Nunca executa uninstallers.
-    internal static RegistryInventoryScan ScanInstalledPrograms()
+    internal static RegistryInventoryScan ScanInstalledPrograms() => ScanInstalledPrograms(includeHidden: false);
+
+    private static RegistryInventoryScan ScanInstalledPrograms(bool includeHidden)
     {
         var entries = new List<ProgramEntry>();
         int inspected = 0, hidden = 0, updates = 0, failures = 0;
@@ -269,17 +301,20 @@ internal static class AppServices
                         using var child = uninstall.OpenSubKey(registryKey, writable: false);
                         if (child is null) { failures++; continue; }
                         string name = Convert.ToString(child.GetValue("DisplayName"))?.Trim() ?? "";
-                        if (string.IsNullOrWhiteSpace(name) || name.Length > 240) continue;
+                        if (string.IsNullOrWhiteSpace(name)) continue;
+                        bool longName = name.Length > 240;
+                        if (longName && !includeHidden) continue;
+                        if (longName) name = name[..240];
                         string release = Convert.ToString(child.GetValue("ReleaseType")) ?? "";
-                        if (release.Equals("Update", StringComparison.OrdinalIgnoreCase) ||
+                        bool updateRecord = release.Equals("Update", StringComparison.OrdinalIgnoreCase) ||
                             release.Equals("Security Update", StringComparison.OrdinalIgnoreCase) ||
                             release.Equals("Hotfix", StringComparison.OrdinalIgnoreCase) ||
-                            release.Equals("Update Rollup", StringComparison.OrdinalIgnoreCase))
-                        { updates++; continue; }
+                            release.Equals("Update Rollup", StringComparison.OrdinalIgnoreCase);
+                        if (updateRecord) { updates++; if (!includeHidden) continue; }
                         bool systemComponent = Convert.ToInt32(child.GetValue("SystemComponent") ?? 0) == 1;
                         if (systemComponent && !ProtectedApplications.IsProtectedName(name))
-                        { hidden++; continue; }
-                        bool protectedApp = ProtectedApplications.IsInventoryOnly(name, systemComponent);
+                        { hidden++; if (!includeHidden) continue; }
+                        bool protectedApp = longName || updateRecord || ProtectedApplications.IsInventoryOnly(name, systemComponent);
                         string publisher = Convert.ToString(child.GetValue("Publisher"))?.Trim() ?? "";
                         UnifiedAppRule? known = ApplicationIdentityCatalog.Resolve(name, publisher);
                         string scope = hive == RegistryHive.CurrentUser ? "Usuário atual" : "Computador";
@@ -297,11 +332,11 @@ internal static class AppServices
                             InventorySource = $"Registro: {scope} ({architecture})",
                             InventoryId = registryIdentity,
                             MsiProductCode = InventoryReconciler.ProductCodeFromRegistryKey(registryKey) ?? "",
-                            UninstallString = protectedApp ? "" :
+                            UninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("UninstallString")) ?? "",
-                            QuietUninstallString = protectedApp ? "" :
+                            QuietUninstallString = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("QuietUninstallString")) ?? "",
-                            InstallLocation = protectedApp ? "" :
+                            InstallLocation = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("InstallLocation"))?.Trim() ?? "",
                             InventoryOnly = protectedApp
                         });
@@ -319,116 +354,17 @@ internal static class AppServices
 
     public static CleanupResult CleanDirectorySafely(string root, Action<string>? log = null)
     {
-        // Escopo limitado à pasta informada. Nunca remove a pasta raiz.
-        // Não percorre junctions/symlinks; preserva arquivos recentes/em uso
-        // e diretórios do antivírus. Nenhuma confirmação por arquivo.
-        int files = 0, directories = 0, failed = 0, special = 0, skipped = 0;
-        var examples = new List<string>();
-        void Failure(string path, Exception ex)
-        {
-            failed++;
-            if (examples.Count < 5) examples.Add(Path.GetFileName(path) + ": " + ex.Message);
-        }
-        string fullRoot;
-        try { fullRoot = Path.GetFullPath(root); }
-        catch (Exception ex) { Failure(root, ex); return new(0, 0, failed, 0, 0, examples); }
-        if (!Directory.Exists(fullRoot))
-            return new(0, 0, 1, 0, 0, new[] { "Pasta temporária não encontrada." });
-
-        var stack = new Stack<(string path, bool after)>();
-        stack.Push((fullRoot, false));
-        while (stack.Count > 0)
-        {
-            var (path, after) = stack.Pop();
-            if (after)
-            {
-                if (!path.Equals(fullRoot, StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        // Preserva pastas que ainda têm arquivos recentes/protegidos.
-                        if (!Directory.EnumerateFileSystemEntries(path).Any())
-                        { Directory.Delete(path, recursive: false); directories++; }
-                    }
-                    catch (DirectoryNotFoundException) { }
-                    catch (UnauthorizedAccessException ex) { Failure(path, ex); }
-                    catch (IOException) { skipped++; }
-                    catch (Exception ex) { Failure(path, ex); }
-                }
-                continue;
-            }
-            if (!Directory.Exists(path)) continue;
-            try
-            {
-                if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
-                { special++; continue; }
-                // Diretórios temporários do antivírus devem ficar intocados.
-                if (!path.Equals(fullRoot, StringComparison.OrdinalIgnoreCase) &&
-                    Path.GetFileName(path).StartsWith("_avg_", StringComparison.OrdinalIgnoreCase))
-                { skipped++; continue; }
-                stack.Push((path, true));
-                foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.TopDirectoryOnly))
-                {
-                    try
-                    {
-                        var attrs = File.GetAttributes(file);
-                        if ((attrs & FileAttributes.ReparsePoint) != 0) { special++; continue; }
-                        if ((attrs & FileAttributes.ReadOnly) != 0 ||
-                            DateTime.Now - File.GetLastWriteTime(file) < TimeSpan.FromHours(24))
-                        { skipped++; continue; }
-                        File.Delete(file);
-                        files++;
-                    }
-                    catch (FileNotFoundException) { }
-                    catch (DirectoryNotFoundException) { }
-                    catch (IOException) { skipped++; } // Em uso, não é erro crítico.
-                    catch (UnauthorizedAccessException) { skipped++; }
-                    catch (Exception ex) { Failure(file, ex); }
-                }
-                foreach (string child in Directory.EnumerateDirectories(path, "*", SearchOption.TopDirectoryOnly))
-                    stack.Push((child, false));
-            }
-            catch (UnauthorizedAccessException) { skipped++; }
-            catch (IOException) { skipped++; }
-            catch (Exception ex) { Failure(path, ex); }
-        }
-        log?.Invoke($"Limpeza: {files} arquivo(s) e {directories} pasta(s) removidos; " +
-                    $"{skipped} itens recentes, protegidos ou em uso preservados; {special} links ignorados; {failed} falhas inesperadas.");
-        foreach (var line in examples) log?.Invoke("Detalhe: " + line);
-        return new(files, directories, failed, special, skipped, examples);
+        var result = SafeTemporaryCleanup.Clean(root, log);
+        return new(result.FilesRemoved, result.DirectoriesRemoved, result.Failed,
+            result.ReparseSkipped, result.Skipped, result.Examples);
     }
 
-    public static bool TryParseUninstaller(string command, out string fileName, out string arguments)
+    public static bool TryParseUninstaller(string? command, out string fileName, out string arguments)
     {
         fileName = ""; arguments = "";
-        string raw = command.Trim();
-        if (raw.Length == 0) return false;
-        if (raw.StartsWith('"'))
-        {
-            int end = raw.IndexOf('"', 1);
-            if (end <= 1) return false;
-            fileName = raw[1..end];
-            arguments = raw[(end + 1)..].Trim();
-        }
-        else
-        {
-            int exeIndex = raw.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
-            if (exeIndex >= 0)
-            {
-                int end = exeIndex + 4;
-                fileName = raw[..end].Trim().Trim('"');
-                arguments = raw[end..].Trim();
-            }
-            else
-            {
-                string[] parts = raw.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-                fileName = parts[0];
-                arguments = parts.Length > 1 ? parts[1] : "";
-            }
-        }
-        if (Path.GetFileName(fileName).Equals("msiexec.exe", StringComparison.OrdinalIgnoreCase))
-            arguments = Regex.Replace(arguments, @"(?i)(^|\s)/I(?=\s*\{)", "$1/X");
-        return fileName.Length > 0;
+        if (!UninstallCommand.TryParse(command, out var parsed)) return false;
+        fileName = parsed.FileName; arguments = parsed.Arguments;
+        return true;
     }
 
 }
@@ -627,9 +563,12 @@ internal sealed partial class MainForm : Form
     private static readonly Color Accent = Color.FromArgb(111, 184, 255);
     private readonly ToolTip _toolTips = new() { AutomaticDelay = 350, AutoPopDelay = 8500, ReshowDelay = 120 };
     private readonly DarkProgramList _programList = new();
+    private readonly UpdateOperationStore _updateOperations = new(DiagnosticTrace.Write);
+    private readonly UninstallOperationStore _uninstallOperations = new();
     private readonly Label _emptyState = new();
     private readonly TextBox _search = new();
     private readonly DarkLogView _log = new();
+    private Button? _privacyStatusButton;
     private readonly Label _status = new();
     private readonly Label _listTitle = new();
     private readonly Label _itemHint = new();
@@ -643,8 +582,13 @@ internal sealed partial class MainForm : Form
     private Button? _refreshDisksButton;
     private bool _refreshingDisks;
     private bool _busy;
+    private Button? _repairWindowsButton;
+    private bool _windowsRepairable;
+    private DateTimeOffset _windowsScannedAt;
     private bool _multiSelectMode;
     private bool _catalogoVerificado; // Resultado local do RuckZuck (sem instalacao)
+    private bool _inventoryIncomplete;
+    private HashSet<string>? _completeInstallBaseline; // A ausência em uma fonte com falha não comprova desinstalação.
     private CancellationTokenSource? _consultaCatalogoCts;
     private CancellationTokenSource? _installerDownloadCts;
     private int _catalogoGeneration; // Descarta resultados de consultas anteriores ao recarregamento local.
@@ -655,7 +599,6 @@ internal sealed partial class MainForm : Form
     private Button? _selectManyButton;
     private Button? _clearSelectionButton;
     private Button? _allFilterButton;
-    private Button? _updatesFilterButton;
     private Button? _selectedFilterButton;
     private string _operationResult = "Pronto";
     private readonly Font _rowTitle = new("Segoe UI", 10F, FontStyle.Bold);
@@ -677,7 +620,7 @@ internal sealed partial class MainForm : Form
         catch (EntryPointNotFoundException) { }
     }
 
-    public MainForm(bool startServices = true)
+    public MainForm(bool startServices = true, bool startInTray = false)
     {
         Text = "Gerenciador Final — " + DiagnosticTrace.VersionLabel + " TESTE";
         Font = new Font("Segoe UI", 9.5F);
@@ -696,6 +639,8 @@ internal sealed partial class MainForm : Form
         StartPosition = FormStartPosition.Manual;
         _diagnoseWindowLifecycle = startServices;
         InitializeWindowChrome();
+        // Evita exibir a janela no arranque automatico antes do primeiro Hide().
+        if (startInTray) Opacity = 0;
         MinimumSize = StartupWindowSizing.AllowedMinimum(opening);
         MaximumSize = StartupWindowSizing.MaximumSizeFor(display);
         Bounds = opening;
@@ -729,6 +674,7 @@ internal sealed partial class MainForm : Form
         AddToolsPages();
         _nav.SelectedIndexChanged += async (_, _) =>
         {
+            ++_systemViewGeneration; // sair e voltar invalida consultas da visita anterior
             if (!startServices) return;
             // Navegação: Aplicativos, DRIVERS, Limpeza, Reparo, Energia, Sistema.
             if (_nav.SelectedIndex == 2)
@@ -799,21 +745,54 @@ internal sealed partial class MainForm : Form
             displayUpdate.Stop();
             displayUpdate.Dispose();
             _log.FlushPending();
+            // Um unico arquivo rotativo, apenas se o usuario aceitou.
+            // Nao ha envio nem espera de rede no encerramento nesta versao.
+            AnonymousTelemetryContext.Current?.SaveOnNormalExit(DiagnosticTrace.VersionLabel);
         };
         FitWorkspace();
         // Abre imediatamente. Primeiro carrega a lista local e depois inicia consultas independentes,
         // em segundo plano, sem janelas auxiliares e sem executar instaladores.
         Shown += async (_, _) =>
         {
-            RestoreWithinMonitor();
-            FitWorkspace();
+            if (startInTray)
+            {
+                MinimizeToTray();
+                Opacity = 1;
+                DiagnosticTrace.Write("INICIALIZACAO.BANDEJA_AUTO estado=oculto");
+            }
+            else
+            {
+                RestoreWithinMonitor();
+                FitWorkspace();
+            }
             if (!startServices) return;
+            LocalPerformanceMetrics.CompleteStartup();
+            Log("Métricas agregadas de tempo, RAM e CPU do GF ficam apenas no diagnóstico local; nenhum envio remoto.");
+            // Nao abrir dialogos na sessao que iniciou oculta na bandeja.
+            if (!startInTray) OfferAnonymousDiagnosticConsent(firstRun: true);
             // Na abertura, a lista ainda esta vazia: nao animar barra de
             // progresso nem alternar Enabled/Visible de dezenas de controles.
             await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync,
                 quietStartup: true);
             if (!IsDisposed)
                 BeginStartupChecks();
+            try
+            {
+                var rebootReports = new List<string>();
+                await RebootResidualReview.CheckAfterBootAsync(async () =>
+                {
+                    var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
+                    return new UninstallSnapshot(scan.Items, !scan.Incomplete);
+                }, DiagnosticTrace.Write, message => { Log(message); Status(message); rebootReports.Add(message); });
+                if (rebootReports.Count > 0) ShowUninstallResult(string.Join("\n\n", rebootReports));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                InvalidDataException or System.Security.Cryptography.CryptographicException or
+                System.Text.Json.JsonException)
+            {
+                DiagnosticTrace.Write("REINICIO.RESIDUOS estado=review_unavailable motivo=" + ex.GetType().Name);
+                Log("Não foi possível concluir a conferência de resíduos após o reinício.");
+            }
         };
         FormClosing += (_, e) =>
         {
@@ -828,6 +807,20 @@ internal sealed partial class MainForm : Form
                 e.Cancel = true;
                 _consultaCatalogoCts.Cancel();
                 Status("Cancelando a consulta. Tente fechar novamente em alguns instantes.");
+                return;
+            }
+            if (_deploymentWaitCts is not null)
+            {
+                e.Cancel = true;
+                _deploymentWaitCts.Cancel();
+                Status("Parando espera do pacote. O Windows pode continuar; a fonte será preservada. Não repetir.");
+                return;
+            }
+            if (_uninstallCts is not null)
+            {
+                e.Cancel = true;
+                _uninstallCts.Cancel();
+                Status("Cancelando espera e demais itens. O desinstalador do fabricante pode continuar; não repetir.");
                 return;
             }
             if (_installerDownloadCts is not null)
@@ -847,9 +840,10 @@ internal sealed partial class MainForm : Form
 
     private Control BuildHeader()
     {
-        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Margin = Padding.Empty };
+        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Margin = Padding.Empty };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 5));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 186));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         panel.Controls.Add(new Panel
@@ -867,8 +861,18 @@ internal sealed partial class MainForm : Form
         {
             Text = "Programas, atualizações e manutenção do Windows em um só lugar.",
             Dock = DockStyle.Fill, Margin = new Padding(13, 0, 0, 0),
-            ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft
+            ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft,
+            AutoEllipsis = true
         }, 1, 1);
+        _privacyStatusButton = CreateSecondaryButton("Configurar privacidade");
+        _privacyStatusButton.Name = "PrivacyStatusButton";
+        _privacyStatusButton.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+        _privacyStatusButton.Dock = DockStyle.Fill;
+        _privacyStatusButton.Margin = new Padding(5, 9, 1, 9);
+        _privacyStatusButton.Click += (_, _) => OfferAnonymousDiagnosticConsent();
+        panel.Controls.Add(_privacyStatusButton, 2, 0);
+        panel.SetRowSpan(_privacyStatusButton, 2);
+        RefreshPrivacyStatus();
         return panel;
     }
 
@@ -919,10 +923,10 @@ internal sealed partial class MainForm : Form
 
         var actions = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
             BackColor = AppServices.Background, Margin = new Padding(0, 2, 0, 2)
         };
-        foreach (int width in new[] { 142, 206, 161, 196, 132 })
+        foreach (int width in new[] { 222, 161, 196, 132 })
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, width));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Button MakeAction(string title, Color color, int column, Action onClick)
@@ -937,38 +941,32 @@ internal sealed partial class MainForm : Form
             _actionControls.Add(b);
             return b;
         }
-        var refresh = MakeAction("Atualizar lista", AppServices.Blue, 0,
-            () => _ = ExecuteAsync("Atualizando lista local...", RefreshCatalogAsync));
-        _toolTips.SetToolTip(refresh,
-            "Atualiza apenas o inventário local de programas. Não consulta a internet.");
-
-        // Verificar atualizações é distinto de recarregar a lista local.
-        // Permanece clicável durante a consulta para permitir cancelamento.
-        _checkUpdatesButton = MakeAction("Verificar atualizações", AppServices.Blue, 1,
+        // Atualiza a fotografia do inventario antes de consultar HTTPS.
+        _checkUpdatesButton = MakeAction("Atualizar e verificar", AppServices.Blue, 0,
             () => _ = CheckUpdatesFromButtonAsync());
         _actionControls.Remove(_checkUpdatesButton);
         _toolTips.SetToolTip(_checkUpdatesButton,
-            "Consulta HTTPS a fontes oficiais e RuckZuck. Não instala nem atualiza nada; " +
-            "as fontes recebem dados normais de conexão. Os resultados são candidatos, não garantias.");
-        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 2, ToggleMultiSelection);
-        _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 3,
+            "Renova o inventário e consulta versões por HTTPS. Não instala nada; " +
+            "durante a consulta online, clique novamente para cancelar.");
+        _selectManyButton = MakeAction("Selecionar vários", AppServices.Gray, 1, ToggleMultiSelection);
+        _bulkUninstallButton = MakeAction("Desinstalar selecionados", AppServices.Red, 2,
             () => _ = ExecuteAsync("Desinstalando selecionados...", UninstallCheckedAsync));
-        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 4, ClearMultiSelection);
+        _clearSelectionButton = MakeAction("Limpar seleção", AppServices.Gray, 3, ClearMultiSelection);
         _toolTips.SetToolTip(_bulkUninstallButton, "Solicita confirmação e desinstala os programas marcados, um por vez.");
         root.Controls.Add(actions, 0, 1);
-        // Distribuir os cinco comandos em duas linhas somente quando
+        // Distribuir os quatro comandos em duas linhas somente quando
         // necessário; a busca permanece numa faixa separada, sem botões
         // deslocados para o canto direito.
         bool? lastCompactActions = null;
         void FitActionRows()
         {
             double scale = Math.Max(1.0, root.DeviceDpi / 96d);
-            bool compact = root.ClientSize.Width < (int)Math.Ceiling(870 * scale);
+            bool compact = root.ClientSize.Width < (int)Math.Ceiling(745 * scale);
             if (lastCompactActions == compact) return;
             lastCompactActions = compact;
             var buttons = new Button[]
             {
-                refresh, _checkUpdatesButton, _selectManyButton,
+                _checkUpdatesButton, _selectManyButton,
                 _bulkUninstallButton, _clearSelectionButton
             };
             root.SuspendLayout();
@@ -982,22 +980,17 @@ internal sealed partial class MainForm : Form
                     actions.RowCount = 2;
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-                    for (int i = 0; i < 6; i++)
+                    for (int i = 0; i < 5; i++)
                     {
                         actions.ColumnStyles[i].SizeType = SizeType.Percent;
-                        actions.ColumnStyles[i].Width = 100F / 6F;
+                        actions.ColumnStyles[i].Width = i == 4 ? 0 : 25;
                     }
-                    // Primeira linha: atualizar, verificar e selecionar.
-                    // Segunda linha: desinstalar selecionados e limpar seleção.
-                    for (int i = 0; i < buttons.Length; i++)
-                        actions.SetColumnSpan(buttons[i], 1);
                     for (int i = 0; i < buttons.Length; i++)
                     {
-                        int span = i < 3 ? 2 : 3;
+                        actions.SetColumnSpan(buttons[i], 1);
                         actions.SetCellPosition(buttons[i],
-                            new TableLayoutPanelCellPosition(
-                                i < 3 ? i * 2 : (i - 3) * 3, i < 3 ? 0 : 1));
-                        actions.SetColumnSpan(buttons[i], span);
+                            new TableLayoutPanelCellPosition((i % 2) * 2, i / 2));
+                        actions.SetColumnSpan(buttons[i], 2);
                     }
                 }
                 else
@@ -1005,14 +998,14 @@ internal sealed partial class MainForm : Form
                     root.RowStyles[1].Height = (int)Math.Ceiling(44 * scale);
                     actions.RowCount = 1;
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                    int[] widths = { 142, 206, 161, 196, 132 };
-                    for (int i = 0; i < 5; i++)
+                    int[] widths = { 222, 161, 196, 132 };
+                    for (int i = 0; i < 4; i++)
                     {
                         actions.ColumnStyles[i].SizeType = SizeType.Absolute;
                         actions.ColumnStyles[i].Width = (int)Math.Ceiling(widths[i] * scale);
                     }
-                    actions.ColumnStyles[5].SizeType = SizeType.Percent;
-                    actions.ColumnStyles[5].Width = 100;
+                    actions.ColumnStyles[4].SizeType = SizeType.Percent;
+                    actions.ColumnStyles[4].Width = 100;
                     for (int i = 0; i < buttons.Length; i++)
                     {
                         actions.SetColumnSpan(buttons[i], 1);
@@ -1028,12 +1021,11 @@ internal sealed partial class MainForm : Form
 
         var heading = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 4, Margin = Padding.Empty
+            Dock = DockStyle.Fill, ColumnCount = 3, Margin = Padding.Empty
         };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 124));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 106));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 76));
+        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
         _listTitle.Dock = DockStyle.Fill;
         _listTitle.AutoEllipsis = false;
         _listTitle.SizeChanged += (_, _) => RenderTitle();
@@ -1042,16 +1034,20 @@ internal sealed partial class MainForm : Form
         _listTitle.TextAlign = ContentAlignment.MiddleLeft;
         heading.Controls.Add(_listTitle, 0, 0);
         _allFilterButton = AddFilter(heading, "Todos", 1);
-        _updatesFilterButton = AddFilter(heading, "Com atualização", 2, "Possíveis");
-        _selectedFilterButton = AddFilter(heading, "Marcados", 3);
-        _toolTips.SetToolTip(_updatesFilterButton, "Mostra possíveis atualizações indicadas por catálogos externos. " +
-            "A Microsoft Store pode não oferecer a mesma versão neste momento.");
+        _selectedFilterButton = AddFilter(heading, "Marcados", 2);
+        _toolTips.SetToolTip(_allFilterButton,
+            "Mostra todos os aplicativos identificados; candidatos de atualização ficam no topo. " +
+            "Entradas sem ação autorizada permanecem somente leitura.");
+        _toolTips.SetToolTip(_selectedFilterButton,
+            "Mostra apenas aplicativos marcados para operações autorizadas.");
         root.Controls.Add(heading, 0, 2);
 
         _programList.Dock = DockStyle.Fill;
         _programList.ItemHeight = 67;
         _programList.BackColor = PanelBackground;
         _programList.ForeColor = Ink;
+        _programList.OperationFor = _updateOperations.Find;
+        _programList.UninstallOperationFor = _uninstallOperations.Find;
         _programList.DrawItem += DrawProgramCard;
         _toolTips.SetToolTip(_programList,
             "Atualizar usa um instalador oficial verificado quando há integração validada. " +
@@ -1109,6 +1105,12 @@ internal sealed partial class MainForm : Form
             Status("Cancelando download...");
             return;
         }
+        if (_deploymentWaitCts is not null)
+        {
+            _deploymentWaitCts.Cancel();
+            Status("Cancelando a espera. O instalador pode continuar; não repetir a atualização.");
+            return;
+        }
         if (_consultaCatalogoCts is not null)
         {
             _consultaCatalogoCts.Cancel();
@@ -1116,12 +1118,34 @@ internal sealed partial class MainForm : Form
             return;
         }
         if (_busy) return;
-        await LoadUpdatesAsync(forceRefresh: true);
-        if (_catalogoVerificado && !IsDisposed)
+        bool loaded = false;
+        if (_checkUpdatesButton is { IsDisposed: false } initial)
         {
-            _appFilter = "Com atualização";
-            RenderPrograms();
+            initial.Text = "Atualizando lista...";
+            initial.Enabled = false; // Win32/MSIX pode entrar em chamada COM nao cancelavel.
         }
+        try
+        {
+            await ExecuteAsync("Atualizando inventário local...", async () =>
+            {
+                await RefreshCatalogAsync();
+                loaded = true;
+            });
+        }
+        finally
+        {
+            if (_checkUpdatesButton is { IsDisposed: false } done)
+            {
+                done.Text = "Atualizar e verificar";
+                done.Enabled = true;
+            }
+        }
+        if (!loaded || IsDisposed) return;
+        _appFilter = "Todos";
+        await LoadUpdatesAsync(forceRefresh: true);
+        // Não selecionar automaticamente somente os candidatos: preservar
+        // a lista inteira, com possíveis atualizações no topo.
+        if (!IsDisposed) RenderPrograms();
     }
 
     private Button AddFilter(TableLayoutPanel heading, string title, int column, string? visibleTitle = null)
@@ -1135,8 +1159,6 @@ internal sealed partial class MainForm : Form
             if (_busy) return;
             _appFilter = title == "Marcados" ? "Selecionados" : title;
             RenderPrograms();
-            if (title == "Com atualização" && !_catalogoVerificado)
-                Status("Clique em Verificar atualizações para consultar o catálogo online.");
         };
         heading.Controls.Add(button, column, 0);
         return button;
@@ -1163,7 +1185,7 @@ internal sealed partial class MainForm : Form
         }
         bool multiselect = _multiSelectMode;
         int prefix = multiselect ? 38 : 0;
-        if (multiselect)
+        if (multiselect && item.CanUninstall)
         {
             Rectangle box = AppRowGeometry.Checkbox(e.Bounds);
             bool marked = _checkedApps.Contains(item);
@@ -1182,31 +1204,43 @@ internal sealed partial class MainForm : Form
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 
         int left = e.Bounds.Left + 58 + prefix;
-        int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 320);
+        var operation = _updateOperations.Find(item);
+        var uninstall = _uninstallOperations.Find(item);
+        bool hasOperation = operation is not null || uninstall is not null;
+        Rectangle operationArea = AppRowGeometry.OperationArea(e.Bounds, prefix);
+        int width = Math.Max(18, e.Bounds.Width - left + e.Bounds.Left - 328);
+        if (hasOperation && e.Bounds.Width >= 940) width = Math.Max(18, operationArea.Left - left - 12);
         TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
             new Rectangle(left, e.Bounds.Top + 5, width, 29), selected ? Accent : Ink,
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
         bool checkStore = item.IsUpdate && VerifiedUpdaters.GetPrimaryAction(item) == "store";
-        string details = item.IsUpdate && checkStore
+        string details = item.UpdateRequiresReview
+            ? "Revisar fontes e compatibilidade · detalhes ao apontar o mouse"
+            : item.IsUpdate && checkStore
             ? $"Versão em catálogo ({item.Source}); confira na Store · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
             : item.IsUpdate
             ? $"Possível atualização ({item.Source})  ·  {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
             : item.ComparisonState == MatchState.SupersededRegistration
-            ? $"Cadastro antigo do Visual C++ · versão {DisplayAppVersion(item.AvailableVersion)} também instalada"
+            ? $"Registro anterior · versão {DisplayAppVersion(item.AvailableVersion)} também instalada; conferir duplicidade"
             : item.ComparisonState == MatchState.DifferentMajor
             ? $"Revisar: versões principais diferentes · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} (coexistem)"
             : Matching.IsUncertain(item.ComparisonState)
             ? $"Resultado incerto (RuckZuck)  ·  Versão: {DisplayAppVersion(item.Version)}"
             : item.InventoryOnly && item.InventorySource.StartsWith("Biblioteca de jogos:", StringComparison.Ordinal)
             ? $"Jogo da {item.InventorySource["Biblioteca de jogos:".Length..].Trim()} (somente leitura)"
+            : item.InventoryOnly && item.InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase)
+            ? $"Versão: {DisplayAppVersion(item.Version)} · Microsoft Store/MSIX · somente leitura"
             : item.InventoryOnly
             ? $"Versão: {DisplayAppVersion(item.Version)} · Componente Windows/Store (somente leitura)"
             : $"Versão: {DisplayAppVersion(item.Version)}  ·  {(string.IsNullOrWhiteSpace(item.Publisher) ? "Fornecedor não informado" : item.Publisher)}";
+        if (!hasOperation || e.Bounds.Width >= 940)
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
-            new Rectangle(left, e.Bounds.Top + 34, Math.Max(20, e.Bounds.Width - left + e.Bounds.Left - 320), 28),
+            new Rectangle(left, e.Bounds.Top + 34, width, 28),
             item.IsUpdate ? Color.FromArgb(133, 221, 176) : Muted,
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
 
+        if (uninstall is not null) DrawUninstallOperation(e.Graphics, operationArea, uninstall);
+        else if (operation is not null) DrawUpdateOperation(e.Graphics, operationArea, operation);
         if (!multiselect)
         {
             if (item.IsUpdate)
@@ -1222,7 +1256,10 @@ internal sealed partial class MainForm : Form
                         "store" => "Ver na Store",
                         _ => "Como fazer"
                     };
-                    Color color = primaryAction is "update" or "terminal" ? AppServices.Green : AppServices.Gray;
+                    if (operation?.PreventRetry == true) label = operation.Active ? "Em andamento" :
+                        operation.Progress.Stage == UpdateStage.Confirmed ? "Concluído" : "Pendente";
+                    Color color = operation?.PreventRetry == true ? AppServices.Gray :
+                        primaryAction is "update" or "terminal" ? AppServices.Green : AppServices.Gray;
                     DrawRowButton(e.Graphics, AppRowGeometry.UpdateButton(e.Bounds), label, color,
                         _programList.ActionVisual(item, primaryAction));
                 }
@@ -1231,9 +1268,70 @@ internal sealed partial class MainForm : Form
                         _programList.ActionVisual(item, "site"));
             }
             if (item.CanUninstall)
-                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds), "Desinstalar", AppServices.Red,
+                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
+                    uninstall?.PreventRetry == true ? uninstall.Active ? "Em andamento" : "Pendente" : "Desinstalar",
+                    uninstall?.PreventRetry == true ? AppServices.Gray : AppServices.Red,
                     _programList.ActionVisual(item, "uninstall"));
+            else if (!item.IsUpdate)
+                TextRenderer.DrawText(e.Graphics, "Somente leitura", _rowInfo,
+                    AppRowGeometry.UninstallButton(e.Bounds), Muted,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.NoPrefix);
         }
+    }
+
+    private void DrawUpdateOperation(Graphics graphics, Rectangle area, UpdateOperationSnapshot state)
+    {
+        Color color = state.Progress.Stage switch
+        {
+            UpdateStage.Confirmed => Color.FromArgb(120, 222, 165),
+            UpdateStage.Failed => Color.FromArgb(255, 133, 143),
+            UpdateStage.Pending or UpdateStage.Blocked or UpdateStage.AuthorizationDeclined => Color.FromArgb(245, 204, 103),
+            UpdateStage.Cancelled => Muted,
+            _ => Color.FromArgb(114, 196, 255)
+        };
+        string label = state.Text;
+        // Preservar o número e o resultado essencial mesmo no DPI mais alto.
+        if (TextRenderer.MeasureText(graphics, label, _rowInfo).Width > area.Width)
+            label = state.Progress.Stage switch
+            {
+                UpdateStage.Downloading => state.Progress.Percent is int p ? $"Baixando — {p}%" : "Baixando...",
+                UpdateStage.Confirmed => state.RestartRequired ? "✓ 100% · Reinicie" : "✓ 100% · Concluída",
+                UpdateStage.Failed => "Falha · veja detalhes",
+                UpdateStage.Pending => "Resultado pendente",
+                UpdateStage.Blocked => "Atualização bloqueada",
+                UpdateStage.AuthorizationDeclined => "UAC recusado",
+                UpdateStage.Cancelled => "Cancelada",
+                UpdateStage.VerifyingIntegrity => "Conferindo integridade...",
+                UpdateStage.ValidatingIdentity => "Conferindo pacote...",
+                UpdateStage.ValidatingSignature => "Conferindo assinatura...",
+                UpdateStage.Confirming => "Conferindo versão...",
+                _ => state.Progress.Stage == UpdateStage.Installing ? "Instalando..." : "Preparando..."
+            };
+        TextRenderer.DrawText(graphics, label, _rowInfo,
+            new Rectangle(area.X, area.Y - 2, area.Width, area.Height - 4), color,
+            TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        var track = new Rectangle(area.X + 1, area.Bottom - 5, area.Width - 2, 4);
+        if (track.Width < 4) return;
+        using var background = new SolidBrush(Color.FromArgb(20, 30, 42));
+        using var fill = new SolidBrush(color);
+        using var rounded = ModernButton.RoundRect(track, 2);
+        graphics.FillPath(background, rounded);
+        var oldClip = graphics.Save();
+        try
+        {
+            graphics.SetClip(rounded, CombineMode.Intersect);
+            if (state.Progress.Percent is int percent)
+                graphics.FillRectangle(fill, track.X, track.Y, track.Width * percent / 100, track.Height);
+            else if (state.Active)
+            {
+                int segment = Math.Max(12, track.Width / 4);
+                int offset = (_programList.OperationFrame * (track.Width + segment) / 18) - segment;
+                graphics.FillRectangle(fill, track.X + offset, track.Y, segment, track.Height);
+            }
+            else graphics.FillRectangle(fill, track);
+        }
+        finally { graphics.Restore(oldClip); }
     }
 
     private static string DisplayAppVersion(string version)
@@ -1302,7 +1400,7 @@ internal sealed partial class MainForm : Form
                 "Apaga permanentemente os itens da Lixeira. Não é possível desfazer.",
                 AppServices.Red,
                 () => ExecuteAsync("Esvaziando Lixeira...", EmptyRecycleBinAsync)),
-            Tool("Limpeza de Disco automática",
+            Tool("Limpeza avançada",
                 "Executa a limpeza nativa do Windows, sem abrir outra janela.",
                 AppServices.Blue,
                 () => ConfirmThenRun("cleanmgr-auto", "Executar a Limpeza de Disco automaticamente? O Windows pode solicitar autorização.")),
@@ -1310,14 +1408,7 @@ internal sealed partial class MainForm : Form
                 "Remove cache gráfico antigo. Jogos podem precisar recompilar shaders.",
                 AppServices.Gray,
                 () => ConfirmThenRun("clean-directx-cache", "Remover arquivos antigos do cache D3DSCache? Jogos poderão recompilar os shaders e ficar temporariamente mais lentos na primeira execução.")),
-            Tool("Resíduos de aplicativos",
-                "Investiga vestígios antigos em pastas, atalhos e Registro, sem apagar dados incertos.",
-                AppServices.Gray,
-                () => ExecuteAsync("Verificando resíduos de aplicativos...", ReviewOldUninstallResiduesAsync)),
-            Tool("Limpeza avançada",
-                "Revisa dados e chaves do Registro de apps removidos. Exige confirmação.",
-                AppServices.Orange,
-                () => ExecuteAsync("Verificando resíduos para limpeza avançada...", ReviewDeepUninstallResiduesAsync))
+
         }, compact: true);
         var cleaningLayout = new TableLayoutPanel
         {
@@ -1341,31 +1432,35 @@ internal sealed partial class MainForm : Form
         // continuam no diagnóstico do computador, sem alterações automáticas.
         var repairActions = CreateToolsFlow(new[]
         {
-            Tool("Verificar e reparar Windows",
-                "Repara a imagem do Windows e depois verifica e repara os arquivos protegidos. Pode demorar e precisar da Internet.",
-                AppServices.Green,
-                () => ConfirmThenRun("windows-repair",
-                    "O Gerenciador executará DISM /RestoreHealth e, se ele concluir sem erro, SFC /scannow.\n\n" +
-                    "Isso pode demorar bastante, utilizar a Internet e modificar arquivos de sistema. " +
-                    "Salve seu trabalho antes de continuar.\n\nExecutar o reparo?")),
+            Tool("Verificar Windows",
+                "Verifica arquivos importantes do Windows, sem alterar nada. Pode demorar.",
+                AppServices.Blue,
+                () => ExecuteAsync("Verificando integridade do Windows...", VerifyWindowsIntegrityAsync)),
+            Tool("Reparar Windows",
+                "Fica disponível somente quando uma verificação encontra problemas que podem ser corrigidos. Pede confirmação.",
+                AppServices.Green, RepairWindowsAfterVerificationAsync),
             Tool("Analisar rede",
-                "Verifica adaptador, gateway, DNS e acesso HTTPS. Não altera configurações.",
+                "Verifica se a conexão com a internet está funcionando. Não altera configurações.",
                 AppServices.Blue,
                 RunNetworkDiagnosticAsync),
             Tool("Reparar rede",
-                "Após analisar, aplica uma correção direcionada a DNS ou Winsock quando indicada. Pode exigir reinício.",
+                "Fica disponível quando a análise identifica um problema de conexão que pode ser corrigido.",
                 AppServices.Blue,
                 RepairNetworkAfterDiagnosisAsync),
-            Tool("Redefinir rede", "Opção avançada: redefine Winsock e TCP/IP mesmo sem diagnóstico. Pode exigir reinicialização.",
+            Tool("Restaurar configurações da rede", "Opção avançada: restaura as configurações da conexão. A internet pode cair e o Windows pode precisar reiniciar.",
                 AppServices.Orange,
-                () => ConfirmThenRun("network-reset", "Redefinir Winsock e TCP/IP? A conexão pode cair. Talvez seja necessário reiniciar o Windows.")),
+                () => ConfirmThenRun("network-reset", "Restaurar as configurações da conexão? A internet pode cair. Talvez seja necessário reiniciar o Windows.")),
             Tool("Criar ponto de restauração",
-                "Solicita um ponto de recuperação. Exige Proteção do Sistema; não substitui backup.",
+                "Guarda um ponto para ajudar a desfazer alterações no Windows. Não substitui cópia dos arquivos.",
                 AppServices.Green,
                 () => ConfirmThenRun("create-restore-point",
                     "Solicitar um ponto de restauração ao Windows? Requer autorização administrativa e Proteção do Sistema habilitada. " +
-                    "Não substitui backup e o Windows pode reutilizar um ponto recente."))
+                    "Não substitui backup e o Windows pode reutilizar um ponto recente.")),
+            Tool("Escolher ponto de restauração",
+                "Permite escolher um ponto anterior pela ferramenta de recuperação do Windows.",
+                AppServices.Gray, ChooseRestorePointAsync)
         });
+        repairActions.Name = "RepairActions";
         var repairLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
             Margin = Padding.Empty, BackColor = AppServices.Background };
         // Proporções responsivas: em janelas menores os cartões usam a rolagem escura.
@@ -1440,10 +1535,16 @@ internal sealed partial class MainForm : Form
             // Um titulo curto nao precisa ocupar todo o cartao.
             // Largura proporcional ao texto, mantendo espaco clicavel.
             int preferredButtonWidth = TextRenderer.MeasureText(
-                tool.Name, button.Font).Width + 24;
+                tool.Name, button.Font, new Size(int.MaxValue, 33),
+                TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 30;
             button.Dock = DockStyle.None;
             button.Anchor = AnchorStyles.Left | AnchorStyles.Top;
-            button.Size = new Size(Math.Clamp(preferredButtonWidth, 112, 215), 30);
+            // Cartoes de reparo largos podem acomodar o titulo completo:
+            // limitar artificialmente a 215px fazia ModernButton diminuir
+            // a fonte de alguns botoes, apesar do espaco livre.
+            button.Size = new Size(compact
+                ? Math.Clamp(preferredButtonWidth, 112, 215)
+                : Math.Max(112, preferredButtonWidth), 30);
             button.Margin = Padding.Empty;
             button.MinimumSize = new Size(0, 29);
             button.AccessibleName = tool.Name;
@@ -1454,6 +1555,11 @@ internal sealed partial class MainForm : Form
             {
                 _repairNetworkButton = button;
                 button.Enabled = false; // A correção depende de um diagnóstico anterior.
+            }
+            if (tool.Name == "Reparar Windows")
+            {
+                _repairWindowsButton = button;
+                button.Enabled = false;
             }
             button.Click += async (_, _) =>
             {
@@ -1492,22 +1598,15 @@ internal sealed partial class MainForm : Form
                 double scale = Math.Max(1d, host.DeviceDpi / 96d);
                 int viewport = Math.Max(1, host.ClientSize.Width - (int)Math.Ceiling(16 * scale));
                 int usable = Math.Max(1, viewport - flow.Padding.Horizontal);
-                int desired = (int)Math.Ceiling(244 * scale);
+                int desired = (int)Math.Ceiling((compact ? 216 : 244) * scale);
                 int margin = (int)Math.Ceiling(8 * scale);
-                // Cinco cartões de reparo lado a lado deixam as descrições
-                // comprimidas. Usar 3 colunas no reparo e 4 na limpeza,
-                // distribuindo as fileiras de forma equilibrada.
-                int maxColumns = compact ? 4 : 3;
-                int columns = Math.Clamp(usable / Math.Max(1, desired + margin),
-                    1, maxColumns);
-                int cardWidth = Math.Min((int)Math.Ceiling(316 * scale),
-                    Math.Max((int)Math.Ceiling(196 * scale),
-                        usable / columns - margin));
-                int rowWidth = columns * (cardWidth + margin);
-                int side = Math.Max(7, (viewport - rowWidth) / 2);
-                // O espaço lateral fica dividido entre os dois lados, em
-                // vez de formar uma faixa vazia apenas à direita.
-                Padding balanced = new Padding(side, 7, 7, 7);
+                // Seis ferramentas de limpeza e os comandos de reparo usam
+                // ate tres colunas, preenchendo a largura sem espacos de cards removidos.
+                int columns = Math.Clamp(usable / Math.Max(1, desired + margin), 1, 3);
+                if (compact && usable < (int)Math.Ceiling(520 * scale)) columns = 1;
+                int inset = (int)Math.Ceiling(7 * scale);
+                int cardWidth = Math.Max(1, (viewport - 2 * inset - columns * margin) / columns);
+                Padding balanced = new Padding(inset, 7, inset, 7);
                 if (flow.Padding != balanced) flow.Padding = balanced;
                 // A altura depende do texto real e da largura atual.
                 // Um card com duas linhas nao pode reservar a altura de
@@ -1519,13 +1618,29 @@ internal sealed partial class MainForm : Form
                 foreach (var (card, description) in measuredCards)
                 {
                     if (card.Width != cardWidth) card.Width = cardWidth;
+                    // A largura inicial do botao podia ultrapassar o card
+                    // em viewports estreitos (reproducao real na CI 800x600).
+                    var cardButton = card.Controls.OfType<TableLayoutPanel>()
+                        .SelectMany(layout => layout.Controls.OfType<Button>()).FirstOrDefault();
+                    if (cardButton is not null)
+                    {
+                        int measured = TextRenderer.MeasureText(
+                            cardButton.Text, cardButton.Font, new Size(int.MaxValue, 33),
+                            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 30;
+                        int ideal = compact ? Math.Clamp(measured, 112, 215)
+                            : Math.Max(112, measured);
+                        int fit = Math.Min(ideal, Math.Max(90,
+                            cardWidth - card.Padding.Horizontal - 6));
+                        if (cardButton.Width != fit) cardButton.Width = fit;
+                    }
                     int labelWidth = Math.Max(90,
                         cardWidth - card.Padding.Horizontal - description.Padding.Horizontal - 4);
                     int textHeight = TextRenderer.MeasureText(description.Text,
                         description.Font, new Size(labelWidth, 1000),
                         TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl).Height;
                     int required = buttonRow + card.Padding.Vertical +
-                        description.Padding.Vertical + textHeight + (int)Math.Ceiling(5 * scale);
+                        description.Padding.Vertical + textHeight +
+                        (int)Math.Ceiling(5 * scale);
                     cardHeight = Math.Max(cardHeight, required);
                 }
                 cardHeight = Math.Clamp(cardHeight, minHeight, maxHeight);
@@ -1546,16 +1661,18 @@ internal sealed partial class MainForm : Form
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1,
-            Margin = new Padding(7, 0, 7, 4), Padding = new Padding(9, 6, 9, 6),
+            Margin = new Padding(7, 0, 7, 2), Padding = new Padding(9, 4, 9, 4),
             BackColor = PanelBackground
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        // Linhas dimensionadas pelo DPI real. Evitar que botoes e seletor sejam
+        // cortados pelo resumo de discos em 125% / 150%, sem aumentar cards.
+        float dpiFactor = Math.Max(1f, DeviceDpi / 96f);
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(34 * dpiFactor)));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(38 * dpiFactor)));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, (float)Math.Ceiling(20 * dpiFactor)));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
+        var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 173));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 155));
         heading.Controls.Add(new Label
         {
@@ -1563,16 +1680,6 @@ internal sealed partial class MainForm : Form
             ForeColor = Ink, Font = new Font("Segoe UI", 11F, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft
         }, 0, 0);
-        var optimizeDisks = CreateSecondaryButton("Otimizar unidades");
-        optimizeDisks.Dock = DockStyle.Fill;
-        optimizeDisks.Margin = new Padding(5, 4, 5, 4);
-        optimizeDisks.Click += async (_, _) => await ConfirmThenRun("optimize-drives",
-            "O Windows escolherá a operação apropriada para cada unidade fixa (SSD/HD).\n\n" +
-            "A análise/otimização pode demorar e solicitar autorização. Continuar?");
-        _toolTips.SetToolTip(optimizeDisks, "O Windows executa a otimização apropriada a cada tipo de unidade. Pode demorar.");
-        _actionControls.Add(optimizeDisks);
-        heading.Controls.Add(optimizeDisks, 1, 0);
-
         _refreshDisksButton = CreateSecondaryButton("Atualizar discos");
         _refreshDisksButton.Dock = DockStyle.Fill;
         _refreshDisksButton.Margin = new Padding(5, 4, 0, 4);
@@ -1580,21 +1687,22 @@ internal sealed partial class MainForm : Form
         _refreshDisksButton.Click += async (_, _) => await RefreshDiskUsageAsync();
         _toolTips.SetToolTip(_refreshDisksButton, "Reconsultar o espaço livre e ocupado de cada unidade local.");
         _actionControls.Add(_refreshDisksButton);
-        heading.Controls.Add(_refreshDisksButton, 2, 0);
+        heading.Controls.Add(_refreshDisksButton, 1, 0);
         root.Controls.Add(heading, 0, 0);
-        var previewRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, BackColor = PanelBackground };
+        var previewRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = PanelBackground };
+        previewRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 159));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 204));
         previewRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var previewButton = CreateSecondaryButton("Analisar limpeza");
         previewButton.Dock = DockStyle.Fill;
-        previewButton.Margin = new Padding(0, 5, 8, 5);
+        previewButton.Margin = new Padding(0, 3, 8, 3);
         previewButton.Click += async (_, _) => await ShowCleanupPreviewAsync();
         _actionControls.Add(previewButton);
         previewRow.Controls.Add(previewButton, 0, 0);
         var fullAudit = CreateSecondaryButton("Diagnóstico completo");
         fullAudit.Dock = DockStyle.Fill;
-        fullAudit.Margin = new Padding(0, 5, 8, 5);
+        fullAudit.Margin = new Padding(0, 3, 8, 3);
         fullAudit.Click += async (_, _) =>
             await ExecuteAsync("Analisando instalações, dispositivos e proteção...", RunMaintenanceAuditAsync);
         fullAudit.AccessibleName = "Diagnóstico completo";
@@ -1602,12 +1710,43 @@ internal sealed partial class MainForm : Form
             "e firewall pelo Centro de Segurança do Windows. Somente leitura.");
         _actionControls.Add(fullAudit);
         previewRow.Controls.Add(fullAudit, 1, 0);
-        _cleanupPreview.Text = "Analisar espaço e dispositivos sem apagar dados.";
+        var modePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+        modePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 175));
+        _cleanupPreview.Text = "Ative antes das consultas; repita as etapas.";
         _cleanupPreview.Dock = DockStyle.Fill;
         _cleanupPreview.ForeColor = Muted;
         _cleanupPreview.TextAlign = ContentAlignment.MiddleLeft;
-        _cleanupPreview.AutoEllipsis = false;
-        previewRow.Controls.Add(_cleanupPreview, 2, 0);
+        _cleanupPreview.AutoEllipsis = true;
+        modePanel.Controls.Add(_cleanupPreview, 0, 0);
+        var testMode = new ComboBox
+        {
+            Name = "TestDiagnosticProfile", Dock = DockStyle.Fill,
+            Margin = new Padding(3, 3, 0, 3), DropDownStyle = ComboBoxStyle.DropDownList,
+            BackColor = Color.FromArgb(37, 48, 61), ForeColor = Ink,
+            FlatStyle = FlatStyle.Flat
+        };
+        testMode.Items.AddRange(new object[] { "Teste desligado", "Teste PC FORTE", "Teste PC FRACO" });
+        testMode.SelectedIndex = 0;
+        testMode.SelectedIndexChanged += (_, _) =>
+        {
+            TestDiagnosticDetail.SetProfile(testMode.SelectedIndex, DiagnosticTrace.Write);
+            if (TestDiagnosticDetail.Enabled)
+            {
+                var bounds = Screen.FromControl(this).Bounds;
+                TestDiagnosticDetail.Record("AMBIENTE",
+                    ("largura", bounds.Width), ("altura", bounds.Height),
+                    ("dpi", DeviceDpi), ("logicos", Environment.ProcessorCount));
+                Log("Coleta detalhada de testes ativa apenas nesta sessão, somente contagens locais.");
+                _ = InspectWingetContextForTestAsync();
+            }
+            else Log("Coleta detalhada de testes desativada.");
+        };
+        _toolTips.SetToolTip(testMode, "Escolha o PC para comparar testes. Nada é enviado; " +
+            "sem caminhos, nomes de programas ou IDs. Inspeciona presença do App Installer/alias/PATH sem executar WinGet. Volta ao padrão ao fechar.");
+        modePanel.Controls.Add(testMode, 1, 0);
+        previewRow.Controls.Add(modePanel, 2, 0);
         root.Controls.Add(previewRow, 0, 1);
         _diskSummary.Text = "Consulte o espaço livre e ocupado das unidades locais.";
         _diskSummary.Dock = DockStyle.Fill;
@@ -1638,20 +1777,52 @@ internal sealed partial class MainForm : Form
         string name = string.IsNullOrWhiteSpace(disk.Label) ? "Disco local" : disk.Label;
         var card = new TableLayoutPanel
         {
-            Size = new Size(350, 111), RowCount = 4, ColumnCount = 1,
-            BackColor = Color.FromArgb(38, 50, 63), Padding = new Padding(10, 5, 10, 6),
+            Size = new Size(350, 98), RowCount = 4, ColumnCount = 1,
+            BackColor = Color.FromArgb(38, 50, 63), Padding = new Padding(10, 4, 10, 4),
             Margin = new Padding(0, 0, 10, 7)
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 19));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        card.Controls.Add(new Label
+        var diskHeader = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            Margin = Padding.Empty, Padding = Padding.Empty,
+            BackColor = Color.FromArgb(38, 50, 63)
+        };
+        diskHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        diskHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,
+            (int)Math.Ceiling(91d * DeviceDpi / 96d)));
+        diskHeader.Controls.Add(new Label
         {
             Text = $"{name} ({letter})", Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", 10F, FontStyle.Bold), ForeColor = Ink,
-            TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true
+            TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true,
+            Margin = Padding.Empty
         }, 0, 0);
+        string? task = SingleVolumeOptimization.TaskForRoot(disk.Root);
+        var optimize = CreateSecondaryButton("Otimizar");
+        optimize.Name = "OptimizeVolume" + letter.TrimEnd(':');
+        optimize.AccessibleName = "Otimizar somente " + letter;
+        optimize.Dock = DockStyle.Fill;
+        optimize.Margin = new Padding(3, 0, 0, 0);
+        optimize.Tag = task;
+        optimize.Enabled = task is not null &&
+            SingleVolumeOptimization.IsEligible(DriveType.Fixed, true, disk.FileSystem);
+        _toolTips.SetToolTip(optimize, optimize.Enabled
+            ? "Otimizar apenas " + letter + " com o método adequado ao volume (SSD/HD)."
+            : "Otimização indisponível para este sistema de arquivos ou volume.");
+        optimize.Click += async (_, _) =>
+        {
+            if (task is null || !optimize.Enabled || _busy) return;
+            await ConfirmThenRun(task,
+                "Otimizar somente a unidade " + letter +
+                "? O Windows escolherá o método adequado e poderá solicitar autorização.");
+        };
+        _actionControls.Add(optimize);
+        diskHeader.Controls.Add(optimize, 1, 0);
+        card.Controls.Add(diskHeader, 0, 0);
         card.Controls.Add(new Label
         {
             Text = $"Usado: {DisplayGigabytes(used)}    |    Livre: {DisplayGigabytes(disk.FreeBytes)}",
@@ -1708,6 +1879,7 @@ internal sealed partial class MainForm : Form
                 var oldCards = _diskCards.Content.Controls.Cast<Control>().ToArray();
                 _diskCards.Content.Controls.Clear();
                 foreach (Control oldCard in oldCards) oldCard.Dispose();
+                _actionControls.RemoveAll(control => control.IsDisposed);
                 foreach (DiskUsageInfo volume in volumes)
                     _diskCards.Content.Controls.Add(CreateDiskCard(volume));
                 _diskSummary.Text = volumes.Count switch
@@ -1754,6 +1926,7 @@ internal sealed partial class MainForm : Form
         _status.ForeColor = Muted;
         _status.TextAlign = ContentAlignment.MiddleRight;
         top.Controls.Add(_status, 1, 0);
+        AddUninstallCancelButton(top);
         root.Controls.Add(top, 0, 0);
         _progress.Dock = DockStyle.Fill;
         _progress.Margin = new Padding(0, 0, 0, 2);
@@ -1813,8 +1986,13 @@ internal sealed partial class MainForm : Form
 
     private void Status(string text)
     {
-        if (IsDisposed) return;
-        if (InvokeRequired) { BeginInvoke(new Action<string>(Status), text); return; }
+        if (IsDisposed || Disposing || !IsHandleCreated) return;
+        if (InvokeRequired)
+        {
+            try { BeginInvoke(new Action<string>(Status), text); }
+            catch (InvalidOperationException) { }
+            return;
+        }
         _operationResult = text;
         _status.Text = text;
         _toolTips.SetToolTip(_status, text);
@@ -1830,39 +2008,42 @@ internal sealed partial class MainForm : Form
             _programList.ActionsEnabled = false;
             UpdateBulkButtons();
             // Somente operações explícitas exibem o progresso animado.
-            _search.Enabled = false;
+            // Pesquisa local continua acessivel durante manutencao longa.
             _progress.Visible = true;
             _progress.Style = ProgressBarStyle.Marquee;
             _progress.MarqueeAnimationSpeed = 24;
         }
         _status.Text = description;
         try { await work(); }
-        catch (Exception ex) { ReportError(ex); }
+        catch (Exception ex) { if (!IsDisposed && !Disposing) ReportError(ex); }
         finally
         {
-            if (!quietStartup)
-            {
-                _progress.MarqueeAnimationSpeed = 0;
-                _progress.Style = ProgressBarStyle.Blocks;
-                _progress.Value = 0;
-                _progress.Visible = false;
-                _search.Enabled = true;
-                _programList.ActionsEnabled = true;
-            }
-            _status.Text = _operationResult;
             _busy = false;
-            UpdateBulkButtons();
-            if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
-                _checkUpdatesButton.Enabled = true;
-            if (_repairNetworkButton is not null)
-                _repairNetworkButton.Enabled = GetSuggestedNetworkRepair(_lastNetworkScan) is not null;
-            if (_installSelectedUpdates is not null)
-                _installSelectedUpdates.Enabled = _activeSystemView == "update" && _updateSelection.Count > 0;
-            if (_nav.SelectedIndex == 2)
-                _ = RefreshDiskUsageAsync();
-            if (_nav.SelectedIndex == 4)
-                _ = RefreshEnergyInfoAsync();
-            ExitAfterCurrentOperation();
+            if (!IsDisposed && !Disposing)
+            {
+                if (!quietStartup)
+                {
+                    _progress.MarqueeAnimationSpeed = 0;
+                    _progress.Style = ProgressBarStyle.Blocks;
+                    _progress.Value = 0;
+                    _progress.Visible = false;
+                    _programList.ActionsEnabled = true;
+                }
+                _status.Text = _operationResult;
+                UpdateBulkButtons();
+                if (_checkUpdatesButton is not null && _consultaCatalogoCts is null)
+                    _checkUpdatesButton.Enabled = true;
+                if (_repairNetworkButton is not null)
+                    _repairNetworkButton.Enabled = GetSuggestedNetworkRepair(_lastNetworkScan) is not null;
+                RefreshWindowsRepairButton();
+                if (_installSelectedUpdates is not null)
+                    _installSelectedUpdates.Enabled = _activeSystemView == "update" && _updateSelection.Count > 0;
+                if (_nav.SelectedIndex == 2)
+                    _ = RefreshDiskUsageAsync();
+                if (_nav.SelectedIndex == 4)
+                    _ = RefreshEnergyInfoAsync();
+                ExitAfterCurrentOperation();
+            }
         }
     }
 
@@ -1897,9 +2078,48 @@ internal sealed partial class MainForm : Form
                 return result;
             });
             items = scan.Items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+            _inventoryIncomplete = scan.Incomplete;
+            // Monitoramento por fotografias completas, sem servico residente:
+            // detectar entradas surgidas/removidas enquanto o GF permaneceu aberto.
+            // Nao interpretar inventario parcial como desinstalacao.
+            if (!_inventoryIncomplete)
+            {
+                var currentKeys = items.Select(x => x.InventoryId)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (_completeInstallBaseline is not null)
+                {
+                    var created = currentKeys.Except(_completeInstallBaseline, StringComparer.OrdinalIgnoreCase)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var removed = _completeInstallBaseline.Except(currentKeys, StringComparer.OrdinalIgnoreCase).Count();
+                    if (created.Count > 0 || removed > 0)
+                        Log($"Nesta sessão: {created.Count} novo(s) registro(s) de instalação; " +
+                            $"{removed} não observado(s) desde a última leitura completa. " +
+                            "Confirme pela versão e pelo instalador antes de concluir.");
+                }
+                _completeInstallBaseline = currentKeys;
+            }
+            if (_inventoryIncomplete)
+                Log("ATENÇÃO: inventário PARCIAL. Uma ou mais fontes não puderam ser consultadas; aplicativos ausentes desta lista podem continuar instalados. Clique em Atualizar e verificar para tentar novamente. Nenhum aplicativo foi removido.");
             DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count} examinados={scan.Registry.Inspected} ocultos={scan.Registry.HiddenComponents} updates_arp={scan.Registry.UpdateEntries} erros={scan.Registry.ReadFailures} duplicados={scan.Registry.Duplicates}");
+            TestDiagnosticDetail.Record("INVENTARIO",
+                ("total", items.Count),
+                ("sem_nome", items.Count(x => string.IsNullOrWhiteSpace(x.Name))),
+                ("sem_editor", items.Count(x => string.IsNullOrWhiteSpace(x.Publisher))),
+                ("sem_versao", items.Count(x => string.IsNullOrWhiteSpace(x.Version))),
+                ("desinstalaveis", items.Count(x => x.CanUninstall)),
+                ("so_inventario", items.Count(x => x.InventoryOnly)),
+                ("sem_desinstalacao", items.Count(x => !x.CanUninstall)),
+                ("sem_desinstalacao_fora_flag", items.Count(x => !x.CanUninstall && !x.InventoryOnly)),
+                ("parcial", scan.Incomplete ? 1 : 0));
             DiagnosticTrace.Write($"MSIX.LEITURA status={scan.Msix.Status} enumerados={scan.Msix.Seen} " +
-                $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures}");
+                $"aplicativos={scan.Msix.Items.Count} adicionados={scan.Added} filtrados={scan.Msix.Filtered} falhas={scan.Msix.Failures} retidos={scan.Msix.Items.Count(x => x.Stale)} repeticao={scan.Msix.Retried} fase={scan.Msix.FailureStage} apartment={scan.Msix.Apartment}");
+            int retainedMsix = scan.Msix.Items.Count(x => x.Stale);
+            TestDiagnosticDetail.Record("MSIX", ("observados", scan.Msix.Items.Count - retainedMsix),
+                ("retidos", retainedMsix), ("falhas", scan.Msix.Failures),
+                ("parcial", scan.Msix.Failures > 0 || scan.Msix.Status != "ok" ? 1 : 0));
+            if (retainedMsix > 0)
+                Log($"MSIX: {retainedMsix} entradas preservadas da última leitura completa desta sessão, sem ações de atualização. Presença atual não confirmada.");
             DiagnosticTrace.Write($"JOGOS.LEITURA steam={scan.Games.Steam} epic={scan.Games.Epic} adicionados={scan.GamesAdded} parciais={scan.Games.Partial}");
             Log($"Inventário: {scan.Registry.Items.Count} programas Win32, {scan.Added} aplicativos MSIX e {scan.GamesAdded} jogos de bibliotecas adicionais. " +
                 $"{scan.Registry.HiddenComponents} componentes internos e {scan.Registry.UpdateEntries} atualizações individuais do Windows não foram incluídos.");
@@ -1910,6 +2130,7 @@ internal sealed partial class MainForm : Form
             throw;
         }
         _catalogoGeneration++;
+        _updateHistory.Clear();
         _consultaCatalogoCts?.Cancel();
         // Os desinstaladores ja foram resolvidos em segundo plano.
         // Não ocultar do inventário os programas sem ação; somente da lista.
@@ -1926,8 +2147,12 @@ internal sealed partial class MainForm : Form
         RenderPrograms();
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_FIM");
         Log($"Inventário local: {_installed.Count} registros; {ActionableInventory.VisibleCount(_installed)} com desinstalação disponível. A lista exibida mostra somente ações.");
-        Status($"{ActionableInventory.VisibleCount(_installed)} aplicativos com ação disponíveis antes da consulta online");
+        Status(_inventoryIncomplete
+            ? "Inventário PARCIAL: fonte de aplicativos indisponível. Use Atualizar e verificar para tentar novamente."
+            : $"{ActionableInventory.VisibleCount(_installed)} aplicativos com ação disponíveis antes da consulta online");
     }
+
+    private readonly UpdateResultHistory _updateHistory = new();
 
     private async Task LoadUpdatesAsync(bool forceRefresh = false)
     {
@@ -1940,26 +2165,50 @@ internal sealed partial class MainForm : Form
         // Entradas somente leitura (jogos e MSIX nao verificados) nao
         // recebem candidatos nem receitas automáticas de atualização.
         var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher,
-            !x.InventoryOnly || x.VerifiedMsixIdentity)).ToArray();
+            !x.InventoryOnly || x.VerifiedMsixIdentity,
+            Architecture: Regex.IsMatch(x.Name, @"(?i)\bARM64\b") ? "arm64" :
+                Regex.IsMatch(x.Name, @"(?i)\b(x64|64-bit)\b") ? "x64" :
+                Regex.IsMatch(x.Name, @"(?i)\b(x86|32-bit)\b") ? "x86" : "unknown",
+            Scope: x.InventoryId.StartsWith("CurrentUser|", StringComparison.Ordinal) ? "user" :
+                x.InventoryId.StartsWith("LocalMachine|", StringComparison.Ordinal) ? "machine" : "unknown",
+            InstallType: x.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) ? "msix" : "unknown",
+            InventoryId: x.InventoryId, InstallLocation: InventoryReconciler.UpdateInstallLocation(x))).ToArray();
+        using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.Updates);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
         var watch = Stopwatch.StartNew();
         _consultaCatalogoCts = cancellation;
+        int totalSources = Math.Max(1, OfficialReleaseSources.ApplicableSourceCount(installed) + 1);
         if (!_busy)
         {
             // Consulta somente leitura: duração incerta, indicar atividade sem inventar percentual.
-            _progress.Style = ProgressBarStyle.Marquee;
-            _progress.MarqueeAnimationSpeed = 28;
+            _progress.Style = ProgressBarStyle.Blocks;
+            _progress.Maximum = totalSources;
+            _progress.Value = 0;
             _progress.Visible = true;
-            Status("Verificando fontes oficiais de atualizações…");
+            Status("Consultando fontes de versões…");
         }
         RenderTitle();
         if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar consulta";
         DiagnosticTrace.Write("MULTIFONTES.CONSULTA_INICIO fontes=ruckzuck,github,mozilla");
-        Log("Consultando fontes oficiais por HTTPS em paralelo: RuckZuck, GitHub Releases e Mozilla.");
+        Log("Consultando fontes de versões por HTTPS: RuckZuck, fabricantes e índices comunitários.");
+        Log(WingetConsultativeProvider.ProductionStatus);
         try
         {
             using var primary = new RuckZuckCatalog();
             using var official = new OfficialReleaseSources();
+            int completedSources = 0;
+            var sourceProgress = new Progress<ProviderDiagnostic>(diagnostic =>
+            {
+                if (IsDisposed || generation != _catalogoGeneration ||
+                    !ReferenceEquals(_consultaCatalogoCts, cancellation) || cancellation.IsCancellationRequested) return;
+                completedSources++;
+                if (!_busy)
+                {
+                    _progress.Maximum = totalSources;
+                    _progress.Value = Math.Min(completedSources, totalSources);
+                    Status($"Fontes concluídas: {completedSources}/{totalSources} · {diagnostic.Provider}: {diagnostic.Status}");
+                }
+            });
             async Task<(IReadOnlyList<UpdateMatch>? Matches, int Count, bool Cached, long NetworkMs,
                 long CompareMs, string Error)> ReadRuckZuckAsync()
             {
@@ -1980,27 +2229,35 @@ internal sealed partial class MainForm : Form
                 {
                     return (null, 0, false, timer.ElapsedMilliseconds, 0, ex.GetType().Name);
                 }
+                finally { ((IProgress<ProviderDiagnostic>)sourceProgress).Report(new("ruckzuck", "concluida", timer.ElapsedMilliseconds)); }
             }
             var ruckTask = ReadRuckZuckAsync();
-            var officialTask = official.QueryAsync(installed, cancellation.Token, forceRefresh);
+            var officialTask = official.QueryAsync(installed, cancellation.Token, forceRefresh, sourceProgress);
             await Task.WhenAll(ruckTask, officialTask);
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
             var rz = await ruckTask;
             var others = await officialTask;
-            var merged = await Task.Run(
+            var freshMerged = await Task.Run(
                 () => MultiSourceMatcher.Merge(installed, rz.Matches, others.Findings), cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
-            if (rz.Matches is null && others.Findings.Count == 0)
-            {
-                InvalidarAtualizacoes();
-                Log("Todas as fontes consultadas estavam indisponíveis ou não cobrem os programas reconhecidos.");
-                Status("Fontes indisponíveis; aplicativos preservados");
-                DiagnosticTrace.Write("MULTIFONTES.SEM_RESULTADOS");
-                return;
-            }
+            bool partial = rz.Matches is null || others.Diagnostics.Any(x => x.Status != "ok");
+            var merged = _updateHistory.Apply(installed, freshMerged, partial);
             AplicarCandidatos(merged);
+            foreach (var (sourceId, sourceCode) in new[] { ("ea-desktop", 1), ("fancontrol", 2),
+                ("jellyfin-server", 3), ("klite-mega", 4), ("gameinput-winget", 5), ("plex", 6),
+                ("proton-pass-desktop", 7), ("proton-pass-winget", 8), ("proton-pass-windows", 9) })
+            {
+                // IDs internos fixos e contagens; nenhum nome/editor do inventário no diagnóstico.
+                var ruleId = sourceId is "proton-pass-winget" or "proton-pass-windows" ? "proton-pass-desktop" : sourceId;
+                var indices = Enumerable.Range(0, installed.Length).Where(i =>
+                    ApplicationIdentityCatalog.Resolve(installed[i].Name, installed[i].Publisher)?.Id == ruleId).ToArray();
+                if (indices.Length == 0)
+                    TestDiagnosticDetail.Record("COBERTURA_ATUALIZACAO", ("fonte", sourceCode), ("etapa", 0), ("quantidade", 0));
+                foreach (var stages in indices.GroupBy(i => OfficialReleaseSources.CoverageStage(installed[i], sourceId, others, merged[i])))
+                    TestDiagnosticDetail.Record("COBERTURA_ATUALIZACAO", ("fonte", sourceCode), ("etapa", stages.Key), ("quantidade", stages.Count()));
+            }
             foreach (var group in merged.GroupBy(m => m.DiagnosticReason))
             {
                 DiagnosticTrace.Write($"MULTIFONTES.COBERTURA motivo={group.Key} quantidade={group.Count()}");
@@ -2014,35 +2271,49 @@ internal sealed partial class MainForm : Form
             int superseded = merged.Count(x => x.State == MatchState.SupersededRegistration);
             int officialCandidates = merged.Count(x => x.State == MatchState.Candidate &&
                 x.Provider != "RuckZuck");
+            TestDiagnosticDetail.Record("ATUALIZACOES",
+                ("avaliados", merged.Count), ("candidatos", candidates),
+                ("incertos", uncertain), ("registro_antigo", superseded),
+                ("fontes", others.Diagnostics.Count), ("ruckzuck_ok", rz.Matches is null ? 0 : 1));
             if (superseded > 0)
-                Log($"Visual C++: {superseded} registro(s) antigo(s) já atendidos por versões recentes.");
+                Log($"Inventário: {superseded} registro(s) antigo(s) correlacionados a versões recentes da mesma instalação.");
             if (rz.Matches is null)
                 Log($"RuckZuck indisponível ({rz.Error}); outras fontes continuam utilizáveis.");
             else
                 Log($"RuckZuck: {rz.Count} pacotes ({(rz.Cached ? "cache" : "HTTPS")}, {rz.NetworkMs} ms); comparação {rz.CompareMs} ms.");
             foreach (var diagnostic in others.Diagnostics)
-                Log($"Fonte oficial {diagnostic.Provider}: {diagnostic.Status}, {diagnostic.Milliseconds} ms.");
+                Log($"Fonte oficial {diagnostic.Provider}: {diagnostic.Status}, {diagnostic.Milliseconds} ms ({(diagnostic.UsedMemoryCache ? "cache" : "HTTPS")}).");
             DiagnosticTrace.Write($"MULTIFONTES.CONSULTA_OK instalados={installed.Length} candidatos={candidates} " +
                 $"fontes_oficiais={officialCandidates} reconhecidos={others.Findings.Count} " +
                 $"fontes_consultadas={others.Diagnostics.Count} fontes_ok={others.Diagnostics.Count(x => x.Status == "ok")} " +
                 $"incertos={uncertain} ruckzuck_entradas={rz.Count} " +
                 $"ruckzuck_ms={rz.NetworkMs} comparacao_ms={rz.CompareMs} total_ms={watch.ElapsedMilliseconds}");
             Log("Instalação automática permanece limitada a instaladores oficiais com receitas verificadas.");
-            Status($"Consulta concluída: {candidates} possíveis atualizações · múltiplas fontes");
+            int sourceFailures = others.Diagnostics.Count(x => x.Status != "ok") + (rz.Matches is null ? 1 : 0);
+            int conflicts = merged.Count(m => m.HasSourceConflict);
+            int requiringReview = merged.Count(m => m.State == MatchState.Candidate && m.RequiresReview);
+            if (conflicts > 0) Log($"Fontes divergentes: {conflicts} resultado(s); instalação direta bloqueada, detalhes na dica da linha.");
+            Status($"Consulta {(sourceFailures > 0 ? "parcial" : "concluída")}: {candidates} possíveis atualizações" +
+                (requiringReview > 0 ? $" ({requiringReview} em revisão)" : "") +
+                $" · {sourceFailures} fonte(s) indisponível(is)");
         }
         catch (OperationCanceledException)
         {
             if (generation != _catalogoGeneration || IsDisposed) return;
-            InvalidarAtualizacoes();
+            AplicarCandidatos(_updateHistory.Apply(installed,
+                installed.Select(x => new UpdateMatch(x, null, MatchState.Unmatched)).ToArray(), true));
+            RenderPrograms();
             DiagnosticTrace.Write("MULTIFONTES.CONSULTA_CANCELADA");
-            Log("Consulta cancelada ou esgotada; a lista local permanece disponível.");
-            Status("Consulta cancelada ou tempo esgotado");
+            Log("Consulta cancelada ou esgotada; resultados anteriores preservados em revisão quando disponíveis.");
+            Status("Consulta cancelada ou esgotada; resultados anteriores exigem revalidação");
         }
         catch (Exception ex)
         {
             DiagnosticTrace.Failure("MULTIFONTES.CONSULTA_FALHA", ex);
             if (generation != _catalogoGeneration || IsDisposed) return;
-            InvalidarAtualizacoes();
+            AplicarCandidatos(_updateHistory.Apply(installed,
+                installed.Select(x => new UpdateMatch(x, null, MatchState.Unmatched)).ToArray(), true));
+            RenderPrograms();
             Log("Falha geral na consulta multifontes (" + ex.GetType().Name + ").");
             Status("Consulta não concluída; lista local preservada");
         }
@@ -2056,11 +2327,12 @@ internal sealed partial class MainForm : Form
                     _progress.MarqueeAnimationSpeed = 0;
                     _progress.Style = ProgressBarStyle.Blocks;
                     _progress.Value = 0;
+                    _progress.Maximum = 100;
                     _progress.Visible = false;
                 }
                 RenderTitle();
                 if (_checkUpdatesButton is not null)
-                    _checkUpdatesButton.Text = "Verificar atualizações";
+                    _checkUpdatesButton.Text = "Atualizar e verificar";
             }
         }
     }
@@ -2104,6 +2376,8 @@ internal sealed partial class MainForm : Form
             var item = _installed[i];
             var match = matches[i];
             item.ComparisonState = match.State;
+            item.UpdateRequiresReview = match.RequiresReview;
+            item.UpdateEvidence = match.EvidenceLabel + "\n" + match.EvidenceDetails;
             item.IsUpdate = match.State == MatchState.Candidate && match.Catalog is not null;
             item.AvailableVersion = match.Catalog?.ProductVersion ?? "";
             item.PackageId = ""; // Identificador de catálogo NÃO autoriza instalação.
@@ -2120,6 +2394,8 @@ internal sealed partial class MainForm : Form
         foreach (var entry in _installed)
         {
             entry.IsUpdate = false;
+            entry.UpdateRequiresReview = false;
+            entry.UpdateEvidence = "";
             entry.ComparisonState = MatchState.Unmatched;
             entry.AvailableVersion = "";
             entry.PackageId = "";
@@ -2133,7 +2409,7 @@ internal sealed partial class MainForm : Form
     {
         string query = _search.Text.Trim();
         IEnumerable<ProgramEntry> filtered = _installed.Where(entry =>
-            ActionableInventory.ShouldShow(entry) && (query.Length == 0 ||
+            ActionableInventory.ShouldShowInMainList(entry, _appFilter) && (query.Length == 0 ||
             string.Join(" ", entry.Name, entry.Version, entry.Publisher, entry.PackageId, entry.AvailableVersion,
                 entry.CatalogIdentity, entry.CatalogDisplayName, entry.InventorySource,
                 entry.MsiProductCode)
@@ -2149,13 +2425,12 @@ internal sealed partial class MainForm : Form
             .ThenBy(x => x.Version, StringComparer.CurrentCultureIgnoreCase).ToArray();
         _programList.SetItems(match);
         _programList.ScrollToTop();
-        _emptyState.Text = query.Length > 0 ? "Nenhum aplicativo corresponde à pesquisa."
+        _emptyState.Text = query.Length > 0
+            ? "Nenhum aplicativo corresponde à pesquisa."
             : _appFilter == "Selecionados" ? "Nenhum aplicativo marcado."
-            : _appFilter == "Com atualização" && _catalogoVerificado ? "Nenhuma possível atualização encontrada neste catálogo."
-            : _appFilter == "Com atualização" ? "Possíveis atualizações ainda não verificadas."
             : _consultaCatalogoCts is not null
-                ? "Consultando atualizações para encontrar outros aplicativos disponíveis..."
-                : "Nenhum aplicativo com desinstalação ou atualização disponível.";
+                ? "Consulta online ativa; inventário local vazio."
+                : "Nenhum aplicativo identificado. Se o inventário estiver parcial, tente novamente.";
         _emptyState.Visible = match.Length == 0;
         if (_emptyState.Visible) _emptyState.BringToFront();
         RenderTitle();
@@ -2163,24 +2438,29 @@ internal sealed partial class MainForm : Form
         ApplyFilterAppearance();
     }
 
+    internal static string InventoryCoverageTitle(bool incomplete) =>
+        incomplete ? "Inventário PARCIAL" : "Inventário completo";
+
     private void RenderTitle()
     {
         var summary = ActionableInventory.Summarize(_installed);
         int updates = summary.Updates;
         int displayed = summary.Actionable;
         string windowsStatus = _windowsUpdateCheckingMessage();
-        string full = $"Inventário completo: {summary.Total} · Com ação: {displayed} · Sem ação disponível: {summary.WithoutAction} · Desinstaláveis: {summary.Uninstallable} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
+        string full = $"{InventoryCoverageTitle(_inventoryIncomplete)}: {summary.Total} · Com ação: {displayed} · Sem ação disponível: {summary.WithoutAction} · Desinstaláveis: {summary.Uninstallable} · Possíveis atualizações: {(_catalogoVerificado ? updates.ToString() : "não verificadas")}" +
+            (_inventoryIncomplete ? " · Fonte do Windows indisponível: ausência na lista não comprova desinstalação. Atualizar e verificar para tentar novamente." : "") +
             (_consultaCatalogoCts is not null ? " · Verificando..." : "") +
             windowsStatus + (_multiSelectMode ? $" · Marcados: {_checkedApps.Count}" : "");
-        // Cabeçalho permanece de uma linha sem sobrepor os tres filtros.
+        // Cabeçalho permanece de uma linha sem sobrepor os quatro filtros.
         // Todas as informacoes podem ser lidas pelo tooltip da legenda.
         int width = _listTitle.ClientSize.Width;
         // Preferir informacao essencial completa. Os detalhes adicionais,
         // inclusive o Windows Update, ficam acessiveis na dica integral.
         string count = _catalogoVerificado ? updates.ToString() : "—";
-        _listTitle.Text = width < 220
-            ? $"Aplicativos: {displayed}"
-            : $"Aplicativos: {displayed} · Atualizações: {count}";
+        _listTitle.Text = _inventoryIncomplete
+            ? (width < 220 ? $"Apps: {summary.Total} · PARCIAL" : $"Apps: {summary.Total} · inventário PARCIAL")
+            : width < 220 ? $"Apps: {summary.Total}"
+            : $"Apps: {summary.Total} · Possíveis atualizações: {count}";
         _toolTips.SetToolTip(_listTitle, full);
         _listTitle.AccessibleDescription = full;
     }
@@ -2197,8 +2477,7 @@ internal sealed partial class MainForm : Form
     {
         foreach (var (button, name) in new[]
         {
-            (_allFilterButton, "Todos"), (_updatesFilterButton, "Com atualização"),
-            (_selectedFilterButton, "Selecionados")
+            (_allFilterButton, "Todos"), (_selectedFilterButton, "Selecionados")
         })
         {
             if (button is null) continue;
@@ -2312,33 +2591,85 @@ internal sealed partial class MainForm : Form
         }
     }
 
+    private async Task RefreshInventoryAfterUpdateAsync(string previousFilter, UpdateOperation operation)
+    {
+        if (IsDisposed || Disposing) return;
+        try
+        {
+            await LoadInstalledAsync();
+            if (IsDisposed || Disposing) return;
+            if (operation.Snapshot.Progress.Stage == UpdateStage.Confirmed && operation.Snapshot.Target == "12.0.40664.0" &&
+                operationOrigins.TryGetValue(operation.Snapshot.Id, out var origin) && VerifiedUpdaters.Resolve(origin) is { } proven)
+                _updateOperations.BindConfirmedInstallation(proven, origin, _installed, operation);
+            await LoadUpdatesAsync();
+            if (IsDisposed || Disposing) return;
+            _appFilter = _catalogoVerificado ? previousFilter : "Todos";
+            RenderPrograms();
+        }
+        catch (Exception ex)
+        {
+            DiagnosticTrace.Failure("ATUALIZACAO.RECARGA_FALHA", ex);
+            Log("Não foi possível renovar a lista; o resultado da atualização foi preservado.");
+        }
+        finally
+        {
+            if (!IsDisposed && !Disposing)
+                Status(operation.Snapshot.Details + (_catalogoVerificado ? " · Lista consultada." : " · Catálogo indisponível."));
+        }
+    }
+
+    private readonly Dictionary<Guid, ProgramEntry> operationOrigins = new();
+
+    private UpdateOperation? BeginUpdateOperation(ProgramEntry entry, string target)
+    {
+        var operation = _updateOperations.Begin(entry, target);
+        if (operation is null)
+        {
+            Status("Atualização já iniciada, pendente ou sem identidade suficiente. Confira a versão antes de tentar novamente.");
+            return null;
+        }
+        if (operationOrigins.Count >= 256) operationOrigins.Remove(operationOrigins.Keys.First());
+        operationOrigins[operation.Snapshot.Id] = entry;
+        _programList.RefreshOperations();
+        return operation;
+    }
+
+    private CancellationTokenSource? _deploymentWaitCts;
+
     private async Task UpdateWindowsTerminalAsync(ProgramEntry entry)
     {
-        if (_busy) return;
+        if (_busy || !_installed.Contains(entry)) return;
         TerminalUpdateRecipe? recipe = WindowsTerminalUpdater.Resolve(entry);
         if (recipe is null)
         {
             Status("Esta versao do Windows Terminal nao possui pacote GitHub validado.");
             return;
         }
-        Version? before = WindowsTerminalUpdater.CurrentUserVersion();
-        if (before is null)
-        {
-            Status("Terminal MSIX nao identificado. Confira a instalacao na Store ou no site oficial.");
-            Log("Atualizacao GitHub bloqueada: identidade Microsoft.WindowsTerminal nao encontrada no inventario MSIX.");
-            return;
-        }
-        if (!Version.TryParse(recipe.Version, out var targetVersion) || before >= targetVersion)
-        {
-            Status("O Windows Terminal ja possui a versao selecionada.");
-            return;
-        }
         string previousFilter = _appFilter;
         await ExecuteAsync("Preparando atualizacao oficial do Windows Terminal...", async () =>
         {
+            var operation = BeginUpdateOperation(entry, recipe.Version);
+            if (operation is null) return;
+            bool installerStarted = false;
             string folder = Path.Combine(Path.GetTempPath(), "GerenciadorFinal-Terminal-" + Guid.NewGuid().ToString("N"));
+            bool deploymentPhase = false;
             try
             {
+                using var wait = new CancellationTokenSource();
+                _deploymentWaitCts = wait;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar espera";
+                Version? before = await WindowsTerminalUpdater.CurrentUserVersionAsync(wait.Token);
+                if (before is null)
+                {
+                    Status("Terminal MSIX nao identificado. Confira a instalacao na Store ou no site oficial.");
+                    Log("Atualizacao GitHub bloqueada: identidade Microsoft.WindowsTerminal nao encontrada no inventario MSIX.");
+                    return;
+                }
+                if (!Version.TryParse(recipe.Version, out var targetVersion) || before >= targetVersion)
+                {
+                    Status("O Windows Terminal ja possui a versao selecionada.");
+                    return;
+                }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.INICIO");
                 string bundle;
                 using (var downloadCts = new CancellationTokenSource(TimeSpan.FromMinutes(6)))
@@ -2347,19 +2678,20 @@ internal sealed partial class MainForm : Form
                     if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar download";
                     try
                     {
-                        bundle = await WindowsTerminalUpdater.DownloadAndVerifyAsync(
-                            recipe, folder, Status, downloadCts.Token);
+                        bundle = await Task.Run(() => WindowsTerminalUpdater.DownloadAndVerifyAsync(
+                            recipe, folder, Status, downloadCts.Token, operation.Report));
                     }
                     finally
                     {
                         _installerDownloadCts = null;
                         if (!IsDisposed && _checkUpdatesButton is not null)
-                            _checkUpdatesButton.Text = "Verificar atualizacoes";
+                            _checkUpdatesButton.Text = "Cancelar espera";
                     }
                 }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.MSIX_VALIDADO");
                 // O fechamento e a confirmacao acontecem APOS verificar o pacote
                 // e ANTES de acionar o mecanismo de instalacao do Windows.
+                operation.Report(new(UpdateStage.Revalidating));
                 bool closed = await UpdateProcessCoordinator.EnsureClosedAsync(
                     UpdateProcessTarget.WindowsTerminal,
                     question => DarkConfirmDialog.Confirm(this, question, "Fechar Windows Terminal para atualizar") == DialogResult.Yes,
@@ -2367,44 +2699,62 @@ internal sealed partial class MainForm : Form
                 if (!closed)
                 {
                     DiagnosticTrace.Write("TERMINAL_GITHUB.FECHAMENTO_RECUSADO_OU_INSEGURO");
-                    Status("Atualização interrompida: Windows Terminal precisa estar fechado.");
+                    operation.Finish(UpdateStage.Blocked, reason: "O Windows Terminal precisa estar fechado para atualizar.");
+                    Status(operation.Snapshot.Details);
                     return;
                 }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.PROCESSOS_VERIFICADOS_FECHADOS");
-                await WindowsTerminalUpdater.DeployAsync(bundle, Status);
-                DiagnosticTrace.Write("TERMINAL_GITHUB.INSTALADOR_CONCLUIDO");
-                Version? installed = WindowsTerminalUpdater.CurrentUserVersion();
-                bool confirmed = installed is not null && installed >= targetVersion;
+                deploymentPhase = true;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar espera";
+                UpdateAttemptResult result;
+                try
+                {
+                    result = await new UpdateLaunchGate().RunAsync(
+                        async () => _installed.Contains(entry) && WindowsTerminalUpdater.Resolve(entry) == recipe &&
+                            await WindowsTerminalUpdater.CurrentUserVersionAsync(wait.Token) == before,
+                        async () => { await Task.Run(() => WindowsTerminalUpdater.DeployAsync(bundle, Status, wait.Token, () => installerStarted = true)); return 0; },
+                        async () => await UpdateInstallationContract.ConfirmAfterAsync(async () =>
+                            await WindowsTerminalUpdater.CurrentUserVersionAsync(wait.Token) is Version installed && installed >= targetVersion, wait.Token), wait.Token, operation.Report);
+                }
+                finally { _deploymentWaitCts = null; if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar"; }
+                operation.Complete(result);
+                _programList.RefreshOperations();
+                bool confirmed = result.State == UpdateAttemptState.Confirmed;
                 if (!confirmed)
                 {
-                    Status("O Windows concluiu a operacao, mas a versao nova nao foi confirmada.");
-                    Log("Windows Terminal: instalacao nao confirmada; nenhum sucesso presumido.");
+                    if (installerStarted) await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
+                    Status(operation.Snapshot.Details);
+                    Log("Windows Terminal: nenhuma instalação confirmada. O provedor pode continuar após o prazo; não repetir automaticamente.");
                     DiagnosticTrace.Write("TERMINAL_GITHUB.VERSAO_NAO_CONFIRMADA");
                     return;
                 }
                 DiagnosticTrace.Write("TERMINAL_GITHUB.VERSAO_CONFIRMADA");
-                Log("Windows Terminal " + installed + " confirmado pelo identificador MSIX Microsoft.WindowsTerminal.");
-                await LoadInstalledAsync();
-                await LoadUpdatesAsync();
-                _appFilter = _catalogoVerificado ? previousFilter : "Todos";
-                RenderPrograms();
-                Status("Windows Terminal atualizado com sucesso. Lista de aplicativos renovada.");
+                Log("Windows Terminal " + targetVersion + " confirmado pelo identificador MSIX Microsoft.WindowsTerminal.");
+                await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
             }
             catch (OperationCanceledException)
             {
-                Status("Download do Terminal cancelado.");
-                Log("Download cancelado; nenhum pacote foi instalado.");
+                operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Cancelled);
+                Status(deploymentPhase ? "Espera ou consulta interrompida; confira a versão atual do Terminal." : "Preparação do Terminal cancelada.");
+                Log(deploymentPhase ? "O Windows pode ter aplicado ou continuar aplicando o pacote. Nenhuma repetição automática." :
+                    "Preparação cancelada antes de enviar pacote ao instalador do Windows.");
             }
             catch (Exception ex)
             {
                 DiagnosticTrace.Failure("TERMINAL_GITHUB.FALHA", ex);
                 Log("Windows Terminal: falha no pacote ou instalacao " + ex.GetType().Name +
-                    ". Feche o Terminal e tente novamente; se persistir, utilize a Microsoft Store.");
-                Status("Nao foi possivel concluir a atualizacao do Windows Terminal.");
+                    ". Confira o estado do Windows e a versão; a operação pode ter sido iniciada. Nenhuma repetição automática.");
+                operation.Fail(ex, installerStarted);
+                if (installerStarted) await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
+                Status(operation.Snapshot.Details);
             }
             finally
             {
-                try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+                _deploymentWaitCts = null;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
+                if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
+                if (!_programList.IsDisposed) _programList.RefreshOperations();
+                try { if (!WindowsTerminalUpdater.IsFolderProtected(folder) && Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
                 catch (IOException) { Log("Nao foi possivel remover o pacote MSIX temporario."); }
                 catch (UnauthorizedAccessException) { Log("Sem permissao para remover o pacote MSIX temporario."); }
             }
@@ -2413,7 +2763,7 @@ internal sealed partial class MainForm : Form
 
     private async Task UpdateThirdPartyAsync(ProgramEntry entry)
     {
-        if (_busy) return;
+        if (_busy || !_installed.Contains(entry)) return;
         VerifiedUpdateRecipe? recipe = VerifiedUpdaters.Resolve(entry);
         if (recipe is null)
         {
@@ -2424,13 +2774,39 @@ internal sealed partial class MainForm : Form
         // Sem caixa de diálogo redundante. UAC e janelas legítimas dos instaladores continuam.
         Status("Atualizando " + recipe.ProductName + ": preparando instalador oficial verificado...");
         Log("Atualização solicitada diretamente na lista: " + recipe.ProductName +
-            " (" + recipe.Identifier + "). Origem e assinatura serão conferidas antes da execução.");
+            " (" + recipe.Identifier + "). Origem e SHA-256 serão conferidos; assinatura digital exigida quando aplicável.");
         string previousFilter = _appFilter;
         await ExecuteAsync("Preparando atualização de " + recipe.ProductName + "...", async () =>
         {
+            var operation = BeginUpdateOperation(entry, recipe.Version);
+            if (operation is null) return;
+            bool installerStarted = false;
             string folder = Path.Combine(Path.GetTempPath(), "GerenciadorFinal-Update-" + Guid.NewGuid().ToString("N"));
             try
             {
+                // 7-Zip EXE e MSI podem compartilhar a pasta: o teste PC FORTE demonstrou
+                // que remover uma variante deixou a outra registrada, porem sem EXE.
+                // Nao baixar nem iniciar o instalador se houver coexistencia ou danos.
+                if (recipe.Identifier == "sevenzip-exe-x64-26.05" &&
+                    !VerifiedUpdaters.SingleSevenZipRegistration(entry,
+                        await Task.Run(AppServices.GetInstalledPrograms)))
+                {
+                    Status("7-Zip: instalação incompleta ou outra edição também registrada. Atualização silenciosa bloqueada.");
+                    Log("7-Zip: atualização não iniciada; confirme a instalação EXE x64 única e íntegra.");
+                    operation.Finish(UpdateStage.Blocked, reason: "Instalação incompleta ou edições coexistentes; confira a instalação.");
+                    return;
+                }
+                // Todas as receitas passam pelo contrato local antes de baixar.
+                {
+                    var current = await Task.Run(AppServices.GetInstalledPrograms);
+                    if (!VerifiedUpdaters.SingleSafeSilentInstallation(recipe, entry, current))
+                    {
+                        Status("Instalação ambígua ou incompatível com atualização silenciosa. Dados preservados.");
+                        Log("Atualização silenciosa bloqueada: edição MSI/EXE divergente, outro registro ou pasta não validada.");
+                        operation.Finish(UpdateStage.Blocked, reason: "Edição, arquitetura, escopo ou pasta incompatível com a receita.");
+                        return;
+                    }
+                }
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.INICIO receita=" + recipe.Identifier);
                 string verifiedInstaller;
                 using (var downloadCts = new CancellationTokenSource(TimeSpan.FromMinutes(8)))
@@ -2439,19 +2815,20 @@ internal sealed partial class MainForm : Form
                     if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar download";
                     try
                     {
-                        verifiedInstaller = await VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder, Status, downloadCts.Token);
+                        verifiedInstaller = await Task.Run(() => VerifiedUpdaters.DownloadAndVerifyAsync(recipe, folder, Status, downloadCts.Token, operation.Report));
                     }
                     finally
                     {
                         _installerDownloadCts = null;
                         if (!IsDisposed && _checkUpdatesButton is not null)
-                            _checkUpdatesButton.Text = "Verificar atualizações";
+                            _checkUpdatesButton.Text = "Atualizar e verificar";
                     }
                 }
                 DiagnosticTrace.Write("INSTALACAO_OFICIAL.ARQUIVO_VALIDADO receita=" + recipe.Identifier);
                 // Fluxo compartilhado por instaladores que substituem arquivos em uso.
                 // Restart Manager identifica processos pelos ARQUIVOS bloqueados,
                 // nunca pelo simples fato de um navegador estar aberto.
+                operation.Report(new(UpdateStage.Revalidating));
                 if (UpdateBlockingPreflight.MainProcessFor(recipe.Identifier) is not null)
                 {
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.PREFLIGHT_INICIO");
@@ -2463,28 +2840,47 @@ internal sealed partial class MainForm : Form
                     if (!ready)
                     {
                         DiagnosticTrace.Write("INSTALACAO_OFICIAL.PREFLIGHT_BLOQUEADO");
-                        Status("Atualização não iniciada: há arquivos em uso ou fechamento não autorizado.");
+                        operation.Finish(UpdateStage.Blocked, reason: "Há arquivos em uso ou o fechamento não foi autorizado.");
+                        Status(operation.Snapshot.Text);
                         return;
                     }
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.PREFLIGHT_APROVADO");
                 }
                 Status("Instalador verificado. Aguardando conclusão...");
-                int exit = await VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status);
-                DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM codigo=" + exit);
-                if (exit is not (0 or 3010))
+                using var wait = new CancellationTokenSource();
+                _deploymentWaitCts = wait;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Cancelar espera";
+                var result = await new UpdateLaunchGate().RunAsync(
+                    async () =>
+                    {
+                        if (!_installed.Contains(entry) || VerifiedUpdaters.Resolve(entry) != recipe) return false;
+                        var current = await Task.Run(AppServices.GetInstalledPrograms);
+                        return VerifiedUpdaters.SameInstallationForUpdate(entry, current) &&
+                            VerifiedUpdaters.SingleSafeSilentInstallation(recipe, entry, current) &&
+                            (recipe.Identifier != "sevenzip-exe-x64-26.05" ||
+                             VerifiedUpdaters.SingleSevenZipRegistration(entry, current));
+                    },
+                    () => Task.Run(() => VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status, () => installerStarted = true, wait.Token)),
+                    async () => await UpdateInstallationContract.ConfirmAfterAsync(async () =>
+                        VerifiedUpdaters.ConfirmInstallation(recipe, entry, await Task.Run(AppServices.GetInstalledPrograms).WaitAsync(TimeSpan.FromSeconds(12), wait.Token)), wait.Token),
+                    wait.Token, progress: operation.Report);
+                _deploymentWaitCts = null;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
+                operation.Complete(result);
+                _programList.RefreshOperations();
+                DiagnosticTrace.Write("INSTALACAO_OFICIAL.EXECUCAO_FIM estado=" + result.State + " retorno=" + result.ExitCode);
+                if (result.State is UpdateAttemptState.Blocked or UpdateAttemptState.Cancelled or UpdateAttemptState.Failed)
                 {
-                    Log("Instalador não concluiu com sucesso (código " + exit + ").");
-                    Status(recipe.Identifier == "obs-x64-32.2.2"
-                        ? "Instalação do OBS cancelada ou bloqueada. Confira outros aplicativos usando arquivos do OBS."
-                        : "Instalação não concluída (código " + exit + ").");
+                    Log("Atualização não confirmada: " + result.State + ". Não haverá nova tentativa automática.");
+                    if (installerStarted) await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
+                    Status(operation.Snapshot.Details);
                     return;
                 }
-                await Task.Delay(1000);
-                var apps = await Task.Run(AppServices.GetInstalledPrograms);
-                bool confirmed = await Task.Run(() => VerifiedUpdaters.ConfirmInstallation(recipe, entry, apps));
+                bool confirmed = result.State == UpdateAttemptState.Confirmed;
+                int? exit = result.ExitCode;
                 if (confirmed)
                 {
-                    Log("Atualização confirmada no Registro do Windows: " + recipe.ProductName + " " + recipe.Version);
+                    Log("Atualização confirmada no Registro e nos arquivos exigidos pela receita: " + recipe.ProductName + " " + recipe.Version);
                     Status(exit == 3010 ? "Atualizado; reinicialização pode ser necessária." : "Atualização concluída e versão confirmada.");
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.VERSAO_CONFIRMADA");
                 }
@@ -2494,25 +2890,18 @@ internal sealed partial class MainForm : Form
                     Status("Instalador terminou; versão ainda não confirmada.");
                     DiagnosticTrace.Write("INSTALACAO_OFICIAL.VERSAO_NAO_CONFIRMADA");
                 }
-                await LoadInstalledAsync();
-                // O catálogo é consultado novamente, sem exigir clique em Verificar.
-                // A visualização anterior volta depois da consulta, evitando lista vazia.
-                Log("Atualizando automaticamente a lista de versões disponíveis...");
-                await LoadUpdatesAsync();
-                _appFilter = _catalogoVerificado ? previousFilter : "Todos";
-                RenderPrograms();
-                Status(confirmed
-                    ? (_catalogoVerificado ? "Atualização confirmada; lista de atualizações renovada."
-                        : "Atualização confirmada; catálogo remoto temporariamente indisponível.")
-                    : "Instalador finalizado; confira a versão no Registro.");
+                await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
             }
             catch (OperationCanceledException)
             {
-                Log("Download de atualização cancelado; nenhum instalador foi executado.");
-                Status("Download cancelado.");
+                operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Cancelled,
+                    reason: installerStarted ? "A espera foi cancelada; o instalador pode continuar. Não repetir." : "Preparação ou download interrompido.");
+                Log(operation.Snapshot.Details);
+                Status(operation.Snapshot.Details);
             }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
             {
+                operation.Finish(UpdateStage.AuthorizationDeclined);
                 Log("Autorização UAC cancelada; nenhum instalador concluído.");
                 Status("Atualização cancelada pelo Windows.");
             }
@@ -2520,12 +2909,23 @@ internal sealed partial class MainForm : Form
             {
                 DiagnosticTrace.Failure("INSTALACAO_OFICIAL.FALHA", ex);
                 Log("Falha de atualização: " + ex.GetType().Name + ". Nenhuma conclusão presumida.");
-                Status("Falha ao atualizar: " + ex.Message);
+                operation.Fail(ex, installerStarted);
+                if (installerStarted) await RefreshInventoryAfterUpdateAsync(previousFilter, operation);
+                Status(operation.Snapshot.Details);
             }
             finally
             {
-                try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
-                catch (Exception) { Log("Aviso: não foi possível limpar a pasta temporária da atualização."); }
+                _deploymentWaitCts = null;
+                if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
+                if (operation.Snapshot.Active) operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.Blocked);
+                if (!_programList.IsDisposed) _programList.RefreshOperations();
+                if (VerifiedUpdaters.IsFolderProtected(folder))
+                    Log("Pacote temporario protegido nesta sessao. Mantenha o GF aberto ate todos os instaladores terminarem.");
+                else
+                {
+                    try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+                    catch (Exception) { Log("Aviso: não foi possível limpar a pasta temporária da atualização."); }
+                }
             }
         });
     }
@@ -2539,247 +2939,155 @@ internal sealed partial class MainForm : Form
         else Status("Nenhum aplicativo selecionado");
     }
 
+    private CancellationTokenSource? _uninstallCts;
     private async Task UninstallEntriesAsync(IReadOnlyCollection<ProgramEntry> apps)
     {
-        var entries = apps.ToArray();
-        if (entries.Length == 0) { Status("Nenhum aplicativo marcado"); return; }
-        if (entries.Any(x => !ActionableInventory.CanUninstall(x)))
+        if (apps.Count == 0) { Status("Nenhum aplicativo marcado"); return; }
+        if (apps.Any(app => _uninstallOperations.Find(app)?.PreventRetry == true))
+        { Status("Uma desinstalação ainda está pendente. Confira o resumo antes de tentar novamente."); return; }
+        foreach (var app in apps) SetUninstallProgress(app, "preparing");
+        // Entregar o primeiro frame antes de consultas e verificacao de assinatura.
+        await Task.Yield();
+        var prepared = new List<PreparedUninstaller>();
+        using var cancellation = new CancellationTokenSource();
+        int diagnosticUnavailable = 0;
+        void RecordResidualEvent(string line)
         {
-            Status("Desinstalação indisponível para um ou mais itens selecionados.");
-            Log("Desinstalação bloqueada: item protegido ou instalador não encontrado.");
-            return;
+            if (DiagnosticTrace.Write(line)) return;
+            Interlocked.Exchange(ref diagnosticUnavailable, 1);
+            cancellation.Cancel();
         }
-        string preview = string.Join("\n", entries.Take(8).Select(x => "• " + x.Name));
-        if (entries.Length > 8) preview += $"\n... e mais {entries.Length - 8}.";
-        if (DarkConfirmDialog.Confirm(this,
-            $"Deseja desinstalar {entries.Length} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
-            "Confirmar desinstalação") != DialogResult.Yes)
-        { Status("Desinstalação cancelada"); return; }
-
-        int started = 0, failed = 0, confirmed = 0;
-        var completed = new List<ProgramEntry>();
-        foreach (ProgramEntry entry in entries)
+        _uninstallCts = cancellation;
+        ShowUninstallCancellation(true);
+        var contexts = new Dictionary<string, ResidualUninstallContext>(StringComparer.OrdinalIgnoreCase);
+        async Task<UninstallSnapshot> Inventory()
         {
-            try
+            var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
+            return new(scan.Items, !scan.Incomplete);
+        }
+        try
+        {
+            var requests = await Task.Run(() => UninstallBatch.Select(apps), cancellation.Token);
+            var before = await Inventory();
+            foreach (var request in requests)
             {
-                // O comando principal pode ter desaparecido enquanto a variante
-                // silenciosa ainda existe; utilizar apenas a alternativa verificada.
-                string command = MaintenanceAudit.CheckUninstaller(entry.UninstallString, false) == "available"
-                    ? entry.UninstallString : entry.QuietUninstallString;
-                if (MaintenanceAudit.CheckUninstaller(command, false) == "missing")
-                {
-                    failed++;
-                    Log("O desinstalador registrado não existe no caminho informado para " +
-                        entry.Name + ". Nenhuma exclusão será tentada.");
-                    DiagnosticTrace.Write("DESINSTALACAO.ARQUIVO_AUSENTE");
-                    continue;
-                }
-                if (!AppServices.TryParseUninstaller(command, out string exe, out string args))
-                {
-                    failed++;
-                    Log("Sem desinstalador registrado: " + entry.Name);
-                    continue;
-                }
-                using Process? proc = Process.Start(new ProcessStartInfo
-                {
-                    FileName = exe, Arguments = args, UseShellExecute = true
-                });
-                if (proc is null)
-                {
-                    failed++;
-                    Log("Não foi possível iniciar: " + entry.Name);
-                    continue;
-                }
-                started++;
-                Status("Aguardando desinstalação de " + entry.Name + "...");
-                DiagnosticTrace.Write("DESINSTALACAO.FORNECEDOR_INICIADO");
-                using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-                try
-                {
-                    await proc.WaitForExitAsync(timeout.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    // Alguns fornecedores continuam em outros processos. Não inferir sucesso.
-                    Log("O desinstalador continua trabalhando. Confira depois em Atualizar lista.");
-                    DiagnosticTrace.Write("DESINSTALACAO.AGUA_RETORNO_PENDENTE");
-                    continue;
-                }
-                // Código de saída não basta: confirmar remoção no Registro.
-                bool removed = false;
-                for (int retry = 0; retry < 7; retry++)
-                {
-                    var inventory = await Task.Run(AppServices.GetInstalledPrograms);
-                    if (!UninstallResiduals.StillInstalled(entry, inventory))
+                cancellation.Token.ThrowIfCancellationRequested();
+                var context = await Task.Run(() => IntegratedResidualCleanup.Prepare(request.Original,
+                    before, cancellation.Token), cancellation.Token);
+                contexts.Add(request.Original.InventoryId, context);
+                RecordResidualEvent(IntegratedResidualCleanup.Audit(context.App, "prepare", "captured",
+                    folders: context.Roots.Count, keys: context.Keys.Count, kept: context.Preserved));
+                foreach (var problem in context.Problems)
+                    RecordResidualEvent(IntegratedResidualCleanup.Audit(context.App, problem.Stage, "preserved",
+                        error: problem.Error, reason: problem.Reason));
+                prepared.Add(await Task.Run(() => RegisteredUninstaller.Prepare(request,
+                    (path, signer) => VerifiedUpdaters.VerifyAuthenticode(path, signer, out _),
+                    signatureIssue: (path, signer) =>
                     {
-                        removed = true;
-                        break;
-                    }
-                    if (retry < 6) await Task.Delay(500);
-                }
-                if (removed)
-                {
-                    completed.Add(entry);
-                    confirmed++;
-                    DiagnosticTrace.Write("DESINSTALACAO.REGISTRO_AUSENTE");
-                    Log("Desinstalação confirmada no Registro: " + entry.Name);
-                }
-                else
-                {
-                    failed++;
-                    DiagnosticTrace.Write("DESINSTALACAO.REGISTRO_AINDA_PRESENTE");
-                    Log("Registro de desinstalação ainda associado a " + entry.Name +
-                        ". Feche todas as janelas do fornecedor e clique em Atualizar lista para revalidar. " +
-                        "Nenhuma limpeza de resíduos foi permitida.");
-                }
-                // A auditoria é separada das políticas que podem apagar arquivos.
-                // Mesmo sem receita de limpeza, mostra locais específicos e possíveis
-                // componentes relacionados, sempre SEM tocar no disco ou Registro.
-                var currentInventory = await Task.Run(AppServices.GetInstalledPrograms);
-                var audit = await Task.Run(() => ResidualAudit.Inspect(entry, currentInventory));
-                DiagnosticTrace.Write($"DESINSTALACAO.AUDITORIA encontrados={audit.Findings.Count} relacionados={audit.RelatedRegisteredPrograms.Count} removido={audit.UninstallConfirmed}");
-                if (audit.Findings.Count > 0 || audit.RelatedRegisteredPrograms.Count > 0)
-                {
-                    Log($"Auditoria de {entry.Name}: {audit.Findings.Count} local(is) possível(is) e " +
-                        $"{audit.RelatedRegisteredPrograms.Count} componente(s) relacionado(s) ainda registrado(s).");
-                    ResidualAuditDialog.ShowResults(this, audit);
-                }
-                else
-                {
-                    Log("Auditoria adicional: nenhum local específico reconhecido para " + entry.Name +
-                        ". Isso não comprova ausência de outros vestígios.");
-                }
+                        VerifiedUpdaters.VerifyAuthenticode(path, signer, out string issue);
+                        return issue;
+                    }), cancellation.Token));
             }
-            catch (Win32Exception ex)
+            string preview = await Task.Run(() => string.Join("\n\n", prepared.Select(p =>
+                "• " + p.Request.Original.Name + "\n" + SilentUninstallPolicy.DescribeMode(p.Request) +
+                (p.UnsignedWarning ? "\nDesinstalador sem assinatura digital. Confira o aplicativo antes de continuar." :
+                 p.PublisherWarning ? "\nAssinatura válida com editor diferente do cadastro. Confira o aplicativo." :
+                 p.TrustWarning ? "\nO Windows não confirmou a confiança da assinatura. Confira o aplicativo." : ""))), cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            foreach (var app in apps) SetUninstallProgress(app, "awaiting_consent");
+            bool consent = DarkConfirmDialog.Confirm(this,
+                $"Deseja desinstalar {prepared.Count} aplicativo(s)?\n\n{preview}\n\nOs desinstaladores podem remover dados.",
+                "Confirmar desinstalação") == DialogResult.Yes;
+            var outcomes = await Task.Run(() => new UninstallBatch().RunAsync(requests, consent, Inventory,
+                (request, token) =>
+                {
+                    Status("Aguardando desinstalação de " + request.Original.Name + "...");
+                    RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(request.Original),
+                        "launch", SilentUninstallPolicy.UsesSilentMode(request) ? "silent" : "interactive"));
+                    return prepared.Single(p => p.Request == request).LaunchAsync(token);
+                }, token => Task.Delay(500, token), cancellation.Token,
+                (request, stage) => SetUninstallProgress(request.Original, stage)));
+            foreach (var plan in prepared) plan.Dispose();
+            prepared.Clear();
+            foreach (var outcome in outcomes)
             {
-                failed++;
-                Log("Falha ao iniciar desinstalação de " + entry.Name + ": " +
-                    UninstallLaunchDiagnostics.Explain(ex.NativeErrorCode));
-                DiagnosticTrace.Write($"DESINSTALACAO.INICIO_FALHA codigo_win32={ex.NativeErrorCode}");
-                DiagnosticTrace.Failure("DESINSTALACAO.FALHA", ex);
+                SetUninstallProgress(outcome.Request.Original, outcome.State == UninstallState.RegistrationAbsent ? "inspecting" :
+                    outcome.State == UninstallState.Pending ? "pending" : outcome.State is UninstallState.Refused or UninstallState.Cancelled ? "cancelled" : "failed");
+                RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(outcome.Request.Original),
+                    "uninstall", outcome.State.ToString(), error: outcome.Code ?? 0, milliseconds: outcome.DurationMilliseconds,
+                    reason: outcome.DiagnosticReason.Length > 0 ? outcome.DiagnosticReason :
+                        outcome.State == UninstallState.RegistrationAbsent ? "removal_confirmed" : "no_cleanup_authorized"));
             }
-            catch (Exception ex)
+            foreach (var app in apps.Where(app => !outcomes.Any(o => o.Request.Original.InventoryId == app.InventoryId)))
+                SetUninstallProgress(app, "cancelled");
+            ResidualBatchResult? cleanup = null;
+            if (consent)
             {
-                failed++;
-                Log("Falha ao desinstalar " + entry.Name + ": " + ex.GetType().Name);
-                DiagnosticTrace.Failure("DESINSTALACAO.FALHA", ex);
+                Status("Conferindo resíduos dos aplicativos removidos...");
+                cleanup = await Task.Run(() => IntegratedResidualBatch.RunAsync(outcomes, contexts,
+                    Inventory, (plans, token) => OnUninstallUiAsync(() => ConfirmUninstallCleanupAsync(plans, token)),
+                    (plans, token) => OnUninstallUiAsync(() => RunElevatedAsync(ResidualElevatedProtocol.TaskName, plans, token, RecordResidualEvent)),
+                    RecordResidualEvent, cancellation.Token,
+                    (app, stage) => SetUninstallProgress(app.Entry(), stage)));
+                // A recarga visual nao apaga o resultado da operacao concluida.
+                try { await RefreshCatalogAsync(); }
+                catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex))
+                { Log("O inventário não pôde ser atualizado. O resumo da desinstalação foi preservado."); }
+            }
+            string summary = UninstallResultSummary.Describe(outcomes, cleanup);
+            foreach (var outcome in outcomes.Where(o => o.State == UninstallState.RegistrationAbsent))
+            {
+                string appId = ResidualAppIdentity.From(outcome.Request.Original).TechnicalId;
+                var inspection = cleanup?.Inspections?.SingleOrDefault(p => p.Context.App.TechnicalId == appId);
+                var cleaned = cleanup?.Results.SingleOrDefault(r => r.AppId == appId);
+                SetUninstallProgress(outcome.Request.Original, cleanup?.Cancelled == true ? "cancelled" :
+                    inspection is null || !inspection.Conclusive || cleaned is { Verified: false } && cleanup?.Declined != true ? "partial" : "finished",
+                    UninstallResultSummary.Describe([outcome], cleanup));
+            }
+            string result = !consent || cleanup?.Cancelled == true ? "Operação cancelada — confira o resumo."
+                : outcomes.Any(o => o.State == UninstallState.Pending) ? "Conclusão pendente — confira o resumo."
+                : cleanup?.Unavailable > 0 ? "Verificação de resíduos parcial — confira o resumo."
+                : "Desinstalação finalizada — confira o resumo.";
+            Status(result); Log(result);
+            ShowUninstallResult(summary);
+            if (consent && cleanup?.Declined != true && cleanup?.Cancelled != true &&
+                !cancellation.IsCancellationRequested)
+            {
+                var review = RebootResidualReview.Select(outcomes, cleanup);
+                if (review.Length > 0)
+                    OfferRestartReview(review);
             }
         }
-
-        // Executar somente depois de confirmar a remoção. Uma consulta sem
-        // resíduos ou sem receita conhecida jamais deve apagar arquivos.
-        foreach (var item in completed)
+        catch (OperationCanceledException)
         {
-            if (!UninstallResiduals.IsSupported(item))
-            {
-                Log("Registro removido; limpeza automática de resíduos não disponível para " + item.Name + ".");
-                continue;
-            }
-            Status("Verificando resíduos de " + item.Name + "...");
-            DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_CONSULTA_INICIO");
-            var found = await Task.Run(() => UninstallResiduals.Inspect(item));
-            DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_CONSULTA_FIM candidatos=" + found.Sum(x => x.Files.Count));
-            if (found.Count == 0)
-            {
-                Log("Nenhum resíduo executável reconhecido encontrado para " + item.Name +
-                    ". Configurações pessoais são preservadas.");
-                continue;
-            }
-            int detected = found.Sum(x => x.Files.Count);
-            int untouched = found.Sum(x => x.Preserved);
-            string description = string.Join("\n", found.Take(3).Select(x =>
-                "• " + x.Product + ": " + x.Files.Count + " arquivo(s) na pasta de instalação"));
-            string question = $"Desinstalação de {item.Name} confirmada.\n\n" +
-                $"Foram encontrados {detected} arquivo(s) residuais de instalação:\n" +
-                description +
-                $"\n\nDeseja limpar somente esses arquivos?\n" +
-                $"Configurações, documentos, plugins e outros dados ({untouched} item(ns) não reconhecido(s)) serão preservados.";
-            if (DarkConfirmDialog.Confirm(this, question, "Limpar resíduos após desinstalação") != DialogResult.Yes)
-            {
-                Log("Limpeza de resíduos recusada. Nenhum arquivo adicional removido.");
-                DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_RECUSADO");
-                continue;
-            }
-            // Revalidar imediatamente a remoção; caso outra instalação tenha surgido, não limpar.
-            if (UninstallResiduals.StillInstalled(item, await Task.Run(AppServices.GetInstalledPrograms)))
-            {
-                Log("O aplicativo voltou a constar no Registro; resíduos preservados.");
-                DiagnosticTrace.Write("DESINSTALACAO.RESIDUOS_ABORTADO_REINSTALACAO");
-                continue;
-            }
-            int filesRemoved = 0, foldersRemoved = 0, errors = 0, preserved = 0;
-            foreach (var candidate in found)
-            {
-                var outcome = await Task.Run(() => UninstallResiduals.Clean(item, candidate));
-                filesRemoved += outcome.RemovedFiles;
-                foldersRemoved += outcome.RemovedDirectories;
-                errors += outcome.Failed;
-                preserved += outcome.Preserved;
-            }
-            DiagnosticTrace.Write($"DESINSTALACAO.RESIDUOS_LIMPEZA arquivos={filesRemoved} pastas={foldersRemoved} falhas={errors} preservados={preserved}");
-            Log($"Resíduos de {item.Name}: removidos {filesRemoved} arquivo(s) e {foldersRemoved} pasta(s) vazia(s); " +
-                $"preservados {preserved} item(ns); falhas {errors}.");
-            Status(errors == 0 ? "Limpeza de resíduos concluída com segurança."
-                               : "Limpeza parcial: alguns arquivos requerem permissões ou estão em uso.");
+            foreach (var app in apps)
+                RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(app), "operation", "cancelled", cancelled: true));
+            foreach (var app in apps.Where(app => _uninstallOperations.Find(app)?.Active == true))
+                SetUninstallProgress(app, "cancelled");
+            Status("Operação cancelada.");
+            ShowUninstallResult("Operação interrompida. Uma desinstalação já iniciada pode continuar trabalhando. Nenhuma limpeza adicional foi autorizada. Consulte o diagnóstico.");
         }
-        await RefreshCatalogAsync();
-        Status($"Desinstalação: {confirmed} confirmada(s), {failed} falha(s). " +
-            "Auditoria adicional concluída; possíveis resíduos desconhecidos não foram apagados.");
-    }
-
-    private async Task ReviewDeepUninstallResiduesAsync()
-    {
-        // Não é a limpeza padrão, não pode ser disparada automaticamente.
-        Status("Analisando catálogo com " + UninstallRuleCatalog.Count +
-            " regras de aplicativos para limpeza avançada...");
-        DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_INICIO");
-        var installed = await Task.Run(AppServices.GetInstalledPrograms);
-        var candidates = await Task.Run(() => AdvancedUninstallCleaner.Inspect(installed));
-        DiagnosticTrace.Write("LIMPEZA_AVANCADA.CONSULTA_FIM programas=" + candidates.Count);
-        if (candidates.Count == 0)
+        catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex))
         {
-            Log("Limpeza avançada: nenhum dado ou chave do Registro conhecido encontrado.");
-            Status("Nenhum resíduo avançado reconhecido; outros vestígios não podem ser descartados.");
-            return;
+            foreach (var app in apps)
+                RecordResidualEvent(IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(app), "operation", "failed",
+                    failed: 1, error: IntegratedResidualCleanup.Error(ex), reason: "uninstall_preparation_or_execution"));
+            foreach (var app in apps.Where(app => _uninstallOperations.Find(app)?.Active == true))
+                SetUninstallProgress(app, "failed");
+            Log("Não foi possível concluir — consulte o diagnóstico.");
+            Status("Não foi possível concluir — consulte o diagnóstico.");
+            ShowUninstallResult("Não foi possível concluir a operação. A ausência de resíduos não foi comprovada. Consulte o diagnóstico.");
         }
-        foreach (var item in candidates)
+        finally
         {
-            var targets = item.Folders.Select(p => "• Pasta: " + p)
-                .Concat(item.RegistryKeys.Select(p => @"• Regedit: HKEY_CURRENT_USER\" + p));
-            string preview = string.Join("\n", targets.Take(5));
-            string warning =
-                "MODO AVANÇADO — AÇÃO IRREVERSÍVEL\n\n" +
-                item.App.Name + " não consta no Registro como instalado.\n\n" +
-                "A limpeza pode apagar preferências, histórico local, documentos, backups e plugins " +
-                "armazenados nas pastas exclusivas abaixo, além das chaves de Registro listadas:\n\n" +
-                preview +
-                $"\n\nArquivos identificados: {item.FileCount}. Itens especiais ignorados: {item.InaccessibleOrLinked}.\n" +
-                "As exclusões não passam pela Lixeira. Não há garantia de apagamento forense em SSD.\n" +
-                "Componentes compartilhados e outras contas serão preservados.\n\n" +
-                "DESEJA EXCLUIR ESSES DADOS PERMANENTEMENTE?";
-            if (DarkConfirmDialog.Confirm(this, warning,
-                "Limpeza avançada — confirmar exclusão") != DialogResult.Yes)
+            _uninstallCts = null;
+            ShowUninstallCancellation(false);
+            foreach (var plan in prepared) plan.Dispose();
+            if (diagnosticUnavailable != 0)
             {
-                DiagnosticTrace.Write("LIMPEZA_AVANCADA.RECUSADA");
-                Log("Limpeza avançada de " + item.App.Name + " recusada. Nenhuma alteração.");
-                continue;
+                Log("Não foi possível gravar o diagnóstico. A operação foi interrompida.");
+                Status("Operação interrompida — diagnóstico indisponível.");
             }
-            // Reconsulta independente, a confirmação não vale para apps reinstalados.
-            var fresh = await Task.Run(AppServices.GetInstalledPrograms);
-            if (AdvancedUninstallCleaner.StillInstalled(item.App, fresh))
-            {
-                Status("O programa foi detectado novamente. Nenhum dado será apagado.");
-                DiagnosticTrace.Write("LIMPEZA_AVANCADA.REINSTALADO");
-                continue;
-            }
-            Status("Eliminando apenas dados exclusivos autorizados de " + item.App.Name + "...");
-            var result = await Task.Run(() => AdvancedUninstallCleaner.Clean(item, fresh));
-            DiagnosticTrace.Write($"LIMPEZA_AVANCADA.RESULTADO arquivos={result.Files} pastas={result.Directories} chaves={result.RegistryKeys} ignorados={result.Skipped} falhas={result.Failed}");
-            Log($"Limpeza avançada de {item.App.Name}: {result.Files} arquivo(s), {result.Directories} pasta(s), " +
-                $"{result.RegistryKeys} chave(s) HKCU removidos; {result.Skipped} ignorados; {result.Failed} falhas.");
-            Status(result.Failed == 0 && result.Skipped == 0
-                ? "Limpeza avançada concluída para alvos conhecidos. Outros vestígios podem permanecer."
-                : "Limpeza avançada parcial. Dados protegidos ou inacessíveis foram preservados.");
         }
     }
 
@@ -2787,17 +3095,26 @@ internal sealed partial class MainForm : Form
     {
         Status("Conferindo instalações registradas e dispositivos do Windows...");
         DiagnosticTrace.Write("DIAGNOSTICO_COMPLETO.INICIO");
-        var apps = await Task.Run(() => AppServices.ScanAllInstalledApps().Items);
-        var maintenanceTask = Task.Run(() => MaintenanceAudit.Inspect(apps));
-        var gamesTask = Task.Run(GameLibraryAudit.Inspect);
+        var inventory = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
+        var maintenanceTask = Task.Run(() => MaintenanceAudit.Inspect(inventory.Items,
+            inventoryIncomplete: inventory.Incomplete));
+        var games = inventory.Games;
         // Consulta agregada via API oficial do Windows, sem subprocessos,
         // privilegiamento ou chamadas a APIs privadas do AVG.
         var securityTask = Task.Run(SecurityCenterHealth.Capture);
-        await Task.WhenAll(maintenanceTask, gamesTask, securityTask);
+        await Task.WhenAll(maintenanceTask, securityTask);
         var report = await maintenanceTask;
-        var games = await gamesTask;
         var security = await securityTask;
-        DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} pnp_sem_correspondencia={report.HistoricalPnP?.NotPresent ?? 0} steam={games.Steam} epic={games.Epic} parcial={report.Devices.Partial || games.Partial}");
+        DiagnosticTrace.Write($"DIAGNOSTICO_COMPLETO.FIM instalados={report.Installed} reconhecidos={report.Recognized} desinstaladores_ausentes={report.MissingUninstallers} desinstaladores_indeterminados={report.UnverifiableUninstallers} pnp_consultados={report.Devices.Queried} desconectados={report.Devices.Disconnected} problemas={report.Devices.WithProblems} pnp_sem_correspondencia={report.HistoricalPnP?.NotPresent ?? 0} steam={games.Steam} epic={games.Epic} inventario_parcial={report.InventoryIncomplete} msix_status={inventory.Msix.Status} msix_fase={inventory.Msix.FailureStage} msix_apartment={inventory.Msix.Apartment} parcial={report.Incomplete || games.Partial}");
+        TestDiagnosticDetail.Record("MANUTENCAO",
+            ("instalados", report.Installed), ("reconhecidos", report.Recognized),
+            ("sem_desinstalador", report.MissingUninstallers),
+            ("desinstalador_incerto", report.UnverifiableUninstallers),
+            ("pnp", report.Devices.Queried),
+            ("historicos_nao_observados", report.HistoricalPnP?.NotPresent ?? 0),
+            ("seguranca_atencao", security.Count(x => x.Level == SecurityHealthLevel.Attention)),
+            ("seguranca_incerta", security.Count(x => x.Level != SecurityHealthLevel.Attention && x.Level != SecurityHealthLevel.Ok)),
+            ("parcial", report.Incomplete || games.Partial ? 1 : 0));
         Log($"DIAGNÓSTICO COMPLETO: {report.Installed} programas; " +
             $"{report.Recognized} associados ao catálogo de receitas específicas; " +
             $"{report.WithPublisher} com fabricante registrado e " +
@@ -2849,122 +3166,73 @@ internal sealed partial class MainForm : Form
         }
         Log("Diagnóstico de proteção: leitura do Centro de Segurança. Não substitui AVG ou Defender.");
         Log("Nenhum driver, arquivo de instalação ou chave de Registro foi removido pelo diagnóstico.");
-        Status(report.Devices.Partial || games.Partial ||
-               report.HistoricalPnP is null || report.HistoricalPnP.Partial
+        Status(report.Incomplete || games.Partial
             ? "Diagnóstico parcial: consulte as informações e limitações no registro."
             : $"Diagnóstico: {report.MissingUninstallers} desinstaladores ausentes; " +
-              $"{report.HistoricalPnP.NotPresent} instâncias PnP sem confirmação (não são drivers).");
+              $"{report.HistoricalPnP?.NotPresent ?? 0} instâncias PnP sem confirmação (não são drivers).");
     }
 
-    private async Task ReviewOldUninstallResiduesAsync()
+    private async Task VerifyWindowsIntegrityAsync()
     {
-        Status("Conferindo instalações removidas e arquivos residuais conhecidos...");
-        var installed = await Task.Run(AppServices.GetInstalledPrograms);
-        var orphans = await Task.Run(() => UninstallResiduals.FindPreviouslyUninstalled(installed));
-        DiagnosticTrace.Write("DESINSTALACAO.REVISAO_ANTIGA programas=" + orphans.Count);
-        if (orphans.Count == 0)
-        {
-            Log("Nenhum resíduo executável com receita de exclusão encontrado. Ampliando a auditoria histórica.");
-            Status("Verificando vestígios históricos somente para leitura...");
-        }
-        foreach (var (app, candidates) in orphans)
-        {
-            int count = candidates.Sum(x => x.Files.Count);
-            if (DarkConfirmDialog.Confirm(this,
-                $"O aplicativo {app.Name} não está mais instalado.\n\n" +
-                $"Há {count} arquivo(s) residuais reconhecidos nas antigas pastas de instalação.\n\n" +
-                "Deseja remover somente esses arquivos?\n" +
-                "Documentos, plugins e configurações pessoais permanecerão intocados.",
-                "Limpeza de resíduos de aplicativos") != DialogResult.Yes)
-            {
-                Log("Limpeza de resíduos antigos recusada para " + app.Name);
-                continue;
-            }
-            if (UninstallResiduals.StillInstalled(app, await Task.Run(AppServices.GetInstalledPrograms)))
-            {
-                Log("Registro de instalação detectado novamente; limpeza cancelada.");
-                continue;
-            }
-            int removed = 0, failed = 0, kept = 0, emptyFolders = 0;
-            foreach (var candidate in candidates)
-            {
-                var result = await Task.Run(() => UninstallResiduals.Clean(app, candidate));
-                removed += result.RemovedFiles;
-                failed += result.Failed;
-                kept += result.Preserved;
-                emptyFolders += result.RemovedDirectories;
-            }
-            DiagnosticTrace.Write($"DESINSTALACAO.REVISAO_LIMPEZA arquivos={removed} falhas={failed} preservados={kept}");
-            Log($"Resíduos antigos de {app.Name}: {removed} arquivo(s) e {emptyFolders} pasta(s) vazia(s) removidos; " +
-                $"{kept} item(ns) preservado(s); {failed} falha(s).");
-        }
-        // A análise histórica cobre produtos que já desapareceram do inventário.
-        // NUNCA autoriza exclusão de chaves HKLM/HKCU, saves ou integrações.
-        Status("Verificando vestígios antigos sem modificar o computador...");
-        DiagnosticTrace.Write("RESIDUOS_HISTORICOS.CONSULTA_INICIO");
-        // Usar uma unica fotografia atual de Win32, MSIX e bibliotecas de jogos.
-        // Assim aplicativos Store ou jogos ativos nao viram falsos vestigios.
-        var inventorySnapshot = await Task.Run(AppServices.ScanAllInstalledApps);
-        var updatedInventory = inventorySnapshot.Items;
-        bool inventoryIncomplete = inventorySnapshot.Registry.ReadFailures > 0 ||
-            inventorySnapshot.Msix.Failures > 0 || inventorySnapshot.Msix.Status != "ok" ||
-            inventorySnapshot.Games.Partial;
-        if (inventoryIncomplete)
-            Log("Inventário de proteção PARCIAL: ausência na lista não comprova remoção. Os achados históricos continuam somente leitura.");
-        var historical = await Task.Run(() => HistoricalResidualAudit.Inspect(updatedInventory));
-        // Driver Booster é excluído pela regra genérica para nomes de drivers.
-        // Complementar com locais específicos da família IObit, sem inferir
-        // que arquivos compartilhados são lixo nem autorizar sua remoção.
-        var boosterEvidence = await Task.Run(() => ResidualAudit.Inspect(
-            new ProgramEntry { Name = "Driver Booster" }, updatedInventory));
-        bool boosterStillRegistered = updatedInventory.Any(ResidualAudit.IsDriverBoosterProduct);
-        var boosterReports = boosterEvidence.Findings.Count == 0
-            ? Array.Empty<ResidualAuditReport>()
-            : new[] { new ResidualAuditReport("Driver Booster (IObit)", false,
-                boosterEvidence.Findings.Select(f => f with
-                {
-                    Kind = (boosterStillRegistered || inventoryIncomplete
-                        ? "Instalação não confirmada — " : "Vestígio não confirmado — ") + f.Kind
-                }).ToArray(), Array.Empty<string>(), Historical: true) };
-        DiagnosticTrace.Write($"RESIDUOS_HISTORICOS.CONSULTA_FIM programas={historical.Count} locais={historical.Sum(x => x.Findings.Count)} booster_locais={boosterEvidence.Findings.Count}");
-        Status("Analisando locais comuns de aplicativos e Registro, sem alterar arquivos...");
-        DiagnosticTrace.Write("RESIDUOS_GERAIS.CONSULTA_INICIO");
-        // Independe de ter observado a instalação ou a remoção do programa.
-        // Todas as fontes são somente leitura, com tempo e quantidade limitados.
-        // Jogos detectados apenas por manifestos Steam/Epic nao pertencem ao ARP.
-        // Proteger seus dados ativos antes de sugerir vestigios historicos.
-        var gameInventory = inventorySnapshot.Games;
-        var broad = await Task.Run(() => BroadResidualDiscovery.Inspect(updatedInventory,
-            gameInventory.ActiveNames, gameInventory.Partial, inventoryIncomplete));
-        int installCandidates = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Instalação não confirmada", StringComparison.Ordinal)));
-        int publisherData = broad.Reports.Count(r => r.Findings.Any(f => f.Kind.StartsWith("Dados compartilhados de fabricante", StringComparison.Ordinal)));
-        DiagnosticTrace.Write($"RESIDUOS_GERAIS.CONSULTA_FIM origens={broad.RootsChecked} examinados={broad.EntriesSeen} candidatos={broad.Reports.Count} instalacoes_a_conferir={installCandidates} perfis_fabricantes={publisherData} jogos_ativos={gameInventory.ActiveNames.Count} inacessiveis={broad.RestrictedRoots} parcial={broad.Incomplete}");
-        // Manter resultados com caminhos identificados pelas receitas específicas primeiro,
-        // impedindo várias caixas de diálogo para o mesmo aplicativo histórico.
-        var historicalNames = new HashSet<string>(historical.Select(r => r.Product),
-            StringComparer.OrdinalIgnoreCase);
-        var allReports = historical.Concat(boosterReports)
-            .Concat(broad.Reports.Where(r => !historicalNames.Contains(r.Product)))
-            .ToArray();
-        if (allReports.Length > 0)
-        {
-            Log($"Auditoria de dados e instalações: {allReports.Length} grupos para revisão (não são lixo confirmado). " +
-                $"Verificados {broad.EntriesSeen} nomes em {broad.RootsChecked} origens." +
-                (broad.Incomplete ? " Análise PARCIAL: limites de proteção alcançados." : ""));
-            ResidualAuditDialog.ShowHistoricalResults(this, allReports);
-        }
-        else
-        {
-            Log("Nenhum indício reconhecido nos locais analisados. Isso NÃO comprova ausência total de vestígios." +
-                (broad.Incomplete ? " Análise parcial devido a limites de acesso ou tempo." : ""));
-        }
-        Status(broad.Incomplete
-            ? "Análise parcial concluída. Alguns locais não puderam ser examinados; nenhum dado incerto foi apagado."
-            : "Análise concluída. Instalações e perfis foram classificados sem exclusões.");
+        _windowsRepairable = false;
+        _windowsScannedAt = default;
+        RefreshWindowsRepairButton();
+        await RunElevatedAsync("windows-check");
     }
 
-    private static string SimpleConfirmation(string task) => task switch
+    private void RefreshWindowsRepairButton()
     {
+        if (_repairWindowsButton is { IsDisposed: false } button)
+            button.Enabled = !_busy && _windowsRepairable &&
+                DateTimeOffset.UtcNow - _windowsScannedAt < TimeSpan.FromMinutes(30);
+    }
+
+    private async Task RepairWindowsAfterVerificationAsync()
+    {
+        if (_busy || !_windowsRepairable ||
+            DateTimeOffset.UtcNow - _windowsScannedAt >= TimeSpan.FromMinutes(30))
+        {
+            _windowsRepairable = false;
+            RefreshWindowsRepairButton();
+            Status("Nova verificação necessária antes de reparar.");
+            return;
+        }
+        _windowsRepairable = false; // Uma autorizacao por diagnostico.
+        RefreshWindowsRepairButton();
+        await ConfirmThenRun("windows-repair",
+            "Foram encontrados problemas em arquivos do Windows. Deseja tentar corrigir? " +
+            "A operação pode demorar e alterar arquivos do sistema.");
+    }
+
+    private Task ChooseRestorePointAsync()
+    {
+        if (_busy) return Task.CompletedTask;
+        if (DarkConfirmDialog.Confirm(this,
+            "Abrir o assistente oficial de Restauração do Sistema? Você poderá escolher e " +
+            "confirmar um ponto no próprio Windows. Aplicativos e atualizações posteriores " +
+            "podem ser removidos e pode ser necessário reiniciar. Não substitui backup.",
+            "Escolher ponto de restauração") != DialogResult.Yes) return Task.CompletedTask;
+        try
+        {
+            string system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+            if (string.IsNullOrWhiteSpace(system) || !Path.IsPathFullyQualified(system))
+                throw new InvalidOperationException("Diretório do Windows indisponível.");
+            string path = Path.Combine(system, "rstrui.exe");
+            if (!File.Exists(path)) throw new FileNotFoundException("Assistente indisponível.", path);
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            Log("Assistente oficial aberto; nenhuma restauração foi iniciada pelo Gerenciador.");
+        }
+        catch (Exception ex) { Log("Assistente de restauração indisponível: " + ex.Message); }
+        return Task.CompletedTask;
+    }
+
+    private static string SimpleConfirmation(string task)
+    {
+        if (SingleVolumeOptimization.TryParseTask(task, out string volume))
+            return "Deseja otimizar somente a unidade " + volume +
+                "? O Windows escolherá o procedimento adequado. Esta operação pode demorar.";
+        return task switch
+        {
         "clean-user-temp" => "Deseja limpar os arquivos temporários antigos do usuário?",
         "clean-windows-temp" => "Deseja limpar os arquivos temporários antigos do Windows?",
         "clear-update-cache" => "Deseja limpar o cache do Windows Update? A consulta de atualizações ficará temporariamente indisponível.",
@@ -2974,13 +3242,22 @@ internal sealed partial class MainForm : Form
         "network-reset" => "Deseja redefinir a rede? A conexão pode ser interrompida.",
         "create-restore-point" => "Deseja criar um ponto de restauração?",
         _ => "Deseja executar esta operação?"
-    };
+        };
+    }
 
     private async Task ConfirmThenRun(string task, string question)
     {
         if (_busy) return;
-        if (DarkConfirmDialog.Confirm(this, SimpleConfirmation(task), "Confirmar operação") != DialogResult.Yes)
-        { Log("Operação cancelada pelo usuário."); return; }
+        string confirmation = task == "windows-repair" ? question : SimpleConfirmation(task);
+        if (DarkConfirmDialog.Confirm(this, confirmation, "Confirmar operação") != DialogResult.Yes)
+        {
+            if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
+                DiagnosticTrace.Write(audit);
+            Log("Operação cancelada pelo usuário.");
+            return;
+        }
+        if (SafeMaintenanceAudit.Begin(task) is { } started)
+            DiagnosticTrace.Write(started);
         if (task is "clean-user-temp" or "clean-directx-cache")
         {
             string path = task == "clean-user-temp"
@@ -2991,11 +3268,17 @@ internal sealed partial class MainForm : Form
                 if (!Directory.Exists(path))
                 {
                     Log("A pasta da limpeza não existe neste perfil. Nenhuma alteração realizada.");
+                    if (SafeMaintenanceAudit.MissingSource(task) is { } missingSourceAudit)
+                        DiagnosticTrace.Write(missingSourceAudit);
                     Status("Nenhum cache encontrado");
                     return;
                 }
                 Log("Pasta consultada: " + path);
                 var result = await Task.Run(() => AppServices.CleanDirectorySafely(path, Log));
+                if (SafeMaintenanceAudit.LocalResult(task, result.FilesRemoved,
+                    result.DirectoriesRemoved, result.Skipped, result.ReparseSkipped,
+                    result.Failed) is { } localResultAudit)
+                    DiagnosticTrace.Write(localResultAudit);
                 Status(result.Failed == 0 ? "Limpeza concluída" : "Limpeza parcial, com avisos");
             });
             return;
@@ -3003,13 +3286,29 @@ internal sealed partial class MainForm : Form
         await ExecuteAsync("Executando manutenção do Windows...", () => RunElevatedAsync(task));
     }
 
-    private async Task RunElevatedAsync(string task)
+    private async Task<ResidualElevationResponse?> RunElevatedAsync(string task,
+        IReadOnlyList<ResidualElevationRequest>? residualRequests = null, CancellationToken cancellation = default,
+        Action<string>? residualAudit = null)
     {
         // O UAC é solicitado, mas a tarefa não abre formulário/terminal próprio.
         // Mensagens trafegam apenas em memória pelo pipe nomeado desta sessão.
+        void RecordResidual(string line)
+        {
+            if (residualAudit is not null) residualAudit(line);
+            else DiagnosticTrace.Write(line);
+        }
+        ResidualElevationResponse? ResidualUacFailure(string reason, int error = 0)
+        {
+            if (residualRequests is null) return null;
+            foreach (var request in residualRequests)
+                RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed", error: error, reason: reason));
+            return new(reason, error, []);
+        }
+        if (residualRequests is not null && cancellation.IsCancellationRequested)
+            return ResidualUacFailure("uac_cancelled");
         string pipeName = "GA5122_" + Guid.NewGuid().ToString("N");
         string token = Guid.NewGuid().ToString("N");
-        using var server = new NamedPipeServerStream(pipeName, PipeDirection.In, 1,
+        using var server = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1,
             PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         string exe = Environment.ProcessPath ?? Application.ExecutablePath;
         var start = new ProcessStartInfo { FileName = exe, UseShellExecute = true, Verb = "runas" };
@@ -3022,34 +3321,138 @@ internal sealed partial class MainForm : Form
         Process? child = null;
         try { child = Process.Start(start) ?? throw new InvalidOperationException("O Windows não iniciou o processo administrativo."); }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
-        { Status("Autorização administrativa cancelada"); Log("Operação cancelada na confirmação do UAC."); return; }
-        using (child)
-        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(35)))
         {
+            if (residualRequests is not null)
+            {
+                foreach (var request in residualRequests)
+                    RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "declined", error: 1223));
+                return new("uac_declined", 1223, []);
+            }
+            if (SafeMaintenanceAudit.Cancelled(task) is { } audit)
+                DiagnosticTrace.Write(audit);
+            Status("Autorização administrativa cancelada");
+            Log("Operação cancelada na confirmação do UAC.");
+            return null;
+        }
+        catch (Exception ex) when (residualRequests is not null && IntegratedResidualCleanup.Expected(ex))
+        { return ResidualUacFailure("uac_start_failed", IntegratedResidualCleanup.Error(ex)); }
+        using (child)
+        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation))
+        {
+            timeout.CancelAfter(TimeSpan.FromSeconds(35));
+            var windowsProgress = new WindowsMaintenanceProgress();
             try { await server.WaitForConnectionAsync(timeout.Token); }
             catch (OperationCanceledException)
             {
+                if (residualRequests is not null)
+                    foreach (var request in residualRequests)
+                        RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed", reason: "worker_connect_timeout"));
                 Log("Não foi possível conectar à tarefa administrativa. Verifique se o Windows ou antivírus bloqueou o programa.");
-                Status("Falha de comunicação com operação administrativa"); return;
+                Status("Falha de comunicação com operação administrativa");
+                return ResidualUacFailure(cancellation.IsCancellationRequested ? "uac_cancelled" : "uac_connect_timeout");
             }
+            // Token nao substitui a identidade do cliente informada pelo kernel.
+            if (!PipePeerVerifier.IsExpectedClient(server, child.Id))
+            { Status("Conexao administrativa rejeitada: processo inesperado."); return ResidualUacFailure("uac_peer_rejected"); }
             using var reader = new StreamReader(server, Encoding.UTF8, detectEncodingFromByteOrderMarks: true,
                 bufferSize: 4096, leaveOpen: true);
-            string? handshake = await reader.ReadLineAsync();
+            string? handshake;
+            using (var handshakeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            {
+                try { handshake = await reader.ReadLineAsync(handshakeTimeout.Token); }
+                catch (OperationCanceledException)
+                { Status("Tempo esgotado na autenticacao da tarefa administrativa."); return ResidualUacFailure("uac_handshake_timeout"); }
+            }
             if (handshake != "HELLO|" + token)
-            { Status("Falha de autenticação da tarefa administrativa"); return; }
+            { Status("Falha de autenticação da tarefa administrativa"); return ResidualUacFailure("uac_handshake_failed"); }
+            if (residualRequests is not null)
+            {
+                try
+                {
+                    foreach (var request in residualRequests)
+                        RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "authorized"));
+                    var response = await Task.Run(() => ResidualElevatedProtocol.ParentAsync(server, residualRequests, cancellation));
+                    await Task.Run(() =>
+                    {
+                    foreach (var request in residualRequests)
+                        RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac_result", response.State, error: response.Error));
+                    foreach (var result in response.Results)
+                    {
+                        var app = residualRequests.Single(r => r.Plan.Context.App.TechnicalId == result.AppId).Plan.Context.App;
+                        foreach (var item in result.Items)
+                            RecordResidual(IntegratedResidualCleanup.Audit(app, "uac_" + (item.Kind == "registry"
+                                ? IntegratedResidualCleanup.RegistryStage(residualRequests.Single(r => r.Plan.Context.App.TechnicalId == result.AppId).Plan.Keys.Single(k => k.Id == item.Id))
+                                : item.Kind), item.State.ToString(),
+                                error: item.Error, reason: item.Reason));
+                        foreach (var issue in result.Problems)
+                            RecordResidual(IntegratedResidualCleanup.Audit(app, issue.Stage, "blocked", error: issue.Error, reason: issue.Reason));
+                    }
+                    });
+                    return response;
+                }
+                catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex) || ex is OperationCanceledException or System.Text.Json.JsonException)
+                {
+                    foreach (var request in residualRequests)
+                        RecordResidual(IntegratedResidualCleanup.Audit(request.Plan.Context.App, "uac", "failed",
+                            error: IntegratedResidualCleanup.Error(ex), reason: "worker_communication_failed"));
+                    return new("uac_communication_failed", IntegratedResidualCleanup.Error(ex), []);
+                }
+            }
             bool gotResult = false;
             while (await reader.ReadLineAsync() is { } line)
             {
-                if (line.StartsWith("LOG|", StringComparison.Ordinal)) Log(line[4..]);
+                if (task == "windows-check" &&
+                    line == "RESULT|WINCHECK:REPAIRABLE")
+                {
+                    _windowsRepairable = true;
+                    _windowsScannedAt = DateTimeOffset.UtcNow;
+                    Log("Corrupção reparável identificada; reparo opcional disponível.");
+                }
+                else if (task == "windows-check" && line == "RESULT|WINCHECK:HEALTHY")
+                {
+                    _windowsRepairable = false;
+                    Log("A verificação não encontrou problemas que exijam reparo.");
+                }
+                else if (task == "windows-check" && line == "RESULT|WINCHECK:INCONCLUSIVE")
+                {
+                    _windowsRepairable = false;
+                    Log("Verificação inconclusiva. Reparo não liberado automaticamente.");
+                }
+                else if (line.StartsWith("LOG|", StringComparison.Ordinal))
+                {
+                    string logLine = line[4..];
+                    Log(logLine);
+                    if ((task is "windows-check" or "windows-repair") &&
+                        windowsProgress.Update(logLine, out int percentage) &&
+                        !IsDisposed)
+                    {
+                        _progress.MarqueeAnimationSpeed = 0;
+                        _progress.Style = ProgressBarStyle.Continuous;
+                        _progress.Value = percentage;
+                        Status("Manutenção Windows — progresso da etapa: " +
+                            percentage.ToString() + "%");
+                    }
+                }
                 else if (line.StartsWith("DONE|", StringComparison.Ordinal))
                 {
                     string code = line[5..];
+                    if (task == "windows-check" && code != "0") _windowsRepairable = false;
+                    if (SafeMaintenanceAudit.ElevatedExit(task, code) is { } audit)
+                        DiagnosticTrace.Write(audit);
                     Status(code == "0" ? "Operação concluída" : "Operação concluída com avisos");
                     gotResult = true;
                 }
             }
-            if (!gotResult) { Status("Operação interrompida ou sem retorno"); Log("A tarefa foi interrompida antes de enviar o resultado."); }
+            if (!gotResult)
+            {
+                if (task == "windows-check") _windowsRepairable = false;
+                if (SafeMaintenanceAudit.NoReturn(task) is { } audit)
+                    DiagnosticTrace.Write(audit);
+                Status("Operação interrompida ou sem retorno");
+                Log("A tarefa foi interrompida antes de enviar o resultado.");
+            }
         }
+        return null;
     }
 
     private Task EmptyRecycleBinAsync()
@@ -3074,8 +3477,8 @@ internal static class WorkerHost
 {
     private static readonly HashSet<string> Allowed = new(StringComparer.OrdinalIgnoreCase)
     {
-        "clean-windows-temp", "clear-update-cache", "cleanmgr-auto", "windows-repair",
-        "flush-dns", "network-repair-winsock", "network-reset", "optimize-drives", "hibernate-on", "hibernate-off",
+        "clean-windows-temp", "clear-update-cache", "cleanmgr-auto", "windows-check", "windows-repair",
+        "flush-dns", "network-repair-winsock", "network-reset", "hibernate-on", "hibernate-off",
         "power-plan-balanced", "power-plan-saver", "power-plan-ultimate", "create-restore-point"
     };
 
@@ -3083,11 +3486,13 @@ internal static class WorkerHost
     {
         bool updateTask = TryParseUpdateTask(task, out _);
         bool restorePower = TryParseRestorePowerTask(task, out _);
-        if ((!Allowed.Contains(task) && !updateTask && !restorePower) || !Regex.IsMatch(pipeName, @"^GA5122_[a-f0-9]{32}$") ||
+        bool optimizeVolume = SingleVolumeOptimization.TryParseTask(task, out _);
+        bool residualTask = task == ResidualElevatedProtocol.TaskName;
+        if ((!Allowed.Contains(task) && !updateTask && !restorePower && !optimizeVolume && !residualTask) || !Regex.IsMatch(pipeName, @"^GA5122_[a-f0-9]{32}$") ||
             !Regex.IsMatch(token, @"^[a-f0-9]{32}$")) return 2;
         try
         {
-            using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous);
+            using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
             await pipe.ConnectAsync(timeout.Token);
             using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096) { AutoFlush = true };
@@ -3097,8 +3502,22 @@ internal static class WorkerHost
                     writer.WriteLine(kind + "|" + message.Replace('\r', ' ').Replace('\n', ' ').TakeText(750));
             }
             Send("HELLO", token);
+            if (residualTask)
+                return await ResidualElevatedProtocol.ServeAsync(pipe, async () =>
+                {
+                    var inventory = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
+                    return new UninstallSnapshot(inventory.Items, !inventory.Incomplete);
+                });
             int exit;
-            try { exit = await ExecuteAsync(task, line => Send("LOG", line)); }
+            try
+            {
+                exit = await ExecuteAsync(task, line =>
+                {
+                    if (task == "windows-check" && line.StartsWith("WINCHECK:", StringComparison.Ordinal))
+                        Send("RESULT", line);
+                    else Send("LOG", line);
+                });
+            }
             catch (Exception ex) { Send("LOG", "ERRO: " + ex.Message); exit = 1; }
             Send("DONE", exit.ToString());
             return exit;
@@ -3114,16 +3533,17 @@ internal static class WorkerHost
             Guid.TryParseExact(task[prefix.Length..], "D", out id) && id != Guid.Empty;
     }
 
-    private static bool TryParseUpdateTask(string task, out HashSet<string> ids)
+    internal static bool TryParseUpdateTask(string task, out HashSet<string> ids)
     {
         ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (!task.StartsWith("wu-install:", StringComparison.Ordinal)) return false;
-        string[] parts = task["wu-install:".Length..].Split(',', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = task["wu-install:".Length..].Split(',');
         if (parts.Length is 0 or > 30) return false;
         foreach (string part in parts)
         {
-            if (!Guid.TryParseExact(part, "D", out Guid id)) return false;
-            ids.Add(id.ToString("D"));
+            string? id = WindowsUpdateClient.CanonicalSelectedIdentity(part);
+            if (id is null) return false;
+            ids.Add(id);
         }
         return ids.Count == parts.Length;
     }
@@ -3145,6 +3565,35 @@ internal static class WorkerHost
         }
 
         log("Permissão administrativa concedida. Progresso exibido na janela principal.");
+        if (SingleVolumeOptimization.TryParseTask(task, out string volume))
+        {
+            // Revalidar o alvo no worker elevado: o volume pode ter mudado
+            // entre o clique e o consentimento UAC. Nunca otimizar todos.
+            bool eligible = false;
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                if (!string.Equals(drive.Name, volume + "\\", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try
+                {
+                    eligible = SingleVolumeOptimization.IsEligible(
+                        drive.DriveType, drive.IsReady, drive.DriveFormat);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    eligible = false;
+                }
+                break;
+            }
+            if (!eligible)
+            {
+                log("Volume nao esta disponivel ou nao suporta otimizacao. Nenhuma unidade alterada.");
+                return 2;
+            }
+            log("Otimizando somente a unidade " + volume +
+                " com a politica adequada ao tipo de armazenamento do Windows.");
+            return await Run("defrag.exe", volume, "/O", "/U");
+        }
         switch (task)
         {
             case "clean-windows-temp":
@@ -3171,6 +3620,22 @@ internal static class WorkerHost
                 log("Executando a Limpeza de Disco automática do Windows...");
                 log("A limpeza de arquivos do sistema será tentada no mesmo processo elevado, sem abrir a janela do utilitário.");
                 return await Run("cleanmgr.exe", "/VERYLOWDISK");
+            case "windows-check":
+            {
+                log("Etapa 1/2: DISM /ScanHealth (sem reparo).");
+                var dism = await AppServices.RunCommandAsync("dism.exe",
+                    new[] { "/Online", "/Cleanup-Image", "/ScanHealth" },
+                    line => { if (!string.IsNullOrWhiteSpace(line)) log(line.TakeText(350)); });
+                log("Etapa 2/2: SFC /verifyonly (sem reparo).");
+                var sfc = await AppServices.RunCommandAsync("sfc.exe",
+                    new[] { "/verifyonly" },
+                    line => { if (!string.IsNullOrWhiteSpace(line)) log(line.TakeText(350)); });
+                var result = WindowsIntegrityAssessment.Interpret(
+                    dism.ExitCode, dism.StandardOutput + dism.StandardError,
+                    sfc.ExitCode, sfc.StandardOutput + sfc.StandardError);
+                log("WINCHECK:" + result.ToString().ToUpperInvariant());
+                return 0; // inconclusivo nao libera reparo.
+            }
             case "windows-repair":
             {
                 log("Etapa 1/2 — DISM: examinando e, se necessário, reparando a imagem do Windows.");
@@ -3201,16 +3666,6 @@ internal static class WorkerHost
                 log("Reinicie o computador para completar algumas alterações de rede.");
                 return one == 0 && two == 0 ? 0 : 1;
             }
-            case "optimize-drives":
-            {
-                int errors = 0;
-                foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
-                {
-                    log("Otimizando " + drive.Name);
-                    if (await Run("defrag.exe", drive.Name.TrimEnd('\\'), "/O") != 0) errors++;
-                }
-                return errors == 0 ? 0 : 1;
-            }
             case "create-restore-point":
                 log("Solicitando ponto de restauração ao Windows...");
                 return await Task.Run(() => RestorePointService.Request(log));
@@ -3238,3 +3693,5 @@ internal static class NativeMethods
     [DllImport("dwmapi.dll", PreserveSig = true)]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int valueSize);
 }
+
+

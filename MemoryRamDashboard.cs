@@ -78,6 +78,9 @@ internal sealed partial class MainForm
     private readonly AppCacheCleanupCounter _appCacheCounter = new();
     private readonly WindowsLowMemorySignal _memoryPressureSignal = new();
     private Button? _autoMemoryButton;
+    private MemoryTrimTarget? _memoryAuthorizedTarget;
+    private int _memoryTrimOperations;
+    private WindowsMemoryDetails? _windowsMemoryDetails;
 
     private Control BuildMemoryRamDashboard()
     {
@@ -105,12 +108,19 @@ internal sealed partial class MainForm
             ForeColor = Ink, Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true
         }, 0, 0);
-        var taskManager = CreateSecondaryButton("Tarefas do Windows");
+        // Texto curto para permanecer legivel nas janelas proporcionais
+        // (ex.: 1150x700), sem abrir um dialogo auxiliar do GF.
+        var taskManager = CreateSecondaryButton("Abrir tarefas");
+        taskManager.Name = "OpenWindowsTaskManager";
+        taskManager.AccessibleName = "Abrir Gerenciador de Tarefas do Windows";
+        taskManager.AccessibleDescription =
+            "Abre o Gerenciador de Tarefas oficial do Windows em uma janela externa.";
+        _toolTips.SetToolTip(taskManager, taskManager.AccessibleDescription);
         taskManager.Dock = DockStyle.Fill;
         taskManager.Margin = new Padding(1, 2, 1, 2);
         taskManager.Click += (_, _) =>
         {
-            try { Process.Start(new ProcessStartInfo("taskmgr.exe") { UseShellExecute = true }); }
+            try { Process.Start(new ProcessStartInfo(WindowsSystemTools.Resolve("taskmgr.exe")) { UseShellExecute = true }); }
             catch (Exception ex) { ReportError(ex); }
         };
         _actionControls.Add(taskManager);
@@ -160,7 +170,7 @@ internal sealed partial class MainForm
         _autoMemoryButton.Dock = DockStyle.Fill;
         _autoMemoryButton.Margin = new Padding(2, 2, 5, 2);
         _toolTips.SetToolTip(_autoMemoryButton,
-            "Ative a limpeza conservadora de caches internos apenas sob pressão persistente, com 15 min entre ações.");
+            "Após uma escolha manual, reduz somente a memória do aplicativo autorizado, sob pressão persistente e com intervalo de 15 minutos.");
         _autoMemoryButton.Click += (_, _) =>
         {
             _memoryCleanupPolicy.AutomaticEnabled = !_memoryCleanupPolicy.AutomaticEnabled;
@@ -170,13 +180,13 @@ internal sealed partial class MainForm
         _actionControls.Add(_autoMemoryButton);
         cleanupBar.Controls.Add(_autoMemoryButton, 0, 0);
 
-        var manual = CreateSecondaryButton("Otimizar cache GF");
+        var manual = CreateSecondaryButton("Aliviar RAM");
         manual.Name = "MemoryManualOptimization";
         manual.Dock = DockStyle.Fill;
         manual.Margin = new Padding(2, 2, 4, 2);
         _toolTips.SetToolTip(manual,
-            "Descarta apenas mensagens antigas e amostras do próprio GF. Não reduz memória de outros aplicativos.");
-        manual.Click += (_, _) => RunSafeMemoryCleanup(false);
+            "Permite confirmar redução da memória de um aplicativo em segundo plano. Pode recarregar dados e causar lentidão temporária.");
+        manual.Click += (_, _) => RunUserMemoryOptimization();
         _actionControls.Add(manual);
         cleanupBar.Controls.Add(manual, 1, 0);
 
@@ -193,8 +203,8 @@ internal sealed partial class MainForm
         root.Controls.Add(new Label
         {
             Name = "MemorySafetyNote",
-            Text = "Disponível inclui RAM em espera reutilizável. Otimização automática só com autorização e pressão persistente. " +
-                   "Cache descartado mede buffers do GF, não memória física recuperada; sem alterar outros processos.",
+            Text = "RAM em espera pode ser reutilizada pelo Windows. Aliviar RAM ajusta apenas o aplicativo autorizado e pode deixá-lo lento ao retornar. " +
+                   "Não fecha programas nem força limpeza geral do Windows.",
             ForeColor = Muted, Dock = DockStyle.Fill, AutoEllipsis = false,
             Font = new Font("Segoe UI", 8.2F),
             TextAlign = ContentAlignment.MiddleLeft,
@@ -211,9 +221,10 @@ internal sealed partial class MainForm
     {
         if (IsDisposed) return;
         _memoryHistory.Add(sample);
+        _windowsMemoryDetails = WindowsMemoryDetailsReader.Capture();
         _memoryChart?.SetSamples(_memoryHistory.Samples);
         _systemPanelTitle.Text = "Memória RAM · acompanhamento em tempo real";
-        _systemPanelSummary.Text = "Histórico local em segundo plano. Sem ações em processos de terceiros.";
+        _systemPanelSummary.Text = "Histórico local. Aplicativos em segundo plano só são ajustados com sua autorização.";
         static string GiB(ulong bytes) =>
             (bytes / 1073741824d).ToString("N2", CultureInfo.CurrentCulture) + " GB";
         _memoryUsageLabel.Text = $"Em uso: {GiB(sample.UsedBytes)} ({sample.UsedPercent:N0}%)";
@@ -225,8 +236,20 @@ internal sealed partial class MainForm
 
     private void UpdateMemoryCacheLabels()
     {
-        _memoryCleanedLabel.Text = $"Cache GF descartado: {_appCacheCounter.DiscardedBufferBytes / 1024d:N0} KB";
-        _memoryCandidatesLabel.Text = $"Cache interno elegível: {_log.ReclaimableOldLogBytes() / 1024d:N0} KB";
+        _memoryCleanedLabel.Text = $"Ajustes de RAM: {_memoryTrimOperations} · Cache GF: {_appCacheCounter.DiscardedBufferBytes / 1024d:N0} KB";
+        if (_windowsMemoryDetails is { } info)
+        {
+            string cache = (info.CacheBytes / 1073741824d).ToString("N1", CultureInfo.CurrentCulture);
+            string committed = (info.CommittedBytes / 1073741824d).ToString("N1", CultureInfo.CurrentCulture);
+            _memoryCandidatesLabel.Text = $"Cache do Windows: {cache} GB · Comprometida: {committed} GB";
+            _toolTips.SetToolTip(_memoryCandidatesLabel, "Cache inclui dados em espera, reutilizáveis pelo Windows. Memória comprometida não é igual à memória física ocupada.");
+        }
+        else
+            _memoryCandidatesLabel.Text = "Detalhes do cache do Windows não disponíveis.";
+        if (_autoMemoryButton is not null)
+            _toolTips.SetToolTip(_autoMemoryButton, _memoryAuthorizedTarget is null
+                ? "Escolha um aplicativo em Aliviar RAM para autorizar ajustes automáticos nesta sessão."
+                : "Automático autorizado somente para: " + _memoryAuthorizedTarget.Name);
     }
 
     private void RunSafeMemoryCleanup(bool automatic)
@@ -247,9 +270,43 @@ internal sealed partial class MainForm
         DiagnosticTrace.Write($"RAM.CACHE_INTERNO modo={(automatic ? "auto" : "manual")} bytes_descartados={bytes}");
     }
 
+    private void RunUserMemoryOptimization()
+    {
+        if (IsDisposed || _busy) return;
+        var candidate = SelectiveMemoryTrim.ChooseCandidate();
+        if (candidate is null)
+        {
+            Status("Nenhum aplicativo em segundo plano adequado para aliviar RAM agora.");
+            return;
+        }
+        if (DarkConfirmDialog.Confirm(this,
+            "Permitir que o Windows reduza temporariamente a RAM de " + candidate.Name +
+            " (PID " + candidate.Pid + ")?\n\n" + candidate.Executable +
+            "\n\nO aplicativo não será fechado e arquivos não serão apagados. " +
+            "Ele poderá ficar mais lento ao reutilizar dados. Se o automático estiver ligado, " +
+            "somente este mesmo processo poderá ser ajustado sob pressão de memória nesta sessão.",
+            "Aliviar RAM de aplicativo em segundo plano") != DialogResult.Yes)
+            return;
+        _memoryAuthorizedTarget = candidate;
+        bool changed = SelectiveMemoryTrim.TryTrimAuthorized(candidate, out string message);
+        if (changed) _memoryTrimOperations++;
+        _memoryCleanupPolicy.RecordRun(DateTime.UtcNow);
+        Status(message);
+        DiagnosticTrace.Write("RAM.PROCESSO_ESCOLHIDO resultado=" + (changed ? "ok" : "indisponivel"));
+        UpdateMemoryCacheLabels();
+    }
+
     private void EvaluateAutomaticMemoryCleanup(MemoryRamSample sample)
     {
-        if (_memoryCleanupPolicy.ShouldOptimize(sample, _memoryPressureSignal.IsLow(), DateTime.UtcNow))
-            RunSafeMemoryCleanup(true);
+        if (!_memoryCleanupPolicy.ShouldOptimize(sample, _memoryPressureSignal.IsLow(), DateTime.UtcNow)) return;
+        // Nunca descobre novos processos nem atinge programas nao autorizados automaticamente.
+        if (_memoryAuthorizedTarget is not null)
+        {
+            bool ok = SelectiveMemoryTrim.TryTrimAuthorized(_memoryAuthorizedTarget, out _);
+            if (ok) _memoryTrimOperations++;
+            DiagnosticTrace.Write("RAM.PROCESSO_AUTORIZADO resultado=" + (ok ? "ok" : "indisponivel"));
+            if (!ok) _memoryAuthorizedTarget = null;
+        }
+        RunSafeMemoryCleanup(true);
     }
 }
