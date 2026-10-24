@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.58 TESTE",
+  "version": "5.13.11.59 TESTE",
   "date": "2026-10-24",
-  "code_commit": "691ed0967c670965b329d2fd05e9a4c33e378623",
+  "code_commit": "26bbc17ae9e07c485a91fa8b592eca7cabaad118",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -338,31 +338,13 @@
       "native_store_partial": true
     }
   },
-  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162",
-  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162",
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
   "winget_pc_forte_32": "WinGet (somente leitura): 9 atualizações na sessão administrativa, comando indisponível em terminal não elevado; GF: 3; diferença=6. Proton: changelog oficial 1.43.0 de 21/10, manifesto WinGet 1.42.0. Lixeira ainda possui dois itens da build .32 após erro 0x8000FFFF. Sem instalação/exclusão adicional. U6 não encerrado.",
   "previous_validated_artifact": {
-    "id": 12559794940,
-    "name": "GerenciadorFinal-v5.13.11.57-529d85c0-TESTE-win-x64",
-    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40094285996/artifacts/12559794940",
-    "source_commit": "529d85c0126aa79ae7d348f8895707f67e9d5725",
-    "merge_commit": "c2358502133509431ab5129394c548b079145601",
-    "base_commit": "410d65e23546976db456337c71e4705f10217d36",
-    "zip_sha256": "927fa8a093adcf2276c1a93cae12b6340612f2df7b2304337dd1678a35ff9173",
-    "zip_bytes": 59011681,
-    "expanded_bytes": 151424406,
-    "files": 281,
-    "verified_hashes": 280,
-    "file_version": "5.13.11.57",
-    "architecture": "AMD64",
-    "self_contained": true,
-    "signed": false,
-    "avg_validated": false
-  },
-  "artifact": {
     "id": 12562141990,
     "name": "GerenciadorFinal-v5.13.11.58-691ed096-TESTE-win-x64",
     "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162/artifacts/12562141990",
@@ -380,6 +362,27 @@
     "signed": false,
     "avg_validated": false,
     "expires_at": "2026-10-31T13:48:29Z"
+  },
+  "artifact": {
+    "id": 12578144319,
+    "name": "GerenciadorFinal-v5.13.11.59-26bbc17a-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319",
+    "source_commit": "26bbc17ae9e07c485a91fa8b592eca7cabaad118",
+    "merge_commit": "aaf1de4f56d9429b1e60d85bfcfbb5085884705d",
+    "base_commit": "410d65e23546976db456337c71e4705f10217d36",
+    "zip_sha256": "b3a0f2e244a4be8ef552610e010b864180a0b4f822588b3cdad0a21763e75399",
+    "zip_bytes": 59169235,
+    "expanded_bytes": 151819016,
+    "files": 282,
+    "verified_hashes": 281,
+    "file_version": "5.13.11.59",
+    "architecture": "AMD64",
+    "self_contained": true,
+    "signed": false,
+    "avg_validated": false,
+    "expires_at": "2026-10-31T22:37:32Z",
+    "verification": "CI: manifesto, origem, runtime e cobertura exata dos hashes antes do upload",
+    "external_zip_recheck": "pending_environment_unavailable"
   },
   "mission_work5": {
     "status": "Código final e três Actions aprovados; ZIP conferido sem executar; testes físicos pendentes",
@@ -454,8 +457,8 @@
     ],
     "progress": "27/42"
   },
-  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162/artifacts/12562141990",
-  "artifact_name": "GerenciadorFinal-v5.13.11.58-691ed096-TESTE-win-x64",
+  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319",
+  "artifact_name": "GerenciadorFinal-v5.13.11.59-26bbc17a-TESTE-win-x64",
   "historical_artifact_work5": {
     "id": 12388392363,
     "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
@@ -799,10 +802,28 @@
   },
   "candidate": {
     "version": "5.13.11.59 TESTE",
-    "status": "pending",
+    "status": "approved",
     "mission": "WORK13-AUTOMATICA",
     "report": "docs/MISSAO-WORK13.md",
     "physical_validation": "pending",
-    "winget_execution_enabled": false
+    "winget_execution_enabled": false,
+    "code_commit": "26bbc17ae9e07c485a91fa8b592eca7cabaad118",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763",
+    "package_verified_by_ci": true,
+    "validation": {
+      "windows_updates": 318,
+      "automatic_discovery": 81,
+      "residuals_uninstall": 645,
+      "mutations_detected": 27,
+      "python": 35,
+      "node": 10,
+      "real_catalog_manifests": 4,
+      "real_engines": [
+        "VLC 3.0.24: NSIS e assinatura VideoLAN",
+        "ShareX 21.0.0: Inno reconhecido, sem assinatura e execucao bloqueada"
+      ],
+      "physical_validation": "pending",
+      "external_zip_recheck": "pending_environment_unavailable"
+    }
   }
 }

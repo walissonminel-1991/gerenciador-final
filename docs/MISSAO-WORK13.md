@@ -2,7 +2,7 @@
 
 ## Segunda etapa — candidata 5.13.11.59 TESTE
 
-Prioridade solicitada: transformar a descoberta em autorização genérica verificável, preservando a .58 e os contratos WORK12. HEAD inicial confirmado `0d53b94b8c03b39ed4e643d2126cc904a200214a`; main `410d65e23546976db456337c71e4705f10217d36`, PR #40 Draft, CI anterior `40100057873` aprovada. Esta etapa está em validação; o pacote aprovado anterior continua sendo o .58 abaixo.
+Prioridade solicitada: transformar a descoberta em autorização genérica verificável, preservando a .58 e os contratos WORK12. HEAD inicial confirmado `0d53b94b8c03b39ed4e643d2126cc904a200214a`; main `410d65e23546976db456337c71e4705f10217d36`, PR #40 Draft, CI anterior `40100057873` aprovada. A fonte `26bbc17ae9e07c485a91fa8b592eca7cabaad118` passou na CI `40138799763`; o pacote .59 foi gerado somente depois das regressões obrigatórias. A etapa .58 permanece registrada como histórico.
 
 ### Implementação real
 
@@ -18,7 +18,7 @@ A desinstalação ganha descoberta NSIS genérica: estrutura do desinstalador, a
 
 ### Arquivos desta etapa
 
-30 arquivos alterados desde `0d53b94b`, organizados nos commits `2388cffe` (catálogo autenticado), `4118c3d4` (descoberta/execução/testes), `41d8f92d` (versão, privacidade/licenças) e `f76be625` (Inno real e consistência MSI). Encerramento documental posterior registra a CI e o pacote; não modifica a lógica da build selecionada.
+30 arquivos alterados desde `0d53b94b`, organizados nos commits `2388cffe` (catálogo autenticado), `4118c3d4` (descoberta/execução/testes), `41d8f92d` (versão, privacidade/licenças) `f76be625` (Inno real e consistência MSI) e `26bbc17a` (resultado após variar caixa do fabricante). Encerramento documental posterior registra a CI e o pacote; não modifica a lógica da build selecionada.
 
 | Área | Arquivos |
 | --- | --- |
@@ -28,7 +28,7 @@ A desinstalação ganha descoberta NSIS genérica: estrutura do desinstalador, a
 | Regressões | `TestesAtualizador/AutomaticDiscoveryTests.cs`, `TestesAtualizador/Program.cs`, `TestesAtualizador/TestesAtualizador.csproj`, `TestesResiduos/Work12RegressionTests.cs`, `TestesResiduos/TestesResiduos.csproj`, `TestesLayout/Work11ProgressLayoutTests.cs`, `scripts/test_work6_mutations.py`, workflow existente `validar-candidata-windows.yml` |
 | Versão e documentação | `GerenciadorAplicativos.csproj`, `app.manifest`, `README.md`, `CHANGELOG.md`, `PRIVACY.md`, `docs/PROGRESSO.json`, `docs/ROADMAP.md`, `docs/THIRD-PARTY-NOTICES.md`, este relatório |
 
-### Validação em andamento e limites
+### Validação e limites
 
 Falhas investigadas na CI `40137345146`: a primeira tentativa recebeu HTTP 403 do CDN antes da leitura do catálogo; a repetição autenticou catálogo/manifestos e validou VLC 3.0.24 com assinatura VideoLAN. ShareX 21.0.0 expôs duas causas: a detecção Inno procurava uma string antiga no overlay, mas a tabela binária v2 fica no stub/recurso; e esse instalador oficial tem diretório de certificados PE vazio. A leitura agora verifica a tabela, versão, CRC e offsets definidos no [código oficial Inno](https://github.com/jrsoftware/issrc/blob/7d30127fdb2ca8b7c0617e8d616e8625bf6ecd99/Projects/Src/Shared.Struct.pas#L422), conferindo a identidade no offset declarado. O teste real separa formato reconhecido de autorização: ShareX sem assinatura é recusado pela política do produto. Não foi removida a exigência de assinatura para aprovar a CI.
 
@@ -36,9 +36,45 @@ A revisão também identificou que o desinstalador Inno instalado não contém a
 
 A conferência final de reassociação encontrou uma diferença de comparação: confirmação aceitava o mesmo fabricante com outra caixa, mas a busca da linha exigia texto idêntico. As duas etapas agora usam comparação sem diferença entre maiúsculas/minúsculas. Um teste nativo com PE sintético percorre a autorização, confirmação e recuperação da linha após essa mudança, evitando perder um resultado já comprovado.
 
-Os testes puros já reproduzem tentativa de forjar autoridade, copiar receita, trocar arquitetura/escopo, injetar parâmetros, usar destinos privados, YAML ambíguo e migrar MSI de família errada. As regressões Windows exercitam arquivos e banco MSI sintéticos, mudança do binário após descoberta, diretório compartilhado, pacote ausente e ausência dos hooks de teste no produto. A etapa inicial `2388cffe` passou na CI `40134383273`, incluindo autenticação real do catálogo e de manifestos de quatro fabricantes, sem executar seus instaladores. A CI desta candidata adiciona conferência dos formatos reais NSIS/Inno em downloads oficiais.
+Os 81 controles novos de descoberta, executados no Windows, reproduzem tentativa de forjar autoridade, copiar receita, trocar arquitetura/escopo, injetar parâmetros, usar destinos privados, YAML ambíguo e migrar MSI de família errada. As regressões Windows exercitam arquivos e banco MSI sintéticos, mudança do binário após descoberta, diretório compartilhado, pacote ausente e ausência dos hooks de teste no produto. A etapa inicial `2388cffe` passou na CI `40134383273`, incluindo autenticação real do catálogo e de manifestos de quatro fabricantes, sem executar seus instaladores. A CI aprovada desta candidata conferiu os formatos reais NSIS/Inno em downloads oficiais.
 
-Cobertura genérica não equivale a compatibilidade universal: metadados incompletos, assinatura não confirmada, motor diferente, personalizações não documentadas e fontes divergentes podem exigir modo interativo, site ou Store. MSIX/Store genérico e servidores não recebem execução nova. Não houve atualização, desinstalação ou limpeza nos PCs pessoais. U8/R7/R4 seguem sem homologação física; roadmap 27/42. Evidências finais, commits e pacote serão registrados após aprovação da CI.
+Cobertura genérica não equivale a compatibilidade universal: metadados incompletos, assinatura não confirmada, motor diferente, personalizações não documentadas e fontes divergentes podem exigir modo interativo, site ou Store. MSIX/Store genérico e servidores não recebem execução nova. Não houve atualização, desinstalação ou limpeza nos PCs pessoais. U8/R7/R4 seguem sem homologação física; roadmap 27/42. A aprovação técnica e o pacote desta etapa estão identificados abaixo.
+
+### Resultado da validação .59
+
+[CI Windows 40138799763 aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763), fonte `26bbc17ae9e07c485a91fa8b592eca7cabaad118`. Compilação/analisadores: zero erros e zero avisos. Todas as regressões obrigatórias concluídas; fontes/drivers reais do runner ficaram no job opcional skipped. Nenhum instalador de terceiro foi executado.
+
+| Conjunto | Resultado |
+| --- | --- |
+| Atualizadores Windows | 318/318, incluindo 81 controles novos de descoberta e 51 WORK13 anteriores |
+| Mutações adversariais | 27/27 detectadas, incluindo lista forjada, receita copiada e mudança de arquitetura |
+| Resíduos/desinstalação | 645/645; preserva WORK12 e acrescenta compartilhamento da prova Inno |
+| Multifontes / catálogo | 159/159 / 17/17 |
+| MSIX / fechamento seguro | 47/47 / 30/30 |
+| Interface | 132 resolução/aba, 36 progresso, 44 limpeza, 20 WORK12; bandeja, descarte e hooks de teste ausentes do produto |
+| Catálogo real somente leitura | MSIX Microsoft autenticado; manifestos OBS 33.0.0, VLC 3.0.24, ShareX 21.0.0 e SumatraPDF 3.6.1 conferidos pelo hash do índice |
+| Binários reais somente leitura | VLC: SHA, assinatura VideoLAN e NSIS; ShareX: SHA e Inno válidos, ausência de assinatura comprovada e execução genérica recusada |
+| Regressões de downloads anteriores | Oito Win32 e pacote Terminal preservados; sem executar instaladores |
+| Política e metadados | 35 testes Python e 10 Node aprovados |
+
+[Capturas geradas no Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12576989197) estão disponíveis. A geometria compacta e os estados passaram automaticamente; não houve nova inspeção visual manual destas capturas após a interrupção do ambiente local. Também não houve ensaio de monitor, antivírus, atualização, desinstalação ou reboot nos PCs pessoais.
+
+### Pacote .59 aprovado pela CI
+
+[Portátil 5.13.11.59 TESTE Windows x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319), arquivo `GerenciadorFinal-v5.13.11.59-26bbc17a-TESTE-win-x64.zip`; expira em **31/10/2026 às 22:37 UTC**. Fonte `26bbc17ae9e07c485a91fa8b592eca7cabaad118`; build `refs/pull/40/merge` `aaf1de4f56d9429b1e60d85bfcfbb5085884705d`; base/main `410d65e23546976db456337c71e4705f10217d36`. PR #40 permanece Draft, sem merge.
+
+SHA-256 do ZIP, fornecido pelo upload-artifact/GitHub e coincidente na API de artefatos: `b3a0f2e244a4be8ef552610e010b864180a0b4f822588b3cdad0a21763e75399`.
+
+A CI verificou antes do upload manifesto Win32/ativação SxS, identidade do projeto, origem, PE AMD64, self-contained e cobertura exata de **281 hashes em 282 arquivos**, **151.819.016 bytes** extraídos. ZIP: **59.169.235 bytes**. Runtimes .NET e WindowsDesktop **10.0.13**. Em relação à .58: +150.010 bytes no ZIP, +374.642 bytes extraídos e um arquivo; YamlDotNet é a nova dependência gerenciada, com licença incluída. GF sem assinatura; AVG e operação física não homologados.
+
+**Limite da conferência:** o ambiente de execução Work ficou indisponível depois dos commits de produção. A fonte foi preservada no GitHub e a CI Windows terminou normalmente, mas não foi possível baixar, extrair e recalcular este ZIP fora do runner nesta etapa. Não se afirma reverificação externa do pacote ou FileVersion independente. A conferência da CI e o digest do GitHub estão documentados separadamente dessa pendência. README, roadmap, changelog e PROGRESSO.json selecionam somente este pacote aprovado; commits posteriores de documentação não mudam sua fonte.
+
+### Próximo teste físico mínimo .59
+
+- **PC FORTE:** em uma atualização já necessária de aplicativo elegível, conferir descoberta da versão, preparação, consentimento para fechamento, instalação sem percentual fictício e confirmação da versão/resultado após renovar a lista. Se a prova falhar, o GF deve bloquear a execução e explicar o motivo. Não atualizar dependência compartilhada apenas para ensaio. O ciclo WORK12 pode ser conferido em uma desinstalação que o usuário já pretenda realizar, com decisão SIM/NÃO e resumo final.
+- **PC FRACO:** usar o mesmo pacote/hash; conferir pesquisa/navegação durante consulta/download, 1280×720 e 1440×900, restauração da bandeja e opção portátil de iniciar com Windows. Não provocar reboot artificial: recuperação somente leitura deve ser observada quando existir pendência técnica real.
+
+U8/R7/R4 permanecem abertos, progresso **27/42**. MSIX/Store genérico, servidores, motores não reconhecidos, produto/arquitetura/escopo ambíguos e assinatura ausente não ganham execução automática. Cobertura real depende das instalações encontradas; nenhum número universal de aplicativos silenciosos é alegado.
 
 ## Primeira etapa — candidata .58
 
@@ -112,7 +148,7 @@ A primeira rodada completa encontrou uma expectativa histórica que recusava qua
 
 A checagem de metadados verifica versão do projeto/manifesto/README/roadmap/changelog, origem/CI/nome/hash do pacote aprovado e protege U8/R7/R4 ainda pendentes. Não cria workflow adicional. A publicação portátil depende de todos os jobs obrigatórios aprovados, incluindo a verificação Authenticode dos downloads.
 
-## Pacote aprovado selecionado
+## Pacote .58 aprovado anteriormente
 
 [Portátil 5.13.11.58 TESTE Windows x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40099234162/artifacts/12562141990), arquivo `GerenciadorFinal-v5.13.11.58-691ed096-TESTE-win-x64.zip`; expira em 31/10/2026 às 13:48 UTC. Fonte `691ed0967c670965b329d2fd05e9a4c33e378623`; build em `refs/pull/40/merge` `02ef71406fb0e92118ccd3d919034d3b5e64074f`; base `410d65e23546976db456337c71e4705f10217d36`. PR não foi integrado à main. Commits posteriores de documentação registram este pacote e não mudam a fonte de produção aqui identificada.
 
