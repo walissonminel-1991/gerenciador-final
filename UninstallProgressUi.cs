@@ -57,7 +57,8 @@ internal sealed partial class MainForm
     internal void ShowUninstallResult(string summary)
     {
         if (IsDisposed || Disposing) return;
-        if (IsInTray || !Visible) { pendingUninstallSummary = summary; return; }
+        if (IsInTray || !Visible)
+        { pendingUninstallSummary = pendingUninstallSummary is null ? summary : pendingUninstallSummary + "\n\n" + summary; return; }
         using var dialog = new UninstallResultDialog(summary);
         dialog.ShowDialog(this);
     }

@@ -39,6 +39,20 @@ if os.name == 'nt':
         ' ||\n            (!directory && info.Links != 1)', '',
         'TestesAtualizador', '--work6-flow', 'hardlink externo'))
     mutants.extend([
+        ('w12-inconclusive-as-absence', 'IntegratedResidualPolicy.cs',
+         'internal bool Conclusive => Complete && Problems.All(', 'internal bool Conclusive => Complete || Problems.All(',
+         'TestesResiduos', '--work12', 'W12 erro 5 sem alvo elegivel'),
+        ('w12-late-registry-ignored', 'IntegratedResidualCleanup.cs',
+         'if (scope.Policy != "registered-install") keys.Add(address);', 'if (false) keys.Add(address);',
+         'TestesResiduos', '--work12', 'W12 chave da politica criada'),
+        ('w12-quiet-product-bypassed', 'SilentUninstallPolicy.cs',
+         '(!string.Equals(raw, app.QuietUninstallString, StringComparison.Ordinal) || RegisteredQuietMatchesProduct(app, registered)) &&', 'true &&',
+         'TestesResiduos', '--work12', 'W12 fronteira de execucao rejeita'),
+        ('w12-inno-reboot-unrestrained', 'SilentUninstallPolicy.cs',
+         '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '/VERYSILENT /SUPPRESSMSGBOXES',
+         'TestesResiduos', '--work12', 'W12 Inno comprovado'),
+    ])
+    mutants.extend([
         ('residual-consent-bypassed','IntegratedResidualCleanup.cs',
          'if (!consent || !ValidPlan(plan)', 'if (!ValidPlan(plan)',
          'TestesResiduos','--work10-core','W10 NO preserves file'),
@@ -89,6 +103,9 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
         baseline=run('TestesResiduos','--work10-core')
         if baseline.returncode: raise RuntimeError('WORK10 baseline failed: '+baseline.stdout[-3000:])
         print('BASELINE PASS native integrated cleanup',flush=True)
+        baseline=run('TestesResiduos','--work12')
+        if baseline.returncode: raise RuntimeError('WORK12 baseline failed: '+baseline.stdout[-3000:])
+        print('BASELINE PASS real failure reproductions WORK12',flush=True)
         baseline=run('TestesResiduos','--work6-preview')
         if baseline.returncode: raise RuntimeError('preview baseline failed: '+baseline.stdout[-2000:])
         print('BASELINE PASS native preview',flush=True)

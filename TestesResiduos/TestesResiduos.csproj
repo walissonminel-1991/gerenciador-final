@@ -7,6 +7,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="SilentFixture/**/*.cs" />
+    <ProjectReference Include="SilentFixture/SilentFixture.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="CopySyntheticSilentFixture" AfterTargets="Build">
+    <ItemGroup><_SilentFixture Include="$(MSBuildProjectDirectory)/SilentFixture/bin/$(Configuration)/net10.0-windows/*" /></ItemGroup>
+    <Copy SourceFiles="@(_SilentFixture)" DestinationFolder="$(OutDir)SyntheticSilent" />
+  </Target>
+  <ItemGroup>
     <Compile Include="../IntegratedResidualCleanup.cs" Link="IntegratedResidualCleanup.cs" />
     <Compile Include="../IntegratedResidualPolicy.cs" Link="IntegratedResidualPolicy.cs" />
     <Compile Include="../IntegratedResidualBatch.cs" Link="IntegratedResidualBatch.cs" />

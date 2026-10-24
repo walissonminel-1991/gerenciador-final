@@ -80,8 +80,8 @@ internal static class IntegratedResidualCleanup
                 // chave ausente agora pode ser criada durante a desinstalacao.
                 if (key is null)
                 { if (scope.Policy != "registered-install") keys.Add(address); continue; }
-                var probe = new ResidualUninstallContext(identity, scope.Policy, [], [], scope.Processes, 0, []);
-                if (!IntegratedResidualPolicy.RegistryOwned(probe, key))
+                var probe = new ResidualUninstallContext(identity, scope.Policy, roots, [], scope.Processes, 0, []);
+                if (scope.Policy == "registered-install" && roots.Count == 0 || !IntegratedResidualPolicy.RegistryOwned(probe, key))
                 { preserved++; problems.Add(new("prepare", "ownership_not_proven")); continue; }
                 keys.Add(address);
                 if (!ResidualRegistryGuard.Fingerprint(key, address.View, out _, out _))
@@ -119,6 +119,8 @@ internal static class IntegratedResidualCleanup
         if (!ValidContext(context) || !inventory.Complete ||
             UninstallResiduals.StillInstalled(context.App.Entry(), inventory.Items)) return Block("application_present_or_unknown");
         if (!IntegratedResidualPolicy.ProcessesClosed(context)) return Block("application_running");
+        if (context.Policy == "registered-install" && IntegratedResidualPolicy.Build(context.App).Roots.Any(r =>
+            IntegratedResidualPolicy.Shared(r, context.App, inventory.Items))) return Block("shared_root");
         try
         {
             bool Visit(string path, ResidualRootEvidence root, int depth)
@@ -212,6 +214,7 @@ internal static class IntegratedResidualCleanup
     {
         var scope = IntegratedResidualPolicy.Build(context.App);
         return context.Policy == scope.Policy && context.Roots.Count <= 20 && context.Keys.Count <= 40 &&
+            (context.Policy != "registered-install" || context.Keys.Count == 0 || context.Roots.Count > 0) &&
             context.Roots.All(r => scope.Roots.Contains(r.Path, IntegratedResidualPolicy.Paths) &&
                 r.Chain.Count is > 0 and <= 40 && r.Chain[^1].Path.Equals(r.Path, StringComparison.OrdinalIgnoreCase)) &&
             context.Keys.All(k => scope.Keys.Contains(k)) &&

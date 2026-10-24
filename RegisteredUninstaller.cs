@@ -5,7 +5,8 @@ namespace GerenciadorAplicativos;
 // Preparado ANTES da confirmação. Lease permanece até Process.Start retornar;
 // depois é solto para permitir que o próprio fornecedor remova seus arquivos.
 internal sealed class PreparedUninstaller(UninstallRequest request, ProcessStartInfo start, IDisposable? lease,
-    bool unsignedWarning = false, bool publisherWarning = false, bool trustWarning = false) : IDisposable
+    bool unsignedWarning = false, bool publisherWarning = false, bool trustWarning = false,
+    TimeSpan? waitLimit = null) : IDisposable
 {
     private IDisposable? held=lease;
     private int attempted;
@@ -24,8 +25,9 @@ internal sealed class PreparedUninstaller(UninstallRequest request, ProcessStart
         if(process is null) return null;
         using(process)
         using(var deadline=CancellationTokenSource.CreateLinkedTokenSource(token)) {
-            deadline.CancelAfter(TimeSpan.FromMinutes(3));
+            deadline.CancelAfter(waitLimit ?? TimeSpan.FromMinutes(3));
             try { await process.WaitForExitAsync(deadline.Token); }
+            catch(OperationCanceledException) when (token.IsCancellationRequested) { throw new OperationCanceledException(token); }
             catch(OperationCanceledException) { throw new TimeoutException("Fornecedor iniciado; conclusão pendente. Não repetir automaticamente."); }
             return process.ExitCode;
         }

@@ -778,11 +778,13 @@ internal sealed partial class MainForm : Form
                 BeginStartupChecks();
             try
             {
+                var rebootReports = new List<string>();
                 await RebootResidualReview.CheckAfterBootAsync(async () =>
                 {
                     var scan = await Task.Run(AppServices.ScanAllInstalledAppsForSafety);
                     return new UninstallSnapshot(scan.Items, !scan.Incomplete);
-                }, DiagnosticTrace.Write, message => { Log(message); Status(message); ShowUninstallResult(message); });
+                }, DiagnosticTrace.Write, message => { Log(message); Status(message); rebootReports.Add(message); });
+                if (rebootReports.Count > 0) ShowUninstallResult(string.Join("\n\n", rebootReports));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                 InvalidDataException or System.Security.Cryptography.CryptographicException or

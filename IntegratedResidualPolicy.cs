@@ -131,6 +131,7 @@ internal static class IntegratedResidualPolicy
             string? parent = Path.GetDirectoryName(path);
             string[] bases = [Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
                 Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs")];
             if (!bases.Any(b => !string.IsNullOrWhiteSpace(b) && Paths.Equals(b, parent))) return null;
             string leaf = Path.GetFileName(path);
@@ -201,12 +202,14 @@ internal static class IntegratedResidualPolicy
 
     internal static bool PersonalDirectory(string path) => new[] { "backup", "backups", "recordings", "documents",
         "downloads", "pictures", "music", "videos", "playlists", "saved games", "saves", "projects",
-        "steamapps", "games", "gog games", "epic games", "userdata", "libraries" }
+        "steamapps", "games", "gog games", "epic games", "userdata", "libraries", "credentials", "passwords", "wallets" }
         .Contains(Path.GetFileName(path), Paths);
 
     internal static bool EligibleFile(string path)
     {
         string name = Path.GetFileName(path);
+        if (Regex.IsMatch(name, @"^(?:credentials?|passwords?|secrets?|wallets?|logins?|tokens?|accounts?)[._-]",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) return false;
         if (name.Equals("SumatraPDF-settings.txt", StringComparison.OrdinalIgnoreCase)) return true;
         // Formatos pessoais, bancos de credenciais, projetos e tipos desconhecidos
         // sao preservados inclusive dentro de uma pasta dedicada ao aplicativo.
