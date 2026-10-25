@@ -15,6 +15,8 @@ REQUIRED = frozenset({
     "BUILD-INFO.txt", "LICENSE.txt", "LEIA-ME.md", "PRIVACY.md",
     "THIRD-PARTY-NOTICES.md", "Licencas/DotNET/LICENSE.txt",
     "Licencas/DotNET/THIRD-PARTY-NOTICES.txt", "Licencas/WindowsDesktop/LICENSE.txt",
+    "Microsoft.Management.Deployment.dll", "Microsoft.Management.Deployment.CsWinRTProjection.dll",
+    "Licencas/WinGet/NOTICE.txt",
 })
 
 RESERVED = frozenset({"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} |
@@ -22,6 +24,13 @@ RESERVED = frozenset({"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} |
 SATELLITES = frozenset({"Microsoft.VisualBasic.Forms.resources.dll", "System.Windows.Forms.Design.resources.dll",
                        "System.Windows.Forms.Primitives.resources.dll", "System.Windows.Forms.resources.dll"})
 CULTURES = frozenset("cs de es fr it ja ko pl pt-BR ru tr zh-Hans zh-Hant".split())
+# Native COM files from the exact pinned NuGet package are copied to publish but
+# do not appear as runtime assets in the .deps.json target. All other DLL/EXE
+# files still require an explicit deps declaration; package/version is checked.
+PINNED_COM_NATIVE = frozenset({
+    "Microsoft.Management.Deployment.dll",
+    "Microsoft.Management.Deployment.CsWinRTProjection.dll",
+})
 
 
 def portable_name(name: str) -> bool:
@@ -46,11 +55,13 @@ def declared_binaries(files: dict, version: str) -> set:
     libraries = data["libraries"]
     expected = {"GerenciadorFinal", "runtimepack.Microsoft.NETCore.App.Runtime.win-x64",
                 "runtimepack.Microsoft.WindowsDesktop.App.Runtime.win-x64",
-                "runtimepack.Microsoft.Windows.SDK.NET.Ref", "YamlDotNet"}
+                "runtimepack.Microsoft.Windows.SDK.NET.Ref", "YamlDotNet",
+                "Microsoft.WindowsPackageManager.ComInterop"}
     keys = [key.rsplit("/", 1) for key in libraries]
     if len(keys) != len(expected) or {key[0] for key in keys} != expected:
         raise ValueError("biblioteca nao declarada no contrato de distribuicao")
-    if "GerenciadorFinal/" + version not in libraries or "YamlDotNet/18.1.0" not in libraries:
+    if ("GerenciadorFinal/" + version not in libraries or "YamlDotNet/18.1.0" not in libraries
+            or "Microsoft.WindowsPackageManager.ComInterop/1.29.380" not in libraries):
         raise ValueError("versao de dependencia divergente")
     options = json.loads(files["GerenciadorFinal.runtimeconfig.json"].read_text(encoding="utf-8-sig"))["runtimeOptions"]
     frameworks = options.get("includedFrameworks", [])
@@ -137,7 +148,7 @@ def verify(root: Path, version: str, source: str, build: str, base: str = "") ->
             continue
         parts = name.split("/")
         satellite = len(parts) == 2 and parts[0] in CULTURES and parts[1] in SATELLITES
-        if name not in binaries and not satellite:
+        if name not in binaries and not satellite and name not in PINNED_COM_NATIVE:
             raise ValueError("binario nao declarado no contrato: " + name)
     if binaries - files.keys():
         raise ValueError("binario declarado ausente")

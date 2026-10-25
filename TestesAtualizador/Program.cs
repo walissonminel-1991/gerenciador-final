@@ -5,10 +5,20 @@ if (args.Contains("--verify-catalog"))
 {
     using var token = new CancellationTokenSource(TimeSpan.FromMinutes(4));
     using var catalog = await PackageCatalogIndex.DownloadAsync(token.Token);
+    var pfnRows = catalog.FindForReviewByPackageFamily("Microsoft Corporation", "Microsoft.WindowsTerminal_8wekyb3d8bbwe", token.Token);
+    var trackedRows = catalog.FindForReviewByPackageId("Microsoft Corporation", "Microsoft.WindowsTerminal", token.Token);
+    if (pfnRows is not [{ Id: "Microsoft.WindowsTerminal" }] || trackedRows.Count != pfnRows.Count ||
+        catalog.FindForReviewByPackageFamily("Wrong Vendor", "Microsoft.WindowsTerminal_8wekyb3d8bbwe", token.Token).Count != 0)
+        throw new Exception("Consultative PFN/ID lookup did not preserve catalog identity");
+    Console.WriteLine("WORK16.CATALOGO_REAL PFN/PackageIdentifier Microsoft.WindowsTerminal autenticados, sem autorizacao de execucao");
     foreach (var item in new[] { ("OBS Studio", "OBS Project"), ("VLC media player", "VideoLAN"), ("ShareX", "ShareX Team"), ("SumatraPDF", "Krzysztof Kowalczyk") })
     {
         var rows = catalog.Find(item.Item1, item.Item2, "", token.Token);
         if (rows.Count != 1) throw new Exception("Catalogo nao identifica fixture publica " + item.Item1);
+        var decorated = catalog.Find(item.Item1 + " " + rows[0].Version + " (64-bit x64)", item.Item2, "", token.Token);
+        if (decorated.Count != 1 || decorated[0].Id != rows[0].Id)
+            throw new Exception("Nome ARP decorado diverge no indice real " + item.Item1);
+        Console.WriteLine("CATALOGO.IDENTIDADE_ARP_VALIDADA " + rows[0].Id);
         var bytes = await PackageCatalogIndex.ReadManifestAsync(rows[0], token.Token);
         if(item.Item1!="SumatraPDF")
         {
@@ -60,7 +70,9 @@ if (args.Contains("--verify-catalog"))
     }
     return;
 }
-if(args.Contains("--automatic")){AutomaticDiscoveryTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
+if(args.Contains("--work17-coverage")){Work17CoverageProbe.Run();return;}
+if(args.Contains("--work17")){await Work17DiscoveryTests.RunAsync((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
+if(args.Contains("--automatic")){Work16ContractTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});if(OperatingSystem.IsWindows())Work14CatalogTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});Work14CapabilityTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});AutomaticDiscoveryTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
 int checkedCount = 0;
 void Verify(bool condition, string label)
 {
@@ -513,6 +525,8 @@ try
 }
 finally { Directory.Delete(isolated, true); }
 
+if(OperatingSystem.IsWindows())Work14CatalogTests.Run(Verify);
+Work14CapabilityTests.Run(Verify);
 AutomaticDiscoveryTests.Run(Verify);
 await Work13UpdateTests.RunAsync(Verify);
 await Work9UpdateTests.RunAsync(Verify);
@@ -538,10 +552,15 @@ namespace GerenciadorAplicativos
         public bool IsUpdate { get; init; }
         public bool UpdateRequiresReview { get; init; }
         public bool InventoryOnly { get; init; }
+        public bool VerifiedMsixIdentity { get; init; }
         public string InstallLocation { get; set; } = "";
         public string DisplayIcon { get; init; } = "";
+        public string QuietUninstallString { get; init; } = "";
         public string UninstallString { get; init; } = "";
         public string MsiProductCode { get; init; } = "";
+        public string MsixPackageFamilyName { get; init; } = "";
+        public string InventorySource { get; init; } = "";
+        public bool CanUninstall { get; set; }
     }
 }
 

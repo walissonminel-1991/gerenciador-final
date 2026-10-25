@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.63 TESTE — Lote 4 com CI aprovada.** [CI 40234268549](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549), fonte `a893a051`; [portátil x64 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549/artifacts/12614153157). Consolidação cumulativa dos lotes 1–3, revisão de interface/documentação e pacote conferido fora do runner. 318 atualizadores, 655 resíduos, 27 mutações, 40 Python, 10 Node e 2 controles negativos da interface. [Evidências e limites](MISSAO-LOTE4.md). WORK14–17 permanecem em outra cadeia; PR #40 Draft e main preservadas. Roadmap **27/42**, sem novos checkpoints; U8/R7/R4, D2/G1/G2 e AVG continuam abertos.
+**v5.13.11.64 TESTE — integração Lotes 1–4 + WORK14–17 aprovada tecnicamente na [CI 40241712164](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164).** Fonte `5793ce1f` e [ZIP portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183) com 284 hashes conferidos também fora do runner; 285 arquivos, AMD64, .NET 10.0.13 e sem assinatura. [Relatório de integração](MISSAO-INTEGRACAO.md) e [PR #59 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/59). **Roadmap 27/42**, sem fechar checkpoints físicos: U8/R7/R4/I7/P5/P6/V5/D2/G1/G2/R6 e gestão de drivers permanecem pendentes; AVG não homologado, main preservada.
 
 ### Validação anterior — WORK11
 

@@ -7,7 +7,8 @@ using YamlDotNet.RepresentationModel;
 namespace GerenciadorAplicativos;
 
 internal sealed record AutomaticInstaller(string PackageId, string Name, string Publisher, string Version, string Type,
-    string Architecture, string Scope, Uri Download, string Sha256, string ProductCode, string UpgradeCode, string Arguments);
+    string Architecture, string Scope, Uri Download, string Sha256, string ProductCode, string UpgradeCode, string Arguments,
+    bool Interactive = false);
 
 // Interpreta dados autenticados; nunca desserializa objetos, scripts ou comandos externos.
 internal static class AutomaticPackageManifest
@@ -44,13 +45,33 @@ internal static class AutomaticPackageManifest
                 Get("InstallerAbortsTerminal") == "true" || Get("InstallLocationRequired") == "true" ||
                 GetNode("UnsupportedOSArchitectures") is not null || GetNode("Platform") is not null ||
                 GetNode("Markets") is not null) continue;
-            if (GetNode("InstallModes") is YamlSequenceNode modes && !modes.Children.OfType<YamlScalarNode>().Any(n => n.Value == "silent")) continue;
+            bool interactive = false;
+            if (GetNode("InstallModes") is YamlSequenceNode modes && !modes.Children.OfType<YamlScalarNode>().Any(n => n.Value == "silent"))
+            {
+                if (!modes.Children.OfType<YamlScalarNode>().Any(n => n.Value == "interactive")) continue;
+                interactive = true;
+            }
             if (Get("MinimumOSVersion") is { Length: > 0 } minimum &&
                 (!System.Version.TryParse(minimum, out var required) || OperatingSystem.IsWindows() && Environment.OSVersion.Version < required)) continue;
             if (!Uri.TryCreate(Get("InstallerUrl"),UriKind.Absolute,out var url) || !IsPublicHttps(url) ||
                 !Regex.IsMatch(Get("InstallerSha256"),"^[A-Fa-f0-9]{64}$")) continue;
             string? args = Arguments(type,scope, GetNode("InstallerSwitches") as YamlMappingNode);
             if (args is null) continue;
+            if (interactive)
+            {
+                // Same authenticated payload, signer, local engine, product,
+                // architecture/scope and post-check gates. Only presentation
+                // changes; arbitrary vendor switches remain refused.
+                args = type switch
+                {
+                    "nullsoft" => "",
+                    "inno" => "/NORESTART /NOCLOSEAPPLICATIONS /NORESTARTAPPLICATIONS " +
+                        (scope == "machine" ? "/ALLUSERS" : "/CURRENTUSER"),
+                    _ => "/norestart"
+                };
+                if (GetNode("InstallerSwitches") is YamlMappingNode declared &&
+                    new[] { "Custom", "Upgrade" }.Any(key => S(declared, key).Length > 0)) continue;
+            }
             string code = Get("ProductCode"), upgrade = "";
             if (GetNode("AppsAndFeaturesEntries") is YamlSequenceNode entries)
             {
@@ -60,7 +81,7 @@ internal static class AutomaticPackageManifest
                 upgrade=S(feature,"UpgradeCode");
             }
             if (type is "msi" or "wix" && (!Guid.TryParse(code,out var productCode) || productCode==Guid.Empty)) continue;
-            options.Add(new(reference.Id,name,publisher,reference.Version,type,arch,targetScope,url,Get("InstallerSha256"),code,upgrade,args));
+            options.Add(new(reference.Id,name,publisher,reference.Version,type,arch,targetScope,url,Get("InstallerSha256"),code,upgrade,args,interactive));
         }
         var unique = options.Distinct().ToArray();
         return unique.Length == 1 ? unique[0] : null;

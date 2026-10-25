@@ -1,10 +1,11 @@
-# Roteiro físico posterior — Lote 4 .63 TESTE
+# Roteiro físico posterior — integração .64 TESTE (não homologada)
 
-Este roteiro **não foi executado pelo Lote 4**. Usar somente a candidata .63
-que estiver explicitamente aprovada na [PR #57](https://github.com/walissonminel-1991/gerenciador-final/pull/57)
-e em [MISSAO-LOTE4](MISSAO-LOTE4.md), com SHA do código e hash do pacote.
-Enquanto estiver em validação, não tratar como candidata liberada. O pacote
-consolida lotes 1–3; WORK16/17 não estão integradas. A PR #40 permanece Draft.
+Este roteiro **não foi executado para a integração .64**. A [CI integrada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164)
+está tecnicamente aprovada e o ZIP teve seus hashes conferidos fora do runner;
+[relatório](MISSAO-INTEGRACAO.md) e [PR #59 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/59).
+A aprovação não substitui avaliação de AVG nem a homologação física; a .63 anterior
+segue registrada em [MISSAO-LOTE4](MISSAO-LOTE4.md).
+A PR #40 e a main permanecem separadas.
 
 ## Preparação
 

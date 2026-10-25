@@ -8,6 +8,14 @@ namespace GerenciadorAplicativos;
 // Mesmo fingerprint usado pelas limpezas anteriores. As aberturas deste fluxo
 // nao seguem links e a remocao inteira participa de uma transacao do Registro.
 // Sem suporte a transacoes, o alvo e preservado; nunca ha fallback por caminho.
+internal sealed class ResidualRegistryReadException(string step, int depth, Exception cause)
+    : IOException("Registry inspection failed at " + step, cause)
+{
+    internal string Step { get; } = step;
+    internal int Depth { get; } = depth;
+}
+internal sealed record ResidualRegistryFailure(string Step, int Depth, int Error);
+
 internal static class ResidualRegistryGuard
 {
     // Inspecao: KEY_QUERY_VALUE | KEY_ENUMERATE_SUB_KEYS. Nao exigir
@@ -24,11 +32,19 @@ internal static class ResidualRegistryGuard
         {
             for (int i = 0; i < parts.Length; i++)
             {
-                var next = OpenSingle(current ?? parent, parts[i], view, transaction, writable && i == parts.Length - 1);
+                RegistryKey? next;
+                try { next = OpenSingle(current ?? parent, parts[i], view, transaction, writable && i == parts.Length - 1); }
+                catch (Exception ex) when (IntegratedError(ex))
+                { throw new ResidualRegistryReadException(i == parts.Length - 1 ? "open_leaf" : "open_parent", i, ex); }
                 current?.Dispose(); current = next;
                 if (current is null) return null;
-                if (current.GetValueNames().Contains("SymbolicLinkValue", StringComparer.OrdinalIgnoreCase))
-                    throw new InvalidDataException("registry_link");
+                try
+                {
+                    if (current.GetValueNames().Contains("SymbolicLinkValue", StringComparer.OrdinalIgnoreCase))
+                        throw new InvalidDataException("registry_link");
+                }
+                catch (Exception ex) when (IntegratedError(ex))
+                { throw new ResidualRegistryReadException("link_check", i, ex); }
             }
             var result = current; current = null; return result;
         }
@@ -39,19 +55,52 @@ internal static class ResidualRegistryGuard
         SafeFileHandle? transaction, bool writable)
     {
         int rights = Read | (int)view | (writable ? Write | DeleteRight : 0);
+        // OpenBaseKey marks predefined roots writable in .NET. Its .Handle
+        // getter reopens the ROOT with KEY_READ | KEY_WRITE. That incidental
+        // write request fails for a standard user before our read-only P/Invoke.
+        // Use a borrowed predefined HKEY; never request or close a root handle.
+        using var predefined = Predefined(parent);
+        var parentHandle = predefined ?? parent.Handle;
         int error = transaction is null
-            ? RegOpenKeyExW(parent.Handle, child, 8, rights, out var handle)
-            : RegOpenKeyTransactedW(parent.Handle, child, 8, rights, out handle, transaction, IntPtr.Zero);
+            ? RegOpenKeyExW(parentHandle, child, 8, rights, out var handle)
+            : RegOpenKeyTransactedW(parentHandle, child, 8, rights, out handle, transaction, IntPtr.Zero);
         if (error == 2) { handle?.Dispose(); return null; }
         if (error != 0) { handle?.Dispose(); throw new Win32Exception(error); }
         return RegistryKey.FromHandle(handle, view);
     }
 
+    private static SafeRegistryHandle? Predefined(RegistryKey key) => key.Name switch
+    {
+        "HKEY_CURRENT_USER" => new SafeRegistryHandle((IntPtr)(int)RegistryHive.CurrentUser, ownsHandle: false),
+        "HKEY_LOCAL_MACHINE" => new SafeRegistryHandle((IntPtr)(int)RegistryHive.LocalMachine, ownsHandle: false),
+        _ => null
+    };
+    private static bool IntegratedError(Exception ex) => ex is IOException or UnauthorizedAccessException or
+        System.Security.SecurityException or InvalidOperationException or ArgumentException or Win32Exception;
+    internal static ResidualRegistryFailure Failure(Exception ex, string fallback = "fingerprint", int depth = 0)
+    {
+        if (ex is ResidualRegistryReadException read)
+            return Failure(read.InnerException!, read.Step, read.Depth);
+        int error = ex is Win32Exception win ? win.NativeErrorCode :
+            ((uint)ex.HResult & 0xFFFF0000u) == 0x80070000u ? ex.HResult & 0xffff : 0;
+        return new(fallback, depth, error);
+    }
     internal static bool Fingerprint(RegistryKey key, RegistryView view, out string digest, out int entries,
-        SafeFileHandle? transaction = null, bool reserve = false)
-        => RegistryTreeFingerprint.TryCapture(key, 3000, out digest, out entries,
+        SafeFileHandle? transaction = null, bool reserve = false) =>
+        Fingerprint(key, view, out digest, out entries, out _, transaction, reserve);
+
+    internal static bool Fingerprint(RegistryKey key, RegistryView view, out string digest, out int entries,
+        out ResidualRegistryFailure? failure, SafeFileHandle? transaction = null, bool reserve = false)
+    {
+        ResidualRegistryFailure? observed = null;
+        bool complete = RegistryTreeFingerprint.TryCapture(key, 3000, out digest, out entries,
             openChild: (parent, name) => Open(parent, name, view, transaction, writable: reserve),
-            beforeKey: reserve ? Reserve : null, throwOnFailure: reserve);
+            beforeKey: reserve ? Reserve : null, throwOnFailure: reserve,
+            onFailure: (step, depth, ex) => observed = ex is ResidualRegistryReadException read
+                ? new("open_child", depth + read.Depth, Failure(ex).Error) : Failure(ex, step, depth));
+        failure = observed;
+        return complete;
+    }
 
     // Uma abertura transacionada somente para leitura NAO impede que uma
     // escrita externa posterior seja incorporada antes da primeira escrita.
@@ -89,7 +138,8 @@ internal static class ResidualRegistryGuard
             // raiz exige RegDeleteKeyTransacted, nunca Registry.DeleteSubKeyTree.
             int error = RegDeleteTreeW(key.Handle, null);
             if (error != 0) throw new Win32Exception(error);
-            error = RegDeleteKeyTransactedW(hive.Handle, item.Subkey, (int)item.View, 0, transaction, IntPtr.Zero);
+            using var rootHandle = Predefined(hive)!;
+            error = RegDeleteKeyTransactedW(rootHandle, item.Subkey, (int)item.View, 0, transaction, IntPtr.Zero);
             if (error != 0) throw new Win32Exception(error);
             token.ThrowIfCancellationRequested();
             if (!CommitTransaction(transaction)) throw new Win32Exception(Marshal.GetLastWin32Error());

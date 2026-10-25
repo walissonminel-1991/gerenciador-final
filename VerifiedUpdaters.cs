@@ -173,6 +173,7 @@ internal static class VerifiedUpdaters
     internal static string? GetOfficialPage(ProgramEntry entry)
     {
         if (!entry.IsUpdate) return null;
+        if (entry.InventoryId.StartsWith("MANAGED|scoop", StringComparison.Ordinal)) return "https://scoop.sh/";
         if (entry.Name == "EA app") return "https://www.ea.com/ea-app";
         if (entry.Name == "FanControl") return "https://getfancontrol.com/";
         if (System.Text.RegularExpressions.Regex.IsMatch(entry.Name, @"^Jellyfin Server(?: \d+(?:\.\d+){1,3})?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return "https://jellyfin.org/downloads/windows/";
@@ -223,7 +224,8 @@ internal static class VerifiedUpdaters
         return null;
     }
 
-    internal static VerifiedUpdateRecipe? Resolve(ProgramEntry entry) => AutomaticUpdateDiscovery.Resolve(entry) ?? ResolveReviewed(entry);
+    internal static VerifiedUpdateRecipe? Resolve(ProgramEntry entry) => EcosystemInventory.Ambiguous(entry)
+        ? null : AutomaticUpdateDiscovery.Resolve(entry) ?? ResolveReviewed(entry);
 
     internal static VerifiedUpdateRecipe? ResolveReviewed(ProgramEntry entry)
     {
@@ -345,7 +347,7 @@ internal static class VerifiedUpdaters
     internal static bool SingleSafeSilentInstallation(VerifiedUpdateRecipe recipe,
         ProgramEntry chosen, IEnumerable<ProgramEntry> inventory)
     {
-        if (!IsApprovedRecipe(recipe) || chosen.InventoryOnly || ProtectedApplications.IsProtectedName(chosen.Name)) return false;
+        if (!IsApprovedRecipe(recipe) || chosen.InventoryOnly || EcosystemInventory.Ambiguous(chosen) || ProtectedApplications.IsProtectedName(chosen.Name)) return false;
         var items = inventory.ToArray();
         if (AutomaticUpdateDiscovery.IsAutomatic(recipe)) return AutomaticUpdateDiscovery.Safe(recipe,chosen,items);
         if (UpdateInstallationContract.For(recipe.Identifier) is not null)
@@ -474,6 +476,10 @@ internal static class VerifiedUpdaters
     // assinadas e verificadas autorizam iniciar um instalador.
     internal static string? GetPrimaryAction(ProgramEntry entry)
     {
+        if (entry.IsUpdate && entry.InventoryOnly && !entry.VerifiedMsixIdentity && entry.MsixPackageFamilyName.Length > 0 &&
+            entry.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) &&
+            !ProtectedApplications.IsProtectedName(entry.Name))
+            return "windows-manage";
         if (!entry.IsUpdate) return null;
         if (entry.UpdateRequiresReview)
             return GetMicrosoftStoreUri(entry) is not null ? "store" : GetOfficialPage(entry) is not null ? "site" : "guide";

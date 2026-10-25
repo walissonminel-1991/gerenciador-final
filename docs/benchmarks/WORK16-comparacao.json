@@ -1,0 +1,65 @@
+{
+  "baseline": "f179dbabe78d0d42c4112a283040c5c781f109f0",
+  "candidate": "f549eb1fbc167f282dba441fb93cff9f87877dab",
+  "sample_kind": "component fixtures; distinct denominators, never physical coverage",
+  "before": {
+    "WORK16_UPDATES": {
+      "sample": "synthetic authenticated-manifest decisions, not final payload eligibility",
+      "scenarios": 6,
+      "silent_contracts": 3,
+      "supervised_contracts": 0,
+      "negatives": 6,
+      "negatives_rejected": 6,
+      "managed_metadata_universe": 2,
+      "managed_entries_inventoried": 0,
+      "manager_updates": 0,
+      "pfn_universe": 1,
+      "pfn_version_discoveries": 0,
+      "tracked_package_id_universe": 1,
+      "tracked_package_id_lookups": 0,
+      "final_payloads_authorized": 0,
+      "physical_computers": 0
+    },
+    "WORK16_UNINSTALL": {
+      "sample": "synthetic Squirrel layout, simulated signer, no uninstaller executed",
+      "scenarios": 1,
+      "silent_contracts": 0,
+      "interactive_contracts": 1,
+      "negatives": 6,
+      "negatives_rejected": 6,
+      "physical_computers": 0,
+      "real_signatures": 0
+    }
+  },
+  "after": {
+    "WORK16_UPDATES": {
+      "sample": "synthetic authenticated-manifest decisions, not final payload eligibility",
+      "scenarios": 6,
+      "silent_contracts": 3,
+      "supervised_contracts": 3,
+      "negatives": 6,
+      "negatives_rejected": 6,
+      "managed_metadata_universe": 2,
+      "managed_entries_inventoried": 2,
+      "manager_updates": 0,
+      "pfn_universe": 1,
+      "pfn_version_discoveries": 1,
+      "tracked_package_id_universe": 1,
+      "tracked_package_id_lookups": 1,
+      "final_payloads_authorized": 0,
+      "physical_computers": 0
+    },
+    "WORK16_UNINSTALL": {
+      "sample": "synthetic Squirrel layout, simulated signer, no uninstaller executed",
+      "scenarios": 1,
+      "silent_contracts": 1,
+      "interactive_contracts": 0,
+      "negatives": 6,
+      "negatives_rejected": 6,
+      "physical_computers": 0,
+      "real_signatures": 0
+    }
+  },
+  "third_party_executions": 0,
+  "physical_homologations": 0
+}

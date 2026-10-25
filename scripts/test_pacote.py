@@ -37,7 +37,13 @@ class PacoteTests(unittest.TestCase):
             "runtimepack.Microsoft.NETCore.App.Runtime.win-x64/10.0.13": {"native": {"coreclr.dll": {}, "hostfxr.dll": {}}},
             "runtimepack.Microsoft.WindowsDesktop.App.Runtime.win-x64/10.0.13": {"runtime": {"System.Windows.Forms.dll": {}}},
             "runtimepack.Microsoft.Windows.SDK.NET.Ref/10.0.26100.57": {"runtime": {"Microsoft.Windows.SDK.NET.dll": {}, "WinRT.Runtime.dll": {}}},
-            "YamlDotNet/18.1.0": {}
+            "YamlDotNet/18.1.0": {},
+            "Microsoft.WindowsPackageManager.ComInterop/1.29.380": {
+                "runtime": {
+                    "Microsoft.Management.Deployment.dll": {},
+                    "Microsoft.Management.Deployment.CsWinRTProjection.dll": {}
+                }
+            }
         }
         target = ".NETCoreApp,Version=v10.0/win-x64"
         self.deps = {"runtimeTarget": {"name": target}, "targets": {target: libraries}, "libraries": {key: {} for key in libraries}}
@@ -131,6 +137,17 @@ class PacoteTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "nao declarada"):
             self.check()
 
+    def test_com_package_version_is_pinned(self):
+        expected = "Microsoft.WindowsPackageManager.ComInterop/1.29.380"
+        wrong = "Microsoft.WindowsPackageManager.ComInterop/1.29.381"
+        self.deps["libraries"][wrong] = self.deps["libraries"].pop(expected)
+        target = self.deps["runtimeTarget"]["name"]
+        self.deps["targets"][target][wrong] = self.deps["targets"][target].pop(expected)
+        (self.root / "GerenciadorFinal.deps.json").write_text(json.dumps(self.deps))
+        self.hashes()
+        with self.assertRaisesRegex(ValueError, "versao de dependencia"):
+            self.check()
+
     def test_runtime_versions_agree(self):
         self.options["runtimeOptions"]["includedFrameworks"][0]["version"] = "10.0.12"
         (self.root / "GerenciadorFinal.runtimeconfig.json").write_text(json.dumps(self.options))
@@ -174,7 +191,7 @@ class MetadataTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         repo = Path(__file__).resolve().parents[1]
         report = json.loads((repo / "docs/PROGRESSO.json").read_text(encoding="utf-8"))["candidate"]["report"]
-        for name in ["GerenciadorAplicativos.csproj", "app.manifest", "README.md", "docs/ROADMAP.md", "CHANGELOG.md", "docs/PROGRESSO.json", report]:
+        for name in ["GerenciadorAplicativos.csproj", "app.manifest", "README.md", "docs/ROADMAP.md", "CHANGELOG.md", "docs/PROGRESSO.json", report, "docs/MISSAO-WORK13.md", "docs/MISSAO-WORK14-MOTORES.md", "docs/MISSAO-WORK16.md", "docs/MISSAO-WORK17.md"]:
             file = self.root / name
             file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(repo / name, file)

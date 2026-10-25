@@ -11,6 +11,7 @@ gratuito e aberto, sem serviço comercial obrigatório.
 | Binários nativos Microsoft do runtime Windows | A [relação oficial de licenças](https://github.com/dotnet/core/blob/main/license-information-windows.md) distingue componentes MIT de coreclr.dll e Microsoft.DiaSymReader.Native, sob os [termos .NET Library](https://dotnet.microsoft.com/en-us/dotnet_library_license.htm). Não redistribuir separadamente do aplicativo. |
 | Microsoft.Windows.SDK.NET.dll e WinRT.Runtime.dll | Projeções C#/WinRT, [código e licença MIT Microsoft](https://github.com/microsoft/CsWinRT). O pack Microsoft.Windows.SDK.NET.Ref também referencia os [termos do Windows SDK](https://learn.microsoft.com/en-us/legal/windows-sdk/license) no seu nuspec. |
 | APIs Windows, Store, WMI e Windows Update | Componentes do sistema, não empacotados pelo GF; sujeitos aos termos do Windows. |
+| Microsoft.WindowsPackageManager.ComInterop 1.29.380 | Projeção tipada e fábrica nativa x64 oficiais, código MIT: https://github.com/microsoft/winget-cli. Avisos originais do pacote copiados integralmente em Licencas/WinGet/NOTICE.txt. O serviço WinGet/App Installer não é instalado nem redistribuído pelo GF. |
 | RuckZuck, GitHub Releases e sites oficiais | Fontes consultadas via HTTPS. Seus catálogos/instaladores não integram este ZIP; cada aplicativo mantém os termos de seu fornecedor. |
 | Inno Setup | Ferramenta opcional para gerar o instalador, ausente do portátil. [Licença do fornecedor](https://jrsoftware.org/files/is/license.txt). |
 

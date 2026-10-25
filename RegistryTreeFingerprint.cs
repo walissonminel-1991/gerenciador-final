@@ -12,10 +12,12 @@ internal static class RegistryTreeFingerprint
     internal static bool TryCapture(RegistryKey root, int maxEntries,
         out string digest, out int entries, int maxBytes = 4 * 1024 * 1024,
         Func<RegistryKey, string, RegistryKey?>? openChild = null,
-        Action<RegistryKey>? beforeKey = null, bool throwOnFailure = false)
+        Action<RegistryKey>? beforeKey = null, bool throwOnFailure = false,
+        Action<string, int, Exception>? onFailure = null)
     {
         digest = ""; entries = 0;
-        int count = 0, bytes = 0;
+        int count = 0, bytes = 0, currentDepth = 0;
+        string step = "fingerprint_budget";
         try
         {
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -46,13 +48,16 @@ internal static class RegistryTreeFingerprint
             }
             void Visit(RegistryKey key, int depth)
             {
+                currentDepth = depth; step = "fingerprint_budget";
                 if (depth > 12 || ++count > maxEntries) throw new InvalidDataException("Muitas chaves");
                 beforeKey?.Invoke(key);
+                step = "enumerate_values";
                 string[] values = key.GetValueNames().Order(StringComparer.OrdinalIgnoreCase).ToArray();
                 Number(values.Length);
                 foreach (string name in values)
                 {
                     if (++count > maxEntries) throw new InvalidDataException("Muitos valores");
+                    step = "read_value";
                     Text(name); Number((int)key.GetValueKind(name));
                     switch (key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames))
                     {
@@ -66,11 +71,13 @@ internal static class RegistryTreeFingerprint
                         default: throw new InvalidDataException("Valor alterado ou tipo nao suportado");
                     }
                 }
+                step = "enumerate_subkeys"; currentDepth = depth;
                 string[] children = key.GetSubKeyNames().Order(StringComparer.OrdinalIgnoreCase).ToArray();
                 Number(children.Length);
                 foreach (string name in children)
                 {
                     Text(name);
+                    step = "open_child"; currentDepth = depth + 1;
                     using var child = openChild is null ? key.OpenSubKey(name, writable: false) : openChild(key, name);
                     if (child is null) throw new IOException("Arvore alterada");
                     Visit(child, depth + 1);
@@ -80,8 +87,8 @@ internal static class RegistryTreeFingerprint
             digest = Convert.ToHexString(hash.GetHashAndReset()); entries = count;
             return true;
         }
-        catch (Exception ex) when (!throwOnFailure && (ex is IOException or InvalidDataException or UnauthorizedAccessException or
-            System.Security.SecurityException or ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception))
-        { return false; }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
+            System.Security.SecurityException or ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        { onFailure?.Invoke(step, currentDepth, ex); if (throwOnFailure) throw; return false; }
     }
 }

@@ -17,6 +17,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 1 && args[0] == WinGetComProcessCatalog.Argument)
+            return Task.Run(WinGetComReader.Run).GetAwaiter().GetResult(); // COM reader owns an MTA thread
         // O trabalhador elevado executa comandos sem criar janelas auxiliares.
         if (args.Length == 4 && args[0] == "--worker")
             return WorkerHost.RunAsync(args[1], args[2], args[3]).GetAwaiter().GetResult();
@@ -84,6 +86,7 @@ internal sealed class ProgramEntry
     public string InventorySource { get; init; } = "";
     public string InventoryId { get; init; } = "";
     public string MsiProductCode { get; init; } = "";
+    public string MsixPackageFamilyName { get; init; } = "";
     public bool VerifiedMsixIdentity { get; init; }
     // Entrada MSIX, jogo da biblioteca ou componente protegido: sem desinstalacao direta.
     public bool InventoryOnly { get; init; }
@@ -94,6 +97,7 @@ internal sealed class ProgramEntry
     public bool IsUpdate { get; set; }
     public bool UpdateRequiresReview { get; set; }
     public string UpdateEvidence { get; set; } = "";
+    internal ApplicationCapabilitySnapshot? Capabilities { get; set; }
     public MatchState ComparisonState { get; set; } = MatchState.Unmatched;
 }
 
@@ -250,6 +254,7 @@ internal static class AppServices
                 InventorySource = app.Stale ? "MSIX — leitura anterior, presença não confirmada" : "Aplicativo empacotado (MSIX)",
                 InventoryId = "MSIX|" + app.PackageName,
                 VerifiedMsixIdentity = app.RecipeEligible,
+                MsixPackageFamilyName = app.PackageFamilyName,
                 CatalogIdentity = verified?.Id ?? "",
                 CatalogDisplayName = verified?.Name ?? ""
             });
@@ -266,6 +271,10 @@ internal static class AppServices
                 InventorySource = "Biblioteca de jogos: " + game.Platform,
                 InventoryId = "GAME|" + game.Platform + "|" + game.GameId
             });
+        var managed = EcosystemInventory.ReadLocal();
+        EcosystemInventory.AppendManaged(result, managed);
+        foreach (var source in managed)
+            DiagnosticTrace.Write($"ECOSSISTEMA.INVENTARIO fonte={source.Provider} estado={source.Status} entradas={source.Installations.Count}");
         return new UnifiedInventoryScan(result, registry, msix, additions.Count,
             games, gameAdditions.Count);
     }
@@ -1072,6 +1081,10 @@ internal sealed partial class MainForm : Form
                 ShowUpdateGuidance(item);
             else if (action == "store")
                 OpenMicrosoftStore(item);
+            else if (action == "external-manage")
+                OpenOriginalPackageManager(item);
+            else if (action == "windows-manage")
+                OpenWindowsInstalledApps(item);
         };
         _programList.ItemCheckboxClicked += item =>
         {
@@ -1255,10 +1268,11 @@ internal sealed partial class MainForm : Form
                 {
                     string label = primaryAction switch
                     {
-                        "update" => "Atualizar",
+                        "update" => VerifiedUpdaters.Resolve(item) is { Interactive: true } ? "Acompanhar" : "Atualizar",
                         "terminal" => "Atualizar",
                         "site" => "Site oficial",
                         "store" => "Ver na Store",
+                        "windows-manage" => "No Windows",
                         _ => "Como fazer"
                     };
                     if (operation?.PreventRetry == true) label = operation.Active ? "Em andamento" :
@@ -1277,6 +1291,12 @@ internal sealed partial class MainForm : Form
                     uninstall?.PreventRetry == true ? uninstall.Active ? "Em andamento" : "Pendente" : "Desinstalar",
                     uninstall?.PreventRetry == true ? AppServices.Gray : AppServices.Red,
                     _programList.ActionVisual(item, "uninstall"));
+            else if (ActionableInventory.CanManageExternally(item))
+                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
+                    "Gerenciar", AppServices.Gray, _programList.ActionVisual(item, "external-manage"));
+            else if (ActionableInventory.CanManageWithWindows(item) && !item.IsUpdate)
+                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
+                    "No Windows", AppServices.Gray, _programList.ActionVisual(item, "windows-manage"));
             else if (!item.IsUpdate)
                 TextRenderer.DrawText(e.Graphics, "Somente leitura", _rowInfo,
                     AppRowGeometry.UninstallButton(e.Bounds), Muted,
@@ -2214,6 +2234,7 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_INICIO");
         RenderPrograms();
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_FIM");
+        await RefreshCapabilitiesAsync(updateChecked: false);
         Log($"Inventário local: {_installed.Count} registros; {ActionableInventory.VisibleCount(_installed)} com desinstalação disponível. A lista exibida mostra somente ações.");
         Status(_inventoryIncomplete
             ? "Inventário PARCIAL: fonte de aplicativos indisponível. Use Atualizar e verificar para tentar novamente."
@@ -2233,7 +2254,7 @@ internal sealed partial class MainForm : Form
         // Entradas somente leitura (jogos e MSIX nao verificados) nao
         // recebem candidatos nem receitas automáticas de atualização.
         var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher,
-            !x.InventoryOnly || x.VerifiedMsixIdentity,
+            EcosystemInventory.CanQueryVersions(x),
             Architecture: Regex.IsMatch(x.Name, @"(?i)\bARM64\b") ? "arm64" :
                 Regex.IsMatch(x.Name, @"(?i)\b(x64|64-bit)\b") ? "x64" :
                 Regex.IsMatch(x.Name, @"(?i)\b(x86|32-bit)\b") ? "x86" : "unknown",
@@ -2301,8 +2322,15 @@ internal sealed partial class MainForm : Form
             }
             async Task<AutomaticDiscoveryResult> ReadAutomaticAsync()
             {
+                var results = await ecosystemProviders.DiscoverAsync(new(forceRefresh), cancellation.Token);
+                cancellation.Token.ThrowIfCancellationRequested();
+                EcosystemInventory.Associate(snapshot, results);
+                foreach (var source in results)
+                    DiagnosticTrace.Write($"ECOSSISTEMA.CONSULTA fonte={source.Provider} estado={source.Status} entradas={source.Installations.Count} ms={source.Milliseconds}");
                 var discovered=await AutomaticUpdateDiscovery.QueryAsync(snapshot,installed,cancellation.Token);
                 ((IProgress<ProviderDiagnostic>)sourceProgress).Report(discovered.Diagnostic);
+                foreach(var outcome in discovered.Outcomes ?? new Dictionary<string,int>())
+                    DiagnosticTrace.Write($"CATALOGO.ETAPA motivo={outcome.Key} quantidade={outcome.Value}");
                 return discovered;
             }
             var autoTask=ReadAutomaticAsync();
@@ -2315,14 +2343,20 @@ internal sealed partial class MainForm : Form
             var others = await officialTask;
             var automatic = await autoTask;
             var freshMerged = await Task.Run(
-                () => MultiSourceMatcher.Merge(installed, rz.Matches, others.Findings.Concat(automatic.Findings).ToArray()), cancellation.Token);
+                () => MultiSourceMatcher.Merge(installed, rz.Matches, others.Findings.Concat(automatic.Findings)
+                    .Concat(EcosystemInventory.Findings(snapshot, installed)).ToArray()), cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
             bool partial = rz.Matches is null || others.Diagnostics.Any(x => x.Status != "ok") || automatic.Diagnostic.Status!="ok";
             var merged = _updateHistory.Apply(installed, freshMerged, partial);
             AplicarCandidatos(merged);
             AutomaticUpdateDiscovery.Attach(automatic);
-            Log("Descoberta automática: "+automatic.Findings.Count+" instalador(es) identificado(s); catálogo "+automatic.Diagnostic.Status+".");
+            await RefreshCapabilitiesAsync(updateChecked: true, cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (generation != _catalogoGeneration || IsDisposed) return;
+            Log("Catálogo Microsoft: "+automatic.Plans.Count(p => !p.Installer.Interactive)+" contrato(s) silencioso(s), "+
+                automatic.Plans.Count(p => p.Installer.Interactive)+" supervisionado(s); "+
+                (automatic.Findings.Count - automatic.Plans.Count)+" versão(ões) adicionais somente consultivas; catálogo "+automatic.Diagnostic.Status+".");
             foreach (var (sourceId, sourceCode) in new[] { ("ea-desktop", 1), ("fancontrol", 2),
                 ("jellyfin-server", 3), ("klite-mega", 4), ("gameinput-winget", 5), ("plex", 6),
                 ("proton-pass-desktop", 7), ("proton-pass-winget", 8), ("proton-pass-windows", 9) })
@@ -2607,6 +2641,40 @@ internal sealed partial class MainForm : Form
             : "Sem instalador validado: abra o próprio aplicativo, procure Ajuda ou Configurações e use a função oficial de atualização.";
         Log("Orientação para " + entry.Name + " · " + message);
         Status("Orientações de atualização exibidas no histórico de operações.");
+    }
+
+    private void OpenOriginalPackageManager(ProgramEntry entry)
+    {
+        if (_busy || !ActionableInventory.CanManageExternally(entry)) return;
+        var receipt = EcosystemInventory.Get(entry);
+        if (receipt is null) return;
+        // Open only fixed project documentation. No script, package command or
+        // user-controlled path is passed to a shell, even after clicking.
+        string url = receipt.Identity.Provider == "chocolatey"
+            ? "https://docs.chocolatey.org/en-us/choco/commands/" : "https://scoop.sh/";
+        Log(EcosystemInventory.Describe(entry));
+        Status("Gerencie este pacote na ferramenta original; o GF abriu as orientações oficiais.");
+        try { Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true }); }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        { Log("Orientações do gerenciador indisponíveis: " + ex.GetType().Name); }
+    }
+
+    private void OpenWindowsInstalledApps(ProgramEntry entry)
+    {
+        if (_busy || !ActionableInventory.CanManageWithWindows(entry)) return;
+        try
+        {
+            // URI oficial fixa; nunca interpolar PackageFamilyName nem argumentos.
+            // O usuário precisa escolher o aplicativo dentro das Configurações.
+            Process.Start(new ProcessStartInfo { FileName = "ms-settings:appsfeatures", UseShellExecute = true });
+            Log("Configurações > Aplicativos instalados aberta para gerenciamento manual de MSIX. O GF não executou desinstalação.");
+            Status("Localize o aplicativo nas Configurações do Windows e escolha se deseja removê-lo.");
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+            Log("Não foi possível abrir Aplicativos instalados: " + ex.GetType().Name);
+            Status("Abra Configurações > Aplicativos instalados manualmente.");
+        }
     }
 
     private void OpenMicrosoftStore(ProgramEntry entry)
@@ -3073,6 +3141,11 @@ internal sealed partial class MainForm : Form
                         VerifiedUpdaters.VerifyAuthenticode(path, signer, out string issue);
                         return issue;
                     }), cancellation.Token));
+                var proof = prepared[^1];
+                if (request.Original.Capabilities is { } capability && SilentUninstallPolicy.UsesSilentMode(request) &&
+                    !proof.UnsignedWarning && !proof.PublisherWarning && !proof.TrustWarning)
+                    request.Original.Capabilities = capability with
+                    { Uninstall = new(ApplicationCapabilityState.SilentVerified, "payload_verified") };
             }
             string preview = await Task.Run(() => string.Join("\n\n", prepared.Select(p =>
                 "• " + p.Request.Original.Name + "\n" + SilentUninstallPolicy.DescribeMode(p.Request) +

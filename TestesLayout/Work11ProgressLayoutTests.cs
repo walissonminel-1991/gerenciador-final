@@ -11,6 +11,10 @@ internal static class Work11ProgressLayoutTests
     {InventoryId=id,Name=name,Version=version,Publisher="GF Tests",InstallLocation=@"C:\GF-Synthetic"};
     internal static void Run()
     {
+        Require(typeof(PackageCatalogIndex).GetMethod("OpenSynthetic", BindingFlags.Static|BindingFlags.NonPublic) is null &&
+            typeof(InstallerEngineEvidence).GetField("SyntheticSigner", BindingFlags.Static|BindingFlags.NonPublic) is null &&
+            typeof(InstallerEngineEvidence).GetField("SyntheticUninstallBase", BindingFlags.Static|BindingFlags.NonPublic) is null,
+            "W14 produto nao distribui abertura de indice sintetico nem oraculo de assinatura");
         Require(typeof(AutomaticAppInstallation).GetField("SyntheticBaseRoot",BindingFlags.Static|BindingFlags.NonPublic) is null,
             "produto nao permite redirecionar raizes de instalacao para fixtures");
         Require(typeof(AutomaticUpdateDiscovery).GetMethod("SimulateIssued",BindingFlags.Static|BindingFlags.NonPublic) is null,

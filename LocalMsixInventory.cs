@@ -6,7 +6,7 @@ namespace GerenciadorAplicativos;
 // receitas. Ter um pacote instalado NÃO concede permissão de atualizar ou
 // remover. Para todas as identidades não auditadas: somente inventário.
 internal sealed record LocalMsixApp(string Name, string Version, string Publisher,
-    string PackageName, bool RecipeEligible = false, bool Stale = false);
+    string PackageName, bool RecipeEligible = false, bool Stale = false, string PackageFamilyName = "");
 internal sealed record LocalMsixResult(IReadOnlyList<LocalMsixApp> Items, int Seen,
     string Status, int Launchable = 0, int Filtered = 0, int Failures = 0,
     bool Retried = false, string FailureStage = "", string Apartment = "");
@@ -123,15 +123,16 @@ internal static class LocalMsixInventory
             var v = id.Version;
             var candidate = Recognize(id.Name, id.PublisherId,
                 v.Major, v.Minor, v.Build, v.Revision);
-            if (candidate is not null) return new(candidate);
+            if (candidate is not null) return new(candidate with { PackageFamilyName = id.FamilyName });
             if (package.IsFramework || package.IsResourcePackage) return new(null);
             // Apenas apps efetivamente listados pelo Windows para o usuário.
             var app = package.GetAppListEntries().FirstOrDefault();
             if (app is null) return new(null);
-            return new(Describe(id.Name, id.PublisherId,
+            var described = Describe(id.Name, id.PublisherId,
                 app.DisplayInfo.DisplayName, package.PublisherDisplayName,
                 package.IsFramework, package.IsResourcePackage, true,
-                v.Major, v.Minor, v.Build, v.Revision), Launchable: true);
+                v.Major, v.Minor, v.Build, v.Revision);
+            return new(described is null ? null : described with { PackageFamilyName = id.FamilyName }, Launchable: true);
         });
     }
 

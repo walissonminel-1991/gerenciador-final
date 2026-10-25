@@ -7,6 +7,17 @@ if (args.Length == 3 && args[0] == "--residual-worker-test")
 { Environment.Exit(await Work10IntegratedCleanupTests.WorkerFixture(args[1], args[2])); return; }
 if (args.Contains("--lote3")) { int failures=0; await Lote3UninstallTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)failures++;}); if(failures>0)throw new Exception($"Lote 3: {failures} falhas");return;}
 int passed = 0;
+if (args.Contains("--work14-silent"))
+{
+    await Work14SilentTests.RunAsync((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("PASS " + label); });
+    return;
+}
+if (args.Contains("--work14"))
+{
+    Work14RegistryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("PASS " + label); });
+    return;
+}
+
 if (args.Contains("--benchmark") || args.Contains("--benchmark-work9"))
 { ResidualBenchmark.Run(comparable: args.Contains("--benchmark-work9")); return; }
 if (args.Contains("--work12"))
@@ -83,6 +94,8 @@ if (args.Contains("--work6-uninstall-policy"))
 }
 // Bateria integrada, na ordem solicitada: o atualizador corre no projeto separado,
  // aqui simulamos desinstalacao e somente depois politica de residuos.
+Work14RegistryTests.Run(Check);
+await Work14SilentTests.RunAsync(Check);
 await Work9ResidualTests.RunAsync(Check);
 await Work12RegressionTests.RunAsync(Check);
 await Work10IntegratedCleanupTests.RunAsync(Check);
@@ -1299,6 +1312,7 @@ namespace GerenciadorAplicativos
 {
     internal sealed class ProgramEntry
     {
+        public string DisplayIcon { get; init; } = "";
         public string Name { get; init; } = "";
         public string Publisher { get; init; } = "";
         public string Version { get; init; } = "";
@@ -1308,9 +1322,11 @@ namespace GerenciadorAplicativos
         public string InventoryId { get; init; } = "";
         public string InventorySource { get; init; } = "";
         public string MsiProductCode { get; init; } = "";
+        public string MsixPackageFamilyName { get; init; } = "";
         public string UninstallString { get; init; } = "";
         public string QuietUninstallString { get; init; } = "";
         public bool InventoryOnly { get; init; }
+        public bool VerifiedMsixIdentity { get; init; }
         public bool CanUninstall { get; set; }
         public bool IsUpdate { get; set; }
     }
