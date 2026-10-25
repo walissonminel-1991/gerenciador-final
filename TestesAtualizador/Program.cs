@@ -61,7 +61,7 @@ if (args.Contains("--verify-catalog"))
     }
     return;
 }
-if(args.Contains("--automatic")){if(OperatingSystem.IsWindows())Work14CatalogTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});Work14CapabilityTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});AutomaticDiscoveryTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
+if(args.Contains("--automatic")){Work16ContractTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});if(OperatingSystem.IsWindows())Work14CatalogTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});Work14CapabilityTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});AutomaticDiscoveryTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
 int checkedCount = 0;
 void Verify(bool condition, string label)
 {
@@ -545,6 +545,9 @@ namespace GerenciadorAplicativos
         public string QuietUninstallString { get; init; } = "";
         public string UninstallString { get; init; } = "";
         public string MsiProductCode { get; init; } = "";
+        public string MsixPackageFamilyName { get; init; } = "";
+        public string InventorySource { get; init; } = "";
+        public bool CanUninstall { get; set; }
     }
 }
 

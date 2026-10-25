@@ -28,6 +28,8 @@ internal static class SilentUninstallPolicy
         if (UninstallCommand.TryParse(app.QuietUninstallString, out var registeredQuiet) &&
             registered == registeredQuiet && RegisteredQuietMatchesProduct(app, registeredQuiet))
             return true; // preservar exatamente os argumentos registrados
+        if (SquirrelUninstallEvidence.TrySelect(app, registered, out var squirrel))
+        { selected = squirrel; return true; }
         // SumatraPDF 3.6.1: contrato conferido no fonte 3.6.1rel/Uninstaller.cpp.
         if (IsVerifiedSumatra(app, registered) &&
             UninstallCommand.TryParse("\"" + registered.FileName + "\" " + registered.Arguments + " -silent", out var sumatra))
@@ -163,6 +165,7 @@ internal static class SilentUninstallPolicy
     }
 
     internal static bool RequiresExclusiveRoot(UninstallRequest request) =>
+        request.Command.Arguments == "--uninstall --silent" && Path.GetFileName(request.Command.FileName).Equals("Update.exe", StringComparison.OrdinalIgnoreCase) ||
         UninstallCommand.TryParse(request.Original.UninstallString, out var normal) &&
         normal.ProductCode is null && normal.Arguments.Length == 0 && request.Command != normal &&
         !(UninstallCommand.TryParse(request.Original.QuietUninstallString, out var quiet) && quiet == request.Command);

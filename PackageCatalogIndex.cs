@@ -115,6 +115,38 @@ internal sealed class PackageCatalogIndex : IDisposable
             new CatalogManifestReference(r[0], r[1], r[3], RelativePath(r[4], token), r[5])).ToArray();
     }
 
+    // Stable MSIX identity is independent of the friendly display name. All
+    // rows still come from the signed catalog. This API is consultative only.
+    internal IReadOnlyList<CatalogManifestReference> FindForReviewByPackageFamily(
+        string publisher, string family, CancellationToken token)
+    {
+        if (family.Length is 0 or > 256 || !Regex.IsMatch(family, @"^[A-Za-z0-9.\-]+_[A-Za-z0-9]+$")) return [];
+        const string sql = "SELECT DISTINCT i.id FROM manifest m JOIN ids i ON i.rowid=m.id " +
+            "JOIN pfns_map pm ON pm.manifest=m.rowid JOIN pfns p ON p.rowid=pm.pfn " +
+            "WHERE p.pfn=? COLLATE NOCASE LIMIT 3";
+        var ids = Rows(sql, [family], 3, token);
+        return ids.Count == 1 ? FindForReviewByPackageId(publisher, ids[0][0], token) : [];
+    }
+    // Caller must have associated the exact local installation with the typed
+    // installed tracking catalog. A user-entered/name-guessed ID is not used.
+    internal IReadOnlyList<CatalogManifestReference> FindForReviewByPackageId(
+        string publisher, string packageId, CancellationToken token)
+    {
+        if (!PackageIdentityMatcher.ValidId(packageId)) return [];
+        string key = InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(publisher));
+        if (key.Length == 0) return [];
+        const string sql = "SELECT DISTINCT i.id,n.name,p.norm_publisher,v.version,m.pathpart,hex(m.hash) FROM manifest m " +
+            "JOIN ids i ON i.rowid=m.id JOIN names n ON n.rowid=m.name JOIN versions v ON v.rowid=m.version " +
+            "JOIN channels c ON c.rowid=m.channel JOIN norm_publishers_map pm ON pm.manifest=m.rowid " +
+            "JOIN norm_publishers p ON p.rowid=pm.norm_publisher WHERE c.channel='' AND i.id=? COLLATE NOCASE LIMIT 101";
+        var rows = Rows(sql, [packageId], 101, token);
+        if (rows.Count > 100) return [];
+        var matches = rows.Where(r => InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(r[2])) == key &&
+            Regex.IsMatch(r[5], "^[A-Fa-f0-9]{64}$")).ToArray();
+        return matches.GroupBy(r => r[3]).Select(g => g.First()).Select(r =>
+            new CatalogManifestReference(r[0], r[1], r[3], RelativePath(r[4], token), r[5])).ToArray();
+    }
+
     private string RelativePath(string node, CancellationToken token)
     {
         var parts = new List<string>(); var visited = new HashSet<string>();

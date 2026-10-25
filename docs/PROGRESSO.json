@@ -810,31 +810,15 @@
     }
   },
   "candidate": {
-    "version": "5.13.11.60 TESTE",
-    "status": "approved",
-    "mission": "WORK14-MOTORES",
-    "report": "docs/MISSAO-WORK14-MOTORES.md",
+    "version": "5.13.11.61 TESTE",
+    "status": "pending",
+    "mission": "WORK16-ECOSSISTEMA",
+    "report": "docs/MISSAO-WORK16.md",
     "physical_validation": "pending",
     "winget_execution_enabled": false,
-    "package_verified_by_ci": true,
-    "code_commit": "89672f5ec50dc19476722286cd6c5e181e36bbb5",
-    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005",
-    "package_verified_independently": true,
-    "validation": {
-      "windows_updates": 358,
-      "residuals_uninstall": 697,
-      "mutations_detected": 30,
-      "python": 35,
-      "node": 10,
-      "catalog": 17,
-      "multisource": 159,
-      "msix": 47,
-      "safe_close": 30,
-      "real_catalog_decorated_names": 4,
-      "physical_validation": "pending",
-      "external_zip_recheck": "verified",
-      "compact_ui_manual_review": "1280x720 confirmacao e 1440x900 progresso sinteticos conferidos"
-    }
+    "winget_consultative_backend": "official-typed-com-local-catalog",
+    "package_verified_by_ci": false,
+    "package_verified_independently": false
   },
   "mission_work14": {
     "status": "code_ci_and_package_approved_physical_pending",

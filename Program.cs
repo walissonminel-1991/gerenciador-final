@@ -17,6 +17,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 1 && args[0] == WinGetComProcessCatalog.Argument)
+            return WinGetComReader.Run();
         // O trabalhador elevado executa comandos sem criar janelas auxiliares.
         if (args.Length == 4 && args[0] == "--worker")
             return WorkerHost.RunAsync(args[1], args[2], args[3]).GetAwaiter().GetResult();
@@ -84,6 +86,7 @@ internal sealed class ProgramEntry
     public string InventorySource { get; init; } = "";
     public string InventoryId { get; init; } = "";
     public string MsiProductCode { get; init; } = "";
+    public string MsixPackageFamilyName { get; init; } = "";
     public bool VerifiedMsixIdentity { get; init; }
     // Entrada MSIX, jogo da biblioteca ou componente protegido: sem desinstalacao direta.
     public bool InventoryOnly { get; init; }
@@ -251,6 +254,7 @@ internal static class AppServices
                 InventorySource = app.Stale ? "MSIX — leitura anterior, presença não confirmada" : "Aplicativo empacotado (MSIX)",
                 InventoryId = "MSIX|" + app.PackageName,
                 VerifiedMsixIdentity = app.RecipeEligible,
+                MsixPackageFamilyName = app.PackageFamilyName,
                 CatalogIdentity = verified?.Id ?? "",
                 CatalogDisplayName = verified?.Name ?? ""
             });
@@ -267,6 +271,10 @@ internal static class AppServices
                 InventorySource = "Biblioteca de jogos: " + game.Platform,
                 InventoryId = "GAME|" + game.Platform + "|" + game.GameId
             });
+        var managed = EcosystemInventory.ReadLocal();
+        EcosystemInventory.AppendManaged(result, managed);
+        foreach (var source in managed)
+            DiagnosticTrace.Write($"ECOSSISTEMA.INVENTARIO fonte={source.Provider} estado={source.Status} entradas={source.Installations.Count}");
         return new UnifiedInventoryScan(result, registry, msix, additions.Count,
             games, gameAdditions.Count);
     }
@@ -1070,6 +1078,8 @@ internal sealed partial class MainForm : Form
                 ShowUpdateGuidance(item);
             else if (action == "store")
                 OpenMicrosoftStore(item);
+            else if (action == "external-manage")
+                OpenOriginalPackageManager(item);
             else if (action == "windows-manage")
                 OpenWindowsInstalledApps(item);
         };
@@ -1255,7 +1265,7 @@ internal sealed partial class MainForm : Form
                 {
                     string label = primaryAction switch
                     {
-                        "update" => "Atualizar",
+                        "update" => VerifiedUpdaters.Resolve(item) is { Interactive: true } ? "Acompanhar" : "Atualizar",
                         "terminal" => "Atualizar",
                         "site" => "Site oficial",
                         "store" => "Ver na Store",
@@ -1277,6 +1287,9 @@ internal sealed partial class MainForm : Form
                     uninstall?.PreventRetry == true ? uninstall.Active ? "Em andamento" : "Pendente" : "Desinstalar",
                     uninstall?.PreventRetry == true ? AppServices.Gray : AppServices.Red,
                     _programList.ActionVisual(item, "uninstall"));
+            else if (ActionableInventory.CanManageExternally(item))
+                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
+                    "Gerenciar", AppServices.Gray, _programList.ActionVisual(item, "external-manage"));
             else if (ActionableInventory.CanManageWithWindows(item) && !item.IsUpdate)
                 DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
                     "No Windows", AppServices.Gray, _programList.ActionVisual(item, "windows-manage"));
@@ -2174,7 +2187,7 @@ internal sealed partial class MainForm : Form
         // Entradas somente leitura (jogos e MSIX nao verificados) nao
         // recebem candidatos nem receitas automáticas de atualização.
         var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher,
-            !x.InventoryOnly || x.VerifiedMsixIdentity,
+            !x.InventoryOnly || x.VerifiedMsixIdentity || EcosystemInventory.Managed(x),
             Architecture: Regex.IsMatch(x.Name, @"(?i)\bARM64\b") ? "arm64" :
                 Regex.IsMatch(x.Name, @"(?i)\b(x64|64-bit)\b") ? "x64" :
                 Regex.IsMatch(x.Name, @"(?i)\b(x86|32-bit)\b") ? "x86" : "unknown",
@@ -2242,6 +2255,12 @@ internal sealed partial class MainForm : Form
             }
             async Task<AutomaticDiscoveryResult> ReadAutomaticAsync()
             {
+                var ecosystem = new ApplicationProviderCoordinator([new WinGetComDiscoveryProvider(new WinGetComProcessCatalog())]);
+                var results = await ecosystem.DiscoverAsync(new(forceRefresh), cancellation.Token);
+                if (generation != _catalogoGeneration || IsDisposed) cancellation.Token.ThrowIfCancellationRequested();
+                EcosystemInventory.Associate(snapshot, results);
+                foreach (var source in results)
+                    DiagnosticTrace.Write($"ECOSSISTEMA.CONSULTA fonte={source.Provider} estado={source.Status} entradas={source.Installations.Count} ms={source.Milliseconds}");
                 var discovered=await AutomaticUpdateDiscovery.QueryAsync(snapshot,installed,cancellation.Token);
                 ((IProgress<ProviderDiagnostic>)sourceProgress).Report(discovered.Diagnostic);
                 return discovered;
@@ -2256,7 +2275,8 @@ internal sealed partial class MainForm : Form
             var others = await officialTask;
             var automatic = await autoTask;
             var freshMerged = await Task.Run(
-                () => MultiSourceMatcher.Merge(installed, rz.Matches, others.Findings.Concat(automatic.Findings).ToArray()), cancellation.Token);
+                () => MultiSourceMatcher.Merge(installed, rz.Matches, others.Findings.Concat(automatic.Findings)
+                    .Concat(EcosystemInventory.Findings(snapshot, installed)).ToArray()), cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
             bool partial = rz.Matches is null || others.Diagnostics.Any(x => x.Status != "ok") || automatic.Diagnostic.Status!="ok";
@@ -2266,7 +2286,8 @@ internal sealed partial class MainForm : Form
             await RefreshCapabilitiesAsync(updateChecked: true, cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
-            Log("Catálogo Microsoft: "+automatic.Plans.Count+" instalador(es) com contrato autenticado; "+
+            Log("Catálogo Microsoft: "+automatic.Plans.Count(p => !p.Installer.Interactive)+" contrato(s) silencioso(s), "+
+                automatic.Plans.Count(p => p.Installer.Interactive)+" supervisionado(s); "+
                 (automatic.Findings.Count - automatic.Plans.Count)+" versão(ões) adicionais somente consultivas; catálogo "+automatic.Diagnostic.Status+".");
             foreach (var (sourceId, sourceCode) in new[] { ("ea-desktop", 1), ("fancontrol", 2),
                 ("jellyfin-server", 3), ("klite-mega", 4), ("gameinput-winget", 5), ("plex", 6),
@@ -2552,6 +2573,22 @@ internal sealed partial class MainForm : Form
             : "Sem instalador validado: abra o próprio aplicativo, procure Ajuda ou Configurações e use a função oficial de atualização.";
         Log("Orientação para " + entry.Name + " · " + message);
         Status("Orientações de atualização exibidas no histórico de operações.");
+    }
+
+    private void OpenOriginalPackageManager(ProgramEntry entry)
+    {
+        if (_busy || !ActionableInventory.CanManageExternally(entry)) return;
+        var receipt = EcosystemInventory.Get(entry);
+        if (receipt is null) return;
+        // Open only fixed project documentation. No script, package command or
+        // user-controlled path is passed to a shell, even after clicking.
+        string url = receipt.Identity.Provider == "chocolatey"
+            ? "https://docs.chocolatey.org/en-us/choco/commands/" : "https://scoop.sh/";
+        Log(EcosystemInventory.Describe(entry));
+        Status("Gerencie este pacote na ferramenta original; o GF abriu as orientações oficiais.");
+        try { Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true }); }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        { Log("Orientações do gerenciador indisponíveis: " + ex.GetType().Name); }
     }
 
     private void OpenWindowsInstalledApps(ProgramEntry entry)

@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.60 TESTE — código, CI e pacote aprovados; homologação física pendente.** [CI 40155841005](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005), fonte `89672f5e`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005/artifacts/12584124902). [Relatório WORK14](MISSAO-WORK14-MOTORES.md): erro de abertura do Registro reproduzido e corrigido, capacidades por operação e matriz contra #49. Amostra legítima de atualização 3/6 → 6/6 e desinstalação 3/4 → 4/4; políticas residuais explícitas 7/27, sem incremento inventado. 358 atualizadores, 697 resíduos/desinstalação e 30 mutações; números de testes não fecham checkpoints. Roadmap **27/42**, U8/R7/R4 abertos.
+**v5.13.11.61 TESTE — WORK16, aguardando CI/pacote; homologação física pendente.** [Relatório](MISSAO-WORK16.md). Leitores WinGet/Scoop/Chocolatey, associação por identificadores independentes, capacidades e contratos ampliados. Referência anterior aprovada: [.60 / CI 40155841005](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005). Nenhum checkpoint físico concluído pela automação; progresso **27/42**, U8/R7/R4 abertos.
 
 ### Evidência física intermediária preservada
 

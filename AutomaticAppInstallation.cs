@@ -70,9 +70,12 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
             var verified=paths.Distinct(StringComparer.OrdinalIgnoreCase).Where(p=>BinaryMatches(p,app.Version,app.Name,exact:true)).ToArray();
             if(verified.Length!=1)return null;
             reason = "architecture_mismatch";
-            string architecture=VerifiedUpdaters.GetPortableExecutableMachine(verified[0]) switch{0x8664=>"x64",0x14c=>"x86",_=>""};
+            ushort machine = VerifiedUpdaters.GetPortableExecutableMachine(verified[0]);
+            string architecture = ArchitectureFor(machine);
+            if (architecture == "arm64" && System.Runtime.InteropServices.RuntimeInformation.OSArchitecture != System.Runtime.InteropServices.Architecture.Arm64)
+                return null;
             if(architecture.Length==0 || !InstallerEngineEvidence.MatchesArchitecture(app.Name,
-                architecture=="x64" ? (ushort)0x8664 : (ushort)0x14c))return null;
+                machine))return null;
             reason = "engine_unrecognized";
             string kind=InstallerEngineEvidence.InstalledKind(uninstall);
             if(kind is not ("msi" or "nullsoft" or "inno"))return null;
@@ -84,6 +87,7 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
         { reason = ex is UnauthorizedAccessException or System.Security.SecurityException or System.ComponentModel.Win32Exception { NativeErrorCode: 5 }
             ? "installation_access_denied" : "installation_unreadable"; return null; }
     }
+    internal static string ArchitectureFor(ushort machine) => machine switch { 0x8664 => "x64", 0x14c => "x86", 0xaa64 => "arm64", _ => "" };
     internal static bool BinaryMatches(string file,string version,string name,bool exact)
     {
         try
@@ -111,7 +115,7 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
         {
         var items=inventory.ToArray();
         if(items.Any(p=>Binding(p)!=Key && InstallerEngineEvidence.RegistrationOverlaps(Root,p)))return false;
-        if(VerifiedUpdaters.GetPortableExecutableMachine(Binary)!=(Architecture=="x64"?0x8664:0x14c) ||
+        if(ArchitectureFor(VerifiedUpdaters.GetPortableExecutableMachine(Binary))!=Architecture ||
             Kind!="msi" && InstallerEngineEvidence.InstalledKind(new(Uninstaller,"",null))!=Kind)return false;
         return items.Count(p=>Binding(p)==Key)==1 && items.Count(p=>InstallerEngineEvidence.SameProduct(p.Name,Name) &&
             Matching.NormalizePublisher(p.Publisher)==Matching.NormalizePublisher(Publisher))==1 && BinaryMatches(Binary,Version,Name,true);

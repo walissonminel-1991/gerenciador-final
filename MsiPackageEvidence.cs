@@ -33,7 +33,7 @@ internal static class MsiPackageEvidence
             {
                 var text=new StringBuilder(1024);uint length=1023;
                 if(MsiSummaryInfoGetPropertyW(summary,7,out _,out _,IntPtr.Zero,text,ref length)!=0)throw new InvalidDataException("Template MSI invalido.");
-                architecture=text.ToString().Split(';')[0] switch{"x64"=>"x64","Intel"=>"x86",_=>"unknown"};
+                architecture=text.ToString().Split(';')[0] switch{"x64"=>"x64","Intel"=>"x86","Arm64"=>"arm64",_=>"unknown"};
             }
             finally{MsiCloseHandle(summary);}
             string allUsers=Property("ALLUSERS");

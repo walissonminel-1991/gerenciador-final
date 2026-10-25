@@ -9,6 +9,10 @@
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../PackageIdentity.cs" Link="PackageIdentity.cs" />
+    <Compile Include="../ApplicationProviders.cs" Link="ApplicationProviders.cs" />
+    <Compile Include="../ManagedPackageProviders.cs" Link="ManagedPackageProviders.cs" />
+    <Compile Include="../EcosystemInventory.cs" Link="EcosystemInventory.cs" />
     <Compile Include="../ApplicationCapabilities.cs" Link="ApplicationCapabilities.cs" />
     <Compile Include="../PendingDeployment.cs" Link="PendingDeployment.cs" />
     <Compile Include="../UpdateOperationProgress.cs" Link="UpdateOperationProgress.cs" />

@@ -3,7 +3,7 @@ namespace GerenciadorAplicativos;
 internal enum ApplicationCapabilityState
 {
     ReadOnly, NoCandidate, AvailableNotAuthorized, SilentEligible, SilentVerified,
-    Interactive, PolicyAvailable, SafeAuthorized, Blocked, Inconclusive
+    Interactive, PolicyAvailable, SafeAuthorized, Blocked, Inconclusive, ExternalManagement, SupervisedUpdate
 }
 internal sealed record ApplicationCapabilityDecision(ApplicationCapabilityState State, string Reason);
 
@@ -15,7 +15,7 @@ internal sealed record ApplicationCapabilityFacts(string Id, bool InventoryCompl
     bool UpdatePayloadVerified = false, bool UninstallRegistered = false,
     bool SilentUninstallContract = false, bool UninstallPayloadVerified = false,
     bool ResidualPolicy = false, bool ResidualAuthorized = false, bool ResidualUncertain = false,
-    string UpdateReason = "no_verified_contract", string UninstallReason = "registered_command_requires_preflight", bool InspectionIncomplete = false, bool ExplicitUpdateOnly = false, string UpdateUncertainty = "");
+    string UpdateReason = "no_verified_contract", string UninstallReason = "registered_command_requires_preflight", bool InspectionIncomplete = false, bool ExplicitUpdateOnly = false, string UpdateUncertainty = "", bool ExternalManagement = false, bool SupervisedUpdateContract = false);
 internal sealed record ApplicationCapabilitySnapshot(string Id, bool Identified,
     ApplicationCapabilityDecision Update, ApplicationCapabilityDecision Uninstall,
     ApplicationCapabilityDecision Residual)
@@ -32,6 +32,8 @@ internal sealed record ApplicationCapabilitySnapshot(string Id, bool Identified,
         ApplicationCapabilityState.SilentEligible => "silenciosa elegível; exige validação antes de executar",
         ApplicationCapabilityState.SilentVerified => "silenciosa verificada nesta tentativa",
         ApplicationCapabilityState.Interactive => "interativa; exige confirmação e verificação do desinstalador",
+        ApplicationCapabilityState.ExternalManagement => "gerencie na ferramenta original",
+        ApplicationCapabilityState.SupervisedUpdate => "supervisionada disponível; confira o instalador e acompanhe as opções",
         ApplicationCapabilityState.PolicyAvailable => "política disponível; ainda sem autorização para excluir",
         ApplicationCapabilityState.SafeAuthorized => "seleção segura comprovada; exige sua confirmação e revalidação",
         ApplicationCapabilityState.Blocked => "bloqueada",
@@ -40,6 +42,7 @@ internal sealed record ApplicationCapabilitySnapshot(string Id, bool Identified,
     private static string Reason(string reason) => reason switch
     {
         "inventory_only" => "entrada protegida ou somente inventário",
+        "external_manager" => "Scoop, Chocolatey ou Windows controla esta instalação; o GF não executa scripts do gerenciador",
         "inventory_partial" => "inventário incompleto",
         "identity_missing_or_ambiguous" => "identidade ausente ou ambígua",
         "version_not_comparable" => "versão instalada não pôde ser comparada",
@@ -80,7 +83,10 @@ internal static class ApplicationCapabilities
         if (facts.InventoryOnly && !facts.ExplicitUpdateOnly)
         {
             var read = D(ApplicationCapabilityState.ReadOnly, "inventory_only");
-            return new(facts.Id, facts.Identified, read, read, read);
+            return new(facts.Id, facts.Identified,
+                facts.UpdateChecked && facts.UpdateAvailable && facts.ExternalManagement
+                    ? D(ApplicationCapabilityState.AvailableNotAuthorized, "external_manager") : read,
+                facts.ExternalManagement ? D(ApplicationCapabilityState.ExternalManagement, "external_manager") : read, read);
         }
         if (facts.InspectionIncomplete)
         {
@@ -92,6 +98,7 @@ internal static class ApplicationCapabilities
             !facts.UpdateAvailable ? D(ApplicationCapabilityState.NoCandidate,
                 facts.UpdateReason is "catalog_unmatched" or "superseded_registration" ? facts.UpdateReason : "no_candidate") :
             facts.UpdateReview ? D(ApplicationCapabilityState.AvailableNotAuthorized, "source_review") :
+            facts.SupervisedUpdateContract ? D(ApplicationCapabilityState.SupervisedUpdate, "payload_validation_required") :
             !facts.UpdateContract ? D(ApplicationCapabilityState.AvailableNotAuthorized, facts.UpdateReason) :
             facts.UpdatePayloadVerified ? D(ApplicationCapabilityState.SilentVerified, "payload_verified") :
             D(ApplicationCapabilityState.SilentEligible, "payload_validation_required");
@@ -107,7 +114,7 @@ internal static class ApplicationCapabilities
         {
             // Specific reviewed MSIX updater, e.g. Terminal: no generic Store
             // uninstall or residual authority is inferred from that contract.
-            uninstall = D(ApplicationCapabilityState.ReadOnly, "inventory_only");
+            uninstall = facts.ExternalManagement ? D(ApplicationCapabilityState.ExternalManagement, "external_manager") : D(ApplicationCapabilityState.ReadOnly, "inventory_only");
             residual = D(ApplicationCapabilityState.ReadOnly, "inventory_only");
         }
         return new(facts.Id, facts.Identified, update, uninstall, residual);
@@ -117,21 +124,36 @@ internal sealed record ApplicationCapabilityMatrix(int Applications, int Identif
     int SilentUninstallEligible, int ResidualPolicies, int ResidualSelections, int ConsultativeOperations,
     int InconclusiveOperations, IReadOnlyDictionary<string, int> Reasons)
 {
+    internal int DiscoveredUpdates { get; init; }
+    internal int SupervisedUpdates { get; init; }
+    internal int InteractiveUninstalls { get; init; }
+    internal int ExternalManagement { get; init; }
+    internal int AmbiguousApplications { get; init; }
+    internal int BlockedOperations { get; init; }
     internal int OperationDenominator => Applications * 3;
     internal static ApplicationCapabilityMatrix From(IEnumerable<ApplicationCapabilitySnapshot> snapshots)
     {
         var apps = snapshots.ToArray();
         bool Eligible(ApplicationCapabilityDecision d) => d.State is ApplicationCapabilityState.SilentEligible or ApplicationCapabilityState.SilentVerified;
         var ops = apps.SelectMany(a => a.Operations).ToArray();
-        return new(apps.Length, apps.Count(a => a.Identified), apps.Count(a => Eligible(a.Update)),
+        return new ApplicationCapabilityMatrix(apps.Length, apps.Count(a => a.Identified), apps.Count(a => Eligible(a.Update)),
             apps.Count(a => Eligible(a.Uninstall)), apps.Count(a => a.Residual.State is ApplicationCapabilityState.PolicyAvailable or ApplicationCapabilityState.SafeAuthorized),
             apps.Count(a => a.Residual.State == ApplicationCapabilityState.SafeAuthorized),
             ops.Count(d => d.State is ApplicationCapabilityState.ReadOnly or ApplicationCapabilityState.AvailableNotAuthorized or ApplicationCapabilityState.PolicyAvailable),
             ops.Count(d => d.State == ApplicationCapabilityState.Inconclusive),
-            ops.GroupBy(d => d.Reason).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal));
+            ops.GroupBy(d => d.Reason).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal))
+        {
+            DiscoveredUpdates = apps.Count(a => a.Update.State is ApplicationCapabilityState.AvailableNotAuthorized or ApplicationCapabilityState.SilentEligible or ApplicationCapabilityState.SilentVerified or ApplicationCapabilityState.SupervisedUpdate),
+            SupervisedUpdates = apps.Count(a => a.Update.State == ApplicationCapabilityState.SupervisedUpdate),
+            InteractiveUninstalls = apps.Count(a => a.Uninstall.State == ApplicationCapabilityState.Interactive),
+            ExternalManagement = apps.Count(a => a.Uninstall.State == ApplicationCapabilityState.ExternalManagement),
+            AmbiguousApplications = apps.Count(a => a.Update.Reason is "catalog_identity_ambiguous" or "identity_missing_or_ambiguous"),
+            BlockedOperations = ops.Count(d => d.State == ApplicationCapabilityState.Blocked)
+        };
     }
     // Only counts and fixed reason codes may enter the diagnostic.
     internal string Audit() => $"CAPACIDADES.RESUMO aplicativos={Applications} identidades_catalogo={Identified} atualizacao_silenciosa_elegivel={SilentUpdateEligible} " +
         $"desinstalacao_silenciosa_elegivel={SilentUninstallEligible} politicas_residuais={ResidualPolicies} selecoes_residuais={ResidualSelections} " +
-        $"consultivas={ConsultativeOperations} inconclusivas={InconclusiveOperations} operacoes={OperationDenominator}";
+        $"consultivas={ConsultativeOperations} inconclusivas={InconclusiveOperations} operacoes={OperationDenominator} " +
+        $"atualizacoes_descobertas={DiscoveredUpdates} atualizacoes_supervisionadas={SupervisedUpdates} desinstalacoes_interativas={InteractiveUninstalls} gerenciamento_externo={ExternalManagement} ambiguos={AmbiguousApplications} bloqueadas={BlockedOperations}";
 }

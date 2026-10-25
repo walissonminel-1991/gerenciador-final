@@ -15,6 +15,8 @@ REQUIRED = frozenset({
     "BUILD-INFO.txt", "LICENSE.txt", "LEIA-ME.md", "PRIVACY.md",
     "THIRD-PARTY-NOTICES.md", "Licencas/DotNET/LICENSE.txt",
     "Licencas/DotNET/THIRD-PARTY-NOTICES.txt", "Licencas/WindowsDesktop/LICENSE.txt",
+    "Microsoft.Management.Deployment.dll", "Microsoft.Management.Deployment.CsWinRTProjection.dll",
+    "Licencas/WinGet/NOTICE.txt",
 })
 
 

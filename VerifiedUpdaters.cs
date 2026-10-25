@@ -173,6 +173,7 @@ internal static class VerifiedUpdaters
     internal static string? GetOfficialPage(ProgramEntry entry)
     {
         if (!entry.IsUpdate) return null;
+        if (entry.InventoryId.StartsWith("MANAGED|scoop", StringComparison.Ordinal)) return "https://scoop.sh/";
         if (entry.Name == "EA app") return "https://www.ea.com/ea-app";
         if (entry.Name == "FanControl") return "https://getfancontrol.com/";
         if (System.Text.RegularExpressions.Regex.IsMatch(entry.Name, @"^Jellyfin Server(?: \d+(?:\.\d+){1,3})?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return "https://jellyfin.org/downloads/windows/";

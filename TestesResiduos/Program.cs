@@ -1321,6 +1321,7 @@ namespace GerenciadorAplicativos
         public string InventoryId { get; init; } = "";
         public string InventorySource { get; init; } = "";
         public string MsiProductCode { get; init; } = "";
+        public string MsixPackageFamilyName { get; init; } = "";
         public string UninstallString { get; init; } = "";
         public string QuietUninstallString { get; init; } = "";
         public bool InventoryOnly { get; init; }

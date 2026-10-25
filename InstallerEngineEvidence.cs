@@ -103,7 +103,7 @@ internal static class InstallerEngineEvidence
     {
         string value=text.Trim();
         for(int pass=0;pass<3;pass++)value=Regex.Replace(value,
-            @"\s*(?:\((?:x64|x86|32-bit x86|64-bit x64|64-bit|32-bit)\)|\s+v?\d+(?:\.\d+){1,3})\s*$", "", RegexOptions.IgnoreCase).Trim();
+            @"\s*(?:\((?:x64|x86|arm64|32-bit x86|64-bit x64|64-bit|32-bit)\)|\s+v?\d+(?:\.\d+){1,3})\s*$", "", RegexOptions.IgnoreCase).Trim();
         return value;
     }
 
