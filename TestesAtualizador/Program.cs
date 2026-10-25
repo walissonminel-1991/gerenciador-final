@@ -542,6 +542,7 @@ namespace GerenciadorAplicativos
         public bool InventoryOnly { get; init; }
         public string InstallLocation { get; set; } = "";
         public string DisplayIcon { get; init; } = "";
+        public string QuietUninstallString { get; init; } = "";
         public string UninstallString { get; init; } = "";
         public string MsiProductCode { get; init; } = "";
     }

@@ -54,9 +54,14 @@ internal static class Work14RegistryTests
         IntegratedResidualPolicy.SyntheticScope = _ => new("synthetic", [root], [], []);
         try
         {
+            var other = new ProgramEntry { Name = "Other Product", InventoryId = Guid.NewGuid().ToString("N"),
+                DisplayIcon = Path.Combine(root, "other.exe") };
+            check(IntegratedResidualPolicy.Shared(root, ResidualAppIdentity.From(app), [app, other]),
+                "W14 raiz residual compartilhada e detectada pelo icone mesmo sem InstallLocation no outro registro");
             var context = IntegratedResidualCleanup.Prepare(app, new([app], true));
             var plan = IntegratedResidualCleanup.Capture(context, new([], true));
-            check(plan.Files is [{ Path: var path }] && path == owned && plan.Preserved == 2,
+            check(plan.Files is [{ Path: var path }] && path == owned && plan.Preserved == 2 &&
+                plan.Problems.Any(p => p.Location == profile) && plan.Problems.Any(p => p.Location == storage),
                 "W14 perfis e armazenamentos de credenciais conhecidos ficam fora da selecao residual");
             var result = IntegratedResidualCleanup.DeleteAsync(plan, true, () => Task.FromResult(new UninstallSnapshot([], true))).GetAwaiter().GetResult();
             check(!File.Exists(owned) && result.Files == 1 && File.Exists(credentials) && File.Exists(tokens),
@@ -102,7 +107,8 @@ internal static class Work14RegistryTests
             check(!next.Conclusive && next.Eligible == 0, "W14 segundo alvo sem prova continua inconclusivo " + where);
             string audit = IntegratedResidualCleanup.Audit(ResidualAppIdentity.From(app), problem.Stage, "preserved",
                 error: problem.Error, reason: problem.Reason, detail: problem.Detail, depth: problem.Depth);
-            check(!audit.Contains("PRIVATE_FIXTURE") && !audit.Contains(path) && audit.Contains("leitura=" + expected),
+            check(!audit.Contains("PRIVATE_FIXTURE") && !audit.Contains(path) && audit.Contains("leitura=" + expected) &&
+                problem.Location.Contains(path, StringComparison.Ordinal),
                 "W14 diagnostico registra etapa sem valores ou caminhos " + where);
         }
         finally

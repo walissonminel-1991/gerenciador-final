@@ -70,6 +70,13 @@ internal static class AutomaticDiscoveryTests
         check(InstallerEngineEvidence.SameProduct("Example++ 2.0.0 (64-bit x64)","Example++"),"W14 identidade comum admite decoracoes ARP conhecidas");
         check(!InstallerEngineEvidence.SameProduct("Example++","Example") && !InstallerEngineEvidence.SameProduct("Example Preview","Example"),
             "W14 identidade comum conserva simbolo de produto e canal");
+        var decoratedMsi = msiApp with { Name = app.Name + " 1.0.0 (64-bit x64)" };
+        MsiPackageEvidence.Validate(oldMsi, newMsi, msiPlan, decoratedMsi);
+        check(true, "W14 MSI metadados usam a mesma identidade ARP da descoberta");
+        bool collisionDenied=false;
+        try { MsiPackageEvidence.Validate(oldMsi,newMsi with { Name = app.Name + "++" },msiPlan,msiApp); }
+        catch(InvalidDataException) { collisionDenied=true; }
+        check(collisionDenied,"W14 MSI produto com simbolo distinto nao passa por normalizacao consultiva");
         if(OperatingSystem.IsWindows())NativeFiles(check);
         var header=new byte[64];byte[] marker=[0xef,0xbe,0xad,0xde,0x4e,0x75,0x6c,0x6c,0x73,0x6f,0x66,0x74,0x49,0x6e,0x73,0x74];marker.CopyTo(header,4);
         BitConverter.GetBytes(100u).CopyTo(header,20);BitConverter.GetBytes(200u).CopyTo(header,24);
@@ -146,6 +153,9 @@ internal static class AutomaticDiscoveryTests
             check(!snapshot!.Current([app,other]),"AUTO duas instalacoes da familia nao autorizam uma escolha arbitraria");
             var shared=new ProgramEntry{Name="Other Product",Publisher="Other",InstallLocation=install,InventoryId="LocalMachine|Registry64|Shared"};
             check(!snapshot.Current([app,shared]),"AUTO pasta compartilhada com outro produto nao autoriza");
+            var iconShared = new ProgramEntry { Name="Other Product", Publisher="Other", InventoryId="LocalMachine|Registry64|IconShared",
+                DisplayIcon=Path.Combine(install,"other.exe") };
+            check(!snapshot.Current([app,iconShared]),"W14 outro registro sem InstallLocation mas com icone na mesma pasta bloqueia atualizacao");
             byte[] x86=(byte[])data.Clone();BitConverter.GetBytes((ushort)0x14c).CopyTo(x86,pe+4);File.WriteAllBytes(binary,x86);
             check(!snapshot.Current([app]),"AUTO arquitetura alterada depois da descoberta bloqueia execucao");
             File.WriteAllBytes(binary,data);File.WriteAllBytes(uninstall,data);

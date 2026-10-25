@@ -56,7 +56,7 @@ internal static class Work14SilentTests
                     "W14 " + kind + " dois executaveis da familia nao autorizam escolha arbitraria");
                 File.Delete(second);
                 var shared = new ProgramEntry { Name = "Other App", Publisher = "Other", Version = "1.0",
-                    InventoryId = "LocalMachine|Registry64|Other", InstallLocation = root,
+                    InventoryId = "LocalMachine|Registry64|Other", DisplayIcon = Path.Combine(root, "other.exe"),
                     UninstallString = "\"" + Path.Combine(root, "other-uninstall.exe") + "\"" };
                 int starts = 0;
                 var results = await new UninstallBatch().RunAsync([request], true,

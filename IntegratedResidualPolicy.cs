@@ -20,9 +20,9 @@ internal sealed record ResidualAppIdentity(string Name, string Publisher, string
         Encoding.UTF8.GetBytes(InventoryId + "|" + Name + "|" + Publisher)))[..16];
 }
 internal sealed record ResidualKeyLocation(RegistryHive Hive, RegistryView View, string Subkey);
-internal sealed record ResidualProblem(string Stage, string Reason, int Error = 0, string Detail = "", int Depth = -1);
+internal sealed record ResidualProblem(string Stage, string Reason, int Error = 0, string Detail = "", int Depth = -1, string Location = "");
 internal sealed record ResidualRegistryObservation(string Phase, RegistryHive Hive, RegistryView View,
-    string State, string Step = "", int Depth = -1, int Error = 0);
+    string State, string Step = "", int Depth = -1, int Error = 0, string Subkey = "");
 internal sealed record ResidualRootEvidence(string Path, IReadOnlyList<InstallerFileGuard.DirectoryIdentity> Chain);
 internal sealed record ResidualUninstallContext(ResidualAppIdentity App, string Policy,
     IReadOnlyList<ResidualRootEvidence> Roots, IReadOnlyList<ResidualKeyLocation> Keys,
@@ -179,7 +179,7 @@ internal static class IntegratedResidualPolicy
 
     internal static bool Shared(string root, ResidualAppIdentity app, IReadOnlyCollection<ProgramEntry> inventory)
         => inventory.Any(other => !Paths.Equals(other.InventoryId, app.InventoryId) &&
-            (ResidualReadSafety.PathsOverlap(root, other.InstallLocation) ||
+            (InstallerEngineEvidence.RegistrationOverlaps(root, other) || ResidualReadSafety.PathsOverlap(root, other.InstallLocation) ||
              new[] { other.UninstallString, other.QuietUninstallString }.Any(raw =>
                  UninstallCommand.TryParse(raw, out var command) && command.ProductCode is null && Within(root, command.FileName))));
 

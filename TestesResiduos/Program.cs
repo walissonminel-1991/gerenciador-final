@@ -1311,6 +1311,7 @@ namespace GerenciadorAplicativos
 {
     internal sealed class ProgramEntry
     {
+        public string DisplayIcon { get; init; } = "";
         public string Name { get; init; } = "";
         public string Publisher { get; init; } = "";
         public string Version { get; init; } = "";

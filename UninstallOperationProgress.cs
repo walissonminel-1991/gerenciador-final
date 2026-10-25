@@ -53,7 +53,9 @@ internal sealed class UninstallOperationStore
 
 internal static class UninstallResultSummary
 {
-    internal static string Problem(ResidualProblem problem) => problem.Reason switch
+    internal static string Problem(ResidualProblem problem) =>
+        (problem.Location.Length == 0 ? "" : problem.Location + ": ") + Explanation(problem);
+    private static string Explanation(ResidualProblem problem) => problem.Reason switch
     {
         "registry_unreadable" or "registry_unverifiable" => ResidualCoverageSummary.RegistryProblem(problem),
         "personal_or_shared_root" or "shared_root" => "Pasta pessoal ou compartilhada preservada.",

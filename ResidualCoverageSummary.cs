@@ -14,6 +14,9 @@ internal static class ResidualCoverageSummary
             $"Pastas com identidade anterior comprovada: {plan.Context.Roots.Count}/{scope.Roots.Count}.",
             "Locais fora da política não foram verificados. Isso não comprova ausência de outros vestígios."
         };
+        foreach (string path in scope.Roots)
+            lines.Add("Pasta prevista: " + path + (plan.Context.Roots.Any(r => IntegratedResidualPolicy.Paths.Equals(r.Path, path))
+                ? " — identidade anterior comprovada." : " — sem identidade anterior retida; conferir preservações e limites."));
         foreach (var phase in new[] { "prepare", "capture" })
         {
             var checks = (phase == "prepare" ? plan.Context.RegistryChecks : plan.RegistryChecks) ?? [];
@@ -24,6 +27,12 @@ internal static class ResidualCoverageSummary
                 lines.Add($"Registro {(phase == "prepare" ? "antes" : "depois")}: {label}, {(hive.Key.View == RegistryView.Registry32 ? 32 : 64)} bits — " +
                     $"{hive.Count(c => c.State == "verified")} lido(s), {hive.Count(c => c.State == "absent")} ausente(s), " +
                     $"{hive.Count(c => c.State == "preserved")} preservado(s), {hive.Count(c => c.State == "unreadable")} inacessível(is).");
+                foreach (var check in hive)
+                {
+                    string state = check.State switch { "verified" => "lido integralmente", "absent" => "ausente",
+                        "preserved" => "preservado sem propriedade comprovada", _ => "inacessível; ausência não comprovada" };
+                    if (check.Subkey.Length > 0) lines.Add("  " + check.Subkey + " — " + state + ".");
+                }
             }
         }
         lines.Add($"Exclusões propostas: {plan.Eligible}. Itens preservados: {plan.Preserved}. A limpeza exige sua confirmação e nova validação.");

@@ -60,7 +60,7 @@ internal static class IntegratedResidualCleanup
         {
             token.ThrowIfCancellationRequested();
             if (!ResidualPersonalDataBoundary.IsOutside(path) || IntegratedResidualPolicy.Shared(path, identity, inventory.Items))
-            { preserved++; problems.Add(new("prepare", "personal_or_shared_root")); continue; }
+            { preserved++; problems.Add(new("prepare", "personal_or_shared_root", Location: path)); continue; }
             try
             {
                 if (Missing(path)) continue;
@@ -68,7 +68,7 @@ internal static class IntegratedResidualCleanup
                 roots.Add(new(path, held.Identities()));
             }
             catch (Exception ex) when (Expected(ex))
-            { preserved++; problems.Add(new("prepare", "root_unverifiable", Error(ex))); }
+            { preserved++; problems.Add(new("prepare", "root_unverifiable", Error(ex), Location: path)); }
         }
         foreach (var address in scope.Keys)
         {
@@ -81,22 +81,22 @@ internal static class IntegratedResidualCleanup
                 // chave ausente agora pode ser criada durante a desinstalacao.
                 if (key is null)
                 {
-                    checks.Add(new("prepare", address.Hive, address.View, "absent"));
+                    checks.Add(new("prepare", address.Hive, address.View, "absent", Subkey: address.Subkey));
                     if (scope.Policy != "registered-install") keys.Add(address);
                     continue;
                 }
                 var probe = new ResidualUninstallContext(identity, scope.Policy, roots, [], scope.Processes, 0, []);
                 if ((scope.Policy == "registered-install" && roots.Count == 0) || !IntegratedResidualPolicy.RegistryOwned(probe, key))
                 {
-                    preserved++; problems.Add(new("prepare", "ownership_not_proven"));
-                    checks.Add(new("prepare", address.Hive, address.View, "preserved")); continue;
+                    preserved++; problems.Add(new("prepare", "ownership_not_proven", Location: address.Subkey));
+                    checks.Add(new("prepare", address.Hive, address.View, "preserved", Subkey: address.Subkey)); continue;
                 }
                 if (!ResidualRegistryGuard.Fingerprint(key, address.View, out _, out _, out var failure))
                 {
                     preserved++; problems.Add(RegistryProblem("prepare", address, failure!));
                     checks.Add(RegistryObservation("prepare", address, failure!)); continue;
                 }
-                checks.Add(new("prepare", address.Hive, address.View, "verified"));
+                checks.Add(new("prepare", address.Hive, address.View, "verified", Subkey: address.Subkey));
                 // Somente reter o alvo se sua leitura integral foi comprovada.
                 // Falha de fingerprint no preflight não autoriza nova captura.
                 keys.Add(address);
@@ -155,16 +155,16 @@ internal static class IntegratedResidualCleanup
                     Budget();
                     var attr = File.GetAttributes(child);
                     if ((attr & FileAttributes.ReparsePoint) != 0)
-                    { preserved++; emptyAfter = false; problems.Add(new("capture", "link_preserved")); continue; }
+                    { preserved++; emptyAfter = false; problems.Add(new("capture", "link_preserved", Location: child)); continue; }
                     if ((attr & FileAttributes.Directory) != 0)
                     {
                         if (IntegratedResidualPolicy.PersonalDirectory(child))
-                        { preserved++; emptyAfter = false; problems.Add(new("capture", "personal_folder_preserved")); }
+                        { preserved++; emptyAfter = false; problems.Add(new("capture", "personal_folder_preserved", Location: child)); }
                         else emptyAfter &= Visit(child, root, depth + 1);
                         continue;
                     }
                     if (!IntegratedResidualPolicy.EligibleFile(child))
-                    { preserved++; emptyAfter = false; problems.Add(new("capture", "personal_or_unknown_file")); continue; }
+                    { preserved++; emptyAfter = false; problems.Add(new("capture", "personal_or_unknown_file", Location: child)); continue; }
                     try
                     {
                         using var handle = InstallerFileGuard.OpenResidual(child);
@@ -176,7 +176,7 @@ internal static class IntegratedResidualCleanup
                             Convert.ToHexString(SHA256.HashData(handle)), identity, chain));
                     }
                     catch (Exception ex) when (Expected(ex))
-                    { preserved++; emptyAfter = false; problems.Add(new("capture", "file_unverifiable", Error(ex))); }
+                    { preserved++; emptyAfter = false; problems.Add(new("capture", "file_unverifiable", Error(ex), Location: child)); }
                 }
                 if (emptyAfter) folders.Add(new("d" + folders.Count, path, chain));
                 return emptyAfter;
@@ -185,10 +185,10 @@ internal static class IntegratedResidualCleanup
             {
                 Budget();
                 if (IntegratedResidualPolicy.Shared(root.Path, context.App, inventory.Items))
-                { preserved++; problems.Add(new("capture", "shared_root")); continue; }
+                { preserved++; problems.Add(new("capture", "shared_root", Location: root.Path)); continue; }
                 try { if (!Missing(root.Path)) Visit(root.Path, root, 0); }
                 catch (Exception ex) when (ex is UnauthorizedAccessException || ex is Win32Exception { NativeErrorCode: 5 })
-                { preserved++; problems.Add(new("capture", "root_unreadable", Error(ex))); }
+                { preserved++; problems.Add(new("capture", "root_unreadable", Error(ex), Location: root.Path)); }
             }
             foreach (string path in IntegratedResidualPolicy.Build(context.App).Roots.Except(context.Roots.Select(r => r.Path), IntegratedResidualPolicy.Paths))
             {
@@ -196,10 +196,10 @@ internal static class IntegratedResidualCleanup
                 if (!ResidualPersonalDataBoundary.IsOutside(path)) continue;
                 try
                 {
-                    if (!Missing(path)) { preserved++; problems.Add(new("capture", "root_without_preuninstall_identity")); }
+                    if (!Missing(path)) { preserved++; problems.Add(new("capture", "root_without_preuninstall_identity", Location: path)); }
                 }
                 catch (Exception ex) when (Expected(ex))
-                { problems.Add(new("capture", "root_unreadable", Error(ex))); }
+                { problems.Add(new("capture", "root_unreadable", Error(ex), Location: path)); }
             }
             foreach (var location in context.Keys)
             {
@@ -208,18 +208,18 @@ internal static class IntegratedResidualCleanup
                 {
                     using var hive = RegistryKey.OpenBaseKey(location.Hive, location.View);
                     using var key = ResidualRegistryGuard.Open(hive, location.Subkey, location.View);
-                    if (key is null) { checks.Add(new("capture", location.Hive, location.View, "absent")); continue; }
+                    if (key is null) { checks.Add(new("capture", location.Hive, location.View, "absent", Subkey: location.Subkey)); continue; }
                     if (!IntegratedResidualPolicy.RegistryOwned(context, key))
                     {
-                        preserved++; problems.Add(new("capture", "ownership_not_proven"));
-                        checks.Add(new("capture", location.Hive, location.View, "preserved")); continue;
+                        preserved++; problems.Add(new("capture", "ownership_not_proven", Location: location.Subkey));
+                        checks.Add(new("capture", location.Hive, location.View, "preserved", Subkey: location.Subkey)); continue;
                     }
                     if (!ResidualRegistryGuard.Fingerprint(key, location.View, out string digest, out int entries, out var failure))
                     {
                         preserved++; problems.Add(RegistryProblem("capture", location, failure!));
                         checks.Add(RegistryObservation("capture", location, failure!)); continue;
                     }
-                    checks.Add(new("capture", location.Hive, location.View, "verified"));
+                    checks.Add(new("capture", location.Hive, location.View, "verified", Subkey: location.Subkey));
                     keys.Add(new("k" + keys.Count, location.Hive, location.View, location.Subkey, digest, entries));
                 }
                 catch (Exception ex) when (Expected(ex))
@@ -239,9 +239,10 @@ internal static class IntegratedResidualCleanup
     }
 
     private static ResidualProblem RegistryProblem(string phase, ResidualKeyLocation key, ResidualRegistryFailure failure) =>
-        new(phase + "_" + RegistryStage(key.Hive, key.View), "registry_unreadable", failure.Error, failure.Step, failure.Depth);
+        new(phase + "_" + RegistryStage(key.Hive, key.View), "registry_unreadable", failure.Error, failure.Step, failure.Depth,
+            RegistryStage(key.Hive, key.View).ToUpperInvariant() + "\\" + key.Subkey);
     private static ResidualRegistryObservation RegistryObservation(string phase, ResidualKeyLocation key, ResidualRegistryFailure failure) =>
-        new(phase, key.Hive, key.View, "unreadable", failure.Step, failure.Depth, failure.Error);
+        new(phase, key.Hive, key.View, "unreadable", failure.Step, failure.Depth, failure.Error, key.Subkey);
 
     internal static bool ValidContext(ResidualUninstallContext context)
     {

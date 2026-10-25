@@ -107,6 +107,37 @@ internal static class InstallerEngineEvidence
         return value;
     }
 
+    // Negative evidence only: another registration referring to the same tree
+    // invalidates exclusivity even when that registration omits InstallLocation.
+    internal static bool RegistrationOverlaps(string root, ProgramEntry other)
+    {
+        var paths = new List<string>();
+        if (!string.IsNullOrWhiteSpace(other.InstallLocation)) paths.Add(other.InstallLocation);
+        try
+        {
+            string icon = Regex.Replace(other.DisplayIcon.Trim(), @",\s*-?\d+$", "").Trim().Trim('"');
+            if (icon.Length > 0) paths.Add(Path.GetDirectoryName(icon) ?? "");
+            foreach (string raw in new[] { other.UninstallString, other.QuietUninstallString })
+                if (UninstallCommand.TryParse(raw, out var command) && command.ProductCode is null)
+                    paths.Add(Path.GetDirectoryName(command.FileName) ?? "");
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException) { }
+        foreach (string path in paths)
+        {
+            try
+            {
+                string cleaned = path.Trim().Trim('"');
+                if (!Path.IsPathFullyQualified(cleaned)) continue;
+                string candidate = Path.GetFullPath(cleaned).TrimEnd('\\');
+                string own = Path.GetFullPath(root.Trim().Trim('"')).TrimEnd('\\');
+                if (own.Equals(candidate, StringComparison.OrdinalIgnoreCase) || own.StartsWith(candidate + "\\", StringComparison.OrdinalIgnoreCase) ||
+                    candidate.StartsWith(own + "\\", StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException) { }
+        }
+        return false;
+    }
+
     internal static bool GenericNsisUninstaller(ProgramEntry app, ParsedUninstallCommand command) =>
         GenericDesktopUninstaller(app, command, "nullsoft");
 

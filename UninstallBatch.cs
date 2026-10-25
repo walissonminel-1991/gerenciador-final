@@ -94,7 +94,7 @@ internal sealed class UninstallBatch
                     ? Path.GetDirectoryName(request.Command.FileName) ?? "" : request.Original.InstallLocation;
                 if (SilentUninstallPolicy.RequiresExclusiveRoot(request) && before.Items.Any(other =>
                     !other.InventoryId.Equals(request.Original.InventoryId, StringComparison.OrdinalIgnoreCase) &&
-                    ResidualReadSafety.PathsOverlap(inferredRoot, other.InstallLocation)))
+                    InstallerEngineEvidence.RegistrationOverlaps(inferredRoot, other)))
                 {
                     results.Add(new(request, UninstallState.Blocked, DiagnosticReason: "shared_install_root", Reason:
                         "A pasta de instalação também pertence a outro aplicativo. O modo silencioso inferido não será executado."));

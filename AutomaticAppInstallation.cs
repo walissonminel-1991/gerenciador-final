@@ -110,8 +110,7 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
         try
         {
         var items=inventory.ToArray();
-        if(items.Any(p=>Binding(p)!=Key && p.InstallLocation.Trim().TrimEnd('\\') is {Length:>0} other &&
-            (Root.StartsWith(other+"\\",StringComparison.OrdinalIgnoreCase) || other.StartsWith(Root+"\\",StringComparison.OrdinalIgnoreCase) || Root.Equals(other,StringComparison.OrdinalIgnoreCase))))return false;
+        if(items.Any(p=>Binding(p)!=Key && InstallerEngineEvidence.RegistrationOverlaps(Root,p)))return false;
         if(VerifiedUpdaters.GetPortableExecutableMachine(Binary)!=(Architecture=="x64"?0x8664:0x14c) ||
             Kind!="msi" && InstallerEngineEvidence.InstalledKind(new(Uninstaller,"",null))!=Kind)return false;
         return items.Count(p=>Binding(p)==Key)==1 && items.Count(p=>InstallerEngineEvidence.SameProduct(p.Name,Name) &&
