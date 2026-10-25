@@ -22,7 +22,7 @@ internal static class DriverOfficialLookup
     internal static DriverOfficialResult Match(DriverInventoryResult inventory,
         IReadOnlyList<DriverOfficialOffer> offers, bool successful)
     {
-        if (!successful || inventory.Partial || inventory.Items.Count == 0 || offers.Count > 512)
+        if (!successful || inventory.Partial || inventory.Items.Count is 0 or > 4000 || offers.Count > 512)
             return new([], offers.Count, offers.Count, true,
                 "Consulta ou inventário incompleto; nenhuma correspondência aprovada.");
         var matched = new List<DriverOfficialMatch>();
@@ -38,7 +38,7 @@ internal static class DriverOfficialLookup
                 string.IsNullOrWhiteSpace(offer.Model) || string.IsNullOrWhiteSpace(offer.Title) ||
                 offer.Title.Length > 2000 || group.Distinct().Count() != 1)
             { unmatched += group.Count(); partial = true; continue; }
-            var devices = inventory.Items.Where(d => d.Present == true &&
+            var devices = inventory.Items.Where(d => !string.IsNullOrWhiteSpace(d.DeviceId) && d.Present == true &&
                 d.HardwareIds.Any(h => ValidHardwareId(h) && h.Equals(offer.HardwareId, StringComparison.OrdinalIgnoreCase)))
                 .DistinctBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase).ToArray();
             if (devices.Length == 0) { unmatched += group.Count(); continue; }

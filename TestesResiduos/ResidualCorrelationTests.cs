@@ -28,6 +28,21 @@ internal static class ResidualCorrelationTests
         check(index.Query(filter: ResidualFilter.Data).Matching == 1 && index.Query(source: ResidualSource.Registry).Matching == 1 &&
             partial.Single().Findings.All(f => f.Disposition == ResidualDisposition.Unknown && !f.CanRemove),
             "Busca parcial mantém preservação de dados e origem nos filtros sem autorizar remoção");
+        foreach (string name in new[] { "Netease", "GOG.com", "IObit", "Microvirt", "Vivaldi" })
+        {
+            var historical = new[]
+            {
+                new BroadResidualEvidence(name, Path.Combine(root, name), "Perfil", "AppData", "Fabricante A"),
+                new BroadResidualEvidence(name, "HKCU\\Software\\" + name, "Preferências", "Registry", "Fabricante B")
+            };
+            var unresolved = BroadResidualDiscovery.Classify(historical, []);
+            check(unresolved.Count == 1 && unresolved.Single().Findings.Count == 2 &&
+                unresolved.Single().Findings.All(f => f.Disposition == ResidualDisposition.Unknown && !f.CanRemove),
+                "R6: amostra sintética ambígua de " + name + " preserva ambos os locais, sem exclusão por nome");
+            var incomplete = BroadResidualDiscovery.Classify(historical, [], inventoryIncomplete: true);
+            check(incomplete.Single().Incomplete && incomplete.Single().Findings.All(f => !f.CanRemove),
+                "R6: " + name + " com inventário incompleto não resolve atribuição histórica");
+        }
         var alias = ApplicationIdentityCatalog.Rules.First(r => r.Id == "windows-terminal");
         var renamed = new[]
         {

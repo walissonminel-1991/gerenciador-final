@@ -65,6 +65,8 @@ internal static class DriverInfVerification
         try
         {
             if (!Path.IsPathFullyQualified(path) || path.StartsWith(@"\\", StringComparison.Ordinal) ||
+                path.StartsWith("//", StringComparison.Ordinal) || path.Split('\\', '/').Any(p => p is "." or "..") ||
+                path.Length < 3 || !char.IsAsciiLetter(path[0]) || path[1] != ':' || path[2] != '\\' || path[2..].Contains(':') ||
                 !DriverPackageLinks.IsValidInf(Path.GetFileName(path))) return new(DriverInfTrust.Rejected);
             token.ThrowIfCancellationRequested();
             RequireOrdinaryPath(path);

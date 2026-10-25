@@ -224,6 +224,7 @@ if (OperatingSystem.IsWindows())
     finally { File.Delete(scratch); }
     if (args.Contains("--official-live"))
     {
+        WindowsLogFormatProbe.Print();
         using var officialLimit = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         try
         {
