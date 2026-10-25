@@ -42,6 +42,8 @@ Leitor MSI nativo também lê bancos `.msi` sintéticos reais com e sem contrato
 
 [**Portátil .62 x64 TESTE selecionado**](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40206787800/artifacts/12603944719), fonte `051b04532a4643ff3c31d5b4daeead6c1b9f6778`, [CI aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40206787800). ZIP **59.413.720 bytes**, SHA-256 `91e3e0e6afe6a4c7aa7828dc911658271c643ee86c11d618fc3b25cebace2691`. Conferência independente: 285 arquivos, 284 hashes, 152.906.901 bytes extraídos, origem/base/build corretas, AMD64, .NET/WindowsDesktop 10.0.13 self-contained, FileVersion .62 e manifesto id 1 `asInvoker`. GF sem assinatura; AVG pendente. Artefato expira em **01/11/2026 15:33 UTC**. [Registro verificável do pacote](benchmarks/WORK17-pacote.json).
 
+A verificação adicional do fechamento documental encontrou HTTP 403 no download VLC (repetição posterior aprovada) e duas premissas temporais frágeis em fixtures de cancelamento. As fixtures agora sincronizam início/gravação efetiva; o teste de progresso admite agregação de callbacks e continua exigindo percentuais calculados pelos bytes, monotonicidade e conclusão. O código de produção e o pacote selecionado acima permanecem inalterados. A CI da revisão de fixtures é conferida separadamente na PR.
+
 ## Roteiro físico PC FORTE e PC FRACO
 
 1. Usar a candidata apenas depois da CI aprovada e da conferência do ZIP publicado. Registrar versão/hash, Windows, arquitetura, usuário comum, WinGet e duração; comparar com .61 no mesmo inventário, sem alterações entre snapshots.

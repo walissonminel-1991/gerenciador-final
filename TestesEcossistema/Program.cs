@@ -55,10 +55,19 @@ Check(cacheProvider.Calls == 2 && cached.Single().Cached, "Session cache can be 
 var slow = new FixtureProvider("slow", async (_, token) => { await Task.Delay(10000, token); return new("slow", "ok", []); }, TimeSpan.FromMilliseconds(25));
 var timed = await new ApplicationProviderCoordinator([slow, good]).DiscoverAsync(new(), default);
 Check(timed.Single(r => r.Provider == "slow").Status == "timeout" && timed.Single(r => r.Provider == "good").Status == "ok", "Timeout is isolated to the slow provider");
-using (var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(20)))
+using (var stop = new CancellationTokenSource())
 {
+    var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var untilCancelled = new FixtureProvider("cancel", async (_, token) => {
+        entered.SetResult();
+        await Task.Delay(Timeout.Infinite, token);
+        return new("cancel", "ok", []);
+    }, TimeSpan.FromSeconds(10));
+    var reading = new ApplicationProviderCoordinator([untilCancelled]).DiscoverAsync(new(), stop.Token);
+    await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    stop.Cancel();
     bool cancelled = false;
-    try { await new ApplicationProviderCoordinator([slow]).DiscoverAsync(new(), stop.Token); } catch (OperationCanceledException) { cancelled = true; }
+    try { await reading; } catch (OperationCanceledException) { cancelled = true; }
     Check(cancelled, "Caller cancellation is propagated");
 }
 var forged = new FixtureProvider("declared", (_, _) => Task.FromResult(new ApplicationProviderResult("other", "ok", [])));
