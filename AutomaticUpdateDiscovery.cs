@@ -69,19 +69,36 @@ internal static class AutomaticUpdateDiscovery
                 for(int i=0;i<apps.Length;i++)
                 {
                     workToken.ThrowIfCancellationRequested();var app=apps[i];
-                    if(!AutomaticAppInstallation.Eligible(app))continue;
+                    if(!AutomaticAppInstallation.Eligible(app) || !identities[i].EligibleForUpdates)continue;
                     if(++inspected>512)throw new InvalidDataException("Limite de descoberta automatica atingido.");
                     var rows=catalog.Find(app.Name,app.Publisher,app.MsiProductCode,workToken);
-                    var latest=rows.Where(r=>VerifiedUpdaters.TryVersion(r.Version,out _)).OrderByDescending(r=>{VerifiedUpdaters.TryVersion(r.Version,out var v);return v;}).FirstOrDefault();
-                    if(latest is null || !VerifiedUpdaters.TryVersion(app.Version,out var current) || !VerifiedUpdaters.TryVersion(latest.Version,out var target) ||target<=current)continue;
+                    bool strictIdentity = rows.Count>0;
+                    // Só para consulta: ProductCode MSI exato, fornecedor idêntico e
+                    // identificador único no catálogo assinado podem localizar versão
+                    // mesmo com DisplayName diferente. Nunca promove a execução.
+                    if(!strictIdentity)
+                        rows=catalog.FindForReviewByProductCode(app.Publisher,app.MsiProductCode,workToken);
+                    var latest=NewestCandidate(rows,app.Version);
+                    if(latest is null)continue;
+                    void Advisory()
+                    {
+                        findings.Add(new(identities[i],latest.Version,"Catálogo Microsoft (consulta)",
+                            "https://github.com/microsoft/winget-pkgs",
+                            "catalog-review","",DateTimeOffset.UtcNow,
+                            Channel:"stable",EvidenceKind:"catalog-version-only"));
+                    }
+                    if(!strictIdentity) { Advisory(); continue; }
                     var installation=AutomaticAppInstallation.Read(app);
-                    if(installation is null || !installation.Current(apps))continue;
+                    if(installation is null || !installation.Current(apps)) { Advisory(); continue; }
                     var bytes=await PackageCatalogIndex.ReadManifestAsync(latest,workToken);
                     var installer=AutomaticPackageManifest.Select(bytes,latest,installation.Architecture,installation.Scope,installation.Kind);
-                    if(installer is null || (installation.Kind=="msi"?installer.Type is not ("msi" or "wix"):installer.Type!=installation.Kind))continue;
+                    if(installer is null || (installation.Kind=="msi"?installer.Type is not ("msi" or "wix"):installer.Type!=installation.Kind))
+                    { Advisory(); continue; }
                     if(installer.ProductCode.Length>0 && installation.Kind!="msi" &&
-                        !installer.ProductCode.Equals(app.InventoryId.Split('|').Last(),StringComparison.OrdinalIgnoreCase))continue;
-                    if(!InstallerEngineEvidence.SameProduct(installer.Name,app.Name))continue;
+                        !installer.ProductCode.Equals(app.InventoryId.Split('|').Last(),StringComparison.OrdinalIgnoreCase))
+                    { Advisory(); continue; }
+                    if(!InstallerEngineEvidence.SameProduct(installer.Name,app.Name))
+                    { Advisory(); continue; }
                     findings.Add(new(identities[i],installer.Version,"Catalogo Microsoft HTTPS","https://github.com/microsoft/winget-pkgs",
                         "automatic-manifest","",DateTimeOffset.UtcNow,installation.Architecture,"stable",installation.Scope,
                         installer.Type,EvidenceKind:"authenticated-installer-manifest"));
@@ -99,6 +116,18 @@ internal static class AutomaticUpdateDiscovery
         catch(Exception ex)when(ex is IOException or InvalidDataException or HttpRequestException or OperationCanceledException or TimeoutException or
             System.Runtime.InteropServices.ExternalException or YamlDotNet.Core.YamlException or DllNotFoundException or EntryPointNotFoundException or ArgumentException or BadImageFormatException)
         {return new([],[],new("automatic-manifest",ex is TimeoutException or OperationCanceledException?"prazo":"indisponivel",clock.ElapsedMilliseconds));}
+    }
+    // Escolha isolada e determinística: versões desconhecidas, prévias e
+    // revisões iguais não viram atualizações nem iniciam downloads.
+    internal static CatalogManifestReference? NewestCandidate(
+        IReadOnlyList<CatalogManifestReference> references, string installedVersion)
+    {
+        if(!VerifiedUpdaters.TryVersion(installedVersion,out var installed))return null;
+        var newest=references.Where(r=>VerifiedUpdaters.TryVersion(r.Version,out _))
+            .OrderByDescending(r=>{VerifiedUpdaters.TryVersion(r.Version,out var v);return v;})
+            .FirstOrDefault();
+        return newest is not null && VerifiedUpdaters.TryVersion(newest.Version,out var next) && next>installed
+            ? newest : null;
     }
     internal static bool Safe(VerifiedUpdateRecipe recipe,ProgramEntry app,IEnumerable<ProgramEntry> inventory)
     {var p=Require(recipe);return AutomaticAppInstallation.Binding(app)==p.Installation.Key && p.Installation.Current(inventory);}

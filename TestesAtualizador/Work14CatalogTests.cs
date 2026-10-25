@@ -37,6 +37,28 @@ internal static class Work14CatalogTests
                     "W14 ProductCode nao contorna divergencia de produto ou canal no indice");
             check(index.Find("GF Synthetic App","Wrong Vendor","",default).Count == 0,
                 "W14 indice recusa fornecedor divergente");
+            const string msi = "{00000000-0000-0000-0000-000000000059}";
+            check(index.Find("Another Display Name", "GF Test Vendor", msi, default).Count == 0,
+                "W15 ProductCode nunca enfraquece o contrato executavel por nome");
+            var advisory = index.FindForReviewByProductCode("GF Test Vendor", msi, default);
+            check(ambiguous ? advisory.Count == 0 : advisory is [{ Id:"GF.Synthetic" }],
+                "W15 MSI ProductCode fornece somente correspondencia consultiva unica");
+            check(index.FindForReviewByProductCode("Wrong Vendor",msi,default).Count==0 &&
+                index.FindForReviewByProductCode("GF Test Vendor","not-a-guid",default).Count==0,
+                "W15 fornecedor incorreto ou codigo nao MSI nao recebe correspondencia consultiva");
+            check(AutomaticUpdateDiscovery.NewestCandidate(advisory,"1.0.0") is {Version:"2.0.0"} == !ambiguous &&
+                AutomaticUpdateDiscovery.NewestCandidate(advisory,"3.0.0") is null &&
+                AutomaticUpdateDiscovery.NewestCandidate(advisory,"not-comparable") is null,
+                "W15 consulta publica oferece somente versao comprovadamente superior");
+            var consultative = new OfficialRelease(
+                new InstalledApp("Another Display Name","1.0.0","GF Test Vendor"), "2.0.0", "Catálogo Microsoft (consulta)",
+                "https://github.com/microsoft/winget-pkgs", EvidenceKind:"catalog-version-only");
+            check(consultative.EvidenceKind=="catalog-version-only" &&
+                !AutomaticUpdateDiscovery.IsAutomatic(new VerifiedUpdateRecipe(
+                    "catalog-review",consultative.Installed.Name,consultative.LatestVersion,
+                    new Uri("https://vendor.example/setup.exe"),new string('A',64),
+                    consultative.Installed.Publisher,"",false,consultative.OfficialPage)),
+                "W15 versao consultiva nao emite receita automatica nem concede permissao");
         }
     }
     [DllImport("winsqlite3.dll",CallingConvention=CallingConvention.Cdecl)]

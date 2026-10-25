@@ -320,6 +320,9 @@ internal sealed class DarkProgramList : Control
         var item = _items[index];
         var bounds = new Rectangle(0, index * _itemHeight - _scrollOffset, contentWidth, _itemHeight);
         if (item.CanUninstall && UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.Active != true && AppRowGeometry.UninstallButton(bounds).Contains(point)) return (item, "uninstall");
+        // MSIX não recebe comando inventado: botão abre somente as Configurações.
+        if (!item.IsUpdate && ActionableInventory.CanManageWithWindows(item) && AppRowGeometry.UninstallButton(bounds).Contains(point))
+            return (item, "windows-manage");
         if (item.IsUpdate && UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.PreventRetry != true &&
             AppRowGeometry.UpdateButton(bounds).Contains(point))
         {

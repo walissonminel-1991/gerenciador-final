@@ -89,6 +89,32 @@ internal sealed class PackageCatalogIndex : IDisposable
         return candidates[0].GroupBy(r => r[3]).Select(g => g.First()).Select(r =>
             new CatalogManifestReference(r[0], r[1], r[3], RelativePath(r[4], token), r[5])).ToArray();
     }
+    // Busca consultiva baseada em ProductCode MSI: identidade de pacote unica
+    // no indice Microsoft assinado + fornecedor exato. A correspondencia de
+    // ProductCode NUNCA cria plano, flags, download executavel ou permissao.
+    // Mantemos Find estrito como unica porta da descoberta executavel.
+    internal IReadOnlyList<CatalogManifestReference> FindForReviewByProductCode(
+        string publisher, string productCode, CancellationToken token)
+    {
+        if (!Guid.TryParse(productCode, out var parsed) || parsed == Guid.Empty) return [];
+        string key = InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(publisher));
+        if (key.Length == 0) return [];
+        const string sql = "SELECT DISTINCT i.id,n.name,p.norm_publisher,v.version,m.pathpart,hex(m.hash) FROM manifest m " +
+            "JOIN ids i ON i.rowid=m.id JOIN names n ON n.rowid=m.name JOIN versions v ON v.rowid=m.version " +
+            "JOIN channels c ON c.rowid=m.channel JOIN norm_publishers_map pm ON pm.manifest=m.rowid " +
+            "JOIN norm_publishers p ON p.rowid=pm.norm_publisher JOIN productcodes_map pc ON pc.manifest=m.rowid " +
+            "JOIN productcodes code ON code.rowid=pc.productcode WHERE c.channel='' AND " +
+            "code.productcode=? COLLATE NOCASE LIMIT 101";
+        var rows = Rows(sql, [parsed.ToString("B").ToUpperInvariant()], 101, token);
+        var matches = rows.Where(r =>
+            InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(r[2])) == key &&
+            Regex.IsMatch(r[5], "^[A-Fa-f0-9]{64}$"))
+            .GroupBy(r => r[0], StringComparer.OrdinalIgnoreCase).ToArray();
+        if (matches.Length != 1) return [];
+        return matches[0].GroupBy(r => r[3]).Select(g => g.First()).Select(r =>
+            new CatalogManifestReference(r[0], r[1], r[3], RelativePath(r[4], token), r[5])).ToArray();
+    }
+
     private string RelativePath(string node, CancellationToken token)
     {
         var parts = new List<string>(); var visited = new HashSet<string>();

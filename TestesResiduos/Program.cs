@@ -1324,6 +1324,7 @@ namespace GerenciadorAplicativos
         public string UninstallString { get; init; } = "";
         public string QuietUninstallString { get; init; } = "";
         public bool InventoryOnly { get; init; }
+        public bool VerifiedMsixIdentity { get; init; }
         public bool CanUninstall { get; set; }
         public bool IsUpdate { get; set; }
     }
