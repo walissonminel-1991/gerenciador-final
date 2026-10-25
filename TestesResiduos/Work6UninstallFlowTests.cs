@@ -65,6 +65,12 @@ internal static class Work6UninstallFlowTests
             "R7: fornecedor remove registro tardiamente dentro da janela; duas leituras completas confirmam");
         result=await Scenario([present,new([],false)]);
         check(result.Single().State==UninstallState.Pending,"WORK6 lote: inventário posterior parcial não prova ausência");
+        before=launches; int scanStep=0;
+        result=await new UninstallBatch().RunAsync(requests,true,
+            ()=>++scanStep==1 ? Task.FromResult(present) : Task.FromException<UninstallSnapshot>(new Win32Exception(1223)),
+            Launch,Wait);
+        check(result.Single().State==UninstallState.Pending && result.Single().DiagnosticReason=="post_launch_inventory_failure" && launches==before+1,
+            "WORK6 Win32 apos retorno do fornecedor conserva pendencia em vez de falso cancelamento UAC");
         foreach(int code in new[]{2,3,5,193,740,1223}) {
             before=launches; var batch=new UninstallBatch();
             var original=new List<UninstallRequest>(requests);
@@ -125,6 +131,12 @@ internal static class Work6UninstallFlowTests
             check(result.Count==1 && launched.SequenceEqual(new[]{first.InventoryId}),
                 "WORK6 lote: UAC cancelado ou timeout no primeiro produto interrompe os demais");
         }
+        launched.Clear(); int reads=0;
+        result=await new UninstallBatch().RunAsync(requests,true,
+            ()=>++reads==1 ? Task.FromResult(both) : Task.FromException<UninstallSnapshot>(new Win32Exception(1223)),
+            (r,_)=>{launched.Add(r.Original.InventoryId);return Task.FromResult<int?>(0);},_=>Task.CompletedTask);
+        check(result.Count==1 && result[0].State==UninstallState.Pending && launched.SequenceEqual(new[]{first.InventoryId}),
+            "WORK6 falha Win32 pos-desinstalacao suspende o lote antes do segundo produto");
         var changed=new ProgramEntry { Name=second.Name,Publisher=second.Publisher,Version=second.Version,
             InventoryId=second.InventoryId,MsiProductCode=other,UninstallString=second.UninstallString+" /quiet" };
         launched.Clear();current=both;
