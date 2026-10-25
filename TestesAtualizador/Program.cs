@@ -5,6 +5,12 @@ if (args.Contains("--verify-catalog"))
 {
     using var token = new CancellationTokenSource(TimeSpan.FromMinutes(4));
     using var catalog = await PackageCatalogIndex.DownloadAsync(token.Token);
+    var pfnRows = catalog.FindForReviewByPackageFamily("Microsoft Corporation", "Microsoft.WindowsTerminal_8wekyb3d8bbwe", token.Token);
+    var trackedRows = catalog.FindForReviewByPackageId("Microsoft Corporation", "Microsoft.WindowsTerminal", token.Token);
+    if (pfnRows is not [{ Id: "Microsoft.WindowsTerminal" }] || trackedRows.Count != pfnRows.Count ||
+        catalog.FindForReviewByPackageFamily("Wrong Vendor", "Microsoft.WindowsTerminal_8wekyb3d8bbwe", token.Token).Count != 0)
+        throw new Exception("Consultative PFN/ID lookup did not preserve catalog identity");
+    Console.WriteLine("WORK16.CATALOGO_REAL PFN/PackageIdentifier Microsoft.WindowsTerminal autenticados, sem autorizacao de execucao");
     foreach (var item in new[] { ("OBS Studio", "OBS Project"), ("VLC media player", "VideoLAN"), ("ShareX", "ShareX Team"), ("SumatraPDF", "Krzysztof Kowalczyk") })
     {
         var rows = catalog.Find(item.Item1, item.Item2, "", token.Token);
@@ -540,6 +546,7 @@ namespace GerenciadorAplicativos
         public bool IsUpdate { get; init; }
         public bool UpdateRequiresReview { get; init; }
         public bool InventoryOnly { get; init; }
+        public bool VerifiedMsixIdentity { get; init; }
         public string InstallLocation { get; set; } = "";
         public string DisplayIcon { get; init; } = "";
         public string QuietUninstallString { get; init; } = "";

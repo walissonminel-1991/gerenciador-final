@@ -64,7 +64,8 @@ internal static class ApplicationCapabilityInspection
             }
             bool policy = IntegratedResidualPolicy.Build(ResidualAppIdentity.From(app)).Policy is not ("unsupported" or "unsupported_system_scope");
             var facts = new ApplicationCapabilityFacts(unique ? app.InventoryId : "", complete,
-                app.InventoryOnly || ProtectedApplications.IsProtectedName(app.Name), known is not null || EcosystemInventory.Identified(app),
+                app.InventoryOnly || ProtectedApplications.IsProtectedName(app.Name), known is not null || EcosystemInventory.Identified(app) ||
+                    app.MsixPackageFamilyName.Length > 0 && app.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal),
                 updateChecked, app.IsUpdate, app.UpdateRequiresReview, update,
                 UninstallRegistered: app.CanUninstall, SilentUninstallContract: silent, ResidualPolicy: policy, UpdateReason: updateReason,
                 InspectionIncomplete: budget, ExplicitUpdateOnly: explicitMsix, UpdateUncertainty: uncertain,

@@ -78,3 +78,8 @@ internal static class WinGetComReader
         return rows;
     }
 }
+
+internal sealed partial class MainForm
+{
+    private readonly ApplicationProviderCoordinator ecosystemProviders = new([new WinGetComDiscoveryProvider(new WinGetComProcessCatalog())]);
+}

@@ -36,7 +36,7 @@ internal sealed record ProviderOperationAssessment(string Provider, string Packa
 internal sealed class ApplicationProviderCoordinator(IEnumerable<IApplicationDiscoveryProvider> providers)
 {
     private readonly IApplicationDiscoveryProvider[] sources = providers.OrderBy(p => p.Descriptor.Priority).ToArray();
-    private readonly Dictionary<string, (DateTimeOffset At, ApplicationProviderResult Result)> cache = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (long At, ApplicationProviderResult Result)> cache = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim gate = new(1, 1);
     internal async Task<IReadOnlyList<ApplicationProviderResult>> DiscoverAsync(ProviderQuery query, CancellationToken token)
     {
@@ -51,7 +51,7 @@ internal sealed class ApplicationProviderCoordinator(IEnumerable<IApplicationDis
         // cache is used to authorize operations or confirm removal.
         lock (cache)
             if (!query.ForceRefresh && cache.TryGetValue(id, out var old) &&
-                DateTimeOffset.UtcNow - old.At < TimeSpan.FromMinutes(2)) return old.Result with { Cached = true };
+                Stopwatch.GetElapsedTime(old.At) < TimeSpan.FromMinutes(2)) return old.Result with { Cached = true };
         var timer = Stopwatch.StartNew();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(token);
         stop.CancelAfter(source.Descriptor.Timeout);
@@ -68,7 +68,7 @@ internal sealed class ApplicationProviderCoordinator(IEnumerable<IApplicationDis
                 i.Identity.InstalledVersion.Length > 128 || i.Receipt.Length > 4096))
                 throw new InvalidDataException("Provider result outside contract.");
             result = result with { Milliseconds = timer.ElapsedMilliseconds };
-            if (result.Status == "ok") lock (cache) cache[id] = (DateTimeOffset.UtcNow, result);
+            if (result.Status == "ok") lock (cache) cache[id] = (Stopwatch.GetTimestamp(), result);
             return result;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }

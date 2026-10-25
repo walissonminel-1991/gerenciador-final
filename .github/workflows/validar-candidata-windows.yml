@@ -44,6 +44,9 @@ jobs:
         run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
       - name: Ecossistemas e identidades multidimensionais (sem executar scripts)
         run: dotnet run --project TestesEcossistema/TestesEcossistema.csproj -c Release
+      - name: Leitor COM real sem reparo ou elevacao automatica
+        shell: pwsh
+        run: ./TestesEcossistema/Testar-LeitorWinGet.ps1 -Executable ./bin/Release/net10.0-windows10.0.26100.0/GerenciadorFinal.exe
       - name: Conferir versao dos scripts de distribuicao sem publicar
         shell: pwsh
         run: |

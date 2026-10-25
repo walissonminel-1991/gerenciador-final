@@ -18,7 +18,7 @@ internal static class Program
     private static int Main(string[] args)
     {
         if (args.Length == 1 && args[0] == WinGetComProcessCatalog.Argument)
-            return WinGetComReader.Run();
+            return Task.Run(WinGetComReader.Run).GetAwaiter().GetResult(); // COM reader owns an MTA thread
         // O trabalhador elevado executa comandos sem criar janelas auxiliares.
         if (args.Length == 4 && args[0] == "--worker")
             return WorkerHost.RunAsync(args[1], args[2], args[3]).GetAwaiter().GetResult();
@@ -1269,6 +1269,7 @@ internal sealed partial class MainForm : Form
                         "terminal" => "Atualizar",
                         "site" => "Site oficial",
                         "store" => "Ver na Store",
+                        "windows-manage" => "No Windows",
                         _ => "Como fazer"
                     };
                     if (operation?.PreventRetry == true) label = operation.Active ? "Em andamento" :
@@ -2187,7 +2188,7 @@ internal sealed partial class MainForm : Form
         // Entradas somente leitura (jogos e MSIX nao verificados) nao
         // recebem candidatos nem receitas automáticas de atualização.
         var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher,
-            !x.InventoryOnly || x.VerifiedMsixIdentity || EcosystemInventory.Managed(x),
+            EcosystemInventory.CanQueryVersions(x),
             Architecture: Regex.IsMatch(x.Name, @"(?i)\bARM64\b") ? "arm64" :
                 Regex.IsMatch(x.Name, @"(?i)\b(x64|64-bit)\b") ? "x64" :
                 Regex.IsMatch(x.Name, @"(?i)\b(x86|32-bit)\b") ? "x86" : "unknown",
@@ -2255,9 +2256,8 @@ internal sealed partial class MainForm : Form
             }
             async Task<AutomaticDiscoveryResult> ReadAutomaticAsync()
             {
-                var ecosystem = new ApplicationProviderCoordinator([new WinGetComDiscoveryProvider(new WinGetComProcessCatalog())]);
-                var results = await ecosystem.DiscoverAsync(new(forceRefresh), cancellation.Token);
-                if (generation != _catalogoGeneration || IsDisposed) cancellation.Token.ThrowIfCancellationRequested();
+                var results = await ecosystemProviders.DiscoverAsync(new(forceRefresh), cancellation.Token);
+                cancellation.Token.ThrowIfCancellationRequested();
                 EcosystemInventory.Associate(snapshot, results);
                 foreach (var source in results)
                     DiagnosticTrace.Write($"ECOSSISTEMA.CONSULTA fonte={source.Provider} estado={source.Status} entradas={source.Installations.Count} ms={source.Milliseconds}");

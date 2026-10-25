@@ -5,6 +5,14 @@ internal static class Work16ContractTests
 {
     internal static void Run(Action<bool, string> check)
     {
+        var genericMsix = new ProgramEntry { Name = "Localized Reader", Publisher = "Vendor", Version = "1.0.0",
+            InventoryId = "MSIX|Vendor.Reader", InventoryOnly = true, MsixPackageFamilyName = "Vendor.Reader_123abc",
+            IsUpdate = true, AvailableVersion = "2.0.0", UpdateRequiresReview = true };
+        check(EcosystemInventory.CanQueryVersions(genericMsix) && !genericMsix.VerifiedMsixIdentity &&
+            VerifiedUpdaters.Resolve(genericMsix) is null && VerifiedUpdaters.GetPrimaryAction(genericMsix) == "windows-manage",
+            "W16 MSIX generico participa da consulta por PFN sem herdar atualizador ou desinstalador");
+        check(!EcosystemInventory.CanQueryVersions(new ProgramEntry { InventoryOnly = true, InventoryId = "GAME|Fixture" }),
+            "W16 elegibilidade consultiva MSIX nao promove jogos ou inventario sem identidade");
         var reference = new CatalogManifestReference("GF.Synthetic", "GF Synthetic App", "2.0.0", "", new string('A',64));
         foreach(string type in new[]{"nullsoft","inno","msi"})
         {
