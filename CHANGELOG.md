@@ -1,6 +1,6 @@
 # Histórico de alterações
 
-## 5.13.11.61 TESTE — WORK16: ecossistema extensível (CI pendente)
+## 5.13.11.61 TESTE — WORK16: ecossistema extensível (CI aprovada; homologação física pendente)
 
 - Provedores consultivos com capacidades, falhas isoladas, limites, cancelamento e cache controlado.
 - Identidade multidimensional; consulta WinGet COM oficial tipada, sem operações mutáveis.

@@ -1,8 +1,17 @@
 # Regressões do GERENCIADOR FINAL
 
-Este é o procedimento vigente da candidata .60 aprovada em CI, com homologação física pendente. CI e dados sintéticos não
+Este é o procedimento vigente da candidata .61 aprovada em CI, com homologação física pendente. CI e dados sintéticos não
 substituem homologação nos PCs. O [roteiro físico mínimo](TESTE-CONSOLIDADO.md)
 é separado dos testes automatizados.
+
+## WORK16 — ecossistemas, identidade e contratos
+
+- `dotnet run --project TestesEcossistema/TestesEcossistema.csproj -c Release`: leitores locais, assinaturas de contratos, cancelamento, cache, fontes independentes e metadados adversariais; sem scripts de gerenciadores.
+- `dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --automatic`: nova elegibilidade MSIX/PFN, contratos supervisionados, ARM64 e revogação por ambiguidade, além das regressões anteriores.
+- `python scripts/measure_work16.py`: mesmos probes contra #51 imutável e candidata; publica Work16Coverage.json. Squirrel recebe assinante simulado; não confundir com Authenticode real.
+- `TestesEcossistema/Testar-LeitorWinGet.ps1`: protocolo real da cópia do GF, sem instalação/reparo/elevacão. Contexto elevado/API ausente são registrados como bloqueio de homologação nativa, não sucesso da API.
+- `TestesLayout/Work16EcosystemUiTests.cs`: liga recibos ao inventário e às capacidades, preservando gerenciamento externo e os contratos de remoção.
+- [Matriz e limites](MISSAO-WORK16.md) e [roteiro PC FORTE/PC FRACO](MISSAO-WORK16.md#roteiro-físico-mínimo). U8/R7/R4 continuam pendentes.
 
 ## WORK14 — comparação de cobertura e erro 5
 

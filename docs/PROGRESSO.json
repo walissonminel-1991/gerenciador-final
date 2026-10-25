@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.60 TESTE",
-  "date": "2026-10-24",
-  "code_commit": "89672f5ec50dc19476722286cd6c5e181e36bbb5",
+  "version": "5.13.11.61 TESTE",
+  "date": "2026-10-25",
+  "code_commit": "cdc6de0d58d69807841fd38beacbcd8ad4461ea4",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -341,8 +341,8 @@
       "native_store_partial": true
     }
   },
-  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005",
-  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005",
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
@@ -367,27 +367,27 @@
     "expires_at": "2026-10-31T13:48:29Z"
   },
   "artifact": {
-    "id": 12584124902,
-    "name": "GerenciadorFinal-v5.13.11.60-89672f5e-TESTE-win-x64",
-    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005/artifacts/12584124902",
-    "source_commit": "89672f5ec50dc19476722286cd6c5e181e36bbb5",
-    "merge_commit": "f3bcfe15aafcff1a723ba09e958c1b2c76dad5ca",
-    "base_commit": "954949eef8ee84785ee6434f964b6f1e3c9e0b50",
-    "zip_sha256": "e13e915f7b5757ba369e74bfaf13628c2e104a6b683722e4e48fa5d90f7a3f1c",
-    "zip_bytes": 59186755,
-    "expanded_bytes": 151870728,
-    "files": 282,
-    "verified_hashes": 281,
-    "file_version": "5.13.11.60",
+    "id": 12596105758,
+    "name": "GerenciadorFinal-v5.13.11.61-cdc6de0d-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904/artifacts/12596105758",
+    "source_commit": "cdc6de0d58d69807841fd38beacbcd8ad4461ea4",
+    "merge_commit": "f549eb1fbc167f282dba441fb93cff9f87877dab",
+    "base_commit": "f179dbabe78d0d42c4112a283040c5c781f109f0",
+    "zip_sha256": "f3672cb5ad8cfa38c335a84d0c4c8b97b60311c1806dd0a9169fd5452b909f3e",
+    "zip_bytes": 59407693,
+    "expanded_bytes": 152888981,
+    "files": 285,
+    "verified_hashes": 284,
+    "file_version": "5.13.11.61",
     "architecture": "AMD64",
     "self_contained": true,
     "signed": false,
     "avg_validated": false,
-    "expires_at": "2026-11-01T02:57:37Z",
-    "verification": "CI e conferencia independente: ZIP, 281 hashes exatos, origem, runtime, PE e manifesto RT_MANIFEST id 1",
+    "expires_at": "2026-11-01T10:28:12Z",
+    "verification": "CI e conferencia independente: ZIP, 284 hashes exatos, origem, runtime, PE e manifesto RT_MANIFEST id 1",
     "external_zip_recheck": "verified",
     "external_executable_manifest": {
-      "file_version": "5.13.11.60",
+      "file_version": "5.13.11.61",
       "requested_execution_level": "asInvoker",
       "certificate_bytes": 0,
       "resource_manifest_id": 1
@@ -466,8 +466,8 @@
     ],
     "progress": "27/42"
   },
-  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005/artifacts/12584124902",
-  "artifact_name": "GerenciadorFinal-v5.13.11.60-89672f5e-TESTE-win-x64",
+  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904/artifacts/12596105758",
+  "artifact_name": "GerenciadorFinal-v5.13.11.61-cdc6de0d-TESTE-win-x64",
   "historical_artifact_work5": {
     "id": 12388392363,
     "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
@@ -811,14 +811,29 @@
   },
   "candidate": {
     "version": "5.13.11.61 TESTE",
-    "status": "pending",
+    "status": "approved",
     "mission": "WORK16-ECOSSISTEMA",
     "report": "docs/MISSAO-WORK16.md",
     "physical_validation": "pending",
     "winget_execution_enabled": false,
     "winget_consultative_backend": "official-typed-com-local-catalog",
-    "package_verified_by_ci": false,
-    "package_verified_independently": false
+    "package_verified_by_ci": true,
+    "package_verified_independently": true,
+    "code_commit": "cdc6de0d58d69807841fd38beacbcd8ad4461ea4",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904",
+    "winget_native_homologation": "pending_standard_user",
+    "validation": {
+      "ecosystem_checks": 42,
+      "updater_checks": 368,
+      "residual_uninstall_checks": 697,
+      "mutations_rejected": 30,
+      "multisource_checks": 159,
+      "msix_checks": 47,
+      "safe_close_checks": 30,
+      "policy_python_checks": 35,
+      "policy_node_checks": 10,
+      "ui_provider_boundaries": "passed"
+    }
   },
   "mission_work14": {
     "status": "code_ci_and_package_approved_physical_pending",
@@ -888,5 +903,19 @@
       "requested_execution_level": "asInvoker",
       "certificate_bytes": 0
     }
+  },
+  "work16": {
+    "baseline": "f179dbabe78d0d42c4112a283040c5c781f109f0",
+    "code_commit": "cdc6de0d58d69807841fd38beacbcd8ad4461ea4",
+    "coverage_build_commit": "f549eb1fbc167f282dba441fb93cff9f87877dab",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904",
+    "coverage_report": "docs/benchmarks/WORK16-comparacao.json",
+    "report": "docs/MISSAO-WORK16.md",
+    "physical_homologations": 0,
+    "real_third_party_operations": 0,
+    "winget_com_probe": "elevated_context_refused; native standard-user query pending",
+    "new_static_identity_entries": 0,
+    "checkpoint_changes": 0,
+    "scope": "Local manager metadata, PFN/observed ID lookup, supervised authenticated updates and verified Squirrel uninstall inference; component fixture denominators remain separate"
   }
 }
