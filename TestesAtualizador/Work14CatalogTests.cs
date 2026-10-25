@@ -51,8 +51,7 @@ internal static class Work14CatalogTests
                 AutomaticUpdateDiscovery.NewestCandidate(advisory,"not-comparable") is null,
                 "W15 consulta publica oferece somente versao comprovadamente superior");
             var consultative = new OfficialRelease(
-                new InstalledApp { Name="Another Display Name", Publisher="GF Test Vendor", Version="1.0.0",
-                    EligibleForUpdates=true }, "2.0.0", "Catálogo Microsoft (consulta)",
+                new InstalledApp("Another Display Name","1.0.0","GF Test Vendor"), "2.0.0", "Catálogo Microsoft (consulta)",
                 "https://github.com/microsoft/winget-pkgs", EvidenceKind:"catalog-version-only");
             var merged = MultiSourceMatcher.Merge([consultative.Installed],null,[consultative]);
             check(merged.Count==1 && merged[0].RequiresReview && merged[0].State==MatchState.Candidate,
