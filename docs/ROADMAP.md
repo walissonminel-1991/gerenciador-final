@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.59 TESTE — descoberta automática aprovada na CI.** [CI 40138799763](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763), fonte `26bbc17a`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319). 318 atualizadores, 81 controles de descoberta, 645 resíduos e 27 mutações. Catálogo/manifestos autenticados e seleção genérica MSI/NSIS/Inno; WinGet COM/CLI segue desativado. [Evidências e limites](MISSAO-WORK13.md). Pacote, SHA-256 e 281 hashes reconferidos fora do runner. Roadmap **27/42**; U8/R7/R4 físicos abertos.
+**v5.13.11.63 TESTE — Lote 4 em validação.** Consolidação cumulativa dos lotes 1–3 e revisão do relatório local. [Relatório e critérios](MISSAO-LOTE4.md), [PR #57 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/57). Última base aprovada: [CI 40231535067](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40231535067), fonte `8f8d1c8f`. Nenhum pacote .63 aprovado neste estágio. WORK16/17 permanecem em outra cadeia. Roadmap **27/42**, sem novos checkpoints; U8/R7/R4, D2/G1/G2 e AVG continuam abertos.
 
 ### Validação anterior — WORK11
 

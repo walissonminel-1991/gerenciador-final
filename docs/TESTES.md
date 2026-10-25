@@ -1,6 +1,7 @@
 # Regressões do GERENCIADOR FINAL
 
-Este é o procedimento vigente da candidata .49. CI e dados sintéticos não
+Este é o procedimento da consolidação Lote 4, candidata .63. A situação de
+aprovação e o SHA correspondente ficam em [MISSAO-LOTE4](MISSAO-LOTE4.md). CI e dados sintéticos não
 substituem homologação nos PCs. O [roteiro físico mínimo](TESTE-CONSOLIDADO.md)
 é separado dos testes automatizados.
 
@@ -56,17 +57,36 @@ SHAs esperados. A conferência independente exige cobertura exata de hashes,
 arquitetura AMD64, runtime incorporado, origem e avisos de licença. Python é
 uma ferramenta de auditoria/CI, não dependência do aplicativo distribuído.
 
-`TestesRede` e os modos `--live`/`--verify-downloads` são opcionais e acessíveis
-por `workflow_dispatch` em `validar-candidata-windows.yml`. Consultam fontes ou
-baixam e verificam instaladores, sem executá-los. Jobs ignorados em PR não
-validam a disponibilidade atual dessas fontes. Não utilizar os PCs pessoais
-para os testes destrutivos sintéticos.
+Nas PRs, catálogo Microsoft autenticado e downloads oficiais com hash, identidade,
+assinatura e motor são **obrigatórios**, sem executar instaladores. Os dois jobs
+`drivers-leitura` consultam SetupAPI/WUA/INFs dos runners Windows 2022 e 2025,
+sem instalar/remover drivers. `TestesRede` e a consulta ampliada `--live` continuam
+opt-in por `workflow_dispatch`. Um job skipped não comprova sua execução.
+
+Modos explícitos adicionais, sem somar asserções duplicadas ao total:
+
+```powershell
+dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --lote4
+./scripts/Testar-Regressao-Relatorio.ps1
+dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --drivers-readonly
+dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --lote3
+dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --lote3
+dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --lote3
+```
+
+O controle negativo Lote 4 usa cópia descartável com `Program.cs` anterior.
+Só passa se compilar, abrir o diálogo e recusar especificamente a rolagem
+nativa; falha genérica, timeout ou compilação quebrada não contam. O teste
+positivo exige a marca final de execução, texto completo, ausência de
+identificador privado, rolagem escura e fechamento. Não usa o seletor Salvar.
+Não executar testes sintéticos destrutivos nos PCs pessoais.
 
 ## Resultados e limites
 
 Resultados de cada revisão, falhas anteriores e evidências ficam nos relatórios
 [WORK9 parte 1](MISSAO-WORK9-PARTE1.md) e [parte 2](MISSAO-WORK9-PARTE2.md).
-A CI usa Windows Server 2022: não comprova execução física no PC FORTE/FRACO,
+A regressão principal usa Windows Server 2022, e os jobs de drivers também
+Windows Server 2025: não comprova execução física no PC FORTE/FRACO,
 compatibilidade universal do Windows 10/11 nem aprovação pelo AVG. O tema do
 conteúdo é escuro; decoração nativa e todos os diálogos ainda exigem revisão
 visual em Windows de uso real. U8/R7/R4 seguem pendentes no roadmap.
