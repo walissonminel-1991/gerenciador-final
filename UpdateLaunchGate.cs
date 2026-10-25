@@ -19,6 +19,7 @@ internal sealed class UpdateLaunchGate
         if (Interlocked.Exchange(ref attempted, 1) != 0)
             return new(UpdateAttemptState.AlreadyAttempted);
         bool launched = false;
+        bool installerReturned = false;
         try
         {
             token.ThrowIfCancellationRequested();
@@ -30,6 +31,7 @@ internal sealed class UpdateLaunchGate
             token.ThrowIfCancellationRequested();
             launched = true;
             int exit = await launch();
+            installerReturned = true;
             if (token.IsCancellationRequested) return new(UpdateAttemptState.Indeterminate, exit);
             if (exit is not (0 or 3010)) return new(UpdateAttemptState.Failed, exit);
             progress?.Invoke(new(UpdateStage.Confirming));
@@ -40,7 +42,12 @@ internal sealed class UpdateLaunchGate
             return new(confirmed ? UpdateAttemptState.Confirmed : UpdateAttemptState.Indeterminate, exit);
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
-        { return new(UpdateAttemptState.Cancelled, AuthorizationDeclined: true); }
+        {
+            // A recusa do UAC antes de iniciar e conhecida; falhas na
+            // confirmacao apos o retorno do instalador nao provam cancelamento.
+            return new(installerReturned ? UpdateAttemptState.Indeterminate : UpdateAttemptState.Cancelled,
+                AuthorizationDeclined: !installerReturned);
+        }
         catch (UpdateInstallerFailureException ex) { return new(UpdateAttemptState.Failed, ex.ExitCode); }
         catch (TimeoutException) { return new(UpdateAttemptState.Indeterminate); }
         catch (OperationCanceledException)
