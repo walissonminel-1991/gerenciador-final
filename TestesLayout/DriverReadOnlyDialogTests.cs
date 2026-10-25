@@ -31,10 +31,10 @@ internal static class DriverReadOnlyDialogTests
                     dialog.PerformLayout();
                     Application.DoEvents();
                     var controls = Descendants(dialog).ToArray();
-                    var body = controls.OfType<TextBox>().Single(c => c.Name == "DriverReadOnlyReportText");
+                    var body = controls.OfType<DarkLogView>().Single(c => c.Name == "DriverReadOnlyReportText");
                     var buttons = controls.OfType<Button>().ToArray();
-                    if (!body.ReadOnly || !body.Text.Contains("falha registrada") || body.Text.Contains("C:\\Users\\") ||
-                        !body.Text.Contains("nenhuma exclusão é autorizada") || buttons.Length != 3)
+                    if (!Descendants(body).OfType<TextBox>().Single().ReadOnly || !body.RenderedText.Contains("falha registrada") || body.RenderedText.Contains("C:\\Users\\") ||
+                        !body.RenderedText.Contains("nenhuma exclusão é autorizada") || buttons.Length != 3)
                         throw new Exception("Relatório de drivers deve distinguir falha histórica e manter consulta sem escrita.");
                     foreach (var button in buttons)
                         if (!dialog.RectangleToScreen(dialog.ClientRectangle).Contains(button.RectangleToScreen(button.ClientRectangle)) ||

@@ -23,7 +23,7 @@ internal static class WindowsLogFormatProbe
                     template = Regex.Replace(line, @"\d", "0");
                 else
                 {
-                    var field = Regex.Match(line, @"^((?:inf|dvi):\s+(?:InfPath|Inf Path|InfFile|Published Inf Path|Selected Driver|Opened INF)\s*[:=\-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+                    var field = Regex.Match(line, @"^((?:inf|dvi|ndv):\s+(?:InfPath|Inf Path|Driver INF Path|InfFile|Inf File|Published Inf Path|Selected Driver|Opened INF)\s*[:=\-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
                     if (field.Success) template = field.Groups[1].Value + " <value>";
                 }
                 if (template is not null) templates[template] = templates.GetValueOrDefault(template) + 1;

@@ -24,13 +24,12 @@ internal sealed partial class MainForm
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
-        var body = new TextBox
+        var body = new DarkLogView
         {
-            Name = "DriverReadOnlyReportText", Dock = DockStyle.Fill, Multiline = true,
-            ReadOnly = true, WordWrap = true, ScrollBars = ScrollBars.Vertical,
-            BackColor = Color.FromArgb(19, 26, 34), ForeColor = Ink,
-            Font = new Font("Segoe UI", 9F)
+            Name = "DriverReadOnlyReportText", Dock = DockStyle.Fill,
+            AccessibleName = "Relatório de drivers somente leitura"
         };
+        body.UseReadableFont(new Font("Segoe UI", 9F));
         var status = new Label { Dock = DockStyle.Fill, ForeColor = Muted,
             AutoEllipsis = true, Text = "Consultas locais; os IDs nesta janela não são enviados ao diagnóstico." };
         var bar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
@@ -59,7 +58,7 @@ internal sealed partial class MainForm
         bool canVerify = selected?.PackageEvidence?.State == DriverStoreState.Mapped;
         verifyButton.Enabled = canVerify;
         officialButton.Enabled = !inventory.Partial && inventory.Items.Count > 0;
-        void Render() { if (!body.IsDisposed) body.Text = DarkLogView.NormalizeWindowsLineBreaks(DriverReadOnlyReport.Format(inventory, selected, official, verification)); }
+        void Render() { if (!body.IsDisposed) body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification)); }
         async Task Run(Button button, Func<CancellationToken, Task> read, TimeSpan timeout)
         {
             if (current is not null) { current.Cancel(); return; }
@@ -114,6 +113,7 @@ internal sealed partial class MainForm
         close.Click += (_, _) => dialog.Close();
         dialog.FormClosed += (_, _) => current?.Cancel();
         Render();
+        dialog.Shown += (_, _) => officialButton.Focus();
         dialog.ShowDialog(this);
     }
 }
