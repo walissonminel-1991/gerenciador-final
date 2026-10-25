@@ -1,5 +1,13 @@
 # Histórico de alterações
 
+## 5.13.11.61 TESTE — WORK16: ecossistema extensível (CI aprovada; homologação física pendente)
+
+- Provedores consultivos com capacidades, falhas isoladas, limites, cancelamento e cache controlado.
+- Identidade multidimensional; consulta WinGet COM oficial tipada, sem operações mutáveis.
+- Scoop e Chocolatey locais no inventário, sem execução de scripts; consulta Microsoft por PFN e ID observado.
+- Atualização supervisionada autenticada MSI/WiX/NSIS/Inno, identificação ARM64 e contrato de desinstalação Squirrel per-user comprovado.
+- Contadores separados e matriz contra #51; nenhuma nova homologação física, 27/42 preservado.
+
 ## 5.13.11.60 TESTE — WORK14: evolução dos motores (CI aprovada; homologação física pendente)
 
 - Registro: evita a solicitação implícita de escrita na raiz HKLM durante inspeção; preserva erro, etapa, profundidade e cobertura antes/depois. Nenhuma alteração de ACL no produto.

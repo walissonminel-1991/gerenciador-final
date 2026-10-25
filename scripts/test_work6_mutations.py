@@ -121,7 +121,7 @@ mutants.extend([
 ])
 if os.name == 'nt':
     mutants.append(('auto-architecture-change-ignored','AutomaticAppInstallation.cs',
-        'VerifiedUpdaters.GetPortableExecutableMachine(Binary)!=(Architecture=="x64"?0x8664:0x14c) ||', '',
+        'ArchitectureFor(VerifiedUpdaters.GetPortableExecutableMachine(Binary))!=Architecture ||', '',
         'TestesAtualizador','--automatic','AUTO arquitetura alterada depois'))
 files = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
 with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:

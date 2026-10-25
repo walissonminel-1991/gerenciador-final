@@ -323,6 +323,8 @@ internal sealed class DarkProgramList : Control
         // MSIX não recebe comando inventado: botão abre somente as Configurações.
         if (!item.IsUpdate && ActionableInventory.CanManageWithWindows(item) && AppRowGeometry.UninstallButton(bounds).Contains(point))
             return (item, "windows-manage");
+        if (ActionableInventory.CanManageExternally(item) && AppRowGeometry.UninstallButton(bounds).Contains(point))
+            return (item, "external-manage");
         if (item.IsUpdate && UninstallOperationFor?.Invoke(item)?.PreventRetry != true && OperationFor?.Invoke(item)?.PreventRetry != true &&
             AppRowGeometry.UpdateButton(bounds).Contains(point))
         {

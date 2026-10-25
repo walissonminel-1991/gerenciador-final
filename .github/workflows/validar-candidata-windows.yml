@@ -42,6 +42,11 @@ jobs:
       - name: Compilar aplicacao
         shell: pwsh
         run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
+      - name: Ecossistemas e identidades multidimensionais (sem executar scripts)
+        run: dotnet run --project TestesEcossistema/TestesEcossistema.csproj -c Release
+      - name: Leitor COM real sem reparo ou elevacao automatica
+        shell: pwsh
+        run: ./TestesEcossistema/Testar-LeitorWinGet.ps1 -Executable ./bin/Release/net10.0-windows10.0.26100.0/GerenciadorFinal.exe
       - name: Conferir versao dos scripts de distribuicao sem publicar
         shell: pwsh
         run: |
@@ -69,6 +74,16 @@ jobs:
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release
       - name: Comparar cobertura funcional WORK14 com a base imutavel
         run: python scripts/measure_work14.py
+      - name: Comparar contratos WORK16 com a PR51 imutavel
+        run: python scripts/measure_work16.py
+      - name: Conservar matriz de ecossistemas WORK16
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: WORK16-cobertura-${{ github.sha }}
+          path: Work16Coverage.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Conservar matriz funcional antes e depois
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

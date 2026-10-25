@@ -25,10 +25,11 @@ internal static class AutomaticUpdateDiscovery
 
     internal static bool IsAutomatic(VerifiedUpdateRecipe recipe)=>recipe.Identifier.StartsWith("auto-",StringComparison.Ordinal);
     internal static bool IsApproved(VerifiedUpdateRecipe recipe)=>Permits.TryGetValue(recipe.Identifier,out var permit) &&
-        ReferenceEquals(recipe,permit.Recipe) && permit.Expires>DateTimeOffset.UtcNow;
+        ReferenceEquals(recipe,permit.Recipe) && permit.Expires>DateTimeOffset.UtcNow &&
+        permit.App.TryGetTarget(out var app) && !EcosystemInventory.Ambiguous(app);
     private static Permit Require(VerifiedUpdateRecipe recipe)=>IsApproved(recipe)?Permits[recipe.Identifier]:throw new InvalidDataException("Autorizacao automatica ausente ou expirada.");
     internal static VerifiedUpdateRecipe? Resolve(ProgramEntry app)=>Attached.TryGetValue(app,out var permit) &&
-        app.IsUpdate && !app.UpdateRequiresReview && AutomaticAppInstallation.Binding(app)==permit.Installation.Key &&
+        app.IsUpdate && !app.UpdateRequiresReview && !EcosystemInventory.Ambiguous(app) && AutomaticAppInstallation.Binding(app)==permit.Installation.Key &&
         app.AvailableVersion==permit.Installer.Version && !Executed.ContainsKey(ExecutionKey(permit)) && IsApproved(permit.Recipe)?permit.Recipe:null;
     internal static void Attach(AutomaticDiscoveryResult scan)
     {
@@ -36,7 +37,7 @@ internal static class AutomaticUpdateDiscovery
         IssuedScans.Remove(scan);
         foreach(var item in issued.Plans)
         {
-            if(!item.App.IsUpdate || item.App.UpdateRequiresReview || item.App.AvailableVersion!=item.Installer.Version ||
+            if(!item.App.IsUpdate || item.App.UpdateRequiresReview || EcosystemInventory.Ambiguous(item.App) || item.App.AvailableVersion!=item.Installer.Version ||
                 AutomaticAppInstallation.Binding(item.App)!=item.Installation.Key)continue;
             foreach(var expired in Permits.Where(p=>p.Value.Expires<=DateTimeOffset.UtcNow).Select(p=>p.Key))Permits.TryRemove(expired,out _);
             if(Permits.Count>=512)break;
@@ -46,8 +47,8 @@ internal static class AutomaticUpdateDiscovery
             var reviewed=VerifiedUpdaters.ResolveReviewed(legacyApp);
             if(reviewed is not null && (!string.Equals(reviewed.Sha256,item.Installer.Sha256,StringComparison.OrdinalIgnoreCase) ||
                 !VerifiedUpdaters.SingleSafeSilentInstallation(reviewed,legacyApp,[legacyApp])))reviewed=null;
-            var recipe=reviewed ?? new VerifiedUpdateRecipe("auto-"+Guid.NewGuid().ToString("N"),item.Installer.Name,item.Installer.Version,
-                item.Installer.Download,item.Installer.Sha256,item.Installer.Publisher,item.Installer.Arguments,false,"https://github.com/microsoft/winget-pkgs");
+            var recipe=(!item.Installer.Interactive ? reviewed : null) ?? new VerifiedUpdateRecipe("auto-"+Guid.NewGuid().ToString("N"),item.Installer.Name,item.Installer.Version,
+                item.Installer.Download,item.Installer.Sha256,item.Installer.Publisher,item.Installer.Arguments,item.Installer.Interactive,"https://github.com/microsoft/winget-pkgs");
             var permit=new Permit(new(item.App),item.Installation,item.Installer,recipe,DateTimeOffset.UtcNow.AddMinutes(30));
             Attached.Remove(item.App);Attached.Add(item.App,permit);Permits[recipe.Identifier]=permit;
         }
@@ -69,7 +70,9 @@ internal static class AutomaticUpdateDiscovery
                 for(int i=0;i<apps.Length;i++)
                 {
                     workToken.ThrowIfCancellationRequested();var app=apps[i];
-                    if(!AutomaticAppInstallation.Eligible(app) || !identities[i].EligibleForUpdates)continue;
+                    bool executionContext = AutomaticAppInstallation.Eligible(app);
+                    if(!identities[i].EligibleForUpdates || ProtectedApplications.IsProtectedName(app.Name) ||
+                        (!executionContext && app.MsixPackageFamilyName.Length == 0 && EcosystemInventory.Get(app) is null))continue;
                     if(++inspected>512)throw new InvalidDataException("Limite de descoberta automatica atingido.");
                     var rows=catalog.Find(app.Name,app.Publisher,app.MsiProductCode,workToken);
                     bool strictIdentity = rows.Count>0;
@@ -78,6 +81,10 @@ internal static class AutomaticUpdateDiscovery
                     // mesmo com DisplayName diferente. Nunca promove a execução.
                     if(!strictIdentity)
                         rows=catalog.FindForReviewByProductCode(app.Publisher,app.MsiProductCode,workToken);
+                    if(rows.Count == 0 && app.MsixPackageFamilyName.Length > 0)
+                        rows=catalog.FindForReviewByPackageFamily(app.Publisher,app.MsixPackageFamilyName,workToken);
+                    if(rows.Count == 0 && EcosystemInventory.Get(app) is { Identity.Provider: "winget", Identity.Managed: true } origin)
+                        rows=catalog.FindForReviewByPackageId(app.Publisher,origin.Identity.PackageId,workToken);
                     var latest=NewestCandidate(rows,app.Version);
                     if(latest is null)continue;
                     void Advisory()
@@ -87,7 +94,7 @@ internal static class AutomaticUpdateDiscovery
                             "catalog-review","",DateTimeOffset.UtcNow,
                             Channel:"stable",EvidenceKind:"catalog-version-only"));
                     }
-                    if(!strictIdentity) { Advisory(); continue; }
+                    if(!strictIdentity || !executionContext || EcosystemInventory.Ambiguous(app)) { Advisory(); continue; }
                     var installation=AutomaticAppInstallation.Read(app);
                     if(installation is null || !installation.Current(apps)) { Advisory(); continue; }
                     var bytes=await PackageCatalogIndex.ReadManifestAsync(latest,workToken);

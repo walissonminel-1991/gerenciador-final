@@ -529,7 +529,7 @@ internal static class MultiSourceMatcher
     }
 
     private static int Rank(OfficialRelease release) => release.EvidenceKind switch
-    { "catalog-version-only" => 0, "community-index" => 1, "desktop-changelog" => 2, "windows-stable-feed" => 4, _ => 3 };
+    { "catalog-version-only" or "managed-version-only" => 0, "community-index" => 1, "desktop-changelog" => 2, "windows-stable-feed" => 4, _ => 3 };
 
     internal static IReadOnlyList<UpdateMatch> Merge(
         IReadOnlyList<InstalledApp> installed,
@@ -586,7 +586,7 @@ internal static class MultiSourceMatcher
             bool conflict = usableVersions.Count > 1 && usableVersions.Skip(1)
                 .Any(v => Matching.CompareVersions(usableVersions[0], v) is not 0);
             bool review = original.RequiresReview || conflict || all.Count != compatible.Length ||
-                chosen?.EvidenceKind is "desktop-changelog" or "catalog-version-only";
+                chosen?.EvidenceKind is "desktop-changelog" or "catalog-version-only" or "managed-version-only";
             var merged = original;
             if (chosen is not null)
             {

@@ -23,6 +23,8 @@ internal sealed record UpdateMatch(InstalledApp Installed, CatalogEntry? Catalog
         o.Provider + ": " + o.Version + " · " + (o.EvidenceKind switch
         {
             "authenticated-installer-manifest" => "instalador identificado em catálogo autenticado; conferir assinatura e instalação ao iniciar",
+            "managed-version-only" => "versão no bucket local do gerenciador; atualização depende de consulta e autorização na ferramenta original",
+            "catalog-version-only" => "nova versão no catálogo Microsoft; nenhum instalador autorizado",
             "windows-stable-feed" => "versão oferecida para Windows x64; assinatura não verificada",
             "community-index" => "versão no catálogo comunitário",
             "desktop-changelog" => "versão anunciada no changelog desktop",

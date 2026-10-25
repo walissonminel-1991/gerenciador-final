@@ -6,7 +6,8 @@ internal enum WingetQueryOrigin { Startup, RefreshInventory, NormalSearch, TabOp
 internal sealed record WingetQueryResult(WingetQueryState State, IReadOnlyList<OfficialRelease> Findings);
 
 // Contrato sem comandos, argumentos, caminhos de executáveis ou operações mutáveis.
-// Não existe implementação COM/CLI nesta build. Somente fixtures implementam a interface.
+// Adaptador legado de simulações. O backend COM tipado de produção é separado
+// em WinGetComDiscoveryProvider, sem compartilhar permissões de execução.
 internal interface IWingetReadOnlyBackend
 {
     Task<WingetQueryResult> QueryAsync(IReadOnlyList<InstalledApp> snapshot, CancellationToken token);
@@ -14,7 +15,7 @@ internal interface IWingetReadOnlyBackend
 
 internal sealed class WingetConsultativeProvider : IDisposable
 {
-    internal const string ProductionStatus = "WinGet complementar desativado; motores HTTPS disponíveis";
+    internal const string ProductionStatus = "WinGet COM somente leitura, sem reparo ou instalação; catálogo Microsoft HTTPS preservado";
     private readonly object gate = new();
     private readonly IWingetReadOnlyBackend? backend;
     private readonly TimeSpan timeout;

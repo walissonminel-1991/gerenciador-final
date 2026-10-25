@@ -13,7 +13,7 @@ internal static class ApplicationCapabilityInspection
         if (DateTimeOffset.UtcNow - capability.ObservedAt > TimeSpan.FromMinutes(2))
         {
             ApplicationCapabilityDecision Expire(ApplicationCapabilityDecision d) => d.State is
-                ApplicationCapabilityState.SilentEligible or ApplicationCapabilityState.SilentVerified or ApplicationCapabilityState.Interactive
+                ApplicationCapabilityState.SilentEligible or ApplicationCapabilityState.SilentVerified or ApplicationCapabilityState.Interactive or ApplicationCapabilityState.SupervisedUpdate
                 ? new(ApplicationCapabilityState.Inconclusive, "assessment_expired") : d;
             return (capability with { Update = Expire(capability.Update), Uninstall = Expire(capability.Uninstall) }).Describe();
         }
@@ -35,17 +35,19 @@ internal static class ApplicationCapabilityInspection
             var known = ApplicationIdentityCatalog.Resolve(app.Name, app.Publisher);
             bool explicitMsix = !ProtectedApplications.IsProtectedName(app.Name) && app.VerifiedMsixIdentity &&
                 WindowsTerminalUpdater.Resolve(app) is not null;
-            bool update = explicitMsix, silent = false, budget = clock.Elapsed > TimeSpan.FromSeconds(15);
+            bool update = explicitMsix, supervised = false, silent = false, budget = clock.Elapsed > TimeSpan.FromSeconds(15);
             string updateReason = app.ComparisonState switch { MatchState.Unmatched => "catalog_unmatched",
                 MatchState.SupersededRegistration => "superseded_registration", _ => "no_verified_contract" };
             string uncertain = app.ComparisonState switch { MatchState.NotComparable => "version_not_comparable",
                 MatchState.Ambiguous => "catalog_identity_ambiguous", MatchState.DifferentMajor => "major_version_review", _ => "" };
+            if (EcosystemInventory.Ambiguous(app)) uncertain = "catalog_identity_ambiguous";
             if (!budget && complete && unique && !app.InventoryOnly)
             {
                 try
                 {
                     var recipe = VerifiedUpdaters.Resolve(app);
                     update = recipe is { Interactive: false } && VerifiedUpdaters.SingleSafeSilentInstallation(recipe, app, apps);
+                    supervised = recipe is { Interactive: true } && VerifiedUpdaters.SingleSafeSilentInstallation(recipe, app, apps);
                     if (!update && app.IsUpdate && !app.UpdateRequiresReview)
                         updateReason = AutomaticAppInstallation.Read(app, out string detail) is null ? detail : "manifest_not_authorized";
                 }
@@ -63,10 +65,13 @@ internal static class ApplicationCapabilityInspection
             }
             bool policy = IntegratedResidualPolicy.Build(ResidualAppIdentity.From(app)).Policy is not ("unsupported" or "unsupported_system_scope");
             var facts = new ApplicationCapabilityFacts(unique ? app.InventoryId : "", complete,
-                app.InventoryOnly || ProtectedApplications.IsProtectedName(app.Name), known is not null,
+                app.InventoryOnly || ProtectedApplications.IsProtectedName(app.Name), known is not null || EcosystemInventory.Identified(app) ||
+                    app.MsixPackageFamilyName.Length > 0 && app.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal),
                 updateChecked, app.IsUpdate, app.UpdateRequiresReview, update,
                 UninstallRegistered: app.CanUninstall, SilentUninstallContract: silent, ResidualPolicy: policy, UpdateReason: updateReason,
-                InspectionIncomplete: budget, ExplicitUpdateOnly: explicitMsix, UpdateUncertainty: uncertain);
+                InspectionIncomplete: budget, ExplicitUpdateOnly: explicitMsix, UpdateUncertainty: uncertain,
+                ExternalManagement: ActionableInventory.CanManageWithWindows(app) || ActionableInventory.CanManageExternally(app),
+                SupervisedUpdateContract: supervised);
             result.Add(ApplicationCapabilities.Evaluate(facts));
         }
         return result.ToArray();
@@ -89,6 +94,7 @@ internal sealed partial class MainForm
             DiagnosticTrace.Write($"CAPACIDADES.MOTIVO motivo={reason.Key} quantidade={reason.Value} operacoes={matrix.OperationDenominator}");
         Log($"Capacidades: {matrix.SilentUpdateEligible}/{matrix.Applications} elegíveis a atualização silenciosa; " +
             $"{matrix.SilentUninstallEligible}/{matrix.Applications} com modo de desinstalação silencioso identificado; " +
-            $"{matrix.ResidualPolicies}/{matrix.Applications} com política residual. Validação e consentimento continuam obrigatórios.");
+            $"{matrix.SupervisedUpdates} atualizações supervisionadas; {matrix.InteractiveUninstalls} com desinstalador interativo; {matrix.ExternalManagement} com gerenciamento externo; " +
+            $"{matrix.DiscoveredUpdates} atualizações descobertas. Validação e consentimento continuam obrigatórios.");
     }
 }
