@@ -17,14 +17,62 @@ REQUIRED = frozenset({
     "Licencas/DotNET/THIRD-PARTY-NOTICES.txt", "Licencas/WindowsDesktop/LICENSE.txt",
 })
 
+RESERVED = frozenset({"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} |
+                     {prefix + suffix for prefix in ("COM", "LPT") for suffix in "123456789¹²³"})
+SATELLITES = frozenset({"Microsoft.VisualBasic.Forms.resources.dll", "System.Windows.Forms.Design.resources.dll",
+                       "System.Windows.Forms.Primitives.resources.dll", "System.Windows.Forms.resources.dll"})
+CULTURES = frozenset("cs de es fr it ja ko pl pt-BR ru tr zh-Hans zh-Hant".split())
+
 
 def portable_name(name: str) -> bool:
     parts = name.split("/")
     return bool(name) and all(
         part not in {"", ".", ".."} and not part.endswith((" ", "."))
+        and part.split(".", 1)[0].upper() not in RESERVED
         and not re.search(r'[\\:\x00-\x1f<>"|?*]', part)
         for part in parts
     ) and not PurePosixPath(name).is_absolute()
+
+
+def declared_binaries(files: dict, version: str) -> set:
+    """Build-generated dependency contract; SHA alone cannot reject a stale/fixture DLL."""
+    path = files["GerenciadorFinal.deps.json"]
+    if path.stat().st_size > 2 * 1024 * 1024:
+        raise ValueError("manifesto de dependencias excede limite")
+    data = json.loads(path.read_text(encoding="utf-8-sig"))
+    target = data["runtimeTarget"]["name"]
+    if target != ".NETCoreApp,Version=v10.0/win-x64":
+        raise ValueError("target de dependencias divergente")
+    libraries = data["libraries"]
+    expected = {"GerenciadorFinal", "runtimepack.Microsoft.NETCore.App.Runtime.win-x64",
+                "runtimepack.Microsoft.WindowsDesktop.App.Runtime.win-x64",
+                "runtimepack.Microsoft.Windows.SDK.NET.Ref", "YamlDotNet"}
+    keys = [key.rsplit("/", 1) for key in libraries]
+    if len(keys) != len(expected) or {key[0] for key in keys} != expected:
+        raise ValueError("biblioteca nao declarada no contrato de distribuicao")
+    if "GerenciadorFinal/" + version not in libraries or "YamlDotNet/18.1.0" not in libraries:
+        raise ValueError("versao de dependencia divergente")
+    entries = data["targets"][target]
+    if entries.keys() != libraries.keys():
+        raise ValueError("dependencias sem correspondencia exata")
+    names = set()
+    for library in entries.values():
+        if library.get("runtimeTargets") or library.get("resources"):
+            raise ValueError("formato de dependencia requer revisao")
+        for category in ("runtime", "native"):
+            for asset in library.get(category, {}):
+                if not portable_name(asset):
+                    raise ValueError("caminho de dependencia invalido")
+                # Pacotes NuGet podem declarar lib/net10.0/X.dll; publish usa basename.
+                name = PurePosixPath(asset).name
+                if name in names:
+                    raise ValueError("dependencia duplicada/ambigua")
+                if name.lower().startswith(("testes", "gf-silentfixture", "gf-squirrelfixture")):
+                    raise ValueError("fixture no pacote")
+                names.add(name)
+    if "GerenciadorFinal.dll" not in names:
+        raise ValueError("assembly do produto nao declarado")
+    return names | {"GerenciadorFinal.exe"}
 
 
 def verify(root: Path, version: str, source: str, build: str, base: str = "") -> dict:
@@ -71,6 +119,16 @@ def verify(root: Path, version: str, source: str, build: str, base: str = "") ->
         checksums[match[2]] = match[1]
     if checksums.keys() != files.keys() - {"SHA256SUMS.txt"}:
         raise ValueError("manifesto nao cobre exatamente todos os arquivos")
+    binaries = declared_binaries(files, version)
+    for name, path in files.items():
+        if path.suffix.lower() not in {".dll", ".exe"}:
+            continue
+        parts = name.split("/")
+        satellite = len(parts) == 2 and parts[0] in CULTURES and parts[1] in SATELLITES
+        if name not in binaries and not satellite:
+            raise ValueError("binario nao declarado no contrato: " + name)
+    if binaries - files.keys():
+        raise ValueError("binario declarado ausente")
     for name, digest in checksums.items():
         with files[name].open("rb") as stream:
             if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
@@ -184,5 +242,5 @@ if __name__ == "__main__":
                 parser.error("pacote exige --version, --source e --build")
             result = verify(args.directory, args.version, args.source, args.build, args.base)
         print(json.dumps(result, indent=2))
-    except (ValueError, KeyError, OSError, TypeError) as error:
+    except (ValueError, KeyError, OSError, TypeError, AttributeError) as error:
         parser.exit(1, "Pacote reprovado: " + str(error) + "\n")

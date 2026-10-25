@@ -6,7 +6,7 @@ import struct
 import tempfile
 import unittest
 
-from verificar_pacote import REQUIRED, verify, verify_metadata
+from verificar_pacote import REQUIRED, verify, verify_metadata, portable_name
 import shutil
 
 VERSION, SOURCE, BUILD, BASE = "5.13.11.49", "a" * 40, "b" * 40, "c" * 40
@@ -32,6 +32,16 @@ class PacoteTests(unittest.TestCase):
             {"name": name, "version": "10.0.13"}
             for name in ("Microsoft.NETCore.App", "Microsoft.WindowsDesktop.App")]}}
         (self.root / "GerenciadorFinal.runtimeconfig.json").write_text(json.dumps(self.options))
+        libraries = {
+            "GerenciadorFinal/" + VERSION: {"runtime": {"GerenciadorFinal.dll": {}}},
+            "runtimepack.Microsoft.NETCore.App.Runtime.win-x64/10.0.13": {"native": {"coreclr.dll": {}, "hostfxr.dll": {}}},
+            "runtimepack.Microsoft.WindowsDesktop.App.Runtime.win-x64/10.0.13": {"runtime": {"System.Windows.Forms.dll": {}}},
+            "runtimepack.Microsoft.Windows.SDK.NET.Ref/10.0.26100.57": {"runtime": {"Microsoft.Windows.SDK.NET.dll": {}, "WinRT.Runtime.dll": {}}},
+            "YamlDotNet/18.1.0": {}
+        }
+        target = ".NETCoreApp,Version=v10.0/win-x64"
+        self.deps = {"runtimeTarget": {"name": target}, "targets": {target: libraries}, "libraries": {key: {} for key in libraries}}
+        (self.root / "GerenciadorFinal.deps.json").write_text(json.dumps(self.deps))
         self.hashes()
 
     def hashes(self):
@@ -100,6 +110,20 @@ class PacoteTests(unittest.TestCase):
                 manifest.write_text(original + line)
                 with self.assertRaisesRegex(ValueError, "invalida ou duplicada"):
                     self.check()
+
+    def test_extra_binary_even_if_hashed(self):
+        for name in ("GF-Inert-Test-Fixture.dll", "GF-Inert-Test-Fixture.exe"):
+            with self.subTest(name=name):
+                path = self.root / name
+                path.write_bytes(b"inert fixture, not executable")
+                self.hashes()
+                with self.assertRaisesRegex(ValueError, "declarado|fixture"):
+                    self.check()
+                path.unlink()
+
+    def test_windows_reserved_names(self):
+        for name in ("CON.dll", "aux.txt", "Licencas/NUL", "COM1.exe", "lpt9.dll", "COM¹.dll"):
+            with self.subTest(name=name): self.assertFalse(portable_name(name))
 
     def test_wrong_architecture(self):
         file = self.root / "GerenciadorFinal.exe"
