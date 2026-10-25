@@ -38,6 +38,20 @@ nomes de aplicativos nem saída de comandos. O registro da versão é reiniciado
 na abertura; versões anteriores podem permanecer. A expiração de sete dias do
 resumo opcional **não** se aplica automaticamente a esses registros de teste.
 
+## Histórico técnico local do Lote 1
+
+Separado da coleta opcional, o histórico técnico da candidata mantém um
+arquivo novo por sessão em `%LOCALAPPDATA%\\GerenciadorFinal\\Historico`.
+Contém apenas horários UTC, códigos de etapa e contagens — não armazena
+nomes de programas, usuários, pastas, comandos ou identificadores do Registro.
+A identidade usada para comparar inventários permanece apenas em memória.
+Os arquivos não são transmitidos e **não possuem expiração automática**
+nesta candidata; podem ser apagados pelo usuário com o GF fechado.
+Se a gravação falhar, o relatório avisa e mantém somente os eventos
+da sessão em memória. A prévia limita-se aos últimos 128 eventos; a
+gravação aos primeiros 256 por sessão. O TXT é salvo apenas por
+ação explícita do usuário. Veja [critérios e limites](https://github.com/walissonminel-1991/gerenciador-final/blob/268d13ea0713d17d8b78a545cb3ae9e8670eac28/docs/MISSAO-LOTE1.md).
+
 ## Rede e outros componentes
 
 Na inicialização e ao consultar atualizações, há requisições HTTPS a RuckZuck e

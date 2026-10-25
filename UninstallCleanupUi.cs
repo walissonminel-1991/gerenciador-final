@@ -94,7 +94,7 @@ internal sealed partial class MainForm
     }
     private void AddUninstallCancelButton(TableLayoutPanel top)
     {
-        top.ColumnCount = 3;
+        top.ColumnCount = 4;
         uninstallCancelColumn = new ColumnStyle(SizeType.Absolute, 0);
         top.ColumnStyles.Add(uninstallCancelColumn);
         uninstallCancel = new ModernButton { Name = "UninstallCancel", Text = "Cancelar", Dock = DockStyle.Fill,
@@ -105,6 +105,6 @@ internal sealed partial class MainForm
             _uninstallCts?.Cancel();
             Status("Cancelamento solicitado. Aguardando a operação atual encerrar.");
         };
-        top.Controls.Add(uninstallCancel, 2, 0);
+        top.Controls.Add(uninstallCancel, 3, 0);
     }
 }

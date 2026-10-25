@@ -12,6 +12,9 @@ internal sealed record UninstallOperationSnapshot(UninstallStage Stage, string T
 internal sealed class UninstallOperationStore
 {
     private readonly object gate = new();
+    private readonly Action<UninstallOperationSnapshot>? onFinished;
+    internal UninstallOperationStore(Action<UninstallOperationSnapshot>? onFinished = null)
+        => this.onFinished = onFinished;
     private readonly Dictionary<string, UninstallOperationSnapshot> operations = new(StringComparer.Ordinal);
     private sealed record KeyHolder(string Value);
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<ProgramEntry, KeyHolder> identities = new();
@@ -46,7 +49,9 @@ internal sealed class UninstallOperationStore
                 if (retired is null) return;
                 operations.Remove(retired);
             }
-            operations[key] = new(stage, text, details ?? text);
+            var snapshot = new UninstallOperationSnapshot(stage, text, details ?? text);
+            operations[key] = snapshot;
+            if (!snapshot.Active) { try { onFinished?.Invoke(snapshot); } catch { /* histórico opcional */ } }
         }
     }
 }
