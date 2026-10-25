@@ -83,7 +83,7 @@ internal static class Work17CoverageProbe
             if(local is not null && local.Current(inventory))
             {
                 var target=new AutomaticInstaller("GF.Fixture","TestesAtualizador",app.Publisher,app.AvailableVersion,local.Kind,
-                    local.Architecture,scope,new("https://vendor.example/setup.msi"),new string('A',64),Code,Upgrade,"/qn /norestart");
+                    local.Architecture,scope,new("https://vendor.example/setup.msi"),new string('A',64),Code,Upgrade,local.Kind=="msi"?"/qn /norestart":"/S");
                 AutomaticUpdateDiscovery.Attach(AutomaticUpdateDiscovery.SimulateIssued(app,local,target));
                 var recipe=AutomaticUpdateDiscovery.Resolve(app);
                 eligible=recipe is not null && VerifiedUpdaters.SingleSafeSilentInstallation(recipe,app,inventory);
