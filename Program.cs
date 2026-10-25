@@ -2261,7 +2261,8 @@ internal sealed partial class MainForm : Form
             await RefreshCapabilitiesAsync(updateChecked: true, cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             if (generation != _catalogoGeneration || IsDisposed) return;
-            Log("Descoberta automática: "+automatic.Findings.Count+" instalador(es) identificado(s); catálogo "+automatic.Diagnostic.Status+".");
+            Log("Catálogo Microsoft: "+automatic.Plans.Count+" instalador(es) com contrato autenticado; "+
+                (automatic.Findings.Count - automatic.Plans.Count)+" versão(ões) adicionais somente consultivas; catálogo "+automatic.Diagnostic.Status+".");
             foreach (var (sourceId, sourceCode) in new[] { ("ea-desktop", 1), ("fancontrol", 2),
                 ("jellyfin-server", 3), ("klite-mega", 4), ("gameinput-winget", 5), ("plex", 6),
                 ("proton-pass-desktop", 7), ("proton-pass-winget", 8), ("proton-pass-windows", 9) })
