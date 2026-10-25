@@ -55,9 +55,7 @@ internal static class UninstallResultSummary
 {
     internal static string Problem(ResidualProblem problem) => problem.Reason switch
     {
-        "registry_unreadable" or "registry_unverifiable" => problem.Error == 5
-            ? "Parte do Registro não pôde ser lida: acesso negado pelo Windows (erro 5)."
-            : "Não foi possível conferir parte do Registro.",
+        "registry_unreadable" or "registry_unverifiable" => ResidualCoverageSummary.RegistryProblem(problem),
         "personal_or_shared_root" or "shared_root" => "Pasta pessoal ou compartilhada preservada.",
         "personal_folder_preserved" => "Pastas de dados pessoais preservadas.",
         "personal_or_unknown_file" => "Arquivos pessoais ou de tipo não reconhecido preservados.",
@@ -108,6 +106,7 @@ internal static class UninstallResultSummary
             if (plan is null) lines.Add("Verificação de resíduos indisponível ou interrompida; ausência não comprovada.");
             else
             {
+                lines.Add(ResidualCoverageSummary.Describe(plan));
                 if (!plan.Conclusive) lines.Add("Verificação parcial ou inconclusiva. Isso não significa ausência de resíduos.");
                 else if (plan.Assessment == ResidualAssessment.None) lines.Add("Nenhum resíduo encontrado nos locais verificados.");
                 else if (result is null && plan.Assessment == ResidualAssessment.Preserved)
