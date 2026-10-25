@@ -47,7 +47,8 @@ internal sealed record UpdateOperationSnapshot(Guid Id, string Key, string Targe
 
 // Memória da sessão, independente de cartões, posições, nomes com versão e objetos do inventário.
 // Sem associação por nome: hive/visão/registro, pasta, editor e produto devem continuar iguais.
-internal sealed class UpdateOperationStore(Func<string, bool>? diagnostic = null)
+internal sealed class UpdateOperationStore(Func<string, bool>? diagnostic = null,
+    Action<UpdateOperationSnapshot>? completed = null)
 {
     private readonly object gate = new();
     private readonly Dictionary<string, UpdateOperation> operations = new(StringComparer.Ordinal);
@@ -84,7 +85,7 @@ internal sealed class UpdateOperationStore(Func<string, bool>? diagnostic = null
                 if (oldest is null) return null;
                 operations.Remove(oldest);
             }
-            var operation = new UpdateOperation(key, target, diagnostic);
+            var operation = new UpdateOperation(key, target, diagnostic, completed);
             operations[key] = operation;
             if (runtime is not null) runtimeAttempts[runtime] = operation;
             return operation;
@@ -134,12 +135,15 @@ internal sealed class UpdateOperation
 {
     private readonly object gate = new();
     private readonly Func<string, bool>? diagnostic;
+    private readonly Action<UpdateOperationSnapshot>? completed;
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private UpdateOperationSnapshot snapshot;
     private int reportedBucket = -1;
-    internal UpdateOperation(string key, string target, Func<string, bool>? diagnostic)
+    internal UpdateOperation(string key, string target, Func<string, bool>? diagnostic,
+        Action<UpdateOperationSnapshot>? completed = null)
     {
         this.diagnostic = diagnostic;
+        this.completed = completed;
         snapshot = new(Guid.NewGuid(), key, target, new(UpdateStage.Preparing), null, false, "", 0, false);
         Record("INICIO");
     }
@@ -171,6 +175,8 @@ internal sealed class UpdateOperation
             snapshot = snapshot with { Progress = new(stage), ExitCode = exit, RestartRequired = exit == 3010,
                 Reason = reason, DurationMs = clock.ElapsedMilliseconds };
             Record("FIM");
+            // O histórico consultivo nunca pode alterar o resultado nem autorizar repetição.
+            try { completed?.Invoke(snapshot); } catch { /* erro de registro isolado */ }
         }
     }
     internal void Complete(UpdateAttemptResult result) => Finish(result.State switch
