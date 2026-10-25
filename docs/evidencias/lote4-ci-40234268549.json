@@ -1,0 +1,235 @@
+{
+  "schema": 1,
+  "date": "2026-10-25",
+  "scope": "Lotes 1–3 cumulativos; WORK14–17 em cadeia independente",
+  "source": "a893a051f353a1c9db3b5dd086539c6f252de93b",
+  "build": "30e66ad2312047df02d6e00d70799c7624957cf6",
+  "base": "8f8d1c8fb109ba4956876b398f02dee6ce70f2e3",
+  "ci": {
+    "run_id": 40234268549,
+    "attempt": 1,
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "id": 121292384603,
+        "name": "politica / Política de segurança e privacidade",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 121292384677,
+        "name": "validar / Drivers somente leitura (windows-2022)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 121292384707,
+        "name": "validar / Drivers somente leitura (windows-2025)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 121292384726,
+        "name": "validar / Regressões Windows",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 121292384785,
+        "name": "validar / Integridade dos instaladores oficiais (sem instalacao)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 121292385502,
+        "name": "validar / Fontes externas e drivers do runner (somente leitura)",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 121293813695,
+        "name": "Compilação Windows x64",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 121294116826,
+        "name": "Atestar pacote apenas na main",
+        "status": "completed",
+        "conclusion": "skipped"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "id": 12614960317,
+      "name": "Residuos-layout-30e66ad2312047df02d6e00d70799c7624957cf6",
+      "zip_bytes": 2061000,
+      "zip_digest": "sha256:f5478dca5671be720946e48663a34b21516eebede13a69802302b6aca9da4324",
+      "expires_at": "2026-11-01T21:16:56Z"
+    },
+    {
+      "id": 12614457484,
+      "name": "Antivirus-evidencias-a893a051f353a1c9db3b5dd086539c6f252de93b",
+      "zip_bytes": 620,
+      "zip_digest": "sha256:b2e374bc23cefdb05dbf33e7f5034181d4e15bbeb19624f61a01acdcea72fdbc",
+      "expires_at": "2026-11-01T21:18:05Z"
+    },
+    {
+      "id": 12614327053,
+      "name": "Drivers-leitura-windows-2025-30e66ad2312047df02d6e00d70799c7624957cf6",
+      "zip_bytes": 3353,
+      "zip_digest": "sha256:d8f55afda500c227f184d2d4ebaf62a6f8fdac8fbc426f961b44f68875a194b4",
+      "expires_at": "2026-11-01T21:12:02Z"
+    },
+    {
+      "id": 12614153157,
+      "name": "GerenciadorFinal-v5.13.11.63-a893a051-TESTE-win-x64",
+      "zip_bytes": 59194445,
+      "zip_digest": "sha256:c2cad696979b20c02e9a1f85ef7735095d987f3be615a03cc5fd66fccf8154a3",
+      "expires_at": "2026-11-01T21:18:06Z"
+    },
+    {
+      "id": 12613969908,
+      "name": "Drivers-leitura-windows-2022-30e66ad2312047df02d6e00d70799c7624957cf6",
+      "zip_bytes": 3351,
+      "zip_digest": "sha256:339090ce2b46c63d78549923b3ec0e3db7b6269e55e64a67e9a2dfafd342941a",
+      "expires_at": "2026-11-01T21:11:57Z"
+    }
+  ],
+  "validation": {
+    "updates": 318,
+    "residuals_uninstall": 655,
+    "mutations_rejected": 27,
+    "python": 40,
+    "node": 10,
+    "ui_resolution_tab_combinations": 132,
+    "lote4_positive_sizes": [
+      "520x360",
+      "770x530"
+    ],
+    "lote4_negative_controls": [
+      "legacy report native scrollbars rejected",
+      "legacy DarkLogView overlap rejected"
+    ],
+    "visual_review": [
+      "lote4-historico-520x360.png",
+      "lote4-historico-770x530.png",
+      "drivers-leitura-500x340.png",
+      "1280x720-aba0.png",
+      "1440x900-aba3.png"
+    ],
+    "visual_limit": "Capturas sintéticas Windows Server; decoração nativa clara no runner. DWM escuro apenas quando suportado; não homologa DPI físico.",
+    "drivers": {
+      "windows_2022": {
+        "published_infs": 666,
+        "verified_inf_sample": 24,
+        "history_partial": true,
+        "matched_history_events": 0,
+        "wua_complete": true,
+        "official_offers": 0
+      },
+      "windows_2025": {
+        "published_infs": 732,
+        "verified_inf_sample": 24,
+        "history_partial": true,
+        "matched_history_events": 0,
+        "wua_complete": true,
+        "official_offers": 0
+      }
+    },
+    "external_downloads": {
+      "vlc": "HTTPS, mirror.csclub.uwaterloo.ca, hash/motor/assinatura VideoLAN aprovados",
+      "sharex": "Inno reconhecido, sem assinatura, execução bloqueada"
+    },
+    "local_auxiliary": {
+      "python": 40,
+      "node": 10,
+      "build_errors": 0,
+      "build_warnings": 0
+    }
+  },
+  "earlier_failures": [
+    {
+      "run_id": 40233614938,
+      "source": "a2d8c4132b51302adfde818f1f482040f7eadda1",
+      "reason": "Teste não aguardava feedback de 145 ms; cenário não executado, sem comprovação de defeito visual"
+    },
+    {
+      "run_id": 40234097635,
+      "source": "7595c07ce95bb4213d72f07ba994e7f3eaa24fbf",
+      "reason": "Mirror do VLC retornou HTTPS 403; pacote bloqueado, sem relaxamento de origem/hash/assinatura"
+    }
+  ],
+  "physical_validation": "pending",
+  "avg_validation": "pending",
+  "checkpoints_closed": [],
+  "roadmap": "27/42",
+  "personal_computers_accessed": false,
+  "third_party_installers_executed": false,
+  "merge_performed": false,
+  "stable_release_published": false,
+  "independent_package_verification": {
+    "files": 282,
+    "verified_hashes": 281,
+    "expanded_bytes": 151893431,
+    "version": "5.13.11.63",
+    "source": "a893a051f353a1c9db3b5dd086539c6f252de93b",
+    "build": "30e66ad2312047df02d6e00d70799c7624957cf6",
+    "runtime": [
+      {
+        "name": "Microsoft.NETCore.App",
+        "version": "10.0.13"
+      },
+      {
+        "name": "Microsoft.WindowsDesktop.App",
+        "version": "10.0.13"
+      }
+    ],
+    "architecture": "AMD64",
+    "pe": {
+      "GerenciadorFinal.exe": {
+        "machine": "0x8664",
+        "file_version": "5.13.11.63",
+        "certificate_bytes": 0,
+        "requested_execution_level": "asInvoker"
+      },
+      "GerenciadorFinal.dll": {
+        "machine": "0x8664",
+        "file_version": "5.13.11.63",
+        "certificate_bytes": 0
+      }
+    },
+    "antivirus": {
+      "schema": 1,
+      "source": "a893a051f353a1c9db3b5dd086539c6f252de93b",
+      "build": "30e66ad2312047df02d6e00d70799c7624957cf6",
+      "run_id": "40234268549",
+      "files": [
+        {
+          "name": "GerenciadorFinal.exe",
+          "bytes": 276480,
+          "sha256": "0feb9f5568bde7a7303f98ca213f08c2acb39f70a66a40c28375fee3a162ec75",
+          "file_version": "5.13.11.63",
+          "signature_status": "NotSigned",
+          "signer": null
+        },
+        {
+          "name": "GerenciadorFinal.dll",
+          "bytes": 1522688,
+          "sha256": "8bba09df091c2ef702d3b2657a414a70414ceeafb407c469f56f1abf69b29e35",
+          "file_version": "5.13.11.63",
+          "signature_status": "NotSigned",
+          "signer": null
+        }
+      ],
+      "avg_validation": "pending",
+      "scan_performed": false,
+      "sample_submitted": false,
+      "meaning": "Inventario de integridade e assinatura. Nao e resultado de scanner nem aprovacao AVG."
+    },
+    "zip_sha256": "c2cad696979b20c02e9a1f85ef7735095d987f3be615a03cc5fd66fccf8154a3",
+    "zip_bytes": 59194445
+  }
+}

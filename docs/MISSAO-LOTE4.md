@@ -70,9 +70,41 @@ e barra, além de visibilidade e limites do viewport.
 
 ## Estado da candidata
 
-**v5.13.11.63 TESTE em validação.** Nenhuma aprovação ou novo artefato é
-afirmado antes da CI completa e da conferência independente. A evidência
-final será vinculada ao SHA, execução/tentativa, capturas e hashes.
+**v5.13.11.63 TESTE aprovada tecnicamente.** [CI 40234268549](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549),
+tentativa 1, fonte `a893a051f353a1c9db3b5dd086539c6f252de93b`, build
+`30e66ad2312047df02d6e00d70799c7624957cf6`. Todos os jobs obrigatórios
+aprovados; consulta ampliada opt-in e atestação exclusiva da main ficaram
+skipped. Regressões: 318 atualizadores, 655 resíduos/desinstalação, 27/27
+mutações rejeitadas, 40 Python, 10 Node, 132 combinações resolução/aba e
+os dois controles negativos Lote 4. Cenário positivo e diálogo de drivers
+passaram com editor e barra sem interseção. Compilação/analisadores sem avisos/erros.
+
+[Pacote 12614153157](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549/artifacts/12614153157), 59.194.445 bytes; SHA-256:
+`c2cad696979b20c02e9a1f85ef7735095d987f3be615a03cc5fd66fccf8154a3`.
+Baixado e verificado fora do runner, **sem executar**: 282 arquivos/281 hashes,
+151.893.431 bytes expandidos; AMD64, EXE/DLL FileVersion 5.13.11.63,
+runtimes .NET/WindowsDesktop 10.0.13 self-contained, manifesto incorporado
+`asInvoker` e origem/base/build exatas. O contrato rejeita binário extra,
+fixture, dependência ou runtime divergente. ZIP +210 bytes e conteúdo +512
+bytes ante a base Lote 3; sem nova dependência de produção.
+
+[Capturas 12614960317](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549/artifacts/12614960317): conferidos visualmente
+histórico em 520×360/770×530, drivers em 500×340, Aplicativos em 1280×720 e
+Reparo e rede em 1440×900. Barra agora visível ao lado do texto; botões
+acessíveis, sem sobreposição. São viewports sintéticos. O runner Windows
+Server conserva decoração nativa clara; DWM escuro depende de suporte do
+Windows e não foi homologado fisicamente nos PCs.
+
+[Evidência antivírus 12614457484](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549/artifacts/12614457484), ZIP SHA-256
+`b2e374bc23cefdb05dbf33e7f5034181d4e15bbeb19624f61a01acdcea72fdbc`:
+hashes/tamanhos dos dois binários coincidem com o pacote. Status NotSigned,
+sem signatário ou certificado embutido, scan_performed=false,
+sample_submitted=false, avg_validation=pending. Isso não é scanner/atestado AVG.
+
+[Registro durável dos jobs, artefatos, hashes, controles e limites](evidencias/lote4-ci-40234268549.json).
+O registro aponta a fonte técnica testada. Commits posteriores de evidência
+não alteram essa fonte/pacote selecionado. [Roteiro posterior](TESTE-CONSOLIDADO.md)
+e documentação atualizados; nenhum checkpoint físico fechado.
 
 Reconferência independente da base herdada, sem executar: ZIP Lote 3 final
 `f423d602b1feee1f9602d02563f2d6e8ca94b59ed84c33c08035a3dabd9e753a`,
@@ -84,10 +116,10 @@ Reconferência independente da base herdada, sem executar: ZIP Lote 3 final
 
 | Critério | Situação nesta missão |
 |---|---|
-| CI completa do código selecionado e política aprovadas | Aguardando .63 |
-| Controle negativo detecta o relatório anterior e positivo passa | Aguardando Windows |
-| Capturas do relatório e matriz de layout revisadas | Aguardando artefatos |
-| ZIP conferido fora do runner: origem, composição, runtime e hashes | Aguardando .63 |
+| CI completa do código selecionado e política aprovadas | Aprovadas: fonte a893a051, CI 40234268549 |
+| Dois controles negativos detectam os defeitos anteriores e positivo passa | Aprovados no Windows descartável |
+| Capturas do relatório e matriz de layout revisadas | Cinco capturas inspecionadas e 132 combinações validadas |
+| ZIP conferido fora do runner: origem, composição, runtime e hashes | Aprovado, sem executar o produto |
 | Homologação física U8/R7/R4, I7, DPI real, bandeja/boot/UAC | Pendente; não executada |
 | D2/G1/G2, casos residuais R6 e AVG P5/P6 | Critérios anteriores ainda abertos |
 
