@@ -37,6 +37,26 @@ internal static class Work14CatalogTests
                     "W14 ProductCode nao contorna divergencia de produto ou canal no indice");
             check(index.Find("GF Synthetic App","Wrong Vendor","",default).Count == 0,
                 "W14 indice recusa fornecedor divergente");
+            const string msi = "{00000000-0000-0000-0000-000000000059}";
+            check(index.Find("Another Display Name", "GF Test Vendor", msi, default).Count == 0,
+                "W15 ProductCode nunca enfraquece o contrato executavel por nome");
+            var advisory = index.FindForReviewByProductCode("GF Test Vendor", msi, default);
+            check(ambiguous ? advisory.Count == 0 : advisory is [{ Id:"GF.Synthetic" }],
+                "W15 MSI ProductCode fornece somente correspondencia consultiva unica");
+            check(index.FindForReviewByProductCode("Wrong Vendor",msi,default).Count==0 &&
+                index.FindForReviewByProductCode("GF Test Vendor","not-a-guid",default).Count==0,
+                "W15 fornecedor incorreto ou codigo nao MSI nao recebe correspondencia consultiva");
+            check(AutomaticUpdateDiscovery.NewestCandidate(advisory,"1.0.0") is {Version:"2.0.0"} == !ambiguous &&
+                AutomaticUpdateDiscovery.NewestCandidate(advisory,"3.0.0") is null &&
+                AutomaticUpdateDiscovery.NewestCandidate(advisory,"not-comparable") is null,
+                "W15 consulta publica oferece somente versao comprovadamente superior");
+            var consultative = new OfficialRelease(
+                new InstalledApp { Name="Another Display Name", Publisher="GF Test Vendor", Version="1.0.0",
+                    EligibleForUpdates=true }, "2.0.0", "Catálogo Microsoft (consulta)",
+                "https://github.com/microsoft/winget-pkgs", EvidenceKind:"catalog-version-only");
+            var merged = MultiSourceMatcher.Merge([consultative.Installed],null,[consultative]);
+            check(merged.Count==1 && merged[0].RequiresReview && merged[0].State==MatchState.Candidate,
+                "W15 correspondencia consultiva fica em revisao, nao autorizada");
         }
     }
     [DllImport("winsqlite3.dll",CallingConvention=CallingConvention.Cdecl)]
