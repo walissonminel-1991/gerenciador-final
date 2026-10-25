@@ -35,6 +35,15 @@ internal static class Work14CapabilityTests
         check(specific.Update.State == ApplicationCapabilityState.SilentEligible &&
             specific.Uninstall.State == ApplicationCapabilityState.ReadOnly && specific.Residual.State == ApplicationCapabilityState.ReadOnly,
             "W14 atualizador MSIX especifico nao autoriza desinstalacao ou limpeza generica da Store");
+        foreach (string reason in new[] { "version_not_comparable", "catalog_identity_ambiguous", "major_version_review" })
+        {
+            var uncertain = ApplicationCapabilities.Evaluate(facts with { UpdateAvailable = false, UpdateUncertainty = reason });
+            check(uncertain.Update.State == ApplicationCapabilityState.Inconclusive && uncertain.Update.Reason == reason &&
+                uncertain.Uninstall.State == ApplicationCapabilityState.Interactive,
+                "W14 incerteza de atualizacao nao vira ausencia nem contamina desinstalacao: " + reason);
+        }
+        var unmatched = ApplicationCapabilities.Evaluate(facts with { UpdateAvailable = false, UpdateReason = "catalog_unmatched" });
+        check(unmatched.Update.Reason == "catalog_unmatched", "W14 sem correspondencia no catalogo nao equivale a versao atualizada");
         var matrix = ApplicationCapabilityMatrix.From([consult, eligible, verified, forged]);
         check(matrix.Applications == 4 && matrix.OperationDenominator == 12 && matrix.SilentUpdateEligible == 2 &&
             matrix.SilentUninstallEligible == 2 && matrix.ResidualPolicies == 3 && matrix.ResidualSelections == 1 &&

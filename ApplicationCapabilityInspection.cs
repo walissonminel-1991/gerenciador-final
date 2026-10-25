@@ -36,7 +36,10 @@ internal static class ApplicationCapabilityInspection
             bool explicitMsix = !ProtectedApplications.IsProtectedName(app.Name) && app.VerifiedMsixIdentity &&
                 WindowsTerminalUpdater.Resolve(app) is not null;
             bool update = explicitMsix, silent = false, budget = clock.Elapsed > TimeSpan.FromSeconds(15);
-            string updateReason = "no_verified_contract";
+            string updateReason = app.ComparisonState switch { MatchState.Unmatched => "catalog_unmatched",
+                MatchState.SupersededRegistration => "superseded_registration", _ => "no_verified_contract" };
+            string uncertain = app.ComparisonState switch { MatchState.NotComparable => "version_not_comparable",
+                MatchState.Ambiguous => "catalog_identity_ambiguous", MatchState.DifferentMajor => "major_version_review", _ => "" };
             if (!budget && complete && unique && !app.InventoryOnly)
             {
                 try
@@ -63,7 +66,7 @@ internal static class ApplicationCapabilityInspection
                 app.InventoryOnly || ProtectedApplications.IsProtectedName(app.Name), known is not null,
                 updateChecked, app.IsUpdate, app.UpdateRequiresReview, update,
                 UninstallRegistered: app.CanUninstall, SilentUninstallContract: silent, ResidualPolicy: policy, UpdateReason: updateReason,
-                InspectionIncomplete: budget, ExplicitUpdateOnly: explicitMsix);
+                InspectionIncomplete: budget, ExplicitUpdateOnly: explicitMsix, UpdateUncertainty: uncertain);
             result.Add(ApplicationCapabilities.Evaluate(facts));
         }
         return result.ToArray();

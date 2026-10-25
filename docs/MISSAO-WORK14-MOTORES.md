@@ -16,7 +16,7 @@ Fontes primárias: [.NET 10 RegistryKey](https://github.com/dotnet/runtime/blob/
 
 ## Capacidades e interface
 
-`ApplicationCapabilities` separa somente leitura, disponível sem autorização, silenciosa elegível, payload verificado, interativa, política residual disponível, seleção autorizável, bloqueada e inconclusiva. O modelo é descritivo e não gera permits. Os motores existentes continuam únicos responsáveis por autorizar execução ou exclusão.
+`ApplicationCapabilities` separa somente leitura, disponível sem autorização, silenciosa elegível, payload verificado, interativa, política residual disponível, seleção autorizável, bloqueada e inconclusiva. Versão não comparável, identidade ambígua e mudança de versão principal ficam inconclusivas com motivos próprios; falta de correspondência não equivale a aplicativo atualizado. O modelo é descritivo e não gera permits. Os motores existentes continuam únicos responsáveis por autorizar execução ou exclusão.
 
 O inventário mostra a capacidade e motivo na dica do aplicativo. A fotografia expira para ações após dois minutos; conflito de fonte invalida a indicação anterior. O atualizador MSIX específico do Terminal mantém sua capacidade separada, sem autorizar desinstalação/limpeza genérica da Store. Consulta em segundo plano, cancelável entre aplicativos e limitada por tempo; esgotar orçamento deixa capacidade inconclusiva. Diagnóstico recebe somente totais, denominadores e códigos fixos, sem nomes/caminhos/valores. Atualização elegível ainda precisa de download, SHA, assinatura, identidade, instalação existente e confirmação posterior. O progresso já existente continua separando essas etapas; somente versão confirmada recebe sucesso.
 

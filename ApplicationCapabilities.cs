@@ -15,7 +15,7 @@ internal sealed record ApplicationCapabilityFacts(string Id, bool InventoryCompl
     bool UpdatePayloadVerified = false, bool UninstallRegistered = false,
     bool SilentUninstallContract = false, bool UninstallPayloadVerified = false,
     bool ResidualPolicy = false, bool ResidualAuthorized = false, bool ResidualUncertain = false,
-    string UpdateReason = "no_verified_contract", string UninstallReason = "registered_command_requires_preflight", bool InspectionIncomplete = false, bool ExplicitUpdateOnly = false);
+    string UpdateReason = "no_verified_contract", string UninstallReason = "registered_command_requires_preflight", bool InspectionIncomplete = false, bool ExplicitUpdateOnly = false, string UpdateUncertainty = "");
 internal sealed record ApplicationCapabilitySnapshot(string Id, bool Identified,
     ApplicationCapabilityDecision Update, ApplicationCapabilityDecision Uninstall,
     ApplicationCapabilityDecision Residual)
@@ -42,6 +42,11 @@ internal sealed record ApplicationCapabilitySnapshot(string Id, bool Identified,
         "inventory_only" => "entrada protegida ou somente inventário",
         "inventory_partial" => "inventário incompleto",
         "identity_missing_or_ambiguous" => "identidade ausente ou ambígua",
+        "version_not_comparable" => "versão instalada não pôde ser comparada",
+        "catalog_identity_ambiguous" => "catálogo apresentou identidades ambíguas",
+        "major_version_review" => "mudança de versão principal exige revisão",
+        "catalog_unmatched" => "nenhuma correspondência nas fontes consultadas",
+        "superseded_registration" => "registro antigo coexistindo com versão mais recente",
         "assessment_expired" => "consulta de capacidade expirou; atualizar e verificar novamente",
         "inspection_budget" => "verificação de capacidades atingiu o limite desta consulta",
         "policy_or_registered_command" => "tipo de aplicativo ou comando registrado sem comprovação",
@@ -83,7 +88,9 @@ internal static class ApplicationCapabilities
             return new(facts.Id, facts.Identified, uncertain, uncertain, uncertain);
         }
         var update = !facts.UpdateChecked ? D(ApplicationCapabilityState.Inconclusive, "not_checked") :
-            !facts.UpdateAvailable ? D(ApplicationCapabilityState.NoCandidate, "no_candidate") :
+            facts.UpdateUncertainty.Length > 0 ? D(ApplicationCapabilityState.Inconclusive, facts.UpdateUncertainty) :
+            !facts.UpdateAvailable ? D(ApplicationCapabilityState.NoCandidate,
+                facts.UpdateReason is "catalog_unmatched" or "superseded_registration" ? facts.UpdateReason : "no_candidate") :
             facts.UpdateReview ? D(ApplicationCapabilityState.AvailableNotAuthorized, "source_review") :
             !facts.UpdateContract ? D(ApplicationCapabilityState.AvailableNotAuthorized, facts.UpdateReason) :
             facts.UpdatePayloadVerified ? D(ApplicationCapabilityState.SilentVerified, "payload_verified") :
