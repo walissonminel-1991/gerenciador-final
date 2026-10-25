@@ -54,7 +54,13 @@ internal static class Work14ReliabilityTests
                 history.RecordUpdate(blocked);
                 history.RecordUninstall(new(UninstallStage.Failed, secret, secret));
                 string report = history.Report([a], incomplete: true);
-                string file = File.ReadAllText(history.FilePath);
+                // O handle de escrita recusa outro escritor. Ler explicitamente
+                // com FileShare.ReadWrite respeita esse bloqueio; não afrouxar a produção.
+                string file;
+                using (var read = new FileStream(history.FilePath, FileMode.Open,
+                    FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(read))
+                    file = reader.ReadToEnd();
                 check(report.Contains("PARCIAL") && report.Contains("Bloqueios") &&
                     report.Contains("ATUALIZACAO_BLOCKED") && report.Contains("DESINSTALACAO_FAILED"),
                     "L1 relatório agrega restrições e resultados locais");
