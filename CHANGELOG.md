@@ -1,6 +1,6 @@
 # Histórico de alterações
 
-## 5.13.11.62 TESTE — WORK17: identidade MSI e falhas isoladas (validação pendente)
+## 5.13.11.62 TESTE — WORK17: identidade MSI e falhas isoladas (CI e pacote aprovados; físico pendente)
 
 - Resultados por aplicativo preservados em falhas, prazo e limite de consulta.
 - MSI/WiX com nome ARP divergente pode gerar plano se catálogo, cache e PE assinado corroboram a instalação. Contexto e família revalidados.

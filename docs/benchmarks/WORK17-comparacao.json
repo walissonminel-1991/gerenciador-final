@@ -1,0 +1,320 @@
+{
+  "baseline": "680ba3134b5191628ebc9ed83f163fa33b85dda4",
+  "candidate": "19b70371609ecb21426bf107a102b4e45d08d3ad",
+  "sample_kind": "inert MSI/NSIS fixtures; MSI cache and signer simulated",
+  "before": [
+    {
+      "id": "msi_machine",
+      "expected_eligible": true,
+      "identity_corroborated": true,
+      "eligible_before_payload": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "msi_user",
+      "expected_eligible": true,
+      "identity_corroborated": true,
+      "eligible_before_payload": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "nsis_machine",
+      "expected_eligible": true,
+      "identity_corroborated": true,
+      "eligible_before_payload": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "alias_machine",
+      "expected_eligible": true,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "alias_user",
+      "expected_eligible": true,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "alias_icon_root",
+      "expected_eligible": true,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_product",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_publisher",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_version",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_scope",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_arch",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_code",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_upgrade",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "services",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "unsigned",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "divergent_signer",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "edition",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "preview",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "shared_root",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "duplicate_product",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "stale_cache",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "missing_binary",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    }
+  ],
+  "after": [
+    {
+      "id": "msi_machine",
+      "expected_eligible": true,
+      "identity_corroborated": true,
+      "eligible_before_payload": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "msi_user",
+      "expected_eligible": true,
+      "identity_corroborated": true,
+      "eligible_before_payload": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "nsis_machine",
+      "expected_eligible": true,
+      "identity_corroborated": true,
+      "eligible_before_payload": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "alias_machine",
+      "expected_eligible": true,
+      "identity_corroborated": true,
+      "eligible_before_payload": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "alias_user",
+      "expected_eligible": true,
+      "identity_corroborated": true,
+      "eligible_before_payload": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "alias_icon_root",
+      "expected_eligible": true,
+      "identity_corroborated": true,
+      "eligible_before_payload": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_product",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_publisher",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_version",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_scope",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_arch",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_code",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_upgrade",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "services",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "unsigned",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "divergent_signer",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "edition",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "preview",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "shared_root",
+      "expected_eligible": false,
+      "identity_corroborated": true,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "duplicate_product",
+      "expected_eligible": false,
+      "identity_corroborated": true,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "stale_cache",
+      "expected_eligible": false,
+      "identity_corroborated": true,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    },
+    {
+      "id": "missing_binary",
+      "expected_eligible": false,
+      "identity_corroborated": false,
+      "eligible_before_payload": false,
+      "payload_authorized": false
+    }
+  ],
+  "payloads_authorized": 0,
+  "third_party_operations": 0,
+  "physical_homologations": 0
+}

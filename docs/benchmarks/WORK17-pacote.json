@@ -1,0 +1,49 @@
+{
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40206787800",
+  "artifact": {
+    "id": 12603944719,
+    "name": "GerenciadorFinal-v5.13.11.62-051b0453-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40206787800/artifacts/12603944719",
+    "source_commit": "051b04532a4643ff3c31d5b4daeead6c1b9f6778",
+    "merge_commit": "19b70371609ecb21426bf107a102b4e45d08d3ad",
+    "base_commit": "680ba3134b5191628ebc9ed83f163fa33b85dda4",
+    "zip_sha256": "91e3e0e6afe6a4c7aa7828dc911658271c643ee86c11d618fc3b25cebace2691",
+    "zip_bytes": 59413720,
+    "expanded_bytes": 152906901,
+    "files": 285,
+    "file_version": "5.13.11.62",
+    "architecture": "AMD64",
+    "self_contained": true,
+    "verified_hashes": 284,
+    "signed": false,
+    "avg_validated": false,
+    "expires_at": "2026-11-01T15:33:19Z",
+    "verification": "CI e conferencia independente: ZIP, 284 hashes exatos, origem, runtime, PE e manifesto RT_MANIFEST id 1",
+    "external_zip_recheck": "verified",
+    "external_executable_manifest": {
+      "file_version": "5.13.11.62",
+      "requested_execution_level": "asInvoker",
+      "certificate_bytes": 0,
+      "resource_manifest_id": 1
+    }
+  },
+  "directory_verification": {
+    "files": 285,
+    "verified_hashes": 284,
+    "expanded_bytes": 152906901,
+    "version": "5.13.11.62",
+    "source": "051b04532a4643ff3c31d5b4daeead6c1b9f6778",
+    "build": "19b70371609ecb21426bf107a102b4e45d08d3ad",
+    "runtime": [
+      {
+        "name": "Microsoft.NETCore.App",
+        "version": "10.0.13"
+      },
+      {
+        "name": "Microsoft.WindowsDesktop.App",
+        "version": "10.0.13"
+      }
+    ],
+    "architecture": "AMD64"
+  }
+}

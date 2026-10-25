@@ -1,6 +1,6 @@
 # WORK17 — cobertura MSI e preservação de resultados
 
-Candidata 5.13.11.62 TESTE. Verificações Windows e pacote pendentes. Base: PR #52, `680ba3134b5191628ebc9ed83f163fa33b85dda4`. [Auditoria anterior à implementação](WORK17-AUDITORIA.md).
+Candidata 5.13.11.62 TESTE aprovada em CI, com pacote conferido independentemente. Base: PR #52, `680ba3134b5191628ebc9ed83f163fa33b85dda4`. [Auditoria anterior à implementação](WORK17-AUDITORIA.md).
 
 ## Implementação
 
@@ -12,7 +12,7 @@ Candidata 5.13.11.62 TESTE. Verificações Windows e pacote pendentes. Base: PR 
 
 ## Medição e validação
 
-Execute no Windows: `dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work17` e `python scripts/measure_work17.py`. A comparação usa os mesmos 22 cenários contra WORK16. A primeira medição Windows confirmou os valores abaixo; o relatório final registrará o commit/CI selecionados. São planos elegíveis antes da validação do payload, não compatibilidade física ou operações finais autorizadas.
+Execute no Windows: `dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work17` e `python scripts/measure_work17.py`. A comparação usa os mesmos 22 cenários contra WORK16. A [CI 40206787800](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40206787800) aprovou o código `051b04532a4643ff3c31d5b4daeead6c1b9f6778`; build de teste `19b70371609ecb21426bf107a102b4e45d08d3ad`. A [matriz integral](benchmarks/WORK17-comparacao.json), baixada e conferida pelo SHA-256 do artefato, confirma os valores abaixo. São planos elegíveis antes da validação do payload, não compatibilidade física ou operações finais autorizadas.
 
 | Indicador da mesma amostra | WORK16 | WORK17 |
 |---|---:|---:|
@@ -33,6 +33,15 @@ Nos controles de falha, a nova consulta conserva duas descobertas ao redor de um
 
 Leitor MSI nativo também lê bancos `.msi` sintéticos reais com e sem contrato de major upgrade, sem instalar. Catálogo e downloads reais permanecem cobertos pelos jobs existentes da CI. O limite do runner WinGet elevado continua documentado no WORK16.
 
+## Resultados aprovados e pacote selecionado
+
+- Compilação/analisadores: zero erros e avisos. 63 novos controles WORK17, incluindo leitura nativa de MSI inerte com/sem contrato e verificação de sequência, identidade e confirmação.
+- Regressões: 42 ecossistemas, 368 atualizadores, 697 resíduos/desinstalação, 159 multifontes, 17 catálogo, 47 MSIX e 30 encerramento seguro. 30/30 mutações recusadas; 35 controles Python e 10 Node aprovados. Matrizes WORK14/WORK16 preservadas.
+- Pacotes reais inspecionados: catálogo assinado com PFN/ID Windows Terminal e identidades ARP OBS/VLC/ShareX/Sumatra. VLC 3.0.24 confirmou NSIS e assinatura VideoLAN; ShareX 21.0.0 confirmou hash/Inno, porém permaneceu bloqueado sem assinatura. Downloads oficiais 7-Zip, Sumatra, Terminal e proteção GameInput passaram nos jobs existentes. Nenhum payload executado. A nova rota MSI foi validada em fixtures; nenhum fabricante novo homologado por essa rota.
+- WinGet COM real no runner: contexto elevado recusado; consulta em usuário comum continua pendente. Não houve reparo/instalação do gerenciador nem troca automática de privilégios.
+
+[**Portátil .62 x64 TESTE selecionado**](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40206787800/artifacts/12603944719), fonte `051b04532a4643ff3c31d5b4daeead6c1b9f6778`, [CI aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40206787800). ZIP **59.413.720 bytes**, SHA-256 `91e3e0e6afe6a4c7aa7828dc911658271c643ee86c11d618fc3b25cebace2691`. Conferência independente: 285 arquivos, 284 hashes, 152.906.901 bytes extraídos, origem/base/build corretas, AMD64, .NET/WindowsDesktop 10.0.13 self-contained, FileVersion .62 e manifesto id 1 `asInvoker`. GF sem assinatura; AVG pendente. Artefato expira em **01/11/2026 15:33 UTC**. [Registro verificável do pacote](benchmarks/WORK17-pacote.json).
+
 ## Roteiro físico PC FORTE e PC FRACO
 
 1. Usar a candidata apenas depois da CI aprovada e da conferência do ZIP publicado. Registrar versão/hash, Windows, arquitetura, usuário comum, WinGet e duração; comparar com .61 no mesmo inventário, sem alterações entre snapshots.
@@ -44,7 +53,7 @@ Leitor MSI nativo também lê bancos `.msi` sintéticos reais com e sem contrato
 
 ## Impedimentos preservados
 
-Nenhum aplicativo de fornecedor novo está homologado fisicamente. Amplia-se a família MSI/WiX em instalações com nomes ARP divergentes e provas completas. EXE com alias, Upgrade Table complexa/condicional, serviços/drivers, MSI com cache inacessível ou família compartilhada continuam bloqueados. Não há novo executor WinGet/Scoop/Chocolatey, Burn, Squirrel update ou remoção MSIX genérica. Sem operações de terceiros nos PCs pessoais, sem scripts remotos. Roadmap permanece 27/42; I7/U8/R7/R4 físicos abertos.
+Nenhum aplicativo de fornecedor novo está homologado fisicamente. Amplia-se a família MSI/WiX em instalações com nomes ARP divergentes e provas completas. EXE com alias, Upgrade Table complexa/condicional, serviços/drivers, MSI com cache inacessível ou família compartilhada continuam bloqueados. Não foram adicionados contratos de desinstalação nesta frente; os existentes permaneceram sob regressão. Não há novo executor WinGet/Scoop/Chocolatey, Burn, Squirrel update ou remoção MSIX genérica. Sem operações de terceiros nos PCs pessoais, sem scripts remotos. Roadmap permanece 27/42; I7/U8/R7/R4 físicos abertos.
 
 ## Documentação oficial consultada
 

@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.62 TESTE — WORK17 em validação.** Pipeline com preservação de resultados parciais e identidade MSI por cache/PE assinado. [Relatório WORK17](MISSAO-WORK17.md). Última candidata validada .61: [CI 40184303904](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904). Roadmap permanece 27/42; homologação física e U8/R7/R4 abertos.
+**v5.13.11.62 TESTE — WORK17, CI e pacote aprovados; homologação física pendente.** [CI 40206787800](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40206787800), fonte `051b0453`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40206787800/artifacts/12603944719) conferido independentemente. Mesma amostra de 22 cenários: 3/6 → 6/6 positivos elegíveis antes de validar payload e 16/16 negativos recusados; cache/assinante simulados. [Relatório WORK17](MISSAO-WORK17.md). Roadmap permanece 27/42; I7/U8/R7/R4 físicos abertos.
 
 ### Evidência física intermediária preservada
 
