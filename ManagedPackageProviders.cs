@@ -171,7 +171,7 @@ internal sealed class ChocolateyDiscoveryProvider(string root) : IApplicationDis
                     // A local Chocolatey package is not proof that its underlying
                     // product is present. Keep it separate from ARP and disclose it.
                     rows.Add(new(new("chocolatey", package, package, "Chocolatey (registro de pacote)", version,
-                        Scope: "machine", Location: folder, Managed: true), ManagedMetadataFiles.Receipt(text),
+                        Scope: "unknown", Location: folder, Managed: true), ManagedMetadataFiles.Receipt(text),
                         Reason: "chocolatey_package_not_product"));
                 }
                 catch (Exception ex) when (ManagedMetadataFiles.Expected(ex) || ex is InvalidOperationException) { partial = true; }

@@ -475,9 +475,9 @@ internal static class VerifiedUpdaters
     // assinadas e verificadas autorizam iniciar um instalador.
     internal static string? GetPrimaryAction(ProgramEntry entry)
     {
-        if (entry.IsUpdate && entry.InventoryOnly && entry.MsixPackageFamilyName.Length > 0 &&
+        if (entry.IsUpdate && entry.InventoryOnly && !entry.VerifiedMsixIdentity && entry.MsixPackageFamilyName.Length > 0 &&
             entry.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) &&
-            !ProtectedApplications.IsProtectedName(entry.Name) && WindowsTerminalUpdater.Resolve(entry) is null)
+            !ProtectedApplications.IsProtectedName(entry.Name))
             return "windows-manage";
         if (!entry.IsUpdate) return null;
         if (entry.UpdateRequiresReview)

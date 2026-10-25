@@ -54,7 +54,8 @@ internal static class EcosystemInventory
             var app = new ProgramEntry { Name = identity.Name, Version = identity.InstalledVersion, Publisher = identity.Publisher,
                 InventoryId = id, InventorySource = identity.Provider == "chocolatey" ? "Pacote Chocolatey (não confirma o programa)" : "Instalação Scoop",
                 InventoryOnly = true, InstallLocation = identity.Location };
-            Bindings.Add(app, new(Key(app), row, new(IdentityConfidence.Strong, "local_manager_receipt", ["manager_metadata", "version_directory"])));
+            Bindings.Add(app, new(Key(app), row, new(IdentityConfidence.Corroborated, "local_manager_receipt",
+                ["manager_metadata", identity.Provider == "chocolatey" ? "package_archive_metadata" : "version_directory"])));
             inventory.Add(app); added++;
         }
         return added;
