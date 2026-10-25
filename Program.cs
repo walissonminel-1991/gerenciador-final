@@ -1070,6 +1070,8 @@ internal sealed partial class MainForm : Form
                 ShowUpdateGuidance(item);
             else if (action == "store")
                 OpenMicrosoftStore(item);
+            else if (action == "windows-manage")
+                OpenWindowsInstalledApps(item);
         };
         _programList.ItemCheckboxClicked += item =>
         {
@@ -1275,6 +1277,9 @@ internal sealed partial class MainForm : Form
                     uninstall?.PreventRetry == true ? uninstall.Active ? "Em andamento" : "Pendente" : "Desinstalar",
                     uninstall?.PreventRetry == true ? AppServices.Gray : AppServices.Red,
                     _programList.ActionVisual(item, "uninstall"));
+            else if (ActionableInventory.CanManageWithWindows(item) && !item.IsUpdate)
+                DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
+                    "No Windows", AppServices.Gray, _programList.ActionVisual(item, "windows-manage"));
             else if (!item.IsUpdate)
                 TextRenderer.DrawText(e.Graphics, "Somente leitura", _rowInfo,
                     AppRowGeometry.UninstallButton(e.Bounds), Muted,
@@ -2547,6 +2552,24 @@ internal sealed partial class MainForm : Form
             : "Sem instalador validado: abra o próprio aplicativo, procure Ajuda ou Configurações e use a função oficial de atualização.";
         Log("Orientação para " + entry.Name + " · " + message);
         Status("Orientações de atualização exibidas no histórico de operações.");
+    }
+
+    private void OpenWindowsInstalledApps(ProgramEntry entry)
+    {
+        if (_busy || !ActionableInventory.CanManageWithWindows(entry)) return;
+        try
+        {
+            // URI oficial fixa; nunca interpolar PackageFamilyName nem argumentos.
+            // O usuário precisa escolher o aplicativo dentro das Configurações.
+            Process.Start(new ProcessStartInfo { FileName = "ms-settings:appsfeatures", UseShellExecute = true });
+            Log("Configurações > Aplicativos instalados aberta para gerenciamento manual de MSIX. O GF não executou desinstalação.");
+            Status("Localize o aplicativo nas Configurações do Windows e escolha se deseja removê-lo.");
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+            Log("Não foi possível abrir Aplicativos instalados: " + ex.GetType().Name);
+            Status("Abra Configurações > Aplicativos instalados manualmente.");
+        }
     }
 
     private void OpenMicrosoftStore(ProgramEntry entry)
