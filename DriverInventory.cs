@@ -7,12 +7,16 @@ internal sealed record DriverInventoryEntry(string DeviceId, string DeviceName, 
     string Version, string InfName, bool? Signed, bool? Present)
 {
     internal DriverStoreEvidence? PackageEvidence { get; init; }
+    internal IReadOnlyList<string> HardwareIds { get; init; } = [];
+    internal IReadOnlyList<DriverWindowsEvent> WindowsEvents { get; init; } = [];
     internal string SignatureLabel => Signed switch { true => "Sim (Windows)", false => "Não (Windows)", _ => "Indeterminado" };
     internal string PresenceLabel => Present switch { true => "Presente", false => "Não presente", _ => "Indeterminado" };
 }
 internal sealed record DriverInventoryResult(IReadOnlyList<DriverInventoryEntry> Items, bool Partial, string Status)
 {
     internal DriverStoreAuditResult? Store { get; init; }
+    internal DriverPublishedAuditResult? PublishedPackages { get; init; }
+    internal DriverWindowsHistoryResult? WindowsHistory { get; init; }
     internal int PnpEntities { get; init; }
     internal int SignedRows { get; init; }
 }
@@ -21,6 +25,9 @@ internal sealed record DriverInventoryResult(IReadOnlyList<DriverInventoryEntry>
 // IsSigned e um relato WMI, nao uma nova verificacao criptografica do pacote.
 internal static class DriverInventory
 {
+    internal static bool ValidHardwareId(string? id) => id is { Length: > 2 and <= 4000 } &&
+        id == id.Trim() && id.Contains('\\') && !id.Any(char.IsControl) &&
+        !id.Contains('*') && !id.Contains('?');
     internal static IReadOnlyList<DriverInventoryEntry> Correlate(IEnumerable<DriverInventoryEntry> drivers,
         IReadOnlyDictionary<string, bool?> presence,
         IReadOnlyDictionary<string, string>? deviceNames = null)
@@ -54,6 +61,7 @@ internal static class DriverInventory
         var rows = new List<DriverInventoryEntry>();
         var presence = new Dictionary<string, bool?>(StringComparer.OrdinalIgnoreCase);
         var deviceNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var hardwareIds = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
         bool partial = false;
         string stage = "conectar";
         object? locator = null, services = null;
@@ -105,7 +113,7 @@ internal static class DriverInventory
                 }
                 finally { Release(result); }
             }
-            Query("SELECT PNPDeviceID, Name, Description, Present FROM Win32_PnPEntity", get =>
+            Query("SELECT PNPDeviceID, Name, Description, Present, HardwareID FROM Win32_PnPEntity", get =>
             {
                 string id = (Convert.ToString(get("PNPDeviceID")) ?? "").Trim();
                 if (id.Length > 0)
@@ -117,6 +125,12 @@ internal static class DriverInventory
                     string name = ReportedDeviceName(
                         Convert.ToString(get("Name")), Convert.ToString(get("Description")));
                     if (name.Length > 0) deviceNames[id] = name;
+                    string[] ids = get("HardwareID") is Array list ? list.Cast<object>()
+                        .OfType<string>().Where(ValidHardwareId).Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Take(64).ToArray() : [];
+                    if (hardwareIds.TryGetValue(id, out var oldIds) && !oldIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(ids))
+                    { hardwareIds[id] = []; partial = true; }
+                    else hardwareIds[id] = ids;
                 }
             });
             Query("SELECT DeviceID, DeviceName, DriverProviderName, DriverVersion, InfName, IsSigned FROM Win32_PnPSignedDriver", get =>
@@ -125,7 +139,8 @@ internal static class DriverInventory
                 string id = Text("DeviceID").Trim();
                 if (id.Length == 0) { partial = true; return; }
                 rows.Add(new(id, Text("DeviceName"), Text("DriverProviderName"), Text("DriverVersion"),
-                    Text("InfName"), get("IsSigned") is bool b ? b : null, null));
+                    Text("InfName"), get("IsSigned") is bool b ? b : null, null)
+                    { HardwareIds = hardwareIds.GetValueOrDefault(id) ?? [] });
             });
             return new(Correlate(rows, presence, deviceNames), partial, partial ? "Consulta parcial" : "Consulta concluída")
                 { PnpEntities = presence.Count, SignedRows = rows.Count };
