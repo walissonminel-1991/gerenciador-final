@@ -37,7 +37,13 @@ class PacoteTests(unittest.TestCase):
             "runtimepack.Microsoft.NETCore.App.Runtime.win-x64/10.0.13": {"native": {"coreclr.dll": {}, "hostfxr.dll": {}}},
             "runtimepack.Microsoft.WindowsDesktop.App.Runtime.win-x64/10.0.13": {"runtime": {"System.Windows.Forms.dll": {}}},
             "runtimepack.Microsoft.Windows.SDK.NET.Ref/10.0.26100.57": {"runtime": {"Microsoft.Windows.SDK.NET.dll": {}, "WinRT.Runtime.dll": {}}},
-            "YamlDotNet/18.1.0": {}
+            "YamlDotNet/18.1.0": {},
+            "Microsoft.WindowsPackageManager.ComInterop/1.29.380": {
+                "runtime": {
+                    "Microsoft.Management.Deployment.dll": {},
+                    "Microsoft.Management.Deployment.CsWinRTProjection.dll": {}
+                }
+            }
         }
         target = ".NETCoreApp,Version=v10.0/win-x64"
         self.deps = {"runtimeTarget": {"name": target}, "targets": {target: libraries}, "libraries": {key: {} for key in libraries}}

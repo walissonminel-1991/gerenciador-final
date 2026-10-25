@@ -48,11 +48,13 @@ def declared_binaries(files: dict, version: str) -> set:
     libraries = data["libraries"]
     expected = {"GerenciadorFinal", "runtimepack.Microsoft.NETCore.App.Runtime.win-x64",
                 "runtimepack.Microsoft.WindowsDesktop.App.Runtime.win-x64",
-                "runtimepack.Microsoft.Windows.SDK.NET.Ref", "YamlDotNet"}
+                "runtimepack.Microsoft.Windows.SDK.NET.Ref", "YamlDotNet",
+                "Microsoft.WindowsPackageManager.ComInterop"}
     keys = [key.rsplit("/", 1) for key in libraries]
     if len(keys) != len(expected) or {key[0] for key in keys} != expected:
         raise ValueError("biblioteca nao declarada no contrato de distribuicao")
-    if "GerenciadorFinal/" + version not in libraries or "YamlDotNet/18.1.0" not in libraries:
+    if ("GerenciadorFinal/" + version not in libraries or "YamlDotNet/18.1.0" not in libraries
+            or "Microsoft.WindowsPackageManager.ComInterop/1.29.380" not in libraries):
         raise ValueError("versao de dependencia divergente")
     options = json.loads(files["GerenciadorFinal.runtimeconfig.json"].read_text(encoding="utf-8-sig"))["runtimeOptions"]
     frameworks = options.get("includedFrameworks", [])

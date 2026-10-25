@@ -7,7 +7,25 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Não foi possível criar checkout descartável' }
     $legacy = git show '8f8d1c8fb109ba4956876b398f02dee6ce70f2e3:Program.cs'
     if ($LASTEXITCODE -ne 0) { throw 'Fonte anterior indisponível' }
-    $legacy | Set-Content (Join-Path $temporary 'Program.cs') -Encoding utf8
+    # Trocar somente o método antigo, não o Program.cs inteiro: WORK14-17
+    # acrescenta propriedades de ProgramEntry exigidas pelo restante do projeto.
+    $target = Join-Path $temporary 'Program.cs'
+    $current = [IO.File]::ReadAllText($target)
+    $legacyText = ($legacy | Out-String)
+    $marker = '    private void ShowLocalReliabilityReport()'
+    $boundary = '    private static Button CreateSecondaryButton('
+    $s1 = $current.IndexOf($marker, [StringComparison]::Ordinal)
+    $e1 = $current.IndexOf($boundary, $s1, [StringComparison]::Ordinal)
+    $s2 = $legacyText.IndexOf($marker, [StringComparison]::Ordinal)
+    $e2 = $legacyText.IndexOf($boundary, $s2, [StringComparison]::Ordinal)
+    if ($s1 -lt 0 -or $e1 -lt 0 -or $s2 -lt 0 -or $e2 -lt 0 -or
+        $current.IndexOf($marker, $s1 + 1, [StringComparison]::Ordinal) -ge 0) {
+        throw 'Âncoras exclusivas do método antigo ausentes: não prosseguir'
+    }
+    $regressed = $current.Substring(0, $s1) +
+                 $legacyText.Substring($s2, $e2 - $s2) +
+                 $current.Substring($e1)
+    [IO.File]::WriteAllText($target, $regressed, [System.Text.UTF8Encoding]::new($false))
     Push-Location $temporary
     try {
         $output = dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --lote4 2>&1
