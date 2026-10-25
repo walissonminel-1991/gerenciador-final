@@ -1,7 +1,8 @@
 # Regressões do GERENCIADOR FINAL
 
-Este é o procedimento da consolidação Lote 4, candidata .63. A situação de
-aprovação e o SHA correspondente ficam em [MISSAO-LOTE4](MISSAO-LOTE4.md). CI e dados sintéticos não
+Este é o procedimento técnico da candidata experimental integrada .64. A última
+aprovação documentada é da .63 em [MISSAO-LOTE4](MISSAO-LOTE4.md); a nova CI
+está pendente conforme [MISSAO-INTEGRACAO](MISSAO-INTEGRACAO.md). CI e dados sintéticos não
 substituem homologação nos PCs. O [roteiro físico mínimo](TESTE-CONSOLIDADO.md)
 é separado dos testes automatizados.
 

@@ -1,5 +1,12 @@
 # Histórico de alterações
 
+## 5.13.11.64 TESTE — integração Lotes 1–4 + WORK14–WORK17 (25/10/2026)
+
+- Candidata experimental em Draft [PR #59](https://github.com/walissonminel-1991/gerenciador-final/pull/59), sem release ou homologação física. CI integrada em investigação; não reutilizar atestado da .63.
+- Combina histórico local, drivers consultivos e UI dos lotes 1–4 com catálogos MSI/NSIS/Inno, WinGet COM somente leitura, Scoop/Chocolatey consultivos e regras de execução verificadas WORK14–WORK17.
+- Mantém estados Pending/Indeterminate pós-execução, UAC por decisão do usuário, proteção de dados compartilhados, verificações de hash/assinatura e não exclusão sob ambiguidade.
+- Ver [relatório e pendências](docs/MISSAO-INTEGRACAO.md), [WORK17](docs/MISSAO-WORK17.md), [Lote 4](docs/MISSAO-LOTE4.md). Roadmap inalterado 27/42.
+
 ## 5.13.11.63 TESTE — Lote 4: consolidação (25/10/2026)
 
 - [CI 40234268549](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549) aprovada, fonte `a893a051`; [pacote TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549/artifacts/12614153157) e 281 hashes conferidos fora do runner. Cumulativa dos lotes 1–3; WORK16/17 permanecem em outra cadeia. Numeração .63 evita reutilizar .60–.62 dessas frentes.

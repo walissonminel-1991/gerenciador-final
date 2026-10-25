@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.63 TESTE — Lote 4 com CI aprovada.** [CI 40234268549](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549), fonte `a893a051`; [portátil x64 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549/artifacts/12614153157). Consolidação cumulativa dos lotes 1–3, revisão de interface/documentação e pacote conferido fora do runner. 318 atualizadores, 655 resíduos, 27 mutações, 40 Python, 10 Node e 2 controles negativos da interface. [Evidências e limites](MISSAO-LOTE4.md). WORK14–17 permanecem em outra cadeia; PR #40 Draft e main preservadas. Roadmap **27/42**, sem novos checkpoints; U8/R7/R4, D2/G1/G2 e AVG continuam abertos.
+**v5.13.11.64 TESTE — integração pendente de CI.** [Última CI tecnicamente aprovada (.63, Lote 4)](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549), não valida o código integrado. [PR #59 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/59) combina Lotes 1–4 com WORK14–WORK17. [Escopo e falhas da integração](MISSAO-INTEGRACAO.md). Roadmap **27/42** permanece intacto; AVG, PCs, U8/R7/R4, D2/G1/G2 continuam pendentes.
 
 ### Validação anterior — WORK11
 
