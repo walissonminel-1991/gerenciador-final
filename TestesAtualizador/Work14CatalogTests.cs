@@ -53,9 +53,12 @@ internal static class Work14CatalogTests
             var consultative = new OfficialRelease(
                 new InstalledApp("Another Display Name","1.0.0","GF Test Vendor"), "2.0.0", "Catálogo Microsoft (consulta)",
                 "https://github.com/microsoft/winget-pkgs", EvidenceKind:"catalog-version-only");
-            var merged = MultiSourceMatcher.Merge([consultative.Installed],null,[consultative]);
-            check(merged.Count==1 && merged[0].RequiresReview && merged[0].State==MatchState.Candidate,
-                "W15 correspondencia consultiva fica em revisao, nao autorizada");
+            check(consultative.EvidenceKind=="catalog-version-only" &&
+                !AutomaticUpdateDiscovery.IsAutomatic(new VerifiedUpdateRecipe(
+                    "catalog-review",consultative.Installed.Name,consultative.LatestVersion,
+                    new Uri("https://vendor.example/setup.exe"),new string('A',64),
+                    consultative.Installed.Publisher,"",false,consultative.OfficialPage)),
+                "W15 versao consultiva nao emite receita automatica nem concede permissao");
         }
     }
     [DllImport("winsqlite3.dll",CallingConvention=CallingConvention.Cdecl)]
