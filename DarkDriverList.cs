@@ -204,6 +204,7 @@ internal sealed class DarkDriverList : Control
             "INF publicado (consulta local): " + item.PackageEvidence?.PublishedPath,
             "INF no Driver Store (consulta local): " + item.PackageEvidence?.StorePath,
             "Assinatura informada pelo Windows: " + item.SignatureLabel,
+            "Vínculos no histórico Windows: " + item.WindowsEvents.Count + ". Investigar mostra os detalhes.",
             "A versão é o texto relatado pelo WMI, sem correção ou comparação entre fabricantes.",
             "Dados ausentes ou versões diferentes não comprovam incompatibilidade ou obsolescência.",
             "Somente consulta. Nenhuma instalação ou remoção de drivers."));
