@@ -70,14 +70,12 @@ internal static class IntegratedResidualPolicy
         var rule = UninstallRuleCatalog.Rules.SingleOrDefault(r => r.Id == known?.CleanupPolicy);
         var roots = rule?.Folders.ToList() ?? [];
         var keys = new List<ResidualKeyLocation>();
+        // O catálogo embutido declara somente resíduos exclusivos por usuário.
+        // Uma instalação para toda a máquina NÃO concede autoridade para ler
+        // ou remover chaves de mesmo nome em HKLM. Em HKCU, Software\Produto
+        // usa a visão compartilhada; consultar apenas Registry64 evita duplicação.
         foreach (string key in rule?.RegistryKeys ?? [])
-        foreach (var hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
-        foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
-        {
-            // Software\\Produto em HKCU e compartilhado entre as visoes WOW64.
-            if (hive == RegistryHive.CurrentUser && view == RegistryView.Registry32) continue;
-            keys.Add(new(hive, view, key));
-        }
+            keys.Add(new(RegistryHive.CurrentUser, RegistryView.Registry64, key));
         string? install = DedicatedInstallRoot(identity, known);
         if (install is not null)
         {
