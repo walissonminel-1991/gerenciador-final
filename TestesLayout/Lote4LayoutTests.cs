@@ -24,9 +24,11 @@ internal static class Lote4LayoutTests
         using var timer = new System.Windows.Forms.Timer { Interval = 50 };
         timer.Tick += (_, _) =>
         {
-            timer.Stop();
             var dialog = Application.OpenForms.Cast<Form>()
-                .Single(f => f.Text == "Histórico local — somente leitura");
+                .SingleOrDefault(f => f.Text == "Histórico local — somente leitura");
+            // ModernButton só dispara Click depois do feedback visual de 145 ms.
+            if (dialog is null) return;
+            timer.Stop();
             try
             {
                 Directory.CreateDirectory("LayoutCaptures");
@@ -67,14 +69,15 @@ internal static class Lote4LayoutTests
                     ?? throw new Exception("L4 relatório sem botão Fechar.");
                 if (dialog.CancelButton != close || dialog.ShowInTaskbar || dialog.MinimizeBox)
                     throw new Exception("L4 diálogo local não oferece fechamento por Esc junto da janela principal.");
-                close.PerformClick();
-                if (dialog.Visible) throw new Exception("L4 botão Fechar não encerrou o diálogo.");
+                close.PerformClick(); // O loop modal processa o feedback e o fechamento real.
             }
-            catch (Exception ex) { failure = ex; }
-            finally { dialog.Close(); }
+            catch (Exception ex) { failure = ex; dialog.Close(); }
         };
         timer.Start();
         open.PerformClick();
+        var deadline = System.Diagnostics.Stopwatch.StartNew();
+        while (inspected == 0 && failure is null && deadline.Elapsed < TimeSpan.FromSeconds(10))
+        { Application.DoEvents(); Thread.Sleep(10); }
         if (failure is not null) throw failure;
         if (inspected != 2) throw new Exception("L4 cenário não executou as duas dimensões do diálogo real.");
         Console.WriteLine("PASS L4 relatório real: 520x360 e 770x530, rolagem escura, texto íntegro, privacidade e fechamento");
