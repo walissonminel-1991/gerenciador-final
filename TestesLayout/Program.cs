@@ -23,7 +23,8 @@ internal static class LayoutTests
         if (args.Contains("--work9"))
         {
             int failures = 0;
-            if (args.Contains("--drivers-readonly"))
+            if (args.Contains("--lote3")) { Lote3LayoutTests.Run(); return; }
+        if (args.Contains("--drivers-readonly"))
         {
             using var driverForm = new MainForm(startServices: false);
             driverForm.Show();
