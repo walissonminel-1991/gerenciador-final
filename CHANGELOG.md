@@ -4,6 +4,7 @@
 
 - Candidata em validação, cumulativa dos lotes 1–3; WORK16/17 permanecem em outra cadeia. Numeração .63 evita reutilizar .60–.62 dessas frentes.
 - Histórico / relatório usa rolagem escura, quebra de linha, Fechar/Enter/Esc, decoração escura quando suportada e ajuste à área útil. Texto completo e exportação TXT preservados.
+- DarkLogView reserva a largura da barra antes do editor Fill; evita sobrepor texto e barra nos relatórios, inclusive Drivers.
 - Cenário real WinForms em 520×360 e 770×530 e controle negativo em checkout descartável com implementação anterior; código de saída e marca final obrigatórios na CI.
 - Corrigidos guia de testes, roteiro físico, SDK exato e referências da candidata. Nenhum checkpoint físico/AVG concluído; 27/42. [Evidências e limites](docs/MISSAO-LOTE4.md).
 

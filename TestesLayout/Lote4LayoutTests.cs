@@ -37,11 +37,6 @@ internal static class Lote4LayoutTests
                     dialog.Size = size;
                     dialog.PerformLayout();
                     Application.DoEvents();
-                    using (var capture = new Bitmap(dialog.Width, dialog.Height))
-                    {
-                        dialog.DrawToBitmap(capture, new Rectangle(Point.Empty, dialog.Size));
-                        capture.Save($"LayoutCaptures/lote4-historico-{size.Width}x{size.Height}.png");
-                    }
                     var body = Descendants(dialog).OfType<DarkLogView>()
                         .SingleOrDefault(c => c.Name == "LocalReliabilityReportText")
                         ?? throw new Exception("L4 relatório local usa rolagem nativa em vez da prévia escura acessível.");
@@ -53,11 +48,20 @@ internal static class Lote4LayoutTests
                     if (!scroll.Visible || scroll.MaximumValue <= 0 ||
                         !body.RectangleToScreen(body.ClientRectangle).Contains(scroll.RectangleToScreen(scroll.ClientRectangle)))
                         throw new Exception("L4 relatório longo sem barra escura acessível.");
+                    if (editor.RectangleToScreen(editor.ClientRectangle).IntersectsWith(
+                        scroll.RectangleToScreen(scroll.ClientRectangle)))
+                        throw new Exception("L4 editor cobre a barra de rolagem escura.");
                     scroll.Value = scroll.MaximumValue;
                     Application.DoEvents();
                     if (scroll.Value == 0 || body.RenderedText != expected)
                         throw new Exception("L4 não alcança o fim do histórico ou rolagem altera o relatório.");
                     scroll.Value = 0;
+                    Application.DoEvents();
+                    using (var capture = new Bitmap(dialog.Width, dialog.Height))
+                    {
+                        dialog.DrawToBitmap(capture, new Rectangle(Point.Empty, dialog.Size));
+                        capture.Save($"LayoutCaptures/lote4-historico-{size.Width}x{size.Height}.png");
+                    }
                     foreach (var button in Descendants(dialog).OfType<Button>())
                         if (!dialog.RectangleToScreen(dialog.ClientRectangle).Contains(button.RectangleToScreen(button.ClientRectangle)) ||
                             button.Width < 90 || button.Height < 26)

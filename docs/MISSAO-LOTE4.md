@@ -20,6 +20,7 @@ A numeração .63 evita reutilizar .60–.62 dessas frentes.
 |---|---|---|
 | Relatório local | TextBox com barras nativas e linhas sem quebra; sem Fechar/Esc | Mesmo DarkLogView dos demais relatórios, quebra de linha, barra escura e texto estático integral |
 | Janela do relatório | Sem ajuste à área útil e decoração escura explícita | Ajuste existente de diálogos, modo escuro quando suportado, Fechar/Enter/Esc e janela associada ao GF |
+| Controle compartilhado | Dock Fill do editor ocupava também a área da barra escura | Ordem de Dock corrigida em DarkLogView; testes exigem retângulos sem interseção no histórico e nos drivers |
 | Documentação | TESTES ainda citava .49 e downloads opcionais em PR; roteiro físico citava .57 | Procedimentos atuais, SDK 10.0.402 exato e distinção entre jobs obrigatórios e opt-in |
 | Referências | PROGRESSO/README ainda selecionavam WORK13 apesar dos lotes posteriores | Base aprovada do Lote 3 registrada; candidata .63 inicialmente pending e separada do último pacote aprovado |
 
@@ -47,7 +48,9 @@ fechamento real. A correção do teste não remove nenhuma asserção visual.
 substitui apenas Program.cs pela implementação do Lote 3 e executa os mesmos
 testes atuais. Exige a exceção específica da rolagem nativa após abertura do
 diálogo. Compilação quebrada, modo não executado, timeout ou outro erro não
-contam como defeito detectado. O checkout é removido em finally.
+contam como defeito detectado. Um segundo controle restaura o diálogo atual e
+usa DarkControls anterior: exige a recusa específica da sobreposição entre
+editor e barra. O checkout é removido em finally.
 
 A fixture Python de metadados também copiava exclusivamente o relatório WORK13,
 falhando ao selecionar um relatório novo. Agora usa o relatório declarado pela
@@ -57,6 +60,13 @@ A marca final do cenário positivo e seu código de saída são obrigatórios
 na CI. Regressões anteriores, 27 mutações, política, downloads oficiais,
 drivers em Windows 2022/2025 e composição do pacote permanecem obrigatórios.
 Os instaladores externos são baixados/verificados, nunca executados.
+
+Na CI intermediária [40234097635](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234097635),
+fonte `7595c07c`, o mirror `mirrors.middlendian.com` retornou HTTP 403 após
+redirecionamentos HTTPS do VLC. Download permaneceu reprovado e pacote
+bloqueado. Nenhum fallback HTTP, exceção de assinatura ou origem foi adicionado.
+A mesma revisão visual levou a testar explicitamente a separação entre editor
+e barra, além de visibilidade e limites do viewport.
 
 ## Estado da candidata
 

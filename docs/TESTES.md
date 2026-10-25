@@ -76,7 +76,8 @@ dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --lote3
 
 O controle negativo Lote 4 usa cópia descartável com `Program.cs` anterior.
 Só passa se compilar, abrir o diálogo e recusar especificamente a rolagem
-nativa; falha genérica, timeout ou compilação quebrada não contam. O teste
+nativa; depois restaura o diálogo atual e exige recusa da sobreposição usando
+DarkControls anterior. Falha genérica, timeout ou compilação quebrada não contam. O teste
 positivo exige a marca final de execução, texto completo, ausência de
 identificador privado, rolagem escura e fechamento. Não usa o seletor Salvar.
 Não executar testes sintéticos destrutivos nos PCs pessoais.

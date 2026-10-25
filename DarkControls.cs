@@ -591,7 +591,9 @@ internal sealed class DarkLogView : UserControl
         // Ordem de Dock importa: barra e editor permanecem lado a lado.
         inner.Controls.Add(_editor);
         inner.Controls.Add(_scroll);
-        _scroll.BringToFront();
+        // Dock é calculado de trás para frente: reservar a barra antes do Fill.
+        // Barra à frente faz o editor ocupar também seus 14 px e cobrir o texto.
+        _editor.BringToFront();
         _editor.Resize += (_, _) => ScheduleSync();
         _editor.HandleCreated += (_, _) => ScheduleSync();
         _editor.TextChanged += (_, _) => ScheduleSync();
