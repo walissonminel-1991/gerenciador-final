@@ -186,13 +186,13 @@
           "id": "P5",
           "title": "Medir tempo de abertura, CPU e RAM nos computadores",
           "done": false,
-          "evidence": "Validação presencial adiada"
+          "evidence": "Lote 3: microbenchmark de alocações do download e limite da prévia do registro, sem medir os PCs. CPU/RAM/abertura reais permanecem pendentes; docs/MISSAO-LOTE3.md."
         },
         {
           "id": "P6",
           "title": "Diagnosticar bloqueio AVG e verificar estabilidade real",
           "done": false,
-          "evidence": "Causa e resolução ainda não comprovadas"
+          "evidence": "Lote 3: revisão de fluxos e fontes AVG, mensagens 225/226 e evidência de hashes/assinatura. Sem varredura AVG ou causa comprovada; homologação permanece pendente; docs/MISSAO-LOTE3.md."
         }
       ]
     },
@@ -846,5 +846,17 @@
     "personal_computers_accessed": false,
     "second_code_commit": "2757fa69f3638ae0de7837d30acf98befe1761d4",
     "second_ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40218542822"
+  },
+  "lote3_security_performance": {
+    "base_commit": "6a020c86ba5024b780334217bb7f38b18b23bb34",
+    "initial_code_commit": "3c08386cd69f61d62b4e4dc05e5f97f9cfae70e2",
+    "initial_ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40228710682",
+    "initial_ci_status": "failure_sdk_http409_before_build",
+    "pull_request": 56,
+    "report": "docs/MISSAO-LOTE3.md",
+    "status": "revalidacao_windows_em_andamento",
+    "avg_validation": "pending",
+    "checkpoints_closed": [],
+    "personal_computers_accessed": false
   }
 }
