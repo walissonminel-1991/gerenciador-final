@@ -9,13 +9,17 @@
   <ItemGroup>
     <Compile Include="../WindowsExecutionFailure.cs" Link="WindowsExecutionFailure.cs" />
     <Compile Remove="SilentFixture/**/*.cs" />
+    <Compile Remove="SquirrelFixture/**/*.cs" />
+    <ProjectReference Include="SquirrelFixture/SquirrelFixture.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="SilentFixture/SilentFixture.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <Target Name="CopySyntheticSilentFixture" AfterTargets="Build">
     <ItemGroup><_SilentFixture Include="$(MSBuildProjectDirectory)/SilentFixture/bin/$(Configuration)/net10.0-windows/*" /></ItemGroup>
     <Copy SourceFiles="@(_SilentFixture)" DestinationFolder="$(OutDir)SyntheticSilent" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)/SquirrelFixture/bin/$(Configuration)/net10.0-windows/Update.dll" DestinationFolder="$(OutDir)SyntheticSquirrel" />
   </Target>
   <ItemGroup>
+    <Compile Include="../ResidualCoverageSummary.cs" Link="ResidualCoverageSummary.cs" />
     <Compile Include="../IntegratedResidualCleanup.cs" Link="IntegratedResidualCleanup.cs" />
     <Compile Include="../IntegratedResidualPolicy.cs" Link="IntegratedResidualPolicy.cs" />
     <Compile Include="../IntegratedResidualBatch.cs" Link="IntegratedResidualBatch.cs" />
@@ -32,6 +36,7 @@
     <Compile Include="../UninstallOperationProgress.cs" Link="UninstallOperationProgress.cs" />
     <Compile Include="../UninstallBatch.cs" Link="UninstallBatch.cs" />
     <Compile Include="../SilentUninstallPolicy.cs" Link="SilentUninstallPolicy.cs" />
+    <Compile Include="../SquirrelUninstallEvidence.cs" Link="SquirrelUninstallEvidence.cs" />
     <Compile Include="../SevenZipCompleteCleanup.cs" Link="SevenZipCompleteCleanup.cs" />
     <Compile Include="../SmallAppResidualCleanup.cs" Link="SmallAppResidualCleanup.cs" />
     <Compile Include="../RegistryTreeFingerprint.cs" Link="RegistryTreeFingerprint.cs" />
