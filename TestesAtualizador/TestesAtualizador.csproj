@@ -9,6 +9,7 @@
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../ApplicationCapabilities.cs" Link="ApplicationCapabilities.cs" />
     <Compile Include="../PendingDeployment.cs" Link="PendingDeployment.cs" />
     <Compile Include="../UpdateOperationProgress.cs" Link="UpdateOperationProgress.cs" />
     <Compile Include="../UpdateLaunchGate.cs" Link="UpdateLaunchGate.cs" />

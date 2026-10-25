@@ -82,6 +82,7 @@ internal sealed class UninstallCleanupDialog : Form
         {
             text.AppendLine(plan.Context.App.Name.Replace('\r', ' ').Replace('\n', ' '));
             text.AppendLine($"{plan.Files.Count} arquivo(s), {plan.Directories.Count} pasta(s) e {plan.Keys.Count} chave(s) do Registro.");
+            text.AppendLine(ResidualCoverageSummary.Describe(plan));
             text.AppendLine($"Preservados: {plan.Preserved} local(is) com dados pessoais, compartilhados ou não reconhecidos.");
             if (!plan.Conclusive) text.AppendLine("Verificação parcial: somente os alvos comprovados serão removidos.");
             foreach (string reason in plan.Problems.Select(UninstallResultSummary.Problem).Distinct()) text.AppendLine(reason);

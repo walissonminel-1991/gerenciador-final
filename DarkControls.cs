@@ -434,6 +434,7 @@ internal sealed class DarkProgramList : Control
                 ? _items[index].Name + "\nVersão atual: " + _items[index].Version +
                   "\nDisponível: " + _items[index].AvailableVersion +
                   "\nFonte: " + _items[index].Source + "\n" + _items[index].UpdateEvidence +
+                  "\n" + ApplicationCapabilityInspection.Describe(_items[index], OperationFor?.Invoke(_items[index])) +
                   (UninstallOperationFor?.Invoke(_items[index]) is { } uninstall ? "\n" + uninstall.Details :
                    OperationFor?.Invoke(_items[index]) is { } operation ? "\n" + operation.Details : "")
                 : "";

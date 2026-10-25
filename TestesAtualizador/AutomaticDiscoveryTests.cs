@@ -26,6 +26,8 @@ internal static class AutomaticDiscoveryTests
             check(Select(Manifest().Replace("https://vendor.example/releases/setup.exe",url)) is null,"AUTO endereco nao autorizado recusado: "+url);
         foreach(string ip in new[]{"127.0.0.1","10.0.0.1","172.16.0.1","192.168.1.1","169.254.1.1","100.64.0.1","::1","fe80::1","fc00::1","::ffff:127.0.0.1"})
             check(!AutomaticUpdateDiscovery.PublicAddress(IPAddress.Parse(ip)),"AUTO DNS privado nao permite conexao: "+ip);
+        check(AutomaticUpdateDiscovery.PublicAddress(IPAddress.Parse("169.229.200.70")),"AUTO espelho publico 169.229 nao pertence ao link-local 169.254/16");
+        check(!AutomaticUpdateDiscovery.PublicAddress(IPAddress.Parse("169.254.255.254")),"AUTO link-local continua bloqueado apos corrigir faixa publica");
         check(AutomaticUpdateDiscovery.PublicAddress(IPAddress.Parse("1.1.1.1")),"AUTO endereco publico tem controle positivo");
         foreach(string text in new[]{Manifest().Replace("Synthetic.Editor","Another.Product"),Manifest().Replace("PackageVersion: 2.0.0","PackageVersion: 3.0.0"),
             "x: &shared value\ny: *shared\n"+Manifest(),Manifest()+"---\nfoo: bar\n",Manifest()+"PackageIdentifier: Duplicate\n"})
@@ -65,6 +67,16 @@ internal static class AutomaticDiscoveryTests
             bool denied=false;try{MsiPackageEvidence.Validate(oldMsi,changed,msiPlan,msiApp);}catch(InvalidDataException){denied=true;}
             check(denied,"AUTO MSI adulterado compartilhado ou divergente e recusado");
         }
+        check(InstallerEngineEvidence.SameProduct("Example++ 2.0.0 (64-bit x64)","Example++"),"W14 identidade comum admite decoracoes ARP conhecidas");
+        check(!InstallerEngineEvidence.SameProduct("Example++","Example") && !InstallerEngineEvidence.SameProduct("Example Preview","Example"),
+            "W14 identidade comum conserva simbolo de produto e canal");
+        var decoratedMsi = msiApp with { Name = app.Name + " 1.0.0 (64-bit x64)" };
+        MsiPackageEvidence.Validate(oldMsi, newMsi, msiPlan, decoratedMsi);
+        check(true, "W14 MSI metadados usam a mesma identidade ARP da descoberta");
+        bool collisionDenied=false;
+        try { MsiPackageEvidence.Validate(oldMsi,newMsi with { Name = app.Name + "++" },msiPlan,msiApp); }
+        catch(InvalidDataException) { collisionDenied=true; }
+        check(collisionDenied,"W14 MSI produto com simbolo distinto nao passa por normalizacao consultiva");
         if(OperatingSystem.IsWindows())NativeFiles(check);
         var header=new byte[64];byte[] marker=[0xef,0xbe,0xad,0xde,0x4e,0x75,0x6c,0x6c,0x73,0x6f,0x66,0x74,0x49,0x6e,0x73,0x74];marker.CopyTo(header,4);
         BitConverter.GetBytes(100u).CopyTo(header,20);BitConverter.GetBytes(200u).CopyTo(header,24);
@@ -112,6 +124,18 @@ internal static class AutomaticDiscoveryTests
             const string registeredCode="{00000000-0000-0000-0000-000000000059}";
             ProgramEntry MsiApp(string code)=>new(){Name=app.Name,Publisher=app.Publisher,Version=app.Version,InventoryId=app.InventoryId,
                 InstallLocation=install,DisplayIcon=binary,MsiProductCode=code,UninstallString="msiexec.exe /X"+registeredCode};
+            var missingRoot=new ProgramEntry{Name=app.Name,Publisher=app.Publisher,Version=app.Version,InventoryId=app.InventoryId,
+                DisplayIcon=binary, MsiProductCode=registeredCode,UninstallString="msiexec.exe /X"+registeredCode};
+            check(AutomaticAppInstallation.Read(missingRoot) is {Kind:"msi",Root:var recovered} && recovered==install,
+                "W14 MSI/WiX sem InstallLocation recupera raiz comprovada pelo executavel registrado");
+            var decorated=new ProgramEntry{Name=app.Name+" 12.0.40664.0 (64-bit x64)",Publisher=app.Publisher,Version=app.Version,
+                InventoryId=app.InventoryId,InstallLocation=install,UninstallString=app.UninstallString,DisplayIcon=binary};
+            check(AutomaticAppInstallation.Read(decorated) is {Kind:"nullsoft"},
+                "W14 NSIS com versao e arquitetura decoradas usa a identidade comum comprovada no PE");
+            var badIcon=new ProgramEntry{Name=app.Name,Publisher=app.Publisher,Version=app.Version,InventoryId=app.InventoryId,
+                DisplayIcon=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),"Installer","icon.exe"),
+                MsiProductCode=registeredCode,UninstallString="msiexec.exe /X"+registeredCode};
+            check(AutomaticAppInstallation.Read(badIcon) is null,"W14 MSI icone de cache Windows nao vira raiz de instalacao");
             check(AutomaticAppInstallation.Read(MsiApp(registeredCode)) is {Kind:"msi",ProductCode:registeredCode},"AUTO MSI comando e inventario identificam o mesmo produto");
             check(AutomaticAppInstallation.Read(MsiApp("{00000000-0000-0000-0000-000000000060}")) is null,"AUTO MSI comando de outro produto nao autoriza atualizacao");
             check(AutomaticAppInstallation.Read(MsiApp("")) is null,"AUTO MSI codigo ausente no inventario nao autoriza");
@@ -129,6 +153,9 @@ internal static class AutomaticDiscoveryTests
             check(!snapshot!.Current([app,other]),"AUTO duas instalacoes da familia nao autorizam uma escolha arbitraria");
             var shared=new ProgramEntry{Name="Other Product",Publisher="Other",InstallLocation=install,InventoryId="LocalMachine|Registry64|Shared"};
             check(!snapshot.Current([app,shared]),"AUTO pasta compartilhada com outro produto nao autoriza");
+            var iconShared = new ProgramEntry { Name="Other Product", Publisher="Other", InventoryId="LocalMachine|Registry64|IconShared",
+                DisplayIcon=Path.Combine(install,"other.exe") };
+            check(!snapshot.Current([app,iconShared]),"W14 outro registro sem InstallLocation mas com icone na mesma pasta bloqueia atualizacao");
             byte[] x86=(byte[])data.Clone();BitConverter.GetBytes((ushort)0x14c).CopyTo(x86,pe+4);File.WriteAllBytes(binary,x86);
             check(!snapshot.Current([app]),"AUTO arquitetura alterada depois da descoberta bloqueia execucao");
             File.WriteAllBytes(binary,data);File.WriteAllBytes(uninstall,data);

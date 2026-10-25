@@ -132,7 +132,7 @@ class MetadataTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         repo = Path(__file__).resolve().parents[1]
-        for name in ["GerenciadorAplicativos.csproj", "app.manifest", "README.md", "docs/ROADMAP.md", "CHANGELOG.md", "docs/PROGRESSO.json", "docs/MISSAO-WORK13.md"]:
+        for name in ["GerenciadorAplicativos.csproj", "app.manifest", "README.md", "docs/ROADMAP.md", "CHANGELOG.md", "docs/PROGRESSO.json", "docs/MISSAO-WORK13.md", "docs/MISSAO-WORK14-MOTORES.md"]:
             file = self.root / name
             file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(repo / name, file)

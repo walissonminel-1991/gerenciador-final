@@ -299,8 +299,8 @@ internal static class Work12RegressionTests
             request = UninstallBatch.Select([app]).Single();
             check(InstallerEngineEvidence.InstalledKind(request.Command with { Arguments = "" }) == "inno",
                 "W12 descoberta de atualizacao reconhece Inno instalado pelo log sem confundir setup e uninstaller");
-            check(request.Command.Arguments == "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" && SilentUninstallPolicy.UsesSilentMode(request),
-                "W12 Inno comprovado usa parametros documentados e impede reboot automatico");
+            check(request.Command.Arguments.Length == 0 && !SilentUninstallPolicy.UsesSilentMode(request),
+                "W14 log Inno prova formato, mas nao autoriza silencioso sem produto e assinaturas comprovados");
             File.WriteAllText(dat, "FAKE HEADER".PadRight(64));
             check(!InstallerEngineEvidence.IsVerifiedInnoUninstaller(request.Command with { Arguments = "" }),
                 "W12 descoberta de atualizacao recusa log Inno adulterado");

@@ -48,7 +48,7 @@ internal static class IntegratedResidualBatch
                 audit(IntegratedResidualCleanup.Audit(context.App, "capture", plan.Conclusive ? "complete" : "inconclusive",
                     plan.Files.Count, plan.Directories.Count, plan.Keys.Count, plan.Preserved));
                 foreach (var problem in plan.Problems)
-                    audit(IntegratedResidualCleanup.Audit(context.App, problem.Stage, "preserved", error: problem.Error, reason: problem.Reason));
+                    audit(IntegratedResidualCleanup.Audit(context.App, problem.Stage, "preserved", error: problem.Error, reason: problem.Reason, detail: problem.Detail.Length == 0 ? "none" : problem.Detail, depth: problem.Depth));
                 if (!plan.Conclusive) unavailable++;
                 if (!plan.Complete) continue;
                 if (plan.Eligible > 0) plans.Add(plan);

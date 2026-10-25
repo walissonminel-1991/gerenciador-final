@@ -15,18 +15,32 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
         app.Publisher.Length>0 && app.InventoryId.Length>0;
     internal static string Binding(ProgramEntry app) => string.Concat(new[]{app.InventoryId,app.Name,app.Publisher,app.Version,
         app.InstallLocation,app.UninstallString,app.MsiProductCode,app.DisplayIcon,app.InventoryOnly.ToString()}.Select(p=>p.Length+":"+p));
-    internal static AutomaticAppInstallation? Read(ProgramEntry app)
+    internal static AutomaticAppInstallation? Read(ProgramEntry app) => Read(app, out _);
+    internal static AutomaticAppInstallation? Read(ProgramEntry app, out string reason)
     {
+        reason = "policy_or_registered_command";
         if (!Eligible(app) || !UninstallCommand.TryParse(app.UninstallString,out var uninstall)) return null;
+        reason = "msi_product_mismatch";
         if (uninstall.ProductCode is not null && (!Guid.TryParse(app.MsiProductCode,out var registeredCode) ||
             registeredCode==Guid.Empty || !Guid.TryParse(uninstall.ProductCode,out var commandCode) || registeredCode!=commandCode)) return null;
         try
         {
             string scope=app.InventoryId.StartsWith("LocalMachine|",StringComparison.Ordinal)?"machine":
                 app.InventoryId.StartsWith("CurrentUser|",StringComparison.Ordinal)?"user":"";
+            reason = "scope_unknown";
             if(scope.Length==0) return null;
+            reason = "dedicated_root_unproven";
             string root=app.InstallLocation.Trim().Trim('"').TrimEnd('\\');
             if(root.Length==0 && uninstall.ProductCode is null)root=Path.GetDirectoryName(uninstall.FileName)??"";
+            // MSI/WiX may omit InstallLocation. Only the registered executable
+            // icon may corroborate a root, never a Windows Installer cache icon.
+            // Base, scope, PE, product, version and uniqueness gates below remain.
+            if(root.Length==0 && uninstall.ProductCode is not null)
+            {
+                string candidate=Regex.Replace(app.DisplayIcon.Trim(),@",\s*-?\d+$", "").Trim().Trim('"');
+                if(!candidate.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))return null;
+                root=Path.GetDirectoryName(InstallerFileGuard.ValidateLocalPath(candidate))??"";
+            }
             root=InstallerFileGuard.ValidateLocalPath(root);
             string[] bases=scope=="machine"?[Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)]:
                 [Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)];
@@ -49,19 +63,26 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
                 {
                     if(file.Equals(uninstall.FileName,StringComparison.OrdinalIgnoreCase))continue;
                     var info=FileVersionInfo.GetVersionInfo(file);
-                    if(Matching.NormalizeName(info.ProductName)==Matching.NormalizeName(app.Name))paths.Add(file);
+                    if(InstallerEngineEvidence.SameProduct(info.ProductName??"",app.Name))paths.Add(file);
                 }
             }
+            reason = "binary_identity_or_version";
             var verified=paths.Distinct(StringComparer.OrdinalIgnoreCase).Where(p=>BinaryMatches(p,app.Version,app.Name,exact:true)).ToArray();
             if(verified.Length!=1)return null;
+            reason = "architecture_mismatch";
             string architecture=VerifiedUpdaters.GetPortableExecutableMachine(verified[0]) switch{0x8664=>"x64",0x14c=>"x86",_=>""};
-            if(architecture.Length==0)return null;
+            if(architecture.Length==0 || !InstallerEngineEvidence.MatchesArchitecture(app.Name,
+                architecture=="x64" ? (ushort)0x8664 : (ushort)0x14c))return null;
+            reason = "engine_unrecognized";
             string kind=InstallerEngineEvidence.InstalledKind(uninstall);
             if(kind is not ("msi" or "nullsoft" or "inno"))return null;
+            reason = "installation_corroborated";
             return new(Binding(app),app.Name,app.Publisher,app.Version,scope,architecture,root,verified[0],uninstall.FileName,kind,app.MsiProductCode,app.InventoryId);
         }
         catch(Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or
-            BadImageFormatException or System.ComponentModel.Win32Exception or NotSupportedException){return null;}
+            BadImageFormatException or System.ComponentModel.Win32Exception or NotSupportedException or System.Security.SecurityException)
+        { reason = ex is UnauthorizedAccessException or System.Security.SecurityException or System.ComponentModel.Win32Exception { NativeErrorCode: 5 }
+            ? "installation_access_denied" : "installation_unreadable"; return null; }
     }
     internal static bool BinaryMatches(string file,string version,string name,bool exact)
     {
@@ -72,7 +93,7 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
                 if(image.PEHeaders.PEHeader is null || (image.PEHeaders.CoffHeader.Characteristics & Characteristics.ExecutableImage)==0 ||
                     (image.PEHeaders.CoffHeader.Characteristics & Characteristics.Dll)!=0)return false;
             var info=FileVersionInfo.GetVersionInfo(file);
-            return Matching.NormalizeName(info.ProductName)==Matching.NormalizeName(name) &&
+            return InstallerEngineEvidence.SameProduct(info.ProductName??"",name) &&
                 VerifiedUpdaters.TryVersion(info.FileVersion,out var actual) && VerifiedUpdaters.TryVersion(version,out var expected) &&
                 (exact?actual==expected:actual>=expected);
         }
@@ -89,18 +110,17 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
         try
         {
         var items=inventory.ToArray();
-        if(items.Any(p=>Binding(p)!=Key && p.InstallLocation.Trim().TrimEnd('\\') is {Length:>0} other &&
-            (Root.StartsWith(other+"\\",StringComparison.OrdinalIgnoreCase) || other.StartsWith(Root+"\\",StringComparison.OrdinalIgnoreCase) || Root.Equals(other,StringComparison.OrdinalIgnoreCase))))return false;
+        if(items.Any(p=>Binding(p)!=Key && InstallerEngineEvidence.RegistrationOverlaps(Root,p)))return false;
         if(VerifiedUpdaters.GetPortableExecutableMachine(Binary)!=(Architecture=="x64"?0x8664:0x14c) ||
             Kind!="msi" && InstallerEngineEvidence.InstalledKind(new(Uninstaller,"",null))!=Kind)return false;
-        return items.Count(p=>Binding(p)==Key)==1 && items.Count(p=>Matching.NormalizeName(p.Name)==Matching.NormalizeName(Name) &&
+        return items.Count(p=>Binding(p)==Key)==1 && items.Count(p=>InstallerEngineEvidence.SameProduct(p.Name,Name) &&
             Matching.NormalizePublisher(p.Publisher)==Matching.NormalizePublisher(Publisher))==1 && BinaryMatches(Binary,Version,Name,true);
         }
         catch(Exception ex)when(ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or BadImageFormatException or System.ComponentModel.Win32Exception){return false;}
     }
     internal bool Confirm(AutomaticInstaller installer,IEnumerable<ProgramEntry> inventory)
     {
-        var matches=inventory.Where(p=>Matching.NormalizeName(p.Name)==Matching.NormalizeName(Name) &&
+        var matches=inventory.Where(p=>InstallerEngineEvidence.SameProduct(p.Name,Name) &&
             p.Publisher.Equals(Publisher,StringComparison.OrdinalIgnoreCase)).ToArray();
         if(matches.Length!=1 || !Eligible(matches[0]) || !VerifiedUpdaters.TryVersion(matches[0].Version,out var current) ||
             !VerifiedUpdaters.TryVersion(installer.Version,out var target) || current<target)return false;

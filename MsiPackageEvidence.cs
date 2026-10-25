@@ -56,13 +56,13 @@ internal static class MsiPackageEvidence
     internal static void Validate(Metadata before,Metadata after,AutomaticInstaller installer,AutomaticAppInstallation app)
     {
         if(!before.ProductCode.Equals(app.ProductCode,StringComparison.OrdinalIgnoreCase) ||
-            Matching.NormalizeName(before.Name)!=Matching.NormalizeName(app.Name) ||
+            !InstallerEngineEvidence.SameProduct(before.Name,app.Name) ||
             Matching.NormalizePublisher(before.Publisher)!=Matching.NormalizePublisher(app.Publisher) ||
             !VerifiedUpdaters.TryVersion(before.Version,out var previousVersion) || !VerifiedUpdaters.TryVersion(app.Version,out var recordedVersion) ||previousVersion!=recordedVersion ||
             before.Scope!=app.Scope || after.Scope!=app.Scope || before.Services || after.Services || before.Architecture!=app.Architecture || after.Architecture!=app.Architecture ||
             !Guid.TryParse(before.UpgradeCode,out var oldCode) || oldCode==Guid.Empty || !Guid.TryParse(after.UpgradeCode,out var newCode) || oldCode!=newCode ||
             !after.ProductCode.Equals(installer.ProductCode,StringComparison.OrdinalIgnoreCase) ||
-            Matching.NormalizeName(after.Name)!=Matching.NormalizeName(app.Name) ||
+            !InstallerEngineEvidence.SameProduct(after.Name,app.Name) ||
             Matching.NormalizePublisher(after.Publisher)!=Matching.NormalizePublisher(app.Publisher) ||
             !VerifiedUpdaters.TryVersion(after.Version,out var version) || !VerifiedUpdaters.TryVersion(installer.Version,out var target) ||version!=target)
             throw new InvalidDataException("MSI diverge do produto, familia, arquitetura ou servicos autorizados.");

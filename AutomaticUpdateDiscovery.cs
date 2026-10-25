@@ -81,7 +81,7 @@ internal static class AutomaticUpdateDiscovery
                     if(installer is null || (installation.Kind=="msi"?installer.Type is not ("msi" or "wix"):installer.Type!=installation.Kind))continue;
                     if(installer.ProductCode.Length>0 && installation.Kind!="msi" &&
                         !installer.ProductCode.Equals(app.InventoryId.Split('|').Last(),StringComparison.OrdinalIgnoreCase))continue;
-                    if(Matching.NormalizeName(installer.Name)!=Matching.NormalizeName(app.Name))continue;
+                    if(!InstallerEngineEvidence.SameProduct(installer.Name,app.Name))continue;
                     findings.Add(new(identities[i],installer.Version,"Catalogo Microsoft HTTPS","https://github.com/microsoft/winget-pkgs",
                         "automatic-manifest","",DateTimeOffset.UtcNow,installation.Architecture,"stable",installation.Scope,
                         installer.Type,EvidenceKind:"authenticated-installer-manifest"));
@@ -116,7 +116,7 @@ internal static class AutomaticUpdateDiscovery
         string kind=InstallerEngineEvidence.Detect(file);
         if(kind!=p.Installer.Type)throw new InvalidDataException("Motor real diverge do manifesto autenticado.");
         var meta=FileVersionInfo.GetVersionInfo(file);
-        if(!string.IsNullOrWhiteSpace(meta.ProductName) && Matching.NormalizeName(meta.ProductName)!=Matching.NormalizeName(p.Installer.Name))
+        if(!string.IsNullOrWhiteSpace(meta.ProductName) && !InstallerEngineEvidence.SameProduct(meta.ProductName,p.Installer.Name))
             throw new InvalidDataException("Produto do executavel diverge do manifesto.");
         if(!string.IsNullOrWhiteSpace(meta.FileVersion) && VerifiedUpdaters.TryVersion(meta.FileVersion,out var actual) &&
             VerifiedUpdaters.TryVersion(recipe.Version,out var target) &&actual!=target)throw new InvalidDataException("Versao do instalador diverge do alvo.");
@@ -134,13 +134,14 @@ internal static class AutomaticUpdateDiscovery
     {if(!Executed.TryAdd(ExecutionKey(Require(recipe)),0))throw new InvalidOperationException("Atualizacao desta instalacao ja enviada; confira a versao antes de repetir.");}
     internal static void ReleaseBeforeStart(VerifiedUpdateRecipe recipe)=>Executed.TryRemove(ExecutionKey(Require(recipe)),out _);
     internal static ProgramEntry? ConfirmedEntry(VerifiedUpdateRecipe recipe,IEnumerable<ProgramEntry> inventory)
-    {var list=inventory.ToArray();var p=Require(recipe);return p.Installation.Confirm(p.Installer,list)?list.Single(a=>Matching.NormalizeName(a.Name)==Matching.NormalizeName(p.Installation.Name) && a.Publisher.Equals(p.Installation.Publisher,StringComparison.OrdinalIgnoreCase)):null;}
+    {var list=inventory.ToArray();var p=Require(recipe);return p.Installation.Confirm(p.Installer,list)?list.Single(a=>InstallerEngineEvidence.SameProduct(a.Name,p.Installation.Name) && a.Publisher.Equals(p.Installation.Publisher,StringComparison.OrdinalIgnoreCase)):null;}
     internal static bool PublicAddress(System.Net.IPAddress address)
     {
         if(address.IsIPv4MappedToIPv6)address=address.MapToIPv4();
         byte[] bytes=address.GetAddressBytes();
         if(System.Net.IPAddress.IsLoopback(address))return false;
-        if(bytes.Length==4)return bytes[0] is not (0 or 10 or 127 or 169) && bytes[0]<224 &&
+        if(bytes.Length==4)return bytes[0] is not (0 or 10 or 127) && bytes[0]<224 &&
+            !(bytes[0]==169 && bytes[1]==254) &&
             !(bytes[0]==172 && bytes[1]>=16 && bytes[1]<=31) && !(bytes[0]==192 && bytes[1]==168) &&
             !(bytes[0]==100 && bytes[1]>=64 && bytes[1]<=127) && !(bytes[0]==198 && bytes[1] is 18 or 19);
         return !address.IsIPv6LinkLocal && !address.IsIPv6SiteLocal && !address.IsIPv6Multicast && (bytes[0]&0xfe)!=0xfc &&

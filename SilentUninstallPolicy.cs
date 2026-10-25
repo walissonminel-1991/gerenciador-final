@@ -34,7 +34,7 @@ internal static class SilentUninstallPolicy
         { selected = sumatra; return true; }
         // Inno: identidade do EXE + cabeçalho oficial do log adjacente.
         // Nunca inferir o motor apenas por um nome unins000.exe.
-        if (IsVerifiedInno(registered) &&
+        if (InstallerEngineEvidence.GenericDesktopUninstaller(app, registered, "inno") &&
             UninstallCommand.TryParse("\"" + registered.FileName + "\" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART", out var inno))
         { selected = inno; return true; }
         // Notepad++ oficial (NSIS): /S e parametro documentado do fabricante.
@@ -161,6 +161,11 @@ internal static class SilentUninstallPolicy
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
             ArgumentException or NotSupportedException) { return false; }
     }
+
+    internal static bool RequiresExclusiveRoot(UninstallRequest request) =>
+        UninstallCommand.TryParse(request.Original.UninstallString, out var normal) &&
+        normal.ProductCode is null && normal.Arguments.Length == 0 && request.Command != normal &&
+        !(UninstallCommand.TryParse(request.Original.QuietUninstallString, out var quiet) && quiet == request.Command);
 
     internal static bool UsesSilentMode(UninstallRequest request)
     {

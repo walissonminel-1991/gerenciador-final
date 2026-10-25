@@ -1,33 +1,23 @@
-# Roteiro físico mínimo — WORK12 .57 TESTE
+# Roteiro físico mínimo — WORK14 .60 TESTE
 
-Usar somente o pacote indicado na [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40) após aprovação da CI. A PR identifica a fonte, o artefato e os hashes. [Correções, testes automatizados e limites](MISSAO-WORK12.md). Roteiros antigos estão nos relatórios históricos; este documento substitui a bateria .53 com versões antigas de aplicativos.
+[Pacote aprovado .60, fonte 89672f5e](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005/artifacts/12584124902) · [CI](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005) · [Causas, matriz antes/depois e limites](MISSAO-WORK14-MOTORES.md).
 
-## Preparação
+Conferir ZIP SHA-256 `e13e915f7b5757ba369e74bfaf13628c2e104a6b683722e4e48fa5d90f7a3f1c`, BUILD-INFO e SHA256SUMS. Extrair a pasta inteira e manter os arquivos juntos; runtime incluído. GF continua TESTE, sem assinatura e sem homologação AVG.
 
-Extrair o portátil em pasta própria, manter os arquivos juntos e conferir versão .57, BUILD-INFO e SHA256SUMS. Não instalar SDK. Manter AVG ativo; registrar eventual bloqueio. O programa continua TESTE e sem assinatura.
+## PC FORTE — consulta primeiro
 
-Não reinstalar Notepad++/SumatraPDF nem repetir as limpezas antigas só para reproduzir os defeitos das versões .55/.56. Os casos de ausência, erro 5, preservação, SIM/NÃO, arquivo ocupado e cancelamento pertencem à bateria automatizada com alvos sintéticos.
+1. Abrir em 2560×1440/escala habitual, ativar voluntariamente o perfil de teste PC FORTE e usar **Atualizar e verificar**. Anotar inventário completo/parcial e os totais de capacidade, com denominadores.
+2. Conferir a dica de dois candidatos conhecidos e de uma entrada sem atualização autorizada. A indicação deve distinguir elegibilidade de validação concluída, versão não comparável, identidade ambígua e falta de catálogo. Após expirar, a capacidade pede nova consulta.
+3. Quando houver **uma atualização já necessária**, escolher e autorizar esse alvo individualmente. Conferir descoberta, download, integridade, assinatura, execução e versão posterior confirmada. Resultado pendente preserva o bloqueio de repetição.
+4. Quando houver **uma desinstalação já desejada**, escolher um aplicativo dispensável. Observar preparação, modo silencioso/interativo e conferência. Resíduos autorizáveis geram SIM/NÃO com caminhos, chaves e preservações locais. Erro 5 deve indicar escopo/etapa e manter a leitura inconclusiva. Sem elegíveis, o resumo explica o resultado.
+5. Registrar resultados no diagnóstico opt-in do próprio GF. Os casos antigos de Notepad++/SumatraPDF e falhas adversariais já possuem fixtures; os aplicativos existentes que o usuário realmente pretende manter/remover determinam o alvo físico, sem reinstalações apenas para repetir defeitos.
 
-## PC FORTE — uma operação quando houver aplicativo dispensável
+## PC FRACO — mesmo pacote, somente leitura inicialmente
 
-1. Abrir Aplicativos. Se houver um programa comum que o usuário já queira remover, solicitar **uma única desinstalação**. Se não houver, encerrar esta etapa sem instalar programas apenas para criar trabalho.
-2. Conferir o andamento desde a preparação: modo silencioso/interativo explicado na prévia, “Desinstalador trabalhando...” e “Conferindo remoção...”. Operações sem medida real devem usar animação, sem porcentagem inventada. A interface e Cancelar permanecem responsivos; cancelar a espera não promete encerrar o fornecedor.
-3. Somente após remoção confirmada, observar a verificação automática. Havendo resíduos comprovados, a pergunta SIM/NÃO deve identificar os alvos. SIM autoriza a exclusão permanente revalidada; NÃO mantém os resíduos. Em seleção múltipla há uma decisão para a seleção e resultado separado por aplicativo.
-4. Ler o resumo final: removidos, preservados e seus motivos; ausência apenas nos locais verificados; erro de acesso ou cobertura limitada como parcial/inconclusiva. Não deve existir apenas “concluída” escondendo falhas. Ausência de elegíveis dispensa uma pergunta vazia de limpeza.
-5. Não esperar pergunta de reinício quando nenhum fornecedor ou arquivo bloqueado justificar isso. Se houver causa real, o GF explica e pede consentimento; a revisão pós-boot é somente leitura. Não há exclusão automática adicional.
+1. Em 1440×900/escala habitual, consultar inventário/atualizações e conferir capacidades, pesquisa, navegação e Cancelar. Anotar tempos separados de rede e renderização.
+2. Abrir/fechar resumo e dicas, conferir tema, rolagem, botões e restauração da bandeja. Conferir Inicialização e Windows Update.
+3. A opção portátil de iniciar com Windows pode ser conferida no próximo login normal, mantendo a pasta no mesmo local. Operações de atualização, desinstalação ou exclusão exigem escolha e autorização específica para esse PC.
 
-Modo interativo pode abrir a janela do próprio fabricante. UAC legítimo também pode aparecer. Unlocker sem quiet/motor comprovado não recebe parâmetros improvisados. UAC com outra conta continua recusado no worker de limpeza; permissões não são alteradas para contornar uma negativa.
+Reboot só quando houver motivo técnico real; recuperação pós-boot permanece somente leitura. Manter antivírus e permissões do sistema. UAC com outra conta continua recusado pelo worker. Relatar etapa, mensagem e versão; logs brutos e caminhos pessoais ficam fora da PR pública.
 
-## PC FRACO — leitura, layout e bandeja
-
-Em 1440×900 e no DPI habitual, conferir Aplicativos, Inicialização e Windows Update; foco, botões, espaço do cartão e ausência de sobreposição. Não exige nova desinstalação.
-
-Ativar/desativar “Iniciar com o Windows” e, se desejado, manter ativado até o próximo login normal. O portátil precisa permanecer na mesma pasta. Ao iniciar com Windows, deve ficar na bandeja; Abrir restaura a janela, Sair encerra. Uma decisão ou um resumo pendente deve aparecer ao reabrir, sem janela inesperada enquanto oculto.
-
-No PC FORTE, a referência é 2560×1440; no FRACO, 1440×900. Geometria, estados e resoluções/DPI simulados já passam pela CI, mas isso não homologa DPI físico nem antivírus dos PCs.
-
-## Se houver falha
-
-Usar o diagnóstico do próprio GF e indicar versão, PC FORTE/FRACO, modo silencioso/interativo, etapa e mensagem final. Não repetir automaticamente uma operação pendente, apagar resíduos por fora, desligar proteções ou alterar ACLs. Não publicar logs brutos com nomes, caminhos pessoais, serial ou IP na PR pública.
-
-Os testes de reinstalação durante a limpeza, links, compartilhamento, ACL negada, UAC simulado, atraso do fornecedor, retorno indeterminado e cancelamento são executados em ambiente descartável. Não precisam ser provocados repetidamente nos computadores pessoais. Boot físico e UAC interativo real ainda dependem de homologação posterior. U8/R7/R4 físicos e roadmap 27/42 permanecem abertos.
+**U8/R7/R4 abertos; 27/42.** CI aprovada e exclusões em fixtures não substituem homologação nos dois computadores. Na .59, PC FORTE confirmou duas atualizações e duas remoções de registro; a limpeza residual permaneceu inconclusiva. Essa evidência é anterior e não constitui teste físico da .60.

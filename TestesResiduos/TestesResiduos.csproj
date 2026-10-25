@@ -15,6 +15,7 @@
     <Copy SourceFiles="@(_SilentFixture)" DestinationFolder="$(OutDir)SyntheticSilent" />
   </Target>
   <ItemGroup>
+    <Compile Include="../ResidualCoverageSummary.cs" Link="ResidualCoverageSummary.cs" />
     <Compile Include="../IntegratedResidualCleanup.cs" Link="IntegratedResidualCleanup.cs" />
     <Compile Include="../IntegratedResidualPolicy.cs" Link="IntegratedResidualPolicy.cs" />
     <Compile Include="../IntegratedResidualBatch.cs" Link="IntegratedResidualBatch.cs" />

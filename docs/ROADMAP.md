@@ -1,6 +1,10 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.59 TESTE — descoberta automática aprovada na CI.** [CI 40138799763](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763), fonte `26bbc17a`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319). 318 atualizadores, 81 controles de descoberta, 645 resíduos e 27 mutações. Catálogo/manifestos autenticados e seleção genérica MSI/NSIS/Inno; WinGet COM/CLI segue desativado. [Evidências e limites](MISSAO-WORK13.md). Pacote, SHA-256 e 281 hashes reconferidos fora do runner. Roadmap **27/42**; U8/R7/R4 físicos abertos.
+**v5.13.11.60 TESTE — código, CI e pacote aprovados; homologação física pendente.** [CI 40155841005](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005), fonte `89672f5e`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005/artifacts/12584124902). [Relatório WORK14](MISSAO-WORK14-MOTORES.md): erro de abertura do Registro reproduzido e corrigido, capacidades por operação e matriz contra #49. Amostra legítima de atualização 3/6 → 6/6 e desinstalação 3/4 → 4/4; políticas residuais explícitas 7/27, sem incremento inventado. 358 atualizadores, 697 resíduos/desinstalação e 30 mutações; números de testes não fecham checkpoints. Roadmap **27/42**, U8/R7/R4 abertos.
+
+### Evidência física intermediária preservada
+
+PC FORTE .59: duas atualizações com versão posterior `Confirmed` e duas desinstalações com `RegistrationAbsent`, conforme issue #48. As inspeções residuais ficaram inconclusivas por erro 5; nenhuma exclusão residual foi homologada. A WORK14 reproduz um defeito compatível na abertura da raiz HKLM no runner; a ocorrência física só poderá ser reavaliada com os novos campos de etapa. PC FRACO permanece pendente.
 
 ### Validação anterior — WORK11
 
