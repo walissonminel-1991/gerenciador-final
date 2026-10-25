@@ -48,6 +48,12 @@ jobs:
           dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --drivers-readonly | Tee-Object -Variable output
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not ($output -match '^OK Drivers: diálogo real de investigação')) { throw 'Modo de teste do diálogo de drivers não foi executado' }
+      - name: Lote 4 relatório local compacto e íntegro
+        shell: pwsh
+        run: |
+          dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --lote4 | Tee-Object -Variable output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not ($output -match '^PASS L4 relatório real:')) { throw 'Modo de consolidação do relatório não foi executado' }
       - name: Lote 3 atualizações, concorrência e memória de download
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --lote3
       - name: Lote 3 desinstalações e posse de proteção
