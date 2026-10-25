@@ -5,6 +5,14 @@ internal static class Work9InventoryTests
 {
     internal static void Run(Action<bool, string> check)
     {
+        var modern = new ProgramEntry { Name = "GF Test Modern App", InventoryOnly = true,
+            VerifiedMsixIdentity = true };
+        var protectedMsix = new ProgramEntry { Name = "Microsoft GameInput", InventoryOnly = true,
+            VerifiedMsixIdentity = true };
+        check(ActionableInventory.CanManageWithWindows(modern) && !ActionableInventory.CanUninstall(modern) &&
+            !ActionableInventory.CanManageWithWindows(protectedMsix) &&
+            !ActionableInventory.CanManageWithWindows(new ProgramEntry { Name = "GF Test Modern App", InventoryOnly = true }),
+            "W15 gerenciamento MSIX abre somente Configuracoes; nao cria desinstalador e nao libera sistema");
         string fixture = "GF-W9-Hidden-" + Guid.NewGuid().ToString("N");
         const string parent = @"Software\Microsoft\Windows\CurrentVersion\Uninstall";
         using var hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64);
