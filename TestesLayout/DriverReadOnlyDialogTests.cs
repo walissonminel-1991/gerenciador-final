@@ -40,6 +40,17 @@ internal static class DriverReadOnlyDialogTests
                         if (!dialog.RectangleToScreen(dialog.ClientRectangle).Contains(button.RectangleToScreen(button.ClientRectangle)) ||
                             button.Height < 26 || button.Width < 75)
                             throw new Exception("Ação de consulta fora do viewport do diálogo de drivers.");
+                    if (size.Width == 500)
+                    {
+                        var scroll = Descendants(body).OfType<DarkVScrollBar>().Single();
+                        if (!scroll.Visible || scroll.MaximumValue <= 0 ||
+                            !body.RectangleToScreen(body.ClientRectangle).Contains(scroll.RectangleToScreen(scroll.ClientRectangle)))
+                            throw new Exception("Relatório longo sem barra de rolagem escura acessível na janela pequena.");
+                        scroll.Value = scroll.MaximumValue;
+                        Application.DoEvents();
+                        if (scroll.Value == 0) throw new Exception("Relatório de drivers não permite alcançar o conteúdo inferior.");
+                        scroll.Value = 0;
+                    }
                     if (!buttons.Single(b => b.Name == "DriverVerifyInfReadOnly").Enabled ||
                         !buttons.Single(b => b.Name == "DriverOfficialReadOnly").Enabled)
                         throw new Exception("Consulta oficial e verificação do INF inacessíveis para seleção válida.");

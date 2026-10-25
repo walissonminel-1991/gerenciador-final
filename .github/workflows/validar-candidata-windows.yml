@@ -42,6 +42,8 @@ jobs:
       - name: Compilar aplicacao
         shell: pwsh
         run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
+      - name: Conferir leitura e rolagem do diálogo de drivers em viewport pequeno
+        run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --drivers-readonly
       - name: Conferir versao dos scripts de distribuicao sem publicar
         shell: pwsh
         run: |

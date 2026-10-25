@@ -193,6 +193,7 @@ if (args.Contains("--live") || OperatingSystem.IsWindows())
     var live = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(timeout.Token)).WaitAsync(timeout.Token);
     Console.WriteLine($"WMI quantidade={live.Items.Count} parcial={live.Partial} status={live.Status}");
     Check(live.Items.Count > 0 && !live.Partial, "Consulta WMI somente leitura concluida no runner Windows");
+    Check(live.Items.Any(d => d.HardwareIds.Count > 0), "D2/G1: IDs de hardware reais recebidos do WMI no runner descartável");
     foreach (var group in live.Store!.Packages.GroupBy(x => (x.State, x.FailureStage, x.NativeError)))
         Console.WriteLine($"DRIVER_STORE_CI estado={group.Key.State} etapa={group.Key.FailureStage} erro=0x{unchecked((uint)group.Key.NativeError):X8} quantidade={group.Count()}");
     Check(live.Store is not null && live.Store.Packages.Any(x => x.State == DriverStoreState.Mapped) &&

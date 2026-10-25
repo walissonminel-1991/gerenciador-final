@@ -23,7 +23,15 @@ internal static class LayoutTests
         if (args.Contains("--work9"))
         {
             int failures = 0;
-            Work9InventoryTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+            if (args.Contains("--drivers-readonly"))
+        {
+            using var driverForm = new MainForm(startServices: false);
+            driverForm.Show();
+            Application.DoEvents();
+            DriverReadOnlyDialogTests.Run(driverForm);
+            return;
+        }
+        Work9InventoryTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
             Work9NavigationTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
             if (failures != 0) throw new Exception($"WORK9 UI: {failures} falhas reproduzidas");
             return;
