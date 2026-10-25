@@ -31,6 +31,10 @@ internal static class Work14CapabilityTests
             .Update.State == ApplicationCapabilityState.AvailableNotAuthorized, "W14 conflito de fonte prevalece sobre contrato de instalacao");
         check(ApplicationCapabilities.Evaluate(facts with { ResidualUncertain = true, ResidualAuthorized = true })
             .Residual.State == ApplicationCapabilityState.Inconclusive, "W14 escopo inacessivel nao vira limpeza conclusiva");
+        var specific = ApplicationCapabilities.Evaluate(facts with { InventoryOnly = true, ExplicitUpdateOnly = true, UpdateContract = true });
+        check(specific.Update.State == ApplicationCapabilityState.SilentEligible &&
+            specific.Uninstall.State == ApplicationCapabilityState.ReadOnly && specific.Residual.State == ApplicationCapabilityState.ReadOnly,
+            "W14 atualizador MSIX especifico nao autoriza desinstalacao ou limpeza generica da Store");
         var matrix = ApplicationCapabilityMatrix.From([consult, eligible, verified, forged]);
         check(matrix.Applications == 4 && matrix.OperationDenominator == 12 && matrix.SilentUpdateEligible == 2 &&
             matrix.SilentUninstallEligible == 2 && matrix.ResidualPolicies == 3 && matrix.ResidualSelections == 1 &&

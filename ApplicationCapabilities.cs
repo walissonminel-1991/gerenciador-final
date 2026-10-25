@@ -15,11 +15,12 @@ internal sealed record ApplicationCapabilityFacts(string Id, bool InventoryCompl
     bool UpdatePayloadVerified = false, bool UninstallRegistered = false,
     bool SilentUninstallContract = false, bool UninstallPayloadVerified = false,
     bool ResidualPolicy = false, bool ResidualAuthorized = false, bool ResidualUncertain = false,
-    string UpdateReason = "no_verified_contract", string UninstallReason = "registered_command_requires_preflight", bool InspectionIncomplete = false);
+    string UpdateReason = "no_verified_contract", string UninstallReason = "registered_command_requires_preflight", bool InspectionIncomplete = false, bool ExplicitUpdateOnly = false);
 internal sealed record ApplicationCapabilitySnapshot(string Id, bool Identified,
     ApplicationCapabilityDecision Update, ApplicationCapabilityDecision Uninstall,
     ApplicationCapabilityDecision Residual)
 {
+    internal DateTimeOffset ObservedAt { get; init; } = DateTimeOffset.UtcNow;
     internal IEnumerable<ApplicationCapabilityDecision> Operations => [Update, Uninstall, Residual];
     internal string Describe() => "Atualização: " + Label(Update) + "\nDesinstalação: " + Label(Uninstall) +
         "\nResíduos: " + Label(Residual);
@@ -41,6 +42,7 @@ internal sealed record ApplicationCapabilitySnapshot(string Id, bool Identified,
         "inventory_only" => "entrada protegida ou somente inventário",
         "inventory_partial" => "inventário incompleto",
         "identity_missing_or_ambiguous" => "identidade ausente ou ambígua",
+        "assessment_expired" => "consulta de capacidade expirou; atualizar e verificar novamente",
         "inspection_budget" => "verificação de capacidades atingiu o limite desta consulta",
         "policy_or_registered_command" => "tipo de aplicativo ou comando registrado sem comprovação",
         "msi_product_mismatch" => "identificadores MSI divergentes", "scope_unknown" => "escopo da instalação desconhecido",
@@ -70,7 +72,7 @@ internal static class ApplicationCapabilities
             var uncertain = D(ApplicationCapabilityState.Inconclusive, facts.InventoryComplete ? "identity_missing_or_ambiguous" : "inventory_partial");
             return new(facts.Id, facts.Identified, uncertain, uncertain, uncertain);
         }
-        if (facts.InventoryOnly)
+        if (facts.InventoryOnly && !facts.ExplicitUpdateOnly)
         {
             var read = D(ApplicationCapabilityState.ReadOnly, "inventory_only");
             return new(facts.Id, facts.Identified, read, read, read);
@@ -94,6 +96,13 @@ internal static class ApplicationCapabilities
             !facts.ResidualPolicy ? D(ApplicationCapabilityState.ReadOnly, "no_residual_policy") :
             facts.ResidualAuthorized ? D(ApplicationCapabilityState.SafeAuthorized, "residual_selection_verified") :
             D(ApplicationCapabilityState.PolicyAvailable, "residual_preflight_required");
+        if (facts.InventoryOnly)
+        {
+            // Specific reviewed MSIX updater, e.g. Terminal: no generic Store
+            // uninstall or residual authority is inferred from that contract.
+            uninstall = D(ApplicationCapabilityState.ReadOnly, "inventory_only");
+            residual = D(ApplicationCapabilityState.ReadOnly, "inventory_only");
+        }
         return new(facts.Id, facts.Identified, update, uninstall, residual);
     }
 }
@@ -115,7 +124,7 @@ internal sealed record ApplicationCapabilityMatrix(int Applications, int Identif
             ops.GroupBy(d => d.Reason).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal));
     }
     // Only counts and fixed reason codes may enter the diagnostic.
-    internal string Audit() => $"CAPACIDADES.RESUMO aplicativos={Applications} identificados={Identified} atualizacao_silenciosa_elegivel={SilentUpdateEligible} " +
+    internal string Audit() => $"CAPACIDADES.RESUMO aplicativos={Applications} identidades_catalogo={Identified} atualizacao_silenciosa_elegivel={SilentUpdateEligible} " +
         $"desinstalacao_silenciosa_elegivel={SilentUninstallEligible} politicas_residuais={ResidualPolicies} selecoes_residuais={ResidualSelections} " +
         $"consultivas={ConsultativeOperations} inconclusivas={InconclusiveOperations} operacoes={OperationDenominator}";
 }

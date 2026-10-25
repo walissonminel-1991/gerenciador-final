@@ -825,11 +825,30 @@
     "registry_reproduction_ci": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40153605447",
     "registry_reproduction_passed": true,
     "whole_initial_ci": "failed_download_public_169_range",
-    "coverage_comparison": "pending",
+    "coverage_comparison": "passed_intermediate_40154367790_final_pending",
     "progress": "27/42",
     "completed_checkpoints": [],
     "physical_pc_forte": "two_confirmed_updates_and_two_registration_absent_uninstalls_on_59; residual_inconclusive_issue48",
     "physical_pc_fraco": "pending",
-    "physical_hklm_root_cause_confirmed": false
+    "physical_hklm_root_cause_confirmed": false,
+    "coverage_evidence": "docs/benchmarks/WORK14-comparacao.json",
+    "coverage_numbers": {
+      "update_eligible_legitimate_before": 3,
+      "update_eligible_legitimate_after": 6,
+      "update_legitimate_denominator": 6,
+      "update_negative_rejected_before": 3,
+      "update_negative_rejected_after": 4,
+      "update_negative_denominator": 4,
+      "uninstall_eligible_legitimate_before": 3,
+      "uninstall_eligible_legitimate_after": 4,
+      "uninstall_legitimate_denominator": 4,
+      "uninstall_negative_rejected_before": 0,
+      "uninstall_negative_rejected_after": 4,
+      "uninstall_negative_denominator": 4,
+      "residual_policies_before": 7,
+      "residual_policies_after": 7,
+      "catalog_identity_denominator": 27,
+      "physical_inventory_coverage_measured": false
+    }
   }
 }

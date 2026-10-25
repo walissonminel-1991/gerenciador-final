@@ -203,7 +203,8 @@ internal static class IntegratedResidualPolicy
 
     internal static bool PersonalDirectory(string path) => new[] { "backup", "backups", "recordings", "documents",
         "downloads", "pictures", "music", "videos", "playlists", "saved games", "saves", "projects",
-        "steamapps", "games", "gog games", "epic games", "userdata", "libraries", "credentials", "passwords", "wallets" }
+        "steamapps", "games", "gog games", "epic games", "userdata", "libraries", "credentials", "passwords", "wallets",
+        "profiles", "profile", "local storage", "session storage", "databases", "cookies", "webstorage" }
         .Contains(Path.GetFileName(path), Paths);
 
     internal static bool EligibleFile(string path)

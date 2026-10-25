@@ -9,6 +9,10 @@ if (args.Contains("--verify-catalog"))
     {
         var rows = catalog.Find(item.Item1, item.Item2, "", token.Token);
         if (rows.Count != 1) throw new Exception("Catalogo nao identifica fixture publica " + item.Item1);
+        var decorated = catalog.Find(item.Item1 + " " + rows[0].Version + " (64-bit x64)", item.Item2, "", token.Token);
+        if (decorated.Count != 1 || decorated[0].Id != rows[0].Id)
+            throw new Exception("Nome ARP decorado diverge no indice real " + item.Item1);
+        Console.WriteLine("CATALOGO.IDENTIDADE_ARP_VALIDADA " + rows[0].Id);
         var bytes = await PackageCatalogIndex.ReadManifestAsync(rows[0], token.Token);
         if(item.Item1!="SumatraPDF")
         {
@@ -57,7 +61,7 @@ if (args.Contains("--verify-catalog"))
     }
     return;
 }
-if(args.Contains("--automatic")){Work14CapabilityTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});AutomaticDiscoveryTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
+if(args.Contains("--automatic")){if(OperatingSystem.IsWindows())Work14CatalogTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});Work14CapabilityTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});AutomaticDiscoveryTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
 int checkedCount = 0;
 void Verify(bool condition, string label)
 {
@@ -509,6 +513,7 @@ try
 }
 finally { Directory.Delete(isolated, true); }
 
+if(OperatingSystem.IsWindows())Work14CatalogTests.Run(Verify);
 Work14CapabilityTests.Run(Verify);
 AutomaticDiscoveryTests.Run(Verify);
 await Work13UpdateTests.RunAsync(Verify);

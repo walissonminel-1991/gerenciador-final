@@ -40,6 +40,29 @@ internal static class Work14RegistryTests
             check(read is not null, "W14 consulta no token original do runner " + view);
         }
         foreach (var where in new[] { "parent", "leaf", "child" }) TestDenied(where, check);
+        PreserveProfiles(check);
+    }
+
+    private static void PreserveProfiles(Action<bool, string> check)
+    {
+        string root = Path.Combine(Path.GetTempPath(), "GF-W14-Profiles-" + Guid.NewGuid().ToString("N"));
+        string profile = Path.Combine(root, "Profiles"), storage = Path.Combine(root, "Local Storage");
+        Directory.CreateDirectory(profile); Directory.CreateDirectory(storage);
+        string credentials = Path.Combine(profile, "settings.ini"), tokens = Path.Combine(storage, "opaque.log"), owned = Path.Combine(root, "owned.cfg");
+        File.WriteAllText(credentials, "SYNTHETIC"); File.WriteAllText(tokens, "SYNTHETIC"); File.WriteAllText(owned, "SYNTHETIC");
+        var app = new ProgramEntry { Name = "GF Synthetic Profile", InventoryId = Guid.NewGuid().ToString("N") };
+        IntegratedResidualPolicy.SyntheticScope = _ => new("synthetic", [root], [], []);
+        try
+        {
+            var context = IntegratedResidualCleanup.Prepare(app, new([app], true));
+            var plan = IntegratedResidualCleanup.Capture(context, new([], true));
+            check(plan.Files is [{ Path: var path }] && path == owned && plan.Preserved == 2,
+                "W14 perfis e armazenamentos de credenciais conhecidos ficam fora da selecao residual");
+            var result = IntegratedResidualCleanup.DeleteAsync(plan, true, () => Task.FromResult(new UninstallSnapshot([], true))).GetAwaiter().GetResult();
+            check(!File.Exists(owned) && result.Files == 1 && File.Exists(credentials) && File.Exists(tokens),
+                "W14 SIM remove apenas arquivo elegivel e preserva perfis mesmo com extensoes antes elegiveis");
+        }
+        finally { IntegratedResidualPolicy.SyntheticScope = null; Directory.Delete(root, true); }
     }
 
     private static void TestDenied(string where, Action<bool, string> check)

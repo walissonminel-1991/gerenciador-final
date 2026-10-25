@@ -83,7 +83,7 @@ internal sealed class PackageCatalogIndex : IDisposable
         if (rows.Count > 100) return [];
         string key = InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(publisher));
         var candidates = rows.Where(r => InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(r[2])) == key &&
-            Matching.NormalizeName(r[1]) == Matching.NormalizeName(name) && Regex.IsMatch(r[5], "^[A-Fa-f0-9]{64}$"))
+            InstallerEngineEvidence.SameProduct(r[1], name) && Regex.IsMatch(r[5], "^[A-Fa-f0-9]{64}$"))
             .GroupBy(r => r[0], StringComparer.OrdinalIgnoreCase).ToArray();
         if (key.Length == 0 || candidates.Length != 1) return [];
         return candidates[0].GroupBy(r => r[3]).Select(g => g.First()).Select(r =>
@@ -140,6 +140,14 @@ internal sealed class PackageCatalogIndex : IDisposable
         }
         finally { sqlite3_finalize(statement); }
     }
+#if GF_PROGRESSIVE
+    internal static PackageCatalogIndex OpenSynthetic(string folder)
+    {
+        var held = InstallerFileGuard.OpenRead(Path.Combine(folder, "index.db"), allowDirectoryWrites: true);
+        try { return new(folder, held, Convert.ToHexString(SHA256.HashData(held))); }
+        catch { held.Dispose(); throw; }
+    }
+#endif
     public void Dispose()
     {
         if (database != IntPtr.Zero) { sqlite3_close(database); database = IntPtr.Zero; }

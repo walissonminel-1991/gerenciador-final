@@ -1,0 +1,317 @@
+{
+  "schema": 1,
+  "base": "954949eef8ee84785ee6434f964b6f1e3c9e0b50",
+  "candidate": "491afd559e72f8a325ef48882c84d49205bb91e4",
+  "scope": "bounded synthetic installation scenarios; not PC inventory",
+  "signature_evidence": "same simulated oracle in both disposable copies; no real execution authorization",
+  "before": {
+    "WORK14_UPDATE_MATRIX": [
+      {
+        "id": "nsis",
+        "expected_eligible": true,
+        "local_identity": true,
+        "silent_eligible": true,
+        "payload_verified": false,
+        "reason": "payload_validation_required"
+      },
+      {
+        "id": "nsis_arp",
+        "expected_eligible": true,
+        "local_identity": false,
+        "silent_eligible": false,
+        "payload_verified": false,
+        "reason": "installation_not_corroborated"
+      },
+      {
+        "id": "msi",
+        "expected_eligible": true,
+        "local_identity": true,
+        "silent_eligible": true,
+        "payload_verified": false,
+        "reason": "payload_validation_required"
+      },
+      {
+        "id": "msi_icon_root",
+        "expected_eligible": true,
+        "local_identity": false,
+        "silent_eligible": false,
+        "payload_verified": false,
+        "reason": "installation_not_corroborated"
+      },
+      {
+        "id": "inno",
+        "expected_eligible": true,
+        "local_identity": true,
+        "silent_eligible": true,
+        "payload_verified": false,
+        "reason": "payload_validation_required"
+      },
+      {
+        "id": "inno_arp",
+        "expected_eligible": true,
+        "local_identity": false,
+        "silent_eligible": false,
+        "payload_verified": false,
+        "reason": "installation_not_corroborated"
+      },
+      {
+        "id": "wrong_arch",
+        "expected_eligible": false,
+        "local_identity": true,
+        "silent_eligible": true,
+        "payload_verified": false,
+        "reason": "payload_validation_required"
+      },
+      {
+        "id": "wrong_product",
+        "expected_eligible": false,
+        "local_identity": false,
+        "silent_eligible": false,
+        "payload_verified": false,
+        "reason": "installation_not_corroborated"
+      },
+      {
+        "id": "wrong_msi_code",
+        "expected_eligible": false,
+        "local_identity": false,
+        "silent_eligible": false,
+        "payload_verified": false,
+        "reason": "installation_not_corroborated"
+      },
+      {
+        "id": "server",
+        "expected_eligible": false,
+        "local_identity": false,
+        "silent_eligible": false,
+        "payload_verified": false,
+        "reason": "installation_not_corroborated"
+      }
+    ],
+    "WORK14_UNINSTALL_MATRIX": [
+      {
+        "id": "nsis",
+        "expected_eligible": true,
+        "silent_eligible": true,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "nsis_nested",
+        "expected_eligible": true,
+        "silent_eligible": false,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "inno",
+        "expected_eligible": true,
+        "silent_eligible": true,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "inno_nested",
+        "expected_eligible": true,
+        "silent_eligible": true,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "inno_no_product",
+        "expected_eligible": false,
+        "silent_eligible": true,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "nsis_wrong_arch",
+        "expected_eligible": false,
+        "silent_eligible": true,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "inno_wrong_publisher",
+        "expected_eligible": false,
+        "silent_eligible": true,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "inno_server",
+        "expected_eligible": false,
+        "silent_eligible": true,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      }
+    ],
+    "WORK14_RESIDUAL_POLICIES": {
+      "identities": 27,
+      "policies": 7,
+      "deletion_authorized": 0
+    },
+    "update_summary": {
+      "denominator": 10,
+      "eligible": 4,
+      "legitimate_denominator": 6,
+      "legitimate_eligible": 3,
+      "negative_denominator": 4,
+      "negative_rejected": 3
+    },
+    "uninstall_summary": {
+      "denominator": 8,
+      "eligible": 7,
+      "legitimate_denominator": 4,
+      "legitimate_eligible": 3,
+      "negative_denominator": 4,
+      "negative_rejected": 0
+    }
+  },
+  "after": {
+    "WORK14_UPDATE_MATRIX": [
+      {
+        "id": "nsis",
+        "expected_eligible": true,
+        "local_identity": true,
+        "silent_eligible": true,
+        "payload_verified": false,
+        "reason": "payload_validation_required"
+      },
+      {
+        "id": "nsis_arp",
+        "expected_eligible": true,
+        "local_identity": true,
+        "silent_eligible": true,
+        "payload_verified": false,
+        "reason": "payload_validation_required"
+      },
+      {
+        "id": "msi",
+        "expected_eligible": true,
+        "local_identity": true,
+        "silent_eligible": true,
+        "payload_verified": false,
+        "reason": "payload_validation_required"
+      },
+      {
+        "id": "msi_icon_root",
+        "expected_eligible": true,
+        "local_identity": true,
+        "silent_eligible": true,
+        "payload_verified": false,
+        "reason": "payload_validation_required"
+      },
+      {
+        "id": "inno",
+        "expected_eligible": true,
+        "local_identity": true,
+        "silent_eligible": true,
+        "payload_verified": false,
+        "reason": "payload_validation_required"
+      },
+      {
+        "id": "inno_arp",
+        "expected_eligible": true,
+        "local_identity": true,
+        "silent_eligible": true,
+        "payload_verified": false,
+        "reason": "payload_validation_required"
+      },
+      {
+        "id": "wrong_arch",
+        "expected_eligible": false,
+        "local_identity": false,
+        "silent_eligible": false,
+        "payload_verified": false,
+        "reason": "installation_not_corroborated"
+      },
+      {
+        "id": "wrong_product",
+        "expected_eligible": false,
+        "local_identity": false,
+        "silent_eligible": false,
+        "payload_verified": false,
+        "reason": "installation_not_corroborated"
+      },
+      {
+        "id": "wrong_msi_code",
+        "expected_eligible": false,
+        "local_identity": false,
+        "silent_eligible": false,
+        "payload_verified": false,
+        "reason": "installation_not_corroborated"
+      },
+      {
+        "id": "server",
+        "expected_eligible": false,
+        "local_identity": false,
+        "silent_eligible": false,
+        "payload_verified": false,
+        "reason": "installation_not_corroborated"
+      }
+    ],
+    "WORK14_UNINSTALL_MATRIX": [
+      {
+        "id": "nsis",
+        "expected_eligible": true,
+        "silent_eligible": true,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "nsis_nested",
+        "expected_eligible": true,
+        "silent_eligible": true,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "inno",
+        "expected_eligible": true,
+        "silent_eligible": true,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "inno_nested",
+        "expected_eligible": true,
+        "silent_eligible": true,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "inno_no_product",
+        "expected_eligible": false,
+        "silent_eligible": false,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "nsis_wrong_arch",
+        "expected_eligible": false,
+        "silent_eligible": false,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "inno_wrong_publisher",
+        "expected_eligible": false,
+        "silent_eligible": false,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      },
+      {
+        "id": "inno_server",
+        "expected_eligible": false,
+        "silent_eligible": false,
+        "signature_evidence": "simulated-identically-in-both-refs"
+      }
+    ],
+    "WORK14_RESIDUAL_POLICIES": {
+      "identities": 27,
+      "policies": 7,
+      "deletion_authorized": 0
+    },
+    "update_summary": {
+      "denominator": 10,
+      "eligible": 6,
+      "legitimate_denominator": 6,
+      "legitimate_eligible": 6,
+      "negative_denominator": 4,
+      "negative_rejected": 4
+    },
+    "uninstall_summary": {
+      "denominator": 8,
+      "eligible": 4,
+      "legitimate_denominator": 4,
+      "legitimate_eligible": 4,
+      "negative_denominator": 4,
+      "negative_rejected": 4
+    }
+  }
+}
