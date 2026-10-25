@@ -27,6 +27,13 @@ As correções de estado já estavam isoladas na PR #47 e presentes na frente
 WORK17; faltavam nesta base de lotes. A adaptação preserva essa evidência
 anterior, sem reivindicar descoberta inédita nem integrar toda a outra frente.
 
+A revisão do despachador revelou os modos de layout `--drivers-readonly` e
+`--lote3` dentro do bloco `--work9`: isoladamente, as chamadas executavam a
+suíte geral e não esses cenários. O encaminhamento foi corrigido e os dois
+passos da CI agora exigem a marca final do cenário específico, além do código
+de saída. A execução anterior não é evidência desses dois cenários; eles
+precisam passar novamente com o despachador corrigido.
+
 O novo SingleLaunchResource protege o intervalo até Process.Start retornar,
 sem impedir que o fornecedor remova seus próprios arquivos depois. Não é
 autorização de comando: identidade, PE, assinatura, escopo, consentimento,
@@ -37,8 +44,8 @@ Isso não certifica serialização universal entre usuários/sessões/processos.
 
 O limite da prévia atua apenas no painel de mensagens. O arquivo de diagnóstico
 mantém sua política e limites próprios. Nenhum relatório de investigação
-estático é cortado, nenhum processo externo é encerrado e nenhum cache do
-Windows é apagado. Contagem de caracteres omitidos não representa RAM física
+estático é cortado. Esta alteração não encerra processos externos nem apaga
+cache do Windows. Contagem de caracteres omitidos não representa RAM física
 liberada nem limpeza da memória de outros programas.
 
 ## Medição reproduzível
