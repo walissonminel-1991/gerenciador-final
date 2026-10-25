@@ -807,31 +807,29 @@
     }
   },
   "candidate": {
-    "version": "5.13.11.59 TESTE",
-    "status": "approved",
-    "mission": "WORK13-AUTOMATICA",
-    "report": "docs/MISSAO-WORK13.md",
+    "version": "5.13.11.60 TESTE",
+    "status": "pending",
+    "mission": "WORK14-MOTORES",
+    "report": "docs/MISSAO-WORK14-MOTORES.md",
     "physical_validation": "pending",
     "winget_execution_enabled": false,
-    "code_commit": "26bbc17ae9e07c485a91fa8b592eca7cabaad118",
-    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763",
-    "package_verified_by_ci": true,
-    "validation": {
-      "windows_updates": 318,
-      "automatic_discovery": 81,
-      "residuals_uninstall": 645,
-      "mutations_detected": 27,
-      "python": 35,
-      "node": 10,
-      "real_catalog_manifests": 4,
-      "real_engines": [
-        "VLC 3.0.24: NSIS e assinatura VideoLAN",
-        "ShareX 21.0.0: Inno reconhecido, sem assinatura e execucao bloqueada"
-      ],
-      "physical_validation": "pending",
-      "external_zip_recheck": "verified",
-      "compact_ui_manual_review": "1280x720 e 1440x900: capturas sinteticas Windows conferidas"
-    },
-    "package_verified_independently": true
+    "package_verified_by_ci": false
+  },
+  "mission_work14": {
+    "status": "implementation_under_ci",
+    "base_pr": 49,
+    "base_commit": "954949eef8ee84785ee6434f964b6f1e3c9e0b50",
+    "pr": 50,
+    "report": "docs/MISSAO-WORK14-MOTORES.md",
+    "base_ci": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40151238332",
+    "registry_reproduction_ci": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40153605447",
+    "registry_reproduction_passed": true,
+    "whole_initial_ci": "failed_download_public_169_range",
+    "coverage_comparison": "pending",
+    "progress": "27/42",
+    "completed_checkpoints": [],
+    "physical_pc_forte": "two_confirmed_updates_and_two_registration_absent_uninstalls_on_59; residual_inconclusive_issue48",
+    "physical_pc_fraco": "pending",
+    "physical_hklm_root_cause_confirmed": false
   }
 }

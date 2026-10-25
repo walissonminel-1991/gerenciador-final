@@ -57,7 +57,7 @@ if (args.Contains("--verify-catalog"))
     }
     return;
 }
-if(args.Contains("--automatic")){AutomaticDiscoveryTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
+if(args.Contains("--automatic")){Work14CapabilityTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});AutomaticDiscoveryTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
 int checkedCount = 0;
 void Verify(bool condition, string label)
 {
@@ -509,6 +509,7 @@ try
 }
 finally { Directory.Delete(isolated, true); }
 
+Work14CapabilityTests.Run(Verify);
 AutomaticDiscoveryTests.Run(Verify);
 await Work13UpdateTests.RunAsync(Verify);
 await Work9UpdateTests.RunAsync(Verify);

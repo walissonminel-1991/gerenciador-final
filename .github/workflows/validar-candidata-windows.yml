@@ -67,6 +67,16 @@ jobs:
         run: dotnet run --project TestesMultifontes/TestesMultifontes.csproj -c Release
       - name: Testes instaladores verificados
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release
+      - name: Comparar cobertura funcional WORK14 com a base imutavel
+        run: python scripts/measure_work14.py
+      - name: Conservar matriz funcional antes e depois
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: WORK14-cobertura-${{ github.sha }}
+          path: Work14Coverage.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Controles negativos por mutacao em copias isoladas
         run: python scripts/test_work6_mutations.py
       - name: Testes drivers e historico

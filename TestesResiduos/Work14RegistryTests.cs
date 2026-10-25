@@ -27,8 +27,10 @@ internal static class Work14RegistryTests
                     catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException)
                     { incidentalWriteDenied = true; }
                     check(incidentalWriteDenied, "W14 reproduz erro 5 na reabertura .NET da raiz HKLM com escrita, token restrito " + view);
-                    using var read = ResidualRegistryGuard.Open(root, @"SOFTWARE\Microsoft", view);
-                    check(read is not null, "W14 consulta HKLM funciona com direitos somente leitura, token restrito " + view);
+                    RegistryKey? read = null;
+                    try { read = ResidualRegistryGuard.Open(root, @"SOFTWARE\Microsoft", view); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+                    using (read) check(read is not null, "W14 consulta HKLM funciona com direitos somente leitura, token restrito " + view);
                 });
         }
         foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })

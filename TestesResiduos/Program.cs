@@ -6,6 +6,11 @@ if (args.Length == 2 && args[0] == "--synthetic-uninstall")
 if (args.Length == 3 && args[0] == "--residual-worker-test")
 { Environment.Exit(await Work10IntegratedCleanupTests.WorkerFixture(args[1], args[2])); return; }
 int passed = 0;
+if (args.Contains("--work14-silent"))
+{
+    await Work14SilentTests.RunAsync((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("PASS " + label); });
+    return;
+}
 if (args.Contains("--work14"))
 {
     Work14RegistryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("PASS " + label); });
@@ -89,6 +94,7 @@ if (args.Contains("--work6-uninstall-policy"))
 // Bateria integrada, na ordem solicitada: o atualizador corre no projeto separado,
  // aqui simulamos desinstalacao e somente depois politica de residuos.
 Work14RegistryTests.Run(Check);
+await Work14SilentTests.RunAsync(Check);
 await Work9ResidualTests.RunAsync(Check);
 await Work12RegressionTests.RunAsync(Check);
 await Work10IntegratedCleanupTests.RunAsync(Check);

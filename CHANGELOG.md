@@ -1,5 +1,14 @@
 # Histórico de alterações
 
+## 5.13.11.60 TESTE — WORK14: evolução dos motores (em validação)
+
+- Registro: evita a solicitação implícita de escrita na raiz HKLM durante inspeção; preserva erro, etapa, profundidade e cobertura antes/depois. Nenhuma alteração de ACL no produto.
+- `registered-install` deixa de inferir HKLM; política de máquina exige revisão própria. Interface distingue verificado, ausente, inacessível, preservado e exclusões propostas.
+- Capacidades por aplicativo, motivos e denominadores agregados no diagnóstico. Elegível não equivale a payload validado nem a autorização para excluir.
+- Identidade comum de produto preserva `+`, canal e arquitetura; admite decoração ARP conhecida. MSI/WiX sem InstallLocation pode comprovar raiz pelo executável registrado. NSIS reconhece desinstalador em subpasta dedicada. Inno exige também produto e assinaturas, em vez de conceder flags apenas pelo log.
+- Corrige classificação IPv4: `169.254/16` permanece bloqueada, sem bloquear o espelho público VLC `169.229`. Assinatura/hash/HTTPS continuam obrigatórios.
+- Matriz reproduzível da mesma amostra contra #49; assinatura simulada é declarada e não representa homologação. U8/R7/R4 abertos, 27/42.
+
 ## 5.13.11.59 TESTE — descoberta automática (24/10/2026)
 
 - Aprovada na [CI 40138799763](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763), fonte `26bbc17a`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319). 318 testes de atualizadores (81 da descoberta), 645 resíduos e 27 mutações; 281 hashes internos e SHA do ZIP reconferidos independentemente. Homologação física pendente.

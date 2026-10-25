@@ -1,8 +1,26 @@
 # Regressões do GERENCIADOR FINAL
 
-Este é o procedimento vigente da candidata .49. CI e dados sintéticos não
+Este é o procedimento vigente da candidata .60 em validação. CI e dados sintéticos não
 substituem homologação nos PCs. O [roteiro físico mínimo](TESTE-CONSOLIDADO.md)
 é separado dos testes automatizados.
+
+## WORK14 — comparação de cobertura e erro 5
+
+`python scripts/measure_work14.py` compila os mesmos probes contra a base imutável
+`954949e` e o HEAD em diretórios descartáveis. Publica `Work14Coverage.json` com
+casos, positivos, controles negativos e denominadores; não executa payloads.
+Assinaturas do probe de seleção são simuladas **igualmente nas duas cópias** e
+não contam como WinVerifyTrust real. O job de downloads/assinaturas reais é separado
+e obrigatório em PR. Aumentar número de asserções não conclui checkpoint.
+
+`--work14` em TestesResiduos reproduz a abertura HKLM com token restrito e confere
+leituras padrão do runner, além de negações somente em fixtures HKCU. `--work14-silent`
+exercita NSIS/Inno em subpasta, identidade, arquitetura, assinatura divergente,
+ambiguidade e pasta compartilhada. Ambos integram a suíte completa.
+
+[Diagnóstico, limites e roteiro físico mínimo da .60](MISSAO-WORK14-MOTORES.md).
+A falha física da issue #48 permanece aberta até a reavaliação no PC FORTE;
+fixtures não determinam a ACL ou intervenção do antivírus nesse computador.
 
 ## Ambiente e execução
 
@@ -56,8 +74,9 @@ SHAs esperados. A conferência independente exige cobertura exata de hashes,
 arquitetura AMD64, runtime incorporado, origem e avisos de licença. Python é
 uma ferramenta de auditoria/CI, não dependência do aplicativo distribuído.
 
-`TestesRede` e os modos `--live`/`--verify-downloads` são opcionais e acessíveis
-por `workflow_dispatch` em `validar-candidata-windows.yml`. Consultam fontes ou
+`TestesRede` e os modos `--live` são opcionais por `workflow_dispatch`.
+Catálogo autenticado e `--verify-downloads` são obrigatórios em PR e também
+acessíveis por `workflow_dispatch` em `validar-candidata-windows.yml`. Consultam fontes ou
 baixam e verificam instaladores, sem executá-los. Jobs ignorados em PR não
 validam a disponibilidade atual dessas fontes. Não utilizar os PCs pessoais
 para os testes destrutivos sintéticos.

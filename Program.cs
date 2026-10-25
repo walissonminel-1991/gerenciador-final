@@ -94,6 +94,7 @@ internal sealed class ProgramEntry
     public bool IsUpdate { get; set; }
     public bool UpdateRequiresReview { get; set; }
     public string UpdateEvidence { get; set; } = "";
+    internal ApplicationCapabilitySnapshot? Capabilities { get; set; }
     public MatchState ComparisonState { get; set; } = MatchState.Unmatched;
 }
 
@@ -2148,6 +2149,7 @@ internal sealed partial class MainForm : Form
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_INICIO");
         RenderPrograms();
         DiagnosticTrace.Write("REGISTRO_PROGRAMAS.RENDER_FIM");
+        await RefreshCapabilitiesAsync(updateChecked: false);
         Log($"Inventário local: {_installed.Count} registros; {ActionableInventory.VisibleCount(_installed)} com desinstalação disponível. A lista exibida mostra somente ações.");
         Status(_inventoryIncomplete
             ? "Inventário PARCIAL: fonte de aplicativos indisponível. Use Atualizar e verificar para tentar novamente."
@@ -2256,6 +2258,9 @@ internal sealed partial class MainForm : Form
             var merged = _updateHistory.Apply(installed, freshMerged, partial);
             AplicarCandidatos(merged);
             AutomaticUpdateDiscovery.Attach(automatic);
+            await RefreshCapabilitiesAsync(updateChecked: true, cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (generation != _catalogoGeneration || IsDisposed) return;
             Log("Descoberta automática: "+automatic.Findings.Count+" instalador(es) identificado(s); catálogo "+automatic.Diagnostic.Status+".");
             foreach (var (sourceId, sourceCode) in new[] { ("ea-desktop", 1), ("fancontrol", 2),
                 ("jellyfin-server", 3), ("klite-mega", 4), ("gameinput-winget", 5), ("plex", 6),
@@ -3007,6 +3012,11 @@ internal sealed partial class MainForm : Form
                         VerifiedUpdaters.VerifyAuthenticode(path, signer, out string issue);
                         return issue;
                     }), cancellation.Token));
+                var proof = prepared[^1];
+                if (request.Original.Capabilities is { } capability && SilentUninstallPolicy.UsesSilentMode(request) &&
+                    !proof.UnsignedWarning && !proof.PublisherWarning && !proof.TrustWarning)
+                    request.Original.Capabilities = capability with
+                    { Uninstall = new(ApplicationCapabilityState.SilentVerified, "payload_verified") };
             }
             string preview = await Task.Run(() => string.Join("\n\n", prepared.Select(p =>
                 "• " + p.Request.Original.Name + "\n" + SilentUninstallPolicy.DescribeMode(p.Request) +
