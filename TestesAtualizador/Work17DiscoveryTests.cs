@@ -53,8 +53,11 @@ internal static class Work17DiscoveryTests
         check(MsiMajorUpgradeEvidence.Covers(rule,installed),"W17 major upgrade cobre versao instalada sem executar MSI");
         foreach(var bad in new[]{rule with{Code=Work17CoverageProbe.Code},rule with{Minimum="2.1.0"},rule with{Maximum="2.0.0"},
             rule with{Attributes=2},rule with{Attributes=4},rule with{Languages="1046"},rule with{Languages="invalid"},
-            rule with{Remove="SomeFeature"},rule with{Property="lowercase"},rule with{Minimum="",Maximum=""}})
+            rule with{Remove="SomeFeature"},rule with{Property="lowercase"},rule with{Minimum=null,Maximum=null},rule with{Maximum=""}})
             check(!MsiMajorUpgradeEvidence.Covers(bad,installed),"W17 major upgrade sem substituicao verificavel recusado");
+        check(MsiMajorUpgradeEvidence.Covers(rule with{Minimum=null},installed),"W17 limite MSI inferior NULL e ilimitado");
+        check(MsiMajorUpgradeEvidence.Covers(rule with{Maximum=null},installed),"W17 limite MSI superior NULL e ilimitado");
+        check(!MsiMajorUpgradeEvidence.Covers(rule with{Maximum=""},installed),"W17 limite MSI superior vazio e zero em vez de ilimitado");
         check(MsiMajorUpgradeEvidence.Covers(rule with{Maximum="2.0.0",Attributes=0x300},installed),"W17 major upgrade inclui limite superior explicito");
         check(MsiMajorUpgradeEvidence.Covers(rule with{Languages="1046",Attributes=0x500},installed),"W17 major upgrade respeita exclusao de idioma");
         if(!OperatingSystem.IsWindows())return;

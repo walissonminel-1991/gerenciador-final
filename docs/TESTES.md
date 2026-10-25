@@ -644,3 +644,7 @@ a candidata desta missão permanece experimental e sem assinatura.
 
 
 </details>
+
+## WORK17 — identidade MSI e falhas isoladas
+
+Ver [relatório e roteiro físico](MISSAO-WORK17.md). Executar `dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work17` e `python scripts/measure_work17.py` no Windows. O teste não instala MSI: consulta bancos inertes, simula cache/assinante na amostra e mantém payloads autorizados/homologações físicas em zero.

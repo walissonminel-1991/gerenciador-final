@@ -12,7 +12,24 @@ Candidata 5.13.11.62 TESTE. Verificações Windows e pacote pendentes. Base: PR 
 
 ## Medição e validação
 
-Execute no Windows: `dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work17` e `python scripts/measure_work17.py`. A comparação usa os mesmos 22 cenários contra WORK16. Resultados ainda não apurados nesta versão do relatório. São planos elegíveis antes da validação do payload, não compatibilidade física ou operações finais autorizadas.
+Execute no Windows: `dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work17` e `python scripts/measure_work17.py`. A comparação usa os mesmos 22 cenários contra WORK16. A primeira medição Windows confirmou os valores abaixo; o relatório final registrará o commit/CI selecionados. São planos elegíveis antes da validação do payload, não compatibilidade física ou operações finais autorizadas.
+
+| Indicador da mesma amostra | WORK16 | WORK17 |
+|---|---:|---:|
+| Entradas fornecidas ao matcher | 22 | 22 |
+| Identidades locais corroboradas na leitura inicial | 3/22 | 9/22 |
+| Planos silenciosos elegíveis antes do payload | 3/22 | 6/22 |
+| Positivos elegíveis, subconjunto acima | 3/6 | 6/6 |
+| Negativos bloqueados, subconjunto acima | 16/16 | 16/16 |
+| Entradas sem plano elegível | 19/22 | 16/22 |
+| Payloads finalmente autorizados | 0 | 0 |
+| Operações reais de terceiros / homologações físicas | 0 / 0 | 0 / 0 |
+
+As nove leituras corroboradas incluem três evidências rejeitadas na revalidação por raiz compartilhada, produto duplicado ou cache alterado. Não representam nove operações elegíveis. Os ganhos são `alias_machine`, `alias_user` e `alias_icon_root`; os três controles positivos originais permanecem válidos. A amostra é construída no probe, não uma nova medição do inventariador Windows.
+
+Atualizações identificadas de uma frota, planos supervisionados, desinstalações silenciosas/interativas, gerenciamento externo e contagem de ambiguidades na frota não são medidos por este benchmark. Os motores existentes permanecem sob regressão; não se declara aumento nesses indicadores. A tabela completa solicitada para os dois PCs deve ser preenchida com snapshots físicos de igual denominador.
+
+Nos controles de falha, a nova consulta conserva duas descobertas ao redor de um lookup indisponível, mantém a versão consultiva quando o manifesto falha e conserva 512 resultados ao atingir o limite. O cancelamento explícito impede o retorno de um scan autorizável. Esses resultados são testes controlados da implementação atual, sem comparação numérica simulada do motor antigo.
 
 Leitor MSI nativo também lê bancos `.msi` sintéticos reais com e sem contrato de major upgrade, sem instalar. Catálogo e downloads reais permanecem cobertos pelos jobs existentes da CI. O limite do runner WinGet elevado continua documentado no WORK16.
 
