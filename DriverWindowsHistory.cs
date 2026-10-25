@@ -67,7 +67,7 @@ internal static class DriverWindowsHistory
             }
             // Apenas campos explícitos de INF publicado/selecionado. Um INF
             // citado num comando, erro ou diretório de origem não é associação.
-            var inf = Match(line, @"^(?:inf:\s+Published Inf Path:\s+|dvi:\s+InfPath\s*=\s*)(.+)$");
+            var inf = Match(line, @"^(?:inf:\s+Published Inf Path:\s+|(?:dvi|ndv):\s+InfPath\s*=\s*|ndv:\s+Driver INF Path:\s*)(.+)$");
             if (inf.Success)
             {
                 string path = inf.Groups[1].Value.Trim().Trim('\'');

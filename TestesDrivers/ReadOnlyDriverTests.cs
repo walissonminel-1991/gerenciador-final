@@ -27,6 +27,11 @@ internal static class ReadOnlyDriverTests
             DriverWindowsHistory.Correlate(device with { DeviceId = id + "2" }, log).Length == 0 &&
             DriverWindowsHistory.Correlate(device with { InfName = "oem18.inf" }, log).Length == 0,
             "D2/R6: correlação exige o mesmo dispositivo E INF, sem semelhança ou fabricante");
+        check(Parse(Section().Replace("inf:      Published Inf Path:", "ndv:      Driver INF Path:")).Events.Count == 1 &&
+            Parse(Section().Replace("inf:      Published Inf Path:", "ndv:      Infpath=")).Events.Count == 1,
+            "D2: campos explícitos ndv do INF instalado também são reconhecidos");
+        check(Parse(Section().Replace("inf:      Published Inf Path:", "ndv:      INF path:")).Events.Count == 0,
+            "D2: caminho de entrada de um instalador não é promovido a INF instalado");
         check(Parse(Section(status: "FAILURE(0x00000005)")).Events.Single().Outcome == DriverInstallOutcome.Failed &&
             Parse(Section().Replace("[Exit status: SUCCESS]", "[Exit]")).Events.Single().Outcome == DriverInstallOutcome.Unknown,
             "D2: falha e resultado desconhecido não são sucesso");
@@ -121,6 +126,8 @@ internal static class ReadOnlyDriverTests
             DriverOfficialLookup.Match(inventory with { Items = [device with { Present = false }] }, [offer], true).Matches.Count == 0 &&
             DriverOfficialLookup.Match(inventory with { Items = [device with { HardwareIds = [] }] }, [offer], true).Matches.Count == 0,
             "G1: WUA parcial, dispositivo ausente e hardware desconhecido não concedem vínculo");
+        check(DriverOfficialLookup.Match(inventory with { Items = [device with { DeviceId = "" }] }, [offer], true).Matches.Count == 0,
+            "G1: HardwareID sem identidade de dispositivo não cria associação");
         check(DriverOfficialLookup.Match(inventory, [], true) is { Partial: false, Offered: 0 } &&
             DriverOfficialLookup.Match(inventory, [], false).Partial,
             "G1: consulta vazia bem-sucedida é diferente de falha da fonte");
