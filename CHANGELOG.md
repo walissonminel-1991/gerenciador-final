@@ -2,7 +2,7 @@
 
 ## 5.13.11.64 TESTE — integração Lotes 1–4 + WORK14–WORK17 (25/10/2026)
 
-- Candidata experimental em Draft [PR #59](https://github.com/walissonminel-1991/gerenciador-final/pull/59), sem release ou homologação física. CI integrada em investigação; não reutilizar atestado da .63.
+- Candidata integrada [PR #59](https://github.com/walissonminel-1991/gerenciador-final/pull/59) com [CI Windows 40241712164](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164) **aprovada tecnicamente** (repetição segura do job de mirrors). [ZIP x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183) com 284 hashes verificados externamente, SHA-256 `7d659b35319e2389c6266ef4fcee25e1733f0f5fa9c36558a0e38e66b12919c9`. Não constitui release estável ou homologação física.
 - Combina histórico local, drivers consultivos e UI dos lotes 1–4 com catálogos MSI/NSIS/Inno, WinGet COM somente leitura, Scoop/Chocolatey consultivos e regras de execução verificadas WORK14–WORK17.
 - Mantém estados Pending/Indeterminate pós-execução, UAC por decisão do usuário, proteção de dados compartilhados, verificações de hash/assinatura e não exclusão sob ambiguidade.
 - Ver [relatório e pendências](docs/MISSAO-INTEGRACAO.md), [WORK17](docs/MISSAO-WORK17.md), [Lote 4](docs/MISSAO-LOTE4.md). Roadmap inalterado 27/42.

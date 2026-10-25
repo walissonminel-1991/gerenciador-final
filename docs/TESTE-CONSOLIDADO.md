@@ -1,9 +1,10 @@
 # Roteiro físico posterior — integração .64 TESTE (não homologada)
 
-Este roteiro **não foi executado para a integração .64**. A PR #59 está Draft:
-[relatório](MISSAO-INTEGRACAO.md). Não executar até a CI integrada, verificação
-independente do ZIP e revisão das pendências. A .63 anterior foi aprovada
-tecnicamente em [MISSAO-LOTE4](MISSAO-LOTE4.md), mas não valida a .64.
+Este roteiro **não foi executado para a integração .64**. A [CI integrada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164)
+está tecnicamente aprovada e o ZIP teve seus hashes conferidos fora do runner;
+[relatório](MISSAO-INTEGRACAO.md) e [PR #59 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/59).
+A aprovação não substitui avaliação de AVG nem a homologação física; a .63 anterior
+segue registrada em [MISSAO-LOTE4](MISSAO-LOTE4.md).
 A PR #40 e a main permanecem separadas.
 
 ## Preparação

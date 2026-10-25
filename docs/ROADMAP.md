@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.64 TESTE — integração pendente de CI.** [Última CI tecnicamente aprovada (.63, Lote 4)](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549), não valida o código integrado. [PR #59 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/59) combina Lotes 1–4 com WORK14–WORK17. [Escopo e falhas da integração](MISSAO-INTEGRACAO.md). Roadmap **27/42** permanece intacto; AVG, PCs, U8/R7/R4, D2/G1/G2 continuam pendentes.
+**v5.13.11.64 TESTE — integração Lotes 1–4 + WORK14–17 aprovada tecnicamente na [CI 40241712164](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164).** Fonte `5793ce1f` e [ZIP portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183) com 284 hashes conferidos também fora do runner; 285 arquivos, AMD64, .NET 10.0.13 e sem assinatura. [Relatório de integração](MISSAO-INTEGRACAO.md) e [PR #59 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/59). **Roadmap 27/42**, sem fechar checkpoints físicos: U8/R7/R4/I7/P5/P6/V5/D2/G1/G2/R6 e gestão de drivers permanecem pendentes; AVG não homologado, main preservada.
 
 ### Validação anterior — WORK11
 

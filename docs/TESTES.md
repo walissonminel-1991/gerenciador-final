@@ -1,8 +1,8 @@
 # Regressões do GERENCIADOR FINAL
 
-Este é o procedimento técnico da candidata experimental integrada .64. A última
-aprovação documentada é da .63 em [MISSAO-LOTE4](MISSAO-LOTE4.md); a nova CI
-está pendente conforme [MISSAO-INTEGRACAO](MISSAO-INTEGRACAO.md). CI e dados sintéticos não
+Este é o procedimento técnico da candidata integrada .64, com [CI Windows aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164)
+e ZIP verificado externamente; evidências em [MISSAO-INTEGRACAO](MISSAO-INTEGRACAO.md).
+A aprovação é técnica e não substitui homologação AVG ou testes nos PCs. CI e dados sintéticos não
 substituem homologação nos PCs. O [roteiro físico mínimo](TESTE-CONSOLIDADO.md)
 é separado dos testes automatizados.
 

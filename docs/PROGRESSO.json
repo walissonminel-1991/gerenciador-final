@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.63 TESTE",
+  "version": "5.13.11.64 TESTE",
   "date": "2026-10-25",
-  "code_commit": "a893a051f353a1c9db3b5dd086539c6f252de93b",
+  "code_commit": "5793ce1f5816309902207311bc5c171fe62616fd",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -338,39 +338,13 @@
       "native_store_partial": true
     }
   },
-  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549",
-  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549",
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
   "winget_pc_forte_32": "WinGet (somente leitura): 9 atualizações na sessão administrativa, comando indisponível em terminal não elevado; GF: 3; diferença=6. Proton: changelog oficial 1.43.0 de 21/10, manifesto WinGet 1.42.0. Lixeira ainda possui dois itens da build .32 após erro 0x8000FFFF. Sem instalação/exclusão adicional. U6 não encerrado.",
   "previous_validated_artifact": {
-    "id": 12613281901,
-    "name": "GerenciadorFinal-v5.13.11.59-8f8d1c8f-TESTE-win-x64",
-    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40231535067/artifacts/12613281901",
-    "source_commit": "8f8d1c8fb109ba4956876b398f02dee6ce70f2e3",
-    "merge_commit": "6fb9c74f46c87bd4630c0005606873b616df3330",
-    "base_commit": "6a020c86ba5024b780334217bb7f38b18b23bb34",
-    "zip_sha256": "f423d602b1feee1f9602d02563f2d6e8ca94b59ed84c33c08035a3dabd9e753a",
-    "zip_bytes": 59194235,
-    "expanded_bytes": 151892919,
-    "files": 282,
-    "verified_hashes": 281,
-    "file_version": "5.13.11.59",
-    "architecture": "AMD64",
-    "self_contained": true,
-    "signed": false,
-    "avg_validated": false,
-    "verification": "CI e reconferência independente Lote 4: 281 hashes, composição, origem, runtime e AMD64",
-    "external_zip_recheck": "verified",
-    "external_executable_manifest": {
-      "file_version": "5.13.11.59",
-      "machine": "AMD64",
-      "requested_execution_level": "asInvoker",
-      "certificate_bytes": 0
-    }
-  },
-  "artifact": {
     "id": 12614153157,
     "name": "GerenciadorFinal-v5.13.11.63-a893a051-TESTE-win-x64",
     "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549/artifacts/12614153157",
@@ -396,6 +370,33 @@
       "certificate_bytes": 0
     },
     "expires_at": "2026-11-01T21:18:06Z"
+  },
+  "artifact": {
+    "id": 12618005183,
+    "name": "GerenciadorFinal-v5.13.11.64-5793ce1f-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183",
+    "source_commit": "5793ce1f5816309902207311bc5c171fe62616fd",
+    "merge_commit": "538c7f7696eddc8a4977fcb6ef940d922cb5447a",
+    "base_commit": "cb7ca5ccd986fd11c768ee410ac7c2b46296e1c1",
+    "zip_sha256": "7d659b35319e2389c6266ef4fcee25e1733f0f5fa9c36558a0e38e66b12919c9",
+    "zip_bytes": 59440421,
+    "expanded_bytes": 152980804,
+    "files": 285,
+    "verified_hashes": 284,
+    "file_version": "5.13.11.64",
+    "architecture": "AMD64",
+    "self_contained": true,
+    "signed": false,
+    "avg_validated": false,
+    "verification": "CI Windows obrigatoria aprovada na tentativa 2 por redirect HTTPS de VLC + conferência externa do ZIP, 284 hashes e PE AMD64 (sem executar)",
+    "external_zip_recheck": "verified",
+    "external_executable_manifest": {
+      "file_version": "5.13.11.64",
+      "machine": "AMD64",
+      "requested_execution_level": "asInvoker",
+      "certificate_bytes": 0
+    },
+    "expires_at": "2026-11-01T22:56:40Z"
   },
   "mission_work5": {
     "status": "Código final e três Actions aprovados; ZIP conferido sem executar; testes físicos pendentes",
@@ -470,8 +471,8 @@
     ],
     "progress": "27/42"
   },
-  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549/artifacts/12614153157",
-  "artifact_name": "GerenciadorFinal-v5.13.11.63-a893a051-TESTE-win-x64",
+  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183",
+  "artifact_name": "GerenciadorFinal-v5.13.11.64-5793ce1f-TESTE-win-x64",
   "historical_artifact_work5": {
     "id": 12388392363,
     "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
@@ -815,18 +816,27 @@
   },
   "candidate": {
     "version": "5.13.11.64 TESTE",
-    "status": "pending",
+    "status": "approved",
     "mission": "INTEGRACAO-LOTE4-WORK17",
     "report": "docs/MISSAO-INTEGRACAO.md",
     "physical_validation": "pending",
     "winget_execution_enabled": false,
-    "scope": "Lotes 1–4 e WORK14–WORK17 em branch isolada, sem CI de integracao aprovada",
-    "package_verified_by_ci": false,
-    "package_verified_independently": false,
-    "code_commit": null,
-    "ci_url": null,
+    "scope": "Lotes 1–4 e WORK14–WORK17 cumulativos em branch isolada; validação técnica CI Windows aprovada, homologação física pendente",
+    "package_verified_by_ci": true,
+    "package_verified_independently": true,
+    "code_commit": "5793ce1f5816309902207311bc5c171fe62616fd",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164",
     "validation": {
-      "status": "pending",
+      "updates": 318,
+      "mutations_rejected": 30,
+      "drivers_windows": [
+        "windows-2022",
+        "windows-2025"
+      ],
+      "policy": "success",
+      "external_installer_check": "success after secure HTTPS redirect retry",
+      "package_files": 285,
+      "package_hashes": 284,
       "physical_validation": "pending"
     },
     "work17_consultative_com": true
@@ -920,8 +930,66 @@
     "base_lote4": "cb7ca5ccd986fd11c768ee410ac7c2b46296e1c1",
     "head_work17": "96d5f60f9cd28615e5c1d00792c16879eea724fe",
     "last_approved_version": "5.13.11.63 TESTE",
-    "status": "pending_full_ci_and_independent_artifact_verification",
+    "status": "CI_complete_and_zip_independently_verified__field_pending",
     "main_unchanged": true,
-    "physical_validation": "pending"
+    "physical_validation": "pending",
+    "source_commit": "5793ce1f5816309902207311bc5c171fe62616fd",
+    "run_id": 40241712164,
+    "artifact_id": 12618005183,
+    "sha256": "7d659b35319e2389c6266ef4fcee25e1733f0f5fa9c36558a0e38e66b12919c9",
+    "avg_validated": false
+  },
+  "historical_artifact_lote3": {
+    "id": 12613281901,
+    "name": "GerenciadorFinal-v5.13.11.59-8f8d1c8f-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40231535067/artifacts/12613281901",
+    "source_commit": "8f8d1c8fb109ba4956876b398f02dee6ce70f2e3",
+    "merge_commit": "6fb9c74f46c87bd4630c0005606873b616df3330",
+    "base_commit": "6a020c86ba5024b780334217bb7f38b18b23bb34",
+    "zip_sha256": "f423d602b1feee1f9602d02563f2d6e8ca94b59ed84c33c08035a3dabd9e753a",
+    "zip_bytes": 59194235,
+    "expanded_bytes": 151892919,
+    "files": 282,
+    "verified_hashes": 281,
+    "file_version": "5.13.11.59",
+    "architecture": "AMD64",
+    "self_contained": true,
+    "signed": false,
+    "avg_validated": false,
+    "verification": "CI e reconferência independente Lote 4: 281 hashes, composição, origem, runtime e AMD64",
+    "external_zip_recheck": "verified",
+    "external_executable_manifest": {
+      "file_version": "5.13.11.59",
+      "machine": "AMD64",
+      "requested_execution_level": "asInvoker",
+      "certificate_bytes": 0
+    }
+  },
+  "historical_artifact_lote4": {
+    "id": 12614153157,
+    "name": "GerenciadorFinal-v5.13.11.63-a893a051-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549/artifacts/12614153157",
+    "source_commit": "a893a051f353a1c9db3b5dd086539c6f252de93b",
+    "merge_commit": "30e66ad2312047df02d6e00d70799c7624957cf6",
+    "base_commit": "8f8d1c8fb109ba4956876b398f02dee6ce70f2e3",
+    "zip_sha256": "c2cad696979b20c02e9a1f85ef7735095d987f3be615a03cc5fd66fccf8154a3",
+    "zip_bytes": 59194445,
+    "expanded_bytes": 151893431,
+    "files": 282,
+    "verified_hashes": 281,
+    "file_version": "5.13.11.63",
+    "architecture": "AMD64",
+    "self_contained": true,
+    "signed": false,
+    "avg_validated": false,
+    "verification": "CI e reconferência independente Lote 4: 281 hashes, composição, origem, runtime e AMD64",
+    "external_zip_recheck": "verified",
+    "external_executable_manifest": {
+      "file_version": "5.13.11.63",
+      "machine": "AMD64",
+      "requested_execution_level": "asInvoker",
+      "certificate_bytes": 0
+    },
+    "expires_at": "2026-11-01T21:18:06Z"
   }
 }
