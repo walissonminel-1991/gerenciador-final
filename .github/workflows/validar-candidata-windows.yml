@@ -38,7 +38,7 @@ jobs:
       - name: .NET 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
       - name: Compilar aplicacao
         shell: pwsh
         run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
@@ -119,7 +119,7 @@ jobs:
       - name: .NET 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
       - name: Fixtures, SetupAPI, catálogo INF e WUA sem download ou instalação
         shell: pwsh
         run: |
@@ -152,7 +152,7 @@ jobs:
       - name: .NET 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
       - name: Catalogo RuckZuck via HTTPS GET
         run: dotnet run --project TestesRede/TestesRede.csproj -c Release
       - name: Fontes oficiais via HTTPS GET
@@ -176,7 +176,7 @@ jobs:
       - name: .NET 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
       - name: Catalogo Microsoft autenticado em isolamento (sem WinGet ou instalacao)
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-catalog --verify-engine-downloads
       - name: WORK13 hashes identidade e Authenticode (sem execucao)
