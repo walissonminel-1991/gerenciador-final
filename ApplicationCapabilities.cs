@@ -84,6 +84,7 @@ internal static class ApplicationCapabilities
         {
             var read = D(ApplicationCapabilityState.ReadOnly, "inventory_only");
             return new(facts.Id, facts.Identified,
+                facts.UpdateUncertainty.Length > 0 ? D(ApplicationCapabilityState.Inconclusive, facts.UpdateUncertainty) :
                 facts.UpdateChecked && facts.UpdateAvailable && facts.ExternalManagement
                     ? D(ApplicationCapabilityState.AvailableNotAuthorized, "external_manager") : read,
                 facts.ExternalManagement ? D(ApplicationCapabilityState.ExternalManagement, "external_manager") : read, read);

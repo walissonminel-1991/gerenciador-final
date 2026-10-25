@@ -13,6 +13,22 @@ internal static class Work16ContractTests
             "W16 MSIX generico participa da consulta por PFN sem herdar atualizador ou desinstalador");
         check(!EcosystemInventory.CanQueryVersions(new ProgramEntry { InventoryOnly = true, InventoryId = "GAME|Fixture" }),
             "W16 elegibilidade consultiva MSIX nao promove jogos ou inventario sem identidade");
+        var ambiguousApp = new ProgramEntry { Name = "GF Synthetic App", Publisher = "GF Synthetic Tests", Version = "1.0.0",
+            InventoryId = "CurrentUser|Registry64|Ambiguous", InstallLocation = @"C:\Synthetic\Ambiguous",
+            MsiProductCode = "{00000000-0000-0000-0000-000000000016}", IsUpdate = true, AvailableVersion = "2.0.0" };
+        var ambiguousInstallation = new AutomaticAppInstallation(AutomaticAppInstallation.Binding(ambiguousApp), ambiguousApp.Name,
+            ambiguousApp.Publisher, ambiguousApp.Version, "user", "x64", ambiguousApp.InstallLocation, @"C:\Synthetic\Ambiguous\app.exe", "", "nullsoft", "");
+        var ambiguousReference = new CatalogManifestReference("GF.Synthetic", "GF Synthetic App", "2.0.0", "", new string('A',64));
+        var ambiguousPlan = AutomaticPackageManifest.Select(Encoding.UTF8.GetBytes(Work16CoverageProbe.Manifest("nullsoft",false)), ambiguousReference, "x64", "user", "nullsoft")!;
+        AutomaticUpdateDiscovery.Attach(AutomaticUpdateDiscovery.SimulateIssued(ambiguousApp, ambiguousInstallation, ambiguousPlan));
+        var priorPermit = AutomaticUpdateDiscovery.Resolve(ambiguousApp)!;
+        var sourceIdentity = new PackageIdentity("winget", "Vendor.One", "Different source name", ambiguousApp.Publisher,
+            ambiguousApp.Version, Scope:"user", Location:ambiguousApp.InstallLocation, ProductCode:ambiguousApp.MsiProductCode, Managed:true);
+        EcosystemInventory.Associate([ambiguousApp], [new("winget", "ok", [new(sourceIdentity,"fixture"),new(sourceIdentity with {PackageId="Vendor.Two"},"fixture")])]);
+        check(EcosystemInventory.Ambiguous(ambiguousApp) && VerifiedUpdaters.Resolve(ambiguousApp) is null &&
+            !AutomaticUpdateDiscovery.IsApproved(priorPermit), "W16 ambiguidade de IDs bloqueia inclusive permissao de atualizacao emitida antes da consulta");
+        AutomaticUpdateDiscovery.Attach(AutomaticUpdateDiscovery.SimulateIssued(ambiguousApp, ambiguousInstallation, ambiguousPlan));
+        check(AutomaticUpdateDiscovery.Resolve(ambiguousApp) is null, "W16 nova emissao nao contorna ambiguidade ainda nao resolvida");
         var reference = new CatalogManifestReference("GF.Synthetic", "GF Synthetic App", "2.0.0", "", new string('A',64));
         foreach(string type in new[]{"nullsoft","inno","msi"})
         {

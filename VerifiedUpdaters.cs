@@ -224,7 +224,8 @@ internal static class VerifiedUpdaters
         return null;
     }
 
-    internal static VerifiedUpdateRecipe? Resolve(ProgramEntry entry) => AutomaticUpdateDiscovery.Resolve(entry) ?? ResolveReviewed(entry);
+    internal static VerifiedUpdateRecipe? Resolve(ProgramEntry entry) => EcosystemInventory.Ambiguous(entry)
+        ? null : AutomaticUpdateDiscovery.Resolve(entry) ?? ResolveReviewed(entry);
 
     internal static VerifiedUpdateRecipe? ResolveReviewed(ProgramEntry entry)
     {
@@ -346,7 +347,7 @@ internal static class VerifiedUpdaters
     internal static bool SingleSafeSilentInstallation(VerifiedUpdateRecipe recipe,
         ProgramEntry chosen, IEnumerable<ProgramEntry> inventory)
     {
-        if (!IsApprovedRecipe(recipe) || chosen.InventoryOnly || ProtectedApplications.IsProtectedName(chosen.Name)) return false;
+        if (!IsApprovedRecipe(recipe) || chosen.InventoryOnly || EcosystemInventory.Ambiguous(chosen) || ProtectedApplications.IsProtectedName(chosen.Name)) return false;
         var items = inventory.ToArray();
         if (AutomaticUpdateDiscovery.IsAutomatic(recipe)) return AutomaticUpdateDiscovery.Safe(recipe,chosen,items);
         if (UpdateInstallationContract.For(recipe.Identifier) is not null)

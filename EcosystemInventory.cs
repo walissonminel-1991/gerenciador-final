@@ -5,7 +5,9 @@ namespace GerenciadorAplicativos;
 internal static class EcosystemInventory
 {
     private sealed record Binding(string Key, ProviderInstallation Installation, IdentityMatch Match);
+    private sealed record Assessment(string Key, IdentityMatch Match);
     private static readonly ConditionalWeakTable<ProgramEntry, Binding> Bindings = new();
+    private static readonly ConditionalWeakTable<ProgramEntry, Assessment> Assessments = new();
     internal static PackageIdentity LocalIdentity(ProgramEntry app) => new("windows", "",
         InstallerEngineEvidence.FamilyName(app.Name), app.Publisher, app.Version,
         Scope: app.InventoryId.StartsWith("LocalMachine|", StringComparison.Ordinal) ? "machine" :
@@ -19,6 +21,8 @@ internal static class EcosystemInventory
     internal static bool CanQueryVersions(ProgramEntry app) => !app.InventoryOnly || app.VerifiedMsixIdentity ||
         app.MsixPackageFamilyName.Length > 0 && app.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) || Managed(app);
     internal static bool Identified(ProgramEntry app) => Bindings.TryGetValue(app, out var value) && value.Key == Key(app) && value.Match.Discovered;
+    internal static bool Ambiguous(ProgramEntry app) => Assessments.TryGetValue(app, out var value) &&
+        value.Key == Key(app) && value.Match.Confidence == IdentityConfidence.Ambiguous;
     internal static string Describe(ProgramEntry app) => Get(app) is { } row ? row.Identity.Provider switch
     {
         "chocolatey" => "Pacote registrado no Chocolatey; presença do programa precisa de confirmação. Gerencie no Chocolatey. Scripts não executados pelo GF.",
@@ -30,14 +34,22 @@ internal static class EcosystemInventory
     {
         var candidates = providers.Where(p => p.Provider == "winget" && p.Status == "ok")
             .SelectMany(p => p.Installations).ToArray();
+        if (!providers.Any(p => p.Provider == "winget" && p.Status == "ok")) return;
         foreach (var app in apps)
         {
             if (Managed(app)) continue;
             var identity = LocalIdentity(app);
             var match = PackageIdentityMatcher.Resolve(identity, candidates.Select(c => c.Identity));
+            Assessments.Remove(app);
+            Assessments.Add(app, new(Key(app), match.Match));
             if (match.Identity is null || match.Match.Confidence != IdentityConfidence.Strong) continue;
             // One API identity may never silently bind multiple ARP registrations.
-            if (apps.Count(a => PackageIdentityMatcher.Match(LocalIdentity(a), match.Identity).Confidence == IdentityConfidence.Strong) != 1) continue;
+            if (apps.Count(a => PackageIdentityMatcher.Match(LocalIdentity(a), match.Identity).Confidence == IdentityConfidence.Strong) != 1)
+            {
+                Assessments.Remove(app);
+                Assessments.Add(app, new(Key(app), new(IdentityConfidence.Ambiguous, "multiple_local_registrations", [])));
+                continue;
+            }
             var row = candidates.Single(c => ReferenceEquals(c.Identity, match.Identity));
             Bindings.Remove(app); Bindings.Add(app, new(Key(app), row, match.Match));
         }

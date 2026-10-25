@@ -40,6 +40,7 @@ internal static class ApplicationCapabilityInspection
                 MatchState.SupersededRegistration => "superseded_registration", _ => "no_verified_contract" };
             string uncertain = app.ComparisonState switch { MatchState.NotComparable => "version_not_comparable",
                 MatchState.Ambiguous => "catalog_identity_ambiguous", MatchState.DifferentMajor => "major_version_review", _ => "" };
+            if (EcosystemInventory.Ambiguous(app)) uncertain = "catalog_identity_ambiguous";
             if (!budget && complete && unique && !app.InventoryOnly)
             {
                 try
