@@ -24,6 +24,13 @@ RESERVED = frozenset({"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} |
 SATELLITES = frozenset({"Microsoft.VisualBasic.Forms.resources.dll", "System.Windows.Forms.Design.resources.dll",
                        "System.Windows.Forms.Primitives.resources.dll", "System.Windows.Forms.resources.dll"})
 CULTURES = frozenset("cs de es fr it ja ko pl pt-BR ru tr zh-Hans zh-Hant".split())
+# Native COM files from the exact pinned NuGet package are copied to publish but
+# do not appear as runtime assets in the .deps.json target. All other DLL/EXE
+# files still require an explicit deps declaration; package/version is checked.
+PINNED_COM_NATIVE = frozenset({
+    "Microsoft.Management.Deployment.dll",
+    "Microsoft.Management.Deployment.CsWinRTProjection.dll",
+})
 
 
 def portable_name(name: str) -> bool:
@@ -141,7 +148,7 @@ def verify(root: Path, version: str, source: str, build: str, base: str = "") ->
             continue
         parts = name.split("/")
         satellite = len(parts) == 2 and parts[0] in CULTURES and parts[1] in SATELLITES
-        if name not in binaries and not satellite:
+        if name not in binaries and not satellite and name not in PINNED_COM_NATIVE:
             raise ValueError("binario nao declarado no contrato: " + name)
     if binaries - files.keys():
         raise ValueError("binario declarado ausente")

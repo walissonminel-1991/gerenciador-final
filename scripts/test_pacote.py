@@ -137,6 +137,17 @@ class PacoteTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "nao declarada"):
             self.check()
 
+    def test_com_package_version_is_pinned(self):
+        expected = "Microsoft.WindowsPackageManager.ComInterop/1.29.380"
+        wrong = "Microsoft.WindowsPackageManager.ComInterop/1.29.381"
+        self.deps["libraries"][wrong] = self.deps["libraries"].pop(expected)
+        target = self.deps["runtimeTarget"]["name"]
+        self.deps["targets"][target][wrong] = self.deps["targets"][target].pop(expected)
+        (self.root / "GerenciadorFinal.deps.json").write_text(json.dumps(self.deps))
+        self.hashes()
+        with self.assertRaisesRegex(ValueError, "versao de dependencia"):
+            self.check()
+
     def test_runtime_versions_agree(self):
         self.options["runtimeOptions"]["includedFrameworks"][0]["version"] = "10.0.12"
         (self.root / "GerenciadorFinal.runtimeconfig.json").write_text(json.dumps(self.options))
