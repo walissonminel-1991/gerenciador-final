@@ -285,6 +285,7 @@ internal static class LayoutTests
             throw new Exception("Pesquisa e filtros DRIVERS falharam na amostra de 184 itens.");
         // Todos os drivers continuam apenas texto; filtros nao fazem instalacoes.
         driverCards.SetItems(Array.Empty<DriverInventoryEntry>());
+        DriverReadOnlyDialogTests.Run(form);
         Directory.CreateDirectory("LayoutCaptures");
 
         int tested = 0;
