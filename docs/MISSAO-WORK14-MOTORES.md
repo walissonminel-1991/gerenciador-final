@@ -1,6 +1,6 @@
 # WORK14 — motores e capacidades verificáveis
 
-24/10/2026 (Brasil). Candidata .60 em validação. PR Draft #50 direcionada à branch da PR #49; base imutável `954949eef8ee84785ee6434f964b6f1e3c9e0b50`, CI base 40151238332 aprovada. PRs #40/#47/#49, issue #48, handoff, roadmap, PROGRESSO, TESTES e WORK10–13 examinados. Main e branches anteriores preservadas. Nenhuma operação nos computadores pessoais.
+24/10/2026 (Brasil). Candidata .60 aprovada na [CI 40155841005](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005); pacote conferido independentemente, homologação física pendente. Fonte de produção `89672f5ec50dc19476722286cd6c5e181e36bbb5`; build `f3bcfe15aafcff1a723ba09e958c1b2c76dad5ca`. PR Draft #50 direcionada à branch da PR #49; base imutável `954949eef8ee84785ee6434f964b6f1e3c9e0b50`, CI base 40151238332 aprovada. PRs #40/#47/#49, issue #48, handoff, roadmap, PROGRESSO, TESTES e WORK10–13 examinados. Main e branches anteriores preservadas. Nenhuma operação nos computadores pessoais.
 
 ## Causas identificadas e implementação
 
@@ -24,9 +24,9 @@ Resumo residual e confirmação mostram escopo previsto, pastas com identidade a
 
 ## Matriz antes/depois
 
-A execução Windows de `python scripts/measure_work14.py` compara probes idênticos contra a base imutável e a candidata. A comparação intermediária [CI 40154367790](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40154367790) já passou; [JSON completo](benchmarks/WORK14-comparacao.json), SHA-256 do ZIP `95c3754de8f6a6a1530ecb904a5a11fd31aaf7c309582df007a4065f50e6ffaa`, conferido fora do runner. A rodada final repetirá a comparação após o fechamento da coerência do índice e das capacidades. A amostra cobre configurações sintéticas de instalação, não o inventário dos PCs e não um número universal de programas.
+A execução Windows de `python scripts/measure_work14.py` compara probes idênticos contra a base imutável e a candidata. A comparação final [CI 40155841005](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005) passou; [JSON completo](benchmarks/WORK14-comparacao.json), SHA-256 do ZIP de evidências `f28b4c0c474cd9d92f7a9201a396fcb400f18498e0cc86c9b7dd9fd3810860cd`, conferido fora do runner. Artefato de matriz `12584800071`; fonte `89672f5e`, build `f3bcfe15`. A amostra cobre configurações sintéticas de instalação, não o inventário dos PCs e não um número universal de programas.
 
-| Medida e denominador | Antes #49 | Depois intermediário |
+| Medida e denominador | Antes #49 | Depois .60 |
 | --- | ---: | ---: |
 | Entradas/configurações da amostra de atualização | 10/10 | 10/10 |
 | Identidade local reconhecida (inclui falso positivo anterior) | 4/10 | 6/10 |
@@ -49,7 +49,33 @@ Ganhos legítimos: MSI/WiX por ícone executável corroborado, decoração ARP n
 
 ## Validação
 
-Compilações cruzadas locais de produto, atualização e resíduos. A primeira CI 40153605447 passou nas regressões Windows e política, incluindo reprodução real do defeito de abertura e negações em pai/alvo/filho. Falhou no download VLC pela faixa pública, causa corrigida nesta candidata. Uma CI parcialmente aprovada não é aprovação do pacote. A rodada completa da .60 e matriz comparativa permanecem em andamento.
+[CI 40155841005](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005) integralmente aprovada para a fonte de produção. Compilações com analisadores: zero erros e zero avisos. As execuções focadas pertencem às suítes completas; não somar novamente.
+
+| Verificação obrigatória | Resultado |
+| --- | --- |
+| Atualizadores, identidade, autorização e integridade | 358/358 |
+| Desinstalação e resíduos, incluindo fixtures reais | 697/697 |
+| Mutações em fontes descartáveis | 30/30 detectadas; erro de compilação não conta |
+| Multifontes / catálogo | 159/159 / 17/17 |
+| MSIX / encerramento seguro | 47/47 / 30/30 |
+| Política / receptor isolado | 35 Python / 10 Node |
+| Interface | 132 combinações resolução/aba, 36 de progresso, 44 confirmação, 20 WORK12; hooks de fixture ausentes do produto |
+| Comparação antes/depois | Probes idênticos contra `954949e` e build `f3bcfe15`, sem executar payloads |
+| Catálogo público autenticado | Quatro manifestos e nomes ARP decorados: OBS, VLC, ShareX, SumatraPDF |
+| Downloads oficiais | SHA, identidade e Authenticode exigidos; VLC NSIS/VideoLAN confirmado; ShareX Inno sem assinatura reconhecido e execução bloqueada; oito receitas e Terminal preservados |
+| Distribuição | Manifesto ativo, procedência, runtime, licenças e hashes aprovados |
+
+O job opcional de fontes externas/drivers do runner e a atestação exclusiva da main ficaram skipped; não contam como aprovação física. Capturas Windows de confirmação em 1280×720 e progresso em 1440×900 foram conferidas visualmente: tema, rolagem e botões contidos, sem sobreposição. A moldura nativa clara no Server 2022 é limitação conhecida do runner.
+
+A primeira CI `40153605447` passou nas regressões, mas falhou no filtro incorreto de `169/8`. A comparação intermediária `40154367790` passou integralmente. A rodada `40154932503` aprovou regressões, mas recebeu HTTP 403 do espelho VLC e não gerou pacote. Rodadas interrompidas por revisões posteriores não são aprovação final. O código final revalidou origem/hash/assinatura sem relaxamento e passou. A causa física da issue #48 continua pendente, embora o defeito de abertura tenha sido reproduzido no runner.
+
+## Pacote selecionado e conferência independente
+
+[GerenciadorFinal-v5.13.11.60-89672f5e-TESTE-win-x64.zip](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005/artifacts/12584124902). ZIP: **59.186.755 bytes**; conteúdo: **151.870.728 bytes**, **282 arquivos e 281 hashes exatos**. Conferidos fora do runner: digest igual ao GitHub, BUILD-INFO, origem/base/merge, links/licenças, AMD64, FileVersion 5.13.11.60, recurso RT_MANIFEST id 1 `asInvoker`, zero bytes de certificado GF. .NET e WindowsDesktop **10.0.13 self-contained**, sem SDK no computador do usuário e sem extração single-file. Nenhum assembly de testes ou fixture no produto.
+
+SHA-256: `e13e915f7b5757ba369e74bfaf13628c2e104a6b683722e4e48fa5d90f7a3f1c`.
+
+Base da PR: `954949eef8ee84785ee6434f964b6f1e3c9e0b50`. Retenção informada pelo GitHub: `2026-11-01T02:57:37Z`. Aumento ante .59: 17.520 bytes ZIP e 51.712 bytes extraídos; mesmos arquivos/runtime, sem novas dependências. Isso mede distribuição, não desempenho físico. Commits posteriores de encerramento atualizam referências/evidências, sem trocar o pacote selecionado.
 
 Assinaturas simuladas pertencem somente a fixtures, sem instalação de certificados. Downloads reais e WinVerifyTrust têm job próprio obrigatório. Nenhum instalador de terceiros é executado. Alterar/restaurar ACL ocorre somente nas fixtures GUID descartáveis do runner. Código e hooks de teste não integram o produto distribuído.
 

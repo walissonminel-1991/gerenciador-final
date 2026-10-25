@@ -1,6 +1,6 @@
 # Histórico de alterações
 
-## 5.13.11.60 TESTE — WORK14: evolução dos motores (em validação)
+## 5.13.11.60 TESTE — WORK14: evolução dos motores (CI aprovada; homologação física pendente)
 
 - Registro: evita a solicitação implícita de escrita na raiz HKLM durante inspeção; preserva erro, etapa, profundidade e cobertura antes/depois. Nenhuma alteração de ACL no produto.
 - `registered-install` deixa de inferir HKLM; política de máquina exige revisão própria. Interface distingue verificado, ausente, inacessível, preservado e exclusões propostas.

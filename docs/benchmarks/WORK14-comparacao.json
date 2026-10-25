@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "base": "954949eef8ee84785ee6434f964b6f1e3c9e0b50",
-  "candidate": "c097bd87900d457410b57a128a35cf62ca1bec31",
+  "candidate": "f3bcfe15aafcff1a723ba09e958c1b2c76dad5ca",
   "scope": "bounded synthetic installation scenarios; not PC inventory",
   "signature_evidence": "same simulated oracle in both disposable copies; no real execution authorization",
   "before": {

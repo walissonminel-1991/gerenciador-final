@@ -1,6 +1,6 @@
 # Regressões do GERENCIADOR FINAL
 
-Este é o procedimento vigente da candidata .60 em validação. CI e dados sintéticos não
+Este é o procedimento vigente da candidata .60 aprovada em CI, com homologação física pendente. CI e dados sintéticos não
 substituem homologação nos PCs. O [roteiro físico mínimo](TESTE-CONSOLIDADO.md)
 é separado dos testes automatizados.
 

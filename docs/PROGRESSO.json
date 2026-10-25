@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.59 TESTE",
+  "version": "5.13.11.60 TESTE",
   "date": "2026-10-24",
-  "code_commit": "26bbc17ae9e07c485a91fa8b592eca7cabaad118",
+  "code_commit": "89672f5ec50dc19476722286cd6c5e181e36bbb5",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -79,7 +79,8 @@
           "title": "Limpeza específica após confirmação e revalidação da remoção",
           "done": false,
           "evidence": "WORK10: integração, SIM/NÃO, exclusão por handle, Registro transacionado, worker administrativo e diagnóstico aprovados em CI 40021841254; 47 controles novos dentro de 576 testes. Homologação física/cobertura pendentes.",
-          "blocked_by": "homologacao_fisica_e_cobertura"
+          "blocked_by": "homologacao_fisica_e_cobertura",
+          "work14_implementation": "89672f5e, CI 40155841005 aprovada; docs/MISSAO-WORK14-MOTORES.md. Nao substitui homologacao fisica."
         },
         {
           "id": "R5",
@@ -98,7 +99,8 @@
           "id": "R7",
           "title": "Desinstalação e preservação de dados validadas nos computadores",
           "done": false,
-          "evidence": "PC FORTE 24/10/2026: duas desinstalações silenciosas observadas com RegistrationAbsent após leituras repetidas (~7 s cada). Preservação integral e PC FRACO ainda não homologados; inspeção de resíduos encontrou HKLM32/HKLM64 erro 5 e ficou Inconclusive. Evidência: issue #48; confirmar build pelo BUILD-INFO.txt."
+          "evidence": "PC FORTE 24/10/2026: duas desinstalações silenciosas observadas com RegistrationAbsent após leituras repetidas (~7 s cada). Preservação integral e PC FRACO ainda não homologados; inspeção de resíduos encontrou HKLM32/HKLM64 erro 5 e ficou Inconclusive. Evidência: issue #48; confirmar build pelo BUILD-INFO.txt.",
+          "work14_implementation": "89672f5e, CI 40155841005 aprovada; docs/MISSAO-WORK14-MOTORES.md. Nao substitui homologacao fisica."
         }
       ]
     },
@@ -151,7 +153,8 @@
           "id": "U8",
           "title": "Instalação e versão final validadas nos computadores",
           "done": false,
-          "evidence": "PC FORTE .52: 7-Zip 26.04→26.05 observado. PC FORTE 24/10/2026, v5.13.11.59 TESTE: SumatraPDF x64 3.6.1 e Notepad++ x64 8.9.8.1 tiveram download/hash/assinatura/identidade, execução retorno 0 e Confirmed após conferência. BUILD-INFO exato ainda não aferido; validação PC FRACO e abrangência geral pendentes."
+          "evidence": "PC FORTE .52: 7-Zip 26.04→26.05 observado. PC FORTE 24/10/2026, v5.13.11.59 TESTE: SumatraPDF x64 3.6.1 e Notepad++ x64 8.9.8.1 tiveram download/hash/assinatura/identidade, execução retorno 0 e Confirmed após conferência. BUILD-INFO exato ainda não aferido; validação PC FRACO e abrangência geral pendentes.",
+          "work14_implementation": "89672f5e, CI 40155841005 aprovada; docs/MISSAO-WORK14-MOTORES.md. Nao substitui homologacao fisica."
         }
       ]
     },
@@ -338,8 +341,8 @@
       "native_store_partial": true
     }
   },
-  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763",
-  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763",
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
@@ -364,30 +367,30 @@
     "expires_at": "2026-10-31T13:48:29Z"
   },
   "artifact": {
-    "id": 12578144319,
-    "name": "GerenciadorFinal-v5.13.11.59-26bbc17a-TESTE-win-x64",
-    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319",
-    "source_commit": "26bbc17ae9e07c485a91fa8b592eca7cabaad118",
-    "merge_commit": "aaf1de4f56d9429b1e60d85bfcfbb5085884705d",
-    "base_commit": "410d65e23546976db456337c71e4705f10217d36",
-    "zip_sha256": "b3a0f2e244a4be8ef552610e010b864180a0b4f822588b3cdad0a21763e75399",
-    "zip_bytes": 59169235,
-    "expanded_bytes": 151819016,
+    "id": 12584124902,
+    "name": "GerenciadorFinal-v5.13.11.60-89672f5e-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005/artifacts/12584124902",
+    "source_commit": "89672f5ec50dc19476722286cd6c5e181e36bbb5",
+    "merge_commit": "f3bcfe15aafcff1a723ba09e958c1b2c76dad5ca",
+    "base_commit": "954949eef8ee84785ee6434f964b6f1e3c9e0b50",
+    "zip_sha256": "e13e915f7b5757ba369e74bfaf13628c2e104a6b683722e4e48fa5d90f7a3f1c",
+    "zip_bytes": 59186755,
+    "expanded_bytes": 151870728,
     "files": 282,
     "verified_hashes": 281,
-    "file_version": "5.13.11.59",
+    "file_version": "5.13.11.60",
     "architecture": "AMD64",
     "self_contained": true,
     "signed": false,
     "avg_validated": false,
-    "expires_at": "2026-10-31T22:37:32Z",
-    "verification": "CI e conferencia independente: ZIP, 281 hashes, origem, runtime, PE e manifesto",
+    "expires_at": "2026-11-01T02:57:37Z",
+    "verification": "CI e conferencia independente: ZIP, 281 hashes exatos, origem, runtime, PE e manifesto RT_MANIFEST id 1",
     "external_zip_recheck": "verified",
     "external_executable_manifest": {
-      "file_version": "5.13.11.59",
-      "machine": "AMD64",
+      "file_version": "5.13.11.60",
       "requested_execution_level": "asInvoker",
-      "certificate_bytes": 0
+      "certificate_bytes": 0,
+      "resource_manifest_id": 1
     }
   },
   "mission_work5": {
@@ -463,8 +466,8 @@
     ],
     "progress": "27/42"
   },
-  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319",
-  "artifact_name": "GerenciadorFinal-v5.13.11.59-26bbc17a-TESTE-win-x64",
+  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005/artifacts/12584124902",
+  "artifact_name": "GerenciadorFinal-v5.13.11.60-89672f5e-TESTE-win-x64",
   "historical_artifact_work5": {
     "id": 12388392363,
     "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
@@ -808,15 +811,33 @@
   },
   "candidate": {
     "version": "5.13.11.60 TESTE",
-    "status": "pending",
+    "status": "approved",
     "mission": "WORK14-MOTORES",
     "report": "docs/MISSAO-WORK14-MOTORES.md",
     "physical_validation": "pending",
     "winget_execution_enabled": false,
-    "package_verified_by_ci": false
+    "package_verified_by_ci": true,
+    "code_commit": "89672f5ec50dc19476722286cd6c5e181e36bbb5",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005",
+    "package_verified_independently": true,
+    "validation": {
+      "windows_updates": 358,
+      "residuals_uninstall": 697,
+      "mutations_detected": 30,
+      "python": 35,
+      "node": 10,
+      "catalog": 17,
+      "multisource": 159,
+      "msix": 47,
+      "safe_close": 30,
+      "real_catalog_decorated_names": 4,
+      "physical_validation": "pending",
+      "external_zip_recheck": "verified",
+      "compact_ui_manual_review": "1280x720 confirmacao e 1440x900 progresso sinteticos conferidos"
+    }
   },
   "mission_work14": {
-    "status": "implementation_under_ci",
+    "status": "code_ci_and_package_approved_physical_pending",
     "base_pr": 49,
     "base_commit": "954949eef8ee84785ee6434f964b6f1e3c9e0b50",
     "pr": 50,
@@ -825,7 +846,7 @@
     "registry_reproduction_ci": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40153605447",
     "registry_reproduction_passed": true,
     "whole_initial_ci": "failed_download_public_169_range",
-    "coverage_comparison": "passed_intermediate_40154367790_final_pending",
+    "coverage_comparison": "passed_40155841005",
     "progress": "27/42",
     "completed_checkpoints": [],
     "physical_pc_forte": "two_confirmed_updates_and_two_registration_absent_uninstalls_on_59; residual_inconclusive_issue48",
@@ -849,6 +870,39 @@
       "residual_policies_after": 7,
       "catalog_identity_denominator": 27,
       "physical_inventory_coverage_measured": false
+    },
+    "code_commit": "89672f5ec50dc19476722286cd6c5e181e36bbb5",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005",
+    "coverage_build_commit": "f3bcfe15aafcff1a723ba09e958c1b2c76dad5ca",
+    "coverage_artifact_id": 12584800071,
+    "coverage_zip_sha256": "f28b4c0c474cd9d92f7a9201a396fcb400f18498e0cc86c9b7dd9fd3810860cd",
+    "package_verified_independently": true
+  },
+  "historical_artifact_work13_59": {
+    "id": 12578144319,
+    "name": "GerenciadorFinal-v5.13.11.59-26bbc17a-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319",
+    "source_commit": "26bbc17ae9e07c485a91fa8b592eca7cabaad118",
+    "merge_commit": "aaf1de4f56d9429b1e60d85bfcfbb5085884705d",
+    "base_commit": "410d65e23546976db456337c71e4705f10217d36",
+    "zip_sha256": "b3a0f2e244a4be8ef552610e010b864180a0b4f822588b3cdad0a21763e75399",
+    "zip_bytes": 59169235,
+    "expanded_bytes": 151819016,
+    "files": 282,
+    "verified_hashes": 281,
+    "file_version": "5.13.11.59",
+    "architecture": "AMD64",
+    "self_contained": true,
+    "signed": false,
+    "avg_validated": false,
+    "expires_at": "2026-10-31T22:37:32Z",
+    "verification": "CI e conferencia independente: ZIP, 281 hashes, origem, runtime, PE e manifesto",
+    "external_zip_recheck": "verified",
+    "external_executable_manifest": {
+      "file_version": "5.13.11.59",
+      "machine": "AMD64",
+      "requested_execution_level": "asInvoker",
+      "certificate_bytes": 0
     }
   }
 }
