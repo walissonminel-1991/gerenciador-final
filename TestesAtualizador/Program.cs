@@ -72,6 +72,7 @@ if (args.Contains("--work13"))
     if (failures > 0) throw new Exception($"WORK13: {failures} falhas reproduzidas");
     return;
 }
+if (args.Contains("--lote3")) { int failures=0; await Lote3UpdateTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)failures++;}); if(failures>0)throw new Exception($"Lote 3: {failures} falhas");return;}
 if (args.Contains("--work11")) { await Work11ProgressTests.RunAsync(Verify); return; }
 if (args.Contains("--work9"))
 {

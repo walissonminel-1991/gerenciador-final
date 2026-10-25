@@ -5,6 +5,7 @@ if (args.Length == 2 && args[0] == "--synthetic-uninstall")
 { Environment.Exit(Work10IntegratedCleanupTests.UninstallFixture(args[1])); return; }
 if (args.Length == 3 && args[0] == "--residual-worker-test")
 { Environment.Exit(await Work10IntegratedCleanupTests.WorkerFixture(args[1], args[2])); return; }
+if (args.Contains("--lote3")) { int failures=0; await Lote3UninstallTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)failures++;}); if(failures>0)throw new Exception($"Lote 3: {failures} falhas");return;}
 int passed = 0;
 if (args.Contains("--benchmark") || args.Contains("--benchmark-work9"))
 { ResidualBenchmark.Run(comparable: args.Contains("--benchmark-work9")); return; }
