@@ -2263,6 +2263,8 @@ internal sealed partial class MainForm : Form
                     DiagnosticTrace.Write($"ECOSSISTEMA.CONSULTA fonte={source.Provider} estado={source.Status} entradas={source.Installations.Count} ms={source.Milliseconds}");
                 var discovered=await AutomaticUpdateDiscovery.QueryAsync(snapshot,installed,cancellation.Token);
                 ((IProgress<ProviderDiagnostic>)sourceProgress).Report(discovered.Diagnostic);
+                foreach(var outcome in discovered.Outcomes ?? new Dictionary<string,int>())
+                    DiagnosticTrace.Write($"CATALOGO.ETAPA motivo={outcome.Key} quantidade={outcome.Value}");
                 return discovered;
             }
             var autoTask=ReadAutomaticAsync();

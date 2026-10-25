@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.61 TESTE — WORK16, código, CI e pacote aprovados; homologação física pendente.** [CI 40184303904](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904), fonte `cdc6de0d`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904/artifacts/12596105758). [Relatório e matriz](MISSAO-WORK16.md): provedores consultivos reais, identificação multidimensional, PFN/PackageIdentifier, modos supervisionados e contrato Squirrel estrito. Medidas são de componentes em cenários controlados; não representam novos aplicativos homologados. O runner recusou COM em contexto elevado; consulta nativa em usuário comum pendente. Nenhum checkpoint físico concluído; progresso **27/42**, U8/R7/R4 abertos.
+**v5.13.11.62 TESTE — WORK17 em validação.** Pipeline com preservação de resultados parciais e identidade MSI por cache/PE assinado. [Relatório WORK17](MISSAO-WORK17.md). Última candidata validada .61: [CI 40184303904](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904). Roadmap permanece 27/42; homologação física e U8/R7/R4 abertos.
 
 ### Evidência física intermediária preservada
 

@@ -91,8 +91,8 @@ internal sealed class PackageCatalogIndex : IDisposable
     }
     // Busca consultiva baseada em ProductCode MSI: identidade de pacote unica
     // no indice Microsoft assinado + fornecedor exato. A correspondencia de
-    // ProductCode NUNCA cria plano, flags, download executavel ou permissao.
-    // Mantemos Find estrito como unica porta da descoberta executavel.
+    // ProductCode isolado nunca cria autorizacao.
+    // A promocao MSI exige cache, PE assinado e revalidacao independente.
     internal IReadOnlyList<CatalogManifestReference> FindForReviewByProductCode(
         string publisher, string productCode, CancellationToken token)
     {

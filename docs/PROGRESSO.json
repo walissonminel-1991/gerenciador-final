@@ -810,30 +810,15 @@
     }
   },
   "candidate": {
-    "version": "5.13.11.61 TESTE",
-    "status": "approved",
-    "mission": "WORK16-ECOSSISTEMA",
-    "report": "docs/MISSAO-WORK16.md",
+    "version": "5.13.11.62 TESTE",
+    "status": "pending",
+    "mission": "WORK17-COBERTURA-EXECUCAO",
+    "report": "docs/MISSAO-WORK17.md",
     "physical_validation": "pending",
     "winget_execution_enabled": false,
-    "winget_consultative_backend": "official-typed-com-local-catalog",
-    "package_verified_by_ci": true,
-    "package_verified_independently": true,
-    "code_commit": "cdc6de0d58d69807841fd38beacbcd8ad4461ea4",
-    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904",
-    "winget_native_homologation": "pending_standard_user",
-    "validation": {
-      "ecosystem_checks": 42,
-      "updater_checks": 368,
-      "residual_uninstall_checks": 697,
-      "mutations_rejected": 30,
-      "multisource_checks": 159,
-      "msix_checks": 47,
-      "safe_close_checks": 30,
-      "policy_python_checks": 35,
-      "policy_node_checks": 10,
-      "ui_provider_boundaries": "passed"
-    }
+    "package_verified_by_ci": false,
+    "package_verified_independently": false,
+    "winget_native_homologation": "pending_standard_user"
   },
   "mission_work14": {
     "status": "code_ci_and_package_approved_physical_pending",

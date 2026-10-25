@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 namespace GerenciadorAplicativos;
 
 internal sealed record AutomaticDiscoveryResult(IReadOnlyList<OfficialRelease> Findings, IReadOnlyList<(ProgramEntry App, AutomaticAppInstallation Installation, AutomaticInstaller Installer)> Plans,
-    ProviderDiagnostic Diagnostic);
+    ProviderDiagnostic Diagnostic, IReadOnlyDictionary<string,int>? Outcomes=null);
 
 // Autoridade efemera proveniente de catalogo Microsoft assinado + manifesto SHA.
 // Catalogos consultivos, IDs, comandos e nomes isolados nao criam essa autoridade.
@@ -66,53 +66,9 @@ internal static class AutomaticUpdateDiscovery
             {
                 if(catalog is null || DateTimeOffset.UtcNow-catalogAt>TimeSpan.FromMinutes(30))
                 {catalog?.Dispose();catalog=null;catalog=await PackageCatalogIndex.DownloadAsync(workToken);catalogAt=DateTimeOffset.UtcNow;}
-                var findings=new List<OfficialRelease>();var plans=new List<(ProgramEntry,AutomaticAppInstallation,AutomaticInstaller)>();int inspected=0;
-                for(int i=0;i<apps.Length;i++)
-                {
-                    workToken.ThrowIfCancellationRequested();var app=apps[i];
-                    bool executionContext = AutomaticAppInstallation.Eligible(app);
-                    if(!identities[i].EligibleForUpdates || ProtectedApplications.IsProtectedName(app.Name) ||
-                        (!executionContext && app.MsixPackageFamilyName.Length == 0 && EcosystemInventory.Get(app) is null))continue;
-                    if(++inspected>512)throw new InvalidDataException("Limite de descoberta automatica atingido.");
-                    var rows=catalog.Find(app.Name,app.Publisher,app.MsiProductCode,workToken);
-                    bool strictIdentity = rows.Count>0;
-                    // Só para consulta: ProductCode MSI exato, fornecedor idêntico e
-                    // identificador único no catálogo assinado podem localizar versão
-                    // mesmo com DisplayName diferente. Nunca promove a execução.
-                    if(!strictIdentity)
-                        rows=catalog.FindForReviewByProductCode(app.Publisher,app.MsiProductCode,workToken);
-                    if(rows.Count == 0 && app.MsixPackageFamilyName.Length > 0)
-                        rows=catalog.FindForReviewByPackageFamily(app.Publisher,app.MsixPackageFamilyName,workToken);
-                    if(rows.Count == 0 && EcosystemInventory.Get(app) is { Identity.Provider: "winget", Identity.Managed: true } origin)
-                        rows=catalog.FindForReviewByPackageId(app.Publisher,origin.Identity.PackageId,workToken);
-                    var latest=NewestCandidate(rows,app.Version);
-                    if(latest is null)continue;
-                    void Advisory()
-                    {
-                        findings.Add(new(identities[i],latest.Version,"Catálogo Microsoft (consulta)",
-                            "https://github.com/microsoft/winget-pkgs",
-                            "catalog-review","",DateTimeOffset.UtcNow,
-                            Channel:"stable",EvidenceKind:"catalog-version-only"));
-                    }
-                    if(!strictIdentity || !executionContext || EcosystemInventory.Ambiguous(app)) { Advisory(); continue; }
-                    var installation=AutomaticAppInstallation.Read(app);
-                    if(installation is null || !installation.Current(apps)) { Advisory(); continue; }
-                    var bytes=await PackageCatalogIndex.ReadManifestAsync(latest,workToken);
-                    var installer=AutomaticPackageManifest.Select(bytes,latest,installation.Architecture,installation.Scope,installation.Kind);
-                    if(installer is null || (installation.Kind=="msi"?installer.Type is not ("msi" or "wix"):installer.Type!=installation.Kind))
-                    { Advisory(); continue; }
-                    if(installer.ProductCode.Length>0 && installation.Kind!="msi" &&
-                        !installer.ProductCode.Equals(app.InventoryId.Split('|').Last(),StringComparison.OrdinalIgnoreCase))
-                    { Advisory(); continue; }
-                    if(!InstallerEngineEvidence.SameProduct(installer.Name,app.Name))
-                    { Advisory(); continue; }
-                    findings.Add(new(identities[i],installer.Version,"Catalogo Microsoft HTTPS","https://github.com/microsoft/winget-pkgs",
-                        "automatic-manifest","",DateTimeOffset.UtcNow,installation.Architecture,"stable",installation.Scope,
-                        installer.Type,EvidenceKind:"authenticated-installer-manifest"));
-                    plans.Add((app,installation,installer));
-                }
-                var result=new AutomaticDiscoveryResult(findings.AsReadOnly(),plans.AsReadOnly(),new("automatic-manifest","ok",clock.ElapsedMilliseconds));
-                IssuedScans.Add(result,new(plans.ToArray(),DateTimeOffset.UtcNow.AddMinutes(2)));
+                var result=await AutomaticDiscoveryPipeline.RunAsync(apps,identities,new SignedAutomaticCatalog(catalog),token,workToken);
+                token.ThrowIfCancellationRequested();
+                IssuedScans.Add(result,new(result.Plans.ToArray(),DateTimeOffset.UtcNow.AddMinutes(2)));
                 return result;
             }
             finally{SourceGate.Release();}
@@ -170,7 +126,7 @@ internal static class AutomaticUpdateDiscovery
     {if(!Executed.TryAdd(ExecutionKey(Require(recipe)),0))throw new InvalidOperationException("Atualizacao desta instalacao ja enviada; confira a versao antes de repetir.");}
     internal static void ReleaseBeforeStart(VerifiedUpdateRecipe recipe)=>Executed.TryRemove(ExecutionKey(Require(recipe)),out _);
     internal static ProgramEntry? ConfirmedEntry(VerifiedUpdateRecipe recipe,IEnumerable<ProgramEntry> inventory)
-    {var list=inventory.ToArray();var p=Require(recipe);return p.Installation.Confirm(p.Installer,list)?list.Single(a=>InstallerEngineEvidence.SameProduct(a.Name,p.Installation.Name) && a.Publisher.Equals(p.Installation.Publisher,StringComparison.OrdinalIgnoreCase)):null;}
+    {var list=inventory.ToArray();var p=Require(recipe);return p.Installation.Confirm(p.Installer,list)?p.Installation.ConfirmationCandidates(list).Single():null;}
     internal static bool PublicAddress(System.Net.IPAddress address)
     {
         if(address.IsIPv4MappedToIPv6)address=address.MapToIPv4();

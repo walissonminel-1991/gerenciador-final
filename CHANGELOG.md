@@ -1,5 +1,12 @@
 # Histórico de alterações
 
+## 5.13.11.62 TESTE — WORK17: identidade MSI e falhas isoladas (validação pendente)
+
+- Resultados por aplicativo preservados em falhas, prazo e limite de consulta.
+- MSI/WiX com nome ARP divergente pode gerar plano se catálogo, cache e PE assinado corroboram a instalação. Contexto e família revalidados.
+- Mudança de ProductCode na nova rota requer tabela/seqüência de major upgrade verificável; confirmação preserva identidade canônica.
+- Diagnósticos por motivo e benchmark de 22 cenários contra WORK16, sem confundir planos com payloads autorizados ou homologação física.
+
 ## 5.13.11.61 TESTE — WORK16: ecossistema extensível (CI aprovada; homologação física pendente)
 
 - Provedores consultivos com capacidades, falhas isoladas, limites, cancelamento e cache controlado.
