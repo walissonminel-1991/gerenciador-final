@@ -83,9 +83,11 @@ internal static class IntegratedResidualCleanup
                 var probe = new ResidualUninstallContext(identity, scope.Policy, roots, [], scope.Processes, 0, []);
                 if ((scope.Policy == "registered-install" && roots.Count == 0) || !IntegratedResidualPolicy.RegistryOwned(probe, key))
                 { preserved++; problems.Add(new("prepare", "ownership_not_proven")); continue; }
-                keys.Add(address);
                 if (!ResidualRegistryGuard.Fingerprint(key, address.View, out _, out _))
                 { preserved++; problems.Add(new("prepare", "registry_unverifiable")); continue; }
+                // Somente reter o alvo se sua leitura integral foi comprovada.
+                // Falha de fingerprint no preflight não autoriza nova captura.
+                keys.Add(address);
             }
             catch (Exception ex) when (Expected(ex))
             {
