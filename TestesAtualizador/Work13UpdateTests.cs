@@ -1,5 +1,6 @@
 using GerenciadorAplicativos;
 using System.IO.Compression;
+using System.ComponentModel;
 
 internal static class Work13UpdateTests
 {
@@ -28,6 +29,15 @@ internal static class Work13UpdateTests
             p => { if (p.Stage == UpdateStage.Installing) token.Cancel(); });
         check(launches == 0 && result.State == UpdateAttemptState.Cancelled,
             "W13 cancelamento no ultimo callback antes de executar impede lancamento");
+
+        var confirmedLaunch = await new UpdateLaunchGate().RunAsync(() => Task.FromResult(true),
+            () => Task.FromResult(0), () => Task.FromException<bool>(new Win32Exception(1223)));
+        check(confirmedLaunch.State == UpdateAttemptState.Indeterminate && !confirmedLaunch.AuthorizationDeclined,
+            "W13 Win32 no inventario depois da instalacao nao vira recusa UAC nem sucesso");
+        var deniedBeforeLaunch = await new UpdateLaunchGate().RunAsync(() => Task.FromResult(true),
+            () => Task.FromException<int>(new Win32Exception(1223)), () => Task.FromResult(true));
+        check(deniedBeforeLaunch.State == UpdateAttemptState.Cancelled && deniedBeforeLaunch.AuthorizationDeclined,
+            "W13 UAC recusado antes do retorno do instalador permanece cancelamento comprovado");
 
         var progressOperation = new UpdateOperationStore().Begin(Obs(), obs.Version)!;
         foreach (var stage in new[] { UpdateStage.VerifyingIntegrity, UpdateStage.ValidatingSignature, UpdateStage.ValidatingIdentity })
