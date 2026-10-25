@@ -62,7 +62,7 @@ internal sealed class UninstallBatch
         foreach(var request in requests) {
             if(!consent) { results.Add(new(request,UninstallState.Refused)); continue; }
             if(!seen.Add(request.Original.InventoryId)) continue;
-            bool invoked=false;
+            bool invoked=false, installerReturned=false;
             var duration = Stopwatch.StartNew();
             try {
                 token.ThrowIfCancellationRequested();
@@ -103,6 +103,7 @@ internal sealed class UninstallBatch
                 progress?.Invoke(request, "working");
                 int? exit=await launch(request,token);
                 if(exit is null) { results.Add(new(request,UninstallState.StartFailed)); continue; }
+                installerReturned=true;
                 if(request.Command.ProductCode is not null && exit==1602)
                 { results.Add(new(request,UninstallState.Cancelled,exit,"Cancelada pelo usuário no instalador.")); break; }
                 if(request.Command.ProductCode is not null && exit is 1604 or 1618 or 1641 or 3010)
@@ -138,8 +139,14 @@ internal sealed class UninstallBatch
                     "O desinstalador retornou um código não padronizado. A conclusão permanece pendente; processos auxiliares ainda podem estar trabalhando." : ""));
             }
             catch(Win32Exception ex) {
-                results.Add(new(request,ex.NativeErrorCode==1223 ? UninstallState.Cancelled : UninstallState.StartFailed,ex.NativeErrorCode));
-                if(ex.NativeErrorCode==1223) break;
+                // Falha posterior não autoriza repetir nem oferecer limpeza.
+                results.Add(new(request,installerReturned ? UninstallState.Pending :
+                    ex.NativeErrorCode==1223 ? UninstallState.Cancelled : UninstallState.StartFailed,
+                    ex.NativeErrorCode, Reason: installerReturned ? "A conferência posterior falhou; não repita a operação antes de confirmar o resultado." :
+                        WindowsExecutionFailure.Describe(ex.NativeErrorCode) ?? "O Windows impediu o início do desinstalador.",
+                    DiagnosticReason: installerReturned ? "post_launch_inventory_failure" :
+                        WindowsExecutionFailure.IsAntivirus(ex.NativeErrorCode) ? "antivirus_block" : "launch_win32_failure"));
+                if(installerReturned || ex.NativeErrorCode==1223) break;
             }
             catch(TimeoutException) { results.Add(new(request,UninstallState.Pending, DiagnosticReason: "provider_timeout")); break; }
             catch(OperationCanceledException) { results.Add(new(request,invoked ? UninstallState.Pending : UninstallState.Cancelled,

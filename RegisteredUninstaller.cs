@@ -8,8 +8,7 @@ internal sealed class PreparedUninstaller(UninstallRequest request, ProcessStart
     bool unsignedWarning = false, bool publisherWarning = false, bool trustWarning = false,
     TimeSpan? waitLimit = null) : IDisposable
 {
-    private IDisposable? held=lease;
-    private int attempted;
+    private readonly SingleLaunchResource protection = new(lease);
     internal UninstallRequest Request => request;
     internal bool UnsignedWarning => unsignedWarning;
     internal bool PublisherWarning => publisherWarning;
@@ -18,10 +17,11 @@ internal sealed class PreparedUninstaller(UninstallRequest request, ProcessStart
         UseShellExecute=start.UseShellExecute, WorkingDirectory=start.WorkingDirectory };
     internal async Task<int?> LaunchAsync(CancellationToken token)
     {
-        if(Interlocked.Exchange(ref attempted,1)!=0) throw new InvalidOperationException("Tentativa já consumida.");
         Process? process;
-        try { token.ThrowIfCancellationRequested(); process=Process.Start(start); }
-        finally { Dispose(); }
+        // Claim é atômico com Dispose. A posse local persiste até Start retornar,
+        // mesmo se outra thread descartar o preparador durante a chamada nativa.
+        using (var claimed = protection.Claim())
+        { token.ThrowIfCancellationRequested(); process=Process.Start(start); }
         if(process is null) return null;
         using(process)
         using(var deadline=CancellationTokenSource.CreateLinkedTokenSource(token)) {
@@ -34,8 +34,7 @@ internal sealed class PreparedUninstaller(UninstallRequest request, ProcessStart
     }
     public void Dispose()
     {
-        Interlocked.CompareExchange(ref attempted,2,0);
-        Interlocked.Exchange(ref held,null)?.Dispose();
+        protection.Dispose();
     }
 }
 

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Buffers;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -204,6 +205,8 @@ internal sealed class UpdateOperation
                 : "Integridade SHA-256 rejeitada; o instalador não foi executado.",
             InvalidDataException => "Pacote incompleto, incompatível ou não autorizado; instalação interrompida.",
             IOException => "Download ou acesso ao arquivo interrompido.",
+            System.ComponentModel.Win32Exception av when WindowsExecutionFailure.IsAntivirus(av.NativeErrorCode)
+                => WindowsExecutionFailure.Describe(av.NativeErrorCode)!,
             System.ComponentModel.Win32Exception => "O Windows bloqueou o início do instalador.",
             _ => "Não foi possível concluir esta etapa. Consulte Registro e diagnóstico."
         };
@@ -242,11 +245,14 @@ internal static class UpdateDownloadTransfer
             throw new InvalidDataException("Tamanho do instalador fora do limite autorizado.");
         report?.Invoke(new(UpdateStage.Downloading, 0, expected));
         await using var input = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-        byte[] buffer = new byte[128 * 1024];
+        const int bufferSize = 128 * 1024;
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+        try
+        {
         long bytes = 0, lastReport = 0;
         var clock = Stopwatch.StartNew();
         int count;
-        while ((count = await input.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
+        while ((count = await input.ReadAsync(buffer.AsMemory(0, bufferSize), token).ConfigureAwait(false)) > 0)
         {
             bytes += count;
             if (bytes > maximum || expected is long size && bytes > size)
@@ -262,5 +268,7 @@ internal static class UpdateDownloadTransfer
         if (bytes < minimum || expected is long total && total != bytes)
             throw new InvalidDataException("Download incompleto.");
         report?.Invoke(new(UpdateStage.Downloading, bytes, expected, DownloadCompleted: true));
+        }
+        finally { ArrayPool<byte>.Shared.Return(buffer, clearArray: true); }
     }
 }

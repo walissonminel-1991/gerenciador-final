@@ -559,7 +559,7 @@ internal sealed class DarkLogView : UserControl
     private readonly TextBox _editor = new();
     private readonly DarkVScrollBar _scroll = new();
     private readonly System.Windows.Forms.Timer _renderTimer = new() { Interval = 85 };
-    private readonly System.Text.StringBuilder _pending = new();
+    private readonly BoundedLogText _pending = new();
     private bool _syncing;
     private bool _syncScheduled;
     internal int BatchFlushCount { get; private set; }
@@ -672,9 +672,17 @@ internal sealed class DarkLogView : UserControl
         _renderTimer.Stop();
         if (IsDisposed || _editor.IsDisposed || _pending.Length == 0) return;
         string batch = _pending.ToString();
+        bool truncated = _pending.Truncated;
         _pending.Clear();
         BatchFlushCount++;
-        _editor.AppendText(batch);
+        if (truncated || (long)_editor.TextLength + batch.Length > BoundedLogText.DefaultCapacity)
+        {
+            var tail = new BoundedLogText(BoundedLogText.DefaultCapacity - BoundedLogText.Omission.Length);
+            tail.Append(_editor.Text);
+            tail.Append(batch);
+            _editor.Text = BoundedLogText.Omission + tail;
+        }
+        else _editor.AppendText(batch);
         _editor.SelectionStart = _editor.TextLength;
         _editor.ScrollToCaret();
         SyncMetrics();

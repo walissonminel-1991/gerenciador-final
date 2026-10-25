@@ -279,3 +279,13 @@ habilita manutenção destrutiva; não altera a contagem de checkpoints.
 Implementação, evidências e limites em [MISSAO-LOTE2](MISSAO-LOTE2.md).
 D2/G1/G2/R6 continuam abertos. Consultas, histórico, assinatura de INF e
 nomes semelhantes não autorizam manutenção. Nenhum PC pessoal acessado.
+
+## Lote 3 — segurança e desempenho
+
+[Relatório técnico](MISSAO-LOTE3.md): correções de estado após início do
+fornecedor, posse atômica de proteção, prévia de log limitada, buffer de
+download reutilizado e contrato de composição do pacote. Investigação AVG
+com evidências de assinatura/hash e sem varredura ou diagnóstico conclusivo.
+P5/P6 permanecem abertos; 27/42, sem homologação física presumida.
+
+Validação técnica do Lote 3: [CI 40230495565](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40230495565), fonte `f23d5155`. Regressões, 27 mutações, composição e pacote aprovados; [evidências](evidencias/lote3-ci-40230495565.json). **P5/P6 seguem abertos, 27/42; sem homologação AVG ou física.**

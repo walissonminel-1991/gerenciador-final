@@ -20,10 +20,8 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
-        if (args.Contains("--work9"))
-        {
-            int failures = 0;
-            if (args.Contains("--drivers-readonly"))
+        if (args.Contains("--lote3")) { Lote3LayoutTests.Run(); return; }
+        if (args.Contains("--drivers-readonly"))
         {
             using var driverForm = new MainForm(startServices: false);
             driverForm.Show();
@@ -31,7 +29,10 @@ internal static class LayoutTests
             DriverReadOnlyDialogTests.Run(driverForm);
             return;
         }
-        Work9InventoryTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+        if (args.Contains("--work9"))
+        {
+            int failures = 0;
+            Work9InventoryTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
             Work9NavigationTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
             if (failures != 0) throw new Exception($"WORK9 UI: {failures} falhas reproduzidas");
             return;

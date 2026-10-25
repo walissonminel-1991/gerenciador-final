@@ -38,12 +38,26 @@ jobs:
       - name: .NET 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
       - name: Compilar aplicacao
         shell: pwsh
         run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
       - name: Conferir leitura e rolagem do diálogo de drivers em viewport pequeno
-        run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --drivers-readonly
+        shell: pwsh
+        run: |
+          dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --drivers-readonly | Tee-Object -Variable output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not ($output -match '^OK Drivers: diálogo real de investigação')) { throw 'Modo de teste do diálogo de drivers não foi executado' }
+      - name: Lote 3 atualizações, concorrência e memória de download
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --lote3
+      - name: Lote 3 desinstalações e posse de proteção
+        run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --lote3
+      - name: Lote 3 prévia do registro com volume elevado
+        shell: pwsh
+        run: |
+          dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --lote3 | Tee-Object -Variable output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not ($output -match '^PASS L3 prévia em memória limitada')) { throw 'Modo de teste do registro do Lote 3 não foi executado' }
       - name: Conferir versao dos scripts de distribuicao sem publicar
         shell: pwsh
         run: |
@@ -113,7 +127,7 @@ jobs:
       - name: .NET 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
       - name: Fixtures, SetupAPI, catálogo INF e WUA sem download ou instalação
         shell: pwsh
         run: |
@@ -146,7 +160,7 @@ jobs:
       - name: .NET 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
       - name: Catalogo RuckZuck via HTTPS GET
         run: dotnet run --project TestesRede/TestesRede.csproj -c Release
       - name: Fontes oficiais via HTTPS GET
@@ -170,7 +184,7 @@ jobs:
       - name: .NET 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
       - name: Catalogo Microsoft autenticado em isolamento (sem WinGet ou instalacao)
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-catalog --verify-engine-downloads
       - name: WORK13 hashes identidade e Authenticode (sem execucao)
