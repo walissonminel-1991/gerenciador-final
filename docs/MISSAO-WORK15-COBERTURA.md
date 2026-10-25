@@ -21,6 +21,11 @@ Outra restrição anterior: `PackageCatalogIndex.Find` exige nome de produto com
 - UI e diagnóstico: distinguem instaladores comprovados de versões apenas consultivas, sem nomes privados em logs.
 - Testes com índice SQLite descartável: identidade por nome continua estrita; ProductCode só permite observação com fornecedor e ID únicos; versão maior, versão desconhecida e falsos positivos são diferenciados; candidato consultivo mantém `RequiresReview`.
 
+## Gerenciamento de MSIX pelo Windows (ação guiada, sem execução)
+- Entradas MSIX verificadas e não protegidas, que continuavam somente leitura no GF, agora oferecem **No Windows** (em vez de desinstalar por comando presumido). A ação abre somente a URI oficial fixa `ms-settings:appsfeatures`; o usuário localiza o aplicativo e decide no Windows.
+- Não reclassifica esses aplicativos como **desinstaláveis pelo GF**, não altera o inventário e não oferece a ação para Microsoft GameInput ou outro aplicativo bloqueado. O botão não aparece durante uma atualização elegível. A proteção é coberta pelo teste de inventário/layout.
+- Referência: [Microsoft — iniciar Configurações do Windows](https://learn.microsoft.com/pt-br/windows/apps/develop/launch/launch-settings). Abrir Configurações não prova que o Windows permitirá desinstalar o pacote selecionado.
+
 ## Limites e próximos incrementos para ampliar o número executável
 1. Medir no PC FORTE e no PC FRACO `antes/depois`: inventário, candidatos de atualização, candidatos só consultivos, razões de incompatibilidade e contratos de desinstalação. As 102 entradas sem correspondência da .59 não são uma estimativa de quantas a nova implementação recuperará.
 2. Pesquisar e **pilotar isoladamente** o `Microsoft.WinGet.Client`/COM com consentimento explícito, no modo apenas leitura, preferência por saída tipada, sem scraping localizado da CLI, sem alteração de fontes nem aceitação automática de licenças; manter WinGet desligado por padrão até homologação.
