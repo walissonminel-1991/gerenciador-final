@@ -24,8 +24,11 @@ if (args.Contains("--verify-catalog"))
                     using var client=new HttpClient(AutomaticUpdateDiscovery.DownloadHandler());Uri uri=parsed.Download;bool validated=false;
                     for(int redirects=0;redirects<8;redirects++)
                     {
+                        // Somente diagnóstico da fixture pública: sem query, credenciais ou caminhos locais.
+                        Console.WriteLine("ENGINE.DOWNLOAD "+parsed.PackageId+" protocolo="+uri.Scheme+" host="+uri.DnsSafeHost);
                         if(!AutomaticPackageManifest.IsPublicHttps(uri))throw new Exception("Redirect nao autorizado");
                         using var response=await client.GetAsync(uri,HttpCompletionOption.ResponseHeadersRead,token.Token);
+                        Console.WriteLine("ENGINE.HTTP "+parsed.PackageId+" status="+(int)response.StatusCode);
                         if((int)response.StatusCode is >=300 and <400){uri=new Uri(uri,response.Headers.Location??throw new Exception("Redirect vazio"));continue;}
                         string file=Path.Combine(temp,"payload.exe");
                         await using(var output=new FileStream(file,FileMode.CreateNew,FileAccess.Write,FileShare.None))

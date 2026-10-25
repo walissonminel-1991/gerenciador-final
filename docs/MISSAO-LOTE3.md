@@ -36,8 +36,8 @@ precisam passar novamente com o despachador corrigido.
 
 O novo SingleLaunchResource protege o intervalo até Process.Start retornar,
 sem impedir que o fornecedor remova seus próprios arquivos depois. Não é
-autorização de comando: identidade, PE, assinatura, escopo, consentimento,
-inventário, proteção de arquivos e verificações anteriores continuam exigidos.
+autorização de comando: identidade, PE, política de assinatura e advertências, escopo, consentimento,
+inventário e proteção de arquivos continuam exigidos.
 Os testes cobrem 32 tentativas concorrentes de atualização, cem disputas de
 Claim/Dispose e posse única, além de falha posterior e tentativa já consumida.
 Isso não certifica serialização universal entre usuários/sessões/processos.
@@ -47,6 +47,33 @@ mantém sua política e limites próprios. Nenhum relatório de investigação
 estático é cortado. Esta alteração não encerra processos externos nem apaga
 cache do Windows. Contagem de caracteres omitidos não representa RAM física
 liberada nem limpeza da memória de outros programas.
+
+## Escopo da auditoria
+
+- Atualização: `VerifiedUpdaters`, `InstallerFileGuard` e
+  `UpdateInstallationContract` mantêm origem HTTPS restrita, limites de tamanho,
+  hash e política de editor, arquivo protegido até o lançamento e conferência
+  de identidade/escopo/versão. A exceção existente do 7-Zip continua restrita
+  ao hash fixado. Nome semelhante não autoriza instalação nem limpeza.
+- Desinstalação: `UninstallCommand`, `RegisteredUninstaller` e `UninstallBatch`
+  preservam gramática restrita, recusa de hosts/interpretadores, identidade do
+  registro, inventário completo e revalidação antes de lançar. Advertências
+  de assinatura continuam exigindo revisão; adulteração/revogação não ganha
+  exceção. Pendência não autoriza a limpeza residual integrada.
+- Concorrência: o bloqueio da interface e as tentativas consumidas continuam;
+  a correção de posse elimina uma disputa no preparador. Os testes não
+  certificam exclusão mútua global entre todas as instâncias do Windows.
+- Memória: `MemoryRamDashboard` e `SelectiveMemoryTrim` conservam consentimento
+  para um processo específico, PID/início/caminho e nova identidade no mesmo
+  handle antes da API. A missão não executou esse ajuste em programas reais.
+  Redução de working set e descarte de buffers não provam ganho duradouro.
+- Restauração da bandeja: `WindowChrome.RestoreFromTray` evita recriar o handle,
+  restaura a janela, ajusta amostragem e pode retomar uma confirmação pendente.
+  A consulta de RAM global não enumera PIDs nesse caminho. Isso descreve o
+  código revisado; não identifica a regra comportamental do AVG.
+- Distribuição: manifesto `asInvoker`, importação nativa restrita a System32,
+  publicação sem extração single-file e exclusão dos projetos de testes
+  permanecem. O verificador reforçado complementa esses controles.
 
 ## Medição reproduzível
 
@@ -59,11 +86,24 @@ intervalo, não working set, RAM total do GF ou ganho prometido em PCs reais.
 |---|---:|
 | Base, vetor novo por chamada | 8.426.608 |
 | Vetor compartilhado, após aquecimento | 35.840 |
+| Windows 2022, CI `40229759024`, mesmo teste | 35.840 |
 
 O teste mantém teto de alocação com margem e exercita corpo maior que o
 Content-Length, cancelamento e recuperação após exceção. A prévia recebe
 6.000 mensagens antes da primeira drenagem e 3.000 adicionais; confere teto,
 mensagem mais recente e relatório estático de 131.072 caracteres intacto.
+Na CI Windows, a prévia reteve exatamente 65.536 caracteres depois das
+6.000 mensagens iniciais; o teste completo terminou com sua marca PASS.
+
+Comandos dos cenários, nos runners Windows descartáveis desta PR:
+
+```powershell
+dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --lote3
+dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --lote3
+dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --lote3
+dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --drivers-readonly
+python -B -m unittest discover -s scripts -p 'test_p*.py' -v
+```
 
 ## Empacotamento e preparação do ambiente
 
@@ -86,6 +126,21 @@ HTTP 409. Os testes não foram declarados aprovados nessa execução. A correç�
 fixa setup-dotnet em 10.0.402, o SDK já declarado e validado, e global.json
 exige versão exata. Não suprime nenhum teste ou verificação de segurança.
 Atualizações desse SDK devem ocorrer por mudança explícita e CI.
+O action ainda tenta instalar o runtime LTS como etapa auxiliar e emite
+aviso HTTP 409; a seleção exata do SDK passa e as regressões executam no
+runtime 10.0.13. O aviso não foi ocultado nem tratado como aprovação de teste.
+
+Na [CI 40229759024](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40229759024),
+fonte `ff6aa1d78700827677041e4fb4ca5dc980080f71`, as regressões, políticas e
+runners de drivers passaram: 318 atualizadores, 655 resíduos, 27 mutações
+rejeitadas, 39 testes Python, 10 testes Node e os cenários de layout específicos.
+O job externo de downloads falhou primeiro com HTTP 404 no VLC 3.0.24 e,
+na tentativa 2, com redirecionamento não autorizado. O mesmo manifesto havia
+passado minutos antes na execução cancelada 40229436947. A CI completa não
+foi considerada aprovada e o empacotamento permaneceu bloqueado. O teste
+passa a registrar protocolo, host e status sem query/credenciais; HTTPS,
+validação de destino público, limite de redirects, hash, assinatura e motor
+continuam obrigatórios. Nenhum fallback para HTTP foi adicionado.
 
 Evidências finais por HEAD, logs, tentativas e artefatos na
 [PR #56](https://github.com/walissonminel-1991/gerenciador-final/pull/56).
