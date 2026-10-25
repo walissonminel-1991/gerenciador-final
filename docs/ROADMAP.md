@@ -141,8 +141,8 @@ A validação da .32 no PC FRACO ainda está pendente.
 - [Histórico de versões](../CHANGELOG.md) e [organização](ORGANIZACAO-REPOSITORIO.md)
 
 R6 continua exigindo evidências concretas de classificação. U6 foi concluído
-por comparação real e regressão dos nove produtos. D2 ganhou o elo Store;
-histórico Windows e pacotes sem associação permanecem pendentes.
+por comparação real e regressão dos nove produtos. D2 ganhou o elo Store e, no Lote 2, leitura de INFs publicados e do log
+Windows. Cobertura do histórico e interpretação real permanecem pendentes.
 **Restam 15 checkpoints em aberto.**
 A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permissão de excluir; os pilotos restritos exigem prévia e consentimento separados.
 
@@ -199,14 +199,14 @@ A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permiss
 ### Investigação de drivers — 2/4 (50%)
 
 - [x] D1 — Comparação histórica PnP somente leitura. Evidência: HistoricalDeviceAudit.cs
-- [ ] D2 — Correlacionar dispositivos, pacotes e histórico Windows. Evidência: WMI/INF/presença e vínculo publicado ↔ Store via SetupAPI implementados na .31. Histórico Windows e pacotes sem associação continuam pendentes.
+- [ ] D2 — Correlacionar dispositivos, pacotes e histórico Windows. Evidência: Lote 2 adiciona HardwareID, INFs publicados e log SetupAPI explícito; cobertura do histórico e interpretação real ainda pendentes. Ver MISSAO-LOTE2.md.
 - [x] D3 — Inventário funcional na aba DRIVERS. Evidência: Tabela WMI sob demanda; teste real de coleta no runner Windows e matriz de layout aprovados. Sem instalação/remoção.
 - [ ] D4 — Validar interpretação nos computadores. Evidência: Etapa futura
 
 ### Gestão de drivers — 0/5 (0%)
 
-- [ ] G1 — Consultar versões oficiais e compatibilidade. Evidência: Etapa futura
-- [ ] G2 — Verificar pacote e assinatura. Evidência: Etapa futura
+- [ ] G1 — Consultar versões oficiais e compatibilidade. Evidência: Lote 2 consulta WUA com ID exato; versão numérica/compatibilidade completas e oferta positiva real ainda pendentes. Ver MISSAO-LOTE2.md.
+- [ ] G2 — Verificar pacote e assinatura. Evidência: Lote 2 verifica assinatura do INF/catálogo e SHA-256; payload completo, origem e compatibilidade ainda pendentes. Ver MISSAO-LOTE2.md.
 - [ ] G3 — Instalar e confirmar dispositivo/versão. Evidência: Etapa futura
 - [ ] G4 — Reversão quando suportada e recuperação de falhas. Evidência: Etapa futura
 - [ ] G5 — Validar fluxo controlado nos computadores. Evidência: Etapa futura
@@ -229,8 +229,9 @@ bateria B após backup/consentimento. Drivers continuam apenas leitura.
 - **D2** requer completar a correlação de dispositivos, pacotes do Driver
   Store e histórico confiável do Windows. A matriz WMI/INF/Store atual cobre apenas parte do objetivo;
   validar também a interpretação do histórico real.
-- **G1–G5** continuam em zero: não há motor seguro de obtenção, validação,
-  instalação, remoção ou reversão de drivers nesta versão.
+- **G1–G5** continuam sem checkpoint concluído: o Lote 2 acrescenta consulta
+  oficial e verificação criptográfica do INF, ainda sem validar todo o pacote
+  ou autorizar instalação, remoção ou reversão de drivers.
 
 ### Critérios de abertura da gestão de drivers
 
@@ -272,3 +273,9 @@ três Actions atuais e todas as regressões necessárias. Veja
 para o escopo e limitações. Esta limpeza não corrige MSIX nem
 habilita manutenção destrutiva; não altera a contagem de checkpoints.
 
+
+## Lote 2 — drivers somente leitura
+
+Implementação, evidências e limites em [MISSAO-LOTE2](MISSAO-LOTE2.md).
+D2/G1/G2/R6 continuam abertos. Consultas, histórico, assinatura de INF e
+nomes semelhantes não autorizam manutenção. Nenhum PC pessoal acessado.

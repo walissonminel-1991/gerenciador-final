@@ -57,11 +57,12 @@ internal sealed partial class MainForm
 
         var actionPanel = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
             Margin = new Padding(0, 2, 0, 2)
         };
         actionPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var refresh = CreateButton("Consultar drivers", AppServices.Blue, Color.White);
         refresh.Name = "DriverInventoryRefresh";
@@ -92,7 +93,14 @@ internal sealed partial class MainForm
             "Filtro apenas visual; sem atualização ou remoção de drivers.");
         actionInfo.Controls.Add(actionHint);
         actionInfo.Controls.Add(compactFilter);
-        actionPanel.Controls.Add(actionInfo, 1, 0);
+        var investigate = CreateSecondaryButton("Investigar");
+        investigate.Name = "DriverReadOnlyInvestigation";
+        investigate.Dock = DockStyle.Fill;
+        investigate.Margin = new Padding(0, 2, 6, 2);
+        investigate.Enabled = false;
+        actionPanel.Controls.Add(investigate, 1, 0);
+        _toolTips.SetToolTip(investigate, "Histórico Windows, INFs publicados, consulta oficial e verificação do INF. Somente leitura.");
+        actionPanel.Controls.Add(actionInfo, 2, 0);
         root.Controls.Add(actionPanel, 0, 1);
 
         var heading = new TableLayoutPanel
@@ -178,6 +186,11 @@ internal sealed partial class MainForm
         root.Controls.Add(footer, 0, 4);
 
         IReadOnlyList<DriverInventoryEntry>? snapshot = null;
+        DriverInventoryResult? lastResult = null;
+        investigate.Click += (_, _) =>
+        {
+            if (lastResult is not null) ShowDriverReadOnlyReport(lastResult, list.SelectedItem);
+        };
         string activeFilter = "Todos";
         void Render()
         {
@@ -249,6 +262,7 @@ internal sealed partial class MainForm
             var token = driverQuery.Begin(TimeSpan.FromSeconds(20));
             resultPublished = false;
             refresh.Text = "Cancelar";
+            investigate.Enabled = false;
             state.Text = "Consultando drivers em segundo plano…";
             _driverReadTask = Task.Run(() => DriverStoreAudit.CaptureWithPackages(token));
             try
@@ -256,13 +270,15 @@ internal sealed partial class MainForm
                 var result = await _driverReadTask.WaitAsync(token);
                 if (root.IsDisposed || !driverQuery.CanPublish(token)) return;
                 snapshot = result.Items;
+                lastResult = result;
+                investigate.Enabled = true;
                 resultPublished = true;
                 Render();
                 var links = DriverPackageLinks.Analyze(result);
                 state.Text = $"{result.Status}: {result.Items.Count} associações, " +
                     $"{links.Packages.Count} INFs, {links.WithoutInf} sem INF válido. Store: {result.Store?.Packages.Count(x => x.State == DriverStoreState.Mapped) ?? 0} vínculos. Sem remoções.";
                 _toolTips.SetToolTip(state,
-                    state.Text + " " + result.Store?.Summary + " Ausência não autoriza remoção; assinatura informada pelo Windows.");
+                    state.Text + " " + result.Store?.Summary + " " + result.WindowsHistory?.Summary + " " + result.PublishedPackages?.Summary);
                 DiagnosticTrace.Write($"DRIVERS.VINCULOS infs={links.Packages.Count} compartilhados={links.Packages.Count(p => p.Devices > 1)} versoes_divergentes={links.Packages.Count(p => p.Versions > 1)} assinaturas_conflitantes={links.Packages.Count(p => p.ConflictingSignatures)} sem_inf={links.WithoutInf}");
                 if (result.Store is { } store)
                     TestDiagnosticDetail.Record("PACOTES", ("pacotes", store.Packages.Count),
@@ -321,6 +337,7 @@ internal sealed partial class MainForm
                     // Nunca bloquear a interface: o teste de _driverReadTask
                     // no inicio do clique continua impedindo consultas simultaneas.
                     refresh.Enabled = true;
+                    investigate.Enabled = lastResult is not null;
                     if (_driverReadTask is { IsCompleted: false })
                         state.Text = "Leitura nativa ainda encerrando; lista anterior preservada. Tente novamente depois.";
                 }

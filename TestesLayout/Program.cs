@@ -23,7 +23,15 @@ internal static class LayoutTests
         if (args.Contains("--work9"))
         {
             int failures = 0;
-            Work9InventoryTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
+            if (args.Contains("--drivers-readonly"))
+        {
+            using var driverForm = new MainForm(startServices: false);
+            driverForm.Show();
+            Application.DoEvents();
+            DriverReadOnlyDialogTests.Run(driverForm);
+            return;
+        }
+        Work9InventoryTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
             Work9NavigationTests.Run((ok, label) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + label); if (!ok) failures++; });
             if (failures != 0) throw new Exception($"WORK9 UI: {failures} falhas reproduzidas");
             return;
@@ -285,6 +293,7 @@ internal static class LayoutTests
             throw new Exception("Pesquisa e filtros DRIVERS falharam na amostra de 184 itens.");
         // Todos os drivers continuam apenas texto; filtros nao fazem instalacoes.
         driverCards.SetItems(Array.Empty<DriverInventoryEntry>());
+        DriverReadOnlyDialogTests.Run(form);
         Directory.CreateDirectory("LayoutCaptures");
 
         int tested = 0;

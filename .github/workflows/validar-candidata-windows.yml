@@ -42,6 +42,8 @@ jobs:
       - name: Compilar aplicacao
         shell: pwsh
         run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
+      - name: Conferir leitura e rolagem do diálogo de drivers em viewport pequeno
+        run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --drivers-readonly
       - name: Conferir versao dos scripts de distribuicao sem publicar
         shell: pwsh
         run: |
@@ -90,6 +92,40 @@ jobs:
           name: Residuos-layout-${{ github.sha }}
           path: LayoutCaptures/*.png
           if-no-files-found: ignore
+          retention-days: 7
+
+  drivers-leitura:
+    name: Drivers somente leitura (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    timeout-minutes: 12
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: .NET 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Fixtures, SetupAPI, catálogo INF e WUA sem download ou instalação
+        shell: pwsh
+        run: |
+          dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release -- --official-live 2>&1 | Tee-Object -FilePath drivers-evidencias.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Evidências somente dos runners descartáveis
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Drivers-leitura-${{ matrix.os }}-${{ github.sha }}
+          path: drivers-evidencias.txt
+          if-no-files-found: error
           retention-days: 7
 
   # Fontes/drivers de hardware permanecem opt-in. Catalogo autenticado e downloads

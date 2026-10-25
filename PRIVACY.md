@@ -77,3 +77,16 @@ antes de compartilhar imagens ou diagnósticos por canais externos ao GF.
 O GF baixa `https://cdn.winget.microsoft.com/cache/source.msix` como arquivo de dados e confere a assinatura Microsoft. Não registra esse pacote nem executa WinGet COM/CLI. O índice é consultado localmente; os manifestos correspondentes usam caminhos públicos do catálogo. A lista do computador e seus caminhos não são enviados como parâmetros ou corpo de requisição. A URL pública do manifesto/pacote consultado identifica o produto ao servidor, como nas demais consultas de atualização. Downloads de instaladores só são iniciados após ação do usuário.
 
 O índice e as autorizações ficam na sessão, com limites e validade. Arquivos temporários do catálogo são removidos no encerramento normal, quando não há consulta em andamento. Interrupções do sistema podem deixar o diretório temporário para a manutenção normal do Windows. Dados de assinatura do executável instalado são usados apenas para validar o fornecedor, sem upload de arquivos ou certificados pessoais.
+
+### Consulta de drivers somente leitura (Lote 2)
+
+A investigação lê IDs de hardware e o trecho limitado do log SetupAPI local
+para correlacionar dispositivo e INF. O diálogo apresenta identificadores,
+nomes, caminhos e signatário apenas na tela; esses dados e linhas brutas do
+log não são enviados ao diagnóstico do GF nem gravados pelo novo fluxo.
+O histórico próprio preexistente mantém hashes e contagens.
+
+O botão Versões oficiais consulta metadados pelo serviço Windows Update
+do próprio Windows, sujeito ao tratamento de dados desse serviço. O GF
+não baixa nem instala pacotes de drivers, não aceita EULA e não muda a
+configuração de atualização. Nenhum novo envio ao GitHub foi criado.

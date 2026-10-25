@@ -91,7 +91,7 @@
           "id": "R6",
           "title": "Resolver casos históricos ambíguos com evidências adicionais",
           "done": false,
-          "evidence": "Métricas por origem e enumeração protegida .31; faltam amostras reais com atribuição confirmada.",
+          "evidence": "Investigação Lote 2: amostras sintéticas Netease/GOG/IObit/Microvirt/Vivaldi preservadas como ambíguas. Nenhuma autorização por semelhança. Amostras concretas dos computadores não resolvidas; docs/MISSAO-LOTE2.md.",
           "blocked_by": "amostras_reais"
         },
         {
@@ -244,8 +244,8 @@
           "id": "D2",
           "title": "Correlacionar dispositivos, pacotes e histórico Windows",
           "done": false,
-          "evidence": "WMI/INF/publicado/Store via SetupAPI aprovados em CI .31; histórico Windows e pacotes não associados ainda pendentes.",
-          "blocked_by": "validar_coleta_antes_de_ampliar"
+          "evidence": "Lote 2: HardwareID, INFs publicados e correlação explícita dispositivo/INF no log SetupAPI implementados. CI inicial Windows 2022/2025 com 666/732 INFs e histórico parcial sem vínculos aproveitados. Cobertura e interpretação real pendentes; docs/MISSAO-LOTE2.md.",
+          "blocked_by": "cobertura_historico_e_interpretacao_real"
         },
         {
           "id": "D3",
@@ -268,13 +268,13 @@
           "id": "G1",
           "title": "Consultar versões oficiais e compatibilidade",
           "done": false,
-          "evidence": "Desenho conservador em OPERACAO-FAXINA-FINAL.md; provedor oficial/compatibilidade ainda indisponível."
+          "evidence": "Lote 2: consulta WUA Microsoft somente leitura, hardware exato e GUID/revisão; fixtures positivas/negativas e consulta nativa sem ofertas. Versão numérica e compatibilidade independente completas continuam pendentes; docs/MISSAO-LOTE2.md."
         },
         {
           "id": "G2",
           "title": "Verificar pacote e assinatura",
           "done": false,
-          "evidence": "Localização de INF e assinatura WMI não validam integridade/catálogo/assinatura criptográfica."
+          "evidence": "Lote 2: igualdade SHA-256 de INF publicado/Store e SetupVerifyInfFileW; 24/24 INFs com assinatura confirmada em cada runner inicial; INF sem catálogo recusado. Todo o payload/origem/compatibilidade ainda não verificados; docs/MISSAO-LOTE2.md."
         },
         {
           "id": "G3",
@@ -833,5 +833,18 @@
       "compact_ui_manual_review": "1280x720 e 1440x900: capturas sinteticas Windows conferidas"
     },
     "package_verified_independently": true
+  },
+  "lote2_drivers_read_only": {
+    "base_commit": "7405d83f308a141d2a7f6c68cc5a5dee4a19067c",
+    "initial_code_commit": "6a16780e12f686a310e88b4e54d38f10065dcd21",
+    "pull_request": 55,
+    "report": "docs/MISSAO-LOTE2.md",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40218082183",
+    "status": "implementacao_parcial_ci_inicial_aprovada",
+    "driver_writes_enabled": false,
+    "checkpoints_closed": [],
+    "personal_computers_accessed": false,
+    "second_code_commit": "2757fa69f3638ae0de7837d30acf98befe1761d4",
+    "second_ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40218542822"
   }
 }

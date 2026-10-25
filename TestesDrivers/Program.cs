@@ -69,6 +69,7 @@ Check(TestDiagnosticDetail.TryFormat(1, "FONTES", new (string, int)[] {
     recordFontes.Contains("falha_programdata=1"),
     "Falha de fonte identificada apenas por categoria segura e nao pelo caminho real");
 DriverStoreTests.Run(Check);
+ReadOnlyDriverTests.Run(Check);
 DiagnosticFailureTests.Run(Check);
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
@@ -192,10 +193,49 @@ if (args.Contains("--live") || OperatingSystem.IsWindows())
     var live = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(timeout.Token)).WaitAsync(timeout.Token);
     Console.WriteLine($"WMI quantidade={live.Items.Count} parcial={live.Partial} status={live.Status}");
     Check(live.Items.Count > 0 && !live.Partial, "Consulta WMI somente leitura concluida no runner Windows");
+    Check(live.Items.Any(d => d.HardwareIds.Count > 0), "D2/G1: IDs de hardware reais recebidos do WMI no runner descartável");
     foreach (var group in live.Store!.Packages.GroupBy(x => (x.State, x.FailureStage, x.NativeError)))
         Console.WriteLine($"DRIVER_STORE_CI estado={group.Key.State} etapa={group.Key.FailureStage} erro=0x{unchecked((uint)group.Key.NativeError):X8} quantidade={group.Count()}");
     Check(live.Store is not null && live.Store.Packages.Any(x => x.State == DriverStoreState.Mapped) &&
         live.Store.Packages.All(x => !x.CanMaintain),
         "SetupAPI nativa confirma ao menos um round trip INF/Driver Store no runner sem manutenção");
     Console.WriteLine($"DRIVER_STORE_CI pacotes={live.Store!.Packages.Count} mapeados={live.Store.Packages.Count(x => x.State == DriverStoreState.Mapped)} parcial={live.Store.Partial}");
+}
+
+if (OperatingSystem.IsWindows())
+{
+    using var nativeLimit = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+    var inventory = await Task.Run(() => DriverStoreAudit.CaptureWithPackages(nativeLimit.Token)).WaitAsync(nativeLimit.Token);
+    Check(inventory.PublishedPackages is { Packages.Count: > 0 }, "D2: enumeração SetupAPI real no Windows descartável retorna INFs publicados");
+    Check(inventory.PublishedPackages!.Packages.All(p => !p.CanMaintain), "R6: pacotes nativos nunca autorizam manutenção");
+    Console.WriteLine($"D2_CI publicados={inventory.PublishedPackages.Packages.Count} enumeracao_completa={inventory.PublishedPackages.EnumerationComplete} parcial={inventory.PublishedPackages.Partial} eventos={inventory.WindowsHistory?.Events.Count} historico_parcial={inventory.WindowsHistory?.Partial} historico_indisponivel={inventory.WindowsHistory?.Unavailable}");
+    var signatures = inventory.Store!.Packages.Where(p => p.State == DriverStoreState.Mapped).Take(24)
+        .Select(p => DriverInfVerification.Verify(p, nativeLimit.Token)).ToArray();
+    foreach (var group in signatures.GroupBy(s => (s.Trust, s.NativeError)))
+        Console.WriteLine($"G2_CI estado={group.Key.Trust} erro=0x{unchecked((uint)group.Key.NativeError):X8} quantidade={group.Count()}");
+    Check(signatures.Any(s => s.Trust == DriverInfTrust.VerifiedInf), "G2: assinatura criptográfica de pelo menos um INF instalado confirmada no runner");
+    Check(signatures.All(s => !s.CanInstall && !s.CanMaintain), "G2: prova criptográfica real não autoriza escrita");
+    string scratch = Path.Combine(Path.GetTempPath(), "GF-INF-unsigned-" + Guid.NewGuid().ToString("N") + ".inf");
+    try
+    {
+        File.WriteAllText(scratch, "[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=System\r\nClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}\r\nProvider=GF-Fixture\r\nDriverVer=10/25/2026,1.0.0.0\r\n");
+        var negative = DriverInfVerification.InspectInf(scratch, nativeLimit.Token);
+        Check(negative.Trust == DriverInfTrust.Rejected, "G2: INF sintético sem catálogo é recusado pela API criptográfica real");
+    }
+    finally { File.Delete(scratch); }
+    if (args.Contains("--official-live"))
+    {
+        WindowsLogFormatProbe.Print();
+        using var officialLimit = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        try
+        {
+            var official = await DriverOfficialLookup.Start(inventory, officialLimit.Token).WaitAsync(officialLimit.Token);
+            Console.WriteLine($"G1_CI fonte=WindowsUpdate consulta_completa={!official.Partial} ofertas={official.Offered} vinculos={official.Matches.Count} nao_correspondidos={official.Unmatched}");
+            Check(official.Matches.All(m => !m.CanInstall) && (!official.Partial || official.Matches.Count == 0),
+                "G1: WUA real só emite correspondências consultivas e preserva falha da fonte");
+            if (official.Partial) Console.WriteLine("G1_CI_INCONCLUSIVO fonte indisponível; consulta real não comprova compatibilidade ou ausência de ofertas.");
+        }
+        catch (OperationCanceledException)
+        { Console.WriteLine("G1_CI_INCONCLUSIVO prazo nativo excedido; nenhuma correspondência publicada. Homologação da fonte permanece pendente."); }
+    }
 }

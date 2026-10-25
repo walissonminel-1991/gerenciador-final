@@ -23,7 +23,7 @@ internal sealed record DriverStoreAuditResult(IReadOnlyList<DriverStoreEvidence>
     bool Partial, int WithoutInf)
 {
     internal string Summary => $"Driver Store: {Packages.Count(x => x.State == DriverStoreState.Mapped)}/{Packages.Count} vínculos consultivos confirmados" +
-        (Partial ? " (PARCIAL)." : ".") + " Não enumera pacotes sem dispositivo nem verifica assinatura criptográfica.";
+        (Partial ? " (PARCIAL)." : ".") + " Este vínculo não verifica assinatura criptográfica; INFs publicados são enumerados separadamente.";
 }
 
 // Somente APIs de consulta SetupAPI. Sem comandos, enumeração recursiva,
@@ -34,12 +34,14 @@ internal static class DriverStoreAudit
     {
         var inventory = DriverInventory.Capture(token);
         var store = Capture(inventory, token);
+        var published = DriverPublishedPackages.Capture(inventory, token);
+        var history = DriverWindowsHistory.Capture(token);
         var byInf = store.Packages.ToDictionary(x => x.InfName, StringComparer.OrdinalIgnoreCase);
         return inventory with
         {
-            Store = store,
+            Store = store, PublishedPackages = published, WindowsHistory = history,
             Items = inventory.Items.Select(x => x with
-                { PackageEvidence = byInf.GetValueOrDefault(x.InfName) }).ToArray()
+                { PackageEvidence = byInf.GetValueOrDefault(x.InfName), WindowsEvents = DriverWindowsHistory.Correlate(x, history) }).ToArray()
         };
     }
 
@@ -116,7 +118,7 @@ internal static class DriverStoreAudit
         (!OperatingSystem.IsWindows() || path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' &&
             path[2] == '\\' && !path[2..].Contains(':'));
 
-    private static DriverStoreEvidence Resolve(string inf)
+    internal static DriverStoreEvidence Resolve(string inf)
     {
         if (!OperatingSystem.IsWindows()) return new(inf, DriverStoreState.Unavailable, FailureStage: DriverStoreStage.Platform);
         string windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
