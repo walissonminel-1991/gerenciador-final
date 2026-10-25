@@ -29,10 +29,12 @@ anterior, sem reivindicar descoberta inédita nem integrar toda a outra frente.
 
 A revisão do despachador revelou os modos de layout `--drivers-readonly` e
 `--lote3` dentro do bloco `--work9`: isoladamente, as chamadas executavam a
-suíte geral e não esses cenários. O encaminhamento foi corrigido e os dois
-passos da CI agora exigem a marca final do cenário específico, além do código
-de saída. A execução anterior não é evidência desses dois cenários; eles
-precisam passar novamente com o despachador corrigido.
+suíte geral. O diálogo de drivers já era chamado no percurso geral, mas o
+novo cenário de volume do Lote 3 não era executado. O encaminhamento foi
+corrigido e os dois passos da CI agora exigem a marca final do cenário
+específico, além do código de saída. A CI anterior não comprova execução
+isolada desses modos nem o novo teste de volume; a revalidação posterior
+comprova ambos com o despachador corrigido.
 
 O novo SingleLaunchResource protege o intervalo até Process.Start retornar,
 sem impedir que o fornecedor remova seus próprios arquivos depois. Não é
