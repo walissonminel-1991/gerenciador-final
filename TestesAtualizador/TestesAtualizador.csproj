@@ -18,7 +18,9 @@
     <Compile Include="../UpdateOperationProgress.cs" Link="UpdateOperationProgress.cs" />
     <Compile Include="../UpdateLaunchGate.cs" Link="UpdateLaunchGate.cs" />
     <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
+    <Compile Include="../MsiMajorUpgradeEvidence.cs" Link="MsiMajorUpgradeEvidence.cs" />
     <Compile Include="../MsiPackageEvidence.cs" Link="MsiPackageEvidence.cs" />
+    <Compile Include="../AutomaticDiscoveryPipeline.cs" Link="AutomaticDiscoveryPipeline.cs" />
     <Compile Include="../AutomaticUpdateDiscovery.cs" Link="AutomaticUpdateDiscovery.cs" />
     <Compile Include="../AutomaticAppInstallation.cs" Link="AutomaticAppInstallation.cs" />
     <Compile Include="../AutomaticPackageManifest.cs" Link="AutomaticPackageManifest.cs" />

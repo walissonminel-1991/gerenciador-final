@@ -4,7 +4,10 @@ namespace GerenciadorAplicativos;
 
 internal static class MsiPackageEvidence
 {
-    internal sealed record Metadata(string Name,string Publisher,string Version,string ProductCode,string UpgradeCode,string Architecture,bool Services,string Scope="unknown");
+    internal sealed record Metadata(string Name,string Publisher,string Version,string ProductCode,string UpgradeCode,string Architecture,bool Services,string Scope="unknown",string Language="");
+#if GF_PROGRESSIVE
+    internal static Func<string,string,Metadata>? SyntheticInstalled=null;
+#endif
     internal static Metadata Read(string file)
     {
         using var pinned=InstallerFileGuard.OpenRead(file,allowDirectoryWrites:true);
@@ -38,7 +41,7 @@ internal static class MsiPackageEvidence
             finally{MsiCloseHandle(summary);}
             string allUsers=Property("ALLUSERS");
             string scope=allUsers=="1"?"machine":allUsers.Length==0?"user":"unknown";
-            return new(Property("ProductName"),Property("Manufacturer"),Property("ProductVersion"),Property("ProductCode"),Property("UpgradeCode"),architecture,services,scope);
+            return new(Property("ProductName"),Property("Manufacturer"),Property("ProductVersion"),Property("ProductCode"),Property("UpgradeCode"),architecture,services,scope,Property("ProductLanguage"));
         }
         finally{MsiCloseHandle(database);}
     }
@@ -49,20 +52,55 @@ internal static class MsiPackageEvidence
         if(MsiGetProductInfoW(code,"LocalPackage",path,ref length)!=0)throw new InvalidDataException("Cache MSI instalado nao pode ser confirmado.");
         return Read(path.ToString());
     }
+    // Query only the requested context/current user. No repair, enumeration of
+    // other users, Win32_Product or installation side effects.
+    internal static Metadata Installed(string code,string scope)
+    {
+#if GF_PROGRESSIVE
+        if(SyntheticInstalled is not null)return SyntheticInstalled(code,scope);
+#endif
+        if(!Guid.TryParse(code,out var id) || id==Guid.Empty || scope is not ("machine" or "user"))
+            throw new InvalidDataException("Contexto MSI nao comprovado.");
+        string product=id.ToString("B").ToUpperInvariant();
+        var found=new List<Metadata>();
+        foreach(uint context in scope=="machine"?new uint[]{4}:new uint[]{1,2})
+        {
+            string? Query(string property)
+            {
+                var value=new StringBuilder(4096);uint size=4095;
+                uint result=MsiGetProductInfoExW(product,null,context,property,value,ref size);
+                if(result is 1605 or 1608)return null;
+                if(result!=0)throw new InvalidDataException("Propriedade de contexto MSI indisponivel.");
+                return value.ToString();
+            }
+            if(Query("State")!="5")continue;
+            var metadata=Read(Query("LocalPackage")??throw new InvalidDataException("Cache MSI ausente."));
+            if(!VerifiedUpdaters.TryVersion(Query("VersionString"),out var installed) ||
+                !VerifiedUpdaters.TryVersion(metadata.Version,out var cached) || installed!=cached ||
+                Matching.NormalizePublisher(Query("Publisher")??"")!=Matching.NormalizePublisher(metadata.Publisher))
+                throw new InvalidDataException("Cache diverge da instancia MSI instalada.");
+            found.Add(metadata with {Scope=scope});
+        }
+        return found.Count==1?found[0]:throw new InvalidDataException("Instancia MSI ausente ou ambigua.");
+    }
     internal static void RequireUpgrade(AutomaticInstaller installer,AutomaticAppInstallation app,string file)
     {
-        Validate(Installed(app.ProductCode),Read(file),installer,app);
+        var before=Installed(app.ProductCode,app.Scope);var after=Read(file);
+        Validate(before,after,installer,app);
+        if(app.HasCatalogIdentity && !before.ProductCode.Equals(after.ProductCode,StringComparison.OrdinalIgnoreCase))
+            MsiMajorUpgradeEvidence.Require(file,before);
     }
     internal static void Validate(Metadata before,Metadata after,AutomaticInstaller installer,AutomaticAppInstallation app)
     {
         if(!before.ProductCode.Equals(app.ProductCode,StringComparison.OrdinalIgnoreCase) ||
-            !InstallerEngineEvidence.SameProduct(before.Name,app.Name) ||
+            !InstallerEngineEvidence.SameProduct(before.Name,app.BinaryProduct) ||
             Matching.NormalizePublisher(before.Publisher)!=Matching.NormalizePublisher(app.Publisher) ||
             !VerifiedUpdaters.TryVersion(before.Version,out var previousVersion) || !VerifiedUpdaters.TryVersion(app.Version,out var recordedVersion) ||previousVersion!=recordedVersion ||
             before.Scope!=app.Scope || after.Scope!=app.Scope || before.Services || after.Services || before.Architecture!=app.Architecture || after.Architecture!=app.Architecture ||
             !Guid.TryParse(before.UpgradeCode,out var oldCode) || oldCode==Guid.Empty || !Guid.TryParse(after.UpgradeCode,out var newCode) || oldCode!=newCode ||
+            app.HasCatalogIdentity && !before.UpgradeCode.Equals(app.IdentityUpgradeCode,StringComparison.OrdinalIgnoreCase) ||
             !after.ProductCode.Equals(installer.ProductCode,StringComparison.OrdinalIgnoreCase) ||
-            !InstallerEngineEvidence.SameProduct(after.Name,app.Name) ||
+            !InstallerEngineEvidence.SameProduct(after.Name,app.BinaryProduct) ||
             Matching.NormalizePublisher(after.Publisher)!=Matching.NormalizePublisher(app.Publisher) ||
             !VerifiedUpdaters.TryVersion(after.Version,out var version) || !VerifiedUpdaters.TryVersion(installer.Version,out var target) ||version!=target)
             throw new InvalidDataException("MSI diverge do produto, familia, arquitetura ou servicos autorizados.");
@@ -100,6 +138,7 @@ internal static class MsiPackageEvidence
     [DllImport("msi.dll",CharSet=CharSet.Unicode)]private static extern uint MsiRecordGetStringW(uint record,uint field,StringBuilder value,ref uint length);
     [DllImport("msi.dll")]private static extern uint MsiCloseHandle(uint handle);
     [DllImport("msi.dll",CharSet=CharSet.Unicode)]private static extern int MsiDatabaseIsTablePersistentW(uint database,string table);
+    [DllImport("msi.dll",CharSet=CharSet.Unicode)]private static extern uint MsiGetProductInfoExW(string product,string? sid,uint context,string property,StringBuilder value,ref uint length);
     [DllImport("msi.dll",CharSet=CharSet.Unicode)]private static extern uint MsiGetProductInfoW(string product,string property,StringBuilder value,ref uint length);
     [DllImport("msi.dll",CharSet=CharSet.Unicode)]private static extern uint MsiGetSummaryInformationW(uint database,string? path,uint updateCount,out uint summary);
     [DllImport("msi.dll",CharSet=CharSet.Unicode)]private static extern uint MsiSummaryInfoGetPropertyW(uint summary,uint property,out uint type,out int value,IntPtr time,StringBuilder text,ref uint length);

@@ -5,10 +5,12 @@ using System.Text.RegularExpressions;
 namespace GerenciadorAplicativos;
 
 internal sealed record AutomaticAppInstallation(string Key, string Name, string Publisher, string Version, string Scope,
-    string Architecture, string Root, string Binary, string Uninstaller, string Kind, string ProductCode, string InventoryId="")
+    string Architecture, string Root, string Binary, string Uninstaller, string Kind, string ProductCode, string InventoryId="",
+    string ProductName="", string IdentityUpgradeCode="")
 {
 #if GF_PROGRESSIVE
     internal static string? SyntheticBaseRoot;
+    internal static Func<string,string?>? SyntheticSigner=null;
 #endif
     internal static bool Eligible(ProgramEntry app) => !app.InventoryOnly && !ProtectedApplications.IsProtectedName(app.Name) &&
         !Regex.IsMatch(app.Name,@"(?i)\b(runtime|redistributable|sdk|driver|framework|server|service|hotfix|windows|update)\b") &&
@@ -87,6 +89,76 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
         { reason = ex is UnauthorizedAccessException or System.Security.SecurityException or System.ComponentModel.Win32Exception { NativeErrorCode: 5 }
             ? "installation_access_denied" : "installation_unreadable"; return null; }
     }
+    // A localized ARP label is never an execution identity. The authenticated
+    // catalog name must agree independently with the installed MSI and signed PE.
+    internal string BinaryProduct => ProductName.Length > 0 ? ProductName : Name;
+    internal bool HasCatalogIdentity => ProductName.Length > 0;
+    internal static AutomaticAppInstallation? ReadByCatalogIdentity(ProgramEntry app, string catalogName, out string reason)
+    {
+        reason="msi_identity_unproven";
+        if(!Eligible(app) || !UninstallCommand.TryParse(app.UninstallString,out var command) || command.ProductCode is null ||
+            !Guid.TryParse(command.ProductCode,out var commandCode) || !Guid.TryParse(app.MsiProductCode,out var registered) ||
+            registered==Guid.Empty || commandCode!=registered || catalogName.Length==0 || !CompatibleVariant(app.Name,catalogName))return null;
+        try
+        {
+            string scope=app.InventoryId.StartsWith("LocalMachine|",StringComparison.Ordinal)?"machine":
+                app.InventoryId.StartsWith("CurrentUser|",StringComparison.Ordinal)?"user":"unknown";
+            var metadata=MsiPackageEvidence.Installed(app.MsiProductCode,scope);
+            if(!Guid.TryParse(metadata.ProductCode,out var installedCode) || installedCode!=registered || metadata.Services ||
+                !Guid.TryParse(metadata.UpgradeCode,out var upgrade) || upgrade==Guid.Empty || metadata.Scope!=scope ||
+                !InstallerEngineEvidence.SameProduct(metadata.Name,catalogName) ||
+                Matching.NormalizePublisher(metadata.Publisher)!=Matching.NormalizePublisher(app.Publisher) ||
+                !VerifiedUpdaters.TryVersion(metadata.Version,out var actual) || !VerifiedUpdaters.TryVersion(app.Version,out var expected) || actual!=expected)return null;
+            var canonical=new ProgramEntry{Name=metadata.Name,Publisher=app.Publisher,Version=app.Version,InventoryId=app.InventoryId,
+                InstallLocation=app.InstallLocation,DisplayIcon=app.DisplayIcon,UninstallString=app.UninstallString,MsiProductCode=app.MsiProductCode};
+            var local=Read(canonical,out reason);
+            if(local is null || local.Kind!="msi" || local.Architecture!=metadata.Architecture ||
+                !InstallerEngineEvidence.MatchesArchitecture(app.Name,VerifiedUpdaters.GetPortableExecutableMachine(local.Binary)) ||
+                !PublisherSignature(local.Binary,app.Publisher))return null;
+            reason="msi_catalog_cache_signed_binary";
+            return local with {Key=Binding(app),Name=app.Name,ProductName=metadata.Name,IdentityUpgradeCode=upgrade.ToString("B")};
+        }
+        catch(Exception ex) when(AutomaticDiscoveryPipeline.IsItemFailure(ex)) { reason="msi_identity_unreadable";return null; }
+    }
+    private static bool CompatibleVariant(string registered,string canonical)
+    {
+        const string variants=@"(?i)\b(preview|beta|alpha|nightly|dev|canary|insider|portable|enterprise|professional|pro|ultimate|business|community|education|lts|esr)\b";
+        return Regex.Matches(registered,variants).Select(m=>m.Value.ToLowerInvariant()).Distinct().Order().SequenceEqual(
+            Regex.Matches(canonical,variants).Select(m=>m.Value.ToLowerInvariant()).Distinct().Order());
+    }
+    private static bool PublisherSignature(string binary,string publisher)
+    {
+#if GF_PROGRESSIVE
+        if(SyntheticSigner is not null)return Matching.NormalizePublisher(SyntheticSigner(binary)??"")==Matching.NormalizePublisher(publisher);
+#endif
+        using var held=InstallerFileGuard.OpenRead(binary,allowDirectoryWrites:true);
+        return TrustedFileSignature.TryGetSigner(binary,out var signer,out _) &&
+            Matching.NormalizePublisher(signer)==Matching.NormalizePublisher(publisher);
+    }
+    private bool CatalogIdentityCurrent(ProgramEntry app)
+    {
+        if(!HasCatalogIdentity)return true;
+        var fresh=ReadByCatalogIdentity(app,BinaryProduct,out _);
+        return fresh is not null && fresh.Binary==Binary && fresh.Root==Root && fresh.Scope==Scope && fresh.Architecture==Architecture &&
+            fresh.IdentityUpgradeCode.Equals(IdentityUpgradeCode,StringComparison.OrdinalIgnoreCase);
+    }
+    private bool CatalogFamilyUnique(IEnumerable<ProgramEntry> inventory)
+    {
+        if(!HasCatalogIdentity)return true;
+        foreach(var other in inventory.Where(a=>Binding(a)!=Key && a.MsiProductCode.Length>0 &&
+            Matching.NormalizePublisher(a.Publisher)==Matching.NormalizePublisher(Publisher)))
+        {
+            string scope=other.InventoryId.StartsWith("LocalMachine|",StringComparison.Ordinal)?"machine":
+                other.InventoryId.StartsWith("CurrentUser|",StringComparison.Ordinal)?"user":"unknown";
+            try
+            {
+                var cached=MsiPackageEvidence.Installed(other.MsiProductCode,scope);
+                if(cached.UpgradeCode.Equals(IdentityUpgradeCode,StringComparison.OrdinalIgnoreCase))return false;
+            }
+            catch(Exception ex)when(AutomaticDiscoveryPipeline.IsItemFailure(ex)){return false;}
+        }
+        return true;
+    }
     internal static string ArchitectureFor(ushort machine) => machine switch { 0x8664 => "x64", 0x14c => "x86", 0xaa64 => "arm64", _ => "" };
     internal static bool BinaryMatches(string file,string version,string name,bool exact)
     {
@@ -117,23 +189,28 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
         if(items.Any(p=>Binding(p)!=Key && InstallerEngineEvidence.RegistrationOverlaps(Root,p)))return false;
         if(ArchitectureFor(VerifiedUpdaters.GetPortableExecutableMachine(Binary))!=Architecture ||
             Kind!="msi" && InstallerEngineEvidence.InstalledKind(new(Uninstaller,"",null))!=Kind)return false;
-        return items.Count(p=>Binding(p)==Key)==1 && items.Count(p=>InstallerEngineEvidence.SameProduct(p.Name,Name) &&
-            Matching.NormalizePublisher(p.Publisher)==Matching.NormalizePublisher(Publisher))==1 && BinaryMatches(Binary,Version,Name,true);
+        return items.Count(p=>Binding(p)==Key)==1 && items.Count(p=>(InstallerEngineEvidence.SameProduct(p.Name,Name) || InstallerEngineEvidence.SameProduct(p.Name,BinaryProduct)) &&
+            Matching.NormalizePublisher(p.Publisher)==Matching.NormalizePublisher(Publisher))==1 && BinaryMatches(Binary,Version,BinaryProduct,true) &&
+            CatalogIdentityCurrent(items.Single(p=>Binding(p)==Key)) && CatalogFamilyUnique(items);
         }
         catch(Exception ex)when(ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or BadImageFormatException or System.ComponentModel.Win32Exception){return false;}
     }
     internal bool Confirm(AutomaticInstaller installer,IEnumerable<ProgramEntry> inventory)
     {
-        var matches=inventory.Where(p=>InstallerEngineEvidence.SameProduct(p.Name,Name) &&
-            p.Publisher.Equals(Publisher,StringComparison.OrdinalIgnoreCase)).ToArray();
+        var items=inventory.ToArray();
+        var matches=ConfirmationCandidates(items);
         if(matches.Length!=1 || !Eligible(matches[0]) || !VerifiedUpdaters.TryVersion(matches[0].Version,out var current) ||
             !VerifiedUpdaters.TryVersion(installer.Version,out var target) || current<target)return false;
-        var after=Read(matches[0]);
-        return after is not null && after.Root.Equals(Root,StringComparison.OrdinalIgnoreCase) && after.Binary.Equals(Binary,StringComparison.OrdinalIgnoreCase) &&
+        var after=HasCatalogIdentity?ReadByCatalogIdentity(matches[0],BinaryProduct,out _):Read(matches[0]);
+        return after is not null && after.Current(items) && after.Root.Equals(Root,StringComparison.OrdinalIgnoreCase) && after.Binary.Equals(Binary,StringComparison.OrdinalIgnoreCase) &&
             after.Scope==Scope && after.Architecture==Architecture && after.Kind==Kind &&
+            (!HasCatalogIdentity || after.IdentityUpgradeCode.Equals(IdentityUpgradeCode,StringComparison.OrdinalIgnoreCase)) &&
             (Kind=="msi"? after.ProductCode.Equals(installer.ProductCode,StringComparison.OrdinalIgnoreCase):
-                matches[0].InventoryId==InventoryId) && BinaryMatches(Binary,installer.Version,Name,false);
+                matches[0].InventoryId==InventoryId) && BinaryMatches(Binary,installer.Version,BinaryProduct,false);
     }
+    internal ProgramEntry[] ConfirmationCandidates(IEnumerable<ProgramEntry> inventory) => inventory.Where(p=>
+        (InstallerEngineEvidence.SameProduct(p.Name,Name) || HasCatalogIdentity && InstallerEngineEvidence.SameProduct(p.Name,BinaryProduct)) &&
+        Matching.NormalizePublisher(p.Publisher)==Matching.NormalizePublisher(Publisher)).ToArray();
     internal void RequireClosed()
     {
         var processes=Process.GetProcessesByName(Path.GetFileNameWithoutExtension(Binary));

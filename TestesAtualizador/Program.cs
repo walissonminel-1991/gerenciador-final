@@ -67,6 +67,8 @@ if (args.Contains("--verify-catalog"))
     }
     return;
 }
+if(args.Contains("--work17-coverage")){Work17CoverageProbe.Run();return;}
+if(args.Contains("--work17")){await Work17DiscoveryTests.RunAsync((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
 if(args.Contains("--automatic")){Work16ContractTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});if(OperatingSystem.IsWindows())Work14CatalogTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});Work14CapabilityTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});AutomaticDiscoveryTests.Run((ok,label)=>{Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)throw new Exception(label);});return;}
 int checkedCount = 0;
 void Verify(bool condition, string label)
