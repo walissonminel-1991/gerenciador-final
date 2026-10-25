@@ -163,10 +163,10 @@ A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permiss
 - [x] R1 — Proteção de jogos e instalações ativas. Evidência: GameLibraryAudit.cs; BroadResidualDiscovery.cs
 - [x] R2 — Classificação conservadora de fabricantes compartilhados. Evidência: BroadResidualDiscovery.cs; IntegratedResidualPolicy.cs
 - [x] R3 — Auditoria histórica somente leitura. Evidência: HistoricalResidualAudit.cs; HistoricalDeviceAudit.cs
-- [ ] R4 — Limpeza específica integrada à desinstalação, confirmação única, exclusão verificada e UAC. Implementação e regressões Windows aprovadas; homologação física/cobertura pendentes. Evidência: IntegratedResidualCleanup.cs; IntegratedResidualBatch.cs; docs/MISSAO-WORK10.md
+- [ ] R4 — Limpeza específica integrada à desinstalação, confirmação única, exclusão verificada e UAC. Implementação/regressões aprovadas; PC FORTE 24/10/2026: duas remoções com confirmação, porém verificação residual Inconclusive (HKLM32/64 erro 5). Nova restrição de escopo per-user e regressões na PR #49; CI e homologação física/cobertura ainda necessárias. Evidência: IntegratedResidualCleanup.cs; IntegratedResidualBatch.cs; docs/MISSAO-WORK10.md; issue #48.
 - [x] R5 — Regressões de proteção aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
 - [ ] R6 — Resolver casos históricos ambíguos com evidências adicionais. Evidência: Adicionada proteção para inventário incompleto; a atribuição dos vestígios específicos ainda depende de evidências dos computadores.
-- [ ] R7 — Desinstalação e preservação de dados validadas nos computadores. Evidência: Validação presencial adiada
+- [ ] R7 — Desinstalação e preservação de dados validadas nos computadores. Evidência parcial PC FORTE 24/10/2026: duas desinstalações silenciosas RegistrationAbsent após múltiplas consultas; preservação integral e PC FRACO ainda não homologados. Issue #48 (resíduos inconclusivos).
 
 ### Atualizações — 7/8 (87,5%)
 
@@ -177,7 +177,7 @@ A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permiss
 - [x] U5 — Vincular confirmação à instalação original e conferir arquitetura/escopo Sumatra. Evidência: VerifiedUpdaters.ConfirmInstallation; TestesAtualizador aprovados. Identidade alterada permanece indeterminada; não equivale à validação real de todos os instaladores.
 - [x] U6 — Explicar divergências de cobertura com WinGet. Evidência: 9 produtos na consulta WinGet do PC FORTE reconciliados com 8 do GF .34 (6 candidatos consultivos, 2 em revisão, 1 GameInput protegido); teste de 9 identidades aprovado na CI Windows 39698959079. Não comprova instalação compatível.
 - [x] U7 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
-- [ ] U8 — Instalação e versão final validadas nos computadores. Evidência: Validação presencial adiada
+- [ ] U8 — Instalação e versão final validadas nos computadores. Evidência parcial PC FORTE 24/10/2026: SumatraPDF e Notepad++ x64 com instalação retorno 0, identidade verificada e Confirmed; build exata ainda requer BUILD-INFO, e PC FRACO/homologação completa permanecem pendentes.
 
 ### Desempenho e estabilidade — 4/6 (67%)
 

@@ -98,7 +98,7 @@
           "id": "R7",
           "title": "Desinstalação e preservação de dados validadas nos computadores",
           "done": false,
-          "evidence": "Validação presencial adiada"
+          "evidence": "PC FORTE 24/10/2026: duas desinstalações silenciosas observadas com RegistrationAbsent após leituras repetidas (~7 s cada). Preservação integral e PC FRACO ainda não homologados; inspeção de resíduos encontrou HKLM32/HKLM64 erro 5 e ficou Inconclusive. Evidência: issue #48; confirmar build pelo BUILD-INFO.txt."
         }
       ]
     },
@@ -151,7 +151,7 @@
           "id": "U8",
           "title": "Instalação e versão final validadas nos computadores",
           "done": false,
-          "evidence": "PC FORTE .52: 7-Zip 26.04→26.05 confirmado conforme relato da missão. WORK11 .53 implementa progresso/resultado; homologação de Notepad++, SumatraPDF e PC FRACO pendente."
+          "evidence": "PC FORTE .52: 7-Zip 26.04→26.05 observado. PC FORTE 24/10/2026, v5.13.11.59 TESTE: SumatraPDF x64 3.6.1 e Notepad++ x64 8.9.8.1 tiveram download/hash/assinatura/identidade, execução retorno 0 e Confirmed após conferência. BUILD-INFO exato ainda não aferido; validação PC FRACO e abrangência geral pendentes."
         }
       ]
     },

@@ -9,6 +9,7 @@ internal static class Work12RegressionTests
     internal static async Task RunAsync(Action<bool, string> check)
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("WORK12 requires Windows");
+        CatalogRegistryScope(check);
         string id = "GF-W12-" + Guid.NewGuid().ToString("N");
         string root = Path.Combine(Path.GetTempPath(), id);
         string keyPath = @"Software\" + id;
@@ -87,6 +88,34 @@ internal static class Work12RegressionTests
         await SilentEngines(check);
         GenericOwnership(check);
         await ActualWaitCancellation(check);
+    }
+
+    // Reproduz a discrepância do PC FORTE: um catálogo explicitamente por usuário
+    // não pode ampliar a busca para HKLM32/64 só porque o app foi instalado para a máquina.
+    // Nenhuma chave real é aberta, alterada ou excluída neste teste.
+    private static void CatalogRegistryScope(Action<bool, string> check)
+    {
+        foreach (var sample in new[]
+        {
+            (Name: "SumatraPDF", Publisher: "Krzysztof Kowalczyk", Policy: "sumatrapdf", Key: @"Software\SumatraPDF"),
+            (Name: "Notepad++ (64-bit x64)", Publisher: "Notepad++ Team", Policy: "notepadpp", Key: @"Software\Notepad++")
+        })
+        {
+            var app = new ProgramEntry
+            {
+                Name = sample.Name, Publisher = sample.Publisher,
+                InventoryId = "LocalMachine|Registry64|" + sample.Policy
+            };
+            var scope = IntegratedResidualPolicy.Build(ResidualAppIdentity.From(app));
+            check(scope.Policy == sample.Policy && scope.Keys.Count == 1 &&
+                scope.Keys.All(k => k.Hive == RegistryHive.CurrentUser &&
+                    k.View == RegistryView.Registry64 && k.Subkey == sample.Key),
+                "W12 catalogo per-user jamais promove chave HKLM por instalacao machine: " + sample.Policy);
+        }
+        check(UninstallRuleCatalog.Rules.Count > 0 &&
+            UninstallRuleCatalog.Rules.Where(rule => rule.RegistryKeys.Count > 0)
+                .All(rule => rule.RegistryKeys.All(key => key.StartsWith(@"Software\", StringComparison.Ordinal))),
+            "W12 contratos atuais de exclusividade por usuario permanecem estritos");
     }
 
     private static async Task IntegratedCycle(Action<bool, string> check)
