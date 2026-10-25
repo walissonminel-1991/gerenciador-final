@@ -174,7 +174,7 @@ class MetadataTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         repo = Path(__file__).resolve().parents[1]
         report = json.loads((repo / "docs/PROGRESSO.json").read_text(encoding="utf-8"))["candidate"]["report"]
-        for name in ["GerenciadorAplicativos.csproj", "app.manifest", "README.md", "docs/ROADMAP.md", "CHANGELOG.md", "docs/PROGRESSO.json", report]:
+        for name in ["GerenciadorAplicativos.csproj", "app.manifest", "README.md", "docs/ROADMAP.md", "CHANGELOG.md", "docs/PROGRESSO.json", report, "docs/MISSAO-WORK13.md", "docs/MISSAO-WORK14-MOTORES.md", "docs/MISSAO-WORK16.md", "docs/MISSAO-WORK17.md"]:
             file = self.root / name
             file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(repo / name, file)

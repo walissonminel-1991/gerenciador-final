@@ -68,6 +68,11 @@ jobs:
           dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --lote3 | Tee-Object -Variable output
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not ($output -match '^PASS L3 prévia em memória limitada')) { throw 'Modo de teste do registro do Lote 3 não foi executado' }
+      - name: Ecossistemas e identidades multidimensionais (sem executar scripts)
+        run: dotnet run --project TestesEcossistema/TestesEcossistema.csproj -c Release
+      - name: Leitor COM real sem reparo ou elevacao automatica
+        shell: pwsh
+        run: ./TestesEcossistema/Testar-LeitorWinGet.ps1 -Executable ./bin/Release/net10.0-windows10.0.26100.0/GerenciadorFinal.exe
       - name: Conferir versao dos scripts de distribuicao sem publicar
         shell: pwsh
         run: |
@@ -81,6 +86,8 @@ jobs:
         run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --work12
       - name: Descoberta automatica e adversarios sem instalar programas
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --automatic
+      - name: Isolar falhas e validar identidade MSI WORK17
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work17
       - name: Reproduzir casos WORK13 de atualizacao em isolamento
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work13
       - name: Testes WSC somente leitura
@@ -93,6 +100,36 @@ jobs:
         run: dotnet run --project TestesMultifontes/TestesMultifontes.csproj -c Release
       - name: Testes instaladores verificados
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release
+      - name: Comparar cobertura funcional WORK14 com a base imutavel
+        run: python scripts/measure_work14.py
+      - name: Comparar contratos WORK16 com a PR51 imutavel
+        run: python scripts/measure_work16.py
+      - name: Comparar cobertura MSI WORK17 com WORK16 imutavel
+        run: python scripts/measure_work17.py
+      - name: Conservar matriz MSI WORK17
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: WORK17-cobertura-${{ github.sha }}
+          path: Work17Coverage.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Conservar matriz de ecossistemas WORK16
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: WORK16-cobertura-${{ github.sha }}
+          path: Work16Coverage.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Conservar matriz funcional antes e depois
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: WORK14-cobertura-${{ github.sha }}
+          path: Work14Coverage.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Controles negativos por mutacao em copias isoladas
         run: python scripts/test_work6_mutations.py
       - name: Testes drivers e historico
