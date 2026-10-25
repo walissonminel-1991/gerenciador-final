@@ -1,12 +1,28 @@
-# Roteiro físico mínimo — WORK12 .57 TESTE
+# Roteiro físico posterior — Lote 4 .63 TESTE
 
-Usar somente o pacote indicado na [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40) após aprovação da CI. A PR identifica a fonte, o artefato e os hashes. [Correções, testes automatizados e limites](MISSAO-WORK12.md). Roteiros antigos estão nos relatórios históricos; este documento substitui a bateria .53 com versões antigas de aplicativos.
+Este roteiro **não foi executado pelo Lote 4**. Usar somente a candidata .63
+que estiver explicitamente aprovada na [PR #57](https://github.com/walissonminel-1991/gerenciador-final/pull/57)
+e em [MISSAO-LOTE4](MISSAO-LOTE4.md), com SHA do código e hash do pacote.
+Enquanto estiver em validação, não tratar como candidata liberada. O pacote
+consolida lotes 1–3; WORK16/17 não estão integradas. A PR #40 permanece Draft.
 
 ## Preparação
 
-Extrair o portátil em pasta própria, manter os arquivos juntos e conferir versão .57, BUILD-INFO e SHA256SUMS. Não instalar SDK. Manter AVG ativo; registrar eventual bloqueio. O programa continua TESTE e sem assinatura.
+Extrair o portátil em pasta própria, manter os arquivos juntos e conferir versão .63, BUILD-INFO e SHA256SUMS. Não instalar SDK. Manter AVG ativo; registrar eventual bloqueio. O programa continua TESTE e sem assinatura.
 
 Não reinstalar Notepad++/SumatraPDF nem repetir as limpezas antigas só para reproduzir os defeitos das versões .55/.56. Os casos de ausência, erro 5, preservação, SIM/NÃO, arquivo ocupado e cancelamento pertencem à bateria automatizada com alvos sintéticos.
+
+## Consulta e atualização quando já houver necessidade
+
+Abrir **Histórico / relatório**: conferir leitura, rolagem, Salvar TXT e Fechar/Esc.
+O TXT contém códigos/contagens; a comparação não confirma remoção por ausência.
+Em Drivers → Consultar drivers → Investigar, as consultas não instalam nem
+removem pacotes. Uma oferta oficial ou INF assinado não comprova compatibilidade.
+
+Se houver atualização já necessária e elegível, conferir identidade, modo
+oferecido, consentimento para fechar o aplicativo, progresso e versão final.
+Pendência ou erro não autorizam repetir a execução. Se não houver operação
+necessária, adiar esta etapa; não instalar versões antigas apenas para testar.
 
 ## PC FORTE — uma operação quando houver aplicativo dispensável
 

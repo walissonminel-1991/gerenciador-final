@@ -46,6 +46,10 @@ internal static class DriverReadOnlyDialogTests
                         if (!scroll.Visible || scroll.MaximumValue <= 0 ||
                             !body.RectangleToScreen(body.ClientRectangle).Contains(scroll.RectangleToScreen(scroll.ClientRectangle)))
                             throw new Exception("Relatório longo sem barra de rolagem escura acessível na janela pequena.");
+                        var editor = Descendants(body).OfType<TextBox>().Single();
+                        if (editor.RectangleToScreen(editor.ClientRectangle).IntersectsWith(
+                            scroll.RectangleToScreen(scroll.ClientRectangle)))
+                            throw new Exception("Editor cobre a barra do relatório de drivers.");
                         scroll.Value = scroll.MaximumValue;
                         Application.DoEvents();
                         if (scroll.Value == 0) throw new Exception("Relatório de drivers não permite alcançar o conteúdo inferior.");

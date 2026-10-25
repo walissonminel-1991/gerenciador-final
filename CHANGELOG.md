@@ -1,5 +1,13 @@
 # Histórico de alterações
 
+## 5.13.11.63 TESTE — Lote 4: consolidação (25/10/2026)
+
+- [CI 40234268549](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549) aprovada, fonte `a893a051`; [pacote TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549/artifacts/12614153157) e 281 hashes conferidos fora do runner. Cumulativa dos lotes 1–3; WORK16/17 permanecem em outra cadeia. Numeração .63 evita reutilizar .60–.62 dessas frentes.
+- Histórico / relatório usa rolagem escura, quebra de linha, Fechar/Enter/Esc, decoração escura quando suportada e ajuste à área útil. Texto completo e exportação TXT preservados.
+- DarkLogView reserva a largura da barra antes do editor Fill; evita sobrepor texto e barra nos relatórios, inclusive Drivers.
+- Cenário real WinForms em 520×360 e 770×530 e controle negativo em checkout descartável com implementação anterior; código de saída e marca final obrigatórios na CI.
+- Corrigidos guia de testes, roteiro físico, SDK exato e referências da candidata. Nenhum checkpoint físico/AVG concluído; 27/42. [Evidências e limites](docs/MISSAO-LOTE4.md).
+
 ## 5.13.11.59 TESTE — descoberta automática (24/10/2026)
 
 - Aprovada na [CI 40138799763](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763), fonte `26bbc17a`; [portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319). 318 testes de atualizadores (81 da descoberta), 645 resíduos e 27 mutações; 281 hashes internos e SHA do ZIP reconferidos independentemente. Homologação física pendente.

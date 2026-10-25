@@ -4,7 +4,7 @@
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Candidata TESTE: v5.13.11.59 — descoberta automática, CI aprovada.** [Portátil x64 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763/artifacts/12578144319) · [CI 40138799763](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40138799763), fonte `26bbc17a`. O GF consulta o catálogo Microsoft assinado como dados, vincula o manifesto por SHA e gera instruções para MSI, NSIS e Inno quando identidade, escopo, arquitetura, assinatura e resultado podem ser comprovados. A consulta descobre versões sem regras por release no novo mecanismo. [Implementação, 30 arquivos, testes e limites](docs/MISSAO-WORK13.md). PR #40 Draft; main e WORK12 preservadas. U8/R7/R4 físicos pendentes. Pacote, SHA-256 e 281 hashes conferidos também fora do runner. Homologação física pendente.
+**Candidata TESTE: v5.13.11.63 — Lote 4, CI aprovada.** [Portátil x64 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549/artifacts/12614153157) · [CI 40234268549](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40234268549), fonte `a893a051`. Consolidação cumulativa dos lotes 1–3: histórico local e comparação conservadora, investigação de drivers somente leitura, segurança pós-execução, prévia de registro limitada e pacote auditável. Corrigidos o diálogo de histórico e a sobreposição entre editor e barra escura dos relatórios. [Relatório e evidências](docs/MISSAO-LOTE4.md), [PR #57 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/57). ZIP, 281 hashes, origem, versão, runtimes e manifesto `asInvoker` conferidos fora do runner sem executar. WORK14–17 estão em outra cadeia e não integram esta candidata. Main e PR #40 preservadas; U8/R7/R4 físicos e AVG pendentes, 27/42.
 
 **Estado atual:** [roadmap 27/42](docs/ROADMAP.md) · [organização](docs/ORGANIZACAO-REPOSITORIO.md) · [roteiro físico vigente](docs/TESTE-CONSOLIDADO.md) · [PR #40 (Draft)](https://github.com/walissonminel-1991/gerenciador-final/pull/40). A limpeza residual agora pertence à desinstalação: conferência automática, uma decisão SIM/NÃO por seleção e exclusão permanente dos alvos exclusivos revalidados ao escolher **SIM**. **NÃO** mantém os resíduos; dados pessoais, compartilhados ou desconhecidos são preservados. A cobertura é progressiva. U8, R7 e R4 físicos continuam abertos; inventário parcial não comprova remoção.
 
@@ -15,10 +15,11 @@
 - Diagnóstico de rede, reparos específicos mediante consentimento, redefinição avançada e reparo do Windows por DISM/SFC.
 - Planos de energia e hibernação com opções explícitas.
 - Gráfico de RAM com acompanhamento na bandeja, descarte de caches internos e ajuste seletivo do working set de um aplicativo em segundo plano autorizado pelo usuário (não equivale a liberar RAM permanentemente), inicialização, Windows Update e informações do computador.
-- Aba DRIVERS de consulta somente leitura com histórico local e correlação consultiva de INF publicado/Driver Store por APIs do Windows; não instala, remove nem reverte drivers.
+- Aba DRIVERS somente leitura: IDs de hardware, histórico Windows, associações de INFs publicados, ofertas oficiais do Windows Update e verificação nativa do INF selecionado. Não instala, remove nem reverte drivers; a assinatura do INF não certifica o pacote inteiro nem sua compatibilidade.
 - Desinstalação com investigação residual automática e confirmação única SIM/NÃO, incluindo lotes. Exclusão por identidade/conteúdo, conferência final e UAC integrado quando necessário; locais pessoais, compartilhados, alterados e não verificáveis são preservados. Sem ferramenta residual manual independente.
 - Consultas multifontes com versões divergentes preservadas, origem na dica da linha e bloqueio do instalador direto em conflitos; cinco novos produtos consultivos e comparação Proton com feed estável Windows priorizado. WinGet COM/CLI permanece desativado, sem executor distribuído.
 - Atualizações com progresso real de download por instalação, etapas sem porcentagem inventada, resultado verde/vermelho/pendente/cancelado e confirmação persistente durante a sessão, mesmo após renovar a lista.
+- Histórico / relatório junto ao REGISTRO: contagens e códigos sem nomes/caminhos, comparação somente entre inventários completos e inequívocos, exportação TXT por escolha explícita.
 - Interface Windows Forms em português, tema escuro e ícone **GF** azul.
 - Diagnóstico colaborativo: coleta **local, voluntária e revogável**, com prévia em linguagem simples e botão **Simular sem enviar** usando dados fictícios (v5.13.11.8). Não existe envio real, anexo, formulário de Issue nem conta GitHub exigida do usuário. A arquitetura de compartilhamento futuro ainda depende de segurança e consentimento específico; veja [experiência de contribuição](docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md) e [roteiro de autenticação GitHub](docs/PILOTO-AUTENTICACAO-GITHUB.md).
 
@@ -34,7 +35,7 @@ O portátil inclui uma aplicação .NET **self-contained**, portanto o usuário 
 
 ## Código-fonte e compilação
 
-Requisitos **somente para desenvolver/compilar**: Windows x64 e SDK do .NET indicado em [global.json](global.json) (10.0.402, correções da mesma faixa permitidas). Para gerar o pacote portátil local:
+Requisitos **somente para desenvolver/compilar**: Windows x64 e SDK do .NET indicado em [global.json](global.json) (10.0.402 exato, sem resolução para outro SDK). Para gerar o pacote portátil local:
 
 ```bat
 Compilar-OSS-Windows-x64.bat
