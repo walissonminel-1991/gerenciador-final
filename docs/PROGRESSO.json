@@ -854,9 +854,17 @@
     "initial_ci_status": "failure_sdk_http409_before_build",
     "pull_request": 56,
     "report": "docs/MISSAO-LOTE3.md",
-    "status": "revalidacao_windows_em_andamento",
+    "status": "implementacao_validada_em_ci_sem_homologacao_fisica",
     "avg_validation": "pending",
     "checkpoints_closed": [],
-    "personal_computers_accessed": false
+    "personal_computers_accessed": false,
+    "code_commit": "f23d5155cdcf2512d0b377be8a7e2804300b2109",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40230495565",
+    "ci_status": "success",
+    "ci_attempt": 1,
+    "evidence": "docs/evidencias/lote3-ci-40230495565.json",
+    "artifact_id": 12613520831,
+    "artifact_zip_sha256": "243ef05fdc3f5628c23f71c0ee71970f5bb08c5696d17d6cb5fc3d5fb27f306c",
+    "physical_validation": "pending"
   }
 }

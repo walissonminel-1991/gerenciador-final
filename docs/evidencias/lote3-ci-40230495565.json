@@ -1,0 +1,137 @@
+{
+  "record_kind": "technical_observation_not_attestation",
+  "date": "2026-10-25",
+  "source_commit": "f23d5155cdcf2512d0b377be8a7e2804300b2109",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40230495565",
+  "ci_status": "success",
+  "ci_attempt": 1,
+  "main_preserved": "410d65e23546976db456337c71e4705f10217d36",
+  "pr40": {
+    "head": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+    "draft": true,
+    "state": "open"
+  },
+  "package_artifact": {
+    "id": 12613520831,
+    "name": "GerenciadorFinal-v5.13.11.59-f23d5155-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40230495565/artifacts/12613520831",
+    "zip_sha256": "243ef05fdc3f5628c23f71c0ee71970f5bb08c5696d17d6cb5fc3d5fb27f306c",
+    "zip_bytes": 59194247,
+    "independently_verified_without_execution": true
+  },
+  "package_verification": {
+    "files": 282,
+    "verified_hashes": 281,
+    "expanded_bytes": 151892919,
+    "version": "5.13.11.59",
+    "source": "f23d5155cdcf2512d0b377be8a7e2804300b2109",
+    "build": "ab9d7108c4d8073c10c1da52c5f3e8fddec8bd98",
+    "runtime": [
+      {
+        "name": "Microsoft.NETCore.App",
+        "version": "10.0.13"
+      },
+      {
+        "name": "Microsoft.WindowsDesktop.App",
+        "version": "10.0.13"
+      }
+    ],
+    "architecture": "AMD64"
+  },
+  "antivirus_artifact": {
+    "id": 12613790320,
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40230495565/artifacts/12613790320",
+    "zip_sha256": "17aea51adc51fa0e126e1868887db6e1ec86701e51c1ad0c4b9e26945617f671",
+    "binary_hashes_match_package": true
+  },
+  "antivirus_metadata": {
+    "schema": 1,
+    "source": "f23d5155cdcf2512d0b377be8a7e2804300b2109",
+    "build": "ab9d7108c4d8073c10c1da52c5f3e8fddec8bd98",
+    "run_id": "40230495565",
+    "files": [
+      {
+        "name": "GerenciadorFinal.exe",
+        "bytes": 276480,
+        "sha256": "c66c6cbe5f42c5f4f6bebcdcd0270b694ee415f3696cbf03fa28875abeb375d1",
+        "file_version": "5.13.11.59",
+        "signature_status": "NotSigned",
+        "signer": null
+      },
+      {
+        "name": "GerenciadorFinal.dll",
+        "bytes": 1522176,
+        "sha256": "96970eb277da30f0b14e311a7229862a2df4fb61a1910a24b83696b7574572f4",
+        "file_version": "5.13.11.59",
+        "signature_status": "NotSigned",
+        "signer": null
+      }
+    ],
+    "avg_validation": "pending",
+    "scan_performed": false,
+    "sample_submitted": false,
+    "meaning": "Inventario de integridade e assinatura. Nao e resultado de scanner nem aprovacao AVG."
+  },
+  "tests": {
+    "updater_regressions": 318,
+    "residual_regressions": 655,
+    "rejected_mutations": 27,
+    "python_policy_and_package": 39,
+    "node_isolated_receiver": 10,
+    "lote3_update_checks": 11,
+    "lote3_uninstall_checks": 8,
+    "driver_os": [
+      "windows-2022",
+      "windows-2025"
+    ],
+    "layout_modes_verified": [
+      "--drivers-readonly",
+      "--lote3"
+    ]
+  },
+  "download_microbenchmark": {
+    "rounds": 64,
+    "payload_bytes": 524288,
+    "warmup": true,
+    "baseline_allocated_bytes": 8426608,
+    "changed_allocated_bytes_local": 35840,
+    "changed_allocated_bytes_windows_ci": 35840,
+    "measurement": "GC.GetTotalAllocatedBytes interval; not total RAM or working set"
+  },
+  "log_preview": {
+    "input_messages_before_drain": 6000,
+    "retained_utf16_characters": 65536,
+    "capacity_utf16_characters": 65536,
+    "static_report_characters_preserved": 131072
+  },
+  "previous_ci": [
+    {
+      "id": 40228710682,
+      "result": "failed_before_build_sdk_resolution_http409"
+    },
+    {
+      "id": 40229436947,
+      "result": "cancelled_superseded_layout_dispatch_not_evidence_of_isolated_modes"
+    },
+    {
+      "id": 40229759024,
+      "result": "regressions_passed_downloads_blocked",
+      "attempts": {
+        "1": "HTTP404_VLC",
+        "2": "unauthorized_redirect_refused_VLC"
+      }
+    }
+  ],
+  "limits": {
+    "physical_validation": "pending",
+    "avg_validation": "pending",
+    "avg_cause": "unproven",
+    "sample_submitted": false,
+    "personal_computers_accessed": false,
+    "checkpoints_closed": [],
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "merge_performed": false,
+    "stable_release_published": false
+  }
+}

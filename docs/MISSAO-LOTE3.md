@@ -145,6 +145,43 @@ continuam obrigatórios. Nenhum fallback para HTTP foi adicionado.
 Evidências finais por HEAD, logs, tentativas e artefatos na
 [PR #56](https://github.com/walissonminel-1991/gerenciador-final/pull/56).
 
+## Validação técnica aprovada
+
+[CI 40230495565](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40230495565),
+tentativa 1, fonte `f23d5155cdcf2512d0b377be8a7e2804300b2109`, compilação
+`ab9d7108c4d8073c10c1da52c5f3e8fddec8bd98`. Todos os jobs obrigatórios
+aprovados, sem remover barreiras. Consultas extras opt-in e atestação exclusiva
+da main permaneceram fora do escopo da PR, como antes.
+
+| Controle | Evidência |
+|---|---|
+| Atualizadores e resíduos | 318/318 e 655/655 regressões |
+| Lote 3 específico | 11 verificações de atualização, 8 de desinstalação e cenário real WinForms |
+| Controles negativos | 27/27 mutações rejeitadas em cópias descartáveis |
+| Política / composição | 39 testes Python, 209 fontes examinadas; 10 testes Node isolados |
+| Drivers herdados | Windows 2022 e 2025, SetupAPI/WUA/INF somente leitura |
+| Layout isolado | Marcas finais de --drivers-readonly e --lote3 presentes; limite da prévia 65.536 |
+| Compilação / manifesto | Analisadores sem avisos/erros; ativação SxS aprovada e asInvoker preservado |
+| Download externo | VLC por HTTPS até mirror.csclub.uwaterloo.ca, HTTP 200, hash/motor/VideoLAN conferidos; ShareX sem assinatura segue EXECUCAO_BLOQUEADA |
+
+[Pacote TESTE 12613520831](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40230495565/artifacts/12613520831):
+59.194.247 bytes no ZIP; SHA-256
+`243ef05fdc3f5628c23f71c0ee71970f5bb08c5696d17d6cb5fc3d5fb27f306c`.
+Baixado e reconferido fora do runner, **sem executar o produto**: 282 arquivos,
+281 hashes, 151.892.919 bytes expandidos; PE AMD64, runtime/WindowsDesktop
+10.0.13 e origem/base/versão exatas. O verificador reforçado aprovou o pacote.
+
+[Evidência de integridade/assinatura 12613790320](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40230495565/artifacts/12613790320),
+ZIP SHA-256 `17aea51adc51fa0e126e1868887db6e1ec86701e51c1ad0c4b9e26945617f671`.
+Os hashes e tamanhos dos dois arquivos coincidem com o pacote. EXE e DLL têm
+versão 5.13.11.59, status NotSigned e nenhum signatário. scan_performed=false,
+sample_submitted=false e avg_validation=pending foram reconferidos.
+
+[Registro durável dos metadados e limites](evidencias/lote3-ci-40230495565.json).
+É uma observação técnica, sem assinatura de atestação. O registro aponta
+explicitamente o SHA testado; commits posteriores de documentação não mudam
+o código auditado. O estado da CI do HEAD final fica também na PR #56.
+
 ## AVG: investigação técnica e limite de conclusão
 
 O relato anterior era IDP.Generic comportamental ao restaurar da bandeja.
