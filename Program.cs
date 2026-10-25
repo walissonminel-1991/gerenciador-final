@@ -1962,19 +1962,21 @@ internal sealed partial class MainForm : Form
         {
             Text = "Histórico local — somente leitura", Width = 770, Height = 530,
             MinimumSize = new Size(520, 360), StartPosition = FormStartPosition.CenterParent,
-            BackColor = PanelBackground, ForeColor = Ink, Font = Font
+            BackColor = PanelBackground, ForeColor = Ink, Font = Font,
+            AutoScaleMode = AutoScaleMode.Dpi, ShowInTaskbar = false,
+            MinimizeBox = false, MaximizeBox = false
         };
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
             Padding = new Padding(10), BackColor = PanelBackground };
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
-        var body = new TextBox
+        var body = new DarkLogView
         {
-            Name = "LocalReliabilityReportText", Dock = DockStyle.Fill, Multiline = true,
-            ReadOnly = true, WordWrap = false, ScrollBars = ScrollBars.Both,
-            Font = new Font("Consolas", 9F), BackColor = Color.FromArgb(19, 26, 34),
-            ForeColor = Ink, Text = DarkLogView.NormalizeWindowsLineBreaks(report)
+            Name = "LocalReliabilityReportText", Dock = DockStyle.Fill,
+            AccessibleName = "Histórico e relatório local somente leitura"
         };
+        body.UseReadableFont(new Font("Segoe UI", 9F));
+        body.SetText(report);
         root.Controls.Add(body, 0, 0);
         var bar = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
         var save = CreateSecondaryButton("Salvar TXT");
@@ -1996,9 +1998,27 @@ internal sealed partial class MainForm : Form
                     "Relatório não salvo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         };
+        var close = CreateSecondaryButton("Fechar");
+        close.Name = "CloseLocalReliabilityReport";
+        close.Size = new Size(110, 35);
+        close.DialogResult = DialogResult.Cancel;
+        bar.Controls.Add(close);
         bar.Controls.Add(save);
+        dialog.AcceptButton = close;
+        dialog.CancelButton = close;
         root.Controls.Add(bar, 0, 1);
         dialog.Controls.Add(root);
+        dialog.HandleCreated += (_, _) =>
+        {
+            try { int dark = 1; if (NativeMethods.DwmSetWindowAttribute(dialog.Handle, 20, ref dark, 4) != 0)
+                    _ = NativeMethods.DwmSetWindowAttribute(dialog.Handle, 19, ref dark, 4); }
+            catch (DllNotFoundException) { } catch (EntryPointNotFoundException) { }
+        };
+        dialog.Shown += (_, _) =>
+        {
+            dialog.Bounds = UninstallCleanupDialog.FitBounds(dialog.Bounds, Screen.FromControl(this).WorkingArea);
+            close.Focus();
+        };
         dialog.ShowDialog(this);
     }
 
