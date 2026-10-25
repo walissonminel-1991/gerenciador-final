@@ -23,7 +23,7 @@ internal static class Lote3LayoutTests
         log.SetText(report);
         if (log.RenderedText != report) throw new Exception("Relatório estático não pode ser truncado pela política do log.");
         var tail = new BoundedLogText(5);
-        tail.Append("a😀😀a");
+        tail.Append("😀😀ab");
         if (tail.Length > 5 || tail.ToString().Any(char.IsControl) || tail.ToString().EnumerateRunes().Any(r => r.Value == 0xFFFD))
             throw new Exception("Corte da prévia partiu um caractere Unicode.");
         Console.WriteLine("PASS L3 prévia em memória limitada, cauda recente e relatórios estáticos completos");

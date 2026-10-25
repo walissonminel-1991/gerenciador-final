@@ -121,6 +121,23 @@ class PacoteTests(unittest.TestCase):
                     self.check()
                 path.unlink()
 
+    def test_unknown_dependency_cannot_authorize_fixture(self):
+        key = "GF-Inert-Test-Fixture/1.0"
+        self.deps["libraries"][key] = {}
+        self.deps["targets"][self.deps["runtimeTarget"]["name"]][key] = {"runtime": {"GF-Inert-Test-Fixture.dll": {}}}
+        (self.root / "GerenciadorFinal.deps.json").write_text(json.dumps(self.deps))
+        (self.root / "GF-Inert-Test-Fixture.dll").write_bytes(b"inert")
+        self.hashes()
+        with self.assertRaisesRegex(ValueError, "nao declarada"):
+            self.check()
+
+    def test_runtime_versions_agree(self):
+        self.options["runtimeOptions"]["includedFrameworks"][0]["version"] = "10.0.12"
+        (self.root / "GerenciadorFinal.runtimeconfig.json").write_text(json.dumps(self.options))
+        self.hashes()
+        with self.assertRaisesRegex(ValueError, "runtime de dependencia"):
+            self.check()
+
     def test_windows_reserved_names(self):
         for name in ("CON.dll", "aux.txt", "Licencas/NUL", "COM1.exe", "lpt9.dll", "COM¹.dll"):
             with self.subTest(name=name): self.assertFalse(portable_name(name))

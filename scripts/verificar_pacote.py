@@ -52,6 +52,18 @@ def declared_binaries(files: dict, version: str) -> set:
         raise ValueError("biblioteca nao declarada no contrato de distribuicao")
     if "GerenciadorFinal/" + version not in libraries or "YamlDotNet/18.1.0" not in libraries:
         raise ValueError("versao de dependencia divergente")
+    options = json.loads(files["GerenciadorFinal.runtimeconfig.json"].read_text(encoding="utf-8-sig"))["runtimeOptions"]
+    frameworks = options.get("includedFrameworks", [])
+    framework_versions = {f["name"]: f["version"] for f in frameworks}
+    if options.get("framework") or options.get("frameworks") or len(frameworks) != 2 or set(framework_versions) != {
+        "Microsoft.NETCore.App", "Microsoft.WindowsDesktop.App"
+    }:
+        raise ValueError("distribuicao nao e self-contained WinForms")
+    for framework, runtime_version in framework_versions.items():
+        if not re.fullmatch(r"10[.]0[.]\d+", runtime_version) or (
+            "runtimepack." + framework + ".Runtime.win-x64/" + runtime_version not in libraries
+        ):
+            raise ValueError("runtime de dependencia divergente")
     entries = data["targets"][target]
     if entries.keys() != libraries.keys():
         raise ValueError("dependencias sem correspondencia exata")
