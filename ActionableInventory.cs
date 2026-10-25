@@ -22,7 +22,17 @@ internal static class ActionableInventory
             UninstallCommand.TryParse(command, out var parsed) && UninstallBatch.BoundToProduct(parsed, app));
     }
 
-    internal static bool ShouldShow(ProgramEntry app) => app.CanUninstall || app.IsUpdate;
+    // Orientação, não desinstalador do GF: o Windows decide se o MSIX pode
+    // ser removido. Não reclassificar componentes protegidos como desinstaláveis.
+    internal static bool CanManageWithWindows(ProgramEntry app) =>
+        app.InventoryOnly && (app.VerifiedMsixIdentity ||
+            app.MsixPackageFamilyName.Length > 0 && app.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal)) && !app.CanUninstall &&
+        !ProtectedApplications.IsProtectedName(app.Name);
+
+    internal static bool CanManageExternally(ProgramEntry app) => app.InventoryOnly && !app.CanUninstall &&
+        app.InventoryId.StartsWith("MANAGED|", StringComparison.Ordinal) && !ProtectedApplications.IsProtectedName(app.Name);
+
+    internal static bool ShouldShow(ProgramEntry app) => app.CanUninstall || app.IsUpdate || CanManageExternally(app);
 
     // Todos inclui entradas somente leitura, sem lhes conceder ações.
     // "Inventário" permanece apenas como alias interno de compatibilidade.

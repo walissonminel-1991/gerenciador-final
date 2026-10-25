@@ -28,8 +28,12 @@ internal static class Work11ProgressTests
         using (var output = new MemoryStream())
         {
             await UpdateDownloadTransfer.CopyAsync(response, output, 1, 1000, default, updates.Add);
-            check(output.Length == 400 && updates.Select(p => p.Percent).Distinct().SequenceEqual(new int?[] {0,25,50,75,100}),
-                "W11 download conhecido usa bytes reais 0/25/50/75/100");
+            // Progress can coalesce chunks. Its values must still describe the
+            // bytes actually committed, with a complete and monotonic range.
+            check(output.Length == 400 && updates.First().Bytes == 0 && updates.Last().Bytes == 400 &&
+                updates.Last().DownloadCompleted && updates.All(p => p.Total == 400 && p.Percent == p.Bytes * 100 / 400) &&
+                updates.Select(p => p.Bytes).SequenceEqual(updates.Select(p => p.Bytes).Order()),
+                "W11 download conhecido usa porcentagens de bytes reais de 0 a 100");
         }
         updates.Clear();
         using (var response = Response(new ChunkStream(300, 100)))
@@ -53,12 +57,12 @@ internal static class Work11ProgressTests
 
         check(await Rejected(Response(new ChunkStream(0,100),0),typeof(InvalidDataException)),"W11 tamanho zero rejeitado");
         using (var midCancel = new CancellationTokenSource())
-        using (var response=Response(new ChunkStream(400,100,delay:true),400))
-        using (var output=new MemoryStream())
+        using (var response=Response(new ChunkStream(400,100),400))
+        using (var output=new CancelAfterWriteStream(midCancel))
         {
             bool cancelled=false;
-            try { await UpdateDownloadTransfer.CopyAsync(response,output,1,1000,midCancel.Token,
-                p=>{if(p.Bytes>=100)midCancel.Cancel();}); } catch(OperationCanceledException){cancelled=true;}
+            try { await UpdateDownloadTransfer.CopyAsync(response,output,1,1000,midCancel.Token); }
+            catch(OperationCanceledException){cancelled=true;}
             check(cancelled && output.Length==100,"W11 cancelamento durante download nao grava bytes restantes");
         }
         var trace = new List<string>();
@@ -160,6 +164,16 @@ internal static class Work11ProgressTests
             check(process.ExitCode==0,"W11 processo descartavel real termina sem instalar aplicativos");
         }
         Console.WriteLine("W11 progress: controles deterministas concluidos");
+    }
+    // Cancellation is tied to a committed chunk, independently of the
+    // production progress throttle and the Windows timer resolution.
+    private sealed class CancelAfterWriteStream(CancellationTokenSource cancellation) : MemoryStream
+    {
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer,CancellationToken token=default)
+        {
+            await base.WriteAsync(buffer,token);
+            cancellation.Cancel();
+        }
     }
     private sealed class ChunkStream(int bytes,int chunk,bool delay=false,int failAt=int.MaxValue):Stream
     {

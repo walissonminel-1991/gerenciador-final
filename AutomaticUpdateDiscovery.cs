@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 namespace GerenciadorAplicativos;
 
 internal sealed record AutomaticDiscoveryResult(IReadOnlyList<OfficialRelease> Findings, IReadOnlyList<(ProgramEntry App, AutomaticAppInstallation Installation, AutomaticInstaller Installer)> Plans,
-    ProviderDiagnostic Diagnostic);
+    ProviderDiagnostic Diagnostic, IReadOnlyDictionary<string,int>? Outcomes=null);
 
 // Autoridade efemera proveniente de catalogo Microsoft assinado + manifesto SHA.
 // Catalogos consultivos, IDs, comandos e nomes isolados nao criam essa autoridade.
@@ -25,10 +25,11 @@ internal static class AutomaticUpdateDiscovery
 
     internal static bool IsAutomatic(VerifiedUpdateRecipe recipe)=>recipe.Identifier.StartsWith("auto-",StringComparison.Ordinal);
     internal static bool IsApproved(VerifiedUpdateRecipe recipe)=>Permits.TryGetValue(recipe.Identifier,out var permit) &&
-        ReferenceEquals(recipe,permit.Recipe) && permit.Expires>DateTimeOffset.UtcNow;
+        ReferenceEquals(recipe,permit.Recipe) && permit.Expires>DateTimeOffset.UtcNow &&
+        permit.App.TryGetTarget(out var app) && !EcosystemInventory.Ambiguous(app);
     private static Permit Require(VerifiedUpdateRecipe recipe)=>IsApproved(recipe)?Permits[recipe.Identifier]:throw new InvalidDataException("Autorizacao automatica ausente ou expirada.");
     internal static VerifiedUpdateRecipe? Resolve(ProgramEntry app)=>Attached.TryGetValue(app,out var permit) &&
-        app.IsUpdate && !app.UpdateRequiresReview && AutomaticAppInstallation.Binding(app)==permit.Installation.Key &&
+        app.IsUpdate && !app.UpdateRequiresReview && !EcosystemInventory.Ambiguous(app) && AutomaticAppInstallation.Binding(app)==permit.Installation.Key &&
         app.AvailableVersion==permit.Installer.Version && !Executed.ContainsKey(ExecutionKey(permit)) && IsApproved(permit.Recipe)?permit.Recipe:null;
     internal static void Attach(AutomaticDiscoveryResult scan)
     {
@@ -36,7 +37,7 @@ internal static class AutomaticUpdateDiscovery
         IssuedScans.Remove(scan);
         foreach(var item in issued.Plans)
         {
-            if(!item.App.IsUpdate || item.App.UpdateRequiresReview || item.App.AvailableVersion!=item.Installer.Version ||
+            if(!item.App.IsUpdate || item.App.UpdateRequiresReview || EcosystemInventory.Ambiguous(item.App) || item.App.AvailableVersion!=item.Installer.Version ||
                 AutomaticAppInstallation.Binding(item.App)!=item.Installation.Key)continue;
             foreach(var expired in Permits.Where(p=>p.Value.Expires<=DateTimeOffset.UtcNow).Select(p=>p.Key))Permits.TryRemove(expired,out _);
             if(Permits.Count>=512)break;
@@ -46,8 +47,8 @@ internal static class AutomaticUpdateDiscovery
             var reviewed=VerifiedUpdaters.ResolveReviewed(legacyApp);
             if(reviewed is not null && (!string.Equals(reviewed.Sha256,item.Installer.Sha256,StringComparison.OrdinalIgnoreCase) ||
                 !VerifiedUpdaters.SingleSafeSilentInstallation(reviewed,legacyApp,[legacyApp])))reviewed=null;
-            var recipe=reviewed ?? new VerifiedUpdateRecipe("auto-"+Guid.NewGuid().ToString("N"),item.Installer.Name,item.Installer.Version,
-                item.Installer.Download,item.Installer.Sha256,item.Installer.Publisher,item.Installer.Arguments,false,"https://github.com/microsoft/winget-pkgs");
+            var recipe=(!item.Installer.Interactive ? reviewed : null) ?? new VerifiedUpdateRecipe("auto-"+Guid.NewGuid().ToString("N"),item.Installer.Name,item.Installer.Version,
+                item.Installer.Download,item.Installer.Sha256,item.Installer.Publisher,item.Installer.Arguments,item.Installer.Interactive,"https://github.com/microsoft/winget-pkgs");
             var permit=new Permit(new(item.App),item.Installation,item.Installer,recipe,DateTimeOffset.UtcNow.AddMinutes(30));
             Attached.Remove(item.App);Attached.Add(item.App,permit);Permits[recipe.Identifier]=permit;
         }
@@ -65,30 +66,9 @@ internal static class AutomaticUpdateDiscovery
             {
                 if(catalog is null || DateTimeOffset.UtcNow-catalogAt>TimeSpan.FromMinutes(30))
                 {catalog?.Dispose();catalog=null;catalog=await PackageCatalogIndex.DownloadAsync(workToken);catalogAt=DateTimeOffset.UtcNow;}
-                var findings=new List<OfficialRelease>();var plans=new List<(ProgramEntry,AutomaticAppInstallation,AutomaticInstaller)>();int inspected=0;
-                for(int i=0;i<apps.Length;i++)
-                {
-                    workToken.ThrowIfCancellationRequested();var app=apps[i];
-                    if(!AutomaticAppInstallation.Eligible(app))continue;
-                    if(++inspected>512)throw new InvalidDataException("Limite de descoberta automatica atingido.");
-                    var rows=catalog.Find(app.Name,app.Publisher,app.MsiProductCode,workToken);
-                    var latest=rows.Where(r=>VerifiedUpdaters.TryVersion(r.Version,out _)).OrderByDescending(r=>{VerifiedUpdaters.TryVersion(r.Version,out var v);return v;}).FirstOrDefault();
-                    if(latest is null || !VerifiedUpdaters.TryVersion(app.Version,out var current) || !VerifiedUpdaters.TryVersion(latest.Version,out var target) ||target<=current)continue;
-                    var installation=AutomaticAppInstallation.Read(app);
-                    if(installation is null || !installation.Current(apps))continue;
-                    var bytes=await PackageCatalogIndex.ReadManifestAsync(latest,workToken);
-                    var installer=AutomaticPackageManifest.Select(bytes,latest,installation.Architecture,installation.Scope,installation.Kind);
-                    if(installer is null || (installation.Kind=="msi"?installer.Type is not ("msi" or "wix"):installer.Type!=installation.Kind))continue;
-                    if(installer.ProductCode.Length>0 && installation.Kind!="msi" &&
-                        !installer.ProductCode.Equals(app.InventoryId.Split('|').Last(),StringComparison.OrdinalIgnoreCase))continue;
-                    if(Matching.NormalizeName(installer.Name)!=Matching.NormalizeName(app.Name))continue;
-                    findings.Add(new(identities[i],installer.Version,"Catalogo Microsoft HTTPS","https://github.com/microsoft/winget-pkgs",
-                        "automatic-manifest","",DateTimeOffset.UtcNow,installation.Architecture,"stable",installation.Scope,
-                        installer.Type,EvidenceKind:"authenticated-installer-manifest"));
-                    plans.Add((app,installation,installer));
-                }
-                var result=new AutomaticDiscoveryResult(findings.AsReadOnly(),plans.AsReadOnly(),new("automatic-manifest","ok",clock.ElapsedMilliseconds));
-                IssuedScans.Add(result,new(plans.ToArray(),DateTimeOffset.UtcNow.AddMinutes(2)));
+                var result=await AutomaticDiscoveryPipeline.RunAsync(apps,identities,new SignedAutomaticCatalog(catalog),token,workToken);
+                token.ThrowIfCancellationRequested();
+                IssuedScans.Add(result,new(result.Plans.ToArray(),DateTimeOffset.UtcNow.AddMinutes(2)));
                 return result;
             }
             finally{SourceGate.Release();}
@@ -99,6 +79,18 @@ internal static class AutomaticUpdateDiscovery
         catch(Exception ex)when(ex is IOException or InvalidDataException or HttpRequestException or OperationCanceledException or TimeoutException or
             System.Runtime.InteropServices.ExternalException or YamlDotNet.Core.YamlException or DllNotFoundException or EntryPointNotFoundException or ArgumentException or BadImageFormatException)
         {return new([],[],new("automatic-manifest",ex is TimeoutException or OperationCanceledException?"prazo":"indisponivel",clock.ElapsedMilliseconds));}
+    }
+    // Escolha isolada e determinística: versões desconhecidas, prévias e
+    // revisões iguais não viram atualizações nem iniciam downloads.
+    internal static CatalogManifestReference? NewestCandidate(
+        IReadOnlyList<CatalogManifestReference> references, string installedVersion)
+    {
+        if(!VerifiedUpdaters.TryVersion(installedVersion,out var installed))return null;
+        var newest=references.Where(r=>VerifiedUpdaters.TryVersion(r.Version,out _))
+            .OrderByDescending(r=>{VerifiedUpdaters.TryVersion(r.Version,out var v);return v;})
+            .FirstOrDefault();
+        return newest is not null && VerifiedUpdaters.TryVersion(newest.Version,out var next) && next>installed
+            ? newest : null;
     }
     internal static bool Safe(VerifiedUpdateRecipe recipe,ProgramEntry app,IEnumerable<ProgramEntry> inventory)
     {var p=Require(recipe);return AutomaticAppInstallation.Binding(app)==p.Installation.Key && p.Installation.Current(inventory);}
@@ -116,7 +108,7 @@ internal static class AutomaticUpdateDiscovery
         string kind=InstallerEngineEvidence.Detect(file);
         if(kind!=p.Installer.Type)throw new InvalidDataException("Motor real diverge do manifesto autenticado.");
         var meta=FileVersionInfo.GetVersionInfo(file);
-        if(!string.IsNullOrWhiteSpace(meta.ProductName) && Matching.NormalizeName(meta.ProductName)!=Matching.NormalizeName(p.Installer.Name))
+        if(!string.IsNullOrWhiteSpace(meta.ProductName) && !InstallerEngineEvidence.SameProduct(meta.ProductName,p.Installer.Name))
             throw new InvalidDataException("Produto do executavel diverge do manifesto.");
         if(!string.IsNullOrWhiteSpace(meta.FileVersion) && VerifiedUpdaters.TryVersion(meta.FileVersion,out var actual) &&
             VerifiedUpdaters.TryVersion(recipe.Version,out var target) &&actual!=target)throw new InvalidDataException("Versao do instalador diverge do alvo.");
@@ -134,13 +126,14 @@ internal static class AutomaticUpdateDiscovery
     {if(!Executed.TryAdd(ExecutionKey(Require(recipe)),0))throw new InvalidOperationException("Atualizacao desta instalacao ja enviada; confira a versao antes de repetir.");}
     internal static void ReleaseBeforeStart(VerifiedUpdateRecipe recipe)=>Executed.TryRemove(ExecutionKey(Require(recipe)),out _);
     internal static ProgramEntry? ConfirmedEntry(VerifiedUpdateRecipe recipe,IEnumerable<ProgramEntry> inventory)
-    {var list=inventory.ToArray();var p=Require(recipe);return p.Installation.Confirm(p.Installer,list)?list.Single(a=>Matching.NormalizeName(a.Name)==Matching.NormalizeName(p.Installation.Name) && a.Publisher.Equals(p.Installation.Publisher,StringComparison.OrdinalIgnoreCase)):null;}
+    {var list=inventory.ToArray();var p=Require(recipe);return p.Installation.Confirm(p.Installer,list)?p.Installation.ConfirmationCandidates(list).Single():null;}
     internal static bool PublicAddress(System.Net.IPAddress address)
     {
         if(address.IsIPv4MappedToIPv6)address=address.MapToIPv4();
         byte[] bytes=address.GetAddressBytes();
         if(System.Net.IPAddress.IsLoopback(address))return false;
-        if(bytes.Length==4)return bytes[0] is not (0 or 10 or 127 or 169) && bytes[0]<224 &&
+        if(bytes.Length==4)return bytes[0] is not (0 or 10 or 127) && bytes[0]<224 &&
+            !(bytes[0]==169 && bytes[1]==254) &&
             !(bytes[0]==172 && bytes[1]>=16 && bytes[1]<=31) && !(bytes[0]==192 && bytes[1]==168) &&
             !(bytes[0]==100 && bytes[1]>=64 && bytes[1]<=127) && !(bytes[0]==198 && bytes[1] is 18 or 19);
         return !address.IsIPv6LinkLocal && !address.IsIPv6SiteLocal && !address.IsIPv6Multicast && (bytes[0]&0xfe)!=0xfc &&

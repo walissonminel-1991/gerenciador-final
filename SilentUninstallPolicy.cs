@@ -28,13 +28,15 @@ internal static class SilentUninstallPolicy
         if (UninstallCommand.TryParse(app.QuietUninstallString, out var registeredQuiet) &&
             registered == registeredQuiet && RegisteredQuietMatchesProduct(app, registeredQuiet))
             return true; // preservar exatamente os argumentos registrados
+        if (SquirrelUninstallEvidence.TrySelect(app, registered, out var squirrel))
+        { selected = squirrel; return true; }
         // SumatraPDF 3.6.1: contrato conferido no fonte 3.6.1rel/Uninstaller.cpp.
         if (IsVerifiedSumatra(app, registered) &&
             UninstallCommand.TryParse("\"" + registered.FileName + "\" " + registered.Arguments + " -silent", out var sumatra))
         { selected = sumatra; return true; }
         // Inno: identidade do EXE + cabeçalho oficial do log adjacente.
         // Nunca inferir o motor apenas por um nome unins000.exe.
-        if (IsVerifiedInno(registered) &&
+        if (InstallerEngineEvidence.GenericDesktopUninstaller(app, registered, "inno") &&
             UninstallCommand.TryParse("\"" + registered.FileName + "\" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART", out var inno))
         { selected = inno; return true; }
         // Notepad++ oficial (NSIS): /S e parametro documentado do fabricante.
@@ -161,6 +163,12 @@ internal static class SilentUninstallPolicy
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
             ArgumentException or NotSupportedException) { return false; }
     }
+
+    internal static bool RequiresExclusiveRoot(UninstallRequest request) =>
+        request.Command.Arguments == "--uninstall --silent" && Path.GetFileName(request.Command.FileName).Equals("Update.exe", StringComparison.OrdinalIgnoreCase) ||
+        UninstallCommand.TryParse(request.Original.UninstallString, out var normal) &&
+        normal.ProductCode is null && normal.Arguments.Length == 0 && request.Command != normal &&
+        !(UninstallCommand.TryParse(request.Original.QuietUninstallString, out var quiet) && quiet == request.Command);
 
     internal static bool UsesSilentMode(UninstallRequest request)
     {

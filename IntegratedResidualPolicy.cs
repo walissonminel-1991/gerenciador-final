@@ -20,11 +20,14 @@ internal sealed record ResidualAppIdentity(string Name, string Publisher, string
         Encoding.UTF8.GetBytes(InventoryId + "|" + Name + "|" + Publisher)))[..16];
 }
 internal sealed record ResidualKeyLocation(RegistryHive Hive, RegistryView View, string Subkey);
-internal sealed record ResidualProblem(string Stage, string Reason, int Error = 0);
+internal sealed record ResidualProblem(string Stage, string Reason, int Error = 0, string Detail = "", int Depth = -1, string Location = "");
+internal sealed record ResidualRegistryObservation(string Phase, RegistryHive Hive, RegistryView View,
+    string State, string Step = "", int Depth = -1, int Error = 0, string Subkey = "");
 internal sealed record ResidualRootEvidence(string Path, IReadOnlyList<InstallerFileGuard.DirectoryIdentity> Chain);
 internal sealed record ResidualUninstallContext(ResidualAppIdentity App, string Policy,
     IReadOnlyList<ResidualRootEvidence> Roots, IReadOnlyList<ResidualKeyLocation> Keys,
-    IReadOnlyList<string> Processes, int Preserved, IReadOnlyList<ResidualProblem> Problems);
+    IReadOnlyList<string> Processes, int Preserved, IReadOnlyList<ResidualProblem> Problems,
+    IReadOnlyList<ResidualRegistryObservation>? RegistryChecks = null);
 internal sealed record ResidualFileEvidence(string Id, string Path, long Bytes, string Digest,
     InstallerFileGuard.FileIdentity Identity, IReadOnlyList<InstallerFileGuard.DirectoryIdentity> Parents);
 internal sealed record ResidualDirectoryEvidence(string Id, string Path,
@@ -34,7 +37,7 @@ internal sealed record ResidualKeyEvidence(string Id, RegistryHive Hive, Registr
 internal sealed record IntegratedResidualPlan(ResidualUninstallContext Context,
     IReadOnlyList<ResidualFileEvidence> Files, IReadOnlyList<ResidualDirectoryEvidence> Directories,
     IReadOnlyList<ResidualKeyEvidence> Keys, int Preserved, bool Complete,
-    IReadOnlyList<ResidualProblem> Problems)
+    IReadOnlyList<ResidualProblem> Problems, IReadOnlyList<ResidualRegistryObservation>? RegistryChecks = null)
 {
     internal int Eligible => Files.Count + Directories.Count + Keys.Count;
     // Complete protege a selecao executavel; Conclusive descreve a cobertura,
@@ -70,14 +73,12 @@ internal static class IntegratedResidualPolicy
         var rule = UninstallRuleCatalog.Rules.SingleOrDefault(r => r.Id == known?.CleanupPolicy);
         var roots = rule?.Folders.ToList() ?? [];
         var keys = new List<ResidualKeyLocation>();
+        // O catálogo embutido declara somente resíduos exclusivos por usuário.
+        // Uma instalação para toda a máquina NÃO concede autoridade para ler
+        // ou remover chaves de mesmo nome em HKLM. Em HKCU, Software\Produto
+        // usa a visão compartilhada; consultar apenas Registry64 evita duplicação.
         foreach (string key in rule?.RegistryKeys ?? [])
-        foreach (var hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
-        foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
-        {
-            // Software\\Produto em HKCU e compartilhado entre as visoes WOW64.
-            if (hive == RegistryHive.CurrentUser && view == RegistryView.Registry32) continue;
-            keys.Add(new(hive, view, key));
-        }
+            keys.Add(new(RegistryHive.CurrentUser, RegistryView.Registry64, key));
         string? install = DedicatedInstallRoot(identity, known);
         if (install is not null)
         {
@@ -87,10 +88,10 @@ internal static class IntegratedResidualPolicy
             // DEPOIS da desinstalacao; nome semelhante sozinho nao autoriza.
             string product = Path.GetFileName(install);
             if (rule is null && SafeProductLeaf(product))
-                foreach (var hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
-                foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
-                    if (hive != RegistryHive.CurrentUser || view != RegistryView.Registry32)
-                        keys.Add(new(hive, view, @"Software\" + product));
+                // A path value does not establish exclusive ownership of an
+                // entire machine key. HKLM needs its own reviewed policy;
+                // registered-install only probes the current user's shared view.
+                keys.Add(new(RegistryHive.CurrentUser, RegistryView.Registry64, @"Software\" + product));
         }
         // Locais canonicos mantidos pelas politicas anteriores, agora no mesmo motor.
         string? leaf = rule?.Id switch { "notepadpp" => "Notepad++", "sumatrapdf" => "SumatraPDF",
@@ -178,7 +179,7 @@ internal static class IntegratedResidualPolicy
 
     internal static bool Shared(string root, ResidualAppIdentity app, IReadOnlyCollection<ProgramEntry> inventory)
         => inventory.Any(other => !Paths.Equals(other.InventoryId, app.InventoryId) &&
-            (ResidualReadSafety.PathsOverlap(root, other.InstallLocation) ||
+            (InstallerEngineEvidence.RegistrationOverlaps(root, other) || ResidualReadSafety.PathsOverlap(root, other.InstallLocation) ||
              new[] { other.UninstallString, other.QuietUninstallString }.Any(raw =>
                  UninstallCommand.TryParse(raw, out var command) && command.ProductCode is null && Within(root, command.FileName))));
 
@@ -202,7 +203,8 @@ internal static class IntegratedResidualPolicy
 
     internal static bool PersonalDirectory(string path) => new[] { "backup", "backups", "recordings", "documents",
         "downloads", "pictures", "music", "videos", "playlists", "saved games", "saves", "projects",
-        "steamapps", "games", "gog games", "epic games", "userdata", "libraries", "credentials", "passwords", "wallets" }
+        "steamapps", "games", "gog games", "epic games", "userdata", "libraries", "credentials", "passwords", "wallets",
+        "profiles", "profile", "local storage", "session storage", "databases", "cookies", "webstorage" }
         .Contains(Path.GetFileName(path), Paths);
 
     internal static bool EligibleFile(string path)

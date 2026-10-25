@@ -83,12 +83,70 @@ internal sealed class PackageCatalogIndex : IDisposable
         if (rows.Count > 100) return [];
         string key = InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(publisher));
         var candidates = rows.Where(r => InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(r[2])) == key &&
-            Matching.NormalizeName(r[1]) == Matching.NormalizeName(name) && Regex.IsMatch(r[5], "^[A-Fa-f0-9]{64}$"))
+            InstallerEngineEvidence.SameProduct(r[1], name) && Regex.IsMatch(r[5], "^[A-Fa-f0-9]{64}$"))
             .GroupBy(r => r[0], StringComparer.OrdinalIgnoreCase).ToArray();
         if (key.Length == 0 || candidates.Length != 1) return [];
         return candidates[0].GroupBy(r => r[3]).Select(g => g.First()).Select(r =>
             new CatalogManifestReference(r[0], r[1], r[3], RelativePath(r[4], token), r[5])).ToArray();
     }
+    // Busca consultiva baseada em ProductCode MSI: identidade de pacote unica
+    // no indice Microsoft assinado + fornecedor exato. A correspondencia de
+    // ProductCode isolado nunca cria autorizacao.
+    // A promocao MSI exige cache, PE assinado e revalidacao independente.
+    internal IReadOnlyList<CatalogManifestReference> FindForReviewByProductCode(
+        string publisher, string productCode, CancellationToken token)
+    {
+        if (!Guid.TryParse(productCode, out var parsed) || parsed == Guid.Empty) return [];
+        string key = InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(publisher));
+        if (key.Length == 0) return [];
+        const string sql = "SELECT DISTINCT i.id,n.name,p.norm_publisher,v.version,m.pathpart,hex(m.hash) FROM manifest m " +
+            "JOIN ids i ON i.rowid=m.id JOIN names n ON n.rowid=m.name JOIN versions v ON v.rowid=m.version " +
+            "JOIN channels c ON c.rowid=m.channel JOIN norm_publishers_map pm ON pm.manifest=m.rowid " +
+            "JOIN norm_publishers p ON p.rowid=pm.norm_publisher JOIN productcodes_map pc ON pc.manifest=m.rowid " +
+            "JOIN productcodes code ON code.rowid=pc.productcode WHERE c.channel='' AND " +
+            "code.productcode=? COLLATE NOCASE LIMIT 101";
+        var rows = Rows(sql, [parsed.ToString("B").ToUpperInvariant()], 101, token);
+        var matches = rows.Where(r =>
+            InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(r[2])) == key &&
+            Regex.IsMatch(r[5], "^[A-Fa-f0-9]{64}$"))
+            .GroupBy(r => r[0], StringComparer.OrdinalIgnoreCase).ToArray();
+        if (matches.Length != 1) return [];
+        return matches[0].GroupBy(r => r[3]).Select(g => g.First()).Select(r =>
+            new CatalogManifestReference(r[0], r[1], r[3], RelativePath(r[4], token), r[5])).ToArray();
+    }
+
+    // Stable MSIX identity is independent of the friendly display name. All
+    // rows still come from the signed catalog. This API is consultative only.
+    internal IReadOnlyList<CatalogManifestReference> FindForReviewByPackageFamily(
+        string publisher, string family, CancellationToken token)
+    {
+        if (family.Length is 0 or > 256 || !Regex.IsMatch(family, @"^[A-Za-z0-9.\-]+_[A-Za-z0-9]+$")) return [];
+        const string sql = "SELECT DISTINCT i.id FROM manifest m JOIN ids i ON i.rowid=m.id " +
+            "JOIN pfns_map pm ON pm.manifest=m.rowid JOIN pfns p ON p.rowid=pm.pfn " +
+            "WHERE p.pfn=? COLLATE NOCASE LIMIT 3";
+        var ids = Rows(sql, [family], 3, token);
+        return ids.Count == 1 ? FindForReviewByPackageId(publisher, ids[0][0], token) : [];
+    }
+    // Caller must have associated the exact local installation with the typed
+    // installed tracking catalog. A user-entered/name-guessed ID is not used.
+    internal IReadOnlyList<CatalogManifestReference> FindForReviewByPackageId(
+        string publisher, string packageId, CancellationToken token)
+    {
+        if (!PackageIdentityMatcher.ValidId(packageId)) return [];
+        string key = InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(publisher));
+        if (key.Length == 0) return [];
+        const string sql = "SELECT DISTINCT i.id,n.name,p.norm_publisher,v.version,m.pathpart,hex(m.hash) FROM manifest m " +
+            "JOIN ids i ON i.rowid=m.id JOIN names n ON n.rowid=m.name JOIN versions v ON v.rowid=m.version " +
+            "JOIN channels c ON c.rowid=m.channel JOIN norm_publishers_map pm ON pm.manifest=m.rowid " +
+            "JOIN norm_publishers p ON p.rowid=pm.norm_publisher WHERE c.channel='' AND i.id=? COLLATE NOCASE LIMIT 101";
+        var rows = Rows(sql, [packageId], 101, token);
+        if (rows.Count > 100) return [];
+        var matches = rows.Where(r => InstallerEngineEvidence.ProductKey(Matching.NormalizePublisher(r[2])) == key &&
+            Regex.IsMatch(r[5], "^[A-Fa-f0-9]{64}$")).ToArray();
+        return matches.GroupBy(r => r[3]).Select(g => g.First()).Select(r =>
+            new CatalogManifestReference(r[0], r[1], r[3], RelativePath(r[4], token), r[5])).ToArray();
+    }
+
     private string RelativePath(string node, CancellationToken token)
     {
         var parts = new List<string>(); var visited = new HashSet<string>();
@@ -140,6 +198,14 @@ internal sealed class PackageCatalogIndex : IDisposable
         }
         finally { sqlite3_finalize(statement); }
     }
+#if GF_PROGRESSIVE
+    internal static PackageCatalogIndex OpenSynthetic(string folder)
+    {
+        var held = InstallerFileGuard.OpenRead(Path.Combine(folder, "index.db"), allowDirectoryWrites: true);
+        try { return new(folder, held, Convert.ToHexString(SHA256.HashData(held))); }
+        catch { held.Dispose(); throw; }
+    }
+#endif
     public void Dispose()
     {
         if (database != IntPtr.Zero) { sqlite3_close(database); database = IntPtr.Zero; }

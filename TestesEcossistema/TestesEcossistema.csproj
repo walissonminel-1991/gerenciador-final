@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../PackageIdentity.cs" Link="PackageIdentity.cs" />
+    <Compile Include="../ApplicationProviders.cs" Link="ApplicationProviders.cs" />
+    <Compile Include="../ManagedPackageProviders.cs" Link="ManagedPackageProviders.cs" />
+    <Compile Include="../WinGetComDiscoveryProvider.cs" Link="WinGetComDiscoveryProvider.cs" />
+    <Compile Include="../RuckZuckModels.cs" Link="RuckZuckModels.cs" />
+    <Compile Include="../Matching.cs" Link="Matching.cs" />
+    <Compile Include="../ProtectedApplications.cs" Link="ProtectedApplications.cs" />
+    <Compile Include="../ApplicationIdentityCatalog.cs" Link="ApplicationIdentityCatalog.cs" />
+    <Compile Include="../ApplicationCapabilities.cs" Link="ApplicationCapabilities.cs" />
+    <EmbeddedResource Include="../CatalogoIdentidades.json" LogicalName="GerenciadorFinal.ApplicationIdentityCatalog" />
+  </ItemGroup>
+</Project>

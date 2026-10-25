@@ -50,7 +50,7 @@ if os.name == 'nt':
          'TestesResiduos', '--work12', 'W12 fronteira de execucao rejeita'),
         ('w12-inno-reboot-unrestrained', 'SilentUninstallPolicy.cs',
          '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '/VERYSILENT /SUPPRESSMSGBOXES',
-         'TestesResiduos', '--work12', 'W12 Inno comprovado'),
+         'TestesResiduos', '--work14-silent', 'W14 inno flags locais'),
     ])
     mutants.extend([
         ('residual-consent-bypassed','IntegratedResidualCleanup.cs',
@@ -72,8 +72,20 @@ if os.name == 'nt':
          ' ||\n            accepted.Files.Select(f => f.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() != accepted.Files.Count ||\n            !accepted.Files.Select(f => f.Path).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(accepted.Candidate.Files)', '',
          'TestesResiduos','--work6-preview','W6-R-DUP'),
     ])
+if os.name == 'nt':
+    mutants.extend([
+        ('w14-root-write-requested', 'ResidualRegistryGuard.cs',
+         'var parentHandle = predefined ?? parent.Handle;', 'var parentHandle = parent.Handle;',
+         'TestesResiduos', '--work14', 'W14 consulta HKLM funciona'),
+        ('w14-profile-boundary-bypassed', 'IntegratedResidualPolicy.cs',
+         '"profiles", "profile", "local storage", "session storage", "databases", "cookies", "webstorage"', '',
+         'TestesResiduos', '--work14', 'W14 perfis e armazenamentos de credenciais'),
+        ('w14-inno-product-bypassed', 'SilentUninstallPolicy.cs',
+         'InstallerEngineEvidence.GenericDesktopUninstaller(app, registered, "inno")', 'IsVerifiedInno(registered)',
+         'TestesResiduos', '--work14-silent', 'W14 inno recusa produto'),
+    ])
 mutants.extend([
-    ('w11-truncated-download-accepted', 'UpdateOperationProgress.cs',
+    ('w11-truncated-download-accepted' , 'UpdateOperationProgress.cs',
      'if (bytes < minimum || expected is long total && total != bytes)', 'if (bytes < minimum)',
      'TestesAtualizador', '--work11', 'W11 EOF antecipado'),
     ('w11-pending-retried', 'UpdateOperationProgress.cs',
@@ -109,7 +121,7 @@ mutants.extend([
 ])
 if os.name == 'nt':
     mutants.append(('auto-architecture-change-ignored','AutomaticAppInstallation.cs',
-        'VerifiedUpdaters.GetPortableExecutableMachine(Binary)!=(Architecture=="x64"?0x8664:0x14c) ||', '',
+        'ArchitectureFor(VerifiedUpdaters.GetPortableExecutableMachine(Binary))!=Architecture ||', '',
         'TestesAtualizador','--automatic','AUTO arquitetura alterada depois'))
 files = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
 with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
@@ -137,6 +149,10 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
         baseline=run('TestesResiduos','--work6-preview')
         if baseline.returncode: raise RuntimeError('preview baseline failed: '+baseline.stdout[-2000:])
         print('BASELINE PASS native preview',flush=True)
+        for argument in ['--work14', '--work14-silent']:
+            baseline = run('TestesResiduos', argument)
+            if baseline.returncode: raise RuntimeError('WORK14 baseline failed: ' + baseline.stdout[-3000:])
+            print('BASELINE PASS WORK14', argument, flush=True)
     for name,filename,old,new,project,argument,expected in mutants:
         path=target/filename; original=path.read_text()
         if original.count(old)!=1: raise RuntimeError('mutation target not unique: '+name)
