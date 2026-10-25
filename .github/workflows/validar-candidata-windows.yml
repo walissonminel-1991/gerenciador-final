@@ -44,6 +44,12 @@ jobs:
         run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true
       - name: Conferir leitura e rolagem do diálogo de drivers em viewport pequeno
         run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --drivers-readonly
+      - name: Lote 3 atualizações, concorrência e memória de download
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --lote3
+      - name: Lote 3 desinstalações e posse de proteção
+        run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --lote3
+      - name: Lote 3 prévia do registro com volume elevado
+        run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --lote3
       - name: Conferir versao dos scripts de distribuicao sem publicar
         shell: pwsh
         run: |

@@ -119,6 +119,18 @@ jobs:
           python @arguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Registrar integridade e assinatura para investigação antivírus
+        shell: pwsh
+        run: ./scripts/Registrar-Evidencia-Antivirus.ps1 -Directory Distribuicao -OutputPath Antivirus-evidencias.json
+
+      - name: Conservar evidência técnica (não é varredura AVG)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Antivirus-evidencias-${{ env.GF_SOURCE_SHA }}
+          path: Antivirus-evidencias.json
+          retention-days: 7
+          if-no-files-found: error
+
       - name: Conservar artefato para testes (nao assinado)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
