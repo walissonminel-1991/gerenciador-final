@@ -13,7 +13,7 @@ internal static class Work17DiscoveryTests
         public IReadOnlyList<CatalogManifestReference> ByPackageId(ProgramEntry app,string id,CancellationToken token)=>[];
         public Task<byte[]> ManifestAsync(CatalogManifestReference r,CancellationToken t)=>ReadManifest(r,t);
     }
-    private static InstalledApp[] Identities(ProgramEntry[] apps)=>apps.Select(a=>new InstalledApp(a.Name,a.Version,a.Publisher)).ToArray();
+    private static InstalledApp[] Identities(ProgramEntry[] apps)=>apps.Select(a=>new InstalledApp(a.Name,a.Version,a.Publisher,InventoryId:a.InventoryId)).ToArray();
     internal static async Task RunAsync(Action<bool,string> check)
     {
         ProgramEntry App(int i)=>new(){Name="Fixture "+i,Version="1.0",Publisher="GF Tests",InventoryId="CurrentUser|Registry64|"+i};
@@ -89,6 +89,17 @@ internal static class Work17DiscoveryTests
             var aliasSource=new AliasSource();
             var ready=await AutomaticDiscoveryPipeline.RunAsync([canonical],Identities([canonical]),aliasSource,CancellationToken.None,CancellationToken.None);
             check(ready.Plans.Count==1 && ready.Outcomes!.GetValueOrDefault("msi_catalog_identity_plan")==1,"W17 pipeline promove MSI corroborado para plano pendente de validar payload");
+            var local=ready.Plans.Single().Installation;
+            var installedTarget=ready.Plans.Single().Installer with{Version=Work17CoverageProbe.Version};
+            var canonicalAfter=new ProgramEntry{Name="TestesAtualizador",Publisher=canonical.Publisher,Version=canonical.Version,
+                InventoryId=canonical.InventoryId,InstallLocation=canonical.InstallLocation,DisplayIcon=canonical.DisplayIcon,
+                UninstallString=canonical.UninstallString,MsiProductCode=canonical.MsiProductCode};
+            check(local.Confirm(installedTarget,[canonicalAfter]),"W17 confirmacao admite ARP canonico com mesma instalacao e familia");
+            var other=fixture.App("other_family_member");
+            check(!local.Current([canonical,other]) && !local.Confirm(installedTarget,[canonicalAfter,other]),
+                "W17 segunda instalacao na mesma familia impede execucao e confirmacao");
+            fixture.Metadata=fixture.Metadata with{UpgradeCode="{00000000-0000-0000-0000-000000000057}"};
+            check(!local.Confirm(installedTarget,[canonicalAfter]),"W17 familia alterada apos operacao nao produz confirmacao positiva");
             AutomaticUpdateDiscovery.Attach(ready);
             check(AutomaticUpdateDiscovery.Resolve(canonical) is null,"W17 resultado de provedor externo nao forja selo privado de scan autenticado");
         }

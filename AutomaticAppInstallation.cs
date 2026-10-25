@@ -197,11 +197,12 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
     }
     internal bool Confirm(AutomaticInstaller installer,IEnumerable<ProgramEntry> inventory)
     {
-        var matches=ConfirmationCandidates(inventory);
+        var items=inventory.ToArray();
+        var matches=ConfirmationCandidates(items);
         if(matches.Length!=1 || !Eligible(matches[0]) || !VerifiedUpdaters.TryVersion(matches[0].Version,out var current) ||
             !VerifiedUpdaters.TryVersion(installer.Version,out var target) || current<target)return false;
         var after=HasCatalogIdentity?ReadByCatalogIdentity(matches[0],BinaryProduct,out _):Read(matches[0]);
-        return after is not null && after.Root.Equals(Root,StringComparison.OrdinalIgnoreCase) && after.Binary.Equals(Binary,StringComparison.OrdinalIgnoreCase) &&
+        return after is not null && after.Current(items) && after.Root.Equals(Root,StringComparison.OrdinalIgnoreCase) && after.Binary.Equals(Binary,StringComparison.OrdinalIgnoreCase) &&
             after.Scope==Scope && after.Architecture==Architecture && after.Kind==Kind &&
             (!HasCatalogIdentity || after.IdentityUpgradeCode.Equals(IdentityUpgradeCode,StringComparison.OrdinalIgnoreCase)) &&
             (Kind=="msi"? after.ProductCode.Equals(installer.ProductCode,StringComparison.OrdinalIgnoreCase):

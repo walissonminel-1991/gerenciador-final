@@ -30,7 +30,7 @@ internal static class AutomaticDiscoveryPipeline
         IAutomaticCatalogSource source,CancellationToken userToken,CancellationToken budgetToken)
     {
         if(apps.Length!=identities.Length || apps.Where((a,i)=>a.Name!=identities[i].Name ||
-            a.Publisher!=identities[i].Publisher || a.Version!=identities[i].Version).Any())
+            a.Publisher!=identities[i].Publisher || a.Version!=identities[i].Version || a.InventoryId!=identities[i].InventoryId).Any())
             throw new ArgumentException("Identidades nao pertencem ao inventario consultado.");
         var clock=Stopwatch.StartNew();
         var findings=new List<OfficialRelease>();
