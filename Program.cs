@@ -565,8 +565,9 @@ internal sealed partial class MainForm : Form
     private static readonly Color Accent = Color.FromArgb(111, 184, 255);
     private readonly ToolTip _toolTips = new() { AutomaticDelay = 350, AutoPopDelay = 8500, ReshowDelay = 120 };
     private readonly DarkProgramList _programList = new();
-    private readonly UpdateOperationStore _updateOperations = new(DiagnosticTrace.Write);
-    private readonly UninstallOperationStore _uninstallOperations = new();
+    private readonly LocalReliabilityHistory _reliability = new();
+    private readonly UpdateOperationStore _updateOperations;
+    private readonly UninstallOperationStore _uninstallOperations;
     private readonly Label _emptyState = new();
     private readonly TextBox _search = new();
     private readonly DarkLogView _log = new();
@@ -590,7 +591,6 @@ internal sealed partial class MainForm : Form
     private bool _multiSelectMode;
     private bool _catalogoVerificado; // Resultado local do RuckZuck (sem instalacao)
     private bool _inventoryIncomplete;
-    private HashSet<string>? _completeInstallBaseline; // A ausência em uma fonte com falha não comprova desinstalação.
     private CancellationTokenSource? _consultaCatalogoCts;
     private CancellationTokenSource? _installerDownloadCts;
     private int _catalogoGeneration; // Descarta resultados de consultas anteriores ao recarregamento local.
@@ -624,6 +624,9 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool startServices = true, bool startInTray = false)
     {
+        _updateOperations = new(DiagnosticTrace.Write, _reliability.RecordUpdate);
+        _uninstallOperations = new(_reliability.RecordUninstall);
+        FormClosed += (_, _) => _reliability.Dispose();
         Text = "Gerenciador Final — " + DiagnosticTrace.VersionLabel + " TESTE";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
@@ -1917,9 +1920,10 @@ internal sealed partial class MainForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 4));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var top = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+        var top = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
         top.Controls.Add(new Label { Text = "REGISTRO", Dock = DockStyle.Fill, ForeColor = Ink,
             Font = new Font("Segoe UI", 9.5F, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
         _status.Text = "Pronto";
@@ -1928,6 +1932,14 @@ internal sealed partial class MainForm : Form
         _status.ForeColor = Muted;
         _status.TextAlign = ContentAlignment.MiddleRight;
         top.Controls.Add(_status, 1, 0);
+        var localReport = CreateSecondaryButton("Histórico / relatório");
+        localReport.Name = "LocalReliabilityReportButton";
+        localReport.Dock = DockStyle.Fill;
+        localReport.Font = new Font("Segoe UI", 8.2F, FontStyle.Bold);
+        localReport.Margin = new Padding(5, 0, 0, 0);
+        localReport.Click += (_, _) => ShowLocalReliabilityReport();
+        _toolTips.SetToolTip(localReport, "Histórico técnico local e comparação de inventários; não executa operações.");
+        top.Controls.Add(localReport, 2, 0);
         AddUninstallCancelButton(top);
         root.Controls.Add(top, 0, 0);
         _progress.Dock = DockStyle.Fill;
@@ -1941,6 +1953,53 @@ internal sealed partial class MainForm : Form
         _log.Dock = DockStyle.Fill;
         root.Controls.Add(_log, 0, 2);
         return root;
+    }
+
+    private void ShowLocalReliabilityReport()
+    {
+        string report = _reliability.Report(_installed, _inventoryIncomplete);
+        using var dialog = new Form
+        {
+            Text = "Histórico local — somente leitura", Width = 770, Height = 530,
+            MinimumSize = new Size(520, 360), StartPosition = FormStartPosition.CenterParent,
+            BackColor = PanelBackground, ForeColor = Ink, Font = Font
+        };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
+            Padding = new Padding(10), BackColor = PanelBackground };
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
+        var body = new TextBox
+        {
+            Name = "LocalReliabilityReportText", Dock = DockStyle.Fill, Multiline = true,
+            ReadOnly = true, WordWrap = false, ScrollBars = ScrollBars.Both,
+            Font = new Font("Consolas", 9F), BackColor = Color.FromArgb(19, 26, 34),
+            ForeColor = Ink, Text = DarkLogView.NormalizeWindowsLineBreaks(report)
+        };
+        root.Controls.Add(body, 0, 0);
+        var bar = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
+        var save = CreateSecondaryButton("Salvar TXT");
+        save.Name = "SaveLocalReliabilityReport";
+        save.Size = new Size(135, 35);
+        save.Click += (_, _) =>
+        {
+            using var picker = new SaveFileDialog
+            {
+                Title = "Salvar relatório local sem nomes e caminhos",
+                Filter = "Texto (*.txt)|*.txt", FileName = "GF-Relatorio-Local.txt",
+                AddExtension = true, OverwritePrompt = true
+            };
+            if (picker.ShowDialog(dialog) != DialogResult.OK) return;
+            try { File.WriteAllText(picker.FileName, report, new System.Text.UTF8Encoding(false)); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                MessageBox.Show(dialog, "Não foi possível salvar: " + ex.GetType().Name,
+                    "Relatório não salvo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        };
+        bar.Controls.Add(save);
+        root.Controls.Add(bar, 0, 1);
+        dialog.Controls.Add(root);
+        dialog.ShowDialog(this);
     }
 
     private static Button CreateSecondaryButton(string text) => new ModernButton
@@ -2081,26 +2140,13 @@ internal sealed partial class MainForm : Form
             });
             items = scan.Items.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
             _inventoryIncomplete = scan.Incomplete;
-            // Monitoramento por fotografias completas, sem servico residente:
-            // detectar entradas surgidas/removidas enquanto o GF permaneceu aberto.
-            // Nao interpretar inventario parcial como desinstalacao.
-            if (!_inventoryIncomplete)
-            {
-                var currentKeys = items.Select(x => x.InventoryId)
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                if (_completeInstallBaseline is not null)
-                {
-                    var created = currentKeys.Except(_completeInstallBaseline, StringComparer.OrdinalIgnoreCase)
-                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    var removed = _completeInstallBaseline.Except(currentKeys, StringComparer.OrdinalIgnoreCase).Count();
-                    if (created.Count > 0 || removed > 0)
-                        Log($"Nesta sessão: {created.Count} novo(s) registro(s) de instalação; " +
-                            $"{removed} não observado(s) desde a última leitura completa. " +
-                            "Confirme pela versão e pelo instalador antes de concluir.");
-                }
-                _completeInstallBaseline = currentKeys;
-            }
+            // Comparação entre fotografias completas e identidades inequívocas.
+            // Leitura parcial nunca substitui a base e não autoriza inferir remoção.
+            var delta = _reliability.Observe(items, !_inventoryIncomplete);
+            if (delta.Comparable && (delta.Added != 0 || delta.NotObserved != 0 || delta.Changed != 0))
+                Log(delta.Explanation);
+            else if (!delta.Comparable)
+                Log(delta.Explanation);
             if (_inventoryIncomplete)
                 Log("ATENÇÃO: inventário PARCIAL. Uma ou mais fontes não puderam ser consultadas; aplicativos ausentes desta lista podem continuar instalados. Clique em Atualizar e verificar para tentar novamente. Nenhum aplicativo foi removido.");
             DiagnosticTrace.Write($"REGISTRO_PROGRAMAS.LIDO quantidade={items.Count} examinados={scan.Registry.Inspected} ocultos={scan.Registry.HiddenComponents} updates_arp={scan.Registry.UpdateEntries} erros={scan.Registry.ReadFailures} duplicados={scan.Registry.Duplicates}");
