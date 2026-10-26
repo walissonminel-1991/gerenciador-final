@@ -37,3 +37,31 @@ test("sem IP/sem aceitação ou limite retorna erro", async()=> {
     body:JSON.stringify(good)});
   assert.equal((await worker.fetch(request,base)).status,429);
 });
+
+test("Content-Length falso e corpo maior que 4KB falham antes de gravar", async () => {
+  let writes = 0;
+  const env = { PILOT_ENABLED:"yes",
+    BETA_RATE_LIMITER:{limit:async()=>({success:true})},
+    DB:{prepare:()=>({bind:()=>({run:async()=>{writes++}})}),
+      batch:async()=>{writes++}} };
+  const mk = (body,declaredSize) => new Request("https://private.example/ingest", {
+    method:"POST", headers:{"content-type":"application/json",
+      "cf-connecting-ip":"198.51.100.5","content-length":String(declaredSize)},
+    body
+  });
+  const json = JSON.stringify(good);
+  assert.equal((await worker.fetch(mk(json,1),env)).status,400);
+  assert.equal((await worker.fetch(mk("x".repeat(5000),1),env)).status,413);
+  assert.equal(writes,0);
+});
+
+test("limpeza inclui metadados de exportacao mesmo com piloto desligado", async () => {
+  const sql=[];
+  const env={PILOT_ENABLED:"no",DB:{prepare:statement=>{
+    sql.push(statement); return {bind:()=>({run:async()=>{}})};
+  }}};
+  await worker.scheduled(null,env);
+  assert.equal(sql.length,2);
+  assert.match(sql[0],/DELETE FROM daily_counts/);
+  assert.match(sql[1],/DELETE FROM github_exports/);
+});
