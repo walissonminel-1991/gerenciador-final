@@ -105,6 +105,15 @@ internal static class LayoutTests
         {
             privacy.Show();
             Application.DoEvents();
+            var betaNotice = Descendants(privacy).OfType<TextBox>()
+                .SingleOrDefault(c => c.Name == "PrivacyBetaNotice");
+            var betaAccept = Descendants(privacy).OfType<Button>()
+                .SingleOrDefault(c => c.Text == "Aceito envio automático");
+            if (betaNotice is not { Multiline: true, ReadOnly: true, ScrollBars: ScrollBars.Vertical } ||
+                !betaNotice.Text.Contains("7 dias", StringComparison.Ordinal) ||
+                !betaNotice.Text.Contains("Revogue", StringComparison.Ordinal) ||
+                betaAccept is null || betaAccept.Enabled != BetaTelemetryUploader.IsConfigured)
+                throw new Exception("Aviso BETA precisa ser inteiramente rolavel e impedir opt-in sem receptor.");
             var simulate = Descendants(privacy).OfType<Button>().SingleOrDefault(
                 b => b.Name == "PrivacyOfflineSimulation")
                 ?? throw new Exception("Botao de simulacao segura ausente.");
