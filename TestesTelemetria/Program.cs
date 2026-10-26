@@ -313,15 +313,18 @@ try
     Verify(beta.SetConsent(TelemetryConsent.LocalOnly) && beta.PendingForRemote() is null,
         "Consentimento local antigo nao equivale a consentimento remoto");
     beta.Record("APP.FALHA_INTERFACE usuario=segredo"); // elimina parametros
-    Verify(beta.SaveOnNormalExit("v5.13.11.66") && beta.PendingForRemote() is null,
+    Verify(beta.SaveOnNormalExit("v5.13.11.66") && beta.PendingForRemote() is null &&
+        File.Exists(beta.PendingFile),
         "Coleta local permanece estritamente local");
-    Verify(beta.SetConsent(TelemetryConsent.RemoteBeta),
-        "Participante autoriza transmissao remota separadamente");
+    Verify(beta.SetConsent(TelemetryConsent.RemoteBeta) &&
+        !File.Exists(beta.PendingFile) && beta.PendingForRemote() is null,
+        "Opt-in remoto descarta pendencia criada com autorizacao apenas local");
     beta.Record("MSIX.LEITURA caminho=C:/Privado");
     Verify(beta.SaveOnNormalExit("v5.13.11.66") &&
         DiagnosticPayloadPolicy.IsValidReport(beta.PendingForRemote()) &&
-        !beta.PendingForRemote()!.Contains("Privado", StringComparison.Ordinal),
-        "Apenas resumo validado fica disponivel para envio");
+        !beta.PendingForRemote()!.Contains("Privado", StringComparison.Ordinal) &&
+        !beta.PendingForRemote()!.Contains("APP.FALHA_INTERFACE", StringComparison.Ordinal),
+        "Apenas eventos posteriores ao opt-in remoto podem ser enviados");
     Verify(beta.SetConsent(TelemetryConsent.Declined) &&
         beta.PendingForRemote() is null && !File.Exists(beta.PendingFile),
         "Revogacao interrompe leitura de pendencia e remove arquivo");
