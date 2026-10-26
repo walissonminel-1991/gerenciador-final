@@ -12,6 +12,31 @@ const allowed = new Set([
 const ttl = 7 * 86400;
 const headers = { "cache-control": "no-store", "content-type": "text/plain; charset=utf-8" };
 const respond = status => new Response(null, { status, headers });
+// Nunca usar request.text() em entrada de rede: Content-Length pode ser forjado.
+// Limitar os bytes efetivamente recebidos antes de decodificar JSON.
+async function readBoundedBody(request, maxBytes) {
+  const reader = request.body?.getReader();
+  if (!reader) return null;
+  const chunks = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel().catch(() => {});
+        return { oversize: true };
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const part of chunks) { bytes.set(part, offset); offset += part.byteLength; }
+    return { raw: new TextDecoder("utf-8", { fatal: true }).decode(bytes), size };
+  } catch { return null; }
+  finally { reader.releaseLock(); }
+}
 export function validateReport(report) {
   if (!report || Array.isArray(report) || typeof report !== "object") return null;
   if (Object.keys(report).sort().join(",") !== "counts,exit,schema,version") return null;
@@ -82,10 +107,11 @@ export default {
     if (!ip) return respond(403); // usado somente em rate limit efemero, NAO persiste em D1
     const limit = await env.BETA_RATE_LIMITER.limit({ key: ip });
     if (!limit.success) return respond(429);
-    let raw;
-    try { raw = await request.text(); } catch { return respond(400); }
-    if (new TextEncoder().encode(raw).length > 4096) return respond(413);
-    let parsed;try { parsed = JSON.parse(raw); } catch { return respond(400); }
+    const body = await readBoundedBody(request, 4096);
+    if (!body) return respond(400);
+    if (body.oversize) return respond(413);
+    if (body.size !== size) return respond(400);
+    let parsed;try { parsed = JSON.parse(body.raw); } catch { return respond(400); }
     const report = validateReport(parsed);
     if (!report) return respond(422);
     const now = Math.floor(Date.now()/1000), day = Math.floor(now/86400);
@@ -103,6 +129,9 @@ export default {
     if (!env.DB) return;
     const now = Math.floor(Date.now()/1000);
     await env.DB.prepare("DELETE FROM daily_counts WHERE expires_at <= ?").bind(now).run();
+    // Metadados de exportacao D1 tambem devem ter expiracao finita.
+    await env.DB.prepare("DELETE FROM github_exports WHERE day < ?")
+      .bind(Math.floor(now/86400)-7).run();
     if (!env.PILOT_ENABLED || env.PILOT_ENABLED !== "yes") return;
     await exportPrivateDay(env, Math.floor(now/86400)-1);
   }
