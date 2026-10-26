@@ -132,7 +132,8 @@ export default {
     // Metadados de exportacao D1 tambem devem ter expiracao finita.
     await env.DB.prepare("DELETE FROM github_exports WHERE day < ?")
       .bind(Math.floor(now/86400)-7).run();
-    if (!env.PILOT_ENABLED || env.PILOT_ENABLED !== "yes") return;
+    // Coleta habilitada nao equivale a autorizar exportacao para GitHub.
+    if (env.PILOT_ENABLED !== "yes" || env.GITHUB_EXPORT_ENABLED !== "yes") return;
     await exportPrivateDay(env, Math.floor(now/86400)-1);
   }
 };
