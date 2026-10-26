@@ -136,7 +136,7 @@ Casos Windows/consentimento, inicialmente só fixtures/VM e dados fictícios:
 - Duas instâncias: só uma tentativa simultânea por pasta; lock não bloqueia mudança de consentimento. Pendência nova, inclusive bytes idênticos de outra instância, sobrevive a 202 antigo; instância antiga não recria relatório após revogação.
 - Fechar durante trabalho: proteger operação existente; enquanto aguarda telemetria não iniciar instalação/desinstalação/reparo novo. Segundo clique em fechar não inicia outro POST. Resposta atrasada não apaga pendência posterior.
 - Windows Shutdown/reiniciar: incluir cancelamento do desligamento (`WM_ENDSESSION` FALSE), retomada do uso e conclusão tardia sem fechar a janela; cancelar envio, não iniciar rede, não abrir modal que impeça desligamento; persistência local de melhor esforço, recuperação só em próxima sessão autorizada. Testar com AVG ativo em VM; não desligar PCs pessoais por automação.
-- Pendência >7 dias, timestamp futuro, JSON adulterado, link/junction, arquivo bloqueado: não enviar; nenhuma exclusão fora do local autorizado. Queda de energia/kill pode perder último resumo e não prova ausência de falha.
+- Interromper gravação atômica somente em fixture: retomada remove staging próprio abandonado, preserva arquivo alheio e arquivo ainda em uso. Nenhum staging é elegível a envio. Pendência >7 dias, timestamp futuro, JSON adulterado, link/junction, arquivo bloqueado: não enviar; nenhuma exclusão fora do local autorizado. Queda de energia/kill pode perder último resumo e não prova ausência de falha.
 
 ## 8. Primeiro grupo de avaliadores, após aprovação final
 

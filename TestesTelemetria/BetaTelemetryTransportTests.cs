@@ -145,6 +145,24 @@ internal static class BetaTelemetryTransportTests
                 "R2 confirmacao antiga nao remove arquivo novo mesmo com conteudo identico em outra instancia");
         }
 
+        var recovered=Pending(root);
+        string abandoned=recovered.PendingFile+"."+Guid.NewGuid().ToString("N")+".tmp";
+        string other=recovered.PendingFile+".not-a-guid.tmp";
+        File.WriteAllText(abandoned,"synthetic interrupted atomic write");
+        File.WriteAllText(other,"synthetic unrelated file");
+        string original=File.ReadAllText(recovered.PendingFile);
+        _=new AnonymousTelemetry(Path.GetDirectoryName(recovered.ConsentFile));
+        verify(!File.Exists(abandoned)&&File.Exists(other)&&File.ReadAllText(recovered.PendingFile)==original,
+            "R3 retomada remove staging abandonado proprio sem apagar arquivo alheio ou pendencia");
+        File.WriteAllText(abandoned,"synthetic active writer");
+        using(var held=new FileStream(abandoned,FileMode.Open,FileAccess.ReadWrite,FileShare.None))
+        {
+            _=new AnonymousTelemetry(Path.GetDirectoryName(recovered.ConsentFile));
+            verify(File.Exists(abandoned),"R3 recuperacao nao remove staging ainda em uso");
+        }
+        _=new AnonymousTelemetry(Path.GetDirectoryName(recovered.ConsentFile));
+        verify(!File.Exists(abandoned),"R3 staging e removido na proxima retomada depois de liberar handle");
+
         var interrupted=Pending(root);
         interrupted.Record("APP.FALHA_NAO_TRATADA");
         verify(interrupted.SaveOnExit("v5.13.11.66",normalExit:false)&&

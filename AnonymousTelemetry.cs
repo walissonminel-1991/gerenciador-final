@@ -39,7 +39,7 @@ internal sealed class AnonymousTelemetry
         if (Directory.Exists(_folder))
         {
             using var state = TryStorageLock("estado-v1.lock");
-            if (state is not null) { Consent = ReadConsent(); ExpirePendingReport(); }
+            if (state is not null) { Consent = ReadConsent(); DeleteAbandonedWrites(); ExpirePendingReport(); }
         }
     }
 
@@ -137,6 +137,7 @@ internal sealed class AnonymousTelemetry
                 ArgumentException or NotSupportedException or System.Security.SecurityException) { return false; }
             using var state = TryStorageLock("estado-v1.lock");
             if (state is null) return false; // nao esperar nem bloquear a revogacao em memoria
+            DeleteAbandonedWrites();
             if (consent == TelemetryConsent.Declined) deleted = TryDelete(PendingFile);
             // A autorizacao remota nao abrange relatorios coletados quando
             // o usuario havia autorizado apenas armazenamento local.
@@ -316,6 +317,7 @@ internal sealed class AnonymousTelemetry
             if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta)) return false;
             using var state = TryStorageLock("estado-v1.lock");
             if (state is null || !RefreshStoredConsent()) return false;
+            DeleteAbandonedWrites();
             // Uma sessao sem eventos nao apaga a pendencia util da sessao anterior.
             if (_events.Count == 0) { ExpirePendingReport(); return false; }
             try
@@ -444,6 +446,28 @@ internal sealed class AnonymousTelemetry
             CancelRemoteSend();
             return TryDelete(PendingFile);
         }
+    }
+
+    // Chamado somente sob estado-v1.lock, que prende tambem os ancestrais.
+    // Escrita ativa usa FileShare.None; mesmo versao antiga nao tem seu staging
+    // apagado durante uso. Crash/kill podem pular finally de WriteAtomic.
+    private void DeleteAbandonedWrites()
+    {
+        try
+        {
+            foreach (string prefix in new[] { Path.GetFileName(ConsentFile), Path.GetFileName(PendingFile) })
+            foreach (string file in Directory.EnumerateFiles(_folder, prefix + ".*.tmp", SearchOption.TopDirectoryOnly).Take(64))
+            {
+                string name = Path.GetFileName(file);
+                if (name.Length != prefix.Length + 37 ||
+                    !name.StartsWith(prefix + ".", StringComparison.Ordinal) ||
+                    !name.EndsWith(".tmp", StringComparison.Ordinal) ||
+                    !name.Substring(prefix.Length + 1, 32).All(char.IsAsciiHexDigit)) continue;
+                TryDelete(file); // somente nome proprio, sem seguir links
+            }
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
+            System.Security.SecurityException) { /* Melhor esforco, sem impedir o GF. */ }
     }
 
     private void ExpirePendingReport()
