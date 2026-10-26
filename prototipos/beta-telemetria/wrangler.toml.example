@@ -2,6 +2,10 @@
 name = "gerenciador-final-beta-private"
 main = "worker.mjs"
 compatibility_date = "2026-10-26"
+# Desabilitar o dominio sem WAF e URLs de preview; habilitar SOMENTE
+# um Custom Domain/route auditado da zona Cloudflare com WAF.
+workers_dev = false
+preview_urls = false
 [vars]
 PILOT_ENABLED = "no"
 GITHUB_EXPORT_ENABLED = "no"
