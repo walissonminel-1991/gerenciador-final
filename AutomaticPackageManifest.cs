@@ -8,13 +8,16 @@ namespace GerenciadorAplicativos;
 
 internal sealed record AutomaticInstaller(string PackageId, string Name, string Publisher, string Version, string Type,
     string Architecture, string Scope, Uri Download, string Sha256, string ProductCode, string UpgradeCode, string Arguments,
-    bool Interactive = false);
+    bool Interactive = false, bool ScopeFromPayload = false);
 
 // Interpreta dados autenticados; nunca desserializa objetos, scripts ou comandos externos.
 internal static class AutomaticPackageManifest
 {
     internal static AutomaticInstaller? Select(byte[] bytes, CatalogManifestReference reference, string architecture, string scope, string? installedKind = null)
+        => SelectWithReason(bytes, reference, architecture, scope, installedKind, out _);
+    internal static AutomaticInstaller? SelectWithReason(byte[] bytes, CatalogManifestReference reference, string architecture, string scope, string? installedKind, out string reason)
     {
+        reason = "manifest_not_eligible";
         if (bytes.Length is < 20 or > 2 * 1024 * 1024) throw new InvalidDataException("Manifesto fora do limite.");
         string text = new UTF8Encoding(false, true).GetString(bytes);
         var parser = new Parser(new StringReader(text)); int events = 0, depth = 0;
@@ -39,24 +42,38 @@ internal static class AutomaticPackageManifest
             string Get(string key) => S(item,key) is { Length: > 0 } own ? own : S(root,key);
             YamlNode? GetNode(string key) => N(item,key) ?? N(root,key);
             string type = Get("InstallerType"), arch = Get("Architecture"), targetScope = Get("Scope");
-            if (installedKind is not null && (installedKind=="msi" ? type is not ("msi" or "wix") : type!=installedKind))continue;
-            if (arch != architecture || targetScope != scope || type is not ("nullsoft" or "inno" or "msi" or "wix")) continue;
+            if (installedKind is not null && (installedKind=="msi" ? type is not ("msi" or "wix") : type!=installedKind))
+            { reason="manifest_engine_mismatch"; continue; }
+            if (arch != architecture) { reason="manifest_architecture_mismatch"; continue; }
+            // Omission is not proof of scope. For MSI/WiX ONLY, the mandatory
+            // native Property/Summary check authenticates it from the hashed,
+            // signed payload before launch. An explicit mismatch is never inferred away.
+            bool scopeFromPayload = targetScope.Length==0 && (type is "msi" or "wix") && (scope is "machine" or "user");
+            if (scopeFromPayload) targetScope=scope;
+            if (targetScope != scope || type is not ("nullsoft" or "inno" or "msi" or "wix"))
+            { reason="manifest_scope_unproven"; continue; }
             if (Get("UpgradeBehavior") is not ("" or "install") || GetNode("Dependencies") is not null ||
                 Get("InstallerAbortsTerminal") == "true" || Get("InstallLocationRequired") == "true" ||
                 GetNode("UnsupportedOSArchitectures") is not null || GetNode("Platform") is not null ||
                 GetNode("Markets") is not null) continue;
-            bool interactive = false;
+            bool interactive = false, allowsInteractive = false;
             if (GetNode("InstallModes") is YamlSequenceNode modes && !modes.Children.OfType<YamlScalarNode>().Any(n => n.Value == "silent"))
             {
                 if (!modes.Children.OfType<YamlScalarNode>().Any(n => n.Value == "interactive")) continue;
                 interactive = true;
             }
+            if (GetNode("InstallModes") is YamlSequenceNode declaredModes)
+                allowsInteractive=declaredModes.Children.OfType<YamlScalarNode>().Any(n=>n.Value=="interactive");
             if (Get("MinimumOSVersion") is { Length: > 0 } minimum &&
                 (!System.Version.TryParse(minimum, out var required) || OperatingSystem.IsWindows() && Environment.OSVersion.Version < required)) continue;
             if (!Uri.TryCreate(Get("InstallerUrl"),UriKind.Absolute,out var url) || !IsPublicHttps(url) ||
                 !Regex.IsMatch(Get("InstallerSha256"),"^[A-Fa-f0-9]{64}$")) continue;
             string? args = Arguments(type,scope, GetNode("InstallerSwitches") as YamlMappingNode);
-            if (args is null) continue;
+            // A rejected silent switch is never copied to an interactive plan.
+            // Only an explicit interactive mode can use the local presentation
+            // contract, and custom/upgrade/location/repair commands still block.
+            if (args is null && allowsInteractive) interactive=true;
+            if (args is null && !interactive) { reason="manifest_commands_unproven"; continue; }
             if (interactive)
             {
                 // Same authenticated payload, signer, local engine, product,
@@ -70,7 +87,8 @@ internal static class AutomaticPackageManifest
                     _ => "/norestart"
                 };
                 if (GetNode("InstallerSwitches") is YamlMappingNode declared &&
-                    new[] { "Custom", "Upgrade" }.Any(key => S(declared, key).Length > 0)) continue;
+                    new[] { "Custom", "Upgrade", "InstallLocation", "Log", "Repair" }.Any(key => N(declared,key) is not null))
+                { reason="manifest_commands_unproven"; continue; }
             }
             string code = Get("ProductCode"), upgrade = "";
             if (GetNode("AppsAndFeaturesEntries") is YamlSequenceNode entries)
@@ -81,9 +99,11 @@ internal static class AutomaticPackageManifest
                 upgrade=S(feature,"UpgradeCode");
             }
             if (type is "msi" or "wix" && (!Guid.TryParse(code,out var productCode) || productCode==Guid.Empty)) continue;
-            options.Add(new(reference.Id,name,publisher,reference.Version,type,arch,targetScope,url,Get("InstallerSha256"),code,upgrade,args,interactive));
+            options.Add(new(reference.Id,name,publisher,reference.Version,type,arch,targetScope,url,Get("InstallerSha256"),code,upgrade,args!,interactive,scopeFromPayload));
         }
         var unique = options.Distinct().ToArray();
+        if(unique.Length>1)reason="manifest_ambiguous";
+        if(unique.Length==1)reason=unique[0].ScopeFromPayload?"msi_scope_payload_required":unique[0].Interactive?"supervised_plan":"silent_plan";
         return unique.Length == 1 ? unique[0] : null;
     }
     internal static string? Arguments(string type, string scope, YamlMappingNode? switches)

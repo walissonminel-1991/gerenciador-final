@@ -49,7 +49,11 @@ internal static class WinGetComReader
             Console.Write(JsonSerializer.Serialize(rows));
             return 0;
         }
-        catch (Exception) { return 5; } // diagnostics receive a fixed status only
+        catch (Exception ex)
+        {
+            // Fixed protocol codes only: no exception text, paths or account data.
+            return ex.HResult switch { unchecked((int)0x80040154)=>6,unchecked((int)0x80070005)=>7,_=>5 };
+        }
     }
     private static List<ProviderInstallation> Read(PackageCatalog catalog, bool tracked)
     {

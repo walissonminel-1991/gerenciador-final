@@ -476,6 +476,8 @@ internal static class VerifiedUpdaters
     // assinadas e verificadas autorizam iniciar um instalador.
     internal static string? GetPrimaryAction(ProgramEntry entry)
     {
+        if(entry.IsUpdate && EcosystemInventory.Get(entry) is {Identity.Managed:true,Identity.Provider:"scoop" or "scoop-global" or "chocolatey"})
+            return "external-manage";
         if (entry.IsUpdate && entry.InventoryOnly && !entry.VerifiedMsixIdentity && entry.MsixPackageFamilyName.Length > 0 &&
             entry.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) &&
             !ProtectedApplications.IsProtectedName(entry.Name))
@@ -488,6 +490,27 @@ internal static class VerifiedUpdaters
         if (Resolve(entry) is { } recipe && IsApprovedRecipe(recipe)) return "update";
         if (GetOfficialPage(entry) is not null) return "site";
         return "guide";
+    }
+
+    internal static string PrimaryActionLabel(ProgramEntry entry) => GetPrimaryAction(entry) switch
+    {
+        "update" => Resolve(entry) is {Interactive:true} ? "Acompanhar" : "Atualizar",
+        "terminal" => "Atualizar", "site" => "Site oficial", "store" => "Ver na Store",
+        "windows-manage" or "external-manage" => "Gerenciar",
+        _ => entry.UpdateRequiresReview ? "Revisar" : "Como fazer"
+    };
+    internal static string UpdateAvailabilityText(ProgramEntry entry,string reason="")
+    {
+        string? action=GetPrimaryAction(entry);
+        if(action is "update" or "terminal")return Resolve(entry) is {Interactive:true}
+            ? "Instalador oficial; verificações e acompanhamento necessários."
+            : "Instalador oficial; verificações necessárias antes de executar.";
+        if(action=="store" || action=="windows-manage")return "Atualização administrada pelo Windows ou Microsoft Store.";
+        if(action=="external-manage")return "Instalação de outro gerenciador; use a ferramenta original.";
+        if(entry.UpdateRequiresReview)return "Fontes ou identidade exigem revisão; execução bloqueada.";
+        if(reason.Length==0)reason=AutomaticUpdateDiscovery.AssessmentReason(entry);
+        return reason.Length>0 && reason!="no_verified_contract" ? ApplicationCapabilitySnapshot.Reason(reason) :
+            "Versão nova encontrada; sem manifesto executável autenticado.";
     }
 
     internal static bool TryVersion(string? value, out Version version)

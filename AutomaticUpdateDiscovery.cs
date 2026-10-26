@@ -6,14 +6,17 @@ using System.Security.Cryptography;
 namespace GerenciadorAplicativos;
 
 internal sealed record AutomaticDiscoveryResult(IReadOnlyList<OfficialRelease> Findings, IReadOnlyList<(ProgramEntry App, AutomaticAppInstallation Installation, AutomaticInstaller Installer)> Plans,
-    ProviderDiagnostic Diagnostic, IReadOnlyDictionary<string,int>? Outcomes=null);
+    ProviderDiagnostic Diagnostic, IReadOnlyDictionary<string,int>? Outcomes=null, IReadOnlyDictionary<string,string>? Assessments=null);
 
 // Autoridade efemera proveniente de catalogo Microsoft assinado + manifesto SHA.
 // Catalogos consultivos, IDs, comandos e nomes isolados nao criam essa autoridade.
 internal static class AutomaticUpdateDiscovery
 {
     private sealed record Permit(WeakReference<ProgramEntry> App,AutomaticAppInstallation Installation,AutomaticInstaller Installer,VerifiedUpdateRecipe Recipe,DateTimeOffset Expires);
-    private sealed record Issued((ProgramEntry App,AutomaticAppInstallation Installation,AutomaticInstaller Installer)[] Plans,DateTimeOffset Expires);
+    private sealed record Issued((ProgramEntry App,AutomaticAppInstallation Installation,AutomaticInstaller Installer)[] Plans,DateTimeOffset Expires,
+        ProgramEntry[]? Apps=null,IReadOnlyDictionary<string,string>? Assessments=null);
+    private sealed record Assessment(string Binding,string Reason,DateTimeOffset Expires);
+    private static readonly ConditionalWeakTable<ProgramEntry,Assessment> Assessed=new();
     private static readonly ConditionalWeakTable<AutomaticDiscoveryResult,Issued> IssuedScans=new();
     private static readonly ConcurrentDictionary<string,byte> Executed=new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConditionalWeakTable<ProgramEntry,Permit> Attached=new();
@@ -31,14 +34,24 @@ internal static class AutomaticUpdateDiscovery
     internal static VerifiedUpdateRecipe? Resolve(ProgramEntry app)=>Attached.TryGetValue(app,out var permit) &&
         app.IsUpdate && !app.UpdateRequiresReview && !EcosystemInventory.Ambiguous(app) && AutomaticAppInstallation.Binding(app)==permit.Installation.Key &&
         app.AvailableVersion==permit.Installer.Version && !Executed.ContainsKey(ExecutionKey(permit)) && IsApproved(permit.Recipe)?permit.Recipe:null;
+    internal static string AssessmentReason(ProgramEntry app)=>Assessed.TryGetValue(app,out var result) &&
+        result.Expires>DateTimeOffset.UtcNow && result.Binding==AutomaticAppInstallation.Binding(app)?result.Reason:"";
     internal static void Attach(AutomaticDiscoveryResult scan)
     {
         if(!IssuedScans.TryGetValue(scan,out var issued) || issued.Expires<=DateTimeOffset.UtcNow)return;
         IssuedScans.Remove(scan);
+        foreach(var app in issued.Apps ?? [])
+        {
+            string binding=AutomaticAppInstallation.Binding(app);
+            if(issued.Assessments?.TryGetValue(binding,out var reason)==true)
+            { Assessed.Remove(app);Assessed.Add(app,new(binding,reason,DateTimeOffset.UtcNow.AddMinutes(30))); }
+        }
         foreach(var item in issued.Plans)
         {
             if(!item.App.IsUpdate || item.App.UpdateRequiresReview || EcosystemInventory.Ambiguous(item.App) || item.App.AvailableVersion!=item.Installer.Version ||
-                AutomaticAppInstallation.Binding(item.App)!=item.Installation.Key)continue;
+                AutomaticAppInstallation.Binding(item.App)!=item.Installation.Key ||
+                !VerifiedUpdaters.TryVersion(item.App.Version,out var previous) ||
+                !VerifiedUpdaters.TryVersion(item.Installer.Version,out var target) || target<=previous)continue;
             foreach(var expired in Permits.Where(p=>p.Value.Expires<=DateTimeOffset.UtcNow).Select(p=>p.Key))Permits.TryRemove(expired,out _);
             if(Permits.Count>=512)break;
             var legacyApp=new ProgramEntry{Name=item.App.Name,Publisher=item.App.Publisher,Version=item.App.Version,AvailableVersion=item.App.AvailableVersion,
@@ -68,7 +81,8 @@ internal static class AutomaticUpdateDiscovery
                 {catalog?.Dispose();catalog=null;catalog=await PackageCatalogIndex.DownloadAsync(workToken);catalogAt=DateTimeOffset.UtcNow;}
                 var result=await AutomaticDiscoveryPipeline.RunAsync(apps,identities,new SignedAutomaticCatalog(catalog),token,workToken);
                 token.ThrowIfCancellationRequested();
-                IssuedScans.Add(result,new(result.Plans.ToArray(),DateTimeOffset.UtcNow.AddMinutes(2)));
+                IssuedScans.Add(result,new(result.Plans.ToArray(),DateTimeOffset.UtcNow.AddMinutes(2),apps,
+                    result.Assessments?.ToDictionary(p=>p.Key,p=>p.Value,StringComparer.Ordinal)));
                 return result;
             }
             finally{SourceGate.Release();}
@@ -114,6 +128,10 @@ internal static class AutomaticUpdateDiscovery
             VerifiedUpdaters.TryVersion(recipe.Version,out var target) &&actual!=target)throw new InvalidDataException("Versao do instalador diverge do alvo.");
     }
 #if GF_PROGRESSIVE
+    internal static void SealSynthetic(AutomaticDiscoveryResult result,ProgramEntry[] apps,DateTimeOffset? expires=null)
+        =>IssuedScans.Add(result,new(result.Plans.ToArray(),expires??DateTimeOffset.UtcNow.AddMinutes(2),apps,result.Assessments));
+    internal static void ExpireSynthetic(VerifiedUpdateRecipe recipe)
+    {if(Permits.TryGetValue(recipe.Identifier,out var permit))Permits[recipe.Identifier]=permit with{Expires=DateTimeOffset.UtcNow.AddSeconds(-1)};}
     internal static AutomaticDiscoveryResult SimulateIssued(ProgramEntry app,AutomaticAppInstallation installation,AutomaticInstaller installer)
     {
         var plans=new[]{(app,installation,installer)};

@@ -88,6 +88,10 @@ jobs:
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --automatic
       - name: Isolar falhas e validar identidade MSI WORK17
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work17
+      - name: WORK18 contratos MSI e acompanhamento sem enfraquecer autorizacoes
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work18
+      - name: WORK18 botoes motivos e DPI em 1440x900 e 2560x1440
+        run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --work18
       - name: Reproduzir casos WORK13 de atualizacao em isolamento
         run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work13
       - name: Testes WSC somente leitura
@@ -106,6 +110,16 @@ jobs:
         run: python scripts/measure_work16.py
       - name: Comparar cobertura MSI WORK17 com WORK16 imutavel
         run: python scripts/measure_work17.py
+      - name: Comparar cobertura WORK18 com a integracao .64 imutavel
+        run: python scripts/measure_work18.py
+      - name: Conservar matriz WORK18 antes e depois
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: WORK18-cobertura-${{ github.sha }}
+          path: Work18Coverage.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Conservar matriz MSI WORK17
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

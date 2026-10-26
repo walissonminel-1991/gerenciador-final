@@ -815,31 +815,15 @@
     }
   },
   "candidate": {
-    "version": "5.13.11.64 TESTE",
-    "status": "approved",
-    "mission": "INTEGRACAO-LOTE4-WORK17",
-    "report": "docs/MISSAO-INTEGRACAO.md",
+    "version": "5.13.11.65 TESTE",
+    "status": "pending",
+    "mission": "WORK18",
+    "report": "docs/MISSAO-WORK18.md",
     "physical_validation": "pending",
     "winget_execution_enabled": false,
-    "scope": "Lotes 1–4 e WORK14–WORK17 cumulativos em branch isolada; validação técnica CI Windows aprovada, homologação física pendente",
-    "package_verified_by_ci": true,
-    "package_verified_independently": true,
-    "code_commit": "5793ce1f5816309902207311bc5c171fe62616fd",
-    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164",
-    "validation": {
-      "updates": 318,
-      "mutations_rejected": 30,
-      "drivers_windows": [
-        "windows-2022",
-        "windows-2025"
-      ],
-      "policy": "success",
-      "external_installer_check": "success after secure HTTPS redirect retry",
-      "package_files": 285,
-      "package_hashes": 284,
-      "physical_validation": "pending"
-    },
-    "work17_consultative_com": true
+    "scope": "MSI/WiX contexto nativo e acompanhamento NSIS/Inno/MSI/WiX; sem operacoes nos PCs; CI final pendente",
+    "package_verified_by_ci": false,
+    "package_verified_independently": false
   },
   "lote2_drivers_read_only": {
     "base_commit": "7405d83f308a141d2a7f6c68cc5a5dee4a19067c",

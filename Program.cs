@@ -1231,13 +1231,11 @@ internal sealed partial class MainForm : Form
         TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
             new Rectangle(left, e.Bounds.Top + 5, width, 29), selected ? Accent : Ink,
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-        bool checkStore = item.IsUpdate && VerifiedUpdaters.GetPrimaryAction(item) == "store";
+        string? updateAction=item.IsUpdate?VerifiedUpdaters.GetPrimaryAction(item):null;
         string details = item.UpdateRequiresReview
-            ? "Revisar fontes e compatibilidade · detalhes ao apontar o mouse"
-            : item.IsUpdate && checkStore
-            ? $"Versão em catálogo ({item.Source}); confira na Store · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
+            ? "Fontes ou identidade exigem revisão · detalhes ao apontar o mouse"
             : item.IsUpdate
-            ? $"Possível atualização ({item.Source})  ·  {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)}"
+            ? $"{DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} · {VerifiedUpdaters.UpdateAvailabilityText(item,item.Capabilities?.Update.Reason??"")}"
             : item.ComparisonState == MatchState.SupersededRegistration
             ? $"Registro anterior · versão {DisplayAppVersion(item.AvailableVersion)} também instalada; conferir duplicidade"
             : item.ComparisonState == MatchState.DifferentMajor
@@ -1254,7 +1252,7 @@ internal sealed partial class MainForm : Form
         if (!hasOperation || e.Bounds.Width >= 940)
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
             new Rectangle(left, e.Bounds.Top + 34, width, 28),
-            item.IsUpdate ? Color.FromArgb(133, 221, 176) : Muted,
+            item.IsUpdate ? updateAction is "update" or "terminal" ? Color.FromArgb(133, 221, 176) : Color.FromArgb(231, 199, 135) : Muted,
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
 
         if (uninstall is not null) DrawUninstallOperation(e.Graphics, operationArea, uninstall);
@@ -1266,15 +1264,7 @@ internal sealed partial class MainForm : Form
                 string? primaryAction = VerifiedUpdaters.GetPrimaryAction(item);
                 if (primaryAction is not null)
                 {
-                    string label = primaryAction switch
-                    {
-                        "update" => VerifiedUpdaters.Resolve(item) is { Interactive: true } ? "Acompanhar" : "Atualizar",
-                        "terminal" => "Atualizar",
-                        "site" => "Site oficial",
-                        "store" => "Ver na Store",
-                        "windows-manage" => "No Windows",
-                        _ => "Como fazer"
-                    };
+                    string label = VerifiedUpdaters.PrimaryActionLabel(item);
                     if (operation?.PreventRetry == true) label = operation.Active ? "Em andamento" :
                         operation.Progress.Stage == UpdateStage.Confirmed ? "Concluído" : "Pendente";
                     Color color = operation?.PreventRetry == true ? AppServices.Gray :
@@ -2636,9 +2626,9 @@ internal sealed partial class MainForm : Form
     private void ShowUpdateGuidance(ProgramEntry entry)
     {
         if (!entry.IsUpdate || _busy) return;
-        string message = entry.InventoryOnly
+        string message = VerifiedUpdaters.UpdateAvailabilityText(entry,entry.Capabilities?.Update.Reason??"") + " " + (entry.InventoryOnly
             ? "Componente do Windows/Store: abra Configurações ou Microsoft Store e procure atualizações oficiais."
-            : "Sem instalador validado: abra o próprio aplicativo, procure Ajuda ou Configurações e use a função oficial de atualização.";
+            : "Sem instalador validado: abra o próprio aplicativo, procure Ajuda ou Configurações e use a função oficial de atualização.");
         Log("Orientação para " + entry.Name + " · " + message);
         Status("Orientações de atualização exibidas no histórico de operações.");
     }

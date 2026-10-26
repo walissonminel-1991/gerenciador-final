@@ -39,7 +39,7 @@ internal sealed record ApplicationCapabilitySnapshot(string Id, bool Identified,
         ApplicationCapabilityState.Blocked => "bloqueada",
         _ => "inconclusiva"
     }) + " — " + Reason(d.Reason);
-    private static string Reason(string reason) => reason switch
+    internal static string Reason(string reason) => reason switch
     {
         "inventory_only" => "entrada protegida ou somente inventário",
         "external_manager" => "Scoop, Chocolatey ou Windows controla esta instalação; o GF não executa scripts do gerenciador",
@@ -59,6 +59,17 @@ internal sealed record ApplicationCapabilitySnapshot(string Id, bool Identified,
         "architecture_mismatch" => "arquitetura divergente ou não reconhecida", "engine_unrecognized" => "motor do instalador não reconhecido",
         "installation_access_denied" => "acesso negado durante a leitura da instalação", "installation_unreadable" => "instalação não pôde ser lida",
         "manifest_not_authorized" => "nenhum manifesto autenticado autoriza esta instalação e versão",
+        "manifest_architecture_mismatch" => "o manifesto não possui instalador da arquitetura comprovada",
+        "manifest_scope_unproven" => "o contexto do instalador não foi comprovado para esta instalação",
+        "manifest_engine_mismatch" => "o formato do instalador difere da instalação existente",
+        "manifest_commands_unproven" => "os parâmetros exigidos pelo fabricante ainda não foram comprovados",
+        "manifest_ambiguous" => "mais de um instalador compatível; seleção exige revisão",
+        "manifest_not_eligible" => "o manifesto não comprovou um instalador compatível",
+        "policy_or_inventory_only" => "servidor, componente compartilhado ou instalação sem contrato específico",
+        "consultative_only" => "esta origem permite consulta; execução depende da ferramenta original",
+        "installation_changed_or_shared" => "instalação alterada, duplicada ou compartilhada",
+        "item_unavailable" => "não foi possível concluir as verificações desta instalação",
+        "budget_exhausted" => "a consulta atingiu o prazo; atualizar e verificar novamente",
         "not_checked" => "consulta ainda não realizada", "no_candidate" => "nenhuma versão superior confirmada",
         "source_review" => "fontes ou contexto exigem revisão", "no_verified_contract" => "sem contrato técnico comprovado",
         "payload_validation_required" => "hash, assinatura e instalação serão conferidos antes do lançamento",

@@ -1,5 +1,13 @@
 # Histórico de alterações
 
+## 5.13.11.65 TESTE — WORK18: ampliação segura (25/10/2026)
+
+- MSI/WiX sem Scope no manifesto passam a poder criar receita quando contexto e identidade forem confirmados pelo próprio MSI autenticado antes do lançamento. Divergência explícita, serviços, arquitetura ou produto diferente continuam bloqueados.
+- NSIS/Inno/MSI/WiX com modo interativo explícito podem oferecer **Acompanhar** quando parâmetros somente silenciosos não forem aceitos; flags remotas são descartadas, Custom/Upgrade/Repair/InstallLocation continuam recusados.
+- Major upgrade de MSI obrigatório também para nome exato quando ProductCode muda; versão superior, UpgradeCode do manifesto e editor do assinante são conferidos.
+- Motivos na linha de atualização e códigos COM específicos, sem executar WinGet ou reparar o ambiente.
+- [Relatório, matriz e CI](docs/MISSAO-WORK18.md). Candidata em validação, sem nova medição física, release estável ou mudança do roadmap 27/42.
+
 ## 5.13.11.64 TESTE — integração Lotes 1–4 + WORK14–WORK17 (25/10/2026)
 
 - Candidata integrada [PR #59](https://github.com/walissonminel-1991/gerenciador-final/pull/59) com [CI Windows 40241712164](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164) **aprovada tecnicamente** (repetição segura do job de mirrors). [ZIP x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183) com 284 hashes verificados externamente, SHA-256 `7d659b35319e2389c6266ef4fcee25e1733f0f5fa9c36558a0e38e66b12919c9`. Não constitui release estável ou homologação física.

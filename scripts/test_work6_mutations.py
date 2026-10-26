@@ -123,6 +123,25 @@ if os.name == 'nt':
     mutants.append(('auto-architecture-change-ignored','AutomaticAppInstallation.cs',
         'ArchitectureFor(VerifiedUpdaters.GetPortableExecutableMachine(Binary))!=Architecture ||', '',
         'TestesAtualizador','--automatic','AUTO arquitetura alterada depois'))
+if os.name == 'nt':
+    mutants.extend([
+        ('w18-msi-scope-bypassed','MsiPackageEvidence.cs',
+         'after.Scope!=app.Scope ||', '',
+         'TestesAtualizador','--work18','W18 MSI contexto arquitetura fabricante familia produto versao ou servico divergente bloqueado'),
+        ('w18-expired-permit-accepted','AutomaticUpdateDiscovery.cs',
+         'permit.Expires>DateTimeOffset.UtcNow &&', 'true &&',
+         'TestesAtualizador','--work18','W18 permissao expirada nao autoriza'),
+        ('w18-unsigned-accepted','AutomaticUpdateDiscovery.cs',
+         'if(!p.Installation.SameSigner(file))', 'if(false)',
+         'TestesAtualizador','--work18','W18 assinatura obrigatoria no novo MSI'),
+        ('w18-interactive-silent-flags','AutomaticPackageManifest.cs',
+         '"nullsoft" => "",', '"nullsoft" => "/UNVERIFIED_VENDOR_FLAG",',
+         'TestesAtualizador','--work18','W18 flags remotas descartadas'),
+        ('w18-exact-name-major-upgrade-bypassed','MsiPackageEvidence.cs',
+         'if(!before.ProductCode.Equals(after.ProductCode,StringComparison.OrdinalIgnoreCase))',
+         'if(app.HasCatalogIdentity && !before.ProductCode.Equals(after.ProductCode,StringComparison.OrdinalIgnoreCase))',
+         'TestesAtualizador','--work18','W18 ProductCode alterado exige major upgrade tambem na rota de nome exato'),
+    ])
 files = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
 with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     target=pathlib.Path(temporary)
@@ -135,7 +154,7 @@ with tempfile.TemporaryDirectory(prefix='GF-W6-Mutants-') as temporary:
     def run(project, argument):
         return subprocess.run([dotnet,'run','--project',project,'-p:EnableWindowsTargeting=true','-p:UseSharedCompilation=false','--',argument],
             cwd=target, text=True, encoding="utf-8", errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=150)
-    for project,argument in [('TestesAtualizador','--work6-flow'),('TestesMultifontes',''),('TestesResiduos','--work6-uninstall-flow'),('TestesAtualizador','--work11'),('TestesAtualizador','--work13'),('TestesAtualizador','--automatic')]:
+    for project,argument in [('TestesAtualizador','--work6-flow'),('TestesMultifontes',''),('TestesResiduos','--work6-uninstall-flow'),('TestesAtualizador','--work11'),('TestesAtualizador','--work13'),('TestesAtualizador','--automatic'),('TestesAtualizador','--work18')]:
         baseline=run(project,argument)
         if baseline.returncode: raise RuntimeError('baseline failed: '+baseline.stdout[-2000:])
         print('BASELINE PASS',project,flush=True)

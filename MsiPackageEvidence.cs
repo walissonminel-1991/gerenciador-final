@@ -87,7 +87,7 @@ internal static class MsiPackageEvidence
     {
         var before=Installed(app.ProductCode,app.Scope);var after=Read(file);
         Validate(before,after,installer,app);
-        if(app.HasCatalogIdentity && !before.ProductCode.Equals(after.ProductCode,StringComparison.OrdinalIgnoreCase))
+        if(!before.ProductCode.Equals(after.ProductCode,StringComparison.OrdinalIgnoreCase))
             MsiMajorUpgradeEvidence.Require(file,before);
     }
     internal static void Validate(Metadata before,Metadata after,AutomaticInstaller installer,AutomaticAppInstallation app)
@@ -98,11 +98,12 @@ internal static class MsiPackageEvidence
             !VerifiedUpdaters.TryVersion(before.Version,out var previousVersion) || !VerifiedUpdaters.TryVersion(app.Version,out var recordedVersion) ||previousVersion!=recordedVersion ||
             before.Scope!=app.Scope || after.Scope!=app.Scope || before.Services || after.Services || before.Architecture!=app.Architecture || after.Architecture!=app.Architecture ||
             !Guid.TryParse(before.UpgradeCode,out var oldCode) || oldCode==Guid.Empty || !Guid.TryParse(after.UpgradeCode,out var newCode) || oldCode!=newCode ||
+            installer.UpgradeCode.Length>0 && (!Guid.TryParse(installer.UpgradeCode,out var manifestFamily) || manifestFamily!=newCode) ||
             app.HasCatalogIdentity && !before.UpgradeCode.Equals(app.IdentityUpgradeCode,StringComparison.OrdinalIgnoreCase) ||
             !after.ProductCode.Equals(installer.ProductCode,StringComparison.OrdinalIgnoreCase) ||
             !InstallerEngineEvidence.SameProduct(after.Name,app.BinaryProduct) ||
             Matching.NormalizePublisher(after.Publisher)!=Matching.NormalizePublisher(app.Publisher) ||
-            !VerifiedUpdaters.TryVersion(after.Version,out var version) || !VerifiedUpdaters.TryVersion(installer.Version,out var target) ||version!=target)
+            !VerifiedUpdaters.TryVersion(after.Version,out var version) || !VerifiedUpdaters.TryVersion(installer.Version,out var target) ||version!=target || target<=previousVersion)
             throw new InvalidDataException("MSI diverge do produto, familia, arquitetura ou servicos autorizados.");
     }
 #if GF_PROGRESSIVE

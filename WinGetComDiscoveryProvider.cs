@@ -8,12 +8,17 @@ internal interface IWinGetInstalledCatalog
 {
     Task<IReadOnlyList<ProviderInstallation>> ReadAsync(CancellationToken token);
 }
+internal sealed class WinGetCatalogUnavailableException(string status) : IOException("Leitura COM indisponivel.")
+{ internal string Status { get; }=status; }
 
 // Typed COM lives in a short-lived copy of our own process. A hung native API
 // cannot strand UI threads. Only this read-only child can be terminated.
 internal sealed class WinGetComProcessCatalog : IWinGetInstalledCatalog
 {
     internal const string Argument = "--gf-winget-read-only";
+    internal static string FailureStatus(int exit)=>exit switch
+    { 3=>"elevated_context_refused",4=>"com_connection_failed",5=>"com_activation_failed",
+      6=>"com_class_unregistered",7=>"com_access_denied",_=>"reader_protocol_failed" };
     public async Task<IReadOnlyList<ProviderInstallation>> ReadAsync(CancellationToken token)
     {
         if (!OperatingSystem.IsWindows()) return [];
@@ -33,7 +38,7 @@ internal sealed class WinGetComProcessCatalog : IWinGetInstalledCatalog
             var output = ReadBoundedAsync(process.StandardOutput, 4 * 1024 * 1024, token);
             var error = ReadBoundedAsync(process.StandardError, 4096, token);
             await Task.WhenAll(output, error, process.WaitForExitAsync(token));
-            if (process.ExitCode != 0) throw new IOException("COM unavailable");
+            if (process.ExitCode != 0) throw new WinGetCatalogUnavailableException(FailureStatus(process.ExitCode));
             return JsonSerializer.Deserialize<ProviderInstallation[]>(await output,
                 new JsonSerializerOptions { MaxDepth = 12 }) ?? throw new InvalidDataException("Empty protocol");
         }
@@ -59,7 +64,10 @@ internal sealed class WinGetComDiscoveryProvider(IWinGetInstalledCatalog catalog
         ProviderCapabilities.AssociateIdentities, TimeSpan.FromSeconds(10));
     public async Task<ApplicationProviderResult> DiscoverAsync(ProviderQuery query, CancellationToken token)
     {
-        var rows = await catalog.ReadAsync(token);
+        IReadOnlyList<ProviderInstallation> rows;
+        try { rows = await catalog.ReadAsync(token); }
+        catch(WinGetCatalogUnavailableException ex)
+        { token.ThrowIfCancellationRequested();return new("winget",ex.Status,[]); }
         token.ThrowIfCancellationRequested();
         return new("winget", OperatingSystem.IsWindows() || rows.Count > 0 ? "ok" : "unavailable", rows);
     }

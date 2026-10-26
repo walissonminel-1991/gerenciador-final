@@ -22,7 +22,8 @@ try {
         Write-Host "WORK16.COM estado=ok entradas=$($rows.Count) execucao_mutavel=0"
     } elseif ($process.ExitCode -eq 3) {
         Write-Host 'WORK16.COM estado=contexto_elevado_recusado homologacao_api=pendente execucao_mutavel=0'
-    } elseif ($process.ExitCode -in 4,5) {
-        Write-Host 'WORK16.COM estado=api_indisponivel homologacao_api=pendente execucao_mutavel=0'
+    } elseif ($process.ExitCode -in 4,5,6,7) {
+        $reason = @{4='com_connection_failed';5='com_activation_failed';6='com_class_unregistered';7='com_access_denied'}[$process.ExitCode]
+        Write-Host "WORK18.COM estado=$reason homologacao_api=pendente execucao_mutavel=0"
     } else { throw "Falha inesperada no protocolo do leitor: $($process.ExitCode)" }
 } finally { $process.Dispose() }
