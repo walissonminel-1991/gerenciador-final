@@ -68,6 +68,16 @@ Cobertura significativa: migração v1 sem perda de referência; vencimento na f
 
 Não foram executados testes remotos com o receptor, Issues de dados, credenciais reais, dispositivos pessoais, AVG ou hardware físico. O host local não possui .NET; os testes WinForms/.NET dependem da CI Windows. Não foram alterados checkpoints do roadmap.
 
+## Evidência da CI Windows do código final
+
+Código funcional validado: `ced288eb52e1c1b4d8f98483666778d60243e51c`. PR de revisão: [#62](https://github.com/walissonminel-1991/gerenciador-final/pull/62), destinada à branch BETA; continua Draft e sem merge. Esta atualização posterior do relatório é apenas documental.
+
+Na execução [40360801116](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40360801116), o job [Regressões Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40360801116/job/121705555785) terminou **success**: compilação da aplicação, **70/70 testes Node**, **36/36 mutações incorretas rejeitadas**, layout, inventário e consentimento aprovados. Políticas de segurança e testes de drivers nos dois runners também terminaram com sucesso.
+
+**A CI geral não está aprovada.** O job preexistente de integridade dos instaladores falhou ao verificar VLC: o redirecionamento HTTPS do distribuidor conduziu a um espelho HTTP e o teste recusou seguir (`Redirect nao autorizado`, `TestesAtualizador/Program.cs:39`). Uma única reexecução confirmou o mesmo problema com outro espelho HTTP; [evidência da segunda tentativa](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40360801116/job/121711314136). Nenhuma regra de HTTPS, assinatura, identidade ou hash foi relaxada para aprovar a execução. O empacotamento x64 ficou **skipped** por dependência desse gate; não foi produzido pacote aprovado nesta missão.
+
+Essa falha está em fonte externa de um fluxo que não foi alterado pela auditoria de retenção. Requer investigação separada do caminho oficial de download, mantendo as proteções, antes de aprovar o empacotamento da BETA. Não classificar os testes da retenção como falhos nem declarar CI integral verde. Commits posteriores exclusivamente documentais não substituem essa evidência de código.
+
 ## Riscos residuais e próximos passos
 
 1. Revisar a PR filha, a migração e os resultados da CI antes de integrar à branch BETA. Não fazer merge nesta missão.
