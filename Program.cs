@@ -636,7 +636,7 @@ internal sealed partial class MainForm : Form
         _updateOperations = new(DiagnosticTrace.Write, _reliability.RecordUpdate);
         _uninstallOperations = new(_reliability.RecordUninstall);
         FormClosed += (_, _) => _reliability.Dispose();
-        Text = "Gerenciador Final — " + DiagnosticTrace.VersionLabel + " TESTE";
+        Text = "Gerenciador Final — " + DiagnosticTrace.VersionLabel + " BETA";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -759,9 +759,8 @@ internal sealed partial class MainForm : Form
             displayUpdate.Stop();
             displayUpdate.Dispose();
             _log.FlushPending();
-            // Um unico arquivo rotativo, apenas se o usuario aceitou.
-            // Nao ha envio nem espera de rede no encerramento nesta versao.
-            AnonymousTelemetryContext.Current?.SaveOnNormalExit(DiagnosticTrace.VersionLabel);
+            if (AnonymousTelemetryContext.Current?.Consent != TelemetryConsent.RemoteBeta)
+                AnonymousTelemetryContext.Current?.SaveOnNormalExit(DiagnosticTrace.VersionLabel);
         };
         FitWorkspace();
         // Abre imediatamente. Primeiro carrega a lista local e depois inicia consultas independentes,
@@ -781,7 +780,7 @@ internal sealed partial class MainForm : Form
             }
             if (!startServices) return;
             LocalPerformanceMetrics.CompleteStartup();
-            Log("Métricas agregadas de tempo, RAM e CPU do GF ficam apenas no diagnóstico local; nenhum envio remoto.");
+            Log("BETA: somente contagens técnicas são elegíveis a envio com consentimento.");
             // Nao abrir dialogos na sessao que iniciou oculta na bandeja.
             if (!startInTray) OfferAnonymousDiagnosticConsent(firstRun: true);
             // Na abertura, a lista ainda esta vazia: nao animar barra de
@@ -848,6 +847,23 @@ internal sealed partial class MainForm : Form
             MessageBox.Show(this, "Aguarde a operação atual terminar antes de fechar o gerenciador.",
                 "Operação em andamento", MessageBoxButtons.OK, MessageBoxIcon.Information);
         };
+#if GF_BETA
+        bool betaCloseComplete = false;
+        FormClosing += async (_, e) =>
+        {
+            if (e.Cancel || betaCloseComplete || e.CloseReason == CloseReason.WindowsShutDown) return;
+            var recorder = AnonymousTelemetryContext.Current;
+            if (recorder?.Consent != TelemetryConsent.RemoteBeta || !BetaTelemetryUploader.IsConfigured) return;
+            e.Cancel = true;
+            recorder.SaveOnNormalExit(DiagnosticTrace.VersionLabel);
+            try { await BetaTelemetryUploader.TrySendAsync(recorder); }
+            finally
+            {
+                betaCloseComplete = true;
+                if (!IsDisposed && IsHandleCreated) BeginInvoke((Action)(() => Close()));
+            }
+        };
+#endif
         Log("Gerenciador Final iniciado. Operações e andamento ficam integrados à janela principal.");
         Log("DIAGNÓSTICO DE TESTE: arquivo confirmado em " + DiagnosticTrace.LogFilePath);
     }
@@ -857,7 +873,7 @@ internal sealed partial class MainForm : Form
         var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Margin = Padding.Empty };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 5));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 186));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         panel.Controls.Add(new Panel
@@ -878,6 +894,7 @@ internal sealed partial class MainForm : Form
             ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft,
             AutoEllipsis = true
         }, 1, 1);
+#if !GF_BETA
         _privacyStatusButton = CreateSecondaryButton("Configurar privacidade");
         _privacyStatusButton.Name = "PrivacyStatusButton";
         _privacyStatusButton.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
@@ -887,6 +904,7 @@ internal sealed partial class MainForm : Form
         panel.Controls.Add(_privacyStatusButton, 2, 0);
         panel.SetRowSpan(_privacyStatusButton, 2);
         RefreshPrivacyStatus();
+#endif
         return panel;
     }
 
@@ -1728,13 +1746,14 @@ internal sealed partial class MainForm : Form
         var modePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         modePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 175));
+        modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         _cleanupPreview.Text = "Ative antes das consultas; repita as etapas.";
         _cleanupPreview.Dock = DockStyle.Fill;
         _cleanupPreview.ForeColor = Muted;
         _cleanupPreview.TextAlign = ContentAlignment.MiddleLeft;
         _cleanupPreview.AutoEllipsis = true;
         modePanel.Controls.Add(_cleanupPreview, 0, 0);
+#if !GF_BETA
         var testMode = new ComboBox
         {
             Name = "TestDiagnosticProfile", Dock = DockStyle.Fill,
@@ -1761,6 +1780,7 @@ internal sealed partial class MainForm : Form
         _toolTips.SetToolTip(testMode, "Escolha o PC para comparar testes. Nada é enviado; " +
             "sem caminhos, nomes de programas ou IDs. Inspeciona presença do App Installer/alias/PATH sem executar WinGet. Volta ao padrão ao fechar.");
         modePanel.Controls.Add(testMode, 1, 0);
+#endif
         previewRow.Controls.Add(modePanel, 2, 0);
         root.Controls.Add(previewRow, 0, 1);
         _diskSummary.Text = "Consulte o espaço livre e ocupado das unidades locais.";

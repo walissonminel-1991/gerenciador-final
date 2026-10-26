@@ -11,7 +11,8 @@
     <ApplicationIcon>Assets\GerenciadorFinal.ico</ApplicationIcon>
     <AssemblyName>GerenciadorFinal</AssemblyName>
     <RootNamespace>GerenciadorAplicativos</RootNamespace>
-    <Version>5.13.11.65</Version>
+    <Version>5.13.11.66</Version>
+    <DefineConstants>$(DefineConstants);GF_BETA</DefineConstants>
     <Title>Gerenciador Final</Title>
     <Description>Gerenciador Final: atualizações, diagnóstico e manutenção do Windows.</Description>
     <PublishSingleFile>false</PublishSingleFile>
@@ -56,6 +57,13 @@
   <ItemGroup>
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
     <PackageReference Include="Microsoft.WindowsPackageManager.ComInterop" Version="1.29.380" GeneratePathProperty="true" />
+  </ItemGroup>
+  <!-- Somente URL do endpoint: nunca token privado no aplicativo. -->
+  <ItemGroup Condition="'$(GfBetaEndpoint)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>GfBetaEndpoint</_Parameter1>
+      <_Parameter2>$(GfBetaEndpoint)</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>
 

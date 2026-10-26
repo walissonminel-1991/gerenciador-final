@@ -44,6 +44,15 @@ internal sealed class TelemetryPrivacyDialog : Form
                    "não limita o uso do programa.\n\n" +
                    "Você pode simular sem aceitar a coleta."
         };
+#if GF_BETA
+        notice.Text = "VERSÃO BETA — participação opcional.\n\n" +
+            "Com sua autorização, o GF envia automaticamente no fechamento apenas " +
+            "versão, tipo de encerramento e contagens técnicas da lista permitida. " +
+            "Não envia logs brutos, lista de programas, nomes, arquivos, caminhos, credenciais ou ID do PC.\n\n" +
+            "A recepção é privada via HTTPS; só agregados revisados podem chegar ao GitHub privado. " +
+            "Metadados de rede, como IP, podem ser processados pelo provedor. " +
+            "Revogue em Bandeja > Privacidade e diagnóstico.";
+#endif
         root.Controls.Add(notice, 0, 0);
 
         var preview = new DarkLogView
@@ -75,6 +84,11 @@ internal sealed class TelemetryPrivacyDialog : Form
             Size = new Size(115, 34), BackColor = AppServices.Blue,
             ForeColor = Color.White, Margin = new Padding(6, 0, 0, 0)
         };
+#if GF_BETA
+        accept.Text = "Aceito envio automático";
+        accept.Enabled = BetaTelemetryUploader.IsConfigured;
+        if (!accept.Enabled) notice.Text += "\n\nSem receptor aprovado: o envio fica bloqueado.";
+#endif
         var decline = new ModernButton
         {
             Text = "Não participar / Desativar", DialogResult = DialogResult.No,
@@ -157,14 +171,14 @@ internal sealed partial class MainForm
     {
         var collector = AnonymousTelemetryContext.Current;
         if (collector is null || IsDisposed ||
-            (firstRun && collector.Consent != TelemetryConsent.NotAsked))
+            (firstRun && collector.Consent is TelemetryConsent.Declined or TelemetryConsent.RemoteBeta))
             return;
         using var dialog = new TelemetryPrivacyDialog(collector);
         var decision = dialog.ShowDialog(this);
         if (decision is not (DialogResult.Yes or DialogResult.No)) return;
 
         var choice = decision == DialogResult.Yes
-            ? TelemetryConsent.LocalOnly : TelemetryConsent.Declined;
+            ? TelemetryConsent.RemoteBeta : TelemetryConsent.Declined;
         bool saved = collector.SetConsent(choice);
         RefreshPrivacyStatus();
         if (!saved)
@@ -174,8 +188,8 @@ internal sealed partial class MainForm
                 : "Não foi possível salvar a preferência. A escolha anterior foi mantida.");
             return;
         }
-        Status(choice == TelemetryConsent.LocalOnly
-            ? "Diagnóstico local voluntário ativo. Nenhum dado é enviado pela internet."
+        Status(choice == TelemetryConsent.RemoteBeta
+            ? "BETA: envio de contagens autorizado ao fechar; revogável na bandeja."
             : "Diagnóstico colaborativo desativado; dados pendentes apagados.");
     }
 }
