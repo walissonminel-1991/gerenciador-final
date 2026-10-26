@@ -1,0 +1,470 @@
+{
+  "baseline": "28beb9607e85d208af4c0864d768a6db7fb5296a",
+  "candidate": "54a90d34b00e71a4582719d53b7cfe31c30edd72",
+  "sample_kind": "28 inert MSI/WiX/NSIS/Inno fixtures; pre-payload eligibility only",
+  "before": [
+    {
+      "id": "control_nsis",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "control_inno",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "control_msi",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "control_wix",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "control_interactive",
+      "expected_action": "Acompanhar",
+      "action": "Acompanhar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "msi_scope_machine",
+      "expected_action": "Atualizar",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "msi_scope_user",
+      "expected_action": "Atualizar",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "wix_scope_machine",
+      "expected_action": "Atualizar",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "wix_scope_user",
+      "expected_action": "Atualizar",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "nsis_supervised_fallback",
+      "expected_action": "Acompanhar",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "inno_supervised_fallback",
+      "expected_action": "Acompanhar",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "msi_supervised_fallback",
+      "expected_action": "Acompanhar",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "wix_supervised_fallback",
+      "expected_action": "Acompanhar",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_architecture",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "explicit_wrong_scope",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "nsis_scope_missing",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "inno_scope_missing",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "unsupported_silent_only",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "unsupported_silent_unspecified",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "custom_command",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "custom_inno",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "location_command",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "repair_command",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "dependencies",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "remove_previous",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "ambiguous_installer",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "http",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "hash_missing",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    }
+  ],
+  "after": [
+    {
+      "id": "control_nsis",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "control_inno",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "control_msi",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "control_wix",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "control_interactive",
+      "expected_action": "Acompanhar",
+      "action": "Acompanhar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "msi_scope_machine",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "msi_scope_user",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "wix_scope_machine",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "wix_scope_user",
+      "expected_action": "Atualizar",
+      "action": "Atualizar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "nsis_supervised_fallback",
+      "expected_action": "Acompanhar",
+      "action": "Acompanhar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "inno_supervised_fallback",
+      "expected_action": "Acompanhar",
+      "action": "Acompanhar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "msi_supervised_fallback",
+      "expected_action": "Acompanhar",
+      "action": "Acompanhar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "wix_supervised_fallback",
+      "expected_action": "Acompanhar",
+      "action": "Acompanhar",
+      "contract_selected": true,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "wrong_architecture",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "explicit_wrong_scope",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "nsis_scope_missing",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "inno_scope_missing",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "unsupported_silent_only",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "unsupported_silent_unspecified",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "custom_command",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "custom_inno",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "location_command",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "repair_command",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "dependencies",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "remove_previous",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "ambiguous_installer",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "http",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    },
+    {
+      "id": "hash_missing",
+      "expected_action": "none",
+      "action": "none",
+      "contract_selected": false,
+      "installation_corroborated": true,
+      "payload_authorized": false
+    }
+  ],
+  "additional_scenarios": [
+    "msi_scope_machine",
+    "msi_scope_user",
+    "wix_scope_machine",
+    "wix_scope_user",
+    "nsis_supervised_fallback",
+    "inno_supervised_fallback",
+    "msi_supervised_fallback",
+    "wix_supervised_fallback"
+  ],
+  "payloads_authorized": 0,
+  "third_party_operations": 0,
+  "physical_homologations": 0
+}

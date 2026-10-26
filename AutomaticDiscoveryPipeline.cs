@@ -36,10 +36,14 @@ internal static class AutomaticDiscoveryPipeline
         var findings=new List<OfficialRelease>();
         var plans=new List<(ProgramEntry,AutomaticAppInstallation,AutomaticInstaller)>();
         var counts=new Dictionary<string,int>(StringComparer.Ordinal);
-        void Count(string code)=>counts[code]=counts.GetValueOrDefault(code)+1;
+        var assessments=new Dictionary<string,string>(StringComparer.Ordinal);
+        string? activeBinding=null;
+        void Count(string code)
+        { counts[code]=counts.GetValueOrDefault(code)+1; if(activeBinding is not null)assessments[activeBinding]=code; }
         int inspected=0;bool partial=false;
         for(int i=0;i<apps.Length;i++)
         {
+            activeBinding=AutomaticAppInstallation.Binding(apps[i]);
             userToken.ThrowIfCancellationRequested();
             if(budgetToken.IsCancellationRequested){Count("budget_exhausted");partial=true;break;}
             var app=apps[i];CatalogManifestReference? latest=null;int advisory=-1;
@@ -77,19 +81,28 @@ internal static class AutomaticDiscoveryPipeline
                 if(installation is null){Count(reason);continue;}
                 if(!installation.Current(apps)){Count("installation_changed_or_shared");continue;}
                 var bytes=await source.ManifestAsync(latest,budgetToken);
-                var installer=AutomaticPackageManifest.Select(bytes,latest,installation.Architecture,installation.Scope,installation.Kind);
-                if(installer is null || (installation.Kind=="msi"?installer.Type is not ("msi" or "wix"):installer.Type!=installation.Kind) ||
+                var installer=AutomaticPackageManifest.SelectWithReason(bytes,latest,installation.Architecture,installation.Scope,installation.Kind,out var manifestReason);
+                if(installer is null){Count(manifestReason);continue;}
+                if((installation.Kind=="msi"?installer.Type is not ("msi" or "wix"):installer.Type!=installation.Kind) ||
                     !InstallerEngineEvidence.SameProduct(installer.Name,installation.BinaryProduct) ||
                     Matching.NormalizePublisher(installer.Publisher)!=Matching.NormalizePublisher(installation.Publisher) ||
                     installer.ProductCode.Length>0 && installation.Kind!="msi" &&
                         !installer.ProductCode.Equals(app.InventoryId.Split('|').Last(),StringComparison.OrdinalIgnoreCase))
                 {Count("manifest_not_eligible");continue;}
+                // New MSI routes also require the installed cache, signer and
+                // UpgradeCode-family uniqueness before a permit can be issued.
+                if(installer.RequiresMsiIdentity && !installation.HasCatalogIdentity)
+                {
+                    installation=AutomaticAppInstallation.ReadByCatalogIdentity(app,latest.Name,out reason);
+                    if(installation is null){Count(reason);continue;}
+                    if(!installation.Current(apps)){Count("installation_changed_or_shared");continue;}
+                }
                 budgetToken.ThrowIfCancellationRequested();userToken.ThrowIfCancellationRequested();
                 findings[advisory]=new(identities[i],installer.Version,"Catalogo Microsoft HTTPS","https://github.com/microsoft/winget-pkgs",
                     "automatic-manifest","",DateTimeOffset.UtcNow,installation.Architecture,"stable",installation.Scope,
                     installer.Type,EvidenceKind:"authenticated-installer-manifest");
                 plans.Add((app,installation,installer));
-                Count(installation.HasCatalogIdentity?"msi_catalog_identity_plan":installer.Interactive?"supervised_plan":"silent_plan");
+                Count(installer.ScopeFromPayload?"msi_scope_payload_required":installation.HasCatalogIdentity?"msi_catalog_identity_plan":installer.Interactive?"supervised_plan":"silent_plan");
             }
             catch(OperationCanceledException)when(userToken.IsCancellationRequested){throw;}
             catch(OperationCanceledException)when(budgetToken.IsCancellationRequested)
@@ -101,6 +114,7 @@ internal static class AutomaticDiscoveryPipeline
         }
         userToken.ThrowIfCancellationRequested();
         return new(findings.AsReadOnly(),plans.AsReadOnly(),new("automatic-manifest",partial?"parcial":"ok",clock.ElapsedMilliseconds),
-            new System.Collections.ObjectModel.ReadOnlyDictionary<string,int>(counts));
+            new System.Collections.ObjectModel.ReadOnlyDictionary<string,int>(counts),
+            new System.Collections.ObjectModel.ReadOnlyDictionary<string,string>(assessments));
     }
 }

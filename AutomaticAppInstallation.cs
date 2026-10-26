@@ -179,7 +179,8 @@ internal sealed record AutomaticAppInstallation(string Key, string Name, string 
     {
         using var installed=InstallerFileGuard.OpenRead(Binary,allowDirectoryWrites:true);
         return TrustedFileSignature.TryGetSigner(Binary,out var previous,out _) &&
-            TrustedFileSignature.TryGetSigner(file,out var next,out _) && previous.Equals(next,StringComparison.OrdinalIgnoreCase);
+            TrustedFileSignature.TryGetSigner(file,out var next,out _) && previous.Equals(next,StringComparison.OrdinalIgnoreCase) &&
+            Matching.NormalizePublisher(previous)==Matching.NormalizePublisher(Publisher);
     }
     internal bool Current(IEnumerable<ProgramEntry> inventory)
     {

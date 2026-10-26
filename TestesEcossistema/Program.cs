@@ -75,6 +75,13 @@ Check((await new ApplicationProviderCoordinator([forged]).DiscoverAsync(new(), d
 Check(typeof(IApplicationDiscoveryProvider).GetMethods().All(m => !m.Name.Contains("Execute") && !m.Name.Contains("Launch")), "Discovery contract exposes no launcher");
 Check((await new WinGetComDiscoveryProvider(new FixtureWinGet([new(candidate, "local-com")])).DiscoverAsync(new(), default)).Installations.Count == 1,
     "WinGet production adapter consumes typed data without parsing CLI text");
+foreach(var (exit,expected) in new[]{(3,"elevated_context_refused"),(4,"com_connection_failed"),(5,"com_activation_failed"),
+    (6,"com_class_unregistered"),(7,"com_access_denied"),(99,"reader_protocol_failed")})
+{
+    Check(WinGetComProcessCatalog.FailureStatus(exit)==expected,"W18 COM maps fixed status without exception text: "+exit);
+    var unavailable=await new WinGetComDiscoveryProvider(new FailedWinGet(expected)).DiscoverAsync(new(),default);
+    Check(unavailable.Status==expected && unavailable.Installations.Count==0,"W18 COM refusal remains consultative: "+expected);
+}
 
 string root = Path.Combine(Path.GetTempPath(), "GF-W16-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
@@ -131,3 +138,5 @@ internal sealed class FixtureProvider(string id, Func<ProviderQuery, Cancellatio
 }
 internal sealed class FixtureWinGet(IReadOnlyList<ProviderInstallation> rows) : IWinGetInstalledCatalog
 { public Task<IReadOnlyList<ProviderInstallation>> ReadAsync(CancellationToken token) => Task.FromResult(rows); }
+internal sealed class FailedWinGet(string status) : IWinGetInstalledCatalog
+{ public Task<IReadOnlyList<ProviderInstallation>> ReadAsync(CancellationToken token) => throw new WinGetCatalogUnavailableException(status); }

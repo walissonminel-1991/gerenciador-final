@@ -1,9 +1,9 @@
 {
-  "version": "5.13.11.64 TESTE",
+  "version": "5.13.11.65 TESTE",
   "date": "2026-10-25",
-  "code_commit": "5793ce1f5816309902207311bc5c171fe62616fd",
+  "code_commit": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
   "ci_status": "success",
-  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164",
+  "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887",
   "method": "Percentual = checkpoints concluídos / checkpoints listados. Pesos iguais; não mede horas, cobertura universal ou aprovação final. Implementação e testes reais são checkpoints distintos.",
   "sections": [
     {
@@ -338,8 +338,8 @@
       "native_store_partial": true
     }
   },
-  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164",
-  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164",
+  "build_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887",
+  "policy_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887",
   "pc_forte_31_second": "174 programas/27 MSIX, 178 WMI/63 INFs, 45 grupos/164 locais de residuos, 3 atualizacoes. UI mostrou 47 arquivos/pastas limpos e 17 preservados, cleanmgr com codigo 0. .32 registra estes tipos de acao por categorias e contagens locais sem nomes ou caminhos; 26/42.",
   "test_diagnostics": ".33: perfil temporário agrega etapas de cobertura e contexto App Installer/alias/PATH, sem executar WinGet. Teto 160 mantido; três CI aprovadas, teste físico .33 pendente; 26/42.",
   "pc_forte_32": "Validação presencial .32: 174 aplicativos/27 MSIX; 3 candidatas, 8 fontes; 178 associações de driver/63 INFs; 45 grupos/164 locais de resíduos parciais; limpezas auditadas por eventos fixos e contagens (usuario 0 removidos, 30 preservados; Windows Temp e cleanmgr codigo 0); SHEmptyRecycleBin retornou 0x8000FFFF na interface, ainda não instrumentado em diagnóstico. Encerramento normal. Progresso 26/42.",
@@ -372,31 +372,27 @@
     "expires_at": "2026-11-01T21:18:06Z"
   },
   "artifact": {
-    "id": 12618005183,
-    "name": "GerenciadorFinal-v5.13.11.64-5793ce1f-TESTE-win-x64",
-    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183",
-    "source_commit": "5793ce1f5816309902207311bc5c171fe62616fd",
-    "merge_commit": "538c7f7696eddc8a4977fcb6ef940d922cb5447a",
-    "base_commit": "cb7ca5ccd986fd11c768ee410ac7c2b46296e1c1",
-    "zip_sha256": "7d659b35319e2389c6266ef4fcee25e1733f0f5fa9c36558a0e38e66b12919c9",
-    "zip_bytes": 59440421,
-    "expanded_bytes": 152980804,
+    "id": 12621128988,
+    "name": "GerenciadorFinal-v5.13.11.65-e6d92e2f-TESTE-win-x64",
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887/artifacts/12621128988",
+    "source_commit": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
+    "merge_commit": "54a90d34b00e71a4582719d53b7cfe31c30edd72",
+    "base_commit": "28beb9607e85d208af4c0864d768a6db7fb5296a",
+    "zip_sha256": "44af39ede3e30cc88c5ffa42a7ef38ab4931853afb167f717b76a1d5f414ca52",
+    "zip_bytes": 59443637,
+    "expanded_bytes": 152991556,
     "files": 285,
     "verified_hashes": 284,
-    "file_version": "5.13.11.64",
+    "file_version": "5.13.11.65",
     "architecture": "AMD64",
     "self_contained": true,
+    "runtime": "10.0.13",
     "signed": false,
     "avg_validated": false,
-    "verification": "CI Windows obrigatoria aprovada na tentativa 2 por redirect HTTPS de VLC + conferência externa do ZIP, 284 hashes e PE AMD64 (sem executar)",
+    "verification": "CI Windows completa e verificacao independente em extracao limpa do mesmo ZIP; nomes exatos, 284 SHA-256, dependencias, runtime, origem e PE AMD64; nenhum executavel iniciado",
     "external_zip_recheck": "verified",
-    "external_executable_manifest": {
-      "file_version": "5.13.11.64",
-      "machine": "AMD64",
-      "requested_execution_level": "asInvoker",
-      "certificate_bytes": 0
-    },
-    "expires_at": "2026-11-01T22:56:40Z"
+    "native_manifest_activation": "verified_in_windows_ci",
+    "expires_at": "2026-11-02T01:11:38Z"
   },
   "mission_work5": {
     "status": "Código final e três Actions aprovados; ZIP conferido sem executar; testes físicos pendentes",
@@ -471,8 +467,8 @@
     ],
     "progress": "27/42"
   },
-  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183",
-  "artifact_name": "GerenciadorFinal-v5.13.11.64-5793ce1f-TESTE-win-x64",
+  "artifact_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887/artifacts/12621128988",
+  "artifact_name": "GerenciadorFinal-v5.13.11.65-e6d92e2f-TESTE-win-x64",
   "historical_artifact_work5": {
     "id": 12388392363,
     "name": "GerenciadorFinal-v5.13.11.33-4ea9f4b3-TESTE-win-x64",
@@ -815,31 +811,31 @@
     }
   },
   "candidate": {
-    "version": "5.13.11.64 TESTE",
+    "version": "5.13.11.65 TESTE",
     "status": "approved",
-    "mission": "INTEGRACAO-LOTE4-WORK17",
-    "report": "docs/MISSAO-INTEGRACAO.md",
+    "mission": "WORK18",
+    "report": "docs/MISSAO-WORK18.md",
     "physical_validation": "pending",
     "winget_execution_enabled": false,
-    "scope": "Lotes 1–4 e WORK14–WORK17 cumulativos em branch isolada; validação técnica CI Windows aprovada, homologação física pendente",
+    "scope": "MSI/WiX com cache/assinante/familia e contexto nativo; acompanhamento NSIS/Inno/MSI/WiX; CI aprovada, homologacao fisica pendente",
     "package_verified_by_ci": true,
     "package_verified_independently": true,
-    "code_commit": "5793ce1f5816309902207311bc5c171fe62616fd",
-    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164",
+    "code_commit": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887",
     "validation": {
-      "updates": 318,
-      "mutations_rejected": 30,
-      "drivers_windows": [
-        "windows-2022",
-        "windows-2025"
-      ],
-      "policy": "success",
-      "external_installer_check": "success after secure HTTPS redirect retry",
-      "package_files": 285,
-      "package_hashes": 284,
-      "physical_validation": "pending"
-    },
-    "work17_consultative_com": true
+      "work18_assertions": 145,
+      "updater_suite": 368,
+      "residual_uninstall_suite": 707,
+      "multisource_suite": 159,
+      "catalog_suite": 17,
+      "msix_suite": 47,
+      "shutdown_suite": 30,
+      "ecosystem_suite": 54,
+      "mutations_rejected": 36,
+      "new_mutations": 6,
+      "work18_ui_combinations": 8,
+      "python_policy_distribution_checks": 41
+    }
   },
   "lote2_drivers_read_only": {
     "base_commit": "7405d83f308a141d2a7f6c68cc5a5dee4a19067c",
@@ -991,5 +987,93 @@
       "certificate_bytes": 0
     },
     "expires_at": "2026-11-01T21:18:06Z"
+  },
+  "integration_approved_before_work18": {
+    "version": "5.13.11.64 TESTE",
+    "code_commit": "5793ce1f5816309902207311bc5c171fe62616fd",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164",
+    "artifact": {
+      "id": 12618005183,
+      "name": "GerenciadorFinal-v5.13.11.64-5793ce1f-TESTE-win-x64",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183",
+      "source_commit": "5793ce1f5816309902207311bc5c171fe62616fd",
+      "merge_commit": "538c7f7696eddc8a4977fcb6ef940d922cb5447a",
+      "base_commit": "cb7ca5ccd986fd11c768ee410ac7c2b46296e1c1",
+      "zip_sha256": "7d659b35319e2389c6266ef4fcee25e1733f0f5fa9c36558a0e38e66b12919c9",
+      "zip_bytes": 59440421,
+      "expanded_bytes": 152980804,
+      "files": 285,
+      "verified_hashes": 284,
+      "file_version": "5.13.11.64",
+      "architecture": "AMD64",
+      "self_contained": true,
+      "signed": false,
+      "avg_validated": false,
+      "verification": "CI Windows obrigatoria aprovada na tentativa 2 por redirect HTTPS de VLC + conferência externa do ZIP, 284 hashes e PE AMD64 (sem executar)",
+      "external_zip_recheck": "verified",
+      "external_executable_manifest": {
+        "file_version": "5.13.11.64",
+        "machine": "AMD64",
+        "requested_execution_level": "asInvoker",
+        "certificate_bytes": 0
+      },
+      "expires_at": "2026-11-01T22:56:40Z"
+    }
+  },
+  "work18": {
+    "mission": "WORK18",
+    "version": "5.13.11.65 TESTE",
+    "pull_request": "https://github.com/walissonminel-1991/gerenciador-final/pull/60",
+    "code_commit": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
+    "build_commit": "54a90d34b00e71a4582719d53b7cfe31c30edd72",
+    "base_commit": "28beb9607e85d208af4c0864d768a6db7fb5296a",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887",
+    "ci_status": "success",
+    "ci_attempt": 1,
+    "validation": {
+      "work18_assertions": 145,
+      "updater_suite": 368,
+      "residual_uninstall_suite": 707,
+      "multisource_suite": 159,
+      "catalog_suite": 17,
+      "msix_suite": 47,
+      "shutdown_suite": 30,
+      "ecosystem_suite": 54,
+      "mutations_rejected": 36,
+      "new_mutations": 6,
+      "work18_ui_combinations": 8,
+      "python_policy_distribution_checks": 41
+    },
+    "coverage": {
+      "baseline": "28beb9607e85d208af4c0864d768a6db7fb5296a",
+      "sample_size": 28,
+      "eligible_before_payload_before": 5,
+      "eligible_before_payload_after": 13,
+      "additional_update_scenarios": 4,
+      "additional_supervised_scenarios": 4,
+      "negative_controls": 15,
+      "physical_after_measurement": false,
+      "fixture_payloads_authorized": 0
+    },
+    "roadmap": {
+      "done": 27,
+      "total": 42,
+      "U8": false,
+      "R7": false,
+      "R4": false,
+      "physical_homologation": "pending"
+    },
+    "prior_runs": [
+      {
+        "id": 40251285347,
+        "status": "cancelled",
+        "reason": "new source commit"
+      },
+      {
+        "id": 40251794671,
+        "status": "cancelled",
+        "reason": "new UI correction; prior official VLC redirect returned HTTP 500; no verification relaxed; final run succeeded"
+      }
+    ]
   }
 }

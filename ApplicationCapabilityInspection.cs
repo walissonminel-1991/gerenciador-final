@@ -48,8 +48,12 @@ internal static class ApplicationCapabilityInspection
                     var recipe = VerifiedUpdaters.Resolve(app);
                     update = recipe is { Interactive: false } && VerifiedUpdaters.SingleSafeSilentInstallation(recipe, app, apps);
                     supervised = recipe is { Interactive: true } && VerifiedUpdaters.SingleSafeSilentInstallation(recipe, app, apps);
-                    if (!update && app.IsUpdate && !app.UpdateRequiresReview)
-                        updateReason = AutomaticAppInstallation.Read(app, out string detail) is null ? detail : "manifest_not_authorized";
+                    if (!update && !supervised && app.IsUpdate && !app.UpdateRequiresReview)
+                    {
+                        string discovered=AutomaticUpdateDiscovery.AssessmentReason(app);
+                        updateReason = discovered.Length>0 ? discovered :
+                            AutomaticAppInstallation.Read(app, out string detail) is null ? detail : "manifest_not_authorized";
+                    }
                 }
                 catch (Exception ex) when (IntegratedResidualCleanup.Expected(ex)) { }
                 try

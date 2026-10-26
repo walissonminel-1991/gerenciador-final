@@ -62,7 +62,7 @@ internal sealed partial class MainForm
         }
         catch (TimeoutException)
         {
-            if (!IsDisposed) Log("Contexto WinGet não concluído no prazo; provedor continua desativado.");
+            if (!IsDisposed) Log("Contexto WinGet não concluído no prazo; catálogo Microsoft HTTPS continua disponível para consulta.");
         }
 
     }
