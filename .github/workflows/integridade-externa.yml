@@ -1,0 +1,77 @@
+name: Integridade externa dos atualizadores
+
+# Independente da compilacao deterministica da BETA. Uma falha bloqueia a
+# receita externa afetada e e registrada na homologacao; nunca afrouxar TLS,
+# assinatura, hash ou identidade para torna-la verde.
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      verificar_fontes_reais:
+        description: 'Consultar fontes e drivers do runner, somente leitura'
+        type: boolean
+        default: false
+      verificar_downloads:
+        description: 'Baixar e verificar instaladores sem executar'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+concurrency:
+  group: integridade-externa-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  fontes-reais:
+    name: Fontes externas e drivers do runner (somente leitura)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.verificar_fontes_reais }}
+    runs-on: windows-2022
+    timeout-minutes: 15
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: .NET 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
+      - name: Catalogo RuckZuck via HTTPS GET
+        run: dotnet run --project TestesRede/TestesRede.csproj -c Release
+      - name: Fontes oficiais via HTTPS GET
+        run: dotnet run --project TestesMultifontes/TestesMultifontes.csproj -c Release -- --live
+      - name: Drivers do runner sem alteracoes
+        run: dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release -- --live --official-live
+
+  downloads-verificados:
+    name: Integridade dos instaladores oficiais (sem instalacao)
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.verificar_downloads) }}
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: .NET 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
+      - name: Catalogo Microsoft autenticado em isolamento (sem WinGet ou instalacao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-catalog --verify-engine-downloads
+      - name: WORK13 hashes identidade e Authenticode (sem execucao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-work13
+      - name: SumatraPDF x86 e x64 (sem execucao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-sumatra
+      - name: 7-Zip EXE x64 verificado por SHA-256 (sem instalacao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-sevenzip
+      - name: GameInput protegido (sem download ou execucao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work6-authorization
+      - name: Windows Terminal MSIX (sem instalacao)
+        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-terminal

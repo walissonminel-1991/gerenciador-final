@@ -61,6 +61,81 @@ class PacoteTests(unittest.TestCase):
     def test_complete_package(self):
         self.assertEqual(self.check()["verified_hashes"], len(REQUIRED))
 
+    def prepare_beta(self):
+        (self.root / "AVISO-PRIVACIDADE-BETA.md").write_text("Aviso sintetico sem dados pessoais", encoding="utf-8")
+        self.beta_info = {"schema": 1, "version": VERSION, "source_commit": SOURCE, "channel": "BETA",
+            "transport_configured": False, "endpoint": "", "notice_version": "gf-beta-20261026-r3",
+            "notice_sha256": "d" * 64, "reviewed_notice_sha256": "", "distribution": "requires_owner_approval"}
+        self.write_beta()
+
+    def write_beta(self):
+        (self.root / "BETA-BUILD.json").write_text(json.dumps(self.beta_info), encoding="utf-8")
+        self.hashes()
+
+    def check_beta(self):
+        return verify(self.root, VERSION, SOURCE, BUILD, BASE, beta=True)
+
+    def test_beta_requires_explicit_mode_and_exact_pair(self):
+        self.prepare_beta()
+        self.assertEqual(self.check_beta()["verified_hashes"], len(REQUIRED) + 2)
+        with self.assertRaisesRegex(ValueError, "inesperado"):
+            self.check()
+        for name in ("AVISO-PRIVACIDADE-BETA.md", "BETA-BUILD.json"):
+            path = self.root / name
+            content = path.read_bytes()
+            path.unlink()
+            with self.assertRaisesRegex(ValueError, "obrigatorios ausentes"):
+                self.check_beta()
+            path.write_bytes(content)
+
+    def test_beta_does_not_allow_unreviewed_extra_files(self):
+        self.prepare_beta()
+        (self.root / "beta-dados.json").write_text("{}")
+        self.hashes()
+        with self.assertRaisesRegex(ValueError, "inesperado"):
+            self.check_beta()
+
+    def test_beta_metadata_rejects_origin_type_and_extra_fields(self):
+        self.prepare_beta()
+        original = self.beta_info.copy()
+        for key, value in (("source_commit", BUILD), ("version", "0.0.0.1"), ("channel", "TESTE"),
+                           ("schema", True), ("transport_configured", 1), ("notice_sha256", "invalid"),
+                           ("distribution", "approved"), ("extra", "forbidden")):
+            with self.subTest(key=key):
+                self.beta_info = {**original, key: value}
+                self.write_beta()
+                with self.assertRaisesRegex(ValueError, "BETA"):
+                    self.check_beta()
+
+    def test_beta_connected_metadata_requires_https_and_reviewed_notice(self):
+        self.prepare_beta()
+        self.beta_info.update(transport_configured=True, endpoint="https://receiver.invalid/ingest",
+                              reviewed_notice_sha256=self.beta_info["notice_sha256"])
+        self.write_beta()
+        self.check_beta()
+        original = self.beta_info.copy()
+        for key, value in (("reviewed_notice_sha256", "e" * 64), ("endpoint", "http://receiver.invalid/ingest"),
+                           ("endpoint", "https://receiver.invalid/ingest?x=1"),
+                           ("endpoint", "https://preview.workers.dev/ingest"), ("endpoint", "https://127.0.0.1/ingest"),
+                           ("endpoint", "https://user@receiver.invalid/ingest")):
+            with self.subTest(value=value):
+                self.beta_info = {**original, key: value}
+                self.write_beta()
+                with self.assertRaisesRegex(ValueError, "BETA"):
+                    self.check_beta()
+
+    def test_beta_json_duplicates_and_notice_corruption_block_package(self):
+        self.prepare_beta()
+        path = self.root / "BETA-BUILD.json"
+        path.write_text(path.read_text()[:-1] + ', "schema": 1}')
+        self.hashes()
+        with self.assertRaisesRegex(ValueError, "duplicada"):
+            self.check_beta()
+        self.write_beta()
+        (self.root / "AVISO-PRIVACIDADE-BETA.md").write_text("changed without regenerating manifest")
+        with self.assertRaisesRegex(ValueError, "hash divergente"):
+            self.check_beta()
+
     def test_localized_runtime_resources(self):
         path = self.root / "pt-BR/System.Windows.Forms.resources.dll"
         path.parent.mkdir()

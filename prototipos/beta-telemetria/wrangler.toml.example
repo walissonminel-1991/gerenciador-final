@@ -9,24 +9,32 @@ preview_urls = false
 [vars]
 PILOT_ENABLED = "no"
 GITHUB_EXPORT_ENABLED = "no"
-GITHUB_PRIVATE_REPO = "PREENCHER/REPOSITORIO-PRIVADO"
+INGEST_ORIGIN = "PREENCHER_ORIGEM_HTTPS_APROVADA"
+OBSERVABILITY_LOG_ENABLED = "no"
+# Metadata informada pelo proprietario; nao e leitura/comprovacao do secret.
+GITHUB_TOKEN_EXPIRES_AT = "2026-11-25"
+GITHUB_PRIVATE_REPO = "walissonminel-1991/gerenciador-final-beta-agregados"
 [triggers]
-crons = ["0 4 * * *"]
+# Proposta de manutencao horaria, inclusive com ambas flags em no.
+# Alterar este exemplo NAO muda o cron implantado; revisar antes de futuro deploy.
+crons = ["15 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "gf-beta-private"
 database_id = "PREENCHER_ID_D1"
-# Substituir 1001 por um namespace_id positivo e exclusivo da conta.
+# Preencher com o namespace_id EXISTENTE; nao criar/trocar o namespace sem autorizacao.
 # API de rate limiting aproximada por PoP: NAO substitui uma regra WAF.
 [[ratelimits]]
 name = "BETA_RATE_LIMITER"
-namespace_id = "1001"
+namespace_id = "PREENCHER_NAMESPACE_EXISTENTE"
 [ratelimits.simple]
 limit = 6
 period = 60
 
 # Antes de ativar: configurar WAF/rate limit na zona/domínio personalizado,
 # revisar logging/redacao do IP, e validar deploy/D1 de forma controlada.
-# GITHUB_TOKEN deve ser SECRET somente do Worker (issues:write E metadata:read),
-# restrito a um unico repositorio PRIVADO; jamais fazer commit desse segredo.
+# GITHUB_TOKEN deve ser SECRET somente do Worker (issues:write E metadata:read).
+# Exigir ADMIN e, em conta pessoal, PAT do proprietario para deleteIssue; nao ampliar
+# escopos automaticamente. Validar compatibilidade em ambiente descartavel.
+# Credencial restrita a um unico repositorio PRIVADO; jamais versionar o segredo.
 # PILOT_ENABLED permanece "no" ate todos os gates de aprovacao.

@@ -7,6 +7,21 @@ void Verify(bool ok, string message)
     Console.WriteLine("OK " + message);
 }
 
+if (args.Length > 0 && args[0] is "--inspect-beta-build" or "--verify-connected-build")
+{
+    BetaBuildVerifier.Run(args);
+    return;
+}
+
+if (args.Length == 2 && args[0] == "--hold-beta-send-lease")
+{
+    var recorder = new AnonymousTelemetry(args[1]);
+    using var lease = recorder.TryBeginRemoteSend() ?? throw new IOException("synthetic_child_lease");
+    Console.WriteLine("GF_FIXTURE_LEASE_READY");
+    Console.ReadLine();
+    return;
+}
+
 string temp = Path.Combine(Path.GetTempPath(), "gf-telemetry-tests-" + Guid.NewGuid().ToString("N"));
 try
 {
@@ -328,7 +343,8 @@ try
     Verify(beta.SetConsent(TelemetryConsent.Declined) &&
         beta.PendingForRemote() is null && !File.Exists(beta.PendingFile),
         "Revogacao interrompe leitura de pendencia e remove arquivo");
-    // O runner net10.0 valida o gravador sem carregar HTTP/WinForms do produto.
+    await BetaTelemetryTransportTests.Run(temp, Verify);
+    // Gravador e transporte HTTP com handlers sinteticos, sem WinForms ou rede.
     // A ausencia de endpoint e o aceite bloqueado sao testados no TestesLayout
     // (que referencia o executavel real) e pela politica de CI.
     Console.WriteLine("OK: privacidade, retomada, expiracao e falhas de disco; nenhuma rede foi usada.");

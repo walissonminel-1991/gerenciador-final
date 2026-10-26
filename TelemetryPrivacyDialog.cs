@@ -4,8 +4,7 @@ using System.Windows.Forms;
 
 namespace GerenciadorAplicativos;
 
-// A primeira fase nao oferece envio; somente registra preferencia e relatorio
-// local resumido. Uma futura ativacao de rede exigira novo consentimento.
+// Aceite remoto especifico, versionado e bloqueado sem receptor/aviso aprovados.
 internal sealed class TelemetryPrivacyDialog : Form
 {
     internal TelemetryPrivacyDialog(AnonymousTelemetry recorder)
@@ -45,17 +44,7 @@ internal sealed class TelemetryPrivacyDialog : Form
                    "Você pode simular sem aceitar a coleta."
         };
 #if GF_BETA
-        notice.Text = "VERSÃO BETA — participação opcional.\n\n" +
-            "Finalidade: identificar frequências de falhas técnicas para corrigir o GF. " +
-            "Com autorização, ao fechar normalmente o programa pode enviar por HTTPS " +
-            "apenas a versão do GF, o tipo de encerramento e contagens de 14 códigos permitidos. " +
-            "Não envia logs brutos, lista de programas, arquivos, caminhos, credenciais nem ID do PC.\n\n" +
-            "O provedor recebe o IP para entregar a requisição e limitar abusos; " +
-            "não gravamos o IP no banco D1. Resumos ficam até 7 dias no PC e agregados até " +
-            "7 dias no D1. Sínteses por dia e categoria podem ir ao GitHub PRIVADO, " +
-            "com retenção própria descrita na política publicada.\n\n" +
-            "Recusar não restringe funções. Revogue em Bandeja > Privacidade e diagnóstico. " +
-            "A revogação bloqueia novos envios, mas não desfaz resumos já recebidos e agregados.";
+        notice.Text = TelemetryConsentPolicy.RemoteNotice;
         // O aviso ultrapassa uma altura fixa em notebook/DPI alto: permitir rolagem e copia.
         var scrollingNotice = new TextBox
         {
@@ -145,6 +134,30 @@ internal sealed class TelemetryPrivacyDialog : Form
         Controls.Add(root);
         CancelButton = cancel;
         // Nao definir AcceptButton. Enter nao pode aprovar coleta por acidente.
+    }
+
+    internal void FitPrivacyArea(Size available, int dpi)
+    {
+        float scale = Math.Max(1, dpi) / 96f;
+        MinimumSize = Size.Empty;
+        MaximumSize = Size.Empty;
+        Size border = new(Width - ClientSize.Width, Height - ClientSize.Height);
+        ClientSize = new Size(Math.Max(1, Math.Min((int)(586 * scale), available.Width - border.Width - 24)),
+            Math.Max(1, Math.Min((int)(505 * scale), available.Height - border.Height - 24)));
+        var root = Controls.OfType<TableLayoutPanel>().Single();
+        float buttons = 90 * scale;
+        root.RowStyles[2].Height = buttons;
+        root.RowStyles[0].Height = Math.Min(207 * scale,
+            Math.Max(48 * scale, ClientSize.Height - root.Padding.Vertical - buttons - 50 * scale));
+        root.PerformLayout();
+        MinimumSize = Size;
+        MaximumSize = Size;
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        FitPrivacyArea(Screen.FromControl(Owner ?? this).WorkingArea.Size, DeviceDpi);
     }
 
     protected override void OnHandleCreated(EventArgs e)

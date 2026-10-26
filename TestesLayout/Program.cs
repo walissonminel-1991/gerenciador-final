@@ -20,6 +20,7 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
+        if (args.Contains("--beta-close")) { BetaCloseTests.Run(); return; }
         if (args.Contains("--lote4")) { Lote4LayoutTests.Run(); return; }
         if (args.Contains("--work18")) { Work18UpdateUiTests.Run(); return; }
         if (args.Contains("--lote3")) { Lote3LayoutTests.Run(); return; }
@@ -148,6 +149,29 @@ internal static class LayoutTests
                 throw new Exception("Simulacao aprovou ou recusou consentimento sem autorizacao.");
             privacy.Close();
         }
+        foreach (var area in new[] { new Size(1280,720),new Size(1440,900),new Size(2560,1440) })
+        foreach (int dpi in new[] {96,144,192})
+        {
+            using var dialog = new TelemetryPrivacyDialog(dryRunRecorder);
+            dialog.Show();
+            dialog.Font = new Font("Segoe UI",9.5f*dpi/96f);
+            dialog.FitPrivacyArea(area,dpi);
+            dialog.PerformLayout();
+            Application.DoEvents();
+            if(dialog.Width>area.Width || dialog.Height>area.Height)
+                throw new Exception($"Aviso de privacidade fora da area {area}, DPI {dpi}.");
+            foreach(var button in Descendants(dialog).OfType<Button>())
+            {
+                var bounds=dialog.RectangleToClient(button.RectangleToScreen(button.ClientRectangle));
+                if(!dialog.ClientRectangle.Contains(bounds) || button.ClientSize.Height<TextRenderer.MeasureText(button.Text,button.Font).Height)
+                    throw new Exception($"Botao de privacidade cortado em {area}, DPI {dpi}.");
+            }
+            var notice=Descendants(dialog).OfType<TextBox>().Single(c=>c.Name=="PrivacyBetaNotice");
+            if(notice.ScrollBars!=ScrollBars.Vertical || !notice.ReadOnly || notice.ClientSize.Height<40)
+                throw new Exception("Aviso precisa preservar rolagem/leitura em area pequena.");
+            dialog.Close();
+        }
+        Console.WriteLine("OK R2: aviso de privacidade em viewports 720p/900p/1440p e escala simulada 100/150/200%; DPI fisico ainda depende de homologacao.");
         if (PrivacyConsentPresentation.ButtonLabel(TelemetryConsent.LocalOnly) != "Coleta local ativa" ||
             PrivacyConsentPresentation.ButtonLabel(TelemetryConsent.Declined) != "Coleta desativada" ||
             !PrivacyConsentPresentation.Explanation(TelemetryConsent.LocalOnly)

@@ -69,6 +69,27 @@ internal static class InstallerFileGuard
         catch { handle?.Dispose(); parents.Dispose(); throw; }
     }
 
+    // Lock vazio, fixo e local: nenhum identificador de pessoa ou sessao.
+    // Share=0 arbitra inclusive processos diferentes; o SO libera apos crash.
+    // OPEN_REPARSE_POINT + ancestrais presos recusam links, sem alterar ACL.
+    internal static FileStream OpenCoordinationLock(string path)
+    {
+        string full = ValidateLocalPath(path);
+        var parents = PinDirectory(Path.GetDirectoryName(full)!, allowLeafWrites: true);
+        SafeFileHandle? handle = null;
+        try
+        {
+            handle = CreateFileW(full, 0x80000000, 0, IntPtr.Zero, 4, 0x00200000, IntPtr.Zero);
+            CheckHandle(handle, directory: false);
+            var stream = new PinnedStream(handle, parents);
+            handle = null;
+            if (stream.Length == 0) return stream;
+            stream.Dispose();
+            throw new InvalidDataException("Lock de privacidade invalido.");
+        }
+        catch { handle?.Dispose(); parents.Dispose(); throw; }
+    }
+
     internal static void MarkResidualForDeletion(FileStream held)
         => MarkResidualForDeletion(held.SafeFileHandle);
 
