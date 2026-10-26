@@ -1,6 +1,6 @@
 import { boundedText, expiresForDay, issueContent, managedDay, matchesObligation, secondsPerDay } from "./policy.mjs";
 
-const repositoryFields = "id isPrivate viewerPermission";
+const repositoryFields = "id isPrivate viewerPermission owner { id __typename }";
 const issueFields = "id number title body author { ... on User { id } ... on Bot { id } }";
 const repoQuery = `query Repository($owner:String!,$name:String!) {
   viewer { id }
@@ -103,9 +103,13 @@ class GitHub {
   }
 }
 
-function checkRepository(repo, expectedId) {
+function checkRepository(repo, expectedId, actorId) {
   if (!repo || repo.isPrivate !== true || repo.viewerPermission !== "ADMIN" ||
-      typeof repo.id !== "string" || repo.id.length < 1 || repo.id.length > 200) fail("repository_access");
+      typeof repo.id !== "string" || repo.id.length < 1 || repo.id.length > 200 ||
+      !["User", "Organization"].includes(repo.owner?.__typename) || typeof repo.owner.id !== "string") fail("repository_access");
+  // Em repositorio de conta pessoal, ADMIN/Issues:write nao substitui ser o
+  // proprietario. Organizacoes ainda exigem politica de exclusao + ensaio real.
+  if (actorId && repo.owner.__typename === "User" && repo.owner.id !== actorId) fail("authorization");
   if (expectedId && repo.id !== expectedId) fail("repository_changed");
   return repo.id;
 }
@@ -131,8 +135,8 @@ async function work(env, gh, state, client, runtime, db) {
   const now = unix(runtime), today = Math.floor(now / secondsPerDay);
   const vars = { owner: gh.owner, name: gh.name };
   const identity = await client.call(repoQuery, vars);
-  const repoId = checkRepository(identity.repository, state.repo_id);
   if (typeof identity.viewer?.id !== "string") fail("response");
+  const repoId = checkRepository(identity.repository, state.repo_id, identity.viewer.id);
   if (state.repo_name && state.repo_name !== gh.repo) fail("repository_changed");
   await db.prepare("UPDATE github_maintenance SET repo_name=?,repo_id=? WHERE id=1").bind(gh.repo, repoId).run();
   // Duplicatas positivamente identificadas viram obrigacoes por ID ANTES do
@@ -274,7 +278,9 @@ async function work(env, gh, state, client, runtime, db) {
     VALUES(?,0,?,?,?,'prepared',?,?)`)
     .bind(day,now,repoId,expiresForDay(day),operationId,identity.viewer.id).run();
   // Conferir novamente antes da mutacao de criacao; repo publico = bloqueio.
-  checkRepository((await client.call(repoQuery, vars)).repository, repoId);
+  const beforeCreate = await client.call(repoQuery, vars);
+  if (beforeCreate.viewer?.id !== identity.viewer.id) fail("identity_conflict");
+  checkRepository(beforeCreate.repository, repoId, identity.viewer.id);
   if (expiresForDay(day) <= unix(runtime)) return "expired";
   // Antes da primeira possibilidade de envio: queda/timeout desde aqui deixa
   // uma obrigacao ambigua. A proxima execucao reconcilia; nao repete o POST.

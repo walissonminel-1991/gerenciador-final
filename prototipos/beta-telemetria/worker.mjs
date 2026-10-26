@@ -6,10 +6,20 @@ import { parseStrictJson } from "./strict-json.mjs";
 import { readHealth,logHealth } from "./observability.mjs";
 const headers = { "cache-control": "no-store", "content-type": "text/plain; charset=utf-8" };
 const respond = status => new Response(null, { status, headers });
+export function approvedOrigin(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.origin === value &&
+      !url.username && !url.password && !url.port && url.hostname.includes(".") &&
+      /^[a-z0-9.-]+$/.test(url.hostname) && !url.hostname.endsWith(".") &&
+      !/^[0-9.]+$/.test(url.hostname) && !url.hostname.endsWith(".workers.dev") &&
+      url.hostname !== "workers.dev" ? url.origin : null;
+  } catch { return null; }
+}
 export function validateReport(report) {
   if (!report || Array.isArray(report) || typeof report !== "object") return null;
   if (Object.keys(report).sort().join(",") !== "counts,exit,schema,version") return null;
-  if (report.schema !== 1 || report.exit !== "normal" ||
+  if (report.schema !== 1 || !["normal", "incompleto"].includes(report.exit) ||
       typeof report.version !== "string" ||
       !/^v\d{1,3}(?:\.\d{1,4}){3}$/.test(report.version) ||
       report.version !== betaVersion ||
@@ -27,6 +37,11 @@ export default {
     if (request.method !== "POST") return respond(405);
     // Exigir bindings reais de seguranca no Cloudflare; ausentes = desativado.
     if (!env.DB || !env.BETA_RATE_LIMITER || !env.PILOT_ENABLED || env.PILOT_ENABLED !== "yes") return respond(503);
+    // Defesa adicional contra uma rota alternativa reativada por engano.
+    // O valor revisado e servidor, nunca Host/Origin fornecido no payload.
+    const origin = approvedOrigin(env.INGEST_ORIGIN);
+    if (!origin) return respond(503);
+    if (url.origin !== origin) return respond(403);
     if (!/^application\/json(?:;|$)/i.test(request.headers.get("content-type") || "")) return respond(415);
     const declared=request.headers.get("content-length")||"";
     const size = /^[1-9]\d{0,3}$/.test(declared)?Number(declared):NaN;
@@ -52,6 +67,8 @@ export default {
     if (!report) return respond(422);
     const now = Math.floor(Date.now()/1000), day = Math.floor(now/86400);
     try {
+      if ((await env.DB.prepare("SELECT schema_version FROM github_maintenance WHERE id=1").first())?.schema_version !== 3)
+        return respond(503);
       const ticket=crypto.randomUUID(),expiry=expiresForDay(day);
       const events=report.counts.reduce((n,[,value])=>n+value,0);
       const batch=[env.DB.prepare(`INSERT INTO ingest_budget(day,reports,event_total,expires_at,ticket)

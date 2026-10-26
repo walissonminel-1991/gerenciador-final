@@ -23,11 +23,14 @@ export async function inspectSchema(db) {
   const invalid=(await db.prepare(`SELECT count(*) AS n FROM github_exports
     WHERE day<0 OR day>2958465 OR typeof(day)<>'integer' OR issue_number<0 OR issue_number>2147483647
       OR typeof(issue_number)<>'integer' OR exported_at<0 OR typeof(exported_at)<>'integer'`).first()).n;
-  return {tables,indexes,definitions,invalid}; // somente schema e contagem; nao extrai referencias/dados.
+  const schemaVersion=tables.github_maintenance.some(c=>c.name==="schema_version")
+    ? (await db.prepare("SELECT schema_version FROM github_maintenance WHERE id=1").first())?.schema_version ?? null : null;
+  return {tables,indexes,definitions,invalid,schemaVersion}; // somente schema e contagem; nao extrai referencias/dados.
 }
 export function migrationPlan(snapshot) {
   const {tables,indexes,definitions,invalid}=snapshot;
   if(invalid!==0)throw new Error("schema_invalid_rows");
+  if(snapshot.schemaVersion!=null && ![1,2,3].includes(snapshot.schemaVersion))throw new Error("schema_unknown_version");
   const requireColumn=(table,name,type,pk=false)=>{
     const col=tables[table]?.find(c=>c.name===name);
     if(!col||col.type.toUpperCase()!==type||(pk&&col.pk!==1))throw new Error("schema_incompatible");

@@ -11,7 +11,7 @@ test("schema estrito impede identificadores e texto livre", () => {
   for (const bad of [
     {...good, hostname:"pc"}, {...good, counts:{"PATH.USER":1}},
     {...good, counts:{"MSIX.LEITURA":101}}, {...good, version:"../../etc"},
-    {...good, counts:{}}, {...good, exit:"incompleto"}
+    {...good, counts:{}}, {...good, exit:"texto-livre"}
   ]) assert.equal(validateReport(bad), null);
 });
 test("servidor nao implantado ou sem limite recusa envio", async () => {
@@ -22,7 +22,7 @@ test("servidor nao implantado ou sem limite recusa envio", async () => {
 });
 test("receptor limitado acumula somente agregados com 202", async t => {
   const db=new LocalD1();t.after(()=>db.close());
-  const env={PILOT_ENABLED:"yes",BETA_RATE_LIMITER:{limit:async()=>({success:true})},DB:db};
+  const env={PILOT_ENABLED:"yes",INGEST_ORIGIN:"https://private.example",BETA_RATE_LIMITER:{limit:async()=>({success:true})},DB:db};
   const request = new Request("https://private.example/ingest", {method:"POST",
     headers:{"content-type":"application/json","cf-connecting-ip":"198.51.100.5","content-length":String(Buffer.byteLength(JSON.stringify(good)))},
     body:JSON.stringify(good)});
@@ -33,7 +33,7 @@ test("receptor limitado acumula somente agregados com 202", async t => {
   assert.equal(admission.reports,1);assert.equal(admission.ticket,null);
 });
 test("sem IP/sem aceitação ou limite retorna erro", async()=> {
-  const base={PILOT_ENABLED:"yes",DB:{batch:async()=>{},prepare:()=>({bind:()=>({run:async()=>{}})})},
+  const base={PILOT_ENABLED:"yes",INGEST_ORIGIN:"https://private.example",DB:{batch:async()=>{},prepare:()=>({bind:()=>({run:async()=>{}})})},
     BETA_RATE_LIMITER:{limit:async()=>({success:false})}};
   const request=new Request("https://private.example/ingest",{method:"POST",
     headers:{"content-type":"application/json","cf-connecting-ip":"198.51.100.5","content-length":String(Buffer.byteLength(JSON.stringify(good)))},
@@ -43,7 +43,7 @@ test("sem IP/sem aceitação ou limite retorna erro", async()=> {
 
 test("Content-Length falso e corpo maior que 4KB falham antes de gravar", async () => {
   let writes = 0;
-  const env = { PILOT_ENABLED:"yes",
+  const env = { PILOT_ENABLED:"yes",INGEST_ORIGIN:"https://private.example",
     BETA_RATE_LIMITER:{limit:async()=>({success:true})},
     DB:{prepare:()=>({bind:()=>({run:async()=>{writes++}})}),
       batch:async()=>{writes++}} };

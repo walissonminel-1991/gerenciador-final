@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 import { expiresForDay, issueContent, betaVersion } from "./policy.mjs";
 
 export class LocalD1 {
-  constructor(schema = readFileSync(new URL("./schema.sql", import.meta.url), "utf8")) {
-    this.sqlite = new DatabaseSync(":memory:");
+  constructor(schema = readFileSync(new URL("./schema.sql", import.meta.url), "utf8"), filename = ":memory:") {
+    this.sqlite = new DatabaseSync(filename);
     this.sqlite.exec(schema);
     this.fault = null;
   }
@@ -53,7 +53,9 @@ export function fixture(t) {
   const remote = {
     issues: [], calls: [], deleted: [], created: [], private: true, permission: "ADMIN", id: "REPO_FIXTURE",
     intercept: null, loseCreateResponse: false, loseDeleteResponse: false,
-    repo() { return { id: this.id, isPrivate: this.private, viewerPermission: this.permission }; },
+    ownerId: "ACTOR_FIXTURE", ownerType: "User",
+    repo() { return { id: this.id, isPrivate: this.private, viewerPermission: this.permission,
+      owner: { id: this.ownerId, __typename: this.ownerType } }; },
     add(day, number = this.issues.length + 1, legacy = false) {
       const issue = { id: "ISSUE_" + number, number, ...issueContent(day,
         [{ version: betaVersion, event: "MSIX.LEITURA", total: 17 }],crypto.randomUUID()) };
@@ -96,7 +98,7 @@ export function fixture(t) {
       throw new Error("unexpected_query");
     }
   };
-  const env = { DB: db, PILOT_ENABLED: "no", GITHUB_EXPORT_ENABLED: "no",
+  const env = { DB: db, PILOT_ENABLED: "no", GITHUB_EXPORT_ENABLED: "no", INGEST_ORIGIN: "https://receiver.invalid",
     GITHUB_PRIVATE_REPO: "fixture-owner/private-fixture", GITHUB_TOKEN: "synthetic-fixture-not-a-secret",GITHUB_TOKEN_EXPIRES_AT:"2026-11-25" };
   const runtime = { now: () => now, fetch: remote.fetch,
     sleep: async ms => { now += ms; } };
