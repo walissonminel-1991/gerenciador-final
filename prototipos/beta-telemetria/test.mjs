@@ -20,18 +20,17 @@ test("servidor nao implantado ou sem limite recusa envio", async () => {
     body:JSON.stringify(good)});
   assert.equal((await worker.fetch(request,{PILOT_ENABLED:"no"})).status,503);
 });
-test("receptor limitado acumula somente agregados com 202", async () => {
-  const seen=[];
-  const bind = function(...args){return {run:async()=>{seen.push(args)}};};
-  const env={PILOT_ENABLED:"yes",BETA_RATE_LIMITER:{limit:async()=>({success:true})},
-    DB:{prepare:()=>({bind}),batch:async commands=>Promise.all(commands.map(c=>c.run()))}};
+test("receptor limitado acumula somente agregados com 202", async t => {
+  const db=new LocalD1();t.after(()=>db.close());
+  const env={PILOT_ENABLED:"yes",BETA_RATE_LIMITER:{limit:async()=>({success:true})},DB:db};
   const request = new Request("https://private.example/ingest", {method:"POST",
     headers:{"content-type":"application/json","cf-connecting-ip":"198.51.100.5","content-length":String(Buffer.byteLength(JSON.stringify(good)))},
     body:JSON.stringify(good)});
   assert.equal((await worker.fetch(request,env)).status,202);
-  assert.equal(seen.length,1);
-  assert.equal(seen[0][2],"MSIX.LEITURA");
-  assert.equal(seen[0][3],2);
+  const row=db.sqlite.prepare("SELECT * FROM daily_counts").get();
+  assert.equal(row.event,"MSIX.LEITURA");assert.equal(row.total,2);
+  const admission=db.sqlite.prepare("SELECT * FROM ingest_budget").get();
+  assert.equal(admission.reports,1);assert.equal(admission.ticket,null);
 });
 test("sem IP/sem aceitação ou limite retorna erro", async()=> {
   const base={PILOT_ENABLED:"yes",DB:{batch:async()=>{},prepare:()=>({bind:()=>({run:async()=>{}})})},

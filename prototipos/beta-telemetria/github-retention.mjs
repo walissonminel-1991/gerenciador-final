@@ -1,13 +1,14 @@
-import { boundedText, expiresForDay, issueContent, managedDay, secondsPerDay } from "./policy.mjs";
+import { boundedText, expiresForDay, issueContent, managedDay, matchesObligation, secondsPerDay } from "./policy.mjs";
 
 const repositoryFields = "id isPrivate viewerPermission";
-const issueFields = "id number title body";
+const issueFields = "id number title body author { ... on User { id } ... on Bot { id } }";
 const repoQuery = `query Repository($owner:String!,$name:String!) {
+  viewer { id }
   repository(owner:$owner,name:$name) { ${repositoryFields} }
 }`;
 const scanQuery = `query Scan($owner:String!,$name:String!,$after:String) {
   repository(owner:$owner,name:$name) { ${repositoryFields}
-    issues(first:100,after:$after,states:[OPEN,CLOSED],orderBy:{field:CREATED_AT,direction:ASC}) {
+    issues(first:25,after:$after,states:[OPEN,CLOSED],orderBy:{field:CREATED_AT,direction:ASC}) {
       nodes { ${issueFields} } pageInfo { hasNextPage endCursor }
     }
   }
@@ -24,7 +25,8 @@ const createMutation = `mutation Create($repo:ID!,$title:String!,$body:String!,$
   }
 }`;
 const codes = new Set(["configuration", "repository_access", "repository_changed", "identity_conflict",
-  "network", "http", "rate_limit", "graphql", "cursor", "response", "database", "budget", "aggregate"]);
+  "network", "http", "rate_limit", "graphql", "cursor", "response", "database", "budget", "aggregate",
+  "authentication", "authorization", "lease_lost", "schema", "credential_expiry"]);
 class MaintenanceError extends Error {
   constructor(code, retryAt = 0) { super(code); this.code = code; this.retryAt = retryAt; }
 }
@@ -54,6 +56,8 @@ class GitHub {
       const delay = 1000 - (this.runtime.now() - this.lastMutation);
       if (delay > 0) await this.runtime.sleep(delay);
     }
+    if (this.runtime.now()+8000>this.deadline) fail("budget");
+    if (mutation) await this.runtime.assertLease();
     this.calls++;
     if (mutation) this.lastMutation = this.runtime.now();
     const controller = new AbortController();
@@ -75,13 +79,16 @@ class GitHub {
           remaining === "0" && Number.isSafeInteger(reset) ? reset + 1 : 0);
       if (!response.ok) {
         void response.body?.cancel().catch(() => {});
-        fail(this.cooldown ? "rate_limit" : "http", this.cooldown);
+        fail(this.cooldown ? "rate_limit" : response.status === 401 ? "authentication" : response.status === 403 ? "authorization" : "http", this.cooldown);
       }
-      const body = await boundedText(response.body, 1024 * 1024, 8000);
+      const body = await boundedText(response.body, 256 * 1024, 8000);
       if (!body || body.oversize) fail("response");
       let json; try { json = JSON.parse(body.raw); } catch { fail("response"); }
+      if(!json || Array.isArray(json) || typeof json!=="object" ||
+          (json.errors!==undefined&&!Array.isArray(json.errors)))fail("response");
       if (Array.isArray(json.errors) && json.errors.length) {
         const types = json.errors.map(x => x.type);
+        if (types.some(x => ["UNAUTHENTICATED","BAD_CREDENTIALS"].includes(x))) fail("authentication");
         if (types.includes("RATE_LIMITED")) fail("rate_limit", Math.max(this.cooldown, now + 60));
         // Cursor expirado/invalido: reiniciar varredura sem descartar obrigacoes.
         if (types.includes("INVALID_CURSOR_ARGUMENTS")) fail("cursor");
@@ -123,10 +130,26 @@ function limitedDatabase(db, consume) {
 async function work(env, gh, state, client, runtime, db) {
   const now = unix(runtime), today = Math.floor(now / secondsPerDay);
   const vars = { owner: gh.owner, name: gh.name };
-  const repoId = checkRepository((await client.call(repoQuery, vars)).repository, state.repo_id);
+  const identity = await client.call(repoQuery, vars);
+  const repoId = checkRepository(identity.repository, state.repo_id);
+  if (typeof identity.viewer?.id !== "string") fail("response");
   if (state.repo_name && state.repo_name !== gh.repo) fail("repository_changed");
   await db.prepare("UPDATE github_maintenance SET repo_name=?,repo_id=? WHERE id=1").bind(gh.repo, repoId).run();
-  const ledger = await db.prepare("SELECT * FROM github_exports WHERE expires_at<=? AND issue_number>0 ORDER BY day LIMIT 8")
+  // Duplicatas positivamente identificadas viram obrigacoes por ID ANTES do
+  // DELETE. Nao depender de titulo/corpo para recuperar a proxima tentativa.
+  const references=await db.prepare("SELECT * FROM github_delete_refs ORDER BY expires_at LIMIT 4").all();
+  for(const reference of references.results){
+    if(reference.repo_id!==repoId)fail("repository_changed");
+    const repo=(await client.call(lookupQuery,{...vars,number:reference.issue_number})).repository;
+    checkRepository(repo,repoId);
+    if(repo.issue!==null){
+      if(repo.issue?.id!==reference.issue_node_id)fail("identity_conflict");
+      await deleteIssue(client,repo.issue,repoId);
+    }
+    await db.prepare("DELETE FROM github_delete_refs WHERE issue_node_id=?").bind(reference.issue_node_id).run();
+  }
+  if(await db.prepare("SELECT issue_number FROM github_delete_refs LIMIT 1").first())return "backlog";
+  const ledger = await db.prepare("SELECT * FROM github_exports WHERE expires_at<=? AND issue_number>0 AND status<>'deleted' ORDER BY day LIMIT 4")
     .bind(now).all();
   for (const job of ledger.results) {
     if (job.repo_id && job.repo_id !== repoId) fail("repository_changed");
@@ -142,55 +165,89 @@ async function work(env, gh, state, client, runtime, db) {
         .bind(issue.id, repoId, job.day).run();
       await deleteIssue(client, issue, repoId);
     }
-    await db.prepare("DELETE FROM github_exports WHERE day=? AND issue_number=?").bind(job.day, job.issue_number).run();
+    await db.prepare("UPDATE github_exports SET status='deleted' WHERE day=? AND issue_number=?").bind(job.day, job.issue_number).run();
   }
-  if (await db.prepare("SELECT day FROM github_exports WHERE expires_at<=? AND issue_number>0 LIMIT 1").bind(now).first())
+  if (await db.prepare("SELECT day FROM github_exports WHERE expires_at<=? AND issue_number>0 AND status<>'deleted' LIMIT 1").bind(now).first())
     return "backlog"; // priorizar exclusao; nenhuma nova publicacao enquanto houver atraso.
 
   let after = state.scan_cursor;
+  // Um cursor velho/apos restore nao autoriza inferir ausencia.
+  if (after && (!state.scan_started || now-state.scan_started>86400)) after=null;
+  if (!after) await db.prepare("UPDATE github_maintenance SET scan_started=?,unverified_issues=0 WHERE id=1 AND lease_token=?")
+    .bind(now,runtime.lease).run();
   // Varredura completa pode exigir varios crons. Sem criaçao ate concluir todas as paginas.
   for (let page = 0; page < 3; page++) {
-    const repo = (await client.call(scanQuery, { ...vars, after })).repository;
+    let repo;
+    try { repo = (await client.call(scanQuery, { ...vars, after })).repository; }
+    catch (error) {
+      if (error instanceof MaintenanceError && ["graphql","cursor"].includes(error.code)) {
+        await db.prepare("UPDATE github_maintenance SET scan_cursor=NULL WHERE id=1 AND lease_token=?")
+          .bind(runtime.lease).run();
+      }
+      throw error;
+    }
     checkRepository(repo, repoId);
     const connection = repo.issues;
-    if (!Array.isArray(connection?.nodes) || connection.nodes.length > 100 ||
+    if (!Array.isArray(connection?.nodes) || connection.nodes.length > 25 ||
         typeof connection.pageInfo?.hasNextPage !== "boolean") fail("response");
     for (const issue of connection.nodes) {
-      const day = managedDay(issue);
-      if (day === null) continue;
-      if (day >= today) fail("identity_conflict"); // nunca gerar datas futuras/atuais.
-      const expiry = expiresForDay(day);
-      if (expiry <= now) {
-        await deleteIssue(client, issue, repoId);
-        await db.prepare("DELETE FROM github_exports WHERE day=? AND issue_number=?").bind(day, issue.number).run();
-      } else {
-        const existing = await db.prepare("SELECT * FROM github_exports WHERE day=?").bind(day).first();
-        if (existing?.issue_number > 0 && existing.issue_number !== issue.number) {
-          // Duplicata do formato exato; conservar apenas a Issue canonica do ledger.
-          await deleteIssue(client, issue, repoId);
-        } else {
-          if (existing?.repo_id && existing.repo_id !== repoId) fail("repository_changed");
-          if (existing?.issue_node_id && existing.issue_node_id !== issue.id) fail("identity_conflict");
-          await db.prepare(`INSERT INTO github_exports(day,issue_number,exported_at,issue_node_id,repo_id,expires_at)
-            VALUES(?,?,?,?,?,?) ON CONFLICT(day) DO UPDATE SET
-            issue_number=excluded.issue_number,issue_node_id=excluded.issue_node_id,repo_id=excluded.repo_id,
-            expires_at=MIN(github_exports.expires_at,excluded.expires_at)`)
-            .bind(day, issue.number, now, issue.id, repoId, expiry).run();
+      // Apenas marcador + autor previamente vinculados permitem recuperar um
+      // numero desconhecido. Formato legado sem ledger exige triagem humana.
+      const marker = typeof issue?.body === "string" ?
+        /^<!-- gf-beta-aggregate:v3 day=(\d+) operation=([0-9a-f-]{36}) -->/.exec(issue.body) : null;
+      const textualDay = managedDay(issue);
+      const day = marker ? Number(marker[1]) : textualDay;
+      if (day === null || !Number.isSafeInteger(day)) continue;
+      const existing = await db.prepare("SELECT * FROM github_exports WHERE day=?").bind(day).first();
+      const bound = existing?.issue_number === issue.number && existing?.issue_node_id === issue.id && existing?.repo_id === repoId;
+      const proved = matchesObligation(issue, existing) && existing.repo_id === repoId;
+      if (!bound && !proved) {
+        await db.prepare("UPDATE github_maintenance SET unverified_issues=MIN(1000000,unverified_issues+1) WHERE id=1 AND lease_token=?")
+          .bind(runtime.lease).run();
+        continue;
+      }
+      if (day >= today) fail("identity_conflict");
+      if (expiresForDay(day) <= now || (existing.issue_number>0 && existing.issue_number!==issue.number)) {
+        if(existing.issue_number===0){
+          await db.prepare("UPDATE github_exports SET issue_number=?,issue_node_id=?,status='published' WHERE day=? AND issue_number=0")
+            .bind(issue.number,issue.id,day).run();
+        }else if(existing.issue_number!==issue.number){
+          if((await db.prepare("SELECT count(*) AS n FROM github_delete_refs").first()).n>=64)return "ledger_capacity";
+          await db.prepare("INSERT OR IGNORE INTO github_delete_refs(issue_node_id,issue_number,day,repo_id,expires_at) VALUES(?,?,?,?,?)")
+            .bind(issue.id,issue.number,day,repoId,expiresForDay(day)).run();
         }
+        await deleteIssue(client,issue,repoId);
+        if(existing.issue_number===0||existing.issue_number===issue.number)
+          await db.prepare("UPDATE github_exports SET status='deleted' WHERE day=? AND issue_number=?").bind(day,issue.number).run();
+        else await db.prepare("DELETE FROM github_delete_refs WHERE issue_node_id=?").bind(issue.id).run();
+      } else if (existing.issue_number===0) {
+        await db.prepare("UPDATE github_exports SET issue_number=?,issue_node_id=?,status='published' WHERE day=? AND issue_number=0")
+          .bind(issue.number,issue.id,day).run();
       }
     }
     const info = connection.pageInfo;
     const next = info.hasNextPage ? info.endCursor : null;
     if (info.hasNextPage && (typeof next !== "string" || next.length < 1 || next.length > 2048 || next === after)) fail("cursor");
     // Checkpoint somente depois de processar a pagina inteira. Repetir e seguro.
-    await db.prepare("UPDATE github_maintenance SET scan_cursor=? WHERE id=1").bind(next).run();
+    await db.prepare("UPDATE github_maintenance SET scan_cursor=? WHERE id=1 AND lease_token=?").bind(next,runtime.lease).run();
     after = next;
     if (!info.hasNextPage) break;
     if (page === 2) return "scanning";
   }
-  // Intentos sem numero so podem ser aposentados apos uma varredura completa.
-  await db.prepare("DELETE FROM github_exports WHERE issue_number=0 AND expires_at<=?").bind(now).run();
+  // Ausencia textual NAO prova que o POST nao criou uma Issue. Nunca apagar
+  // ou repetir automaticamente uma criacao ambigua, mesmo depois de expirar.
+  await db.prepare("UPDATE github_exports SET status='review_required' WHERE issue_number=0 AND status<>'prepared'").run();
+  const unresolved = await db.prepare("SELECT count(*) AS n FROM github_exports WHERE issue_number=0").first();
+  const review = await db.prepare("SELECT unverified_issues FROM github_maintenance WHERE id=1").first();
+  if (unresolved.n || review.unverified_issues) return "review_required";
+  // Remover provas de uma operacao encerrada so depois de processar as paginas
+  // e as referencias descobertas. Intencoes ambiguas nunca entram neste DELETE.
+  await db.prepare("DELETE FROM github_exports WHERE status='deleted' AND issue_number>0").run();
   if (runtime.allowCreate === false || env.PILOT_ENABLED !== "yes" || env.GITHUB_EXPORT_ENABLED !== "yes") return "cleanup_only";
+  // Nao criar obrigacoes se a credencial prevista nao cobrir o prazo + margem.
+  const expiry = Date.parse(env.GITHUB_TOKEN_EXPIRES_AT || "");
+  if (!Number.isFinite(expiry) || expiry/1000-now < 8*86400) fail("credential_expiry");
+  if ((await db.prepare("SELECT count(*) AS n FROM github_exports").first()).n>=32) return "ledger_capacity";
   const candidates = await db.prepare(`SELECT DISTINCT d.day FROM daily_counts d
     WHERE d.day<? AND d.day>? AND d.expires_at>? AND NOT EXISTS
       (SELECT 1 FROM github_exports g WHERE g.day=d.day AND g.issue_number>0)
@@ -204,21 +261,23 @@ async function work(env, gh, state, client, runtime, db) {
     if (content) { day = candidate.day; break; }
   }
   if (!content) return "suppressed";
-  const pending = await db.prepare("SELECT * FROM github_exports WHERE day=?").bind(day).first();
-  // POST com resposta perdida pode ter sido aplicado. Dar tempo de visibilidade
-  // e reconciliar por marcacao antes de repetir, sem alegar exactly-once.
-  if (pending && now < pending.exported_at + 600) return "reconciling";
-  await db.prepare(`INSERT INTO github_exports(day,issue_number,exported_at,repo_id,expires_at)
-    VALUES(?,0,?,?,?) ON CONFLICT(day) DO UPDATE SET exported_at=excluded.exported_at`)
-    .bind(day, now, repoId, expiresForDay(day)).run();
+  const operationId=crypto.randomUUID();
+  content=issueContent(day,(await db.prepare("SELECT version,event,total FROM daily_counts WHERE day=? AND expires_at>? ORDER BY version,event")
+    .bind(day,now).all()).results,operationId);
+  await db.prepare(`INSERT INTO github_exports(day,issue_number,exported_at,repo_id,expires_at,status,operation_id,creator_id)
+    VALUES(?,0,?,?,?,'prepared',?,?)`)
+    .bind(day,now,repoId,expiresForDay(day),operationId,identity.viewer.id).run();
   // Conferir novamente antes da mutacao de criacao; repo publico = bloqueio.
   checkRepository((await client.call(repoQuery, vars)).repository, repoId);
   if (expiresForDay(day) <= unix(runtime)) return "expired";
-  const result = await client.call(createMutation, { repo: repoId, ...content, operation: "gf-beta-create-" + day }, true);
+  // Antes da primeira possibilidade de envio: queda/timeout desde aqui deixa
+  // uma obrigacao ambigua. A proxima execucao reconcilia; nao repete o POST.
+  await db.prepare("UPDATE github_exports SET status='uncertain' WHERE day=? AND issue_number=0").bind(day).run();
+  const result = await client.call(createMutation, { repo: repoId, ...content, operation: operationId }, true);
   const issue = result.createIssue?.issue;
   checkRepository(issue?.repository, repoId);
-  if (managedDay(issue) !== day) fail("response");
-  await db.prepare("UPDATE github_exports SET issue_number=?,issue_node_id=?,exported_at=? WHERE day=? AND issue_number=0")
+  if (managedDay(issue) !== day || !matchesObligation(issue,{day,operation_id:operationId,creator_id:identity.viewer.id})) fail("response");
+  await db.prepare("UPDATE github_exports SET issue_number=?,issue_node_id=?,exported_at=?,status='published' WHERE day=? AND issue_number=0")
     .bind(issue.number, issue.id, now, day).run();
   return "exported";
 }
@@ -228,14 +287,21 @@ export async function runMaintenance(env, overrides = {}) {
     sleep: ms => new Promise(resolve => setTimeout(resolve, ms)), ...overrides };
   if (!env.DB) return { ok: false, code: "database" };
   const db = env.DB, now = unix(runtime), lease = crypto.randomUUID();
-  // Limite combinado conservador: 44 operacoes SQL/GitHub + 6 reservadas
+  // Limite combinado conservador: 38 operacoes SQL/GitHub + reserva para heartbeat/saude
   // ao lock/estado/limpeza local. Cabe inclusive em planos pequenos (50).
   let operations = 0;
-  runtime.consume = () => { if (operations >= 44) fail("budget"); operations++; };
+  runtime.consume = () => { if (operations >= 38) fail("budget"); operations++; };
   let acquired = false, state, client;
+  runtime.lease=lease;
+  runtime.assertLease=async()=>{
+    runtime.consume();
+    const active=await db.prepare("SELECT lease_token,lease_until FROM github_maintenance WHERE id=1").first();
+    if(active?.lease_token!==lease || active.lease_until<=unix(runtime)+10)fail("lease_lost");
+  };
   try {
     state = await db.prepare("SELECT * FROM github_maintenance WHERE id=1").first();
-    if (!state) fail("database"); // schema v1 nao deve ser atualizado implicitamente no cron.
+    if (!state || state.schema_version!==3) fail("schema"); // schema v1 nao deve ser atualizado implicitamente no cron.
+    await db.prepare("UPDATE github_maintenance SET last_started=? WHERE id=1").bind(now).run();
     if (state.retry_at > now) return { ok: true, code: "cooldown" };
     const lock = await db.prepare(`UPDATE github_maintenance SET lease_token=?,lease_until=?
       WHERE id=1 AND lease_until<=?`).bind(lease, now + 600, now).run();
@@ -251,8 +317,9 @@ export async function runMaintenance(env, overrides = {}) {
     }
     client = new GitHub(env, runtime);
     const code = await work(env, gh, state, client, runtime, limitedDatabase(db, runtime.consume));
-    await db.prepare(`UPDATE github_maintenance SET failures=0,retry_at=?,last_code=?,last_success=?
-      WHERE id=1 AND lease_token=?`).bind(client.cooldown, code, unix(runtime), lease).run();
+    await db.prepare(`UPDATE github_maintenance SET failures=0,retry_at=?,last_code=?,last_finished=?,
+      last_success=CASE WHEN ? IN ('cleanup_only','idle','exported','suppressed','expired') THEN ? ELSE last_success END
+      WHERE id=1 AND lease_token=?`).bind(client.cooldown,code,unix(runtime),code,unix(runtime),lease).run();
     return { ok: true, code, calls: client.calls };
   } catch (error) {
     const code = error instanceof MaintenanceError && codes.has(error.code) ? error.code : "database";
@@ -261,9 +328,9 @@ export async function runMaintenance(env, overrides = {}) {
       const backoff = Math.min(21600, 60 * 2 ** (failures - 1));
       const retryAt = Math.max(unix(runtime) + backoff, error instanceof MaintenanceError ? error.retryAt : 0);
       try {
-        await db.prepare(`UPDATE github_maintenance SET failures=?,retry_at=?,last_code=?,
+        await db.prepare(`UPDATE github_maintenance SET failures=?,retry_at=?,last_code=?,last_error=?,last_error_at=?,last_finished=?,
           scan_cursor=CASE WHEN ?='cursor' THEN NULL ELSE scan_cursor END WHERE id=1 AND lease_token=?`)
-          .bind(failures, retryAt, code, code, lease).run();
+          .bind(failures,retryAt,code,code,unix(runtime),unix(runtime),code,lease).run();
       } catch { /* Sem log bruto/segredo. Proxima invocacao reconcilia o ledger. */ }
     }
     return { ok: false, code, calls: client?.calls || 0 };

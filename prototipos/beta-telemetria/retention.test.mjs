@@ -45,11 +45,12 @@ test("prazo nao e estendido por exportacao tardia e expira na fronteira", async 
   assert.equal(f.remote.deleted.length,1);
 });
 
-test("recupera Issue orfa v1 fechada e expirada sem ledger", async t => {
+test("Issue legada sem prova de propriedade exige revisao administrativa", async t => {
   const f = fixture(t);
   f.remote.add(f.today-9,1,true).state="CLOSED";
   await run(f);
-  assert.equal(f.remote.deleted.length,1);
+  assert.equal(f.remote.deleted.length,0);
+  assert.equal(f.state().unverified_issues,1);
   assert.equal(f.jobs().length,0);
 });
 
@@ -67,10 +68,12 @@ test("titulo semelhante, texto adulterado, PR e data invalida nao autorizam excl
 test("recupera acima da primeira pagina sem duplicar exportacao", async t => {
   const f=fixture(t);
   for(let i=1;i<=105;i++) f.remote.issues.push({number:i,id:"OTHER_"+i,title:"Other",body:""});
-  const issue=f.remote.add(f.today-1,106,true);
+  const issue=f.remote.add(f.today-1,106);
+  f.intent(f.today-1,issue);
   f.count(); f.enable();
+  assert.equal((await run(f)).code,"scanning");
   assert.equal((await run(f)).code,"idle");
-  assert.equal(f.remote.calls.filter(c=>c.query.startsWith("query Scan")).length,2);
+  assert.equal(f.remote.calls.filter(c=>c.query.startsWith("query Scan")).length,5);
   assert.equal(f.jobs()[0].issue_number,issue.number);
   assert.equal(f.remote.created.length,0);
 });
@@ -78,10 +81,11 @@ test("recupera acima da primeira pagina sem duplicar exportacao", async t => {
 test("varredura interrompida persiste cursor e so cria apos concluir", async t => {
   const f=fixture(t);
   for(let i=1;i<=305;i++) f.remote.issues.push({number:i,id:"OTHER_"+i,title:"Other",body:""});
-  f.remote.add(f.today-8,306);
+  f.intent(f.today-8,f.remote.add(f.today-8,306));
   f.count();f.enable();
   assert.equal((await run(f)).code,"scanning");
-  assert.equal(f.state().scan_cursor,"300");
+  assert.equal(f.state().scan_cursor,"75");
+  for(let n=0;n<3;n++){assert.equal((await run(f)).code,"scanning");assert.equal(f.remote.created.length,0);}
   assert.equal(f.remote.created.length,0);
   assert.equal((await run(f)).code,"exported");
   assert.equal(f.state().scan_cursor,null);
@@ -238,10 +242,10 @@ test("limite de trabalho, espaçamento de mutacoes e backlog impedem explosao AP
   for(let i=1;i<=18;i++){const day=f.today-8-i;f.job(day,f.remote.add(day,i));}
   f.count();f.enable();
   assert.equal((await run(f)).code,"backlog");assert.equal(f.remote.created.length,0);
-  assert.equal(f.remote.deleted.length,8);assert.ok(f.remote.calls.length<=30);
+  assert.equal(f.remote.deleted.length,4);assert.ok(f.remote.calls.length<=30);
   const mutations=f.remote.calls.filter(c=>c.query.startsWith("mutation"));
   for(let i=1;i<mutations.length;i++)assert.ok(mutations[i].at-mutations[i-1].at>=1000);
-  await run(f);await run(f);
+  for(let n=0;n<4;n++)await run(f);
   assert.equal(f.jobs().length,1);assert.equal(f.remote.created.length,1);assert.equal(f.remote.deleted.length,18);
 });
 
@@ -261,7 +265,7 @@ test("nenhum erro bruto/credencial integra resultado ou estado persistido",async
 
 test("metadados contem apenas referencia e controle, sem conteudo de relatorio",async t=>{
   const f=fixture(t);f.count();f.enable();await run(f);
-  assert.deepEqual(Object.keys(f.jobs()[0]).sort(),["day","expires_at","exported_at","issue_node_id","issue_number","repo_id"].sort());
+  assert.deepEqual(Object.keys(f.jobs()[0]).sort(),["day","expires_at","exported_at","issue_node_id","issue_number","repo_id","status","operation_id","creator_id"].sort());
   assert.equal(issueContent(f.today-1,[{version:betaVersion,event:"MSIX.LEITURA",total:1}]),null);
 });
 
@@ -277,14 +281,14 @@ test("agregado D1 adulterado nao vira conteudo GitHub",async t=>{
 });
 
 test("duplicata recuperada e excluida; preservar a referencia canonica",async t=>{
-  const f=fixture(t);f.job(f.today-1,f.remote.add(f.today-1,1));f.remote.add(f.today-1,2);
+  const f=fixture(t),canonical=f.remote.add(f.today-1,1);f.job(f.today-1,canonical);f.remote.add(f.today-1,2).body=canonical.body;
   await run(f);assert.equal(f.remote.deleted[0].number,2);assert.equal(f.jobs()[0].issue_number,1);
 });
 
-test("intento recente sem resposta aguarda reconciliacao antes de repetir",async t=>{
+test("intento sem prova permanece em revisao e nunca e repetido automaticamente",async t=>{
   const f=fixture(t);f.job(f.today-1,null);f.count();f.enable();
-  assert.equal((await run(f)).code,"reconciling");assert.equal(f.remote.created.length,0);
-  f.advance(601);assert.equal((await run(f)).code,"exported");
+  assert.equal((await run(f)).code,"review_required");assert.equal(f.remote.created.length,0);
+  f.advance(8*86400);assert.equal((await run(f)).code,"review_required");assert.equal(f.jobs().length,1);assert.equal(f.remote.created.length,0);
 });
 
 test("token ausente com obrigacoes falha fechado e preserva ledger",async t=>{
@@ -298,12 +302,11 @@ test("sem schema v2 nao faz migracao implicita nem acessa GitHub",async t=>{
   assert.equal((await run(f)).code,"database");assert.equal(f.remote.calls.length,0);
 });
 
-test("limite de 30 chamadas permite recuperar grande pagina expirada em lotes",async t=>{
-  const f=fixture(t);for(let i=1;i<=45;i++)f.remote.add(f.today-8,i);
-  assert.equal((await run(f)).code,"budget");assert.ok(f.remote.calls.length<=30);
-  assert.equal(f.state().scan_cursor,null);
-  f.advance(120);await run(f);f.advance(240);await run(f);
-  assert.equal(f.remote.issues.length,0);assert.equal(f.remote.deleted.length,45);
+test("backlog grande e retomado em lotes sem descartar referencias",async t=>{
+  const f=fixture(t);for(let i=1;i<=45;i++)f.job(f.today-8-i,f.remote.add(f.today-8-i,i));
+  assert.equal((await run(f)).code,"backlog");
+  for(let i=0;i<13&&f.jobs().length;i++)await run(f);
+  assert.equal(f.remote.issues.length,0);assert.equal(f.jobs().length,0);assert.equal(f.remote.deleted.length,45);
 });
 
 test("perda de resposta no delete nao e tratada como sucesso por status HTTP isolado",async t=>{

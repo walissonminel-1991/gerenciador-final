@@ -16,9 +16,10 @@ const description = "Somente contagens por versao/categoria. Nenhum diagnostico 
 const dateForDay = day => new Date(day * secondsPerDay * 1000).toISOString().slice(0, 10);
 const marker = day => `<!-- gf-beta-aggregate:v2 day=${day} -->`;
 
-export function issueContent(day, rows) {
+export function issueContent(day, rows, operationId = null) {
   const date = dateForDay(day);
-  const lines = [marker(day), "# Dados agregados GF BETA — " + date, "", description, ""];
+  const proof = operationId ? `<!-- gf-beta-aggregate:v3 day=${day} operation=${operationId} -->` : marker(day);
+  const lines = [proof, "# Dados agregados GF BETA — " + date, "", description, ""];
   for (const row of rows) {
     if (row.version !== betaVersion || !allowed.has(row.event) ||
         !Number.isSafeInteger(row.total) || row.total < 1 || row.total > 10000000)
@@ -41,7 +42,7 @@ export function managedDay(issue) {
   const day = Date.parse(date + "T00:00:00Z") / (secondsPerDay * 1000);
   if (!Number.isSafeInteger(day) || day < 0 || dateForDay(day) !== date) return null;
   const lines = issue.body.split("\n");
-  if (lines[0] === marker(day)) lines.shift();
+  if (lines[0] === marker(day) || /^<!-- gf-beta-aggregate:v3 day=\d+ operation=[0-9a-f-]{36} -->$/.test(lines[0])) lines.shift();
   if (lines.shift() !== "# Dados agregados GF BETA — " + date || lines.shift() !== "" ||
       lines.shift() !== description || lines.shift() !== "" || lines.length < 1 || lines.length > 14) return null;
   const seen = new Set();
@@ -51,6 +52,17 @@ export function managedDay(issue) {
     seen.add(m[1] + m[2]);
   }
   return day;
+}
+
+// Correlacao de uma operacao do SERVIDOR, nunca identidade de participante/PC.
+// Texto/titulo isolados nao provam propriedade. O nonce e o autor esperado
+// precisam ter sido registrados antes do POST. Marcador removido => triagem.
+export function matchesObligation(issue, job) {
+  if (!job?.operation_id || !job.creator_id || issue?.author?.id !== job.creator_id ||
+      typeof issue.body !== "string" || !Number.isSafeInteger(issue.number) ||
+      issue.number < 1 || typeof issue.id !== "string" || !/^[A-Za-z0-9_=-]{1,200}$/.test(issue.id)) return false;
+  return issue.body.split("\n")[0] ===
+    `<!-- gf-beta-aggregate:v3 day=${job.day} operation=${job.operation_id} -->`;
 }
 
 // Compartilhado por entrada e respostas remotas: limite real de bytes e tempo.
