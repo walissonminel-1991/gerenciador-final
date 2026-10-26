@@ -22,11 +22,11 @@ crons = ["15 * * * *"]
 binding = "DB"
 database_name = "gf-beta-private"
 database_id = "PREENCHER_ID_D1"
-# Substituir 1001 por um namespace_id positivo e exclusivo da conta.
+# Preencher com o namespace_id EXISTENTE; nao criar/trocar o namespace sem autorizacao.
 # API de rate limiting aproximada por PoP: NAO substitui uma regra WAF.
 [[ratelimits]]
 name = "BETA_RATE_LIMITER"
-namespace_id = "1001"
+namespace_id = "PREENCHER_NAMESPACE_EXISTENTE"
 [ratelimits.simple]
 limit = 6
 period = 60

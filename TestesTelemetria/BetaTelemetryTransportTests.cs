@@ -230,6 +230,21 @@ internal static class BetaTelemetryTransportTests
         verify(close.IsShutdown&&!close.IsWaiting&&!close.Finish(),
             "R3 Windows Shutdown prevalece sobre envio e impede reagendar Close");
 
+        close=new BetaCloseCoordinator();
+        verify(!close.CancelShutdown(),"R3 cancelamento de Shutdown nao interfere em fechamento normal");
+        close.TryBegin(false,true);close.Shutdown();
+        verify(close.CancelShutdown()&&close.IsWaiting&&!close.IsShutdown,
+            "R3 Shutdown cancelado conserva somente a espera antiga em cancelamento");
+        verify(!close.Finish()&&!close.IsClosing&&close.TryBegin(false,true),
+            "R3 resposta antiga apos Shutdown cancelado nao fecha e permite novo fechamento");
+        close=new BetaCloseCoordinator();close.TryBegin(false,true);close.Shutdown();close.Finish();
+        verify(close.CancelShutdown()&&!close.IsClosing&&!close.IsComplete,
+            "R3 Shutdown cancelado depois de concluir tentativa restaura estado utilizavel");
+
+        close=new BetaCloseCoordinator();close.TryBegin(false,true);close.Shutdown();close.CancelShutdown();close.Shutdown();
+        verify(!close.Finish()&&close.IsShutdown&&close.IsClosing,
+            "R3 novo Shutdown durante cancelamento antigo mantem protecao de encerramento");
+
         var tampered=Pending(root);File.WriteAllText(tampered.PendingFile,"{\"schema\":1,\"username\":\"synthetic\"}");calls=0;
         using(var client=new HttpClient(new Handler((_,_)=>{calls++;return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Accepted));})))
             verify(!await BetaTelemetryTransport.TrySendAsync(tampered,Endpoint,client)&&calls==0,

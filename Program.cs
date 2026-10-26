@@ -772,7 +772,7 @@ internal sealed partial class MainForm : Form
             AnonymousTelemetryContext.Current?.CancelRemoteSend();
             // Windows Shutdown nao inicia rede. Em fechamento normal remoto o
             // snapshot ja foi salvo antes da tentativa, sem duplica-lo aqui.
-            if (_betaClose.IsShutdown || AnonymousTelemetryContext.Current?.Consent != TelemetryConsent.RemoteBeta)
+            if (_betaClose.IsShutdown || !_betaClose.IsClosing || AnonymousTelemetryContext.Current?.Consent != TelemetryConsent.RemoteBeta)
                 AnonymousTelemetryContext.Current?.SaveOnExit(DiagnosticTrace.VersionLabel, normalExit: !_betaClose.IsShutdown);
         };
         FitWorkspace();
@@ -891,9 +891,13 @@ internal sealed partial class MainForm : Form
             {
                 if (_betaClose.Finish() && !IsDisposed && !Disposing && IsHandleCreated)
                 {
-                    try { BeginInvoke((Action)(() => { if (!IsDisposed && !Disposing) Close(); })); }
+                    try { BeginInvoke((Action)(() =>
+                    {
+                        if (_betaClose.IsComplete && !_betaClose.IsShutdown && !IsDisposed && !Disposing) Close();
+                    })); }
                     catch (InvalidOperationException) { /* Handle destruido durante Shutdown. */ }
                 }
+                else if (!_betaClose.IsShutdown) ResumeAfterCancelledShutdown();
             }
         };
 #endif
@@ -2159,7 +2163,7 @@ internal sealed partial class MainForm : Form
         }
         _status.Text = description;
         try { await work(); }
-        catch (Exception ex) { if (!IsDisposed && !Disposing) ReportError(ex); }
+        catch (Exception ex) { if (!IsDisposed && !Disposing && !_betaClose.IsShutdown) ReportError(ex); }
         finally
         {
             _busy = false;

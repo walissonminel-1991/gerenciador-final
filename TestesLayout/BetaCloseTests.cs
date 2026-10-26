@@ -45,6 +45,15 @@ internal static class BetaCloseTests
             notifyClosing.Invoke(form, [shutdown]);
             Verify(!shutdown.Cancel && coordinator.IsShutdown, "Shutdown passa mesmo com trabalho e espera sinteticos");
             Verify(!coordinator.Finish(), "resposta atrasada nao agenda outro fechamento apos Shutdown");
+            // Mensagem enviada SOMENTE a janela sintetica; nao inicia nem
+            // cancela um desligamento real do Windows/runner.
+            typeof(MainForm).GetField("_busy", fields)!.SetValue(form, false);
+            var cancelled = Message.Create(form.Handle, 0x0016, IntPtr.Zero, IntPtr.Zero);
+            typeof(MainForm).GetMethod("WndProc", fields)!.Invoke(form, [cancelled]);
+            Verify(!coordinator.IsShutdown && !coordinator.IsClosing, "WM_ENDSESSION FALSE recupera o uso da janela");
+            ((Task)execute.Invoke(form, ["fixture retomada", (Func<Task>)(() => { work++; return Task.CompletedTask; }), false])!).GetAwaiter().GetResult();
+            Verify(work == 1, "trabalho ficticio volta a ser permitido apos cancelar Shutdown");
+            notifyClosing.Invoke(form, [new FormClosingEventArgs(CloseReason.WindowsShutDown, false)]);
             recorder.Record("APP.FALHA_INTERFACE");
             form.Close();
             Application.DoEvents();
@@ -54,6 +63,14 @@ internal static class BetaCloseTests
                 "reabertura mantem somente uma pendencia local");
             Verify(new AnonymousTelemetry(folder).Consent == TelemetryConsent.RemoteBeta,
                 "reinicializacao simulada recupera somente consentimento do aviso atual");
+            // Mesmo uma compilacao interna sem endpoint preserva localmente
+            // uma autorizacao anterior; nunca inicia transporte de rede.
+            using var unconfigured = new MainForm(startServices: false);
+            unconfigured.Show();Application.DoEvents();
+            recorder.DeletePending();recorder.Record("APP.FALHA_INTERFACE");
+            unconfigured.Close();Application.DoEvents();
+            Verify(!BetaTelemetryUploader.IsConfigured&&File.Exists(recorder.PendingFile),
+                "build sem endpoint preserva resumo local sem fingir ser candidata conectada");
             Console.WriteLine($"{checks}/{checks} verificacoes BETA de janela aprovadas; nenhum Shutdown do SO ou envio executado.");
         }
         finally

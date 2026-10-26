@@ -270,6 +270,13 @@ internal sealed partial class MainForm
         base.OnHandleDestroyed(e);
     }
 
+    private void ResumeAfterCancelledShutdown()
+    {
+        if (IsDisposed || Disposing) return;
+        _memoryTimer.Start();
+        if (!_busy && !_betaClose.IsClosing) _programList.ActionsEnabled = true;
+    }
+
     // Bloqueia mesmo uma tentativa por atalhos do Windows/WM_SYSCOMMAND.
     protected override void WndProc(ref Message m)
     {
@@ -278,7 +285,10 @@ internal sealed partial class MainForm
         if (m.Msg == WM_SYSCOMMAND &&
             (m.WParam.ToInt64() & 0xFFF0) == SC_MAXIMIZE)
             return;
+        const int WM_ENDSESSION = 0x0016;
+        bool shutdownCancelled = m.Msg == WM_ENDSESSION && m.WParam == IntPtr.Zero;
         base.WndProc(ref m);
+        if (shutdownCancelled && _betaClose.CancelShutdown()) ResumeAfterCancelledShutdown();
     }
 }
 
