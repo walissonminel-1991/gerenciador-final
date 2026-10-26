@@ -118,6 +118,33 @@ internal static class BetaTelemetryTransportTests
             Directory.Delete(disk.ConsentFile);
         }
 
+        var shared=Pending(root);
+        var peer=new AnonymousTelemetry(Path.GetDirectoryName(shared.ConsentFile));
+        started=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using(var client=new HttpClient(new Handler(async(_,token)=>{
+            started.TrySetResult(true);await Task.Delay(Timeout.Infinite,token);return new HttpResponseMessage(HttpStatusCode.Accepted);
+        })))
+        {
+            Task<bool> send=BetaTelemetryTransport.TrySendAsync(shared,Endpoint,client);await started.Task;
+            peer.SetConsent(TelemetryConsent.Declined);
+            verify(!await send&&shared.Consent!=TelemetryConsent.RemoteBeta,
+                "R2 revogacao persistida por outra instancia cancela envio em andamento");
+        }
+        var identical=Pending(root);
+        peer=new AnonymousTelemetry(Path.GetDirectoryName(identical.ConsentFile));
+        started=new(TaskCreationOptions.RunContinuationsAsynchronously);release=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using(var client=new HttpClient(new Handler(async(_,token)=>{
+            started.TrySetResult(true);await release.Task.WaitAsync(token);return new HttpResponseMessage(HttpStatusCode.Accepted);
+        })))
+        {
+            Task<bool> send=BetaTelemetryTransport.TrySendAsync(identical,Endpoint,client);await started.Task;
+            peer.Record("MSIX.LEITURA");
+            verify(peer.SaveOnNormalExit("v5.13.11.66"),"R2 outra instancia pode gravar nova pendencia");
+            release.TrySetResult(true);
+            verify(!await send&&File.Exists(identical.PendingFile),
+                "R2 confirmacao antiga nao remove arquivo novo mesmo com conteudo identico em outra instancia");
+        }
+
         var tampered=Pending(root);File.WriteAllText(tampered.PendingFile,"{\"schema\":1,\"username\":\"synthetic\"}");calls=0;
         using(var client=new HttpClient(new Handler((_,_)=>{calls++;return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Accepted));})))
             verify(!await BetaTelemetryTransport.TrySendAsync(tampered,Endpoint,client)&&calls==0,

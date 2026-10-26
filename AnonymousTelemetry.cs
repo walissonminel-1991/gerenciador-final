@@ -292,17 +292,21 @@ internal sealed class AnonymousTelemetry
         }
     }
 
-    internal string? PendingForRemote()
+    internal string? PendingForRemote() => ReadPendingForRemote(out _);
+
+    private string? ReadPendingForRemote(out InstallerFileGuard.FileIdentity? identity)
     {
+        identity = null;
         lock (_gate)
         {
-            if (Consent != TelemetryConsent.RemoteBeta) return null;
+            if (!IsRemoteConsentCurrent()) return null;
             ExpirePendingReport();
             try
             {
                 InstallerFileGuard.ValidateLocalPath(PendingFile);
                 if (!File.Exists(PendingFile) || new FileInfo(PendingFile).Length > 4096 || PendingHasExpired()) return null;
-                var report = ReadBoundedFile(PendingFile, 4096);
+                var report = ReadBoundedFile(PendingFile, 4096, out var captured);
+                identity = captured;
                 return DiagnosticPayloadPolicy.IsValidReport(report) ? report : null;
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
@@ -313,10 +317,11 @@ internal sealed class AnonymousTelemetry
     internal sealed class SendLease : IDisposable
     {
         private readonly AnonymousTelemetry _owner;
-        internal SendLease(AnonymousTelemetry owner, string report, long generation, CancellationTokenSource source)
-        { _owner=owner; Report=report; Generation=generation; Source=source; }
+        internal SendLease(AnonymousTelemetry owner, string report, long generation, CancellationTokenSource source, InstallerFileGuard.FileIdentity identity)
+        { _owner=owner; Report=report; Generation=generation; Source=source; Identity=identity; }
         internal string Report { get; }
         internal long Generation { get; }
+        internal InstallerFileGuard.FileIdentity Identity { get; }
         internal CancellationTokenSource Source { get; }
         internal CancellationToken Cancellation => Source.Token;
         public void Dispose() => _owner.EndRemoteSend(this);
@@ -327,10 +332,10 @@ internal sealed class AnonymousTelemetry
         lock (_gate)
         {
             if (Consent != TelemetryConsent.RemoteBeta || _remoteSend is not null) return null;
-            string? report = PendingForRemote();
-            if (report is null) return null;
+            string? report = ReadPendingForRemote(out var identity);
+            if (report is null || identity is null) return null;
             _remoteSend = new CancellationTokenSource();
-            return new SendLease(this, report, _generation, _remoteSend);
+            return new SendLease(this, report, _generation, _remoteSend, identity);
         }
     }
     internal bool CompleteRemoteSend(SendLease lease)
@@ -339,10 +344,36 @@ internal sealed class AnonymousTelemetry
         {
             if (Consent != TelemetryConsent.RemoteBeta || !ReferenceEquals(_remoteSend, lease.Source) ||
                 lease.Cancellation.IsCancellationRequested || _generation != lease.Generation ||
-                PendingForRemote() != lease.Report) return false;
-            return TryDelete(PendingFile);
+                !IsRemoteConsentCurrent()) return false;
+            try
+            {
+                // Validar e remover o MESMO arquivo por handle, sem janela
+                // check/delete por caminho. Identidade fica apenas na memoria.
+                using var held = InstallerFileGuard.OpenResidual(PendingFile, deleteAccess: true);
+                if (held.Length > 4096 || InstallerFileGuard.ReadIdentity(held) != lease.Identity) return false;
+                using var reader = new StreamReader(held, Encoding.UTF8, true, 4096, leaveOpen: true);
+                if (reader.ReadToEnd() != lease.Report) return false;
+                InstallerFileGuard.MarkResidualForDeletion(held);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
+                System.Security.SecurityException) { return false; }
         }
     }
+    internal bool IsRemoteConsentCurrent()
+    {
+        lock (_gate)
+        {
+            if (Consent != TelemetryConsent.RemoteBeta) return false;
+            var persisted = ReadConsent();
+            if (persisted == TelemetryConsent.RemoteBeta) return true;
+            Consent = persisted;
+            _generation++;
+            try { _remoteSend?.Cancel(); } catch (AggregateException) { }
+            return false;
+        }
+    }
+
     private void EndRemoteSend(SendLease lease)
     {
         lock (_gate)
@@ -419,13 +450,15 @@ internal sealed class AnonymousTelemetry
         CheckAncestors();
     }
 
-    private static string ReadBoundedFile(string path, int maxBytes)
+    private static string ReadBoundedFile(string path, int maxBytes) => ReadBoundedFile(path, maxBytes, out _);
+    private static string ReadBoundedFile(string path, int maxBytes, out InstallerFileGuard.FileIdentity identity)
     {
         // Recusar links da folha e prender seus ancestrais também na leitura.
         // O limite é conferido no handle efetivamente aberto, sem confiar no
         // tamanho observado anteriormente pelo caminho.
         using var stream = InstallerFileGuard.OpenRead(path, allowDirectoryWrites: true);
         if (stream.Length > maxBytes) throw new IOException("Arquivo de privacidade acima do limite.");
+        identity = InstallerFileGuard.ReadIdentity(stream);
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
         return reader.ReadToEnd();
     }

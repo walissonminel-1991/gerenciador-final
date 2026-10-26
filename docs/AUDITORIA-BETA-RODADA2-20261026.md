@@ -21,7 +21,7 @@ A falha prioritária foi confirmada e corrigida: uma intenção sem número **n�
 | Alta | Credencial poderia vencer antes das exclusões e gerar novas obrigações | Metadata de expiração, aviso de rotação, gate de oito dias para novas exportações; falha de autenticação preserva obrigações |
 | Alta | Receptor aceitava JSON válido repetidamente sem orçamento de escritas global | Teto transacional de 1000 relatórios/dia UTC, com rollback conjunto de orçamento e contagens; rate limit adicional por chave comum/PoP |
 | Alta | Endpoint injetado no build podia apontar para qualquer domínio HTTPS público | Lista exata e hash do aviso revisados em fonte; ambos vazios nesta missão; build não aprovado falha e cliente não habilita aceite |
-| Alta | Revogação não cancelava POST e uma resposta antiga podia apagar uma nova pendência | Lease local de envio, cancelamento, geração em memória e comparação da pendência na confirmação |
+| Alta | Revogação não cancelava POST e uma resposta antiga podia apagar uma nova pendência | Lease local de envio, cancelamento, revalidacao da escolha persistida e identidade de arquivo comparada/removida no mesmo handle |
 | Média | `JSON.parse` perdia evidência de chaves repetidas | Parser limitado por bytes, profundidade/nós, com rejeição de duplicatas inclusive escapadas |
 | Média | Execução antiga poderia voltar após perder o lease | Verificação de lease com margem antes de mutações e rechecagem de deadline depois de espera |
 | Média | Sucesso parcial podia renovar `last_success`; monitoramento era só procedimento | Sucesso completo separado de progresso, heartbeat, erro sanitizado e snapshot operacional; observador independente preparado, desligado |
@@ -39,7 +39,7 @@ A falha prioritária foi confirmada e corrigida: uma intenção sem número **n�
 | Migração | Inspeção, plano e CLI exclusivamente local | v1/v2/parcial, repetição, rollback em cada instrução, índices e conflitos | Clone D1 autorizado, backup e aplicação real posterior |
 | Monitoramento | Snapshot/alertas sem conteúdo individual; observer separado sem endpoint | Cron ausente, erro, atraso, credencial e sanitização | Scheduler independente, canal de alertas e governança de acesso |
 
-O nonce é de uma exportação do **servidor**, não um ID de PC. O ator GitHub pertence ao executor da operação. Esses metadados não entram nos alertas. O comprovante local do aviso é igual em estrutura entre participantes e não contém hora/ID individual. Nenhum teste lê Secret Cloudflare ou cria Issue no destino privado real.
+O nonce é de uma exportação do **servidor**, não um ID de PC. O ator GitHub pertence ao executor da operação. Esses metadados não entram nos alertas. A identidade do arquivo é usada somente em memória, sem ser gravada/enviada; uma outra instância com escolha persistida diferente interrompe o envio. O comprovante local do aviso é igual em estrutura entre participantes e não contém hora/ID individual. Nenhum teste lê Secret Cloudflare ou cria Issue no destino privado real.
 
 ## 4. Arquivos e justificativas
 
@@ -106,7 +106,7 @@ Riscos e bloqueios restantes:
 5. **Plano Cloudflare:** Free documenta CPU de 10ms e até 50 consultas D1 por invocação. Limitar operações/corpo/páginas não comprova CPU p95/p99 no plano real; homologação de CPU/memória/custo é bloqueador. Paid e outros limites precisam ser conferidos para a conta usada, sem inferir o plano atual.
 6. **Credencial:** expiração prevista 25/11/2026 é informação do proprietário, sem verificação do valor do token. Metadata pode divergir. Rotação e exclusão após 401 exigem intervenção autorizada.
 7. **Governança:** faltam controlador/contato/aviso final, atendimento de direitos, contratos/transferências, acesso de colaboradores e retenção de notificações/backups. Exclusão de Issue não elimina cópias externas.
-8. **Cliente:** cancelamento não retira bytes já recebidos pelo servidor; falha de disco pode impedir persistência da recusa para próxima abertura, embora a sessão corrente pare de transmitir e informe a falha. Malware/usuário com acesso ao perfil pode editar o registro local. AVG, hardware e DPI reais não foram homologados aqui.
+8. **Cliente:** cancelamento não retira bytes já recebidos pelo servidor; falha de disco pode impedir persistência da recusa para próxima abertura, embora a sessão corrente pare de transmitir e informe a falha. Retirada não persistida não pode ser observada por outro processo; fechar outras instâncias antes de nova tentativa é parte da homologação. Malware/usuário com acesso ao perfil pode editar o registro local. AVG, hardware e DPI reais não foram homologados aqui.
 
 ## 8. Migração, monitoramento e rotação
 
