@@ -46,14 +46,28 @@ internal sealed class TelemetryPrivacyDialog : Form
         };
 #if GF_BETA
         notice.Text = "VERSÃO BETA — participação opcional.\n\n" +
-            "Com sua autorização, o GF envia automaticamente no fechamento apenas " +
-            "versão, tipo de encerramento e contagens técnicas da lista permitida. " +
-            "Não envia logs brutos, lista de programas, nomes, arquivos, caminhos, credenciais ou ID do PC.\n\n" +
-            "A recepção é privada via HTTPS; só agregados revisados podem chegar ao GitHub privado. " +
-            "Metadados de rede, como IP, podem ser processados pelo provedor. " +
-            "Revogue em Bandeja > Privacidade e diagnóstico.";
-#endif
+            "Finalidade: identificar frequências de falhas técnicas para corrigir o GF. " +
+            "Com autorização, ao fechar normalmente o programa pode enviar por HTTPS " +
+            "apenas a versão do GF, o tipo de encerramento e contagens de 14 códigos permitidos. " +
+            "Não envia logs brutos, lista de programas, arquivos, caminhos, credenciais nem ID do PC.\n\n" +
+            "O provedor recebe o IP para entregar a requisição e limitar abusos; " +
+            "não gravamos o IP no banco D1. Resumos ficam até 7 dias no PC e agregados até " +
+            "7 dias no D1. Sínteses por dia e categoria podem ir ao GitHub PRIVADO, " +
+            "com retenção própria descrita na política publicada.\n\n" +
+            "Recusar não restringe funções. Revogue em Bandeja > Privacidade e diagnóstico. " +
+            "A revogação bloqueia novos envios, mas não desfaz resumos já recebidos e agregados.";
+        // O aviso ultrapassa uma altura fixa em notebook/DPI alto: permitir rolagem e copia.
+        var scrollingNotice = new TextBox
+        {
+            Name = "PrivacyBetaNotice", Multiline = true, ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical, WordWrap = true, TabStop = true,
+            Dock = DockStyle.Fill, BorderStyle = BorderStyle.None,
+            BackColor = BackColor, ForeColor = ForeColor, Text = notice.Text
+        };
+        root.Controls.Add(scrollingNotice, 0, 0);
+#else
         root.Controls.Add(notice, 0, 0);
+#endif
 
         var preview = new DarkLogView
         {
@@ -87,7 +101,7 @@ internal sealed class TelemetryPrivacyDialog : Form
 #if GF_BETA
         accept.Text = "Aceito envio automático";
         accept.Enabled = BetaTelemetryUploader.IsConfigured;
-        if (!accept.Enabled) notice.Text += "\n\nSem receptor aprovado: o envio fica bloqueado.";
+        if (!accept.Enabled) scrollingNotice.Text += "\n\nSem receptor configurado: aceitar e enviar ficam bloqueados.";
 #endif
         var decline = new ModernButton
         {
