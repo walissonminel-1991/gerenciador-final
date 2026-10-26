@@ -274,13 +274,15 @@ internal static class LayoutTests
                 b.AccessibleDescription?.Contains("indeterminada", StringComparison.Ordinal) == true) ||
             Descendants(placeholder).OfType<Button>().Any(b => b.Text == "Não confirmados"))
             throw new Exception("Filtro DRIVERS deve caber inteiro e explicar os casos incertos.");
-        var privacyStatus = Descendants(form).OfType<Button>()
-            .SingleOrDefault(b => b.Name == "PrivacyStatusButton")
-            ?? throw new Exception("Indicador de privacidade ausente do cabecalho.");
-        if (privacyStatus.Text != PrivacyConsentPresentation.ButtonLabel(
-                AnonymousTelemetryContext.Current?.Consent ?? TelemetryConsent.NotAsked) ||
-            privacyStatus.AccessibleDescription?.Contains("Clique", StringComparison.Ordinal) != true)
-            throw new Exception("Consentimento existente nao esta visivel nem revisavel.");
+        // BETA: sem botao permanente no cabecalho. Revogacao acessivel pela bandeja.
+        if (Descendants(form).OfType<Button>().Any(b => b.Name == "PrivacyStatusButton"))
+            throw new Exception("BETA nao pode mostrar botao permanente de coleta no cabecalho.");
+        var trayMenu = typeof(MainForm).GetField("_trayMenu",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            ?.GetValue(form) as ContextMenuStrip;
+        if (trayMenu?.Items.Find("TrayPrivacy", true).SingleOrDefault()
+            is not ToolStripMenuItem { Enabled: true })
+            throw new Exception("BETA perdeu acesso a privacidade e revogacao pela bandeja.");
         var fakeDrivers = Enumerable.Range(0, 184).Select(i => new DriverInventoryEntry(
             "TEST\\\\ID" + i, "Dispositivo sintetico " + i,
             "Fabricante de teste", "1.2.3." + i, "oem" + i + ".inf",
@@ -507,18 +509,22 @@ internal static class LayoutTests
                     if (Descendants(unsupportedFixture).OfType<Button>()
                         .SingleOrDefault(b => b.Name == "OptimizeVolumeD") is not { Enabled: false })
                         throw new Exception("Unidade nao elegivel deve ter otimizacao desabilitada.");
-                    var profile = Descendants(form).OfType<ComboBox>()
-                        .SingleOrDefault(c => c.Name == "TestDiagnosticProfile");
-                    var preview = profile?.Parent?.Parent as TableLayoutPanel;
-                    int minButtonHeight = preview?.Controls.OfType<Button>()
-                        .Select(b => b.Height).DefaultIfEmpty(0).Min() ?? 0;
+                    if (Descendants(form).OfType<ComboBox>()
+                        .Any(c => c.Name == "TestDiagnosticProfile"))
+                        throw new Exception("BETA nao pode exibir seletor PC FORTE/PC FRACO.");
+                    var cleanupPreview = typeof(MainForm).GetField("_cleanupPreview",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                        ?.GetValue(form) as Control;
+                    var preview = cleanupPreview?.Parent as TableLayoutPanel;
                     if (preview is null || preview.RowCount != 1 ||
-                        preview.Height < 32 || minButtonHeight < 24 ||
-                        profile!.Height < 16 ||
+                        preview.ColumnCount != 2 ||
+                        preview.ColumnStyles[1].SizeType != SizeType.Absolute ||
+                        preview.ColumnStyles[1].Width != 0 ||
+                        preview.Height < 32 || cleanupPreview!.Height < 16 ||
                         !preview.RectangleToScreen(preview.ClientRectangle)
-                            .Contains(profile.RectangleToScreen(profile.ClientRectangle)))
-                        throw new Exception($"Linha do diagnostico de testes cortada: {name} {resolution} " +
-                            $"preview={preview?.Height} botao={minButtonHeight} combo={profile?.Height} " +
+                            .Contains(cleanupPreview.RectangleToScreen(cleanupPreview.ClientRectangle)))
+                        throw new Exception($"Linha de resumo de discos BETA cortada: {name} {resolution} " +
+                            $"preview={preview?.Height} resumo={cleanupPreview?.Height} " +
                             $"DPI={preview?.DeviceDpi} linhas={preview?.RowCount}");
                 }
                 var allButtons = Descendants(form).OfType<Button>()
