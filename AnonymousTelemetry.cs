@@ -86,6 +86,12 @@ internal sealed class AnonymousTelemetry
                 _events.Clear();
                 deleted = TryDelete(PendingFile);
             }
+            // A autorizacao remota nao abrange relatorios coletados quando
+            // o usuario havia autorizado apenas armazenamento local.
+            // Falha de exclusao bloqueia a transicao: nunca enviar pendencia antiga.
+            if (consent == TelemetryConsent.RemoteBeta &&
+                Consent != TelemetryConsent.RemoteBeta && !TryDelete(PendingFile))
+                return false;
             try
             {
                 EnsureStorageFolder();
