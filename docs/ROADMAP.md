@@ -1,6 +1,6 @@
 # GERENCIADOR FINAL — roadmap funcional
 
-**v5.13.11.66 TESTE — BETA EM PREPARAÇÃO, CI E RECEPTOR AINDA NÃO LIBERADOS.** [PR #61 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/61), derivada da WORK18. Somente contagens anonimizadas após autorização específica; não enviar logs para GitHub público nem embutir credenciais. [Critérios de segurança](MISSAO-BETA.md). Nenhum novo checkpoint concluído: **27/42**.
+**v5.13.11.66 TESTE — BETA EM PREPARAÇÃO, CI E RECEPTOR AINDA NÃO LIBERADOS.** [Última CI aprovada da .65](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887). [PR #61 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/61), derivada da WORK18. Somente contagens anonimizadas após autorização específica; não enviar logs para GitHub público nem embutir credenciais. [Critérios de segurança](MISSAO-BETA.md). Nenhum novo checkpoint concluído: **27/42**.
 
 **v5.13.11.65 TESTE — WORK18 aprovada tecnicamente.** [CI 40252100887](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887), fonte `e6d92e2f`, [ZIP x64 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887/artifacts/12621128988) com 284 hashes conferidos fora do runner. [Relatório e matriz](MISSAO-WORK18.md): quatro novos cenários Atualizar e quatro Acompanhar, sem nova medição física. **Roadmap 27/42**, U8/R7/R4/I7 e demais checkpoints físicos pendentes; AVG não homologado, main e integração preservadas.
 

@@ -12,7 +12,7 @@ test("schema estrito impede identificadores e texto livre", () => {
 });
 test("servidor nao implantado ou sem limite recusa envio", async () => {
   const request = new Request("https://private.example/ingest", {method:"POST",
-    headers:{"content-type":"application/json","cf-connecting-ip":"198.51.100.5"},
+    headers:{"content-type":"application/json","cf-connecting-ip":"198.51.100.5","content-length":String(Buffer.byteLength(JSON.stringify(good)))},
     body:JSON.stringify(good)});
   assert.equal((await worker.fetch(request,{PILOT_ENABLED:"no"})).status,503);
 });
@@ -22,7 +22,7 @@ test("receptor limitado acumula somente agregados com 202", async () => {
   const env={PILOT_ENABLED:"yes",BETA_RATE_LIMITER:{limit:async()=>({success:true})},
     DB:{prepare:()=>({bind}),batch:async commands=>Promise.all(commands.map(c=>c.run()))}};
   const request = new Request("https://private.example/ingest", {method:"POST",
-    headers:{"content-type":"application/json","cf-connecting-ip":"198.51.100.5"},
+    headers:{"content-type":"application/json","cf-connecting-ip":"198.51.100.5","content-length":String(Buffer.byteLength(JSON.stringify(good)))},
     body:JSON.stringify(good)});
   assert.equal((await worker.fetch(request,env)).status,202);
   assert.equal(seen.length,1);
@@ -33,7 +33,7 @@ test("sem IP/sem aceitação ou limite retorna erro", async()=> {
   const base={PILOT_ENABLED:"yes",DB:{batch:async()=>{},prepare:()=>({bind:()=>({run:async()=>{}})})},
     BETA_RATE_LIMITER:{limit:async()=>({success:false})}};
   const request=new Request("https://private.example/ingest",{method:"POST",
-    headers:{"content-type":"application/json","cf-connecting-ip":"198.51.100.5"},
+    headers:{"content-type":"application/json","cf-connecting-ip":"198.51.100.5","content-length":String(Buffer.byteLength(JSON.stringify(good)))},
     body:JSON.stringify(good)});
   assert.equal((await worker.fetch(request,base)).status,429);
 });
