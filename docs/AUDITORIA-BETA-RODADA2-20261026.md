@@ -18,6 +18,7 @@ A falha prioritária foi confirmada e corrigida: uma intenção sem número **n�
 | Alta | Dez minutos de espera seguidos de novo POST não comprovavam ausência da criação anterior | Replay automático eliminado. Pendência bloqueia criação global e exige prova positiva/triagem |
 | Alta | Formato/título bastavam para excluir Issue sem vínculo registrado | Marcador por operação e ator previamente gravados; legado sem prova não é adotado/excluído automaticamente |
 | Alta | Falha ao excluir duplicata podia perder a associação se o texto mudasse | `github_delete_refs` guarda ID antes de DELETE; retry usa ID/destino, não texto |
+| Alta | `issue: null` no repositório de origem era tratado como prova de exclusão, embora transferência/visibilidade possam produzir ausência | `absence_unproven`, referência preservada e alerta crítico; resposta de DELETE perdida sem tombstone persistido exige triagem |
 | Alta | Credencial poderia vencer antes das exclusões e gerar novas obrigações | Metadata de expiração, aviso de rotação, gate de oito dias para novas exportações; falha de autenticação preserva obrigações |
 | Alta | Receptor aceitava JSON válido repetidamente sem orçamento de escritas global | Teto transacional de 1000 relatórios/dia UTC, com rollback conjunto de orçamento e contagens; rate limit adicional por chave comum/PoP |
 | Alta | Endpoint injetado no build podia apontar para qualquer domínio HTTPS público | Lista exata e hash do aviso revisados em fonte; ambos vazios nesta missão; build não aprovado falha e cliente não habilita aceite |
@@ -56,12 +57,12 @@ O nonce é de uma exportação do **servidor**, não um ID de PC. O ator GitHub 
 | `BetaEndpointPolicy.cs`, `BetaTelemetryPolicy.props`, `BetaTelemetryUploader.cs`, `BetaTelemetryTransport.cs` | Gate de build/runtime, lista exata vazia, aviso ainda não aprovado e transporte testável sem cookies/redirecionamento/credenciais padrão |
 | `TelemetryPrivacyDialog.cs`, `PrivacyConsentPresentation.cs`, `Program.cs` | Aviso compartilhado, ajuste à área, estado remoto legível e proteção contra fechamento/reenvio concorrente |
 | `GerenciadorAplicativos.csproj`, `TestesTelemetria/*`, `TestesLayout/Program.cs` | Gate negativo de endpoint e execução das verificações de cliente/UI |
-| `.github/workflows/validar-candidata-windows.yml`, `build-windows.yml` | Incluir nova suíte Node/build negativo; compilar e verificar BETA sem disponibilizar o executável como artefato/atestado, conservando evidências técnicas |
+| `.github/workflows/validar-candidata-windows.yml`, `triagem-diagnostico-github.yml`, `build-windows.yml` | Incluir suíte Node antecipada em Linux e repetida em Windows/build negativo; compilar e verificar BETA sem disponibilizar o executável como artefato/atestado, conservando evidências técnicas |
 | `PRIVACY.md`, exemplos Wrangler, `OPERACAO-RODADA2.md`, relatório | Transparência, recuperação, limites, rotação e ações de autorização futura |
 
 ## 5. Testes e CI
 
-Os 70 testes Node da base foram executados e aprovados antes das mudanças. A suíte atual possui **113 testes Node**, aprovados localmente, e a descoberta Python usada pela CI executou **41 testes**, aprovados. Isso inclui os 18 testes anteriores de políticas. Sintaxe Node e diff foram verificados. O host local não possui SDK .NET; execução .NET/WinForms depende da CI Windows, sem simular aprovação local.
+Os 70 testes Node da base foram executados e aprovados antes das mudanças. A suíte ampliada possui **117 testes Node**. Antes dos quatro casos finais de ausência remota, **113 testes Node foram aprovados localmente**; a descoberta Python executou **41 testes**, aprovados localmente e na CI. O ambiente local ficou indisponível depois; a execução integral dos 117 casos e .NET/WinForms é registrada por HEAD na CI/descrição da PR, sem atribuir a aprovação local ao código posterior. Isso inclui os 18 testes anteriores de políticas. Sintaxe Node e diff foram verificados. O host local não possui SDK .NET; execução .NET/WinForms depende da CI Windows, sem simular aprovação local.
 
 ```sh
 node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs prototipos/beta-telemetria/round2.test.mjs
@@ -81,6 +82,7 @@ O microbenchmark local de 10.000 parses de payload sintético mediu p95 aproxima
 | Antes | Depois |
 |---|---|
 | Busca sem correspondência podia aposentar intenção | Ausência textual não encerra obrigação |
+| `null` no repo original encerrava referência conhecida | Ausência sem confirmação persistida fica para triagem; transferência não é inferida como exclusão |
 | Criação incerta podia ser repetida | Criação incerta conserva estado e bloqueia novos POSTs |
 | Síntese com formato parecido podia ser adotada | Vínculo persistido e ator/nonce ou ID previamente comprovado |
 | Duplicata precisava manter texto reconhecível | ID de duplicata guardado antes de excluir |
@@ -100,7 +102,7 @@ A revisão usa LGPD e orientações oficiais da ANPD como requisitos de engenhar
 Riscos e bloqueios restantes:
 
 1. **Permissão real:** `viewerPermission=ADMIN` é uma barreira conservadora, não prova do escopo do token para `deleteIssue`. Autenticação GraphQL e permissões por recurso precisam de ensaio autorizado com credencial de teste. Não se amplia escopo aqui.
-2. **Ambiguidade irrecuperável:** marcador removido, legado sem prova, restore anterior ao registro ou alterações administrativas fora do protocolo podem exigir triagem permanente. Não se fabrica prova de inexistência nem se descarta a obrigação para liberar a fila.
+2. **Ambiguidade irrecuperável:** marcador removido, legado sem prova, restore anterior ao registro, transferência/ocultação do alvo ou DELETE com resposta perdida sem tombstone persistido podem exigir triagem permanente. Não se fabrica prova de inexistência nem se descarta a obrigação para liberar a fila.
 3. **Prazos:** sete dias é o vencimento, não uma garantia de apagamento físico durante indisponibilidade, quotas ou backlog. O gate bloqueia novas exportações em ambiguidade/capacidade; exclusões e alertas devem continuar.
 4. **Abuso:** quota evita escritas de contagens ilimitadas, mas um atacante pode consumir admissões, leituras e orçamento de borda. Não há autenticidade estatística dos relatos nem deduplicação de pessoas. WAF e alertas financeiros/globais continuam pendentes.
 5. **Plano Cloudflare:** Free documenta CPU de 10ms e até 50 consultas D1 por invocação. Limitar operações/corpo/páginas não comprova CPU p95/p99 no plano real; homologação de CPU/memória/custo é bloqueador. Paid e outros limites precisam ser conferidos para a conta usada, sem inferir o plano atual.
@@ -112,7 +114,7 @@ Riscos e bloqueios restantes:
 
 O procedimento integral, estados, thresholds e checklist estão em [OPERACAO-RODADA2.md](../prototipos/beta-telemetria/OPERACAO-RODADA2.md). Ele cobre: backup e preflight; v1/v2/parcial; transação e rollback; restore sem retomar imediatamente; triagem sem descartar intenções; cron ausente; erro/atraso/lease; rotação prevista; GitHub indisponível e credencial revogada.
 
-Os exemplos preservam `PILOT_ENABLED=no`, `GITHUB_EXPORT_ENABLED=no`, `workers_dev=false` e `preview_urls=false`. Observabilidade também vem desligada. Nenhuma configuração remota foi lida/alterada e nenhum Secret foi acessado. O observador não recebe token GitHub. Nenhuma ação de deploy/migração/rotação é embutida nos testes ou na CI desta PR.
+Os exemplos preservam `PILOT_ENABLED=no`, `GITHUB_EXPORT_ENABLED=no`, `workers_dev=false` e `preview_urls=false`. Observabilidade também vem desligada. Nenhuma configuração remota da Cloudflare foi lida/alterada e nenhum Secret foi acessado. O observador não recebe token GitHub. Nenhuma ação de deploy/migração/rotação é embutida nos testes ou na CI desta PR.
 
 ## 9. Ações que exigem autorização do proprietário
 

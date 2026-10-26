@@ -278,9 +278,10 @@ test("resposta perdida ao excluir duplicata nao apaga sua referencia",async t=>{
   f.remote.add(f.today-1,2).body=canonical.body;f.remote.loseDeleteResponse=true;
   assert.equal((await run(f)).code,"network");
   assert.equal(f.db.sqlite.prepare("SELECT count(*) AS n FROM github_delete_refs").get().n,1);
-  f.remote.loseDeleteResponse=false;f.advance(120);await run(f);
+  f.remote.loseDeleteResponse=false;f.advance(120);
+  assert.equal((await run(f)).code,"absence_unproven");
   assert.equal(f.remote.deleted.length,1);assert.equal(f.jobs().length,1);
-  assert.equal(f.db.sqlite.prepare("SELECT count(*) AS n FROM github_delete_refs").get().n,0);
+  assert.equal(f.db.sqlite.prepare("SELECT count(*) AS n FROM github_delete_refs").get().n,1);
 });
 
 test("lease sem margem para concluir a chamada bloqueia mutacao",async t=>{
@@ -295,4 +296,43 @@ test("indice unico em nonce duplicado aborta migracao sem truncar referencias",a
   await assert.rejects(migrate(db));
   assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM github_exports").get().n,2);
   assert.equal((await inspectSchema(db)).tables.github_maintenance.length,0);
+});
+
+test("transferencia ou ocultacao de alvo conhecido preserva obrigacao em falhas sucessivas e recupera retorno",async t=>{
+  const f=fixture(t),issue=f.remote.add(f.today-8);f.job(f.today-8,issue);f.enable();f.count();
+  f.remote.issues.splice(f.remote.issues.indexOf(issue),1);
+  for(let n=0;n<4;n++){
+    assert.equal((await run(f)).code,"absence_unproven");f.advance(60*2**n);
+    assert.equal(f.jobs().length,1);assert.equal(f.jobs()[0].status,"review_required");
+  }
+  assert.equal(f.remote.created.length,0);assert.equal(f.remote.deleted.length,0);
+  f.remote.issues.push(issue);
+  await run(f);
+  assert.equal(f.remote.deleted.length,1);
+  assert.ok(!f.jobs().some(job=>job.day===f.today-8));
+});
+
+test("numero reaproveitado com outro ID nunca autoriza excluir Issue alheia",async t=>{
+  const f=fixture(t),issue=f.remote.add(f.today-8);f.job(f.today-8,issue);
+  issue.id="UNRELATED_FIXTURE";
+  assert.equal((await run(f)).code,"identity_conflict");
+  assert.equal(f.jobs().length,1);assert.equal(f.remote.deleted.length,0);
+});
+
+test("delete confirmado mas gravacao do tombstone falha nao vira prova por null no retry",async t=>{
+  const f=fixture(t);f.job(f.today-8,f.remote.add(f.today-8));
+  f.db.fault=sql=>{if(sql.startsWith("UPDATE github_exports SET status='deleted'"))throw new Error("synthetic_d1");};
+  assert.equal((await run(f)).code,"database");assert.equal(f.remote.deleted.length,1);
+  f.db.fault=null;f.advance(120);
+  assert.equal((await run(f)).code,"absence_unproven");
+  assert.equal(f.jobs().length,1);assert.equal(f.jobs()[0].status,"review_required");
+});
+
+test("ausencia remota sem prova gera alerta critico sanitizado imediato",()=>{
+  const now=Date.parse("2026-10-26T00:00:00Z")/1000;
+  const health=healthFromSnapshot({last_started:now,last_success:now,last_code:"absence_unproven",
+    last_error:"absence_unproven",failures:1},{},now,"2026-11-25");
+  assert.equal(health.last_code,"absence_unproven");
+  assert.ok(health.alerts.includes("retention_review_required"));
+  assert.equal(health.severity,"critical");
 });

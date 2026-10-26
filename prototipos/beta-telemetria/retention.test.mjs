@@ -144,10 +144,11 @@ test("identidade da Issue alterada preserva obrigacao e bloqueia criacao", async
   assert.equal(f.jobs().length,1);assert.equal(f.remote.deleted.length,0);assert.equal(f.remote.created.length,0);
 });
 
-test("Issue previamente excluida: null autenticado conclui sem mutacao", async t=>{
+test("Issue ausente: null autenticado exige triagem sem descartar referencia", async t=>{
   const f=fixture(t);f.job(f.today-8,{number:42,id:"ISSUE_42"});
-  assert.equal((await run(f)).code,"cleanup_only");
-  assert.equal(f.jobs().length,0);assert.equal(f.remote.deleted.length,0);
+  assert.equal((await run(f)).code,"absence_unproven");
+  assert.equal(f.jobs().length,1);assert.equal(f.jobs()[0].status,"review_required");
+  assert.equal(f.remote.deleted.length,0);
 });
 
 for(const [name,response] of [["403",()=>json({},403)], ["404",()=>json({},404)],
@@ -185,12 +186,13 @@ test("GraphQL errors sem dados impede considerar delete como sucesso",async t=>{
   assert.equal((await run(f)).code,"graphql");assert.equal(f.jobs().length,1);
 });
 
-test("delete aplicado com resposta perdida e recuperado sem recriar",async t=>{
+test("delete com resposta perdida conserva obrigacao para triagem sem recriar",async t=>{
   const f=fixture(t);f.job(f.today-8,f.remote.add(f.today-8));f.remote.loseDeleteResponse=true;
   assert.equal((await run(f)).code,"network");assert.equal(f.jobs().length,1);
   f.advance(120);f.remote.loseDeleteResponse=false;
-  assert.equal((await run(f)).code,"cleanup_only");
-  assert.equal(f.jobs().length,0);assert.equal(f.remote.deleted.length,1);assert.equal(f.remote.created.length,0);
+  assert.equal((await run(f)).code,"absence_unproven");
+  assert.equal(f.jobs().length,1);assert.equal(f.jobs()[0].status,"review_required");
+  assert.equal(f.remote.deleted.length,1);assert.equal(f.remote.created.length,0);
 });
 
 test("create aplicado com resposta perdida e reconciliado sem duplicata",async t=>{
@@ -209,7 +211,7 @@ test("falha D1 apos create preserva intento e proxima varredura recupera",async 
   assert.equal(f.remote.created.length,1);assert.ok(f.jobs()[0].issue_number>0);
 });
 
-test("falha D1 apos delete nao perde obrigacao; retry confirma ausencia",async t=>{
+test("falha D1 apos delete usa tombstone confirmado ja persistido no retry",async t=>{
   const f=fixture(t);f.job(f.today-8,f.remote.add(f.today-8));
   f.db.fault=sql=>{if(sql.startsWith("DELETE FROM github_exports"))throw new Error("synthetic_d1");};
   assert.equal((await run(f)).code,"database");assert.equal(f.jobs().length,1);

@@ -38,11 +38,11 @@ Uma restauração pode reintroduzir dados vencidos ou perder intenções posteri
 | `uncertain` | A requisição pode ter sido aplicada | Reconciliar por nonce da operação e ator previamente gravados |
 | `published` | Número e ID associados à obrigação | Conferir ID/destino e tentar `deleteIssue` quando devido |
 | `review_required` | Falta prova suficiente, inclusive legado | Bloquear novas exportações e manter referência para decisão administrativa |
-| `deleted` | Exclusão/ausência do alvo conhecido confirmada | Conservar prova até terminar a varredura e tratar duplicatas; então retirar somente referência resolvida |
+| `deleted` | Confirmação positiva de `deleteIssue` persistida | Conservar prova até terminar a varredura e tratar duplicatas; então retirar somente referência resolvida |
 
 O nonce identifica **uma exportação do servidor**, nunca participante, instalação ou computador. O ID do ator é do executor GitHub, não dos voluntários. Um título ou formato parecido não prova propriedade. Mudança de título com marcador/ator intactos ainda permite recuperar a associação. Remoção do marcador, ator diferente ou ausência de ledger requer triagem.
 
-Duplicatas comprovadas recebem referência por ID em `github_delete_refs` **antes** da exclusão. Resposta perdida ou falha D1 não obriga a reencontrar texto: a próxima execução consulta o alvo por número, confere ID e revalida. Essas referências sobrevivem a falha/alteração do corpo. Não se usa fechamento de Issue como substituto de exclusão definitiva.
+Duplicatas comprovadas recebem referência por ID em `github_delete_refs` **antes** da exclusão. Resposta perdida ou falha D1 não obriga a reencontrar texto: a próxima execução consulta o alvo por número, confere ID e revalida. Essas referências sobrevivem a falha/alteração do corpo. `issue: null` no repositório de origem não prova exclusão global: transferência ou perda de visibilidade podem produzi-lo. O código retorna `absence_unproven`, mantém a referência e alerta para triagem, inclusive se o DELETE pode ter sido aplicado mas a resposta/tombstone se perdeu. Somente confirmação positiva persistida autoriza aposentar automaticamente a obrigação. Se o alvo voltar a ser verificável com o mesmo ID/destino, a limpeza pode retomá-lo. Não se usa fechamento de Issue como substituto de exclusão definitiva.
 
 Não há endpoint público administrativo ou botão para “ignorar erro”. O proprietário deve investigar de forma privada e autorizada: cruzar o registro da operação, audit trail/atividade disponível no GitHub e metadados imutáveis do alvo; confirmar repositório, ID, número e autoria. Somente depois de prova positiva pode vincular manualmente o alvo à obrigação ou registrar resolução. **Ausência de resultado de busca textual não é prova de que a Issue nunca existiu.** Se não houver prova, a pendência permanece, o piloto não avança e a situação é tratada como incidente de retenção. Não inserir justificativas livres/dados pessoais nas colunas ou alertas.
 
@@ -60,6 +60,7 @@ O limite de criação é 32 registros no ledger, e há teto de 64 referências d
 | Nenhuma manutenção completa em 4 horas | Warning: checar backlog, scan, quotas e erros |
 | 3 falhas consecutivas | Crítico: preservar obrigações, bloquear liberação e investigar código sanitizado |
 | Qualquer obrigação vencida | Crítico: acompanhar volume e idade; não esconder atraso eliminando metadata |
+| `absence_unproven` (inclusive DELETE com resposta perdida) | Crítico imediato: preservar referência; investigar transferência/visibilidade e confirmação, sem concluir exclusão por `null` |
 | Intenção sem prova / candidato não verificável | Crítico: triagem administrativa; não criar outra Issue |
 | Lease vencido com token de execução | Investigar Worker interrompido; nova execução retoma após expiração |
 | 401/403 de autenticação/permissão | Aviso imediato de acesso; não ampliar escopos automaticamente |

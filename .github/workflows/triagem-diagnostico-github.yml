@@ -27,3 +27,9 @@ jobs:
           python3 scripts/verificar_pacote.py . --metadata
       - name: Simular receptor HTTPS isolado (Node, sem rede externa)
         run: node --test prototipos/telemetria-worker/test.mjs prototipos/telemetria-worker/staging-receiver.test.mjs
+      - name: Preparar Node fixo para SQLite local da BETA
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.22.1'
+      - name: Retencao e receptor BETA antecipados (SQLite sintetico, sem rede)
+        run: node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs prototipos/beta-telemetria/round2.test.mjs

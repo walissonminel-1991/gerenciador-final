@@ -3,7 +3,7 @@
 const safeCodes=new Set(["none","never","disabled","cleanup_only","idle","exported","suppressed","expired",
   "review_required","ledger_capacity","scanning","backlog","budget","rate_limit","authentication","authorization",
   "configuration","repository_access","repository_changed","identity_conflict","network","http","graphql","cursor",
-  "response","database","schema","lease_lost","credential_expiry"]);
+  "response","database","schema","lease_lost","credential_expiry","absence_unproven"]);
 const count=value=>Number.isSafeInteger(value)&&value>=0?Math.min(value,100000000):0;
 const age=(now,then)=>then>0&&then<=now?Math.max(0,now-then):null;
 export function healthFromSnapshot(state,totals,now,credentialExpiry) {
@@ -21,6 +21,7 @@ export function healthFromSnapshot(state,totals,now,credentialExpiry) {
   if(result.failures>=3)result.alerts.push("consecutive_failures");
   if(["authentication","authorization"].includes(result.last_code))result.alerts.push("github_authentication");
   if(result.overdue)result.alerts.push("retention_overdue");
+  if(result.last_code==="absence_unproven")result.alerts.push("retention_review_required");
   if(result.unresolved||result.unverified)result.alerts.push("administrative_review");
   if(result.obligations>=32)result.alerts.push("ledger_capacity");
   if(result.credential_days_left===null)result.alerts.push("credential_expiry_unknown");
@@ -28,7 +29,7 @@ export function healthFromSnapshot(state,totals,now,credentialExpiry) {
   else if(result.credential_days_left<=14)result.alerts.push("credential_rotation_due");
   if(state.lease_until && state.lease_until<=now && state.lease_token)result.alerts.push("lease_expired");
   result.severity=result.overdue||result.unresolved||result.unverified||result.failures>=3||
-    result.alerts.includes("cron_missing")||result.alerts.includes("credential_expired")?"critical":result.alerts.length?"warning":"ok";
+    result.alerts.includes("cron_missing")||result.alerts.includes("credential_expired")||result.alerts.includes("retention_review_required")?"critical":result.alerts.length?"warning":"ok";
   return result;
 }
 export async function readHealth(db,now,expiry) {

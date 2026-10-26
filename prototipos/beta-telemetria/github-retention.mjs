@@ -26,7 +26,7 @@ const createMutation = `mutation Create($repo:ID!,$title:String!,$body:String!,$
 }`;
 const codes = new Set(["configuration", "repository_access", "repository_changed", "identity_conflict",
   "network", "http", "rate_limit", "graphql", "cursor", "response", "database", "budget", "aggregate",
-  "authentication", "authorization", "lease_lost", "schema", "credential_expiry"]);
+  "authentication", "authorization", "lease_lost", "schema", "credential_expiry", "absence_unproven"]);
 class MaintenanceError extends Error {
   constructor(code, retryAt = 0) { super(code); this.code = code; this.retryAt = retryAt; }
 }
@@ -142,10 +142,11 @@ async function work(env, gh, state, client, runtime, db) {
     if(reference.repo_id!==repoId)fail("repository_changed");
     const repo=(await client.call(lookupQuery,{...vars,number:reference.issue_number})).repository;
     checkRepository(repo,repoId);
-    if(repo.issue!==null){
-      if(repo.issue?.id!==reference.issue_node_id)fail("identity_conflict");
-      await deleteIssue(client,repo.issue,repoId);
-    }
+    // Ausencia no repo de origem pode ser transferencia/perda de visibilidade.
+    // Sem confirmacao persistida de deleteIssue, conservar tambem a duplicata.
+    if(repo.issue===null)fail("absence_unproven");
+    if(repo.issue?.id!==reference.issue_node_id)fail("identity_conflict");
+    await deleteIssue(client,repo.issue,repoId);
     await db.prepare("DELETE FROM github_delete_refs WHERE issue_node_id=?").bind(reference.issue_node_id).run();
   }
   if(await db.prepare("SELECT issue_number FROM github_delete_refs LIMIT 1").first())return "backlog";
@@ -156,9 +157,14 @@ async function work(env, gh, state, client, runtime, db) {
     const repo = (await client.call(lookupQuery, { ...vars, number: job.issue_number })).repository;
     checkRepository(repo, repoId);
     const issue = repo.issue;
-    // null sem erros em consulta autenticada ao repo privado confirma ausencia.
-    // HTTP 404/403, GraphQL parcial e falta de permissao NUNCA confirmam exclusao.
-    if (issue !== null) {
+    // null no repositorio original nao prova exclusao definitiva: a Issue
+    // pode ter sido transferida. Resposta de DELETE perdida exige triagem.
+    if (issue === null) {
+      await db.prepare("UPDATE github_exports SET status='review_required' WHERE day=? AND issue_number=?")
+        .bind(job.day,job.issue_number).run();
+      fail("absence_unproven");
+    }
+    {
       if (!issue || (job.issue_node_id ? issue.id !== job.issue_node_id : managedDay(issue) !== job.day))
         fail("identity_conflict");
       await db.prepare("UPDATE github_exports SET issue_node_id=?,repo_id=? WHERE day=?")
