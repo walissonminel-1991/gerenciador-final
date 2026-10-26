@@ -9,6 +9,9 @@
     <Compile Include="../InstallerFileGuard.cs" Link="InstallerFileGuard.cs" />
     <Compile Include="../NativeLibrarySecurity.cs" Link="NativeLibrarySecurity.cs" />
     <Compile Include="../AnonymousTelemetry.cs" Link="AnonymousTelemetry.cs" />
+    <Compile Include="../TelemetryConsentPolicy.cs" Link="TelemetryConsentPolicy.cs" />
+    <Compile Include="../BetaEndpointPolicy.cs" Link="BetaEndpointPolicy.cs" />
+    <Compile Include="../BetaTelemetryTransport.cs" Link="BetaTelemetryTransport.cs" />
     <Compile Include="../DiagnosticPayloadPolicy.cs" Link="DiagnosticPayloadPolicy.cs" />
     <Compile Include="../DiagnosticTrace.cs" Link="DiagnosticTrace.cs" />
   </ItemGroup>

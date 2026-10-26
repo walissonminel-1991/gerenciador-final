@@ -848,13 +848,16 @@ internal sealed partial class MainForm : Form
                 "Operação em andamento", MessageBoxButtons.OK, MessageBoxIcon.Information);
         };
 #if GF_BETA
-        bool betaCloseComplete = false;
+        bool betaCloseComplete = false, betaCloseInProgress = false;
         FormClosing += async (_, e) =>
         {
-            if (e.Cancel || betaCloseComplete || e.CloseReason == CloseReason.WindowsShutDown) return;
+            if (e.Cancel || betaCloseComplete) return;
             var recorder = AnonymousTelemetryContext.Current;
+            if (e.CloseReason == CloseReason.WindowsShutDown) { recorder?.CancelRemoteSend(); return; }
+            if (betaCloseInProgress) { e.Cancel=true; return; }
             if (recorder?.Consent != TelemetryConsent.RemoteBeta || !BetaTelemetryUploader.IsConfigured) return;
             e.Cancel = true;
+            betaCloseInProgress=true;
             recorder.SaveOnNormalExit(DiagnosticTrace.VersionLabel);
             try { await BetaTelemetryUploader.TrySendAsync(recorder); }
             finally

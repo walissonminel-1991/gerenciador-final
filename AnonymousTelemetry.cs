@@ -37,7 +37,10 @@ internal sealed class AnonymousTelemetry
         ExpirePendingReport();
     }
 
-    internal TelemetryConsent Consent { get; private set; }
+    private TelemetryConsent _consent;
+    private CancellationTokenSource? _remoteSend;
+    private long _generation;
+    internal TelemetryConsent Consent { get { lock (_gate) return _consent; } private set { _consent = value; } }
     internal string ConsentFile => Path.Combine(_folder, "consentimento-v1.json");
     internal string PendingFile => Path.Combine(_folder, "diagnostico-pendente-v1.json");
 
@@ -51,17 +54,28 @@ internal sealed class AnonymousTelemetry
             using var json = JsonDocument.Parse(ReadBoundedFile(ConsentFile, 512));
             var root = json.RootElement;
             // Falha fechada: nao aceitar campos extras, chaves repetidas ou tipos ambiguos.
-            if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count() != 2 ||
+            if (root.ValueKind != JsonValueKind.Object ||
                 !root.TryGetProperty("schema", out var schema) ||
-                schema.ValueKind != JsonValueKind.Number || !schema.TryGetInt32(out int schemaValue) || schemaValue != 1 ||
+                schema.ValueKind != JsonValueKind.Number || !schema.TryGetInt32(out int schemaValue) || schemaValue is not (1 or 2) ||
                 !root.TryGetProperty("state", out var value) ||
                 value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int state))
                 return TelemetryConsent.NotAsked;
+            int fields = root.EnumerateObject().Count();
+            if (schemaValue == 2)
+            {
+                if (fields != 4 || state != 3 ||
+                    !root.TryGetProperty("notice_version", out var notice) || notice.ValueKind != JsonValueKind.String ||
+                    notice.GetString() != TelemetryConsentPolicy.Version ||
+                    !root.TryGetProperty("notice_sha256", out var hash) || hash.ValueKind != JsonValueKind.String ||
+                    hash.GetString() != TelemetryConsentPolicy.NoticeHash) return TelemetryConsent.NotAsked;
+                return TelemetryConsent.RemoteBeta;
+            }
+            if (fields != 2) return TelemetryConsent.NotAsked;
             return state switch
             {
                 1 => TelemetryConsent.Declined,
                 2 => TelemetryConsent.LocalOnly,
-                3 => TelemetryConsent.RemoteBeta,
+                3 => TelemetryConsent.NotAsked, // aceite remoto antigo nao abrange o aviso atual
                 _ => TelemetryConsent.NotAsked
             };
         }
@@ -80,6 +94,12 @@ internal sealed class AnonymousTelemetry
             // O retorno ainda informa falhas de gravacao ou exclusao para a interface.
             bool preserveEvents = consent != TelemetryConsent.Declined && Consent == consent;
             bool deleted = true;
+            if (consent != TelemetryConsent.RemoteBeta)
+            {
+                Consent = consent;
+                _generation++;
+                try { _remoteSend?.Cancel(); } catch (AggregateException) { }
+            }
             if (consent == TelemetryConsent.Declined)
             {
                 Consent = consent;
@@ -95,7 +115,11 @@ internal sealed class AnonymousTelemetry
             try
             {
                 EnsureStorageFolder();
-                WriteAtomic(ConsentFile, JsonSerializer.Serialize(new { schema = 1, state = (int)consent }));
+                string choice = consent == TelemetryConsent.RemoteBeta
+                    ? JsonSerializer.Serialize(new { schema = 2, state = 3,
+                        notice_version = TelemetryConsentPolicy.Version, notice_sha256 = TelemetryConsentPolicy.NoticeHash })
+                    : JsonSerializer.Serialize(new { schema = 1, state = (int)consent });
+                WriteAtomic(ConsentFile, choice);
                 Consent = consent;
                 if (!preserveEvents) _events.Clear();
                 return deleted;
@@ -260,6 +284,7 @@ internal sealed class AnonymousTelemetry
             {
                 EnsureStorageFolder();
                 WriteAtomic(PendingFile, Serialize(version, true));
+                _generation++;
                 return true; // Guardou localmente. Nao significa envio.
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
@@ -282,6 +307,56 @@ internal sealed class AnonymousTelemetry
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                 System.Security.SecurityException) { return null; }
+        }
+    }
+
+    internal sealed class SendLease : IDisposable
+    {
+        private readonly AnonymousTelemetry _owner;
+        internal SendLease(AnonymousTelemetry owner, string report, long generation, CancellationTokenSource source)
+        { _owner=owner; Report=report; Generation=generation; Source=source; }
+        internal string Report { get; }
+        internal long Generation { get; }
+        internal CancellationTokenSource Source { get; }
+        internal CancellationToken Cancellation => Source.Token;
+        public void Dispose() => _owner.EndRemoteSend(this);
+    }
+
+    internal SendLease? TryBeginRemoteSend()
+    {
+        lock (_gate)
+        {
+            if (Consent != TelemetryConsent.RemoteBeta || _remoteSend is not null) return null;
+            string? report = PendingForRemote();
+            if (report is null) return null;
+            _remoteSend = new CancellationTokenSource();
+            return new SendLease(this, report, _generation, _remoteSend);
+        }
+    }
+    internal bool CompleteRemoteSend(SendLease lease)
+    {
+        lock (_gate)
+        {
+            if (Consent != TelemetryConsent.RemoteBeta || !ReferenceEquals(_remoteSend, lease.Source) ||
+                lease.Cancellation.IsCancellationRequested || _generation != lease.Generation ||
+                PendingForRemote() != lease.Report) return false;
+            return TryDelete(PendingFile);
+        }
+    }
+    private void EndRemoteSend(SendLease lease)
+    {
+        lock (_gate)
+        {
+            if (ReferenceEquals(_remoteSend, lease.Source)) _remoteSend = null;
+            lease.Source.Dispose();
+        }
+    }
+    internal void CancelRemoteSend()
+    {
+        lock (_gate)
+        {
+            _generation++;
+            try { _remoteSend?.Cancel(); } catch (AggregateException) { }
         }
     }
 

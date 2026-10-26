@@ -160,8 +160,14 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24.22.1'
+      - name: Endpoint BETA nao aprovado deve falhar no build sem habilitar envio
+        shell: pwsh
+        run: |
+          $output = & dotnet msbuild GerenciadorAplicativos.csproj -t:ValidateGfBetaEndpoint -p:GfBetaEndpoint=https://receiver.invalid/ingest 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $output -notmatch 'GF_BETA_ENDPOINT_NOT_APPROVED') { throw 'Gate do endpoint falhou' }
+          Write-Host 'Endpoint nao aprovado bloqueado; nenhuma chamada de rede realizada.'
       - name: BETA receptor, retencao GitHub e recuperacao (SQLite local, sem rede)
-        run: node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs
+        run: node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs prototipos/beta-telemetria/round2.test.mjs
       - name: Testes privacidade e diagnostico local
         run: dotnet run --project TestesTelemetria/TestesTelemetria.csproj -c Release
       - name: Testes bloqueio de instaladores e encerramento seguro

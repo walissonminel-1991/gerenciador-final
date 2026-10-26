@@ -58,6 +58,24 @@
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
     <PackageReference Include="Microsoft.WindowsPackageManager.ComInterop" Version="1.29.380" GeneratePathProperty="true" />
   </ItemGroup>
+  <Import Project="BetaTelemetryPolicy.props" />
+  <Target Name="ValidateGfBetaEndpoint" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_MatchedGfBetaEndpoint Include="@(GfApprovedBetaEndpoint)" Condition="'%(Identity)' == '$(GfBetaEndpoint)'" />
+    </ItemGroup>
+    <Error Condition="'$(GfBetaEndpoint)' != '' And ('@(_MatchedGfBetaEndpoint)' == '' Or '$(GfReviewedPrivacyNoticeSha256)' == '')"
+      Text="GF_BETA_ENDPOINT_NOT_APPROVED: receptor e aviso exigem revisao em codigo." />
+  </Target>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'@(GfApprovedBetaEndpoint)' != ''">
+      <_Parameter1>GfApprovedBetaEndpoint</_Parameter1>
+      <_Parameter2>%(GfApprovedBetaEndpoint.Identity)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'$(GfReviewedPrivacyNoticeSha256)' != ''">
+      <_Parameter1>GfReviewedPrivacyNoticeSha256</_Parameter1>
+      <_Parameter2>$(GfReviewedPrivacyNoticeSha256)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
   <!-- Somente URL do endpoint: nunca token privado no aplicativo. -->
   <ItemGroup Condition="'$(GfBetaEndpoint)' != ''">
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
