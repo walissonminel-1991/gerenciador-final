@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "status": "pending_owner_approval",
+  "version": "5.13.11.66",
+  "endpoint": "",
+  "notice_version": "gf-beta-20261026-r3",
+  "notice_sha256": "",
+  "controller_name_proposed": "Walisson Minel",
+  "private_contact": "",
+  "privacy_approved": false,
+  "connected_homologation_approved": false,
+  "cloudflare_evidence_reference": "",
+  "github_delete_evidence_reference": "",
+  "windows_avg_evidence_reference": "",
+  "external_updater_evidence_reference": "",
+  "distribution_approved": false,
+  "homologation_endpoint": "",
+  "synthetic_homologation_build_approved": false
+}

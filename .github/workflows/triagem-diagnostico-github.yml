@@ -32,4 +32,4 @@ jobs:
         with:
           node-version: '24.22.1'
       - name: Retencao e receptor BETA antecipados (SQLite sintetico, sem rede)
-        run: node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs prototipos/beta-telemetria/round2.test.mjs
+        run: node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs prototipos/beta-telemetria/round2.test.mjs prototipos/beta-telemetria/finalization.test.mjs

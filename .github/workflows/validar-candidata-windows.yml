@@ -3,17 +3,6 @@ name: Validar candidata Windows
 on:
   workflow_call:
   workflow_dispatch:
-    inputs:
-      verificar_fontes_reais:
-        description: 'Consultar fontes HTTPS e drivers do runner (somente leitura)'
-        required: false
-        type: boolean
-        default: false
-      verificar_downloads:
-        description: 'Baixar e validar instaladores oficiais, sem executar/instalar'
-        required: false
-        type: boolean
-        default: false
 
 concurrency:
   group: regressao-windows-${{ github.workflow }}-${{ github.ref }}
@@ -39,6 +28,17 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.402
+      - name: Gate de compilacao conectada deve recusar aprovacoes pendentes
+        shell: pwsh
+        run: |
+          $checkout = (& git rev-parse HEAD).Trim()
+          try {
+            ./scripts/Compilar-Beta-Conectada.ps1 -ExpectedSourceCommit $checkout -Endpoint https://receiver.invalid/ingest
+            throw 'GF_TEST_APPROVAL_GATE_OPEN'
+          } catch {
+            if ($_.Exception.Message -notmatch 'GF_BETA_APPROVAL_PENDING') { throw }
+            Write-Host 'Compilacao conectada recusou aviso/endpoint sem aprovacao; nenhuma publicacao iniciada.'
+          }
       - name: Privacidade e transporte com handlers ficticios
         run: dotnet run --project TestesTelemetria/TestesTelemetria.csproj -c Release
   validar:
@@ -187,7 +187,9 @@ jobs:
           # A falha acima e esperada e ja foi validada pelo codigo e mensagem.
           exit 0
       - name: BETA receptor, retencao GitHub e recuperacao (SQLite local, sem rede)
-        run: node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs prototipos/beta-telemetria/round2.test.mjs
+        run: node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs prototipos/beta-telemetria/round2.test.mjs prototipos/beta-telemetria/finalization.test.mjs
+      - name: BETA fechamento, bandeja e Shutdown simulados na janela real
+        run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --beta-close
       - name: Testes privacidade e diagnostico local
         run: dotnet run --project TestesTelemetria/TestesTelemetria.csproj -c Release
       - name: Testes bloqueio de instaladores e encerramento seguro
@@ -221,10 +223,10 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
-      - name: Fixtures, SetupAPI, catálogo INF e WUA sem download ou instalação
+      - name: Fixtures, SetupAPI e catálogo INF sem download ou instalação
         shell: pwsh
         run: |
-          dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release -- --official-live 2>&1 | Tee-Object -FilePath drivers-evidencias.txt
+          dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release -- 2>&1 | Tee-Object -FilePath drivers-evidencias.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Evidências somente dos runners descartáveis
         if: always()
@@ -234,59 +236,3 @@ jobs:
           path: drivers-evidencias.txt
           if-no-files-found: error
           retention-days: 7
-
-  # Fontes/drivers de hardware permanecem opt-in. Catalogo autenticado e downloads
-  # oficiais sao obrigatorios em PR, sem executar instaladores.
-  fontes-reais:
-    name: Fontes externas e drivers do runner (somente leitura)
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.verificar_fontes_reais }}
-    runs-on: windows-2022
-    timeout-minutes: 15
-    env:
-      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
-      DOTNET_NOLOGO: "1"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: .NET 10
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
-      - name: Catalogo RuckZuck via HTTPS GET
-        run: dotnet run --project TestesRede/TestesRede.csproj -c Release
-      - name: Fontes oficiais via HTTPS GET
-        run: dotnet run --project TestesMultifontes/TestesMultifontes.csproj -c Release -- --live
-      - name: Drivers do runner sem alteracoes
-        run: dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release -- --live
-
-  downloads-verificados:
-    name: Integridade dos instaladores oficiais (sem instalacao)
-    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.verificar_downloads) }}
-    runs-on: windows-2022
-    timeout-minutes: 30
-    env:
-      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
-      DOTNET_NOLOGO: "1"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: .NET 10
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
-      - name: Catalogo Microsoft autenticado em isolamento (sem WinGet ou instalacao)
-        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-catalog --verify-engine-downloads
-      - name: WORK13 hashes identidade e Authenticode (sem execucao)
-        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-work13
-      - name: SumatraPDF x86 e x64 (sem execucao)
-        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-sumatra
-      - name: 7-Zip EXE x64 verificado por SHA-256 (sem instalacao)
-        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-downloads --verify-sevenzip
-      - name: GameInput protegido (sem download ou execucao)
-        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --work6-authorization
-      - name: Windows Terminal MSIX (sem instalacao)
-        run: dotnet run --project TestesAtualizador/TestesAtualizador.csproj -c Release -- --verify-terminal

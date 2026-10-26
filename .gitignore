@@ -45,3 +45,5 @@ coverage/
 *.sarif
 __pycache__/
 .pytest_cache/
+*.beta-rehearsal.sqlite*
+Distribuicao-Beta/
