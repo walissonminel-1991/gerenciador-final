@@ -52,8 +52,10 @@ internal sealed class TelemetryPrivacyDialog : Form
             "Não envia logs brutos, lista de programas, arquivos, caminhos, credenciais nem ID do PC.\n\n" +
             "O provedor recebe o IP para entregar a requisição e limitar abusos; " +
             "não gravamos o IP no banco D1. Resumos ficam até 7 dias no PC e agregados até " +
-            "7 dias no D1. Sínteses por dia e categoria podem ir ao GitHub PRIVADO, " +
-            "com retenção própria descrita na política publicada.\n\n" +
+            "7 dias no D1. Sínteses por dia e categoria podem ir ao GitHub PRIVADO. " +
+            "O prazo também é de 7 dias desde o dia da coleta; a exclusão ocorre na próxima " +
+            "rotina de manutenção e pode atrasar se o serviço falhar. Contagens pequenas são " +
+            "omitidas ou arredondadas, mas grupos pequenos ainda podem permitir inferências.\n\n" +
             "Recusar não restringe funções. Revogue em Bandeja > Privacidade e diagnóstico. " +
             "A revogação bloqueia novos envios, mas não desfaz resumos já recebidos e agregados.";
         // O aviso ultrapassa uma altura fixa em notebook/DPI alto: permitir rolagem e copia.

@@ -156,8 +156,12 @@ jobs:
         run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release
       - name: Testes inventario MSIX
         run: dotnet run --project TestesMsix/TestesMsix.csproj -c Release
-      - name: BETA receptor privado e política de payload (Node, sem rede)
-        run: node --test prototipos/beta-telemetria/test.mjs
+      - name: Preparar Node para SQLite local dos testes BETA
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.22.1'
+      - name: BETA receptor, retencao GitHub e recuperacao (SQLite local, sem rede)
+        run: node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs
       - name: Testes privacidade e diagnostico local
         run: dotnet run --project TestesTelemetria/TestesTelemetria.csproj -c Release
       - name: Testes bloqueio de instaladores e encerramento seguro

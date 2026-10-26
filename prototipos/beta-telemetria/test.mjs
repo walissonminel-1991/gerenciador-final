@@ -1,6 +1,10 @@
-import test from "node:test";
+import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import worker, { validateReport } from "./worker.mjs";
+import { LocalD1 } from "./test-support.mjs";
+const realFetch=globalThis.fetch;
+before(()=>{globalThis.fetch=async()=>{throw new Error("TEST_NETWORK_FORBIDDEN");};});
+after(()=>{globalThis.fetch=realFetch;});
 const good = { schema:1, version:"v5.13.11.66", exit:"normal", counts:{"MSIX.LEITURA":2} };
 test("schema estrito impede identificadores e texto livre", () => {
   assert.ok(validateReport(good));
@@ -55,17 +59,14 @@ test("Content-Length falso e corpo maior que 4KB falham antes de gravar", async 
   assert.equal(writes,0);
 });
 
-test("limpeza inclui metadados de exportacao mesmo com piloto desligado", async () => {
-  const sql=[];
-  const env={PILOT_ENABLED:"no",DB:{prepare:statement=>{
-    sql.push(statement); return {bind:()=>({run:async()=>{}})};
-  }}};
-  await worker.scheduled(null,env);
-  env.PILOT_ENABLED = "yes";
-  env.GITHUB_EXPORT_ENABLED = "no";
-  await worker.scheduled(null,env);
-  assert.equal(sql.length,4);
-  assert.match(sql[0],/DELETE FROM daily_counts/);
-  assert.match(sql[1],/DELETE FROM github_exports/);
-  assert.match(sql[3],/DELETE FROM github_exports/);
+test("limpeza D1 desligada nao esquece obrigacao de excluir Issue", async t => {
+  const db = new LocalD1();
+  t.after(() => db.close());
+  const day = Math.floor(Date.now()/86400000)-8;
+  db.sqlite.prepare("INSERT INTO daily_counts VALUES(?,?,?,?,?)").run(day,good.version,"MSIX.LEITURA",2,1);
+  db.sqlite.prepare("INSERT INTO github_exports(day,issue_number,exported_at,expires_at) VALUES(?,?,?,?)").run(day,42,1,1);
+  const env={PILOT_ENABLED:"no",GITHUB_EXPORT_ENABLED:"no",DB:db};
+  await assert.rejects(worker.scheduled(null,env), /GF_BETA_MAINTENANCE_configuration/);
+  assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM daily_counts").get().n,0);
+  assert.equal(db.sqlite.prepare("SELECT issue_number FROM github_exports").get().issue_number,42);
 });
