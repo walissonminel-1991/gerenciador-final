@@ -307,6 +307,26 @@ try
             Directory.Delete(redirectedLog);
         }
     }
+    var beta = new AnonymousTelemetry(Path.Combine(temp, "beta-simulado"));
+    Verify(beta.Consent == TelemetryConsent.NotAsked && beta.PendingForRemote() is null,
+        "Sem opt-in remoto nenhuma pendencia pode ser transmitida");
+    Verify(beta.SetConsent(TelemetryConsent.LocalOnly) && beta.PendingForRemote() is null,
+        "Consentimento local antigo nao equivale a consentimento remoto");
+    beta.Record("APP.FALHA_INTERFACE usuario=segredo"); // elimina parametros
+    Verify(beta.SaveOnNormalExit("v5.13.11.66") && beta.PendingForRemote() is null,
+        "Coleta local permanece estritamente local");
+    Verify(beta.SetConsent(TelemetryConsent.RemoteBeta),
+        "Participante autoriza transmissao remota separadamente");
+    beta.Record("MSIX.LEITURA caminho=C:/Privado");
+    Verify(beta.SaveOnNormalExit("v5.13.11.66") &&
+        DiagnosticPayloadPolicy.IsValidReport(beta.PendingForRemote()) &&
+        !beta.PendingForRemote()!.Contains("Privado", StringComparison.Ordinal),
+        "Apenas resumo validado fica disponivel para envio");
+    Verify(beta.SetConsent(TelemetryConsent.Declined) &&
+        beta.PendingForRemote() is null && !File.Exists(beta.PendingFile),
+        "Revogacao interrompe leitura de pendencia e remove arquivo");
+    Verify(!BetaTelemetryUploader.IsConfigured,
+        "Build sem endpoint aprovado nao pode abrir conexao de diagnostico");
     Console.WriteLine("OK: privacidade, retomada, expiracao e falhas de disco; nenhuma rede foi usada.");
 }
 finally
