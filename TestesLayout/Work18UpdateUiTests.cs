@@ -32,6 +32,17 @@ internal static class Work18UpdateUiTests
             throw new Exception("WORK18 botoes ou explicacoes divergem das evidencias");
         typeof(MainForm).GetMethod("RenderPrograms",Private)!.Invoke(form,[]);Application.DoEvents();
         if(list.Items.Count!=6)throw new Exception("WORK18 inventario consultivo nao aparece na lista");
+        using(var hitList=new DarkProgramList{Size=new Size(1000,300)})
+        {
+            hitList.SetItems([managed[0]]);hitList.CreateControl();
+            var bounds=new Rectangle(0,0,hitList.ClientSize.Width,67);
+            var first=AppRowGeometry.UpdateButton(bounds);var hidden=AppRowGeometry.UninstallButton(bounds);
+            var hit=typeof(DarkProgramList).GetMethod("HitAction",Private)!;
+            var primary=((ProgramEntry? Item,string Action))hit.Invoke(hitList,[new Point(first.Left+5,first.Top+5)])!;
+            var secondary=((ProgramEntry? Item,string Action))hit.Invoke(hitList,[new Point(hidden.Left+5,hidden.Top+5)])!;
+            if(primary.Action!="external-manage" || secondary.Action!="")
+                throw new Exception("WORK18 gerenciamento deve ter uma unica acao visivel e clicavel");
+        }
         int combinations=0;
         foreach(var screen in new[]{new Size(1440,900),new Size(2560,1440)})
         foreach(float dpi in new[]{1f,1.25f,1.5f,2f})

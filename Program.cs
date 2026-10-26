@@ -1281,7 +1281,7 @@ internal sealed partial class MainForm : Form
                     uninstall?.PreventRetry == true ? uninstall.Active ? "Em andamento" : "Pendente" : "Desinstalar",
                     uninstall?.PreventRetry == true ? AppServices.Gray : AppServices.Red,
                     _programList.ActionVisual(item, "uninstall"));
-            else if (ActionableInventory.CanManageExternally(item))
+            else if (ActionableInventory.CanManageExternally(item) && updateAction!="external-manage")
                 DrawRowButton(e.Graphics, AppRowGeometry.UninstallButton(e.Bounds),
                     "Gerenciar", AppServices.Gray, _programList.ActionVisual(item, "external-manage"));
             else if (ActionableInventory.CanManageWithWindows(item) && !item.IsUpdate)
