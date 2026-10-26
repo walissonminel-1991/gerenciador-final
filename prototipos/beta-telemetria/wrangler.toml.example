@@ -1,0 +1,17 @@
+# EXEMPLO APENAS, NAO IMPLANTAR SEM AUDITORIA E SERVICO PRIVADO.
+name = "gerenciador-final-beta-private"
+main = "worker.mjs"
+compatibility_date = "2026-10-26"
+[vars]
+PILOT_ENABLED = "no"
+GITHUB_PRIVATE_REPO = "PREENCHER/REPOSITORIO-PRIVADO"
+[triggers]
+crons = ["0 4 * * *"]
+[[d1_databases]]
+binding = "DB"
+database_name = "gf-beta-private"
+database_id = "PREENCHER_ID_D1"
+# Consultar a versao atual da documentacao Cloudflare e configurar
+# BETA_RATE_LIMITER (Rate Limiting binding) e WAF antes de ativar.
+# GITHUB_TOKEN deve ser SECRET somente do Worker, com issues:write
+# limitado a um repositorio privado; jamais fazer commit deste segredo.
