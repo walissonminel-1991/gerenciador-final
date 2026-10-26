@@ -94,7 +94,10 @@ internal sealed class AnonymousTelemetry
             // O retorno ainda informa falhas de gravacao ou exclusao para a interface.
             bool preserveEvents = consent != TelemetryConsent.Declined && Consent == consent;
             bool deleted = true;
-            if (consent != TelemetryConsent.RemoteBeta)
+            // Reduzir consentimento e imediato. Ampliar de recusa/NotAsked
+            // para coleta local so pode vigorar depois da gravacao bem-sucedida.
+            if (consent == TelemetryConsent.Declined ||
+                (consent == TelemetryConsent.LocalOnly && Consent == TelemetryConsent.RemoteBeta))
             {
                 Consent = consent;
                 _generation++;
