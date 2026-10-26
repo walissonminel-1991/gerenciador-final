@@ -9,6 +9,12 @@ O aplicativo transmite somente resumos validados (schema 1, versão, fechamento,
 **O cliente desta branch continua sem URL de recebimento e não permite aceitar o envio.** Segundo o proprietário, a infraestrutura privada já foi preparada com as flags desligadas; a nova retenção permanece somente em código. Ainda faltam aprovação de LGPD/contato, comprovação de acesso para exclusão, monitoramento e validações antes de convidar pessoas. O plano de envio não substitui os avisos da versão .65 descritos abaixo.
 
 
+**Rodada 2, somente em código:** a autorização remota passa a registrar localmente a versão e o hash do aviso, sem ID do PC, horário do aceite ou histórico individual. Um aceite remoto antigo ou relativo a outro aviso pede nova escolha; LocalOnly não autoriza envio. Revogar cancela a tentativa em andamento e bloqueia novas tentativas mesmo quando persistir a recusa falha. Uma requisição já recebida pelo servidor não pode ser retirada pelo cliente. A confirmação de um envio antigo não apaga uma pendência mais nova.
+
+Somente um domínio e caminho exatos previamente aprovados em `BetaTelemetryPolicy.props` poderão ser inseridos no build, junto da aprovação do aviso. Ambas as aprovações estão vazias: nenhuma URL foi autorizada. A preferência local de aceite é um registro mínimo, editável pelo usuário, e não comprovação independente de identidade ou manifestação humana; a suficiência jurídica permanece pendente.
+
+O backend proposto limita a 1000 relatórios aceitos por dia UTC, além da limitação aproximada por IP/PoP. Eventos são somas de contagens; relatórios contam requisições aceitas e podem incluir reenvios. Não há estimativa confiável de participantes. Não são criados identificadores permanentes para deduplicar computadores. Alertas propostos contêm somente códigos e métricas operacionais. O nonce por exportação e o ID do ator GitHub servem para rastrear a operação do servidor, sem associação a voluntário, e ficam fora dos alertas. Referências de exclusão sem resolução comprovada permanecem em revisão; não são apagadas apenas por expirar ou por deixar de existir correspondência textual.
+
 **Comportamento da versão .65 TESTE (não BETA):** A coleta opcional do GF é **exclusivamente local**, desativada até consentimento
 expresso e revogável. Recusar não reduz funcionalidades. O botão do cabeçalho
 mostra Coleta local ativa, Coleta desativada ou Configurar privacidade; a bandeja

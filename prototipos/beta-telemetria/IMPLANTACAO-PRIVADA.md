@@ -1,3 +1,5 @@
+> **Atualização Rodada 2:** os procedimentos v2 abaixo são históricos. Para migração, recuperação, monitoramento e rotação usar [OPERACAO-RODADA2.md](OPERACAO-RODADA2.md). Não reexecutar `0002` em tabelas existentes. Nenhuma ação remota deste documento está autorizada nesta missão.
+
 # BETA .66 — implantação controlada do receptor (NÃO ATIVAR AINDA)
 
 Status: documento operacional. Segundo informação do proprietário em 26/10/2026, Worker/D1/rate limiter/secret já foram preparados, com ambas as flags em `no`, URLs Production/Preview desligadas e tabelas vazias. Essa configuração remota não foi acessada nem alterada nesta auditoria. Não repetir o provisionamento abaixo em recursos existentes. A PR #61 continua Draft e o fluxo está bloqueado até revisão de LGPD, WAF, ensaio end-to-end e CI completa.

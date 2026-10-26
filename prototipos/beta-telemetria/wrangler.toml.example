@@ -9,6 +9,9 @@ preview_urls = false
 [vars]
 PILOT_ENABLED = "no"
 GITHUB_EXPORT_ENABLED = "no"
+OBSERVABILITY_LOG_ENABLED = "no"
+# Metadata informada pelo proprietario; nao e leitura/comprovacao do secret.
+GITHUB_TOKEN_EXPIRES_AT = "2026-11-25"
 GITHUB_PRIVATE_REPO = "PREENCHER/REPOSITORIO-PRIVADO"
 [triggers]
 # Proposta de manutencao horaria, inclusive com ambas flags em no.

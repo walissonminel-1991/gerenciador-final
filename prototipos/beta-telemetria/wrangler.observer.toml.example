@@ -1,0 +1,18 @@
+# Exemplo APENAS. Nao criar worker/cron/binding durante esta missao.
+name = "PREENCHER-observador-interno"
+main = "health-observer.mjs"
+compatibility_date = "2026-10-26"
+workers_dev = false
+preview_urls = false
+[vars]
+OBSERVABILITY_LOG_ENABLED = "no"
+GITHUB_TOKEN_EXPIRES_AT = "2026-11-25"
+# Sem GITHUB_TOKEN neste observador. O codigo so faz SELECT de metadados.
+# O binding D1 nao confere por si so uma permissao de banco somente leitura.
+[[d1_databases]]
+binding = "DB"
+database_name = "PREENCHER-D1-APROVADO"
+database_id = "PREENCHER"
+# Agendamento independente somente apos autorizacao futura do proprietario:
+# [triggers]
+# crons = ["45 * * * *"]
