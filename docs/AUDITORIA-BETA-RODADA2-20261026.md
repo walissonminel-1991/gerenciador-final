@@ -56,7 +56,7 @@ O nonce é de uma exportação do **servidor**, não um ID de PC. O ator GitHub 
 | `BetaEndpointPolicy.cs`, `BetaTelemetryPolicy.props`, `BetaTelemetryUploader.cs`, `BetaTelemetryTransport.cs` | Gate de build/runtime, lista exata vazia, aviso ainda não aprovado e transporte testável sem cookies/redirecionamento/credenciais padrão |
 | `TelemetryPrivacyDialog.cs`, `PrivacyConsentPresentation.cs`, `Program.cs` | Aviso compartilhado, ajuste à área, estado remoto legível e proteção contra fechamento/reenvio concorrente |
 | `GerenciadorAplicativos.csproj`, `TestesTelemetria/*`, `TestesLayout/Program.cs` | Gate negativo de endpoint e execução das verificações de cliente/UI |
-| `.github/workflows/validar-candidata-windows.yml` | Incluir nova suíte Node e build negativo, preservando CI e permissões existentes |
+| `.github/workflows/validar-candidata-windows.yml`, `build-windows.yml` | Incluir nova suíte Node/build negativo; compilar e verificar BETA sem disponibilizar o executável como artefato/atestado, conservando evidências técnicas |
 | `PRIVACY.md`, exemplos Wrangler, `OPERACAO-RODADA2.md`, relatório | Transparência, recuperação, limites, rotação e ações de autorização futura |
 
 ## 5. Testes e CI

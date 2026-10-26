@@ -25,6 +25,7 @@ jobs:
       contents: read
     outputs:
       artifact_name: ${{ steps.pacote.outputs.nome }}
+      is_beta: ${{ steps.pacote.outputs.beta }}
     runs-on: windows-2022
     timeout-minutes: 30
     env:
@@ -52,6 +53,8 @@ jobs:
           $artifactName = "GerenciadorFinal-v$version-$shortCommit-TESTE-win-x64"
           "nome=$artifactName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "versao=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          $betaEnabled = ([string]$project.Project.PropertyGroup.DefineConstants) -match '(^|;)GF_BETA(;|$)'
+          "beta=$($betaEnabled.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Artefato identificado como: $artifactName"
 
       - name: Publicar para Windows x64 (self-contained)
@@ -132,6 +135,7 @@ jobs:
           if-no-files-found: error
 
       - name: Conservar artefato para testes (nao assinado)
+        if: ${{ steps.pacote.outputs.beta != 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.pacote.outputs.nome }}
@@ -144,7 +148,7 @@ jobs:
   attest:
     name: Atestar pacote apenas na main
     needs: build
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.private == false }}
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.event.repository.private == false && needs.build.outputs.is_beta != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
