@@ -240,7 +240,7 @@ internal sealed partial class MainForm
 
     private void RequestTrayExit()
     {
-        if (IsDisposed) return;
+        if (IsDisposed || _betaClose.IsClosing) return;
         if (_busy)
         {
             // Sair significa ENCERRAR, mas so depois que a operacao atual

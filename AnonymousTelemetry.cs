@@ -34,7 +34,13 @@ internal sealed class AnonymousTelemetry
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "GerenciadorFinal", "Privacidade");
         Consent = ReadConsent();
-        ExpirePendingReport();
+        // Sem criar pasta antes da escolha. Limpeza inicial tambem participa
+        // da coordenacao, para nao apagar pendencia criada por outra instancia.
+        if (Directory.Exists(_folder))
+        {
+            using var state = TryStorageLock("estado-v1.lock");
+            if (state is not null) { Consent = ReadConsent(); ExpirePendingReport(); }
+        }
     }
 
     private TelemetryConsent _consent;
@@ -43,6 +49,28 @@ internal sealed class AnonymousTelemetry
     internal TelemetryConsent Consent { get { lock (_gate) return _consent; } private set { _consent = value; } }
     internal string ConsentFile => Path.Combine(_folder, "consentimento-v1.json");
     internal string PendingFile => Path.Combine(_folder, "diagnostico-pendente-v1.json");
+
+    private FileStream? TryStorageLock(string name)
+    {
+        try { return InstallerFileGuard.OpenCoordinationLock(Path.Combine(_folder, name)); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
+            ArgumentException or NotSupportedException or System.Security.SecurityException) { return null; }
+    }
+
+    // Uma escolha mais restritiva em memoria nunca e ampliada por leitura do
+    // disco. Mudanca externa descarta eventos anteriores, inclusive LocalOnly.
+    private bool RefreshStoredConsent()
+    {
+        var stored = ReadConsent();
+        if (stored == Consent) return true;
+        _events.Clear();
+        _generation++;
+        try { _remoteSend?.Cancel(); } catch (AggregateException) { }
+        if (stored is TelemetryConsent.NotAsked or TelemetryConsent.Declined ||
+            (Consent == TelemetryConsent.RemoteBeta && stored == TelemetryConsent.LocalOnly))
+            Consent = stored;
+        return false;
+    }
 
     private TelemetryConsent ReadConsent()
     {
@@ -103,12 +131,13 @@ internal sealed class AnonymousTelemetry
                 _generation++;
                 try { _remoteSend?.Cancel(); } catch (AggregateException) { }
             }
-            if (consent == TelemetryConsent.Declined)
-            {
-                Consent = consent;
-                _events.Clear();
-                deleted = TryDelete(PendingFile);
-            }
+            if (consent == TelemetryConsent.Declined) _events.Clear();
+            try { EnsureStorageFolder(); }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
+                ArgumentException or NotSupportedException or System.Security.SecurityException) { return false; }
+            using var state = TryStorageLock("estado-v1.lock");
+            if (state is null) return false; // nao esperar nem bloquear a revogacao em memoria
+            if (consent == TelemetryConsent.Declined) deleted = TryDelete(PendingFile);
             // A autorizacao remota nao abrange relatorios coletados quando
             // o usuario havia autorizado apenas armazenamento local.
             // Falha de exclusao bloqueia a transicao: nunca enviar pendencia antiga.
@@ -143,7 +172,7 @@ internal sealed class AnonymousTelemetry
         if (!AllowedEvents.Contains(category)) return;
         lock (_gate)
         {
-            if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta)) return;
+            if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta) || !RefreshStoredConsent()) return;
             _events.TryGetValue(category, out int count);
             _events[category] = Math.Min(MaximumEventsPerCategory, count + 1);
         }
@@ -276,17 +305,23 @@ internal sealed class AnonymousTelemetry
         }, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    internal bool SaveOnNormalExit(string version)
+    internal bool SaveOnNormalExit(string version) => SaveOnExit(version, normalExit: true);
+
+    // O valor incompleto ja pertence ao schema fechado. Nunca enviar daqui:
+    // falha/desligamento apenas preservam contagens para uma proxima sessao.
+    internal bool SaveOnExit(string version, bool normalExit)
     {
         lock (_gate)
         {
             if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta)) return false;
+            using var state = TryStorageLock("estado-v1.lock");
+            if (state is null || !RefreshStoredConsent()) return false;
             // Uma sessao sem eventos nao apaga a pendencia util da sessao anterior.
             if (_events.Count == 0) { ExpirePendingReport(); return false; }
             try
             {
                 EnsureStorageFolder();
-                WriteAtomic(PendingFile, Serialize(version, true));
+                WriteAtomic(PendingFile, Serialize(version, normalExit));
                 _generation++;
                 return true; // Guardou localmente. Nao significa envio.
             }
@@ -320,11 +355,13 @@ internal sealed class AnonymousTelemetry
     internal sealed class SendLease : IDisposable
     {
         private readonly AnonymousTelemetry _owner;
-        internal SendLease(AnonymousTelemetry owner, string report, long generation, CancellationTokenSource source, InstallerFileGuard.FileIdentity identity)
-        { _owner=owner; Report=report; Generation=generation; Source=source; Identity=identity; }
+        internal SendLease(AnonymousTelemetry owner, string report, long generation, CancellationTokenSource source,
+            InstallerFileGuard.FileIdentity identity, FileStream processLock)
+        { _owner=owner; Report=report; Generation=generation; Source=source; Identity=identity; ProcessLock=processLock; }
         internal string Report { get; }
         internal long Generation { get; }
         internal InstallerFileGuard.FileIdentity Identity { get; }
+        internal FileStream ProcessLock { get; }
         internal CancellationTokenSource Source { get; }
         internal CancellationToken Cancellation => Source.Token;
         public void Dispose() => _owner.EndRemoteSend(this);
@@ -335,16 +372,24 @@ internal sealed class AnonymousTelemetry
         lock (_gate)
         {
             if (Consent != TelemetryConsent.RemoteBeta || _remoteSend is not null) return null;
+            // Este lock dura somente a tentativa HTTP. E separado do lock de
+            // estado: outra instancia pode revogar ou gravar pendencia nova.
+            var processLock = TryStorageLock("envio-v1.lock");
+            if (processLock is null) return null;
+            using var state = TryStorageLock("estado-v1.lock");
+            if (state is null) { processLock.Dispose(); return null; }
             string? report = ReadPendingForRemote(out var identity);
-            if (report is null || identity is null) return null;
+            if (report is null || identity is null) { processLock.Dispose(); return null; }
             _remoteSend = new CancellationTokenSource();
-            return new SendLease(this, report, _generation, _remoteSend, identity);
+            return new SendLease(this, report, _generation, _remoteSend, identity, processLock);
         }
     }
     internal bool CompleteRemoteSend(SendLease lease)
     {
         lock (_gate)
         {
+            using var state = TryStorageLock("estado-v1.lock");
+            if (state is null) return false;
             if (Consent != TelemetryConsent.RemoteBeta || !ReferenceEquals(_remoteSend, lease.Source) ||
                 lease.Cancellation.IsCancellationRequested || _generation != lease.Generation ||
                 !IsRemoteConsentCurrent()) return false;
@@ -368,12 +413,7 @@ internal sealed class AnonymousTelemetry
         lock (_gate)
         {
             if (Consent != TelemetryConsent.RemoteBeta) return false;
-            var persisted = ReadConsent();
-            if (persisted == TelemetryConsent.RemoteBeta) return true;
-            Consent = persisted;
-            _generation++;
-            try { _remoteSend?.Cancel(); } catch (AggregateException) { }
-            return false;
+            return RefreshStoredConsent();
         }
     }
 
@@ -383,6 +423,7 @@ internal sealed class AnonymousTelemetry
         {
             if (ReferenceEquals(_remoteSend, lease.Source)) _remoteSend = null;
             lease.Source.Dispose();
+            lease.ProcessLock.Dispose();
         }
     }
     internal void CancelRemoteSend()
@@ -396,7 +437,13 @@ internal sealed class AnonymousTelemetry
 
     internal bool DeletePending()
     {
-        lock (_gate) return TryDelete(PendingFile);
+        lock (_gate)
+        {
+            using var state = TryStorageLock("estado-v1.lock");
+            if (state is null) return false;
+            CancelRemoteSend();
+            return TryDelete(PendingFile);
+        }
     }
 
     private void ExpirePendingReport()

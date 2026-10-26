@@ -20,6 +20,7 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
+        if (args.Contains("--beta-close")) { BetaCloseTests.Run(); return; }
         if (args.Contains("--lote4")) { Lote4LayoutTests.Run(); return; }
         if (args.Contains("--work18")) { Work18UpdateUiTests.Run(); return; }
         if (args.Contains("--lote3")) { Lote3LayoutTests.Run(); return; }

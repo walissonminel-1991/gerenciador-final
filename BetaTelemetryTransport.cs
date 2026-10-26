@@ -24,13 +24,13 @@ internal static class BetaTelemetryTransport
                 Content = new StringContent(lease.Report, Encoding.UTF8, "application/json")
             };
             deadline.Token.ThrowIfCancellationRequested();
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
-            return response.StatusCode == HttpStatusCode.Accepted &&
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
+            return response.StatusCode == HttpStatusCode.Accepted && !deadline.IsCancellationRequested &&
                 recorder.CompleteRemoteSend(lease);
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or
             IOException or InvalidOperationException or System.Security.SecurityException) { return false; }
-        finally { monitorStop.Cancel(); await monitor; }
+        finally { monitorStop.Cancel(); await monitor.ConfigureAwait(false); }
     }
     private static async Task MonitorConsentAsync(AnonymousTelemetry recorder, CancellationTokenSource deadline, CancellationToken stop)
     {

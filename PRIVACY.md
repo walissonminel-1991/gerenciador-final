@@ -1,5 +1,9 @@
 # Privacidade
 
+## Aviso BETA r3 preparado para aprovação
+
+O [aviso completo versionado](docs/AVISO-PRIVACIDADE-BETA.md) e o [roteiro conectado](docs/BETA-66-HOMOLOGACAO-CONECTADA.md) são a preparação atual da .66. Responsável proposto: Walisson Minel; contato privado e domínio aguardam aprovação. Aviso/endpoint continuam sem aprovação em fonte e o envio permanece bloqueado. O receptor passa a aceitar os dois estados de encerramento já presentes no esquema (`normal`/`incompleto`), conservando exatamente as mesmas 14 categorias; falhas/desligamento só gravam localmente para sessão posterior autorizada. A janela do aplicativo solicita novo aceite para r3. Persistência e revogação entre instâncias usam locks locais vazios, sem identificador transmitido. As seções históricas a seguir não autorizam o piloto.
+
 ## Piloto BETA .66 — não liberado
 
 A branch experimental [PR #61](https://github.com/walissonminel-1991/gerenciador-final/pull/61) prepara o envio automático **após consentimento específico para transmissão**, apresentado ao entrar no programa. Não há opção pré-selecionada e recusar não reduz funções. A revogação é acessível em **Bandeja > Privacidade e diagnóstico**. A BETA remove o botão fixo de coleta do cabeçalho e os perfis de testes PC FORTE/FRACO.

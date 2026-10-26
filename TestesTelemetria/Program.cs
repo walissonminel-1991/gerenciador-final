@@ -7,6 +7,21 @@ void Verify(bool ok, string message)
     Console.WriteLine("OK " + message);
 }
 
+if (args.Length > 0 && args[0] is "--inspect-beta-build" or "--verify-connected-build")
+{
+    BetaBuildVerifier.Run(args);
+    return;
+}
+
+if (args.Length == 2 && args[0] == "--hold-beta-send-lease")
+{
+    var recorder = new AnonymousTelemetry(args[1]);
+    using var lease = recorder.TryBeginRemoteSend() ?? throw new IOException("synthetic_child_lease");
+    Console.WriteLine("GF_FIXTURE_LEASE_READY");
+    Console.ReadLine();
+    return;
+}
+
 string temp = Path.Combine(Path.GetTempPath(), "gf-telemetry-tests-" + Guid.NewGuid().ToString("N"));
 try
 {

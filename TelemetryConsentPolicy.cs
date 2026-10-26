@@ -6,24 +6,30 @@ namespace GerenciadorAplicativos;
 // Aviso identico para todos. Versao/hash nao identificam pessoas ou maquinas.
 internal static class TelemetryConsentPolicy
 {
-    internal const string Version = "gf-beta-20261026-r2";
+    internal const string Version = "gf-beta-20261026-r3";
     internal const string RemoteNotice =
-        "VERSÃO BETA — participação opcional.\n\n" +
-        "Finalidade: identificar frequências de falhas técnicas para corrigir o GF. " +
-        "Com autorização, ao fechar normalmente o programa pode enviar por HTTPS " +
-        "apenas a versão do GF, o tipo de encerramento e contagens de 14 códigos permitidos. " +
-        "Não envia logs brutos, lista de programas, arquivos, caminhos, credenciais nem ID do PC.\n\n" +
-        "O provedor recebe o IP para entregar a requisição e limitar abusos; não gravamos o IP no D1. " +
-        "Resumos ficam até 7 dias no PC; agregados no receptor e no GitHub PRIVADO vencem no sétimo dia " +
-        "contado do dia da coleta. A exclusão é tentada na próxima manutenção e pode atrasar em falhas. " +
-        "Pendências de exclusão são conservadas até confirmação ou revisão do responsável. " +
-        "Contagens pequenas são omitidas ou arredondadas; isso não comprova quantas pessoas participaram " +
-        "nem impede inferências sobre grupos pequenos.\n\n" +
-        "Recusar não restringe funções. Revogue em Bandeja > Privacidade e diagnóstico. " +
-        "A revogação impede novos envios e cancela a tentativa em andamento, mas uma requisição " +
-        "já recebida pelo servidor não pode ser desfeita no computador.\n\n" +
-        "Esta BETA ainda não foi liberada. Responsável, contato para exercer direitos, destinatários " +
-        "e política completa precisam ser publicados e aprovados antes da participação.";
+        "BETA .66 — participação opcional. Aviso gf-beta-20261026-r3.\n\n" +
+        "Finalidade: descobrir frequências de falhas técnicas e melhorar a estabilidade e a compatibilidade do GF. " +
+        "Com seu aceite específico, ao sair o programa tenta enviar por HTTPS somente a versão do GF, " +
+        "encerramento normal ou incompleto e contagens de 14 códigos técnicos autorizados. " +
+        "Não envia inventário, nomes de programas, logs brutos, arquivos, caminhos, credenciais ou ID do computador.\n\n" +
+        "Cloudflare recebe a conexão, processa IP e metadados para entrega e proteção e agrega as contagens no D1. " +
+        "O IP não é salvo pelo GF no D1. GitHub recebe sínteses diárias em repositório privado, acessível somente " +
+        "ao responsável e administradores autorizados. Esses provedores podem tratar dados fora do Brasil.\n\n" +
+        "Há no máximo um resumo pendente neste PC, válido por até 7 dias e substituível por um resumo novo. " +
+        "Sem conexão, em falha ou durante desligamento, ele pode aguardar a próxima sessão autorizada. " +
+        "Agregados D1 e sínteses GitHub vencem no sétimo dia contado do dia UTC de recebimento; " +
+        "a manutenção seguinte tenta a exclusão definitiva. Falhas podem atrasá-la; obrigações de exclusão " +
+        "permanecem até confirmação ou revisão. Backups, segurança, notificações e cópias dos provedores " +
+        "têm retenções próprias, descritas no aviso completo.\n\n" +
+        "Contagens pequenas são omitidas ou arredondadas no GitHub. Não medem participantes e não garantem " +
+        "anonimato em grupos pequenos. Recusar mantém todas as funções. Revogue em Bandeja > Privacidade e diagnóstico. " +
+        "Revogar interrompe novas coletas/envios, cancela a tentativa e tenta apagar a pendência. " +
+        "Não desfaz uma requisição já recebida. Sem identificadores, não é possível localizar uma contribuição " +
+        "individual dentro dos agregados; eles seguem a retenção informada.\n\n" +
+        "Responsável proposto: Walisson Minel. Contato privado para informações, acesso, correção e demais direitos: " +
+        "PENDENTE DE APROVAÇÃO. Aviso completo: AVISO-PRIVACIDADE-BETA.md, junto ao programa. " +
+        "A participação está bloqueada até aprovação do responsável, contato, transferências, retenções e endpoint. ";
     internal static string NoticeHash { get; } = Convert.ToHexString(
         SHA256.HashData(Encoding.UTF8.GetBytes(RemoteNotice))).ToLowerInvariant();
 }

@@ -12,7 +12,10 @@ internal static class BetaTelemetryUploader
     private static Uri? FindEndpoint()
     {
         var metadata = typeof(BetaTelemetryUploader).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().ToArray();
-        if (metadata.FirstOrDefault(x => x.Key == "GfReviewedPrivacyNoticeSha256")?.Value != TelemetryConsentPolicy.NoticeHash)
+        string? source = metadata.FirstOrDefault(x => x.Key == "GfSourceCommit")?.Value;
+        if (source is not { Length: 40 } || source.Any(c => !char.IsAsciiHexDigit(c)) ||
+            metadata.FirstOrDefault(x => x.Key == "GfPrivacyNoticeVersion")?.Value != TelemetryConsentPolicy.Version ||
+            metadata.FirstOrDefault(x => x.Key == "GfReviewedPrivacyNoticeSha256")?.Value != TelemetryConsentPolicy.NoticeHash)
             return null;
         return BetaEndpointPolicy.Validate(metadata.FirstOrDefault(x => x.Key == "GfBetaEndpoint")?.Value,
             metadata.Where(x => x.Key == "GfApprovedBetaEndpoint").Select(x => x.Value ?? ""));

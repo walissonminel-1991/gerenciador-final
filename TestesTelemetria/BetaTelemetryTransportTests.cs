@@ -145,6 +145,91 @@ internal static class BetaTelemetryTransportTests
                 "R2 confirmacao antiga nao remove arquivo novo mesmo com conteudo identico em outra instancia");
         }
 
+        var interrupted=Pending(root);
+        interrupted.Record("APP.FALHA_NAO_TRATADA");
+        verify(interrupted.SaveOnExit("v5.13.11.66",normalExit:false)&&
+            interrupted.PendingForRemote()!.Contains("incompleto"),
+            "R3 falha interrompida preserva somente contagens com estado preexistente incompleto");
+        using(var client=new HttpClient(new Handler((_,_)=>Task.FromResult(new HttpResponseMessage(HttpStatusCode.Accepted)))))
+            verify(await BetaTelemetryTransport.TrySendAsync(interrupted,Endpoint,client),
+                "R3 pendencia de falha e enviada apenas em nova tentativa explicitamente autorizada");
+
+        var twoInstances=Pending(root);
+        peer=new AnonymousTelemetry(Path.GetDirectoryName(twoInstances.ConsentFile));
+        started=new(TaskCreationOptions.RunContinuationsAsynchronously);release=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        calls=0;
+        using(var client=new HttpClient(new Handler(async(_,token)=>{
+            calls++;started.TrySetResult(true);await release.Task.WaitAsync(token);return new HttpResponseMessage(HttpStatusCode.Accepted);
+        })))
+        {
+            Task<bool> send=BetaTelemetryTransport.TrySendAsync(twoInstances,Endpoint,client);await started.Task;
+            verify(!await BetaTelemetryTransport.TrySendAsync(peer,Endpoint,client)&&calls==1,
+                "R3 instancias diferentes nao enviam a mesma pendencia simultaneamente");
+            release.TrySetResult(true);verify(await send,"R3 lock entre instancias e liberado depois do 202");
+        }
+        peer.Record("APP.FALHA_INTERFACE");peer.SaveOnNormalExit("v5.13.11.66");
+        using(var client=new HttpClient(new Handler((_,_)=>Task.FromResult(new HttpResponseMessage(HttpStatusCode.Accepted)))))
+            verify(await BetaTelemetryTransport.TrySendAsync(peer,Endpoint,client),"R3 outra instancia pode enviar depois da liberacao");
+
+        var processPeer=Pending(root);
+        var startInfo=new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!)
+        { UseShellExecute=false, RedirectStandardOutput=true, RedirectStandardInput=true, RedirectStandardError=true };
+        if(Path.GetFileNameWithoutExtension(Environment.ProcessPath)=="dotnet")
+            startInfo.ArgumentList.Add(typeof(BetaTelemetryTransportTests).Assembly.Location);
+        startInfo.ArgumentList.Add("--hold-beta-send-lease");
+        startInfo.ArgumentList.Add(Path.GetDirectoryName(processPeer.ConsentFile)!);
+        using(var child=System.Diagnostics.Process.Start(startInfo)!)
+        {
+            try
+            {
+                verify(await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(10))=="GF_FIXTURE_LEASE_READY",
+                    "R3 processo filho real segura lease local sem HTTP");
+                calls=0;
+                using var client=new HttpClient(new Handler((_,_)=>{calls++;return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Accepted));}));
+                verify(!await BetaTelemetryTransport.TrySendAsync(processPeer,Endpoint,client)&&calls==0,
+                    "R3 processos distintos nao duplicam envio da pendencia compartilhada");
+                verify(processPeer.SetConsent(TelemetryConsent.Declined),
+                    "R3 lease em outro processo nao impede revogacao");
+                await child.StandardInput.WriteLineAsync("release");
+                await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+                verify(child.ExitCode==0,"R3 processo sintetico libera lease ao terminar");
+            }
+            finally { if(!child.HasExited)child.Kill(entireProcessTree:true); }
+        }
+
+        var stale=Pending(root);
+        peer=new AnonymousTelemetry(Path.GetDirectoryName(stale.ConsentFile));
+        peer.Record("APP.FALHA_INTERFACE");stale.SetConsent(TelemetryConsent.Declined);
+        verify(!peer.SaveOnNormalExit("v5.13.11.66")&&!File.Exists(peer.PendingFile),
+            "R3 instancia antiga nao recria relatorio depois de revogacao persistida");
+        peer.Record("MSIX.LEITURA");
+        verify(!peer.Preview("v5.13.11.66",true).Contains("MSIX.LEITURA"),
+            "R3 instancia antiga interrompe tambem a contagem local apos revogacao");
+
+        var drop=Pending(root);
+        using(var client=new HttpClient(new Handler((_,_)=>throw new HttpRequestException("synthetic_connection_loss"))))
+            verify(!await BetaTelemetryTransport.TrySendAsync(drop,Endpoint,client)&&File.Exists(drop.PendingFile),
+                "R3 perda de conexao preserva a unica pendencia");
+        // Um handler que ignora cancelamento e devolve 202 atrasado nao confirma
+        // recebimento dentro do prazo nem apaga uma pendencia.
+        var late=Pending(root);
+        using(var client=new HttpClient(new Handler(async(_,_)=>{
+            await Task.Delay(60);return new HttpResponseMessage(HttpStatusCode.Accepted);
+        })))
+            verify(!await BetaTelemetryTransport.TrySendAsync(late,Endpoint,client,TimeSpan.FromMilliseconds(10))&&File.Exists(late.PendingFile),
+                "R3 202 depois do timeout nao apaga pendencia");
+
+        var close=new BetaCloseCoordinator();
+        verify(!close.TryBegin(true,true)&&!close.IsClosing,"R3 fechamento vetado por operacao nao inicia telemetria");
+        verify(!close.TryBegin(false,false)&&!close.IsClosing,"R3 recusa ou endpoint ausente permite fechamento sem envio");
+        verify(close.TryBegin(false,true)&&close.IsWaiting&&close.IsClosing,"R3 primeiro fechamento inicia uma unica espera");
+        verify(!close.TryBegin(false,true),"R3 segundo fechamento durante espera nao duplica envio");
+        verify(close.Finish()&&close.IsComplete&&!close.IsWaiting,"R3 concluir espera permite um unico fechamento final");
+        verify(!close.TryBegin(false,true),"R3 fechamento final nao reinicia transporte");
+        close=new BetaCloseCoordinator();close.TryBegin(false,true);close.Shutdown();
+        verify(close.IsShutdown&&!close.IsWaiting&&!close.Finish(),
+            "R3 Windows Shutdown prevalece sobre envio e impede reagendar Close");
+
         var tampered=Pending(root);File.WriteAllText(tampered.PendingFile,"{\"schema\":1,\"username\":\"synthetic\"}");calls=0;
         using(var client=new HttpClient(new Handler((_,_)=>{calls++;return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Accepted));})))
             verify(!await BetaTelemetryTransport.TrySendAsync(tampered,Endpoint,client)&&calls==0,

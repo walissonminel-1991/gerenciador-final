@@ -10,7 +10,8 @@ internal static class BetaEndpointPolicy
             !Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != "https" ||
             uri.HostNameType != UriHostNameType.Dns || uri.UserInfo.Length != 0 ||
             uri.Query.Length != 0 || uri.Fragment.Length != 0 || !uri.IsDefaultPort ||
-            !uri.Host.Contains('.') || uri.Host.EndsWith('.') || uri.Host.Any(c => c > 127) ||
+            !uri.Host.Contains('.') || uri.Host.EndsWith('.') ||
+            uri.Host.EndsWith(".workers.dev", StringComparison.Ordinal) || uri.Host == "workers.dev" || uri.Host.Any(c => c > 127) ||
             uri.AbsolutePath != "/ingest" || uri.AbsoluteUri != value ||
             !value.StartsWith("https://", StringComparison.Ordinal)) return null;
         return uri;

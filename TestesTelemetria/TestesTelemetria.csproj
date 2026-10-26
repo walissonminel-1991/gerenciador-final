@@ -11,6 +11,7 @@
     <Compile Include="../AnonymousTelemetry.cs" Link="AnonymousTelemetry.cs" />
     <Compile Include="../TelemetryConsentPolicy.cs" Link="TelemetryConsentPolicy.cs" />
     <Compile Include="../BetaEndpointPolicy.cs" Link="BetaEndpointPolicy.cs" />
+    <Compile Include="../BetaCloseCoordinator.cs" Link="BetaCloseCoordinator.cs" />
     <Compile Include="../BetaTelemetryTransport.cs" Link="BetaTelemetryTransport.cs" />
     <Compile Include="../DiagnosticPayloadPolicy.cs" Link="DiagnosticPayloadPolicy.cs" />
     <Compile Include="../DiagnosticTrace.cs" Link="DiagnosticTrace.cs" />

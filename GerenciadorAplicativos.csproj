@@ -38,6 +38,7 @@
   <ItemGroup>
     <None Update="LICENSE" CopyToPublishDirectory="PreserveNewest" TargetPath="LICENSE.txt" />
     <None Update="PRIVACY.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="docs/AVISO-PRIVACIDADE-BETA.md" CopyToPublishDirectory="PreserveNewest" TargetPath="AVISO-PRIVACIDADE-BETA.md" />
     <None Update="docs/USO-PORTATIL.md" CopyToPublishDirectory="PreserveNewest" TargetPath="LEIA-ME.md" />
     <None Update="docs/THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" TargetPath="THIRD-PARTY-NOTICES.md" />
   </ItemGroup>
@@ -65,6 +66,8 @@
     </ItemGroup>
     <Error Condition="'$(GfBetaEndpoint)' != '' And ('@(_MatchedGfBetaEndpoint)' == '' Or '$(GfReviewedPrivacyNoticeSha256)' == '')"
       Text="GF_BETA_ENDPOINT_NOT_APPROVED: receptor e aviso exigem revisao em codigo." />
+    <Error Condition="'$(GfBetaEndpoint)' != '' And !$([System.Text.RegularExpressions.Regex]::IsMatch('$(GfSourceCommit)', '^[a-f0-9]{40}$'))"
+      Text="GF_BETA_SOURCE_COMMIT_REQUIRED: a compilacao conectada exige commit fonte exato." />
   </Target>
   <ItemGroup>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'@(GfApprovedBetaEndpoint)' != ''">
@@ -74,6 +77,20 @@
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'$(GfReviewedPrivacyNoticeSha256)' != ''">
       <_Parameter1>GfReviewedPrivacyNoticeSha256</_Parameter1>
       <_Parameter2>$(GfReviewedPrivacyNoticeSha256)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>GfBuildChannel</_Parameter1>
+      <_Parameter2>BETA</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>GfPrivacyNoticeVersion</_Parameter1>
+      <_Parameter2>gf-beta-20261026-r3</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'$(GfSourceCommit)' != ''">
+      <_Parameter1>GfSourceCommit</_Parameter1>
+      <_Parameter2>$(GfSourceCommit)</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
   <!-- Somente URL do endpoint: nunca token privado no aplicativo. -->

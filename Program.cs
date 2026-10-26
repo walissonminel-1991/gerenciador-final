@@ -53,6 +53,14 @@ internal static class Program
                     "Ocorreu um erro inesperado.\n\n" + e.Exception.Message,
                     "Gerenciador Final", MessageBoxButtons.OK, MessageBoxIcon.Error);
             };
+            AppDomain.CurrentDomain.UnhandledException += (_, _) =>
+            {
+                // Melhor esforco em falha fatal: codigo fixo, sem excecao bruta
+                // e sem rede. Kill/queda de energia podem impedir esta gravacao.
+                var recorder = AnonymousTelemetryContext.Current;
+                recorder?.Record("APP.FALHA_NAO_TRATADA");
+                recorder?.SaveOnExit(DiagnosticTrace.VersionLabel, normalExit: false);
+            };
             bool startInTray = args.Length is 1 or 2 && args.Contains("--tray", StringComparer.Ordinal)
                 && args.All(x => x is "--tray" or "--post-reboot");
             Application.Run(new MainForm(startInTray: startInTray));
@@ -62,6 +70,7 @@ internal static class Program
         catch (Exception ex)
         {
             DiagnosticTrace.Failure("APP.FALHA_NAO_TRATADA", ex);
+            AnonymousTelemetryContext.Current?.SaveOnExit(DiagnosticTrace.VersionLabel, normalExit: false);
             try { MessageBox.Show("Não foi possível iniciar o gerenciador.\n\n" + ex,
                     "Falha ao abrir", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             catch { }
@@ -594,6 +603,7 @@ internal sealed partial class MainForm : Form
     private Button? _refreshDisksButton;
     private bool _refreshingDisks;
     private bool _busy;
+    private readonly BetaCloseCoordinator _betaClose = new();
     private Button? _repairWindowsButton;
     private bool _windowsRepairable;
     private DateTimeOffset _windowsScannedAt;
@@ -759,8 +769,11 @@ internal sealed partial class MainForm : Form
             displayUpdate.Stop();
             displayUpdate.Dispose();
             _log.FlushPending();
-            if (AnonymousTelemetryContext.Current?.Consent != TelemetryConsent.RemoteBeta)
-                AnonymousTelemetryContext.Current?.SaveOnNormalExit(DiagnosticTrace.VersionLabel);
+            AnonymousTelemetryContext.Current?.CancelRemoteSend();
+            // Windows Shutdown nao inicia rede. Em fechamento normal remoto o
+            // snapshot ja foi salvo antes da tentativa, sem duplica-lo aqui.
+            if (_betaClose.IsShutdown || AnonymousTelemetryContext.Current?.Consent != TelemetryConsent.RemoteBeta)
+                AnonymousTelemetryContext.Current?.SaveOnExit(DiagnosticTrace.VersionLabel, normalExit: !_betaClose.IsShutdown);
         };
         FitWorkspace();
         // Abre imediatamente. Primeiro carrega a lista local e depois inicia consultas independentes,
@@ -809,6 +822,18 @@ internal sealed partial class MainForm : Form
         };
         FormClosing += (_, e) =>
         {
+            if (e.CloseReason == CloseReason.WindowsShutDown)
+            {
+                _betaClose.Shutdown();
+                AnonymousTelemetryContext.Current?.CancelRemoteSend();
+                _consultaCatalogoCts?.Cancel();
+                _deploymentWaitCts?.Cancel();
+                _uninstallCts?.Cancel();
+                _installerDownloadCts?.Cancel();
+                _memoryTimer.Stop();
+                return; // nao cancelar o desligamento nem abrir dialogo
+            }
+            if (_betaClose.IsClosing) return;
             if (!_busy)
             {
                 _consultaCatalogoCts?.Cancel();
@@ -848,22 +873,27 @@ internal sealed partial class MainForm : Form
                 "Operação em andamento", MessageBoxButtons.OK, MessageBoxIcon.Information);
         };
 #if GF_BETA
-        bool betaCloseComplete = false, betaCloseInProgress = false;
         FormClosing += async (_, e) =>
         {
-            if (e.Cancel || betaCloseComplete) return;
+            if (_betaClose.IsShutdown || _betaClose.IsComplete) return;
+            if (_betaClose.IsWaiting) { e.Cancel = true; return; }
             var recorder = AnonymousTelemetryContext.Current;
-            if (e.CloseReason == CloseReason.WindowsShutDown) { recorder?.CancelRemoteSend(); return; }
-            if (betaCloseInProgress) { e.Cancel=true; return; }
-            if (recorder?.Consent != TelemetryConsent.RemoteBeta || !BetaTelemetryUploader.IsConfigured) return;
+            if (!_betaClose.TryBegin(e.Cancel,
+                recorder?.Consent == TelemetryConsent.RemoteBeta && BetaTelemetryUploader.IsConfigured)) return;
             e.Cancel = true;
-            betaCloseInProgress=true;
-            recorder.SaveOnNormalExit(DiagnosticTrace.VersionLabel);
+            // Bloquear novos trabalhos, mantendo o menu Privacidade acessivel.
+            _programList.ActionsEnabled = false;
+            recorder!.SaveOnNormalExit(DiagnosticTrace.VersionLabel);
             try { await BetaTelemetryUploader.TrySendAsync(recorder); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or
+                System.Security.SecurityException) { /* Encerrar preservando a pendencia. */ }
             finally
             {
-                betaCloseComplete = true;
-                if (!IsDisposed && IsHandleCreated) BeginInvoke((Action)(() => Close()));
+                if (_betaClose.Finish() && !IsDisposed && !Disposing && IsHandleCreated)
+                {
+                    try { BeginInvoke((Action)(() => { if (!IsDisposed && !Disposing) Close(); })); }
+                    catch (InvalidOperationException) { /* Handle destruido durante Shutdown. */ }
+                }
             }
         };
 #endif
@@ -1089,7 +1119,7 @@ internal sealed partial class MainForm : Form
             "Site abre o fabricante somente quando solicitado. Desinstalar exige confirmação.");
         _programList.ItemActionClicked += (item, action) =>
         {
-            if (_busy) return;
+            if (_busy || _betaClose.IsClosing) return;
             if (action == "uninstall" && item.CanUninstall)
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
             else if (action == "update")
@@ -1109,7 +1139,7 @@ internal sealed partial class MainForm : Form
         };
         _programList.ItemCheckboxClicked += item =>
         {
-            if (_busy || !_multiSelectMode || !item.CanUninstall) return;
+            if (_busy || _betaClose.IsClosing || !_multiSelectMode || !item.CanUninstall) return;
             if (!_checkedApps.Add(item)) _checkedApps.Remove(item);
             _programList.Invalidate();
             RenderTitle();
@@ -1156,7 +1186,7 @@ internal sealed partial class MainForm : Form
             Status("Cancelando consulta...");
             return;
         }
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         bool loaded = false;
         if (_checkUpdatesButton is { IsDisposed: false } initial)
         {
@@ -1195,7 +1225,7 @@ internal sealed partial class MainForm : Form
         button.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
         button.Click += (_, _) =>
         {
-            if (_busy) return;
+            if (_busy || _betaClose.IsClosing) return;
             _appFilter = title == "Marcados" ? "Selecionados" : title;
             RenderPrograms();
         };
@@ -1599,7 +1629,7 @@ internal sealed partial class MainForm : Form
             }
             button.Click += async (_, _) =>
             {
-                if (_busy) return;
+                if (_busy || _betaClose.IsClosing) return;
                 try { await tool.Action(); }
                 catch (Exception ex) { ReportError(ex); }
             };
@@ -2084,7 +2114,7 @@ internal sealed partial class MainForm : Form
         _actionControls.Add(button);
         button.Click += async (_, _) =>
         {
-            if (_busy) return;
+            if (_busy || _betaClose.IsClosing) return;
             try { await action(); }
             catch (Exception ex) { ReportError(ex); }
         };
@@ -2115,7 +2145,7 @@ internal sealed partial class MainForm : Form
     private async Task ExecuteAsync(string description, Func<Task> work,
         bool quietStartup = false)
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         _busy = true;
         if (!quietStartup)
         {
@@ -2614,7 +2644,7 @@ internal sealed partial class MainForm : Form
 
     private void ToggleMultiSelection()
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         _multiSelectMode = !_multiSelectMode;
         _programList.MultiSelectMode = _multiSelectMode;
         if (!_multiSelectMode)
@@ -2627,7 +2657,7 @@ internal sealed partial class MainForm : Form
 
     private void ClearMultiSelection()
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         _checkedApps.Clear();
         if (_appFilter == "Selecionados") _appFilter = "Todos";
         RenderPrograms();
@@ -2658,7 +2688,7 @@ internal sealed partial class MainForm : Form
 
     private void OpenOriginalPackageManager(ProgramEntry entry)
     {
-        if (_busy || !ActionableInventory.CanManageExternally(entry)) return;
+        if (_busy || _betaClose.IsClosing || !ActionableInventory.CanManageExternally(entry)) return;
         var receipt = EcosystemInventory.Get(entry);
         if (receipt is null) return;
         // Open only fixed project documentation. No script, package command or
@@ -2674,7 +2704,7 @@ internal sealed partial class MainForm : Form
 
     private void OpenWindowsInstalledApps(ProgramEntry entry)
     {
-        if (_busy || !ActionableInventory.CanManageWithWindows(entry)) return;
+        if (_busy || _betaClose.IsClosing || !ActionableInventory.CanManageWithWindows(entry)) return;
         try
         {
             // URI oficial fixa; nunca interpolar PackageFamilyName nem argumentos.
@@ -2692,7 +2722,7 @@ internal sealed partial class MainForm : Form
 
     private void OpenMicrosoftStore(ProgramEntry entry)
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         Uri? destination = VerifiedUpdaters.GetMicrosoftStoreUri(entry);
         if (destination is null) return;
         try
@@ -2734,7 +2764,7 @@ internal sealed partial class MainForm : Form
 
     private void OpenOfficialSite(ProgramEntry entry)
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         string? address = VerifiedUpdaters.GetOfficialPage(entry);
         if (address is null) return;
         try
@@ -2797,7 +2827,7 @@ internal sealed partial class MainForm : Form
 
     private async Task UpdateWindowsTerminalAsync(ProgramEntry entry)
     {
-        if (_busy || !_installed.Contains(entry)) return;
+        if (_busy || _betaClose.IsClosing || !_installed.Contains(entry)) return;
         TerminalUpdateRecipe? recipe = WindowsTerminalUpdater.Resolve(entry);
         if (recipe is null)
         {
@@ -2922,7 +2952,7 @@ internal sealed partial class MainForm : Form
 
     private async Task UpdateThirdPartyAsync(ProgramEntry entry)
     {
-        if (_busy || !_installed.Contains(entry)) return;
+        if (_busy || _betaClose.IsClosing || !_installed.Contains(entry)) return;
         VerifiedUpdateRecipe? recipe = VerifiedUpdaters.Resolve(entry);
         if (recipe is null)
         {
@@ -3361,7 +3391,7 @@ internal sealed partial class MainForm : Form
 
     private async Task RepairWindowsAfterVerificationAsync()
     {
-        if (_busy || !_windowsRepairable ||
+        if (_busy || _betaClose.IsClosing || !_windowsRepairable ||
             DateTimeOffset.UtcNow - _windowsScannedAt >= TimeSpan.FromMinutes(30))
         {
             _windowsRepairable = false;
@@ -3378,7 +3408,7 @@ internal sealed partial class MainForm : Form
 
     private Task ChooseRestorePointAsync()
     {
-        if (_busy) return Task.CompletedTask;
+        if (_busy || _betaClose.IsClosing) return Task.CompletedTask;
         if (DarkConfirmDialog.Confirm(this,
             "Abrir o assistente oficial de Restauração do Sistema? Você poderá escolher e " +
             "confirmar um ponto no próprio Windows. Aplicativos e atualizações posteriores " +
@@ -3419,7 +3449,7 @@ internal sealed partial class MainForm : Form
 
     private async Task ConfirmThenRun(string task, string question)
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         string confirmation = task == "windows-repair" ? question : SimpleConfirmation(task);
         if (DarkConfirmDialog.Confirm(this, confirmation, "Confirmar operação") != DialogResult.Yes)
         {
