@@ -44,7 +44,30 @@ internal sealed class TelemetryPrivacyDialog : Form
                    "não limita o uso do programa.\n\n" +
                    "Você pode simular sem aceitar a coleta."
         };
+#if GF_BETA
+        notice.Text = "VERSÃO BETA — participação opcional.\n\n" +
+            "Finalidade: identificar frequências de falhas técnicas para corrigir o GF. " +
+            "Com autorização, ao fechar normalmente o programa pode enviar por HTTPS " +
+            "apenas a versão do GF, o tipo de encerramento e contagens de 14 códigos permitidos. " +
+            "Não envia logs brutos, lista de programas, arquivos, caminhos, credenciais nem ID do PC.\n\n" +
+            "O provedor recebe o IP para entregar a requisição e limitar abusos; " +
+            "não gravamos o IP no banco D1. Resumos ficam até 7 dias no PC e agregados até " +
+            "7 dias no D1. Sínteses por dia e categoria podem ir ao GitHub PRIVADO, " +
+            "com retenção própria descrita na política publicada.\n\n" +
+            "Recusar não restringe funções. Revogue em Bandeja > Privacidade e diagnóstico. " +
+            "A revogação bloqueia novos envios, mas não desfaz resumos já recebidos e agregados.";
+        // O aviso ultrapassa uma altura fixa em notebook/DPI alto: permitir rolagem e copia.
+        var scrollingNotice = new TextBox
+        {
+            Name = "PrivacyBetaNotice", Multiline = true, ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical, WordWrap = true, TabStop = true,
+            Dock = DockStyle.Fill, BorderStyle = BorderStyle.None,
+            BackColor = BackColor, ForeColor = ForeColor, Text = notice.Text
+        };
+        root.Controls.Add(scrollingNotice, 0, 0);
+#else
         root.Controls.Add(notice, 0, 0);
+#endif
 
         var preview = new DarkLogView
         {
@@ -75,6 +98,11 @@ internal sealed class TelemetryPrivacyDialog : Form
             Size = new Size(115, 34), BackColor = AppServices.Blue,
             ForeColor = Color.White, Margin = new Padding(6, 0, 0, 0)
         };
+#if GF_BETA
+        accept.Text = "Aceito envio automático";
+        accept.Enabled = BetaTelemetryUploader.IsConfigured;
+        if (!accept.Enabled) scrollingNotice.Text += "\n\nSem receptor configurado: aceitar e enviar ficam bloqueados.";
+#endif
         var decline = new ModernButton
         {
             Text = "Não participar / Desativar", DialogResult = DialogResult.No,
@@ -157,14 +185,14 @@ internal sealed partial class MainForm
     {
         var collector = AnonymousTelemetryContext.Current;
         if (collector is null || IsDisposed ||
-            (firstRun && collector.Consent != TelemetryConsent.NotAsked))
+            (firstRun && collector.Consent is TelemetryConsent.Declined or TelemetryConsent.RemoteBeta))
             return;
         using var dialog = new TelemetryPrivacyDialog(collector);
         var decision = dialog.ShowDialog(this);
         if (decision is not (DialogResult.Yes or DialogResult.No)) return;
 
         var choice = decision == DialogResult.Yes
-            ? TelemetryConsent.LocalOnly : TelemetryConsent.Declined;
+            ? TelemetryConsent.RemoteBeta : TelemetryConsent.Declined;
         bool saved = collector.SetConsent(choice);
         RefreshPrivacyStatus();
         if (!saved)
@@ -174,8 +202,8 @@ internal sealed partial class MainForm
                 : "Não foi possível salvar a preferência. A escolha anterior foi mantida.");
             return;
         }
-        Status(choice == TelemetryConsent.LocalOnly
-            ? "Diagnóstico local voluntário ativo. Nenhum dado é enviado pela internet."
+        Status(choice == TelemetryConsent.RemoteBeta
+            ? "BETA: envio de contagens autorizado ao fechar; revogável na bandeja."
             : "Diagnóstico colaborativo desativado; dados pendentes apagados.");
     }
 }

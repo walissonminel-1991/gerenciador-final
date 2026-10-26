@@ -5,7 +5,7 @@ namespace GerenciadorAplicativos;
 
 // Etapa 1: somente coleta LOCAL. Nao contem rotinas de rede, tokens,
 // nomes de programas, hardware, usuarios, caminhos ou identificadores unicos.
-internal enum TelemetryConsent { NotAsked = 0, Declined = 1, LocalOnly = 2 }
+internal enum TelemetryConsent { NotAsked = 0, Declined = 1, LocalOnly = 2, RemoteBeta = 3 }
 
 internal sealed class AnonymousTelemetry
 {
@@ -61,6 +61,7 @@ internal sealed class AnonymousTelemetry
             {
                 1 => TelemetryConsent.Declined,
                 2 => TelemetryConsent.LocalOnly,
+                3 => TelemetryConsent.RemoteBeta,
                 _ => TelemetryConsent.NotAsked
             };
         }
@@ -71,13 +72,13 @@ internal sealed class AnonymousTelemetry
 
     internal bool SetConsent(TelemetryConsent consent)
     {
-        if (consent is not (TelemetryConsent.Declined or TelemetryConsent.LocalOnly))
+        if (consent is not (TelemetryConsent.Declined or TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta))
             return false;
         lock (_gate)
         {
             // Revogar interrompe a coleta mesmo se o disco impedir a persistencia.
             // O retorno ainda informa falhas de gravacao ou exclusao para a interface.
-            bool preserveEvents = consent == TelemetryConsent.LocalOnly && Consent == consent;
+            bool preserveEvents = consent != TelemetryConsent.Declined && Consent == consent;
             bool deleted = true;
             if (consent == TelemetryConsent.Declined)
             {
@@ -85,6 +86,12 @@ internal sealed class AnonymousTelemetry
                 _events.Clear();
                 deleted = TryDelete(PendingFile);
             }
+            // A autorizacao remota nao abrange relatorios coletados quando
+            // o usuario havia autorizado apenas armazenamento local.
+            // Falha de exclusao bloqueia a transicao: nunca enviar pendencia antiga.
+            if (consent == TelemetryConsent.RemoteBeta &&
+                Consent != TelemetryConsent.RemoteBeta && !TryDelete(PendingFile))
+                return false;
             try
             {
                 EnsureStorageFolder();
@@ -100,7 +107,7 @@ internal sealed class AnonymousTelemetry
 
     internal void Record(string diagnosticEvent)
     {
-        if (Consent != TelemetryConsent.LocalOnly || diagnosticEvent.Length is < 3 or > 4096)
+        if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta) || diagnosticEvent.Length is < 3 or > 4096)
             return;
         // Somente o codigo exato antes do primeiro espaco. Nada apos ele
         // (versoes de apps, excecoes, IDs, caminhos) pode entrar no JSON.
@@ -109,7 +116,7 @@ internal sealed class AnonymousTelemetry
         if (!AllowedEvents.Contains(category)) return;
         lock (_gate)
         {
-            if (Consent != TelemetryConsent.LocalOnly) return;
+            if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta)) return;
             _events.TryGetValue(category, out int count);
             _events[category] = Math.Min(MaximumEventsPerCategory, count + 1);
         }
@@ -125,13 +132,13 @@ internal sealed class AnonymousTelemetry
     {
         lock (_gate)
         {
-            if (Consent != TelemetryConsent.LocalOnly)
+            if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta))
                 return "COLETA DESATIVADA\n\n" +
                     "Nenhuma ocorrência foi registrada por este recurso.\n" +
                     "Você pode simular com dados fictícios sem ativar a coleta.";
 
             var explanation = new StringBuilder();
-            explanation.AppendLine("COLETA LOCAL ATIVA — NENHUM ENVIO");
+            explanation.AppendLine(Consent == TelemetryConsent.RemoteBeta ? "BETA: RESUMO E ENVIO AUTORIZADOS" : "COLETA LOCAL ATIVA — NENHUM ENVIO");
             explanation.AppendLine();
             explanation.AppendLine("Versão do programa: " +
                 (DiagnosticPayloadPolicy.IsValidVersion(version) ? version : "nao disponivel"));
@@ -148,7 +155,7 @@ internal sealed class AnonymousTelemetry
             }
             explanation.AppendLine();
             explanation.AppendLine("Não inclui nomes de programas, arquivos, senhas, usuário nem histórico de navegação.");
-            explanation.AppendLine("O relatório permanece neste computador e não é enviado automaticamente.");
+            explanation.AppendLine(Consent == TelemetryConsent.RemoteBeta ? "Resumo enviado apenas sob consentimento, ao fechar, via HTTPS privado; revogável na bandeja." : "O relatório permanece neste computador e não é enviado automaticamente.");
             return explanation.ToString();
         }
     }
@@ -211,7 +218,7 @@ internal sealed class AnonymousTelemetry
     {
         lock (_gate)
         {
-            if (Consent != TelemetryConsent.LocalOnly) return null;
+            if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta)) return null;
             ExpirePendingReport();
             if (_events.Count > 0) return Serialize(version, normalExit: false);
             try
@@ -246,7 +253,7 @@ internal sealed class AnonymousTelemetry
     {
         lock (_gate)
         {
-            if (Consent != TelemetryConsent.LocalOnly) return false;
+            if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta)) return false;
             // Uma sessao sem eventos nao apaga a pendencia util da sessao anterior.
             if (_events.Count == 0) { ExpirePendingReport(); return false; }
             try
@@ -257,6 +264,24 @@ internal sealed class AnonymousTelemetry
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
                 ArgumentException or NotSupportedException or System.Security.SecurityException) { return false; }
+        }
+    }
+
+    internal string? PendingForRemote()
+    {
+        lock (_gate)
+        {
+            if (Consent != TelemetryConsent.RemoteBeta) return null;
+            ExpirePendingReport();
+            try
+            {
+                InstallerFileGuard.ValidateLocalPath(PendingFile);
+                if (!File.Exists(PendingFile) || new FileInfo(PendingFile).Length > 4096 || PendingHasExpired()) return null;
+                var report = ReadBoundedFile(PendingFile, 4096);
+                return DiagnosticPayloadPolicy.IsValidReport(report) ? report : null;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or
+                System.Security.SecurityException) { return null; }
         }
     }
 
@@ -271,7 +296,7 @@ internal sealed class AnonymousTelemetry
         {
             InstallerFileGuard.ValidateLocalPath(PendingFile);
             if (!File.Exists(PendingFile)) return;
-            if (Consent != TelemetryConsent.LocalOnly ||
+            if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta) ||
                 PendingHasExpired())
                 TryDelete(PendingFile);
         }

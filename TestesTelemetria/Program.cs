@@ -307,6 +307,30 @@ try
             Directory.Delete(redirectedLog);
         }
     }
+    var beta = new AnonymousTelemetry(Path.Combine(temp, "beta-simulado"));
+    Verify(beta.Consent == TelemetryConsent.NotAsked && beta.PendingForRemote() is null,
+        "Sem opt-in remoto nenhuma pendencia pode ser transmitida");
+    Verify(beta.SetConsent(TelemetryConsent.LocalOnly) && beta.PendingForRemote() is null,
+        "Consentimento local antigo nao equivale a consentimento remoto");
+    beta.Record("APP.FALHA_INTERFACE usuario=segredo"); // elimina parametros
+    Verify(beta.SaveOnNormalExit("v5.13.11.66") && beta.PendingForRemote() is null &&
+        File.Exists(beta.PendingFile),
+        "Coleta local permanece estritamente local");
+    Verify(beta.SetConsent(TelemetryConsent.RemoteBeta) &&
+        !File.Exists(beta.PendingFile) && beta.PendingForRemote() is null,
+        "Opt-in remoto descarta pendencia criada com autorizacao apenas local");
+    beta.Record("MSIX.LEITURA caminho=C:/Privado");
+    Verify(beta.SaveOnNormalExit("v5.13.11.66") &&
+        DiagnosticPayloadPolicy.IsValidReport(beta.PendingForRemote()) &&
+        !beta.PendingForRemote()!.Contains("Privado", StringComparison.Ordinal) &&
+        !beta.PendingForRemote()!.Contains("APP.FALHA_INTERFACE", StringComparison.Ordinal),
+        "Apenas eventos posteriores ao opt-in remoto podem ser enviados");
+    Verify(beta.SetConsent(TelemetryConsent.Declined) &&
+        beta.PendingForRemote() is null && !File.Exists(beta.PendingFile),
+        "Revogacao interrompe leitura de pendencia e remove arquivo");
+    // O runner net10.0 valida o gravador sem carregar HTTP/WinForms do produto.
+    // A ausencia de endpoint e o aceite bloqueado sao testados no TestesLayout
+    // (que referencia o executavel real) e pela politica de CI.
     Console.WriteLine("OK: privacidade, retomada, expiracao e falhas de disco; nenhuma rede foi usada.");
 }
 finally

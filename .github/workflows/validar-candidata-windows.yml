@@ -156,6 +156,8 @@ jobs:
         run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release
       - name: Testes inventario MSIX
         run: dotnet run --project TestesMsix/TestesMsix.csproj -c Release
+      - name: BETA receptor privado e política de payload (Node, sem rede)
+        run: node --test prototipos/beta-telemetria/test.mjs
       - name: Testes privacidade e diagnostico local
         run: dotnet run --project TestesTelemetria/TestesTelemetria.csproj -c Release
       - name: Testes bloqueio de instaladores e encerramento seguro

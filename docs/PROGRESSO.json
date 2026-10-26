@@ -811,15 +811,15 @@
     }
   },
   "candidate": {
-    "version": "5.13.11.65 TESTE",
-    "status": "approved",
-    "mission": "WORK18",
-    "report": "docs/MISSAO-WORK18.md",
+    "version": "5.13.11.66 TESTE",
+    "status": "pending",
+    "mission": "BETA-PILOTO-DIAGNOSTICO",
+    "report": "docs/MISSAO-BETA.md",
     "physical_validation": "pending",
     "winget_execution_enabled": false,
-    "scope": "MSI/WiX com cache/assinante/familia e contexto nativo; acompanhamento NSIS/Inno/MSI/WiX; CI aprovada, homologacao fisica pendente",
-    "package_verified_by_ci": true,
-    "package_verified_independently": true,
+    "scope": "Preparação beta: perfis de PC removidos, consentimento remoto inicial, envio HTTPS agregado ao fechar. Não liberar antes de receptor privado, avaliação LGPD, CI e testes.",
+    "package_verified_by_ci": false,
+    "package_verified_independently": false,
     "code_commit": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
     "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887",
     "validation": {
@@ -1075,5 +1075,20 @@
         "reason": "new UI correction; prior official VLC redirect returned HTTP 500; no verification relaxed; final run succeeded"
       }
     ]
+  },
+  "beta": {
+    "version": "5.13.11.66 BETA",
+    "base_pr": 60,
+    "draft_pr": 61,
+    "backend_deployed": false,
+    "remote_delivery_enabled": false,
+    "endpoint_configured": false,
+    "public_github_writes": false,
+    "github_repository_visibility": "private_required",
+    "consent": "explicit_remote_onboarding_and_revocation",
+    "beta_releasable": false,
+    "last_technically_approved": "5.13.11.65 TESTE",
+    "roadmap_done": 27,
+    "roadmap_total": 42
   }
 }
