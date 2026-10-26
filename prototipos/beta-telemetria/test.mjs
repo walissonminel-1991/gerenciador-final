@@ -61,7 +61,11 @@ test("limpeza inclui metadados de exportacao mesmo com piloto desligado", async 
     sql.push(statement); return {bind:()=>({run:async()=>{}})};
   }}};
   await worker.scheduled(null,env);
-  assert.equal(sql.length,2);
+  env.PILOT_ENABLED = "yes";
+  env.GITHUB_EXPORT_ENABLED = "no";
+  await worker.scheduled(null,env);
+  assert.equal(sql.length,4);
   assert.match(sql[0],/DELETE FROM daily_counts/);
   assert.match(sql[1],/DELETE FROM github_exports/);
+  assert.match(sql[3],/DELETE FROM github_exports/);
 });
