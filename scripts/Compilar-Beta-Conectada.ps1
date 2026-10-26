@@ -52,6 +52,6 @@ $lines = foreach ($file in (Get-ChildItem -LiteralPath $root -Recurse -File | So
     "$((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $relative"
 }
 $lines | Set-Content (Join-Path $root 'SHA256SUMS.txt') -Encoding utf8
-& python scripts/verificar_pacote.py $root --version 5.13.11.66 --source $source --build $source
+& python scripts/verificar_pacote.py $root --version 5.13.11.66 --source $source --build $source --beta
 if ($LASTEXITCODE -ne 0) { throw 'Pacote reprovado' }
 Write-Host 'Build conectado verificado localmente. Nenhum upload, release ou distribuicao realizado.'

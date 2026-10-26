@@ -133,6 +133,7 @@ jobs:
         run: |
           $arguments = @('scripts/verificar_pacote.py', 'Distribuicao', '--version', '${{ steps.pacote.outputs.versao }}', '--source', $env:GF_SOURCE_SHA, '--build', $env:GITHUB_SHA)
           if ($env:GF_BASE_SHA) { $arguments += @('--base', $env:GF_BASE_SHA) }
+          if ('${{ steps.pacote.outputs.beta }}' -eq 'true') { $arguments += '--beta' }
           python @arguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
