@@ -166,6 +166,8 @@ jobs:
           $output = & dotnet msbuild GerenciadorAplicativos.csproj -t:ValidateGfBetaEndpoint -p:GfBetaEndpoint=https://receiver.invalid/ingest 2>&1 | Out-String
           if ($LASTEXITCODE -eq 0 -or $output -notmatch 'GF_BETA_ENDPOINT_NOT_APPROVED') { throw 'Gate do endpoint falhou' }
           Write-Host 'Endpoint nao aprovado bloqueado; nenhuma chamada de rede realizada.'
+          # A falha acima e esperada e ja foi validada pelo codigo e mensagem.
+          exit 0
       - name: BETA receptor, retencao GitHub e recuperacao (SQLite local, sem rede)
         run: node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs prototipos/beta-telemetria/round2.test.mjs
       - name: Testes privacidade e diagnostico local
