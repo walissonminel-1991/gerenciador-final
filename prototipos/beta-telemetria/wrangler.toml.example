@@ -11,7 +11,17 @@ crons = ["0 4 * * *"]
 binding = "DB"
 database_name = "gf-beta-private"
 database_id = "PREENCHER_ID_D1"
-# Consultar a versao atual da documentacao Cloudflare e configurar
-# BETA_RATE_LIMITER (Rate Limiting binding) e WAF antes de ativar.
-# GITHUB_TOKEN deve ser SECRET somente do Worker, com issues:write
-# limitado a um repositorio privado; jamais fazer commit deste segredo.
+# Substituir 1001 por um namespace_id positivo e exclusivo da conta.
+# API de rate limiting aproximada por PoP: NAO substitui uma regra WAF.
+[[ratelimits]]
+name = "BETA_RATE_LIMITER"
+namespace_id = "1001"
+[ratelimits.simple]
+limit = 6
+period = 60
+
+# Antes de ativar: configurar WAF/rate limit na zona/domínio personalizado,
+# revisar logging/redacao do IP, e validar deploy/D1 de forma controlada.
+# GITHUB_TOKEN deve ser SECRET somente do Worker (issues:write E metadata:read),
+# restrito a um unico repositorio PRIVADO; jamais fazer commit desse segredo.
+# PILOT_ENABLED permanece "no" ate todos os gates de aprovacao.
