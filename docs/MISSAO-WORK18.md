@@ -48,13 +48,13 @@ Nenhum destes programas é declarado recém-homologado ou atualizado pela WORK18
 
 `scripts/measure_work18.py` compila **a mesma fixture** contra `28beb960` e o HEAD candidato, incluindo PE real inerte, leitura do motor, emissão temporária e seleção da ação. Não apenas compara números codificados. Cache MSI e assinante local das fixtures são simulados; nenhum payload real recebe autorização final. A execução Windows e os resultados finais ficam registrados na seção de evidências.
 
-| Grupo de cenários | .64 antes | .65 esperado, a comprovar na CI |
+| Grupo de cenários | .64 antes | .65 aprovado na CI |
 | --- | --- | --- |
 | Controles existentes: NSIS, Inno, MSI, WiX silenciosos e NSIS interativo | 4 Atualizar + 1 Acompanhar | 4 Atualizar + 1 Acompanhar |
 | MSI e WiX, Scope omitido, cada um em machine/user | 4 recusados | 4 Atualizar, obrigando contexto no payload |
 | NSIS, Inno, MSI, WiX com interativo explícito e flag silenciosa desconhecida | 4 recusados | 4 Acompanhar, sem executar a flag desconhecida |
 | 15 controles negativos | 15 recusados | 15 recusados |
-| Total / 28 fixtures | 5 ações elegíveis antes de validar payload | 13 esperadas; ganho de 8 (4 Atualizar + 4 Acompanhar) |
+| Total / 28 fixtures | 5 ações elegíveis antes de validar payload | 13 comprovadas antes de validar payload; ganho de 8 (4 Atualizar + 4 Acompanhar) |
 
 Negativos: arquitetura errada, Scope explicitamente divergente, Scope ausente em NSIS/Inno, flags desconhecidas sem interativo, Custom/Repair/InstallLocation, dependências, remoção prévia, instaladores ambíguos, HTTP e hash inválido. Além da matriz, testes específicos verificam assinatura ausente, manifesto alterado, MSI de outro produto/fabricante/família/contexto/arquitetura/versão, selo/cópia/expiração, alteração da instalação, duplicação, versão não confirmada e repetição. A regressão anterior continua cobrindo hash incorreto, Authenticode/cadeia, redirecionamento, fechamento recusado, UAC, cancelamento, privacidade, dados pessoais e arquivos compartilhados.
 
@@ -66,7 +66,7 @@ Negativos: arquitetura errada, Scope explicitamente divergente, Scope ausente em
 | Supervisionadas elegíveis | 0 | Sem nova medição física |
 | Revisões / ambiguidades | 4 revisões; 3 ambiguidades na matriz | Sem nova medição física |
 | Consultivas | 216 operações entre atualização/desinstalação/resíduos; não são 216 programas ou updates | Sem nova medição física |
-| Segurança | Proteções da .64 | Preservadas e reforçadas; aprovação final depende da CI |
+| Segurança | Proteções da .64 | Preservadas e reforçadas; CI integral aprovada, sem homologação física |
 
 ## Validação e evidências
 
@@ -78,7 +78,16 @@ Estado inicial WORK18: aplicação e testes compilam no SDK 10.0.402, sem erros/
 - Seis mutações adicionais (Scope MSI, expiração, assinatura, flags interativas , prova local MSI e major upgrade de nome exato), preservando todas as mutações anteriores.
 - Regressões completas dos Lotes 1–4, inventário, drivers somente leitura, desinstalação, resíduos, rede, MSIX, privacidade, encerramento; downloads oficiais autenticados sem execução, política e pacote x64 self-contained.
 
-CI final, commit exato, matriz gerada e pacote/hash serão registrados aqui após o término. **Enquanto esta seção não contiver aprovação final, a missão não está tecnicamente concluída e nenhum pacote WORK18 é recomendado.**
+**WORK18 tecnicamente aprovada** na [CI 40252100887](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887), fonte `e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d`, contexto de build `54a90d34b00e71a4582719d53b7cfe31c30edd72`, base `28beb9607e85d208af4c0864d768a6db7fb5296a`. A documentação posterior registra esta fonte e seleciona exatamente seu pacote; não muda o código aprovado. [PR #60 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/60), sem merge. [Evidência estruturada](evidencias/work18-ci-40252100887.json) e [matriz integral gerada no Windows](benchmarks/WORK18-comparacao.json).
+
+- 145/145 verificações específicas WORK18, 368/368 na suite geral de atualização, 707/707 de resíduos/desinstalação, 159/159 multifontes, 17/17 catálogo, 47/47 MSIX, 30/30 encerramento e 54/54 ecossistemas; Lotes 1–4 e WORK14–17 preservados.
+- 36/36 mutações rejeitadas, incluindo seis novas. Comparação imutável: **5 → 13 cenários elegíveis antes do payload**, ganho **4 Atualizar + 4 Acompanhar**; 15 negativos preservados. Não são oito programas homologados ou oito payloads reais autorizados.
+- Oito combinações de UI (duas resoluções × quatro DPI), capturas sintéticas inspecionadas; corrigida ação Gerenciar duplicada, incluindo a área de clique. Drivers Windows 2022/2025, política/privacidade e downloads oficiais autenticados passaram. Dois jobs condicionais não se aplicam (fontes/drivers extras por disparo manual e atestado exclusivo da main); os seis obrigatórios passaram.
+- Primeiras execuções substituídas por novos commits. Em uma delas, o redirect oficial VLC respondeu HTTP 500. A execução final passou pelo mesmo fluxo HTTPS, sem trocar hashes, fonte ou remover barreiras.
+- [ZIP Windows x64 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887/artifacts/12621128988), **285 arquivos, 284 hashes**, 59443637 bytes compactados / 152991556 expandidos, AMD64, self-contained .NET 10.0.13, dependências e origem conferidas fora do runner numa extração limpa do mesmo ZIP. A verificação nativa do manifesto Win32 também passou no Windows. Nenhum executável foi iniciado nesta auditoria externa.
+- SHA-256 do ZIP: `44af39ede3e30cc88c5ffa42a7ef38ab4931853afb167f717b76a1d5f414ca52`. O digest coincide com o publicado pelo GitHub Actions. Sem Authenticode do GF e **AVG não homologado**. A assinatura obrigatória dos novos instaladores de terceiros permanece exigida.
+
+Homologação física continua pendente; a sessão real do PC FORTE não foi repetida. Nenhum checkpoint do roadmap foi fechado: **27/42**.
 
 ## Homologação e pendências
 

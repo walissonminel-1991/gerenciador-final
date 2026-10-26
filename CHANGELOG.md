@@ -6,7 +6,7 @@
 - NSIS/Inno/MSI/WiX com modo interativo explícito podem oferecer **Acompanhar** quando parâmetros somente silenciosos não forem aceitos; flags remotas são descartadas, Custom/Upgrade/Repair/InstallLocation continuam recusados.
 - Major upgrade de MSI obrigatório também para nome exato quando ProductCode muda; versão superior, UpgradeCode do manifesto e editor do assinante são conferidos.
 - Motivos na linha de atualização e códigos COM específicos, sem executar WinGet ou reparar o ambiente.
-- [Relatório, matriz e CI](docs/MISSAO-WORK18.md). Candidata em validação, sem nova medição física, release estável ou mudança do roadmap 27/42.
+- [Relatório, matriz e CI](docs/MISSAO-WORK18.md). CI [40252100887](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887) aprovada; 8 novos cenários, 36/36 mutações rejeitadas e pacote com 284 hashes verificados fora do runner. Sem nova medição física, release estável ou mudança do roadmap 27/42.
 
 ## 5.13.11.64 TESTE — integração Lotes 1–4 + WORK14–WORK17 (25/10/2026)
 
