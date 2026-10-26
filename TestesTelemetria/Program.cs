@@ -328,8 +328,9 @@ try
     Verify(beta.SetConsent(TelemetryConsent.Declined) &&
         beta.PendingForRemote() is null && !File.Exists(beta.PendingFile),
         "Revogacao interrompe leitura de pendencia e remove arquivo");
-    Verify(!BetaTelemetryUploader.IsConfigured,
-        "Build sem endpoint aprovado nao pode abrir conexao de diagnostico");
+    // O runner net10.0 valida o gravador sem carregar HTTP/WinForms do produto.
+    // A ausencia de endpoint e o aceite bloqueado sao testados no TestesLayout
+    // (que referencia o executavel real) e pela politica de CI.
     Console.WriteLine("OK: privacidade, retomada, expiracao e falhas de disco; nenhuma rede foi usada.");
 }
 finally
