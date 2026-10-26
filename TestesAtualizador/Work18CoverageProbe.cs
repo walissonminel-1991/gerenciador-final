@@ -82,9 +82,12 @@ internal static class Work18CoverageProbe
         foreach(var c in Cases)
         {
             using var f=new Work17CoverageProbe.Fixture();
+            f.Metadata=f.Metadata with{Scope=c.Scope=="user"?"user":"machine"};
             var app=f.App("work18_"+c.Id,scope:c.Scope=="user"?"user":"machine",msi:c.Type is "msi" or "wix");
             if(c.Type=="inno")MakeInno(Path.Combine(app.InstallLocation,"uninstall.exe"));
-            var local=AutomaticAppInstallation.Read(app);var plan=Select(c);string action="none";
+            var local=(c.Type is "msi" or "wix") && (c.OmitScope || c.Switches=="silent_vendor")
+                ? f.Read(app,true) : AutomaticAppInstallation.Read(app);
+            var plan=Select(c);string action="none";
             if(plan is not null && local is not null && local.Current([app]))
             {
                 AutomaticUpdateDiscovery.Attach(AutomaticUpdateDiscovery.SimulateIssued(app,local,plan));

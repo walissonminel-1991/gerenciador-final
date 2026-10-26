@@ -89,6 +89,14 @@ internal static class AutomaticDiscoveryPipeline
                     installer.ProductCode.Length>0 && installation.Kind!="msi" &&
                         !installer.ProductCode.Equals(app.InventoryId.Split('|').Last(),StringComparison.OrdinalIgnoreCase))
                 {Count("manifest_not_eligible");continue;}
+                // New MSI routes also require the installed cache, signer and
+                // UpgradeCode-family uniqueness before a permit can be issued.
+                if(installer.RequiresMsiIdentity && !installation.HasCatalogIdentity)
+                {
+                    installation=AutomaticAppInstallation.ReadByCatalogIdentity(app,latest.Name,out reason);
+                    if(installation is null){Count(reason);continue;}
+                    if(!installation.Current(apps)){Count("installation_changed_or_shared");continue;}
+                }
                 budgetToken.ThrowIfCancellationRequested();userToken.ThrowIfCancellationRequested();
                 findings[advisory]=new(identities[i],installer.Version,"Catalogo Microsoft HTTPS","https://github.com/microsoft/winget-pkgs",
                     "automatic-manifest","",DateTimeOffset.UtcNow,installation.Architecture,"stable",installation.Scope,

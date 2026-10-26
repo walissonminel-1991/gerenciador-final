@@ -33,7 +33,10 @@ internal static class Work18UpdateTests
         }
         using(var f=new Work17CoverageProbe.Fixture())
         {
-            var app=f.App("security");var local=AutomaticAppInstallation.Read(app)!;var plan=Work18CoverageProbe.Select(c1)!;
+            var app=f.App("security");var local=f.Read(app,true)!;var plan=Work18CoverageProbe.Select(c1)!;
+            var incomplete=AutomaticAppInstallation.Read(app)!;
+            AutomaticUpdateDiscovery.Attach(AutomaticUpdateDiscovery.SimulateIssued(app,incomplete,plan));
+            check(AutomaticUpdateDiscovery.Resolve(app) is null,"W18 MSI novo exige cache assinante e familia antes da permissao");
             var raw=new AutomaticDiscoveryResult([],[(app,local,plan)],new("fixture","ok",0));
             AutomaticUpdateDiscovery.Attach(raw);
             check(AutomaticUpdateDiscovery.Resolve(app) is null,"W18 provedor consultivo nao emite nova autorizacao");
@@ -69,6 +72,21 @@ internal static class Work18UpdateTests
             check(AutomaticUpdateDiscovery.AssessmentReason(app)=="","W18 motivo antigo nao acompanha instalacao alterada");
         }
         NativeMsi(check);
+        using(var f=new Work17CoverageProbe.Fixture())
+        {
+            var app=f.App("pipeline_scope");var source=new Source(c1);
+            async Task<AutomaticDiscoveryResult> Scan(ProgramEntry[] inventory)=>await AutomaticDiscoveryPipeline.RunAsync(inventory,
+                inventory.Select(a=>new InstalledApp(a.Name,a.Version,a.Publisher,InventoryId:a.InventoryId)).ToArray(),source,default,default);
+            var ready=await Scan([app]);
+            check(ready.Plans is [{Installation.HasCatalogIdentity:true,Installer.ScopeFromPayload:true}],
+                "W18 pipeline real exige cache MSI e assinante para contexto omitido");
+            f.Signer=null;
+            check((await Scan([app])).Plans.Count==0,"W18 pipeline sem assinante instalado nao emite novo plano");
+            f.Signer="GF Tests";
+            var other=new ProgramEntry{Name="Different edition",Publisher=app.Publisher,Version=app.Version,InventoryId="LocalMachine|Registry64|parallel",
+                MsiProductCode="{00000000-0000-0000-0000-000000000077}"};
+            check((await Scan([app,other])).Plans.Count==0,"W18 familia MSI compartilhada entre nomes diferentes bloqueia novo plano");
+        }
         using(var f=new Work17CoverageProbe.Fixture())
         {
             var app=f.App("supervised",msi:false);var local=AutomaticAppInstallation.Read(app)!;
@@ -121,5 +139,14 @@ internal static class Work18UpdateTests
             check(true,"W18 major upgrade comprovado por tabela e sequencia sem instalar");
         }
         finally{MsiPackageEvidence.SyntheticInstalled=null;Directory.Delete(folder,true);}
+    }
+    private sealed class Source(Work18CoverageProbe.Case sample) : IAutomaticCatalogSource
+    {
+        public IReadOnlyList<CatalogManifestReference> Find(ProgramEntry app,CancellationToken token)=>app.Name=="TestesAtualizador"
+            ? [new("GF.Work18","TestesAtualizador","13.0.0.0","",new string('A',64))] : [];
+        public IReadOnlyList<CatalogManifestReference> ByProductCode(ProgramEntry app,CancellationToken token)=>[];
+        public IReadOnlyList<CatalogManifestReference> ByPackageFamily(ProgramEntry app,CancellationToken token)=>[];
+        public IReadOnlyList<CatalogManifestReference> ByPackageId(ProgramEntry app,string id,CancellationToken token)=>[];
+        public Task<byte[]> ManifestAsync(CatalogManifestReference reference,CancellationToken token)=>Task.FromResult(Encoding.UTF8.GetBytes(Work18CoverageProbe.Manifest(sample)));
     }
 }

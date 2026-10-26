@@ -8,7 +8,10 @@ namespace GerenciadorAplicativos;
 
 internal sealed record AutomaticInstaller(string PackageId, string Name, string Publisher, string Version, string Type,
     string Architecture, string Scope, Uri Download, string Sha256, string ProductCode, string UpgradeCode, string Arguments,
-    bool Interactive = false, bool ScopeFromPayload = false);
+    bool Interactive = false, bool ScopeFromPayload = false, bool SupervisedFallback = false)
+{
+    internal bool RequiresMsiIdentity => (Type is "msi" or "wix") && (ScopeFromPayload || SupervisedFallback);
+}
 
 // Interpreta dados autenticados; nunca desserializa objetos, scripts ou comandos externos.
 internal static class AutomaticPackageManifest
@@ -69,6 +72,7 @@ internal static class AutomaticPackageManifest
             if (!Uri.TryCreate(Get("InstallerUrl"),UriKind.Absolute,out var url) || !IsPublicHttps(url) ||
                 !Regex.IsMatch(Get("InstallerSha256"),"^[A-Fa-f0-9]{64}$")) continue;
             string? args = Arguments(type,scope, GetNode("InstallerSwitches") as YamlMappingNode);
+            bool supervisedFallback=args is null && allowsInteractive;
             // A rejected silent switch is never copied to an interactive plan.
             // Only an explicit interactive mode can use the local presentation
             // contract, and custom/upgrade/location/repair commands still block.
@@ -99,7 +103,7 @@ internal static class AutomaticPackageManifest
                 upgrade=S(feature,"UpgradeCode");
             }
             if (type is "msi" or "wix" && (!Guid.TryParse(code,out var productCode) || productCode==Guid.Empty)) continue;
-            options.Add(new(reference.Id,name,publisher,reference.Version,type,arch,targetScope,url,Get("InstallerSha256"),code,upgrade,args!,interactive,scopeFromPayload));
+            options.Add(new(reference.Id,name,publisher,reference.Version,type,arch,targetScope,url,Get("InstallerSha256"),code,upgrade,args!,interactive,scopeFromPayload,supervisedFallback));
         }
         var unique = options.Distinct().ToArray();
         if(unique.Length>1)reason="manifest_ambiguous";

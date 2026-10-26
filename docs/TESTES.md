@@ -2,7 +2,7 @@
 
 WORK18 (.65): executar também `dotnet run --project TestesAtualizador -c Release -- --work18`,
 `dotnet run --project TestesLayout -c Release -- --work18` e `python scripts/measure_work18.py`.
-As 28 fixtures comparam o mesmo cenário contra a integração .64 imutável; cinco mutações adicionais
+As 28 fixtures comparam o mesmo cenário contra a integração .64 imutável; seis mutações adicionais
 verificam os novos contratos. [Matriz, evidências e pendências](MISSAO-WORK18.md).
 Nenhum teste instala programas nos PCs FORTE/FRACO; elegibilidade anterior ao payload não é autorização final.
 

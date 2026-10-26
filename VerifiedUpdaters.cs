@@ -508,6 +508,7 @@ internal static class VerifiedUpdaters
         if(action=="store" || action=="windows-manage")return "Atualização administrada pelo Windows ou Microsoft Store.";
         if(action=="external-manage")return "Instalação de outro gerenciador; use a ferramenta original.";
         if(entry.UpdateRequiresReview)return "Fontes ou identidade exigem revisão; execução bloqueada.";
+        if(reason=="payload_validation_required")return "Autorização indisponível; atualize e verifique novamente.";
         if(reason.Length==0)reason=AutomaticUpdateDiscovery.AssessmentReason(entry);
         return reason.Length>0 && reason!="no_verified_contract" ? ApplicationCapabilitySnapshot.Reason(reason) :
             "Versão nova encontrada; sem manifesto executável autenticado.";

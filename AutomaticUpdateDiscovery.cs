@@ -51,7 +51,8 @@ internal static class AutomaticUpdateDiscovery
             if(!item.App.IsUpdate || item.App.UpdateRequiresReview || EcosystemInventory.Ambiguous(item.App) || item.App.AvailableVersion!=item.Installer.Version ||
                 AutomaticAppInstallation.Binding(item.App)!=item.Installation.Key ||
                 !VerifiedUpdaters.TryVersion(item.App.Version,out var previous) ||
-                !VerifiedUpdaters.TryVersion(item.Installer.Version,out var target) || target<=previous)continue;
+                !VerifiedUpdaters.TryVersion(item.Installer.Version,out var target) || target<=previous ||
+                item.Installer.RequiresMsiIdentity && !item.Installation.HasCatalogIdentity)continue;
             foreach(var expired in Permits.Where(p=>p.Value.Expires<=DateTimeOffset.UtcNow).Select(p=>p.Key))Permits.TryRemove(expired,out _);
             if(Permits.Count>=512)break;
             var legacyApp=new ProgramEntry{Name=item.App.Name,Publisher=item.App.Publisher,Version=item.App.Version,AvailableVersion=item.App.AvailableVersion,
