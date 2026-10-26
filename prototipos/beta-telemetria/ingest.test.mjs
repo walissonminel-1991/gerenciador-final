@@ -107,6 +107,10 @@ test("cron com falha remota gera somente codigo de erro sanitizado",async t=>{
   assert.equal(f.jobs().length,1);
 });
 
+test("cron sem binding D1 sinaliza falha de retencao em vez de sucesso vazio",async()=>{
+  await assert.rejects(worker.scheduled(null,{}),/^Error: GF_BETA_MAINTENANCE_database$/);
+});
+
 test("cron respeita teto combinado de 50 operacoes SQL/API inclusive controle",async t=>{
   const f=fixture(t);for(let i=1;i<=45;i++)f.remote.add(f.today-8,i);
   f.remote.intercept=call=>{if(call.query.startsWith("mutation"))f.advance(1);};

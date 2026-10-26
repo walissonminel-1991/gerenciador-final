@@ -62,7 +62,7 @@ node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/inges
 python scripts/test_politicas_seguranca.py
 ```
 
-A suíte foi ampliada dos seis casos iniciais para **69 testes Node**, todos aprovados localmente. As **18 verificações Python** de políticas também passaram. Node local: `v24.22.1`; SQLite local: `3.53.4`. A CI Windows passa a preparar Node e executar as três suítes, além dos testes preexistentes de consentimento e layout. O resultado da CI da nova PR deve ser consultado no commit correspondente; a aprovação da CI inicial #61 não se transfere às alterações.
+A suíte foi ampliada dos seis casos iniciais para **70 testes Node**, todos aprovados localmente. As **18 verificações Python** de políticas também passaram. Node local: `v24.22.1`; SQLite local: `3.53.4`. A CI Windows passa a preparar Node e executar as três suítes, além dos testes preexistentes de consentimento e layout. O resultado da CI da nova PR deve ser consultado no commit correspondente; a aprovação da CI inicial #61 não se transfere às alterações.
 
 Cobertura significativa: migração v1 sem perda de referência; vencimento na fronteira; flags desligadas; Issue fechada/órfã/duplicada; mais de 100 e 300 Issues; interrupção entre páginas; 403/404/429/5xx/redirect; GraphQL parcial e HTTP 200 com erros; `Retry-After` numérico/data; falhas D1 antes/depois das mutações; resposta perdida; lease e reinício; budgets e espaçamento; supressão; versão arbitrária; rollback da ingestão; UTF-8 inválido; stream lento e erros sanitizados. O teto combinado de SQL/API também possui teste executando o handler do cron.
 

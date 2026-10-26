@@ -54,7 +54,6 @@ export default {
     return respond(202);
   },
   async scheduled(_event, env) {
-    if (!env.DB) return;
     const now = Math.floor(Date.now()/1000);
     // Nao depender de flags de coleta/exportacao para cumprir exclusao.
     // Uma falha em D1 local nao impede tentar a retencao do GitHub.
