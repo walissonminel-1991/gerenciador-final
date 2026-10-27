@@ -2,7 +2,7 @@
 
 27/10/2026. Branch `work-pre-beta-etapa0-20261027`, Draft PR #64.
 Base de retomada: `a4d30a1734fc54af35bec494e65653475970c40b`.
-**Estado: em validação na CI. Parar antes da Etapa 3.**
+**Estado: concluída tecnicamente, com homologação física/pacote pendente. Etapa 3 não iniciada.**
 
 ## Resultado funcional
 
@@ -37,7 +37,7 @@ SHA-base: **26 casos, 6 aprovados, 20 falhas**, saída 1. Após as correções,
 com os mesmos testes: **26 aprovados, zero falhas**, saída 0. Regressão de
 drivers local: **165 aprovações**. Build com analisadores: **zero avisos e
 erros**. Os testes só usam IDs/logs sintéticos e diretórios temporários.
-Linux não executou as APIs nativas; resultados Windows entram no recibo.
+Linux não executou as APIs nativas; a prova nativa da CI está abaixo.
 [Evidência](evidencias/pre-beta-etapa2-drivers.json).
 
 ## O que cada evidência permite afirmar
@@ -80,3 +80,32 @@ adicionada. Sem dados brutos dos PCs, merge, release, deploy ou operação na
 BETA/Worker/D1/DNS/flags. VLC permanece permanentemente excluído de testes,
 consultas, verificações e ações; nenhum botão ou caso novo para ele foi criado.
 Etapas 0/1 não foram repetidas; Etapa 3 não iniciada.
+
+## Recibo final da CI
+
+Código `09fff12b0f854ab9c23886146479a7f993f936b7`, [CI 40525913386](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386),
+tentativa 1, **success**: seis jobs obrigatórios aprovados e dois condicionais
+skipped. [Evidência por job](evidencias/pre-beta-etapa2-ci-40525913386.json).
+174 verificações por runner Windows 2022/2025, incluindo as 26 novas.
+
+| Medida nativa | Windows 2022 | Windows 2025 |
+| --- | --- | --- |
+| Associações WMI / parcial | 67 / não | 67 / não |
+| INFs Store mapeados / parcial | 46 / sim | 48 / sim |
+| INFs publicados / enumeração completa / consulta parcial | 666 / sim / sim | 732 / sim / sim |
+| Vínculos históricos / parcial | 0 / sim | 0 / sim |
+| INF/catálogo verificado | 24 | 24 |
+| WUA completa / ofertas / vínculos | sim / 0 / 0 | sim / 0 / 0 |
+
+INF sintético sem catálogo rejeitado em ambos. O WUA não produziu oferta
+positiva; o histórico continua parcial e a prova criptográfica se limita ao
+INF/catálogo. D2/D4/G1/G2 não foram fechados.
+Regressões: 196 multifontes, 368 atualizadores, 705 resíduos, 36 mutações
+rejeitadas, 47 MSIX, 30 encerramento e 41 Python/políticas. Pacote x64
+self-contained validado pela CI com 284 hashes; sem homologação AVG ou
+conferência independente do artefato nesta sessão.
+
+Após a CI, somente este relatório, checkpoint, matriz e evidências Markdown/JSON
+foram atualizados no recibo `[skip ci]`. Nenhum código mudou. Conferir o SHA
+desse recibo na PR #64 ao retomar; ele não identifica um novo build.
+A próxima sessão pode executar somente a Etapa 3, preservando as pendências.

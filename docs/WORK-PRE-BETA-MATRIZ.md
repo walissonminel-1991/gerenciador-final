@@ -1,6 +1,6 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapas 0/1 concluídas; Etapa 2 em validação na CI em 27/10/2026. Exclusão permanente preservada.** Base: WORK18 .65 TESTE,
+**Etapas 0/1/2 concluídas tecnicamente em 27/10/2026; homologação física/pacote pendente. Exclusão permanente preservada.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
@@ -193,7 +193,7 @@ e a Etapa 2 não foi iniciada. Roadmap permanece 27/42.
 
 ## Etapa 2 — drivers consultivos (27/10/2026)
 
-**EM VALIDAÇÃO NA CI.** Base desta sessão: `a4d30a1734fc54af35bec494e65653475970c40b`.
+**CONCLUÍDA TECNICAMENTE, COM PENDÊNCIAS DE HOMOLOGAÇÃO.** Base desta sessão: `a4d30a1734fc54af35bec494e65653475970c40b`.
 [Relatório](WORK-PRE-BETA-ETAPA2-DRIVERS.md) e
 [comparação reproduzida](evidencias/pre-beta-etapa2-drivers.json).
 
@@ -208,7 +208,24 @@ e a Etapa 2 não foi iniciada. Roadmap permanece 27/42.
 | Prova local | 6/26 aprovadas, 20 falhas | 26/26 aprovadas; suíte de drivers 165 aprovadas; build sem avisos/erros | Mesmo SDK 10.0.402 e casos sintéticos; Linux sem ABI Windows | Não substitui prova física |
 | Prova física reaproveitada | FORTE 166/63, FRACO 119/53 associações/INFs | Nenhuma nova operação ou coleta; limites anteriores conservados | Pacotes/histórico incompletos; sem oferta positiva real compatível ou payload completo | D2/D4/G1/G2 abertos; 27/42 |
 
-CI Windows, assinatura INF/catálogo e consulta WUA desta implementação serão
-registradas no recibo. A versão do produto não mudou. Etapa 3 não iniciada;
-nenhum merge/deploy ou acesso à infraestrutura BETA. Exclusão permanente
-inalterada, sem testes ou botões novos para o produto excluído.
+**CI [40525913386](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386) aprovada**,
+fonte `09fff12b0f854ab9c23886146479a7f993f936b7`, tentativa 1: seis jobs
+obrigatórios success e dois condicionais skipped.
+[Recibo](evidencias/pre-beta-etapa2-ci-40525913386.json).
+
+| Evidência nativa | Windows 2022 | Windows 2025 | Limite preservado |
+| --- | --- | --- | --- |
+| Verificações / novas | 174 / 26 | 174 / 26 | Runner descartável, não os PCs |
+| WMI / INFs Store mapeados | 67 / 46 | 67 / 48 | Store parcial em ambos |
+| INFs publicados | 666 | 732 | Enumeração completa; associação/consulta parcial |
+| Vínculos do histórico Windows | 0 | 0 | Leitura parcial; não equivale a nenhuma instalação anterior |
+| INF/catálogo verificado | 24 | 24 | Payload completo e origem não comprovados; negativo sem catálogo rejeitado |
+| Consulta oficial WUA | Completa, 0 ofertas | Completa, 0 ofertas | Não há prova positiva real para G1 |
+
+Regressão obrigatória: 196 multifontes, 368 atualizadores, 705 resíduos,
+36 mutações rejeitadas, 47 MSIX, 30 encerramento e 41 Python/políticas.
+Pacote x64 self-contained aprovado, 284 hashes pela CI. O recibo posterior
+altera somente Markdown/JSON, `[skip ci]`; o código acima é o SHA validado.
+A versão do produto não mudou. Próxima sessão: somente Etapa 3; nesta sessão
+ela não foi iniciada. Nenhum merge/deploy ou acesso à infraestrutura BETA.
+Exclusão permanente inalterada, sem teste ou botão novo para o produto excluído.

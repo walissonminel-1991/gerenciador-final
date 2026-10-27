@@ -8,7 +8,7 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | Campo | Registro |
 | --- | --- |
 | Etapa executada | **2 — Drivers: investigação e consulta oficial somente leitura** |
-| Estado | **EM VALIDAÇÃO NA CI** — correções e 26 fixtures novas aprovadas localmente; recibo Windows pendente |
+| Estado | **CONCLUÍDA TECNICAMENTE, COM PENDÊNCIAS DE HOMOLOGAÇÃO** — CI aprovada; D2/D4/G1/G2 abertos |
 | Repositório | `walissonminel-1991/gerenciador-final` |
 | Branch de continuidade | `work-pre-beta-etapa0-20261027` |
 | Base imutável | `2bc9f4228fd448445fbf181652e5af93005def20` — WORK18 / PR #60 |
@@ -19,10 +19,12 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | Commit da revisão Chrome anterior | [`8e195bfa3dfaab6767d877e78a2ad8d2b538f49c`](https://github.com/walissonminel-1991/gerenciador-final/commit/8e195bfa3dfaab6767d877e78a2ad8d2b538f49c) |
 | CI histórica anterior à exclusão | [40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889), tentativa 2: **failure**; não reexecutar |
 | Commit da exclusão solicitada | [`341c109b6b8538733b32a02909ff40c8e0a380d9`](https://github.com/walissonminel-1991/gerenciador-final/commit/341c109b6b8538733b32a02909ff40c8e0a380d9) |
+| Commit de código da Etapa 2 | [`09fff12b0f854ab9c23886146479a7f993f936b7`](https://github.com/walissonminel-1991/gerenciador-final/commit/09fff12b0f854ab9c23886146479a7f993f936b7) |
+| CI da Etapa 2 | [40525913386](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
 | CI anterior sem o alvo excluído | [40519539258](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40519539258): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
 | Arquivos alterados nesta etapa | `DriverInventory.cs`, `DriverOfficialLookup.cs`, `DriverPublishedPackages.cs`, `DriverWindowsHistory.cs`, testes e documentação da Etapa 2 |
 | Código, versão e roadmap oficial | Drivers consultivos mais conservadores; versão mantida; **27/42**, 15 pendentes; D2/D4/G1/G2 abertos |
-| Próxima etapa | **3 — Atualizações**, somente em outra sessão após o recibo da Etapa 2; exclusão permanente preservada |
+| Próxima etapa | **3 — Atualizações**, somente em outra sessão; Etapa 3 não iniciada e exclusão permanente preservada |
 
 O commit da auditoria inicial identifica a fotografia documental anterior; o
 commit de código da Etapa 1 está identificado separadamente. O HEAD final do recibo deve ser
@@ -80,8 +82,22 @@ Nenhum driver foi baixado, instalado, removido ou revertido.
 
 [Relatório e limites](WORK-PRE-BETA-ETAPA2-DRIVERS.md) ·
 [Evidência comparativa](evidencias/pre-beta-etapa2-drivers.json).
-CI desta implementação ainda pendente no primeiro commit; salvar o recibo
-com o SHA exato e os resultados antes de encerrar.
+Código aprovado: `09fff12b0f854ab9c23886146479a7f993f936b7`. [CI 40525913386](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386)
+**success**, tentativa 1: seis jobs obrigatórios aprovados e dois condicionais
+skipped. [Recibo por job e runner](evidencias/pre-beta-etapa2-ci-40525913386.json).
+
+Windows 2022/2025: **174 verificações aprovadas por runner**, incluindo as
+26 novas. WMI: 67 associações em cada; Store: 46/48 INFs mapeados; INFs
+publicados: 666/732, enumeração completa mas consulta de associações parcial.
+Histórico: zero vínculos e leitura parcial em ambos. Assinatura: 24 INFs/
+catálogos verificados por runner; INF sintético sem catálogo rejeitado. WUA:
+consulta completa com zero ofertas/vínculos em ambos. Isso não fecha G1/G2.
+Regressões Windows: 196 multifontes, 368 atualizadores, 705 resíduos,
+36 mutações rejeitadas, 47 MSIX, 30 encerramento; 41 testes Python/políticas.
+Pacote x64 self-contained aprovado, 284 hashes conferidos pela CI. Isso não
+comprova homologação AVG nem autoriza distribuição. Nenhum código mudou após
+essa CI. O recibo final é somente Markdown/JSON, com `[skip ci]`; conferir
+seu próprio SHA no HEAD da PR #64. Não atribuir um novo build a esse recibo.
 
 Reaproveitadas as evidências E1/E2: 166/119 associações, 63/53 INFs,
 19/17 compartilhados e três associações sem INF em cada PC. O detalhamento
@@ -305,7 +321,7 @@ independente; não confundir sua consulta com execução de COM/CLI.
 | --- | --- | --- |
 | 0 — Auditoria | **CONCLUÍDA** | Referências, pendências, evidências e continuidade registradas; encerrar |
 | 1 — Fontes / #63 | **CONCLUÍDA** | Revisão e exclusão solicitada aprovadas na CI 40519539258; nunca retomar verificações VLC; arquitetura na tela permanece para a Etapa 3 |
-| 2 — Drivers consultivos | **EM VALIDAÇÃO NA CI** | Correções consultivas e 26 fixtures aprovadas localmente; aguardar recibo Windows. D2/D4/G1/G2 continuam abertos; nenhuma escrita |
+| 2 — Drivers consultivos | **CONCLUÍDA TECNICAMENTE / HOMOLOGAÇÃO PENDENTE** | CI 40525913386 aprovada; 26 casos novos, 174 verificações por runner. D2/D4/G1/G2 continuam abertos; nenhuma escrita |
 | 3 — Atualizações | **NÃO INICIADA** | Reusar WORK13–18; validar identidade, payload, estados/cancelamento em fixtures e lacunas U8; sem atualização real |
 | 4 — Desinstalação / resíduos | **NÃO INICIADA** | Reusar WORK10–14/Lote 3; demonstrar propriedade, SIM/NÃO e falhas em alvos descartáveis; R4/R6/R7 reais continuam dependentes de evidências |
 | 5 — Gestão de drivers | **NÃO INICIADA** | Estudo/protótipo isolado desativado, somente se viável; G3–G5 não se concluem por planejamento |
@@ -333,8 +349,9 @@ perfis, configurações, jogos, saves e dados compartilhados.
 ## Próxima ação exata e comando para retomada
 
 Em outra sessão, iniciar somente a **Etapa 3**, após conferir este checkpoint,
-a matriz, HEADs e CI da Etapa 2. As Etapas 0/1 estão concluídas; não repeti-las.
-Se a Etapa 2 ainda estiver em validação, terminar apenas o recibo pendente.
+a matriz, HEADs e CI da Etapa 2. As Etapas 0/1/2 estão tecnicamente concluídas;
+não repetir revisões ou testes sem nova evidência. Os checkpoints físicos e de
+pacote continuam abertos conforme os limites registrados.
 A exclusão permanente continua obrigatória. Não trabalhar na BETA privada.
 
 > Continue a missão pré-BETA do Gerenciador Final pela Etapa 3. Leia o checkpoint e a matriz na branch work-pre-beta-etapa0-20261027, confira o recibo e a CI da Etapa 2, preserve a exclusão permanente do VLC, salve o resultado no GitHub e pare antes da Etapa 4.
