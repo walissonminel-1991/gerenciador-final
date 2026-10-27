@@ -43,6 +43,21 @@ build ou como autorização de distribuição.
 **A Etapa 0 não foi repetida.** Nesta sessão foi revisado somente o escopo da
 Etapa 1. A Etapa 2 (drivers) permanece não iniciada.
 
+## Conferência de retomada com referência antiga — 27/10/2026
+
+HEAD conferido: `6d6af1b2cb0354d5d04e09daf62ccd80b9ffd43d`, PR #64 aberta e Draft.
+O código `341c109b6b8538733b32a02909ff40c8e0a380d9` continua com
+a CI 40519539258 concluída e aprovada. Checkpoint e matriz confirmam as
+Etapas 0/1 concluídas e a Etapa 2 ainda não iniciada.
+
+O comando recebido fazia referência ao bloqueio anterior à exclusão
+permanente. Essa pendência já foi retirada do escopo por instrução do
+mantenedor; não foi reaberta e nenhum site foi consultado. Não houve
+revisão Chrome, repetição de testes, alteração de código ou operação nos PCs.
+Esta retomada registra somente a conferência documental e encerra antes da
+Etapa 2, conforme o limite solicitado. O comando atual ao final deste arquivo
+continua apontando a Etapa 2 para uma nova sessão.
+
 ## Diretriz permanente — exclusão expressa do mantenedor (27/10/2026)
 
 > Remova o VLC de qualquer teste e verificação futura, incluindo adição de botões referente ao programa.

@@ -182,3 +182,11 @@ obrigatórios success, dois condicionais skipped. Regressões: 196 multifontes,
 e 30 encerramento. A redução 707 → 705 corresponde aos dois casos removidos.
 [Evidência](evidencias/pre-beta-etapa1-escopo-ci-40519539258.json).
 **Etapa 1 concluída; próxima: Etapa 2, não iniciada nesta sessão.**
+
+## Conferência de retomada — 27/10/2026
+
+A referência à antiga pendência externa foi confrontada com o HEAD
+`6d6af1b2cb0354d5d04e09daf62ccd80b9ffd43d`, a PR #64 e a CI 40519539258 aprovada.
+Etapas 0/1 continuam concluídas; a exclusão permanente foi preservada.
+Nenhum site ou teste foi reconsultado/reexecutado, nenhum código foi alterado
+e a Etapa 2 não foi iniciada. Roadmap permanece 27/42.
