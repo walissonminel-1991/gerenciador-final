@@ -8,8 +8,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **2 — Integração do código** |
-| Resultado | Código pré-BETA #64 e BETA .66 acumulada #62 conciliado; validação pendente |
+| Etapa desta sessão | **3 — Regressões e CI da integração** |
+| Resultado | **EM EXECUÇÃO** — validar a própria árvore; não concluir antes de CI aplicável aprovada |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
@@ -17,10 +17,11 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Commit da análise | [`f000ca3227227f11d8412c9a3f87335ead80bd9d`](https://github.com/walissonminel-1991/gerenciador-final/commit/f000ca3227227f11d8412c9a3f87335ead80bd9d); fechamento posterior atualiza somente estes documentos; conferir HEAD final na PR |
 | Entrada da Etapa 2 | `275cfc396d22c8aff933a3879f0702d20596a2bc` |
 | Commit de código da Etapa 2 | [`06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`](https://github.com/walissonminel-1991/gerenciador-final/commit/06d7dce0bb47944f1efd18a10785fa77f5f0c8f7); fechamento posterior somente Markdown/JSON; conferir HEAD final da PR #65 |
-| CI da integração | **Não executada**; Etapa 2 salva com `[skip ci]`, parada antes da Etapa 3 e sem build |
+| Entrada da Etapa 3 | `89ee12a8322c5872c61c3fd40030490407cbb173` |
+| CI da integração | Em solicitação nesta etapa; registrar run, head SHA, merge SHA e resultados no fechamento |
 | Código integrado | Origem #64 + delta acumulado #62; 57 exclusivos idênticos, um workflow adaptado e quatro compartilhados conciliados; versão .66 |
 | Roadmap | **27/42**, mesmos 42 IDs/done; nenhum checkpoint promovido |
-| Próxima etapa | **3 — Regressões e CI da integração**, somente em nova sessão |
+| Próxima etapa | **4 — Avaliação da candidata integrada**, somente após encerrar a Etapa 3 e em nova sessão |
 
 Documentos da Etapa 1 preservados:
 
@@ -61,7 +62,7 @@ em `candidate` é histórica e não pode aprovar a futura integração.
 [Matriz de preservação e riscos](WORK-INTEGRACAO-MATRIZ.md) ·
 [Evidência reproduzível](evidencias/integracao-etapa1-reconciliacao.json).
 
-## Etapa 2 — sessão atual
+## Etapa 2 — histórico concluído
 
 Checkpoint/matriz/ordem de reconciliação/adendo relidos na entrada acima;
 PR #65 aberta/Draft e SHAs #60–#64, main e #40 conferidos e inalterados.
@@ -134,6 +135,24 @@ permanecem como no commit fonte. O HEAD documental final deve ser conferido
 na PR #65; CI futura deverá identificar o SHA efetivamente executado.
 **Etapa 3 não iniciada.**
 
+
+## Etapa 3 — sessão atual
+
+Entrada `89ee12a8322c5872c61c3fd40030490407cbb173`, PR #65 aberta/Draft, base #60 e sete refs originais
+conferidas e preservadas. Checkpoint, matriz e adendo relidos. A entrada não
+possui CI própria. A validação será solicitada por commit de continuidade sem
+skip-ci, usando os workflows existentes. Nenhum código de produto é alterado
+por esse registro inicial. CI das origens não aprova esta árvore.
+
+[Relatório Etapa 3](WORK-INTEGRACAO-ETAPA3-VALIDACAO.md) ·
+[Recibo Etapa 3](evidencias/integracao-etapa3-ci.json).
+
+Executar somente regressões/CI e correções de problemas demonstrados.
+Envio/configuração remotos, gestão de drivers e distribuição permanecem
+bloqueados. Build x64 interna conserva somente manifestos/hashes/evidências,
+sem liberar EXE/ZIP. Não iniciar a Etapa 4. Em interrupção, retomar os runs
+associados ao HEAD desta etapa, preservando todos os commits válidos.
+
 ## Retomada obrigatória
 
 1. Ler este checkpoint, a matriz e a análise; conferir branch, PR Draft e
@@ -152,4 +171,4 @@ Comando de retomada:
 
 > Continue a missão de integração final do Gerenciador Final pela Etapa 3 na branch work-integracao-final-20261027, PR #65 Draft. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md e docs/WORK-INTEGRACAO-MATRIZ.md, confira o HEAD e o commit fonte da Etapa 2 e valide a própria árvore integrada com regressões e CI Windows por SHA exato. Preserve todas as restrições e o adendo BETA LOCAL, corrija somente problemas demonstrados, salve evidências/commits no GitHub e pare antes da Etapa 4, sem merge, release, deploy, distribuição ou ativação remota.
 
-**Etapa 2 encerrada após salvar e conferir no GitHub. Etapa 3 não iniciada.**
+**Etapa 3 em execução. Não considerar concluída enquanto a CI aplicável do SHA exato não estiver aprovada. Etapa 4 não iniciada.**

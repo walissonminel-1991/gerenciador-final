@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "stage": 3,
+  "date": "2026-10-27",
+  "timezone": "America/Fortaleza",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "pr": 65,
+  "draft": true,
+  "status": "in_progress",
+  "entry_commit": "89ee12a8322c5872c61c3fd40030490407cbb173",
+  "code_commit_stage2": "06d7dce0bb47944f1efd18a10785fa77f5f0c8f7",
+  "original_refs": [
+    {
+      "branch": "beta-piloto-consentimento-envio-20261026",
+      "sha": "f64600748b45b0ddc7e39c530ac56809c26f7ea8"
+    },
+    {
+      "branch": "experimento-chrome-versionhistory-20261027",
+      "sha": "04f59750739c6bdbaeb0bacd86ed2b734fba1271"
+    },
+    {
+      "branch": "main",
+      "sha": "410d65e23546976db456337c71e4705f10217d36"
+    },
+    {
+      "branch": "piloto-diagnostico-github-v5.13.11.2",
+      "sha": "ef13aef49083f357f6a14f4de46f8bc976dbd830"
+    },
+    {
+      "branch": "work18-ampliacao-atualizacoes-seguras",
+      "sha": "2bc9f4228fd448445fbf181652e5af93005def20"
+    },
+    {
+      "branch": "work-beta-retencao-issues-20261026",
+      "sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+    },
+    {
+      "branch": "work-pre-beta-etapa0-20261027",
+      "sha": "357877e9acd628f84e5d9944e02e471fe319d1bc"
+    }
+  ],
+  "ci_runs": [],
+  "roadmap_done": 27,
+  "roadmap_total": 42,
+  "remote_delivery_enabled": false,
+  "driver_management_enabled": false,
+  "distribution_approved": false,
+  "stage4_started": false,
+  "next_stage": 4
+}

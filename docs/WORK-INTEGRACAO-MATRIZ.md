@@ -6,12 +6,14 @@ Commit da análise: `f000ca3227227f11d8412c9a3f87335ead80bd9d`;
 fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
-**Etapa 2: código integrado em fonte; regressões/CI da composição pendentes.**
+**Etapa 3 EM EXECUÇÃO — CI da própria árvore a registrar; nenhuma homologação nova.**
 [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) ·
 [Reconciliação](WORK-INTEGRACAO-ETAPA1-RECONCILIACAO.md) ·
 [Integração de código](WORK-INTEGRACAO-ETAPA2-CODIGO.md) ·
 [Recibo Etapa 1](evidencias/integracao-etapa1-reconciliacao.json) ·
 [Recibo Etapa 2](evidencias/integracao-etapa2-codigo.json) ·
+[Validação Etapa 3](WORK-INTEGRACAO-ETAPA3-VALIDACAO.md) ·
+[Recibo Etapa 3](evidencias/integracao-etapa3-ci.json) ·
 [Adendo 5–9](WORK-INTEGRACAO-ADENDO-BETA-LOCAL.md).
 
 ## Fontes e sobreposição
@@ -67,7 +69,7 @@ homologação. Nenhuma suíte de produto ou CI foi executada nesta sessão.
 | --- | --- | --- | --- |
 | 1 | Reconciliação | Concluída na sessão anterior; evidência preservada | Fontes/decisões respeitadas na Etapa 2 |
 | 2 | Integração do código | Concluída em fonte; sem validação executável | Salvar/verificar SHA; parar antes da Etapa 3 |
-| 3 | Regressões/CI da integração | Não iniciada; próxima sessão | Usar a nova árvore/SHA; corrigir somente problemas demonstrados |
+| 3 | Regressões/CI da integração | Em execução nesta sessão | Concluir somente com CI aplicável aprovada no SHA próprio |
 | 4 | Avaliação da candidata | Não iniciada | CI aplicável aprovada; relatar limites sem liberar BETA |
 | 5 | Organização segura do GitHub | Aguardando 1–4 | Uma sessão; nenhuma exclusão/fechamento sem autorização específica |
 | 6 | Auditoria geral | Não iniciada | Matriz de defeitos/evidências; não confundir riscos desta análise com defeitos reproduzidos |

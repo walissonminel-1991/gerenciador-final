@@ -1196,13 +1196,13 @@
   },
   "integration_final": {
     "mission": "WORK-INTEGRACAO-FINAL",
-    "stage": 2,
+    "stage": 3,
     "date": "2026-10-27",
     "timezone": "America/Fortaleza",
     "branch": "work-integracao-final-20261027",
     "draft_pr": 65,
     "version": "5.13.11.66 TESTE",
-    "status": "code_integrated_validation_pending",
+    "status": "validation_in_progress",
     "entry_commit": "275cfc396d22c8aff933a3879f0702d20596a2bc",
     "origins": {
       "base_pr60": "2bc9f4228fd448445fbf181652e5af93005def20",
@@ -1210,7 +1210,7 @@
       "beta_accumulated_pr62": "e530d724b7322963c8795b005f13ae6948a73e43"
     },
     "code_commit": "06d7dce0bb47944f1efd18a10785fa77f5f0c8f7",
-    "ci_status": "not_run",
+    "ci_status": "pending",
     "ci_url": null,
     "artifact": null,
     "inherited_candidate_metadata_historical": true,
@@ -1227,6 +1227,7 @@
     "roadmap_total": 42,
     "report": "docs/WORK-INTEGRACAO-ETAPA2-CODIGO.md",
     "evidence": "docs/evidencias/integracao-etapa2-codigo.json",
-    "next_stage": 3
+    "next_stage": 4,
+    "stage3_entry_commit": "89ee12a8322c5872c61c3fd40030490407cbb173"
   }
 }
