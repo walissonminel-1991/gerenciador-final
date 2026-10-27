@@ -1679,9 +1679,27 @@
     "source_json_checked": true,
     "roadmap_statuses_unchanged": true,
     "document_validation": "passed",
-    "inherited_tree_validation": "to_be_confirmed_after_publication",
+    "inherited_tree_validation": "passed_for_analysis_commit_f000ca3227227f11d8412c9a3f87335ead80bd9d",
     "source_json_git_blobs": 3,
     "source_tree_deltas": 4,
-    "local_links_checked": 16
+    "local_links_checked": 16,
+    "own_workflow_runs_observed": 0
+  },
+  "publication": {
+    "analysis_commit": "f000ca3227227f11d8412c9a3f87335ead80bd9d",
+    "pr": 65,
+    "pr_url": "https://github.com/walissonminel-1991/gerenciador-final/pull/65",
+    "draft": true,
+    "origin": "357877e9acd628f84e5d9944e02e471fe319d1bc",
+    "inherited_blobs_verified": 387,
+    "modified_inherited_blobs": 0,
+    "added_documents": [
+      "docs/WORK-INTEGRACAO-ADENDO-BETA-LOCAL.md",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+      "docs/WORK-INTEGRACAO-ETAPA1-RECONCILIACAO.md",
+      "docs/WORK-INTEGRACAO-MATRIZ.md",
+      "docs/evidencias/integracao-etapa1-reconciliacao.json"
+    ],
+    "final_head": "Consultar HEAD da PR65; recibo documental posterior nao e build."
   }
 }

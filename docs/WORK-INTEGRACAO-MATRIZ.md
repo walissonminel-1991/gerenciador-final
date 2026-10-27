@@ -1,6 +1,9 @@
 # Integração final — matriz de continuidade
 
-27/10/2026, America/Sao_Paulo. Branch `work-integracao-final-20261027`.
+27/10/2026, America/Sao_Paulo. Branch `work-integracao-final-20261027`,
+[PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65).
+Commit da análise: `f000ca3227227f11d8412c9a3f87335ead80bd9d`;
+fechamento posterior somente documental, HEAD final a conferir na PR.
 **Etapa 1 analisada; código não combinado; nenhuma aprovação da integração.**
 [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) ·
 [Reconciliação](WORK-INTEGRACAO-ETAPA1-RECONCILIACAO.md) ·

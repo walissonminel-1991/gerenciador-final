@@ -13,8 +13,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Branch nova | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
-| PR da integração | Vinculada no recibo de fechamento após sua criação; deve permanecer Draft |
-| Commit documental | Registrar o SHA da análise no recibo de fechamento; HEAD final sempre conferir na PR |
+| PR da integração | [#65](https://github.com/walissonminel-1991/gerenciador-final/pull/65), aberta e Draft |
+| Commit da análise | [`f000ca3227227f11d8412c9a3f87335ead80bd9d`](https://github.com/walissonminel-1991/gerenciador-final/commit/f000ca3227227f11d8412c9a3f87335ead80bd9d); fechamento posterior atualiza somente estes documentos; conferir HEAD final na PR |
 | CI da integração | **Não executada**; Etapa 1 documental, `[skip ci]`, sem build |
 | Código herdado | Todos os blobs da #64 preservados; nenhuma alteração de produto/teste/workflow/versão |
 | Roadmap | **27/42**, mesmos 42 IDs/done; nenhum checkpoint promovido |
@@ -81,6 +81,21 @@ Worker/D1/DNS/Secrets fora de escopo; flags `PILOT_ENABLED=no` e
 `GITHUB_EXPORT_ENABLED=no` intactas. BETA conectada bloqueada.
 Nenhum merge, release, deploy ou distribuição.
 
+## Recibo de salvamento e fechamento
+
+Análise publicada no commit `f000ca3227227f11d8412c9a3f87335ead80bd9d`,
+PR #65 aberta/Draft, base #60. A árvore foi relida no GitHub: **387 blobs
+herdados da #64 idênticos**, zero alteração/remoção desses arquivos e apenas
+os cinco documentos novos listados acima. Conferidos três blobs dos JSONs
+de origem, quatro deltas completos, 42 IDs/done e 16 links internos.
+Nenhum run próprio ou artefato foi criado para esse commit.
+
+Este fechamento vincula PR/commit nos documentos e no recibo, sem alterar
+produto, testes, workflows ou versão. O SHA documental final deve ser lido
+no HEAD da #65; ele não é uma build aprovada. Ao retomar, partir desse HEAD
+e preservar este registro do commit de análise. A CI da futura árvore
+integrada permanece pendente para a Etapa 3.
+
 ## Retomada obrigatória
 
 1. Ler este checkpoint, a matriz e a análise; conferir branch, PR Draft e
@@ -96,6 +111,6 @@ Nenhum merge, release, deploy ou distribuição.
 
 Comando de retomada:
 
-> Continue a missão de integração final do Gerenciador Final pela Etapa 2 na branch work-integracao-final-20261027. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md e docs/WORK-INTEGRACAO-MATRIZ.md, confira a PR Draft e os SHAs atuais, siga a reconciliação da Etapa 1 e incorpore o delta acumulado da #62 sobre a origem #64 sem reimportar #61/#63. Preserve todas as restrições e o adendo BETA LOCAL, salve commits no GitHub e pare antes da Etapa 3, sem merge, release, deploy, distribuição ou ativação remota.
+> Continue a missão de integração final do Gerenciador Final pela Etapa 2 na branch work-integracao-final-20261027, PR #65 Draft. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md e docs/WORK-INTEGRACAO-MATRIZ.md, confira o HEAD e os SHAs atuais, siga a reconciliação da Etapa 1 e incorpore o delta acumulado da #62 sobre a origem #64 sem reimportar #61/#63. Preserve todas as restrições e o adendo BETA LOCAL, salve commits no GitHub e pare antes da Etapa 3, sem merge, release, deploy, distribuição ou ativação remota.
 
 **Etapa 1 encerrada após o salvamento/verificação no GitHub. Etapa 2 não iniciada.**
