@@ -1,6 +1,6 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapas 0/1/2 concluídas; Etapa 3 em validação na CI em 27/10/2026. Homologação física/pacote pendente; exclusão permanente preservada.** Base: WORK18 .65 TESTE,
+**Etapas 0/1/2/3 concluídas tecnicamente em 27/10/2026. Homologação física/pacote e U8 pendentes; exclusão permanente preservada.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
@@ -232,7 +232,7 @@ Exclusão permanente inalterada, sem teste ou botão novo para o produto excluí
 
 ## Etapa 3 — atualizações (27/10/2026)
 
-**EM VALIDAÇÃO NA CI.** Base `b74eb879b74360ed78e57b105463fb81fa5ffe83`.
+**CONCLUÍDA TECNICAMENTE; U8 ABERTO.** Base `b74eb879b74360ed78e57b105463fb81fa5ffe83`.
 CI da Etapa 2 conferida: 40525913386 aprovada no código 09fff12.
 [Relatório/roteiro](WORK-PRE-BETA-ETAPA3-ATUALIZACOES.md) ·
 [Evidência](evidencias/pre-beta-etapa3-atualizacoes.json).
@@ -248,8 +248,20 @@ CI da Etapa 2 conferida: 40525913386 aprovada no código 09fff12.
 | Comparação | 36/41 aprovadas, 5 falhas | 41/41 comparáveis + 1 controle de memória = 42/42 | Projeção antiga extraída sem alteração de lógica; SDK 10.0.402 | 27/42 mantidos |
 | Evidência física | E1/E2: 10/8 candidatos, 0/0 elegíveis silenciosos/supervisionados | Reutilizada, com roteiro futuro preparado | Sem nova coleta/operação pessoal | Homologação real pendente |
 
-Antes da interrupção: 196 multifontes e build/analisadores sem avisos/erros.
-Após reinício do ambiente, código recuperado do registro da sessão; execução
-Windows e integração com fonte fictícia/tela real pendentes na CI.
-Sem nova API Chrome ou investigação COM. Etapa 4 não iniciada. BETA, PCs,
-main e exclusão permanente preservados.
+**CI [40559631389](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40559631389) aprovada**,
+fonte `5a7c0482a759009678b73c7c0cc75727b3b872f0`, tentativa 1: seis jobs
+obrigatórios success, dois condicionais skipped.
+[Recibo](evidencias/pre-beta-etapa3-ci-40559631389.json).
+
+| Prova final | Resultado | Limite |
+| --- | --- | --- |
+| Atualizações / controles novos | 410/410, incluindo 42 novos | Fixtures/validações não substituem instalação nos PCs |
+| Adaptador → fonte fictícia → tela real | 0→2 candidatos em 4 entradas; 2 controles sem candidato; 2 consultas fictícias; 0 receitas e 0 rede real | Duas arquiteturas da mesma família, não novos apps homologados |
+| Multifontes / resíduos / mutações | 196 / 705 / 36 rejeitadas | Regressão obrigatória, não execução em dados pessoais |
+| MSIX / encerramento / Python-políticas | 47 / 30 / 41 | Sem alteração de permissão ou proteção |
+| UI WORK18 / pacote | 8 combinações; x64 self-contained e 284 hashes | Sem homologação AVG ou conferência independente do artefato nesta sessão |
+
+A CI validou o código recuperado após reinício do ambiente. Nenhum código
+mudou depois dela; recibo apenas Markdown/JSON, `[skip ci]`. Versão mantida,
+roadmap 27/42 e U8 aberto. Sem nova API Chrome ou investigação COM. Etapa 4
+não iniciada. BETA, PCs, main e exclusão permanente preservados.

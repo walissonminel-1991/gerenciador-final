@@ -2,7 +2,7 @@
   "schema": 1,
   "stage": 3,
   "date": "2026-10-27",
-  "status": "pending_windows_ci",
+  "status": "technically_completed_with_physical_update_homologation_pending",
   "repository": "walissonminel-1991/gerenciador-final",
   "branch": "work-pre-beta-etapa0-20261027",
   "pull_request": 64,
@@ -46,7 +46,8 @@
     "environment_restarted": true,
     "source_recovered_from_session": true,
     "same_base": true,
-    "recovered_source_requires_ci": true
+    "recovered_source_requires_ci": false,
+    "validated_by_ci": 40559631389
   },
   "previous_ci": {
     "source_sha": "09fff12b0f854ab9c23886146479a7f993f936b7",
@@ -84,5 +85,23 @@
     "drivers_modified": false,
     "real_app_update": false,
     "stage4_started": false
-  }
+  },
+  "source_sha": "5a7c0482a759009678b73c7c0cc75727b3b872f0",
+  "windows_ci": {
+    "run_id": 40559631389,
+    "source_sha": "5a7c0482a759009678b73c7c0cc75727b3b872f0",
+    "conclusion": "success",
+    "attempt": 1,
+    "evidence": "pre-beta-etapa3-ci-40559631389.json"
+  },
+  "windows_results": {
+    "focal_checks": 42,
+    "updater_suite": 410,
+    "ui_candidates_before": 0,
+    "ui_candidates_after": 2,
+    "ui_negative_controls": 2,
+    "new_executable_recipes": 0,
+    "real_http_requests": 0
+  },
+  "receipt_documentation_only": true
 }

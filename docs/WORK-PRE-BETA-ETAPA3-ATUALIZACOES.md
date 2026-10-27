@@ -2,7 +2,7 @@
 
 27/10/2026, branch `work-pre-beta-etapa0-20261027`, Draft PR #64.
 Base `b74eb879b74360ed78e57b105463fb81fa5ffe83`; CI da Etapa 2 40525913386 conferida.
-**Em validação na CI. Parar antes da Etapa 4.**
+**Concluída tecnicamente; homologação U8 pendente. Etapa 4 não iniciada.**
 
 ## Resultado funcional
 
@@ -52,7 +52,7 @@ cancelamento após início e timeout. Não são instalações reais.
 SDK 10.0.402: 196/196 multifontes e builds Release do produto e TestesLayout
 com analisadores, sem avisos/erros, antes da interrupção. O ambiente local
 reiniciou; o código foi recuperado sobre o mesmo SHA-base usando o registro
-desta conversa. A CI validará a cópia recuperada. Nenhum resultado da CI é
+desta conversa. A CI 40559631389 aprovou a cópia recuperada no SHA 5a7c048. Nenhum resultado da CI é
 atribuído a um SHA diferente. Linux não executou WinForms.
 
 A fixture Windows encadeia adaptador de produção, HTTP fictício e aplicação
@@ -100,3 +100,25 @@ homologação física ou rollout Chrome. Nenhuma nova API Chrome ou investigaç�
 VLC permanentemente excluído de testes, verificações, consultas e ações/botões;
 nenhum caso novo. Sem ações de resíduos/desinstalação, drivers ou alterações
 em main/BETA/Worker/D1/DNS/flags, merge, deploy ou release. Etapa 4 não iniciada.
+
+## Recibo final da CI
+
+Código `5a7c0482a759009678b73c7c0cc75727b3b872f0`, [CI 40559631389](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40559631389),
+tentativa 1, **success**: seis jobs obrigatórios aprovados e dois condicionais
+skipped. [Evidência por job](evidencias/pre-beta-etapa3-ci-40559631389.json).
+
+- **410/410 atualizadores**, incluindo as **42 verificações novas**.
+- **196/196 multifontes**, 705/705 resíduos/desinstalação, 36/36 mutações
+  rejeitadas, 47 MSIX, 30 encerramento e 41 Python/políticas.
+- Integração com a tela real: **0→2 candidatos consultivos em quatro entradas**,
+  dois controles sem candidato, duas consultas HTTP fictícias, **zero rede
+  real e zero receitas executáveis**. São duas arquiteturas da mesma família,
+  não dois novos aplicativos homologados nem instalações físicas.
+- Oito combinações de interface WORK18, drivers 2022/2025 e integridade dos
+  demais instaladores aprovados. Pacote x64 self-contained com 284 hashes
+  conferidos pela CI; sem homologação AVG ou revalidação independente do ZIP.
+
+Nenhum código mudou após essa CI. O recibo posterior atualiza somente
+Markdown/JSON e usa `[skip ci]`; conferir seu SHA na PR #64 ao retomar.
+**U8 e os demais checkpoints físicos continuam abertos, 27/42.** Próxima
+sessão: somente Etapa 4. Nenhuma ação da Etapa 4 foi executada.
