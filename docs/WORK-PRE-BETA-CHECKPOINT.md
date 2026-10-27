@@ -13,8 +13,8 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | Branch de continuidade | `work-pre-beta-etapa0-20261027` |
 | Base imutável | `2bc9f4228fd448445fbf181652e5af93005def20` — WORK18 / PR #60 |
 | Fonte da candidata .65 já existente | `e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d` |
-| Commit do conteúdo auditado | AUDIT_CONTENT_COMMIT_PENDING |
-| PR de acompanhamento | AUDIT_PR_PENDING |
+| Commit do conteúdo auditado | [`1399468d22061e79b6a6f957ba472d84a1aec9ec`](https://github.com/walissonminel-1991/gerenciador-final/commit/1399468d22061e79b6a6f957ba472d84a1aec9ec) |
+| PR de acompanhamento | [#64 — Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/64) |
 | Arquivos alterados nesta etapa | `docs/WORK-PRE-BETA-CHECKPOINT.md`; `docs/WORK-PRE-BETA-MATRIZ.md` |
 | Código, versão e roadmap oficial | Sem alteração; **27/42**, 15 pendentes |
 | Próxima etapa | **1 — Fontes de atualização e PR #63**, em outra sessão |
