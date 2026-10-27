@@ -1,6 +1,6 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapas 0–4 concluídas tecnicamente; estudo da Etapa 5 concluído em 27/10/2026. Gestão de drivers desativada, G1–G5 e homologações físicas/pacote abertos; exclusão permanente preservada.** Base: WORK18 .65 TESTE,
+**Etapas 0–4 técnicas, estudo da Etapa 5 e consolidação da Etapa 6 concluídos em 27/10/2026. Homologações parciais; 27/42. Gestão de drivers desativada, exclusão permanente preservada; Etapa 7 não iniciada.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
@@ -11,7 +11,7 @@ inventário sem ações, com políticas específicas removidas. A falha externa
 anterior permanece histórica e deixa de ser requisito da missão.
 
 Na matriz inicial, **Antes/Depois descreve o conhecimento verificado pela auditoria da Etapa 0**.
-Os resultados e limites das Etapas 1/2/3/4 e do estudo da Etapa 5 estão nas seções posteriores. Não houve ampliação
+Os resultados e limites das Etapas 1–6 estão nas seções posteriores. Não houve ampliação
 de permissões ou nova homologação física.
 O estado oficial foi conferido em [ROADMAP](ROADMAP.md) e
 [PROGRESSO](PROGRESSO.json): **27/42 (64,3%)**; 15 pendentes.
@@ -143,7 +143,7 @@ não foi acessada nem alterada.
 
 Esta seção preserva a fotografia inicial da Etapa 0. O estado atual das
 Etapas 0/1 é concluído; o estado atual da continuidade está ao final.
-A continuidade atual está na seção da Etapa 5 ao final; Etapas 6–7 não iniciadas. O roteiro físico mínimo final pertence
+A continuidade atual está na seção da Etapa 6 ao final; Etapa 7 não iniciada. O roteiro físico mínimo final pertence
 à Etapa 6 e deve partir das evidências acima, incluindo a pendência específica
 T11; não solicitar uma nova bateria completa por falta de consolidação.
 
@@ -327,3 +327,33 @@ elevação, alteração de ACL ou reinício. Exclusão permanente, proteções, 
 BETA/Worker/D1/DNS/flags, main e versão preservados. Sem merge/release/deploy.
 **Parada antes da Etapa 6**, reservada a outra sessão, reutilizando as provas
 anteriores sem repetir a bateria completa. Quinze checkpoints continuam abertos.
+
+## Etapa 6 — consolidação física (27/10/2026)
+
+**CONSOLIDAÇÃO CONCLUÍDA; HOMOLOGAÇÕES PARCIAIS; 27/42.** Base
+`3b6061c33df54cd2b5689a1cabacb866e9a28ff4`. E1–E5 recuperadas e relidas;
+zero novo teste ou operação física. E3/E5 são os mesmos eventos; E3/E4/E5 não
+registram versão e a associação à .65/FRACO é contextual. Logs .64/.65 sem
+SHA/hash do artefato não homologam os commits pré-BETA posteriores.
+[Relatório, 15 avaliações e roteiro focal](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md) ·
+[Evidência](evidencias/pre-beta-etapa6-fisica.json).
+
+| Funcionalidade | Antes no registro oficial | Depois nesta etapa | Evidência / limite | Roadmap |
+| --- | --- | --- | --- | --- |
+| Últimos testes físicos | PROGRESSO apontava .52/FORTE e .24/FRACO | .65/FRACO como sessão mais recente e .64/FORTE separada; registros antigos preservados | E1–E5, sem apagar atualização histórica 7-Zip .52 nem vincular SHA inexistente | Nenhum done mudou |
+| Inventário | Critério ainda sem referência equivalente | 169/74 incluindo 27/19 MSIX ok, contagens repetidas e histórico 74 estável consolidados | Não somar MSIX nem confundir escopo amplo 267/122; falta conferência humana da cobertura | I7 parcial/aberto |
+| Desempenho | Texto oficial ainda dizia não medir os PCs | Startup 376,16/667,98 ms; três amostras Inventory e duas Updates por sessão; CPU por etapa e RAM documentadas | Working set após Startup 62,57/58,19 MiB; falta repouso comparável; hardware/Windows/versão diferem | P5 parcial/aberto |
+| Estabilidade / AVG | Incidente sem causa/resolução comprovadas | Encerramentos normais E1/E2 reaproveitados | Relato sem alerta não homologa hash/AVG nem explica o incidente | P6 parcial/aberto |
+| Interface | Aprovação física não vinculada | FORTE 2560×1440/DPI 120 e bandeja FRACO registrados; relato 11/12 separado | Falta captura/aprovação vinculada ao artefato/DPI; T11 não executado | V5 aberto |
+| Drivers | Associações existentes, interpretação não homologada | 166/119 associações, 63/53 INFs, 19/17 compartilhados e três sem INF em cada; atributos inconclusivos explicitados | 63/63 mapeados no FORTE com parcial=1; FRACO sem equivalente detalhado; histórico próprio não é SetupAPI completo | D2/D4 abertos; G1–G5 abertos/desativados |
+| Remoção / atualização | Fixtures e relato histórico sem ciclo restante completo | Ausência de nova prova operacional avaliada separadamente | E3–E5 sem mudanças não comprovam desinstalação; 10/8 candidatos não comprovam instalação | R4/R6/R7/U8 abertos |
+| Roteiro remanescente | Baterias históricas extensas ainda referenciadas | Quatro blocos focais: cobertura/interpretação, repouso, visual/T11 e prova AVG | Planejamento, sem execução; operações exigem contexto/autorização específica futura | 15 pendências mantidas |
+
+CI 40565220517 da Etapa 4 reconferida no código 386e7cd: seis jobs obrigatórios
+success e dois condicionais skipped, tentativa 1. Etapa 5 foi documental, sem
+CI nova. Sete Markdown/JSON nesta etapa; validação documental e de metadados
+aprovada, sem código/testes/workflows alterados nem nova build. Recibo
+`[skip ci]`; conferir SHA no HEAD da PR #64. Campos de candidata/artefato e
+históricos preservados. Nenhuma nova verificação/teste/botão do alvo excluído,
+operação em PC, driver, elevação/ACL, reinício, WinGet, merge/release/deploy ou
+acesso à BETA/infraestrutura. **Parada antes da Etapa 7.**
