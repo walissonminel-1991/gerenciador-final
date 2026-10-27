@@ -1,0 +1,1687 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "stage": 1,
+  "date": "2026-10-27",
+  "timezone": "America/Sao_Paulo",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "branch_origin": "357877e9acd628f84e5d9944e02e471fe319d1bc",
+  "pull_request_base": "work18-ampliacao-atualizacoes-seguras",
+  "scope": "Analise e reconciliacao conceitual; nenhum codigo combinado, compilado ou executado.",
+  "refs": [
+    {
+      "pr": 60,
+      "branch": "work18-ampliacao-atualizacoes-seguras",
+      "sha": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "state": "open",
+      "draft": true
+    },
+    {
+      "pr": 61,
+      "branch": "beta-piloto-consentimento-envio-20261026",
+      "sha": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+      "state": "open",
+      "draft": true
+    },
+    {
+      "pr": 62,
+      "branch": "work-beta-retencao-issues-20261026",
+      "sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+      "state": "open",
+      "draft": true
+    },
+    {
+      "pr": 63,
+      "branch": "experimento-chrome-versionhistory-20261027",
+      "sha": "04f59750739c6bdbaeb0bacd86ed2b734fba1271",
+      "state": "open",
+      "draft": true
+    },
+    {
+      "pr": 64,
+      "branch": "work-pre-beta-etapa0-20261027",
+      "sha": "357877e9acd628f84e5d9944e02e471fe319d1bc",
+      "state": "open",
+      "draft": true
+    }
+  ],
+  "source_ci": [
+    {
+      "pr": 60,
+      "sha": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "run": 40253446761,
+      "conclusion": "success"
+    },
+    {
+      "pr": 61,
+      "sha": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+      "run": 40324802334,
+      "conclusion": "success"
+    },
+    {
+      "pr": 62,
+      "sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+      "run": 40409850849,
+      "conclusion": "success",
+      "workflow": "Compilar Windows (sem assinatura)"
+    },
+    {
+      "pr": 62,
+      "sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+      "run": 40409850628,
+      "conclusion": "failure",
+      "workflow": "Integridade externa dos atualizadores",
+      "scope": "Historico preservado; alvo excluido nao reinvestigado nem reexecutado."
+    },
+    {
+      "pr": 63,
+      "sha": "04f59750739c6bdbaeb0bacd86ed2b734fba1271",
+      "run": 40507858102,
+      "conclusion": "success"
+    },
+    {
+      "pr": 64,
+      "sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+      "run": 40565220517,
+      "conclusion": "success",
+      "scope": "Ultimo codigo pre-BETA validado; HEAD documental 357877e sem run proprio."
+    }
+  ],
+  "combined_ci": {
+    "status": "not_run",
+    "reason": "Etapa 1 documental; fonte combinada ainda inexistente. Nenhuma CI dos pais aprova a futura composicao."
+  },
+  "comparisons": {
+    "61": {
+      "base": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "head": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+      "merge_base": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "status": "ahead",
+      "ahead_by": 21,
+      "behind_by": 0,
+      "too_large": null,
+      "counts": {
+        "total": 21,
+        "categories": {
+          "workflows": 1,
+          "produto_configuracao": 7,
+          "documentacao": 6,
+          "testes": 2,
+          "prototipos": 5
+        }
+      },
+      "files": [
+        {
+          "filename": ".github/workflows/validar-candidata-windows.yml",
+          "status": "modified",
+          "additions": 2,
+          "deletions": 0,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": ".gitignore",
+          "status": "modified",
+          "additions": 3,
+          "deletions": 0,
+          "changes": 3,
+          "previous_filename": null
+        },
+        {
+          "filename": "AnonymousTelemetry.cs",
+          "status": "modified",
+          "additions": 36,
+          "deletions": 11,
+          "changes": 47,
+          "previous_filename": null
+        },
+        {
+          "filename": "BetaTelemetryUploader.cs",
+          "status": "added",
+          "additions": 41,
+          "deletions": 0,
+          "changes": 41,
+          "previous_filename": null
+        },
+        {
+          "filename": "CHANGELOG.md",
+          "status": "modified",
+          "additions": 7,
+          "deletions": 0,
+          "changes": 7,
+          "previous_filename": null
+        },
+        {
+          "filename": "GerenciadorAplicativos.csproj",
+          "status": "modified",
+          "additions": 9,
+          "deletions": 1,
+          "changes": 10,
+          "previous_filename": null
+        },
+        {
+          "filename": "PRIVACY.md",
+          "status": "modified",
+          "additions": 10,
+          "deletions": 1,
+          "changes": 11,
+          "previous_filename": null
+        },
+        {
+          "filename": "Program.cs",
+          "status": "modified",
+          "additions": 27,
+          "deletions": 7,
+          "changes": 34,
+          "previous_filename": null
+        },
+        {
+          "filename": "README.md",
+          "status": "modified",
+          "additions": 3,
+          "deletions": 1,
+          "changes": 4,
+          "previous_filename": null
+        },
+        {
+          "filename": "TelemetryPrivacyDialog.cs",
+          "status": "modified",
+          "additions": 32,
+          "deletions": 4,
+          "changes": 36,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesLayout/Program.cs",
+          "status": "modified",
+          "additions": 32,
+          "deletions": 17,
+          "changes": 49,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesTelemetria/Program.cs",
+          "status": "modified",
+          "additions": 24,
+          "deletions": 0,
+          "changes": 24,
+          "previous_filename": null
+        },
+        {
+          "filename": "app.manifest",
+          "status": "modified",
+          "additions": 1,
+          "deletions": 1,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/MISSAO-BETA.md",
+          "status": "added",
+          "additions": 29,
+          "deletions": 0,
+          "changes": 29,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/PROGRESSO.json",
+          "status": "modified",
+          "additions": 22,
+          "deletions": 7,
+          "changes": 29,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/ROADMAP.md",
+          "status": "modified",
+          "additions": 2,
+          "deletions": 0,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/IMPLANTACAO-PRIVADA.md",
+          "status": "added",
+          "additions": 57,
+          "deletions": 0,
+          "changes": 57,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/schema.sql",
+          "status": "added",
+          "additions": 10,
+          "deletions": 0,
+          "changes": 10,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/test.mjs",
+          "status": "added",
+          "additions": 71,
+          "deletions": 0,
+          "changes": 71,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/worker.mjs",
+          "status": "added",
+          "additions": 139,
+          "deletions": 0,
+          "changes": 139,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/wrangler.toml.example",
+          "status": "added",
+          "additions": 32,
+          "deletions": 0,
+          "changes": 32,
+          "previous_filename": null
+        }
+      ]
+    },
+    "62": {
+      "base": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "head": "e530d724b7322963c8795b005f13ae6948a73e43",
+      "merge_base": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "status": "ahead",
+      "ahead_by": 40,
+      "behind_by": 0,
+      "too_large": null,
+      "counts": {
+        "total": 62,
+        "categories": {
+          "workflows": 4,
+          "produto_configuracao": 15,
+          "documentacao": 11,
+          "testes": 6,
+          "prototipos": 22,
+          "scripts": 4
+        }
+      },
+      "files": [
+        {
+          "filename": ".github/workflows/build-windows.yml",
+          "status": "modified",
+          "additions": 33,
+          "deletions": 2,
+          "changes": 35,
+          "previous_filename": null
+        },
+        {
+          "filename": ".github/workflows/integridade-externa.yml",
+          "status": "added",
+          "additions": 77,
+          "deletions": 0,
+          "changes": 77,
+          "previous_filename": null
+        },
+        {
+          "filename": ".github/workflows/triagem-diagnostico-github.yml",
+          "status": "modified",
+          "additions": 6,
+          "deletions": 0,
+          "changes": 6,
+          "previous_filename": null
+        },
+        {
+          "filename": ".github/workflows/validar-candidata-windows.yml",
+          "status": "modified",
+          "additions": 47,
+          "deletions": 69,
+          "changes": 116,
+          "previous_filename": null
+        },
+        {
+          "filename": ".gitignore",
+          "status": "modified",
+          "additions": 5,
+          "deletions": 0,
+          "changes": 5,
+          "previous_filename": null
+        },
+        {
+          "filename": "AnonymousTelemetry.cs",
+          "status": "modified",
+          "additions": 230,
+          "deletions": 23,
+          "changes": 253,
+          "previous_filename": null
+        },
+        {
+          "filename": "BetaCloseCoordinator.cs",
+          "status": "added",
+          "additions": 51,
+          "deletions": 0,
+          "changes": 51,
+          "previous_filename": null
+        },
+        {
+          "filename": "BetaEndpointPolicy.cs",
+          "status": "added",
+          "additions": 19,
+          "deletions": 0,
+          "changes": 19,
+          "previous_filename": null
+        },
+        {
+          "filename": "BetaTelemetryPolicy.props",
+          "status": "added",
+          "additions": 8,
+          "deletions": 0,
+          "changes": 8,
+          "previous_filename": null
+        },
+        {
+          "filename": "BetaTelemetryTransport.cs",
+          "status": "added",
+          "additions": 47,
+          "deletions": 0,
+          "changes": 47,
+          "previous_filename": null
+        },
+        {
+          "filename": "BetaTelemetryUploader.cs",
+          "status": "added",
+          "additions": 35,
+          "deletions": 0,
+          "changes": 35,
+          "previous_filename": null
+        },
+        {
+          "filename": "CHANGELOG.md",
+          "status": "modified",
+          "additions": 7,
+          "deletions": 0,
+          "changes": 7,
+          "previous_filename": null
+        },
+        {
+          "filename": "GerenciadorAplicativos.csproj",
+          "status": "modified",
+          "additions": 44,
+          "deletions": 1,
+          "changes": 45,
+          "previous_filename": null
+        },
+        {
+          "filename": "InstallerFileGuard.cs",
+          "status": "modified",
+          "additions": 21,
+          "deletions": 0,
+          "changes": 21,
+          "previous_filename": null
+        },
+        {
+          "filename": "PRIVACY.md",
+          "status": "modified",
+          "additions": 20,
+          "deletions": 1,
+          "changes": 21,
+          "previous_filename": null
+        },
+        {
+          "filename": "PrivacyConsentPresentation.cs",
+          "status": "modified",
+          "additions": 4,
+          "deletions": 0,
+          "changes": 4,
+          "previous_filename": null
+        },
+        {
+          "filename": "Program.cs",
+          "status": "modified",
+          "additions": 83,
+          "deletions": 26,
+          "changes": 109,
+          "previous_filename": null
+        },
+        {
+          "filename": "README.md",
+          "status": "modified",
+          "additions": 3,
+          "deletions": 1,
+          "changes": 4,
+          "previous_filename": null
+        },
+        {
+          "filename": "TelemetryConsentPolicy.cs",
+          "status": "added",
+          "additions": 35,
+          "deletions": 0,
+          "changes": 35,
+          "previous_filename": null
+        },
+        {
+          "filename": "TelemetryPrivacyDialog.cs",
+          "status": "modified",
+          "additions": 47,
+          "deletions": 6,
+          "changes": 53,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesLayout/BetaCloseTests.cs",
+          "status": "added",
+          "additions": 82,
+          "deletions": 0,
+          "changes": 82,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesLayout/Program.cs",
+          "status": "modified",
+          "additions": 56,
+          "deletions": 17,
+          "changes": 73,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesTelemetria/BetaBuildVerifier.cs",
+          "status": "added",
+          "additions": 43,
+          "deletions": 0,
+          "changes": 43,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesTelemetria/BetaTelemetryTransportTests.cs",
+          "status": "added",
+          "additions": 271,
+          "deletions": 0,
+          "changes": 271,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesTelemetria/Program.cs",
+          "status": "modified",
+          "additions": 40,
+          "deletions": 0,
+          "changes": 40,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesTelemetria/TestesTelemetria.csproj",
+          "status": "modified",
+          "additions": 4,
+          "deletions": 0,
+          "changes": 4,
+          "previous_filename": null
+        },
+        {
+          "filename": "WindowChrome.cs",
+          "status": "modified",
+          "additions": 11,
+          "deletions": 1,
+          "changes": 12,
+          "previous_filename": null
+        },
+        {
+          "filename": "app.manifest",
+          "status": "modified",
+          "additions": 1,
+          "deletions": 1,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/AUDITORIA-BETA-RETENCAO-20261026.md",
+          "status": "added",
+          "additions": 99,
+          "deletions": 0,
+          "changes": 99,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/AUDITORIA-BETA-RODADA2-20261026.md",
+          "status": "added",
+          "additions": 140,
+          "deletions": 0,
+          "changes": 140,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/AVISO-PRIVACIDADE-BETA.md",
+          "status": "added",
+          "additions": 66,
+          "deletions": 0,
+          "changes": 66,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/BETA-66-HOMOLOGACAO-CONECTADA.md",
+          "status": "added",
+          "additions": 151,
+          "deletions": 0,
+          "changes": 151,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/BETA-APROVACOES.json",
+          "status": "added",
+          "additions": 19,
+          "deletions": 0,
+          "changes": 19,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/MISSAO-BETA.md",
+          "status": "added",
+          "additions": 29,
+          "deletions": 0,
+          "changes": 29,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/PROGRESSO.json",
+          "status": "modified",
+          "additions": 22,
+          "deletions": 7,
+          "changes": 29,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/ROADMAP.md",
+          "status": "modified",
+          "additions": 2,
+          "deletions": 0,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/IMPLANTACAO-PRIVADA.md",
+          "status": "added",
+          "additions": 84,
+          "deletions": 0,
+          "changes": 84,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/OPERACAO-RODADA2.md",
+          "status": "added",
+          "additions": 117,
+          "deletions": 0,
+          "changes": 117,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/endpoint-waf.proposed.json",
+          "status": "added",
+          "additions": 25,
+          "deletions": 0,
+          "changes": 25,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/finalization.test.mjs",
+          "status": "added",
+          "additions": 109,
+          "deletions": 0,
+          "changes": 109,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/github-rehearsal.mjs",
+          "status": "added",
+          "additions": 96,
+          "deletions": 0,
+          "changes": 96,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/github-retention.mjs",
+          "status": "added",
+          "additions": 355,
+          "deletions": 0,
+          "changes": 355,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/health-observer.mjs",
+          "status": "added",
+          "additions": 8,
+          "deletions": 0,
+          "changes": 8,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/ingest.test.mjs",
+          "status": "added",
+          "additions": 122,
+          "deletions": 0,
+          "changes": 122,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/migrations/0002_github_retention.sql",
+          "status": "added",
+          "additions": 16,
+          "deletions": 0,
+          "changes": 16,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/observability.mjs",
+          "status": "added",
+          "additions": 50,
+          "deletions": 0,
+          "changes": 50,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/plan-migration-local.mjs",
+          "status": "added",
+          "additions": 21,
+          "deletions": 0,
+          "changes": 21,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/policy.mjs",
+          "status": "added",
+          "additions": 97,
+          "deletions": 0,
+          "changes": 97,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/retention.test.mjs",
+          "status": "added",
+          "additions": 334,
+          "deletions": 0,
+          "changes": 334,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/round2.test.mjs",
+          "status": "added",
+          "additions": 338,
+          "deletions": 0,
+          "changes": 338,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/schema-migration.mjs",
+          "status": "added",
+          "additions": 100,
+          "deletions": 0,
+          "changes": 100,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/schema.sql",
+          "status": "added",
+          "additions": 37,
+          "deletions": 0,
+          "changes": 37,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/strict-json.mjs",
+          "status": "added",
+          "additions": 34,
+          "deletions": 0,
+          "changes": 34,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/test-support.mjs",
+          "status": "added",
+          "additions": 125,
+          "deletions": 0,
+          "changes": 125,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/test.mjs",
+          "status": "added",
+          "additions": 71,
+          "deletions": 0,
+          "changes": 71,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/worker.mjs",
+          "status": "added",
+          "additions": 106,
+          "deletions": 0,
+          "changes": 106,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/wrangler.observer.toml.example",
+          "status": "added",
+          "additions": 18,
+          "deletions": 0,
+          "changes": 18,
+          "previous_filename": null
+        },
+        {
+          "filename": "prototipos/beta-telemetria/wrangler.toml.example",
+          "status": "added",
+          "additions": 40,
+          "deletions": 0,
+          "changes": 40,
+          "previous_filename": null
+        },
+        {
+          "filename": "scripts/Compilar-Beta-Conectada.ps1",
+          "status": "added",
+          "additions": 57,
+          "deletions": 0,
+          "changes": 57,
+          "previous_filename": null
+        },
+        {
+          "filename": "scripts/test_pacote.py",
+          "status": "modified",
+          "additions": 75,
+          "deletions": 0,
+          "changes": 75,
+          "previous_filename": null
+        },
+        {
+          "filename": "scripts/test_politicas_seguranca.py",
+          "status": "modified",
+          "additions": 13,
+          "deletions": 0,
+          "changes": 13,
+          "previous_filename": null
+        },
+        {
+          "filename": "scripts/verificar_pacote.py",
+          "status": "modified",
+          "additions": 48,
+          "deletions": 4,
+          "changes": 52,
+          "previous_filename": null
+        }
+      ]
+    },
+    "63": {
+      "base": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "head": "04f59750739c6bdbaeb0bacd86ed2b734fba1271",
+      "merge_base": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "status": "ahead",
+      "ahead_by": 6,
+      "behind_by": 0,
+      "too_large": null,
+      "counts": {
+        "total": 5,
+        "categories": {
+          "produto_configuracao": 2,
+          "testes": 2,
+          "documentacao": 1
+        }
+      },
+      "files": [
+        {
+          "filename": "CatalogoIdentidades.json",
+          "status": "modified",
+          "additions": 14,
+          "deletions": 0,
+          "changes": 14,
+          "previous_filename": null
+        },
+        {
+          "filename": "OfficialReleaseSources.cs",
+          "status": "modified",
+          "additions": 44,
+          "deletions": 2,
+          "changes": 46,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesMultifontes/ChromeVersionHistoryTests.cs",
+          "status": "added",
+          "additions": 110,
+          "deletions": 0,
+          "changes": 110,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesMultifontes/Program.cs",
+          "status": "modified",
+          "additions": 5,
+          "deletions": 4,
+          "changes": 9,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md",
+          "status": "added",
+          "additions": 31,
+          "deletions": 0,
+          "changes": 31,
+          "previous_filename": null
+        }
+      ]
+    },
+    "64": {
+      "base": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "head": "357877e9acd628f84e5d9944e02e471fe319d1bc",
+      "merge_base": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "status": "ahead",
+      "ahead_by": 16,
+      "behind_by": 0,
+      "too_large": null,
+      "counts": {
+        "total": 64,
+        "categories": {
+          "produto_configuracao": 21,
+          "testes": 17,
+          "documentacao": 25,
+          "scripts": 1
+        }
+      },
+      "files": [
+        {
+          "filename": "ActionableInventory.cs",
+          "status": "modified",
+          "additions": 3,
+          "deletions": 2,
+          "changes": 5,
+          "previous_filename": null
+        },
+        {
+          "filename": "BroadResidualDiscovery.cs",
+          "status": "modified",
+          "additions": 1,
+          "deletions": 1,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": "CatalogoAuditoriaHistorica.json",
+          "status": "modified",
+          "additions": 0,
+          "deletions": 15,
+          "changes": 15,
+          "previous_filename": null
+        },
+        {
+          "filename": "CatalogoDesinstalacao.json",
+          "status": "modified",
+          "additions": 0,
+          "deletions": 11,
+          "changes": 11,
+          "previous_filename": null
+        },
+        {
+          "filename": "CatalogoIdentidades.json",
+          "status": "modified",
+          "additions": 14,
+          "deletions": 14,
+          "changes": 28,
+          "previous_filename": null
+        },
+        {
+          "filename": "DriverInventory.cs",
+          "status": "modified",
+          "additions": 6,
+          "deletions": 2,
+          "changes": 8,
+          "previous_filename": null
+        },
+        {
+          "filename": "DriverOfficialLookup.cs",
+          "status": "modified",
+          "additions": 21,
+          "deletions": 7,
+          "changes": 28,
+          "previous_filename": null
+        },
+        {
+          "filename": "DriverPublishedPackages.cs",
+          "status": "modified",
+          "additions": 4,
+          "deletions": 3,
+          "changes": 7,
+          "previous_filename": null
+        },
+        {
+          "filename": "DriverWindowsHistory.cs",
+          "status": "modified",
+          "additions": 6,
+          "deletions": 0,
+          "changes": 6,
+          "previous_filename": null
+        },
+        {
+          "filename": "EcosystemInventory.cs",
+          "status": "modified",
+          "additions": 3,
+          "deletions": 2,
+          "changes": 5,
+          "previous_filename": null
+        },
+        {
+          "filename": "FoobarProfileCleanup.cs",
+          "status": "modified",
+          "additions": 1,
+          "deletions": 1,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": "InstalledUpdateIdentity.cs",
+          "status": "added",
+          "additions": 87,
+          "deletions": 0,
+          "changes": 87,
+          "previous_filename": null
+        },
+        {
+          "filename": "IntegratedResidualPolicy.cs",
+          "status": "modified",
+          "additions": 3,
+          "deletions": 2,
+          "changes": 5,
+          "previous_filename": null
+        },
+        {
+          "filename": "OfficialReleaseSources.cs",
+          "status": "modified",
+          "additions": 51,
+          "deletions": 2,
+          "changes": 53,
+          "previous_filename": null
+        },
+        {
+          "filename": "Program.cs",
+          "status": "modified",
+          "additions": 18,
+          "deletions": 19,
+          "changes": 37,
+          "previous_filename": null
+        },
+        {
+          "filename": "ProtectedApplications.cs",
+          "status": "modified",
+          "additions": 12,
+          "deletions": 1,
+          "changes": 13,
+          "previous_filename": null
+        },
+        {
+          "filename": "RegisteredUninstaller.cs",
+          "status": "modified",
+          "additions": 19,
+          "deletions": 4,
+          "changes": 23,
+          "previous_filename": null
+        },
+        {
+          "filename": "ScopedAppProfileCleanup.cs",
+          "status": "modified",
+          "additions": 0,
+          "deletions": 2,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesAtualizador/Program.cs",
+          "status": "modified",
+          "additions": 17,
+          "deletions": 2,
+          "changes": 19,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesAtualizador/Stage3UpdateTests.cs",
+          "status": "added",
+          "additions": 119,
+          "deletions": 0,
+          "changes": 119,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesAtualizador/TestesAtualizador.csproj",
+          "status": "modified",
+          "additions": 3,
+          "deletions": 0,
+          "changes": 3,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesDrivers/Program.cs",
+          "status": "modified",
+          "additions": 15,
+          "deletions": 0,
+          "changes": 15,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesDrivers/Stage2DriverTests.cs",
+          "status": "added",
+          "additions": 119,
+          "deletions": 0,
+          "changes": 119,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesLayout/Program.cs",
+          "status": "modified",
+          "additions": 2,
+          "deletions": 1,
+          "changes": 3,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesLayout/Stage3UpdateQueryTests.cs",
+          "status": "added",
+          "additions": 63,
+          "deletions": 0,
+          "changes": 63,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesLayout/Work7SafetyTests.cs",
+          "status": "modified",
+          "additions": 2,
+          "deletions": 2,
+          "changes": 4,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesMultifontes/ChromeVersionHistoryReviewTests.cs",
+          "status": "added",
+          "additions": 129,
+          "deletions": 0,
+          "changes": 129,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesMultifontes/ChromeVersionHistoryTests.cs",
+          "status": "added",
+          "additions": 110,
+          "deletions": 0,
+          "changes": 110,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesMultifontes/Program.cs",
+          "status": "modified",
+          "additions": 20,
+          "deletions": 3,
+          "changes": 23,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesResiduos/Program.cs",
+          "status": "modified",
+          "additions": 18,
+          "deletions": 5,
+          "changes": 23,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesResiduos/ResidualMissionTests.cs",
+          "status": "modified",
+          "additions": 0,
+          "deletions": 2,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesResiduos/ResidualPrecisionTests.cs",
+          "status": "modified",
+          "additions": 1,
+          "deletions": 1,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesResiduos/Stage4UninstallTests.cs",
+          "status": "added",
+          "additions": 144,
+          "deletions": 0,
+          "changes": 144,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesResiduos/Work12RegressionTests.cs",
+          "status": "modified",
+          "additions": 1,
+          "deletions": 1,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": "TestesResiduos/Work6UninstallFlowTests.cs",
+          "status": "modified",
+          "additions": 1,
+          "deletions": 1,
+          "changes": 2,
+          "previous_filename": null
+        },
+        {
+          "filename": "UninstallBatch.cs",
+          "status": "modified",
+          "additions": 16,
+          "deletions": 1,
+          "changes": 17,
+          "previous_filename": null
+        },
+        {
+          "filename": "UninstallOperationProgress.cs",
+          "status": "modified",
+          "additions": 22,
+          "deletions": 0,
+          "changes": 22,
+          "previous_filename": null
+        },
+        {
+          "filename": "UpdateResultHistory.cs",
+          "status": "modified",
+          "additions": 20,
+          "deletions": 10,
+          "changes": 30,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md",
+          "status": "added",
+          "additions": 118,
+          "deletions": 0,
+          "changes": 118,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/PROGRESSO.json",
+          "status": "modified",
+          "additions": 116,
+          "deletions": 13,
+          "changes": 129,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/ROADMAP.md",
+          "status": "modified",
+          "additions": 10,
+          "deletions": 8,
+          "changes": 18,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/TESTES.md",
+          "status": "modified",
+          "additions": 21,
+          "deletions": 0,
+          "changes": 21,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/WORK-PRE-BETA-CHECKPOINT.md",
+          "status": "added",
+          "additions": 580,
+          "deletions": 0,
+          "changes": 580,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/WORK-PRE-BETA-ETAPA2-DRIVERS.md",
+          "status": "added",
+          "additions": 111,
+          "deletions": 0,
+          "changes": 111,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/WORK-PRE-BETA-ETAPA3-ATUALIZACOES.md",
+          "status": "added",
+          "additions": 124,
+          "deletions": 0,
+          "changes": 124,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/WORK-PRE-BETA-ETAPA4-DESINSTALACAO.md",
+          "status": "added",
+          "additions": 114,
+          "deletions": 0,
+          "changes": 114,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/WORK-PRE-BETA-ETAPA5-GESTAO-DRIVERS.md",
+          "status": "added",
+          "additions": 157,
+          "deletions": 0,
+          "changes": 157,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md",
+          "status": "added",
+          "additions": 187,
+          "deletions": 0,
+          "changes": 187,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/WORK-PRE-BETA-ETAPA7-DECISAO.md",
+          "status": "added",
+          "additions": 188,
+          "deletions": 0,
+          "changes": 188,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/WORK-PRE-BETA-MATRIZ.md",
+          "status": "added",
+          "additions": 388,
+          "deletions": 0,
+          "changes": 388,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa1-api.json",
+          "status": "added",
+          "additions": 27,
+          "deletions": 0,
+          "changes": 27,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa1-ci-40514120889.json",
+          "status": "added",
+          "additions": 165,
+          "deletions": 0,
+          "changes": 165,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa1-escopo-ci-40519539258.json",
+          "status": "added",
+          "additions": 75,
+          "deletions": 0,
+          "changes": 75,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa1-fontes-comparacao.json",
+          "status": "added",
+          "additions": 62,
+          "deletions": 0,
+          "changes": 62,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa2-ci-40525913386.json",
+          "status": "added",
+          "additions": 204,
+          "deletions": 0,
+          "changes": 204,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa2-drivers.json",
+          "status": "added",
+          "additions": 102,
+          "deletions": 0,
+          "changes": 102,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa3-atualizacoes.json",
+          "status": "added",
+          "additions": 107,
+          "deletions": 0,
+          "changes": 107,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa3-ci-40559631389.json",
+          "status": "added",
+          "additions": 142,
+          "deletions": 0,
+          "changes": 142,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa4-ci-40565220517.json",
+          "status": "added",
+          "additions": 138,
+          "deletions": 0,
+          "changes": 138,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa4-desinstalacao.json",
+          "status": "added",
+          "additions": 104,
+          "deletions": 0,
+          "changes": 104,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa5-estudo-drivers.json",
+          "status": "added",
+          "additions": 274,
+          "deletions": 0,
+          "changes": 274,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa6-fisica.json",
+          "status": "added",
+          "additions": 581,
+          "deletions": 0,
+          "changes": 581,
+          "previous_filename": null
+        },
+        {
+          "filename": "docs/evidencias/pre-beta-etapa7-decisao.json",
+          "status": "added",
+          "additions": 463,
+          "deletions": 0,
+          "changes": 463,
+          "previous_filename": null
+        },
+        {
+          "filename": "scripts/measure_pre_beta_sources.py",
+          "status": "added",
+          "additions": 107,
+          "deletions": 0,
+          "changes": 107,
+          "previous_filename": null
+        }
+      ]
+    }
+  },
+  "ancestry": {
+    "pr61_to_pr62": {
+      "status": "ahead",
+      "ahead_by": 19,
+      "behind_by": 0,
+      "merge_base": "f64600748b45b0ddc7e39c530ac56809c26f7ea8"
+    },
+    "pr63_to_pr64": {
+      "status": "diverged",
+      "ahead_by": 16,
+      "behind_by": 6,
+      "merge_base": "2bc9f4228fd448445fbf181652e5af93005def20"
+    }
+  },
+  "intersection": [
+    "Program.cs",
+    "TestesLayout/Program.cs",
+    "docs/PROGRESSO.json",
+    "docs/ROADMAP.md"
+  ],
+  "unique_counts": {
+    "pr64": 60,
+    "pr62": 58,
+    "union": 122
+  },
+  "chrome": [
+    {
+      "path": "CatalogoIdentidades.json",
+      "pr63_blob": "d4b1f6ee53f8fde0f079330884207986a113bfb7",
+      "pr64_blob": "f5b01e34cba525cefa5147d4dc95a3b266a6a238",
+      "identical": false
+    },
+    {
+      "path": "OfficialReleaseSources.cs",
+      "pr63_blob": "80227391fcd88c2e8a848932549e4434f720dc34",
+      "pr64_blob": "ff9db3cb4b40475f915ad7af4f24df8ab8dbfd55",
+      "identical": false
+    },
+    {
+      "path": "TestesMultifontes/ChromeVersionHistoryTests.cs",
+      "pr63_blob": "418ea3c1bc3cfc1cbfa447697f12cc9f0f5bcaf9",
+      "pr64_blob": "418ea3c1bc3cfc1cbfa447697f12cc9f0f5bcaf9",
+      "identical": true
+    },
+    {
+      "path": "TestesMultifontes/Program.cs",
+      "pr63_blob": "89ae5af1176bf3169ed5cb01e1f229a985abfea9",
+      "pr64_blob": "723b5dba4ccf9a4824eec5b4413485a3f98ca376",
+      "identical": false
+    },
+    {
+      "path": "docs/EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md",
+      "pr63_blob": "f54c0ff6c159eb8d303ec3ed34b62913abb5c5d7",
+      "pr64_blob": "4b866a90790818c725e827addc6f5079f9fbbe5b",
+      "identical": false
+    }
+  ],
+  "progress": {
+    "pre": [
+      "sections",
+      "latest_real_test",
+      "latest_real_test_pc_fraco",
+      "latest_real_test_pc_forte",
+      "historical_real_tests_before_pre_beta_etapa6",
+      "pre_beta_physical_evidence",
+      "pre_beta_final_assessment"
+    ],
+    "beta": [
+      "candidate",
+      "beta"
+    ],
+    "intersection": [],
+    "states": [
+      {
+        "id": "I1",
+        "done": true
+      },
+      {
+        "id": "I2",
+        "done": true
+      },
+      {
+        "id": "I3",
+        "done": true
+      },
+      {
+        "id": "I4",
+        "done": true
+      },
+      {
+        "id": "I5",
+        "done": true
+      },
+      {
+        "id": "I6",
+        "done": true
+      },
+      {
+        "id": "I7",
+        "done": false
+      },
+      {
+        "id": "R1",
+        "done": true
+      },
+      {
+        "id": "R2",
+        "done": true
+      },
+      {
+        "id": "R3",
+        "done": true
+      },
+      {
+        "id": "R4",
+        "done": false
+      },
+      {
+        "id": "R5",
+        "done": true
+      },
+      {
+        "id": "R6",
+        "done": false
+      },
+      {
+        "id": "R7",
+        "done": false
+      },
+      {
+        "id": "U1",
+        "done": true
+      },
+      {
+        "id": "U2",
+        "done": true
+      },
+      {
+        "id": "U3",
+        "done": true
+      },
+      {
+        "id": "U4",
+        "done": true
+      },
+      {
+        "id": "U5",
+        "done": true
+      },
+      {
+        "id": "U6",
+        "done": true
+      },
+      {
+        "id": "U7",
+        "done": true
+      },
+      {
+        "id": "U8",
+        "done": false
+      },
+      {
+        "id": "P1",
+        "done": true
+      },
+      {
+        "id": "P2",
+        "done": true
+      },
+      {
+        "id": "P3",
+        "done": true
+      },
+      {
+        "id": "P4",
+        "done": true
+      },
+      {
+        "id": "P5",
+        "done": false
+      },
+      {
+        "id": "P6",
+        "done": false
+      },
+      {
+        "id": "V1",
+        "done": true
+      },
+      {
+        "id": "V2",
+        "done": true
+      },
+      {
+        "id": "V3",
+        "done": true
+      },
+      {
+        "id": "V4",
+        "done": true
+      },
+      {
+        "id": "V5",
+        "done": false
+      },
+      {
+        "id": "D1",
+        "done": true
+      },
+      {
+        "id": "D2",
+        "done": false
+      },
+      {
+        "id": "D3",
+        "done": true
+      },
+      {
+        "id": "D4",
+        "done": false
+      },
+      {
+        "id": "G1",
+        "done": false
+      },
+      {
+        "id": "G2",
+        "done": false
+      },
+      {
+        "id": "G3",
+        "done": false
+      },
+      {
+        "id": "G4",
+        "done": false
+      },
+      {
+        "id": "G5",
+        "done": false
+      }
+    ],
+    "done": 27,
+    "total": 42,
+    "done_states_equal": true,
+    "projection_applied": false
+  },
+  "preserve": {
+    "main_sha": "410d65e23546976db456337c71e4705f10217d36",
+    "pr40_sha": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+    "vlc": "Somente inventario sem acoes; exclusao permanente preservada, sem testes/consultas/verificacoes especificas.",
+    "winget_com": "Opcional, nao bloqueante, somente consultivo.",
+    "driver_management": "Desativada.",
+    "remote": "Desativado; sem acesso a Worker/D1/DNS/Secrets.",
+    "pilot_enabled": "no",
+    "github_export_enabled": "no",
+    "distribution": "Nao autorizada nesta etapa.",
+    "avg": "Ativo; nenhuma homologacao declarada."
+  },
+  "planned_order": [
+    "Herdar integralmente a PR64 fixada, sem modificar sua branch.",
+    "Incorporar na Etapa2 o delta acumulado base60->PR62; nao importar PR61 separadamente.",
+    "Reconciliar quatro arquivos compartilhados sem substituir um lado integralmente.",
+    "Conservar a revisao Chrome da PR64; nao reimportar PR63.",
+    "Conservar gates de execucao, privacidade, empacotamento e desativacoes.",
+    "Registrar novo SHA; validar a propria arvore somente na Etapa3."
+  ],
+  "next_stage": 2,
+  "stage_status": {
+    "1": "analysis_complete",
+    "2": "not_started",
+    "3": "not_started",
+    "4": "not_started",
+    "5": "awaiting_stage4",
+    "6": "not_started",
+    "7": "not_started",
+    "8": "not_started",
+    "9": "manual_not_started"
+  },
+  "validation": {
+    "product_tests_run": 0,
+    "product_tests_added": 0,
+    "builds_started": 0,
+    "combined_code_created": false,
+    "source_json_checked": true,
+    "roadmap_statuses_unchanged": true,
+    "document_validation": "passed",
+    "inherited_tree_validation": "to_be_confirmed_after_publication",
+    "source_json_git_blobs": 3,
+    "source_tree_deltas": 4,
+    "local_links_checked": 16
+  }
+}
