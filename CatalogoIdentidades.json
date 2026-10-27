@@ -212,20 +212,6 @@
       "cleanupPolicy": "sumatrapdf"
     },
     {
-      "id": "vlc",
-      "name": "VLC media player",
-      "names": [
-        "VLC media player",
-        "VLC media player (*"
-      ],
-      "publishers": [
-        "VideoLAN",
-        "VideoLAN Team"
-      ],
-      "officialSource": null,
-      "cleanupPolicy": "vlc"
-    },
-    {
       "id": "audacity",
       "name": "Audacity",
       "names": [

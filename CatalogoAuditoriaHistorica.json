@@ -67,21 +67,6 @@
         "HKCU\\Software\\foobar2000"
       ],
       "warn": "Perfis, playlists e biblioteca de mídia são dados úteis. Preservar."
-    },
-    {
-      "id": "vlc-profile",
-      "name": "VLC",
-      "installedNames": [
-        "VLC",
-        "VLC media player"
-      ],
-      "folders": [
-        "Roaming\\vlc"
-      ],
-      "registry": [
-        "HKCU\\Software\\VideoLAN\\VLC"
-      ],
-      "warn": "Preferências, playlists e histórico de mídia devem ser preservados."
     }
   ]
 }

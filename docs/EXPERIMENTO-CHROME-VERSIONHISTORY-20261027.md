@@ -2,6 +2,11 @@
 
 Data: 27/10/2026. Base: branch `work18-ampliacao-atualizacoes-seguras`, HEAD `2bc9f4228fd448445fbf181652e5af93005def20` (.65 TESTE). **Não mesclar, publicar EXE ou considerar homologado antes da CI e dos testes físicos autorizados.**
 
+**Atualização de escopo pelo mantenedor:** remover VLC de testes, consultas e
+ações/botões. Não reconsultar seus sites nem retomar a investigação. Os
+resultados antigos abaixo são históricos; a CI atual deve usar a revisão
+com esse alvo excluído, preservando HTTPS/hash/assinatura dos demais produtos.
+
 ## Objetivo
 
 Ampliar fontes independentes da WinGet COM por meio da API HTTPS pública e oficial [Google Chrome VersionHistory](https://developer.chrome.com/docs/web-platform/versionhistory/guide), sem CLI, COM, instalação, download de payload, scripts, alteração de registro, cookies ou telemetria.
@@ -96,7 +101,7 @@ afirma que o Chrome esteja instalado neles.
 
 ## Limites e próximos gates
 
-1. Regressões Windows da revisão aprovadas, mas CI integral bloqueada pela integridade externa VLC. Retomar somente esse bloqueio com nova evidência, sem afrouxar HTTPS/hash/assinatura; não gerar candidata aprovada. A CI anterior da proposta #63 continua aprovada.
+1. Conferir a CI da alteração de exclusão solicitada pelo mantenedor, sem consultar o alvo excluído e sem afrouxar HTTPS/hash/assinatura para os demais. A CI anterior da proposta #63 continua aprovada; a falha posterior descrita acima é histórica.
 2. Teste ao vivo do serviço Google realizado em Linux por GETs fixos e pelo parser C#; não é homologação da aplicação em Windows nem de instalador.
 3. Medir acréscimo real de cobertura nos inventários antes de prometer novos candidatos. Logs anteriores são anônimos e não permitem afirmar que o Chrome está instalado nos PCs.
 4. Validar interação física e AVG somente se o código for aprovado para uma futura build TESTE; sem tocar nos computadores agora.

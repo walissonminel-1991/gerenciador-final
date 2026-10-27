@@ -89,12 +89,15 @@ internal sealed class ProgramEntry
     public string MsixPackageFamilyName { get; init; } = "";
     public bool VerifiedMsixIdentity { get; init; }
     // Entrada MSIX, jogo da biblioteca ou componente protegido: sem desinstalacao direta.
-    public bool InventoryOnly { get; init; }
+    private bool _inventoryOnly;
+    public bool InventoryOnly { get => _inventoryOnly || ProtectedApplications.IsExcludedFromManagement(Name); init => _inventoryOnly = value; }
     // Atualizada pelo inventario local; nao fornece autorizacao para executar comandos.
-    public bool CanUninstall { get; set; }
+    private bool _canUninstall;
+    public bool CanUninstall { get => _canUninstall && !ProtectedApplications.IsExcludedFromManagement(Name); set => _canUninstall = value; }
     public string AvailableVersion { get; set; } = "";
     public string Source { get; set; } = "";
-    public bool IsUpdate { get; set; }
+    private bool _isUpdate;
+    public bool IsUpdate { get => _isUpdate && !ProtectedApplications.IsExcludedFromManagement(Name); set => _isUpdate = value; }
     public bool UpdateRequiresReview { get; set; }
     public string UpdateEvidence { get; set; } = "";
     internal ApplicationCapabilitySnapshot? Capabilities { get; set; }
@@ -1242,6 +1245,8 @@ internal sealed partial class MainForm : Form
             ? $"Revisar: versões principais diferentes · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} (coexistem)"
             : Matching.IsUncertain(item.ComparisonState)
             ? $"Resultado incerto (RuckZuck)  ·  Versão: {DisplayAppVersion(item.Version)}"
+            : ProtectedApplications.IsExcludedFromManagement(item.Name)
+            ? $"Versão: {DisplayAppVersion(item.Version)} · Somente inventário"
             : item.InventoryOnly && item.InventorySource.StartsWith("Biblioteca de jogos:", StringComparison.Ordinal)
             ? $"Jogo da {item.InventorySource["Biblioteca de jogos:".Length..].Trim()} (somente leitura)"
             : item.InventoryOnly && item.InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase)

@@ -22,7 +22,7 @@ internal static class Work7SafetyTests
             if (result.FoldersDeleted != 0 || result.RegistryKeysDeleted != 0 || File.ReadAllText(file) != "xyz")
                 throw new Exception("W7-R4 chamada direta apagou dados sem identidade fixada.");
             using var owner = new Form();
-            foreach (string product in new[] { "foobar2000", "OBS Studio", "VLC media player" })
+            foreach (string product in new[] { "foobar2000", "OBS Studio" })
             {
                 string message = ScopedAppProfileCleanup.ConfirmAndCleanAsync(owner, product, default).GetAwaiter().GetResult();
                 if (!message.Contains("suspensa") || File.ReadAllText(file) != "xyz")
@@ -31,7 +31,7 @@ internal static class Work7SafetyTests
             if (typeof(FoobarProfileCleanup).GetMethod("DeleteSyntheticFolderForTests",
                 BindingFlags.Static | BindingFlags.NonPublic) is not null)
                 throw new Exception("W7-R4 executor de fixture apareceu no assembly distribuido.");
-            Console.WriteLine("OK W7-R4: conteúdo trocado preservado, três entradas sem exclusão, executor sintético ausente da aplicação");
+            Console.WriteLine("OK W7-R4: conteúdo trocado preservado, duas entradas sem exclusão, executor sintético ausente da aplicação");
         }
         finally { Directory.Delete(root, true); }
 

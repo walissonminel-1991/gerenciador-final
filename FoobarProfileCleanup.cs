@@ -34,7 +34,7 @@ internal static class FoobarProfileCleanup
     {
         profiles ??= Names;
         if (profiles.Count is < 1 or > 2 ||
-            profiles.Any(p => p is not ("foobar2000" or "foobar2000-v2" or "obs-studio" or "vlc")))
+            profiles.Any(p => p is not ("foobar2000" or "foobar2000-v2" or "obs-studio")))
             return Block("Perfil desconhecido: preservar.");
         if (!inventoryComplete) return Block("Inventário parcial: preservar.");
         if (ResidualAudit.TrackedApplicationStillPresent(product, installedNames))

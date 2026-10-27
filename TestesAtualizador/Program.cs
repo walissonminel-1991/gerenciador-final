@@ -11,7 +11,7 @@ if (args.Contains("--verify-catalog"))
         catalog.FindForReviewByPackageFamily("Wrong Vendor", "Microsoft.WindowsTerminal_8wekyb3d8bbwe", token.Token).Count != 0)
         throw new Exception("Consultative PFN/ID lookup did not preserve catalog identity");
     Console.WriteLine("WORK16.CATALOGO_REAL PFN/PackageIdentifier Microsoft.WindowsTerminal autenticados, sem autorizacao de execucao");
-    foreach (var item in new[] { ("OBS Studio", "OBS Project"), ("VLC media player", "VideoLAN"), ("ShareX", "ShareX Team"), ("SumatraPDF", "Krzysztof Kowalczyk") })
+    foreach (var item in new[] { ("OBS Studio", "OBS Project"), ("ShareX", "ShareX Team"), ("SumatraPDF", "Krzysztof Kowalczyk") })
     {
         var rows = catalog.Find(item.Item1, item.Item2, "", token.Token);
         if (rows.Count != 1) throw new Exception("Catalogo nao identifica fixture publica " + item.Item1);
@@ -26,7 +26,7 @@ if (args.Contains("--verify-catalog"))
             var parsed=AutomaticPackageManifest.Select(bytes,rows[0],"x64","machine",kind);
             if(parsed is null)throw new Exception("Manifesto publico sem contrato esperado "+rows[0].Id);
             Console.WriteLine("MANIFESTO.AUTOMATICO "+parsed.PackageId+" "+parsed.Version+" "+parsed.Type+" "+parsed.Arguments);
-            if(args.Contains("--verify-engine-downloads") && item.Item1 is "VLC media player" or "ShareX")
+            if(args.Contains("--verify-engine-downloads") && item.Item1 == "ShareX")
             {
                 string temp=Path.Combine(Path.GetTempPath(),"GF-Engine-Proof-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(temp);
                 try

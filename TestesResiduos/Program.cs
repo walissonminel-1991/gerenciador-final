@@ -879,8 +879,8 @@ Console.WriteLine("OK Jogos ativos nao sao confundidos com residuos historicos")
 
 // Catálogo histórico: Origem, Vivaldi e uTorrent não podem ser limpos
 // automaticamente, e não devem aparecer como resíduos com produto instalado.
-Check(HistoricalResidualAudit.Rules.Count == 5,
-    "Cinco famílias históricas para auditoria não destrutiva");
+Check(HistoricalResidualAudit.Rules.Count == 4,
+    "Quatro famílias históricas para auditoria não destrutiva");
 Check(HistoricalResidualAudit.Rules.Any(r => r.Id == "origin-legacy" &&
     r.Registry.Contains(@"HKLM32\SOFTWARE\Origin") &&
     r.Folders.Contains(@"Local\Origin")),
@@ -1258,13 +1258,11 @@ Check(nothingApproved.Folders.Count == 0 && nothingApproved.RegistryKeys.Count =
     "Confirmacao sem alvos nao autoriza limpar novos residuos");
 Console.WriteLine("Testes do catálogo de desinstalação embarcado.");
 var rules = UninstallRuleCatalog.Rules;
-Check(rules.Count == 7, "Sete políticas específicas validadas e incorporadas ao executável");
+Check(rules.Count == 6, "Seis políticas específicas validadas e incorporadas ao executável");
 Check(rules.Any(x => x.Id == "sumatrapdf" && x.RegistryKeys.Single() == @"Software\SumatraPDF"),
     "Política SumatraPDF tem HKCU exclusivo");
 Check(rules.Any(x => x.Id == "obs" && x.Folders.Count == 1 && x.RegistryKeys.Count == 0),
     "OBS possui perfil próprio sem remover Registro não comprovado");
-Check(rules.Any(x => x.Id == "vlc" && x.Folders.Count == 1),
-    "Nova cobertura de resíduos VLC");
 Check(AdvancedUninstallCleaner.StillInstalled(new ProgramEntry { Name = "7-Zip" },
     new[] { new ProgramEntry { Name = "7-Zip 26.04 (x64)" } }),
     "Nunca remover configuração 7-Zip enquanto variante instalada");

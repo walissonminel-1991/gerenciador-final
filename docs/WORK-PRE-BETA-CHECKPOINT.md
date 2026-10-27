@@ -8,7 +8,7 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | Campo | Registro |
 | --- | --- |
 | Etapa executada | **1 — Fontes de atualização e PR #63** |
-| Estado | **BLOQUEADA** pela integridade externa VLC; revisão e regressões da Etapa 1 aprovadas |
+| Estado | **EM ANDAMENTO** — exclusão permanente solicitada pelo mantenedor aplicada; nova CI sem esse alvo pendente |
 | Repositório | `walissonminel-1991/gerenciador-final` |
 | Branch de continuidade | `work-pre-beta-etapa0-20261027` |
 | Base imutável | `2bc9f4228fd448445fbf181652e5af93005def20` — WORK18 / PR #60 |
@@ -20,7 +20,7 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | CI Windows da Etapa 1 | [40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889), tentativa 2: **failure**; regressões/políticas/drivers aprovados; integridade externa falhou; pacote x64 skipped |
 | Arquivos alterados nesta etapa | Catálogo de identidade, fonte oficial Chrome, testes multifontes, probe e documentação/evidência; relação completa abaixo |
 | Código, versão e roadmap oficial | Fonte consultiva revista; versão de projeto mantida; **27/42**, 15 pendentes |
-| Próxima ação | Retomar somente o bloqueio externo da Etapa 1, sem repetir a revisão Chrome; Etapa 2 ainda não iniciada |
+| Próxima ação | Conferir somente a CI da exclusão; não consultar, testar ou criar ações para VLC; Etapa 2 ainda não iniciada |
 
 O commit da auditoria inicial identifica a fotografia documental anterior; o
 commit de código da Etapa 1 está identificado separadamente. O HEAD final do recibo deve ser
@@ -34,14 +34,41 @@ build ou como autorização de distribuição.
    seus SHAs, estado e CI. Comparar com a fotografia abaixo.
 3. Preservar qualquer alteração posterior; não sobrescrever a branch por
    força. Divergências exigem uma conferência específica, sem reiniciar a auditoria.
-4. Executar **somente a primeira etapa pendente**, atualmente o bloqueio externo da Etapa 1; não repetir seus testes/revisões já concluídos sem nova evidência.
+4. Executar **somente a primeira etapa pendente**, respeitando a exclusão permanente abaixo; não repetir revisões/testes concluídos sem nova evidência.
 5. Registrar implementação, testes, limitações, SHA e próxima ação nos dois
    documentos; salvar no GitHub e encerrar a sessão.
 
 **A Etapa 0 não foi repetida.** Nesta sessão foi revisado somente o escopo da
 Etapa 1. A Etapa 2 (drivers) permanece não iniciada.
 
-## Etapa 1 — parte técnica validada; bloqueio externo preservado
+## Diretriz permanente — exclusão expressa do mantenedor (27/10/2026)
+
+> Remova o VLC de qualquer teste e verificação futura, incluindo adição de botões referente ao programa.
+
+VLC está fora do escopo de testes, consultas de versões, verificação de sites,
+downloads, homologação e ações do GF. Não tentar corrigir ou reconsultar seus
+espelhos. Não propor novos botões, atualizadores, desinstaladores ou limpeza
+para ele. O inventário pode conservar a entrada somente leitura, sem ações.
+
+Foram removidos o caso do verificador de catálogo/download real, os casos
+de teste específicos e as regras de identidade/limpeza/auditoria histórica.
+A política de exclusão também impede associação operacional e ações por
+MSIX/gerenciadores externos. Não foi criado um novo teste para esse produto.
+
+**Esta instrução explícita substitui a pendência anterior de investigar VLC.**
+A exclusão é uma mudança de escopo autorizada, não um afrouxamento de HTTPS,
+hash ou assinatura para os demais aplicativos. Os runs antigos continuam
+registrados como falhas históricas e não se tornam aprovados retroativamente.
+Não reexecutar branches antigas que ainda contenham esse alvo. A integração
+futura com a BETA deve carregar esta exclusão antes de disparar testes; a
+BETA privada atual e sua infraestrutura não foram modificadas.
+
+Validação local da alteração: compilação com analisadores e zero erros/avisos,
+196/196 multifontes, 54/54 ecossistemas e 18/18 políticas. A nova CI está
+pendente de conferência; os testes existentes executados não contêm o alvo
+excluído. Não iniciar a Etapa 2 nesta sessão.
+
+## Histórico da Etapa 1 — revisão Chrome e falha externa anterior à exclusão
 
 As PRs #60/#61/#62/#63/#64 e seus SHAs foram reconferidos e permaneceram
 iguais aos registrados na Etapa 0. A PR #63 continua Draft; seus cinco
@@ -88,20 +115,13 @@ Roadmap oficial, U8 e os demais checkpoints permanecem abertos conforme a
 fotografia inicial. Infraestrutura privada, main, PR #40 e dados dos PCs
 preservados. Nenhuma nova investigação WinGet COM.
 
-### Limite e próxima ação exata
+### Estado histórico anterior à instrução do mantenedor
 
 A revisão do componente Chrome foi concluída e seus testes passaram nos
-dois ambientes. **A Etapa 1 permanece BLOQUEADA**, pois a CI obrigatória do
-conjunto ainda não aprovou a integridade externa. Não declarar candidata
-aprovada, não distribuir pacote nem avançar à Etapa 2.
-
-Na retomada, verificar somente evidência nova sobre o catálogo/download VLC
-e a CI do SHA acima. Uma correção deve demonstrar origem HTTPS, identidade,
-hash e assinatura preservados, com regressão específica. Não substituir a
-recusa de HTTP/403 por sucesso, não remover o teste, não criar exceção de
-assinatura e não repetir tentativas apenas para obter verde. Se não houver
-correção segura ou nova evidência de disponibilidade, preservar o bloqueio
-e encerrar, sem repetir a auditoria, o parser, o probe ou os testes físicos.
+dois ambientes. O run acima falhou antes da exclusão solicitada pelo usuário;
+é evidência histórica. Não retomar a investigação desse produto nem usar
+seus sites como requisito da missão. A aprovação do código atual deve vir
+da CI da revisão sem esse alvo, mantendo os controles dos demais aplicativos.
 
 ## Fotografia inicial verificada do GitHub — Etapa 0
 
@@ -226,7 +246,7 @@ independente; não confundir sua consulta com execução de COM/CLI.
 | Etapa | Estado após esta sessão | Próxima ação e critério de saída |
 | --- | --- | --- |
 | 0 — Auditoria | **CONCLUÍDA** | Referências, pendências, evidências e continuidade registradas; encerrar |
-| 1 — Fontes / #63 | **BLOQUEADA** | Revisão/correções e regressões Windows aprovadas; integridade externa VLC falhou por HTTP e depois 403; retomar somente esse bloqueio com nova evidência; arquitetura na tela permanece para a Etapa 3 |
+| 1 — Fontes / #63 | **EM ANDAMENTO** | Revisão Chrome aprovada; exclusão solicitada aplicada, nova CI pendente; nunca retomar verificações VLC; arquitetura na tela permanece para a Etapa 3 |
 | 2 — Drivers consultivos | **NÃO INICIADA** | Reusar Lote 2; completar análise D2/G1/G2/D4, testes específicos e limites de histórico/pacote; nenhuma escrita |
 | 3 — Atualizações | **NÃO INICIADA** | Reusar WORK13–18; validar identidade, payload, estados/cancelamento em fixtures e lacunas U8; sem atualização real |
 | 4 — Desinstalação / resíduos | **NÃO INICIADA** | Reusar WORK10–14/Lote 3; demonstrar propriedade, SIM/NÃO e falhas em alvos descartáveis; R4/R6/R7 reais continuam dependentes de evidências |
@@ -254,8 +274,8 @@ perfis, configurações, jogos, saves e dados compartilhados.
 
 ## Próxima ação exata e comando para retomada
 
-Em outra sessão, conferir esta branch e retomar exclusivamente o bloqueio
-externo da **Etapa 1**. A revisão da PR #63 já está concluída; não refazê-la.
-Não iniciar drivers/Etapa 2 nem trabalhar na infraestrutura BETA.
+Conferir a CI desta alteração antes de atualizar o estado da Etapa 1.
+A revisão da PR #63 já está concluída; não refazê-la. A exclusão permanente
+continua obrigatória em qualquer etapa posterior. Não trabalhar na BETA privada.
 
-> Continue a missão pré-BETA do Gerenciador Final na branch work-pre-beta-etapa0-20261027. Leia o checkpoint e a matriz, confira os SHAs e a CI e retome somente o bloqueio externo VLC da ETAPA 1. Não repita a revisão Chrome nem os testes concluídos; preserve as proteções, salve o resultado no GitHub e pare antes da Etapa 2.
+> Continue a missão pré-BETA do Gerenciador Final na branch work-pre-beta-etapa0-20261027. Leia o checkpoint e a matriz, confira os SHAs e a CI e execute somente a primeira etapa pendente. Preserve a exclusão permanente do VLC, não repita trabalho concluído, salve o resultado no GitHub e pare antes da etapa seguinte.

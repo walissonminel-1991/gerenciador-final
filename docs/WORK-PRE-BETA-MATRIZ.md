@@ -1,9 +1,14 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapa 0 concluída; Etapa 1 BLOQUEADA pela integridade externa em 27/10/2026.** Base: WORK18 .65 TESTE,
+**Etapa 0 concluída; Etapa 1 em validação após exclusão solicitada em 27/10/2026.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
+
+**Diretriz permanente do mantenedor:** VLC excluído de testes, verificações,
+consultas e ações/botões. Não investigar ou reconsultar seus sites. Somente
+inventário sem ações, com políticas específicas removidas. A falha externa
+anterior permanece histórica e deixa de ser requisito da missão.
 
 Na matriz inicial, **Antes/Depois descreve o conhecimento verificado pela auditoria da Etapa 0**.
 Os resultados e limites da Etapa 1 estão na seção seguinte. Não houve ampliação
@@ -161,7 +166,11 @@ aprovados, integridade externa **failure**. Tentativa 1 recusou HTTP no VLC;
 a única repetição recebeu 403 de outro espelho HTTPS. O pacote x64 foi
 bloqueado pelo gate e ficou skipped. [Resultados por job/tentativa](evidencias/pre-beta-etapa1-ci-40514120889.json).
 
-**Primeira pendência: somente o bloqueio externo da Etapa 1.** A revisão
-Chrome está concluída e não deve ser repetida. Não avançar à Etapa 2, não
-relaxar as proteções ou repetir tentativas sem nova evidência. A arquitetura
-local para a tela permanece como pendência de cobertura da futura Etapa 3.
+O bloqueio anterior foi retirado do escopo por instrução explícita do mantenedor.
+Não repetir verificações desse produto. A revisão Chrome está concluída e não
+deve ser repetida. A CI da alteração de exclusão será registrada no checkpoint;
+a arquitetura local para a tela permanece pendente na futura Etapa 3.
+
+| Funcionalidade | Antes | Depois | Evidência | Limitação | Roadmap |
+| --- | --- | --- | --- | --- | --- |
+| Escopo de aplicativos | Caso externo e regras específicas consumiam a validação | Alvo removido dos testes/catálogos e excluído das consultas, limpeza e ações; nenhum novo botão | Alteração solicitada pelo mantenedor; verificador real e casos ativos revistos | Registros antigos preservados como histórico; BETA privada inalterada | 27/42, sem novo checkpoint |

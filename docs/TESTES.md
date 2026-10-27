@@ -1,3 +1,12 @@
+# Exclusão permanente de escopo — 27/10/2026
+
+Por instrução do mantenedor, VLC não participa de testes, consultas de versões,
+verificações de sites, downloads ou homologações futuras. Não propor botões ou
+ações para ele. A entrada pode permanecer somente no inventário, sem ações.
+Não reexecutar roteiros/branches históricos que incluam esse alvo; incorporar
+a exclusão antes de qualquer nova integração. Demais verificações de segurança
+permanecem obrigatórias. Os registros abaixo preservam a história do projeto.
+
 # Regressões do GERENCIADOR FINAL
 
 WORK18 (.65): executar também `dotnet run --project TestesAtualizador -c Release -- --work18`,
