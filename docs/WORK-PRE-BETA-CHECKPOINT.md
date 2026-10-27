@@ -7,15 +7,15 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 
 | Campo | Registro |
 | --- | --- |
-| Etapa executada | **6 — Consolidação das evidências dos PCs FORTE e FRACO** |
-| Estado | **CONSOLIDAÇÃO CONCLUÍDA; HOMOLOGAÇÕES PARCIAIS** — E1–E5 conferidas, 15 pendências avaliadas; drivers desativados; roadmap 27/42 |
+| Etapa executada | **7 — Avaliação de integração e decisão técnica pré-BETA** |
+| Estado | **AVALIAÇÃO CONCLUÍDA; MISSÃO 0–7 ENCERRADA; BETA BLOQUEADA** para a candidata conectada neste estado; homologações parciais, drivers desativados, 27/42 |
 | Repositório | `walissonminel-1991/gerenciador-final` |
 | Branch de continuidade | `work-pre-beta-etapa0-20261027` |
 | Base imutável | `2bc9f4228fd448445fbf181652e5af93005def20` — WORK18 / PR #60 |
 | Fonte da candidata .65 já existente | `e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d` |
 | Commit da auditoria inicial | [`1399468d22061e79b6a6f957ba472d84a1aec9ec`](https://github.com/walissonminel-1991/gerenciador-final/commit/1399468d22061e79b6a6f957ba472d84a1aec9ec) |
 | PR de acompanhamento | [#64 — Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/64) |
-| Ponto de retomada anterior | `3b6061c33df54cd2b5689a1cabacb866e9a28ff4` — Etapa 5 documental, sem nova CI; código 386e7cd aprovado na CI 40565220517 |
+| Ponto de retomada anterior | `d01e37708bc06141e6dc7ffdee4ca346caddec4c` — Etapa 6 documental; último código validado 386e7cd na CI 40565220517 |
 | Commit da revisão Chrome anterior | [`8e195bfa3dfaab6767d877e78a2ad8d2b538f49c`](https://github.com/walissonminel-1991/gerenciador-final/commit/8e195bfa3dfaab6767d877e78a2ad8d2b538f49c) |
 | CI histórica anterior à exclusão | [40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889), tentativa 2: **failure**; não reexecutar |
 | Commit da exclusão solicitada | [`341c109b6b8538733b32a02909ff40c8e0a380d9`](https://github.com/walissonminel-1991/gerenciador-final/commit/341c109b6b8538733b32a02909ff40c8e0a380d9) |
@@ -26,9 +26,9 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | Commit de código da Etapa 2 | [`09fff12b0f854ab9c23886146479a7f993f936b7`](https://github.com/walissonminel-1991/gerenciador-final/commit/09fff12b0f854ab9c23886146479a7f993f936b7) |
 | CI da Etapa 2 | [40525913386](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
 | CI anterior sem o alvo excluído | [40519539258](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40519539258): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
-| Arquivos alterados nesta etapa | Somente checkpoint, matriz, `WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md`, `evidencias/pre-beta-etapa6-fisica.json`, `PROGRESSO.json`, `ROADMAP.md` e `TESTES.md` |
-| Código, versão e roadmap oficial | Código/testes/workflows/versão e artefatos mantidos; metadados físicos atualizados com histórico preservado; **27/42**, 15 pendentes, sem mudar nenhum done |
-| Próxima etapa | **7 — Integração / decisão**, somente em outra sessão; depende dos resultados e limites registrados; Etapa 7 não iniciada |
+| Arquivos alterados nesta etapa | Somente checkpoint, matriz, `WORK-PRE-BETA-ETAPA7-DECISAO.md`, `evidencias/pre-beta-etapa7-decisao.json`, `PROGRESSO.json` e `ROADMAP.md` |
+| Código, versão e roadmap oficial | Código/testes/workflows/versão, candidata/artefatos e histórico físico preservados; avaliação final registrada; **27/42**, 15 pendentes; nenhum done alterado |
+| Próxima etapa | **Nenhuma automática.** Missão 0–7 encerrada; continuidade restrita aos bloqueios documentados somente com novo escopo, sem Etapa 8 implícita |
 
 O commit da auditoria inicial identifica a fotografia documental anterior; o
 commit de código da Etapa 1 está identificado separadamente. O HEAD final do recibo deve ser
@@ -42,13 +42,13 @@ build ou como autorização de distribuição.
    seus SHAs, estado e CI. Comparar com a fotografia abaixo.
 3. Preservar qualquer alteração posterior; não sobrescrever a branch por
    força. Divergências exigem uma conferência específica, sem reiniciar a auditoria.
-4. Executar **somente a primeira etapa pendente**, respeitando a exclusão permanente abaixo; não repetir revisões/testes concluídos sem nova evidência.
+4. Conferir o escopo solicitado: a missão 0–7 está encerrada. Bloqueios remanescentes não autorizam etapa automática, integração, infraestrutura ou distribuição. Respeitar a exclusão permanente e não repetir revisões/testes sem nova evidência.
 5. Registrar implementação, testes, limitações, SHA e próxima ação nos dois
    documentos; salvar no GitHub e encerrar a sessão.
 
-**As Etapas 0–5 não foram repetidas.** A sessão atual consolida somente as
-evidências físicas existentes na Etapa 6, sem novas operações nos PCs.
-O recibo da Etapa 5 e a CI da Etapa 4 foram conferidos, sem reexecução.
+**As Etapas 0–6 não foram repetidas.** Esta sessão avaliou somente integração
+e decisão técnica da Etapa 7. CIs anteriores conferidas, sem reexecução.
+Nenhum código combinado, operação em PC ou acesso à infraestrutura.
 Os registros anteriores abaixo são históricos.
 
 ## Conferência de retomada com referência antiga — 27/10/2026
@@ -66,7 +66,48 @@ Esta retomada registra somente a conferência documental e encerra antes da
 Etapa 2, conforme o limite solicitado. O comando atual ao final deste arquivo
 apontava a Etapa 2, agora executada na sessão registrada abaixo.
 
-## Etapa 6 — sessão atual (27/10/2026)
+## Etapa 7 — sessão atual (27/10/2026)
+
+Entrada `d01e37708bc06141e6dc7ffdee4ca346caddec4c`, checkout limpo e PR #64 aberta,
+Draft, base WORK18 inalterada. Main e PRs #40/#59/#60/#61/#62/#63 conferidas,
+SHAs preservados; CIs #60/#61/#62/#63 reconferidas. CI 40565220517 do código
+pré-BETA 386e7cd aprovada: seis jobs obrigatórios success, dois condicionais
+skipped, tentativa 1. BETA e530d72 com CI principal 40409850849 aprovada,
+seis jobs success e um condicional skipped. Falha externa histórica #62
+conservada, sem reinvestigação/reexecução nem novo requisito do alvo excluído.
+
+Contra a base comum, cada frente altera 62 arquivos; quatro em comum.
+Ensaio de aplicação somente de conferência, em índice temporário, não altera
+branch/índice real/working tree: Program, despachante de layout e ROADMAP
+textualmente limpos; **PROGRESSO com conflito**, apesar de saída 0. As chaves
+raiz alteradas são disjuntas. Projeção somente em memória preserva candidata/
+bloco BETA e seis chaves físicas/seções da pré-BETA, com 27/42 e histórico
+intactos. Nenhuma composição aplicada/compilada/testada. Isolamento dos novos
+arquivos de testes conferido pelas exclusões de compilação de ambos os projetos.
+
+[Decisão, cobertura e matriz de liberação](WORK-PRE-BETA-ETAPA7-DECISAO.md) ·
+[Evidência estruturada](evidencias/pre-beta-etapa7-decisao.json).
+**BETA BLOQUEADA para a candidata conectada que reúna as frentes neste estado.**
+Faltam fonte integrada rastreada/CI própria, configuração/aviso aprovados em
+fonte, evidência conectada/retenção e Windows/AVG do pacote exato. Aprovações
+versionadas continuam pendentes. Não foi auditado o estado remoto; não se
+infere falha de infraestrutura pelos campos vazios. O piloto conectado não
+foi substituído por distribuição offline. Os 15 checkpoints abertos não viram
+uma exigência arbitrária de 42/42; gestão de drivers pode permanecer desativada.
+
+Validação documental/JSON/referências/metadados, projeção de dados e preservação
+dos 42 estados aprovadas. Só seis Markdown/JSON alterados; recibo `[skip ci]`,
+sem nova build ou suíte de produto repetida. Os 12 documentos entre o código
+386e7cd e a entrada d01e377 não alteram comportamento executável. CI dos pais
+não comprova composição hipotética. Conferir o SHA final documental no HEAD
+da PR #64; último código pré-BETA validado permanece 386e7cd.
+
+**Missão 0–7 encerrada como registrada; roadmap 27/42, 15 pendentes.**
+Exclusão permanente, drivers desativados, proteções, PCs, BETA e infraestrutura
+preservados. Sem merge/rebase/release/deploy, distribuição, elevação/ACL,
+reinício, WinGet ou transmissão de diagnóstico. Nenhuma etapa seguinte iniciada.
+
+## Etapa 6 — registro da sessão concluída (27/10/2026)
 
 Base `3b6061c33df54cd2b5689a1cabacb866e9a28ff4`, checkout limpo e PR #64 aberta,
 Draft, base WORK18 inalterada. SHAs/CI das PRs #60/#61/#62/#63 e main conferidos
@@ -501,7 +542,7 @@ independente; não confundir sua consulta com execução de COM/CLI.
 | 4 — Desinstalação / resíduos | **CONCLUÍDA TECNICAMENTE / R4/R6/R7 PENDENTES** | CI 40565220517 aprovada; 739 resíduos, 34 novos incluindo cinco nativos; propriedade e consentimento preservados; sem prova física nova |
 | 5 — Gestão de drivers | **ESTUDO CONCLUÍDO / GESTÃO DESATIVADA** | Contratos/lacunas e seis fontes Microsoft estudados; 12 casos futuros não executados; nenhum código de gestão habilitado; G1–G5 abertos |
 | 6 — Evidência física | **CONSOLIDAÇÃO CONCLUÍDA / HOMOLOGAÇÕES PARCIAIS** | E1–E5 relidas, 15 pendências avaliadas; metadados físicos corrigidos com histórico preservado; quatro blocos focais; 27/42, sem testes novos |
-| 7 — Integração / decisão | **NÃO INICIADA** | Reconciliar frentes e CI, avaliar critérios e recomendar estado técnico; sem publicar |
+| 7 — Integração / decisão | **AVALIAÇÃO CONCLUÍDA / BETA BLOQUEADA** | Comparação de fontes e CIs, ensaio textual e proposta de metadados; matriz final de liberação; 27/42 e bloqueios preservados; nenhuma composição ou publicação |
 
 A Etapa 5 usa a base técnica verificada e preserva alterações aceitas
 nas sessões anteriores. A Etapa 6 pode reutilizar toda a prova já recuperada;
@@ -523,15 +564,17 @@ perfis, configurações, jogos, saves e dados compartilhados.
 
 ## Próxima ação exata e comando para retomada
 
-Em outra sessão, iniciar somente a **Etapa 7**, após conferir este checkpoint,
-a matriz, os relatórios das Etapas 5/6 e o HEAD documental final da Etapa 6 na
-PR #64. A última CI de código é 40565220517, SHA 386e7cd; Etapas 5/6 não
-criaram build. Conferir referências e compatibilidade com a BETA privada por
-código/PR, sem acessar infraestrutura nem ativá-la. Avaliar integração e CI
-aplicável respeitando a exclusão permanente; nunca reexecutar branches antigas
-com o alvo excluído. A matriz física já está consolidada; não solicitar bateria
-completa nem promover homologações parciais por CI. Drivers seguem desativados.
-Não fazer merge, release, deploy ou operação em PCs pessoais. Registrar a
-decisão técnica e as dependências, salvar no GitHub e encerrar.
+A missão 0–7 está encerrada. Não há Etapa 8 automática nem autorização de
+ativação/piloto/distribuição. A decisão atual é BETA BLOQUEADA para a candidata
+conectada neste estado. Consultar relatório/evidência da Etapa 7 e conferir o
+HEAD final da PR #64 antes de qualquer trabalho novo.
 
-> Continue a missão pré-BETA do Gerenciador Final pela Etapa 7. Leia checkpoint, matriz e consolidação física na branch work-pre-beta-etapa0-20261027, confira os SHAs e a CI, preserve a exclusão permanente do VLC e drivers desativados, avalie integração e critérios de liberação sem promover homologações parciais, salve no GitHub e pare sem merge, release ou deploy.
+Próximo bloco possível, se solicitado: reconciliação de fontes em candidata
+isolada com envio desativado, preservando ambas as frentes e aplicando a
+proposta de metadados de forma revisável. Essa futura árvore exigirá sua
+própria CI. Não reutilizar o verde dos pais como aprovação da composição,
+nem reexecutar branches antigas com o alvo excluído. Homologação conectada,
+configuração/infraestrutura e entrega são blocos posteriores e distintos.
+O roteiro físico focal da Etapa 6 permanece válido, sem bateria completa.
+
+> Retome apenas o bloco de reconciliação de fontes documentado na Etapa 7. Leia checkpoint, matriz e decisão na branch work-pre-beta-etapa0-20261027, confira SHAs e CI, preserve as branches BETA e infraestrutura, prepare uma fonte isolada com envio desativado e metadados conciliados, valide seu próprio SHA na CI aplicável, mantendo VLC excluído e drivers desativados. Salve no GitHub e pare antes de homologação conectada, sem merge, release ou deploy.

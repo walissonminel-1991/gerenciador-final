@@ -1149,5 +1149,34 @@
     "roadmap_total": 42,
     "drivers_management_enabled": false,
     "t11_pc_fraco": "not_executed"
+  },
+  "pre_beta_final_assessment": {
+    "stage": 7,
+    "date": "2026-10-27",
+    "status": "assessment_completed_mission_closed",
+    "decision": "BETA_BLOQUEADA",
+    "scope": "Candidata BETA conectada que reúna pré-BETA e .66 neste estado",
+    "input_documentation_sha": "d01e37708bc06141e6dc7ffdee4ca346caddec4c",
+    "last_validated_pre_beta_code_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+    "pre_beta_ci_run_id": 40565220517,
+    "beta_source_sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+    "beta_ci_run_id": 40409850849,
+    "report": "docs/WORK-PRE-BETA-ETAPA7-DECISAO.md",
+    "evidence": "docs/evidencias/pre-beta-etapa7-decisao.json",
+    "connected_pilot_recommended": false,
+    "source_composition_applied": false,
+    "combined_code_ci_proven": false,
+    "textual_conflicts": [
+      "docs/PROGRESSO.json"
+    ],
+    "metadata_projection_only_in_memory": true,
+    "remote_operational_state_audited": false,
+    "completed_checkpoints": [],
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "drivers_management_enabled": false,
+    "candidate_artifact_or_physical_history_promoted": false,
+    "automatic_next_stage": null,
+    "merge_release_deploy_distribution": false
   }
 }

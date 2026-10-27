@@ -1,6 +1,6 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapas 0–4 técnicas, estudo da Etapa 5 e consolidação da Etapa 6 concluídos em 27/10/2026. Homologações parciais; 27/42. Gestão de drivers desativada, exclusão permanente preservada; Etapa 7 não iniciada.** Base: WORK18 .65 TESTE,
+**Missão 0–7 encerrada em 27/10/2026 com os limites registrados. Decisão da Etapa 7: BETA BLOQUEADA para a candidata conectada neste estado. Homologações parciais, 27/42; drivers desativados e exclusão permanente preservada. Nenhuma etapa automática seguinte.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
@@ -11,7 +11,7 @@ inventário sem ações, com políticas específicas removidas. A falha externa
 anterior permanece histórica e deixa de ser requisito da missão.
 
 Na matriz inicial, **Antes/Depois descreve o conhecimento verificado pela auditoria da Etapa 0**.
-Os resultados e limites das Etapas 1–6 estão nas seções posteriores. Não houve ampliação
+Os resultados e limites das Etapas 1–7 estão nas seções posteriores. Não houve ampliação
 de permissões ou nova homologação física.
 O estado oficial foi conferido em [ROADMAP](ROADMAP.md) e
 [PROGRESSO](PROGRESSO.json): **27/42 (64,3%)**; 15 pendentes.
@@ -143,7 +143,7 @@ não foi acessada nem alterada.
 
 Esta seção preserva a fotografia inicial da Etapa 0. O estado atual das
 Etapas 0/1 é concluído; o estado atual da continuidade está ao final.
-A continuidade atual está na seção da Etapa 6 ao final; Etapa 7 não iniciada. O roteiro físico mínimo final pertence
+O fechamento atual está na seção da Etapa 7 ao final; não há etapa seguinte automática. O roteiro físico mínimo final pertence
 à Etapa 6 e deve partir das evidências acima, incluindo a pendência específica
 T11; não solicitar uma nova bateria completa por falta de consolidação.
 
@@ -357,3 +357,32 @@ aprovada, sem código/testes/workflows alterados nem nova build. Recibo
 históricos preservados. Nenhuma nova verificação/teste/botão do alvo excluído,
 operação em PC, driver, elevação/ACL, reinício, WinGet, merge/release/deploy ou
 acesso à BETA/infraestrutura. **Parada antes da Etapa 7.**
+
+## Etapa 7 — avaliação de integração e decisão (27/10/2026)
+
+**AVALIAÇÃO CONCLUÍDA; BETA BLOQUEADA para a candidata conectada neste estado.**
+Entrada `d01e37708bc06141e6dc7ffdee4ca346caddec4c`, BETA #62 e530d72, base comum
+2bc9f42. Missão 0–7 encerrada com os limites registrados; roadmap 27/42.
+[Decisão, referências e matriz de liberação](WORK-PRE-BETA-ETAPA7-DECISAO.md) ·
+[Evidência](evidencias/pre-beta-etapa7-decisao.json).
+
+| Funcionalidade / critério | Antes desta avaliação | Depois verificado | Evidência / limite | Roadmap |
+| --- | --- | --- | --- | --- |
+| Compatibilidade de fontes | Sobreposição a conferir | 62 arquivos por frente, quatro comuns; ensaio textual limpo em Program/layout/ROADMAP e conflito em PROGRESSO | Índice temporário, somente conferência; saída 0 não elimina conflito; nenhuma composição aplicada | Sem checkpoint novo |
+| Metadados da composição | Risco de sobrescrever candidata ou histórico físico | Projeção em memória preserva candidate/beta da .66 e seis chaves físicas/seções pré-BETA | Chaves alteradas disjuntas; digest no recibo; proposta não aplicada | Todos os 42 estados preservados |
+| CI | CIs de fontes diferentes | .65 40565220517 e .66 40409850849 aprovadas separadamente | Seis jobs success em cada, dois/um condicionais skipped; não comprovam composição futura | 27/42 mantidos |
+| Consulta / atualizações | 159 multifontes / 368 atualizadores na base anterior | 196 / 410 no código pré-BETA aprovado; integração de consulta 0→2 na fixture | Provas anteriores, não testes reexecutados ou novos aplicativos homologados | U8 aberto |
+| Desinstalação / resíduos | 705 após adequação de escopo | 739, incluindo 34 novos da Etapa 4; pendência segura e resumo coerente | Homologação física e propriedade real continuam parciais | R4/R6/R7 abertos |
+| Drivers | Consulta e estudo sem gestão | Estado preservado; nenhuma escrita ou novo executor | D2/D4/G1/G2 incompletos; G3–G5 desativados | G1–G5 abertos |
+| Isolamento dos testes | Exclusões existentes nos projetos | Novos arquivos C# de testes cobertos por Compile Remove; produto não define GF_PROGRESSIVE | Conferência de fonte, sem novo binário combinado | Nenhuma operação física |
+| BETA conectada | Aprovações/configuração a conferir em fonte | Endpoint/hash/contato vazios, aprovações/referências pendentes; build comum interna bloqueada | Não se auditou remoto; sem prova conectada/AVG do pacote exato | BETA BLOQUEADA, sem exigir 42/42 arbitrariamente |
+| Continuidade | Etapa 7 pendente | Missão 0–7 encerrada; oito gates de liberação e próximo bloco possível registrados | Fonte integrada isolada/CI própria em novo escopo; homologação/infraestrutura/entrega separadas | Sem etapa automática |
+
+A falha externa histórica da #62 foi apenas registrada e não reabre o alvo
+permanentemente excluído. Sem nova CI, suíte de produto, build, coleta, operação
+nos PCs ou acesso à infraestrutura. Somente seis Markdown/JSON com `[skip ci]`;
+código/testes/workflows/versão, candidata/artefatos, histórico físico e todos os
+done permanecem intactos. Exclusão permanente e proteções preservadas. Main,
+PR #40 e branches BETA inalteradas, sem merge/rebase/release/deploy/distribuição.
+Quinze checkpoints continuam abertos; os blocos focais da Etapa 6 não foram
+executados. **Encerramento após a Etapa 7.**

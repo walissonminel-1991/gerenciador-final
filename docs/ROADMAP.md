@@ -2,6 +2,8 @@
 
 **v5.13.11.65 TESTE — WORK18 aprovada tecnicamente.** [CI 40252100887](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887), fonte `e6d92e2f`, [ZIP x64 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887/artifacts/12621128988) com 284 hashes conferidos fora do runner. [Relatório e matriz](MISSAO-WORK18.md): quatro novos cenários Atualizar e quatro Acompanhar, sem nova medição física. **Roadmap 27/42**, U8/R7/R4/I7 e demais checkpoints físicos pendentes; AVG não homologado, main e integração preservadas.
 
+**Fechamento pré-BETA — Etapa 7, 27/10/2026:** [avaliação de integração e matriz de liberação](WORK-PRE-BETA-ETAPA7-DECISAO.md). **BETA BLOQUEADA para a candidata conectada neste estado.** Fontes .65/.66 têm CIs separadas; ensaio textual aponta conflito em PROGRESSO e proposta de reconciliação somente em memória. Na fonte BETA, configuração/aviso/aprovações e provas conectadas/AVG continuam pendentes; remoto não auditado. Missão 0–7 encerrada, **27/42**, sem novos checkpoints, composição aplicada ou distribuição. Drivers desativados, exclusão permanente preservada; não há Etapa 8 automática.
+
 **Consolidação física pré-BETA — Etapa 6, 27/10/2026:** [E1–E5 e roteiro focal](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md) relidos, sem novos testes. FORTE .64: 169/27 apps/MSIX, 166/63 associações/INFs; FRACO .65: 74/19, 119/53. Metadados de últimos testes atualizados, com .52/.24 preservados no histórico. Logs sem SHA/hash da build; não homologam o código pré-BETA. I7/P5/P6/V5/D4 continuam parciais; **27/42**, 15 pendentes. T11 não executado; drivers desativados e exclusão permanente preservada.
 
 **v5.13.11.64 TESTE — integração Lotes 1–4 + WORK14–17 aprovada tecnicamente na [CI 40241712164](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164).** Fonte `5793ce1f` e [ZIP portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183) com 284 hashes conferidos também fora do runner; 285 arquivos, AMD64, .NET 10.0.13 e sem assinatura. [Relatório de integração](MISSAO-INTEGRACAO.md) e [PR #59 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/59). **Roadmap 27/42**, sem fechar checkpoints físicos: U8/R7/R4/I7/P5/P6/V5/D2/G1/G2/R6 e gestão de drivers permanecem pendentes; AVG não homologado, main preservada.
@@ -217,7 +219,7 @@ A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permiss
 
 ## Próxima etapa prioritária
 
-Na missão pré-BETA, seguir o [roteiro focal da Etapa 6](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md): aproveitar E1–E5 e completar somente a prova ausente, sem repetir a bateria A integral. Operações de aplicativos dependem de autorização específica futura, backup e ambiente adequado. Drivers continuam apenas leitura; esta consolidação não autoriza instalação/remoção/reversão.
+A missão pré-BETA 0–7 está encerrada com a [decisão e os bloqueios da Etapa 7](WORK-PRE-BETA-ETAPA7-DECISAO.md). Continuidade de fontes, homologação conectada e entrega exigem escopos próprios, sem ação automática. O [roteiro focal da Etapa 6](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md) permanece para as provas físicas ausentes, aproveitando E1–E5 sem repetir bateria completa. Drivers continuam desativados; nenhuma operação ou publicação é autorizada por este registro.
 
 ### Evidências para avançar sem maquiar o percentual
 
