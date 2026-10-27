@@ -1,6 +1,6 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapas 0–4 concluídas tecnicamente em 27/10/2026. Homologações físicas/pacote pendentes, R4/R6/R7 abertos; exclusão permanente preservada.** Base: WORK18 .65 TESTE,
+**Etapas 0–4 concluídas tecnicamente; estudo da Etapa 5 concluído em 27/10/2026. Gestão de drivers desativada, G1–G5 e homologações físicas/pacote abertos; exclusão permanente preservada.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
@@ -11,7 +11,7 @@ inventário sem ações, com políticas específicas removidas. A falha externa
 anterior permanece histórica e deixa de ser requisito da missão.
 
 Na matriz inicial, **Antes/Depois descreve o conhecimento verificado pela auditoria da Etapa 0**.
-Os resultados e limites das Etapas 1/2/3/4 estão nas seções posteriores. Não houve ampliação
+Os resultados e limites das Etapas 1/2/3/4 e do estudo da Etapa 5 estão nas seções posteriores. Não houve ampliação
 de permissões ou nova homologação física.
 O estado oficial foi conferido em [ROADMAP](ROADMAP.md) e
 [PROGRESSO](PROGRESSO.json): **27/42 (64,3%)**; 15 pendentes.
@@ -25,7 +25,7 @@ O estado oficial foi conferido em [ROADMAP](ROADMAP.md) e
 | Drivers — investigação | Lote 2: INF publicado ↔ Store ↔ dispositivo e log Windows | Implementação existente localizada; confirmação de limites nativos e físicos registrada | `DriverPublishedPackages.cs`, `DriverStoreAudit.cs`, `DriverWindowsHistory.cs`; [Lote 2](MISSAO-LOTE2.md) | Histórico parcial, pacotes sem associação não são descartáveis; logs dos PCs não comprovam investigação completa | D2 aberto |
 | Drivers — versões oficiais | Consulta WUA por ID de hardware exato | Confirmado contrato somente leitura, sem downloader/installer; CI nativa existente | `DriverOfficialLookup.cs`, `TestesDrivers/ReadOnlyDriverTests.cs`; CI de drivers na [#63](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40507858102) | Oferta não é compatibilidade independente completa; não há versão numérica inferida do título; oferta positiva real pendente | G1 aberto |
 | Drivers — assinatura/integridade | Igualdade SHA-256 de INF e SetupVerifyInfFileW | Evidência anterior de INF/catálogo separada da validação de todo o pacote | `DriverInfVerification.cs`, `TestesDrivers/DriverStoreTests.cs`; Lote 2 | 24/24 INFs assinados por runner inicial não verificam origem/payload/SO/arquitetura completos | G2 aberto |
-| Drivers — gestão | Instalação/reversão não disponibilizadas | Mantido o estado; somente planejamento na futura Etapa 5 | `DriverOfficialMatch.CanInstall` e `DriverInfVerificationResult.CanInstall` retornam false | Nenhuma escrita autorizada; não marcar protótipo como recurso homologado | G3/G4/G5 abertos |
+| Drivers — gestão | Instalação/reversão não disponibilizadas | Estado preservado; estudo da Etapa 5 concluído, sem executor ou ativação | `DriverOfficialMatch.CanInstall` e `DriverInfVerificationResult.CanInstall` retornam false | Nenhuma escrita autorizada; não marcar protótipo como recurso homologado | G3/G4/G5 abertos |
 | Atualizações — fontes | RuckZuck, fontes oficiais, catálogo Microsoft autenticado e leitores de ecossistemas | Arquitetura existente mapeada; 10/8 candidatos físicos recuperados; #63 permanece separada | `OfficialReleaseSources.cs`, `RuckZuckCatalog.cs`, `PackageCatalogIndex.cs`, `AutomaticUpdateDiscovery.cs`; E1/E2 | Catálogo/versão descoberta não autoriza execução; indisponibilidade externa afeta resultados | U1/U2/U6 já concluídos |
 | Atualizações — Chrome | Experimento consultivo em PR #63; documentação ainda dizia CI pendente | CI do HEAD exato confirmada: 6 jobs obrigatórios aprovados e 2 condicionais skipped; revisão completa fica para Etapa 1 | [#63](https://github.com/walissonminel-1991/gerenciador-final/pull/63), [CI 40507858102](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40507858102) | API real e ganho físico não demonstrados nesta auditoria; não integrado; x86/x64 Stable apenas conforme proposta | Nenhum checkpoint novo |
 | Atualizações — execução | Contratos MSI/WiX/NSIS/Inno, hash, assinatura, identidade e estado final | Escopo WORK18 confirmado; zero elegíveis silenciosos/supervisionados nas sessões físicas lidas | `AutomaticPackageManifest.cs`, `MsiPackageEvidence.cs`, `VerifiedUpdaters.cs`; [WORK18](MISSAO-WORK18.md), E1/E2 | Fixtures selecionam contratos; payload e homologação final são provas diferentes; sem atualização nesta sessão | U3/U4/U5/U7 já concluídos; U8 aberto |
@@ -143,7 +143,7 @@ não foi acessada nem alterada.
 
 Esta seção preserva a fotografia inicial da Etapa 0. O estado atual das
 Etapas 0/1 é concluído; o estado atual da continuidade está ao final.
-A continuidade atual está na seção da Etapa 4 ao final; Etapas 5–7 não iniciadas. O roteiro físico mínimo final pertence
+A continuidade atual está na seção da Etapa 5 ao final; Etapas 6–7 não iniciadas. O roteiro físico mínimo final pertence
 à Etapa 6 e deve partir das evidências acima, incluindo a pendência específica
 T11; não solicitar uma nova bateria completa por falta de consolidação.
 
@@ -301,3 +301,29 @@ O código acima é o SHA validado; recibo posterior somente Markdown/JSON,
 `[skip ci]`. Versão e roadmap 27/42 mantidos, R4/R6/R7 abertos. Nenhuma nova
 verificação/teste/botão para o produto excluído. Etapa 5 não iniciada;
 nenhum merge, deploy, release, driver, reinício ou acesso à BETA privada.
+
+## Etapa 5 — estudo da gestão de drivers (27/10/2026)
+
+**ESTUDO CONCLUÍDO; GESTÃO DESATIVADA; G1–G5 ABERTOS.** Base
+`466092ce237eba098ba83612c6b7774ec8226e5e`. CI da Etapa 4 reconferida:
+40565220517, código 386e7cd, tentativa 1, seis jobs obrigatórios success e
+dois condicionais skipped. SHAs/CI das PRs #60/#61/#62/#63 preservados.
+[Estudo](WORK-PRE-BETA-ETAPA5-GESTAO-DRIVERS.md) ·
+[Evidência](evidencias/pre-beta-etapa5-estudo-drivers.json).
+
+| Ponto | Antes | Depois nesta etapa | Evidência / limite | Roadmap |
+| --- | --- | --- | --- | --- |
+| Entradas para gestão | Inventário, oferta oficial e INF/catálogo consultivos | Lacunas de identidade atual, pacote inteiro, criticidade, dependentes e recuperação mapeadas | Leitura dos contratos existentes, sem coletar dados dos PCs | G1/G2 abertos |
+| API de instalação | Nenhum executor de drivers | Comparação oficial: staging já escreve; DiInstallDriver tem escopo múltiplo e TRUE pode ser apenas staging; DiInstallDevice requer seleção explícita | Seis fontes Microsoft; alternativa por dispositivo ainda depende de delimitar efeitos do pacote | G3 aberto |
+| Reversão | Nenhum executor nem garantia de suporte | Backup obrigatório; DiRollbackDriver pode remover o pacote substituído; desinstalar pacote não é fallback de recuperação | Documentação Microsoft; nenhuma API invocada ou prova real de suporte | G4 aberto |
+| Contrato futuro | Sem desenho específico da transação | Identidade/payload, escopo, consentimento, revalidação, intenção durável, confirmação e reconciliação definidos | 12 casos de revisão esperados, **não executados**; não são testes aprovados | G3/G4/G5 abertos |
+| Produto | CanInstall/CanMaintain false; somente consulta | Mesmo comportamento e mesmos blobs de código, testes, workflows e versão | Só quatro arquivos Markdown/JSON; zero executor/botão/flag novo | Nenhum checkpoint fechado |
+| Validação | CI da Etapa 4 já aprovada | Conferência da CI e validação documental de JSON, referências, IDs e escopo Git | Zero testes de produto novos ou repetidos; nenhuma nova build/CI | 27/42 mantidos |
+
+O novo commit é documental, `[skip ci]`; conferir seu SHA no HEAD da PR #64,
+sem atribuir a ele a build 386e7cd. As evidências físicas E1–E5 não foram
+reconsolidadas nesta etapa. Nenhum driver baixado/instalado/removido/revertido,
+elevação, alteração de ACL ou reinício. Exclusão permanente, proteções, PCs,
+BETA/Worker/D1/DNS/flags, main e versão preservados. Sem merge/release/deploy.
+**Parada antes da Etapa 6**, reservada a outra sessão, reutilizando as provas
+anteriores sem repetir a bateria completa. Quinze checkpoints continuam abertos.

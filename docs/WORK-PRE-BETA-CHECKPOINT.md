@@ -7,15 +7,15 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 
 | Campo | Registro |
 | --- | --- |
-| Etapa executada | **4 — Desinstalação / resíduos: pendência, consentimento e revalidação** |
-| Estado | **CONCLUÍDA TECNICAMENTE; HOMOLOGAÇÃO R4/R6/R7 PENDENTE** — CI aprovada no código 386e7cd; roadmap 27/42 |
+| Etapa executada | **5 — Gestão de drivers: estudo técnico, gestão desativada** |
+| Estado | **ESTUDO CONCLUÍDO; GESTÃO DESATIVADA; G1–G5 ABERTOS** — entrega documental; código 386e7cd e CI da Etapa 4 preservados; roadmap 27/42 |
 | Repositório | `walissonminel-1991/gerenciador-final` |
 | Branch de continuidade | `work-pre-beta-etapa0-20261027` |
 | Base imutável | `2bc9f4228fd448445fbf181652e5af93005def20` — WORK18 / PR #60 |
 | Fonte da candidata .65 já existente | `e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d` |
 | Commit da auditoria inicial | [`1399468d22061e79b6a6f957ba472d84a1aec9ec`](https://github.com/walissonminel-1991/gerenciador-final/commit/1399468d22061e79b6a6f957ba472d84a1aec9ec) |
 | PR de acompanhamento | [#64 — Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/64) |
-| Ponto de retomada anterior | `9a01aee2d14685efa8b28df63fb406d14fd32625` — recibo da Etapa 3, código 5a7c048 aprovado na CI 40559631389 |
+| Ponto de retomada anterior | `466092ce237eba098ba83612c6b7774ec8226e5e` — recibo da Etapa 4, código 386e7cd aprovado na CI 40565220517 |
 | Commit da revisão Chrome anterior | [`8e195bfa3dfaab6767d877e78a2ad8d2b538f49c`](https://github.com/walissonminel-1991/gerenciador-final/commit/8e195bfa3dfaab6767d877e78a2ad8d2b538f49c) |
 | CI histórica anterior à exclusão | [40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889), tentativa 2: **failure**; não reexecutar |
 | Commit da exclusão solicitada | [`341c109b6b8538733b32a02909ff40c8e0a380d9`](https://github.com/walissonminel-1991/gerenciador-final/commit/341c109b6b8538733b32a02909ff40c8e0a380d9) |
@@ -26,9 +26,9 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | Commit de código da Etapa 2 | [`09fff12b0f854ab9c23886146479a7f993f936b7`](https://github.com/walissonminel-1991/gerenciador-final/commit/09fff12b0f854ab9c23886146479a7f993f936b7) |
 | CI da Etapa 2 | [40525913386](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
 | CI anterior sem o alvo excluído | [40519539258](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40519539258): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
-| Arquivos alterados nesta etapa | `Program.cs`, `RegisteredUninstaller.cs`, `UninstallBatch.cs`, `UninstallOperationProgress.cs`, testes e documentação da Etapa 4 |
-| Código, versão e roadmap oficial | Conclusão desconhecida bloqueia repetição e lote seguinte; resumo coerente; versão mantida; **27/42**, R4/R6/R7 e demais pendências abertos |
-| Próxima etapa | **5 — Gestão de drivers**, somente estudo/protótipo desativado em outra sessão; Etapa 5 não iniciada |
+| Arquivos alterados nesta etapa | Somente checkpoint, matriz, `WORK-PRE-BETA-ETAPA5-GESTAO-DRIVERS.md` e `evidencias/pre-beta-etapa5-estudo-drivers.json` |
+| Código, versão e roadmap oficial | Nenhuma alteração de produto/testes/workflows; versão mantida; **27/42**, 15 pendentes; G1–G5 e homologações anteriores abertos |
+| Próxima etapa | **6 — Evidência física**, somente em outra sessão, partindo de E1–E5 já recuperadas; Etapa 6 não iniciada |
 
 O commit da auditoria inicial identifica a fotografia documental anterior; o
 commit de código da Etapa 1 está identificado separadamente. O HEAD final do recibo deve ser
@@ -46,8 +46,9 @@ build ou como autorização de distribuição.
 5. Registrar implementação, testes, limitações, SHA e próxima ação nos dois
    documentos; salvar no GitHub e encerrar a sessão.
 
-**As Etapas 0/1/2/3 não foram repetidas.** A sessão atual trabalha somente na
-Etapa 4. Os registros anteriores abaixo são históricos.
+**As Etapas 0–4 não foram repetidas.** A sessão atual trabalha somente no
+estudo da Etapa 5. O código e a CI da Etapa 4 foram conferidos, sem reexecução.
+Os registros anteriores abaixo são históricos.
 
 ## Conferência de retomada com referência antiga — 27/10/2026
 
@@ -64,7 +65,38 @@ Esta retomada registra somente a conferência documental e encerra antes da
 Etapa 2, conforme o limite solicitado. O comando atual ao final deste arquivo
 apontava a Etapa 2, agora executada na sessão registrada abaixo.
 
-## Etapa 4 — sessão atual (27/10/2026)
+## Etapa 5 — sessão atual (27/10/2026)
+
+Base `466092ce237eba098ba83612c6b7774ec8226e5e`, checkout limpo e PR #64 aberta,
+Draft, base WORK18 inalterada. SHAs/CI das PRs #60/#61/#62/#63 reconferidos e
+inalterados; #62 conserva sua falha externa histórica, sem reinvestigação.
+CI da Etapa 4 reconferida: 40565220517, código 386e7cd, tentativa 1, success,
+seis jobs obrigatórios aprovados e dois condicionais skipped. O recibo 466092c
+altera apenas cinco documentos; nenhum código mudou depois dessa CI.
+
+Resultado: mapeadas as lacunas dos contratos consultivos para gestão; seis
+fontes Microsoft sustentam a comparação das APIs. Staging já é escrita;
+DiInstallDriver pode atingir vários dispositivos e TRUE não confirma a versão;
+DiRollbackDriver depende de backup e pode remover o pacote substituído.
+Definidos requisitos futuros de identidade/payload, escopo, consentimento,
+registro durável, confirmação e recuperação, com 12 casos de revisão ainda
+não executados. **Sem executor, botão, flag de ativação ou protótipo executável.**
+CanInstall/CanMaintain continuam false. Nenhuma operação de drivers foi feita.
+
+[Estudo e decisão](WORK-PRE-BETA-ETAPA5-GESTAO-DRIVERS.md) ·
+[Evidência estruturada](evidencias/pre-beta-etapa5-estudo-drivers.json).
+Validação documental: JSON/referências/IDs, diff sem whitespace inválido e
+blobs fora dos quatro documentos idênticos à base. Zero testes de produto
+novos/reexecutados; nenhuma nova CI solicitada. Commit somente Markdown/JSON
+com `[skip ci]`; conferir o SHA documental no HEAD da PR #64 ao retomar.
+O último código validado continua 386e7cd na CI 40565220517, não o novo HEAD.
+
+**Estudo concluído; gestão desativada; G1–G5 abertos; roadmap 27/42.**
+G3/G4/G5 não são concluídos por planejamento. Homologações anteriores,
+R4/R6/R7 e demais pendências preservadas. Exclusão permanente, PCs, BETA e
+infraestrutura intactos, sem merge/deploy/release. **Parada antes da Etapa 6.**
+
+## Etapa 4 — registro da sessão concluída (27/10/2026)
 
 Base `9a01aee2d14685efa8b28df63fb406d14fd32625`, PR #64 aberta e Draft. Conferidos os
 SHAs das PRs #60/#61/#62/#63, inalterados. CI 40559631389 da Etapa 3 aprovada
@@ -425,7 +457,7 @@ independente; não confundir sua consulta com execução de COM/CLI.
 | 2 — Drivers consultivos | **CONCLUÍDA TECNICAMENTE / HOMOLOGAÇÃO PENDENTE** | CI 40525913386 aprovada; 26 casos novos, 174 verificações por runner. D2/D4/G1/G2 continuam abertos; nenhuma escrita |
 | 3 — Atualizações | **CONCLUÍDA TECNICAMENTE / U8 PENDENTE** | CI 40559631389 aprovada; 42 novas, 410 atualizadores, integração consultiva 0→2; nenhum ganho físico ou receita nova; U8 aberto |
 | 4 — Desinstalação / resíduos | **CONCLUÍDA TECNICAMENTE / R4/R6/R7 PENDENTES** | CI 40565220517 aprovada; 739 resíduos, 34 novos incluindo cinco nativos; propriedade e consentimento preservados; sem prova física nova |
-| 5 — Gestão de drivers | **NÃO INICIADA** | Estudo/protótipo isolado desativado, somente se viável; G3–G5 não se concluem por planejamento |
+| 5 — Gestão de drivers | **ESTUDO CONCLUÍDO / GESTÃO DESATIVADA** | Contratos/lacunas e seis fontes Microsoft estudados; 12 casos futuros não executados; nenhum código de gestão habilitado; G1–G5 abertos |
 | 6 — Evidência física | **NÃO INICIADA** | Partir dos 5 arquivos já recuperados e dos relatos; avaliar cada checkpoint e pedir somente a prova realmente ausente |
 | 7 — Integração / decisão | **NÃO INICIADA** | Reconciliar frentes e CI, avaliar critérios e recomendar estado técnico; sem publicar |
 
@@ -449,11 +481,14 @@ perfis, configurações, jogos, saves e dados compartilhados.
 
 ## Próxima ação exata e comando para retomada
 
-Em outra sessão, iniciar somente a **Etapa 5**, após conferir este checkpoint,
-a matriz, HEADs e o recibo/CI da Etapa 4. Etapas 0–4 tecnicamente concluídas;
-não repetir revisões/testes sem nova evidência. As pendências físicas/pacote
-continuam abertas. Etapa 5 é somente estudo ou protótipo desativado,
-sem instalar/remover/reverter drivers.
-A exclusão permanente continua obrigatória. Não trabalhar na BETA privada.
+Em outra sessão, iniciar somente a **Etapa 6**, após conferir este checkpoint,
+a matriz e o HEAD documental da Etapa 5 na PR #64. A última CI de código é a
+da Etapa 4: 40565220517, SHA 386e7cd. Não há build da Etapa 5; sua entrega é
+somente documental. Etapas 0–4 tecnicamente concluídas e estudo da Etapa 5
+concluído, sem fechar homologações nem G1–G5. Não repetir revisões/testes sem
+nova evidência. Partir de E1–E5 já recuperadas e dos relatos, avaliar suficiência
+e solicitar somente prova realmente ausente, sem nova bateria completa.
+Preservar a exclusão permanente e gestão de drivers desativada, sem qualquer
+instalação/remoção/reversão, operação nos PCs ou acesso à BETA privada.
 
-> Continue a missão pré-BETA do Gerenciador Final pela Etapa 5. Leia o checkpoint e a matriz na branch work-pre-beta-etapa0-20261027, confira o recibo e a CI da Etapa 4, preserve a exclusão permanente do VLC e os limites de estudo/protótipo desativado para drivers, salve o resultado no GitHub e pare antes da Etapa 6.
+> Continue a missão pré-BETA do Gerenciador Final pela Etapa 6. Leia o checkpoint e a matriz na branch work-pre-beta-etapa0-20261027, confira o recibo documental da Etapa 5 e a CI da Etapa 4, preserve a exclusão permanente do VLC e drivers desativados, reutilize E1–E5 sem repetir a bateria completa, salve no GitHub e pare antes da Etapa 7.
