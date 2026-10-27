@@ -70,6 +70,16 @@ internal sealed class OfficialReleaseSources : IDisposable
         new("edge-stable", "Microsoft", "Microsoft Edge",
             "https://edgeupdates.microsoft.com/api/products?view=enterprise",
             "https://www.microsoft.com/edge", EdgeStable, "__EDGE_STABLE__"),
+        // Chrome VersionHistory: versões oficiais estáveis por plataforma; nunca entrega instaladores.
+        // Arquitetura desconhecida não recebe versão de outra plataforma.
+        new("chrome-win64", "Google VersionHistory", "Google Chrome",
+            "https://versionhistory.googleapis.com/v1/chrome/platforms/win64/channels/stable/versions?order_by=version%20desc&pageSize=1",
+            "https://www.google.com/chrome/", a => ChromeStable(a) && a.Architecture == "x64",
+            "__CHROME_VERSIONS__", "chrome-stable"),
+        new("chrome-win", "Google VersionHistory", "Google Chrome",
+            "https://versionhistory.googleapis.com/v1/chrome/platforms/win/channels/stable/versions?order_by=version%20desc&pageSize=1",
+            "https://www.google.com/chrome/", a => ChromeStable(a) && a.Architecture == "x86",
+            "__CHROME_VERSIONS__", "chrome-stable"),
         new("proton-pass-desktop", "Proton", "Proton Pass",
             "https://raw.githubusercontent.com/ProtonMail/WebClients/main/applications/pass-desktop/CHANGELOG.md",
             "https://proton.me/pass/download", ProtonPass, "__PROTON_CHANGELOG__"),
@@ -149,6 +159,9 @@ internal sealed class OfficialReleaseSources : IDisposable
     private static bool EdgeStable(InstalledApp a) =>
         Publisher(a, "microsoft") &&
         a.Name.Equals("Microsoft Edge", StringComparison.OrdinalIgnoreCase);
+    private static bool ChromeStable(InstalledApp a) =>
+        Exact(a, "Google Chrome", "google") &&
+        a.Channel is "stable" or "unknown";
     private static bool ProtonPass(InstalledApp a) =>
         Publisher(a, "proton ag", "proton", "proton technologies ag") &&
         a.Name.Equals("Proton Pass", StringComparison.OrdinalIgnoreCase);
@@ -276,8 +289,9 @@ internal sealed class OfficialReleaseSources : IDisposable
                 var findings = target.Apps.Select(app =>
                     new OfficialRelease(app, version, target.Recipe.Provider,
                         target.Recipe.Page, target.Recipe.Id, target.Recipe.IdentitySource ?? target.Recipe.Id,
-                        observedAt, Architecture: target.Recipe.Id == "proton-pass-windows" ? "x64" : "unknown",
-                        Channel: target.Recipe.JsonProperty is "tag_name" or "__PROTON_WINDOWS__" ? "stable" : "unknown",
+                        observedAt, Architecture: target.Recipe.Id is "chrome-win64" or "proton-pass-windows" ? "x64" :
+                            target.Recipe.Id == "chrome-win" ? "x86" : "unknown",
+                        Channel: target.Recipe.JsonProperty is "tag_name" or "__PROTON_WINDOWS__" or "__CHROME_VERSIONS__" ? "stable" : "unknown",
                         InstallType: target.Recipe.Id == "proton-pass-windows" ? "msix" : "unknown",
                         EvidenceKind: target.Recipe.JsonProperty == "__PROTON_WINDOWS__" ? "windows-stable-feed" : target.Recipe.JsonProperty == "__WINGET_VERSIONS__" ? "community-index" :
                             target.Recipe.JsonProperty == "__PROTON_CHANGELOG__" ? "desktop-changelog" : "vendor-release")).ToArray();
@@ -377,6 +391,8 @@ internal sealed class OfficialReleaseSources : IDisposable
                 tag = ParseProtonWindowsVersion(doc.RootElement);
             else if (recipe.JsonProperty == "__EDGE_STABLE__")
                 tag = ParseEdgeStableVersion(doc.RootElement);
+            else if (recipe.JsonProperty == "__CHROME_VERSIONS__")
+                tag = ParseChromeVersionHistory(doc.RootElement, recipe.Id == "chrome-win64" ? "win64" : "win");
             else if (recipe.JsonProperty == "__WINGET_VERSIONS__")
                 tag = ParseWinGetVersionDirectories(doc.RootElement);
             else
@@ -451,6 +467,28 @@ internal sealed class OfficialReleaseSources : IDisposable
         return newest ?? throw new InvalidDataException("Nenhuma versão estável no índice WinGet.");
     }
 
+    // Consulta pública Google VersionHistory, somente Windows Stable.
+    // Não aceita canal, plataforma, ordem ou versão divergentes da URL fixa.
+    // Apenas a primeira versão da resposta (order_by version desc, pageSize=1).
+    internal static string ParseChromeVersionHistory(JsonElement root, string platform)
+    {
+        if (platform is not ("win" or "win64") || root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("versions", out var versions) ||
+            versions.ValueKind != JsonValueKind.Array || versions.GetArrayLength() != 1)
+            throw new InvalidDataException("Versão Chrome Stable indisponível ou resposta incompleta.");
+        var item = versions[0];
+        if (item.ValueKind != JsonValueKind.Object ||
+            !item.TryGetProperty("version", out var value) || value.ValueKind != JsonValueKind.String ||
+            !item.TryGetProperty("name", out var identity) || identity.ValueKind != JsonValueKind.String)
+            throw new InvalidDataException("Versão Chrome sem identidade.");
+        string version = value.GetString() ?? "";
+        string expected = "chrome/platforms/" + platform + "/channels/stable/versions/" + version;
+        if (!Regex.IsMatch(version, @"^\d{1,4}(?:\.\d{1,6}){3}$", RegexOptions.CultureInvariant) ||
+            identity.GetString() != expected)
+            throw new InvalidDataException("Canal, plataforma ou versão Chrome divergente.");
+        return version;
+    }
+
     // Seleção estrita: Microsoft Edge Stable, Windows, arquitetura correspondente.
     // Beta, Dev, Canary, EdgeUpdate e Extended Stable não se misturam com Stable.
     internal static string ParseEdgeStableVersion(JsonElement root)
@@ -504,6 +542,10 @@ internal sealed class OfficialReleaseSources : IDisposable
         (url.Host.Equals("api.github.com", StringComparison.OrdinalIgnoreCase) ||
          url.Host.Equals("product-details.mozilla.org", StringComparison.OrdinalIgnoreCase) ||
          url.Host.Equals("edgeupdates.microsoft.com", StringComparison.OrdinalIgnoreCase) ||
+         (url.Host.Equals("versionhistory.googleapis.com", StringComparison.OrdinalIgnoreCase) &&
+          (url.AbsolutePath == "/v1/chrome/platforms/win64/channels/stable/versions" ||
+           url.AbsolutePath == "/v1/chrome/platforms/win/channels/stable/versions") &&
+          url.Query == "?order_by=version%20desc&pageSize=1" && url.Fragment.Length == 0) ||
          (url.Host.Equals("proton.me", StringComparison.OrdinalIgnoreCase) &&
           url.AbsolutePath == "/download/PassDesktop/win32/x64/version.json" && url.Query.Length == 0 && url.Fragment.Length == 0) ||
          url.Host.Equals("raw.githubusercontent.com", StringComparison.OrdinalIgnoreCase));

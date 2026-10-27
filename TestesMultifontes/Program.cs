@@ -10,6 +10,7 @@ void Assert(bool ok, string label)
     Console.WriteLine("OK " + label);
 }
 Work6HistoryTests.Run(Assert);
+await ChromeVersionHistoryTests.Run(Assert);
 if (args.Contains("--work7"))
 {
     int failures = 0;
@@ -37,10 +38,10 @@ var fakeSeven = App("7-Zip 25.00 (x64)", "25.00", "Editor Suspeito");
 var esr = App("Mozilla Firefox ESR", "115.0.0", "Mozilla Corporation");
 var thunderbirdEsr = App("Thunderbird ESR", "128.0", "Mozilla Corporation");
 var unknownThunderbird = App("Mozilla Thunderbird", "140.0", "Mozilla Corporation");
-Assert(ApplicationIdentityCatalog.RuleCount == 27,
-    "Catálogo unificado reconhece 26 famílias verificadas");
-Assert(ApplicationIdentityCatalog.Rules.Count(r => r.OfficialSource is not null) == 23,
-    "Vinte e três identidades de fontes oficiais referenciam identidade estável");
+Assert(ApplicationIdentityCatalog.RuleCount == 28,
+    "Catálogo unificado reconhece 28 famílias verificadas");
+Assert(ApplicationIdentityCatalog.Rules.Count(r => r.OfficialSource is not null) == 24,
+    "Vinte e quatro identidades de fontes oficiais referenciam identidade estável");
 Assert(ApplicationIdentityCatalog.Resolve("OBS Studio", "OBS Project")?.Id == "obs" &&
     ApplicationIdentityCatalog.Resolve("OBS Studio", "OBS Project, LLC")?.Id == "obs",
     "Mesmo ID para versões de fabricante oficial do OBS");
