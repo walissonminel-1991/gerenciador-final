@@ -8,20 +8,22 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | Campo | Registro |
 | --- | --- |
 | Etapa executada | **1 — Fontes de atualização e PR #63** |
-| Estado | **EM ANDAMENTO**; revisão e testes locais aprovados, CI Windows pendente |
+| Estado | **BLOQUEADA** pela integridade externa VLC; revisão e regressões da Etapa 1 aprovadas |
 | Repositório | `walissonminel-1991/gerenciador-final` |
 | Branch de continuidade | `work-pre-beta-etapa0-20261027` |
 | Base imutável | `2bc9f4228fd448445fbf181652e5af93005def20` — WORK18 / PR #60 |
 | Fonte da candidata .65 já existente | `e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d` |
-| Commit do conteúdo auditado | [`1399468d22061e79b6a6f957ba472d84a1aec9ec`](https://github.com/walissonminel-1991/gerenciador-final/commit/1399468d22061e79b6a6f957ba472d84a1aec9ec) |
+| Commit da auditoria inicial | [`1399468d22061e79b6a6f957ba472d84a1aec9ec`](https://github.com/walissonminel-1991/gerenciador-final/commit/1399468d22061e79b6a6f957ba472d84a1aec9ec) |
 | PR de acompanhamento | [#64 — Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/64) |
 | Ponto de retomada anterior | `b30fab20a25c4ee08b5624226a3bdb289ba20295` — Etapa 0 concluída |
+| Commit de código da Etapa 1 | [`8e195bfa3dfaab6767d877e78a2ad8d2b538f49c`](https://github.com/walissonminel-1991/gerenciador-final/commit/8e195bfa3dfaab6767d877e78a2ad8d2b538f49c) |
+| CI Windows da Etapa 1 | [40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889), tentativa 2: **failure**; regressões/políticas/drivers aprovados; integridade externa falhou; pacote x64 skipped |
 | Arquivos alterados nesta etapa | Catálogo de identidade, fonte oficial Chrome, testes multifontes, probe e documentação/evidência; relação completa abaixo |
 | Código, versão e roadmap oficial | Fonte consultiva revista; versão de projeto mantida; **27/42**, 15 pendentes |
-| Próxima ação | Conferir a CI Windows do novo código e registrar seu SHA; depois encerrar a Etapa 1 |
+| Próxima ação | Retomar somente o bloqueio externo da Etapa 1, sem repetir a revisão Chrome; Etapa 2 ainda não iniciada |
 
-O commit do conteúdo auditado identifica a fotografia documental inicial; o
-recibo posterior acrescenta seu SHA e a PR. O HEAD final desse recibo deve ser
+O commit da auditoria inicial identifica a fotografia documental anterior; o
+commit de código da Etapa 1 está identificado separadamente. O HEAD final do recibo deve ser
 conferido na PR ao retomar. Não interpretar referências móveis como SHAs de
 build ou como autorização de distribuição.
 
@@ -32,14 +34,14 @@ build ou como autorização de distribuição.
    seus SHAs, estado e CI. Comparar com a fotografia abaixo.
 3. Preservar qualquer alteração posterior; não sobrescrever a branch por
    força. Divergências exigem uma conferência específica, sem reiniciar a auditoria.
-4. Executar **somente a primeira etapa pendente**, atualmente a Etapa 1.
+4. Executar **somente a primeira etapa pendente**, atualmente o bloqueio externo da Etapa 1; não repetir seus testes/revisões já concluídos sem nova evidência.
 5. Registrar implementação, testes, limitações, SHA e próxima ação nos dois
    documentos; salvar no GitHub e encerrar a sessão.
 
 **A Etapa 0 não foi repetida.** Nesta sessão foi revisado somente o escopo da
 Etapa 1. A Etapa 2 (drivers) permanece não iniciada.
 
-## Etapa 1 — implementação e validação em curso
+## Etapa 1 — parte técnica validada; bloqueio externo preservado
 
 As PRs #60/#61/#62/#63/#64 e seus SHAs foram reconferidos e permaneceram
 iguais aos registrados na Etapa 0. A PR #63 continua Draft; seus cinco
@@ -51,7 +53,14 @@ alterações de trabalho, sem merge e sem modificar sua branch de origem.
   sete falhas antes da correção; depois, 37/37 passaram.
 - **Regressão local:** suíte multifontes completa 196/196, SDK 10.0.402
   em Linux. Política estática: 18/18 testes, 248 fontes examinadas.
-  CI Windows da revisão pendente de conferência.
+- **Windows no SHA exato:** 196/196 multifontes, 368/368 atualizadores,
+  707/707 resíduos/desinstalação, 36/36 mutações recusadas, 47/47 MSIX e
+  30/30 encerramento aprovados. Políticas e drivers 2022/2025 aprovados.
+- **Bloqueio de CI integral:** na tentativa 1, o job de integridade recusou
+  redirect VLC para HTTP antes de segui-lo. Foi solicitada uma única repetição
+  desse job; na tentativa 2, outro espelho HTTPS retornou 403. Nenhuma regra
+  foi relaxada. O gate impediu o empacotamento x64, que ficou skipped.
+  [Evidência por tentativa e job](evidencias/pre-beta-etapa1-ci-40514120889.json).
 - **API oficial:** win/win64 responderam HTTP 200 sem redirects; paginação
   real aceita sem seguir token. O C# real também validou os dois endpoints.
 - **Ganho do componente:** mesmo probe de sete entradas, 1 → 3 candidatos
@@ -71,12 +80,28 @@ Arquivos: `CatalogoIdentidades.json`, `OfficialReleaseSources.cs`,
 `scripts/measure_pre_beta_sources.py`,
 `docs/EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md`,
 `docs/evidencias/pre-beta-etapa1-fontes-comparacao.json`,
-`docs/evidencias/pre-beta-etapa1-api.json` e os dois documentos
+`docs/evidencias/pre-beta-etapa1-api.json`,
+`docs/evidencias/pre-beta-etapa1-ci-40514120889.json` e os dois documentos
 de continuidade. Detalhes: [revisão e limites](EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md).
 
 Roadmap oficial, U8 e os demais checkpoints permanecem abertos conforme a
 fotografia inicial. Infraestrutura privada, main, PR #40 e dados dos PCs
 preservados. Nenhuma nova investigação WinGet COM.
+
+### Limite e próxima ação exata
+
+A revisão do componente Chrome foi concluída e seus testes passaram nos
+dois ambientes. **A Etapa 1 permanece BLOQUEADA**, pois a CI obrigatória do
+conjunto ainda não aprovou a integridade externa. Não declarar candidata
+aprovada, não distribuir pacote nem avançar à Etapa 2.
+
+Na retomada, verificar somente evidência nova sobre o catálogo/download VLC
+e a CI do SHA acima. Uma correção deve demonstrar origem HTTPS, identidade,
+hash e assinatura preservados, com regressão específica. Não substituir a
+recusa de HTTP/403 por sucesso, não remover o teste, não criar exceção de
+assinatura e não repetir tentativas apenas para obter verde. Se não houver
+correção segura ou nova evidência de disponibilidade, preservar o bloqueio
+e encerrar, sem repetir a auditoria, o parser, o probe ou os testes físicos.
 
 ## Fotografia inicial verificada do GitHub — Etapa 0
 
@@ -201,7 +226,7 @@ independente; não confundir sua consulta com execução de COM/CLI.
 | Etapa | Estado após esta sessão | Próxima ação e critério de saída |
 | --- | --- | --- |
 | 0 — Auditoria | **CONCLUÍDA** | Referências, pendências, evidências e continuidade registradas; encerrar |
-| 1 — Fontes / #63 | **EM ANDAMENTO** | Revisão/correções e testes locais aprovados; conferir CI Windows, registrar SHA e encerrar; arquitetura comprovada na tela permanece para a Etapa 3 |
+| 1 — Fontes / #63 | **BLOQUEADA** | Revisão/correções e regressões Windows aprovadas; integridade externa VLC falhou por HTTP e depois 403; retomar somente esse bloqueio com nova evidência; arquitetura na tela permanece para a Etapa 3 |
 | 2 — Drivers consultivos | **NÃO INICIADA** | Reusar Lote 2; completar análise D2/G1/G2/D4, testes específicos e limites de histórico/pacote; nenhuma escrita |
 | 3 — Atualizações | **NÃO INICIADA** | Reusar WORK13–18; validar identidade, payload, estados/cancelamento em fixtures e lacunas U8; sem atualização real |
 | 4 — Desinstalação / resíduos | **NÃO INICIADA** | Reusar WORK10–14/Lote 3; demonstrar propriedade, SIM/NÃO e falhas em alvos descartáveis; R4/R6/R7 reais continuam dependentes de evidências |
@@ -229,8 +254,8 @@ perfis, configurações, jogos, saves e dados compartilhados.
 
 ## Próxima ação exata e comando para retomada
 
-Em outra sessão, conferir esta branch e iniciar exclusivamente a revisão da
-PR #63 na **Etapa 1**. Não retomar WORK18, refazer a Etapa 0 nem trabalhar
-na infraestrutura BETA.
+Em outra sessão, conferir esta branch e retomar exclusivamente o bloqueio
+externo da **Etapa 1**. A revisão da PR #63 já está concluída; não refazê-la.
+Não iniciar drivers/Etapa 2 nem trabalhar na infraestrutura BETA.
 
-> Continue a missão pré-BETA do Gerenciador Final na branch work-pre-beta-etapa0-20261027. Leia docs/WORK-PRE-BETA-CHECKPOINT.md e docs/WORK-PRE-BETA-MATRIZ.md, confira o HEAD, as PRs e a CI atuais e execute somente a ETAPA 1 — Fontes de atualização e PR #63. Preserve as restrições, salve o checkpoint no GitHub e pare ao concluir a etapa.
+> Continue a missão pré-BETA do Gerenciador Final na branch work-pre-beta-etapa0-20261027. Leia o checkpoint e a matriz, confira os SHAs e a CI e retome somente o bloqueio externo VLC da ETAPA 1. Não repita a revisão Chrome nem os testes concluídos; preserve as proteções, salve o resultado no GitHub e pare antes da Etapa 2.

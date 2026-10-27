@@ -41,7 +41,14 @@ e exige quatro componentes numéricos ASCII, com início/fim absolutos.
 Após a correção: **37/37** na revisão focal e **196/196** na suíte multifontes
 completa, executadas em Linux com o SDK fixado **10.0.402**. O SDK foi obtido
 do endereço oficial Microsoft e seu SHA-512 conferido pelos metadados oficiais.
-A CI Windows da nova revisão ainda precisa ser conferida separadamente.
+O job de regressões Windows da
+[CI 40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889)
+também aprovou **196/196 multifontes**, 368/368 atualizadores e 707/707
+resíduos/desinstalação no SHA `8e195bfa3dfaab6767d877e78a2ad8d2b538f49c`.
+**A CI integral falhou:** tentativa 1 recusou redirect HTTP do VLC; a única
+repetição recebeu HTTP 403 de outro espelho HTTPS. O empacotamento x64 ficou
+skipped pelo gate. [Evidência de CI](evidencias/pre-beta-etapa1-ci-40514120889.json).
+Não há aprovação de candidata; a Etapa 1 permanece bloqueada no checkpoint.
 
 O conjunto cobre identidade, canal, arquitetura, resposta paginada real,
 host/credenciais/porta/query/fragmento, cache, uma requisição compartilhada
@@ -89,7 +96,7 @@ afirma que o Chrome esteja instalado neles.
 
 ## Limites e próximos gates
 
-1. Compilação e suítes Windows da revisão pré-BETA, com CI do SHA novo registrada no checkpoint. A CI da proposta #63 já está aprovada.
+1. Regressões Windows da revisão aprovadas, mas CI integral bloqueada pela integridade externa VLC. Retomar somente esse bloqueio com nova evidência, sem afrouxar HTTPS/hash/assinatura; não gerar candidata aprovada. A CI anterior da proposta #63 continua aprovada.
 2. Teste ao vivo do serviço Google realizado em Linux por GETs fixos e pelo parser C#; não é homologação da aplicação em Windows nem de instalador.
 3. Medir acréscimo real de cobertura nos inventários antes de prometer novos candidatos. Logs anteriores são anônimos e não permitem afirmar que o Chrome está instalado nos PCs.
 4. Validar interação física e AVG somente se o código for aprovado para uma futura build TESTE; sem tocar nos computadores agora.

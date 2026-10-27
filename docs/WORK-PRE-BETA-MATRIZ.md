@@ -1,6 +1,6 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapa 0 concluída; Etapa 1 em validação Windows em 27/10/2026.** Base: WORK18 .65 TESTE,
+**Etapa 0 concluída; Etapa 1 BLOQUEADA pela integridade externa em 27/10/2026.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
@@ -142,16 +142,26 @@ Etapas 2–7 continuam não iniciadas. O roteiro físico mínimo final pertence
 à Etapa 6 e deve partir das evidências acima, incluindo a pendência específica
 T11; não solicitar uma nova bateria completa por falta de consolidação.
 
-## Etapa 1 — fonte Chrome revista (CI Windows pendente)
+## Etapa 1 — fonte Chrome revista; regressões aprovadas, CI integral bloqueada
 
 | Funcionalidade | Antes | Depois | Evidência | Limitação | Roadmap |
 | --- | --- | --- | --- | --- | --- |
 | Consulta oficial Chrome | Proposta #63 separada; API ao vivo não validada | Cinco arquivos revistos incorporados na branch #64, sem merge; GETs win/win64 e parser C# reais aprovados | [Revisão](EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md), modo explícito `--chrome-live` | Somente consulta; sem prova de rollout, payload ou arquitetura local no adaptador da tela | Nenhum novo checkpoint |
-| Parser Chrome | Aceitava propriedades JSON duplicadas, LF final e dígitos não ASCII | Recusa ambiguidades e exige versão ASCII completa com quatro componentes | 7 falhas reproduzidas antes; 37/37 verificações focais após a correção | CI Windows desta revisão ainda pendente; testes locais em Linux | Proteções preservadas; U8 aberto |
-| Isolamento/cache | Contratos existentes e teste entre duas arquiteturas Chrome | Confirmada preservação de Mozilla/GitHub frente a 429/500/302/JSON inválido/duplicado/corpo excessivo/timeout; concorrência deduplicada e cancelamento explícito | Suíte multifontes 196/196 local; fixtures sem rede | Não comprova disponibilidade permanente dos serviços externos | U1/U2 já concluídos anteriormente |
+| Parser Chrome | Aceitava propriedades JSON duplicadas, LF final e dígitos não ASCII | Recusa ambiguidades e exige versão ASCII completa com quatro componentes | 7 falhas reproduzidas antes; 37/37 focais locais; 196/196 multifontes em Linux e Windows | CI integral não aprovada devido ao download VLC externo | Proteções preservadas; U8 aberto |
+| Isolamento/cache | Contratos existentes e teste entre duas arquiteturas Chrome | Confirmada preservação de Mozilla/GitHub frente a 429/500/302/JSON inválido/duplicado/corpo excessivo/timeout; concorrência deduplicada e cancelamento explícito | Suíte multifontes 196/196 local e Windows; fixtures sem rede | Não comprova disponibilidade permanente dos serviços externos | U1/U2 já concluídos anteriormente |
 | Cobertura consultiva controlada | 1 resultado/candidato; 0 Chrome, em 7 entradas | 3 resultados/candidatos; 2 arquiteturas Chrome da mesma família; zero falsos candidatos nos 4 controles | [Comparação reproduzível](evidencias/pre-beta-etapa1-fontes-comparacao.json), mesmo probe nos dois snapshots | Amostra sintética, não novos aplicativos homologados ou ganho físico | 27/42 mantidos |
 | Arquitetura Chrome na tela | Nome exato `Google Chrome`, arquitetura obtida apenas por sufixos de nome | Limitação de entrada identificada e documentada; gate conservador mantido | `Program.cs`, `LoadUpdatesAsync`; identidade exata e testes de arquitetura desconhecida | Na tela atual, esse nome produz `unknown` e não consulta a nova fonte; fornecer prova local na Etapa 3 | Pendência de cobertura/identidade; sem encerrar U8 |
 
 Sem nova leitura/repetição dos testes físicos da Etapa 0. Sem alteração da
-BETA .66, drivers, permissões ou comandos de execução. A próxima etapa só
-será liberada no checkpoint depois da conferência da CI Windows desta revisão.
+BETA .66, drivers, permissões ou comandos de execução.
+
+CI [40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889),
+fonte `8e195bfa3dfaab6767d877e78a2ad8d2b538f49c`: regressões/políticas/drivers
+aprovados, integridade externa **failure**. Tentativa 1 recusou HTTP no VLC;
+a única repetição recebeu 403 de outro espelho HTTPS. O pacote x64 foi
+bloqueado pelo gate e ficou skipped. [Resultados por job/tentativa](evidencias/pre-beta-etapa1-ci-40514120889.json).
+
+**Primeira pendência: somente o bloqueio externo da Etapa 1.** A revisão
+Chrome está concluída e não deve ser repetida. Não avançar à Etapa 2, não
+relaxar as proteções ou repetir tentativas sem nova evidência. A arquitetura
+local para a tela permanece como pendência de cobertura da futura Etapa 3.
