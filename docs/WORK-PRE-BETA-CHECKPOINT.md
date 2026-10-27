@@ -1,0 +1,580 @@
+# WORK PRÉ-BETA — checkpoint de continuidade
+
+Data da auditoria: **27/10/2026 (America/Sao_Paulo)**.
+Missão: concluir as funções essenciais antes do BETA, executando **uma etapa por sessão**.
+
+## Estado da sessão
+
+| Campo | Registro |
+| --- | --- |
+| Etapa executada | **7 — Avaliação de integração e decisão técnica pré-BETA** |
+| Estado | **AVALIAÇÃO CONCLUÍDA; MISSÃO 0–7 ENCERRADA; BETA BLOQUEADA** para a candidata conectada neste estado; homologações parciais, drivers desativados, 27/42 |
+| Repositório | `walissonminel-1991/gerenciador-final` |
+| Branch de continuidade | `work-pre-beta-etapa0-20261027` |
+| Base imutável | `2bc9f4228fd448445fbf181652e5af93005def20` — WORK18 / PR #60 |
+| Fonte da candidata .65 já existente | `e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d` |
+| Commit da auditoria inicial | [`1399468d22061e79b6a6f957ba472d84a1aec9ec`](https://github.com/walissonminel-1991/gerenciador-final/commit/1399468d22061e79b6a6f957ba472d84a1aec9ec) |
+| PR de acompanhamento | [#64 — Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/64) |
+| Ponto de retomada anterior | `d01e37708bc06141e6dc7ffdee4ca346caddec4c` — Etapa 6 documental; último código validado 386e7cd na CI 40565220517 |
+| Commit da revisão Chrome anterior | [`8e195bfa3dfaab6767d877e78a2ad8d2b538f49c`](https://github.com/walissonminel-1991/gerenciador-final/commit/8e195bfa3dfaab6767d877e78a2ad8d2b538f49c) |
+| CI histórica anterior à exclusão | [40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889), tentativa 2: **failure**; não reexecutar |
+| Commit da exclusão solicitada | [`341c109b6b8538733b32a02909ff40c8e0a380d9`](https://github.com/walissonminel-1991/gerenciador-final/commit/341c109b6b8538733b32a02909ff40c8e0a380d9) |
+| Commit de código da Etapa 4 | [`386e7cd5263266a0478e60139e59b036f1d69e31`](https://github.com/walissonminel-1991/gerenciador-final/commit/386e7cd5263266a0478e60139e59b036f1d69e31) |
+| CI da Etapa 4 | [40565220517](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517): **success**, tentativa 1, seis jobs obrigatórios aprovados e dois condicionais skipped |
+| Commit de código da Etapa 3 | [`5a7c0482a759009678b73c7c0cc75727b3b872f0`](https://github.com/walissonminel-1991/gerenciador-final/commit/5a7c0482a759009678b73c7c0cc75727b3b872f0) |
+| CI da Etapa 3 | [40559631389](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40559631389): **success**, tentativa 1, seis jobs obrigatórios aprovados e dois condicionais skipped |
+| Commit de código da Etapa 2 | [`09fff12b0f854ab9c23886146479a7f993f936b7`](https://github.com/walissonminel-1991/gerenciador-final/commit/09fff12b0f854ab9c23886146479a7f993f936b7) |
+| CI da Etapa 2 | [40525913386](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
+| CI anterior sem o alvo excluído | [40519539258](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40519539258): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
+| Arquivos alterados nesta etapa | Somente checkpoint, matriz, `WORK-PRE-BETA-ETAPA7-DECISAO.md`, `evidencias/pre-beta-etapa7-decisao.json`, `PROGRESSO.json` e `ROADMAP.md` |
+| Código, versão e roadmap oficial | Código/testes/workflows/versão, candidata/artefatos e histórico físico preservados; avaliação final registrada; **27/42**, 15 pendentes; nenhum done alterado |
+| Próxima etapa | **Nenhuma automática.** Missão 0–7 encerrada; continuidade restrita aos bloqueios documentados somente com novo escopo, sem Etapa 8 implícita |
+
+O commit da auditoria inicial identifica a fotografia documental anterior; o
+commit de código da Etapa 1 está identificado separadamente. O HEAD final do recibo deve ser
+conferido na PR ao retomar. Não interpretar referências móveis como SHAs de
+build ou como autorização de distribuição.
+
+## Retomada obrigatória
+
+1. Abrir esta branch e ler este arquivo e a [matriz](WORK-PRE-BETA-MATRIZ.md).
+2. Conferir o HEAD remoto, a PR de acompanhamento, as PRs #60/#63/#61/#62,
+   seus SHAs, estado e CI. Comparar com a fotografia abaixo.
+3. Preservar qualquer alteração posterior; não sobrescrever a branch por
+   força. Divergências exigem uma conferência específica, sem reiniciar a auditoria.
+4. Conferir o escopo solicitado: a missão 0–7 está encerrada. Bloqueios remanescentes não autorizam etapa automática, integração, infraestrutura ou distribuição. Respeitar a exclusão permanente e não repetir revisões/testes sem nova evidência.
+5. Registrar implementação, testes, limitações, SHA e próxima ação nos dois
+   documentos; salvar no GitHub e encerrar a sessão.
+
+**As Etapas 0–6 não foram repetidas.** Esta sessão avaliou somente integração
+e decisão técnica da Etapa 7. CIs anteriores conferidas, sem reexecução.
+Nenhum código combinado, operação em PC ou acesso à infraestrutura.
+Os registros anteriores abaixo são históricos.
+
+## Conferência de retomada com referência antiga — 27/10/2026
+
+HEAD conferido: `6d6af1b2cb0354d5d04e09daf62ccd80b9ffd43d`, PR #64 aberta e Draft.
+O código `341c109b6b8538733b32a02909ff40c8e0a380d9` continua com
+a CI 40519539258 concluída e aprovada. Checkpoint e matriz confirmam as
+Etapas 0/1 concluídas e a Etapa 2 ainda não iniciada.
+
+O comando recebido fazia referência ao bloqueio anterior à exclusão
+permanente. Essa pendência já foi retirada do escopo por instrução do
+mantenedor; não foi reaberta e nenhum site foi consultado. Não houve
+revisão Chrome, repetição de testes, alteração de código ou operação nos PCs.
+Esta retomada registra somente a conferência documental e encerra antes da
+Etapa 2, conforme o limite solicitado. O comando atual ao final deste arquivo
+apontava a Etapa 2, agora executada na sessão registrada abaixo.
+
+## Etapa 7 — sessão atual (27/10/2026)
+
+Entrada `d01e37708bc06141e6dc7ffdee4ca346caddec4c`, checkout limpo e PR #64 aberta,
+Draft, base WORK18 inalterada. Main e PRs #40/#59/#60/#61/#62/#63 conferidas,
+SHAs preservados; CIs #60/#61/#62/#63 reconferidas. CI 40565220517 do código
+pré-BETA 386e7cd aprovada: seis jobs obrigatórios success, dois condicionais
+skipped, tentativa 1. BETA e530d72 com CI principal 40409850849 aprovada,
+seis jobs success e um condicional skipped. Falha externa histórica #62
+conservada, sem reinvestigação/reexecução nem novo requisito do alvo excluído.
+
+Contra a base comum, cada frente altera 62 arquivos; quatro em comum.
+Ensaio de aplicação somente de conferência, em índice temporário, não altera
+branch/índice real/working tree: Program, despachante de layout e ROADMAP
+textualmente limpos; **PROGRESSO com conflito**, apesar de saída 0. As chaves
+raiz alteradas são disjuntas. Projeção somente em memória preserva candidata/
+bloco BETA e seis chaves físicas/seções da pré-BETA, com 27/42 e histórico
+intactos. Nenhuma composição aplicada/compilada/testada. Isolamento dos novos
+arquivos de testes conferido pelas exclusões de compilação de ambos os projetos.
+
+[Decisão, cobertura e matriz de liberação](WORK-PRE-BETA-ETAPA7-DECISAO.md) ·
+[Evidência estruturada](evidencias/pre-beta-etapa7-decisao.json).
+**BETA BLOQUEADA para a candidata conectada que reúna as frentes neste estado.**
+Faltam fonte integrada rastreada/CI própria, configuração/aviso aprovados em
+fonte, evidência conectada/retenção e Windows/AVG do pacote exato. Aprovações
+versionadas continuam pendentes. Não foi auditado o estado remoto; não se
+infere falha de infraestrutura pelos campos vazios. O piloto conectado não
+foi substituído por distribuição offline. Os 15 checkpoints abertos não viram
+uma exigência arbitrária de 42/42; gestão de drivers pode permanecer desativada.
+
+Validação documental/JSON/referências/metadados, projeção de dados e preservação
+dos 42 estados aprovadas. Só seis Markdown/JSON alterados; recibo `[skip ci]`,
+sem nova build ou suíte de produto repetida. Os 12 documentos entre o código
+386e7cd e a entrada d01e377 não alteram comportamento executável. CI dos pais
+não comprova composição hipotética. Conferir o SHA final documental no HEAD
+da PR #64; último código pré-BETA validado permanece 386e7cd.
+
+**Missão 0–7 encerrada como registrada; roadmap 27/42, 15 pendentes.**
+Exclusão permanente, drivers desativados, proteções, PCs, BETA e infraestrutura
+preservados. Sem merge/rebase/release/deploy, distribuição, elevação/ACL,
+reinício, WinGet ou transmissão de diagnóstico. Nenhuma etapa seguinte iniciada.
+
+## Etapa 6 — registro da sessão concluída (27/10/2026)
+
+Base `3b6061c33df54cd2b5689a1cabacb866e9a28ff4`, checkout limpo e PR #64 aberta,
+Draft, base WORK18 inalterada. SHAs/CI das PRs #60/#61/#62/#63 e main conferidos
+e preservados; a falha externa histórica da #62 não foi reinvestigada.
+Etapa 5 somente documental, sem nova CI. CI da Etapa 4 40565220517 reconferida:
+código 386e7cd, tentativa 1, success, seis jobs obrigatórios aprovados e dois
+condicionais skipped. Nenhum código mudou depois dessa CI.
+
+As cinco fontes E1–E5 foram recuperadas e relidas integralmente. Matriz física
+consolidada com inventários 169/74 incluindo 27/19 MSIX, fontes/candidatos,
+Startup/Inventory/Updates, CPU por etapa, working set, drivers/pacotes,
+bandeja e estabilidade. E3/E5 repetem eventos da mesma sessão. E3/E4/E5 não
+registram versão; sua associação à .65/FRACO é contextual. Logs .64/.65 não
+registram SHA/hash do artefato e não homologam o código pré-BETA 386e7cd.
+
+[Consolidação, 15 avaliações e roteiro focal](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md) ·
+[Evidência estruturada](evidencias/pre-beta-etapa6-fisica.json).
+I7/P5/P6/V5/D4 avançam em evidência, mas não cumprem os critérios completos.
+Faltam conferência equivalente de cobertura/interpretação, repouso comparável,
+aprovação visual vinculada ao artefato/DPI e causa/resolução AVG. T11 continua
+não executado. Encerramento normal, candidato ou contagem não fecham checkpoint.
+
+PROGRESSO corrige os últimos testes físicos para .65/FRACO e registra .64/FORTE;
+os antigos registros .52/.24 foram preservados integralmente no histórico.
+Os cinco checkpoints prioritários recebem evidência atual, sem mudar os 42
+valores done, candidata, versão, CI de distribuição ou hashes. ROADMAP/TESTES
+apontam quatro blocos focais, sem solicitar nova bateria completa.
+
+Validação documental/JSON/referências, agregados/linhas, preservação do histórico,
+27/42 e verificador de metadados de pacote existente aprovados. Só sete arquivos
+Markdown/JSON alterados, diff sem whitespace inválido; blobs fora de docs iguais
+à base. Zero testes de produto novos/reexecutados e zero sessão física nova.
+Recibo `[skip ci]`, sem nova build; conferir seu SHA documental no HEAD da PR #64.
+O último código validado permanece 386e7cd na CI 40565220517.
+
+**Consolidação concluída, homologações parciais; roadmap 27/42, 15 pendentes.**
+Drivers desativados, exclusão permanente, proteções, PCs e BETA/infraestrutura
+preservados. Sem operação, elevação/ACL, reinício, merge/release/deploy ou WinGet.
+**Parada antes da Etapa 7.**
+
+## Etapa 5 — registro da sessão concluída (27/10/2026)
+
+Base `466092ce237eba098ba83612c6b7774ec8226e5e`, checkout limpo e PR #64 aberta,
+Draft, base WORK18 inalterada. SHAs/CI das PRs #60/#61/#62/#63 reconferidos e
+inalterados; #62 conserva sua falha externa histórica, sem reinvestigação.
+CI da Etapa 4 reconferida: 40565220517, código 386e7cd, tentativa 1, success,
+seis jobs obrigatórios aprovados e dois condicionais skipped. O recibo 466092c
+altera apenas cinco documentos; nenhum código mudou depois dessa CI.
+
+Resultado: mapeadas as lacunas dos contratos consultivos para gestão; seis
+fontes Microsoft sustentam a comparação das APIs. Staging já é escrita;
+DiInstallDriver pode atingir vários dispositivos e TRUE não confirma a versão;
+DiRollbackDriver depende de backup e pode remover o pacote substituído.
+Definidos requisitos futuros de identidade/payload, escopo, consentimento,
+registro durável, confirmação e recuperação, com 12 casos de revisão ainda
+não executados. **Sem executor, botão, flag de ativação ou protótipo executável.**
+CanInstall/CanMaintain continuam false. Nenhuma operação de drivers foi feita.
+
+[Estudo e decisão](WORK-PRE-BETA-ETAPA5-GESTAO-DRIVERS.md) ·
+[Evidência estruturada](evidencias/pre-beta-etapa5-estudo-drivers.json).
+Validação documental: JSON/referências/IDs, diff sem whitespace inválido e
+blobs fora dos quatro documentos idênticos à base. Zero testes de produto
+novos/reexecutados; nenhuma nova CI solicitada. Commit somente Markdown/JSON
+com `[skip ci]`; conferir o SHA documental no HEAD da PR #64 ao retomar.
+O último código validado continua 386e7cd na CI 40565220517, não o novo HEAD.
+
+**Estudo concluído; gestão desativada; G1–G5 abertos; roadmap 27/42.**
+G3/G4/G5 não são concluídos por planejamento. Homologações anteriores,
+R4/R6/R7 e demais pendências preservadas. Exclusão permanente, PCs, BETA e
+infraestrutura intactos, sem merge/deploy/release. **Parada antes da Etapa 6.**
+
+## Etapa 4 — registro da sessão concluída (27/10/2026)
+
+Base `9a01aee2d14685efa8b28df63fb406d14fd32625`, PR #64 aberta e Draft. Conferidos os
+SHAs das PRs #60/#61/#62/#63, inalterados. CI 40559631389 da Etapa 3 aprovada
+no código 5a7c048, seis jobs obrigatórios success e dois condicionais skipped.
+
+Correções: ausência de handle do shell não é falha comprovada de início;
+agora fica Pending, interrompe o lote, conserva bloqueio de repetição e não
+autoriza inspeção/limpeza. Falha Win32 ao acompanhar processo já iniciado é
+marcada separadamente como pendente, inclusive código 1223, sem ser confundida
+com recusa inicial do UAC. Falhas comprovadas de início/UAC mantêm seus estados.
+O resumo geral distingue falha, lote misto, pendência, cancelamento, inspeção
+indisponível, exclusão parcial e preservação por escolha NÃO.
+
+Antes/depois: **29 casos comparáveis, 11 aprovados/18 falhas → 29/29**.
+Mais 41 controles existentes do fluxo passaram localmente; build Release com
+analisadores sem avisos/erros. SDK 10.0.402, SHA-512 oficial conferido.
+A suíte completa em Linux parou na asserção preexistente de seleção de RAM,
+antes dos casos novos; RAM não foi alterada. A regressão completa fica para
+CI Windows. Cinco cenários nativos descartáveis foram preparados: NÃO,
+alteração após consentimento, cancelamento, SIM com preservação de Documents/
+vizinho e propriedade concorrente. Ainda não foram executados localmente.
+
+[Relatório e limites](WORK-PRE-BETA-ETAPA4-DESINSTALACAO.md) ·
+[Evidência](evidencias/pre-beta-etapa4-desinstalacao.json).
+**CI [40565220517](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517) aprovada** no código
+`386e7cd5263266a0478e60139e59b036f1d69e31`, tentativa 1. Seis jobs
+obrigatórios success, dois condicionais skipped.
+[Recibo por job](evidencias/pre-beta-etapa4-ci-40565220517.json).
+
+Windows: **739/739 resíduos/desinstalação**, incluindo **29 focais e cinco
+casos nativos novos**. SIM/NÃO, mudança após consentimento, cancelamento,
+preservação de Documents/vizinho e dono concorrente aprovados em TEMP
+descartável. A asserção de RAM que limitou a execução Linux passou no Windows;
+nenhum código de RAM foi alterado. Regressões: 410 atualizadores, 196
+multifontes, 36 mutações rejeitadas, 47 MSIX, 30 encerramento e 41
+Python/políticas. Interface, drivers 2022/2025 e integridade externa aprovada.
+Pacote x64 self-contained com 284 hashes pela CI; sem homologação AVG ou
+conferência independente do ZIP. Nenhum código mudou após a CI. O recibo
+posterior altera somente Markdown/JSON, `[skip ci]`; conferir seu SHA no HEAD
+da PR #64, sem atribuir um novo build a ele.
+
+**R4/R6/R7 continuam abertos, roadmap 27/42.** Nenhuma desinstalação real,
+exclusão em PC pessoal, elevação nova, reinício ou operação de drivers. Etapa 5
+não iniciada; exclusão permanente e BETA/Worker/D1/DNS/flags preservados.
+
+## Etapa 3 — registro da sessão concluída (27/10/2026)
+
+Base `b74eb879b74360ed78e57b105463fb81fa5ffe83`, PR #64 aberta e Draft.
+SHAs das PRs #60/#61/#62/#63 reconferidos e inalterados. CI da Etapa 2:
+40525913386 aprovada no código 09fff12, seis jobs success e dois condicionais
+skipped; b74eb87 era recibo somente documental.
+
+O inventário captura arquitetura do PE principal Stable explicitamente
+registrado para a consulta Chrome. Exige raiz do mesmo escopo, caminho seguro,
+Machine/Magic coerentes, produto, empresa e versão correspondentes. Sem prova,
+conserva unknown. Não infere bitness pelo SO/RegistryView; ARM64 não vira x64.
+É leitura estrutural de metadados, não autenticação do editor nem receita.
+
+O histórico conserva também uma primeira consulta parcial. Cancelamento
+posterior preserva candidato em revisão/stale, sem ação direta. Troca de
+instalação invalida o cache; consulta completa substitui a evidência. Falhas
+não renovam 30 minutos; até 16 observações por aplicativo. O status da tela
+passa a contar falha da fonte automática, evitando falsa consulta concluída.
+
+Antes/depois: projeção original extraída sem mudar a lógica; 41 casos
+comparáveis passaram de 36 aprovações/5 falhas a 41/41. Mais um controle de
+memória: **42/42 focais**, 196/196 multifontes, builds do produto e interface
+sem avisos/erros em Linux antes da interrupção. O ambiente local reiniciou;
+as alterações foram recuperadas desta sessão sobre o mesmo SHA-base e serão
+validadas novamente na CI Windows. A integração fonte fictícia → tela real
+não foi executada em Linux. Nenhum endpoint Chrome foi reconsultado.
+
+[Relatório e roteiro futuro](WORK-PRE-BETA-ETAPA3-ATUALIZACOES.md) ·
+[Evidência](evidencias/pre-beta-etapa3-atualizacoes.json).
+**CI [40559631389](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40559631389) aprovada** no código
+`5a7c0482a759009678b73c7c0cc75727b3b872f0`, tentativa 1. Seis jobs
+obrigatórios success, dois condicionais skipped.
+[Recibo por job](evidencias/pre-beta-etapa3-ci-40559631389.json).
+
+A cópia recuperada foi validada: **410/410 atualizadores (42 novos incluídos),
+196/196 multifontes, 705/705 resíduos, 36/36 mutações rejeitadas, 47 MSIX,
+30 encerramento, 41 Python/políticas**. Interface: oito combinações WORK18
+e integração nova aprovadas; fixture com quatro entradas passou de **0 → 2
+candidatos consultivos**, dois controles sem candidato, duas consultas
+fictícias, zero rede real e zero receitas executáveis. Não são dois novos
+aplicativos homologados nem atualizações físicas.
+
+Drivers 2022/2025, integridade dos demais instaladores e pacote x64
+self-contained aprovados. A CI conferiu 284 hashes; não houve conferência
+independente do artefato ou homologação AVG nesta sessão. Nenhum código mudou
+após a CI. O recibo posterior é apenas Markdown/JSON com `[skip ci]`; seu
+HEAD deve ser conferido na PR #64 e não identifica um novo build.
+
+**U8 permanece aberto, roadmap 27/42.** Etapa 4 não iniciada; exclusão
+permanente, PCs, BETA e infraestrutura preservados, sem merge/deploy/release.
+
+## Etapa 2 — registro da sessão concluída (27/10/2026)
+
+Retomada a partir de `a4d30a1734fc54af35bec494e65653475970c40b`.
+PR #64 aberta e Draft, base WORK18 inalterada. Conferidos os SHAs das PRs
+#60/#61/#62/#63 e a CI 40519539258 aprovada; nenhuma dessas branches mudou.
+
+Correções funcionais realizadas: registros contraditórios da mesma instância
+não são reduzidos ao primeiro driver; HardwareIDs divergentes sobrevivem à
+correlação WMI; identidade oficial nula e data ausente/sentinela são
+inconclusivas; seções Device Install não compreendidas tornam o histórico
+parcial; identidade vazia não conta como dispositivo associado a um INF.
+O fallback de nome PnP usa o mesmo ID normalizado da presença.
+
+Prova antes/depois: **26 verificações novas, 6 aprovadas/20 falhas antes,
+26 aprovadas/zero falhas depois**, sobre os mesmos casos sintéticos.
+Regressão local de drivers: **165 verificações aprovadas**; build Release
+com analisadores: **zero avisos e erros**. Esta máquina é Linux; WMI,
+SetupAPI, assinatura e WUA nativos ficam para a CI Windows descartável.
+Nenhum driver foi baixado, instalado, removido ou revertido.
+
+[Relatório e limites](WORK-PRE-BETA-ETAPA2-DRIVERS.md) ·
+[Evidência comparativa](evidencias/pre-beta-etapa2-drivers.json).
+Código aprovado: `09fff12b0f854ab9c23886146479a7f993f936b7`. [CI 40525913386](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386)
+**success**, tentativa 1: seis jobs obrigatórios aprovados e dois condicionais
+skipped. [Recibo por job e runner](evidencias/pre-beta-etapa2-ci-40525913386.json).
+
+Windows 2022/2025: **174 verificações aprovadas por runner**, incluindo as
+26 novas. WMI: 67 associações em cada; Store: 46/48 INFs mapeados; INFs
+publicados: 666/732, enumeração completa mas consulta de associações parcial.
+Histórico: zero vínculos e leitura parcial em ambos. Assinatura: 24 INFs/
+catálogos verificados por runner; INF sintético sem catálogo rejeitado. WUA:
+consulta completa com zero ofertas/vínculos em ambos. Isso não fecha G1/G2.
+Regressões Windows: 196 multifontes, 368 atualizadores, 705 resíduos,
+36 mutações rejeitadas, 47 MSIX, 30 encerramento; 41 testes Python/políticas.
+Pacote x64 self-contained aprovado, 284 hashes conferidos pela CI. Isso não
+comprova homologação AVG nem autoriza distribuição. Nenhum código mudou após
+essa CI. O recibo final é somente Markdown/JSON, com `[skip ci]`; conferir
+seu próprio SHA no HEAD da PR #64. Não atribuir um novo build a esse recibo.
+
+Reaproveitadas as evidências E1/E2: 166/119 associações, 63/53 INFs,
+19/17 compartilhados e três associações sem INF em cada PC. O detalhamento
+de pacotes do FORTE era parcial; o FRACO não tem prova equivalente completa.
+Não foram solicitados logs repetidos nem acessados dados dos PCs.
+**D2/D4/G1/G2 permanecem abertos, roadmap 27/42.** A Etapa 3 não foi iniciada.
+
+## Diretriz permanente — exclusão expressa do mantenedor (27/10/2026)
+
+> Remova o VLC de qualquer teste e verificação futura, incluindo adição de botões referente ao programa.
+
+VLC está fora do escopo de testes, consultas de versões, verificação de sites,
+downloads, homologação e ações do GF. Não tentar corrigir ou reconsultar seus
+espelhos. Não propor novos botões, atualizadores, desinstaladores ou limpeza
+para ele. O inventário pode conservar a entrada somente leitura, sem ações.
+
+Foram removidos o caso do verificador de catálogo/download real, os casos
+de teste específicos e as regras de identidade/limpeza/auditoria histórica.
+A política de exclusão também impede associação operacional e ações por
+MSIX/gerenciadores externos. Não foi criado um novo teste para esse produto.
+
+**Esta instrução explícita substitui a pendência anterior de investigar VLC.**
+A exclusão é uma mudança de escopo autorizada, não um afrouxamento de HTTPS,
+hash ou assinatura para os demais aplicativos. Os runs antigos continuam
+registrados como falhas históricas e não se tornam aprovados retroativamente.
+Não reexecutar branches antigas que ainda contenham esse alvo. A integração
+futura com a BETA deve carregar esta exclusão antes de disparar testes; a
+BETA privada atual e sua infraestrutura não foram modificadas.
+
+Validação local da alteração: compilação com analisadores e zero erros/avisos,
+196/196 multifontes, 54/54 ecossistemas e 18/18 políticas. A CI Windows do SHA
+`341c109b6b8538733b32a02909ff40c8e0a380d9` aprovou 196/196 multifontes,
+368/368 atualizadores, 705/705 resíduos/desinstalação, 36/36 mutações,
+47/47 MSIX, 30/30 encerramento, integridade dos outros instaladores,
+políticas, drivers dos runners 2022/2025 e empacotamento x64.
+Dois casos específicos foram removidos, explicando 707 → 705; não são falhas
+ignoradas. Nenhum teste novo para o produto excluído foi criado.
+[Evidência final do escopo e da CI](evidencias/pre-beta-etapa1-escopo-ci-40519539258.json).
+
+**Etapa 1 concluída tecnicamente.** Roadmap 27/42 e homologação física
+continuam como registrados. A arquitetura Chrome na tela permanece pendente
+da Etapa 3. Naquela sessão a Etapa 2 não foi iniciada. Não houve merge, deploy,
+release pública, distribuição BETA ou operação nos PCs.
+
+## Histórico da Etapa 1 — revisão Chrome e falha externa anterior à exclusão
+
+As PRs #60/#61/#62/#63/#64 e seus SHAs foram reconferidos e permaneceram
+iguais aos registrados na Etapa 0. A PR #63 continua Draft; seus cinco
+arquivos foram revistos e incorporados na branch de continuidade como
+alterações de trabalho, sem merge e sem modificar sua branch de origem.
+
+- **Correção demonstrada:** JSON duplicado/ambíguo e versões com LF final
+  ou dígitos não ASCII eram aceitos. As 37 verificações focais reproduziram
+  sete falhas antes da correção; depois, 37/37 passaram.
+- **Regressão local:** suíte multifontes completa 196/196, SDK 10.0.402
+  em Linux. Política estática: 18/18 testes, 248 fontes examinadas.
+- **Windows no SHA exato:** 196/196 multifontes, 368/368 atualizadores,
+  707/707 resíduos/desinstalação, 36/36 mutações recusadas, 47/47 MSIX e
+  30/30 encerramento aprovados. Políticas e drivers 2022/2025 aprovados.
+- **Bloqueio de CI integral:** na tentativa 1, o job de integridade recusou
+  redirect VLC para HTTP antes de segui-lo. Foi solicitada uma única repetição
+  desse job; na tentativa 2, outro espelho HTTPS retornou 403. Nenhuma regra
+  foi relaxada. O gate impediu o empacotamento x64, que ficou skipped.
+  [Evidência por tentativa e job](evidencias/pre-beta-etapa1-ci-40514120889.json).
+- **API oficial:** win/win64 responderam HTTP 200 sem redirects; paginação
+  real aceita sem seguir token. O C# real também validou os dois endpoints.
+- **Ganho do componente:** mesmo probe de sete entradas, 1 → 3 candidatos
+  consultivos; Chrome 0 → 2 arquiteturas, controles inelegíveis 0 → 0.
+  Nenhum instalador executado, nenhum ganho físico alegado.
+- **Limitação descoberta:** o adaptador `LoadUpdatesAsync` obtém arquitetura
+  pelos sufixos do nome, incompatíveis com a identidade exata `Google Chrome`.
+  Na tela atual, esse nome chega como `unknown` e não consulta a nova fonte.
+  Fornecer arquitetura local comprovada é pendência explícita da Etapa 3;
+  não inferir arquitetura pelo SO nem relaxar o gate.
+- **Fontes adicionais:** não foram acrescentados outros motores; o problema
+  de entrada acima deve ser resolvido antes de prometer ganho de cobertura.
+
+Arquivos: `CatalogoIdentidades.json`, `OfficialReleaseSources.cs`,
+`TestesMultifontes/ChromeVersionHistoryTests.cs`,
+`TestesMultifontes/ChromeVersionHistoryReviewTests.cs`, `TestesMultifontes/Program.cs`,
+`scripts/measure_pre_beta_sources.py`,
+`docs/EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md`,
+`docs/evidencias/pre-beta-etapa1-fontes-comparacao.json`,
+`docs/evidencias/pre-beta-etapa1-api.json`,
+`docs/evidencias/pre-beta-etapa1-ci-40514120889.json` e os dois documentos
+de continuidade. Detalhes: [revisão e limites](EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md).
+
+Roadmap oficial, U8 e os demais checkpoints permanecem abertos conforme a
+fotografia inicial. Infraestrutura privada, main, PR #40 e dados dos PCs
+preservados. Nenhuma nova investigação WinGet COM.
+
+### Estado histórico anterior à instrução do mantenedor
+
+A revisão do componente Chrome foi concluída e seus testes passaram nos
+dois ambientes. O run acima falhou antes da exclusão solicitada pelo usuário;
+é evidência histórica. Não retomar a investigação desse produto nem usar
+seus sites como requisito da missão. A aprovação do código atual deve vir
+da CI da revisão sem esse alvo, mantendo os controles dos demais aplicativos.
+
+## Fotografia inicial verificada do GitHub — Etapa 0
+
+Foram listadas **29 PRs abertas**, todas Draft, no início da auditoria.
+As PRs relevantes abaixo tiveram seus HEADs e execuções de CI consultados.
+Nenhuma PR existente, branch de referência ou configuração remota foi alterada.
+
+| Referência | Branch / HEAD exato | CI do HEAD consultada |
+| --- | --- | --- |
+| `main` | `410d65e23546976db456337c71e4705f10217d36` | Preservada; sem nova execução solicitada |
+| [#40](https://github.com/walissonminel-1991/gerenciador-final/pull/40) | `piloto-diagnostico-github-v5.13.11.2` — `ef13aef49083f357f6a14f4de46f8bc976dbd830` | [40142017415](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40142017415): success |
+| [#54 / Lote 1](https://github.com/walissonminel-1991/gerenciador-final/pull/54) | `work-lote1-confiabilidade-relatorios` — `7405d83f308a141d2a7f6c68cc5a5dee4a19067c` | [40214100769](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40214100769): success |
+| [#55 / Lote 2](https://github.com/walissonminel-1991/gerenciador-final/pull/55) | `work-lote2-drivers-leitura` — `6a020c86ba5024b780334217bb7f38b18b23bb34` | [40219971723](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40219971723): success |
+| [#56 / Lote 3](https://github.com/walissonminel-1991/gerenciador-final/pull/56) | `work-lote3-seguranca-desempenho` — `8f8d1c8fb109ba4956876b398f02dee6ce70f2e3` | [40231535067](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40231535067): success |
+| [#57 / Lote 4](https://github.com/walissonminel-1991/gerenciador-final/pull/57) | `work-lote4-consolidacao` — `cb7ca5ccd986fd11c768ee410ac7c2b46296e1c1` | [40235071337](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40235071337): success |
+| [#59 / integração .64](https://github.com/walissonminel-1991/gerenciador-final/pull/59) | `integracao-lotes1-4-work14-17-20261025` — `28beb9607e85d208af4c0864d768a6db7fb5296a` | [40242837652](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40242837652): success |
+| [#60 / WORK18 .65](https://github.com/walissonminel-1991/gerenciador-final/pull/60) | `work18-ampliacao-atualizacoes-seguras` — `2bc9f4228fd448445fbf181652e5af93005def20` | [40253446761](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40253446761): success |
+| [#63 / Chrome](https://github.com/walissonminel-1991/gerenciador-final/pull/63) | `experimento-chrome-versionhistory-20261027` — `04f59750739c6bdbaeb0bacd86ed2b734fba1271` | [40507858102](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40507858102): success; 6 jobs aprovados, 2 condicionais skipped |
+| [#61 / BETA .66](https://github.com/walissonminel-1991/gerenciador-final/pull/61) | `beta-piloto-consentimento-envio-20261026` — `f64600748b45b0ddc7e39c530ac56809c26f7ea8` | [40324802334](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40324802334): success |
+| [#62 / BETA endurecida](https://github.com/walissonminel-1991/gerenciador-final/pull/62) | `work-beta-retencao-issues-20261026` — `e530d724b7322963c8795b005f13ae6948a73e43` | Principal [40409850849](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40409850849): success; externa [40409850628](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40409850628), tentativa 2: **failure** |
+
+As PRs #47/#49/#50/#51/#52/#53 permanecem abertas e Draft. A integração #59
+já registra a consolidação dos Lotes 1–4 com WORK14–17. Não reaplicar todas
+essas branches sobre a base .65: isso pode duplicar alterações já incorporadas.
+As PRs legadas #25–#35 e #38 não foram fechadas nem reorganizadas nesta missão.
+
+O build .65 selecionado anteriormente usa a fonte `e6d92e2f`, não o HEAD
+documental `2bc9f422`; [CI de produção 40252100887](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887).
+Essa distinção vale para relacionar os logs físicos ao código distribuído.
+
+## Base escolhida e dependências
+
+A branch desta auditoria parte da WORK18 .65, sem importar a PR #63 nem a
+BETA .66. Ela já contém a integração de drivers, atualizações, desinstalação,
+resíduos e confiabilidade necessária às próximas etapas.
+
+- A PR #63 também parte de `2bc9f422`. Seu delta tem **5 arquivos**:
+  `CatalogoIdentidades.json`, `OfficialReleaseSources.cs`,
+  `TestesMultifontes/ChromeVersionHistoryTests.cs`, `TestesMultifontes/Program.cs`
+  e `docs/EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md`.
+- A BETA endurecida difere da base em **62 arquivos**. Eles incluem
+  `Program.cs`, projeto/manifesto, `InstallerFileGuard.cs`, UI, workflows,
+  políticas de pacote, roadmap e progresso. Mudanças futuras nessas áreas
+  exigem reconciliação antes da Etapa 7; quantidade de arquivos não comprova conflito.
+- Os conjuntos de arquivos alterados pela PR #63 e pela BETA #62, medidos
+  contra a base .65, não se sobrepõem nesta fotografia. Isso não prova
+  compatibilidade comportamental nem autoriza integração automática.
+- Os dois arquivos de continuidade estavam ausentes na base .65, em `main`,
+  no experimento #63 e na BETA endurecida. Não havia checkpoint anterior para repetir.
+
+## Implementação existente e evidências
+
+O inventário inicial detalhado está na [matriz](WORK-PRE-BETA-MATRIZ.md).
+Foram examinados roadmap, progresso, TESTES, relatórios WORK10–18, Lotes 1–4,
+integração, auditorias WORK16/17, handoff, workflows e os pontos de código
+necessários à identificação da cobertura. A revisão profunda de cada motor
+continua reservada à etapa correspondente.
+
+Já existem leitura WMI/HardwareID, correlação INF/Store/SetupAPI, consulta
+WUA somente leitura, verificação criptográfica de INF; descoberta multifontes
+e catálogo Microsoft autenticado; contratos MSI/WiX/NSIS/Inno; desinstalação
+Squirrel condicionada a evidências; limpeza integrada com SIM/NÃO e proteção
+de dados. Essas implementações não precisam ser recriadas do zero.
+
+WinGet COM permanece apenas fonte consultiva, opcional e não bloqueante.
+O log .65 registra `com_activation_failed`; não há nova evidência que justifique
+reabrir sua investigação. O catálogo Microsoft por HTTPS é um mecanismo
+independente; não confundir sua consulta com execução de COM/CLI.
+
+## Testes e validações preservados — Etapa 0
+
+- Contagem independente do JSON e das marcações do roadmap: **27/42**,
+  com os mesmos **15 IDs pendentes**; sem promoção de checkpoints.
+- **10 HEADs de PR relevantes** tiveram suas execuções consultadas;
+  a falha externa da #62 foi registrada separadamente da CI principal.
+- Na #63, o run consultado corresponde exatamente a `04f59750739c6bdbaeb0bacd86ed2b734fba1271`.
+  A aprovação não comprova resposta real do endpoint Google nem ganho físico.
+- Inventário de testes existente: **13 projetos de suítes**, **2 projetos de
+  fixtures** e o projeto do produto. Não foram recriados testes existentes.
+- Evidência anterior de produção .65: 145 verificações WORK18, 368 de
+  atualização, 707 de resíduos/desinstalação, 159 multifontes, 17 catálogo,
+  47 MSIX, 30 encerramento, 54 ecossistemas e 36 mutações recusadas.
+  Esses totais pertencem à CI anterior, não a uma nova execução nesta sessão;
+  não somar subconjuntos como verificações independentes.
+- **5 arquivos físicos anteriores recuperados e lidos**: os diagnósticos
+  .64/.65, o relatório local e dois históricos .65. Somente agregados e
+  referências de linhas constam da matriz pública; nenhum log bruto foi anexado.
+- Validação documental: escopo restrito aos dois arquivos, referências
+  relativas existentes, tabelas/estados e consistência com 27/42.
+- **0 novos testes de produto e 0 operações físicas executadas.** Os commits
+  documentais usam `[skip ci]` para não repetir a bateria já concluída.
+  Isso não contorna um teste de código: não há alteração de código ou workflow.
+
+## Falhas, limitações e riscos abertos
+
+1. **BETA #62 sem CI integralmente verde.** A falha externa é atribuída na PR
+   à recusa de redirect HTTPS→HTTP do VLC. O estado failure foi confirmado
+   na API; a causa não foi reinvestigada nem a proteção relaxada nesta sessão.
+2. **Histórico dos drivers ainda parcial.** A assinatura do INF não verifica
+   todo o payload. Zero ofertas WUA em runner não valida oferta positiva.
+3. **Cobertura descoberta não é execução homologada.** Nos logs .64 e .65,
+   zero atualizações silenciosas e zero supervisionadas elegíveis; não usar
+   os 10/8 candidatos como número de atualizações executáveis.
+4. **Comparação física com versões diferentes.** Hardware, Windows, versão
+   do GF e rede diferem; não atribuir diferenças de tempo ao código.
+5. **Metadados antigos em PROGRESSO.** `latest_real_test` ainda aponta .52
+   e `latest_real_test_pc_fraco` .24; os arquivos recuperados comprovam sessões
+   posteriores .64/.65. Não usar esses campos antigos para solicitar nova bateria
+   completa. A atualização oficial será avaliada na Etapa 6, preservando histórico.
+6. **Memória/CPU:** o relato de cerca de 60 MB em repouso não é medição
+   contínua. Os logs mostram amostras de working set maiores durante consultas;
+   CPU acumulada de uma etapa não é percentual em repouso.
+7. **AVG:** relato de sessão sem alerta não resolve a causa do incidente nem
+   homologa novas builds. P6 permanece aberto.
+8. **Inicialização com Windows:** T11 do PC FRACO não foi executado segundo
+   o relato fornecido. Ativar a opção ou ocultar/restaurar na bandeja não prova boot.
+9. Não foram auditados valores remotos de Worker/D1/DNS/flags. Nenhuma
+   afirmação de estado operacional desses serviços é feita com base no código.
+
+## Sequência e critérios de continuidade
+
+| Etapa | Estado após esta sessão | Próxima ação e critério de saída |
+| --- | --- | --- |
+| 0 — Auditoria | **CONCLUÍDA** | Referências, pendências, evidências e continuidade registradas; encerrar |
+| 1 — Fontes / #63 | **CONCLUÍDA** | Revisão e exclusão solicitada aprovadas na CI 40519539258; nunca retomar verificações VLC; arquitetura na tela permanece para a Etapa 3 |
+| 2 — Drivers consultivos | **CONCLUÍDA TECNICAMENTE / HOMOLOGAÇÃO PENDENTE** | CI 40525913386 aprovada; 26 casos novos, 174 verificações por runner. D2/D4/G1/G2 continuam abertos; nenhuma escrita |
+| 3 — Atualizações | **CONCLUÍDA TECNICAMENTE / U8 PENDENTE** | CI 40559631389 aprovada; 42 novas, 410 atualizadores, integração consultiva 0→2; nenhum ganho físico ou receita nova; U8 aberto |
+| 4 — Desinstalação / resíduos | **CONCLUÍDA TECNICAMENTE / R4/R6/R7 PENDENTES** | CI 40565220517 aprovada; 739 resíduos, 34 novos incluindo cinco nativos; propriedade e consentimento preservados; sem prova física nova |
+| 5 — Gestão de drivers | **ESTUDO CONCLUÍDO / GESTÃO DESATIVADA** | Contratos/lacunas e seis fontes Microsoft estudados; 12 casos futuros não executados; nenhum código de gestão habilitado; G1–G5 abertos |
+| 6 — Evidência física | **CONSOLIDAÇÃO CONCLUÍDA / HOMOLOGAÇÕES PARCIAIS** | E1–E5 relidas, 15 pendências avaliadas; metadados físicos corrigidos com histórico preservado; quatro blocos focais; 27/42, sem testes novos |
+| 7 — Integração / decisão | **AVALIAÇÃO CONCLUÍDA / BETA BLOQUEADA** | Comparação de fontes e CIs, ensaio textual e proposta de metadados; matriz final de liberação; 27/42 e bloqueios preservados; nenhuma composição ou publicação |
+
+A Etapa 5 usa a base técnica verificada e preserva alterações aceitas
+nas sessões anteriores. A Etapa 6 pode reutilizar toda a prova já recuperada;
+não depende de criar dados novos por instalação/remoção em PC pessoal.
+A Etapa 7 depende dos resultados e bloqueios registrados nas anteriores.
+
+## Limites obrigatórios para todas as próximas sessões
+
+Não alterar, publicar ou ativar Worker `gerenciador-final-beta-private`, D1
+`gf-beta-private`, flags `PILOT_ENABLED = no` / `GITHUB_EXPORT_ENABLED = no`,
+URL pública desativada, domínio `gerenciador-final.eu.org` ou DNS/deSEC/EU.org.
+Não executar deploy, merge em `main`, release pública, coleta ou distribuição BETA.
+
+Sem desativar proteções, reparar WinGet, elevar automaticamente, mudar ACLs,
+executar comandos de catálogos ou instalar/remover/reverter drivers. Sem
+atualização real, desinstalação importante ou exclusão residual em PCs pessoais.
+Usar fixtures e ambientes descartáveis; preservar documentos, credenciais,
+perfis, configurações, jogos, saves e dados compartilhados.
+
+## Próxima ação exata e comando para retomada
+
+A missão 0–7 está encerrada. Não há Etapa 8 automática nem autorização de
+ativação/piloto/distribuição. A decisão atual é BETA BLOQUEADA para a candidata
+conectada neste estado. Consultar relatório/evidência da Etapa 7 e conferir o
+HEAD final da PR #64 antes de qualquer trabalho novo.
+
+Próximo bloco possível, se solicitado: reconciliação de fontes em candidata
+isolada com envio desativado, preservando ambas as frentes e aplicando a
+proposta de metadados de forma revisável. Essa futura árvore exigirá sua
+própria CI. Não reutilizar o verde dos pais como aprovação da composição,
+nem reexecutar branches antigas com o alvo excluído. Homologação conectada,
+configuração/infraestrutura e entrega são blocos posteriores e distintos.
+O roteiro físico focal da Etapa 6 permanece válido, sem bateria completa.
+
+> Retome apenas o bloco de reconciliação de fontes documentado na Etapa 7. Leia checkpoint, matriz e decisão na branch work-pre-beta-etapa0-20261027, confira SHAs e CI, preserve as branches BETA e infraestrutura, prepare uma fonte isolada com envio desativado e metadados conciliados, valide seu próprio SHA na CI aplicável, mantendo VLC excluído e drivers desativados. Salve no GitHub e pare antes de homologação conectada, sem merge, release ou deploy.

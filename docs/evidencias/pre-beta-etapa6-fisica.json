@@ -1,0 +1,581 @@
+{
+  "schema": 1,
+  "stage": 6,
+  "date": "2026-10-27",
+  "timezone": "America/Sao_Paulo",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-pre-beta-etapa0-20261027",
+  "pull_request": 64,
+  "base_documentation_sha": "3b6061c33df54cd2b5689a1cabacb866e9a28ff4",
+  "unchanged_product_source_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+  "status": "evidence_consolidation_completed_homologation_partial",
+  "report": "../WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md",
+  "provenance": {
+    "physical_files_read": 5,
+    "new_physical_test_sessions": 0,
+    "raw_logs_published": false,
+    "device_ids_or_personal_paths_published": false,
+    "read_mode": "full",
+    "source_sha_or_hash_recorded_in_physical_logs": false,
+    "physical_versions_do_not_identify_pre_beta_source": true
+  },
+  "sources": [
+    {
+      "id": "E1",
+      "display_name": "GerenciadorFinal-Diagnostico-v5.13.11.64.log",
+      "computer": "PC FORTE",
+      "line_count": 153,
+      "version_in_file": "5.13.11.64"
+    },
+    {
+      "id": "E2",
+      "display_name": "GerenciadorFinal-Diagnostico-v5.13.11.65.log",
+      "computer": "PC FRACO",
+      "line_count": 127,
+      "version_in_file": "5.13.11.65"
+    },
+    {
+      "id": "E3",
+      "display_name": "GF-Relatorio-Local(1).txt",
+      "computer": "PC FRACO",
+      "line_count": 14,
+      "version_in_file": null,
+      "associated_version_from_context": "5.13.11.65",
+      "same_session_as": "E5"
+    },
+    {
+      "id": "E4",
+      "display_name": "Primeiro histórico local, nome identificável omitido",
+      "computer": "PC FRACO",
+      "line_count": 3,
+      "version_in_file": null,
+      "associated_version_from_context": "5.13.11.65"
+    },
+    {
+      "id": "E5",
+      "display_name": "Segundo histórico local, nome identificável omitido",
+      "computer": "PC FRACO",
+      "line_count": 3,
+      "version_in_file": null,
+      "associated_version_from_context": "5.13.11.65",
+      "same_session_as": "E3"
+    }
+  ],
+  "computer_metrics": [
+    {
+      "source": "E1",
+      "computer": "PC FORTE",
+      "version": "5.13.11.64",
+      "test_date": "2026-10-25",
+      "lines": 153,
+      "windows_build": "10.0.26300.0",
+      "system_architecture": "X64",
+      "process_architecture": "X64",
+      "runtime": "10.0.13",
+      "package_source_sha_in_log": null,
+      "package_hash_in_log": null,
+      "validates_pre_beta_fixes": false,
+      "inventory": {
+        "total": 169,
+        "explicit_observations": 2,
+        "counts": [
+          169,
+          169
+        ],
+        "registry_errors": [
+          0,
+          0
+        ],
+        "msix_applications": 27,
+        "msix_status": [
+          "ok",
+          "ok"
+        ],
+        "msix_failures": [
+          0,
+          0
+        ],
+        "msix_already_in_total": true,
+        "uninstall_entries": 130,
+        "lines": [
+          14,
+          76,
+          15,
+          78,
+          17,
+          81
+        ]
+      },
+      "updates": {
+        "candidates": 10,
+        "source_consultations": 13,
+        "sources_ok": 13,
+        "silent_eligible": 0,
+        "supervised_eligible": 0,
+        "preflight_silent_uninstall": 61,
+        "lines": [
+          62,
+          138
+        ]
+      },
+      "performance": {
+        "startup_ms": 376.16,
+        "startup_cpu_process_delta_ms": 359.38,
+        "inventory_ms": [
+          621.03,
+          479.74,
+          481.42
+        ],
+        "updates_ms": [
+          7422.66,
+          8755.21
+        ],
+        "working_set_after_startup_bytes": 65613824,
+        "working_set_after_first_inventory_bytes": 95539200,
+        "last_sample_working_set_bytes": 247631872,
+        "max_recorded_session_peak_bytes": 250249216,
+        "sample_lines": [
+          8,
+          13,
+          63,
+          75,
+          139,
+          149
+        ],
+        "startup_sessions": 1,
+        "idle_cpu_percent_series": null,
+        "idle_memory_series": null,
+        "stage_cpu_is_process_delta_not_percent": true
+      },
+      "drivers": {
+        "associations": 166,
+        "inventory_partial": false,
+        "infs": 63,
+        "shared_infs": 19,
+        "without_inf": 3,
+        "pnp_in_diagnostic": 164,
+        "package_mapping": {
+          "packages": 63,
+          "mapped": 63,
+          "partial": true
+        },
+        "attribute_diagnostics": {
+          "missing_name": 3,
+          "missing_provider": 3,
+          "missing_version": 1,
+          "unusual_version": 2,
+          "signature_unknown": 1,
+          "presence_unknown": 2
+        },
+        "own_history_baseline_preexisted": false,
+        "own_history_changes": 0,
+        "setupapi_history_coverage_confirmed": false,
+        "human_interpretation_approved": false,
+        "lines": [
+          142,
+          140,
+          141,
+          143,
+          144
+        ]
+      },
+      "visual": {
+        "resolution_from_log": [
+          2560,
+          1440
+        ],
+        "dpi_from_log": 120,
+        "resolution_from_maintainer": null,
+        "pixel_capture_in_sources": false,
+        "tray_hide_restore_logged": false,
+        "windows_login_after_boot_proven": false
+      },
+      "stability": {
+        "normal_shutdown": true,
+        "line": 153,
+        "avg_root_cause_proven": false,
+        "avg_package_homologated": false
+      }
+    },
+    {
+      "source": "E2",
+      "computer": "PC FRACO",
+      "version": "5.13.11.65",
+      "test_date": "2026-10-27",
+      "lines": 127,
+      "windows_build": "10.0.26200.0",
+      "system_architecture": "X64",
+      "process_architecture": "X64",
+      "runtime": "10.0.13",
+      "package_source_sha_in_log": null,
+      "package_hash_in_log": null,
+      "validates_pre_beta_fixes": false,
+      "inventory": {
+        "total": 74,
+        "explicit_observations": 2,
+        "counts": [
+          74,
+          74
+        ],
+        "registry_errors": [
+          0,
+          0
+        ],
+        "msix_applications": 19,
+        "msix_status": [
+          "ok",
+          "ok"
+        ],
+        "msix_failures": [
+          0,
+          0
+        ],
+        "msix_already_in_total": true,
+        "uninstall_entries": 54,
+        "lines": [
+          14,
+          64,
+          15,
+          65,
+          17,
+          67
+        ]
+      },
+      "updates": {
+        "candidates": 8,
+        "source_consultations": 4,
+        "sources_ok": 4,
+        "silent_eligible": 0,
+        "supervised_eligible": 0,
+        "preflight_silent_uninstall": 40,
+        "lines": [
+          55,
+          106
+        ]
+      },
+      "performance": {
+        "startup_ms": 667.98,
+        "startup_cpu_process_delta_ms": 593.75,
+        "inventory_ms": [
+          1335.91,
+          953.82,
+          959.49
+        ],
+        "updates_ms": [
+          12358.66,
+          7197.53
+        ],
+        "working_set_after_startup_bytes": 61018112,
+        "working_set_after_first_inventory_bytes": 90365952,
+        "last_sample_working_set_bytes": 173821952,
+        "max_recorded_session_peak_bytes": 177324032,
+        "sample_lines": [
+          8,
+          13,
+          56,
+          63,
+          107,
+          124
+        ],
+        "startup_sessions": 1,
+        "idle_cpu_percent_series": null,
+        "idle_memory_series": null,
+        "stage_cpu_is_process_delta_not_percent": true
+      },
+      "drivers": {
+        "associations": 119,
+        "inventory_partial": false,
+        "infs": 53,
+        "shared_infs": 17,
+        "without_inf": 3,
+        "pnp_in_diagnostic": 117,
+        "package_mapping": null,
+        "attribute_diagnostics": null,
+        "own_history_baseline_preexisted": false,
+        "own_history_changes": 0,
+        "setupapi_history_coverage_confirmed": false,
+        "human_interpretation_approved": false,
+        "lines": [
+          109,
+          108,
+          110
+        ]
+      },
+      "visual": {
+        "resolution_from_log": null,
+        "dpi_from_log": null,
+        "resolution_from_maintainer": [
+          1440,
+          900
+        ],
+        "pixel_capture_in_sources": false,
+        "tray_hide_restore_logged": true,
+        "windows_login_after_boot_proven": false
+      },
+      "stability": {
+        "normal_shutdown": true,
+        "line": 127,
+        "avg_root_cause_proven": false,
+        "avg_package_homologated": false
+      }
+    }
+  ],
+  "local_histories": [
+    {
+      "source": "E4",
+      "date": "2026-10-27",
+      "baseline_utc": "11:56:18",
+      "comparison_utc": "11:59:45",
+      "inventory": 74,
+      "new": 0,
+      "not_observed": 0,
+      "changed": 0
+    },
+    {
+      "source": "E5",
+      "also_in": "E3",
+      "date": "2026-10-27",
+      "baseline_utc": "12:15:04",
+      "comparison_utc": "12:16:00",
+      "inventory": 74,
+      "new": 0,
+      "not_observed": 0,
+      "changed": 0
+    }
+  ],
+  "maintainer_reports": {
+    "weak_pc_tests_without_observed_failure": 11,
+    "weak_pc_test_list_total": 12,
+    "t11_windows_startup": "not_executed",
+    "weak_pc_idle_memory": "approximately 60 MB; report, not a time series",
+    "report_does_not_homologate_pre_beta_sha": true
+  },
+  "checkpoint_assessments": [
+    {
+      "id": "I7",
+      "sources": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ],
+      "assessment": "partial",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Contagens completas/repetidas e MSIX ok; falta conferência equivalente da cobertura, ausências e duplicidades em ambos os PCs."
+    },
+    {
+      "id": "P5",
+      "sources": [
+        "E1",
+        "E2"
+      ],
+      "assessment": "partial",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Startup, Inventory, Updates, working set e CPU por etapa disponíveis; faltam condições/artefato vinculados e série comparável de repouso prevista em TESTES."
+    },
+    {
+      "id": "P6",
+      "sources": [
+        "E1",
+        "E2"
+      ],
+      "assessment": "partial",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Encerramento normal e relato sem falha; causa/resolução AVG e evidência do pacote exato ainda não comprovadas."
+    },
+    {
+      "id": "V5",
+      "sources": [
+        "E1",
+        "E2"
+      ],
+      "assessment": "reported_partial",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Resolução/DPI do FORTE e bandeja do FRACO registrados; relatos sem captura/aprovação física vinculada ao artefato, resolução e DPI completos."
+    },
+    {
+      "id": "D4",
+      "sources": [
+        "E1",
+        "E2"
+      ],
+      "assessment": "partial",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Associações/INFs presentes; faltam validação humana de vínculos e interpretação de escopo, atributos ausentes e histórico real."
+    },
+    {
+      "id": "D2",
+      "sources": [
+        "E1",
+        "E2"
+      ],
+      "assessment": "partial",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Store parcialmente observado; histórico próprio inicial não comprova cobertura do histórico Windows."
+    },
+    {
+      "id": "R4",
+      "sources": [
+        "E1",
+        "E2"
+      ],
+      "assessment": "no_new_physical_proof",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Sem ciclo físico completo de remoção e limpeza com consentimento/preservação; fixtures da Etapa 4 não substituem."
+    },
+    {
+      "id": "R6",
+      "sources": [
+        "E1",
+        "E2"
+      ],
+      "assessment": "no_new_physical_proof",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Casos privados ambíguos ainda sem prova concreta de propriedade/dependentes/uso."
+    },
+    {
+      "id": "R7",
+      "sources": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5"
+      ],
+      "assessment": "no_new_physical_proof",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Não há par antes/depois de desinstalação e preservação; histórico sem mudanças não comprova remoção."
+    },
+    {
+      "id": "U8",
+      "sources": [
+        "E1",
+        "E2"
+      ],
+      "assessment": "historical_proof_only",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Relato anterior 7-Zip .52 preservado; candidatos 10/8 e zero elegíveis não confirmam nova instalação/versão nos dois PCs."
+    },
+    {
+      "id": "G1",
+      "sources": [
+        "E1",
+        "E2"
+      ],
+      "assessment": "unproven",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Consulta Windows Update geral não é oferta positiva específica de driver com versão/compatibilidade completas."
+    },
+    {
+      "id": "G2",
+      "sources": [
+        "E1",
+        "E2"
+      ],
+      "assessment": "unproven",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Não há prova de payload completo/origem/compatibilidade do pacote real dos PCs."
+    },
+    {
+      "id": "G3",
+      "sources": [],
+      "assessment": "disabled",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Instalação e confirmação reais não implementadas/homologadas; estudo da Etapa 5 não conclui checkpoint."
+    },
+    {
+      "id": "G4",
+      "sources": [],
+      "assessment": "disabled",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Reversão/recuperação dependem de suporte demonstrado; nenhuma operação autorizada nesta missão."
+    },
+    {
+      "id": "G5",
+      "sources": [],
+      "assessment": "disabled",
+      "done_before": false,
+      "done_after": false,
+      "missing": "Depende de G1–G4 e validação supervisionada autorizada; nenhum fluxo real de gestão de drivers."
+    }
+  ],
+  "roadmap": {
+    "done_before": 27,
+    "done_after": 27,
+    "total": 42,
+    "pending": 15,
+    "newly_closed": []
+  },
+  "metadata_changes": {
+    "historical_latest_records_preserved": true,
+    "latest_global_physical_test": "PC FRACO .65 / 2026-10-27",
+    "latest_weak_pc_physical_test": "PC FRACO .65 / 2026-10-27",
+    "latest_strong_pc_physical_test": "PC FORTE .64 / 2026-10-25",
+    "candidate_artifact_fields_changed": false,
+    "checkpoint_booleans_changed": false
+  },
+  "ci_rechecked": {
+    "run_id": 40565220517,
+    "source_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+    "attempt": 1,
+    "conclusion": "success",
+    "mandatory_success": 6,
+    "conditional_skipped": 2,
+    "receipt": "pre-beta-etapa4-ci-40565220517.json",
+    "reexecuted": false,
+    "new_stage5_runs": 0,
+    "new_stage6_build_requested": false
+  },
+  "validation": {
+    "kind": "source_aggregation_document_consistency_and_existing_metadata_validator",
+    "status": "passed",
+    "product_tests_new_or_reexecuted": 0,
+    "non_documentation_blobs_changed": false,
+    "local_markdown_links_checked": 84,
+    "historical_records_preserved": true,
+    "all_42_done_values_preserved": true,
+    "all_15_pending_assessed": true,
+    "existing_package_metadata_validator": "passed",
+    "source_aggregation": "passed",
+    "new_private_identifiers_detected": false,
+    "changed_files": [
+      "docs/PROGRESSO.json",
+      "docs/ROADMAP.md",
+      "docs/TESTES.md",
+      "docs/WORK-PRE-BETA-CHECKPOINT.md",
+      "docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md",
+      "docs/WORK-PRE-BETA-MATRIZ.md",
+      "docs/evidencias/pre-beta-etapa6-fisica.json"
+    ]
+  },
+  "limits": {
+    "vlc_exclusion_preserved": true,
+    "new_vlc_test_or_verification": false,
+    "driver_management_enabled": false,
+    "personal_pc_operations": 0,
+    "driver_write_operations": 0,
+    "elevation_or_acl_changes": 0,
+    "new_software_installation": 0,
+    "boot_or_restart_performed": false,
+    "private_beta_or_infrastructure_accessed": false,
+    "merge_release_deploy": false,
+    "winget_reinvestigated": false
+  },
+  "next_stage": 7,
+  "next_stage_started": false
+}

@@ -1,0 +1,165 @@
+{
+  "schema": 1,
+  "stage": 1,
+  "status": "blocked_external_integrity",
+  "source_commit": "8e195bfa3dfaab6767d877e78a2ad8d2b538f49c",
+  "previous_checkpoint": "b30fab20a25c4ee08b5624226a3bdb289ba20295",
+  "reviewed_pr63_head": "04f59750739c6bdbaeb0bacd86ed2b734fba1271",
+  "run": {
+    "id": 40514120889,
+    "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889",
+    "status": "completed",
+    "conclusion": "failure",
+    "attempt": 2
+  },
+  "local": {
+    "sdk": "10.0.402",
+    "targeted_before": {
+      "checks": 37,
+      "failed": 7
+    },
+    "targeted_after": {
+      "checks": 37,
+      "failed": 0
+    },
+    "multisource_passed": 196,
+    "policy_passed": 18,
+    "audited_sources": 248,
+    "live_chrome_platforms_passed": [
+      "win64",
+      "win"
+    ]
+  },
+  "windows": {
+    "multisource_passed": 196,
+    "updater_passed": 368,
+    "residual_uninstall_passed": 707,
+    "mutations_rejected": 36,
+    "msix_passed": 47,
+    "shutdown_passed": 30
+  },
+  "attempts": [
+    {
+      "number": 1,
+      "jobs": [
+        {
+          "id": 122223441903,
+          "name": "validar / Regressões Windows",
+          "conclusion": "success"
+        },
+        {
+          "id": 122223441926,
+          "name": "validar / Integridade dos instaladores oficiais (sem instalacao)",
+          "conclusion": "failure"
+        },
+        {
+          "id": 122223442023,
+          "name": "politica / Política de segurança e privacidade",
+          "conclusion": "success"
+        },
+        {
+          "id": 122223442094,
+          "name": "validar / Drivers somente leitura (windows-2022)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122223442256,
+          "name": "validar / Drivers somente leitura (windows-2025)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122223443874,
+          "name": "validar / Fontes externas e drivers do runner (somente leitura)",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 122227853915,
+          "name": "Atestar pacote apenas na main",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 122227857664,
+          "name": "Compilação Windows x64",
+          "conclusion": "skipped"
+        }
+      ],
+      "external_failure": {
+        "job": 122223441926,
+        "step": "Catalogo Microsoft autenticado em isolamento (sem WinGet ou instalacao)",
+        "product": "VideoLAN.VLC",
+        "reason": "https_redirect_to_http_refused_before_following",
+        "destination_host": "cofractal-ewr.mm.fcix.net"
+      }
+    },
+    {
+      "number": 2,
+      "jobs": [
+        {
+          "id": 122228010663,
+          "name": "validar / Integridade dos instaladores oficiais (sem instalacao)",
+          "conclusion": "failure"
+        },
+        {
+          "id": 122228012658,
+          "name": "politica / Política de segurança e privacidade",
+          "conclusion": "success"
+        },
+        {
+          "id": 122228016502,
+          "name": "validar / Drivers somente leitura (windows-2022)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122228016938,
+          "name": "validar / Drivers somente leitura (windows-2025)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122228018386,
+          "name": "validar / Fontes externas e drivers do runner (somente leitura)",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 122228019875,
+          "name": "validar / Regressões Windows",
+          "conclusion": "success"
+        },
+        {
+          "id": 122228423121,
+          "name": "Compilação Windows x64",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 122228425016,
+          "name": "Atestar pacote apenas na main",
+          "conclusion": "skipped"
+        }
+      ],
+      "external_failure": {
+        "job": 122228010663,
+        "step": "Catalogo Microsoft autenticado em isolamento (sem WinGet ou instalacao)",
+        "product": "VideoLAN.VLC",
+        "reason": "https_mirror_returned_http_403",
+        "destination_host": "mirrors.middlendian.com"
+      }
+    }
+  ],
+  "retry": {
+    "requested_once": true,
+    "target_job": 122223441926,
+    "protection_relaxed": false
+  },
+  "physical_pc_operations": 0,
+  "payloads_executed": 0,
+  "roadmap": {
+    "done": 27,
+    "total": 42,
+    "closed_checkpoints": []
+  },
+  "limitations": [
+    "No new physical coverage measurement.",
+    "Chrome exact-name UI adapter supplies unknown architecture; verified local architecture remains for stage 3.",
+    "Overall CI failed; x64 packaging skipped by dependency gate; no candidate approved.",
+    "Stage 2 not started; resume only stage 1 external blocker."
+  ]
+}

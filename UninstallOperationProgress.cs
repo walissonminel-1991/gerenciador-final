@@ -58,6 +58,28 @@ internal sealed class UninstallOperationStore
 
 internal static class UninstallResultSummary
 {
+    internal static string Status(IReadOnlyList<UninstallOutcome> outcomes, ResidualBatchResult? cleanup, bool consent)
+    {
+        if (!consent) return "Operação cancelada — confira o resumo.";
+        // Cancelar a limpeza/espera não cancela o fornecedor já iniciado.
+        if (outcomes.Any(o => o.State == UninstallState.Pending)) return "Conclusão pendente — confira o resumo.";
+        if (cleanup?.Cancelled == true || outcomes.Any(o => o.State is UninstallState.Cancelled or UninstallState.Refused))
+            return "Operação cancelada — confira o resumo.";
+        if (outcomes.Count == 0 || outcomes.Any(o => o.State != UninstallState.RegistrationAbsent))
+            return outcomes.Any(o => o.State == UninstallState.RegistrationAbsent)
+                ? "Operação parcialmente concluída — confira o resumo."
+                : "Desinstalação não concluída — confira o resumo.";
+        if (cleanup is null || cleanup.Unavailable > 0 || cleanup.Inspections is null ||
+            outcomes.Any(o => cleanup.Inspections.Count(p => p.Context.App.TechnicalId ==
+                ResidualAppIdentity.From(o.Request.Original).TechnicalId) != 1) ||
+            cleanup.Inspections.Any(p => !p.Conclusive) ||
+            !cleanup.Declined && (cleanup.Results.Any(r => !r.Verified) || cleanup.Inspections.Any(p => p.Eligible > 0 &&
+                !cleanup.Results.Any(r => r.AppId == p.Context.App.TechnicalId))))
+            return "Verificação ou limpeza de resíduos parcial — confira o resumo.";
+        return cleanup.Declined ? "Desinstalação finalizada — resíduos preservados por sua escolha."
+            : "Desinstalação finalizada — confira o resumo.";
+    }
+
     internal static string Problem(ResidualProblem problem) =>
         (problem.Location.Length == 0 ? "" : problem.Location + ": ") + Explanation(problem);
     private static string Explanation(ResidualProblem problem) => problem.Reason switch

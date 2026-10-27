@@ -1,0 +1,138 @@
+{
+  "schema": 1,
+  "stage": 4,
+  "date": "2026-10-27",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-pre-beta-etapa0-20261027",
+  "pull_request": 64,
+  "source_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+  "run_id": 40565220517,
+  "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517",
+  "event": "pull_request",
+  "attempt": 1,
+  "status": "completed",
+  "conclusion": "success",
+  "mandatory_success": 6,
+  "conditional_skipped": 2,
+  "jobs": [
+    {
+      "id": 122404562081,
+      "name": "politica / Política de segurança e privacidade",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517/job/122404562081"
+    },
+    {
+      "id": 122404562142,
+      "name": "validar / Drivers somente leitura (windows-2022)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517/job/122404562142"
+    },
+    {
+      "id": 122404562162,
+      "name": "validar / Regressões Windows",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517/job/122404562162"
+    },
+    {
+      "id": 122404562292,
+      "name": "validar / Integridade dos instaladores oficiais (sem instalacao)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517/job/122404562292"
+    },
+    {
+      "id": 122404562500,
+      "name": "validar / Drivers somente leitura (windows-2025)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517/job/122404562500"
+    },
+    {
+      "id": 122404564566,
+      "name": "validar / Fontes externas e drivers do runner (somente leitura)",
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517/job/122404564566"
+    },
+    {
+      "id": 122408967698,
+      "name": "Compilação Windows x64",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517/job/122408967698"
+    },
+    {
+      "id": 122409478927,
+      "name": "Atestar pacote apenas na main",
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517/job/122409478927"
+    }
+  ],
+  "stage4": {
+    "comparable_cases": 29,
+    "before_passed": 11,
+    "before_failed": 18,
+    "after_passed": 29,
+    "additional_native_cases": 5,
+    "new_checks_total": 34,
+    "native_disposable_cases_passed": [
+      "ETAPA4-NATIVO: NÃO preserva bytes dos resíduos e dados pessoais descartáveis",
+      "ETAPA4-NATIVO: arquivo alterado após consentimento é preservado pela revalidação",
+      "ETAPA4-NATIVO: cancelamento antes da exclusão não remove alvos",
+      "ETAPA4-NATIVO: SIM remove só resíduo atribuído; preserva Documents e instalação vizinha",
+      "ETAPA4-NATIVO: proprietário concorrente impede oferta e exclusão"
+    ],
+    "no_handle_state": "Pending",
+    "post_start_win32_state": "Pending",
+    "stops_next_item": true,
+    "blocks_retry": true,
+    "no_cleanup_for_pending": true
+  },
+  "regressions": {
+    "residual_uninstall": 739,
+    "updater": 410,
+    "multisource": 196,
+    "mutations_rejected": 36,
+    "msix": 47,
+    "shutdown": 30,
+    "python_policy_distribution": 41
+  },
+  "build": {
+    "platform": "win-x64",
+    "self_contained": true,
+    "source_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+    "verified_checksum_files": 284,
+    "artifact_independently_downloaded": false,
+    "avg_validated": false,
+    "private_beta": false
+  },
+  "roadmap": {
+    "completed": 27,
+    "total": 42,
+    "changed": false,
+    "open_stage_checkpoints": [
+      "R4",
+      "R6",
+      "R7"
+    ]
+  },
+  "safety": {
+    "personal_pc_operations": false,
+    "real_app_uninstall": false,
+    "native_test_targets": "GUID TEMP fixtures only",
+    "new_automatic_elevation": false,
+    "acls_changed": false,
+    "reboot_performed": false,
+    "driver_operations": false,
+    "residual_authority_expanded": false,
+    "permanent_exclusion_preserved": true,
+    "new_excluded_product_tests": 0,
+    "private_beta_infrastructure_accessed": false,
+    "stage5_started": false
+  },
+  "receipt_documentation_only": true
+}

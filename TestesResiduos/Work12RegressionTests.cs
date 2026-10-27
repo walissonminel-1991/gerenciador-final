@@ -270,7 +270,7 @@ internal static class Work12RegressionTests
             (_, _) => { after.Cancel(); return Task.FromCanceled<int?>(after.Token); }, _ => Task.CompletedTask, after.Token);
         check(pending.Single().State == UninstallState.Pending, "W12 cancelar espera nao promete cancelar processo do fornecedor");
         var unknown = await new UninstallBatch().RunAsync(requests, true, Inventory, (_, _) => Task.FromResult<int?>(null), _ => Task.CompletedTask);
-        check(unknown.Single().State == UninstallState.StartFailed, "W12 resposta nula nao comprova desinstalacao");
+        check(unknown.Single().State == UninstallState.Pending, "W12 resposta nula conserva pendencia sem comprovar desinstalacao");
         var store = new UninstallOperationStore();
         foreach (var stage in Enum.GetValues<UninstallStage>())
         {

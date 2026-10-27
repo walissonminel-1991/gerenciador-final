@@ -56,17 +56,6 @@
       "registryKeys": []
     },
     {
-      "id": "vlc",
-      "displayName": "VLC media player",
-      "installedNames": [
-        "VLC media player*"
-      ],
-      "folders": [
-        "Roaming\\vlc"
-      ],
-      "registryKeys": []
-    },
-    {
       "id": "audacity",
       "displayName": "Audacity",
       "installedNames": [

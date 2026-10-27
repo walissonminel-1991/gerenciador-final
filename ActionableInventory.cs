@@ -27,10 +27,11 @@ internal static class ActionableInventory
     internal static bool CanManageWithWindows(ProgramEntry app) =>
         app.InventoryOnly && (app.VerifiedMsixIdentity ||
             app.MsixPackageFamilyName.Length > 0 && app.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal)) && !app.CanUninstall &&
-        !ProtectedApplications.IsProtectedName(app.Name);
+        !ProtectedApplications.IsProtectedName(app.Name) && !ProtectedApplications.IsExcludedFromManagement(app.Name);
 
     internal static bool CanManageExternally(ProgramEntry app) => app.InventoryOnly && !app.CanUninstall &&
-        app.InventoryId.StartsWith("MANAGED|", StringComparison.Ordinal) && !ProtectedApplications.IsProtectedName(app.Name);
+        app.InventoryId.StartsWith("MANAGED|", StringComparison.Ordinal) && !ProtectedApplications.IsProtectedName(app.Name) &&
+        !ProtectedApplications.IsExcludedFromManagement(app.Name);
 
     internal static bool ShouldShow(ProgramEntry app) => app.CanUninstall || app.IsUpdate || CanManageExternally(app);
 

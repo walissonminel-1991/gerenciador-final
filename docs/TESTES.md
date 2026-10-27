@@ -1,3 +1,24 @@
+# Exclusão permanente de escopo — 27/10/2026
+
+Por instrução do mantenedor, VLC não participa de testes, consultas de versões,
+verificações de sites, downloads ou homologações futuras. Não propor botões ou
+ações para ele. A entrada pode permanecer somente no inventário, sem ações.
+Não reexecutar roteiros/branches históricos que incluam esse alvo; incorporar
+a exclusão antes de qualquer nova integração. Demais verificações de segurança
+permanecem obrigatórias. Os registros abaixo preservam a história do projeto.
+
+## Continuidade física pré-BETA — Etapa 6 (27/10/2026)
+
+E1–E5 já foram consolidadas no [relatório da Etapa 6](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md).
+O roteiro físico vigente desta missão é o focal desse relatório: cobertura/
+interpretação, amostras comparáveis de repouso, aprovação visual/T11 e prova AVG.
+**Não solicitar ou repetir a bateria A inteira.** Reutilizar os pontos já
+executados e pedir somente a evidência ausente. T11 do PC FRACO não foi executado;
+nenhum reinício é solicitado agora. As baterias anteriores abaixo permanecem
+como histórico e critérios de referência, sem conceder autorização para ações.
+Drivers continuam desativados; sem operação nos PCs nesta etapa. Nenhuma nova
+build ou teste de produto foi executado na consolidação.
+
 # Regressões do GERENCIADOR FINAL
 
 WORK18 (.65): executar também `dotnet run --project TestesAtualizador -c Release -- --work18`,

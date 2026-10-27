@@ -1,4 +1,17 @@
 using GerenciadorAplicativos;
+if (args.Contains("--etapa3"))
+{
+    int total = 0, failures = 0;
+    await Stage3UpdateTests.RunAsync((ok, label) =>
+    {
+        total++;
+        if (!ok) failures++;
+        Console.WriteLine((ok ? "OK " : "FALHA ") + label);
+    });
+    Console.WriteLine($"ETAPA3_FIXTURES total={total} aprovadas={total - failures} falhas={failures}");
+    Environment.ExitCode = failures == 0 ? 0 : 1;
+    return;
+}
 if (args.Contains("--work11-installer-fixture")) return;
 if (args.Contains("--work13-slow-fixture")) { await Task.Delay(1000); return; }
 if (args.Contains("--verify-catalog"))
@@ -11,7 +24,7 @@ if (args.Contains("--verify-catalog"))
         catalog.FindForReviewByPackageFamily("Wrong Vendor", "Microsoft.WindowsTerminal_8wekyb3d8bbwe", token.Token).Count != 0)
         throw new Exception("Consultative PFN/ID lookup did not preserve catalog identity");
     Console.WriteLine("WORK16.CATALOGO_REAL PFN/PackageIdentifier Microsoft.WindowsTerminal autenticados, sem autorizacao de execucao");
-    foreach (var item in new[] { ("OBS Studio", "OBS Project"), ("VLC media player", "VideoLAN"), ("ShareX", "ShareX Team"), ("SumatraPDF", "Krzysztof Kowalczyk") })
+    foreach (var item in new[] { ("OBS Studio", "OBS Project"), ("ShareX", "ShareX Team"), ("SumatraPDF", "Krzysztof Kowalczyk") })
     {
         var rows = catalog.Find(item.Item1, item.Item2, "", token.Token);
         if (rows.Count != 1) throw new Exception("Catalogo nao identifica fixture publica " + item.Item1);
@@ -26,7 +39,7 @@ if (args.Contains("--verify-catalog"))
             var parsed=AutomaticPackageManifest.Select(bytes,rows[0],"x64","machine",kind);
             if(parsed is null)throw new Exception("Manifesto publico sem contrato esperado "+rows[0].Id);
             Console.WriteLine("MANIFESTO.AUTOMATICO "+parsed.PackageId+" "+parsed.Version+" "+parsed.Type+" "+parsed.Arguments);
-            if(args.Contains("--verify-engine-downloads") && item.Item1 is "VLC media player" or "ShareX")
+            if(args.Contains("--verify-engine-downloads") && item.Item1 == "ShareX")
             {
                 string temp=Path.Combine(Path.GetTempPath(),"GF-Engine-Proof-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(temp);
                 try
@@ -539,6 +552,7 @@ SimulatedUpdateScenarioTests.Run(Verify);
 if (OperatingSystem.IsWindows()) AuthenticodeTests.Run(Verify);
 else Console.WriteLine("SKIP: provedor Authenticode e contexto nativo exigem Windows; nao equivalem a aprovacao.");
 await AuthenticodeTests.RunArchiveAsync(Verify);
+await Stage3UpdateTests.RunAsync(Verify);
 Console.WriteLine($"{checkedCount}/{checkedCount} testes executados de autorizacao, identidade e integridade aprovados");
 
 namespace GerenciadorAplicativos
@@ -547,6 +561,7 @@ namespace GerenciadorAplicativos
     {
         public string Name { get; init; } = "";
         public string InventoryId { get; set; } = "";
+        internal string QueryArchitecture { get; set; } = "unknown";
         public string Version { get; init; } = "";
         public string Publisher { get; init; } = "";
         public string AvailableVersion { get; init; } = "";

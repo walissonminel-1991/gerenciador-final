@@ -81,7 +81,7 @@ internal static class Work6UninstallFlowTests
         }
         before=launches;
         result=await Scenario([present],(_,_)=>{launches++;return Task.FromResult<int?>(null);});
-        check(result.Single().State==UninstallState.StartFailed && launches==before+1,"WORK6 lote: Process.Start null não confirma nem repete");
+        check(result.Single().State==UninstallState.Pending && launches==before+1,"WORK6 lote: Process.Start null conserva pendência sem confirmar nem repetir");
         result=await Scenario([present],(_,_)=>Task.FromResult<int?>(1603));
         check(result.Single().State==UninstallState.ProcessFailed,"WORK6 lote: erro do fornecedor não permite confirmar por ausência");
         var second=App("B"); // mesmo ProductCode: ambiguidade de contexto deve bloquear antes de executar

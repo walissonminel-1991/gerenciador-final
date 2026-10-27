@@ -1,0 +1,204 @@
+{
+  "schema": 1,
+  "stage": 2,
+  "date": "2026-10-27",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-pre-beta-etapa0-20261027",
+  "pull_request": 64,
+  "source_sha": "09fff12b0f854ab9c23886146479a7f993f936b7",
+  "run_id": 40525913386,
+  "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386",
+  "attempt": 1,
+  "event": "pull_request",
+  "status": "completed",
+  "conclusion": "success",
+  "mandatory_success": 6,
+  "conditional_skipped": 2,
+  "jobs": [
+    {
+      "id": 122265317754,
+      "name": "politica / Política de segurança e privacidade",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386/job/122265317754"
+    },
+    {
+      "id": 122265318177,
+      "name": "validar / Drivers somente leitura (windows-2022)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386/job/122265318177"
+    },
+    {
+      "id": 122265318231,
+      "name": "validar / Drivers somente leitura (windows-2025)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386/job/122265318231"
+    },
+    {
+      "id": 122265318285,
+      "name": "validar / Integridade dos instaladores oficiais (sem instalacao)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386/job/122265318285"
+    },
+    {
+      "id": 122265318346,
+      "name": "validar / Regressões Windows",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386/job/122265318346"
+    },
+    {
+      "id": 122265320638,
+      "name": "validar / Fontes externas e drivers do runner (somente leitura)",
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386/job/122265320638"
+    },
+    {
+      "id": 122270798093,
+      "name": "Compilação Windows x64",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386/job/122270798093"
+    },
+    {
+      "id": 122271590154,
+      "name": "Atestar pacote apenas na main",
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386/job/122271590154"
+    }
+  ],
+  "driver_runners": [
+    {
+      "os": "windows-2022",
+      "checks_passed": 174,
+      "stage2_checks_passed": 26,
+      "wmi": {
+        "associations": 67,
+        "partial": false
+      },
+      "driver_store": {
+        "infs": 46,
+        "mapped": 46,
+        "partial": true
+      },
+      "published_infs": {
+        "count": 666,
+        "enumeration_complete": true,
+        "partial": true
+      },
+      "windows_history": {
+        "events": 0,
+        "partial": true,
+        "unavailable": false
+      },
+      "inf_catalog_signatures": [
+        {
+          "trust": "VerifiedInf",
+          "native_error": "0x00000000",
+          "count": 24
+        }
+      ],
+      "unsigned_synthetic_inf_rejected": true,
+      "official_query": {
+        "source": "WindowsUpdate",
+        "complete": true,
+        "offered": 0,
+        "matched": 0,
+        "unmatched": 0
+      },
+      "can_install": false,
+      "can_maintain": false,
+      "positive_real_offer_proven": false,
+      "full_payload_verified": false
+    },
+    {
+      "os": "windows-2025",
+      "checks_passed": 174,
+      "stage2_checks_passed": 26,
+      "wmi": {
+        "associations": 67,
+        "partial": false
+      },
+      "driver_store": {
+        "infs": 48,
+        "mapped": 48,
+        "partial": true
+      },
+      "published_infs": {
+        "count": 732,
+        "enumeration_complete": true,
+        "partial": true
+      },
+      "windows_history": {
+        "events": 0,
+        "partial": true,
+        "unavailable": false
+      },
+      "inf_catalog_signatures": [
+        {
+          "trust": "VerifiedInf",
+          "native_error": "0x00000000",
+          "count": 24
+        }
+      ],
+      "unsigned_synthetic_inf_rejected": true,
+      "official_query": {
+        "source": "WindowsUpdate",
+        "complete": true,
+        "offered": 0,
+        "matched": 0,
+        "unmatched": 0
+      },
+      "can_install": false,
+      "can_maintain": false,
+      "positive_real_offer_proven": false,
+      "full_payload_verified": false
+    }
+  ],
+  "regressions": {
+    "stage2_cases": 26,
+    "multisource": 196,
+    "updater": 368,
+    "residual_uninstall": 705,
+    "mutations_rejected": 36,
+    "msix": 47,
+    "shutdown": 30,
+    "python_policy_distribution": 41
+  },
+  "build": {
+    "platform": "win-x64",
+    "self_contained": true,
+    "verified_checksum_files": 284,
+    "private_beta": false,
+    "source_sha": "09fff12b0f854ab9c23886146479a7f993f936b7",
+    "artifact_independently_downloaded": false,
+    "avg_validated": false
+  },
+  "roadmap": {
+    "completed": 27,
+    "total": 42,
+    "changed": false,
+    "open_driver_checkpoints": [
+      "D2",
+      "D4",
+      "G1",
+      "G2"
+    ]
+  },
+  "scope": {
+    "personal_pc_operations": false,
+    "raw_device_ids_published": false,
+    "driver_packages_downloaded": false,
+    "driver_install_remove_revert": false,
+    "private_beta_infrastructure_accessed": false,
+    "permanent_exclusion_preserved": true,
+    "new_excluded_product_tests": 0,
+    "stage3_started": false
+  },
+  "next": "Etapa 3, somente em outra sessão; Etapa 2 encerrada com limites físicos e de pacote explicitados."
+}

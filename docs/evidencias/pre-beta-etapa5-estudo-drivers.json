@@ -1,0 +1,274 @@
+{
+  "schema": 1,
+  "stage": 5,
+  "date": "2026-10-27",
+  "timezone": "America/Sao_Paulo",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-pre-beta-etapa0-20261027",
+  "pull_request": 64,
+  "base_documentation_sha": "466092ce237eba098ba83612c6b7774ec8226e5e",
+  "unchanged_product_source_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+  "status": "study_completed_management_disabled",
+  "report": "../WORK-PRE-BETA-ETAPA5-GESTAO-DRIVERS.md",
+  "decision": {
+    "deliverable": "documentation_only",
+    "execution_enabled": false,
+    "runtime_prototype_added": false,
+    "activation_flag_added": false,
+    "executor_added": false,
+    "buttons_added": 0,
+    "implementation_viability": "future_design_requires_G1_G2_and_validated_recovery",
+    "before": "Consultas existentes sem contrato documentado de operação por dispositivo e recuperação",
+    "after": "Lacunas mapeadas; APIs comparadas; requisitos e 12 casos futuros documentados, sem habilitação",
+    "production_behavior_changed": false
+  },
+  "existing_gates_unchanged": [
+    {
+      "path": "DriverOfficialLookup.cs",
+      "member": "DriverOfficialMatch.CanInstall",
+      "value": false
+    },
+    {
+      "path": "DriverInfVerification.cs",
+      "member": "DriverInfVerificationResult.CanInstall",
+      "value": false
+    },
+    {
+      "path": "DriverInfVerification.cs",
+      "member": "DriverInfVerificationResult.CanMaintain",
+      "value": false
+    },
+    {
+      "path": "DriverPublishedPackages.cs",
+      "member": "DriverPublishedPackage.CanMaintain",
+      "value": false
+    }
+  ],
+  "stage4_ci_rechecked": {
+    "run_id": 40565220517,
+    "source_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+    "attempt": 1,
+    "status": "completed",
+    "conclusion": "success",
+    "mandatory_success": 6,
+    "conditional_skipped": 2,
+    "receipt": "pre-beta-etapa4-ci-40565220517.json",
+    "reexecuted": false,
+    "product_source_unchanged_since_run": true
+  },
+  "reference_heads_rechecked": [
+    {
+      "pr": 60,
+      "sha": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "run_id": 40253446761,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "pr": 61,
+      "sha": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "run_id": 40324802334,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "pr": 62,
+      "sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "run_id": 40409850849,
+          "conclusion": "success"
+        },
+        {
+          "run_id": 40409850628,
+          "conclusion": "failure",
+          "historical_external_not_reinvestigated": true
+        }
+      ]
+    },
+    {
+      "pr": 63,
+      "sha": "04f59750739c6bdbaeb0bacd86ed2b734fba1271",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "run_id": 40507858102,
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "main_unchanged_sha": "410d65e23546976db456337c71e4705f10217d36",
+  "primary_sources": [
+    {
+      "id": "S1",
+      "title": "Driver Store",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/driver-store",
+      "consulted": "2026-10-27"
+    },
+    {
+      "id": "S2",
+      "title": "Preinstalling Driver Packages",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/preinstalling-driver-packages",
+      "consulted": "2026-10-27"
+    },
+    {
+      "id": "S3",
+      "title": "DiInstallDriverW",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/newdev/nf-newdev-diinstalldriverw",
+      "consulted": "2026-10-27"
+    },
+    {
+      "id": "S4",
+      "title": "DiInstallDevice",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/newdev/nf-newdev-diinstalldevice",
+      "consulted": "2026-10-27"
+    },
+    {
+      "id": "S5",
+      "title": "DiRollbackDriver",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/newdev/nf-newdev-dirollbackdriver",
+      "consulted": "2026-10-27"
+    },
+    {
+      "id": "S6",
+      "title": "DiUninstallDriverW",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/newdev/nf-newdev-diuninstalldriverw",
+      "consulted": "2026-10-27"
+    }
+  ],
+  "proposed_review_cases": [
+    {
+      "id": "E5-01",
+      "condition": "Metadados completos aparentes, gestão desativada",
+      "expected_future_state": "disabled",
+      "execution": "not_executed"
+    },
+    {
+      "id": "E5-02",
+      "condition": "Oferta exata e apenas INF/catálogo verificados",
+      "expected_future_state": "blocked_incomplete_payload",
+      "execution": "not_executed"
+    },
+    {
+      "id": "E5-03",
+      "condition": "Inventário parcial, conflito ou criticidade desconhecida",
+      "expected_future_state": "blocked_uncertain_identity_or_scope",
+      "execution": "not_executed"
+    },
+    {
+      "id": "E5-04",
+      "condition": "Pacote compartilhado e impacto não delimitado",
+      "expected_future_state": "blocked_shared_scope",
+      "execution": "not_executed"
+    },
+    {
+      "id": "E5-05",
+      "condition": "Identidade ou pacote mudou após consentimento",
+      "expected_future_state": "blocked_stale_consent",
+      "execution": "not_executed"
+    },
+    {
+      "id": "E5-06",
+      "condition": "Sem consentimento ou cancelamento antes do efeito",
+      "expected_future_state": "cancelled_before_start",
+      "execution": "not_executed"
+    },
+    {
+      "id": "E5-07",
+      "condition": "Intenção não pôde ser persistida",
+      "expected_future_state": "blocked_before_start",
+      "execution": "not_executed"
+    },
+    {
+      "id": "E5-08",
+      "condition": "Timeout, queda ou cancelamento após possível efeito",
+      "expected_future_state": "pending_reconciliation_only",
+      "execution": "not_executed"
+    },
+    {
+      "id": "E5-09",
+      "condition": "Retorno positivo sem estado final correspondente e saudável",
+      "expected_future_state": "inconclusive",
+      "execution": "not_executed"
+    },
+    {
+      "id": "E5-10",
+      "condition": "Sistema indica reinício necessário",
+      "expected_future_state": "pending_reboot_and_confirmation",
+      "execution": "not_executed"
+    },
+    {
+      "id": "E5-11",
+      "condition": "Backup não demonstrado ou ERROR_NO_MORE_ITEMS",
+      "expected_future_state": "recovery_unavailable_preserve",
+      "execution": "not_executed"
+    },
+    {
+      "id": "E5-12",
+      "condition": "Operação anterior ainda pendente",
+      "expected_future_state": "blocked_pending_operation",
+      "execution": "not_executed"
+    }
+  ],
+  "validation": {
+    "kind": "documentation_consistency_and_git_scope",
+    "json_valid": true,
+    "local_references_resolve": true,
+    "source_and_case_ids_unique": true,
+    "changed_files": [
+      "docs/WORK-PRE-BETA-CHECKPOINT.md",
+      "docs/WORK-PRE-BETA-MATRIZ.md",
+      "docs/WORK-PRE-BETA-ETAPA5-GESTAO-DRIVERS.md",
+      "docs/evidencias/pre-beta-etapa5-estudo-drivers.json"
+    ],
+    "non_documentation_blobs_unchanged": true,
+    "diff_check": "passed",
+    "new_product_tests": 0,
+    "product_tests_reexecuted": 0,
+    "driver_packages_downloaded": 0,
+    "driver_write_api_calls": 0,
+    "stage5_build_created": false,
+    "new_ci_run_requested": false,
+    "commit_ci_policy": "[skip ci]: only Markdown/JSON, no code or workflow change"
+  },
+  "roadmap": {
+    "done": 27,
+    "total": 42,
+    "pending": 15,
+    "newly_closed": [],
+    "management_still_open": [
+      "G1",
+      "G2",
+      "G3",
+      "G4",
+      "G5"
+    ]
+  },
+  "limits_preserved": {
+    "vlc_permanently_excluded": true,
+    "new_vlc_tests_or_verifications": 0,
+    "personal_pc_operations": 0,
+    "elevation_or_acl_changes": 0,
+    "driver_install_remove_rollback": 0,
+    "reboots": 0,
+    "private_beta_or_infrastructure_accessed_or_changed": false,
+    "merge_release_deploy": false,
+    "winget_reinvestigated": false
+  },
+  "next_stage": 6,
+  "next_stage_started": false
+}

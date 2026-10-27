@@ -49,7 +49,8 @@
           "id": "I7",
           "title": "Cobertura conferida nos dois computadores",
           "done": false,
-          "evidence": "Snapshot MSIX .31 e testes de fonte; ainda depende dos dois PCs."
+          "evidence": "Etapa 6: E1/E2 mostram 169/74 aplicativos incluindo 27/19 MSIX, leituras repetidas sem falhas; E3–E5 preservam histórico estável. Falta conferência de cobertura com referência equivalente nos dois PCs; docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md.",
+          "blocked_by": "conferencia_equivalente_da_cobertura"
         }
       ]
     },
@@ -186,13 +187,15 @@
           "id": "P5",
           "title": "Medir tempo de abertura, CPU e RAM nos computadores",
           "done": false,
-          "evidence": "Lote 3: microbenchmark de alocações do download e limite da prévia do registro, sem medir os PCs. CPU/RAM/abertura reais permanecem pendentes; docs/MISSAO-LOTE3.md."
+          "evidence": "Etapa 6: Startup interno 376,16/667,98 ms, CPU por etapa e amostras de working set disponíveis. Faltam vínculo do artefato/condições e série comparável em repouso 30/60/120 s prevista em TESTES; docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md.",
+          "blocked_by": "amostragem_fisica_comparavel_em_repouso"
         },
         {
           "id": "P6",
           "title": "Diagnosticar bloqueio AVG e verificar estabilidade real",
           "done": false,
-          "evidence": "Lote 3: revisão de fluxos e fontes AVG, mensagens 225/226 e evidência de hashes/assinatura. Sem varredura AVG ou causa comprovada; homologação permanece pendente; docs/MISSAO-LOTE3.md."
+          "evidence": "Etapa 6: E1/E2 encerram normalmente e há relato sem alerta; causa/resolução AVG e homologação do pacote exato ainda não comprovadas. Preservar proteções e evidência anterior do Lote 3; docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md.",
+          "blocked_by": "causa_resolucao_avg_e_pacote_exato"
         }
       ]
     },
@@ -227,7 +230,8 @@
           "id": "V5",
           "title": "Legibilidade e fluidez aprovadas nos dois computadores",
           "done": false,
-          "evidence": "Validação presencial adiada"
+          "evidence": "Etapa 6: E1 registra 2560x1440/DPI 120; E2 confirma ocultar/restaurar bandeja. Relatos visuais preservados; falta aprovação física vinculada ao artefato/resolução/DPI dos dois PCs. T11 não executado; docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md.",
+          "blocked_by": "aprovacao_visual_vinculada_ao_artefato_e_dpi"
         }
       ]
     },
@@ -257,7 +261,8 @@
           "id": "D4",
           "title": "Validar interpretação nos computadores",
           "done": false,
-          "evidence": "Etapa futura"
+          "evidence": "Etapa 6: 166/119 associações, 63/53 INFs, 19/17 compartilhados, três sem INF em cada; FORTE com pacotes parciais e FRACO sem registro detalhado equivalente. Falta conferência humana dos vínculos/atributos/histórico; docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md.",
+          "blocked_by": "interpretacao_humana_dos_vinculos_e_historico"
         }
       ]
     },
@@ -298,16 +303,37 @@
     }
   ],
   "latest_real_test": {
-    "version": "5.13.11.52 TESTE",
-    "date": "2026-10-23",
-    "environment": "PC FORTE, Windows x64",
-    "status": "7-Zip atualizado; deficiência de acompanhamento visual informada pelo mantenedor",
-    "observations": "Relato/transcrição da missão: inventário 168→171, candidatos 7→10; 7-Zip 26.04→26.05 confirmado, candidatos 10→9. Notepad++ 8.9.1 e SumatraPDF 3.5 preparados e preservados para próxima homologação. Não equivale à homologação da .53."
+    "version": "5.13.11.65 TESTE",
+    "date": "2026-10-27",
+    "environment": "PC FRACO, Windows 10.0.26200.0 x64",
+    "status": "Consulta física e encerramento registrados; homologação parcial, sem operação de atualização/desinstalação comprovada",
+    "observations": "E2: inventário 74 incluindo 19 MSIX, status ok/zero falhas; 8 candidatos, zero elegíveis silenciosos/supervisionados; 119 associações/53 INFs, 17 compartilhados, 3 sem INF; bandeja ocultar/restaurar e encerramento normal. E3/E5 repetem a mesma comparação sem mudanças. Relato 11/12 sem falha; T11 não executado. Não homologa as correções pré-BETA.",
+    "source_commit_recorded": null,
+    "package_hash_recorded": null,
+    "evidence_report": "docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md",
+    "evidence_sources": [
+      "E2",
+      "E3",
+      "E5"
+    ],
+    "physical_validation": "partial"
   },
   "latest_real_test_pc_fraco": {
-    "version": "5.13.11.24 TESTE",
-    "status": "MSIX 0x80040154 persistente; 55 observados, sem prova de remoção de 19 MSIX",
-    "observations": "108 associações/50 INFs; 12 grupos/41 locais preservados; sem exclusão"
+    "version": "5.13.11.65 TESTE",
+    "date": "2026-10-27",
+    "environment": "PC FRACO, Windows 10.0.26200.0 x64",
+    "status": "Consulta física e encerramento registrados; homologação parcial, sem operação de atualização/desinstalação comprovada",
+    "observations": "E2: inventário 74 incluindo 19 MSIX, status ok/zero falhas; 8 candidatos, zero elegíveis silenciosos/supervisionados; 119 associações/53 INFs, 17 compartilhados, 3 sem INF; bandeja ocultar/restaurar e encerramento normal. E3/E5 repetem a mesma comparação sem mudanças. Relato 11/12 sem falha; T11 não executado. Não homologa as correções pré-BETA.",
+    "source_commit_recorded": null,
+    "package_hash_recorded": null,
+    "evidence_report": "docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md",
+    "evidence_sources": [
+      "E2",
+      "E3",
+      "E5"
+    ],
+    "physical_validation": "partial",
+    "same_session_as_latest_real_test": true
   },
   "mission_work4": {
     "status": "Implementação e CI final aprovadas; validação física pendente",
@@ -1075,5 +1101,82 @@
         "reason": "new UI correction; prior official VLC redirect returned HTTP 500; no verification relaxed; final run succeeded"
       }
     ]
+  },
+  "latest_real_test_pc_forte": {
+    "version": "5.13.11.64 TESTE",
+    "date": "2026-10-25",
+    "environment": "PC FORTE, Windows 10.0.26300.0 x64",
+    "status": "Consulta física e encerramento registrados; homologação parcial",
+    "observations": "E1: inventário 169 incluindo 27 MSIX, status ok/zero falhas; 10 candidatos, zero elegíveis silenciosos/supervisionados; 166 associações/63 INFs, 19 compartilhados, 3 sem INF; 63/63 pacotes mapeados com cobertura parcial. Encerramento normal; não comprova resolução AVG, uso em repouso ou homologação pré-BETA.",
+    "source_commit_recorded": null,
+    "package_hash_recorded": null,
+    "evidence_report": "docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md",
+    "evidence_sources": [
+      "E1"
+    ],
+    "physical_validation": "partial"
+  },
+  "historical_real_tests_before_pre_beta_etapa6": {
+    "preserved_on": "2026-10-27",
+    "reason": "Corrigir os últimos testes físicos com E1–E5 sem apagar os relatos anteriores .52/.24.",
+    "latest_real_test": {
+      "version": "5.13.11.52 TESTE",
+      "date": "2026-10-23",
+      "environment": "PC FORTE, Windows x64",
+      "status": "7-Zip atualizado; deficiência de acompanhamento visual informada pelo mantenedor",
+      "observations": "Relato/transcrição da missão: inventário 168→171, candidatos 7→10; 7-Zip 26.04→26.05 confirmado, candidatos 10→9. Notepad++ 8.9.1 e SumatraPDF 3.5 preparados e preservados para próxima homologação. Não equivale à homologação da .53."
+    },
+    "latest_real_test_pc_fraco": {
+      "version": "5.13.11.24 TESTE",
+      "status": "MSIX 0x80040154 persistente; 55 observados, sem prova de remoção de 19 MSIX",
+      "observations": "108 associações/50 INFs; 12 grupos/41 locais preservados; sem exclusão"
+    }
+  },
+  "pre_beta_physical_evidence": {
+    "stage": 6,
+    "date": "2026-10-27",
+    "status": "consolidated_homologation_partial",
+    "base_documentation_sha": "3b6061c33df54cd2b5689a1cabacb866e9a28ff4",
+    "report": "docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md",
+    "evidence": "docs/evidencias/pre-beta-etapa6-fisica.json",
+    "source_files": 5,
+    "diagnostic_logs": 2,
+    "new_physical_tests": 0,
+    "source_sha_or_hash_in_physical_logs": false,
+    "pre_beta_code_physically_homologated": false,
+    "completed_checkpoints": [],
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "drivers_management_enabled": false,
+    "t11_pc_fraco": "not_executed"
+  },
+  "pre_beta_final_assessment": {
+    "stage": 7,
+    "date": "2026-10-27",
+    "status": "assessment_completed_mission_closed",
+    "decision": "BETA_BLOQUEADA",
+    "scope": "Candidata BETA conectada que reúna pré-BETA e .66 neste estado",
+    "input_documentation_sha": "d01e37708bc06141e6dc7ffdee4ca346caddec4c",
+    "last_validated_pre_beta_code_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+    "pre_beta_ci_run_id": 40565220517,
+    "beta_source_sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+    "beta_ci_run_id": 40409850849,
+    "report": "docs/WORK-PRE-BETA-ETAPA7-DECISAO.md",
+    "evidence": "docs/evidencias/pre-beta-etapa7-decisao.json",
+    "connected_pilot_recommended": false,
+    "source_composition_applied": false,
+    "combined_code_ci_proven": false,
+    "textual_conflicts": [
+      "docs/PROGRESSO.json"
+    ],
+    "metadata_projection_only_in_memory": true,
+    "remote_operational_state_audited": false,
+    "completed_checkpoints": [],
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "drivers_management_enabled": false,
+    "candidate_artifact_or_physical_history_promoted": false,
+    "automatic_next_stage": null,
+    "merge_release_deploy_distribution": false
   }
 }

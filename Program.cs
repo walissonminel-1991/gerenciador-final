@@ -85,16 +85,21 @@ internal sealed class ProgramEntry
     public string CatalogDisplayName { get; set; } = "";
     public string InventorySource { get; init; } = "";
     public string InventoryId { get; init; } = "";
+    // Evidência consultiva capturada junto ao inventário; não autoriza execução.
+    internal string QueryArchitecture { get; set; } = "unknown";
     public string MsiProductCode { get; init; } = "";
     public string MsixPackageFamilyName { get; init; } = "";
     public bool VerifiedMsixIdentity { get; init; }
     // Entrada MSIX, jogo da biblioteca ou componente protegido: sem desinstalacao direta.
-    public bool InventoryOnly { get; init; }
+    private bool _inventoryOnly;
+    public bool InventoryOnly { get => _inventoryOnly || ProtectedApplications.IsExcludedFromManagement(Name); init => _inventoryOnly = value; }
     // Atualizada pelo inventario local; nao fornece autorizacao para executar comandos.
-    public bool CanUninstall { get; set; }
+    private bool _canUninstall;
+    public bool CanUninstall { get => _canUninstall && !ProtectedApplications.IsExcludedFromManagement(Name); set => _canUninstall = value; }
     public string AvailableVersion { get; set; } = "";
     public string Source { get; set; } = "";
-    public bool IsUpdate { get; set; }
+    private bool _isUpdate;
+    public bool IsUpdate { get => _isUpdate && !ProtectedApplications.IsExcludedFromManagement(Name); set => _isUpdate = value; }
     public bool UpdateRequiresReview { get; set; }
     public string UpdateEvidence { get; set; } = "";
     internal ApplicationCapabilitySnapshot? Capabilities { get; set; }
@@ -332,7 +337,7 @@ internal static class AppServices
                         // O identificador inclui a visão real: não unir instalações
                         // diferentes só porque o nome e versão coincidem.
                         string registryIdentity = $"{hive}|{view}|{registryKey}";
-                        entries.Add(new ProgramEntry
+                        var entry = new ProgramEntry
                         {
                             Name = name,
                             Version = Convert.ToString(child.GetValue("DisplayVersion"))?.Trim() ?? "",
@@ -350,7 +355,9 @@ internal static class AppServices
                             InstallLocation = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("InstallLocation"))?.Trim() ?? "",
                             InventoryOnly = protectedApp
-                        });
+                        };
+                        entry.QueryArchitecture = InstalledUpdateIdentity.CaptureArchitecture(entry);
+                        entries.Add(entry);
                     }
                     catch (Exception) { failures++; }
                 }
@@ -1242,6 +1249,8 @@ internal sealed partial class MainForm : Form
             ? $"Revisar: versões principais diferentes · {DisplayAppVersion(item.Version)} → {DisplayAppVersion(item.AvailableVersion)} (coexistem)"
             : Matching.IsUncertain(item.ComparisonState)
             ? $"Resultado incerto (RuckZuck)  ·  Versão: {DisplayAppVersion(item.Version)}"
+            : ProtectedApplications.IsExcludedFromManagement(item.Name)
+            ? $"Versão: {DisplayAppVersion(item.Version)} · Somente inventário"
             : item.InventoryOnly && item.InventorySource.StartsWith("Biblioteca de jogos:", StringComparison.Ordinal)
             ? $"Jogo da {item.InventorySource["Biblioteca de jogos:".Length..].Trim()} (somente leitura)"
             : item.InventoryOnly && item.InventorySource.Contains("MSIX", StringComparison.OrdinalIgnoreCase)
@@ -2243,15 +2252,7 @@ internal sealed partial class MainForm : Form
         // Preservar o mesmo número e a mesma ordem das linhas para a UI.
         // Entradas somente leitura (jogos e MSIX nao verificados) nao
         // recebem candidatos nem receitas automáticas de atualização.
-        var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher,
-            EcosystemInventory.CanQueryVersions(x),
-            Architecture: Regex.IsMatch(x.Name, @"(?i)\bARM64\b") ? "arm64" :
-                Regex.IsMatch(x.Name, @"(?i)\b(x64|64-bit)\b") ? "x64" :
-                Regex.IsMatch(x.Name, @"(?i)\b(x86|32-bit)\b") ? "x86" : "unknown",
-            Scope: x.InventoryId.StartsWith("CurrentUser|", StringComparison.Ordinal) ? "user" :
-                x.InventoryId.StartsWith("LocalMachine|", StringComparison.Ordinal) ? "machine" : "unknown",
-            InstallType: x.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) ? "msix" : "unknown",
-            InventoryId: x.InventoryId, InstallLocation: InventoryReconciler.UpdateInstallLocation(x))).ToArray();
+        var installed = snapshot.Select(InstalledUpdateIdentity.Create).ToArray();
         using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.Updates);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
         var watch = Stopwatch.StartNew();
@@ -2391,7 +2392,8 @@ internal sealed partial class MainForm : Form
                 $"incertos={uncertain} ruckzuck_entradas={rz.Count} " +
                 $"ruckzuck_ms={rz.NetworkMs} comparacao_ms={rz.CompareMs} total_ms={watch.ElapsedMilliseconds}");
             Log("Execução direta exige receita verificada ou descoberta autenticada, com conferência do arquivo e da instalação.");
-            int sourceFailures = others.Diagnostics.Count(x => x.Status != "ok") + (rz.Matches is null ? 1 : 0);
+            int sourceFailures = others.Diagnostics.Count(x => x.Status != "ok") + (rz.Matches is null ? 1 : 0) +
+                (automatic.Diagnostic.Status != "ok" ? 1 : 0);
             int conflicts = merged.Count(m => m.HasSourceConflict);
             int requiringReview = merged.Count(m => m.State == MatchState.Candidate && m.RequiresReview);
             if (conflicts > 0) Log($"Fontes divergentes: {conflicts} resultado(s); instalação direta bloqueada, detalhes na dica da linha.");
@@ -3193,10 +3195,7 @@ internal sealed partial class MainForm : Form
                     inspection is null || !inspection.Conclusive || cleaned is { Verified: false } && cleanup?.Declined != true ? "partial" : "finished",
                     UninstallResultSummary.Describe([outcome], cleanup));
             }
-            string result = !consent || cleanup?.Cancelled == true ? "Operação cancelada — confira o resumo."
-                : outcomes.Any(o => o.State == UninstallState.Pending) ? "Conclusão pendente — confira o resumo."
-                : cleanup?.Unavailable > 0 ? "Verificação de resíduos parcial — confira o resumo."
-                : "Desinstalação finalizada — confira o resumo.";
+            string result = UninstallResultSummary.Status(outcomes, cleanup, consent);
             Status(result); Log(result);
             ShowUninstallResult(summary);
             if (consent && cleanup?.Declined != true && cleanup?.Cancelled != true &&
