@@ -1209,7 +1209,7 @@
       "pre_beta_pr64": "357877e9acd628f84e5d9944e02e471fe319d1bc",
       "beta_accumulated_pr62": "e530d724b7322963c8795b005f13ae6948a73e43"
     },
-    "code_commit": null,
+    "code_commit": "06d7dce0bb47944f1efd18a10785fa77f5f0c8f7",
     "ci_status": "not_run",
     "ci_url": null,
     "artifact": null,

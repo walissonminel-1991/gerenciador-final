@@ -4,6 +4,9 @@
 [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65).
 **Integração em fonte concluída; validação da árvore combinada pendente.**
 Nenhuma build, suíte de produto, CI, distribuição ou teste físico nesta etapa.
+Commit fonte: [`06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`](https://github.com/walissonminel-1991/gerenciador-final/commit/06d7dce0bb47944f1efd18a10785fa77f5f0c8f7).
+O fechamento posterior altera somente Markdown/JSON de continuidade; confira
+o HEAD final da PR antes da próxima sessão.
 
 [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) ·
 [Matriz](WORK-INTEGRACAO-MATRIZ.md) ·
@@ -166,11 +169,13 @@ rastreável. Elas não são a regressão/CI da Etapa 3:
 | CI | Comandos/gates preservados conforme seção anterior | Zero run novo; nenhuma aprovação da integração |
 | Privacidade | Configuração vazia, aprovações falsas, flags no | Estado remoto não inspecionado |
 
-Após publicar, a árvore e os blobs devem ser relidos no GitHub e comparados
-com este recibo, incluindo a preservação dos arquivos fora do escopo. O
-fechamento registrará o commit fonte; o HEAD documental posterior não será
-interpretado como build aprovada. Commits usam `[skip ci]` para respeitar a
-parada antes da validação final.
+A árvore do commit fonte foi relida no GitHub: **433 blobs conferidos**,
+**367 blobs herdados fora do escopo intactos**, 66 caminhos esperados e sete
+refs originais preservadas. Um único pai; nenhuma CI ou artefato criado.
+O recibo posterior registra o SHA fonte em cinco Markdown/JSON sem alterar
+código/testes/workflows. O HEAD documental não é build aprovada; a CI futura
+deve identificar seu SHA efetivamente executado. Commits usam `[skip ci]`
+para respeitar a parada antes da validação final.
 
 ## Problemas conhecidos e próxima sessão
 

@@ -16,7 +16,7 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | PR da integração | [#65](https://github.com/walissonminel-1991/gerenciador-final/pull/65), aberta e Draft |
 | Commit da análise | [`f000ca3227227f11d8412c9a3f87335ead80bd9d`](https://github.com/walissonminel-1991/gerenciador-final/commit/f000ca3227227f11d8412c9a3f87335ead80bd9d); fechamento posterior atualiza somente estes documentos; conferir HEAD final na PR |
 | Entrada da Etapa 2 | `275cfc396d22c8aff933a3879f0702d20596a2bc` |
-| Commit de código da Etapa 2 | Registrar no fechamento após salvar a composição; HEAD final a conferir na PR #65 |
+| Commit de código da Etapa 2 | [`06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`](https://github.com/walissonminel-1991/gerenciador-final/commit/06d7dce0bb47944f1efd18a10785fa77f5f0c8f7); fechamento posterior somente Markdown/JSON; conferir HEAD final da PR #65 |
 | CI da integração | **Não executada**; Etapa 2 salva com `[skip ci]`, parada antes da Etapa 3 e sem build |
 | Código integrado | Origem #64 + delta acumulado #62; 57 exclusivos idênticos, um workflow adaptado e quatro compartilhados conciliados; versão .66 |
 | Roadmap | **27/42**, mesmos 42 IDs/done; nenhum checkpoint promovido |
@@ -30,7 +30,7 @@ Documentos da Etapa 1 preservados:
 - `docs/evidencias/integracao-etapa1-reconciliacao.json` — recibo e caminhos comparados.
 - `docs/WORK-INTEGRACAO-ADENDO-BETA-LOCAL.md` — requisitos futuros das Etapas 5–9.
 
-## Fontes fixadas e CI conferida
+## Fontes fixadas e CI histórica das origens
 
 | Fonte | SHA | CI observada / limite |
 | --- | --- | --- |
@@ -119,6 +119,20 @@ Nenhum run próprio ou artefato foi criado para esse commit.
 O fechamento documental da Etapa 1 foi `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Esse registro permanece histórico; o HEAD atual deve ser conferido na #65.
 A CI da composição da Etapa 2 continua pendente para a Etapa 3.
+
+## Fechamento da Etapa 2
+
+Código salvo no commit `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`, um único pai sobre a entrada.
+Árvore relida no GitHub: **433 blobs conferidos**, **367 blobs da entrada
+fora do escopo intactos**, 66 caminhos esperados e sete refs originais
+preservadas. Nenhum run de CI ou artefato criado.
+
+Este recibo posterior altera somente os cinco Markdown/JSON de continuidade
+listados na evidência, incluindo o ponteiro `integration_final.code_commit`;
+código, testes, workflows, versão, configuração bloqueada e estados do roadmap
+permanecem como no commit fonte. O HEAD documental final deve ser conferido
+na PR #65; CI futura deverá identificar o SHA efetivamente executado.
+**Etapa 3 não iniciada.**
 
 ## Retomada obrigatória
 

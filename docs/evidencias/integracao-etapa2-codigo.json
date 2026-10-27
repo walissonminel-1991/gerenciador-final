@@ -9,7 +9,7 @@
   "pr": 65,
   "draft": true,
   "entry_commit": "275cfc396d22c8aff933a3879f0702d20596a2bc",
-  "code_commit": null,
+  "code_commit": "06d7dce0bb47944f1efd18a10785fa77f5f0c8f7",
   "final_documentary_head": "Consultar HEAD da PR65; fechamento posterior nao e build aprovada.",
   "status": "code_integrated_validation_pending",
   "version": "5.13.11.66",
@@ -623,7 +623,14 @@
     "Falha externa historica preservada sem reinvestigacao/reexecucao do alvo excluido."
   ],
   "publication_verification": {
-    "status": "pending_remote_readback"
+    "code_commit": "06d7dce0bb47944f1efd18a10785fa77f5f0c8f7",
+    "all_blobs_verified": 433,
+    "unchanged_entry_blobs": 367,
+    "scope_paths": 66,
+    "own_workflow_runs": 0,
+    "parents": 1,
+    "status": "passed",
+    "original_refs_unchanged": 7
   },
   "next_stage": 3,
   "stage3_started": false,
@@ -640,5 +647,13 @@
     "product_tests_run": 0,
     "builds_started": 0,
     "whitespace_diff_checks": "passed_no_diagnostics"
-  }
+  },
+  "result_blob_scope": "code_commit; fechamento posterior altera somente Markdown/JSON de continuidade, sem codigo/testes/workflows.",
+  "documentary_closure_paths": [
+    "docs/PROGRESSO.json",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/WORK-INTEGRACAO-ETAPA2-CODIGO.md",
+    "docs/evidencias/integracao-etapa2-codigo.json"
+  ]
 }

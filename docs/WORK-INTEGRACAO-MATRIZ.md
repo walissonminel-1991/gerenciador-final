@@ -4,7 +4,8 @@
 [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65).
 Commit da análise: `f000ca3227227f11d8412c9a3f87335ead80bd9d`;
 fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
-Etapa 2 salva em commit próprio, a registrar no fechamento; HEAD final a conferir na PR.
+Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
+fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
 **Etapa 2: código integrado em fonte; regressões/CI da composição pendentes.**
 [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) ·
 [Reconciliação](WORK-INTEGRACAO-ETAPA1-RECONCILIACAO.md) ·
@@ -83,6 +84,11 @@ projetos resolvidas e 92 fontes C# de testes excluídas do produto. Os comandos
 anteriores de CI foram preservados: 42 idênticos e um com flags adicionais
 na consulta opcional. JSON/histórico e 27/42 preservados. Essas são conferências
 estáticas, sem testes de produto, CI ou build. Detalhes e limites no relatório.
+
+Árvore do commit fonte conferida no GitHub: 433 blobs, 367 herdados fora
+do escopo intactos, 66 caminhos esperados e sete refs originais preservadas.
+Nenhum run próprio. Fechamento posterior somente documental; regressões/CI
+continuam reservadas à próxima sessão.
 
 ## Bloqueios preservados
 
