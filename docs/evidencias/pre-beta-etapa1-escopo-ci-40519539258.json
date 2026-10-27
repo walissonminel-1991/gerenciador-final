@@ -1,0 +1,75 @@
+{
+  "source_commit": "341c109b6b8538733b32a02909ff40c8e0a380d9",
+  "run_id": 40519539258,
+  "requested_scope_change": "Remove VLC from all future tests, checks and actions/buttons; inventory-only.",
+  "current_stage": 1,
+  "next_stage": 2,
+  "stage2_started": false,
+  "roadmap": {
+    "done": 27,
+    "total": 42
+  },
+  "validation": {
+    "local_multisource": 196,
+    "local_ecosystem": 54,
+    "local_policy": 18,
+    "windows_multisource": 196,
+    "windows_updater": 368,
+    "windows_residual_uninstall": 705,
+    "windows_mutations_rejected": 36,
+    "windows_msix": 47,
+    "windows_shutdown": 30
+  },
+  "past_failure": {
+    "run": 40514120889,
+    "status": "failure",
+    "interpretation": "historical, not a future requirement; do not rerun"
+  },
+  "private_beta_modified": false,
+  "personal_pc_operations": 0,
+  "conclusion": "success",
+  "stage1_status": "completed",
+  "jobs": [
+    {
+      "id": 122242543757,
+      "name": "validar / Integridade dos instaladores oficiais (sem instalacao)",
+      "conclusion": "success"
+    },
+    {
+      "id": 122242543812,
+      "name": "validar / Drivers somente leitura (windows-2025)",
+      "conclusion": "success"
+    },
+    {
+      "id": 122242543916,
+      "name": "validar / Regressões Windows",
+      "conclusion": "success"
+    },
+    {
+      "id": 122242543958,
+      "name": "politica / Política de segurança e privacidade",
+      "conclusion": "success"
+    },
+    {
+      "id": 122242544016,
+      "name": "validar / Drivers somente leitura (windows-2022)",
+      "conclusion": "success"
+    },
+    {
+      "id": 122242546363,
+      "name": "validar / Fontes externas e drivers do runner (somente leitura)",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 122247860552,
+      "name": "Compilação Windows x64",
+      "conclusion": "success"
+    },
+    {
+      "id": 122248474615,
+      "name": "Atestar pacote apenas na main",
+      "conclusion": "skipped"
+    }
+  ],
+  "no_new_product_specific_test_added": true
+}

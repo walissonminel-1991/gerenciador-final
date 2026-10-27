@@ -1,6 +1,6 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapa 0 concluída; Etapa 1 em validação após exclusão solicitada em 27/10/2026.** Base: WORK18 .65 TESTE,
+**Etapas 0 e 1 concluídas tecnicamente em 27/10/2026; exclusão permanente solicitada validada.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
@@ -141,8 +141,8 @@ Chrome de consulta a execução. PR #62: CI principal aprovada e integridade
 externa falhou; sem alegar prontidão integral da BETA. A infraestrutura privada
 não foi acessada nem alterada.
 
-**Próxima sessão: Etapa 1, somente fontes de atualização e PR #63.** Não
-repetir a auditoria inicial; verificar apenas mudanças desde os SHAs registrados.
+Esta seção preserva a fotografia inicial da Etapa 0. O estado atual das
+Etapas 0/1 é concluído; na retomada, seguir exclusivamente a Etapa 2.
 Etapas 2–7 continuam não iniciadas. O roteiro físico mínimo final pertence
 à Etapa 6 e deve partir das evidências acima, incluindo a pendência específica
 T11; não solicitar uma nova bateria completa por falta de consolidação.
@@ -152,7 +152,7 @@ T11; não solicitar uma nova bateria completa por falta de consolidação.
 | Funcionalidade | Antes | Depois | Evidência | Limitação | Roadmap |
 | --- | --- | --- | --- | --- | --- |
 | Consulta oficial Chrome | Proposta #63 separada; API ao vivo não validada | Cinco arquivos revistos incorporados na branch #64, sem merge; GETs win/win64 e parser C# reais aprovados | [Revisão](EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md), modo explícito `--chrome-live` | Somente consulta; sem prova de rollout, payload ou arquitetura local no adaptador da tela | Nenhum novo checkpoint |
-| Parser Chrome | Aceitava propriedades JSON duplicadas, LF final e dígitos não ASCII | Recusa ambiguidades e exige versão ASCII completa com quatro componentes | 7 falhas reproduzidas antes; 37/37 focais locais; 196/196 multifontes em Linux e Windows | CI integral não aprovada devido ao download VLC externo | Proteções preservadas; U8 aberto |
+| Parser Chrome | Aceitava propriedades JSON duplicadas, LF final e dígitos não ASCII | Recusa ambiguidades e exige versão ASCII completa com quatro componentes | 7 falhas reproduzidas antes; 37/37 focais locais; 196/196 multifontes em Linux e Windows | A CI anterior falhou; a exclusão permanente foi aplicada posteriormente | Proteções preservadas; U8 aberto |
 | Isolamento/cache | Contratos existentes e teste entre duas arquiteturas Chrome | Confirmada preservação de Mozilla/GitHub frente a 429/500/302/JSON inválido/duplicado/corpo excessivo/timeout; concorrência deduplicada e cancelamento explícito | Suíte multifontes 196/196 local e Windows; fixtures sem rede | Não comprova disponibilidade permanente dos serviços externos | U1/U2 já concluídos anteriormente |
 | Cobertura consultiva controlada | 1 resultado/candidato; 0 Chrome, em 7 entradas | 3 resultados/candidatos; 2 arquiteturas Chrome da mesma família; zero falsos candidatos nos 4 controles | [Comparação reproduzível](evidencias/pre-beta-etapa1-fontes-comparacao.json), mesmo probe nos dois snapshots | Amostra sintética, não novos aplicativos homologados ou ganho físico | 27/42 mantidos |
 | Arquitetura Chrome na tela | Nome exato `Google Chrome`, arquitetura obtida apenas por sufixos de nome | Limitação de entrada identificada e documentada; gate conservador mantido | `Program.cs`, `LoadUpdatesAsync`; identidade exata e testes de arquitetura desconhecida | Na tela atual, esse nome produz `unknown` e não consulta a nova fonte; fornecer prova local na Etapa 3 | Pendência de cobertura/identidade; sem encerrar U8 |
@@ -168,9 +168,17 @@ bloqueado pelo gate e ficou skipped. [Resultados por job/tentativa](evidencias/p
 
 O bloqueio anterior foi retirado do escopo por instrução explícita do mantenedor.
 Não repetir verificações desse produto. A revisão Chrome está concluída e não
-deve ser repetida. A CI da alteração de exclusão será registrada no checkpoint;
+deve ser repetida. A CI da alteração de exclusão está aprovada e registrada no checkpoint;
 a arquitetura local para a tela permanece pendente na futura Etapa 3.
 
 | Funcionalidade | Antes | Depois | Evidência | Limitação | Roadmap |
 | --- | --- | --- | --- | --- | --- |
 | Escopo de aplicativos | Caso externo e regras específicas consumiam a validação | Alvo removido dos testes/catálogos e excluído das consultas, limpeza e ações; nenhum novo botão | Alteração solicitada pelo mantenedor; verificador real e casos ativos revistos | Registros antigos preservados como histórico; BETA privada inalterada | 27/42, sem novo checkpoint |
+
+**CI final [40519539258](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40519539258)
+aprovada**, fonte `341c109b6b8538733b32a02909ff40c8e0a380d9`: seis jobs
+obrigatórios success, dois condicionais skipped. Regressões: 196 multifontes,
+368 atualizadores, 705 resíduos/desinstalação, 36 mutações recusadas, 47 MSIX
+e 30 encerramento. A redução 707 → 705 corresponde aos dois casos removidos.
+[Evidência](evidencias/pre-beta-etapa1-escopo-ci-40519539258.json).
+**Etapa 1 concluída; próxima: Etapa 2, não iniciada nesta sessão.**

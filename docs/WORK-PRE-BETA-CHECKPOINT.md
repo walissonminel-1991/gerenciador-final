@@ -8,7 +8,7 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | Campo | Registro |
 | --- | --- |
 | Etapa executada | **1 — Fontes de atualização e PR #63** |
-| Estado | **EM ANDAMENTO** — exclusão permanente solicitada pelo mantenedor aplicada; nova CI sem esse alvo pendente |
+| Estado | **CONCLUÍDA** — revisão e exclusão permanente solicitada validadas; CI atual aprovada |
 | Repositório | `walissonminel-1991/gerenciador-final` |
 | Branch de continuidade | `work-pre-beta-etapa0-20261027` |
 | Base imutável | `2bc9f4228fd448445fbf181652e5af93005def20` — WORK18 / PR #60 |
@@ -16,11 +16,13 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | Commit da auditoria inicial | [`1399468d22061e79b6a6f957ba472d84a1aec9ec`](https://github.com/walissonminel-1991/gerenciador-final/commit/1399468d22061e79b6a6f957ba472d84a1aec9ec) |
 | PR de acompanhamento | [#64 — Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/64) |
 | Ponto de retomada anterior | `b30fab20a25c4ee08b5624226a3bdb289ba20295` — Etapa 0 concluída |
-| Commit de código da Etapa 1 | [`8e195bfa3dfaab6767d877e78a2ad8d2b538f49c`](https://github.com/walissonminel-1991/gerenciador-final/commit/8e195bfa3dfaab6767d877e78a2ad8d2b538f49c) |
-| CI Windows da Etapa 1 | [40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889), tentativa 2: **failure**; regressões/políticas/drivers aprovados; integridade externa falhou; pacote x64 skipped |
+| Commit da revisão Chrome anterior | [`8e195bfa3dfaab6767d877e78a2ad8d2b538f49c`](https://github.com/walissonminel-1991/gerenciador-final/commit/8e195bfa3dfaab6767d877e78a2ad8d2b538f49c) |
+| CI histórica anterior à exclusão | [40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889), tentativa 2: **failure**; não reexecutar |
+| Commit da exclusão solicitada | [`341c109b6b8538733b32a02909ff40c8e0a380d9`](https://github.com/walissonminel-1991/gerenciador-final/commit/341c109b6b8538733b32a02909ff40c8e0a380d9) |
+| CI atual sem o alvo excluído | [40519539258](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40519539258): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
 | Arquivos alterados nesta etapa | Catálogo de identidade, fonte oficial Chrome, testes multifontes, probe e documentação/evidência; relação completa abaixo |
 | Código, versão e roadmap oficial | Fonte consultiva revista; versão de projeto mantida; **27/42**, 15 pendentes |
-| Próxima ação | Conferir somente a CI da exclusão; não consultar, testar ou criar ações para VLC; Etapa 2 ainda não iniciada |
+| Próxima etapa | **2 — Drivers: investigação e consulta oficial**, em outra sessão; exclusão permanente preservada |
 
 O commit da auditoria inicial identifica a fotografia documental anterior; o
 commit de código da Etapa 1 está identificado separadamente. O HEAD final do recibo deve ser
@@ -64,9 +66,19 @@ futura com a BETA deve carregar esta exclusão antes de disparar testes; a
 BETA privada atual e sua infraestrutura não foram modificadas.
 
 Validação local da alteração: compilação com analisadores e zero erros/avisos,
-196/196 multifontes, 54/54 ecossistemas e 18/18 políticas. A nova CI está
-pendente de conferência; os testes existentes executados não contêm o alvo
-excluído. Não iniciar a Etapa 2 nesta sessão.
+196/196 multifontes, 54/54 ecossistemas e 18/18 políticas. A CI Windows do SHA
+`341c109b6b8538733b32a02909ff40c8e0a380d9` aprovou 196/196 multifontes,
+368/368 atualizadores, 705/705 resíduos/desinstalação, 36/36 mutações,
+47/47 MSIX, 30/30 encerramento, integridade dos outros instaladores,
+políticas, drivers dos runners 2022/2025 e empacotamento x64.
+Dois casos específicos foram removidos, explicando 707 → 705; não são falhas
+ignoradas. Nenhum teste novo para o produto excluído foi criado.
+[Evidência final do escopo e da CI](evidencias/pre-beta-etapa1-escopo-ci-40519539258.json).
+
+**Etapa 1 concluída tecnicamente.** Roadmap 27/42 e homologação física
+continuam como registrados. A arquitetura Chrome na tela permanece pendente
+da Etapa 3. Não iniciar a Etapa 2 nesta sessão. Não houve merge, deploy,
+release pública, distribuição BETA ou operação nos PCs.
 
 ## Histórico da Etapa 1 — revisão Chrome e falha externa anterior à exclusão
 
@@ -246,7 +258,7 @@ independente; não confundir sua consulta com execução de COM/CLI.
 | Etapa | Estado após esta sessão | Próxima ação e critério de saída |
 | --- | --- | --- |
 | 0 — Auditoria | **CONCLUÍDA** | Referências, pendências, evidências e continuidade registradas; encerrar |
-| 1 — Fontes / #63 | **EM ANDAMENTO** | Revisão Chrome aprovada; exclusão solicitada aplicada, nova CI pendente; nunca retomar verificações VLC; arquitetura na tela permanece para a Etapa 3 |
+| 1 — Fontes / #63 | **CONCLUÍDA** | Revisão e exclusão solicitada aprovadas na CI 40519539258; nunca retomar verificações VLC; arquitetura na tela permanece para a Etapa 3 |
 | 2 — Drivers consultivos | **NÃO INICIADA** | Reusar Lote 2; completar análise D2/G1/G2/D4, testes específicos e limites de histórico/pacote; nenhuma escrita |
 | 3 — Atualizações | **NÃO INICIADA** | Reusar WORK13–18; validar identidade, payload, estados/cancelamento em fixtures e lacunas U8; sem atualização real |
 | 4 — Desinstalação / resíduos | **NÃO INICIADA** | Reusar WORK10–14/Lote 3; demonstrar propriedade, SIM/NÃO e falhas em alvos descartáveis; R4/R6/R7 reais continuam dependentes de evidências |
@@ -274,8 +286,8 @@ perfis, configurações, jogos, saves e dados compartilhados.
 
 ## Próxima ação exata e comando para retomada
 
-Conferir a CI desta alteração antes de atualizar o estado da Etapa 1.
-A revisão da PR #63 já está concluída; não refazê-la. A exclusão permanente
-continua obrigatória em qualquer etapa posterior. Não trabalhar na BETA privada.
+Em outra sessão, iniciar somente a **Etapa 2**, após conferir este checkpoint,
+a matriz, HEADs e CI. As Etapas 0/1 estão concluídas; não repeti-las.
+A exclusão permanente continua obrigatória. Não trabalhar na BETA privada.
 
-> Continue a missão pré-BETA do Gerenciador Final na branch work-pre-beta-etapa0-20261027. Leia o checkpoint e a matriz, confira os SHAs e a CI e execute somente a primeira etapa pendente. Preserve a exclusão permanente do VLC, não repita trabalho concluído, salve o resultado no GitHub e pare antes da etapa seguinte.
+> Continue a missão pré-BETA do Gerenciador Final pela Etapa 2. Leia o checkpoint e a matriz na branch work-pre-beta-etapa0-20261027, preserve a exclusão permanente do VLC, salve o resultado no GitHub e pare antes da Etapa 3.
