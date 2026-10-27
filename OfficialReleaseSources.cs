@@ -467,7 +467,6 @@ internal sealed class OfficialReleaseSources : IDisposable
         return newest ?? throw new InvalidDataException("Nenhuma versão estável no índice WinGet.");
     }
 
-    // Seleção estrita: Microsoft Edge Stable, Windows, arquitetura correspondente.
     // Consulta pública Google VersionHistory, somente Windows Stable.
     // Não aceita canal, plataforma, ordem ou versão divergentes da URL fixa.
     // Apenas a primeira versão da resposta (order_by version desc, pageSize=1).
@@ -490,6 +489,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         return version;
     }
 
+    // Seleção estrita: Microsoft Edge Stable, Windows, arquitetura correspondente.
     // Beta, Dev, Canary, EdgeUpdate e Extended Stable não se misturam com Stable.
     internal static string ParseEdgeStableVersion(JsonElement root)
     {
