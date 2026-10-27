@@ -837,15 +837,15 @@
     }
   },
   "candidate": {
-    "version": "5.13.11.65 TESTE",
-    "status": "approved",
-    "mission": "WORK18",
-    "report": "docs/MISSAO-WORK18.md",
+    "version": "5.13.11.66 TESTE",
+    "status": "pending",
+    "mission": "BETA-PILOTO-DIAGNOSTICO",
+    "report": "docs/MISSAO-BETA.md",
     "physical_validation": "pending",
     "winget_execution_enabled": false,
-    "scope": "MSI/WiX com cache/assinante/familia e contexto nativo; acompanhamento NSIS/Inno/MSI/WiX; CI aprovada, homologacao fisica pendente",
-    "package_verified_by_ci": true,
-    "package_verified_independently": true,
+    "scope": "Preparação beta: perfis de PC removidos, consentimento remoto inicial, envio HTTPS agregado ao fechar. Não liberar antes de receptor privado, avaliação LGPD, CI e testes.",
+    "package_verified_by_ci": false,
+    "package_verified_independently": false,
     "code_commit": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
     "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887",
     "validation": {
@@ -1178,5 +1178,55 @@
     "candidate_artifact_or_physical_history_promoted": false,
     "automatic_next_stage": null,
     "merge_release_deploy_distribution": false
+  },
+  "beta": {
+    "version": "5.13.11.66 BETA",
+    "base_pr": 60,
+    "draft_pr": 61,
+    "backend_deployed": false,
+    "remote_delivery_enabled": false,
+    "endpoint_configured": false,
+    "public_github_writes": false,
+    "github_repository_visibility": "private_required",
+    "consent": "explicit_remote_onboarding_and_revocation",
+    "beta_releasable": false,
+    "last_technically_approved": "5.13.11.65 TESTE",
+    "roadmap_done": 27,
+    "roadmap_total": 42
+  },
+  "integration_final": {
+    "mission": "WORK-INTEGRACAO-FINAL",
+    "stage": 2,
+    "date": "2026-10-27",
+    "timezone": "America/Fortaleza",
+    "branch": "work-integracao-final-20261027",
+    "draft_pr": 65,
+    "version": "5.13.11.66 TESTE",
+    "status": "code_integrated_validation_pending",
+    "entry_commit": "275cfc396d22c8aff933a3879f0702d20596a2bc",
+    "origins": {
+      "base_pr60": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "pre_beta_pr64": "357877e9acd628f84e5d9944e02e471fe319d1bc",
+      "beta_accumulated_pr62": "e530d724b7322963c8795b005f13ae6948a73e43"
+    },
+    "code_commit": null,
+    "ci_status": "not_run",
+    "ci_url": null,
+    "artifact": null,
+    "inherited_candidate_metadata_historical": true,
+    "inherited_candidate_historical_fields": [
+      "code_commit",
+      "ci_url",
+      "validation"
+    ],
+    "parent_ci_approves_integration": false,
+    "remote_delivery_enabled": false,
+    "driver_management_enabled": false,
+    "distribution_approved": false,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "report": "docs/WORK-INTEGRACAO-ETAPA2-CODIGO.md",
+    "evidence": "docs/evidencias/integracao-etapa2-codigo.json",
+    "next_stage": 3
   }
 }

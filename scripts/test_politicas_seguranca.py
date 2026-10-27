@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # A politica nao congela o numero de testes ou impede um fluxo legitimo futuro.
 APPROVED_WORKFLOWS = frozenset({
     "build-windows.yml",
+    "integridade-externa.yml",
     "validar-candidata-windows.yml",
     "triagem-diagnostico-github.yml",
 })
@@ -94,6 +95,18 @@ class PoliticasDeSeguranca(unittest.TestCase):
             code = read(".github/workflows/" + name)
             self.assertIn("\n  workflow_call:", code)
             self.assertNotIn("group: ${{ github.workflow }}-${{ github.ref }}", code)
+
+    def test_beta_integridade_externa_continua_obrigatoria_no_fluxo_proprio(self):
+        deterministic = read(".github/workflows/validar-candidata-windows.yml")
+        external = read(".github/workflows/integridade-externa.yml")
+        self.assertNotIn("--verify-engine-downloads", deterministic)
+        self.assertNotIn("--verify-downloads", deterministic)
+        for argument in ("--verify-engine-downloads", "--verify-work13", "--verify-sevenzip", "--verify-terminal"):
+            self.assertIn(argument, external)
+        self.assertIn("  pull_request:", external)
+        self.assertNotIn("continue-on-error", external)
+        self.assertIn("needs: [validar, politica]", read(".github/workflows/build-windows.yml"))
+        self.assertIn("steps.pacote.outputs.beta != 'true'", read(".github/workflows/build-windows.yml"))
 
     def test_inventario_ci_nao_ignora_yaml_e_permite_expansao_revisada(self):
         import tempfile

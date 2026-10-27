@@ -1,0 +1,8 @@
+<Project>
+  <!-- Nenhum receptor/aviso foi aprovado. Preencher somente em PR futura,
+       apos aprovacao do proprietario e revisao de privacidade. Nao e segredo. -->
+  <ItemGroup />
+  <PropertyGroup>
+    <GfReviewedPrivacyNoticeSha256></GfReviewedPrivacyNoticeSha256>
+  </PropertyGroup>
+</Project>

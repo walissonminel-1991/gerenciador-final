@@ -6,6 +6,7 @@ internal static class PrivacyConsentPresentation
 {
     internal static string ButtonLabel(TelemetryConsent state) => state switch
     {
+        TelemetryConsent.RemoteBeta => "Envio BETA autorizado",
         TelemetryConsent.LocalOnly => "Coleta local ativa",
         TelemetryConsent.Declined => "Coleta desativada",
         _ => "Configurar privacidade"
@@ -13,6 +14,9 @@ internal static class PrivacyConsentPresentation
 
     internal static string Explanation(TelemetryConsent state) => state switch
     {
+        TelemetryConsent.RemoteBeta =>
+            "Você autorizou o resumo e envio remoto da BETA sob o aviso atual. " +
+            "Revogue em Bandeja > Privacidade e diagnóstico.",
         TelemetryConsent.LocalOnly =>
             "Você autorizou somente contagens técnicas locais em uma versão anterior. " +
             "Nenhum diagnóstico é enviado pela internet. Clique para revisar ou desativar.",

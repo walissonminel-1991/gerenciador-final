@@ -53,6 +53,14 @@ internal static class Program
                     "Ocorreu um erro inesperado.\n\n" + e.Exception.Message,
                     "Gerenciador Final", MessageBoxButtons.OK, MessageBoxIcon.Error);
             };
+            AppDomain.CurrentDomain.UnhandledException += (_, _) =>
+            {
+                // Melhor esforco em falha fatal: codigo fixo, sem excecao bruta
+                // e sem rede. Kill/queda de energia podem impedir esta gravacao.
+                var recorder = AnonymousTelemetryContext.Current;
+                recorder?.Record("APP.FALHA_NAO_TRATADA");
+                recorder?.SaveOnExit(DiagnosticTrace.VersionLabel, normalExit: false);
+            };
             bool startInTray = args.Length is 1 or 2 && args.Contains("--tray", StringComparer.Ordinal)
                 && args.All(x => x is "--tray" or "--post-reboot");
             Application.Run(new MainForm(startInTray: startInTray));
@@ -62,6 +70,7 @@ internal static class Program
         catch (Exception ex)
         {
             DiagnosticTrace.Failure("APP.FALHA_NAO_TRATADA", ex);
+            AnonymousTelemetryContext.Current?.SaveOnExit(DiagnosticTrace.VersionLabel, normalExit: false);
             try { MessageBox.Show("Não foi possível iniciar o gerenciador.\n\n" + ex,
                     "Falha ao abrir", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             catch { }
@@ -601,6 +610,7 @@ internal sealed partial class MainForm : Form
     private Button? _refreshDisksButton;
     private bool _refreshingDisks;
     private bool _busy;
+    private readonly BetaCloseCoordinator _betaClose = new();
     private Button? _repairWindowsButton;
     private bool _windowsRepairable;
     private DateTimeOffset _windowsScannedAt;
@@ -643,7 +653,7 @@ internal sealed partial class MainForm : Form
         _updateOperations = new(DiagnosticTrace.Write, _reliability.RecordUpdate);
         _uninstallOperations = new(_reliability.RecordUninstall);
         FormClosed += (_, _) => _reliability.Dispose();
-        Text = "Gerenciador Final — " + DiagnosticTrace.VersionLabel + " TESTE";
+        Text = "Gerenciador Final — " + DiagnosticTrace.VersionLabel + " BETA";
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -766,9 +776,11 @@ internal sealed partial class MainForm : Form
             displayUpdate.Stop();
             displayUpdate.Dispose();
             _log.FlushPending();
-            // Um unico arquivo rotativo, apenas se o usuario aceitou.
-            // Nao ha envio nem espera de rede no encerramento nesta versao.
-            AnonymousTelemetryContext.Current?.SaveOnNormalExit(DiagnosticTrace.VersionLabel);
+            AnonymousTelemetryContext.Current?.CancelRemoteSend();
+            // Windows Shutdown nao inicia rede. Em fechamento normal remoto o
+            // snapshot ja foi salvo antes da tentativa, sem duplica-lo aqui.
+            if (_betaClose.IsShutdown || !_betaClose.IsClosing || AnonymousTelemetryContext.Current?.Consent != TelemetryConsent.RemoteBeta)
+                AnonymousTelemetryContext.Current?.SaveOnExit(DiagnosticTrace.VersionLabel, normalExit: !_betaClose.IsShutdown);
         };
         FitWorkspace();
         // Abre imediatamente. Primeiro carrega a lista local e depois inicia consultas independentes,
@@ -788,7 +800,7 @@ internal sealed partial class MainForm : Form
             }
             if (!startServices) return;
             LocalPerformanceMetrics.CompleteStartup();
-            Log("Métricas agregadas de tempo, RAM e CPU do GF ficam apenas no diagnóstico local; nenhum envio remoto.");
+            Log("BETA: somente contagens técnicas são elegíveis a envio com consentimento.");
             // Nao abrir dialogos na sessao que iniciou oculta na bandeja.
             if (!startInTray) OfferAnonymousDiagnosticConsent(firstRun: true);
             // Na abertura, a lista ainda esta vazia: nao animar barra de
@@ -817,6 +829,18 @@ internal sealed partial class MainForm : Form
         };
         FormClosing += (_, e) =>
         {
+            if (e.CloseReason == CloseReason.WindowsShutDown)
+            {
+                _betaClose.Shutdown();
+                AnonymousTelemetryContext.Current?.CancelRemoteSend();
+                _consultaCatalogoCts?.Cancel();
+                _deploymentWaitCts?.Cancel();
+                _uninstallCts?.Cancel();
+                _installerDownloadCts?.Cancel();
+                _memoryTimer.Stop();
+                return; // nao cancelar o desligamento nem abrir dialogo
+            }
+            if (_betaClose.IsClosing) return;
             if (!_busy)
             {
                 _consultaCatalogoCts?.Cancel();
@@ -855,6 +879,35 @@ internal sealed partial class MainForm : Form
             MessageBox.Show(this, "Aguarde a operação atual terminar antes de fechar o gerenciador.",
                 "Operação em andamento", MessageBoxButtons.OK, MessageBoxIcon.Information);
         };
+#if GF_BETA
+        FormClosing += async (_, e) =>
+        {
+            if (_betaClose.IsShutdown || _betaClose.IsComplete) return;
+            if (_betaClose.IsWaiting) { e.Cancel = true; return; }
+            var recorder = AnonymousTelemetryContext.Current;
+            if (!_betaClose.TryBegin(e.Cancel,
+                recorder?.Consent == TelemetryConsent.RemoteBeta && BetaTelemetryUploader.IsConfigured)) return;
+            e.Cancel = true;
+            // Bloquear novos trabalhos, mantendo o menu Privacidade acessivel.
+            _programList.ActionsEnabled = false;
+            recorder!.SaveOnNormalExit(DiagnosticTrace.VersionLabel);
+            try { await BetaTelemetryUploader.TrySendAsync(recorder); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or
+                System.Security.SecurityException) { /* Encerrar preservando a pendencia. */ }
+            finally
+            {
+                if (_betaClose.Finish() && !IsDisposed && !Disposing && IsHandleCreated)
+                {
+                    try { BeginInvoke((Action)(() =>
+                    {
+                        if (_betaClose.IsComplete && !_betaClose.IsShutdown && !IsDisposed && !Disposing) Close();
+                    })); }
+                    catch (InvalidOperationException) { /* Handle destruido durante Shutdown. */ }
+                }
+                else if (!_betaClose.IsShutdown) ResumeAfterCancelledShutdown();
+            }
+        };
+#endif
         Log("Gerenciador Final iniciado. Operações e andamento ficam integrados à janela principal.");
         Log("DIAGNÓSTICO DE TESTE: arquivo confirmado em " + DiagnosticTrace.LogFilePath);
     }
@@ -864,7 +917,7 @@ internal sealed partial class MainForm : Form
         var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2, Margin = Padding.Empty };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 5));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 186));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         panel.Controls.Add(new Panel
@@ -885,6 +938,7 @@ internal sealed partial class MainForm : Form
             ForeColor = Muted, TextAlign = ContentAlignment.MiddleLeft,
             AutoEllipsis = true
         }, 1, 1);
+#if !GF_BETA
         _privacyStatusButton = CreateSecondaryButton("Configurar privacidade");
         _privacyStatusButton.Name = "PrivacyStatusButton";
         _privacyStatusButton.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
@@ -894,6 +948,7 @@ internal sealed partial class MainForm : Form
         panel.Controls.Add(_privacyStatusButton, 2, 0);
         panel.SetRowSpan(_privacyStatusButton, 2);
         RefreshPrivacyStatus();
+#endif
         return panel;
     }
 
@@ -1075,7 +1130,7 @@ internal sealed partial class MainForm : Form
             "Site abre o fabricante somente quando solicitado. Desinstalar exige confirmação.");
         _programList.ItemActionClicked += (item, action) =>
         {
-            if (_busy) return;
+            if (_busy || _betaClose.IsClosing) return;
             if (action == "uninstall" && item.CanUninstall)
                 _ = ExecuteAsync("Desinstalando " + item.Name + "...", () => UninstallEntriesAsync(new[] { item }));
             else if (action == "update")
@@ -1095,7 +1150,7 @@ internal sealed partial class MainForm : Form
         };
         _programList.ItemCheckboxClicked += item =>
         {
-            if (_busy || !_multiSelectMode || !item.CanUninstall) return;
+            if (_busy || _betaClose.IsClosing || !_multiSelectMode || !item.CanUninstall) return;
             if (!_checkedApps.Add(item)) _checkedApps.Remove(item);
             _programList.Invalidate();
             RenderTitle();
@@ -1142,7 +1197,7 @@ internal sealed partial class MainForm : Form
             Status("Cancelando consulta...");
             return;
         }
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         bool loaded = false;
         if (_checkUpdatesButton is { IsDisposed: false } initial)
         {
@@ -1181,7 +1236,7 @@ internal sealed partial class MainForm : Form
         button.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
         button.Click += (_, _) =>
         {
-            if (_busy) return;
+            if (_busy || _betaClose.IsClosing) return;
             _appFilter = title == "Marcados" ? "Selecionados" : title;
             RenderPrograms();
         };
@@ -1587,7 +1642,7 @@ internal sealed partial class MainForm : Form
             }
             button.Click += async (_, _) =>
             {
-                if (_busy) return;
+                if (_busy || _betaClose.IsClosing) return;
                 try { await tool.Action(); }
                 catch (Exception ex) { ReportError(ex); }
             };
@@ -1737,13 +1792,14 @@ internal sealed partial class MainForm : Form
         var modePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         modePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 175));
+        modePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         _cleanupPreview.Text = "Ative antes das consultas; repita as etapas.";
         _cleanupPreview.Dock = DockStyle.Fill;
         _cleanupPreview.ForeColor = Muted;
         _cleanupPreview.TextAlign = ContentAlignment.MiddleLeft;
         _cleanupPreview.AutoEllipsis = true;
         modePanel.Controls.Add(_cleanupPreview, 0, 0);
+#if !GF_BETA
         var testMode = new ComboBox
         {
             Name = "TestDiagnosticProfile", Dock = DockStyle.Fill,
@@ -1770,6 +1826,7 @@ internal sealed partial class MainForm : Form
         _toolTips.SetToolTip(testMode, "Escolha o PC para comparar testes. Nada é enviado; " +
             "sem caminhos, nomes de programas ou IDs. Inspeciona presença do App Installer/alias/PATH sem executar WinGet. Volta ao padrão ao fechar.");
         modePanel.Controls.Add(testMode, 1, 0);
+#endif
         previewRow.Controls.Add(modePanel, 2, 0);
         root.Controls.Add(previewRow, 0, 1);
         _diskSummary.Text = "Consulte o espaço livre e ocupado das unidades locais.";
@@ -2070,7 +2127,7 @@ internal sealed partial class MainForm : Form
         _actionControls.Add(button);
         button.Click += async (_, _) =>
         {
-            if (_busy) return;
+            if (_busy || _betaClose.IsClosing) return;
             try { await action(); }
             catch (Exception ex) { ReportError(ex); }
         };
@@ -2101,7 +2158,7 @@ internal sealed partial class MainForm : Form
     private async Task ExecuteAsync(string description, Func<Task> work,
         bool quietStartup = false)
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         _busy = true;
         if (!quietStartup)
         {
@@ -2115,7 +2172,7 @@ internal sealed partial class MainForm : Form
         }
         _status.Text = description;
         try { await work(); }
-        catch (Exception ex) { if (!IsDisposed && !Disposing) ReportError(ex); }
+        catch (Exception ex) { if (!IsDisposed && !Disposing && !_betaClose.IsShutdown) ReportError(ex); }
         finally
         {
             _busy = false;
@@ -2593,7 +2650,7 @@ internal sealed partial class MainForm : Form
 
     private void ToggleMultiSelection()
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         _multiSelectMode = !_multiSelectMode;
         _programList.MultiSelectMode = _multiSelectMode;
         if (!_multiSelectMode)
@@ -2606,7 +2663,7 @@ internal sealed partial class MainForm : Form
 
     private void ClearMultiSelection()
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         _checkedApps.Clear();
         if (_appFilter == "Selecionados") _appFilter = "Todos";
         RenderPrograms();
@@ -2637,7 +2694,7 @@ internal sealed partial class MainForm : Form
 
     private void OpenOriginalPackageManager(ProgramEntry entry)
     {
-        if (_busy || !ActionableInventory.CanManageExternally(entry)) return;
+        if (_busy || _betaClose.IsClosing || !ActionableInventory.CanManageExternally(entry)) return;
         var receipt = EcosystemInventory.Get(entry);
         if (receipt is null) return;
         // Open only fixed project documentation. No script, package command or
@@ -2653,7 +2710,7 @@ internal sealed partial class MainForm : Form
 
     private void OpenWindowsInstalledApps(ProgramEntry entry)
     {
-        if (_busy || !ActionableInventory.CanManageWithWindows(entry)) return;
+        if (_busy || _betaClose.IsClosing || !ActionableInventory.CanManageWithWindows(entry)) return;
         try
         {
             // URI oficial fixa; nunca interpolar PackageFamilyName nem argumentos.
@@ -2671,7 +2728,7 @@ internal sealed partial class MainForm : Form
 
     private void OpenMicrosoftStore(ProgramEntry entry)
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         Uri? destination = VerifiedUpdaters.GetMicrosoftStoreUri(entry);
         if (destination is null) return;
         try
@@ -2713,7 +2770,7 @@ internal sealed partial class MainForm : Form
 
     private void OpenOfficialSite(ProgramEntry entry)
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         string? address = VerifiedUpdaters.GetOfficialPage(entry);
         if (address is null) return;
         try
@@ -2776,7 +2833,7 @@ internal sealed partial class MainForm : Form
 
     private async Task UpdateWindowsTerminalAsync(ProgramEntry entry)
     {
-        if (_busy || !_installed.Contains(entry)) return;
+        if (_busy || _betaClose.IsClosing || !_installed.Contains(entry)) return;
         TerminalUpdateRecipe? recipe = WindowsTerminalUpdater.Resolve(entry);
         if (recipe is null)
         {
@@ -2901,7 +2958,7 @@ internal sealed partial class MainForm : Form
 
     private async Task UpdateThirdPartyAsync(ProgramEntry entry)
     {
-        if (_busy || !_installed.Contains(entry)) return;
+        if (_busy || _betaClose.IsClosing || !_installed.Contains(entry)) return;
         VerifiedUpdateRecipe? recipe = VerifiedUpdaters.Resolve(entry);
         if (recipe is null)
         {
@@ -3337,7 +3394,7 @@ internal sealed partial class MainForm : Form
 
     private async Task RepairWindowsAfterVerificationAsync()
     {
-        if (_busy || !_windowsRepairable ||
+        if (_busy || _betaClose.IsClosing || !_windowsRepairable ||
             DateTimeOffset.UtcNow - _windowsScannedAt >= TimeSpan.FromMinutes(30))
         {
             _windowsRepairable = false;
@@ -3354,7 +3411,7 @@ internal sealed partial class MainForm : Form
 
     private Task ChooseRestorePointAsync()
     {
-        if (_busy) return Task.CompletedTask;
+        if (_busy || _betaClose.IsClosing) return Task.CompletedTask;
         if (DarkConfirmDialog.Confirm(this,
             "Abrir o assistente oficial de Restauração do Sistema? Você poderá escolher e " +
             "confirmar um ponto no próprio Windows. Aplicativos e atualizações posteriores " +
@@ -3395,7 +3452,7 @@ internal sealed partial class MainForm : Form
 
     private async Task ConfirmThenRun(string task, string question)
     {
-        if (_busy) return;
+        if (_busy || _betaClose.IsClosing) return;
         string confirmation = task == "windows-repair" ? question : SimpleConfirmation(task);
         if (DarkConfirmDialog.Confirm(this, confirmation, "Confirmar operação") != DialogResult.Yes)
         {

@@ -25,6 +25,9 @@ artifacts/
 *.secrets.json
 .env
 .env.*
+# Configuracao privada e variaveis de desenvolvimento Cloudflare
+prototipos/beta-telemetria/wrangler.toml
+prototipos/beta-telemetria/.dev.vars*
 
 # Logs temporários
 *.log
@@ -42,3 +45,5 @@ coverage/
 *.sarif
 __pycache__/
 .pytest_cache/
+*.beta-rehearsal.sqlite*
+Distribuicao-Beta/

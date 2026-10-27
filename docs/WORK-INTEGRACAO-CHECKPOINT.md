@@ -1,6 +1,6 @@
 # WORK INTEGRAÇÃO FINAL — checkpoint
 
-27/10/2026, America/Sao_Paulo. **Executar uma única etapa por sessão.**
+27/10/2026, America/Fortaleza. **Executar uma única etapa por sessão.**
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 ## Estado de continuidade
@@ -8,19 +8,21 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **1 — Reconciliação das branches** |
-| Resultado | Análise e ordem de integração definidas; código não combinado |
-| Branch nova | `work-integracao-final-20261027` |
+| Etapa desta sessão | **2 — Integração do código** |
+| Resultado | Código pré-BETA #64 e BETA .66 acumulada #62 conciliado; validação pendente |
+| Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
 | PR da integração | [#65](https://github.com/walissonminel-1991/gerenciador-final/pull/65), aberta e Draft |
 | Commit da análise | [`f000ca3227227f11d8412c9a3f87335ead80bd9d`](https://github.com/walissonminel-1991/gerenciador-final/commit/f000ca3227227f11d8412c9a3f87335ead80bd9d); fechamento posterior atualiza somente estes documentos; conferir HEAD final na PR |
-| CI da integração | **Não executada**; Etapa 1 documental, `[skip ci]`, sem build |
-| Código herdado | Todos os blobs da #64 preservados; nenhuma alteração de produto/teste/workflow/versão |
+| Entrada da Etapa 2 | `275cfc396d22c8aff933a3879f0702d20596a2bc` |
+| Commit de código da Etapa 2 | Registrar no fechamento após salvar a composição; HEAD final a conferir na PR #65 |
+| CI da integração | **Não executada**; Etapa 2 salva com `[skip ci]`, parada antes da Etapa 3 e sem build |
+| Código integrado | Origem #64 + delta acumulado #62; 57 exclusivos idênticos, um workflow adaptado e quatro compartilhados conciliados; versão .66 |
 | Roadmap | **27/42**, mesmos 42 IDs/done; nenhum checkpoint promovido |
-| Próxima etapa | **2 — Integração do código**, somente em nova sessão |
+| Próxima etapa | **3 — Regressões e CI da integração**, somente em nova sessão |
 
-Arquivos próprios desta etapa:
+Documentos da Etapa 1 preservados:
 
 - `docs/WORK-INTEGRACAO-CHECKPOINT.md` — estado e retomada.
 - `docs/WORK-INTEGRACAO-MATRIZ.md` — funções, cobertura, decisões e etapas.
@@ -41,7 +43,7 @@ Arquivos próprios desta etapa:
 Aprovações individuais não aprovam a composição. A falha histórica não
 reabre a investigação do alvo permanentemente excluído.
 
-## Decisões da Etapa 1
+## Decisões históricas da Etapa 1
 
 Contra a #60: #64 altera 64 caminhos, #62 acumulada altera 62; quatro
 compartilhados, 60 exclusivos da pré-BETA e 58 exclusivos da BETA.
@@ -59,12 +61,36 @@ em `candidate` é histórica e não pode aprovar a futura integração.
 [Matriz de preservação e riscos](WORK-INTEGRACAO-MATRIZ.md) ·
 [Evidência reproduzível](evidencias/integracao-etapa1-reconciliacao.json).
 
-## Verificação e limites
+## Etapa 2 — sessão atual
 
-Conferência de refs/ancestralidade, comparações GitHub, árvores completas,
-blobs Chrome, JSONs/42 IDs e políticas de build/privacidade. Validação
-documental/links e igualdade da árvore herdada são registradas no fechamento.
-Zero testes de produto novos ou repetidos; nenhuma build, rede do produto,
+Checkpoint/matriz/ordem de reconciliação/adendo relidos na entrada acima;
+PR #65 aberta/Draft e SHAs #60–#64, main e #40 conferidos e inalterados.
+Incorporados os 58 caminhos exclusivos do delta #60→#62, sem reimportar
+#61/#63: 57 blobs idênticos e um workflow adaptado para preservar o gate
+`--official-live` obrigatório nos runners 2022/2025. Conciliados Program,
+despachante de layout, PROGRESSO e ROADMAP. Sem merge de PR ou commit de merge.
+
+[Relatório da Etapa 2](WORK-INTEGRACAO-ETAPA2-CODIGO.md) ·
+[Recibo da composição](evidencias/integracao-etapa2-codigo.json).
+Os 62 caminhos da integração, checkpoint/matriz e esses dois documentos
+constituem o escopo desta sessão. O recibo registra a lista exata de arquivos.
+
+PROGRESSO conserva as sete chaves/históricos pré-BETA, candidate/beta #62 e
+os 42 IDs/done. O bloco novo `integration_final` identifica a árvore atual,
+status pendente, fonte, CI não executada e ausência de artefato/liberação;
+metadados WORK18 herdados são explicitamente históricos. Projeto/manifesto
+.66 e GF_BETA preservados, sem GF_PROGRESSIVE no produto. Nenhum executor
+ou ação adicional de drivers/WinGet foi introduzido.
+
+## Verificação e limites da Etapa 2
+
+Conferências estáticas/de composição: 70 cópias de fonte por SHA Git;
+57 exclusivos idênticos e adaptação delimitada do workflow; 42/43 blocos
+antigos de CI idênticos e um equivalente com flags adicionais; 105 referências
+explícitas resolvidas; 92 fontes C# de testes cobertas por exclusões do produto;
+JSON/histórico/42 estados preservados; políticas e flags bloqueadas;
+sem marcadores de conflito. Verificação remota da árvore registrada no fechamento.
+Zero testes de produto novos ou repetidos; nenhuma build, CI, rede do produto,
 operação de drivers, manutenção, execução em PC pessoal ou consulta WinGet.
 
 Riscos principais: perder guardas ao conciliar a tela, sobrescrever histórico,
@@ -81,7 +107,7 @@ Worker/D1/DNS/Secrets fora de escopo; flags `PILOT_ENABLED=no` e
 `GITHUB_EXPORT_ENABLED=no` intactas. BETA conectada bloqueada.
 Nenhum merge, release, deploy ou distribuição.
 
-## Recibo de salvamento e fechamento
+## Histórico de salvamento — Etapa 1
 
 Análise publicada no commit `f000ca3227227f11d8412c9a3f87335ead80bd9d`,
 PR #65 aberta/Draft, base #60. A árvore foi relida no GitHub: **387 blobs
@@ -90,11 +116,9 @@ os cinco documentos novos listados acima. Conferidos três blobs dos JSONs
 de origem, quatro deltas completos, 42 IDs/done e 16 links internos.
 Nenhum run próprio ou artefato foi criado para esse commit.
 
-Este fechamento vincula PR/commit nos documentos e no recibo, sem alterar
-produto, testes, workflows ou versão. O SHA documental final deve ser lido
-no HEAD da #65; ele não é uma build aprovada. Ao retomar, partir desse HEAD
-e preservar este registro do commit de análise. A CI da futura árvore
-integrada permanece pendente para a Etapa 3.
+O fechamento documental da Etapa 1 foi `275cfc396d22c8aff933a3879f0702d20596a2bc`.
+Esse registro permanece histórico; o HEAD atual deve ser conferido na #65.
+A CI da composição da Etapa 2 continua pendente para a Etapa 3.
 
 ## Retomada obrigatória
 
@@ -102,15 +126,16 @@ integrada permanece pendente para a Etapa 3.
    HEAD remotos antes de qualquer edição. Comparar #60–#64 aos SHAs fixados.
 2. Preservar alterações posteriores e investigar divergências pontuais;
    não usar force-push, apagar histórico ou modificar branches originais.
-3. Executar **somente a Etapa 2**, seguindo a ordem de reconciliação.
-   Salvar commits válidos; não disparar validação final ou publicar pacote.
+3. Executar **somente a Etapa 3**: regressões e CI Windows da árvore integrada,
+   pelo SHA próprio. Corrigir somente problemas demonstrados e reexecutar as
+   áreas afetadas. Não reutilizar CI dos pais ou liberar/distribuir pacote.
 4. Atualizar os dois documentos com SHA, arquivos, verificações, problemas,
    pendências e próximo passo; registrar interrupção no ponto exato.
-5. Encerrar antes da Etapa 3. Etapas 5–9 aguardam a conclusão de 1–4,
+5. Encerrar antes da Etapa 4. Etapas 5–9 aguardam a conclusão de 1–4,
    uma por sessão. A Etapa 9 depende exclusivamente de execução manual autorizada.
 
 Comando de retomada:
 
-> Continue a missão de integração final do Gerenciador Final pela Etapa 2 na branch work-integracao-final-20261027, PR #65 Draft. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md e docs/WORK-INTEGRACAO-MATRIZ.md, confira o HEAD e os SHAs atuais, siga a reconciliação da Etapa 1 e incorpore o delta acumulado da #62 sobre a origem #64 sem reimportar #61/#63. Preserve todas as restrições e o adendo BETA LOCAL, salve commits no GitHub e pare antes da Etapa 3, sem merge, release, deploy, distribuição ou ativação remota.
+> Continue a missão de integração final do Gerenciador Final pela Etapa 3 na branch work-integracao-final-20261027, PR #65 Draft. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md e docs/WORK-INTEGRACAO-MATRIZ.md, confira o HEAD e o commit fonte da Etapa 2 e valide a própria árvore integrada com regressões e CI Windows por SHA exato. Preserve todas as restrições e o adendo BETA LOCAL, corrija somente problemas demonstrados, salve evidências/commits no GitHub e pare antes da Etapa 4, sem merge, release, deploy, distribuição ou ativação remota.
 
-**Etapa 1 encerrada após o salvamento/verificação no GitHub. Etapa 2 não iniciada.**
+**Etapa 2 encerrada após salvar e conferir no GitHub. Etapa 3 não iniciada.**

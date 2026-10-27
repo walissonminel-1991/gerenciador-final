@@ -19,6 +19,9 @@ REQUIRED = frozenset({
     "Licencas/WinGet/NOTICE.txt",
 })
 
+BETA_FILES = frozenset({"AVISO-PRIVACIDADE-BETA.md", "BETA-BUILD.json"})
+
+
 RESERVED = frozenset({"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} |
                      {prefix + suffix for prefix in ("COM", "LPT") for suffix in "123456789¹²³"})
 SATELLITES = frozenset({"Microsoft.VisualBasic.Forms.resources.dll", "System.Windows.Forms.Design.resources.dll",
@@ -98,7 +101,44 @@ def declared_binaries(files: dict, version: str) -> set:
     return names | {"GerenciadorFinal.exe"}
 
 
-def verify(root: Path, version: str, source: str, build: str, base: str = "") -> dict:
+def verify_beta_metadata(files: dict, version: str, source: str) -> dict:
+    path = files["BETA-BUILD.json"]
+    if path.stat().st_size > 4096:
+        raise ValueError("metadata BETA excede limite")
+    def unique_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("metadata BETA com chave duplicada")
+            result[key] = value
+        return result
+    data = json.loads(path.read_text(encoding="utf-8-sig"), object_pairs_hook=unique_pairs)
+    keys = {"schema", "version", "source_commit", "channel", "transport_configured", "endpoint",
+            "notice_version", "notice_sha256", "reviewed_notice_sha256", "distribution"}
+    if not isinstance(data, dict) or data.keys() != keys or type(data["schema"]) is not int or data["schema"] != 1:
+        raise ValueError("contrato metadata BETA invalido")
+    if data["version"] != version or data["source_commit"] != source or data["channel"] != "BETA" or (
+        data["distribution"] != "requires_owner_approval" or type(data["transport_configured"]) is not bool):
+        raise ValueError("origem ou estado da metadata BETA divergente")
+    if not isinstance(data["notice_version"], str) or not re.fullmatch(r"gf-beta-[0-9]{8}-r[1-9][0-9]?", data["notice_version"]):
+        raise ValueError("versao do aviso BETA invalida")
+    digest, reviewed, endpoint = data["notice_sha256"], data["reviewed_notice_sha256"], data["endpoint"]
+    if not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest) or not isinstance(endpoint, str):
+        raise ValueError("hash ou endpoint BETA invalido")
+    if data["transport_configured"]:
+        url = urlsplit(endpoint)
+        if reviewed != digest or not endpoint.startswith("https://") or url.scheme != "https" or (
+            not url.hostname or "." not in url.hostname or url.netloc != url.hostname or
+            not re.fullmatch(r"[a-z0-9.-]+", url.hostname) or url.hostname.endswith((".", ".workers.dev")) or
+            url.hostname == "workers.dev" or re.fullmatch(r"[0-9.]+", url.hostname) or
+            url.path != "/ingest" or url.query or url.fragment):
+            raise ValueError("configuracao conectada BETA nao comprovada")
+    elif endpoint != "" or reviewed not in ("", digest):
+        raise ValueError("configuracao BETA ambigua")
+    return data
+
+
+def verify(root: Path, version: str, source: str, build: str, base: str = "", beta: bool = False) -> dict:
     if not re.fullmatch(r"\d+(?:\.\d+){3}", version):
         raise ValueError("versao esperada invalida")
     if any(not re.fullmatch(r"[a-f0-9]{40}", sha) for sha in (source, build)):
@@ -107,6 +147,7 @@ def verify(root: Path, version: str, source: str, build: str, base: str = "") ->
         raise ValueError("SHA base invalido")
     if not root.is_dir() or root.is_symlink():
         raise ValueError("diretorio de distribuicao invalido")
+    required = REQUIRED | (BETA_FILES if beta else frozenset())
     files = {}
     folded = set()
     for path in root.rglob("*"):
@@ -123,13 +164,13 @@ def verify(root: Path, version: str, source: str, build: str, base: str = "") ->
         if name.startswith(".") or any(part.startswith(".") for part in path.relative_to(root).parts):
             raise ValueError("arquivo oculto inesperado: " + name)
         # SDK output only: runtime binaries plus the explicit notices/manifests.
-        if name not in REQUIRED | {"SHA256SUMS.txt"} and not (
+        if name not in required | {"SHA256SUMS.txt"} and not (
             ("/" not in name and path.suffix.lower() in {".dll", ".exe"})
             or re.fullmatch(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*/[A-Za-z0-9_.]+\.resources\.dll", name)
         ):
             raise ValueError("arquivo inesperado: " + name)
         files[name] = path
-    missing = REQUIRED - files.keys()
+    missing = required - files.keys()
     if missing:
         raise ValueError("arquivos obrigatorios ausentes: " + ", ".join(sorted(missing)))
     if "SHA256SUMS.txt" not in files:
@@ -156,6 +197,8 @@ def verify(root: Path, version: str, source: str, build: str, base: str = "") ->
         with files[name].open("rb") as stream:
             if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
                 raise ValueError("hash divergente: " + name)
+    if beta:
+        verify_beta_metadata(files, version, source)
     for name, path in files.items():
         if path.suffix.lower() != ".md":
             continue
@@ -252,6 +295,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
     parser.add_argument("--metadata", action="store_true")
+    parser.add_argument("--beta", action="store_true", help="Exigir somente os dois artefatos BETA revisados e validar sua metadata")
     parser.add_argument("--version")
     parser.add_argument("--source")
     parser.add_argument("--build")
@@ -263,7 +307,7 @@ if __name__ == "__main__":
         else:
             if not all((args.version, args.source, args.build)):
                 parser.error("pacote exige --version, --source e --build")
-            result = verify(args.directory, args.version, args.source, args.build, args.base)
+            result = verify(args.directory, args.version, args.source, args.build, args.base, beta=args.beta)
         print(json.dumps(result, indent=2))
     except (ValueError, KeyError, OSError, TypeError, AttributeError) as error:
         parser.exit(1, "Pacote reprovado: " + str(error) + "\n")
