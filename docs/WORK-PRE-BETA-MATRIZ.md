@@ -1,6 +1,6 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapas 0/1/2/3 concluídas; Etapa 4 em validação na CI em 27/10/2026. Homologações físicas/pacote pendentes; exclusão permanente preservada.** Base: WORK18 .65 TESTE,
+**Etapas 0–4 concluídas tecnicamente em 27/10/2026. Homologações físicas/pacote pendentes, R4/R6/R7 abertos; exclusão permanente preservada.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
@@ -268,7 +268,7 @@ não iniciada. BETA, PCs, main e exclusão permanente preservados.
 
 ## Etapa 4 — desinstalação e resíduos (27/10/2026)
 
-**EM VALIDAÇÃO NA CI.** Base `9a01aee2d14685efa8b28df63fb406d14fd32625`.
+**CONCLUÍDA TECNICAMENTE; R4/R6/R7 ABERTOS.** Base `9a01aee2d14685efa8b28df63fb406d14fd32625`.
 CI da Etapa 3 conferida: 40559631389 aprovada no código 5a7c048.
 [Relatório](WORK-PRE-BETA-ETAPA4-DESINSTALACAO.md) ·
 [Evidência](evidencias/pre-beta-etapa4-desinstalacao.json).
@@ -283,6 +283,21 @@ CI da Etapa 3 conferida: 40559631389 aprovada no código 5a7c048.
 | Regressão local | Controles existentes disponíveis | 41 controles do fluxo e build/analisadores aprovados | Suíte completa bloqueada em asserção RAM preexistente no Linux; validar Windows | Sem alterar RAM para aprovar |
 | Física | E1/E2 sem ciclo completo de remoção/preservação | Evidência anterior reutilizada; nenhuma operação pessoal | Ainda falta antes/depois real e propriedade de casos históricos | R4/R6/R7 abertos |
 
-Aguardar recibo da CI Windows e dos cinco cenários nativos. Nenhuma nova
+**CI [40565220517](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517) aprovada**,
+fonte `386e7cd5263266a0478e60139e59b036f1d69e31`, tentativa 1: seis jobs
+obrigatórios success, dois condicionais skipped.
+[Recibo](evidencias/pre-beta-etapa4-ci-40565220517.json).
+
+| Prova final Windows | Resultado | Limite |
+| --- | --- | --- |
+| Resíduos / controles novos | 739/739, incluindo 29 focais e cinco nativos | Não são desinstalações físicas nos PCs |
+| NÃO / alteração / cancelar | Bytes preservados; mutação bloqueada; cancelamento sem exclusão | Diretório TEMP com GUID, somente dados do teste |
+| SIM / dono concorrente | Só cache atribuído removido, Documents/vizinho intactos; concorrente impede oferta | Propriedade real dos casos históricos privados não resolvida |
+| Atualizadores / multifontes / mutações | 410 / 196 / 36 rejeitadas | Etapas anteriores e proteções preservadas |
+| MSIX / encerramento / Python-políticas | 47 / 30 / 41 | Sem alteração de RAM para aprovar sua asserção no Windows |
+| Interface / drivers / pacote | Aprovados; x64 self-contained com 284 hashes | Sem homologação AVG ou conferência independente do ZIP |
+
+O código acima é o SHA validado; recibo posterior somente Markdown/JSON,
+`[skip ci]`. Versão e roadmap 27/42 mantidos, R4/R6/R7 abertos. Nenhuma nova
 verificação/teste/botão para o produto excluído. Etapa 5 não iniciada;
 nenhum merge, deploy, release, driver, reinício ou acesso à BETA privada.

@@ -8,7 +8,7 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | Campo | Registro |
 | --- | --- |
 | Etapa executada | **4 — Desinstalação / resíduos: pendência, consentimento e revalidação** |
-| Estado | **EM VALIDAÇÃO NA CI** — 29 focais e 41 controles locais aprovados; cinco casos nativos pendentes; R4/R6/R7 abertos |
+| Estado | **CONCLUÍDA TECNICAMENTE; HOMOLOGAÇÃO R4/R6/R7 PENDENTE** — CI aprovada no código 386e7cd; roadmap 27/42 |
 | Repositório | `walissonminel-1991/gerenciador-final` |
 | Branch de continuidade | `work-pre-beta-etapa0-20261027` |
 | Base imutável | `2bc9f4228fd448445fbf181652e5af93005def20` — WORK18 / PR #60 |
@@ -19,6 +19,8 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | Commit da revisão Chrome anterior | [`8e195bfa3dfaab6767d877e78a2ad8d2b538f49c`](https://github.com/walissonminel-1991/gerenciador-final/commit/8e195bfa3dfaab6767d877e78a2ad8d2b538f49c) |
 | CI histórica anterior à exclusão | [40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889), tentativa 2: **failure**; não reexecutar |
 | Commit da exclusão solicitada | [`341c109b6b8538733b32a02909ff40c8e0a380d9`](https://github.com/walissonminel-1991/gerenciador-final/commit/341c109b6b8538733b32a02909ff40c8e0a380d9) |
+| Commit de código da Etapa 4 | [`386e7cd5263266a0478e60139e59b036f1d69e31`](https://github.com/walissonminel-1991/gerenciador-final/commit/386e7cd5263266a0478e60139e59b036f1d69e31) |
+| CI da Etapa 4 | [40565220517](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517): **success**, tentativa 1, seis jobs obrigatórios aprovados e dois condicionais skipped |
 | Commit de código da Etapa 3 | [`5a7c0482a759009678b73c7c0cc75727b3b872f0`](https://github.com/walissonminel-1991/gerenciador-final/commit/5a7c0482a759009678b73c7c0cc75727b3b872f0) |
 | CI da Etapa 3 | [40559631389](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40559631389): **success**, tentativa 1, seis jobs obrigatórios aprovados e dois condicionais skipped |
 | Commit de código da Etapa 2 | [`09fff12b0f854ab9c23886146479a7f993f936b7`](https://github.com/walissonminel-1991/gerenciador-final/commit/09fff12b0f854ab9c23886146479a7f993f936b7) |
@@ -26,7 +28,7 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 | CI anterior sem o alvo excluído | [40519539258](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40519539258): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
 | Arquivos alterados nesta etapa | `Program.cs`, `RegisteredUninstaller.cs`, `UninstallBatch.cs`, `UninstallOperationProgress.cs`, testes e documentação da Etapa 4 |
 | Código, versão e roadmap oficial | Conclusão desconhecida bloqueia repetição e lote seguinte; resumo coerente; versão mantida; **27/42**, R4/R6/R7 e demais pendências abertos |
-| Próxima etapa | **5 — Gestão de drivers**, somente estudo/protótipo desativado em outra sessão após o recibo; Etapa 5 não iniciada |
+| Próxima etapa | **5 — Gestão de drivers**, somente estudo/protótipo desativado em outra sessão; Etapa 5 não iniciada |
 
 O commit da auditoria inicial identifica a fotografia documental anterior; o
 commit de código da Etapa 1 está identificado separadamente. O HEAD final do recibo deve ser
@@ -87,9 +89,25 @@ vizinho e propriedade concorrente. Ainda não foram executados localmente.
 
 [Relatório e limites](WORK-PRE-BETA-ETAPA4-DESINSTALACAO.md) ·
 [Evidência](evidencias/pre-beta-etapa4-desinstalacao.json).
-**CI desta implementação pendente; salvar recibo antes de encerrar.**
-R4/R6/R7 continuam abertos, roadmap 27/42. Nenhuma desinstalação real,
-exclusão em PC pessoal, elevação, reinício ou operação de drivers. Etapa 5
+**CI [40565220517](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517) aprovada** no código
+`386e7cd5263266a0478e60139e59b036f1d69e31`, tentativa 1. Seis jobs
+obrigatórios success, dois condicionais skipped.
+[Recibo por job](evidencias/pre-beta-etapa4-ci-40565220517.json).
+
+Windows: **739/739 resíduos/desinstalação**, incluindo **29 focais e cinco
+casos nativos novos**. SIM/NÃO, mudança após consentimento, cancelamento,
+preservação de Documents/vizinho e dono concorrente aprovados em TEMP
+descartável. A asserção de RAM que limitou a execução Linux passou no Windows;
+nenhum código de RAM foi alterado. Regressões: 410 atualizadores, 196
+multifontes, 36 mutações rejeitadas, 47 MSIX, 30 encerramento e 41
+Python/políticas. Interface, drivers 2022/2025 e integridade externa aprovada.
+Pacote x64 self-contained com 284 hashes pela CI; sem homologação AVG ou
+conferência independente do ZIP. Nenhum código mudou após a CI. O recibo
+posterior altera somente Markdown/JSON, `[skip ci]`; conferir seu SHA no HEAD
+da PR #64, sem atribuir um novo build a ele.
+
+**R4/R6/R7 continuam abertos, roadmap 27/42.** Nenhuma desinstalação real,
+exclusão em PC pessoal, elevação nova, reinício ou operação de drivers. Etapa 5
 não iniciada; exclusão permanente e BETA/Worker/D1/DNS/flags preservados.
 
 ## Etapa 3 — registro da sessão concluída (27/10/2026)
@@ -406,7 +424,7 @@ independente; não confundir sua consulta com execução de COM/CLI.
 | 1 — Fontes / #63 | **CONCLUÍDA** | Revisão e exclusão solicitada aprovadas na CI 40519539258; nunca retomar verificações VLC; arquitetura na tela permanece para a Etapa 3 |
 | 2 — Drivers consultivos | **CONCLUÍDA TECNICAMENTE / HOMOLOGAÇÃO PENDENTE** | CI 40525913386 aprovada; 26 casos novos, 174 verificações por runner. D2/D4/G1/G2 continuam abertos; nenhuma escrita |
 | 3 — Atualizações | **CONCLUÍDA TECNICAMENTE / U8 PENDENTE** | CI 40559631389 aprovada; 42 novas, 410 atualizadores, integração consultiva 0→2; nenhum ganho físico ou receita nova; U8 aberto |
-| 4 — Desinstalação / resíduos | **EM VALIDAÇÃO NA CI** | Pendência e resumo corrigidos; 29 focais e 41 controles locais; cinco cenários nativos de SIM/NÃO/propriedade/revalidação aguardam CI; R4/R6/R7 abertos |
+| 4 — Desinstalação / resíduos | **CONCLUÍDA TECNICAMENTE / R4/R6/R7 PENDENTES** | CI 40565220517 aprovada; 739 resíduos, 34 novos incluindo cinco nativos; propriedade e consentimento preservados; sem prova física nova |
 | 5 — Gestão de drivers | **NÃO INICIADA** | Estudo/protótipo isolado desativado, somente se viável; G3–G5 não se concluem por planejamento |
 | 6 — Evidência física | **NÃO INICIADA** | Partir dos 5 arquivos já recuperados e dos relatos; avaliar cada checkpoint e pedir somente a prova realmente ausente |
 | 7 — Integração / decisão | **NÃO INICIADA** | Reconciliar frentes e CI, avaliar critérios e recomendar estado técnico; sem publicar |
@@ -432,10 +450,10 @@ perfis, configurações, jogos, saves e dados compartilhados.
 ## Próxima ação exata e comando para retomada
 
 Em outra sessão, iniciar somente a **Etapa 5**, após conferir este checkpoint,
-a matriz, HEADs e o recibo/CI da Etapa 4. Se a validação estiver pendente,
-terminar apenas esse recibo. Não repetir revisões/testes sem nova evidência.
-As pendências físicas/pacote continuam abertas. Etapa 5 é somente estudo ou
-protótipo desativado, sem instalar/remover/reverter drivers.
+a matriz, HEADs e o recibo/CI da Etapa 4. Etapas 0–4 tecnicamente concluídas;
+não repetir revisões/testes sem nova evidência. As pendências físicas/pacote
+continuam abertas. Etapa 5 é somente estudo ou protótipo desativado,
+sem instalar/remover/reverter drivers.
 A exclusão permanente continua obrigatória. Não trabalhar na BETA privada.
 
 > Continue a missão pré-BETA do Gerenciador Final pela Etapa 5. Leia o checkpoint e a matriz na branch work-pre-beta-etapa0-20261027, confira o recibo e a CI da Etapa 4, preserve a exclusão permanente do VLC e os limites de estudo/protótipo desativado para drivers, salve o resultado no GitHub e pare antes da Etapa 6.

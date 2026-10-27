@@ -2,7 +2,7 @@
 
 27/10/2026; branch `work-pre-beta-etapa0-20261027`, Draft PR #64.
 Base `9a01aee2d14685efa8b28df63fb406d14fd32625`; CI da Etapa 3 40559631389 conferida.
-**Em validação na CI. Parar antes da Etapa 5.**
+**Concluída tecnicamente; homologação R4/R6/R7 pendente. Etapa 5 não iniciada.**
 
 ## Resultado funcional
 
@@ -53,8 +53,8 @@ mistos/parciais. São callbacks inertes, não desinstaladores reais.
 Local Linux, SDK 10.0.402 verificado por SHA-512 oficial: 29 focais, 41
 controles WORK6 do fluxo e build Release/analisadores sem avisos/erros.
 A tentativa da suíte completa local parou na asserção preexistente de RAM,
-antes dos testes novos; não foi contornada nem modificada. A CI Windows deve
-validar a suíte completa e os cinco cenários nativos abaixo.
+antes dos testes novos; não foi contornada nem modificada. A CI Windows 40565220517
+aprovou a suíte completa e os cinco cenários nativos abaixo.
 
 Os nativos criam somente um diretório TEMP com GUID e duas subpastas de
 fixtures. Sem registros de programas reais, UAC, aplicativos ou reinício:
@@ -90,3 +90,25 @@ VLC permanece excluído de testes, verificações, consultas e botões/ações;
 nenhum caso novo. Etapas 0–3 preservadas; Etapa 5 não iniciada. Main, PR #40,
 BETA/Worker/D1/DNS/flags, dados pessoais e regras de segurança preservados.
 Sem merge, deploy, release, instalação/remoção/reversão de driver ou reinício.
+
+## Recibo final da CI
+
+Código `386e7cd5263266a0478e60139e59b036f1d69e31`, [CI 40565220517](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40565220517),
+tentativa 1, **success**: seis jobs obrigatórios aprovados e dois condicionais
+skipped. [Evidência por job](evidencias/pre-beta-etapa4-ci-40565220517.json).
+
+- **739/739 resíduos/desinstalação**, com 34 verificações novas: 29 focais
+  e cinco nativas. A asserção RAM existente passou no Windows, sem mudar seu código.
+- Nativos em TEMP: NÃO preserva bytes; alteração pós-consentimento é bloqueada;
+  cancelamento preserva; SIM remove só cache atribuído com Documents/vizinho
+  intactos; dono concorrente impede oferta e exclusão.
+- **410 atualizadores, 196 multifontes, 36 mutações rejeitadas, 47 MSIX,
+  30 encerramento e 41 Python/políticas**. Interface, drivers 2022/2025 e
+  integridade dos demais instaladores aprovados.
+- Pacote x64 self-contained validado com 284 hashes pela CI, sem revalidação
+  independente do ZIP ou homologação AVG nesta sessão.
+
+Nenhum código mudou após essa CI. O recibo posterior altera somente
+Markdown/JSON e usa `[skip ci]`; conferir seu SHA na PR #64 ao retomar.
+**R4/R6/R7 abertos; 27/42.** Próxima sessão: somente Etapa 5, limitada a
+estudo/protótipo desativado. Nenhuma ação dessa etapa foi executada.
