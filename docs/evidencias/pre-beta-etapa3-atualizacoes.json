@@ -1,0 +1,88 @@
+{
+  "schema": 1,
+  "stage": 3,
+  "date": "2026-10-27",
+  "status": "pending_windows_ci",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-pre-beta-etapa0-20261027",
+  "pull_request": 64,
+  "baseline_sha": "b74eb879b74360ed78e57b105463fb81fa5ffe83",
+  "baseline_semantics": "Projecao original extraida sem alterar logica; novo coletor ainda nao ligado na medicao antes; UpdateResultHistory original.",
+  "sdk": "10.0.402",
+  "comparison": {
+    "same_cases": 41,
+    "before": {
+      "passed": 36,
+      "failed": 5,
+      "exit_code": 1
+    },
+    "after": {
+      "passed": 41,
+      "failed": 0,
+      "exit_code": 0
+    },
+    "additional_memory_control": 1,
+    "final_focal": {
+      "total": 42,
+      "passed": 42,
+      "failed": 0
+    }
+  },
+  "local_before_environment_restart": {
+    "platform": "Linux",
+    "multisource_passed": 196,
+    "product_build": {
+      "analyzers": true,
+      "warnings": 0,
+      "errors": 0
+    },
+    "windows_ui_project_build": {
+      "warnings": 0,
+      "errors": 0
+    },
+    "native_ui_executed": false
+  },
+  "recovery": {
+    "environment_restarted": true,
+    "source_recovered_from_session": true,
+    "same_base": true,
+    "recovered_source_requires_ci": true
+  },
+  "previous_ci": {
+    "source_sha": "09fff12b0f854ab9c23886146479a7f993f936b7",
+    "run_id": 40525913386,
+    "conclusion": "success",
+    "mandatory_success": 6,
+    "conditional_skipped": 2,
+    "rerun": false
+  },
+  "preserved_refs": {
+    "pr60": "2bc9f4228fd448445fbf181652e5af93005def20",
+    "pr61": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+    "pr62": "e530d724b7322963c8795b005f13ae6948a73e43",
+    "pr63": "04f59750739c6bdbaeb0bacd86ed2b734fba1271"
+  },
+  "proof_limits": {
+    "pe_metadata_authenticates_publisher": false,
+    "creates_install_recipe": false,
+    "generic_architecture_coverage": false,
+    "real_endpoint_rechecked": false,
+    "personal_pc_operations": false,
+    "new_physical_coverage_claimed": false
+  },
+  "roadmap": {
+    "completed": 27,
+    "total": 42,
+    "U8_closed": false,
+    "changed": false
+  },
+  "safety": {
+    "permanent_exclusion_preserved": true,
+    "new_excluded_product_tests": 0,
+    "beta_infrastructure_accessed": false,
+    "merge_deploy_release": false,
+    "drivers_modified": false,
+    "real_app_update": false,
+    "stage4_started": false
+  }
+}

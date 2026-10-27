@@ -1,4 +1,17 @@
 using GerenciadorAplicativos;
+if (args.Contains("--etapa3"))
+{
+    int total = 0, failures = 0;
+    await Stage3UpdateTests.RunAsync((ok, label) =>
+    {
+        total++;
+        if (!ok) failures++;
+        Console.WriteLine((ok ? "OK " : "FALHA ") + label);
+    });
+    Console.WriteLine($"ETAPA3_FIXTURES total={total} aprovadas={total - failures} falhas={failures}");
+    Environment.ExitCode = failures == 0 ? 0 : 1;
+    return;
+}
 if (args.Contains("--work11-installer-fixture")) return;
 if (args.Contains("--work13-slow-fixture")) { await Task.Delay(1000); return; }
 if (args.Contains("--verify-catalog"))
@@ -539,6 +552,7 @@ SimulatedUpdateScenarioTests.Run(Verify);
 if (OperatingSystem.IsWindows()) AuthenticodeTests.Run(Verify);
 else Console.WriteLine("SKIP: provedor Authenticode e contexto nativo exigem Windows; nao equivalem a aprovacao.");
 await AuthenticodeTests.RunArchiveAsync(Verify);
+await Stage3UpdateTests.RunAsync(Verify);
 Console.WriteLine($"{checkedCount}/{checkedCount} testes executados de autorizacao, identidade e integridade aprovados");
 
 namespace GerenciadorAplicativos
@@ -547,6 +561,7 @@ namespace GerenciadorAplicativos
     {
         public string Name { get; init; } = "";
         public string InventoryId { get; set; } = "";
+        internal string QueryArchitecture { get; set; } = "unknown";
         public string Version { get; init; } = "";
         public string Publisher { get; init; } = "";
         public string AvailableVersion { get; init; } = "";

@@ -85,6 +85,8 @@ internal sealed class ProgramEntry
     public string CatalogDisplayName { get; set; } = "";
     public string InventorySource { get; init; } = "";
     public string InventoryId { get; init; } = "";
+    // Evidência consultiva capturada junto ao inventário; não autoriza execução.
+    internal string QueryArchitecture { get; set; } = "unknown";
     public string MsiProductCode { get; init; } = "";
     public string MsixPackageFamilyName { get; init; } = "";
     public bool VerifiedMsixIdentity { get; init; }
@@ -335,7 +337,7 @@ internal static class AppServices
                         // O identificador inclui a visão real: não unir instalações
                         // diferentes só porque o nome e versão coincidem.
                         string registryIdentity = $"{hive}|{view}|{registryKey}";
-                        entries.Add(new ProgramEntry
+                        var entry = new ProgramEntry
                         {
                             Name = name,
                             Version = Convert.ToString(child.GetValue("DisplayVersion"))?.Trim() ?? "",
@@ -353,7 +355,9 @@ internal static class AppServices
                             InstallLocation = protectedApp && !includeHidden ? "" :
                                 Convert.ToString(child.GetValue("InstallLocation"))?.Trim() ?? "",
                             InventoryOnly = protectedApp
-                        });
+                        };
+                        entry.QueryArchitecture = InstalledUpdateIdentity.CaptureArchitecture(entry);
+                        entries.Add(entry);
                     }
                     catch (Exception) { failures++; }
                 }
@@ -2248,15 +2252,7 @@ internal sealed partial class MainForm : Form
         // Preservar o mesmo número e a mesma ordem das linhas para a UI.
         // Entradas somente leitura (jogos e MSIX nao verificados) nao
         // recebem candidatos nem receitas automáticas de atualização.
-        var installed = snapshot.Select(x => new InstalledApp(x.Name, x.Version, x.Publisher,
-            EcosystemInventory.CanQueryVersions(x),
-            Architecture: Regex.IsMatch(x.Name, @"(?i)\bARM64\b") ? "arm64" :
-                Regex.IsMatch(x.Name, @"(?i)\b(x64|64-bit)\b") ? "x64" :
-                Regex.IsMatch(x.Name, @"(?i)\b(x86|32-bit)\b") ? "x86" : "unknown",
-            Scope: x.InventoryId.StartsWith("CurrentUser|", StringComparison.Ordinal) ? "user" :
-                x.InventoryId.StartsWith("LocalMachine|", StringComparison.Ordinal) ? "machine" : "unknown",
-            InstallType: x.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) ? "msix" : "unknown",
-            InventoryId: x.InventoryId, InstallLocation: InventoryReconciler.UpdateInstallLocation(x))).ToArray();
+        var installed = snapshot.Select(InstalledUpdateIdentity.Create).ToArray();
         using var measurement = LocalPerformanceMetrics.Measure(PerformanceStage.Updates);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(65));
         var watch = Stopwatch.StartNew();
@@ -2396,7 +2392,8 @@ internal sealed partial class MainForm : Form
                 $"incertos={uncertain} ruckzuck_entradas={rz.Count} " +
                 $"ruckzuck_ms={rz.NetworkMs} comparacao_ms={rz.CompareMs} total_ms={watch.ElapsedMilliseconds}");
             Log("Execução direta exige receita verificada ou descoberta autenticada, com conferência do arquivo e da instalação.");
-            int sourceFailures = others.Diagnostics.Count(x => x.Status != "ok") + (rz.Matches is null ? 1 : 0);
+            int sourceFailures = others.Diagnostics.Count(x => x.Status != "ok") + (rz.Matches is null ? 1 : 0) +
+                (automatic.Diagnostic.Status != "ok" ? 1 : 0);
             int conflicts = merged.Count(m => m.HasSourceConflict);
             int requiringReview = merged.Count(m => m.State == MatchState.Candidate && m.RequiresReview);
             if (conflicts > 0) Log($"Fontes divergentes: {conflicts} resultado(s); instalação direta bloqueada, detalhes na dica da linha.");

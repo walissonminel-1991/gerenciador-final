@@ -1,6 +1,6 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapas 0/1/2 concluídas tecnicamente em 27/10/2026; homologação física/pacote pendente. Exclusão permanente preservada.** Base: WORK18 .65 TESTE,
+**Etapas 0/1/2 concluídas; Etapa 3 em validação na CI em 27/10/2026. Homologação física/pacote pendente; exclusão permanente preservada.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
@@ -11,7 +11,7 @@ inventário sem ações, com políticas específicas removidas. A falha externa
 anterior permanece histórica e deixa de ser requisito da missão.
 
 Na matriz inicial, **Antes/Depois descreve o conhecimento verificado pela auditoria da Etapa 0**.
-Os resultados e limites das Etapas 1/2 estão nas seções posteriores. Não houve ampliação
+Os resultados e limites das Etapas 1/2/3 estão nas seções posteriores. Não houve ampliação
 de permissões ou nova homologação física.
 O estado oficial foi conferido em [ROADMAP](ROADMAP.md) e
 [PROGRESSO](PROGRESSO.json): **27/42 (64,3%)**; 15 pendentes.
@@ -143,7 +143,7 @@ não foi acessada nem alterada.
 
 Esta seção preserva a fotografia inicial da Etapa 0. O estado atual das
 Etapas 0/1 é concluído; o estado atual da continuidade está ao final.
-O estado atual da Etapa 2 está na seção final; Etapas 3–7 não iniciadas. O roteiro físico mínimo final pertence
+A continuidade atual está na seção da Etapa 3 ao final; Etapas 4–7 não iniciadas. O roteiro físico mínimo final pertence
 à Etapa 6 e deve partir das evidências acima, incluindo a pendência específica
 T11; não solicitar uma nova bateria completa por falta de consolidação.
 
@@ -229,3 +229,27 @@ altera somente Markdown/JSON, `[skip ci]`; o código acima é o SHA validado.
 A versão do produto não mudou. Próxima sessão: somente Etapa 3; nesta sessão
 ela não foi iniciada. Nenhum merge/deploy ou acesso à infraestrutura BETA.
 Exclusão permanente inalterada, sem teste ou botão novo para o produto excluído.
+
+## Etapa 3 — atualizações (27/10/2026)
+
+**EM VALIDAÇÃO NA CI.** Base `b74eb879b74360ed78e57b105463fb81fa5ffe83`.
+CI da Etapa 2 conferida: 40525913386 aprovada no código 09fff12.
+[Relatório/roteiro](WORK-PRE-BETA-ETAPA3-ATUALIZACOES.md) ·
+[Evidência](evidencias/pre-beta-etapa3-atualizacoes.json).
+
+| Ponto | Antes | Depois | Prova e limite | Roadmap |
+| --- | --- | --- | --- | --- |
+| Arquitetura na consulta | Sufixo do nome; identidade exata chegava unknown | PE principal registrado, produto/empresa/versão coerentes, raiz do mesmo escopo | Não usa SO/RegistryView; metadados não autenticam o pacote | U8 aberto |
+| Prova local inválida | Captura específica ausente | Caminho inseguro/edição/escopo/PE/metadados conflitantes conservam unknown | Sem procurar outro EXE ou usar setup.exe; ARM64 não vira x64 | Nenhuma nova receita |
+| Primeira consulta parcial → cancelamento | Candidato podia desaparecer | Último candidato preservado em revisão/stale | Mudança de registro invalida; consulta completa substitui; 30 min sem renovação por falhas | U8 aberto |
+| Memória | Retenção sucessiva não era necessária no desenho anterior | Até 16 observações por app, mais recentes primeiro | 100 rodadas sintéticas | Sem dados remotos |
+| Estado da fonte | Falha automática podia ficar fora do resumo | Contagem exibida inclui a falha já tratada como parcial | Sem liberar execução por status | Clareza |
+| Fluxo autorizado | Gates de payload e tentativa única existentes | Preservados; bloqueio, recusa UAC/assinatura, falha, confirmação, reinício, cancelamento e timeout simulados | Fixtures inertes não validam instalação real por retorno zero | U8 aberto |
+| Comparação | 36/41 aprovadas, 5 falhas | 41/41 comparáveis + 1 controle de memória = 42/42 | Projeção antiga extraída sem alteração de lógica; SDK 10.0.402 | 27/42 mantidos |
+| Evidência física | E1/E2: 10/8 candidatos, 0/0 elegíveis silenciosos/supervisionados | Reutilizada, com roteiro futuro preparado | Sem nova coleta/operação pessoal | Homologação real pendente |
+
+Antes da interrupção: 196 multifontes e build/analisadores sem avisos/erros.
+Após reinício do ambiente, código recuperado do registro da sessão; execução
+Windows e integração com fonte fictícia/tela real pendentes na CI.
+Sem nova API Chrome ou investigação COM. Etapa 4 não iniciada. BETA, PCs,
+main e exclusão permanente preservados.

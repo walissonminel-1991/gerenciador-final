@@ -21,7 +21,8 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
         if (args.Contains("--lote4")) { Lote4LayoutTests.Run(); return; }
-        if (args.Contains("--work18")) { Work18UpdateUiTests.Run(); return; }
+        if (args.Contains("--work18")) { Work18UpdateUiTests.Run(); Stage3UpdateQueryTests.Run(); return; }
+        if (args.Contains("--etapa3")) { Stage3UpdateQueryTests.Run(); return; }
         if (args.Contains("--lote3")) { Lote3LayoutTests.Run(); return; }
         if (args.Contains("--drivers-readonly"))
         {

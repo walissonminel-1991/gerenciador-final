@@ -7,24 +7,24 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 
 | Campo | Registro |
 | --- | --- |
-| Etapa executada | **2 — Drivers: investigação e consulta oficial somente leitura** |
-| Estado | **CONCLUÍDA TECNICAMENTE, COM PENDÊNCIAS DE HOMOLOGAÇÃO** — CI aprovada; D2/D4/G1/G2 abertos |
+| Etapa executada | **3 — Atualizações: identidade, cobertura consultiva e estados seguros** |
+| Estado | **EM VALIDAÇÃO NA CI** — alterações recuperadas após reinício do ambiente; 42 focais aprovadas antes da interrupção; U8 aberto |
 | Repositório | `walissonminel-1991/gerenciador-final` |
 | Branch de continuidade | `work-pre-beta-etapa0-20261027` |
 | Base imutável | `2bc9f4228fd448445fbf181652e5af93005def20` — WORK18 / PR #60 |
 | Fonte da candidata .65 já existente | `e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d` |
 | Commit da auditoria inicial | [`1399468d22061e79b6a6f957ba472d84a1aec9ec`](https://github.com/walissonminel-1991/gerenciador-final/commit/1399468d22061e79b6a6f957ba472d84a1aec9ec) |
 | PR de acompanhamento | [#64 — Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/64) |
-| Ponto de retomada anterior | `a4d30a1734fc54af35bec494e65653475970c40b` — Etapas 0/1 concluídas, antes da Etapa 2 |
+| Ponto de retomada anterior | `b74eb879b74360ed78e57b105463fb81fa5ffe83` — recibo da Etapa 2, CI 40525913386 aprovada no código 09fff12 |
 | Commit da revisão Chrome anterior | [`8e195bfa3dfaab6767d877e78a2ad8d2b538f49c`](https://github.com/walissonminel-1991/gerenciador-final/commit/8e195bfa3dfaab6767d877e78a2ad8d2b538f49c) |
 | CI histórica anterior à exclusão | [40514120889](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40514120889), tentativa 2: **failure**; não reexecutar |
 | Commit da exclusão solicitada | [`341c109b6b8538733b32a02909ff40c8e0a380d9`](https://github.com/walissonminel-1991/gerenciador-final/commit/341c109b6b8538733b32a02909ff40c8e0a380d9) |
 | Commit de código da Etapa 2 | [`09fff12b0f854ab9c23886146479a7f993f936b7`](https://github.com/walissonminel-1991/gerenciador-final/commit/09fff12b0f854ab9c23886146479a7f993f936b7) |
 | CI da Etapa 2 | [40525913386](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40525913386): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
 | CI anterior sem o alvo excluído | [40519539258](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40519539258): **success**, seis jobs obrigatórios aprovados e dois condicionais skipped |
-| Arquivos alterados nesta etapa | `DriverInventory.cs`, `DriverOfficialLookup.cs`, `DriverPublishedPackages.cs`, `DriverWindowsHistory.cs`, testes e documentação da Etapa 2 |
-| Código, versão e roadmap oficial | Drivers consultivos mais conservadores; versão mantida; **27/42**, 15 pendentes; D2/D4/G1/G2 abertos |
-| Próxima etapa | **3 — Atualizações**, somente em outra sessão; Etapa 3 não iniciada e exclusão permanente preservada |
+| Arquivos alterados nesta etapa | `Program.cs`, `InstalledUpdateIdentity.cs`, `UpdateResultHistory.cs`, testes de atualização/interface e documentos da Etapa 3 |
+| Código, versão e roadmap oficial | Arquitetura local consultiva e preservação de resultados corrigidas; versão mantida; **27/42**, U8 e demais pendências abertos |
+| Próxima etapa | **4 — Desinstalação / resíduos**, em outra sessão após o recibo; Etapa 4 não iniciada |
 
 O commit da auditoria inicial identifica a fotografia documental anterior; o
 commit de código da Etapa 1 está identificado separadamente. O HEAD final do recibo deve ser
@@ -42,8 +42,8 @@ build ou como autorização de distribuição.
 5. Registrar implementação, testes, limitações, SHA e próxima ação nos dois
    documentos; salvar no GitHub e encerrar a sessão.
 
-**As Etapas 0/1 não foram repetidas.** A sessão atual trabalha somente na
-Etapa 2. Os registros de sessões anteriores abaixo são históricos.
+**As Etapas 0/1/2 não foram repetidas.** A sessão atual trabalha somente na
+Etapa 3. Os registros anteriores abaixo são históricos.
 
 ## Conferência de retomada com referência antiga — 27/10/2026
 
@@ -60,7 +60,40 @@ Esta retomada registra somente a conferência documental e encerra antes da
 Etapa 2, conforme o limite solicitado. O comando atual ao final deste arquivo
 apontava a Etapa 2, agora executada na sessão registrada abaixo.
 
-## Etapa 2 — sessão atual (27/10/2026)
+## Etapa 3 — sessão atual (27/10/2026)
+
+Base `b74eb879b74360ed78e57b105463fb81fa5ffe83`, PR #64 aberta e Draft.
+SHAs das PRs #60/#61/#62/#63 reconferidos e inalterados. CI da Etapa 2:
+40525913386 aprovada no código 09fff12, seis jobs success e dois condicionais
+skipped; b74eb87 era recibo somente documental.
+
+O inventário captura arquitetura do PE principal Stable explicitamente
+registrado para a consulta Chrome. Exige raiz do mesmo escopo, caminho seguro,
+Machine/Magic coerentes, produto, empresa e versão correspondentes. Sem prova,
+conserva unknown. Não infere bitness pelo SO/RegistryView; ARM64 não vira x64.
+É leitura estrutural de metadados, não autenticação do editor nem receita.
+
+O histórico conserva também uma primeira consulta parcial. Cancelamento
+posterior preserva candidato em revisão/stale, sem ação direta. Troca de
+instalação invalida o cache; consulta completa substitui a evidência. Falhas
+não renovam 30 minutos; até 16 observações por aplicativo. O status da tela
+passa a contar falha da fonte automática, evitando falsa consulta concluída.
+
+Antes/depois: projeção original extraída sem mudar a lógica; 41 casos
+comparáveis passaram de 36 aprovações/5 falhas a 41/41. Mais um controle de
+memória: **42/42 focais**, 196/196 multifontes, builds do produto e interface
+sem avisos/erros em Linux antes da interrupção. O ambiente local reiniciou;
+as alterações foram recuperadas desta sessão sobre o mesmo SHA-base e serão
+validadas novamente na CI Windows. A integração fonte fictícia → tela real
+não foi executada em Linux. Nenhum endpoint Chrome foi reconsultado.
+
+[Relatório e roteiro futuro](WORK-PRE-BETA-ETAPA3-ATUALIZACOES.md) ·
+[Evidência](evidencias/pre-beta-etapa3-atualizacoes.json).
+**CI desta implementação pendente; salvar recibo antes de encerrar.** U8
+permanece aberto, roadmap 27/42. Etapa 4 não iniciada; exclusão permanente,
+PCs, BETA e infraestrutura preservados, sem merge/deploy/release.
+
+## Etapa 2 — registro da sessão concluída (27/10/2026)
 
 Retomada a partir de `a4d30a1734fc54af35bec494e65653475970c40b`.
 PR #64 aberta e Draft, base WORK18 inalterada. Conferidos os SHAs das PRs
@@ -322,13 +355,13 @@ independente; não confundir sua consulta com execução de COM/CLI.
 | 0 — Auditoria | **CONCLUÍDA** | Referências, pendências, evidências e continuidade registradas; encerrar |
 | 1 — Fontes / #63 | **CONCLUÍDA** | Revisão e exclusão solicitada aprovadas na CI 40519539258; nunca retomar verificações VLC; arquitetura na tela permanece para a Etapa 3 |
 | 2 — Drivers consultivos | **CONCLUÍDA TECNICAMENTE / HOMOLOGAÇÃO PENDENTE** | CI 40525913386 aprovada; 26 casos novos, 174 verificações por runner. D2/D4/G1/G2 continuam abertos; nenhuma escrita |
-| 3 — Atualizações | **NÃO INICIADA** | Reusar WORK13–18; validar identidade, payload, estados/cancelamento em fixtures e lacunas U8; sem atualização real |
+| 3 — Atualizações | **EM VALIDAÇÃO NA CI** | Arquitetura no adaptador, histórico parcial/cancelamento e status de fontes corrigidos; 42 focais; integração Windows pendente; U8 aberto |
 | 4 — Desinstalação / resíduos | **NÃO INICIADA** | Reusar WORK10–14/Lote 3; demonstrar propriedade, SIM/NÃO e falhas em alvos descartáveis; R4/R6/R7 reais continuam dependentes de evidências |
 | 5 — Gestão de drivers | **NÃO INICIADA** | Estudo/protótipo isolado desativado, somente se viável; G3–G5 não se concluem por planejamento |
 | 6 — Evidência física | **NÃO INICIADA** | Partir dos 5 arquivos já recuperados e dos relatos; avaliar cada checkpoint e pedir somente a prova realmente ausente |
 | 7 — Integração / decisão | **NÃO INICIADA** | Reconciliar frentes e CI, avaliar critérios e recomendar estado técnico; sem publicar |
 
-As etapas 3–5 usam a base técnica verificada e preservam alterações aceitas
+As etapas 4–5 usam a base técnica verificada e preservam alterações aceitas
 nas sessões anteriores. A Etapa 6 pode reutilizar toda a prova já recuperada;
 não depende de criar dados novos por instalação/remoção em PC pessoal.
 A Etapa 7 depende dos resultados e bloqueios registrados nas anteriores.
@@ -348,10 +381,10 @@ perfis, configurações, jogos, saves e dados compartilhados.
 
 ## Próxima ação exata e comando para retomada
 
-Em outra sessão, iniciar somente a **Etapa 3**, após conferir este checkpoint,
-a matriz, HEADs e CI da Etapa 2. As Etapas 0/1/2 estão tecnicamente concluídas;
-não repetir revisões ou testes sem nova evidência. Os checkpoints físicos e de
-pacote continuam abertos conforme os limites registrados.
+Em outra sessão, iniciar somente a **Etapa 4**, após conferir este checkpoint,
+a matriz, HEADs e o recibo/CI da Etapa 3. Se a validação ainda estiver em curso,
+terminar apenas o recibo pendente. Não repetir revisões/testes sem nova evidência.
+Os checkpoints físicos e de pacote continuam abertos.
 A exclusão permanente continua obrigatória. Não trabalhar na BETA privada.
 
-> Continue a missão pré-BETA do Gerenciador Final pela Etapa 3. Leia o checkpoint e a matriz na branch work-pre-beta-etapa0-20261027, confira o recibo e a CI da Etapa 2, preserve a exclusão permanente do VLC, salve o resultado no GitHub e pare antes da Etapa 4.
+> Continue a missão pré-BETA do Gerenciador Final pela Etapa 4. Leia o checkpoint e a matriz na branch work-pre-beta-etapa0-20261027, confira o recibo e a CI da Etapa 3, preserve a exclusão permanente do VLC, salve o resultado no GitHub e pare antes da Etapa 5.
