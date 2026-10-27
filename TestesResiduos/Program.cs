@@ -1,6 +1,20 @@
 using GerenciadorAplicativos;
 using Microsoft.Win32;
 
+if (args.Contains("--etapa4"))
+{
+    int total = 0, failures = 0;
+    await Stage4UninstallTests.RunAsync((ok, label) =>
+    {
+        total++;
+        if (!ok) failures++;
+        Console.WriteLine((ok ? "OK " : "FALHA ") + label);
+    });
+    Console.WriteLine($"ETAPA4_FIXTURES total={total} aprovadas={total - failures} falhas={failures}");
+    Environment.ExitCode = failures == 0 ? 0 : 1;
+    return;
+}
+
 if (args.Length == 2 && args[0] == "--synthetic-uninstall")
 { Environment.Exit(Work10IntegratedCleanupTests.UninstallFixture(args[1])); return; }
 if (args.Length == 3 && args[0] == "--residual-worker-test")
@@ -1305,6 +1319,7 @@ InvalidCatalog("Local\\App", @"Software\Microsoft\Windows");
 Console.WriteLine("7 políticas maliciosas de catálogo recusadas.");
 
 
+await Stage4UninstallTests.RunAsync(Check);
 Console.WriteLine($"{passed}/{passed} testes de varredura e limpeza pós-desinstalacao aprovados.");
 namespace GerenciadorAplicativos
 {

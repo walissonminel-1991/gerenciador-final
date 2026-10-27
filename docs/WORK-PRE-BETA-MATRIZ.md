@@ -1,6 +1,6 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapas 0/1/2/3 concluídas tecnicamente em 27/10/2026. Homologação física/pacote e U8 pendentes; exclusão permanente preservada.** Base: WORK18 .65 TESTE,
+**Etapas 0/1/2/3 concluídas; Etapa 4 em validação na CI em 27/10/2026. Homologações físicas/pacote pendentes; exclusão permanente preservada.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
@@ -11,7 +11,7 @@ inventário sem ações, com políticas específicas removidas. A falha externa
 anterior permanece histórica e deixa de ser requisito da missão.
 
 Na matriz inicial, **Antes/Depois descreve o conhecimento verificado pela auditoria da Etapa 0**.
-Os resultados e limites das Etapas 1/2/3 estão nas seções posteriores. Não houve ampliação
+Os resultados e limites das Etapas 1/2/3/4 estão nas seções posteriores. Não houve ampliação
 de permissões ou nova homologação física.
 O estado oficial foi conferido em [ROADMAP](ROADMAP.md) e
 [PROGRESSO](PROGRESSO.json): **27/42 (64,3%)**; 15 pendentes.
@@ -143,7 +143,7 @@ não foi acessada nem alterada.
 
 Esta seção preserva a fotografia inicial da Etapa 0. O estado atual das
 Etapas 0/1 é concluído; o estado atual da continuidade está ao final.
-A continuidade atual está na seção da Etapa 3 ao final; Etapas 4–7 não iniciadas. O roteiro físico mínimo final pertence
+A continuidade atual está na seção da Etapa 4 ao final; Etapas 5–7 não iniciadas. O roteiro físico mínimo final pertence
 à Etapa 6 e deve partir das evidências acima, incluindo a pendência específica
 T11; não solicitar uma nova bateria completa por falta de consolidação.
 
@@ -265,3 +265,24 @@ A CI validou o código recuperado após reinício do ambiente. Nenhum código
 mudou depois dela; recibo apenas Markdown/JSON, `[skip ci]`. Versão mantida,
 roadmap 27/42 e U8 aberto. Sem nova API Chrome ou investigação COM. Etapa 4
 não iniciada. BETA, PCs, main e exclusão permanente preservados.
+
+## Etapa 4 — desinstalação e resíduos (27/10/2026)
+
+**EM VALIDAÇÃO NA CI.** Base `9a01aee2d14685efa8b28df63fb406d14fd32625`.
+CI da Etapa 3 conferida: 40559631389 aprovada no código 5a7c048.
+[Relatório](WORK-PRE-BETA-ETAPA4-DESINSTALACAO.md) ·
+[Evidência](evidencias/pre-beta-etapa4-desinstalacao.json).
+
+| Ponto | Antes | Depois | Evidência / limite | Roadmap |
+| --- | --- | --- | --- | --- |
+| Shell sem handle | StartFailed; lote podia avançar e botão permitir nova tentativa | Pending, lote interrompido, repetição bloqueada e nenhuma limpeza | Resultado nulo não comprova início recusado; callbacks inertes | R7 aberto |
+| Erro de acompanhamento | Win32 podia parecer falha inicial/UAC recusado | Exceção tipada após início mantém Pending e código nativo | Cinco códigos; falhas comprovadas pré-início preservadas | R7 aberto |
+| Resumo geral | Podia anunciar finalizada com falha ou limpeza não verificada | Falha, misto, pendente, cancelado, parcial e NÃO distintos | Helper usado pela tela; nenhuma autoridade nova para excluir | R4/R7 abertos |
+| Propriedade/consentimento | Guardas WORK10–14 existentes | Preservadas; cinco cenários nativos preparados | Só GUID TEMP: NÃO, mutação, cancelar, SIM preservando dados/vizinho, dono concorrente | R4/R6/R7 não fechados por fixture |
+| Comparação focal | 11/29 aprovadas, 18 falhas | 29/29 aprovadas no Linux | Mesmos casos, extração prévia sem alterar lógica | 27/42 mantidos |
+| Regressão local | Controles existentes disponíveis | 41 controles do fluxo e build/analisadores aprovados | Suíte completa bloqueada em asserção RAM preexistente no Linux; validar Windows | Sem alterar RAM para aprovar |
+| Física | E1/E2 sem ciclo completo de remoção/preservação | Evidência anterior reutilizada; nenhuma operação pessoal | Ainda falta antes/depois real e propriedade de casos históricos | R4/R6/R7 abertos |
+
+Aguardar recibo da CI Windows e dos cinco cenários nativos. Nenhuma nova
+verificação/teste/botão para o produto excluído. Etapa 5 não iniciada;
+nenhum merge, deploy, release, driver, reinício ou acesso à BETA privada.

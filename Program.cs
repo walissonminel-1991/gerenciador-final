@@ -3195,10 +3195,7 @@ internal sealed partial class MainForm : Form
                     inspection is null || !inspection.Conclusive || cleaned is { Verified: false } && cleanup?.Declined != true ? "partial" : "finished",
                     UninstallResultSummary.Describe([outcome], cleanup));
             }
-            string result = !consent || cleanup?.Cancelled == true ? "Operação cancelada — confira o resumo."
-                : outcomes.Any(o => o.State == UninstallState.Pending) ? "Conclusão pendente — confira o resumo."
-                : cleanup?.Unavailable > 0 ? "Verificação de resíduos parcial — confira o resumo."
-                : "Desinstalação finalizada — confira o resumo.";
+            string result = UninstallResultSummary.Status(outcomes, cleanup, consent);
             Status(result); Log(result);
             ShowUninstallResult(summary);
             if (consent && cleanup?.Declined != true && cleanup?.Cancelled != true &&

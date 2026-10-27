@@ -112,7 +112,15 @@ internal sealed class UninstallBatch
                 invoked=true;
                 progress?.Invoke(request, "working");
                 int? exit=await launch(request,token);
-                if(exit is null) { results.Add(new(request,UninstallState.StartFailed)); continue; }
+                // ShellExecute pode reutilizar processo e não fornecer handle.
+                // Não comprova falha nem ausência; impedir repetição e próximo item.
+                if(exit is null)
+                {
+                    results.Add(new(request,UninstallState.Pending,
+                        Reason: "O Windows não forneceu acompanhamento do desinstalador. A conclusão permanece pendente; não repita a operação agora.",
+                        DiagnosticReason: "process_handle_unavailable"));
+                    break;
+                }
                 installerReturned=true;
                 if(request.Command.ProductCode is not null && exit==1602)
                 { results.Add(new(request,UninstallState.Cancelled,exit,"Cancelada pelo usuário no instalador.")); break; }
@@ -147,6 +155,13 @@ internal sealed class UninstallBatch
                     UninstallState.Pending;
                 results.Add(new(request,state,exit,request.Command.ProductCode is null && exit!=0 ?
                     "O desinstalador retornou um código não padronizado. A conclusão permanece pendente; processos auxiliares ainda podem estar trabalhando." : ""));
+            }
+            catch(UninstallObservationException ex)
+            {
+                results.Add(new(request, UninstallState.Pending, ex.NativeError,
+                    Reason: "O desinstalador foi iniciado, mas seu acompanhamento falhou. Confira o resultado antes de tentar novamente.",
+                    DiagnosticReason: "post_start_observation_failure"));
+                break;
             }
             catch(Win32Exception ex) {
                 // Falha posterior não autoriza repetir nem oferecer limpeza.
