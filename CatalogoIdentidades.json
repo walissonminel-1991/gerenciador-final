@@ -40,6 +40,20 @@
       "cleanupPolicy": null
     },
     {
+      "id": "chrome-stable",
+      "name": "Google Chrome",
+      "names": [
+        "Google Chrome"
+      ],
+      "publishers": [
+        "Google LLC",
+        "Google Inc.",
+        "Google"
+      ],
+      "officialSource": "chrome-stable",
+      "cleanupPolicy": null
+    },
+    {
       "id": "proton-pass-desktop",
       "name": "Proton Pass",
       "names": [
