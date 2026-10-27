@@ -25,30 +25,44 @@ internal static class DriverOfficialLookup
         if (!successful || inventory.Partial || inventory.Items.Count is 0 or > 4000 || offers.Count > 512)
             return new([], offers.Count, offers.Count, true,
                 "Consulta ou inventário incompleto; nenhuma correspondência aprovada.");
+        // Uma instância pode ter linhas WMI repetidas. Só reconciliar linhas
+        // equivalentes; escolher a primeira ocultaria INF/hardware conflitante.
+        var deviceGroups = inventory.Items.GroupBy(d => d.DeviceId.Trim(), StringComparer.OrdinalIgnoreCase).ToArray();
+        if (deviceGroups.Any(g => g.Any(d => !SameDeviceEvidence(g.First(), d))))
+            return new([], offers.Count, offers.Count, true,
+                "Inventário com registros conflitantes para a mesma instância; correspondência inconclusiva. Nenhum vínculo publicado.");
+        var devices = deviceGroups.Select(g => g.First() with { DeviceId = g.Key }).ToArray();
         var matched = new List<DriverOfficialMatch>();
         int unmatched = 0;
         bool partial = false;
         // O mesmo ID/revisão com metadados divergentes não pode ser escolhido.
-        var groups = offers.GroupBy(o => (o.UpdateId.ToUpperInvariant(), o.Revision));
+        var groups = offers.GroupBy(o => (o.UpdateId?.ToUpperInvariant(), o.Revision));
         foreach (var group in groups)
         {
             var offer = group.First();
             if (!Guid.TryParseExact(offer.UpdateId, "D", out var id) || id == Guid.Empty || offer.Revision < 1 ||
                 !ValidHardwareId(offer.HardwareId) || string.IsNullOrWhiteSpace(offer.Provider) ||
                 string.IsNullOrWhiteSpace(offer.Model) || string.IsNullOrWhiteSpace(offer.Title) ||
-                offer.Title.Length > 2000 || group.Distinct().Count() != 1)
+                offer.Title.Length > 2000 || !offer.VersionDate.HasValue || offer.VersionDate.Value == DateTime.MinValue ||
+                group.Distinct().Count() != 1)
             { unmatched += group.Count(); partial = true; continue; }
-            var devices = inventory.Items.Where(d => !string.IsNullOrWhiteSpace(d.DeviceId) && d.Present == true &&
-                d.HardwareIds.Any(h => ValidHardwareId(h) && h.Equals(offer.HardwareId, StringComparison.OrdinalIgnoreCase)))
-                .DistinctBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase).ToArray();
-            if (devices.Length == 0) { unmatched += group.Count(); continue; }
-            foreach (var device in devices) matched.Add(new(offer, device.DeviceId, device.DeviceName));
+            var exact = devices.Where(d => d.DeviceId.Length > 0 && d.Present == true &&
+                d.HardwareIds.Any(h => ValidHardwareId(h) && h.Equals(offer.HardwareId, StringComparison.OrdinalIgnoreCase))).ToArray();
+            if (exact.Length == 0) { unmatched += group.Count(); continue; }
+            foreach (var device in exact) matched.Add(new(offer, device.DeviceId, device.DeviceName));
         }
         if (partial) return new([], offers.Count, offers.Count, true,
             "Metadados oficiais incompletos ou conflitantes; nenhuma correspondência publicada.");
         return new(matched, offers.Count, unmatched, false,
             $"Windows Update: {offers.Count} ofertas; {matched.Count} vínculos por ID exato; {unmatched} sem vínculo aprovado. Somente consulta; sem comparação numérica de versões.");
     }
+
+    private static bool SameDeviceEvidence(DriverInventoryEntry left, DriverInventoryEntry right) =>
+        left.InfName.Equals(right.InfName, StringComparison.OrdinalIgnoreCase) &&
+        left.Provider.Equals(right.Provider, StringComparison.OrdinalIgnoreCase) &&
+        left.Version.Equals(right.Version, StringComparison.Ordinal) &&
+        left.Signed == right.Signed && left.Present == right.Present &&
+        left.HardwareIds.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(right.HardwareIds);
 
     internal static Task<DriverOfficialResult> Start(DriverInventoryResult inventory, CancellationToken token, bool online = true)
     {

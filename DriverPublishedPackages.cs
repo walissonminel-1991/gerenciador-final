@@ -41,7 +41,8 @@ internal static class DriverPublishedPackages
     {
         var clock = Stopwatch.StartNew();
         var result = new List<DriverPublishedPackage>();
-        bool partial = inventory.Partial;
+        bool associationPartial = inventory.Partial || inventory.Items.Any(d => string.IsNullOrWhiteSpace(d.DeviceId));
+        bool partial = associationPartial;
         string[] all;
         try { token.ThrowIfCancellationRequested(); all = (enumerate ?? Enumerate)(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
@@ -51,7 +52,7 @@ internal static class DriverPublishedPackages
             .Order(StringComparer.OrdinalIgnoreCase).ToArray();
         bool complete = all.Length <= 8192 && all.All(DriverPackageLinks.IsValidInf);
         partial |= !complete;
-        var associated = inventory.Items.Where(d => DriverPackageLinks.IsValidInf(d.InfName))
+        var associated = inventory.Items.Where(d => !string.IsNullOrWhiteSpace(d.DeviceId) && DriverPackageLinks.IsValidInf(d.InfName))
             .GroupBy(d => d.InfName, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key,
                 g => g.Select(d => d.DeviceId.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count(), StringComparer.OrdinalIgnoreCase);
         foreach (string inf in valid.Take(8192))
@@ -67,7 +68,7 @@ internal static class DriverPublishedPackages
             if (!evidence.InfName.Equals(inf, StringComparison.OrdinalIgnoreCase))
                 evidence = new(inf, DriverStoreState.Inconsistent);
             partial |= evidence.State != DriverStoreState.Mapped;
-            result.Add(new(evidence, associated.GetValueOrDefault(inf), inventory.Partial));
+            result.Add(new(evidence, associated.GetValueOrDefault(inf), associationPartial));
         }
         return new(result, partial, complete);
     }

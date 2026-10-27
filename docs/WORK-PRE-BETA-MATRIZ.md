@@ -1,6 +1,6 @@
 # WORK PRÉ-BETA — matriz inicial de cobertura e evidências
 
-**Etapas 0 e 1 concluídas tecnicamente em 27/10/2026; exclusão permanente solicitada validada.** Base: WORK18 .65 TESTE,
+**Etapas 0/1 concluídas; Etapa 2 em validação na CI em 27/10/2026. Exclusão permanente preservada.** Base: WORK18 .65 TESTE,
 `2bc9f4228fd448445fbf181652e5af93005def20`.
 Branch: `work-pre-beta-etapa0-20261027`.
 Continuidade: [checkpoint](WORK-PRE-BETA-CHECKPOINT.md).
@@ -11,7 +11,7 @@ inventário sem ações, com políticas específicas removidas. A falha externa
 anterior permanece histórica e deixa de ser requisito da missão.
 
 Na matriz inicial, **Antes/Depois descreve o conhecimento verificado pela auditoria da Etapa 0**.
-Os resultados e limites da Etapa 1 estão na seção seguinte. Não houve ampliação
+Os resultados e limites das Etapas 1/2 estão nas seções posteriores. Não houve ampliação
 de permissões ou nova homologação física.
 O estado oficial foi conferido em [ROADMAP](ROADMAP.md) e
 [PROGRESSO](PROGRESSO.json): **27/42 (64,3%)**; 15 pendentes.
@@ -142,8 +142,8 @@ externa falhou; sem alegar prontidão integral da BETA. A infraestrutura privada
 não foi acessada nem alterada.
 
 Esta seção preserva a fotografia inicial da Etapa 0. O estado atual das
-Etapas 0/1 é concluído; na retomada, seguir exclusivamente a Etapa 2.
-Etapas 2–7 continuam não iniciadas. O roteiro físico mínimo final pertence
+Etapas 0/1 é concluído; o estado atual da continuidade está ao final.
+O estado atual da Etapa 2 está na seção final; Etapas 3–7 não iniciadas. O roteiro físico mínimo final pertence
 à Etapa 6 e deve partir das evidências acima, incluindo a pendência específica
 T11; não solicitar uma nova bateria completa por falta de consolidação.
 
@@ -190,3 +190,25 @@ A referência à antiga pendência externa foi confrontada com o HEAD
 Etapas 0/1 continuam concluídas; a exclusão permanente foi preservada.
 Nenhum site ou teste foi reconsultado/reexecutado, nenhum código foi alterado
 e a Etapa 2 não foi iniciada. Roadmap permanece 27/42.
+
+## Etapa 2 — drivers consultivos (27/10/2026)
+
+**EM VALIDAÇÃO NA CI.** Base desta sessão: `a4d30a1734fc54af35bec494e65653475970c40b`.
+[Relatório](WORK-PRE-BETA-ETAPA2-DRIVERS.md) e
+[comparação reproduzida](evidencias/pre-beta-etapa2-drivers.json).
+
+| Ponto | Antes | Depois | Evidência / limite | Roadmap |
+| --- | --- | --- | --- | --- |
+| Instância repetida / oferta oficial | Primeiro registro escondia divergências de INF, versão, fornecedor, presença, assinatura ou hardware | Resultado inconclusivo, sem vínculos; independe da ordem das linhas | Nove cenários nas duas ordens; não compara versões numericamente | Apoia D2/G1, sem fechar |
+| Correlação WMI | HardwareIDs divergentes podiam desaparecer na deduplicação; nome PnP consultado por ID sem normalizar | Evidência divergente preservada; fallback pelo mesmo ID normalizado | Fixtures encadeiam correlação → busca oficial | D2/D4 abertos |
+| Metadados oficiais | UpdateID nulo podia lançar exceção; data ausente/sentinela passava | Inconclusivo, sem publicar subconjunto de ofertas | GUID/revisão e identidade exata continuam obrigatórios; título não vira versão | G1 aberto |
+| Histórico Windows | Cabeçalho Device Install malformado podia ser ignorado como leitura completa | Seção rejeitada e cobertura parcial, conservando vínculos válidos | Três formatos malformados, mistura de seções e controle de outra operação | D2 aberto |
+| INF publicado | ID vazio podia contar como dispositivo | Zero dispositivos identificáveis, associação desconhecida/parcial; preservar | Enumeração e correlação têm estados separados; pacote sem associação continua protegido | D2/R6 abertos |
+| Controles positivos | Instâncias distintas e duplicatas equivalentes | Preservadas; dois dispositivos do mesmo hardware recebem dois vínculos consultivos | Sem instalação/manutenção; 6 controles já aprovavam antes | Nenhum checkpoint adicional |
+| Prova local | 6/26 aprovadas, 20 falhas | 26/26 aprovadas; suíte de drivers 165 aprovadas; build sem avisos/erros | Mesmo SDK 10.0.402 e casos sintéticos; Linux sem ABI Windows | Não substitui prova física |
+| Prova física reaproveitada | FORTE 166/63, FRACO 119/53 associações/INFs | Nenhuma nova operação ou coleta; limites anteriores conservados | Pacotes/histórico incompletos; sem oferta positiva real compatível ou payload completo | D2/D4/G1/G2 abertos; 27/42 |
+
+CI Windows, assinatura INF/catálogo e consulta WUA desta implementação serão
+registradas no recibo. A versão do produto não mudou. Etapa 3 não iniciada;
+nenhum merge/deploy ou acesso à infraestrutura BETA. Exclusão permanente
+inalterada, sem testes ou botões novos para o produto excluído.
