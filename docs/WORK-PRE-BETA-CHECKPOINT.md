@@ -7,17 +7,18 @@ Missão: concluir as funções essenciais antes do BETA, executando **uma etapa 
 
 | Campo | Registro |
 | --- | --- |
-| Etapa executada | **0 — Auditoria inicial e planejamento** |
-| Estado | **CONCLUÍDA**; somente documentação de acompanhamento |
+| Etapa executada | **1 — Fontes de atualização e PR #63** |
+| Estado | **EM ANDAMENTO**; revisão e testes locais aprovados, CI Windows pendente |
 | Repositório | `walissonminel-1991/gerenciador-final` |
 | Branch de continuidade | `work-pre-beta-etapa0-20261027` |
 | Base imutável | `2bc9f4228fd448445fbf181652e5af93005def20` — WORK18 / PR #60 |
 | Fonte da candidata .65 já existente | `e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d` |
 | Commit do conteúdo auditado | [`1399468d22061e79b6a6f957ba472d84a1aec9ec`](https://github.com/walissonminel-1991/gerenciador-final/commit/1399468d22061e79b6a6f957ba472d84a1aec9ec) |
 | PR de acompanhamento | [#64 — Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/64) |
-| Arquivos alterados nesta etapa | `docs/WORK-PRE-BETA-CHECKPOINT.md`; `docs/WORK-PRE-BETA-MATRIZ.md` |
-| Código, versão e roadmap oficial | Sem alteração; **27/42**, 15 pendentes |
-| Próxima etapa | **1 — Fontes de atualização e PR #63**, em outra sessão |
+| Ponto de retomada anterior | `b30fab20a25c4ee08b5624226a3bdb289ba20295` — Etapa 0 concluída |
+| Arquivos alterados nesta etapa | Catálogo de identidade, fonte oficial Chrome, testes multifontes, probe e documentação/evidência; relação completa abaixo |
+| Código, versão e roadmap oficial | Fonte consultiva revista; versão de projeto mantida; **27/42**, 15 pendentes |
+| Próxima ação | Conferir a CI Windows do novo código e registrar seu SHA; depois encerrar a Etapa 1 |
 
 O commit do conteúdo auditado identifica a fotografia documental inicial; o
 recibo posterior acrescenta seu SHA e a PR. O HEAD final desse recibo deve ser
@@ -35,10 +36,49 @@ build ou como autorização de distribuição.
 5. Registrar implementação, testes, limitações, SHA e próxima ação nos dois
    documentos; salvar no GitHub e encerrar a sessão.
 
-**A Etapa 1 não foi iniciada nesta sessão.** A consulta de estado/CI da PR #63
-pertence à auditoria; não equivale à revisão técnica completa da fonte Google.
+**A Etapa 0 não foi repetida.** Nesta sessão foi revisado somente o escopo da
+Etapa 1. A Etapa 2 (drivers) permanece não iniciada.
 
-## Fotografia verificada do GitHub
+## Etapa 1 — implementação e validação em curso
+
+As PRs #60/#61/#62/#63/#64 e seus SHAs foram reconferidos e permaneceram
+iguais aos registrados na Etapa 0. A PR #63 continua Draft; seus cinco
+arquivos foram revistos e incorporados na branch de continuidade como
+alterações de trabalho, sem merge e sem modificar sua branch de origem.
+
+- **Correção demonstrada:** JSON duplicado/ambíguo e versões com LF final
+  ou dígitos não ASCII eram aceitos. As 37 verificações focais reproduziram
+  sete falhas antes da correção; depois, 37/37 passaram.
+- **Regressão local:** suíte multifontes completa 196/196, SDK 10.0.402
+  em Linux. Política estática: 18/18 testes, 248 fontes examinadas.
+  CI Windows da revisão pendente de conferência.
+- **API oficial:** win/win64 responderam HTTP 200 sem redirects; paginação
+  real aceita sem seguir token. O C# real também validou os dois endpoints.
+- **Ganho do componente:** mesmo probe de sete entradas, 1 → 3 candidatos
+  consultivos; Chrome 0 → 2 arquiteturas, controles inelegíveis 0 → 0.
+  Nenhum instalador executado, nenhum ganho físico alegado.
+- **Limitação descoberta:** o adaptador `LoadUpdatesAsync` obtém arquitetura
+  pelos sufixos do nome, incompatíveis com a identidade exata `Google Chrome`.
+  Na tela atual, esse nome chega como `unknown` e não consulta a nova fonte.
+  Fornecer arquitetura local comprovada é pendência explícita da Etapa 3;
+  não inferir arquitetura pelo SO nem relaxar o gate.
+- **Fontes adicionais:** não foram acrescentados outros motores; o problema
+  de entrada acima deve ser resolvido antes de prometer ganho de cobertura.
+
+Arquivos: `CatalogoIdentidades.json`, `OfficialReleaseSources.cs`,
+`TestesMultifontes/ChromeVersionHistoryTests.cs`,
+`TestesMultifontes/ChromeVersionHistoryReviewTests.cs`, `TestesMultifontes/Program.cs`,
+`scripts/measure_pre_beta_sources.py`,
+`docs/EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md`,
+`docs/evidencias/pre-beta-etapa1-fontes-comparacao.json`,
+`docs/evidencias/pre-beta-etapa1-api.json` e os dois documentos
+de continuidade. Detalhes: [revisão e limites](EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md).
+
+Roadmap oficial, U8 e os demais checkpoints permanecem abertos conforme a
+fotografia inicial. Infraestrutura privada, main, PR #40 e dados dos PCs
+preservados. Nenhuma nova investigação WinGet COM.
+
+## Fotografia inicial verificada do GitHub — Etapa 0
 
 Foram listadas **29 PRs abertas**, todas Draft, no início da auditoria.
 As PRs relevantes abaixo tiveram seus HEADs e execuções de CI consultados.
@@ -106,7 +146,7 @@ O log .65 registra `com_activation_failed`; não há nova evidência que justifi
 reabrir sua investigação. O catálogo Microsoft por HTTPS é um mecanismo
 independente; não confundir sua consulta com execução de COM/CLI.
 
-## Testes e validações desta sessão
+## Testes e validações preservados — Etapa 0
 
 - Contagem independente do JSON e das marcações do roadmap: **27/42**,
   com os mesmos **15 IDs pendentes**; sem promoção de checkpoints.
@@ -161,7 +201,7 @@ independente; não confundir sua consulta com execução de COM/CLI.
 | Etapa | Estado após esta sessão | Próxima ação e critério de saída |
 | --- | --- | --- |
 | 0 — Auditoria | **CONCLUÍDA** | Referências, pendências, evidências e continuidade registradas; encerrar |
-| 1 — Fontes / #63 | **NÃO INICIADA** | Revisar os 5 arquivos contra a base, identidade/canal/arquitetura/cache/limites e falhas; verificar API oficial quando possível; medir somente ganho demonstrável; corrigir defeitos comprovados e salvar evidências, sem merge automático |
+| 1 — Fontes / #63 | **EM ANDAMENTO** | Revisão/correções e testes locais aprovados; conferir CI Windows, registrar SHA e encerrar; arquitetura comprovada na tela permanece para a Etapa 3 |
 | 2 — Drivers consultivos | **NÃO INICIADA** | Reusar Lote 2; completar análise D2/G1/G2/D4, testes específicos e limites de histórico/pacote; nenhuma escrita |
 | 3 — Atualizações | **NÃO INICIADA** | Reusar WORK13–18; validar identidade, payload, estados/cancelamento em fixtures e lacunas U8; sem atualização real |
 | 4 — Desinstalação / resíduos | **NÃO INICIADA** | Reusar WORK10–14/Lote 3; demonstrar propriedade, SIM/NÃO e falhas em alvos descartáveis; R4/R6/R7 reais continuam dependentes de evidências |
