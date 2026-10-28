@@ -446,5 +446,33 @@
     "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md",
     "docs/WORK-INTEGRACAO-MATRIZ.md",
     "docs/evidencias/integracao-etapa8-preparacao.json"
-  ]
+  ],
+  "remote_save_verification": {
+    "documentation_commit": "7511ef7af6af029848794572a8e50398f28ce5de",
+    "documentation_tree": "c6893b17a41bf4aace44cc14211c347bc5ba4adf",
+    "remote_blobs_verified": 450,
+    "unchanged_entry_blobs": 440,
+    "stage8_documentary_delta_files": 10,
+    "new_documentary_files": 3,
+    "post_code_ci_documentary_delta_files": 14,
+    "compiled_and_published_inputs_unchanged": true,
+    "validated_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "ci_reconfirmed_success": [
+      40675784213,
+      40675784155
+    ],
+    "runs_on_documentation_commit": 0,
+    "other_branches_preserved": 100,
+    "main_and_base_preserved": true,
+    "pr65_open_draft": true,
+    "pr40_open_draft_preserved": true,
+    "issue48_open_unedited": true,
+    "package_created": false,
+    "package_delivered": false,
+    "package_sha256": null,
+    "private_url": null,
+    "stage9_started": false,
+    "roadmap_done": 27,
+    "roadmap_total": 42
+  }
 }

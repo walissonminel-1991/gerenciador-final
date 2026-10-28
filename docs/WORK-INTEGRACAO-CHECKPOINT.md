@@ -482,6 +482,24 @@ extração sem sobrescrita, AVG ativo, falhas/retorno e reaproveitamento E1–E5
 preparado, todos os testes físicos NÃO EXECUTADO. AVG/assinatura/físico, Issue #48
 e lacunas de roadmap preservados. PROGRESSO altera apenas integration_final.
 
+## Salvamento e conferência — Etapa 8
+
+Relatório, roteiro condicionado e recibo salvos no commit 7511ef7af6af029848794572a8e50398f28ce5de, filho único da
+entrada 4ccb20c8e724d9d630b288e3cd8e997c12daad80, árvore c6893b17a41bf4aace44cc14211c347bc5ba4adf.
+Relidos/conferidos **450 blobs remotos**, **440 herdados intactos**, dez
+Markdown/JSON desta etapa e nenhuma remoção. São 14 diferenças documentais
+em relação ao SHA de código aprovado; runtime, testes, workflows, configuração
+e arquivos embarcados permanecem intactos. As 100 outras branches, main/base,
+PR #40 aberta/Draft e Issue #48 aberta sem edição foram reconferidas.
+PR #65 aberta/Draft; zero run no commit documental. CIs 40675784213 e
+40675784155 reconferidas success no SHA fonte 6df95fdd, tentativa 1.
+
+Recibo posterior acrescenta somente SHA/conferência a quatro documentos;
+conferir HEAD final na PR #65. Não é nova build ou entrega. Estado permanece
+**BLOQUEADA para pacote/entrega executável privada**, com SHA-256 do pacote e
+URL privada indisponíveis. Proposta privada/guia preparados; nenhum teste
+físico executado, nenhum gate alterado e **Etapa 9 não iniciada**. Roadmap 27/42.
+
 ## Retomada atual obrigatória
 
 Conferir HEAD/PR Draft, relatório/recibo 8 e fonte/CI exatas. Resolver primeiro
