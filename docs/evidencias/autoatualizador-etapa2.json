@@ -1,0 +1,317 @@
+{
+  "schema": 1,
+  "stage": 2,
+  "date": "2026-10-28",
+  "timezone": "America/Fortaleza",
+  "status": "completed_isolated_state_ntfs_and_recovery_no_product_integration",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "pr": 65,
+  "draft": true,
+  "branch": "work-integracao-final-20261027",
+  "entry_head": "a2f4fdaa8e03d6705bb1fb2aea1fb713ec2b2d25",
+  "entry_tree": "999862616b59ed897db2824766253bb428a3b299",
+  "initial_code_commit": "5e9961b6fbba938ac8869d41dd9119b56a2057f8",
+  "validated_code_commit": "a57fd7c7677555e3d17fe1c4bb52c31ad43a8bf4",
+  "validated_code_tree": "8c09d7be80000f1c2b886e6825abbe0d2d69aca4",
+  "validation_branch": "work-autoatualizador-etapa2-validacao-20261028",
+  "workflow": ".github/workflows/autoatualizador-etapa2-isolado.yml",
+  "contract": "gf-self-update/1",
+  "contract_document_unchanged": true,
+  "verification": {
+    "windows": {
+      "run_id": 40747226567,
+      "run_number": 2,
+      "attempt": 1,
+      "job_id": 123024125940,
+      "conclusion": "success",
+      "head_sha": "a57fd7c7677555e3d17fe1c4bb52c31ad43a8bf4",
+      "total": 61,
+      "passed": 61,
+      "failed": 0,
+      "ntfs_tests": 14,
+      "runtime": ".NET 10.0.14",
+      "os": "Microsoft Windows 10.0.20348",
+      "sdk": "10.0.402",
+      "product_built": false,
+      "artifacts": 0,
+      "report": "docs/evidencias/autoatualizador-etapa2-windows.json"
+    },
+    "linux": {
+      "total": 47,
+      "passed": 47,
+      "failed": 0,
+      "sdk": "10.0.402",
+      "runtime": ".NET 10.0.13",
+      "os": "Ubuntu 24.04.3 LTS",
+      "head_sha": "a57fd7c7677555e3d17fe1c4bb52c31ad43a8bf4",
+      "ntfs_claimed": false,
+      "report": "docs/evidencias/autoatualizador-etapa2-linux.json"
+    },
+    "stage1_regression": {
+      "total": 66,
+      "passed": 66,
+      "failed": 0,
+      "head_sha": "5e9961b6fbba938ac8869d41dd9119b56a2057f8",
+      "reason": "test runner entry routing and shared Require flow-analysis annotation extended; prior validator semantics unchanged",
+      "report": "docs/evidencias/autoatualizador-etapa2-regressao-etapa1.json"
+    },
+    "first_windows_run": {
+      "id": 40746736121,
+      "attempt": 1,
+      "head_sha": "5e9961b6fbba938ac8869d41dd9119b56a2057f8",
+      "conclusion": "failure",
+      "passed": 39,
+      "total": 60,
+      "artifacts": 0,
+      "report": "docs/evidencias/autoatualizador-etapa2-windows-primeira-rodada.json"
+    },
+    "unique_stage2_cases": 61,
+    "linux_cases_also_in_windows": 47,
+    "counts_not_added_to_roadmap": true,
+    "build_warnings": 0,
+    "build_errors": 0,
+    "distinct_process_crash_windows": 6,
+    "crash_lock_release_reuses_one_window": true,
+    "physical_power_failure_tested": false,
+    "product_compile_items_each_platform": 142,
+    "prototype_compile_items_each_platform": 0,
+    "outputs_outside_repository": true,
+    "product_ci_runs": 0,
+    "automatic_retries": 0
+  },
+  "state_model": {
+    "internal_schemas": [
+      "gf-state-fixture/2",
+      "gf-selector-fixture/2"
+    ],
+    "max_record_bytes": 2097152,
+    "max_generations": 64,
+    "append_only": true,
+    "create_new": true,
+    "flush_to_disk_requested": true,
+    "overwrite_records": false,
+    "missing_or_incomplete_fallback": false,
+    "same_user_whole_ledger_rollback_prevented": false,
+    "candidate_inputs_are_inert_fixture_refs_not_production_authorization": true
+  },
+  "clock_model": {
+    "utc_rollback_tolerance_seconds": 300,
+    "monotonic_budget_seconds": 120,
+    "observed_floor_cannot_extend_expiry": true,
+    "commit_expiry_rechecked": true,
+    "os_clock_changed": false,
+    "tuf_internal_uniform_clock_proven": false
+  },
+  "ntfs_model": {
+    "kernel_tests_executed": true,
+    "file_id_bits": 128,
+    "links_must_equal_one": true,
+    "files_share_read_only": true,
+    "directories_share_read_write_deny_delete": true,
+    "both_bundles_pinned_across_commit": true,
+    "acl_read_only": true,
+    "acl_or_privileges_modified": false,
+    "production_zip_extraction_implemented": false,
+    "readiness_is_mock_not_authenticated_ipc": true
+  },
+  "preservation": {
+    "beta_version": "5.13.11.66",
+    "functional_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "private_build": 40716548530,
+    "private_attempt": 1,
+    "private_artifact": 12828262039,
+    "portable_zip_sha256": "8e11f2dda5b7e2df2f85c61b57cc6a31a9596628523d2be7ad155dfdd5dda7f2",
+    "beta_downloaded": false,
+    "new_product_builds": 0,
+    "private_channel_read_operationally": false,
+    "private_channel_changed": false,
+    "physical_tests_repeated": 0,
+    "physical_status": "partially_completed_unchanged",
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "roadmap_ids_done_unchanged": true,
+    "stage0_stage1_history_unchanged": true,
+    "product_integration_started": false,
+    "publication_performed": false,
+    "production_keys_created": false,
+    "bootstrap_installed": false,
+    "stage3_started": false,
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "remote_diagnostics_enabled": false,
+    "driver_install_remove_rollback_enabled": false,
+    "vlc_specific_operations": 0,
+    "avg_or_windows_protection_changes": false,
+    "worker_d1_dns_changes": false
+  },
+  "preservation_check": {
+    "entry_blobs": 478,
+    "entry_blobs_unchanged": 471,
+    "existing_paths_modified": [
+      "docs/PROGRESSO.json",
+      "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+      "prototipos/autoatualizador-seguro/POUF.md",
+      "prototipos/autoatualizador-seguro/README.md",
+      "prototipos/autoatualizador-seguro/src/SecurityTests.cs.txt",
+      "prototipos/autoatualizador-seguro/src/StrictMetadata.cs.txt"
+    ],
+    "checkpoint_histories_preserved": true,
+    "progress_delta_confined_to_current_next_mission": true,
+    "protected_blobs": [
+      {
+        "path": ".github/workflows/build-windows.yml",
+        "git_blob": "92b2b9c95eb1b17dd83a4c3377781205495fa5d5"
+      },
+      {
+        "path": ".github/workflows/integridade-externa.yml",
+        "git_blob": "1b526a3efa1d5c1ebe6ee3876196ec6ad256170d"
+      },
+      {
+        "path": "BetaRuntimePolicy.cs",
+        "git_blob": "15f43abd6ac3266c9e790cd68cd276f7e10c749b"
+      },
+      {
+        "path": "Directory.Build.props",
+        "git_blob": "9ca341e42783131506152997babeb34cb6beb3de"
+      },
+      {
+        "path": "GerenciadorAplicativos.csproj",
+        "git_blob": "d35ff09826d81a4d584ce546a1d3c4bde8fec1ad"
+      },
+      {
+        "path": "app.manifest",
+        "git_blob": "cace6cb635c1c39e19b9d046fad8a3411b860ec8"
+      },
+      {
+        "path": "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+        "git_blob": "315fdccc3b4961871b9b661ae2001499e372bd4b"
+      },
+      {
+        "path": "docs/WORK-AUTOATUALIZADOR-ETAPA1.md",
+        "git_blob": "5b9376a33c8e5bd1687665d9bc415927b4ed9f07"
+      },
+      {
+        "path": "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-RESULTADOS.md",
+        "git_blob": "9ff6ba6781c05c332b057ec648b57a163faf42f9"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa0.json",
+        "git_blob": "3c5c3482aae36a7f8655512a4cc157845a4b5fd5"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa1-testes.json",
+        "git_blob": "3b306b00ee3b8e237fcd4659c8d33f0dd69c2e59"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa1.json",
+        "git_blob": "ee83e2f9dbe8d7d2f44963276a485185f3896136"
+      },
+      {
+        "path": "global.json",
+        "git_blob": "e8a91cbf7506d4f30d2f278f1efdd6fce4156686"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json",
+        "git_blob": "82e0b56e75b47e7e0c9885d2b3e0b1d47a2e69d5"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/packages.lock.json",
+        "git_blob": "1ebf5c1944e98902fe787b88a1bd4f9427bc56dc"
+      }
+    ]
+  },
+  "validated_source_blobs": [
+    {
+      "path": ".github/workflows/autoatualizador-etapa2-isolado.yml",
+      "git_blob": "a107f9c6f5e2c7185ac8db2deeccadaffb2cfa07",
+      "sha256_lf": "c8ad11382c5009495345bd399f22f85fc645ce56f4cbf70640fb295c4dd87aeb"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/POUF.md",
+      "git_blob": "28f819b8b3b9aa4e2ca0a7e747b0e6f62ae30fa0",
+      "sha256_lf": "9cb71db81783def8bd3c34ca7f7c1d37a635e64c22641dcd1ad198094341b961"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/README.md",
+      "git_blob": "8f6158be6ccabeebc486909f3d24115887345d75",
+      "sha256_lf": "d3dd860c69eb6f28e3a359dae25ded37c3d577eb8f0d6cdf202c367b223425d4"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/STATE-PROTOCOL.md",
+      "git_blob": "d1db77735c9016dbd803c54d8e790d7b47578dcf",
+      "sha256_lf": "171c7003621c30a25337902dcf1fc96466b1d318fd0729c58ab93ab93cefb2cb"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/run_stage2_tests.py",
+      "git_blob": "a1c9d9874b492d9e6d98fe6eb7522fbd854a21ce",
+      "sha256_lf": "16f09ed34edbbd9341675708a48dbbb89410a676cdd27622be346b8dadde255e"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/src/CycleClock.cs.txt",
+      "git_blob": "8e85aa5a1389d4d454e4f5ab49b418bd91680735",
+      "sha256_lf": "4ed4bec59e4037d66e0ae6e8f11e2419c978ff803f8182accc127e3616b20df9"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/src/PersistentState.cs.txt",
+      "git_blob": "adcd3a3ed9c9c2d9c720d459077f3dd14b1fb81a",
+      "sha256_lf": "add61f0ad51e5cb9e6993bb555276685f9f335ef03e24fba5ff7dffd4c29a4b1"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/src/SecurityTests.cs.txt",
+      "git_blob": "630ae21c2841190d6b1b8b9c03554695c0d48be1",
+      "sha256_lf": "fa3a1b0f5f4a683113b6b9f7168ab3309976aaccbad743c066b6829846fe0b68"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/src/StateSecurityTests.cs.txt",
+      "git_blob": "96a233dced00d3b0e7b4bfe79bc822ddc3e37dbb",
+      "sha256_lf": "02961cbda147c6fe9bb8610454f183f894e7a74c924d1ffc8f7a26cdd4994cff"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/src/StrictMetadata.cs.txt",
+      "git_blob": "7f0f5b5c4e13a38f585f23739c99c1bec75ff0f5",
+      "sha256_lf": "5a16d809d5c4ff45e0e7f47c58db56c15afada7047d0664ab05aa14777cc54fb"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/src/TransactionPrototype.cs.txt",
+      "git_blob": "05efeedf35e08bac791889c4c034d85c04436c63",
+      "sha256_lf": "5f303531a500dcb68781d88dcf3fc4f91e04a8849bd45c4edaf92a434b167f4f"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/src/WindowsFileGuard.cs.txt",
+      "git_blob": "5882f3d82092cc48c950ef45d3d9cb6ad25302f6",
+      "sha256_lf": "7a550f0392de4a030fea2706c856d751d904cf46787a5a9ef9af2fc039390980"
+    }
+  ],
+  "evidence_hashes": [
+    {
+      "path": "docs/evidencias/autoatualizador-etapa2-linux.json",
+      "bytes": 8164,
+      "sha256": "d0a9839ff335f30f1296a9bf606dfbff883c945002a080c97d7dae5019b22b0e"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa2-regressao-etapa1.json",
+      "bytes": 8907,
+      "sha256": "1bd717ad8d18adaba615237438fc292519e16ae67a70efd5f31049e642210e26"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa2-windows-primeira-rodada.json",
+      "bytes": 4220,
+      "sha256": "8f6bd171d128b402c2458ed8ff26b6f4ebc85f6c031f22b80c9905248aa24d45"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa2-windows.json",
+      "bytes": 10315,
+      "sha256": "0760a47397ab1147b0433aec4e23c600000b535d5a8e30605a44ea8d8885a8d9"
+    }
+  ],
+  "remaining_gates": [
+    "power-loss durability and real storage failure",
+    "uniform clock inside Tuf 1.1.1",
+    "real ZIP extraction and PE/runtime/license verification",
+    "kernel-authenticated IPC, real exit/readiness and 30s deadline",
+    "production bootstrap/key ceremony",
+    "product integration"
+  ],
+  "next_action": "Stop after saving/checking Stage 2. Stage 3 requires its own instruction; no integration or publication."
+}

@@ -1,0 +1,332 @@
+{
+  "schema": 1,
+  "stage": 2,
+  "contract": "gf-self-update/1",
+  "fixture_only": true,
+  "package_installable": false,
+  "product_code_executed": false,
+  "network_transport": "none; signed fixtures in memory",
+  "real_process_crash_tests": 6,
+  "platform": "Windows NTFS kernel + fixture transaction",
+  "runtime": ".NET 10.0.14",
+  "os": "Microsoft Windows 10.0.20348",
+  "total": 61,
+  "passed": 61,
+  "failed": 0,
+  "windows_only_tests_not_run": 0,
+  "tests": [
+    {
+      "id": "STATE-01",
+      "description": "Durable generations survive a fresh session without resetting floors",
+      "status": "passed"
+    },
+    {
+      "id": "STATE-02",
+      "description": "Missing state cannot silently rebootstrap",
+      "status": "passed"
+    },
+    {
+      "id": "STATE-03",
+      "description": "Truncated newest record fails closed instead of loading an older floor",
+      "status": "passed"
+    },
+    {
+      "id": "STATE-04",
+      "description": "A gap in generation files is not treated as a fresh installation",
+      "status": "passed"
+    },
+    {
+      "id": "STATE-05",
+      "description": "Checksum corruption is detected before decoding state",
+      "status": "passed"
+    },
+    {
+      "id": "STATE-06",
+      "description": "Recomputed checksum cannot hide an in-chain trust-floor decrease",
+      "status": "passed"
+    },
+    {
+      "id": "STATE-07",
+      "description": "Each TUF/sequence/version/time floor refuses regression",
+      "status": "passed"
+    },
+    {
+      "id": "STATE-08",
+      "description": "Stale expected generation cannot overwrite a newer checkpoint",
+      "status": "passed"
+    },
+    {
+      "id": "STATE-09",
+      "description": "Duplicate fields, nulls and unknown state fields are refused",
+      "status": "passed"
+    },
+    {
+      "id": "STATE-10",
+      "description": "Oversized records and unknown ledger entries fail closed",
+      "status": "passed"
+    },
+    {
+      "id": "STATE-11",
+      "description": "Signed TUF cache survives a process restart and rejects older metadata",
+      "status": "passed"
+    },
+    {
+      "id": "STATE-12",
+      "description": "A cache with equal metadata version and different bytes is not a checkpoint",
+      "status": "passed"
+    },
+    {
+      "id": "CLOCK-01",
+      "description": "Clock rollback beyond five minutes suspends update",
+      "status": "passed"
+    },
+    {
+      "id": "CLOCK-02",
+      "description": "Five-minute boundary never lowers the persisted observation floor",
+      "status": "passed"
+    },
+    {
+      "id": "CLOCK-03",
+      "description": "Expiration is checked at the exact boundary",
+      "status": "passed"
+    },
+    {
+      "id": "CLOCK-04",
+      "description": "An initially valid target may expire before commit",
+      "status": "passed"
+    },
+    {
+      "id": "CLOCK-05",
+      "description": "Monotonic budget is enforced even with a frozen wall clock",
+      "status": "passed"
+    },
+    {
+      "id": "CLOCK-06",
+      "description": "Forward and backward jumps during a cycle are refused",
+      "status": "passed"
+    },
+    {
+      "id": "CLOCK-07",
+      "description": "Small backwards correction cannot extend target validity",
+      "status": "passed"
+    },
+    {
+      "id": "CLOCK-08",
+      "description": "A large persisted future clock blocks updates but not inspection of the confirmed bundle",
+      "status": "passed"
+    },
+    {
+      "id": "CLOCK-09",
+      "description": "Tolerance for clock rollback never revives a target expired at the observed floor",
+      "status": "passed"
+    },
+    {
+      "id": "TX-01",
+      "description": "Cancel before confirmation writes no intent and approves no release",
+      "status": "passed"
+    },
+    {
+      "id": "TX-02",
+      "description": "Intent and sequence floor are persisted before the selector changes",
+      "status": "passed"
+    },
+    {
+      "id": "TX-03",
+      "description": "Candidate selection remains pending until a transaction-bound readiness fixture",
+      "status": "passed"
+    },
+    {
+      "id": "TX-04",
+      "description": "Wrong transaction, nonce, digest and a reused readiness fixture are refused",
+      "status": "passed"
+    },
+    {
+      "id": "TX-05",
+      "description": "Recovery restores only the recorded predecessor and keeps anti-replay floors",
+      "status": "passed"
+    },
+    {
+      "id": "TX-06",
+      "description": "Completed recovery is idempotent and creates no retry loop",
+      "status": "passed"
+    },
+    {
+      "id": "TX-07",
+      "description": "A newer sequence may proceed after recovery without reusing the failed transaction",
+      "status": "passed"
+    },
+    {
+      "id": "TX-08",
+      "description": "A missing or corrupt backup bundle stops recovery without selecting another version",
+      "status": "passed"
+    },
+    {
+      "id": "TX-09",
+      "description": "A valid selector outside the current transaction is refused",
+      "status": "passed"
+    },
+    {
+      "id": "TX-10",
+      "description": "Selector installation ID, free path, duplicate and unknown fields are refused",
+      "status": "passed"
+    },
+    {
+      "id": "TX-11",
+      "description": "Metadata expiry after durable intent prevents selector commit",
+      "status": "passed"
+    },
+    {
+      "id": "TX-12",
+      "description": "Bundle content changed after preparation never reaches selector replacement",
+      "status": "passed"
+    },
+    {
+      "id": "FAULT-record-created",
+      "description": "Incomplete journal at record-created blocks state fallback and preserves selector",
+      "status": "passed"
+    },
+    {
+      "id": "FAULT-record-written",
+      "description": "Incomplete journal at record-written blocks state fallback and preserves selector",
+      "status": "passed"
+    },
+    {
+      "id": "FAULT-record-flushed",
+      "description": "Incomplete journal at record-flushed blocks state fallback and preserves selector",
+      "status": "passed"
+    },
+    {
+      "id": "FAULT-selector",
+      "description": "Selector I/O failure leaves a recoverable durable intent",
+      "status": "passed"
+    },
+    {
+      "id": "CRASH-begin:intent-persisted",
+      "description": "Kill a separate test process at begin:intent-persisted and reconcile in a new session",
+      "status": "passed"
+    },
+    {
+      "id": "CRASH-begin:selector-replaced",
+      "description": "Kill a separate test process at begin:selector-replaced and reconcile in a new session",
+      "status": "passed"
+    },
+    {
+      "id": "CRASH-begin:selected-persisted",
+      "description": "Kill a separate test process at begin:selected-persisted and reconcile in a new session",
+      "status": "passed"
+    },
+    {
+      "id": "CRASH-recover:rollback-intent-persisted",
+      "description": "Kill a separate test process at recover:rollback-intent-persisted and reconcile in a new session",
+      "status": "passed"
+    },
+    {
+      "id": "CRASH-recover:selector-replaced",
+      "description": "Kill a separate test process at recover:selector-replaced and reconcile in a new session",
+      "status": "passed"
+    },
+    {
+      "id": "CRASH-recover:rollback-complete",
+      "description": "Kill a separate test process at recover:rollback-complete and reconcile in a new session",
+      "status": "passed"
+    },
+    {
+      "id": "LOCK-01",
+      "description": "A second helper process cannot acquire the same installation lease",
+      "status": "passed"
+    },
+    {
+      "id": "LOCK-02",
+      "description": "A crashed helper releases its kernel lease without deleting the lock file",
+      "status": "passed"
+    },
+    {
+      "id": "LOCK-03",
+      "description": "Reopening and cleanup use the same installation lease",
+      "status": "passed"
+    },
+    {
+      "id": "LOCK-04",
+      "description": "Missing lock file refuses participation instead of creating a second lock identity",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-01",
+      "description": "Pinned NTFS file ID and hash are stable on the same open handle",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-02",
+      "description": "Kernel sharing denies source write and rename until the guard closes",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-03",
+      "description": "An ancestor cannot be renamed while the verified descendant is pinned",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-04",
+      "description": "A real NTFS hard link is rejected by link count",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-05",
+      "description": "A real directory junction in the ancestor chain is rejected",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-06",
+      "description": "A swapped same-content file has a different identity and is rejected",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-07",
+      "description": "ReplaceFile succeeds with ancestors pinned and selector handles closed",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-08",
+      "description": "An incompatible open selector handle causes refusal with no ignore-ACL fallback",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-09",
+      "description": "Guard refuses foreign scope and alternate-data-stream paths",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-10",
+      "description": "A hard-linked selector and ledger record are rejected before parsing",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-11",
+      "description": "ACL policy rejects broad write and missing DACL without modifying permissions",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-12",
+      "description": "A reparse-point installation root is refused before a state write",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-13",
+      "description": "Both complete bundles remain pinned across durable intent and selector commit",
+      "status": "passed"
+    },
+    {
+      "id": "NTFS-14",
+      "description": "An aliased lock object is rejected rather than splitting installation coordination",
+      "status": "passed"
+    }
+  ],
+  "isolation": {
+    "product_compile_items": 142,
+    "prototype_compile_items": 0,
+    "outputs_outside_repository": true,
+    "sdk": "10.0.402",
+    "restore_locked_mode": true,
+    "product_built": false
+  }
+}

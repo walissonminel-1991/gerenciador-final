@@ -4,9 +4,9 @@
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 **Estado vigente: BETA privada .66 entregue; avaliação física parcialmente
-concluída; Etapa 1 do autoatualizador concluída em protótipo isolado.** Ver os
+concluída; Etapa 2 do autoatualizador concluída em protótipo isolado.** Ver os
 registros finais e o [checkpoint do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
-Sem integração no produto ou Etapa 2; conectada bloqueada; roadmap 27/42.
+Sem integração no produto ou Etapa 3; conectada bloqueada; roadmap 27/42.
 
 ## Estado de continuidade
 
@@ -913,3 +913,31 @@ inventário sem ações/consultas/testes específicos, COM opcional/consultivo/n
 bloqueante e drivers de instalação/remoção/reversão desativados intactos.
 Sem publicação de versão, Release, merge, deploy, agenda ou operação no PC FORTE.
 **Encerrar após salvar e conferir esta Etapa 1.**
+
+
+## 28/10/2026 — autoatualizador Etapa 2 concluída somente em fixtures
+
+Entrada a2f4fdaa; [relatório](WORK-AUTOATUALIZADOR-ETAPA2.md),
+[checkpoint específico](WORK-AUTOATUALIZADOR-CHECKPOINT.md) e
+[recibo](evidencias/autoatualizador-etapa2.json). Código final a57fd7c7.
+Estado persistente/pisos/cache, relógio, NTFS/TOCTOU, seletor, diário,
+concorrência e recuperação isolados de textos inertes. Windows **61/61**, 14
+casos NTFS, run [40747226567](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40747226567),
+número 2/tentativa 1/success; Linux **47/47** comuns e regressão isolada da
+Etapa 1 **66/66** em evidência separada, sem inflar contagens ou roadmap.
+Primeira run 40746736121 com falhas preservada, corrigido compartilhamento dos
+diretórios sem liberar escrita dos arquivos. Seis janelas de crash de processo;
+nenhuma prova de queda de energia, IPC/saúde ou relógio uniforme interno TUF.
+
+142 itens Compile do GF avaliados em ambos os ambientes, zero do protótipo;
+produto não compilado/executado, zero artefatos nas runs. Workflows de produto,
+BETA .66/fonte 6df95fdd/run privada 40716548530/ZIP e canal privado intactos.
+Nenhum teste físico, versão, publicação, merge/Release, alteração de Windows,
+permissão, infraestrutura, chaves operacionais ou configuração conectada.
+AVG/proteções, VLC só inventário, COM consultivo/opcional, drivers inativos,
+PILOT_ENABLED=no/GITHUB_EXPORT_ENABLED=no, remoto bloqueado e privacidade
+preservados. Avaliação física continua parcial e roadmap **27/42**, mesmos
+42 IDs/done. Registros anteriores acima permanecem históricos.
+
+Gates pendentes discriminados no checkpoint específico. **Integração no GF e
+Etapa 3 NÃO INICIADAS. Parar após salvar e conferir este fechamento.**

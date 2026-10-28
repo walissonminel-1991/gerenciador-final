@@ -1,5 +1,45 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+28/10/2026, America/Fortaleza. **Etapa 2 concluída no protótipo isolado.
+Integração no produto e Etapa 3 NÃO INICIADAS.**
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | `GF_SELF_UPDATER_STAGE2_ISOLATED_STATE_AND_RECOVERY` |
+| PR / branch | #65 aberta/Draft, `work-integracao-final-20261027` |
+| HEAD de entrada | `a2f4fdaa8e03d6705bb1fb2aea1fb713ec2b2d25` |
+| Código final testado | `a57fd7c7677555e3d17fe1c4bb52c31ad43a8bf4`; fechamento posterior só resultados/checkpoint |
+| Contrato e bibliotecas | gf-self-update/1 revisão 1; Tuf 1.1.1 + BouncyCastle 2.7.0, lock/âncora de fixture preservados |
+| Implementação isolada | Estado/cache/pisos persistentes, relógio conservador, NTFS por handles/IDs, seletor, diário, lease e recuperação de textos inertes |
+| Windows descartável | 61/61, 14 NTFS; run 40747226567, número 2/tentativa 1, success; SDK 10.0.402/runtime 10.0.14 |
+| Linux | 47/47 comuns, runtime 10.0.13; os mesmos casos não somam novamente aos 61 |
+| Regressão da Etapa 1 | 66/66 isolados sobre 5e9961b6; evidência separada, sem testes de produto/físicos |
+| Interrupções | 6 janelas distintas de crash de processo, mais erros I/O injetados; sem teste de energia/disco cheio real |
+| Primeira rodada preservada | 40746736121: 39/60; compartilhamento de diretório corrigido e assert da recusa NTFS alinhado, sem retry automático |
+| Isolamento | 142 itens Compile do produto, zero do protótipo em ambos ambientes; saídas externas; produto não compilado/executado |
+| Canal privado / BETA | .66 e run privada 40716548530/artefato 12828262039 intactos; sem acesso operacional, download ou mudança de canal |
+| Físico / roadmap | Avaliação parcial preservada; zero testes físicos repetidos; 27/42 |
+| Publicação | Nenhum pacote, artefato, Release, merge ou deploy; CI novo só de fixture, contents:read |
+
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA2.md) ·
+[Protocolo e limites](../prototipos/autoatualizador-seguro/STATE-PROTOCOL.md) ·
+[Windows](evidencias/autoatualizador-etapa2-windows.json) ·
+[Linux](evidencias/autoatualizador-etapa2-linux.json) ·
+[Recibo](evidencias/autoatualizador-etapa2.json).
+
+Gates restantes: durabilidade contra energia/armazenamento real, relógio uniforme
+interno TUF, extração/PE/runtime reais, IPC autenticado/saída/prontidão real,
+bootstrap/custódia operacional e integração. Hash local não autentica contra
+reescrita integral do próprio usuário; testes não homologam instalação/AVG/TUF.
+A próxima etapa exige sessão/instrução própria. **Etapa 3 não iniciada; encerrar.**
+
+Preservar flags no/remoto bloqueado, consentimento, AVG/proteções, drivers
+inativos, VLC só inventário e COM opcional/consultivo. Sem PC FORTE, Worker/D1/DNS,
+ACLs modificadas, produto ou canal privado. Branch isolada de validação mantida
+para evidência; não reexecutar CI do produto por este protótipo/documentação.
+
+## Registro da Etapa 1 — histórico preservado
+
 28/10/2026, America/Fortaleza. **Etapa 1 concluída no protótipo isolado.
 Integração no produto e Etapa 2 NÃO INICIADAS.**
 

@@ -1825,9 +1825,9 @@
       "source_evidence": "User-submitted screenshots and three local text/log artifacts in conversation; raw private data not committed"
     },
     "next_mission": {
-      "id": "GF_SELF_UPDATER_STAGE1_ISOLATED_VALIDATION_PROTOTYPE",
-      "status": "stage1_completed_isolated_no_product_integration",
-      "scope": "library_bootstrap_key_custody_isolated_fixture_validation",
+      "id": "GF_SELF_UPDATER_STAGE2_ISOLATED_STATE_AND_RECOVERY",
+      "status": "stage2_completed_isolated_no_product_integration",
+      "scope": "persistent_state_clock_ntfs_selector_journal_concurrency_recovery",
       "no_repeated_physical_test_without_product_change": true,
       "stage0": {
         "date": "2026-10-28",
@@ -1883,6 +1883,64 @@
         "new_product_ci_runs": 0,
         "publication_performed": false,
         "next_stage": 2,
+        "next_stage_started": false
+      },
+      "stage2": {
+        "date": "2026-10-28",
+        "timezone": "America/Fortaleza",
+        "entry_head": "a2f4fdaa8e03d6705bb1fb2aea1fb713ec2b2d25",
+        "status": "completed_isolated_ntfs_state_and_recovery",
+        "contract": "gf-self-update/1",
+        "code_commit": "a57fd7c7677555e3d17fe1c4bb52c31ad43a8bf4",
+        "report": "docs/WORK-AUTOATUALIZADOR-ETAPA2.md",
+        "evidence": "docs/evidencias/autoatualizador-etapa2.json",
+        "windows_results": "docs/evidencias/autoatualizador-etapa2-windows.json",
+        "linux_results": "docs/evidencias/autoatualizador-etapa2-linux.json",
+        "windows_tests_passed": 61,
+        "windows_tests_total": 61,
+        "windows_ntfs_tests": 14,
+        "linux_tests_passed": 47,
+        "linux_tests_total": 47,
+        "unique_stage2_cases": 61,
+        "prior_stage1_regression_passed": 66,
+        "prior_stage1_regression_total": 66,
+        "isolated_windows_ci": {
+          "run_id": 40747226567,
+          "run_number": 2,
+          "attempt": 1,
+          "conclusion": "success",
+          "product_built": false,
+          "artifacts": 0
+        },
+        "initial_windows_ci": {
+          "run_id": 40746736121,
+          "attempt": 1,
+          "conclusion": "failure",
+          "passed": 39,
+          "total": 60,
+          "failure_preserved": true
+        },
+        "distinct_process_crash_windows": 6,
+        "product_compile_items": 142,
+        "prototype_items_in_product": 0,
+        "product_integration_started": false,
+        "private_channel_changed": false,
+        "product_code_changed": false,
+        "new_product_builds": 0,
+        "physical_tests_repeated": 0,
+        "new_product_ci_runs": 0,
+        "publication_performed": false,
+        "production_keys_created": false,
+        "bootstrap_installed": false,
+        "gates_remaining": [
+          "power_loss_durability",
+          "uniform_clock_inside_Tuf_1.1.1",
+          "real_authenticated_ipc_and_readiness",
+          "real_zip_extraction_PE_runtime",
+          "production_bootstrap_custody",
+          "product_integration"
+        ],
+        "next_stage": 3,
         "next_stage_started": false
       }
     }
