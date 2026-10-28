@@ -8,24 +8,53 @@ Fonte auditada: **`db67cde412db306c316e79c0761e8dafef4b3b34`**.
 [Recibo](evidencias/integracao-etapa6-auditoria.json) ·
 [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) · [Matriz de continuidade](WORK-INTEGRACAO-MATRIZ.md).
 
-**Dois ALTOS do cenário BETA LOCAL e dois BAIXOS. Nenhuma correção aplicada.**
+**Atualização da Etapa 7, 28/10/2026: os quatro GF6 corrigidos e validados no SHA `6df95fdd776644cd4b248b5cea61108974ca9ce9`.**
+A regressão de pipeline GF7-001 também foi reproduzida/corrigida; CI própria aprovada.
+As localizações/reproduções da auditoria abaixo referem-se à fonte anterior, preservada como evidência.
 Nenhum CRÍTICO, MÉDIO ou EXTERNO demonstrado nesta auditoria. Isso não constitui
 garantia de ausência de defeitos: Windows/AVG/físico têm os limites do relatório.
 
-Os dois ALTOS são lacunas confirmadas contra o adendo BETA LOCAL. Os contratos
+Na fonte auditada, os dois ALTOS eram lacunas confirmadas contra o adendo BETA LOCAL. Os contratos
 da BETA interna validada permitem seus comportamentos; o perfil local restrito
-ainda não existe nesta fonte. A CI anterior continua aprovada no seu escopo.
+ainda não existia nessa fonte histórica. A CI anterior continua aprovada no seu escopo.
 A preparação/teste local exige resolver as duas lacunas e comprovar o perfil
 restrito por testes próprios; não basta reutilizar a build interna.
 
-## Resumo e prioridade para a Etapa 7
+## Resumo atualizado após a Etapa 7
 
 | ID | Severidade | Escopo | Achado | Evidência | Estado / efeito |
 | --- | --- | --- | --- | --- | --- |
-| GF6-001 | ALTO | BETA LOCAL | Abertura inicia consultas de versões/WUA sem ação explícita | Rastreio estático da abertura até os provedores; testes de janela existentes usam startServices=false | ABERTO; bloqueia conformidade do cenário local |
-| GF6-002 | ALTO | BETA LOCAL | Consentimento remoto válido herdado mantém coleta/gravação de pendência mesmo sem endpoint | Gravador/handlers de falha/saída e teste de janela já aprovado na CI da composição | ABERTO; bloqueia conformidade do cenário local; nenhum envio real demonstrado |
-| GF6-003 | BAIXO | Fonte integrada | Campo sem atribuição em GF_BETA produz CS0649 | Declaração/condicional e aviso já registrado na CI | ABERTO; não bloqueante |
-| GF6-004 | BAIXO | Clientes HTTP | User-Agent anuncia versões fixas diferentes da .66 | Seis pontos de construção de cabeçalho na fonte | ABERTO; rastreabilidade, sem falha HTTP comprovada |
+| GF6-001 | ALTO | BETA LOCAL | Abertura inicia consultas de versões/WUA sem ação explícita | Rastreio estático da abertura até os provedores; testes de janela existentes usam startServices=false | CORRIGIDO; perfil local/CI própria da Etapa 7, limites físicos mantidos |
+| GF6-002 | ALTO | BETA LOCAL | Consentimento remoto válido herdado mantém coleta/gravação de pendência mesmo sem endpoint | Gravador/handlers de falha/saída e teste de janela já aprovado na CI da composição | CORRIGIDO; perfil local/CI própria da Etapa 7, limites físicos mantidos |
+| GF6-003 | BAIXO | Fonte integrada | Campo sem atribuição em GF_BETA produz CS0649 | Declaração/condicional e aviso já registrado na CI | CORRIGIDO; perfil local/CI própria da Etapa 7, limites físicos mantidos |
+| GF6-004 | BAIXO | Clientes HTTP | User-Agent anuncia versões fixas diferentes da .66 | Seis pontos de construção de cabeçalho na fonte | CORRIGIDO; perfil local/CI própria da Etapa 7, limites físicos mantidos |
+
+## Fechamento e defeito adicional da Etapa 7
+
+[Relatório antes/depois](WORK-INTEGRACAO-ETAPA7-CORRECOES.md) · [CI Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213) ·
+[integridade externa](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155) · [recibo](evidencias/integracao-etapa7-correcoes.json).
+Reprodução `f56c9303a66dfa9c3a29b220e38a9afe6f705b47`: 9/12 falhas. Fonte final `6df95fdd776644cd4b248b5cea61108974ca9ce9`: 18/18 locais,
+regressões internas/segurança preservadas e build x64 validada no mesmo SHA.
+GF6-003 não aparece mais como CS0649; User-Agent observado 5.13.11.66.
+
+**GF7-001 — MÉDIO / CI, CORRIGIDO.** Local: leitura de Version em
+`.github/workflows/validar-candidata-windows.yml` e `build-windows.yml` e `TestesManifesto/Testar-Ativacao.ps1`.
+Reprodução: executar o gate existente dos três scripts `--print-version` na
+árvore intermediária 520e6d8d; `PropertyGroup.Version` vira coleção após adicionar
+outro grupo e causa `Versao incorreta: Publicar-Portatil-Windows-x64.bat`.
+Evidência: run 40672064936/job 122761057719, após 18/18 locais aprovadas;
+segunda ocorrência no gate Win32, run 40674027305/job 122772531281, com regressões completas aprovadas.
+Impacto: interrompe validação e pode produzir leitura ambígua na identificação
+da build; publicação foi impedida pelos gates. Correção: XPath com exatamente
+um nó Version, mantendo o teste. Run 40675784213 aprova esse gate e a CI completa.
+Nenhuma nova remoção de teste, supressão ou contorno.
+
+Recomendação atual: manter esses contratos como regressões. Nenhum defeito
+CRÍTICO/ALTO conhecido permanece aberto no escopo técnico demonstrado; isso
+não homologa AVG/PC ou assegura ausência universal de defeitos. Etapa 8 não
+iniciada; BETA LOCAL não preparada e conectada/pública bloqueada.
+
+## Reprodução e recomendações da auditoria 6 — histórico
 
 ## GF6-001 — consultas automáticas na abertura
 
@@ -151,14 +180,13 @@ conforme impacto, preservando allowlists e consentimento, sem teste ao vivo.
   tem fixtures de token restrito e falhas por etapa na CI. Isso sustenta a
   mitigação técnica já incorporada, sem homologar o caso físico antigo.
   Não fechar a Issue nem repetir desinstalações/alterar ACLs para obter prova.
-- **WUA 2022:** prazo excedido, sem correspondências publicadas. **2025:**
-  consulta completa sem ofertas. Não atribuir EXTERNO sem causa comprovada;
+- **WUA histórica da Etapa 3:** 2022 excedeu prazo; 2025 sem ofertas. Os resultados
+  específicos da fonte final da Etapa 7 estão no recibo, sem homologar G1 físico. Não atribuir EXTERNO sem causa comprovada;
   não comprovam G1/payload, e gestão de drivers permanece desativada.
 - **AVG/assinatura/DPI/CPU/RAM físicos:** sem novos testes ou homologação.
   Limites de cobertura são registrados no relatório, não convertidos em
   defeitos inventados nem em aprovações.
-- **Entrega local/contrato:** perfil e pacote ainda pendentes; não contornar
+- **Entrega local/contrato:** perfil corrigido/validado na Etapa 7; pacote e entrega ainda pendentes; não contornar
   restrições de distribuição ou liberar conectada/pública para superar bloqueio.
 
-**Próxima sessão: Etapa 7, corrigir e regredir os achados autorizados, começando
-por GF6-001/GF6-002. Não iniciada nesta auditoria. Roadmap 27/42 preservado.**
+**Próxima sessão: somente Etapa 8. Correções técnicas da Etapa 7 concluídas; preparação/teste físico ainda pendentes. Roadmap 27/42 preservado.**

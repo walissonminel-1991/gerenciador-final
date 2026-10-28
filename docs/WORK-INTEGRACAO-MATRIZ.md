@@ -1,19 +1,20 @@
 # Integração final — matriz de continuidade
 
-27/10/2026, America/Sao_Paulo. Branch `work-integracao-final-20261027`,
+28/10/2026, America/Sao_Paulo. Branch `work-integracao-final-20261027`,
 [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65).
 Commit da análise: `f000ca3227227f11d8412c9a3f87335ead80bd9d`;
 fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
-**Etapa 7 EM ANDAMENTO — reprodução isolada antes da correção.**
+**Etapa 7 CONCLUÍDA — quatro GF6 e regressão de CI GF7-001 corrigidos e validados.**
+Fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, CIs 40675784213/40675784155 success; próxima sessão somente 8.
 BETA LOCAL não preparada; conectada/pública bloqueada. Etapa 8 não iniciada.
 Entrada da Etapa 6: `db67cde412db306c316e79c0761e8dafef4b3b34`.
 Commit da auditoria: `d1fee1eca87938e82d3e4253efce121b2cb1edba`; fechamento posterior documental, HEAD final na PR #65.
 Entrada da Etapa 5: `d815d1a5348b3f24c29e5c133a45b081cb7f6958`.
 Commit da organização: `97715100d087f21cac2696e9af13d99c6b30cb2b`; fechamento posterior documental, HEAD final na PR #65.
 Commit da avaliação: `a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`; fechamento posterior somente documental, HEAD final na PR #65.
-SHA validado: `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`; principal 40604593820 e integridade externa 40604593709, tentativa 1.
+SHA validado na Etapa 3 (histórico): `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`; principal 40604593820 e integridade externa 40604593709, tentativa 1.
 [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) ·
 [Reconciliação](WORK-INTEGRACAO-ETAPA1-RECONCILIACAO.md) ·
 [Integração de código](WORK-INTEGRACAO-ETAPA2-CODIGO.md) ·
@@ -216,6 +217,37 @@ Salvamento da auditoria conferido no SHA `d1fee1eca87938e82d3e4253efce121b2cb1ed
 100 outras branches preservadas, PR #65 aberta/Draft e Issue #48 aberta sem
 edição. Nenhum run novo. Recibo posterior documental; quatro achados continuam
 abertos, sem correção ou liberação. **Etapa 7 não iniciada.**
+
+## Correções e regressões — Etapa 7 concluída
+
+**Etapa 7 concluída — 28/10/2026:** [correções e regressões](WORK-INTEGRACAO-ETAPA7-CORRECOES.md),
+[matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa7-correcoes.json).
+GF6-001/GF6-002 (ALTOS locais), GF6-003/GF6-004 (BAIXOS) e GF7-001
+(regressão de CI, MÉDIO) corrigidos no escopo demonstrado.
+Fonte **`6df95fdd776644cd4b248b5cea61108974ca9ce9`**, [Windows 40675784213](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213)
+e [integridade externa 40675784155](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155) aprovadas,
+tentativa 1. Regra local compilada: zero consultas automáticas e diagnóstico
+remoto desativado inclusive com consentimento herdado/erro/encerramento.
+**BETA LOCAL não preparada; conectada/pública bloqueada.** Próxima sessão
+somente Etapa 8; não iniciada. Roadmap **27/42**, sem homologação física/AVG.
+
+| Contrato | Antes | Depois / evidência |
+| --- | --- | --- |
+| Abertura local, GF6-001 | Uma chamada automática | Zero chamadas; callback sem HTTP/WUA real |
+| Consentimento herdado, GF6-002 | Coleta e pendência permitidas, transporte fictício chamado | Gravador/transporte bloqueados, arquivos antigos preservados, revogação explícita mantida |
+| UI local | Sem identificação/aviso próprios | Título NÃO HOMOLOGADA, aceite indisponível, simulação por clique sem coleta |
+| Aviso de compilação, GF6-003 | CS0649 | Condicionais de declaração/usos alinhados; sem supressão |
+| Identidade HTTP, GF6-004 | Duas chamadas fictícias com 5.12.8 | Assembly 5.13.11.66 em ambas; seis atribuições unificadas |
+| Pipeline, GF7-001 | Gate de versão falha na primeira correção | XPath/unicidade; três scripts aprovados, gate preservado |
+| Cobertura local adicional | 12 verificações, nove falhas | 18/18, mantendo as 12 e acrescentando seis; não somar repetições |
+| Linha BETA interna | 127 privacidade/transporte e 15 janela | Mesmos contratos preservados/reexecutados, perfil separado sem endpoint |
+| Regressões e build | Aprovação anterior não transferível | Nova CI integral no SHA exato; modos/subconjuntos/runners não somados |
+
+Históricos 1–6 permanecem no contexto dos respectivos SHAs. A tabela de cobertura
+da Etapa 3 acima é histórica; os resultados próprios desta sessão estão no recibo 7.
+Novo perfil é correção de conformidade técnica, sem preparar pacote ou homologar
+PC/AVG. Fonte/merge de teste têm a árvore `e29acb3619b85050a4cf5becaf81bfa3fdda0bd2`. Nenhuma proteção/teste
+foi removido para obter verde. **Parada antes da Etapa 8.**
 
 ## Bloqueios preservados
 

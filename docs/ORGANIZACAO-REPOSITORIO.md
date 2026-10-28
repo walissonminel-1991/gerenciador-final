@@ -2,12 +2,17 @@
 
 ## Estado e entradas
 
-27/10/2026. Branch `work-integracao-final-20261027`,
-[PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65).
-Integração 1–4 validada no SHA `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`;
-organização 5 e auditoria 6 concluídas. **Próxima sessão: somente Etapa 7, correções/regressões.**
-Dois ALTOS locais e dois BAIXOS na [matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md), sem correção aplicada.
-BETA LOCAL não preparada; conectada/pública bloqueada. Sem pacote novo.
+28/10/2026. Branch `work-integracao-final-20261027`, PR #65 aberta/Draft.
+**Etapa 7 concluída — 28/10/2026:** [correções e regressões](WORK-INTEGRACAO-ETAPA7-CORRECOES.md),
+[matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa7-correcoes.json).
+GF6-001/GF6-002 (ALTOS locais), GF6-003/GF6-004 (BAIXOS) e GF7-001
+(regressão de CI, MÉDIO) corrigidos no escopo demonstrado.
+Fonte **`6df95fdd776644cd4b248b5cea61108974ca9ce9`**, [Windows 40675784213](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213)
+e [integridade externa 40675784155](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155) aprovadas,
+tentativa 1. Regra local compilada: zero consultas automáticas e diagnóstico
+remoto desativado inclusive com consentimento herdado/erro/encerramento.
+**BETA LOCAL não preparada; conectada/pública bloqueada.** Próxima sessão
+somente Etapa 8; não iniciada. Roadmap **27/42**, sem homologação física/AVG.
 
 | Necessidade | Entrada canônica |
 | --- | --- |
@@ -16,7 +21,8 @@ BETA LOCAL não preparada; conectada/pública bloqueada. Sem pacote novo.
 | Fonte/reconciliação | [Etapa 1](WORK-INTEGRACAO-ETAPA1-RECONCILIACAO.md) e [Etapa 2](WORK-INTEGRACAO-ETAPA2-CODIGO.md) |
 | CI e limites da candidata | [Etapa 3](WORK-INTEGRACAO-ETAPA3-VALIDACAO.md) e [avaliação 4](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md) |
 | Organização e propostas pendentes | [Etapa 5](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md) e [inventário por SHA](evidencias/integracao-etapa5-organizacao.json) |
-| Auditoria e correções futuras | [Etapa 6/14 eixos](WORK-INTEGRACAO-ETAPA6-AUDITORIA.md), [matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa6-auditoria.json) |
+| Auditoria histórica | [Etapa 6/14 eixos](WORK-INTEGRACAO-ETAPA6-AUDITORIA.md), [matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa6-auditoria.json) |
+| Correções, regressões e CI própria | [Etapa 7](WORK-INTEGRACAO-ETAPA7-CORRECOES.md) e [recibo](evidencias/integracao-etapa7-correcoes.json) |
 | Progresso sem promoção artificial | [ROADMAP](ROADMAP.md) e [PROGRESSO.json](PROGRESSO.json), 27/42 |
 | Testes e CI | [TESTES](TESTES.md) e [Actions atuais/históricas](ACTIONS-ATUAIS-E-HISTORICAS.md) |
 | Futuro teste físico manual | [Plano mínimo da avaliação 4](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md#7-testes-físicos-mínimos-futuros--pc-forte), reaproveitando [E1–E5](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md); sem execução agora |

@@ -1,5 +1,16 @@
 # GERENCIADOR FINAL — roadmap funcional
 
+**Etapa 7 concluída — 28/10/2026:** [correções e regressões](WORK-INTEGRACAO-ETAPA7-CORRECOES.md),
+[matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa7-correcoes.json).
+GF6-001/GF6-002 (ALTOS locais), GF6-003/GF6-004 (BAIXOS) e GF7-001
+(regressão de CI, MÉDIO) corrigidos no escopo demonstrado.
+Fonte **`6df95fdd776644cd4b248b5cea61108974ca9ce9`**, [Windows 40675784213](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213)
+e [integridade externa 40675784155](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155) aprovadas,
+tentativa 1. Regra local compilada: zero consultas automáticas e diagnóstico
+remoto desativado inclusive com consentimento herdado/erro/encerramento.
+**BETA LOCAL não preparada; conectada/pública bloqueada.** Próxima sessão
+somente Etapa 8; não iniciada. Roadmap **27/42**, sem homologação física/AVG.
+
 **Integração final — Etapa 6, 27/10/2026:** [auditoria geral concluída](WORK-INTEGRACAO-ETAPA6-AUDITORIA.md), [matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md), [checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) e [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65). **Dois ALTOS locais e dois BAIXOS abertos; BETA LOCAL não preparada e conectada/pública bloqueada.** Próxima sessão somente Etapa 7, não iniciada. 47/47 Python e 136/136 Node isolados; C#/Windows usa evidência existente no SHA 6b5b0e52. Sem correção, nova CI/build ou pacote. Todos os 42 IDs/done e históricos preservados, **27/42**. Registros das Etapas 4–5 abaixo permanecem históricos.
 
 **Integração final — Etapa 5, 27/10/2026:** [organização segura concluída](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md), [checkpoint](WORK-INTEGRACAO-CHECKPOINT.md), [matriz](WORK-INTEGRACAO-MATRIZ.md) e [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65). Próxima sessão somente **Etapa 6 — auditoria geral**, não iniciada. Dez documentos, sem código/testes/workflows/configuração alterados, exclusão, fechamento automático, nova build ou pacote. Mesmos 42 IDs/done e históricos, **27/42**. BETA LOCAL não preparada; conectada/pública bloqueada. D01/D02 são apenas propostas dependentes de autorização específica. O fechamento da Etapa 4 abaixo permanece histórico.
@@ -8,7 +19,7 @@
 
 ## Registros históricos de preparação e validação
 
-Os estados abaixo registram suas respectivas datas/etapas. A avaliação atual é a da Etapa 4 acima; CI antiga ou texto de preparação não aprova outra fonte ou autoriza distribuição.
+Os estados abaixo registram suas respectivas datas/etapas. A situação atual é a da Etapa 7 acima; CI antiga ou texto de preparação não aprova outra fonte ou autoriza distribuição.
 
 **Integração final — Etapa 2, 27/10/2026:** código pré-BETA #64 e BETA .66 acumulada #62 conciliado na [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65). [Relatório e limites](WORK-INTEGRACAO-ETAPA2-CODIGO.md). **VALIDAÇÃO DA INTEGRAÇÃO PENDENTE:** nenhuma CI ou build própria nesta etapa; aprovações das fontes não aprovam a composição. Histórico e todos os 42 estados preservados, **27/42**. Drivers e envio remoto desativados, exclusão permanente preservada. Parada antes da Etapa 3; sem pacote, merge, release, deploy ou distribuição.
 

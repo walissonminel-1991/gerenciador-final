@@ -1,5 +1,20 @@
 # GitHub Actions — manutenção e arquivo histórico
 
+**Etapa 7 concluída — 28/10/2026:** [correções e regressões](WORK-INTEGRACAO-ETAPA7-CORRECOES.md),
+[matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa7-correcoes.json).
+GF6-001/GF6-002 (ALTOS locais), GF6-003/GF6-004 (BAIXOS) e GF7-001
+(regressão de CI, MÉDIO) corrigidos no escopo demonstrado.
+Fonte **`6df95fdd776644cd4b248b5cea61108974ca9ce9`**, [Windows 40675784213](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213)
+e [integridade externa 40675784155](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155) aprovadas,
+tentativa 1. Regra local compilada: zero consultas automáticas e diagnóstico
+remoto desativado inclusive com consentimento herdado/erro/encerramento.
+**BETA LOCAL não preparada; conectada/pública bloqueada.** Próxima sessão
+somente Etapa 8; não iniciada. Roadmap **27/42**, sem homologação física/AVG.
+
+Perfil local inspecionado no assembly, GF_BETA reconhecido por todas as constantes
+e versão por XPath/unicidade. Upload BETA somente de manifestos; os gates de
+regressões, política e integridade não foram removidos. A seção 5 abaixo é histórica.
+
 ## Situação da candidata PR #65 — 27/10/2026
 
 Branch `work-integracao-final-20261027`; [checkpoint](WORK-INTEGRACAO-CHECKPOINT.md),

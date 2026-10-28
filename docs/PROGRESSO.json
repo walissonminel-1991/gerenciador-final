@@ -1197,21 +1197,21 @@
   "integration_final": {
     "mission": "WORK-INTEGRACAO-FINAL",
     "stage": 7,
-    "date": "2026-10-27",
+    "date": "2026-10-28",
     "timezone": "America/Sao_Paulo",
     "branch": "work-integracao-final-20261027",
     "draft_pr": 65,
     "version": "5.13.11.66 TESTE",
-    "status": "stage7_reproduction_in_progress",
+    "status": "stage7_corrections_validated_local_not_prepared",
     "entry_commit": "275cfc396d22c8aff933a3879f0702d20596a2bc",
     "origins": {
       "base_pr60": "2bc9f4228fd448445fbf181652e5af93005def20",
       "pre_beta_pr64": "357877e9acd628f84e5d9944e02e471fe319d1bc",
       "beta_accumulated_pr62": "e530d724b7322963c8795b005f13ae6948a73e43"
     },
-    "code_commit": "06d7dce0bb47944f1efd18a10785fa77f5f0c8f7",
-    "ci_status": "pending",
-    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820",
+    "code_commit": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "ci_status": "success",
+    "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213",
     "artifact": null,
     "inherited_candidate_metadata_historical": true,
     "inherited_candidate_historical_fields": [
@@ -1225,17 +1225,18 @@
     "distribution_approved": false,
     "roadmap_done": 27,
     "roadmap_total": 42,
-    "report": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
-    "evidence": "docs/evidencias/integracao-etapa6-auditoria.json",
-    "next_stage": 7,
+    "report": "docs/WORK-INTEGRACAO-ETAPA7-CORRECOES.md",
+    "evidence": "docs/evidencias/integracao-etapa7-correcoes.json",
+    "next_stage": 8,
     "stage3_entry_commit": "89ee12a8322c5872c61c3fd40030490407cbb173",
-    "validated_commit": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
-    "ci_merge_commit": "3bb5e7b44ccc7c362e32678afa9b99791d460211",
-    "ci_tree_sha": "e5646e6d419b47aa80e337359b1a49c9262ce6f7",
-    "ci_integrity_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709",
+    "validated_commit": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "ci_merge_commit": "384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+    "ci_tree_sha": "e29acb3619b85050a4cf5becaf81bfa3fdda0bd2",
+    "ci_integrity_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155",
     "ci_run_attempt": 1,
     "ci_parent_approval_transferred": false,
     "validation": {
+      "local_profile_assertions": 18,
       "updater_suite": 410,
       "multisource_suite": 196,
       "residual_uninstall_suite": 739,
@@ -1246,30 +1247,27 @@
       "receiver_retention_tests": 126,
       "staging_receiver_tests": 10,
       "python_policy_package_tests": 47,
-      "ecosystem_assertions": 54,
       "catalog_suite": 17,
       "matching_suite": 20,
       "mutations_rejected": 36,
       "layout_resolution_tab_combinations": 132,
       "work18_layout_combinations": 8,
       "tray_cycles": 12,
-      "windows2022_driver_assertions": 173,
+      "windows2022_driver_assertions": 174,
       "windows2025_driver_assertions": 174,
-      "package_hashes_verified_in_ci": 286,
-      "new_product_tests": 0,
-      "product_code_changes": 0,
-      "sum_not_applicable": "Subconjuntos, repeticoes e runners nao somados como casos unicos ou programas homologados."
+      "package_hashes_verified_in_ci": 286
     },
     "ci_manifest_artifact": {
-      "id": 12779928854,
-      "name": "BETA-manifesto-6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
-      "zip_sha256": "ebe688f662593689c0ba8b0f4d43a33828d8b048d8386eed2be8a09043aa6754",
+      "id": 12811032013,
+      "name": "BETA-manifesto-6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "zip_sha256": "50b7a8c4d8bc15a826ebe2d54c7ada8f291d6cd2dbd19b8f805572f962c4c35c",
       "files": [
         "BETA-BUILD.json",
         "BUILD-INFO.txt",
         "SHA256SUMS.txt"
       ],
-      "contains_executables": false
+      "contains_executables": false,
+      "expires_at": "2026-11-04T11:04:39Z"
     },
     "manifest_verified_independently": true,
     "package_verified_independently": false,
@@ -1475,11 +1473,74 @@
     },
     "stage7_entry_commit": "89098a6669fadacd59e31fd8507bba9055a17a14",
     "stage7_corrections": {
-      "status": "reproduction_in_progress",
-      "corrections_validated": false,
+      "status": "complete_in_validated_scope",
+      "corrections_validated": true,
+      "entry_commit": "89098a6669fadacd59e31fd8507bba9055a17a14",
+      "reproduction_commit": "f56c9303a66dfa9c3a29b220e38a9afe6f705b47",
+      "reproduction_checks": 12,
+      "reproduction_failures": 9,
+      "new_local_profile_tests": 18,
+      "real_network_in_new_tests": 0,
+      "corrected_defects": [
+        "GF6-001",
+        "GF6-002",
+        "GF6-003",
+        "GF6-004",
+        "GF7-001"
+      ],
+      "validated_commit": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "ci_runs": [
+        40675784213,
+        40675784155
+      ],
       "stage8_started": false,
-      "new_local_profile_tests": 12,
-      "real_network_in_new_tests": 0
-    }
+      "physical_test_executed": false
+    },
+    "stage3_validation_historical": {
+      "code_commit": "06d7dce0bb47944f1efd18a10785fa77f5f0c8f7",
+      "validated_commit": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820",
+      "ci_integrity_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709",
+      "ci_merge_commit": "3bb5e7b44ccc7c362e32678afa9b99791d460211",
+      "ci_tree_sha": "e5646e6d419b47aa80e337359b1a49c9262ce6f7",
+      "validation": {
+        "updater_suite": 410,
+        "multisource_suite": 196,
+        "residual_uninstall_suite": 739,
+        "msix_suite": 47,
+        "shutdown_suite": 30,
+        "privacy_transport_assertions": 127,
+        "beta_window_assertions": 15,
+        "receiver_retention_tests": 126,
+        "staging_receiver_tests": 10,
+        "python_policy_package_tests": 47,
+        "ecosystem_assertions": 54,
+        "catalog_suite": 17,
+        "matching_suite": 20,
+        "mutations_rejected": 36,
+        "layout_resolution_tab_combinations": 132,
+        "work18_layout_combinations": 8,
+        "tray_cycles": 12,
+        "windows2022_driver_assertions": 173,
+        "windows2025_driver_assertions": 174,
+        "package_hashes_verified_in_ci": 286,
+        "new_product_tests": 0,
+        "product_code_changes": 0,
+        "sum_not_applicable": "Subconjuntos, repeticoes e runners nao somados como casos unicos ou programas homologados."
+      },
+      "ci_manifest_artifact": {
+        "id": 12779928854,
+        "name": "BETA-manifesto-6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+        "zip_sha256": "ebe688f662593689c0ba8b0f4d43a33828d8b048d8386eed2be8a09043aa6754",
+        "files": [
+          "BETA-BUILD.json",
+          "BUILD-INFO.txt",
+          "SHA256SUMS.txt"
+        ],
+        "contains_executables": false
+      },
+      "manifest_verified_independently": true
+    },
+    "local_beta_profile_validated": true
   }
 }

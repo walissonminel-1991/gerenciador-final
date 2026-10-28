@@ -1,6 +1,6 @@
 # WORK INTEGRAÇÃO FINAL — checkpoint
 
-27/10/2026, America/Sao_Paulo. **Executar uma única etapa por sessão.**
+28/10/2026, America/Sao_Paulo. **Executar uma única etapa por sessão.**
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 ## Estado de continuidade
@@ -8,8 +8,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **7 — Correções e regressões (EM ANDAMENTO)** |
-| Resultado | **ETAPA 7 EM ANDAMENTO**; reprodução Windows `f56c9303a66dfa9c3a29b220e38a9afe6f705b47` confirmou 9/12 falhas; correções locais dos quatro IDs em validação. Aprovação depende da nova CI pelo SHA exato; Etapa 8 não iniciada |
+| Etapa desta sessão | **7 — Correções e regressões (CONCLUÍDA)** |
+| Resultado | Quatro GF6 corrigidos e regressão GF7-001 de CI corrigida; CI Windows/externa própria aprovada; BETA LOCAL não preparada e conectada/pública bloqueada |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
@@ -20,8 +20,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Entrada da Etapa 3 | `89ee12a8322c5872c61c3fd40030490407cbb173` |
 | SHA fonte validado na Etapa 3 | `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8` |
 | Merge de teste / mesma árvore | `3bb5e7b44ccc7c362e32678afa9b99791d460211` / `e5646e6d419b47aa80e337359b1a49c9262ce6f7` |
-| CI principal da integração | [40604593820](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820), **success**, tentativa 1 |
-| CI de integridade externa | [40604593709](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709), **success**, tentativa 1 |
+| CI principal da Etapa 3 (histórica) | [40604593820](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820), **success**, tentativa 1 |
+| CI externa da Etapa 3 (histórica) | [40604593709](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709), **success**, tentativa 1 |
 | Código integrado | Origem #64 + delta acumulado #62; 57 exclusivos idênticos, um workflow adaptado e quatro compartilhados conciliados; versão .66 |
 | Roadmap | **27/42**, mesmos 42 IDs/done; nenhum checkpoint promovido |
 | Entrada da Etapa 4 | `b5c2e0e2c7fefc63896123000c3fa34d8c34a7d5` |
@@ -30,8 +30,16 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Commit da organização | [`97715100d087f21cac2696e9af13d99c6b30cb2b`](https://github.com/walissonminel-1991/gerenciador-final/commit/97715100d087f21cac2696e9af13d99c6b30cb2b); fechamento posterior somente documental, HEAD final na PR #65; `[skip ci]`, sem nova build |
 | Entrada da Etapa 6 | `db67cde412db306c316e79c0761e8dafef4b3b34` |
 | Commit da auditoria | [`d1fee1eca87938e82d3e4253efce121b2cb1edba`](https://github.com/walissonminel-1991/gerenciador-final/commit/d1fee1eca87938e82d3e4253efce121b2cb1edba); fechamento posterior documental, HEAD final na PR #65; `[skip ci]`, sem nova build |
-| Defeitos | [GF6-001–GF6-004](WORK-INTEGRACAO-DEFEITOS.md); dois ALTOS / dois BAIXOS, sem correção |
-| Próxima etapa | **7 — Correções e regressões**, somente em nova sessão |
+| Defeitos | [GF6-001–004 e GF7-001](WORK-INTEGRACAO-DEFEITOS.md) corrigidos no escopo técnico demonstrado; pendências físicas preservadas |
+| Próxima etapa | **8 — Preparação da BETA LOCAL TESTE**, somente em nova sessão autorizada |
+
+| Entrada da Etapa 7 | `89098a6669fadacd59e31fd8507bba9055a17a14` |
+| Reprodução anterior à correção | `f56c9303a66dfa9c3a29b220e38a9afe6f705b47`; 9/12 falhas no run 40670973548 |
+| SHA fonte aprovado na Etapa 7 | `6df95fdd776644cd4b248b5cea61108974ca9ce9` |
+| Árvore / merge de teste | `e29acb3619b85050a4cf5becaf81bfa3fdda0bd2` / `384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad`; árvores idênticas |
+| CI Windows da Etapa 7 | [40675784213](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213), **success**, tentativa 1 |
+| CI externa da Etapa 7 | [40675784155](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155), **success**, tentativa 1 |
+| Fechamento documental | Somente Markdown/JSON após a fonte aprovada; conferir HEAD final na PR #65; não é nova build |
 
 Documentos da Etapa 1 preservados:
 
@@ -307,7 +315,7 @@ Este fechamento acrescenta apenas SHA e recibo de conferência a checkpoint,
 matriz, PROGRESSO e recibo JSON. Conferir HEAD final na PR #65; sem nova build,
 pacote ou implementação. **Parada antes da Etapa 6.**
 
-## Etapa 6 — sessão atual concluída
+## Etapa 6 — sessão anterior concluída
 
 Entrada `db67cde412db306c316e79c0761e8dafef4b3b34`, árvore `7dfb4d0f957691792a93ada5eabda321f210f92c`;
 PR #65 aberta/Draft, base #60 e refs de origem conferidas. Checkpoint, matriz,
@@ -368,30 +376,55 @@ Este fechamento acrescenta apenas SHA e recibo de conferência a checkpoint,
 matriz, PROGRESSO e recibo JSON. Conferir HEAD final na PR #65; não é nova
 build aprovada ou correção de produto. **Parada antes da Etapa 7.**
 
-## Etapa 7 — checkpoint de reprodução
+## Etapa 7 — sessão concluída
 
-Entrada `89098a6669fadacd59e31fd8507bba9055a17a14`. Testes GF6-001/GF6-002 e GF6-004 com callbacks/HTTP fictícios e arquivos temporários; nenhum PC, fonte real ou receptor. Pequena injeção interna permite observar o caminho automático sem rede. CI Windows de reprodução será consultada por SHA; falha esperada dos contratos ainda não corrigidos. Retomar nesta Etapa 7 se houver interrupção; não iniciar 8. Preservados main/origens, Draft, flags no, AVG, exclusão permanente e drivers desativados.
+**Etapa 7 concluída — 28/10/2026:** [correções e regressões](WORK-INTEGRACAO-ETAPA7-CORRECOES.md),
+[matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa7-correcoes.json).
+GF6-001/GF6-002 (ALTOS locais), GF6-003/GF6-004 (BAIXOS) e GF7-001
+(regressão de CI, MÉDIO) corrigidos no escopo demonstrado.
+Fonte **`6df95fdd776644cd4b248b5cea61108974ca9ce9`**, [Windows 40675784213](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213)
+e [integridade externa 40675784155](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155) aprovadas,
+tentativa 1. Regra local compilada: zero consultas automáticas e diagnóstico
+remoto desativado inclusive com consentimento herdado/erro/encerramento.
+**BETA LOCAL não preparada; conectada/pública bloqueada.** Próxima sessão
+somente Etapa 8; não iniciada. Roadmap **27/42**, sem homologação física/AVG.
+
+Reprodução `f56c9303a66dfa9c3a29b220e38a9afe6f705b47`: nove falhas reais em 12 verificações, sem erro de compilação.
+Correção intermediária 520e6d8d: 18/18 locais, mas o gate existente de versão
+detectou GF7-001. Leitura XML corrigida, sem remover o gate; CI completa
+repetida/aprovada no SHA fonte acima. Detalhes, arquivos e marcadores antes/depois
+no [relatório](WORK-INTEGRACAO-ETAPA7-CORRECOES.md) e [recibo](evidencias/integracao-etapa7-correcoes.json).
+
+Perfil local padrão por compilação, sem ampliar via preferência herdada. Inventário,
+histórico e relatórios técnicos locais mantidos; revogação explícita disponível.
+Contratos internos preservados em configuração separada, sem receptor. Seis
+User-Agents rastreáveis ao assembly e CS0649 corrigido, sem supressão de avisos.
+Build x64 somente para validação na CI; upload BETA limitado a manifestos.
+Nenhum executável entregue, pacote de teste preparado, merge, release ou deploy.
+
+Main, origens, PR #40 e Issue #48 preservadas; D01/D02 sem execução. AVG e
+proteções mantidos, drivers destrutivos desativados, exclusão permanente e COM
+consultivo preservados. Flags no/aprovações/aviso remoto intactos. Sem PC pessoal,
+receptor ou infraestrutura remota. Pendentes: AVG/assinatura, DPI/foco/CPU/RAM
+físicos, G1 sem ofertas, entrega local e homologação conectada independente.
 
 ## Retomada obrigatória
 
-1. Ler este checkpoint, a matriz e a análise; conferir branch, PR Draft e
-   HEAD remotos antes de qualquer edição. Comparar #60–#64 aos SHAs fixados.
-2. Preservar alterações posteriores e investigar divergências pontuais;
-   não usar force-push, apagar histórico ou modificar branches originais.
-3. Executar **somente a Etapa 7 do adendo**: priorizar GF6-001/GF6-002,
-   reproduzir em testes isolados, corrigir a causa e demonstrar antes/depois.
-   Executar área alterada/regressões afetadas e CI Windows aplicável pelo SHA
-   exato. Tratar BAIXOS conforme impacto; documentar bloqueio se faltar correção
-   segura. Preservar testes/gates, sem supressão para obter verde.
-   Não executar D01/D02, preparar pacote, reinvestigar COM/fontes excluídas
-   ou usar PCs pessoais para depuração; BETA conectada continua bloqueada.
-4. Atualizar os dois documentos com SHA, arquivos, verificações, problemas,
-   pendências e próximo passo; registrar interrupção no ponto exato.
-5. Encerrar antes da Etapa 8. Integração 1–4, organização 5 e auditoria 6 concluídas; Etapas 7–9 seguem o adendo,
-   uma por sessão. A Etapa 9 depende exclusivamente de execução manual autorizada.
+1. Ler checkpoint, matriz, defeitos e relatório/recibo 7; conferir HEAD, PR Draft,
+   fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, base/origens e as duas CIs próprias pelo SHA exato.
+2. Preservar alterações posteriores. Não usar force-push, apagar histórico,
+   executar D01/D02 ou modificar main/branches originais.
+3. Somente após nova instrução, executar **Etapa 8** do adendo: conferir critérios,
+   preparar candidata local rastreável, conferir integridade/licenças/segredos e
+   manter bloqueios locais/AVG. Não contornar o contrato de distribuição; propor
+   via privada autorizada/verificável se os gates impedirem entregar executável.
+4. Registrar commit, CI, limitações e entrega autorizada em checkpoint/matriz.
+   A missão ampliada não está concluída e não exige 42/42 para um teste local limitado.
+5. Encerrar após a preparação. Etapa 9 somente manual/autorizada pelo mantenedor;
+   não operar ou presumir acesso ao PC e não liberar conectada/pública.
 
-Comando de retomada:
+Comando para uma próxima sessão, sem execução automática:
 
-> Continue pela Etapa 7 na branch work-integracao-final-20261027, PR #65 Draft. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md, docs/WORK-INTEGRACAO-MATRIZ.md, docs/WORK-INTEGRACAO-DEFEITOS.md e o relatório/recibo da Etapa 6; confira o HEAD. Reproduza e corrija primeiro GF6-001/GF6-002 com testes isolados, demonstre antes/depois, execute regressões afetadas e CI Windows no SHA exato. Trate BAIXOS conforme impacto e documente bloqueios. Preserve todas as restrições e o adendo BETA LOCAL, não execute D01/D02 nem opere nos PCs, salve evidências/checkpoints no GitHub e pare antes da Etapa 8, sem preparar pacote ou liberar BETA.
+> Continue pela Etapa 8 na branch work-integracao-final-20261027, PR #65 Draft. Leia checkpoint, matriz, defeitos e relatório/recibo da Etapa 7. Confira HEAD e CI Windows/externa da fonte 6df95fdd776644cd4b248b5cea61108974ca9ce9; preserve todas as restrições e o adendo BETA LOCAL. Prepare somente se os critérios e o contrato de distribuição permitirem; registre bloqueios e proponha entrega privada autorizada/verificável se necessário. Mantenha AVG ativo, drivers e diagnósticos remotos desativados. Salve evidências no GitHub e pare antes da Etapa 9, sem Release pública ou distribuição indiscriminada.
 
-**Etapa 6 concluída no escopo auditado, com dois ALTOS locais e dois BAIXOS abertos. Etapa 7 não iniciada.**
+**Etapa 7 concluída no escopo técnico aprovado. Parada antes da Etapa 8.**
