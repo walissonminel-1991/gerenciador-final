@@ -4299,7 +4299,9 @@
   "existing_issue_for_next_audit": 48,
   "documentary_commit": {
     "skip_ci": true,
-    "head_location": "Conferir HEAD final da PR #65; sem nova build."
+    "head_location": "Conferir HEAD final da PR #65; sem nova build.",
+    "organization_commit": "97715100d087f21cac2696e9af13d99c6b30cb2b",
+    "followup": "Fechamento posterior somente checkpoint/matriz/PROGRESSO/recibo; HEAD final na PR #65."
   },
   "next_stage": 6,
   "overall_mission_complete": false,
@@ -4332,5 +4334,29 @@
       "historical_source": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
       "does_not_replace_integration_ci": true
     }
+  },
+  "remote_verification": {
+    "commit": "97715100d087f21cac2696e9af13d99c6b30cb2b",
+    "tree": "ea8f557817c2c6b0c712c54455554402066efbd9",
+    "total_blobs": 439,
+    "inherited_outside_scope_unchanged": 429,
+    "changed_files": [
+      "README.md",
+      "docs/ACTIONS-ATUAIS-E-HISTORICAS.md",
+      "docs/ORGANIZACAO-REPOSITORIO.md",
+      "docs/PROGRESSO.json",
+      "docs/ROADMAP.md",
+      "docs/TESTES.md",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+      "docs/WORK-INTEGRACAO-MATRIZ.md",
+      "docs/WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md",
+      "docs/evidencias/integracao-etapa5-organizacao.json"
+    ],
+    "other_branch_tips_preserved": 100,
+    "open_prs_preserved": 31,
+    "open_issues_preserved": 3,
+    "other_pr_text_and_heads_preserved": true,
+    "pr65_open_draft": true,
+    "ci_runs": 0
   }
 }

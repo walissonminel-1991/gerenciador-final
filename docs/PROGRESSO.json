@@ -1394,7 +1394,18 @@
       "relative_file_links_after_changes": 324,
       "new_fragments_checked": 2,
       "document_validation": "pass",
-      "metadata_contract_validation": "pass"
+      "metadata_contract_validation": "pass",
+      "organization_commit": "97715100d087f21cac2696e9af13d99c6b30cb2b",
+      "saved_tree_check": {
+        "commit": "97715100d087f21cac2696e9af13d99c6b30cb2b",
+        "blobs": 439,
+        "inherited_outside_scope_unchanged": 429,
+        "changed_markdown_json": 10,
+        "other_branch_tips_preserved": 100,
+        "open_prs_preserved": 31,
+        "open_issues_preserved": 3,
+        "new_ci_runs": 0
+      }
     }
   }
 }

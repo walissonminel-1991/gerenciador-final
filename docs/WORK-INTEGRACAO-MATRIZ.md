@@ -8,7 +8,8 @@ Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
 **Etapa 5 CONCLUÍDA no escopo organizacional — integração 1–4 preservada.**
 BETA LOCAL não preparada; conectada/pública bloqueada. Etapa 6 não iniciada.
-Entrada da Etapa 5: `d815d1a5348b3f24c29e5c133a45b081cb7f6958`; HEAD final documental na PR #65.
+Entrada da Etapa 5: `d815d1a5348b3f24c29e5c133a45b081cb7f6958`.
+Commit da organização: `97715100d087f21cac2696e9af13d99c6b30cb2b`; fechamento posterior documental, HEAD final na PR #65.
 Commit da avaliação: `a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`; fechamento posterior somente documental, HEAD final na PR #65.
 SHA validado: `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`; principal 40604593820 e integridade externa 40604593709, tentativa 1.
 [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) ·
@@ -170,6 +171,11 @@ Relatório e recibo fixam limites, mudanças seguras e autorização necessária
 Issue #48 permanece aberta para conferência de aplicabilidade na auditoria 6.
 Nenhuma build/pacote, rede de aplicativo, PC ou infraestrutura operacional.
 **Parada antes da Etapa 6.**
+
+Salvamento da organização conferido no SHA `97715100d087f21cac2696e9af13d99c6b30cb2b`:
+439 blobs, 429 herdados fora do escopo intactos, dez Markdown/JSON previstos,
+100 outras branches, 31 PRs abertas Draft e três Issues preservadas. Nenhum
+run novo. Recibo posterior somente documental; não é nova build aprovada.
 
 ## Bloqueios preservados
 

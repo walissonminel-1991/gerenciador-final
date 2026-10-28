@@ -27,7 +27,7 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Entrada da Etapa 4 | `b5c2e0e2c7fefc63896123000c3fa34d8c34a7d5` |
 | Commit da avaliação | [`a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`](https://github.com/walissonminel-1991/gerenciador-final/commit/a3b362d6b98ff9584eb44d7dd55e60ac36c7977f); fechamento posterior somente documental, conferir HEAD final na PR #65; `[skip ci]`, sem nova build |
 | Entrada da Etapa 5 | `d815d1a5348b3f24c29e5c133a45b081cb7f6958` |
-| Commit da organização | Conferir HEAD final da PR #65; `[skip ci]`, sem nova build |
+| Commit da organização | [`97715100d087f21cac2696e9af13d99c6b30cb2b`](https://github.com/walissonminel-1991/gerenciador-final/commit/97715100d087f21cac2696e9af13d99c6b30cb2b); fechamento posterior somente documental, HEAD final na PR #65; `[skip ci]`, sem nova build |
 | Próxima etapa | **6 — Auditoria geral e busca de erros**, somente em nova sessão |
 
 Documentos da Etapa 1 preservados:
@@ -290,6 +290,19 @@ Conhecidos: WUA 2022 inconclusiva/2025 sem ofertas, aviso CS0649 não bloqueante
 AVG/físico/conectada pendentes e perfil BETA LOCAL restrito ainda não preparado.
 Issue #48 mantida como evidência para conferir na auditoria 6, sem presumir
 correção ou pedir repetição em PC. **Etapa 6 não iniciada.**
+
+## Salvamento e conferência — Etapa 5
+
+Organização salva no commit `97715100d087f21cac2696e9af13d99c6b30cb2b`, filho único da entrada.
+Árvore relida no GitHub: **439 blobs**, **429 herdados fora do escopo intactos**,
+somente os dez Markdown/JSON previstos, com hashes/modes conferidos. As outras
+100 branches, as 31 PRs abertas Draft e três Issues abertas foram preservadas;
+nenhuma mudança de texto/head nas outras PRs ou nos registros das Issues.
+PR #65/base #60 conferidas; zero run no commit documental.
+
+Este fechamento acrescenta apenas SHA e recibo de conferência a checkpoint,
+matriz, PROGRESSO e recibo JSON. Conferir HEAD final na PR #65; sem nova build,
+pacote ou implementação. **Parada antes da Etapa 6.**
 
 ## Retomada obrigatória
 
