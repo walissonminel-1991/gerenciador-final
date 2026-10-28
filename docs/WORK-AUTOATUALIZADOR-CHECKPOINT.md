@@ -1,5 +1,48 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+28/10/2026, America/Fortaleza. **Etapa 4 concluída no escopo isolado, com
+delimitações verificáveis. Aplicação operacional bloqueada; Etapa 5 NÃO INICIADA.**
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | GF_SELF_UPDATER_STAGE4_ISOLATED_VERIFIED_GATE_BOUNDARIES |
+| PR / branch | #65 aberta/Draft, work-integracao-final-20261027 |
+| Entrada | 9dd892259af9297172818d9c3112f3df0721b328 |
+| Código validado | dc7ee0a1aa65be20c660c1e0e7527d4e1c05cec4; fechamento posterior só documentação/resultados |
+| Contrato / bibliotecas | gf-self-update/1, Tuf 1.1.1/BC 2.7.0 intactos; relógio continua assembly experimental separado |
+| Windows | 46/46, run 40769700594, número 2/tentativa 1/success, job 123103247820; SDK 10.0.402/runtime 10.0.14 |
+| Linux | 38/38 comuns, runtime 10.0.13; subconjunto dos 46 |
+| Pacote | Sonda inerte 0.0.0.1: ZIP 63.940.273 bytes; 274 arquivos/123.062.971 bytes expandidos, extração NTFS e inspeção estática reais |
+| Authenticode | WinVerifyTrust offline: unsigned 800b0100, SDK assinado 00000000, adulterado 80096010; publicador GF não provisionado |
+| Durabilidade / relógio | Restauração integral reproduz piso 2→1 e relógio local antigo; testemunha independente só modelo, energia não executada |
+| IPC / ciclo | READY ligado ao diário, confirmação com filho vivo, recuperação por nonce/saída, adiar sem fechar; somente harness de sonda na elevação herdada |
+| Contextos pendentes | Runner elevado recusado operacionalmente; quatro sessões WTS enumeradas, sem handshake estrangeiro ou positivo sem elevação |
+| Bootstrap / custódia | Raiz pública de teste validada e bloqueada em produção; plano com slots vazios, sem chaves/âncora/custódia operacional |
+| Primeira rodada | 40769018174: 39/40; quatro casos de ciclo não executados. Corrigidos apenas hints de velocidade Deflate; falha preservada |
+| Isolamento | 142 itens Compile GF, zero protótipo; zero GF compilado/executado; zero artefatos em ambas as runs |
+| Preservação | .66/canal privado/AVG/proteções/físico parcial intactos; roadmap 27/42; zero testes físicos repetidos |
+
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA4.md) ·
+[Protocolo](../prototipos/autoatualizador-seguro/stage4/README.md) ·
+[Windows](evidencias/autoatualizador-etapa4-windows.json) ·
+[Linux](evidencias/autoatualizador-etapa4-linux.json) ·
+[Recibo](evidencias/autoatualizador-etapa4.json).
+
+Gates abertos: energia/armazenamento e frescor após restauração integral;
+revisão/manutenção/adoção do relógio; pacote GF autenticado e vínculo TUF→ZIP→estado;
+publicador/revogação se exigidos; positivo sem elevação e IPC entre sessões/usuários;
+ciclo GF real/handles de todos os arquivos; cerimônia de bootstrap/custódia;
+deadline global e I/O bloqueante. Modelos e assinatura SDK não fecham esses gates.
+O ZIP temporário é de sonda, não entrega GF; não há artefato para distribuir.
+
+Próxima ação: revisão específica dessas evidências e definição dos meios
+necessários aos gates, em futura sessão autorizada. **Não iniciar Etapa 5,
+integrar no executável principal, publicar ou iniciar homologação física.**
+Preservar remoto bloqueado, flags no, consentimento, AVG, drivers inativos,
+VLC só inventário, COM consultivo e canal privado. Parar após salvar/conferir.
+
+## Registro da Etapa 3 — histórico preservado
+
 28/10/2026, America/Fortaleza. **Etapa 3 concluída no escopo isolado,
 com gates remanescentes explícitos. Integração no produto e Etapa 4 NÃO INICIADAS.**
 

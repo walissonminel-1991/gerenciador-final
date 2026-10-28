@@ -4,9 +4,9 @@
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 **Estado vigente: BETA privada .66 entregue; avaliação física parcialmente
-concluída; Etapa 3 do autoatualizador concluída em protótipo isolado, com gates abertos.** Ver os
+concluída; Etapa 4 do autoatualizador concluída em protótipo isolado, com gates delimitados.** Ver os
 registros finais e o [checkpoint do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
-Sem integração no produto ou Etapa 4; conectada bloqueada; roadmap 27/42.
+Sem integração no produto ou Etapa 5; conectada bloqueada; roadmap 27/42.
 
 ## Estado de continuidade
 
@@ -967,3 +967,21 @@ privacidade, flags no/remoto bloqueado, drivers, VLC inventário e COM consultiv
 intactos. Sem físico/PC FORTE, permissões, infraestrutura, chave de produção,
 publicação, merge ou Release. Roadmap 27/42 e históricos preservados.
 **Etapa 4 e integração no produto NÃO INICIADAS. Encerrar após salvar/conferir.**
+
+
+## Autoatualizador — Etapa 4 isolada concluída em 28/10/2026
+
+America/Fortaleza. Entrada 9dd89225; código dc7ee0a1aa65be20c660c1e0e7527d4e1c05cec4.
+Windows 46/46, run 40769700594/número 2/tentativa 1/success; Linux 38/38 comuns.
+ZIP completo da sonda/NTFS/PE/runtime/licenças e WinVerifyTrust reais; ciclo
+transacional de sonda com recuperação e adiamento. Primeiro erro ZIP/39 de 40
+preservado, quatro casos de ciclo antes bloqueados, correção pontual Deflate.
+Gates de energia/antirrestauração, relógio suportado, pacote/publicador GF real,
+IPC sem elevação/entre sessões, ciclo GF e custódia continuam explícitos.
+Quatro sessões WTS enumeradas não são handshakes. Nenhuma chave operacional.
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA4.md),
+[recibo](evidencias/autoatualizador-etapa4.json) e
+[checkpoint](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
+BETA .66, entrega privada, AVG/proteções e físico parcial preservados; 27/42.
+142 fontes GF/zero protótipo; zero produto/físico repetido/artefato/publicação.
+Sem produto integrado, canal alterado, bootstrap instalado ou Etapa 5. Parar.

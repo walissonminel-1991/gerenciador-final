@@ -1825,9 +1825,9 @@
       "source_evidence": "User-submitted screenshots and three local text/log artifacts in conversation; raw private data not committed"
     },
     "next_mission": {
-      "id": "GF_SELF_UPDATER_STAGE3_ISOLATED_PENDING_GATES",
-      "status": "stage3_completed_isolated_with_open_gates",
-      "scope": "tuf_clock_durability_zip_static_pe_runtime_licenses_authenticated_ipc_real_probe_lifecycle",
+      "id": "GF_SELF_UPDATER_STAGE4_ISOLATED_VERIFIED_GATE_BOUNDARIES",
+      "status": "completed_isolated_with_verified_boundaries_and_open_operational_gates",
+      "scope": "durability_antireplay_clock_streamed_packages_authenticode_context_lifecycle_bootstrap_preparation",
       "no_repeated_physical_test_without_product_change": true,
       "stage0": {
         "date": "2026-10-28",
@@ -2018,6 +2018,83 @@
           "production_bootstrap_custody"
         ],
         "next_stage": 4,
+        "next_stage_started": false
+      },
+      "stage4": {
+        "date": "2026-10-28",
+        "timezone": "America/Fortaleza",
+        "entry_head": "9dd892259af9297172818d9c3112f3df0721b328",
+        "validated_code_commit": "dc7ee0a1aa65be20c660c1e0e7527d4e1c05cec4",
+        "status": "completed_isolated_with_verified_boundaries_and_open_operational_gates",
+        "contract": "gf-self-update/1",
+        "report": "docs/WORK-AUTOATUALIZADOR-ETAPA4.md",
+        "evidence": "docs/evidencias/autoatualizador-etapa4.json",
+        "windows_results": "docs/evidencias/autoatualizador-etapa4-windows.json",
+        "linux_results": "docs/evidencias/autoatualizador-etapa4-linux.json",
+        "prior_runs": "docs/evidencias/autoatualizador-etapa4-rodadas.json",
+        "windows_passed": 46,
+        "windows_total": 46,
+        "linux_passed": 38,
+        "linux_total": 38,
+        "distinct_cases": 46,
+        "windows_ci": {
+          "run_id": 40769700594,
+          "run_number": 2,
+          "attempt": 1,
+          "job_id": 123103247820,
+          "conclusion": "success",
+          "artifacts": 0
+        },
+        "earlier_ci_failures": [
+          40769018174
+        ],
+        "automatic_retries": 0,
+        "full_inert_probe_package": {
+          "kind": "full_inert_package",
+          "files": 274,
+          "expanded_bytes": 123062971,
+          "zip_bytes": 63940273,
+          "zip_sha256": "fdf138d75d8bac135f95c1844d5bd92dcd486c4b010681ec3c953c22f755d560",
+          "gf_package": false
+        },
+        "authenticode": {
+          "kind": "signed_sdk_authenticode",
+          "clean_status_hex": "00000000",
+          "tampered_status_hex": "80096010",
+          "windows_trust_only": true,
+          "gf_publisher_approved": false,
+          "trust_store_modified": false
+        },
+        "ipc_context": {
+          "kind": "ipc_context_capabilities",
+          "elevated": true,
+          "wts_enumerated": true,
+          "visible_session_count": 4,
+          "non_elevated_positive_executed": false,
+          "foreign_session_handshake_executed": false,
+          "accounts_or_tokens_created": false
+        },
+        "product_compile_items": 142,
+        "prototype_items_in_product": 0,
+        "product_code_changed": false,
+        "new_product_builds": 0,
+        "product_integration_started": false,
+        "physical_tests_repeated": 0,
+        "private_channel_changed": false,
+        "publication_performed": false,
+        "production_keys_created": false,
+        "bootstrap_installed": false,
+        "open_gates": [
+          "physical_power_loss_storage_and_whole_state_restore_freshness",
+          "supported_review_and_adoption_of_clock_experiment",
+          "authenticated_full_GF_package_and_signed_target_to_state_binding",
+          "GF_publisher_policy_and_revocation_when_required",
+          "non_elevated_positive_and_foreign_session_user_IPC",
+          "operational_GF_lifecycle_and_all_file_pinning",
+          "production_bootstrap_custody_ceremony",
+          "global_validation_deadline_and_blocking_IO_cancellation"
+        ],
+        "next_stage": 5,
         "next_stage_started": false
       }
     }

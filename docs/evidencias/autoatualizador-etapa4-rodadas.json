@@ -1,0 +1,336 @@
+{
+  "schema": 1,
+  "stage": 4,
+  "earlier_runs": [
+    {
+      "run_id": 40769018174,
+      "run_number": 1,
+      "attempt": 1,
+      "head_sha": "4663f9fcb2687bbdba7489fb3995705f466f44bb",
+      "job_id": 123100835609,
+      "conclusion": "failure",
+      "passed": 39,
+      "total": 40,
+      "failed": 1,
+      "not_executed": [
+        "U4-LIFE-normal",
+        "U4-LIFE-wrong-nonce",
+        "U4-LIFE-early-exit",
+        "U4-LIFE-DEFER"
+      ],
+      "reason": "U4_ZIP_FORMAT: Deflate speed hints were rejected; Linux diagnostic reproduced method=8, flags=6, version=20, extra=0, comment=0.",
+      "fix": "New Stage4 profile allows only bits 1/2 with method 8; encryption, descriptors and reserved flags remain refused. Added positive Deflate-hint and negative encryption tests.",
+      "report": {
+        "schema": 1,
+        "stage": 4,
+        "contract": "gf-self-update/1",
+        "fixture_only": true,
+        "package_installable": false,
+        "product_built": false,
+        "product_executed": false,
+        "runtime": ".NET 10.0.14",
+        "os": "Microsoft Windows 10.0.20348",
+        "total": 40,
+        "passed": 39,
+        "failed": 1,
+        "tests": [
+          {
+            "id": "U4-CLOCK-01",
+            "description": "Frozen TUF validation and monotonic commit deadline use separate clocks",
+            "status": "passed"
+          },
+          {
+            "id": "U4-CLOCK-02",
+            "description": "Wall-clock rollback after TUF validation still blocks commit",
+            "status": "passed"
+          },
+          {
+            "id": "U4-CLOCK-03",
+            "description": "Whole-state rollback remains indistinguishable to a local-only clock",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-01",
+            "description": "Streaming reader exceeds the old memory-fixture limit with bounded buffers",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-path-0",
+            "description": "Streaming preflight refuses ../escape.txt",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-path-1",
+            "description": "Streaming preflight refuses a:b",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-path-2",
+            "description": "Streaming preflight refuses NUL.txt",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-path-3",
+            "description": "Streaming preflight refuses a/../x",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-path-4",
+            "description": "Streaming preflight refuses a\\x",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-02",
+            "description": "File/directory namespace collision is refused before writes",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-03",
+            "description": "Actual CRC is checked independently of central/local agreement",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-04",
+            "description": "Cancellation precedes output creation",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-05",
+            "description": "2049 entries are refused at the header, not after extraction",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-06",
+            "description": "A file over 256 MiB is refused without allocating its advertised size",
+            "status": "passed"
+          },
+          {
+            "id": "U4-ZIP-07",
+            "description": "ASCII case collisions are refused before writes",
+            "status": "passed"
+          },
+          {
+            "id": "U4-STATE-01",
+            "description": "Recovery retains the approved floor while the selected fixture returns to its exact predecessor",
+            "status": "passed"
+          },
+          {
+            "id": "U4-STATE-02",
+            "description": "Complete ledger restoration is an explicit antireplay counterexample",
+            "status": "passed"
+          },
+          {
+            "id": "U4-PACKAGE-01",
+            "description": "Full real inert runtime bundle is streamed to new NTFS staging and statically inspected",
+            "status": "failed",
+            "error": "GfUpdaterFixture.Rejected: U4_ZIP_FORMAT\r\n   at GfUpdaterFixture.StrictMetadata.Require(Boolean condition, String code) in D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\src\\StrictMetadata.cs.txt:line 19\r\n   at GfUpdaterFixture.StreamPackage.Headers(Stream s, CancellationToken token) in D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage4\\src\\StreamPackage.cs.txt:line 35\r\n   at GfUpdaterFixture.StreamPackage.ExtractInert(String sandbox, String archive, String sha, Dictionary`2 recipe, CancellationToken token) in D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage4\\src\\StreamPackage.cs.txt:line 84\r\n   at GfUpdaterFixture.Stage4Tests.<>c__DisplayClass14_0.<Windows>b__5() in D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage4\\src\\Stage4Tests.cs.txt:line 78\r\n   at GfUpdaterFixture.Stage4Tests.Sync(Action a) in D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage4\\src\\Stage4Tests.cs.txt:line 16\r\n   at GfUpdaterFixture.Stage4Tests.<>c__DisplayClass14_0.<Windows>b__4() in D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage4\\src\\Stage4Tests.cs.txt:line 77\r\n   at GfUpdaterFixture.Stage4Tests.Test(String id, String description, Func`1 action) in D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage4\\src\\Stage4Tests.cs.txt:line 15"
+          },
+          {
+            "id": "U4-AUTH-01",
+            "description": "Real unsigned probe is accepted only in explicit beta-unsigned fixture mode",
+            "status": "passed"
+          },
+          {
+            "id": "U4-AUTH-02",
+            "description": "SDK-signed host and a tampered copy receive real offline WinVerifyTrust verdicts",
+            "status": "passed"
+          },
+          {
+            "id": "U4-IPC-CONTEXT",
+            "description": "Read-only token/session capability inventory; elevated operation is refused before spawn",
+            "status": "passed"
+          },
+          {
+            "id": "U4-WITNESS-01",
+            "description": "Exact retained floor is fixture-only, never installable",
+            "status": "passed"
+          },
+          {
+            "id": "U4-WITNESS-02",
+            "description": "Missing independent freshness stops; no local reset",
+            "status": "passed"
+          },
+          {
+            "id": "U4-WITNESS-03",
+            "description": "Whole suffix restoration differs from independently retained floor",
+            "status": "passed"
+          },
+          {
+            "id": "U4-WITNESS-04",
+            "description": "Same sequence with another digest is not approved",
+            "status": "passed"
+          },
+          {
+            "id": "U4-WITNESS-05",
+            "description": "Stale witness response cannot satisfy a new challenge",
+            "status": "passed"
+          },
+          {
+            "id": "U4-WITNESS-06",
+            "description": "Other installation receipt cannot satisfy this installation",
+            "status": "passed"
+          },
+          {
+            "id": "U4-BOOT-01",
+            "description": "Pretrusted fixture root has two distinct Ed25519 signatures and separate role keys",
+            "status": "passed"
+          },
+          {
+            "id": "U4-BOOT-02",
+            "description": "No trust-on-first-use fingerprint from the imported archive",
+            "status": "passed"
+          },
+          {
+            "id": "U4-BOOT-03",
+            "description": "Replacement root cannot replace the incorporated anchor",
+            "status": "passed"
+          },
+          {
+            "id": "U4-BOOT-04",
+            "description": "Public deterministic test root is categorically refused in production mode",
+            "status": "passed"
+          },
+          {
+            "id": "U4-BOOT-05",
+            "description": "Repeated signer never becomes a quorum",
+            "status": "passed"
+          },
+          {
+            "id": "U4-BOOT-06",
+            "description": "Role key reuse is refused before a custody plan is considered",
+            "status": "passed"
+          },
+          {
+            "id": "U4-CUSTODY-01",
+            "description": "Preparation contains no provisioned root, custodian or production installation permission",
+            "status": "passed"
+          },
+          {
+            "id": "U4-GF-RECIPE-01",
+            "description": "Approved GF dependency validator accepts closed metadata model without building GF",
+            "status": "passed"
+          },
+          {
+            "id": "U4-GF-RECIPE-02",
+            "description": "Undeclared updater dependency is refused",
+            "status": "passed"
+          },
+          {
+            "id": "U4-GF-RECIPE-03",
+            "description": "Host-dependent runtime is refused",
+            "status": "passed"
+          },
+          {
+            "id": "U4-GF-RECIPE-04",
+            "description": "WinGet package version drift is refused",
+            "status": "passed"
+          },
+          {
+            "id": "U4-GF-PROFILE-01",
+            "description": "Local beta profile is accepted only without active endpoint",
+            "status": "passed"
+          },
+          {
+            "id": "U4-GF-PROFILE-02",
+            "description": "Endpoint in local metadata is refused",
+            "status": "passed"
+          }
+        ],
+        "observations": [
+          {
+            "kind": "clock_and_state_rollback_counterexample",
+            "local_only_detection": false,
+            "system_clock_changed": false
+          },
+          {
+            "kind": "complete_restore_counterexample",
+            "floor_before": 2,
+            "floor_after": 1,
+            "physical_power_loss": false
+          },
+          {
+            "kind": "unsigned_authenticode",
+            "certificate_table": false,
+            "status_hex": "800b0100",
+            "revocation": "offline-cache-only; online freshness not proved"
+          },
+          {
+            "kind": "signed_sdk_authenticode",
+            "clean_status_hex": "00000000",
+            "tampered_status_hex": "80096010",
+            "windows_trust_only": true,
+            "gf_publisher_approved": false,
+            "trust_store_modified": false
+          },
+          {
+            "kind": "ipc_context_capabilities",
+            "elevated": true,
+            "wts_enumerated": true,
+            "visible_session_count": 4,
+            "non_elevated_positive_executed": false,
+            "foreign_session_handshake_executed": false,
+            "accounts_or_tokens_created": false
+          },
+          {
+            "kind": "lifecycle_not_executed",
+            "reason": "static package gate failed"
+          },
+          {
+            "kind": "independent_floor_model",
+            "authenticated_witness_implemented": false,
+            "provisioned": false,
+            "power_cut_executed": false,
+            "production_gate": "blocked",
+            "local_same_user_rewrite_resistance": false
+          },
+          {
+            "kind": "bootstrap_dry_run",
+            "anchor": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "root": "public-test-only",
+            "production_keys_created": false,
+            "operational_custodians_enrolled": false,
+            "production_gate": "blocked"
+          },
+          {
+            "kind": "gf_recipe_scope",
+            "verifier_sha256": "2fd621801e2cc238611138a2d268932126a58fa703b173685330eded19b3b52a",
+            "original_verifier_unchanged": true,
+            "gf_binary_created": false,
+            "full_gf_package_validated": false,
+            "metadata_models_only": true
+          }
+        ],
+        "engine_counts": {
+          "dotnet": {
+            "total": 21,
+            "passed": 20,
+            "failed": 1
+          },
+          "python_models": {
+            "total": 19,
+            "passed": 19,
+            "failed": 0
+          }
+        },
+        "clock_experiment_provenance": {
+          "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+          "verified_files": 20,
+          "clock_sites_replaced": 7,
+          "expiry_boundaries_made_strict": 7,
+          "original_nuget_package_changed": false,
+          "production_ready": false
+        },
+        "isolation": {
+          "sdk": "10.0.402",
+          "restore_locked_mode": true,
+          "product_compile_items": 142,
+          "prototype_compile_items": 0,
+          "outputs_outside_repository": true,
+          "product_built": false
+        }
+      }
+    }
+  ],
+  "automatic_retries": 0,
+  "artifacts": 0
+}
