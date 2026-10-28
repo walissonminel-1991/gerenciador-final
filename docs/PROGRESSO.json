@@ -1461,7 +1461,17 @@
       "document_validation": "pass",
       "markdown_files_checked": 94,
       "relative_file_links_checked": 354,
-      "policy_package_recheck_after_docs": 47
+      "policy_package_recheck_after_docs": 47,
+      "audit_commit": "d1fee1eca87938e82d3e4253efce121b2cb1edba",
+      "saved_tree_check": {
+        "commit": "d1fee1eca87938e82d3e4253efce121b2cb1edba",
+        "blobs": 442,
+        "inherited_outside_scope_unchanged": 432,
+        "changed_markdown_json": 10,
+        "other_branch_tips_preserved": 100,
+        "issue48_open_unchanged": true,
+        "new_ci_runs": 0
+      }
     }
   }
 }

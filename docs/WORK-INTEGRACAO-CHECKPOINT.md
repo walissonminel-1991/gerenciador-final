@@ -29,7 +29,7 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Entrada da Etapa 5 | `d815d1a5348b3f24c29e5c133a45b081cb7f6958` |
 | Commit da organização | [`97715100d087f21cac2696e9af13d99c6b30cb2b`](https://github.com/walissonminel-1991/gerenciador-final/commit/97715100d087f21cac2696e9af13d99c6b30cb2b); fechamento posterior somente documental, HEAD final na PR #65; `[skip ci]`, sem nova build |
 | Entrada da Etapa 6 | `db67cde412db306c316e79c0761e8dafef4b3b34` |
-| Commit da auditoria | Conferir HEAD final da PR #65; `[skip ci]`, sem nova build |
+| Commit da auditoria | [`d1fee1eca87938e82d3e4253efce121b2cb1edba`](https://github.com/walissonminel-1991/gerenciador-final/commit/d1fee1eca87938e82d3e4253efce121b2cb1edba); fechamento posterior documental, HEAD final na PR #65; `[skip ci]`, sem nova build |
 | Defeitos | [GF6-001–GF6-004](WORK-INTEGRACAO-DEFEITOS.md); dois ALTOS / dois BAIXOS, sem correção |
 | Próxima etapa | **7 — Correções e regressões**, somente em nova sessão |
 
@@ -354,6 +354,19 @@ testes específicos/consultas do alvo excluído, reinvestigação COM, operaçã
 de drivers, PC, receptor/infraestrutura remota, transmissão, merge, release,
 deploy, pacote ou distribuição. AVG/proteções e flags no preservados.
 **Etapa 7 não iniciada.**
+
+## Salvamento e conferência — Etapa 6
+
+Auditoria e matriz salvas no commit `d1fee1eca87938e82d3e4253efce121b2cb1edba`, filho único da entrada.
+Árvore relida no GitHub: **442 blobs**, **432 herdados fora do escopo intactos**,
+somente os dez Markdown/JSON previstos, com hashes/modes conferidos. As outras
+100 branches foram preservadas, incluindo main e todas as fontes fixadas.
+PR #65 aberta/Draft, base #60 preservada, Issue #48 aberta e sem edição;
+zero run no commit documental. PR #40 foi reconferida aberta/Draft no mesmo SHA.
+
+Este fechamento acrescenta apenas SHA e recibo de conferência a checkpoint,
+matriz, PROGRESSO e recibo JSON. Conferir HEAD final na PR #65; não é nova
+build aprovada ou correção de produto. **Parada antes da Etapa 7.**
 
 ## Retomada obrigatória
 

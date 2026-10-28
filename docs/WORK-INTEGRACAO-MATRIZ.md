@@ -8,7 +8,8 @@ Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
 **Etapa 6 CONCLUÍDA no escopo auditado — dois ALTOS locais e dois BAIXOS abertos.**
 BETA LOCAL não preparada; conectada/pública bloqueada. Etapa 7 não iniciada.
-Entrada da Etapa 6: `db67cde412db306c316e79c0761e8dafef4b3b34`; HEAD final documental na PR #65.
+Entrada da Etapa 6: `db67cde412db306c316e79c0761e8dafef4b3b34`.
+Commit da auditoria: `d1fee1eca87938e82d3e4253efce121b2cb1edba`; fechamento posterior documental, HEAD final na PR #65.
 Entrada da Etapa 5: `d815d1a5348b3f24c29e5c133a45b081cb7f6958`.
 Commit da organização: `97715100d087f21cac2696e9af13d99c6b30cb2b`; fechamento posterior documental, HEAD final na PR #65.
 Commit da avaliação: `a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`; fechamento posterior somente documental, HEAD final na PR #65.
@@ -209,6 +210,12 @@ Somente dez Markdown/JSON; zero correção/teste novo/build/pacote. Históricos,
 candidate/beta, 42 estados e 27/42 preservados. D01/D02 sem execução. Matriz
 de defeitos fixa localização, reprodução, impacto, evidência e recomendação.
 **Parada antes da Etapa 7.**
+
+Salvamento da auditoria conferido no SHA `d1fee1eca87938e82d3e4253efce121b2cb1edba`:
+442 blobs, 432 herdados fora do escopo intactos, dez Markdown/JSON previstos,
+100 outras branches preservadas, PR #65 aberta/Draft e Issue #48 aberta sem
+edição. Nenhum run novo. Recibo posterior documental; quatro achados continuam
+abertos, sem correção ou liberação. **Etapa 7 não iniciada.**
 
 ## Bloqueios preservados
 

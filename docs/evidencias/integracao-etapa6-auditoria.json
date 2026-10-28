@@ -527,7 +527,9 @@
   "connected_beta_released": false,
   "documentary_commit": {
     "skip_ci": true,
-    "head_location": "Conferir HEAD final da PR65; nao e nova build aprovada."
+    "head_location": "Conferir HEAD final da PR65; nao e nova build aprovada.",
+    "audit_commit": "d1fee1eca87938e82d3e4253efce121b2cb1edba",
+    "followup": "Fechamento posterior somente checkpoint/matriz/PROGRESSO/recibo; conferir HEAD final da PR65."
   },
   "next_stage": 7,
   "stage7_started": false,
@@ -564,5 +566,28 @@
       "same_cases_not_added_to_coverage": true,
       "log_sha256": "099d874b21d984a08d86eec04e7651eebcfa94b2c4bebe1e6ef71f44b430f5a0"
     }
+  },
+  "remote_verification": {
+    "commit": "d1fee1eca87938e82d3e4253efce121b2cb1edba",
+    "tree": "9c1a10233a2c5c3ffa3e1ed4b01d12307e2913eb",
+    "blobs": 442,
+    "inherited_outside_scope_unchanged": 432,
+    "changed_files": [
+      "README.md",
+      "docs/ORGANIZACAO-REPOSITORIO.md",
+      "docs/PROGRESSO.json",
+      "docs/ROADMAP.md",
+      "docs/TESTES.md",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+      "docs/WORK-INTEGRACAO-MATRIZ.md",
+      "docs/WORK-INTEGRACAO-DEFEITOS.md",
+      "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "docs/evidencias/integracao-etapa6-auditoria.json"
+    ],
+    "other_branch_tips_preserved": 100,
+    "pr65_open_draft": true,
+    "base_preserved": true,
+    "issue48_open_unchanged": true,
+    "new_ci_runs": 0
   }
 }
