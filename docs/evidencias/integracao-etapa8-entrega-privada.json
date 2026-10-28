@@ -1,0 +1,225 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "stage": 8,
+  "session": "private_delivery_resolution",
+  "date": "2026-10-28",
+  "timezone": "America/Sao_Paulo",
+  "status": "blocked_specific_authorizations_and_windows_execution",
+  "decision": "BLOQUEADA",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "pr": 65,
+  "pr_open": true,
+  "pr_draft": true,
+  "entry_commit": "0facf42518f91c60ea9a9055de5ab81683c9d63d",
+  "entry_tree": "423f540745eb767996347db087b30539211dd7ed",
+  "entry_blobs": 451,
+  "validated_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+  "validated_tree": "e29acb3619b85050a4cf5becaf81bfa3fdda0bd2",
+  "version": "5.13.11.66",
+  "candidate_label": "BETA LOCAL TESTE — NÃO HOMOLOGADA",
+  "historical_ci_build_commit": "384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+  "post_code_documentary_delta": [
+    "README.md",
+    "docs/ACTIONS-ATUAIS-E-HISTORICAS.md",
+    "docs/ORGANIZACAO-REPOSITORIO.md",
+    "docs/PROGRESSO.json",
+    "docs/ROADMAP.md",
+    "docs/TESTES.md",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-DEFEITOS.md",
+    "docs/WORK-INTEGRACAO-ETAPA7-CORRECOES.md",
+    "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+    "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/evidencias/integracao-etapa7-correcoes.json",
+    "docs/evidencias/integracao-etapa8-preparacao.json",
+    "docs/evidencias/integracao-etapa9-verificacao-entrada.json"
+  ],
+  "functional_changes_from_validated_source": [],
+  "ci_reconfirmed": [
+    {
+      "id": 40675784213,
+      "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213"
+    },
+    {
+      "id": 40675784155,
+      "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155"
+    }
+  ],
+  "public_gate_preserved": {
+    "workflow": ".github/workflows/build-windows.yml",
+    "beta_upload": "manifest_only",
+    "binary_upload_condition": "beta != true",
+    "requires_owner_approval": true,
+    "changed": false
+  },
+  "actual_package": {
+    "created": false,
+    "available": false,
+    "delivered": false,
+    "name": null,
+    "sha256": null,
+    "private_url": null,
+    "full_bytes_available": false,
+    "new_build_id": null
+  },
+  "manifest_only_artifact": {
+    "id": 12811032013,
+    "digest": "sha256:50b7a8c4d8bc15a826ebe2d54c7ada8f291d6cd2dbd19b8f805572f962c4c35c",
+    "expired": false,
+    "metadata_reconfirmed": true,
+    "downloaded_this_session": false,
+    "executable_package": false
+  },
+  "capability_check": {
+    "os": "Linux",
+    "architecture": "x86_64",
+    "dotnet": false,
+    "powershell": false,
+    "docker": false,
+    "qemu": false,
+    "wine": false,
+    "kvm": false,
+    "additional_windows_builder_found_in_plugin_search": false,
+    "plugin_search_exhaustive": false,
+    "github_repository_creation_tool_exposed": false,
+    "github_workflow_dispatch_tool_exposed": false,
+    "browser_fallback_used": false
+  },
+  "channel_discovery": {
+    "query": "user:walissonminel-1991 gerenciador",
+    "results": 2,
+    "public_product": 1,
+    "private_different_purpose": 1,
+    "private_content_read": false,
+    "private_repository_modified": false,
+    "existing_private_binary_delivery_channel_verified": false,
+    "private_resource_names_omitted_from_public_receipt": true
+  },
+  "proposal": {
+    "id": "P8-ENTREGA-01",
+    "document": "docs/WORK-INTEGRACAO-ETAPA8-ENTREGA-PRIVADA-PROPOSTA.md",
+    "proposed_private_repository": "walissonminel-1991/gf-beta-local-entrega",
+    "repository_created": false,
+    "workflow_installed": false,
+    "workflow_dispatches": 0,
+    "build_environment": "GitHub-hosted windows-2022 x64; disposable VM",
+    "independent_verifier": "Separate ubuntu-24.04 job, no binary execution",
+    "retention_days": 7,
+    "only_existing_included_quota": true,
+    "additional_paid_usage_authorized": false,
+    "requires_initial_provisioning_capability": true,
+    "authorizations": [
+      {
+        "id": "A1",
+        "scope": "Create exact proposed private delivery repository; no grants to other people/apps",
+        "state": "NOT_GRANTED"
+      },
+      {
+        "id": "A2",
+        "scope": "Install named private manual workflow and run once on approved source, included quota only",
+        "state": "NOT_GRANTED"
+      },
+      {
+        "id": "A3",
+        "scope": "Upload executable ZIP and receipts only as private artifact accessible to maintainer",
+        "state": "NOT_GRANTED"
+      }
+    ]
+  },
+  "blockers": [
+    "B8-EXEC-01",
+    "B8-CANAL-01",
+    "B8-AUTH-01",
+    "B8-AUTH-02",
+    "B8-AUTH-03",
+    "B8-BYTES-01"
+  ],
+  "read_documents": [
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+    ".github/workflows/build-windows.yml",
+    "GerenciadorAplicativos.csproj",
+    "BetaTelemetryPolicy.props",
+    "scripts/verificar_pacote.py",
+    "scripts/Compilar-Beta-Conectada.ps1",
+    "TestesManifesto/Testar-Ativacao.ps1"
+  ],
+  "new_product_tests": 0,
+  "new_product_builds": 0,
+  "new_ci_runs": 0,
+  "new_functional_defects": [],
+  "stage1_to7_repeated": false,
+  "stage9_started": false,
+  "physical_tests_executed": false,
+  "local_beta_prepared": false,
+  "overall_mission_complete": false,
+  "next_stage": 8,
+  "restrictions": {
+    "no_new_repositories_or_access_grants": true,
+    "no_publication_workflow_changes": true,
+    "no_binary_transfer": true,
+    "no_main_or_original_branch_changes": true,
+    "no_history_deletions_or_rewrites": true,
+    "no_merge_release_deploy": true,
+    "no_driver_mutations": true,
+    "winget_com_optional_consultative": true,
+    "vlc_inventory_only_no_specific_tests_or_queries": true,
+    "avg_and_windows_permissions_unchanged": true,
+    "no_remote_diagnostics_or_connected_activation": true,
+    "local_reports_preserved": true,
+    "pilot_enabled": "no",
+    "github_export_enabled": "no",
+    "roadmap_done": 27,
+    "roadmap_total": 42
+  },
+  "official_references": [
+    "https://docs.github.com/en/actions/how-tos/manage-runners/github-hosted-runners/use-github-hosted-runners",
+    "https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job",
+    "https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts"
+  ],
+  "changed_files": [
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+    "docs/PROGRESSO.json",
+    "docs/WORK-INTEGRACAO-ETAPA8-ENTREGA-PRIVADA-PROPOSTA.md",
+    "docs/evidencias/integracao-etapa8-entrega-privada.json"
+  ],
+  "proposal_document_sha256": "c2d98b582712b5fab7bc645fb6571c6528a52757a97d5337c9ba3531ddd96231",
+  "documentary_validation": {
+    "entry_blobs_verified": 451,
+    "entry_unchanged_except_expected_documentary_edits": true,
+    "new_files": 2,
+    "changed_files": 6,
+    "no_removed_files": true,
+    "progress_roots_except_integration_final_preserved": true,
+    "prior_integration_fields_preserved": true,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "new_product_tests": 0,
+    "power_shell_execution_validation": false,
+    "proposal_is_not_active_workflow": true,
+    "metadata_contract_check": {
+      "passed": true,
+      "command": "python scripts/verificar_pacote.py . --metadata",
+      "candidate": "5.13.11.66 TESTE",
+      "candidate_status": "pending",
+      "inherited_approved_version": "5.13.11.65 TESTE",
+      "inherited_source": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
+      "historical_only": true,
+      "does_not_replace_integration_ci": true
+    }
+  }
+}

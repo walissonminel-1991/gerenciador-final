@@ -7,7 +7,7 @@ fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
 **Etapa 8 BLOQUEADA — entrega executável privada ainda indisponível.**
-Retomada da Etapa 9 solicitada: somente pré-requisitos conferidos; nenhum resultado manual fornecido. Homologação física NÃO INICIADA; F9-00–F9-11 NÃO EXECUTADO.
+Sessão atual: resolução da entrega da Etapa 8, proposta P8-ENTREGA-01 aguardando A1/A2/A3 e capacidade Windows. A conferência anterior da Etapa 9 é histórica; homologação física NÃO INICIADA, F9-00–F9-11 NÃO EXECUTADO.
 Fonte/perfil local reconferidos; Etapa 7 permanece concluída e não foi repetida.
 Fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, CIs 40675784213/40675784155 reconferidas success; próxima ação é resolver entrega dentro de 8.
 BETA LOCAL sem pacote entregue; conectada/pública bloqueada. Etapa 9 não iniciada.
@@ -370,3 +370,39 @@ Etapa 8 e receber resultados manuais identificados por pacote/build/hash.
 Nenhuma operação em PC, mudança de AVG/permissões, transmissão, gestão de
 drivers, consulta do produto, merge/Release/deploy/distribuição ou liberação
 conectada/pública. **Parada; homologação física não iniciada.**
+
+## Etapa 8 — resolução da entrega: proposta pendente de decisão
+
+28/10/2026, America/Sao_Paulo. [Proposta exata P8-ENTREGA-01](WORK-INTEGRACAO-ETAPA8-ENTREGA-PRIVADA-PROPOSTA.md)
+e [recibo](evidencias/integracao-etapa8-entrega-privada.json).
+Entrada 0facf42518f91c60ea9a9055de5ab81683c9d63d, 451 blobs conferidos;
+quinze documentos desde a fonte aprovada, sem alteração executável.
+
+| ID | Constatação / ação proposta | Estado nesta sessão |
+| --- | --- | --- |
+| P8D-01 | Fonte 6df95fdd; Windows 40675784213 e externa 40675784155 success/tentativa 1 | RECONFIRMADO; sem nova CI |
+| P8D-02 | Workflow público mantém manifestos BETA e gate de upload executável | PRESERVADO; reexecução não produz canal privado |
+| P8D-03 | Work Linux sem ferramenta Windows/virtualização; busca de plugins sem builder adequado | BLOQUEIO DE CAPACIDADE; não resolvido por consentimento sozinho |
+| P8D-04 | Nenhum canal privado de binários autorizado/verificado entre as referências consultadas | PENDENTE; não reutilizar repositório privado de outra finalidade |
+| P8D-A1 | Criar walissonminel-1991/gf-beta-local-entrega privado, sem terceiros | PROPOSTO; NÃO AUTORIZADO/NÃO CRIADO |
+| P8D-A2 | Workflow privado manual, Windows x64 descartável e verificação Linux; cota incluída, uma execução | PROPOSTO; NÃO AUTORIZADO/NÃO INSTALADO/NÃO ACIONADO |
+| P8D-A3 | Transferir ZIP/recibos para artefato privado nominal, sete dias | PROPOSTO; NÃO AUTORIZADO/NÃO TRANSFERIDO |
+| P8D-05 | ZIP real, hash próprio e acesso autenticado comprovado | INDISPONÍVEIS; não inferir dos manifestos |
+| P8D-06 | AVG/assinatura e homologação física | PENDENTES; nenhuma aprovação nova |
+| P8D-07 | Etapa 9/F9-00–F9-11 | NÃO INICIADA / NÃO EXECUTADO |
+
+A proposta especifica fonte/SDK/perfil, comandos de publish/inspeção já
+aprovados, manifesto Win32, contrato fechado, licenças/conteúdo, checksums,
+ZIP final e revalidação independente. É documento de revisão, não workflow
+ativo nem script executado. O bloqueio decorre de capacidade/canal e da
+instrução explícita atual de exigir autorização por ação, sem reprovação
+automática ou aprovação de infraestrutura presumida.
+
+Alterados somente seis Markdown/JSON de continuidade; só integration_final
+recebe registro novo no PROGRESSO. Históricos/42 estados/candidate/beta
+preservados, **27/42**. Código/testes/workflows/configuração e arquivos
+publicados continuam iguais aos da fonte de CI. Zero build/suíte/CI novos;
+sem alteração de proteções/AVG, gestão de drivers, envio, infraestrutura,
+PC pessoal, recursos privados, acessos, merge/Release/deploy ou distribuição.
+Próxima ação dentro da Etapa 8: decisão A1/A2/A3 e ambiente/capacidade reais,
+antes de qualquer implantação. **Parada; Etapa 9 não iniciada.**

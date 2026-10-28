@@ -1629,6 +1629,59 @@
         "roadmap_done": 27,
         "roadmap_total": 42
       }
+    },
+    "stage8_delivery_resolution": {
+      "date": "2026-10-28",
+      "timezone": "America/Sao_Paulo",
+      "status": "blocked_specific_authorizations_and_windows_execution",
+      "entry_commit": "0facf42518f91c60ea9a9055de5ab81683c9d63d",
+      "validated_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "ci_reconfirmed": [
+        {
+          "id": 40675784213,
+          "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+          "status": "completed",
+          "conclusion": "success",
+          "attempt": 1,
+          "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213"
+        },
+        {
+          "id": 40675784155,
+          "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+          "status": "completed",
+          "conclusion": "success",
+          "attempt": 1,
+          "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155"
+        }
+      ],
+      "actual_package": {
+        "created": false,
+        "available": false,
+        "delivered": false,
+        "name": null,
+        "sha256": null,
+        "private_url": null,
+        "full_bytes_available": false,
+        "new_build_id": null
+      },
+      "stage9_started": false,
+      "new_product_tests": 0,
+      "new_product_builds": 0,
+      "new_ci_runs": 0,
+      "proposal": "docs/WORK-INTEGRACAO-ETAPA8-ENTREGA-PRIVADA-PROPOSTA.md",
+      "evidence": "docs/evidencias/integracao-etapa8-entrega-privada.json",
+      "proposal_id": "P8-ENTREGA-01",
+      "authorizations_granted": [],
+      "authorizations_pending": [
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "resources_created": false,
+      "workflow_installed": false,
+      "access_granted": false,
+      "executable_transferred": false,
+      "next_stage": 8
     }
   }
 }

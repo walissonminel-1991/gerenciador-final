@@ -196,3 +196,28 @@ verificado e autorização manual. Nenhum teste físico iniciado ou solicitado.
 Commits desta sessão são documentais; a CI citada continua pertencendo ao SHA
 fonte aprovado, sem transferir aprovação para uma build inexistente.
 **Encerrar aqui; não iniciar Etapa 9 nem liberar BETA conectada/pública.**
+
+## H. Retomada para resolver a entrega — decisão específica pendente
+
+28/10/2026, America/Sao_Paulo. Esta seção complementa o registro anterior,
+sem substituir suas evidências. HEAD de entrada
+0facf42518f91c60ea9a9055de5ab81683c9d63d; fonte 6df95fdd e dois runs
+40675784213/40675784155 reconferidos success/tentativa 1. Nenhuma mudança
+funcional desde a fonte de CI; quinze documentos de continuidade.
+
+[Proposta P8-ENTREGA-01, ações A1/A2/A3 e procedimento verificável](WORK-INTEGRACAO-ETAPA8-ENTREGA-PRIVADA-PROPOSTA.md) ·
+[Recibo da retomada](evidencias/integracao-etapa8-entrega-privada.json).
+
+A proposta define recurso privado separado, runner Windows x64 descartável,
+verificação independente, versão/fonte/SDK/perfil fixados, manifesto/licenças/
+conteúdo, hash do ZIP real e entrega autenticada exclusiva. Mantém intacto o
+workflow público. Repositório privado de outra finalidade não foi reutilizado.
+Nenhum recurso privado/workflow novo foi criado, acesso concedido ou binário
+transferido; essas ações dependem de autorização específica conforme o pedido
+atual. Não há ferramenta Windows acessível nesta sessão, e criação/acionamento
+não são expostos pelo conector. Aceite não comprova capacidade operacional.
+
+**Etapa 8 permanece BLOQUEADA; Etapa 9 NÃO INICIADA.** Pacote executável,
+SHA-256 e URL privados continuam indisponíveis. Não houve nova build/CI ou
+repetição das Etapas 1–7. O próximo passo é decidir A1/A2/A3 e confirmar o
+meio de implantação/acionamento, sem antecipar teste físico ou fluxo conectado.

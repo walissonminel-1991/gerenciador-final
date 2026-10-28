@@ -8,8 +8,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **Conferência de entrada para a Etapa 9 — homologação física NÃO INICIADA; entrega da Etapa 8 segue BLOQUEADA** |
-| Resultado | Fonte/build/CI reconferidos; pacote privado/SHA-256 ainda não comprovados. Nenhum resultado manual fornecido; F9-00–F9-11 NÃO EXECUTADO |
+| Etapa desta sessão | **8 — resolução da entrega privada; BLOQUEADA por ambiente/canal e autorizações específicas pendentes** |
+| Resultado | Proposta P8-ENTREGA-01 detalhada para decisão: repositório privado, workflow manual Windows e verificação independente. A1/A2/A3 não concedidas; sem pacote executável/SHA-256/link privado. Etapa 9 NÃO INICIADA |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
@@ -559,3 +559,55 @@ a entrega, retomar a Etapa 9 apenas para analisar os resultados fornecidos.
 Todos os bloqueios locais e permanentes preservados, AVG/proteções intactos,
 drivers desativados, flags no e roadmap **27/42**. BETA conectada/pública
 bloqueada. **Parada nesta conferência de entrada; Etapa 9 não iniciada.**
+
+## Etapa 8 — retomada para resolver a entrega privada
+
+28/10/2026, America/Sao_Paulo. Entrada `0facf42518f91c60ea9a9055de5ab81683c9d63d`,
+árvore 423f540745eb767996347db087b30539211dd7ed, PR #65 aberta/Draft.
+451 blobs da entrada conferidos por SHA Git; quinze diferenças documentais
+contra a fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, sem remoção ou
+mudança funcional. Windows 40675784213 e integridade 40675784155 reconferidas
+success/tentativa 1 na fonte exata; nenhuma nova CI/build/suíte de produto.
+Main 410d65e23546976db456337c71e4705f10217d36 e base
+2bc9f4228fd448445fbf181652e5af93005def20 reconferidas; não alteradas.
+
+[Proposta P8-ENTREGA-01](WORK-INTEGRACAO-ETAPA8-ENTREGA-PRIVADA-PROPOSTA.md) ·
+[Recibo desta retomada](evidencias/integracao-etapa8-entrega-privada.json).
+
+O workflow público continua conservando somente manifestos da BETA, e seu
+upload executável permanece condicionado a beta != true. Reexecutá-lo não
+resolve a entrega. Work Linux sem ferramentas Windows/virtualização; busca
+de plugins não expôs outro builder adequado. Busca restrita de repositórios
+relacionados encontrou um privado de outra finalidade, sem canal de binários
+autorizado. Nenhum conteúdo privado foi lido ou recurso reutilizado.
+
+A proposta nomeia walissonminel-1991/gf-beta-local-entrega, privado,
+workflow_dispatch exclusivo do mantenedor, runner windows-2022 x64/SDK
+10.0.402, perfil local e verificadores existentes, mais verificação Linux
+do ZIP real. Só cota incluída disponível, sem cobrança adicional; ZIP e
+recibos em artefato privado por sete dias, sem terceiros ou novos acessos.
+Criar o repositório (A1), instalar/acionar o workflow privado (A2) e transferir
+o binário (A3) exigem os aceites separados definidos na proposta. Nenhum
+foi concedido; o pedido atual exige essa autorização explícita por ação.
+A implantação/acionamento também dependem de capacidade hoje não exposta
+pelo conector; aprovação não cria um ambiente ou ferramenta automaticamente.
+
+**Etapa 8 BLOQUEADA.** Pacote/nome efetivo/SHA-256/URL privada indisponíveis;
+nenhum executável criado, transferido ou entregue. O digest 50b7a8c4 dos
+manifestos não é hash de pacote executável. Próxima ação: decisão A1/A2/A3
+e confirmação da capacidade de provisionar/acionar o ambiente antes de
+executar a proposta. Alternativa com VM/canal já existentes exige identificação
+e autorização nominal; não reaproveitar destino de outra finalidade.
+
+Somente checkpoint, matriz, relatório 8 e integration_final no PROGRESSO,
+mais proposta/recibo novos. Históricos, candidate/beta e todos os 42 estados
+preservados; **27/42**. Aprovações conectadas, workflow público, código,
+testes, políticas e inputs publicados intactos. Nenhum grant, repositório,
+workflow ativo, Release/deploy, transmissão, operação em PC ou gestão de
+driver. AVG e proteções preservados, COM consultivo, exclusão permanente,
+diagnóstico remoto bloqueado e flags no. Etapas 1–7 não repetidas.
+
+O commit de salvamento será o que adiciona esta proposta/recibo na branch
+#65; a CI permanece pertencendo ao SHA de código acima. Manter o registro
+anterior de solicitação da Etapa 9 como histórico, sem promover a etapa.
+**Parar na Etapa 8. Etapa 9 NÃO INICIADA; BETA conectada/pública bloqueada.**
