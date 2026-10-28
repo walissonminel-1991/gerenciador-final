@@ -1196,13 +1196,13 @@
   },
   "integration_final": {
     "mission": "WORK-INTEGRACAO-FINAL",
-    "stage": 6,
+    "stage": 7,
     "date": "2026-10-27",
     "timezone": "America/Sao_Paulo",
     "branch": "work-integracao-final-20261027",
     "draft_pr": 65,
     "version": "5.13.11.66 TESTE",
-    "status": "audit_complete_local_blockers_open",
+    "status": "stage7_reproduction_in_progress",
     "entry_commit": "275cfc396d22c8aff933a3879f0702d20596a2bc",
     "origins": {
       "base_pr60": "2bc9f4228fd448445fbf181652e5af93005def20",
@@ -1210,7 +1210,7 @@
       "beta_accumulated_pr62": "e530d724b7322963c8795b005f13ae6948a73e43"
     },
     "code_commit": "06d7dce0bb47944f1efd18a10785fa77f5f0c8f7",
-    "ci_status": "success",
+    "ci_status": "pending",
     "ci_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820",
     "artifact": null,
     "inherited_candidate_metadata_historical": true,
@@ -1472,6 +1472,14 @@
         "issue48_open_unchanged": true,
         "new_ci_runs": 0
       }
+    },
+    "stage7_entry_commit": "89098a6669fadacd59e31fd8507bba9055a17a14",
+    "stage7_corrections": {
+      "status": "reproduction_in_progress",
+      "corrections_validated": false,
+      "stage8_started": false,
+      "new_local_profile_tests": 12,
+      "real_network_in_new_tests": 0
     }
   }
 }

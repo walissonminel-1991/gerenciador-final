@@ -6,8 +6,8 @@ Commit da análise: `f000ca3227227f11d8412c9a3f87335ead80bd9d`;
 fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
-**Etapa 6 CONCLUÍDA no escopo auditado — dois ALTOS locais e dois BAIXOS abertos.**
-BETA LOCAL não preparada; conectada/pública bloqueada. Etapa 7 não iniciada.
+**Etapa 7 EM ANDAMENTO — reprodução isolada antes da correção.**
+BETA LOCAL não preparada; conectada/pública bloqueada. Etapa 8 não iniciada.
 Entrada da Etapa 6: `db67cde412db306c316e79c0761e8dafef4b3b34`.
 Commit da auditoria: `d1fee1eca87938e82d3e4253efce121b2cb1edba`; fechamento posterior documental, HEAD final na PR #65.
 Entrada da Etapa 5: `d815d1a5348b3f24c29e5c133a45b081cb7f6958`.
@@ -88,7 +88,7 @@ a homologação física/AVG, conectada ou à preparação da BETA LOCAL.
 | 4 | Avaliação da candidata | Concluída como avaliação; integração 1–4 encerrada tecnicamente | Preparação local e liberação conectada/pública continuam pendentes |
 | 5 | Organização segura do GitHub | Concluída no escopo documentado; inventários/índices atualizados | D01/D02 não executadas; dependem de autorização específica |
 | 6 | Auditoria geral | Concluída no escopo documentado, 14 eixos e quatro achados | Dois ALTOS locais e dois BAIXOS abertos; sem correção ou preparo BETA |
-| 7 | Correções e regressões | Não iniciada; próxima sessão | Priorizar GF6-001/GF6-002, testes antes/depois e CI Windows por SHA; parar antes da Etapa 8 |
+| 7 | Correções e regressões | Em andamento: reprodução isolada antes da correção | Priorizar GF6-001/GF6-002, testes antes/depois e CI Windows por SHA; parar antes da Etapa 8 |
 | 8 | Preparação BETA LOCAL | Não iniciada | Pacote privado/verificável permitido pelo contrato; nenhum avanço automático à Etapa 9 |
 | 9 | Homologação PC FORTE | Não executada; manual | Resultados do mantenedor, AVG ativo, sem presumir acesso ao PC |
 

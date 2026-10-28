@@ -58,6 +58,8 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.402 # mesmo SDK exato de global.json; sem canal flutuante
+      - name: Reproduzir contratos da BETA LOCAL em isolamento
+        run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --beta-local
       - name: Compilar aplicacao
         shell: pwsh
         run: dotnet build GerenciadorAplicativos.csproj -c Release -p:RunAnalyzers=true

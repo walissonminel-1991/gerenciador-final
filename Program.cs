@@ -648,8 +648,11 @@ internal sealed partial class MainForm : Form
         catch (EntryPointNotFoundException) { }
     }
 
-    public MainForm(bool startServices = true, bool startInTray = false)
+    private readonly Action? _startupOnlineProbe;
+
+    public MainForm(bool startServices = true, bool startInTray = false, Action? startupOnlineProbe = null)
     {
+        _startupOnlineProbe = startupOnlineProbe;
         _updateOperations = new(DiagnosticTrace.Write, _reliability.RecordUpdate);
         _uninstallOperations = new(_reliability.RecordUninstall);
         FormClosed += (_, _) => _reliability.Dispose();
@@ -2502,7 +2505,8 @@ internal sealed partial class MainForm : Form
     {
         Log("Inicialização: consultando atualizações de aplicativos e Windows Update em segundo plano.");
         BeginBackgroundMemoryMonitoring();
-        _ = RunStaggeredStartupChecksAsync();
+        if (_startupOnlineProbe is not null) _startupOnlineProbe();
+        else _ = RunStaggeredStartupChecksAsync();
     }
 
     private async Task RunStaggeredStartupChecksAsync()

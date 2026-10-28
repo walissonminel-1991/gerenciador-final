@@ -8,8 +8,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **6 — Auditoria geral e busca de erros** |
-| Resultado | **AUDITORIA 6 CONCLUÍDA no escopo documentado**; dois ALTOS do cenário local e dois BAIXOS abertos, BETA LOCAL não preparada e conectada/pública bloqueada |
+| Etapa desta sessão | **7 — Correções e regressões (EM ANDAMENTO)** |
+| Resultado | **ETAPA 7 EM ANDAMENTO**; regressões isoladas adicionadas para demonstrar antes/depois. Nenhuma correção validada ainda; BETA LOCAL/conectada bloqueadas |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
@@ -367,6 +367,10 @@ zero run no commit documental. PR #40 foi reconferida aberta/Draft no mesmo SHA.
 Este fechamento acrescenta apenas SHA e recibo de conferência a checkpoint,
 matriz, PROGRESSO e recibo JSON. Conferir HEAD final na PR #65; não é nova
 build aprovada ou correção de produto. **Parada antes da Etapa 7.**
+
+## Etapa 7 — checkpoint de reprodução
+
+Entrada `89098a6669fadacd59e31fd8507bba9055a17a14`. Testes GF6-001/GF6-002 e GF6-004 com callbacks/HTTP fictícios e arquivos temporários; nenhum PC, fonte real ou receptor. Pequena injeção interna permite observar o caminho automático sem rede. CI Windows de reprodução será consultada por SHA; falha esperada dos contratos ainda não corrigidos. Retomar nesta Etapa 7 se houver interrupção; não iniciar 8. Preservados main/origens, Draft, flags no, AVG, exclusão permanente e drivers desativados.
 
 ## Retomada obrigatória
 
