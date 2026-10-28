@@ -6,8 +6,9 @@ Commit da análise: `f000ca3227227f11d8412c9a3f87335ead80bd9d`;
 fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
-**Etapa 5 CONCLUÍDA no escopo organizacional — integração 1–4 preservada.**
-BETA LOCAL não preparada; conectada/pública bloqueada. Etapa 6 não iniciada.
+**Etapa 6 CONCLUÍDA no escopo auditado — dois ALTOS locais e dois BAIXOS abertos.**
+BETA LOCAL não preparada; conectada/pública bloqueada. Etapa 7 não iniciada.
+Entrada da Etapa 6: `db67cde412db306c316e79c0761e8dafef4b3b34`; HEAD final documental na PR #65.
 Entrada da Etapa 5: `d815d1a5348b3f24c29e5c133a45b081cb7f6958`.
 Commit da organização: `97715100d087f21cac2696e9af13d99c6b30cb2b`; fechamento posterior documental, HEAD final na PR #65.
 Commit da avaliação: `a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`; fechamento posterior somente documental, HEAD final na PR #65.
@@ -23,6 +24,9 @@ SHA validado: `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`; principal 40604593820 
 [Recibo Etapa 4](evidencias/integracao-etapa4-avaliacao.json) ·
 [Organização Etapa 5](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md) ·
 [Recibo Etapa 5](evidencias/integracao-etapa5-organizacao.json) ·
+[Auditoria Etapa 6](WORK-INTEGRACAO-ETAPA6-AUDITORIA.md) ·
+[Matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) ·
+[Recibo Etapa 6](evidencias/integracao-etapa6-auditoria.json) ·
 [Índice canônico](ORGANIZACAO-REPOSITORIO.md) ·
 [Adendo 5–9](WORK-INTEGRACAO-ADENDO-BETA-LOCAL.md).
 
@@ -82,8 +86,8 @@ a homologação física/AVG, conectada ou à preparação da BETA LOCAL.
 | 3 | Regressões/CI da integração | Concluída tecnicamente; duas CIs aprovadas no SHA próprio | Evidências confirmadas na Etapa 4; sem nova execução |
 | 4 | Avaliação da candidata | Concluída como avaliação; integração 1–4 encerrada tecnicamente | Preparação local e liberação conectada/pública continuam pendentes |
 | 5 | Organização segura do GitHub | Concluída no escopo documentado; inventários/índices atualizados | D01/D02 não executadas; dependem de autorização específica |
-| 6 | Auditoria geral | Não iniciada; próxima sessão | Matriz de defeitos/evidências nos 14 eixos; parar antes da Etapa 7 |
-| 7 | Correções e regressões | Não iniciada | Críticos/altos resolvidos para o cenário, CI por SHA |
+| 6 | Auditoria geral | Concluída no escopo documentado, 14 eixos e quatro achados | Dois ALTOS locais e dois BAIXOS abertos; sem correção ou preparo BETA |
+| 7 | Correções e regressões | Não iniciada; próxima sessão | Priorizar GF6-001/GF6-002, testes antes/depois e CI Windows por SHA; parar antes da Etapa 8 |
 | 8 | Preparação BETA LOCAL | Não iniciada | Pacote privado/verificável permitido pelo contrato; nenhum avanço automático à Etapa 9 |
 | 9 | Homologação PC FORTE | Não executada; manual | Resultados do mantenedor, AVG ativo, sem presumir acesso ao PC |
 
@@ -150,7 +154,7 @@ Salvamento da Etapa 4 conferido no commit `a3b362d6b98ff9584eb44d7dd55e60ac36c79
 sete refs originais preservadas, PR aberta/Draft e nenhum run novo. Recibo
 posterior somente documental, sem alterar produto/configuração ou criar build.
 
-## Organização segura — Etapa 5 concluída
+## Organização segura — Etapa 5 concluída (registro histórico)
 
 | ID | Escopo | Evidência e decisão |
 | --- | --- | --- |
@@ -176,6 +180,35 @@ Salvamento da organização conferido no SHA `97715100d087f21cac2696e9af13d99c6b
 439 blobs, 429 herdados fora do escopo intactos, dez Markdown/JSON previstos,
 100 outras branches, 31 PRs abertas Draft e três Issues preservadas. Nenhum
 run novo. Recibo posterior somente documental; não é nova build aprovada.
+
+## Auditoria geral — Etapa 6 concluída
+
+Os 14 eixos estão no relatório, com distinção de inspeção, testes locais,
+CI Windows existente e validação física ausente. 439 blobs conferidos antes/
+depois dos testes; fonte funcional igual à CI 6b5b0e52, 14 documentos diferentes.
+
+| Evidência | Resultado / consequência |
+| --- | --- |
+| Python/guardrail | 47/47, 278 fontes examinadas; pacote/metadata e adversários |
+| Node isolado | 136/136, SQLite em memória/transporte fictício, sem operação real |
+| Formatos/sintaxe | 9 Python AST, 19 Node, 19 XML, 5 YAML, 4 TOML exemplo, 34 JSON; sem falha |
+| C#/Windows | Sem SDK/runtime local; duas CIs próprias reconferidas, sete jobs obrigatórios success e dois skipped condicionais no SHA validado |
+| GF6-001 / ALTO local | Abertura alcança consultas antes de ação explícita; barreira do perfil local pendente |
+| GF6-002 / ALTO local | Consentimento RemoteBeta válido pode manter gravação sem endpoint; fixture já demonstra o comportamento interno. Transporte bloqueado não prova desligamento de coleta |
+| GF6-003 / BAIXO | CS0649 do campo sem atribuição em GF_BETA, já conhecido |
+| GF6-004 / BAIXO | Versões de User-Agent fixas divergentes da .66; sem falha HTTP comprovada |
+| Issue #48 / inconclusivo físico | Fonte/fixtures sustentam mitigação técnica de escopo/leitura; caso físico antigo aberto, sem nova operação |
+
+Nenhum CRÍTICO/MÉDIO/EXTERNO demonstrado no escopo; isso não garante ausência
+universal. Não atribuir WUA a causa externa sem prova. A CI interna permanece
+aprovada em seus contratos; os dois ALTOS são incompatibilidades com o novo
+cenário local. Exigem tratamento e testes próprios antes de preparar/testar
+a BETA LOCAL. Auditoria não homologa AVG/assinatura/DPI/CPU/RAM físicos.
+
+Somente dez Markdown/JSON; zero correção/teste novo/build/pacote. Históricos,
+candidate/beta, 42 estados e 27/42 preservados. D01/D02 sem execução. Matriz
+de defeitos fixa localização, reprodução, impacto, evidência e recomendação.
+**Parada antes da Etapa 7.**
 
 ## Bloqueios preservados
 

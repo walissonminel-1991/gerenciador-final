@@ -1196,13 +1196,13 @@
   },
   "integration_final": {
     "mission": "WORK-INTEGRACAO-FINAL",
-    "stage": 5,
+    "stage": 6,
     "date": "2026-10-27",
     "timezone": "America/Sao_Paulo",
     "branch": "work-integracao-final-20261027",
     "draft_pr": 65,
     "version": "5.13.11.66 TESTE",
-    "status": "organization_complete_audit_pending_local_not_prepared",
+    "status": "audit_complete_local_blockers_open",
     "entry_commit": "275cfc396d22c8aff933a3879f0702d20596a2bc",
     "origins": {
       "base_pr60": "2bc9f4228fd448445fbf181652e5af93005def20",
@@ -1225,9 +1225,9 @@
     "distribution_approved": false,
     "roadmap_done": 27,
     "roadmap_total": 42,
-    "report": "docs/WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md",
-    "evidence": "docs/evidencias/integracao-etapa5-organizacao.json",
-    "next_stage": 6,
+    "report": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+    "evidence": "docs/evidencias/integracao-etapa6-auditoria.json",
+    "next_stage": 7,
     "stage3_entry_commit": "89ee12a8322c5872c61c3fd40030490407cbb173",
     "validated_commit": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
     "ci_merge_commit": "3bb5e7b44ccc7c362e32678afa9b99791d460211",
@@ -1406,6 +1406,62 @@
         "open_issues_preserved": 3,
         "new_ci_runs": 0
       }
+    },
+    "stage6_entry_commit": "db67cde412db306c316e79c0761e8dafef4b3b34",
+    "stage6_audit": {
+      "date": "2026-10-27",
+      "timezone": "America/Sao_Paulo",
+      "entry_commit": "db67cde412db306c316e79c0761e8dafef4b3b34",
+      "source_blobs_verified": 439,
+      "functional_source_matches_validated_commit": true,
+      "post_ci_document_delta": 14,
+      "axes_reviewed": 14,
+      "defect_matrix": "docs/WORK-INTEGRACAO-DEFEITOS.md",
+      "defect_ids": [
+        "GF6-001",
+        "GF6-002",
+        "GF6-003",
+        "GF6-004"
+      ],
+      "severity_counts": {
+        "CRÍTICO": 0,
+        "ALTO": 2,
+        "MÉDIO": 0,
+        "BAIXO": 2,
+        "EXTERNO": 0
+      },
+      "local_beta_blockers": [
+        "GF6-001",
+        "GF6-002"
+      ],
+      "python_tests_passed": 47,
+      "node_tests_passed": 136,
+      "static_source_files": 278,
+      "format_analysis": {
+        "python_ast": 9,
+        "node_check": 19,
+        "xml_projects_props_manifest": 19,
+        "yaml": 5,
+        "toml_examples": 4,
+        "json": 34
+      },
+      "local_dotnet_windows_available": false,
+      "new_product_tests": 0,
+      "product_code_changes": 0,
+      "new_windows_ci_runs": 0,
+      "new_builds": 0,
+      "corrections_applied": 0,
+      "issue48_current_state": "open",
+      "issue48_physical_case_closed": false,
+      "local_profile_compliant": false,
+      "local_beta_prepared": false,
+      "next_stage": 7,
+      "stage7_started": false,
+      "overall_mission_complete": false,
+      "document_validation": "pass",
+      "markdown_files_checked": 94,
+      "relative_file_links_checked": 354,
+      "policy_package_recheck_after_docs": 47
     }
   }
 }

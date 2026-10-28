@@ -7,6 +7,22 @@ Não reexecutar roteiros/branches históricos que incluam esse alvo; incorporar
 a exclusão antes de qualquer nova integração. Demais verificações de segurança
 permanecem obrigatórias. Os registros abaixo preservam a história do projeto.
 
+## Auditoria da integração — Etapa 6, 27/10/2026
+
+[Relatório/14 eixos](WORK-INTEGRACAO-ETAPA6-AUDITORIA.md) ·
+[matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) ·
+[recibo](evidencias/integracao-etapa6-auditoria.json).
+Fonte auditada db67cde4, funcionalmente igual à CI da composição 6b5b0e52.
+Executados 47/47 Python e 136/136 Node com SQLite/transportes fictícios;
+analisadores de sintaxe/formatos aprovados. Nenhum teste novo ou correção.
+Windows/.NET indisponíveis localmente; C#/UI e analisadores de compilação
+usam os runs próprios já aprovados, sem nova build/CI ou PC pessoal.
+
+Dois ALTOS do futuro perfil BETA LOCAL (abertura e coleta remota herdada) e
+dois BAIXOS registrados. Próxima sessão somente Etapa 7, com reprodução,
+testes antes/depois e CI Windows no SHA exato; pacote e teste físico permanecem
+posteriores. Os registros/comandos históricos abaixo conservam seu contexto.
+
 ## Continuidade da integração .66 — Etapa 5, 27/10/2026
 
 [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) · [matriz](WORK-INTEGRACAO-MATRIZ.md) ·

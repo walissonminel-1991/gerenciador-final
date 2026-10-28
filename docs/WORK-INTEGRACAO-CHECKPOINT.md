@@ -8,8 +8,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **5 — Organização e limpeza segura do GitHub** |
-| Resultado | **ORGANIZAÇÃO 5 CONCLUÍDA no escopo documentado**; integração 1–4 preservada, BETA LOCAL não preparada e conectada/pública bloqueada |
+| Etapa desta sessão | **6 — Auditoria geral e busca de erros** |
+| Resultado | **AUDITORIA 6 CONCLUÍDA no escopo documentado**; dois ALTOS do cenário local e dois BAIXOS abertos, BETA LOCAL não preparada e conectada/pública bloqueada |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
@@ -28,7 +28,10 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Commit da avaliação | [`a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`](https://github.com/walissonminel-1991/gerenciador-final/commit/a3b362d6b98ff9584eb44d7dd55e60ac36c7977f); fechamento posterior somente documental, conferir HEAD final na PR #65; `[skip ci]`, sem nova build |
 | Entrada da Etapa 5 | `d815d1a5348b3f24c29e5c133a45b081cb7f6958` |
 | Commit da organização | [`97715100d087f21cac2696e9af13d99c6b30cb2b`](https://github.com/walissonminel-1991/gerenciador-final/commit/97715100d087f21cac2696e9af13d99c6b30cb2b); fechamento posterior somente documental, HEAD final na PR #65; `[skip ci]`, sem nova build |
-| Próxima etapa | **6 — Auditoria geral e busca de erros**, somente em nova sessão |
+| Entrada da Etapa 6 | `db67cde412db306c316e79c0761e8dafef4b3b34` |
+| Commit da auditoria | Conferir HEAD final da PR #65; `[skip ci]`, sem nova build |
+| Defeitos | [GF6-001–GF6-004](WORK-INTEGRACAO-DEFEITOS.md); dois ALTOS / dois BAIXOS, sem correção |
+| Próxima etapa | **7 — Correções e regressões**, somente em nova sessão |
 
 Documentos da Etapa 1 preservados:
 
@@ -243,7 +246,7 @@ Este recibo de fechamento acrescenta somente o SHA acima e a conferência
 a checkpoint/matriz/PROGRESSO/recibo JSON; não gera build ou executável.
 HEAD daquele fechamento: `d815d1a5348b3f24c29e5c133a45b081cb7f6958`. Na Etapa 4, parada antes da Etapa 5.
 
-## Etapa 5 — sessão atual concluída
+## Etapa 5 — histórico concluído
 
 Entrada `d815d1a5348b3f24c29e5c133a45b081cb7f6958`, árvore `f36abd8191bed637148ff6e533aa7578bfbd68af`;
 PR #65 aberta/Draft e base #60 conferidas. Checkpoint, matriz, avaliação 4,
@@ -289,7 +292,7 @@ infraestrutura remota, merge, release, deploy ou distribuição.
 Conhecidos: WUA 2022 inconclusiva/2025 sem ofertas, aviso CS0649 não bloqueante,
 AVG/físico/conectada pendentes e perfil BETA LOCAL restrito ainda não preparado.
 Issue #48 mantida como evidência para conferir na auditoria 6, sem presumir
-correção ou pedir repetição em PC. **Etapa 6 não iniciada.**
+correção ou pedir repetição em PC. No fechamento 5, **Etapa 6 não iniciada**.
 
 ## Salvamento e conferência — Etapa 5
 
@@ -304,25 +307,74 @@ Este fechamento acrescenta apenas SHA e recibo de conferência a checkpoint,
 matriz, PROGRESSO e recibo JSON. Conferir HEAD final na PR #65; sem nova build,
 pacote ou implementação. **Parada antes da Etapa 6.**
 
+## Etapa 6 — sessão atual concluída
+
+Entrada `db67cde412db306c316e79c0761e8dafef4b3b34`, árvore `7dfb4d0f957691792a93ada5eabda321f210f92c`;
+PR #65 aberta/Draft, base #60 e refs de origem conferidas. Checkpoint, matriz,
+avaliação 4, organização 5 e adendo relidos. A fonte funcional continua a da
+CI `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`: 14 diferenças de continuidade,
+somente Markdown/JSON. Os 439 blobs foram materializados/conferidos por SHA
+antes dos testes e reconferidos sem alterações depois deles.
+
+[Auditoria/14 eixos](WORK-INTEGRACAO-ETAPA6-AUDITORIA.md) ·
+[Matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) ·
+[Recibo](evidencias/integracao-etapa6-auditoria.json).
+
+Executados 47/47 Python (278 fontes no guardrail) e 136/136 Node com SQLite
+em memória/transportes fictícios, sem falha/skip. Analisados 9 Python AST,
+19 Node --check, 19 XML, 5 YAML, 4 TOML de exemplo e 34 JSON, sem erro.
+Linux sem .NET/PowerShell/Windows; testes C#/WinForms/analisadores de compilação
+usam a evidência existente da CI da composição, sem reexecução local.
+CIs 40604593820 e 40604593709 reconferidas completed/success, tentativa 1,
+mesmo SHA fonte; sete jobs obrigatórios success, dois condicionais skipped.
+Nenhuma CI/build nova ou transferência de aprovação de PRs de origem.
+
+**Dois ALTOS de conformidade do futuro perfil BETA LOCAL:** GF6-001, consultas
+automáticas na abertura; GF6-002, consentimento RemoteBeta válido herdado
+mantém coleta/gravação mesmo sem endpoint. O segundo comportamento também
+está explicitamente coberto pela fixture de janela aprovada na CI interna.
+Nenhum envio real demonstrado; o perfil local precisa de barreira própria.
+**Dois BAIXOS:** GF6-003 CS0649 já conhecido e GF6-004 versões fixas/divergentes
+nos User-Agents. Nenhum CRÍTICO/MÉDIO/EXTERNO demonstrado no escopo, sem
+presumir ausência universal. Nenhuma correção ou teste novo foi criado.
+
+Issue #48 relida e mantida aberta: catálogo atual somente HKCU e abertura
+com direitos/handle de leitura sustentam mitigação técnica; não encerram
+o caso físico antigo ou R4/R7. WUA 2022 inconclusiva/2025 sem ofertas sem
+causa externa presumida; AVG/DPI/CPU/RAM físicos e perfil/pacote pendentes.
+**BETA LOCAL não pronta; conectada/pública bloqueada.**
+
+Verificação documental aprovada: 94 Markdown/354 destinos relativos de arquivo;
+os mesmos 47 testes Python passaram após as edições, sem contagem duplicada.
+Somente dez Markdown/JSON de auditoria/continuidade. PROGRESSO muda apenas
+integration_final; candidate/beta, históricos e todos os 42 IDs/done intactos,
+**27/42**. Código/testes/workflows/versão/aviso/aprovações/configuração preservados.
+Main, PR #40 e outras branches intactas. D01/D02 não executadas. Sem novos
+testes específicos/consultas do alvo excluído, reinvestigação COM, operação
+de drivers, PC, receptor/infraestrutura remota, transmissão, merge, release,
+deploy, pacote ou distribuição. AVG/proteções e flags no preservados.
+**Etapa 7 não iniciada.**
+
 ## Retomada obrigatória
 
 1. Ler este checkpoint, a matriz e a análise; conferir branch, PR Draft e
    HEAD remotos antes de qualquer edição. Comparar #60–#64 aos SHAs fixados.
 2. Preservar alterações posteriores e investigar divergências pontuais;
    não usar force-push, apagar histórico ou modificar branches originais.
-3. Executar **somente a Etapa 6 do adendo**: auditoria geral nos 14 eixos,
-   com testes existentes/análise estática/cenários sintéticos. Criar testes
-   somente para lacuna demonstrada. Produzir matriz com localização,
-   reprodução, impacto, evidência e recomendação; classificar severidade.
-   Não corrigir produto, preparar pacote ou executar propostas D01/D02.
-   Não reinvestigar COM/fontes excluídas nem operar nos PCs pessoais.
+3. Executar **somente a Etapa 7 do adendo**: priorizar GF6-001/GF6-002,
+   reproduzir em testes isolados, corrigir a causa e demonstrar antes/depois.
+   Executar área alterada/regressões afetadas e CI Windows aplicável pelo SHA
+   exato. Tratar BAIXOS conforme impacto; documentar bloqueio se faltar correção
+   segura. Preservar testes/gates, sem supressão para obter verde.
+   Não executar D01/D02, preparar pacote, reinvestigar COM/fontes excluídas
+   ou usar PCs pessoais para depuração; BETA conectada continua bloqueada.
 4. Atualizar os dois documentos com SHA, arquivos, verificações, problemas,
    pendências e próximo passo; registrar interrupção no ponto exato.
-5. Encerrar antes da Etapa 7. Integração 1–4 e organização 5 concluídas; Etapas 6–9 seguem o adendo,
+5. Encerrar antes da Etapa 8. Integração 1–4, organização 5 e auditoria 6 concluídas; Etapas 7–9 seguem o adendo,
    uma por sessão. A Etapa 9 depende exclusivamente de execução manual autorizada.
 
 Comando de retomada:
 
-> Continue pela Etapa 6 na branch work-integracao-final-20261027, PR #65 Draft. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md, docs/WORK-INTEGRACAO-MATRIZ.md, a avaliação da Etapa 4, o relatório da Etapa 5 e o adendo BETA LOCAL; confira o HEAD e as evidências da CI no SHA exato. Execute somente auditoria geral e produza a matriz de defeitos com localização, reprodução, impacto, evidência e recomendação. Use testes existentes e cenários sintéticos; crie testes somente para lacunas demonstradas. Preserve todas as restrições, não execute propostas destrutivas ou operações em PCs, salve evidências/checkpoints no GitHub e pare antes da Etapa 7, sem preparar executável ou liberar BETA.
+> Continue pela Etapa 7 na branch work-integracao-final-20261027, PR #65 Draft. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md, docs/WORK-INTEGRACAO-MATRIZ.md, docs/WORK-INTEGRACAO-DEFEITOS.md e o relatório/recibo da Etapa 6; confira o HEAD. Reproduza e corrija primeiro GF6-001/GF6-002 com testes isolados, demonstre antes/depois, execute regressões afetadas e CI Windows no SHA exato. Trate BAIXOS conforme impacto e documente bloqueios. Preserve todas as restrições e o adendo BETA LOCAL, não execute D01/D02 nem opere nos PCs, salve evidências/checkpoints no GitHub e pare antes da Etapa 8, sem preparar pacote ou liberar BETA.
 
-**Etapa 5 concluída no escopo organizacional. Integração 1–4 preservada; Etapa 6 não iniciada.**
+**Etapa 6 concluída no escopo auditado, com dois ALTOS locais e dois BAIXOS abertos. Etapa 7 não iniciada.**
