@@ -8,8 +8,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **7 — Correções e regressões (CONCLUÍDA)** |
-| Resultado | Quatro GF6 corrigidos e regressão GF7-001 de CI corrigida; CI Windows/externa própria aprovada; BETA LOCAL não preparada e conectada/pública bloqueada |
+| Etapa desta sessão | **8 — Preparação da BETA LOCAL TESTE (BLOQUEADA para pacote/entrega privada)** |
+| Resultado | Fonte/CI/perfil reconferidos; só manifestos disponíveis. Sem ZIP executável, hash do pacote ou link privado. Roteiro preparado; nenhuma build/teste físico/Etapa 9 iniciados |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
@@ -31,8 +31,7 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Entrada da Etapa 6 | `db67cde412db306c316e79c0761e8dafef4b3b34` |
 | Commit da auditoria | [`d1fee1eca87938e82d3e4253efce121b2cb1edba`](https://github.com/walissonminel-1991/gerenciador-final/commit/d1fee1eca87938e82d3e4253efce121b2cb1edba); fechamento posterior documental, HEAD final na PR #65; `[skip ci]`, sem nova build |
 | Defeitos | [GF6-001–004 e GF7-001](WORK-INTEGRACAO-DEFEITOS.md) corrigidos no escopo técnico demonstrado; pendências físicas preservadas |
-| Próxima etapa | **8 — Preparação da BETA LOCAL TESTE**, somente em nova sessão autorizada |
-
+| Próxima etapa | **Concluir a entrega da Etapa 8 após decisão/canal privado compatível com o contrato; Etapa 9 somente depois de pacote real verificado e autorização manual** |
 | Entrada da Etapa 7 | `89098a6669fadacd59e31fd8507bba9055a17a14` |
 | Reprodução anterior à correção | `f56c9303a66dfa9c3a29b220e38a9afe6f705b47`; 9/12 falhas no run 40670973548 |
 | SHA fonte aprovado na Etapa 7 | `6df95fdd776644cd4b248b5cea61108974ca9ce9` |
@@ -40,6 +39,12 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | CI Windows da Etapa 7 | [40675784213](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213), **success**, tentativa 1 |
 | CI externa da Etapa 7 | [40675784155](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155), **success**, tentativa 1 |
 | Fechamento documental | `196096939c1553eaa76cb640bbe0bf8d7f510679`; recibo posterior somente documental, conferir HEAD final na PR #65; não é nova build |
+| Entrada da Etapa 8 | 4ccb20c8e724d9d630b288e3cd8e997c12daad80 |
+| Fonte/CI reconferidas na Etapa 8 | 6df95fdd776644cd4b248b5cea61108974ca9ce9; Windows 40675784213 e externa 40675784155, success/tentativa 1 |
+| Contrato de entrega | Upload BETA somente dos três manifestos; repositório público, sem canal privado seletivo aprovado/implementado |
+| Pacote executável / SHA-256 / URL privada | Não disponível / não calculado / inexistente |
+| Documentação da Etapa 8 | [Relatório](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md), [recibo](evidencias/integracao-etapa8-preparacao.json), [roteiro futuro](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md) |
+| Etapa 9 | NÃO INICIADA; não executar o roteiro enquanto persistir o bloqueio |
 
 Documentos da Etapa 1 preservados:
 
@@ -376,7 +381,7 @@ Este fechamento acrescenta apenas SHA e recibo de conferência a checkpoint,
 matriz, PROGRESSO e recibo JSON. Conferir HEAD final na PR #65; não é nova
 build aprovada ou correção de produto. **Parada antes da Etapa 7.**
 
-## Etapa 7 — sessão concluída
+## Etapa 7 — histórico concluído
 
 **Etapa 7 concluída — 28/10/2026:** [correções e regressões](WORK-INTEGRACAO-ETAPA7-CORRECOES.md),
 [matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa7-correcoes.json).
@@ -426,7 +431,7 @@ arquivos conferido independentemente; pacote executável não distribuído/prepa
 AVG/assinatura e homologação física pendentes; conectada/pública bloqueada.
 **Parada antes da Etapa 8.**
 
-## Retomada obrigatória
+## Retomada registrada ao final da Etapa 7 — histórico
 
 1. Ler checkpoint, matriz, defeitos e relatório/recibo 7; conferir HEAD, PR Draft,
    fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, base/origens e as duas CIs próprias pelo SHA exato.
@@ -446,3 +451,48 @@ Comando para uma próxima sessão, sem execução automática:
 > Continue pela Etapa 8 na branch work-integracao-final-20261027, PR #65 Draft. Leia checkpoint, matriz, defeitos e relatório/recibo da Etapa 7. Confira HEAD e CI Windows/externa da fonte 6df95fdd776644cd4b248b5cea61108974ca9ce9; preserve todas as restrições e o adendo BETA LOCAL. Prepare somente se os critérios e o contrato de distribuição permitirem; registre bloqueios e proponha entrega privada autorizada/verificável se necessário. Mantenha AVG ativo, drivers e diagnósticos remotos desativados. Salve evidências no GitHub e pare antes da Etapa 9, sem Release pública ou distribuição indiscriminada.
 
 **Etapa 7 concluída no escopo técnico aprovado. Parada antes da Etapa 8.**
+
+## Etapa 8 — sessão de preparação encerrada com bloqueio
+
+**Etapa 8 — BLOQUEADA para pacote/entrega executável privada (28/10/2026).**
+[Preparação e impedimento](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) ·
+[guia/roteiro futuro PC FORTE](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md) ·
+[recibo](evidencias/integracao-etapa8-preparacao.json).
+Fonte 6df95fdd776644cd4b248b5cea61108974ca9ce9 e CIs 40675784213/40675784155
+reconferidas success, tentativa 1; onze diferenças documentais posteriores,
+sem alteração funcional ou de arquivos embarcados. Perfil local e proteções
+preservados. Somente três manifestos disponíveis; ZIP executável, SHA-256 do
+pacote e link privado inexistentes. Alternativa privada documentada, sem
+provisionamento ou contorno de gates. **Etapa 9 não iniciada; todos os testes
+físicos NÃO EXECUTADO.** Roadmap 27/42; conectada/pública bloqueada.
+
+O gate de GF_BETA mantém somente BETA-BUILD.json, BUILD-INFO.txt e SHA256SUMS.txt.
+O ZIP de manifestos foi baixado novamente: SHA-256
+50b7a8c4d8bc15a826ebe2d54c7ada8f291d6cd2dbd19b8f805572f962c4c35c,
+286 entradas listadas e dois hashes dos documentos conferidos. Não é pacote
+executável nem link privado exclusivo. A CI validou 287 arquivos internamente;
+os bytes integrais não estão disponíveis para análise independente aqui.
+
+Proposta privada exige decisão local de distribuição e canal nominal verificado,
+sem alterar aprovações/endpoints da BETA conectada ou o fluxo público. Não foram
+criados repositório, workflow alternativo, serviço, Release, deploy ou upload.
+Código/testes/workflows/configuração e arquivos publicados permanecem iguais à
+fonte aprovada; nenhuma nova CI ou bateria de produto repetida. Roteiro com
+extração sem sobrescrita, AVG ativo, falhas/retorno e reaproveitamento E1–E5
+preparado, todos os testes físicos NÃO EXECUTADO. AVG/assinatura/físico, Issue #48
+e lacunas de roadmap preservados. PROGRESSO altera apenas integration_final.
+
+## Retomada atual obrigatória
+
+Conferir HEAD/PR Draft, relatório/recibo 8 e fonte/CI exatas. Resolver primeiro
+a decisão/canal privado e concluir o pacote dentro da Etapa 8 em nova sessão;
+não contornar o upload de manifestos, distribuir executáveis publicamente ou
+ativar o fluxo conectado. Não avançar para teste físico com hashes ausentes.
+
+Comando para resolver a pendência:
+
+> Retome somente a Etapa 8 na branch work-integracao-final-20261027, PR #65 Draft. Leia checkpoint, matriz e relatório/recibo 8. Confira HEAD e CI da fonte 6df95fdd776644cd4b248b5cea61108974ca9ce9. Revise a proposta de entrega privada e a decisão/canal explicitamente autorizados pelo mantenedor. Preserve todos os gates e bloqueios; se ainda não houver via compatível, mantenha BLOQUEADA e não gere/distribua pacote. Quando permitido, valide os bytes reais, registre fonte/build, SHA-256 e acesso privado, salve evidências e pare antes da Etapa 9.
+
+O comando condicionado para a Etapa 9 está no [roteiro](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md#comando-futuro-condicionado-à-entrega).
+Só poderá ser usado após pacote entregue/verificado e envio manual de resultados.
+Não presume acesso ao PC. **Sessão Etapa 8 encerrada; Etapa 9 não iniciada.**

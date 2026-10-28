@@ -1,5 +1,12 @@
 # Gerenciador Final · GF
 
+**Etapa 8: BLOQUEADA para entrega executável privada.**
+[Relatório e alternativa proposta](docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) ·
+[roteiro futuro PC FORTE](docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md).
+Fonte/CI local reconferidas; apenas manifestos disponíveis. Nenhum ZIP executável,
+hash do pacote ou acesso privado foi entregue. Etapa 9 não iniciada; 27/42,
+AVG/assinatura e homologação física pendentes. Conectada/pública bloqueada.
+
 **Ferramenta gratuita e de código aberto para Windows 10/11 x64**, destinada a tornar tarefas de manutenção de aplicativos e do sistema mais compreensíveis para pessoas sem experiência técnica.
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
@@ -20,7 +27,7 @@ Históricos e critérios na [matriz](docs/WORK-INTEGRACAO-MATRIZ.md).
 
 **Integração anterior .64 — aprovada tecnicamente.** [ZIP portátil x64 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183) · [CI Windows completa](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164), fonte `5793ce1f`. Integra Lotes 1–4 com WORK14–WORK17: histórico e relatórios locais, drivers consultivos, correções de segurança/desempenho, atualização por fontes oficiais, ecossistemas WinGet COM somente leitura/Scoop/Chocolatey e identidade MSI corroborada. 284 hashes conferidos também fora do runner; SHA-256 do ZIP `7d659b35319e2389c6266ef4fcee25e1733f0f5fa9c36558a0e38e66b12919c9`. [Relatório da integração](docs/MISSAO-INTEGRACAO.md) · [PR #59 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/59). **Ainda não é release estável:** sem assinatura Authenticode, sem aprovação AVG e sem homologação PC FORTE/FRACO; a main e PR #40 permanecem preservadas. Roadmap 27/42.
 
-**Estado atual:** [checkpoint da PR #65](docs/WORK-INTEGRACAO-CHECKPOINT.md) · [matriz](docs/WORK-INTEGRACAO-MATRIZ.md) · [roadmap 27/42](docs/ROADMAP.md) · [índice de organização](docs/ORGANIZACAO-REPOSITORIO.md). Próxima sessão: somente Etapa 8; nenhum teste físico solicitado. O [planejamento físico futuro](docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md#7-testes-físicos-mínimos-futuros--pc-forte) aproveita o [roteiro anterior](docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md). [PR #40 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/40) preservada como linha original. A limpeza residual agora pertence à desinstalação: conferência automática, uma decisão SIM/NÃO por seleção e exclusão permanente dos alvos exclusivos revalidados ao escolher **SIM**. **NÃO** mantém os resíduos; dados pessoais, compartilhados ou desconhecidos são preservados. A cobertura é progressiva. U8, R7 e R4 físicos continuam abertos; inventário parcial não comprova remoção.
+**Estado atual:** [checkpoint da PR #65](docs/WORK-INTEGRACAO-CHECKPOINT.md) · [matriz](docs/WORK-INTEGRACAO-MATRIZ.md) · [roadmap 27/42](docs/ROADMAP.md) · [índice de organização](docs/ORGANIZACAO-REPOSITORIO.md). Próxima ação: concluir a entrega privada da Etapa 8; Etapa 9 aguarda pacote real e autorização manual. Nenhum teste físico solicitado. O [planejamento físico futuro](docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md#7-testes-físicos-mínimos-futuros--pc-forte) aproveita o [roteiro anterior](docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md). [PR #40 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/40) preservada como linha original. A limpeza residual agora pertence à desinstalação: conferência automática, uma decisão SIM/NÃO por seleção e exclusão permanente dos alvos exclusivos revalidados ao escolher **SIM**. **NÃO** mantém os resíduos; dados pessoais, compartilhados ou desconhecidos são preservados. A cobertura é progressiva. U8, R7 e R4 físicos continuam abertos; inventário parcial não comprova remoção.
 
 **WORK18: v5.13.11.65 TESTE aprovada tecnicamente**, derivada da integração .64. Amplia MSI/WiX com contexto comprovado no pacote e acompanhamento de NSIS/Inno/MSI/WiX quando o manifesto declara modo interativo. Mantém hash, assinatura, identidade, consentimento e confirmação posterior obrigatórios. [Diagnóstico, candidatos reais, matriz antes/depois e pendências](docs/MISSAO-WORK18.md). O número de ações no PC FORTE ainda não foi medido novamente; roadmap permanece 27/42.
 

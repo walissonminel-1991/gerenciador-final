@@ -1196,13 +1196,13 @@
   },
   "integration_final": {
     "mission": "WORK-INTEGRACAO-FINAL",
-    "stage": 7,
+    "stage": 8,
     "date": "2026-10-28",
     "timezone": "America/Sao_Paulo",
     "branch": "work-integracao-final-20261027",
     "draft_pr": 65,
     "version": "5.13.11.66 TESTE",
-    "status": "stage7_corrections_validated_local_not_prepared",
+    "status": "stage8_blocked_private_package_delivery",
     "entry_commit": "275cfc396d22c8aff933a3879f0702d20596a2bc",
     "origins": {
       "base_pr60": "2bc9f4228fd448445fbf181652e5af93005def20",
@@ -1225,8 +1225,8 @@
     "distribution_approved": false,
     "roadmap_done": 27,
     "roadmap_total": 42,
-    "report": "docs/WORK-INTEGRACAO-ETAPA7-CORRECOES.md",
-    "evidence": "docs/evidencias/integracao-etapa7-correcoes.json",
+    "report": "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+    "evidence": "docs/evidencias/integracao-etapa8-preparacao.json",
     "next_stage": 8,
     "stage3_entry_commit": "89ee12a8322c5872c61c3fd40030490407cbb173",
     "validated_commit": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
@@ -1563,6 +1563,43 @@
       },
       "manifest_verified_independently": true
     },
-    "local_beta_profile_validated": true
+    "local_beta_profile_validated": true,
+    "stage8_entry_commit": "4ccb20c8e724d9d630b288e3cd8e997c12daad80",
+    "stage8_preparation": {
+      "status": "blocked_distribution_contract",
+      "source_commit": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "ci_runs": [
+        40675784213,
+        40675784155
+      ],
+      "source_matches_validated_published_inputs": true,
+      "new_builds": 0,
+      "new_product_test_runs": 0,
+      "local_profile_preserved": true,
+      "local_reports_preserved": true,
+      "package_created": false,
+      "package_available": false,
+      "package_delivered": false,
+      "package_name": null,
+      "package_sha256": null,
+      "private_url": null,
+      "proposed_package_name": "GerenciadorFinal-v5.13.11.66-6df95fdd-BETA-LOCAL-TESTE-NAO-HOMOLOGADA-win-x64.zip",
+      "manifest_artifact_id": 12811032013,
+      "manifest_zip_sha256": "50b7a8c4d8bc15a826ebe2d54c7ada8f291d6cd2dbd19b8f805572f962c4c35c",
+      "manifest_independently_rechecked": true,
+      "private_delivery_proposal": "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+      "physical_plan": "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md",
+      "private_channel_created": false,
+      "physical_tests_executed": false,
+      "stage9_started": false,
+      "next_action": "Resolve compatible owner-only private delivery and complete stage 8 before stage 9",
+      "documentary_validation": {
+        "existing_python_checks_passed": 47,
+        "new_tests": 0,
+        "new_product_test_runs": 0,
+        "new_ci_runs": 0,
+        "functional_and_published_inputs_unchanged": true
+      }
+    }
   }
 }

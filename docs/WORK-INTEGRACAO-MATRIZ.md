@@ -6,9 +6,10 @@ Commit da análise: `f000ca3227227f11d8412c9a3f87335ead80bd9d`;
 fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
-**Etapa 7 CONCLUÍDA — quatro GF6 e regressão de CI GF7-001 corrigidos e validados.**
-Fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, CIs 40675784213/40675784155 success; próxima sessão somente 8.
-BETA LOCAL não preparada; conectada/pública bloqueada. Etapa 8 não iniciada.
+**Etapa 8 BLOQUEADA — entrega executável privada ainda indisponível.**
+Fonte/perfil local reconferidos; Etapa 7 permanece concluída e não foi repetida.
+Fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, CIs 40675784213/40675784155 reconferidas success; próxima ação é resolver entrega dentro de 8.
+BETA LOCAL sem pacote entregue; conectada/pública bloqueada. Etapa 9 não iniciada.
 Entrada da Etapa 6: `db67cde412db306c316e79c0761e8dafef4b3b34`.
 Commit da auditoria: `d1fee1eca87938e82d3e4253efce121b2cb1edba`; fechamento posterior documental, HEAD final na PR #65.
 Entrada da Etapa 5: `d815d1a5348b3f24c29e5c133a45b081cb7f6958`.
@@ -282,3 +283,38 @@ Sem merge, release, deploy, distribuição, transmissão ou operação nos PCs.
 A compilação interna x64 foi validada na CI; nenhum pacote executável BETA
 foi disponibilizado ao usuário. A BETA local futura não exige completar 42/42 e não libera
 automaticamente a BETA conectada/pública.
+
+## Preparação local — Etapa 8 encerrada com bloqueio
+
+**Etapa 8 — BLOQUEADA para pacote/entrega executável privada (28/10/2026).**
+[Preparação e impedimento](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) ·
+[guia/roteiro futuro PC FORTE](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md) ·
+[recibo](evidencias/integracao-etapa8-preparacao.json).
+Fonte 6df95fdd776644cd4b248b5cea61108974ca9ce9 e CIs 40675784213/40675784155
+reconferidas success, tentativa 1; onze diferenças documentais posteriores,
+sem alteração funcional ou de arquivos embarcados. Perfil local e proteções
+preservados. Somente três manifestos disponíveis; ZIP executável, SHA-256 do
+pacote e link privado inexistentes. Alternativa privada documentada, sem
+provisionamento ou contorno de gates. **Etapa 9 não iniciada; todos os testes
+físicos NÃO EXECUTADO.** Roadmap 27/42; conectada/pública bloqueada.
+
+| ID | Requisito / evidência | Estado |
+| --- | --- | --- |
+| B8-01 | HEAD 4ccb20c8: 447 blobs conferidos, onze documentos desde CI, nenhum input publicado alterado | CONFIRMADO; sem nova validação funcional necessária |
+| B8-02 | Dois runs com head_sha 6df95fdd, sete jobs success e dois skips condicionais | CONFIRMADO; aprovação do SHA fonte, sem nova CI |
+| B8-03 | Perfil GF_BETA_LOCAL, título, abertura sem consulta automática e diagnóstico remoto desativado | CONFIRMADO na fonte/18 verificações já aprovadas, sem repetir suíte |
+| B8-04 | Inventário, relatórios/histórico, drivers somente leitura e guardas existentes | PRESERVADOS; nenhum arquivo funcional alterado |
+| B8-05 | Projeto/manifesto asInvoker, AMD64, dependências e avisos; 287 arquivos/286 hashes na CI | CONFIRMADO no escopo da CI e manifesto |
+| B8-06 | ZIP independente de manifestos, três arquivos, dois hashes, metadata sem endpoint | CONFIRMADO; não é pacote executável |
+| B8-07 | Disponibilizar executável pelo fluxo público | BLOQUEADO pelo gate BETA; nenhum contorno |
+| B8-08 | Canal privado nominal/decisão local de entrega | PROPOSTO; não definido/provisionado/verificado |
+| B8-09 | ZIP privado efetivo, SHA-256 do pacote, varredura de bytes e URL | INDISPONÍVEIS; não inventar nem confundir com manifesto |
+| B8-10 | Instruções de extração/AVG/retorno e roteiro mínimo aproveitando E1–E5 | PREPARADOS; nenhum teste físico executado ou solicitado |
+| B8-11 | AVG/Authenticode, homologação física e Issue #48 | PENDENTES; sucesso técnico não homologa |
+| B8-12 | Etapa 9 | NÃO INICIADA; depende da conclusão real de 8 e autorização manual |
+
+Sem novo defeito/regressão demonstrável e sem alteração da matriz de cobertura
+funcional. Os cinco defeitos corrigidos permanecem fechados no escopo técnico.
+Todos os 42 IDs/done e históricos preservados, **27/42**. Sem novas consultas do
+produto, operação em PC, alteração de AVG/permissões, gestão de drivers, envio,
+Worker/D1/DNS, merge, Release, deploy, exclusão ou distribuição.

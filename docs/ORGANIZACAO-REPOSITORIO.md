@@ -1,5 +1,17 @@
 # Organização do repositório — GERENCIADOR FINAL
 
+**Etapa 8 — BLOQUEADA para pacote/entrega executável privada (28/10/2026).**
+[Preparação e impedimento](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) ·
+[guia/roteiro futuro PC FORTE](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md) ·
+[recibo](evidencias/integracao-etapa8-preparacao.json).
+Fonte 6df95fdd776644cd4b248b5cea61108974ca9ce9 e CIs 40675784213/40675784155
+reconferidas success, tentativa 1; onze diferenças documentais posteriores,
+sem alteração funcional ou de arquivos embarcados. Perfil local e proteções
+preservados. Somente três manifestos disponíveis; ZIP executável, SHA-256 do
+pacote e link privado inexistentes. Alternativa privada documentada, sem
+provisionamento ou contorno de gates. **Etapa 9 não iniciada; todos os testes
+físicos NÃO EXECUTADO.** Roadmap 27/42; conectada/pública bloqueada.
+
 ## Estado e entradas
 
 28/10/2026. Branch `work-integracao-final-20261027`, PR #65 aberta/Draft.
@@ -23,6 +35,7 @@ somente Etapa 8; não iniciada. Roadmap **27/42**, sem homologação física/AVG
 | Organização e propostas pendentes | [Etapa 5](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md) e [inventário por SHA](evidencias/integracao-etapa5-organizacao.json) |
 | Auditoria histórica | [Etapa 6/14 eixos](WORK-INTEGRACAO-ETAPA6-AUDITORIA.md), [matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa6-auditoria.json) |
 | Correções, regressões e CI própria | [Etapa 7](WORK-INTEGRACAO-ETAPA7-CORRECOES.md) e [recibo](evidencias/integracao-etapa7-correcoes.json) |
+| Preparação/entrega local e roteiro condicionado | [Etapa 8](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md), [recibo](evidencias/integracao-etapa8-preparacao.json) e [PC FORTE](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md) |
 | Progresso sem promoção artificial | [ROADMAP](ROADMAP.md) e [PROGRESSO.json](PROGRESSO.json), 27/42 |
 | Testes e CI | [TESTES](TESTES.md) e [Actions atuais/históricas](ACTIONS-ATUAIS-E-HISTORICAS.md) |
 | Futuro teste físico manual | [Plano mínimo da avaliação 4](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md#7-testes-físicos-mínimos-futuros--pc-forte), reaproveitando [E1–E5](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md); sem execução agora |
