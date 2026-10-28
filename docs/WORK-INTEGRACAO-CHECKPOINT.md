@@ -8,8 +8,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **8 — Preparação da BETA LOCAL TESTE (BLOQUEADA para pacote/entrega privada)** |
-| Resultado | Fonte/CI/perfil reconferidos; só manifestos disponíveis. Sem ZIP executável, hash do pacote ou link privado. Roteiro preparado; nenhuma build/teste físico/Etapa 9 iniciados |
+| Etapa desta sessão | **Conferência de entrada para a Etapa 9 — homologação física NÃO INICIADA; entrega da Etapa 8 segue BLOQUEADA** |
+| Resultado | Fonte/build/CI reconferidos; pacote privado/SHA-256 ainda não comprovados. Nenhum resultado manual fornecido; F9-00–F9-11 NÃO EXECUTADO |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
@@ -514,3 +514,48 @@ Comando para resolver a pendência:
 O comando condicionado para a Etapa 9 está no [roteiro](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md#comando-futuro-condicionado-à-entrega).
 Só poderá ser usado após pacote entregue/verificado e envio manual de resultados.
 Não presume acesso ao PC. **Sessão Etapa 8 encerrada; Etapa 9 não iniciada.**
+
+## Solicitação de retomada da Etapa 9 — conferência de entrada
+
+28/10/2026, America/Sao_Paulo. **Homologação física NÃO INICIADA.**
+Instrução do mantenedor recebida para conferir a identidade e analisar somente
+resultados manuais fornecidos. Nenhum resultado, captura, diagnóstico ou
+identificação de pacote recebido acompanhou a solicitação.
+
+HEAD de entrada reconferido: `e13612c1969bf5497810166cbbc579b782222e8e`; PR #65 aberta/Draft.
+Checkpoint, matriz, roteiro, relatório/recibo 8 e adendo relidos.
+Windows 40675784213 e integridade externa 40675784155 continuam
+completed/success, tentativa 1, na fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`.
+Build técnica registrada: `384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad`;
+versão 5.13.11.66, perfil local. Essa identidade é da CI existente,
+não comprova entrega física ou build privada posterior.
+
+**Pré-requisito não satisfeito:** a Etapa 8 permanece bloqueada para entrega.
+Nenhum pacote executável/link privado/hash de pacote consta das referências
+verificadas. O artefato 12811032013 continua contendo somente os três
+manifestos. O arquivo de evidência conservado da Etapa 8 teve SHA-256
+recalculado e igual ao digest reconferido no GitHub:
+`50b7a8c4d8bc15a826ebe2d54c7ada8f291d6cd2dbd19b8f805572f962c4c35c`.
+**Esse valor não é SHA-256 de pacote executável.** Não houve novo download
+do artefato nem acesso aos binários integrais nesta conferência.
+
+F9-00–F9-11 permanecem **NÃO EXECUTADO**; zero resultado manual analisado.
+Sem reprovação funcional presumida, aprovação física, acesso/controle do PC
+ou solicitação de executar o roteiro enquanto faltar o pacote. Não retornar
+às Etapas 1–7 nem gerar/entregar build por conta desta solicitação.
+
+[Recibo desta conferência](evidencias/integracao-etapa9-verificacao-entrada.json).
+Alterados somente este checkpoint, matriz e recibo novo; PROGRESSO, roteiro
+e evidências 1–8 preservados. Sem teste de produto/build/CI novos;
+aprovação citada continua restrita à fonte 6df95fdd. SHA documental de
+salvamento: conferir o commit que adiciona o recibo na branch/PR #65.
+
+Próxima condição: encerrar a pendência de entrega da Etapa 8 por via privada
+compatível já descrita; depois receber identificação/proveniência, build,
+SHA-256 e relatos manuais do mantenedor. Enviar somente trechos/capturas
+necessários e revisados, sem publicar dados brutos dos PCs. Após comprovada
+a entrega, retomar a Etapa 9 apenas para analisar os resultados fornecidos.
+
+Todos os bloqueios locais e permanentes preservados, AVG/proteções intactos,
+drivers desativados, flags no e roadmap **27/42**. BETA conectada/pública
+bloqueada. **Parada nesta conferência de entrada; Etapa 9 não iniciada.**

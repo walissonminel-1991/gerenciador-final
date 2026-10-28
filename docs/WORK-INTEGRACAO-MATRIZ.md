@@ -7,6 +7,7 @@ fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
 **Etapa 8 BLOQUEADA — entrega executável privada ainda indisponível.**
+Retomada da Etapa 9 solicitada: somente pré-requisitos conferidos; nenhum resultado manual fornecido. Homologação física NÃO INICIADA; F9-00–F9-11 NÃO EXECUTADO.
 Fonte/perfil local reconferidos; Etapa 7 permanece concluída e não foi repetida.
 Fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, CIs 40675784213/40675784155 reconferidas success; próxima ação é resolver entrega dentro de 8.
 BETA LOCAL sem pacote entregue; conectada/pública bloqueada. Etapa 9 não iniciada.
@@ -337,3 +338,35 @@ conferir HEAD final na PR #65. Não é nova build ou entrega. Estado permanece
 URL privada indisponíveis. Proposta privada/guia preparados; nenhum teste
 físico executado, nenhum gate alterado e **Etapa 9 não iniciada**. Roadmap 27/42.
 
+
+## Retomada solicitada da Etapa 9 — pré-requisitos pendentes
+
+28/10/2026, America/Sao_Paulo. Conferência de entrada somente.
+[Recibo](evidencias/integracao-etapa9-verificacao-entrada.json).
+HEAD de entrada `e13612c1969bf5497810166cbbc579b782222e8e`, PR #65 aberta/Draft;
+nenhum avanço de etapa ou homologação física.
+
+| Requisito | Constatação nesta solicitação | Estado |
+| --- | --- | --- |
+| Fonte/versão/build de CI | 5.13.11.66, fonte 6df95fdd776644cd4b248b5cea61108974ca9ce9; build 384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad | RECONFIRMADO nos manifestos existentes |
+| CI Windows/externa | 40675784213 / 40675784155, completed/success, tentativa 1, mesmo SHA fonte | RECONFIRMADO; nenhuma nova execução |
+| Pacote executável privado | Indisponível nas referências; Etapa 8 permanece bloqueada | PRÉ-REQUISITO PENDENTE |
+| SHA-256 e acesso privado do pacote | Não fornecidos/não comprovados; digest do ZIP de manifestos não os substitui | PRÉ-REQUISITO PENDENTE |
+| Relatos manuais recebidos/analisados | Zero nesta solicitação | AGUARDANDO MANTENEDOR |
+| F9-00–F9-11 | Nenhum resultado manual fornecido ou execução presumida | NÃO EXECUTADO |
+| Homologação física/AVG/assinatura | Nenhuma evidência nova | PENDENTE |
+| Etapa 9 | Somente conferência documental de entrada realizada | NÃO INICIADA |
+
+O recibo registra o hash do arquivo de manifestos conservado da Etapa 8
+recalculado e comparado ao digest atual do GitHub, sem novo download ou
+verificação dos binários completos. Nenhum defeito novo é demonstrado pela
+ausência de entrega/resultados. Não repetir auditoria/regressões anteriores
+nem preparar nova build nesta sessão. Código/testes/workflows/configuração,
+PROGRESSO/42 estados, roteiro e recibos 1–8 permanecem intactos; **27/42**.
+Somente checkpoint, matriz e recibo novo alterados, sem nova CI.
+
+Próxima condição continua sendo concluir a entrega privada compatível da
+Etapa 8 e receber resultados manuais identificados por pacote/build/hash.
+Nenhuma operação em PC, mudança de AVG/permissões, transmissão, gestão de
+drivers, consulta do produto, merge/Release/deploy/distribuição ou liberação
+conectada/pública. **Parada; homologação física não iniciada.**
