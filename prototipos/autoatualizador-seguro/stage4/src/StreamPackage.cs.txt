@@ -32,7 +32,9 @@ internal static class StreamPackage
         {
             token.ThrowIfCancellationRequested();byte[] c=Read(p,46);int n=U16(c,28),flags=U16(c,8),method=U16(c,10);
             long size=U32(c,24),compressed=U32(c,20),local=U32(c,42);uint crc=U32(c,16),attrs=U32(c,38),mode=(attrs>>16)&0xf000;
-            Require(U32(c,0)==0x02014b50 && U16(c,6)<=20 && flags is 0 or 2048 && method is 0 or 8
+            // APPNOTE 4.4.4: bits 1/2 are compression speed hints for method 8, not encryption.
+            int allowedFlags=method==8?0x806:0x800;
+            Require(U32(c,0)==0x02014b50 && U16(c,6)<=20 && (flags&~allowedFlags)==0 && method is 0 or 8
                 && U16(c,30)==0 && U16(c,32)==0 && U16(c,34)==0 && n is >0 and <=220,"U4_ZIP_FORMAT");
             Require(size is >0 and <=MaxFile && compressed<=MaxZip && (total+=size)<=MaxExpanded,"U4_ZIP_EXPANSION");
             Require((mode is 0 or 0x8000) && (attrs&0x410)==0,"U4_ZIP_TYPE");

@@ -59,6 +59,13 @@ internal static class Stage4Tests
             byte[] b=Zip(("x",[1]));int central=BitConverter.ToInt32(b,b.Length-6);System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(central+24),256*1024*1024+1);using var s=new MemoryStream(b);Refuses(()=>StreamPackage.Headers(s,CancellationToken.None),"U4_ZIP_EXPANSION");
         }));
         await Test("U4-ZIP-07","ASCII case collisions are refused before writes",()=>Sync(()=>{using var s=new MemoryStream(Zip(("A.txt",[1]),("a.txt",[2])));Refuses(()=>StreamPackage.Headers(s,CancellationToken.None),"U4_ZIP_DUPLICATE");}));
+        await Test("U4-ZIP-08","Deflate compression-speed bits are admitted with exact local/central matching and CRC",()=>Sync(()=>{
+            byte[] bytes=new byte[20000];using var s=new MemoryStream();using(var zip=new ZipArchive(s,ZipArchiveMode.Create,true)){using var output=zip.CreateEntry("inert.txt",CompressionLevel.Fastest).Open();output.Write(bytes);}s.Position=0;
+            Require(StreamPackage.Transfer(s,_=>Stream.Null,CancellationToken.None)["inert.txt"]==Hash(bytes),"DEFLATE_HINTS");
+        }));
+        await Test("U4-ZIP-09","Encryption is still refused, independently of compression-speed hint support",()=>Sync(()=>{
+            byte[] b=Zip(("x",[1]));int central=BitConverter.ToInt32(b,b.Length-6);b[6]|=1;b[central+8]|=1;using var s=new MemoryStream(b);Refuses(()=>StreamPackage.Headers(s,CancellationToken.None),"U4_ZIP_FORMAT");
+        }));
         await Test("U4-STATE-01","Recovery retains the approved floor while the selected fixture returns to its exact predecessor",()=>Sync(()=>{
             using var c=new StateCase(suite);c.Begin();using var session=new FixtureSession(c.Root);var r=session.Recover();Require(r.Confirmed==c.Old && r.Trust.ApprovedSequence==2,"RECOVERY_FLOOR");Refuses(()=>session.Begin(c.Candidate,c.Clock(),now+TimeSpan.FromHours(1),true),"CANDIDATE_REPLAY");
         }));

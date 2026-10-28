@@ -42,7 +42,9 @@ suíte histórica nem declarar conformidade TUF a partir desses três casos.
 `StreamPackage` lê cabeçalhos limitados e autentica ZIP de até 256 MiB,
 2.048 arquivos, arquivo até 256 MiB e expansão até 768 MiB; buffer de 64 KiB.
 Perfil ZIP estreito: store/deflate, nomes ASCII, sem diretórios explícitos,
-extras, comentários, descriptors, ZIP64 ou criptografia. Recusa regiões
+extras, comentários, descriptors, ZIP64 ou criptografia. Bits 1/2 de velocidade
+do Deflate são aceitos só no método 8 (APPNOTE §4.4.4); flags local/central
+continuam idênticos e criptografia continua recusada. Recusa regiões
 sobrepostas/prefixos, cabeçalhos divergentes, colisão de case e arquivo/pasta,
 links/tipos especiais; CRC32 calculado além dos hashes. Esses limites são
 exercitados por casos representativos e valores de cabeçalho; **não foi gerado
@@ -144,4 +146,5 @@ Fontes primárias: [TUF 1.0.36 §5.1 e §6.1](https://theupdateframework.github.
 [WinVerifyTrust](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-winverifytrust),
 [WINTRUST_DATA](https://learn.microsoft.com/en-us/windows/win32/api/wintrust/ns-wintrust-wintrust_data),
 [WTSEnumerateSessionsW](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsenumeratesessionsw)
+[PKWARE APPNOTE 6.3.10 §4.4.4](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT)
 e fontes/contratos fixados nas Etapas 0–3. Nenhum contato upstream foi enviado.
