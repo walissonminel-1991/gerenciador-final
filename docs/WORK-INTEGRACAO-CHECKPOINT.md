@@ -3,9 +3,10 @@
 28/10/2026, America/Sao_Paulo. **Executar uma única etapa por sessão.**
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
-**Estado vigente: primeira BETA privada .66 ENTREGUE em 28/10/2026.** Ver o
-registro D2/D3 ao final; pendências anteriores ficam históricas. Homologação
-física não iniciada e conectada bloqueada; roadmap 27/42.
+**Estado vigente: BETA privada .66 entregue; avaliação física parcialmente
+concluída; Etapa 0 do autoatualizador documentada.** Ver os registros finais e
+o [checkpoint do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
+Implementação não iniciada; conectada bloqueada; roadmap 27/42.
 
 ## Estado de continuidade
 
@@ -824,3 +825,50 @@ esse fechamento é documental e não altera os bytes da build `c156b901`.
 [Relatório consolidado](WORK-INTEGRACAO-ETAPA9-PC-FORTE-RESULTADOS.md) · [Recibo estruturado](evidencias/integracao-etapa9-avaliacao-parcial.json). Inventário 196 aplicativos e 27 MSIX, drivers 162, 14 atualizações candidatas; consulta parcial e COM não bloqueante, bandeja/encerramento normal. Usuário assinalou os 12 testes, mas hash local/AVG formal/CPU-RAM 30–120s/T11 e alguns critérios específicos permanecem inconclusivos. Operações reais de manutenção aparecem nos logs sem efeito adverso relatado; não são motivo para repeti-las.
 
 Política aprovada: **não repetir testes já feitos por rotina**. Somente regressão dirigida caso haja alteração de produto, novo pacote/configuração relevante ou defeito novo reproduzível. Sem falsa homologação integral, sem publicação conectada/pública, sem alteração dos **27/42** checkpoints. Próxima missão separada: planejar o **autoatualizador seguro do próprio GF**, com manifesto autenticado, verificação de hash, consentimento e rollback; sem iniciar a implementação nesta sessão. Código, compilação e workflow da BETA .66 preservados.
+
+
+## Estado vigente — Etapa 0 do autoatualizador seguro documentada
+
+28/10/2026, America/Fortaleza. Entrada `c701ae16df5c1685967a9b8d299e02e811078f8d`,
+PR #65 aberta/Draft, branch `work-integracao-final-20261027`.
+**Etapa 0 concluída exclusivamente no contrato técnico e análise de ameaças;
+implementação não iniciada.**
+
+[Contrato gf-self-update/1](WORK-AUTOATUALIZADOR-ETAPA0.md) ·
+[Checkpoint próprio](WORK-AUTOATUALIZADOR-CHECKPOINT.md) ·
+[Recibo](evidencias/autoatualizador-etapa0.json).
+
+Definidos 16 requisitos, 18 ameaças e 18 casos de aceitação futuros, todos ainda
+não executados. O desenho exige metadados assinados com raiz incorporada,
+versão/sequência antirreplay, perfil local, limites/validação do pacote,
+confirmação explícita, bundles separados, seletor/diário e recuperação. Primeiro
+transporte previsto por importação explícita do canal privado autenticado,
+sem token GitHub permanente; nenhum acesso ou transporte foi implementado.
+A primeira versão com suporte exigirá bootstrap manual próprio: a .66 atual
+não pode adquirir atualizador/âncora de confiança retroativamente.
+
+BETA v5.13.11.66/fonte 6df95fdd/build privada 40716548530 e canal gf-beta-entregas
+preservados, sem reupload, download adicional, mudança de artefato, workflow,
+retenção ou permissões. Avaliação física da Etapa 9 continua **PARCIALMENTE
+CONCLUÍDA**, com resultados aceitos no escopo e lacunas formais conservados.
+Nenhum teste físico repetido, manutenção, novo produto/helper, chave, assinatura,
+manifesto operacional, pacote, CI ou build. Nenhuma publicação, Release, merge,
+deploy, agenda automática ou alteração funcional.
+
+PROGRESSO atualiza somente integration_final.next_mission; os registros da
+homologação parcial, candidate/beta, demais raízes e os 42 IDs/done permanecem
+inalterados (**27/42**). Históricos acima preservados; o aviso inicial foi
+atualizado para não indicar que a avaliação física ainda não começou.
+
+Próxima etapa proposta: Etapa 1, em sessão própria, com seleção da biblioteca/
+POUF e desenho de bootstrap/custódia; protótipo isolado de validação em fixtures,
+sem aplicação real ou mudança do canal. Gate de implementação inclui comprovar
+filesystem/IPC/recuperação no Windows descartável antes de integrar ao produto.
+Não iniciar automaticamente nem repetir F9/T01–T12 por esta mudança documental.
+
+Preservados AVG/proteções, dados/consentimento/relatórios locais, diagnóstico
+remoto bloqueado, PILOT_ENABLED=no e GITHUB_EXPORT_ENABLED=no, Worker/D1/DNS,
+VLC somente inventário sem ações/consultas/testes específicos, COM opcional/
+consultivo/não bloqueante e drivers de instalação/remoção/reversão desativados.
+Main, branches e PRs históricas preservadas. **Encerrar após conferir e salvar
+esta Etapa 0; nenhuma Etapa 1 iniciada.**

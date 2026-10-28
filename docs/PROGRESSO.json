@@ -1826,9 +1826,33 @@
     },
     "next_mission": {
       "id": "GF_SELF_UPDATER_STAGE0_CONTRACT_AND_THREAT_MODEL",
-      "status": "planned_not_started",
+      "status": "stage0_documented_implementation_not_started",
       "scope": "authenticated_manifest_sha256_consent_atomic_replace_rollback_private_channel",
-      "no_repeated_physical_test_without_product_change": true
+      "no_repeated_physical_test_without_product_change": true,
+      "stage0": {
+        "date": "2026-10-28",
+        "timezone": "America/Fortaleza",
+        "status": "contract_and_threat_model_documented",
+        "entry_head": "c701ae16df5c1685967a9b8d299e02e811078f8d",
+        "contract_version": "gf-self-update/1",
+        "document_revision": 1,
+        "contract": "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+        "checkpoint": "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+        "evidence": "docs/evidencias/autoatualizador-etapa0.json",
+        "requirements": 16,
+        "threats": 18,
+        "future_acceptance_cases": 18,
+        "future_cases_executed": 0,
+        "product_code_changed": false,
+        "new_product_builds": 0,
+        "new_ci_runs": 0,
+        "physical_tests_repeated": 0,
+        "private_delivery_channel_changed": false,
+        "implementation_started": false,
+        "publication_performed": false,
+        "next_stage": "GF_SELF_UPDATER_STAGE1_ISOLATED_VALIDATION_PROTOTYPE",
+        "next_stage_started": false
+      }
     }
   }
 }

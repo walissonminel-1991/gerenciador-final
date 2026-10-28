@@ -1,0 +1,191 @@
+{
+  "schema": 1,
+  "mission": "GF_SELF_UPDATER_STAGE0_CONTRACT_AND_THREAT_MODEL",
+  "date": "2026-10-28",
+  "timezone": "America/Fortaleza",
+  "status": "stage0_documented_implementation_not_started",
+  "evidence_type": "design_and_document_consistency_only",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "pr": 65,
+  "pr_state": "open_draft",
+  "branch": "work-integracao-final-20261027",
+  "entry_head": "c701ae16df5c1685967a9b8d299e02e811078f8d",
+  "entry_tree": "bdf54e73ee54341ab8f51a14bc54a0f4f61c9aa8",
+  "preserved_beta": {
+    "version": "5.13.11.66",
+    "source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "private_run": 40716548530,
+    "run_attempt": 1,
+    "artifact_id": 12828262039,
+    "portable_zip_sha256": "8e11f2dda5b7e2df2f85c61b57cc6a31a9596628523d2be7ad155dfdd5dda7f2",
+    "identity_basis": "existing checkpoint; no new download or build in this stage"
+  },
+  "physical_assessment": {
+    "status": "partially_completed",
+    "report": "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-RESULTADOS.md",
+    "report_blob": "9ff6ba6781c05c332b057ec648b57a163faf42f9",
+    "repeated": false,
+    "formal_gaps_preserved": true
+  },
+  "design": {
+    "contract": "gf-self-update/1",
+    "revision": 1,
+    "requirement_ids": [
+      "GFU-C01",
+      "GFU-C02",
+      "GFU-C03",
+      "GFU-C04",
+      "GFU-C05",
+      "GFU-C06",
+      "GFU-C07",
+      "GFU-C08",
+      "GFU-C09",
+      "GFU-C10",
+      "GFU-C11",
+      "GFU-C12",
+      "GFU-C13",
+      "GFU-C14",
+      "GFU-C15",
+      "GFU-C16"
+    ],
+    "threat_ids": [
+      "GFU-T01",
+      "GFU-T02",
+      "GFU-T03",
+      "GFU-T04",
+      "GFU-T05",
+      "GFU-T06",
+      "GFU-T07",
+      "GFU-T08",
+      "GFU-T09",
+      "GFU-T10",
+      "GFU-T11",
+      "GFU-T12",
+      "GFU-T13",
+      "GFU-T14",
+      "GFU-T15",
+      "GFU-T16",
+      "GFU-T17",
+      "GFU-T18"
+    ],
+    "future_acceptance_ids": [
+      "GFU-V01",
+      "GFU-V02",
+      "GFU-V03",
+      "GFU-V04",
+      "GFU-V05",
+      "GFU-V06",
+      "GFU-V07",
+      "GFU-V08",
+      "GFU-V09",
+      "GFU-V10",
+      "GFU-V11",
+      "GFU-V12",
+      "GFU-V13",
+      "GFU-V14",
+      "GFU-V15",
+      "GFU-V16",
+      "GFU-V17",
+      "GFU-V18"
+    ],
+    "future_acceptance_status": "specified_not_executed",
+    "metadata_reference": "TUF 1.0.36; conformity not claimed",
+    "initial_transport_design": "explicit import from authenticated private download; no embedded credentials",
+    "transaction_design": "new managed installation; version bundles, selector and recovery journal",
+    "dotnet_library_selected": false,
+    "keys_created": false,
+    "trust_anchor_installed": false,
+    "signed_metadata_created": false,
+    "beta66_retrofit": false
+  },
+  "scope": {
+    "files": [
+      "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+      "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+      "docs/evidencias/autoatualizador-etapa0.json",
+      "docs/PROGRESSO.json",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md"
+    ],
+    "product_code_changed": false,
+    "new_product_tests": 0,
+    "new_ci_runs": 0,
+    "new_builds": 0,
+    "physical_tests_repeated": 0,
+    "private_channel_changes": 0,
+    "private_channel_operational_access": false,
+    "publication": false,
+    "release": false,
+    "merge": false,
+    "deploy": false,
+    "automation_created": false,
+    "retention_changed": false,
+    "permissions_changed": false
+  },
+  "preservation": {
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "roadmap_ids_changed": [],
+    "progress_allowed_delta": [
+      "integration_final.next_mission"
+    ],
+    "input_delta_from_functional_source": {
+      "document_paths": 22,
+      "non_document_paths": 0
+    },
+    "AVG_and_windows_protections": "unchanged",
+    "driver_mutations": "disabled",
+    "VLC": "inventory_only_no_specific_queries_actions_tests",
+    "WinGet_COM": "optional_consultative_non_blocking",
+    "remote_diagnostics": "blocked",
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "Worker_D1_DNS": "unchanged"
+  },
+  "sources": [
+    {
+      "id": "R1",
+      "url": "https://theupdateframework.github.io/specification/v1.0.36/"
+    },
+    {
+      "id": "R2",
+      "url": "https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts"
+    },
+    {
+      "id": "R3",
+      "url": "https://docs.github.com/en/rest/actions/artifacts#download-an-artifact"
+    },
+    {
+      "id": "R4",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilew"
+    },
+    {
+      "id": "R5",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/fileio/symbolic-link-effects-on-file-systems-functions"
+    },
+    {
+      "id": "R6",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/wintrust/nf-wintrust-winverifytrust"
+    }
+  ],
+  "document_sha256": {
+    "docs/WORK-AUTOATUALIZADOR-ETAPA0.md": "d9bd23741d36027061c5508679f1459008d4c8edd01cfd3ca30c88abd303490a",
+    "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md": "1079d163dab75cc75d87cbd3545b9d3e3d1331f0352ed4fec61d77681fe341d8",
+    "docs/PROGRESSO.json": "48d478b6dad822fb100ed85d2235ea83bcafd6a2a49df29d26841c2009f4a61c",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md": "61bd2b791d649e1bed586343d70100c91abb755d57fa1618ecef2ecfbe2d199e"
+  },
+  "next_stage": {
+    "id": "GF_SELF_UPDATER_STAGE1_ISOLATED_VALIDATION_PROTOTYPE",
+    "started": false,
+    "scope": "library/POUF, bootstrap/custody and isolated validator fixtures only in a future session"
+  },
+  "document_checks": {
+    "scope_exactly_five_document_files": true,
+    "progress_delta_only_current_next_mission": true,
+    "all_42_roadmap_ids_and_states_preserved": true,
+    "requirements_and_threats_covered_by_future_cases": true,
+    "relative_links_resolve": true,
+    "json_valid": true,
+    "physical_report_blob_unchanged": true,
+    "product_tests_or_windows_tests_executed": false
+  }
+}
