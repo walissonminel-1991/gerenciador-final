@@ -1,5 +1,43 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+28/10/2026, America/Fortaleza. **Etapa 7 de decisões e revisão concluída.
+Zero de oito gates operacionais fechado; oito bloqueados. Etapa 8 NÃO INICIADA.**
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | GF_SELF_UPDATER_STAGE7_TARGETED_DECISIONS_AND_REVIEW |
+| PR / branch | #65 aberta/Draft, work-integracao-final-20261027 |
+| Entrada | bee4bebd5c5714bae7430a9249c961e1b85af523 |
+| Escopo entregue | Seis decisões de arquitetura, revisão dirigida do relógio TUF e desenho de prazo/ownership/I/O; D6-01 a D6-07 separados de autorização operacional |
+| G2 / rota técnica | Fonte MIT já fixada, escalar UTC imutável/factory interna/cliente por tentativa para revisão isolada futura; sem implementação, adoção ou troca de biblioteca |
+| G2 / achado novo | Timestamp igual retorna localmente e fluxo externo continua; deve terminar o ciclo. Fixture chama refresh duas vezes; o patch de sete consultas não corrige esses fluxos |
+| G8 / desenho | Um prazo, admissão/ownership antes do início, tarefa original e recursos até término; resultado desconhecido bloqueia aplicar/limpar/retry. Factory pode bloquear antes de devolver Task |
+| Limites de I/O | ReplaceFile sem cancelamento por essas APIs; CancelIoEx não espera término. Não prometer abort de driver nem durabilidade da quarentena sem G1 |
+| D6 ainda dependentes | D6-01 mecanismo/escopo de frescor; D6-02 aceite de manutenção/revisão; D6-03 laboratório; D6-04 autorização/custódia; D6-05 candidato GF; D6-07 implementação/evidência. D6-06 só futuro modo obrigatório |
+| Gates | 0/8 fechados; decisões de desenho e achados estáticos não são provas operacionais |
+| Verificação | Proveniência/hashes, JSON/links/referências e preservação documental; sem executar suites ou repetir CI |
+| Execução | Zero código/build/CI/teste novo ou repetido, chaves operacionais, infraestrutura, integração ou publicação |
+| Preservação | .66, canal privado, proteções, avaliação física parcial e 27/42 intactos; históricos preservados |
+
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA7.md) ·
+[Revisão TUF](WORK-AUTOATUALIZADOR-ETAPA7-RELOGIO.md) ·
+[Prazo/I/O](WORK-AUTOATUALIZADOR-ETAPA7-PRAZO-IO.md) ·
+[Decisões e gates](evidencias/autoatualizador-etapa7-decisoes.json) ·
+[Recibo](evidencias/autoatualizador-etapa7.json).
+
+Contrato **gf-self-update/1 revisão 1 intacto**. A rota/desenho estão registrados
+para revisão isolada futura, sem aprovação presumida de manutenção, laboratório,
+custódia, pacote ou recurso externo. G1 forte não recebe solução somente local;
+beta-unsigned permanece permitido. Não alterar garantias, chaves ou permissões.
+
+Próxima ação: decisões/insumos específicos da matriz D6 e eventual revisão do
+delta em nova missão autorizada. **Parar após salvar/conferir; não iniciar
+Etapa 8, criar chaves operacionais, integrar não homologado ou publicar versões.**
+Preservar AVG/Windows, remoto bloqueado/flags no, consentimento, drivers inativos,
+VLC só inventário, COM consultivo e BETA .66 integral. Nenhum teste físico repetido.
+
+## Registro da Etapa 6 — histórico preservado
+
 28/10/2026, America/Fortaleza. **Etapa 6 de preparação concluída.
 Oito gates operacionais continuam bloqueados; zero fechado. Etapa 7 NÃO INICIADA.**
 

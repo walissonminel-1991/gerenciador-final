@@ -4,9 +4,9 @@
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 **Estado vigente: BETA privada .66 entregue; avaliação física parcialmente
-concluída; Etapa 6 de preparação do autoatualizador concluída; oito gates operacionais bloqueados.** Ver os
+concluída; Etapa 7 de decisões/revisão do autoatualizador concluída; oito gates operacionais bloqueados.** Ver os
 registros finais e o [checkpoint do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
-Sem integração no produto ou Etapa 7; conectada bloqueada; roadmap 27/42.
+Sem integração no produto ou Etapa 8; conectada bloqueada; roadmap 27/42.
 
 ## Estado de continuidade
 
@@ -1026,3 +1026,35 @@ Sem chave operacional, infraestrutura, bootstrap, integração, versão ou entre
 BETA .66/canal privado/AVG/proteções/avaliação parcial/27 de 42 preservados.
 Resolver somente pré-requisitos específicos em futuro escopo autorizado; parar
 sem iniciar Etapa 7 e sem alterar canal, permissões ou contrato por inferência.
+
+
+## Autoatualizador — Etapa 7: decisões e revisão dirigida (estado vigente)
+
+28/10/2026, America/Fortaleza. PR #65 aberta/Draft, entrada
+`bee4bebd5c5714bae7430a9249c961e1b85af523`, mesma branch de continuidade.
+Revisão documental concluída: seis decisões de arquitetura, fonte TUF fixada,
+relógio imutável por tentativa e desenho de prazo/admissão/ownership/drenagem.
+Timestamp de mesma versão encerra apenas método local no código inspecionado;
+fluxo externo e refresh duplicado precisam de revisão antes da adoção.
+Resultado desconhecido de I/O bloqueia commit/limpeza/retry; não prometer abort
+de ReplaceFile/driver ou persistência infalível da quarentena.
+
+**Zero de oito gates fechado; oito bloqueados.** D6-01/frescor,
+D6-02/manutenção/revisão, D6-03/laboratório, D6-04/autorização/custódia,
+D6-05/candidato e D6-07/implementação/evidência continuam com pendências
+explícitas. D6-06 condicional, beta-unsigned preservado. Nenhuma aprovação
+operacional inferida. Contrato gf-self-update/1 não alterado.
+
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA7.md) ·
+[Relógio](WORK-AUTOATUALIZADOR-ETAPA7-RELOGIO.md) ·
+[Prazo/I/O](WORK-AUTOATUALIZADOR-ETAPA7-PRAZO-IO.md) ·
+[Decisões](evidencias/autoatualizador-etapa7-decisoes.json) ·
+[Recibo](evidencias/autoatualizador-etapa7.json) ·
+[Checkpoint](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
+
+Somente Markdown/JSON, zero código/build/CI ou teste novo/repetido. BETA .66,
+canal privado/retenção/acessos, 27/42 e avaliação física parcial intactos.
+AVG/proteções, dados/consentimento, remoto bloqueado/flags no, drivers inativos,
+VLC só inventário e COM consultivo preservados. Sem chave operacional,
+infraestrutura/permissões, integração, merge/Release/publicação. Históricos
+mantidos. **Parar após salvar/conferir; Etapa 8 não iniciada.**
