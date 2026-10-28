@@ -1,0 +1,36 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+// A shared cooperative deadline, not a claim that arbitrary kernel I/O is forcibly stopped.
+internal sealed class StageDeadline : IDisposable
+{
+    private readonly Stopwatch timer=Stopwatch.StartNew();
+    private readonly CancellationTokenSource source;
+    private readonly TimeSpan limit;
+    internal CancellationToken Token=>source.Token;
+    internal double ElapsedSeconds=>timer.Elapsed.TotalSeconds;
+    private StageDeadline(TimeSpan limit,CancellationToken user)
+    {
+        Require(limit>TimeSpan.Zero && limit<=TimeSpan.FromMinutes(2),"DEADLINE_LIMIT");this.limit=limit;
+        source=CancellationTokenSource.CreateLinkedTokenSource(user);source.CancelAfter(limit);
+    }
+    internal static StageDeadline Start(CancellationToken user=default)=>new(TimeSpan.FromMinutes(2),user);
+    internal static StageDeadline ShortFixture(TimeSpan limit,CancellationToken user=default)=>new(limit,user);
+    internal void Check()
+    {if(timer.Elapsed>=limit)source.Cancel();source.Token.ThrowIfCancellationRequested();}
+    internal async Task<T> ObserveRead<T>(Task<T> read)
+    {
+        Check();T value=await read.WaitAsync(Token);Check();return value;
+        // The caller still owns read and its handles, even when this wait is canceled.
+    }
+    internal async Task<string> Hash(Stream input)
+    {
+        Check();using var digest=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);var buffer=new byte[65536];long count=0;int n;
+        while((n=await input.ReadAsync(buffer.AsMemory(),Token))!=0)
+        {Check();Require((count+=n)<=256L*1024*1024,"READ_BYTE_LIMIT");digest.AppendData(buffer,0,n);}
+        Check();return Convert.ToHexStringLower(digest.GetHashAndReset());
+    }
+    public void Dispose()=>source.Dispose();
+}

@@ -1,0 +1,62 @@
+using System.Runtime.Versioning;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+[SupportedOSPlatform("windows")]
+internal sealed class PinnedFixtureBundle : IDisposable
+{
+    private readonly List<IDisposable> pins=[];
+    private readonly Dictionary<string,string> expected;
+    private readonly Dictionary<string,string> identities=new(StringComparer.Ordinal);
+    private readonly string root,folder;
+    private bool disposed;
+    internal VerifiedInertProbe Probe {get;private set;}=null!;
+    internal int Count=>identities.Count;
+    private PinnedFixtureBundle(string root,string folder,Dictionary<string,string> recipe)
+    {this.root=root;this.folder=folder;expected=new(recipe,StringComparer.Ordinal);}
+    internal static async Task<PinnedFixtureBundle> Acquire(string root,string folder,Dictionary<string,string> recipe,StageDeadline deadline)
+    {
+        FixtureSandbox.RequireRoot(root);Require(recipe.Count is >0 and <=2048,"PIN_COUNT");deadline.Check();
+        var result=new PinnedFixtureBundle(root,folder,recipe);
+        try
+        {
+            result.pins.Add(WindowsFileGuard.Open(root,root,true));result.pins.Add(WindowsFileGuard.Open(root,folder,true));
+            foreach(var item in result.expected.OrderBy(x=>x.Key,StringComparer.Ordinal))
+            {
+                deadline.Check();ZipInspection.SafeName(item.Key);string path=Path.Combine(folder,item.Key);
+                var pin=WindowsFileGuard.Open(root,path);result.pins.Add(pin);result.identities.Add(item.Key,pin.Identity);
+                await using var input=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,65536,FileOptions.Asynchronous|FileOptions.SequentialScan);
+                Require(await deadline.Hash(input)==item.Value,"PIN_CONTENT_CHANGED");
+            }
+            result.RequireExactSet();result.Probe=VerifiedInertProbe.Inspect(root,folder,result.expected);deadline.Check();return result;
+        }
+        catch{result.Dispose();throw;}
+    }
+    internal void RequireExactSet()
+    {
+        Require(!disposed,"PINS_RELEASED");FixtureSandbox.RequireRoot(root);
+        var directories=new HashSet<string>(StringComparer.Ordinal);var actual=new HashSet<string>(StringComparer.Ordinal);
+        foreach(string name in expected.Keys){string parent=name;while(parent.Contains('/')){parent=parent[..parent.LastIndexOf('/')];directories.Add(parent);}}
+        var pending=new Stack<string>();pending.Push(folder);int count=0;
+        while(pending.TryPop(out var parent))
+        {
+            using var directoryPin=WindowsFileGuard.Open(root,parent,true);
+            foreach(string path in Directory.EnumerateFileSystemEntries(parent))
+            {
+                Require(++count<=4096,"PIN_ENUMERATION_LIMIT");string name=Path.GetRelativePath(folder,path).Replace('\\','/');
+                if(expected.ContainsKey(name)){using var pin=WindowsFileGuard.Open(root,path);actual.Add(name);}
+                else if(directories.Contains(name)){using var pin=WindowsFileGuard.Open(root,path,true);pending.Push(path);}
+                else throw new Rejected("PIN_UNEXPECTED_CONTENT");
+            }
+        }
+        Require(actual.SetEquals(expected.Keys),"PIN_UNEXPECTED_CONTENT");
+        // No ACL change: new names can still be created. This check is not a loader allow-list.
+    }
+    internal void RequireLiveChild(System.Diagnostics.Process child,StageDeadline deadline)
+    {
+        deadline.Check();RequireExactSet();Require(!child.HasExited,"CHILD_EXITED_BEFORE_CONFIRM");
+        var facts=PeerIdentity.Facts(child);Require(Path.GetFullPath(facts.Image).Equals(Path.GetFullPath(Path.Combine(folder,StaticProbeInspection.Exe)),StringComparison.OrdinalIgnoreCase),"PIN_CHILD_IMAGE");
+    }
+    public void Dispose()
+    {if(disposed)return;disposed=true;for(int i=pins.Count-1;i>=0;i--)pins[i].Dispose();pins.Clear();}
+}

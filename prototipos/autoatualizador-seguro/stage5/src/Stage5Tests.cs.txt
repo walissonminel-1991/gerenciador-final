@@ -1,0 +1,151 @@
+using System.Diagnostics;
+using System.IO.Pipes;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+internal static class Stage5Tests
+{
+    private static readonly List<object> Results=[],Observations=[];
+    private static string suite="",probe="",recipePath="";
+    private static async Task<bool> Test(string id,string description,Func<Task> action)
+    {try{await action();Results.Add(new{id,description,status="passed"});Console.WriteLine("PASS "+id);return true;}catch(System.Net.Sockets.SocketException e) when(!OperatingSystem.IsWindows() && e.SocketErrorCode==System.Net.Sockets.SocketError.AccessDenied){Results.Add(new{id,description,status="blocked",reason="Linux AF_UNIX creation denied by environment",error_code=e.ErrorCode});Console.WriteLine("BLOCKED "+id);return false;}catch(Exception e){Results.Add(new{id,description,status="failed",error=e.ToString()});Console.WriteLine("FAIL "+id+" "+e);return false;}}
+    private static async Task Canceled(Func<Task> action)
+    {try{await action();}catch(OperationCanceledException){return;}throw new Rejected("DEADLINE_ACCEPTED_LATE_RESULT");}
+    private static void Refuses(Action a,string code)
+    {try{a();}catch(Rejected e){Require(e.Code==code,"WRONG_REFUSAL:"+e.Code);return;}throw new Rejected("UNSAFE_ACCEPTANCE:"+code);}
+    private static async Task Drain(Task task)
+    {try{await task.WaitAsync(TimeSpan.FromSeconds(5));}catch(Exception e) when(e is IOException or OperationCanceledException){} }
+    private sealed class PipePair : IDisposable
+    {
+        internal readonly NamedPipeServerStream Server;
+        internal readonly NamedPipeClientStream Client;
+        private PipePair(string name)
+        {
+            Server=new(name,PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly|PipeOptions.FirstPipeInstance);
+            Client=new(".",name,PipeDirection.InOut,PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly);
+        }
+        internal static async Task<PipePair> Connect()
+        {
+            var p=new PipePair("gf-u5-io-"+Guid.NewGuid().ToString("N"));
+            try{using var c=new CancellationTokenSource(TimeSpan.FromSeconds(5));Task server=p.Server.WaitForConnectionAsync(c.Token);await p.Client.ConnectAsync(c.Token);await server;return p;}
+            catch{p.Dispose();throw;}
+        }
+        public void Dispose(){Client.Dispose();Server.Dispose();}
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=3)return 2;probe=args[0];recipePath=args[1];suite=Path.Combine(Path.GetTempPath(),"gf-u2-u5-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(suite);
+        try{await Common();if(OperatingSystem.IsWindows())await Windows();}
+        finally{Directory.Delete(suite,true);}
+        int failed=Results.Count(x=>JsonSerializer.SerializeToElement(x).GetProperty("status").GetString()=="failed");
+        int blocked=Results.Count(x=>JsonSerializer.SerializeToElement(x).GetProperty("status").GetString()=="blocked");
+        var report=new{schema=1,stage=5,contract="gf-self-update/1",fixture_only=true,package_installable=false,operational_gates_closed=0,
+            runtime=RuntimeInformation.FrameworkDescription,os=RuntimeInformation.OSDescription,total=Results.Count,passed=Results.Count-failed-blocked,failed,blocked,tests=Results,observations=Observations,
+            product_built=false,product_executed=false,private_channel_accessed=false,physical_tests_repeated=0,stage6_started=false};
+        await File.WriteAllBytesAsync(args[2],StateCodec.Encode(report));return failed==0?0:1;
+    }
+    private static async Task Common()
+    {
+        await Test("U5-IO-SHARED","Two real pipe reads share one monotonic deadline instead of restarting per phase",async()=>{
+            using var pair=await PipePair.Connect();using var budget=StageDeadline.ShortFixture(TimeSpan.FromMilliseconds(1500));
+            var sender=Task.Run(async()=>{await Task.Delay(300);await pair.Client.WriteAsync(new byte[]{1});await pair.Client.FlushAsync();});
+            int first=await budget.ObserveRead(pair.Server.ReadAsync(new byte[1],budget.Token).AsTask());await sender;Require(first==1,"FIRST_PIPE_READ");
+            Task<int> second=pair.Server.ReadAsync(new byte[1],budget.Token).AsTask();await Canceled(async()=>{_=await budget.ObserveRead(second);});await Drain(second);
+            Require(budget.ElapsedSeconds>=1.4 && budget.ElapsedSeconds<8,"DEADLINE_MEASUREMENT");Observations.Add(new{kind="shared_real_io_deadline",configured_seconds=1.5,elapsed_seconds=Math.Round(budget.ElapsedSeconds,3),physical_storage_hang=false});
+        });
+        await Test("U5-IO-CANCEL","User cancellation reaches a pending real asynchronous pipe read",async()=>{
+            using var pair=await PipePair.Connect();using var user=new CancellationTokenSource();using var budget=StageDeadline.Start(user.Token);
+            Task<int> read=pair.Server.ReadAsync(new byte[1],budget.Token).AsTask();Require(!read.IsCompleted,"READ_NOT_PENDING");user.Cancel();await Canceled(async()=>{_=await budget.ObserveRead(read);});await Drain(read);
+            Require(read.IsCanceled,"KERNEL_READ_NOT_CANCELED");Observations.Add(new{kind="cooperative_real_io_cancellation",read_task_canceled=read.IsCanceled});
+        });
+        await Test("U5-IO-LATE","A canceled wait does not stop underlying tokenless kernel I/O; late completion cannot pass Check",async()=>{
+            using var pair=await PipePair.Connect();using var budget=StageDeadline.ShortFixture(TimeSpan.FromMilliseconds(200));
+            Task<int> raw=pair.Server.ReadAsync(new byte[1],CancellationToken.None).AsTask();await Canceled(async()=>{_=await budget.ObserveRead(raw);});Require(!raw.IsCompleted,"RAW_IO_NOT_PENDING_AFTER_TIMEOUT");
+            await pair.Client.WriteAsync(new byte[]{7});await pair.Client.FlushAsync();Require(await raw.WaitAsync(TimeSpan.FromSeconds(5))==1,"LATE_IO_NOT_OBSERVED");
+            await Canceled(()=>{budget.Check();return Task.CompletedTask;});
+            Observations.Add(new{kind="wait_only_cancellation_counterexample",raw_io_pending_after_deadline=true,late_completion_observed=true,forced_storage_abort_proved=false});
+        });
+        await Test("U5-IO-FILE","Asynchronous disk hashing reads a real bounded file under the same deadline",async()=>{
+            string path=Path.Combine(suite,"inert-read.fixture");byte[] bytes=new byte[8*1024*1024];RandomNumberGenerator.Fill(bytes);await File.WriteAllBytesAsync(path,bytes);
+            using var budget=StageDeadline.Start();await using var input=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,65536,FileOptions.Asynchronous|FileOptions.SequentialScan);
+            Require(await budget.Hash(input)==Hash(bytes),"ASYNC_FILE_HASH");
+        });
+    }
+    [SupportedOSPlatform("windows")]
+    private static async Task Windows()
+    {
+        using var self=Process.GetCurrentProcess();bool elevated=PeerIdentity.Facts(self).Elevated;int launches=BoundLifecycleChannel.Launches;
+        if(elevated){try{PeerIdentity.RequireNonElevated();throw new Rejected("ELEVATION_ACCEPTED");}catch(InvalidDataException e){Require(e.Message=="ELEVATED_CONTEXT_BLOCKED","ELEVATION_REFUSAL");}}
+        else PeerIdentity.RequireNonElevated();Require(launches==BoundLifecycleChannel.Launches,"CONTEXT_GUARD_SPAWNED");
+        Observations.Add(new{kind="operational_context",elevated,operational_context_allowed=!elevated,non_elevated_positive_handshake=false,foreign_session_user_handshake=false,token_acl_or_privilege_changed=false});
+        await Test("U5-IO-120","The default 120 second deadline expires against an actual pending Windows pipe read",async()=>{
+            using var pair=await PipePair.Connect();using var budget=StageDeadline.Start();Task<int> read=pair.Server.ReadAsync(new byte[1],budget.Token).AsTask();
+            Console.WriteLine("U5_REAL_120_SECOND_READ_STARTED");await Canceled(async()=>{_=await budget.ObserveRead(read);});await Drain(read);
+            Require(read.IsCanceled && budget.ElapsedSeconds>=119 && budget.ElapsedSeconds<150,"REAL_120_SECOND_DEADLINE");
+            Observations.Add(new{kind="default_real_windows_io_deadline",configured_seconds=120,elapsed_seconds=Math.Round(budget.ElapsedSeconds,3),read_task_canceled=read.IsCanceled,physical_storage_hang=false});
+        });
+        using var scope=new StateCase(suite);string folder=Path.Combine(scope.Root,"probe");Copy(probe,folder);
+        var recipe=JsonSerializer.Deserialize<Dictionary<string,string>>(File.ReadAllText(recipePath))!;PinnedFixtureBundle? pinned=null;
+        bool prepared=await Test("U5-PIN-ALL","All files in the full inert bundle have NTFS handles and every write-open is rejected",async()=>{
+            using var deadline=StageDeadline.Start();pinned=await PinnedFixtureBundle.Acquire(scope.Root,folder,recipe,deadline);int denied=0;
+            foreach(string name in recipe.Keys){SharingRefuses(()=>{using var f=new FileStream(Path.Combine(folder,name),FileMode.Open,FileAccess.Write,FileShare.ReadWrite|FileShare.Delete);});denied++;}
+            Require(pinned.Count==recipe.Count && denied==recipe.Count,"PIN_COVERAGE");Observations.Add(new{kind="full_bundle_handle_retention",files=recipe.Count,identities=pinned.Count,write_opens_denied=denied,expanded_bytes=Directory.GetFiles(folder,"*",SearchOption.AllDirectories).Sum(p=>new FileInfo(p).Length),all_known_files_pinned=true,gf_bundle=false});
+        });
+        if(!prepared || pinned is null){pinned?.Dispose();Observations.Add(new{kind="lifecycle_not_executed",reason="full pin gate failed",cases=4});return;}
+        using(pinned)
+        {
+            await Test("U5-LIVE-PINS","All bundle handles survive real WinForms readiness, normal close and confirmed fixture transaction",async()=>{
+                using var state=new StateCase(suite);BundleRef candidate=Candidate(state,recipe);using var session=new FixtureSession(state.Root);using var deadline=StageDeadline.Start();
+                var selected=session.Begin(candidate,state.Clock(),DateTimeOffset.UtcNow+TimeSpan.FromHours(1),true);var tx=selected.Transaction!;string nonce=Hash(Encoding.UTF8.GetBytes(tx.Nonce+candidate.Sha256));
+                await using(var child=await BoundLifecycleChannel.Open(pinned.Probe,"normal",tx.Id,nonce))
+                {
+                    await child.Ready();pinned.RequireLiveChild(child.Child,deadline);
+                    SharingRefuses(()=>File.Delete(Path.Combine(folder,"System.Text.Json.dll")));
+                    SharingRefuses(()=>File.Move(Path.Combine(folder,"Licenses/DotNET/LICENSE.txt"),Path.Combine(folder,"license-moved.fixture")));
+                    var confirmed=session.Confirm(new(tx.Id,tx.Nonce,candidate.Sha256));Require(confirmed.Transaction?.Phase=="confirmed","NOT_CONFIRMED");await child.Close();Require(child.Child.HasExited,"CHILD_NOT_EXITED");
+                    SharingRefuses(()=>{using var f=new FileStream(Path.Combine(folder,"System.Text.Json.dll"),FileMode.Open,FileAccess.Write);});
+                }
+                Observations.Add(new{kind="pinned_inert_transaction",confirmed_while_child_alive=true,all_handles_retained_through_real_exit=true,real_gf_lifecycle=false,harness_in_inherited_elevation=true});
+            });
+            await Test("U5-LATE-READY","Deadline expiration during a real no-ready child blocks confirmation and recovers exact predecessor",async()=>{
+                using var state=new StateCase(suite);BundleRef candidate=Candidate(state,recipe);using var session=new FixtureSession(state.Root);
+                var selected=session.Begin(candidate,state.Clock(),DateTimeOffset.UtcNow+TimeSpan.FromHours(1),true);var tx=selected.Transaction!;string nonce=Hash(Encoding.UTF8.GetBytes(tx.Nonce+candidate.Sha256));
+                await using(var child=await BoundLifecycleChannel.Open(pinned.Probe,"no-ready",tx.Id,nonce))
+                {
+                    using var deadline=StageDeadline.ShortFixture(TimeSpan.FromMilliseconds(250));Task ready=child.Ready(TimeSpan.FromSeconds(3));
+                    await Canceled(async()=>{await ready.WaitAsync(deadline.Token);deadline.Check();});
+                    await Canceled(()=>{pinned.RequireLiveChild(child.Child,deadline);session.Confirm(new(tx.Id,tx.Nonce,candidate.Sha256));return Task.CompletedTask;});
+                    await Drain(ready);await child.Close();
+                }
+                var recovered=session.Recover();Require(recovered.Confirmed==state.Old && recovered.Trust.ApprovedSequence==2,"LATE_CONFIRM_OR_LOWERED_FLOOR");
+                Observations.Add(new{kind="deadline_blocks_fixture_confirmation",confirmed=false,exact_predecessor_recovered=true,retained_sequence=2,real_gf_lifecycle=false});
+            });
+            await Test("U5-NEW-NAME","Pinned known files do not prevent new names; exact-set revalidation rejects the added file",async()=>{
+                string path=Path.Combine(folder,"new-name.fixture.txt");await File.WriteAllTextAsync(path,"OWNED-INERT-ATTACK-FIXTURE");Refuses(pinned.RequireExactSet,"PIN_UNEXPECTED_CONTENT");
+                Observations.Add(new{kind="directory_insertion_boundary",new_file_creation_prevented=false,exact_set_revalidation_rejected=true,loader_allowlist_proved=false});
+            });
+        }
+        // Causal control: the same existing file becomes writable after all held handles are released.
+        await Test("U5-RELEASE","After real child exit and handle disposal the control file is writable without changing ACL",()=>{
+            using(var output=new FileStream(Path.Combine(folder,"System.Text.Json.dll"),FileMode.Open,FileAccess.Write,FileShare.ReadWrite)){}
+            Observations.Add(new{kind="handle_release_control",existing_file_write_open_after_release=true});return Task.CompletedTask;
+        });
+    }
+    private static BundleRef Candidate(StateCase state,Dictionary<string,string> recipe)
+    {
+        byte[] marker=StateCodec.Encode(new{schema="inert-pinned-lifecycle/5",recipe_sha256=Hash(StateCodec.Encode(recipe)),entrypoint=StaticProbeInspection.Exe});string digest=Hash(marker);
+        string folder=Path.Combine(state.Root,"versions","2-"+digest);Directory.CreateDirectory(folder);string path=Path.Combine(folder,"bundle.fixture.txt");File.WriteAllBytes(path,marker);
+        string identity="linux-fixture-model";if(OperatingSystem.IsWindows()){using var pin=WindowsFileGuard.Open(state.Root,path);identity=pin.Identity;}
+        return new(2,"0.0.0.2",digest,identity);
+    }
+    [SupportedOSPlatform("windows")]
+    private static void SharingRefuses(Action a)
+    {try{a();}catch(IOException e){Require((e.HResult&65535) is 32 or 33,"NOT_A_SHARING_REFUSAL:"+(e.HResult&65535));return;}throw new Rejected("PIN_DID_NOT_DENY_MUTATION");}
+    private static void Copy(string source,string target)
+    {foreach(string path in Directory.GetFiles(source,"*",SearchOption.AllDirectories)){string next=Path.Combine(target,Path.GetRelativePath(source,path));Directory.CreateDirectory(Path.GetDirectoryName(next)!);File.Copy(path,next,false);}}
+}
