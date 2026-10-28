@@ -3,6 +3,10 @@
 28/10/2026, America/Sao_Paulo. **Executar uma única etapa por sessão.**
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
+**Estado vigente: primeira BETA privada .66 ENTREGUE em 28/10/2026.** Ver o
+registro D2/D3 ao final; pendências anteriores ficam históricas. Homologação
+física não iniciada e conectada bloqueada; roadmap 27/42.
+
 ## Estado de continuidade
 
 Estratégia vigente: [piloto BETA único](WORK-INTEGRACAO-PILOTO-BETA-UNICO.md).
@@ -736,3 +740,78 @@ Roadmap **27/42**, sem promoção. **Etapa 9 NÃO INICIADA.**
 
 Próxima ação: decisão específica D1–D3 e capacidade de implantação do plano,
 em outra sessão da Etapa 8. **Parada após esta revisão e salvamento.**
+
+
+## Estado vigente — primeira BETA privada entregue (D2/D3)
+
+28/10/2026, America/Fortaleza. **ENTREGUE para download autenticado do mantenedor.**
+D1 já estava concluída; D2 e D3 foram expressamente autorizadas nesta missão e
+executadas, sem nova solicitação de aprovação. Este registro substitui as
+pendências de autorização/canal/pacote dos registros históricos acima.
+
+- Repositório privado existente: `walissonminel-1991/gf-beta-entregas`; private
+  reconferido antes e depois da compilação, zero colaboradores humanos na tela
+  de acesso. Nenhum repositório novo, convite, grant ou aplicativo adicionado.
+- Workflow privado manual: `.github/workflows/piloto-beta-private.yml`;
+  controlador/build `c156b901ceb03021198ba56a9b4165315d6002a1`.
+- Fonte funcional fixa `6df95fdd776644cd4b248b5cea61108974ca9ce9`, árvore
+  `e29acb3619b85050a4cf5becaf81bfa3fdda0bd2`, versão 5.13.11.66. As duas CIs
+  aprovadas 40675784213/40675784155 foram conferidas, sem repetir suas suítes.
+- [Build privada 40716548530](https://github.com/walissonminel-1991/gf-beta-entregas/actions/runs/40716548530),
+  número 1/tentativa 1, **completed/success**. Uma compilação inicial e zero
+  reexecução; Windows hospedado descartável windows-2022 x64, SDK .NET 10.0.402,
+  runtime self-contained .NET/WindowsDesktop 10.0.13. A cota observada antes da
+  execução era 0/2.000 minutos e 0/0,5 GB; nenhum recurso pago habilitado.
+- Job Windows 122915731341: publish aprovado, manifesto Win32/CreateActCtxW,
+  versão/assembly/perfil local, dependências/licenças/contrato fechado e hashes.
+  Inspeção sem iniciar o produto: transporte false e endpoint/aprovados conectados
+  ausentes. Zero assinaturas reconhecíveis de credenciais na inspeção ASCII/UTF-16
+  dos 287 arquivos; não foram injetados segredos no pacote.
+- Job Linux independente 122916823360 **success**: baixou os bytes armazenados,
+  conferiu digest externo, hash/tamanho do ZIP portátil, extração segura,
+  composição/origem/AMD64/runtime/licenças e 286 hashes de 287 arquivos, sem
+  executar o aplicativo. Tamanho descompactado 153.051.663 bytes.
+
+**Pacote portátil real:**
+`GerenciadorFinal-v5.13.11.66-6df95fdd-BETA-TESTE-NAO-HOMOLOGADA-win-x64-r40716548530-a1.zip`.
+57.710.273 bytes; SHA-256 confirmado depois do download no Linux:
+`8e11f2dda5b7e2df2f85c61b57cc6a31a9596628523d2be7ad155dfdd5dda7f2`.
+Contém EXE, DLLs, runtime, dependências, licenças e manifestos, não apenas recibos.
+
+[Artefato privado autenticado 12828262039](https://github.com/walissonminel-1991/gf-beta-entregas/actions/runs/40716548530/artifacts/12828262039),
+retenção sete dias, expiração informada 04/11/2026 às 12:31:37 America/Fortaleza.
+O GitHub envolve o pacote e três recibos em ZIP externo próprio: 57.713.748 bytes,
+digest SHA-256 `137122435c5b861eeef78ef80b8da2a589979541ae9237bc046fc88e9cf84423`.
+**Não confundir o hash do arquivo externo com o ZIP portátil interno.**
+[Comprovante independente 12829336070](https://github.com/walissonminel-1991/gf-beta-entregas/actions/runs/40716548530/artifacts/12829336070)
+e [instruções de download/conferência](https://github.com/walissonminel-1991/gf-beta-entregas/blob/main/entregas/BETA-v5.13.11.66-r40716548530.md)
+retidos no mesmo destino privado. Nenhuma URL assinada ou credencial registrada aqui.
+Disponibilidade comprovada; download no PC do mantenedor ainda não confirmado.
+
+**Limites preservados:** BETA DE TESTE NÃO HOMOLOGADA, pacote experimental sem
+assinatura/homologação AVG ou física. Manter AVG/proteções; não contornar alerta
+ou quarentena. Etapa 9 NÃO INICIADA. Perfil local/GF_BETA_LOCAL e relatórios
+locais intactos; conectada bloqueada, consentimento/privacidade preservados,
+PILOT_ENABLED=no e GITHUB_EXPORT_ENABLED=no; Worker/D1/DNS sem alterações.
+Drivers de instalação/remoção/reversão desativados, COM opcional/consultivo e
+não bloqueante, VLC somente inventário sem ações/consultas/testes específicos.
+Fonte, workflow público, main do produto, branches/PRs históricas e aprovações
+conectadas preservados. Sem merge, Release, distribuição pública, operação no
+PC FORTE, suíte anterior repetida ou alteração funcional. Roadmap **27/42**.
+
+**Próxima missão, somente registrada:** desenvolver o mecanismo de atualização
+do próprio GF. Uma única linha BETA; meta de cinco dias condicionada à aprovação,
+com diagnósticos autorizados consolidados, triagem, investigação, correções e
+testes antes de publicar. Revisão periódica de limpeza dois dias após publicação
+planejada, mantendo limpeza obrigatória de vencidos independentemente do calendário.
+Futuras versões no mesmo canal privado, com retenção própria adequada. Atualizador
+com verificação de versão, manifesto autenticado, hash, confirmação, substituição
+segura e recuperação, sem tokens GitHub permanentes no EXE e sem instalação
+silenciosa. **Não implementado nesta sessão.** Nenhuma agenda automática criada.
+
+Próxima ação imediata do mantenedor: baixar o artefato privado e conferir os
+hashes nas instruções. Homologação física permanece para sessão própria;
+nenhum resultado manual foi presumido. **Entrega concluída; encerrar esta missão.**
+
+Comprovantes e guia privados salvos em `68485a26c2c3c572c8021d70c71c8d69e27e22cd`;
+esse fechamento é documental e não altera os bytes da build `c156b901`.
