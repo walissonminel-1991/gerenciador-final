@@ -1,5 +1,44 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+28/10/2026, America/Fortaleza. **Etapa 6 de preparação concluída.
+Oito gates operacionais continuam bloqueados; zero fechado. Etapa 7 NÃO INICIADA.**
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | GF_SELF_UPDATER_STAGE6_TECHNICAL_UNBLOCKING_PREPARATION |
+| PR / branch | #65 aberta/Draft, work-integracao-final-20261027 |
+| Entrada | 5f265c7606164120406bf44a5d5bf6b29774cef4 |
+| Escopo entregue | Dependências/alternativas/insumos mínimos de G1–G8, cinco achados de preparação e sete registros de decisão |
+| Dependência esclarecida | G7a custódia/âncora é insumo de G3; G7b bootstrap final é saída após validação conjunta, sem fechar G7 |
+| Perfil esclarecido | Beta-unsigned continua permitido; certificado/publicador obrigatório só condicional, sem exigência nova |
+| G2 / G8 | TimeProvider genérico não impõe valor fixo; Task já criada não dá controle de início/drenagem. Critérios definidos, sem implementação/adoção |
+| G5 / ambientes | Perfil padrão GitHub Windows administrativo documentado; reaproveitada consulta Default=1/erro 1312. Sem repetir CI nem alterar contexto |
+| Decisões pendentes | D6-01 frescor/escopo; D6-02 relógio/manutenção; D6-03 laboratório/contextos; D6-04 custódia/autorização; D6-05 candidato/participantes; D6-07 prazo/I/O. D6-06 só futuro ramo assinado obrigatório |
+| Insumos mínimos | E6-STORAGE/FRESHNESS/CLOCK/PACKAGE/PE/CONTEXT/LIFECYCLE/DEADLINE/CUSTODY/BOOTSTRAP; especificados, não coletados como prova operacional nesta etapa |
+| Verificação desta etapa | JSON, links, cobertura dos oito gates, grafo sem ciclo e preservação de blobs/42 IDs; verificações documentais, sem novo teste de produto/segurança |
+| Execução | Zero código, build, CI, teste novo ou repetido; zero chave operacional/infraestrutura/bootstrap/publicação |
+| Preservação | .66/canal privado/proteções/avaliação física parcial/27 de 42 intactos; somente documentação de continuidade |
+
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA6.md) ·
+[Dossiê de evidências mínimas](WORK-AUTOATUALIZADOR-ETAPA6-EVIDENCIAS-MINIMAS.md) ·
+[Dependências e decisões](evidencias/autoatualizador-etapa6-dependencias.json) ·
+[Recibo](evidencias/autoatualizador-etapa6.json).
+
+G1–G8 permanecem bloqueados. As resoluções de preparação removem ambiguidade
+sobre ordem/insumos, não substituem armazenamento, frescor, pacote GF autenticado,
+IPC padrão/entre sessões, ciclo GF ou cerimônia de custódia por inferência.
+Não houve falha do conector; faltam recursos/insumos e decisões específicos.
+Nenhuma decisão pendente autoriza mudar contrato, permissões, canal ou chaves.
+
+Próxima ação: prover/decidir os itens específicos D6 em escopo autorizado,
+sem repetir testes já feitos ou criar novas missões de auditoria. **Parar após
+salvar/conferir; não iniciar Etapa 7, integrar o autoatualizador, criar chaves
+operacionais sem autorização específica ou publicar versões.**
+Preservar AVG/proteções, remoto bloqueado/flags no, consentimento, drivers
+inativos, VLC só inventário, COM consultivo e BETA .66 integral.
+
+## Registro da Etapa 5 — histórico preservado
+
 28/10/2026, America/Fortaleza. **Etapa 5 encerrada com evidências isoladas.
 Zero de oito gates operacionais fechado; aplicação GF bloqueada. Etapa 6 NÃO INICIADA.**
 

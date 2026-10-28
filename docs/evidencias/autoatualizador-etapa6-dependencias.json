@@ -1,0 +1,455 @@
+{
+  "schema": "gf-stage6-preparation/1",
+  "stage": 6,
+  "entry_commit": "5f265c7606164120406bf44a5d5bf6b29774cef4",
+  "contract": "gf-self-update/1",
+  "operational_authorization": false,
+  "accepted_as_client_manifest": false,
+  "gate_count": 8,
+  "closed": 0,
+  "blocked": 8,
+  "nodes": [
+    {
+      "id": "ANCHOR",
+      "gates": [
+        "G7"
+      ],
+      "stage": "input_G7a",
+      "requires": [],
+      "meaning": "Custódia/âncora pública: insumo, sem geração autorizada nesta etapa"
+    },
+    {
+      "id": "CLOCK",
+      "gates": [
+        "G2"
+      ],
+      "stage": "input",
+      "requires": [],
+      "meaning": "Implementação/revisão/manutenção do relógio, independente de chave operacional"
+    },
+    {
+      "id": "PACKAGE",
+      "gates": [
+        "G3"
+      ],
+      "stage": "input_validation",
+      "requires": [
+        "ANCHOR",
+        "CLOCK"
+      ],
+      "meaning": "Pacote GF e metadados autenticados de candidato autorizado"
+    },
+    {
+      "id": "PE",
+      "gates": [
+        "G4"
+      ],
+      "stage": "classification",
+      "requires": [
+        "PACKAGE"
+      ],
+      "meaning": "Modo beta-unsigned atual; publicador obrigatório só condicional"
+    },
+    {
+      "id": "LAB_AND_IO_PLAN",
+      "gates": [
+        "G1",
+        "G5",
+        "G8"
+      ],
+      "stage": "preparation",
+      "requires": [],
+      "meaning": "Ambientes externos, decisão de frescor e desenho de I/O; não gates aprovados"
+    },
+    {
+      "id": "JOINT_EVIDENCE",
+      "gates": [
+        "G1",
+        "G5",
+        "G6",
+        "G8"
+      ],
+      "stage": "future_joint_execution",
+      "requires": [
+        "PE",
+        "LAB_AND_IO_PLAN"
+      ],
+      "meaning": "Produz evidência conjunta de participantes qualificados; não pressupõe gates completos já fechados"
+    },
+    {
+      "id": "BOOTSTRAP_FINAL",
+      "gates": [
+        "G7"
+      ],
+      "stage": "output_G7b",
+      "requires": [
+        "ANCHOR",
+        "JOINT_EVIDENCE"
+      ],
+      "meaning": "Bootstrap validado e entrega manual futura, sem publicação autorizada agora"
+    }
+  ],
+  "topological_input_order": [
+    "ANCHOR",
+    "CLOCK",
+    "LAB_AND_IO_PLAN",
+    "PACKAGE",
+    "PE",
+    "JOINT_EVIDENCE",
+    "BOOTSTRAP_FINAL"
+  ],
+  "graph_is_input_and_joint_evidence_order_not_gate_approval": true,
+  "gates": [
+    {
+      "id": "G1",
+      "title": "Durabilidade e antirreplay após restauração integral",
+      "status": "blocked",
+      "previous_reason_preserved": "Sem referência autenticada de frescor fora do domínio restaurado e sem ensaio de falha de energia/armazenamento real. Contraexemplo da Etapa 4 não foi repetido ou resolvido.",
+      "preparation_status": "dependencies_alternatives_and_minimum_evidence_prepared",
+      "decision_refs": [
+        "D6-01",
+        "D6-03"
+      ],
+      "minimum_evidence_ids": [
+        "E6-STORAGE",
+        "E6-FRESHNESS"
+      ],
+      "minimum_evidence_collected_in_stage6": false,
+      "alternatives": [
+        {
+          "option": "Referência independente de frescor, eventualmente manual autenticada",
+          "disposition": "requires_design_and_specific_decision"
+        },
+        {
+          "option": "Manter bloqueio e delimitar garantia original; não alegar antirrestauração resolvida",
+          "disposition": "current_safe_disposition"
+        },
+        {
+          "option": "Hash/MAC/recibo antigo como prova de frescor ou kill como corte de energia",
+          "disposition": "rejected_insufficient"
+        }
+      ]
+    },
+    {
+      "id": "G2",
+      "title": "Adoção segura do relógio TUF",
+      "status": "blocked",
+      "previous_reason_preserved": "Pacote original fixado; patch experimental não tem revisão, suporte/manutenção ou adoção operacional demonstrados.",
+      "preparation_status": "dependencies_alternatives_and_minimum_evidence_prepared",
+      "decision_refs": [
+        "D6-02"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CLOCK"
+      ],
+      "minimum_evidence_collected_in_stage6": false,
+      "alternatives": [
+        {
+          "option": "Implementação suportada com horário fixo por ciclo",
+          "disposition": "candidate_not_selected"
+        },
+        {
+          "option": "Fonte fixada com adaptação pequena, licença, revisão e manutenção assumidas",
+          "disposition": "candidate_not_adopted"
+        },
+        {
+          "option": "Preflight externo com relógio interno livre",
+          "disposition": "rejected_not_equivalent"
+        }
+      ]
+    },
+    {
+      "id": "G3",
+      "title": "Pacote GF autenticado e vínculo ao estado",
+      "status": "blocked",
+      "previous_reason_preserved": "Nenhuma âncora operacional e metadados autorizando pacote GF futuro exato foram fornecidos no fluxo. Marcador/sonda não são pacote GF.",
+      "preparation_status": "dependencies_alternatives_and_minimum_evidence_prepared",
+      "decision_refs": [
+        "D6-05"
+      ],
+      "minimum_evidence_ids": [
+        "E6-PACKAGE"
+      ],
+      "minimum_evidence_collected_in_stage6": false,
+      "alternatives": [
+        {
+          "option": "Candidato GF futuro isolado com metadados/âncora aprovados",
+          "disposition": "missing_input"
+        },
+        {
+          "option": "Sonda/test-key/recibo CI ou retrofit da .66 como substituto",
+          "disposition": "rejected_not_product_authorization"
+        }
+      ]
+    },
+    {
+      "id": "G4",
+      "title": "Política PE, publicador e revogação quando exigidos",
+      "status": "blocked",
+      "previous_reason_preserved": "Não há classificação de PE GF autenticado nesta etapa. Windows trust de SDK/sonda anterior não autoriza GF. Beta-unsigned permanece permitido; modo obrigatório não foi adotado.",
+      "preparation_status": "dependencies_alternatives_and_minimum_evidence_prepared",
+      "decision_refs": [
+        "D6-06"
+      ],
+      "minimum_evidence_ids": [
+        "E6-PE"
+      ],
+      "minimum_evidence_collected_in_stage6": false,
+      "alternatives": [
+        {
+          "option": "Beta-unsigned conforme contrato e bytes GF autenticados",
+          "disposition": "existing_contract_mode_not_new_approval"
+        },
+        {
+          "option": "Modo obrigatório com publicador/revogação/timestamp",
+          "disposition": "conditional_future_only"
+        },
+        {
+          "option": "Converter falha de assinatura em unsigned ou usar signer SDK como GF",
+          "disposition": "rejected"
+        }
+      ]
+    },
+    {
+      "id": "G5",
+      "title": "IPC sem elevação e entre sessões/usuários",
+      "status": "blocked",
+      "previous_reason_preserved": "Runner funcional elevado. Consulta separada: TokenElevationTypeDefault=1, LinkedToken falhou 1312, sem padrão vinculado ao token consultado; nenhum handshake padrão ou estrangeiro executado.",
+      "preparation_status": "dependencies_alternatives_and_minimum_evidence_prepared",
+      "decision_refs": [
+        "D6-03"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CONTEXT"
+      ],
+      "minimum_evidence_collected_in_stage6": false,
+      "alternatives": [
+        {
+          "option": "VM descartável padrão e pares de sessão/usuário preexistentes/autorizados",
+          "disposition": "external_resource_pending"
+        },
+        {
+          "option": "Repetir runner admin, Wine/Linux, token declarado ou WTS como positivo",
+          "disposition": "rejected_insufficient"
+        },
+        {
+          "option": "Criar conta/alterar UAC/token/ACL para fabricar contexto nesta sessão",
+          "disposition": "not_authorized"
+        }
+      ]
+    },
+    {
+      "id": "G6",
+      "title": "Ciclo transacional GF e identidade durante todo uso",
+      "status": "blocked",
+      "previous_reason_preserved": "Subgate provado na sonda: todos os 274 arquivos retidos até saída real. Ainda faltam pacote/participantes GF e controle de inserção/carga tardia; criar nomes novos é possível e revalidação detecta o extra.",
+      "preparation_status": "dependencies_alternatives_and_minimum_evidence_prepared",
+      "decision_refs": [
+        "D6-05",
+        "D6-07"
+      ],
+      "minimum_evidence_ids": [
+        "E6-LIFECYCLE",
+        "E6-STORAGE",
+        "E6-DEADLINE"
+      ],
+      "minimum_evidence_collected_in_stage6": false,
+      "alternatives": [
+        {
+          "option": "Ensaio conjunto de participantes qualificados e pacote autenticado fora do produto",
+          "disposition": "requires_inputs_and_future_scope"
+        },
+        {
+          "option": "Inferir ciclo GF por pins/READY da sonda ou revalidação pós-inserção",
+          "disposition": "rejected_insufficient"
+        }
+      ]
+    },
+    {
+      "id": "G7",
+      "title": "Bootstrap e custódia de produção",
+      "status": "blocked",
+      "previous_reason_preserved": "Plano operacional continua com root/fingerprint/publicador e slots de custódia vazios; sem cerimônia, recuperação e rotação reais.",
+      "preparation_status": "dependencies_alternatives_and_minimum_evidence_prepared",
+      "decision_refs": [
+        "D6-04"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CUSTODY",
+        "E6-BOOTSTRAP"
+      ],
+      "minimum_evidence_collected_in_stage6": false,
+      "alternatives": [
+        {
+          "option": "Separar custódia/âncora G7a da saída bootstrap G7b",
+          "disposition": "preparation_dependency_resolved"
+        },
+        {
+          "option": "Assinatura com seed pública, privada em CI/repositório ou TOFU",
+          "disposition": "rejected"
+        }
+      ]
+    },
+    {
+      "id": "G8",
+      "title": "Prazo global e I/O bloqueante",
+      "status": "blocked",
+      "previous_reason_preserved": "Read cancelável expirou em 120,005 s, mas WaitAsync sem token deixou I/O real pendente que completou depois. Pipeline GF/armazenamento bloqueante não ensaiado.",
+      "preparation_status": "dependencies_alternatives_and_minimum_evidence_prepared",
+      "decision_refs": [
+        "D6-07"
+      ],
+      "minimum_evidence_ids": [
+        "E6-DEADLINE",
+        "E6-STORAGE"
+      ],
+      "minimum_evidence_collected_in_stage6": false,
+      "alternatives": [
+        {
+          "option": "Deadline compartilhado, início controlado, ownership e drenagem/resultado desconhecido",
+          "disposition": "acceptance_design_prepared_not_implemented"
+        },
+        {
+          "option": "WaitAsync/token como garantia de encerrar qualquer I/O",
+          "disposition": "rejected_by_prior_observation"
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D6-01",
+      "status": "pending",
+      "gates": [
+        "G1"
+      ],
+      "owner_role": "mantenedor e revisão de segurança",
+      "question": "Qual garantia após restauração integral e qual referência independente se essa garantia for exigida?",
+      "not_authorized": "Relaxar contrato ou impor rede/serviço por inferência"
+    },
+    {
+      "id": "D6-02",
+      "status": "pending",
+      "gates": [
+        "G2"
+      ],
+      "owner_role": "mantenedor e revisor",
+      "question": "Implementação suportada ou fonte fixada com manutenção/revisão próprias?",
+      "not_authorized": "Adotar pacote ou patch em produto nesta preparação"
+    },
+    {
+      "id": "D6-03",
+      "status": "external_resource_pending",
+      "gates": [
+        "G1",
+        "G5"
+      ],
+      "owner_role": "responsável por laboratório autorizado",
+      "question": "Qual host descartável oferece disco persistente, controle externo de falha e contextos padrão/sessões autorizadas?",
+      "not_authorized": "Criar contas, instalar hypervisor, cadastrar runner ou ampliar permissões agora"
+    },
+    {
+      "id": "D6-04",
+      "status": "specific_authorization_and_materials_pending",
+      "gates": [
+        "G7"
+      ],
+      "owner_role": "mantenedor e custódia",
+      "question": "Quando autorizar cerimônia e quais responsáveis/meios de cada slot?",
+      "not_authorized": "Criar chave operacional, solicitar privada, credencial ou nova permissão GitHub"
+    },
+    {
+      "id": "D6-05",
+      "status": "pending",
+      "gates": [
+        "G3",
+        "G6"
+      ],
+      "owner_role": "mantenedor e desenvolvimento",
+      "question": "Qual candidato isolado/protocolo/participantes qualificados serão fornecidos para ensaio?",
+      "not_authorized": "Atribuir versão, publicar, converter .66 ou integrar componente não homologado"
+    },
+    {
+      "id": "D6-06",
+      "status": "conditional_future_only",
+      "gates": [
+        "G4"
+      ],
+      "owner_role": "mantenedor",
+      "question": "Somente se futuro modo Authenticode obrigatório for desejado: qual política de publicador/revogação/timestamp?",
+      "not_authorized": "Impor certificado ao beta-unsigned atual"
+    },
+    {
+      "id": "D6-07",
+      "status": "engineering_review_pending",
+      "gates": [
+        "G8",
+        "G6"
+      ],
+      "owner_role": "revisão de engenharia",
+      "question": "Como o pipeline controla início/ownership/drenagem e resultado desconhecido de I/O?",
+      "not_authorized": "Prometer abort de driver ou liberar recursos/retry com efeitos ainda possíveis"
+    }
+  ],
+  "evidence_requirement_ids": [
+    "E6-STORAGE",
+    "E6-FRESHNESS",
+    "E6-CLOCK",
+    "E6-PACKAGE",
+    "E6-PE",
+    "E6-CONTEXT",
+    "E6-LIFECYCLE",
+    "E6-DEADLINE",
+    "E6-CUSTODY",
+    "E6-BOOTSTRAP"
+  ],
+  "evidence_document": "docs/WORK-AUTOATUALIZADOR-ETAPA6-EVIDENCIAS-MINIMAS.md",
+  "static_findings": [
+    {
+      "id": "S6-CLOCK-01",
+      "kind": "source_inspection",
+      "source": "prototipos/autoatualizador-seguro/stage3/clock-experiment.patch",
+      "observation": "API experimental aceita TimeProvider genérico; tipo não assegura imutabilidade",
+      "comparison_source": "prototipos/autoatualizador-seguro/stage3/src/ClockExperimentTests.cs.txt",
+      "comparison": "Fixture sealed retorna valor capturado; explica prova antiga, não autoriza provider mutável",
+      "operational_gate_closed": false
+    },
+    {
+      "id": "S6-IO-01",
+      "kind": "source_inspection_and_prior_evidence",
+      "source": "prototipos/autoatualizador-seguro/stage5/src/Deadline.cs.txt",
+      "observation": "ObserveRead(Task) recebe operação previamente criada e cancela a espera; início e ownership/drenagem precisam de desenho explícito",
+      "prior_evidence": "docs/evidencias/autoatualizador-etapa5-windows.json",
+      "new_execution": false,
+      "operational_gate_closed": false
+    },
+    {
+      "id": "S6-BOOT-01",
+      "kind": "dependency_analysis",
+      "source": "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+      "observation": "Âncora/custódia é insumo da validação; bootstrap final é saída posterior. Separar G7a/G7b evita espera circular de planejamento",
+      "operational_gate_closed": false
+    },
+    {
+      "id": "S6-PE-01",
+      "kind": "contract_analysis",
+      "source": "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+      "observation": "Beta-unsigned já permitido; certificado/publicador obrigatório não é insumo novo do ramo inicial",
+      "operational_gate_closed": false
+    },
+    {
+      "id": "S6-CONTEXT-01",
+      "kind": "primary_documentation_and_prior_observation",
+      "source": "https://docs.github.com/en/actions/reference/runners/github-hosted-runners#administrative-privileges",
+      "prior_evidence": "docs/evidencias/autoatualizador-etapa5-contexto.json",
+      "observation": "Perfil documentado admin/UAC desabilitado é compatível com Default=1/erro 1312 observado; nova CI igual não demonstra positivo padrão",
+      "new_execution": false,
+      "operational_gate_closed": false
+    }
+  ],
+  "new_tests": 0,
+  "new_builds": 0,
+  "new_ci_runs": 0,
+  "new_operational_keys": 0,
+  "stage7_started": false
+}

@@ -4,9 +4,9 @@
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 **Estado vigente: BETA privada .66 entregue; avaliação física parcialmente
-concluída; Etapa 5 do autoatualizador encerrada em protótipo isolado; oito gates operacionais bloqueados.** Ver os
+concluída; Etapa 6 de preparação do autoatualizador concluída; oito gates operacionais bloqueados.** Ver os
 registros finais e o [checkpoint do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
-Sem integração no produto ou Etapa 6; conectada bloqueada; roadmap 27/42.
+Sem integração no produto ou Etapa 7; conectada bloqueada; roadmap 27/42.
 
 ## Estado de continuidade
 
@@ -1005,3 +1005,24 @@ BETA .66/entrega privada/AVG/proteções/físico parcial preservados; 27/42.
 142 fontes GF/zero protótipo; zero GF compilado/executado, físico repetido,
 artefato, publicação, chave operacional ou bootstrap instalado. Sem Etapa 6.
 Resolver somente pré-requisitos específicos em futura sessão autorizada; parar.
+
+
+## Autoatualizador — Etapa 6 de preparação concluída em 28/10/2026
+
+America/Fortaleza. Entrada 5f265c7606164120406bf44a5d5bf6b29774cef4.
+Dependências, alternativas seguras e evidências mínimas dos oito gates registradas.
+G7a (custódia/âncora) separado de G7b (bootstrap final) para evitar espera circular;
+beta-unsigned preservado sem certificado obrigatório por inferência; critérios
+estáticos de relógio imutável e início/drenagem de I/O preparados.
+Seis decisões/pré-requisitos pendentes e um ramo condicional futuro, com
+responsabilidade e menor insumo definidos. Zero gate operacional fechado.
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA6.md),
+[evidências mínimas](WORK-AUTOATUALIZADOR-ETAPA6-EVIDENCIAS-MINIMAS.md),
+[dependências/decisões](evidencias/autoatualizador-etapa6-dependencias.json),
+[recibo](evidencias/autoatualizador-etapa6.json) e
+[checkpoint](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
+Somente Markdown/JSON; zero código, build, CI, teste novo/repetido ou físico.
+Sem chave operacional, infraestrutura, bootstrap, integração, versão ou entrega.
+BETA .66/canal privado/AVG/proteções/avaliação parcial/27 de 42 preservados.
+Resolver somente pré-requisitos específicos em futuro escopo autorizado; parar
+sem iniciar Etapa 7 e sem alterar canal, permissões ou contrato por inferência.
