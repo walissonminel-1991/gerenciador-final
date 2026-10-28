@@ -1,0 +1,154 @@
+{
+  "schema": 1,
+  "stage": 5,
+  "contract": "gf-self-update/1",
+  "fixture_only": true,
+  "package_installable": false,
+  "operational_gates_closed": 0,
+  "runtime": ".NET 10.0.14",
+  "os": "Microsoft Windows 10.0.20348",
+  "total": 10,
+  "passed": 10,
+  "failed": 0,
+  "blocked": 0,
+  "tests": [
+    {
+      "id": "U5-IO-SHARED",
+      "description": "Two real pipe reads share one monotonic deadline instead of restarting per phase",
+      "status": "passed"
+    },
+    {
+      "id": "U5-IO-CANCEL",
+      "description": "User cancellation reaches a pending real asynchronous pipe read",
+      "status": "passed"
+    },
+    {
+      "id": "U5-IO-LATE",
+      "description": "A canceled wait does not stop underlying tokenless kernel I/O; late completion cannot pass Check",
+      "status": "passed"
+    },
+    {
+      "id": "U5-IO-FILE",
+      "description": "Asynchronous disk hashing reads a real bounded file under the same deadline",
+      "status": "passed"
+    },
+    {
+      "id": "U5-IO-120",
+      "description": "The default 120 second deadline expires against an actual pending Windows pipe read",
+      "status": "passed"
+    },
+    {
+      "id": "U5-PIN-ALL",
+      "description": "All files in the full inert bundle have NTFS handles and every write-open is rejected",
+      "status": "passed"
+    },
+    {
+      "id": "U5-LIVE-PINS",
+      "description": "All bundle handles survive real WinForms readiness, normal close and confirmed fixture transaction",
+      "status": "passed"
+    },
+    {
+      "id": "U5-LATE-READY",
+      "description": "Deadline expiration during a real no-ready child blocks confirmation and recovers exact predecessor",
+      "status": "passed"
+    },
+    {
+      "id": "U5-NEW-NAME",
+      "description": "Pinned known files do not prevent new names; exact-set revalidation rejects the added file",
+      "status": "passed"
+    },
+    {
+      "id": "U5-RELEASE",
+      "description": "After real child exit and handle disposal the control file is writable without changing ACL",
+      "status": "passed"
+    }
+  ],
+  "observations": [
+    {
+      "kind": "shared_real_io_deadline",
+      "configured_seconds": 1.5,
+      "elapsed_seconds": 1.501,
+      "physical_storage_hang": false
+    },
+    {
+      "kind": "cooperative_real_io_cancellation",
+      "read_task_canceled": true
+    },
+    {
+      "kind": "wait_only_cancellation_counterexample",
+      "raw_io_pending_after_deadline": true,
+      "late_completion_observed": true,
+      "forced_storage_abort_proved": false
+    },
+    {
+      "kind": "operational_context",
+      "elevated": true,
+      "operational_context_allowed": false,
+      "non_elevated_positive_handshake": false,
+      "foreign_session_user_handshake": false,
+      "token_acl_or_privilege_changed": false
+    },
+    {
+      "kind": "default_real_windows_io_deadline",
+      "configured_seconds": 120,
+      "elapsed_seconds": 120.005,
+      "read_task_canceled": true,
+      "physical_storage_hang": false
+    },
+    {
+      "kind": "full_bundle_handle_retention",
+      "files": 274,
+      "identities": 274,
+      "write_opens_denied": 274,
+      "expanded_bytes": 123062971,
+      "all_known_files_pinned": true,
+      "gf_bundle": false
+    },
+    {
+      "kind": "pinned_inert_transaction",
+      "confirmed_while_child_alive": true,
+      "all_handles_retained_through_real_exit": true,
+      "real_gf_lifecycle": false,
+      "harness_in_inherited_elevation": true
+    },
+    {
+      "kind": "deadline_blocks_fixture_confirmation",
+      "confirmed": false,
+      "exact_predecessor_recovered": true,
+      "retained_sequence": 2,
+      "real_gf_lifecycle": false
+    },
+    {
+      "kind": "directory_insertion_boundary",
+      "new_file_creation_prevented": false,
+      "exact_set_revalidation_rejected": true,
+      "loader_allowlist_proved": false
+    },
+    {
+      "kind": "handle_release_control",
+      "existing_file_write_open_after_release": true
+    }
+  ],
+  "product_built": false,
+  "product_executed": false,
+  "private_channel_accessed": false,
+  "physical_tests_repeated": 0,
+  "stage6_started": false,
+  "isolation": {
+    "sdk": "10.0.402",
+    "restore_locked_mode": true,
+    "product_compile_items": 142,
+    "prototype_compile_items": 0,
+    "outputs_outside_repository": true,
+    "product_built": false
+  },
+  "validated_code_commit": "64743bd45a83daa9bfba56ac06194c2c0b59d6da",
+  "ci": {
+    "run_id": 40774544098,
+    "run_number": 1,
+    "attempt": 1,
+    "job_id": 123120256513,
+    "conclusion": "success",
+    "artifacts": 0
+  }
+}

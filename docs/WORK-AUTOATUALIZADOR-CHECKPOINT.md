@@ -1,5 +1,49 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+28/10/2026, America/Fortaleza. **Etapa 5 encerrada com evidências isoladas.
+Zero de oito gates operacionais fechado; aplicação GF bloqueada. Etapa 6 NÃO INICIADA.**
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | GF_SELF_UPDATER_STAGE5_OPERATIONAL_GATE_DISPOSITION |
+| PR / branch | #65 aberta/Draft, work-integracao-final-20261027 |
+| Entrada | b10217552d372a9db55210fe71901b90abc3f159 |
+| Código dos dez ensaios | 64743bd45a83daa9bfba56ac06194c2c0b59d6da |
+| Consulta adicional G5 | 6712f3da6bda1c06fd693b625383cb7b23706d22; corpo dos dez ensaios intacto |
+| Contrato / bibliotecas | gf-self-update/1 intacto; Tuf 1.1.1/BC 2.7.0 fixados, sem adoção do relógio experimental |
+| Windows | 10/10, run 40774544098/número 1/tentativa 1/success; job 123120256513; SDK 10.0.402/runtime 10.0.14 |
+| Consulta de contexto | Run 40775734566/número 2/tentativa 1/success; job 123124422982; suíte completa skipped, não repetida |
+| Linux | Um aprovado, três bloqueados por AF_UNIX/error 13, zero falhas finais; não somar ao Windows |
+| Pins / ciclo inerte | 274 arquivos/identidades e 274 write-opens recusados; handles até saída real; confirmação viva e recuperação por deadline retêm piso |
+| Prazo real | Padrão 120 s observado em 120,005 s; read cooperativo cancelado. WaitAsync sem token não encerra I/O; conclusão tardia observada |
+| IPC / token | Elevado e recusado operacionalmente; consulta read-only tipo Default=1/LinkedToken erro 1312. Sem padrão vinculado ao token consultado; zero handshakes padrão/estrangeiros |
+| Gates | Oito bloqueados: armazenamento/frescor; relógio suportado; pacote GF autenticado; política PE; contexto IPC; ciclo GF; custódia; prazo/I/O global |
+| Isolamento | 142 fontes Compile GF/zero protótipo, saídas externas; zero build/execução GF e zero artefatos em ambas as runs |
+| Preservação | .66/canal privado/AVG/proteções/físico parcial intactos; 27/42, zero repetição física |
+
+[Relatório com decisão por gate](WORK-AUTOATUALIZADOR-ETAPA5.md) ·
+[Matriz](evidencias/autoatualizador-etapa5-gates.json) ·
+[Windows](evidencias/autoatualizador-etapa5-windows.json) ·
+[Contexto](evidencias/autoatualizador-etapa5-contexto.json) ·
+[Linux](evidencias/autoatualizador-etapa5-linux.json) ·
+[Recibo](evidencias/autoatualizador-etapa5.json).
+
+As subprovas de pins completos e prazo/cancelamento são da sonda e de I/O real
+controlado, sem prova de armazenamento travado ou ciclo GF. Criação de nomes
+novos continua possível; revalidação recusa o extra, sem homologar loader.
+Plano de custódia continua vazio; sem âncora operacional/pacote futuro autenticado,
+frescor independente ou controlador externo de falha de armazenamento.
+Beta-unsigned continua permitido; não impor certificado/publicador por inferência.
+
+Próxima ação: resolver os pré-requisitos específicos da matriz em escopo
+autorizado, sem substituir prova por modelo ou repetir físico. **Não iniciar
+Etapa 6, habilitar update GF, integrar componente não homologado, publicar ou
+alterar canal/infraestrutura/permissões. Parar após salvar/conferir esta etapa.**
+Preservar remoto bloqueado/flags no, AVG, consentimento, drivers inativos,
+VLC só inventário, COM consultivo e BETA .66 integral.
+
+## Registro da Etapa 4 — histórico preservado
+
 28/10/2026, America/Fortaleza. **Etapa 4 concluída no escopo isolado, com
 delimitações verificáveis. Aplicação operacional bloqueada; Etapa 5 NÃO INICIADA.**
 

@@ -1825,9 +1825,9 @@
       "source_evidence": "User-submitted screenshots and three local text/log artifacts in conversation; raw private data not committed"
     },
     "next_mission": {
-      "id": "GF_SELF_UPDATER_STAGE4_ISOLATED_VERIFIED_GATE_BOUNDARIES",
-      "status": "completed_isolated_with_verified_boundaries_and_open_operational_gates",
-      "scope": "durability_antireplay_clock_streamed_packages_authenticode_context_lifecycle_bootstrap_preparation",
+      "id": "GF_SELF_UPDATER_STAGE5_OPERATIONAL_GATE_DISPOSITION",
+      "status": "completed_isolated_with_eight_explicit_operational_blockers",
+      "scope": "real_handle_retention_deadline_and_explicit_eight_gate_disposition",
       "no_repeated_physical_test_without_product_change": true,
       "stage0": {
         "date": "2026-10-28",
@@ -2095,6 +2095,65 @@
           "global_validation_deadline_and_blocking_IO_cancellation"
         ],
         "next_stage": 5,
+        "next_stage_started": false
+      },
+      "stage5": {
+        "date": "2026-10-28",
+        "timezone": "America/Fortaleza",
+        "entry_head": "b10217552d372a9db55210fe71901b90abc3f159",
+        "status": "completed_isolated_with_eight_explicit_operational_blockers",
+        "contract": "gf-self-update/1",
+        "core_validated_commit": "64743bd45a83daa9bfba56ac06194c2c0b59d6da",
+        "context_validated_commit": "6712f3da6bda1c06fd693b625383cb7b23706d22",
+        "report": "docs/WORK-AUTOATUALIZADOR-ETAPA5.md",
+        "evidence": "docs/evidencias/autoatualizador-etapa5.json",
+        "gate_matrix": "docs/evidencias/autoatualizador-etapa5-gates.json",
+        "windows_results": "docs/evidencias/autoatualizador-etapa5-windows.json",
+        "linux_results": "docs/evidencias/autoatualizador-etapa5-linux.json",
+        "context_results": "docs/evidencias/autoatualizador-etapa5-contexto.json",
+        "windows_passed": 10,
+        "windows_total": 10,
+        "linux_passed": 1,
+        "linux_blocked": 3,
+        "linux_failed": 0,
+        "distinct_cases": 10,
+        "operational_gates_closed": 0,
+        "operational_gates_blocked": 8,
+        "windows_ci": {
+          "run_id": 40774544098,
+          "run_number": 1,
+          "attempt": 1,
+          "job_id": 123120256513,
+          "conclusion": "success",
+          "artifacts": 0
+        },
+        "context_ci": {
+          "run_id": 40775734566,
+          "run_number": 2,
+          "attempt": 1,
+          "job_id": 123124422982,
+          "conclusion": "success",
+          "full_suite_reexecuted": false,
+          "artifacts": 0
+        },
+        "automatic_retries": 0,
+        "full_suite_reexecuted_for_context": false,
+        "known_files_pinned": 274,
+        "write_opens_denied": 274,
+        "real_default_deadline_seconds": 120.005,
+        "token_elevation_type": 1,
+        "linked_token_query_error": 1312,
+        "product_compile_items": 142,
+        "prototype_items_in_product": 0,
+        "product_code_changed": false,
+        "new_product_builds": 0,
+        "product_integration_started": false,
+        "physical_tests_repeated": 0,
+        "private_channel_changed": false,
+        "publication_performed": false,
+        "production_keys_created": false,
+        "bootstrap_installed": false,
+        "next_stage": 6,
         "next_stage_started": false
       }
     }

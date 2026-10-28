@@ -4,9 +4,9 @@
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 **Estado vigente: BETA privada .66 entregue; avaliação física parcialmente
-concluída; Etapa 4 do autoatualizador concluída em protótipo isolado, com gates delimitados.** Ver os
+concluída; Etapa 5 do autoatualizador encerrada em protótipo isolado; oito gates operacionais bloqueados.** Ver os
 registros finais e o [checkpoint do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
-Sem integração no produto ou Etapa 5; conectada bloqueada; roadmap 27/42.
+Sem integração no produto ou Etapa 6; conectada bloqueada; roadmap 27/42.
 
 ## Estado de continuidade
 
@@ -985,3 +985,23 @@ Quatro sessões WTS enumeradas não são handshakes. Nenhuma chave operacional.
 BETA .66, entrega privada, AVG/proteções e físico parcial preservados; 27/42.
 142 fontes GF/zero protótipo; zero produto/físico repetido/artefato/publicação.
 Sem produto integrado, canal alterado, bootstrap instalado ou Etapa 5. Parar.
+
+
+## Autoatualizador — Etapa 5 isolada encerrada em 28/10/2026
+
+America/Fortaleza. Entrada b1021755; ensaios 64743bd45a83daa9bfba56ac06194c2c0b59d6da;
+consulta G5 6712f3da6bda1c06fd693b625383cb7b23706d22.
+Windows 10/10, run 40774544098/número 1/tentativa 1/success. Linux: um aprovado,
+três bloqueados por AF_UNIX/error 13, sem fallback simulado. Pins em 274 arquivos
+até saída real e deadline padrão observado em 120,005 s. Limites reais de espera
+cancelada/I/O pendente e inserção de nome novo registrados.
+Consulta read-only separada 40775734566/tentativa 1/success: token elevado,
+tipo Default=1, LinkedToken erro 1312; sem token padrão vinculado ao consultado.
+Suíte completa skipped nessa run; nenhum token/UAC/ACL/privilégio alterado.
+Zero de oito gates operacionais fechado: [matriz](evidencias/autoatualizador-etapa5-gates.json),
+[relatório](WORK-AUTOATUALIZADOR-ETAPA5.md), [recibo](evidencias/autoatualizador-etapa5.json)
+e [checkpoint](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
+BETA .66/entrega privada/AVG/proteções/físico parcial preservados; 27/42.
+142 fontes GF/zero protótipo; zero GF compilado/executado, físico repetido,
+artefato, publicação, chave operacional ou bootstrap instalado. Sem Etapa 6.
+Resolver somente pré-requisitos específicos em futura sessão autorizada; parar.

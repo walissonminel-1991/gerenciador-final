@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "stage": 5,
+  "local_linux_initial": {
+    "status": "transport_unavailable_initially_classified_failed",
+    "total": 4,
+    "passed": 1,
+    "failed": 3,
+    "io_assertions_not_executed": [
+      "U5-IO-SHARED",
+      "U5-IO-CANCEL",
+      "U5-IO-LATE"
+    ],
+    "reason": "AF_UNIX socket creation denied by Linux environment; System.Net.Sockets.SocketException error 13",
+    "correction": "Explicit blocked status for this capability error only; no fallback transport or permission changes",
+    "report": {
+      "schema": 1,
+      "stage": 5,
+      "contract": "gf-self-update/1",
+      "fixture_only": true,
+      "package_installable": false,
+      "operational_gates_closed": 0,
+      "runtime": ".NET 10.0.13",
+      "os": "Ubuntu 24.04.3 LTS",
+      "total": 4,
+      "passed": 1,
+      "failed": 3,
+      "tests": [
+        {
+          "id": "U5-IO-SHARED",
+          "description": "Two real pipe reads share one monotonic deadline instead of restarting per phase",
+          "status": "failed",
+          "error": "System.Net.Sockets.SocketException (13): Permission denied\n   at System.Net.Sockets.Socket..ctor(AddressFamily addressFamily, SocketType socketType, ProtocolType protocolType)\n   at System.IO.Pipes.NamedPipeServerStream.SharedServer..ctor(String path, Int32 maxCount, Boolean isFirstPipeInstance)\n   at System.IO.Pipes.NamedPipeServerStream.SharedServer.Get(String path, Int32 maxCount, PipeOptions pipeOptions)\n   at System.IO.Pipes.NamedPipeServerStream.Create(String pipeName, PipeDirection direction, Int32 maxNumberOfServerInstances, PipeTransmissionMode transmissionMode, PipeOptions options, Int32 inBufferSize, Int32 outBufferSize, HandleInheritability inheritability)\n   at System.IO.Pipes.NamedPipeServerStream..ctor(String pipeName, PipeDirection direction, Int32 maxNumberOfServerInstances, PipeTransmissionMode transmissionMode, PipeOptions options)\n   at GfUpdaterFixture.Stage5Tests.PipePair..ctor(String name) in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 29\n   at GfUpdaterFixture.Stage5Tests.PipePair.Connect() in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 34\n   at GfUpdaterFixture.Stage5Tests.<>c.<<Common>b__11_0>d.MoveNext() in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 54\n--- End of stack trace from previous location ---\n   at GfUpdaterFixture.Stage5Tests.Test(String id, String description, Func`1 action) in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 16"
+        },
+        {
+          "id": "U5-IO-CANCEL",
+          "description": "User cancellation reaches a pending real asynchronous pipe read",
+          "status": "failed",
+          "error": "System.Net.Sockets.SocketException (13): Permission denied\n   at System.Net.Sockets.Socket..ctor(AddressFamily addressFamily, SocketType socketType, ProtocolType protocolType)\n   at System.IO.Pipes.NamedPipeServerStream.SharedServer..ctor(String path, Int32 maxCount, Boolean isFirstPipeInstance)\n   at System.IO.Pipes.NamedPipeServerStream.SharedServer.Get(String path, Int32 maxCount, PipeOptions pipeOptions)\n   at System.IO.Pipes.NamedPipeServerStream.Create(String pipeName, PipeDirection direction, Int32 maxNumberOfServerInstances, PipeTransmissionMode transmissionMode, PipeOptions options, Int32 inBufferSize, Int32 outBufferSize, HandleInheritability inheritability)\n   at System.IO.Pipes.NamedPipeServerStream..ctor(String pipeName, PipeDirection direction, Int32 maxNumberOfServerInstances, PipeTransmissionMode transmissionMode, PipeOptions options)\n   at GfUpdaterFixture.Stage5Tests.PipePair..ctor(String name) in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 29\n   at GfUpdaterFixture.Stage5Tests.PipePair.Connect() in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 34\n   at GfUpdaterFixture.Stage5Tests.<>c.<<Common>b__11_1>d.MoveNext() in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 61\n--- End of stack trace from previous location ---\n   at GfUpdaterFixture.Stage5Tests.Test(String id, String description, Func`1 action) in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 16"
+        },
+        {
+          "id": "U5-IO-LATE",
+          "description": "A canceled wait does not stop underlying tokenless kernel I/O; late completion cannot pass Check",
+          "status": "failed",
+          "error": "System.Net.Sockets.SocketException (13): Permission denied\n   at System.Net.Sockets.Socket..ctor(AddressFamily addressFamily, SocketType socketType, ProtocolType protocolType)\n   at System.IO.Pipes.NamedPipeServerStream.SharedServer..ctor(String path, Int32 maxCount, Boolean isFirstPipeInstance)\n   at System.IO.Pipes.NamedPipeServerStream.SharedServer.Get(String path, Int32 maxCount, PipeOptions pipeOptions)\n   at System.IO.Pipes.NamedPipeServerStream.Create(String pipeName, PipeDirection direction, Int32 maxNumberOfServerInstances, PipeTransmissionMode transmissionMode, PipeOptions options, Int32 inBufferSize, Int32 outBufferSize, HandleInheritability inheritability)\n   at System.IO.Pipes.NamedPipeServerStream..ctor(String pipeName, PipeDirection direction, Int32 maxNumberOfServerInstances, PipeTransmissionMode transmissionMode, PipeOptions options)\n   at GfUpdaterFixture.Stage5Tests.PipePair..ctor(String name) in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 29\n   at GfUpdaterFixture.Stage5Tests.PipePair.Connect() in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 34\n   at GfUpdaterFixture.Stage5Tests.<>c.<<Common>b__11_2>d.MoveNext() in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 66\n--- End of stack trace from previous location ---\n   at GfUpdaterFixture.Stage5Tests.Test(String id, String description, Func`1 action) in /workspace/scratch/3f98b84fabec/gf-updater-stage5/prototipos/autoatualizador-seguro/stage5/src/Stage5Tests.cs.txt:line 16"
+        },
+        {
+          "id": "U5-IO-FILE",
+          "description": "Asynchronous disk hashing reads a real bounded file under the same deadline",
+          "status": "passed"
+        }
+      ],
+      "observations": [],
+      "product_built": false,
+      "product_executed": false,
+      "private_channel_accessed": false,
+      "physical_tests_repeated": 0,
+      "stage6_started": false,
+      "isolation": {
+        "sdk": "10.0.402",
+        "restore_locked_mode": true,
+        "product_compile_items": 142,
+        "prototype_compile_items": 0,
+        "outputs_outside_repository": true,
+        "product_built": false
+      }
+    }
+  },
+  "automatic_ci_retries": 0
+}
