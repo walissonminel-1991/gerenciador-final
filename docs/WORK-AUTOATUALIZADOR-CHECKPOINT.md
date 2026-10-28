@@ -1,5 +1,41 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+28/10/2026, America/Fortaleza. **Etapa 1 concluída no protótipo isolado.
+Integração no produto e Etapa 2 NÃO INICIADAS.**
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | `GF_SELF_UPDATER_STAGE1_ISOLATED_VALIDATION_PROTOTYPE` |
+| PR / branch | #65 aberta/Draft, `work-integracao-final-20261027` |
+| HEAD de entrada | `052ed3c8aefc3c90083325401dbf52fbd0de0554` |
+| Contrato preservado | `gf-self-update/1`, revisão documental 1 |
+| Biblioteca selecionada | Tuf 1.1.1 + BouncyCastle.Cryptography 2.7.0, versões exatas/lockfile |
+| Bootstrap/custódia | Modelo definido; nenhuma chave/raiz operacional provisionada |
+| Protótipo | Validação de fixtures assinadas e texto inerte; sem rede/aplicar/recuperar; Installable=false |
+| Validação final | 66/66 testes de segurança, 42 cenários; SDK 10.0.402/runtime 10.0.13, Linux x64 |
+| Isolamento | 142 fontes do produto avaliadas, zero do protótipo; fontes e saídas C# fora do glob do GF |
+| BETA preservada | .66, fonte 6df95fdd, build privada 40716548530/artefato 12828262039, sem recompilar/baixar |
+| Físico / roadmap | Avaliação parcial preservada; nenhum teste físico repetido; 27/42 |
+| Canal privado | Nenhuma alteração de workflow, retenção, artefatos ou acessos; sem acesso operacional nesta etapa |
+
+[Relatório e modelo de custódia](WORK-AUTOATUALIZADOR-ETAPA1.md) ·
+[POUF](../prototipos/autoatualizador-seguro/POUF.md) ·
+[Resultados](evidencias/autoatualizador-etapa1-testes.json) ·
+[Recibo](evidencias/autoatualizador-etapa1.json).
+
+Gates ainda pendentes: persistência/relógio, NTFS/handles/TOCTOU, seletor/diário,
+IPC, bundles/PE reais e cerimônia operacional de bootstrap/custódia. Não inferir
+homologação TUF integral, Windows, AVG ou aplicação de atualizações a partir dos
+testes de fixture. **Etapa 2 não iniciada; encerrar após salvar/conferir.**
+
+Preservar AVG/proteções, flags no e remoto bloqueado, drivers desativados, VLC
+somente inventário e COM opcional/consultivo. Nenhuma publicação, build de produto,
+merge/Release/deploy ou mudança de Windows/Worker/D1/DNS. O relato físico aceito
+na Etapa 9 não precisa ser refeito por esta mudança no protótipo isolado.
+
+## Registro da Etapa 0 — histórico preservado
+
+
 28/10/2026, America/Fortaleza. **Etapa 0 concluída no contrato/análise de ameaças;
 implementação não iniciada.** Uma etapa por sessão, sem avanço automático.
 

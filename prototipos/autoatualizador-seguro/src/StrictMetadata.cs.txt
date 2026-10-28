@@ -1,0 +1,202 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+namespace GfUpdaterFixture;
+
+internal sealed class Rejected(string code) : Exception(code)
+{
+    public string Code { get; } = code;
+}
+
+internal static class StrictMetadata
+{
+    private static readonly UTF8Encoding Utf8 = new(false, true);
+    internal static void Require(bool condition, string code)
+    {
+        if (!condition) throw new Rejected(code);
+    }
+    internal static string Hash(ReadOnlySpan<byte> bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
+    internal static bool Hex(string value, int size) => value.Length == size && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
+    internal static Dictionary<string,byte[]> Snapshot(Dictionary<string,byte[]>? input, bool cache)
+    {
+        var result=new Dictionary<string,byte[]>(StringComparer.Ordinal);
+        if(input is null) return result;
+        Require(input.Count<=(cache?4:40),cache?"CACHE_BUDGET":"INPUT_BUDGET");
+        foreach(var pair in input)
+        {
+            Require(pair.Key.Length<=64,cache?"CACHE_BUDGET":"INPUT_BUDGET");
+            string role=pair.Key;
+            if(!cache)
+            {
+                if(role is "container.zip" or "fixture-package.zip")
+                {
+                    Require(pair.Value.Length is > 0 and <= ZipInspection.MaxBytes,"INPUT_BUDGET");
+                    result.Add(pair.Key,pair.Value.ToArray()); continue;
+                }
+                if(Regex.IsMatch(role,"^[1-9][0-9]{0,9}[.]root[.]json$",RegexOptions.CultureInvariant)) role="root";
+                else if(role.EndsWith(".json",StringComparison.Ordinal)) role=role[..^5];
+            }
+            Require(role is "root" or "timestamp" or "snapshot" or "targets",cache?"CACHE_BUDGET":"INPUT_BUDGET");
+            int max=role switch {"timestamp"=>64*1024,"snapshot"=>256*1024,_=>512*1024};
+            // Reject before cloning: an adversarial input must not cause an unbounded copy.
+            Require(pair.Value.Length is > 0 && pair.Value.Length<=max,cache?"CACHE_BUDGET":"JSON_SIZE");
+            result.Add(pair.Key,pair.Value.ToArray());
+        }
+        return result;
+    }
+    internal static JsonDocument Json(byte[] bytes, int max = 512 * 1024)
+    {
+        Require(bytes.Length is > 0 && bytes.Length <= max, "JSON_SIZE");
+        try
+        {
+            _ = Utf8.GetString(bytes);
+            var doc = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 32, AllowTrailingCommas = false });
+            try { Walk(doc.RootElement); return doc; }
+            catch { doc.Dispose(); throw; }
+        }
+        catch (Exception ex) when (ex is JsonException or DecoderFallbackException or InvalidOperationException or ArgumentException)
+        { throw new Rejected("JSON_INVALID"); }
+    }
+    private static void Walk(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                var names = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var property in element.EnumerateObject())
+                {
+                    Require(names.Add(property.Name), "JSON_DUPLICATE");
+                    _ = property.Name; Walk(property.Value);
+                }
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray()) Walk(item);
+                break;
+            case JsonValueKind.Number:
+                Require(Regex.IsMatch(element.GetRawText(), "^(0|[1-9][0-9]*)$", RegexOptions.CultureInvariant)
+                    && element.TryGetInt64(out long value) && value <= 9007199254740991L, "JSON_INTEGER");
+                break;
+            case JsonValueKind.String: _ = element.GetString(); break;
+        }
+    }
+    internal static void Exact(JsonElement obj, params string[] names)
+    {
+        Require(obj.ValueKind == JsonValueKind.Object, "JSON_OBJECT");
+        Require(obj.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.Ordinal).SetEquals(names), "SCHEMA_FIELDS");
+    }
+    internal static string Text(JsonElement obj, string name)
+    {
+        Require(obj.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.String, "SCHEMA_STRING");
+        return field.GetString()!;
+    }
+    internal static long Number(JsonElement obj, string name, long max = 9007199254740991L)
+    {
+        Require(obj.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.Number
+            && field.TryGetInt64(out long value) && value > 0 && value <= max, "SCHEMA_INTEGER");
+        return field.GetInt64();
+    }
+    internal static void Boolean(JsonElement obj, string name, bool expected)
+    {
+        Require(obj.TryGetProperty(name, out var field) && field.ValueKind == (expected ? JsonValueKind.True : JsonValueKind.False), "PROFILE_BOOLEAN");
+    }
+    internal static DateTimeOffset Date(JsonElement obj, string name)
+    {
+        string value = Text(obj, name);
+        Require(DateTimeOffset.TryParseExact(value, "yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var result), "DATE_FORMAT");
+        return result;
+    }
+    internal static void Envelope(byte[] data, string role, DateTimeOffset start, bool cached=false)
+    {
+        int max = role switch { "timestamp" => 64 * 1024, "snapshot" => 256 * 1024, _ => 512 * 1024 };
+        using var doc = Json(data, max);
+        var envelope = doc.RootElement;
+        Exact(envelope, "signed", "signatures");
+        var signed = envelope.GetProperty("signed");
+        Require(Text(signed, "_type") == role && Text(signed, "spec_version") == "1.0.36", "METADATA_TYPE");
+        Number(signed, "version", int.MaxValue);
+        var expiry = Date(signed, "expires");
+        var horizon = role switch { "root" => TimeSpan.FromDays(365), "targets" => TimeSpan.FromDays(14),
+            "snapshot" => TimeSpan.FromDays(7), _ => TimeSpan.FromHours(72) };
+        Require(expiry <= start + horizon, "EXPIRY_HORIZON");
+        // An expired old root may authenticate its replacement. TUF checks final root expiry.
+        if (role != "root" && !cached) Require(expiry > start, "METADATA_EXPIRED");
+        var signatures = envelope.GetProperty("signatures");
+        Require(signatures.ValueKind == JsonValueKind.Array && signatures.GetArrayLength() is > 0 and <= 16, "SIGNATURE_COUNT");
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var sig in signatures.EnumerateArray())
+        {
+            Exact(sig, "keyid", "sig");
+            string id = Text(sig, "keyid");
+            Require(Hex(id, 64) && Hex(Text(sig, "sig"), 128), "SIGNATURE_FORMAT");
+            Require(ids.Add(id), "DUPLICATE_SIGNATURE");
+        }
+        if (role == "root") RootPolicy(signed);
+        else if (role == "targets") Exact(signed, "_type", "spec_version", "version", "expires", "targets");
+        else
+        {
+            Exact(signed, "_type", "spec_version", "version", "expires", "meta");
+            var meta = signed.GetProperty("meta");
+            string child = role == "timestamp" ? "snapshot.json" : "targets.json";
+            Exact(meta, child);
+            var reference = meta.GetProperty(child);
+            Exact(reference, "version", "length", "hashes");
+            Number(reference, "version", int.MaxValue); Number(reference, "length", 512 * 1024);
+            Exact(reference.GetProperty("hashes"), "sha256");
+            Require(Hex(Text(reference.GetProperty("hashes"), "sha256"), 64), "HASH_FORMAT");
+        }
+    }
+    private static void RootPolicy(JsonElement root)
+    {
+        Exact(root, "_type", "spec_version", "version", "expires", "consistent_snapshot", "keys", "roles");
+        Boolean(root, "consistent_snapshot", false); // Closed, non-delegating fixture profile.
+        var keys = root.GetProperty("keys"); var roles = root.GetProperty("roles");
+        Exact(roles, "root", "targets", "snapshot", "timestamp");
+        Require(keys.ValueKind == JsonValueKind.Object && keys.EnumerateObject().Count() == 6, "ROOT_KEYS");
+        var publicValues = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var key in keys.EnumerateObject())
+        {
+            Exact(key.Value, "keytype", "scheme", "keyval");
+            Require(Text(key.Value, "keytype") == "ed25519" && Text(key.Value, "scheme") == "ed25519", "ALGORITHM");
+            var keyval = key.Value.GetProperty("keyval"); Exact(keyval, "public");
+            string pub = Text(keyval, "public");
+            Require(Hex(pub, 64) && publicValues.Add(pub), "ROOT_DISTINCT_KEYS");
+            string canonicalKey = "{\"keytype\":\"ed25519\",\"keyval\":{\"public\":\"" + pub + "\"},\"scheme\":\"ed25519\"}";
+            Require(key.Name == Hash(Encoding.UTF8.GetBytes(canonicalKey)), "KEY_ID");
+        }
+        var assigned = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var role in roles.EnumerateObject())
+        {
+            Exact(role.Value, "keyids", "threshold");
+            var ids = role.Value.GetProperty("keyids");
+            bool isRoot = role.Name == "root";
+            Require(ids.ValueKind == JsonValueKind.Array && ids.GetArrayLength() == (isRoot ? 3 : 1)
+                && Number(role.Value, "threshold", 3) == (isRoot ? 2 : 1), "ROOT_THRESHOLD");
+            foreach (var id in ids.EnumerateArray())
+            {
+                Require(id.ValueKind == JsonValueKind.String && keys.TryGetProperty(id.GetString()!, out _)
+                    && assigned.Add(id.GetString()!), "ROLE_KEYS");
+            }
+        }
+    }
+    internal static int CompareVersion(string left, string right)
+    {
+        static int[] Parse(string value)
+        {
+            Require(Regex.IsMatch(value, "^(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*)){3}$", RegexOptions.CultureInvariant), "VERSION_FORMAT");
+            var parts = value.Split('.'); var result = new int[4];
+            for (int i = 0; i < 4; i++)
+            {
+                Require(ushort.TryParse(parts[i], NumberStyles.None, CultureInfo.InvariantCulture, out ushort v), "VERSION_RANGE");
+                result[i] = v;
+            }
+            return result;
+        }
+        int[] a = Parse(left), b = Parse(right);
+        for (int i = 0; i < 4; i++) if (a[i] != b[i]) return a[i].CompareTo(b[i]);
+        return 0;
+    }
+}

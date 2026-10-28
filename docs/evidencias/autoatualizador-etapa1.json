@@ -1,0 +1,183 @@
+{
+  "schema": 1,
+  "stage": 1,
+  "status": "completed_isolated_prototype_no_product_integration",
+  "date": "2026-10-28",
+  "timezone": "America/Fortaleza",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "pr": 65,
+  "draft": true,
+  "branch": "work-integracao-final-20261027",
+  "entry_head": "052ed3c8aefc3c90083325401dbf52fbd0de0554",
+  "entry_tree": "c02b57017e9768567ac53ed0a1dcab3746188f85",
+  "contract": "gf-self-update/1",
+  "stage0_contract_changed": false,
+  "library": {
+    "Tuf": "1.1.1",
+    "BouncyCastle.Cryptography": "2.7.0",
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "license": "MIT per package metadata; BC notices retained in development package",
+    "locked_restore": true,
+    "package_source_mapping": true,
+    "nuget_signatures": "verified_success",
+    "nuget_advisories": "query_success_no_known_vulnerable_packages_reported",
+    "source": "https://api.nuget.org/v3/index.json",
+    "packages": [
+      {
+        "file": "bouncycastle.cryptography.2.7.0.nupkg",
+        "sha256": "f091ffccab4d03993e660bace277659a79dee0972f54d7f1f4bd46d680966241",
+        "native_assets": []
+      },
+      {
+        "file": "tuf.1.1.1.nupkg",
+        "sha256": "f2312652169ed5a5ad394ff40a431ab93b19638cdff72c207a58ce0c2bba25bc",
+        "native_assets": []
+      }
+    ],
+    "full_audit_or_tuf_conformance_claimed": false
+  },
+  "bootstrap_custody": {
+    "model": "root_2_of_3_offline_separate_materials_and_roles",
+    "operational_keys_created": false,
+    "operational_root_installed": false,
+    "ceremony_performed": false,
+    "public_fixture_keys_only": true,
+    "test_anchor_sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+    "beta66_retrofit": false
+  },
+  "verification": {
+    "tests": {
+      "total": 66,
+      "passed": 66,
+      "failed": 0,
+      "report": "docs/evidencias/autoatualizador-etapa1-testes.json"
+    },
+    "fixture_scenarios": 42,
+    "independent_signer": "Python cryptography 50.0.2",
+    "known_answer": "RFC8032 section 7.1 Test 1",
+    "sdk": "10.0.402",
+    "runtime": ".NET 10.0.13",
+    "platform": "Linux x64",
+    "prototype_build": {
+      "warnings": 0,
+      "errors": 0
+    },
+    "isolation": {
+      "product_compile_items": 142,
+      "prototype_compile_items": 0,
+      "outputs_outside_repository": true,
+      "sdk": "10.0.402",
+      "restore_locked_mode": true,
+      "product_built": false
+    },
+    "default_outputs_outside_repository": true,
+    "reviewed_fixture_anchor_checked": true,
+    "document_links_json_scope": "passed",
+    "corrections": [
+      "shared mutable fixture keys",
+      "RFC vector transcription",
+      "generated obj C# isolation",
+      "refresh from expired cache"
+    ],
+    "runs_mutations_scenarios_not_added_to_test_total": true
+  },
+  "preservation": {
+    "beta": "5.13.11.66",
+    "source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "private_run": 40716548530,
+    "artifact_id": 12828262039,
+    "private_channel_accessed": false,
+    "private_channel_changed": false,
+    "retention_or_permissions_changed": false,
+    "product_builds": 0,
+    "product_executions": 0,
+    "physical_tests_repeated": 0,
+    "physical_status": "partially_completed_unchanged",
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "roadmap_ids_changed": [],
+    "product_code_or_project_changed": false,
+    "main_or_historical_refs_changed": false,
+    "remote_diagnostics": "blocked",
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "AVG_and_Windows_protections": "unchanged",
+    "driver_mutations": "disabled",
+    "VLC": "inventory_only_no_specific_queries_actions_tests",
+    "WinGet_COM": "optional_consultative_non_blocking",
+    "Worker_D1_DNS": "unchanged",
+    "publication": false,
+    "release": false,
+    "merge": false,
+    "deploy": false,
+    "automation": false
+  },
+  "limitations": [
+    "fixture_only_never_installable",
+    "no_production_bootstrap_custody",
+    "no_durable_state_uniform_clock",
+    "no_NTFS_TOCTOU_real_extraction",
+    "no_selector_journal_recovery_IPC",
+    "no_real_PE_runtime_Authenticode_AVG",
+    "no_network_or_product_integration"
+  ],
+  "next_stage": {
+    "number": 2,
+    "started": false
+  },
+  "protected_git_blobs": {
+    "GerenciadorAplicativos.csproj": "d35ff09826d81a4d584ce546a1d3c4bde8fec1ad",
+    "Directory.Build.props": "9ca341e42783131506152997babeb34cb6beb3de",
+    "nuget.config": "4e0c2117ce013878b28cfd03f15d0d1b56647e2e",
+    "global.json": "e8a91cbf7506d4f30d2f278f1efdd6fce4156686",
+    "app.manifest": "cace6cb635c1c39e19b9d046fad8a3411b860ec8",
+    "BetaRuntimePolicy.cs": "15f43abd6ac3266c9e790cd68cd276f7e10c749b",
+    "BetaTelemetryPolicy.props": "9017b4ed04d647b7b888bbc1d307dbd08d428307",
+    "docs/WORK-AUTOATUALIZADOR-ETAPA0.md": "315fdccc3b4961871b9b661ae2001499e372bd4b",
+    "docs/evidencias/autoatualizador-etapa0.json": "3c5c3482aae36a7f8655512a4cc157845a4b5fd5",
+    "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-RESULTADOS.md": "9ff6ba6781c05c332b057ec648b57a163faf42f9"
+  },
+  "scope_files": [
+    "docs/PROGRESSO.json",
+    "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+    "docs/WORK-AUTOATUALIZADOR-ETAPA1.md",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/evidencias/autoatualizador-etapa1-testes.json",
+    "docs/evidencias/autoatualizador-etapa1.json",
+    "prototipos/autoatualizador-seguro/Directory.Build.props",
+    "prototipos/autoatualizador-seguro/POUF.md",
+    "prototipos/autoatualizador-seguro/Prototype.csproj",
+    "prototipos/autoatualizador-seguro/README.md",
+    "prototipos/autoatualizador-seguro/fixtures/README.md",
+    "prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json",
+    "prototipos/autoatualizador-seguro/generate_fixtures.py",
+    "prototipos/autoatualizador-seguro/nuget.config",
+    "prototipos/autoatualizador-seguro/packages.lock.json",
+    "prototipos/autoatualizador-seguro/run_tests.py",
+    "prototipos/autoatualizador-seguro/src/FixtureValidator.cs.txt",
+    "prototipos/autoatualizador-seguro/src/SecurityTests.cs.txt",
+    "prototipos/autoatualizador-seguro/src/StrictMetadata.cs.txt",
+    "prototipos/autoatualizador-seguro/src/ZipInspection.cs.txt"
+  ],
+  "file_sha256": {
+    "docs/PROGRESSO.json": "59c0315d3a2c85edb9a7487e6c45cad2ab63947566f6c7fabe6a4aba129ecaa0",
+    "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md": "c7a1e822481924ce0fcc37ad7156797b89eb82397450cc6a2cb6f5b51ff6f373",
+    "docs/WORK-AUTOATUALIZADOR-ETAPA1.md": "e7529d2b99af315addfb24829abace3aaee2155ec33a9bad0351bb411d2069a2",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md": "e55a980a9d2b8eec1668dd097152cfd3261d25f3399b325be7fcb433e715d889",
+    "docs/evidencias/autoatualizador-etapa1-testes.json": "1bd717ad8d18adaba615237438fc292519e16ae67a70efd5f31049e642210e26",
+    "prototipos/autoatualizador-seguro/Directory.Build.props": "94c8d08b63c0c3e8a168d7364297e56dbd8a82c5e04fcb54b04760ddc606dcea",
+    "prototipos/autoatualizador-seguro/POUF.md": "4283bd2fda714d65ec85129469b9d734f768f74621d4c0abfe9c200ced99c46e",
+    "prototipos/autoatualizador-seguro/Prototype.csproj": "c317aab89d5a81417214e98c5049422565ab91b2e68ddcfc11a00845f6ed8569",
+    "prototipos/autoatualizador-seguro/README.md": "ca66635108da6f6e857de00c498e78ea0034af02edfc23e6c84805a7c645bcda",
+    "prototipos/autoatualizador-seguro/fixtures/README.md": "1d407b05f59030d45ec8779bf57a7a1be918856c9c49b55256dce634a1fd6e4a",
+    "prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+    "prototipos/autoatualizador-seguro/generate_fixtures.py": "6b434000cec8026a742a0da0e663cbddeaee875cf6b67d071bb1dfbfa68ed2f8",
+    "prototipos/autoatualizador-seguro/nuget.config": "0d7b3b8e5a4c08c35ac3a399c770319c616c45f4956bc6f0f942f990797851cf",
+    "prototipos/autoatualizador-seguro/packages.lock.json": "27699f75204cea2ea8f142dbafed82d58b3f6fcb20577f24f84effdbabe37130",
+    "prototipos/autoatualizador-seguro/run_tests.py": "8c970e32bc838b6bd12e0afd73ff0d082c5c9f532f27fe108888f866568498e9",
+    "prototipos/autoatualizador-seguro/src/FixtureValidator.cs.txt": "fa92b8766ee3779d2faa258ca72fc00376a3a530e4ac7a8c6a2f94e73f660e52",
+    "prototipos/autoatualizador-seguro/src/SecurityTests.cs.txt": "8486fa77dd1cc3dcb678f911f2063570602d4794e732d0448050d8a322651058",
+    "prototipos/autoatualizador-seguro/src/StrictMetadata.cs.txt": "0c9f23e2773d3db924b4d548b93a38596318134dfb13ab3e3a1730947b1245da",
+    "prototipos/autoatualizador-seguro/src/ZipInspection.cs.txt": "2bbaf2ea19d99f529de66ac0068b1f372823853a9d85cd19c61c9e5362faea2f"
+  }
+}

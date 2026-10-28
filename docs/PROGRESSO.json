@@ -1825,9 +1825,9 @@
       "source_evidence": "User-submitted screenshots and three local text/log artifacts in conversation; raw private data not committed"
     },
     "next_mission": {
-      "id": "GF_SELF_UPDATER_STAGE0_CONTRACT_AND_THREAT_MODEL",
-      "status": "stage0_documented_implementation_not_started",
-      "scope": "authenticated_manifest_sha256_consent_atomic_replace_rollback_private_channel",
+      "id": "GF_SELF_UPDATER_STAGE1_ISOLATED_VALIDATION_PROTOTYPE",
+      "status": "stage1_completed_isolated_no_product_integration",
+      "scope": "library_bootstrap_key_custody_isolated_fixture_validation",
       "no_repeated_physical_test_without_product_change": true,
       "stage0": {
         "date": "2026-10-28",
@@ -1851,6 +1851,38 @@
         "implementation_started": false,
         "publication_performed": false,
         "next_stage": "GF_SELF_UPDATER_STAGE1_ISOLATED_VALIDATION_PROTOTYPE",
+        "next_stage_started": false
+      },
+      "stage1": {
+        "date": "2026-10-28",
+        "timezone": "America/Fortaleza",
+        "entry_head": "052ed3c8aefc3c90083325401dbf52fbd0de0554",
+        "status": "completed_isolated_prototype",
+        "contract": "gf-self-update/1",
+        "report": "docs/WORK-AUTOATUALIZADOR-ETAPA1.md",
+        "evidence": "docs/evidencias/autoatualizador-etapa1.json",
+        "test_results": "docs/evidencias/autoatualizador-etapa1-testes.json",
+        "prototype": "prototipos/autoatualizador-seguro/Prototype.csproj",
+        "library": {
+          "Tuf": "1.1.1",
+          "BouncyCastle.Cryptography": "2.7.0",
+          "locked": true
+        },
+        "security_tests_passed": 66,
+        "security_tests_total": 66,
+        "generated_fixture_scenarios": 42,
+        "product_compile_items": 142,
+        "prototype_items_in_product": 0,
+        "production_keys_created": false,
+        "bootstrap_installed": false,
+        "product_integration_started": false,
+        "private_channel_changed": false,
+        "product_code_changed": false,
+        "new_product_builds": 0,
+        "physical_tests_repeated": 0,
+        "new_product_ci_runs": 0,
+        "publication_performed": false,
+        "next_stage": 2,
         "next_stage_started": false
       }
     }

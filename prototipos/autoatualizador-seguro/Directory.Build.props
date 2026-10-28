@@ -1,0 +1,8 @@
+<Project>
+  <Import Project="../../Directory.Build.props" />
+  <PropertyGroup>
+    <!-- Generated .cs must also remain outside the product's recursive glob. -->
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath Condition="'$(ArtifactsPath)' == ''">$([System.IO.Path]::GetTempPath())GF-Updater-Isolated-Fixtures/$([MSBuild]::StableStringHash('$(MSBuildProjectDirectory)'))</ArtifactsPath>
+  </PropertyGroup>
+</Project>

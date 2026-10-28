@@ -4,9 +4,9 @@
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 **Estado vigente: BETA privada .66 entregue; avaliação física parcialmente
-concluída; Etapa 0 do autoatualizador documentada.** Ver os registros finais e
-o [checkpoint do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
-Implementação não iniciada; conectada bloqueada; roadmap 27/42.
+concluída; Etapa 1 do autoatualizador concluída em protótipo isolado.** Ver os
+registros finais e o [checkpoint do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
+Sem integração no produto ou Etapa 2; conectada bloqueada; roadmap 27/42.
 
 ## Estado de continuidade
 
@@ -872,3 +872,44 @@ VLC somente inventário sem ações/consultas/testes específicos, COM opcional/
 consultivo/não bloqueante e drivers de instalação/remoção/reversão desativados.
 Main, branches e PRs históricas preservadas. **Encerrar após conferir e salvar
 esta Etapa 0; nenhuma Etapa 1 iniciada.**
+
+
+## Estado vigente — Etapa 1 do autoatualizador isolado concluída
+
+28/10/2026, America/Fortaleza. Entrada `052ed3c8aefc3c90083325401dbf52fbd0de0554`,
+PR #65 aberta/Draft. Contrato gf-self-update/1 e resultados físicos parciais
+preservados; nenhuma bateria F9/T01–T12 repetida.
+
+[Relatório, biblioteca e custódia](WORK-AUTOATUALIZADOR-ETAPA1.md) ·
+[Checkpoint](WORK-AUTOATUALIZADOR-CHECKPOINT.md) ·
+[Testes](evidencias/autoatualizador-etapa1-testes.json) ·
+[Recibo](evidencias/autoatualizador-etapa1.json).
+
+Selecionados Tuf 1.1.1 e BouncyCastle.Cryptography 2.7.0, versões exatas e lockfile,
+com assinaturas NuGet e consulta de advisories conferidas. Definidos bootstrap
+manual futuro, raiz 2-de-3 e custódia de papéis separados, sem criar materiais
+operacionais. Protótipo em prototipos/autoatualizador-seguro usa transporte em
+memória, âncora pública de fixture fixa, cadeia TUF, política GF e ZIPs de texto;
+não instala, executa GF, acessa credenciais/rede ou persiste estado do produto.
+
+**66/66 testes finais de segurança**, 42 cenários, SDK 10.0.402, .NET 10.0.13,
+Linux x64. Vários casos de Windows/transação permanecem não implementados,
+explicitados no relatório; contagens não promovem roadmap ou homologação.
+Fontes .cs.txt e saídas temporárias externas impedem inclusão no glob do produto;
+avaliação MSBuild final: 142 fontes do produto, zero fontes do protótipo, sem
+compilar o produto. BETA .66/fonte 6df95fdd/build 40716548530/artefato 12828262039
+inalterados, sem download adicional, recompilação, reupload ou alteração do canal
+privado, retenção e acessos. Nenhuma nova CI do produto acionada.
+
+PROGRESSO muda somente integration_final.next_mission, preservando stage0,
+candidate/beta, histórico físico e todos os 42 IDs/done (**27/42**). Modelo de
+custódia não comprova chaves provisionadas; testes de fixture não comprovam
+NTFS/TOCTOU, diário/rollback, IPC, PE/runtime real, AVG ou conformidade integral.
+**Etapa 2 NÃO INICIADA; integração no produto NÃO INICIADA.**
+
+AVG/proteções, privacidade/consentimento/relatórios e remoto bloqueado preservados;
+flags PILOT_ENABLED=no/GITHUB_EXPORT_ENABLED=no, Worker/D1/DNS, VLC somente
+inventário sem ações/consultas/testes específicos, COM opcional/consultivo/não
+bloqueante e drivers de instalação/remoção/reversão desativados intactos.
+Sem publicação de versão, Release, merge, deploy, agenda ou operação no PC FORTE.
+**Encerrar após salvar e conferir esta Etapa 1.**
