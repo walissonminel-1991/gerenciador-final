@@ -1825,9 +1825,9 @@
       "source_evidence": "User-submitted screenshots and three local text/log artifacts in conversation; raw private data not committed"
     },
     "next_mission": {
-      "id": "GF_SELF_UPDATER_STAGE2_ISOLATED_STATE_AND_RECOVERY",
-      "status": "stage2_completed_isolated_no_product_integration",
-      "scope": "persistent_state_clock_ntfs_selector_journal_concurrency_recovery",
+      "id": "GF_SELF_UPDATER_STAGE3_ISOLATED_PENDING_GATES",
+      "status": "stage3_completed_isolated_with_open_gates",
+      "scope": "tuf_clock_durability_zip_static_pe_runtime_licenses_authenticated_ipc_real_probe_lifecycle",
       "no_repeated_physical_test_without_product_change": true,
       "stage0": {
         "date": "2026-10-28",
@@ -1941,6 +1941,83 @@
           "product_integration"
         ],
         "next_stage": 3,
+        "next_stage_started": false
+      },
+      "stage3": {
+        "date": "2026-10-28",
+        "timezone": "America/Fortaleza",
+        "entry_head": "41848534602ef2f9bc84fe3e4eb26de3937f48e2",
+        "validated_code_commit": "6e17b7268fb1182669e9a2646b34cfb52071dd00",
+        "status": "completed_isolated_with_explicit_open_gates",
+        "contract": "gf-self-update/1",
+        "report": "docs/WORK-AUTOATUALIZADOR-ETAPA3.md",
+        "evidence": "docs/evidencias/autoatualizador-etapa3.json",
+        "windows_results": "docs/evidencias/autoatualizador-etapa3-windows.json",
+        "linux_results": "docs/evidencias/autoatualizador-etapa3-linux.json",
+        "prior_runs": "docs/evidencias/autoatualizador-etapa3-rodadas.json",
+        "windows_passed": 47,
+        "windows_total": 47,
+        "linux_passed": 19,
+        "linux_total": 19,
+        "distinct_cases": 47,
+        "windows_ci": {
+          "run_id": 40764777624,
+          "run_number": 3,
+          "attempt": 1,
+          "conclusion": "success",
+          "artifacts": 0
+        },
+        "earlier_ci_failures": [
+          40763350794,
+          40763986158
+        ],
+        "automatic_retries": 0,
+        "clock_experiment": {
+          "pinned_source_files": 20,
+          "patched_clock_sites": 7,
+          "original_package_changed": false,
+          "production_adoption_approved": false
+        },
+        "durability": {
+          "persistence_images": 16,
+          "safe": 6,
+          "blocked": 10,
+          "whole_suffix_loss_counterexample": true,
+          "directory_flush_succeeded": true,
+          "power_loss_tested": false,
+          "power_loss_gate_closed": false
+        },
+        "probe": {
+          "name": "GF.Updater.InertProbe",
+          "version": "0.0.0.1",
+          "gf_candidate": false,
+          "files": 274,
+          "bytes": 123062971,
+          "runtime": "10.0.13",
+          "real_readiness_timeout_seconds": 30.03,
+          "runner_elevated": true,
+          "foreign_user_or_session_tested": false,
+          "non_elevated_positive_path_tested": false
+        },
+        "product_compile_items": 142,
+        "prototype_items_in_product": 0,
+        "product_code_changed": false,
+        "new_product_builds": 0,
+        "product_integration_started": false,
+        "physical_tests_repeated": 0,
+        "private_channel_changed": false,
+        "publication_performed": false,
+        "production_keys_created": false,
+        "bootstrap_installed": false,
+        "open_gates": [
+          "physical_power_loss_storage",
+          "operational_adoption_clock_experiment",
+          "full_GF_package_recipe_and_extraction_Authenticode",
+          "foreign_user_session_and_non_elevated_positive_IPC",
+          "GF_lifecycle_and_product_integration",
+          "production_bootstrap_custody"
+        ],
+        "next_stage": 4,
         "next_stage_started": false
       }
     }

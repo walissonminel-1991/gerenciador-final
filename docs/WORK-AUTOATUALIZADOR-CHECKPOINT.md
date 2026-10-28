@@ -1,5 +1,46 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+28/10/2026, America/Fortaleza. **Etapa 3 concluída no escopo isolado,
+com gates remanescentes explícitos. Integração no produto e Etapa 4 NÃO INICIADAS.**
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | GF_SELF_UPDATER_STAGE3_ISOLATED_PENDING_GATES |
+| PR / branch | #65 aberta/Draft, work-integracao-final-20261027 |
+| Entrada | 41848534602ef2f9bc84fe3e4eb26de3937f48e2 |
+| Código validado | 6e17b7268fb1182669e9a2646b34cfb52071dd00; fechamento posterior só documentação/resultados |
+| Contrato / bibliotecas | gf-self-update/1 intacto; Tuf 1.1.1 e BC 2.7.0 originais preservados |
+| Relógio | Cópia experimental da fonte TUF fixada: 20 arquivos/hash, 7 consultas/bordas, relógio imutável; não adotada no produto |
+| Windows | 47/47, run 40764777624, número 3/tentativa 1/success, SDK 10.0.402, runner runtime 10.0.14 |
+| Linux | 19/19 comuns, runtime 10.0.13; não somar novamente aos 47 |
+| Sonda real | WinForms self-contained 10.0.13, 274 arquivos/123.062.971 bytes, versão inerte 0.0.0.1; não é candidata GF |
+| Extração / estática | ZIP de texto CreateNew/handles/hashes; PE/manifesto/runtime/grafo/licenças reais da sonda |
+| IPC / saída / prontidão | PID/SID/sessão/elevação/imagem do kernel, pai, nonce/tx, handles presos e saída real; timeout real 30,03 s |
+| Durabilidade | 16 imagens: 6 seguras/10 recusas; flush arquivo/diretório aceito, mas sem prova de energia; sufixo integral perdido restaura piso antigo no modelo |
+| Contextos não executados | Outro usuário/sessão e positivo sem elevação; runner elevado foi recusado pelo classificador operacional, sem alterar token/ACL |
+| Rodadas preservadas | 40763350794 antes da suíte: coletor de notices; 40763986158 30/33 e IPC bloqueado; correções pontuais, zero retries automáticos |
+| Isolamento | 142 itens Compile GF, zero do protótipo, ambos ambientes; zero build/execução do GF e zero artefatos nas três runs |
+| Preservação | BETA .66/canal privado/AVG/proteções intactos; físico parcial/zero repetição; roadmap 27/42 |
+
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA3.md) ·
+[Protocolo de ensaio](../prototipos/autoatualizador-seguro/stage3/README.md) ·
+[Windows](evidencias/autoatualizador-etapa3-windows.json) ·
+[Linux](evidencias/autoatualizador-etapa3-linux.json) ·
+[Recibo](evidencias/autoatualizador-etapa3.json).
+
+Gates abertos: energia/armazenamento real; adoção/manutenção/revisão da mudança
+experimental TUF; pacote/extração GF/Authenticode reais; contextos IPC acima;
+ciclo de vida operacional e bootstrap/custódia de produção. Flush e relógio do
+experimento não autorizam instalação/homologação ou substituição da .66.
+As camadas foram ensaiadas separadamente, sem integrar pipeline no produto.
+
+Preservar remoto bloqueado/flags no, AVG, consentimento, drivers inativos,
+VLC só inventário e COM opcional/consultivo. Sem PC FORTE, canal privado,
+permissões, Worker/D1/DNS, chave operacional, merge/Release/deploy ou publicação.
+**Etapa 4 não iniciada. Parar após salvar/conferir esta etapa.**
+
+## Registro da Etapa 2 — histórico preservado
+
 28/10/2026, America/Fortaleza. **Etapa 2 concluída no protótipo isolado.
 Integração no produto e Etapa 3 NÃO INICIADAS.**
 

@@ -4,9 +4,9 @@
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 **Estado vigente: BETA privada .66 entregue; avaliação física parcialmente
-concluída; Etapa 2 do autoatualizador concluída em protótipo isolado.** Ver os
+concluída; Etapa 3 do autoatualizador concluída em protótipo isolado, com gates abertos.** Ver os
 registros finais e o [checkpoint do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
-Sem integração no produto ou Etapa 3; conectada bloqueada; roadmap 27/42.
+Sem integração no produto ou Etapa 4; conectada bloqueada; roadmap 27/42.
 
 ## Estado de continuidade
 
@@ -941,3 +941,29 @@ preservados. Avaliação física continua parcial e roadmap **27/42**, mesmos
 
 Gates pendentes discriminados no checkpoint específico. **Integração no GF e
 Etapa 3 NÃO INICIADAS. Parar após salvar e conferir este fechamento.**
+
+
+## 28/10/2026 — autoatualizador Etapa 3 isolada concluída, gates explícitos
+
+Entrada 41848534, código validado 6e17b726. [Relatório](WORK-AUTOATUALIZADOR-ETAPA3.md),
+[checkpoint específico](WORK-AUTOATUALIZADOR-CHECKPOINT.md) e
+[recibo](evidencias/autoatualizador-etapa3.json). Windows 47/47, run
+[40764777624](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40764777624),
+número 3/tentativa 1/success; Linux 19/19 comuns. Fonte TUF fixada em experimento
+com relógio imutável/expiração estrita; pacote original intacto. ZIP de texto
+extraído com handles/CreateNew; inspeção PE/runtime/licenças da sonda WinForms
+real; IPC autenticado e saída/prontidão reais, incluindo timeout 30,03 s.
+
+16 imagens de persistência, 6 seguras e 10 recusas. Flush nativo arquivo/diretório
+aceito; sem prova de energia. Contraexemplo de perda de sufixo mantido. Outro
+usuário/sessão e caminho positivo sem elevação não executados. Não inferir
+homologação GF/AVG, conformidade TUF integral, adoção do fork ou pipeline de
+update completo. Rodadas anteriores 40763350794/40763986158 preservadas com
+falhas reais, correções dirigidas, sem retry automático ou CI do produto.
+
+Produto só avaliado: 142 itens Compile, zero do protótipo; nenhum build/execução
+GF ou artefato nas runs. BETA .66, fonte 6df95fdd, canal privado, AVG/proteções,
+privacidade, flags no/remoto bloqueado, drivers, VLC inventário e COM consultivo
+intactos. Sem físico/PC FORTE, permissões, infraestrutura, chave de produção,
+publicação, merge ou Release. Roadmap 27/42 e históricos preservados.
+**Etapa 4 e integração no produto NÃO INICIADAS. Encerrar após salvar/conferir.**
