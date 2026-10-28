@@ -19,7 +19,9 @@ if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
     throw "Versao Win32 invalida '$version': exigidos quatro componentes (ex.: 5.12.13.1)."
 }
 [xml]$project = Get-Content -LiteralPath $projectPath -Raw
-$packageVersion = [string]$project.Project.PropertyGroup.Version
+$versions = @($project.SelectNodes('//PropertyGroup/Version'))
+if ($versions.Count -ne 1) { throw 'GF_PROJECT_VERSION_AMBIGUOUS' }
+$packageVersion = $versions[0].InnerText
 if ($packageVersion -ne $version) {
     throw "Versao do projeto ($packageVersion) difere da identidade do manifesto ($version)."
 }
