@@ -1024,5 +1024,26 @@
   "stage8_started": false,
   "stage9_executed": false,
   "overall_mission_complete": false,
-  "next_stage": 8
+  "next_stage": 8,
+  "remote_closure_verification": {
+    "documentation_commit": "196096939c1553eaa76cb640bbe0bf8d7f510679",
+    "documentation_tree": "dd877ddfe09241c8e2e71a8d8bad5a8cbc87cb3d",
+    "validated_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "remote_blobs_verified": 447,
+    "source_ci_entries_unchanged": 436,
+    "post_ci_documentary_delta_files": 11,
+    "published_build_inputs_unchanged": true,
+    "entry_delta_files": 37,
+    "entry_unchanged_files": 410,
+    "deletions": 0,
+    "other_branches_preserved": 100,
+    "pr65_open_draft": true,
+    "base_preserved": true,
+    "pr40_open_draft_unchanged": true,
+    "issue48_open_unedited": true,
+    "runs_on_documentation_commit": 0,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "stage8_started": false
+  }
 }

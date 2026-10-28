@@ -249,6 +249,24 @@ Novo perfil é correção de conformidade técnica, sem preparar pacote ou homol
 PC/AVG. Fonte/merge de teste têm a árvore `e29acb3619b85050a4cf5becaf81bfa3fdda0bd2`. Nenhuma proteção/teste
 foi removido para obter verde. **Parada antes da Etapa 8.**
 
+## Salvamento e conferência — Etapa 7
+
+Fechamento salvo no commit `196096939c1553eaa76cb640bbe0bf8d7f510679`, filho único da fonte aprovada
+`6df95fdd776644cd4b248b5cea61108974ca9ce9`, árvore `dd877ddfe09241c8e2e71a8d8bad5a8cbc87cb3d`.
+Relidos/conferidos no GitHub **447 blobs**, **436 entradas da fonte de CI intactas**,
+onze Markdown/JSON de fechamento e nenhum input publicado alterado. Contra a
+entrada da Etapa 7: 37 caminhos alterados/adicionados, 410 herdados intactos e
+nenhuma remoção. Todos os históricos e 42 estados/done preservados, **27/42**.
+As outras 100 branches, main/base, PR #40 aberta/Draft e Issue #48 aberta sem
+edição foram reconferidas. PR #65 aberta/Draft e nenhum run no commit documental.
+
+Este recibo posterior acrescenta somente o SHA/conferência a quatro documentos;
+conferir o HEAD final na PR #65. A aprovação Windows/externa é da fonte
+**6df95fdd**, sem atribuir nova build ao fechamento documental. Manifesto de três
+arquivos conferido independentemente; pacote executável não distribuído/preparado.
+AVG/assinatura e homologação física pendentes; conectada/pública bloqueada.
+**Parada antes da Etapa 8.**
+
 ## Bloqueios preservados
 
 Roadmap **27/42**, com 15 IDs abertos: U8, I7, R4, R6, R7, P5, P6, V5,
