@@ -1,5 +1,19 @@
 # Privacidade
 
+## Edição local da integração — Etapa 7, 28/10/2026
+
+A compilação padrão da candidata .66 usa o perfil local. O GF não coleta nem
+transmite diagnóstico colaborativo nessa edição, inclusive em erro/encerramento,
+e não lê/renova consentimento ou pendência remota herdados para ativar coleta.
+Os arquivos antigos ficam intactos até uma revogação explícita, que tenta excluir
+a própria pendência. A simulação usa dados inventados; histórico/relatórios técnicos
+locais descritos abaixo permanecem separados e disponíveis. As consultas de versões
+não são iniciadas automaticamente na abertura; exigem ação explícita.
+
+Perfil e origem são conferidos na CI; pacote de teste ainda não preparado e AVG/PC
+ainda não homologados. As seções BETA r3 e .65 abaixo descrevem seus perfis históricos
+e planos; não ativam o envio na edição local ou autorizam a BETA conectada.
+
 ## Aviso BETA r3 preparado para aprovação
 
 O [aviso completo versionado](https://github.com/walissonminel-1991/gerenciador-final/blob/88d5494e69f216e2f00ea1b1b00a2da62dd08525/docs/AVISO-PRIVACIDADE-BETA.md) e o [roteiro conectado](https://github.com/walissonminel-1991/gerenciador-final/blob/88d5494e69f216e2f00ea1b1b00a2da62dd08525/docs/BETA-66-HOMOLOGACAO-CONECTADA.md) são a preparação atual da .66. Responsável proposto: Walisson Minel; contato privado e domínio aguardam aprovação. Aviso/endpoint continuam sem aprovação em fonte e o envio permanece bloqueado. O receptor passa a aceitar os dois estados de encerramento já presentes no esquema (`normal`/`incompleto`), conservando exatamente as mesmas 14 categorias; falhas/desligamento só gravam localmente para sessão posterior autorizada. A janela do aplicativo solicita novo aceite para r3. Persistência e revogação entre instâncias usam locks locais vazios, sem identificador transmitido. As seções históricas a seguir não autorizam o piloto.
@@ -26,7 +40,7 @@ também permite revisar a escolha. A preferência mínima é mantida entre vers�
 e reinicializações para não repetir o aviso. Transmissão de diagnósticos pela
 internet continua desativada e exigirá consentimento separado se implementada.
 
-## Resumo opcional e consentimento
+## Resumo opcional e consentimento — perfis anteriores
 
 O resumo contém somente versão do GF, encerramento normal e contagens das
 categorias técnicas permitidas. Não inclui inventário, nomes de programas,
@@ -73,8 +87,9 @@ ação explícita do usuário. Veja [critérios e limites](https://github.com/wa
 
 ## Rede e outros componentes
 
-Na inicialização e ao consultar atualizações, há requisições HTTPS a RuckZuck e
-fontes oficiais, incluindo GitHub, Mozilla e manifestos públicos de pacotes.
+Na edição local, após ação explícita para consultar atualizações, há requisições
+HTTPS a RuckZuck e fontes oficiais, incluindo GitHub, Mozilla e manifestos públicos
+de pacotes. Nos perfis internos anteriores também havia consultas na inicialização.
 Não se executa a CLI WinGet. Windows Update consulta serviços Microsoft. Os
 provedores recebem metadados normais das requisições, como IP, horário e recurso
 consultado, sujeitos às suas políticas; o GF não envia inventário ou arquivos
