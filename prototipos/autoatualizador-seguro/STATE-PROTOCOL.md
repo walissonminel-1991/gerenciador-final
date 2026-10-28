@@ -31,7 +31,7 @@ absoluto. Esse limite já integra as ameaças T02/T03 da Etapa 0.
 CycleClock captura UTC inicial e contador monotônico do TimeProvider; bloqueia
 retrocesso >5 min frente ao último observado, mudança de parede >5 min frente
 ao monotônico, orçamento >120 s e expiração na confirmação do commit. O horário
-efetivo usa o maior entre parede e início+tempo decorrido. Nenhum ajuste para
+efetivo usa o maior entre o piso observado, parede e início+tempo decorrido. Nenhum ajuste para
 trás estende validade ou reduz o piso persistido. Intenção já persistida mantém
 o piso mesmo se o alvo expirar antes da troca. A seleção confirmada não depende
 do frescor de metadados para mera inspeção. Nenhum relógio Windows é alterado.
@@ -77,9 +77,13 @@ prazo real de 30 s e execução do GF não são implementados ou comprovados.
 
 Somente Windows: perfil de volume local fixo NTFS, path <=240, sem ADS/UNC.
 Abrir cada ancestral antes do descendente com CreateFileW, OPEN_REPARSE_POINT,
-BACKUP_SEMANTICS e compartilhamento de leitura, negando escrita/exclusão.
+BACKUP_SEMANTICS. Diretórios compartilham leitura/escrita para permitir renomear
+filhos e negam DELETE para prender seus nomes. Arquivos negam escrita e DELETE.
 Validar atributos/tipo, caminho final, volume/FileIdInfo de 128 bits e nlinks=1
-para arquivos. Ler/hash no mesmo handle e revalidar; não normalizar uma string
+para arquivos. Reparse points preexistentes são rejeitados; diretórios ancorados
+não vazios, ACLs e revalidação continuam necessários, pois SHARE_WRITE não é
+um bloqueio absoluto de mutações de metadados por código do próprio usuário.
+Ler/hash no mesmo handle e revalidar; não normalizar uma string
 e reabrir o arquivo para decidir quais bytes foram aprovados.
 
 Os handles de ambos os bundles ficam vivos durante intenção/troca/registro.

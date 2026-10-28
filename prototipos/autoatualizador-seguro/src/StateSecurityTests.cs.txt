@@ -190,7 +190,8 @@ internal static class StateSecurityTests
             using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root);
             File.WriteAllText(Path.Combine(store.Ledger,"unknown.fixture"),"x"); Refuses("STATE_GAP_OR_UNKNOWN",()=>store.Load());
             File.Delete(Path.Combine(store.Ledger,"unknown.fixture"));
-            File.WriteAllBytes(Directory.GetFiles(store.Ledger).Single(),new byte[StateCodec.MaxRecordBytes+1]); Refuses("STATE_SIZE",()=>store.Load());
+            File.WriteAllBytes(Directory.GetFiles(store.Ledger).Single(),new byte[StateCodec.MaxRecordBytes+1]);
+            Refuses(OperatingSystem.IsWindows()?"NTFS_SIZE":"STATE_SIZE",()=>store.Load());
         }));
         await Test("STATE-11","Signed TUF cache survives a process restart and rejects older metadata",async()=>{
             using var c=new StateCase(suiteRoot);
@@ -243,6 +244,10 @@ internal static class StateSecurityTests
             store.Append(Next(l) with {Trust=l.Record.Trust with {LastObservedUtc=CycleClock.Wire(DateTimeOffset.UtcNow+TimeSpan.FromDays(90))}},l.Digest);
             Refuses("CLOCK_ROLLBACK",()=>c.Clock()); using var session=new FixtureSession(c.Root);
             Require(session.SelectionForFixtureInspectionOnly()==c.Old,"ACTIVE_DISABLED_BY_CLOCK");
+        }));
+        await Test("CLOCK-09","Tolerance for clock rollback never revives a target expired at the observed floor",()=>Sync(()=>{
+            var clock=new ManualClock(Epoch); var cycle=new CycleClock(clock,Epoch+TimeSpan.FromMinutes(5));
+            Refuses("EXPIRED_BEFORE_COMMIT",()=>cycle.Check(Epoch+TimeSpan.FromMinutes(4)));
         }));
         await Test("TX-01","Cancel before confirmation writes no intent and approves no release",()=>Sync(()=>{
             using var c=new StateCase(suiteRoot); var before=new PersistentState(c.Root).Load(); using var s=new FixtureSession(c.Root);

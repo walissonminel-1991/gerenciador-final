@@ -25,6 +25,7 @@ internal sealed class CycleClock
         Require((wall-expected).Duration()<=TimeSpan.FromMinutes(5),"CLOCK_CHANGED");
         // A small backwards correction cannot extend validity or lower a persisted floor.
         DateTimeOffset effective=wall>expected ? wall : expected;
+        if(ObservedFloor>effective) effective=ObservedFloor;
         Require(expires>effective,"EXPIRED_BEFORE_COMMIT");
         return effective>ObservedFloor ? effective : ObservedFloor;
     }
