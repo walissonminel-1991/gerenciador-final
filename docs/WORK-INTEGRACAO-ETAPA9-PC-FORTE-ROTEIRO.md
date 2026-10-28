@@ -1,5 +1,7 @@
 # BETA LOCAL — guia portátil e roteiro mínimo futuro do PC FORTE
 
+> Estratégia vigente: [piloto BETA único](WORK-INTEGRACAO-PILOTO-BETA-UNICO.md). Este roteiro de leitura/segurança serve à primeira avaliação do mantenedor, sem transmissão, quando houver pacote real validado e ensaio autorizado. Identificação local atual é histórica/configuração inicial da mesma BETA; não exige produto separado ou VM pessoal. Nenhum teste executado nesta revisão; estados abaixo preservados. Convites posteriores dependem da homologação inicial E validação conectada.
+
 Preparado na Etapa 8, 28/10/2026. **Etapa 9 NÃO INICIADA.**
 Não executar enquanto a Etapa 8 estiver bloqueada:
 [estado/contrato de entrega](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md).

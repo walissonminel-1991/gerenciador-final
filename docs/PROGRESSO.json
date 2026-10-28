@@ -1202,7 +1202,7 @@
     "branch": "work-integracao-final-20261027",
     "draft_pr": 65,
     "version": "5.13.11.66 TESTE",
-    "status": "stage8_blocked_private_package_delivery",
+    "status": "strategy_updated_private_delivery_pending",
     "entry_commit": "275cfc396d22c8aff933a3879f0702d20596a2bc",
     "origins": {
       "base_pr60": "2bc9f4228fd448445fbf181652e5af93005def20",
@@ -1225,8 +1225,8 @@
     "distribution_approved": false,
     "roadmap_done": 27,
     "roadmap_total": 42,
-    "report": "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
-    "evidence": "docs/evidencias/integracao-etapa8-preparacao.json",
+    "report": "docs/WORK-INTEGRACAO-PILOTO-BETA-UNICO.md",
+    "evidence": "docs/evidencias/integracao-piloto-beta-unico-estrategia.json",
     "next_stage": 8,
     "stage3_entry_commit": "89ee12a8322c5872c61c3fd40030490407cbb173",
     "validated_commit": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
@@ -1701,6 +1701,67 @@
       "package_sha256": null,
       "stage9_started": false,
       "next_stage": 8
+    },
+    "unified_beta_pilot_strategy": {
+      "date": "2026-10-28",
+      "status": "strategy_updated_private_delivery_pending",
+      "entry_commit": "56ad2769c6e8565fcb6d26b0047249623bea30bc",
+      "source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "decisions": {
+        "single_product_line": true,
+        "parallel_local_beta_product_required": false,
+        "personal_vm_or_sandbox_required": false,
+        "winver_or_sandbox_identification_required": false,
+        "integration_stages_1_7_preserved": true,
+        "first_evaluator": "walissonminel-1991",
+        "first_evaluator_authorized": true,
+        "first_evaluation_target": "PC FORTE",
+        "first_phase_no_remote_diagnostics": true,
+        "later_evaluators_require_owner_initial_homologation_and_connected_validation": true
+      },
+      "ci_reconfirmed": [
+        {
+          "id": 40675784213,
+          "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+          "status": "completed",
+          "conclusion": "success",
+          "attempt": 1
+        },
+        {
+          "id": 40675784155,
+          "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+          "status": "completed",
+          "conclusion": "success",
+          "attempt": 1
+        }
+      ],
+      "proposal_id": "PU-ENTREGA-01",
+      "report": "docs/WORK-INTEGRACAO-PILOTO-BETA-UNICO.md",
+      "evidence": "docs/evidencias/integracao-piloto-beta-unico-estrategia.json",
+      "superseded_requirements": [
+        "Parallel exclusive BETA LOCAL product",
+        "VM/Sandbox on personal PC",
+        "Windows edition/Sandbox presence as delivery prerequisite",
+        "P8-ENTREGA-01 as current selected plan"
+      ],
+      "previous_current_pointers": {
+        "status": "stage8_blocked_private_package_delivery",
+        "report": "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+        "evidence": "docs/evidencias/integracao-etapa8-preparacao.json"
+      },
+      "required_approvals_pending": [
+        "D1",
+        "D2",
+        "D3"
+      ],
+      "runtime_code_and_compiled_guards_unchanged": true,
+      "private_distribution_authorized": false,
+      "connected_activation_authorized": false,
+      "remote_diagnostics_enabled": false,
+      "package_available": false,
+      "package_sha256": null,
+      "next_stage": 8,
+      "stage9_started": false
     }
   }
 }

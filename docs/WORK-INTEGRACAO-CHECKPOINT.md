@@ -5,11 +5,15 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 ## Estado de continuidade
 
+Estratégia vigente: [piloto BETA único](WORK-INTEGRACAO-PILOTO-BETA-UNICO.md).
+A decisão mais recente ao final deste arquivo substitui as hipóteses antigas de
+produto paralelo/VM pessoal; os registros anteriores são históricos.
+
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **8 — rota VM descartável + pacote local aceita em princípio; ambiente Windows ainda não identificado** |
-| Resultado | Preferência por VM descartável e ZIP local registrada. Próximo passo: identificar edição/versão do Windows e recurso isolado já disponível, sem instalar/habilitar nada. Sem pacote/hash; Etapa 9 NÃO INICIADA |
+| Etapa desta sessão | **8 — revisão da estratégia: piloto BETA único; entrega privada pendente de destino/controlador/distribuição autorizados** |
+| Resultado | Estratégia revisada: mesma BETA .66/PR #65, mantenedor primeiro avaliador; sem produto local paralelo ou VM/Sandbox pessoal obrigatórios. Plano PU-ENTREGA-01 salvo; sem build/distribuição. Etapa 9 NÃO INICIADA |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
@@ -31,7 +35,7 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Entrada da Etapa 6 | `db67cde412db306c316e79c0761e8dafef4b3b34` |
 | Commit da auditoria | [`d1fee1eca87938e82d3e4253efce121b2cb1edba`](https://github.com/walissonminel-1991/gerenciador-final/commit/d1fee1eca87938e82d3e4253efce121b2cb1edba); fechamento posterior documental, HEAD final na PR #65; `[skip ci]`, sem nova build |
 | Defeitos | [GF6-001–004 e GF7-001](WORK-INTEGRACAO-DEFEITOS.md) corrigidos no escopo técnico demonstrado; pendências físicas preservadas |
-| Próxima etapa | **Concluir a entrega da Etapa 8 após decisão/canal privado compatível com o contrato; Etapa 9 somente depois de pacote real verificado e autorização manual** |
+| Próxima etapa | **Decidir D1–D3 de PU-ENTREGA-01 e implementar a entrega privada da mesma BETA na Etapa 8; Etapa 9 somente após pacote real verificado, sem avanço automático** |
 | Entrada da Etapa 7 | `89098a6669fadacd59e31fd8507bba9055a17a14` |
 | Reprodução anterior à correção | `f56c9303a66dfa9c3a29b220e38a9afe6f705b47`; 9/12 falhas no run 40670973548 |
 | SHA fonte aprovado na Etapa 7 | `6df95fdd776644cd4b248b5cea61108974ca9ce9` |
@@ -662,3 +666,73 @@ Sem nova build, CI, instalação, controle de PC, mudança de proteção ou test
 físico. Roadmap **27/42**, diagnóstico remoto bloqueado, drivers desativados,
 COM consultivo, exclusão permanente e flags no preservados. **Etapa 9 NÃO
 INICIADA.** Encerrar aqui aguardando somente as informações de ambiente.
+
+## Decisão vigente — piloto BETA único
+
+28/10/2026, America/Sao_Paulo. **Revisão estratégica concluída; entrega ainda
+pendente.** [Estratégia e plano PU-ENTREGA-01](WORK-INTEGRACAO-PILOTO-BETA-UNICO.md) ·
+[Recibo](evidencias/integracao-piloto-beta-unico-estrategia.json).
+
+O mantenedor determinou uma única linha técnica BETA .66 na PR #65/branch
+work-integracao-final-20261027. Abandonada a necessidade de produto BETA LOCAL
+paralelo. Preservar Etapas 1–7, código, guardas compiladas e evidências aprovadas.
+A configuração inicial atual sem transmissão continua válida como primeira
+fase da mesma BETA; não retirar GF_BETA_LOCAL ou alterar o título/binário
+nesta sessão documental. Eventual configuração conectada precisa de sua
+própria aprovação, SHA/build/hash e CI; não é ativação implícita do ZIP inicial.
+
+O mantenedor é o primeiro avaliador autorizado, usando o PC FORTE. Outros
+participantes somente depois de sua homologação inicial E da validação
+conectada, com decisão nominal posterior. Participação autorizada não equivale
+a entrega, homologação, consentimento remoto ou permissão de publicar agora.
+
+A dependência de VM/Sandbox no PC pessoal e a solicitação de winver/presença
+desse recurso ficam superadas. Não pedir essas informações para liberar a
+entrega, instalar virtualização/SDK no PC ou manter bloqueio por produto local
+paralelo. Os registros anteriores permanecem históricos, sem apagar fatos.
+
+Entrada `56ad2769c6e8565fcb6d26b0047249623bea30bc`, PR #65 aberta/Draft; 454 blobs conferidos,
+18 diferenças documentais desde a fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`,
+sem mudança funcional/input publicado ou remoção. CIs Windows 40675784213 e
+externa 40675784155 reconferidas success/tentativa 1 no SHA exato. Sem nova
+CI/build/teste de produto nesta revisão.
+
+**Bloqueio real de 8:** os bytes executáveis não foram conservados pelo
+workflow público, que mantém somente manifestos BETA e gate beta != true
+para upload executável. Precisamos de nova compilação/validação e retenção
+privada nominal autorizada; não de ambiente Windows no PC pessoal.
+
+PU-ENTREGA-01 propõe controlador privado de entrega no GitHub, sem fork do
+produto. Reutilizar fonte imutável/receita Windows já aprovada, SDK 10.0.402,
+perfil inicial sem transmissão, guardas Win32/assembly/composição/conteúdo/
+licenças, manifesto e SHA-256 do ZIP novo, com verificação Linux separada.
+O workflow de build atual não expõe workflow_call; adaptar somente contexto
+dos passos no controlador privado, sem alegar replay da build histórica ou
+alterar upload público. Contexto privado será validado antes de executar.
+
+Destino privado de entregas existente e autorizado é preferível, se indicado
+e conferido. Novo walissonminel-1991/gf-beta-local-entrega é apenas alternativa
+condicional; nunca reutilizar repositório de agregados/diagnósticos por
+conveniência. Nenhum canal/repositório/workflow foi criado ou acesso concedido.
+
+Autorizações ainda necessárias, só para futura execução: D1 nomear/autorizar
+destino privado (criação somente se indispensável e aceita); D2 instalar/
+acionar controlador privado e uma build/verificação; D3 transferir/reter ZIP
+e recibos para acesso exclusivo do primeiro avaliador por prazo definido.
+Podem ser decididas juntas; não pedir novamente participação inicial ou
+aprovação das Etapas 1–7. Acesso adicional de app só se necessidade nominal
+demonstrada e autorizada. Cota incluída apenas, sem cobrança automática.
+A implantação/primeiro acionamento podem exigir ação do mantenedor no
+GitHub: o conector atual não expõe criação/workflow_dispatch.
+
+Pacote/nome efetivo/SHA-256/URL privada continuam indisponíveis. Nenhum
+executável entregue ou publicado; manifestos não substituem essa entrega.
+AVG/assinatura/homologação física pendentes, sem exigência circular de
+homologar um pacote antes de ele existir para o primeiro ensaio autorizado.
+AVG e proteções intactos; drivers desativados, COM consultivo, VLC somente
+inventário, diagnósticos remotos bloqueados, relatórios locais preservados e
+flags no. Sem Worker/D1/DNS, deploy/merge/Release/distribuição ou teste físico.
+Roadmap **27/42**, sem promoção. **Etapa 9 NÃO INICIADA.**
+
+Próxima ação: decisão específica D1–D3 e capacidade de implantação do plano,
+em outra sessão da Etapa 8. **Parada após esta revisão e salvamento.**

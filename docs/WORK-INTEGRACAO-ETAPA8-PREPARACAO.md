@@ -1,5 +1,7 @@
 # Integração final — Etapa 8: preparação da BETA LOCAL
 
+> Atualização de estratégia em 28/10/2026: [piloto BETA único](WORK-INTEGRACAO-PILOTO-BETA-UNICO.md). O texto abaixo preserva a preparação histórica; a exigência de produto local paralelo/VM pessoal foi superada. Fonte/guardas/evidências permanecem preservadas. Entrega ainda pendente; nenhuma publicação autorizada nesta revisão.
+
 28/10/2026, America/Sao_Paulo. Somente Etapa 8 nesta sessão.
 Branch work-integracao-final-20261027, [PR #65 aberta/Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65).
 
@@ -221,3 +223,20 @@ não são expostos pelo conector. Aceite não comprova capacidade operacional.
 SHA-256 e URL privados continuam indisponíveis. Não houve nova build/CI ou
 repetição das Etapas 1–7. O próximo passo é decidir A1/A2/A3 e confirmar o
 meio de implantação/acionamento, sem antecipar teste físico ou fluxo conectado.
+
+## I. Revisão estratégica — piloto único
+
+A decisão mais recente está em [PU-ENTREGA-01](WORK-INTEGRACAO-PILOTO-BETA-UNICO.md)
+e no [recibo](evidencias/integracao-piloto-beta-unico-estrategia.json).
+Não desenvolver produto local paralelo nem depender de VM/Sandbox pessoal.
+PR #65 permanece linha técnica única; mantenedor é o primeiro avaliador.
+A configuração inicial atual segue sem transmissão remota. Outros avaliadores
+somente após homologação inicial E validação conectada, com autorização própria.
+
+Reavaliado o bloqueio: o problema vigente é reter e entregar bytes reais por
+canal privado nominal, mantendo os gates públicos. Fonte/CI aprovadas não
+produzem retroativamente o ZIP não conservado. O plano aproveita receita
+Windows validada, com nova build/hash e verificação em contexto privado;
+destino/implantação/distribuição ainda precisam de D1–D3 específicas.
+Nesta revisão nenhum binário, workflow, recurso ou envio foi criado.
+**Revisão concluída; entrega pendente; Etapa 9 não iniciada.**

@@ -1,0 +1,185 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "stage": 8,
+  "session": "unified_beta_pilot_strategy_review",
+  "date": "2026-10-28",
+  "timezone": "America/Sao_Paulo",
+  "status": "strategy_updated_private_delivery_pending",
+  "strategy_review_complete": true,
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "pr": 65,
+  "pr_open": true,
+  "pr_draft": true,
+  "entry_commit": "56ad2769c6e8565fcb6d26b0047249623bea30bc",
+  "entry_tree": "6918483485c9137ef4ca1215db2ba39d2ea8288f",
+  "entry_blobs": 454,
+  "validated_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+  "version": "5.13.11.66",
+  "post_code_documentary_delta": [
+    "README.md",
+    "docs/ACTIONS-ATUAIS-E-HISTORICAS.md",
+    "docs/ORGANIZACAO-REPOSITORIO.md",
+    "docs/PROGRESSO.json",
+    "docs/ROADMAP.md",
+    "docs/TESTES.md",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-DEFEITOS.md",
+    "docs/WORK-INTEGRACAO-ETAPA7-CORRECOES.md",
+    "docs/WORK-INTEGRACAO-ETAPA8-ENTREGA-PRIVADA-PROPOSTA.md",
+    "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+    "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/evidencias/integracao-etapa7-correcoes.json",
+    "docs/evidencias/integracao-etapa8-entrega-privada.json",
+    "docs/evidencias/integracao-etapa8-preparacao.json",
+    "docs/evidencias/integracao-etapa8-rota-vm-local.json",
+    "docs/evidencias/integracao-etapa9-verificacao-entrada.json"
+  ],
+  "functional_delta": [],
+  "decisions": {
+    "single_product_line": true,
+    "parallel_local_beta_product_required": false,
+    "personal_vm_or_sandbox_required": false,
+    "winver_or_sandbox_identification_required": false,
+    "integration_stages_1_7_preserved": true,
+    "first_evaluator": "walissonminel-1991",
+    "first_evaluator_authorized": true,
+    "first_evaluation_target": "PC FORTE",
+    "first_phase_no_remote_diagnostics": true,
+    "later_evaluators_require_owner_initial_homologation_and_connected_validation": true
+  },
+  "ci_reconfirmed": [
+    {
+      "id": 40675784213,
+      "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1
+    },
+    {
+      "id": 40675784155,
+      "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1
+    }
+  ],
+  "public_repository": true,
+  "public_beta_binary_upload_guard_preserved": true,
+  "workflow_call_supported_by_current_build": false,
+  "proposal": {
+    "id": "PU-ENTREGA-01",
+    "strategy": "docs/WORK-INTEGRACAO-PILOTO-BETA-UNICO.md",
+    "preferred": "Private GitHub packaging/delivery controller using immutable product source and existing validated Windows recipe",
+    "product_fork_required": false,
+    "approved_existing_private_destination_preferred": true,
+    "conditional_new_private_repository": "walissonminel-1991/gf-beta-local-entrega",
+    "proposed_private_workflow": ".github/workflows/piloto-beta-private.yml",
+    "windows_runner": "windows-2022",
+    "sdk": "10.0.402",
+    "independent_verifier": "ubuntu-24.04",
+    "retention_days": 7,
+    "source_ci_does_not_approve_new_package_bytes": true,
+    "controller_not_deployed": true,
+    "required_approvals": [
+      {
+        "id": "D1",
+        "scope": "Name and authorize private delivery destination; creation only if required and explicitly accepted",
+        "status": "PENDING"
+      },
+      {
+        "id": "D2",
+        "scope": "Install private controller and execute one build plus independent verification with included-quota limits",
+        "status": "PENDING"
+      },
+      {
+        "id": "D3",
+        "scope": "Upload/retain actual ZIP and receipts privately for first evaluator only",
+        "status": "PENDING"
+      }
+    ],
+    "new_app_access_only_if_demonstrably_needed_and_separately_authorized": true
+  },
+  "superseded_requirements": [
+    "Parallel exclusive BETA LOCAL product",
+    "VM/Sandbox on personal PC",
+    "Windows edition/Sandbox presence as delivery prerequisite",
+    "P8-ENTREGA-01 as current selected plan"
+  ],
+  "runtime": {
+    "code_changed": false,
+    "title_changed": false,
+    "compiled_local_guards_preserved": true,
+    "remote_diagnostics_disabled": true,
+    "no_implicit_runtime_switch_to_connected": true,
+    "later_connected_build_requires_own_source_config_ci_and_hashes": true
+  },
+  "actual_package": {
+    "created": false,
+    "available": false,
+    "delivered": false,
+    "name": null,
+    "sha256": null,
+    "private_url": null
+  },
+  "historical_manifest_artifact": {
+    "id": 12811032013,
+    "expired": false,
+    "digest": "sha256:50b7a8c4d8bc15a826ebe2d54c7ada8f291d6cd2dbd19b8f805572f962c4c35c",
+    "executable_package": false,
+    "metadata_reconfirmed": true
+  },
+  "execution": {
+    "new_product_builds": 0,
+    "new_product_tests": 0,
+    "new_ci_runs": 0,
+    "new_private_resources": 0,
+    "new_workflows": 0,
+    "new_grants": 0,
+    "binary_transfers": 0,
+    "physical_tests": 0,
+    "stage9_started": false,
+    "published": false
+  },
+  "restrictions": {
+    "stages1_to7_not_repeated": true,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "main_and_original_branches_preserved": true,
+    "no_merge_release_deploy_distribution": true,
+    "no_driver_mutations": true,
+    "winget_com_optional_consultative": true,
+    "vlc_inventory_only": true,
+    "avg_and_windows_protections_preserved": true,
+    "no_worker_d1_dns_activation": true,
+    "pilot_enabled": "no",
+    "github_export_enabled": "no",
+    "connected_approvals_unchanged": true,
+    "local_reports_preserved": true
+  },
+  "next_stage": 8,
+  "next_action": "Obtain only named destination/controller/private-distribution decisions; implement delivery in a separately authorized session. No personal VM prerequisite.",
+  "overall_mission_complete": false,
+  "changed_files": [
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+    "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md",
+    "docs/PROGRESSO.json",
+    "docs/WORK-INTEGRACAO-PILOTO-BETA-UNICO.md",
+    "docs/evidencias/integracao-piloto-beta-unico-estrategia.json"
+  ],
+  "documentary_validation": {
+    "expected_changed_files": 7,
+    "new_files": 2,
+    "progress_roots_except_integration_final_preserved": true,
+    "prior_stage1_to7_records_preserved": true,
+    "all_42_ids_done_preserved": true,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "no_code_workflow_or_published_input_changes": true,
+    "new_product_tests": 0
+  }
+}

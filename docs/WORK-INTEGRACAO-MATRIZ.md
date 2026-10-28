@@ -7,10 +7,10 @@ fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
 **Etapa 8 BLOQUEADA — entrega executável privada ainda indisponível.**
-Sessão atual: rota VM descartável + ZIP local aceita em princípio; aguardando identificação de ambiente já disponível. P8-ENTREGA-01 permanece alternativa sem aceites A1/A2/A3. A conferência anterior da Etapa 9 é histórica; homologação física NÃO INICIADA, F9-00–F9-11 NÃO EXECUTADO.
+Sessão atual: piloto BETA .66 único na PR #65, mantenedor primeiro avaliador, plano PU-ENTREGA-01 de entrega privada por Actions Windows. Produto local paralelo e VM/Sandbox pessoal deixam de ser requisitos. Estratégia revista; execução/publicação não autorizadas nesta sessão. A conferência anterior da Etapa 9 é histórica; homologação física NÃO INICIADA, F9-00–F9-11 NÃO EXECUTADO.
 Fonte/perfil local reconferidos; Etapa 7 permanece concluída e não foi repetida.
 Fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, CIs 40675784213/40675784155 reconferidas success; próxima ação é resolver entrega dentro de 8.
-BETA LOCAL sem pacote entregue; conectada/pública bloqueada. Etapa 9 não iniciada.
+BETA .66 única sem pacote entregue; fase conectada/pública bloqueada. Etapa 9 não iniciada.
 Entrada da Etapa 6: `db67cde412db306c316e79c0761e8dafef4b3b34`.
 Commit da auditoria: `d1fee1eca87938e82d3e4253efce121b2cb1edba`; fechamento posterior documental, HEAD final na PR #65.
 Entrada da Etapa 5: `d815d1a5348b3f24c29e5c133a45b081cb7f6958`.
@@ -429,3 +429,35 @@ código/teste/workflow/aprovações/flags ou arquivo publicado. Nenhuma build,
 suíte de produto, CI, instalação, consulta do aplicativo ou operação em PC
 executada. O próximo relato solicitado identifica ambiente de build;
 não é teste físico do GF. **Parada na Etapa 8.**
+
+## Estratégia vigente — piloto BETA único
+
+28/10/2026, America/Sao_Paulo.
+[Plano PU-ENTREGA-01](WORK-INTEGRACAO-PILOTO-BETA-UNICO.md) ·
+[Recibo](evidencias/integracao-piloto-beta-unico-estrategia.json).
+
+| Requisito | Estado atual |
+| --- | --- |
+| Linha técnica da BETA .66 | ÚNICA: PR #65/branch de integração; Etapas 1–7 preservadas |
+| Produto BETA LOCAL exclusivo/paralelo | EXIGÊNCIA ABANDONADA; não criar nova linha funcional |
+| GF_BETA_LOCAL/título e guardas compiladas existentes | PRESERVADOS como configuração inicial sem transmissão; nenhuma mudança de código nesta revisão |
+| VM/Sandbox/winver no PC pessoal | NÃO SÃO PRÉ-REQUISITOS; solicitação anterior superada |
+| Primeiro avaliador/PC FORTE | MANTENEDOR JÁ AUTORIZADO; sem homologação ou execução presumida |
+| Fonte/CIs próprias | 6df95fdd; 40675784213/40675784155 success/tentativa 1 reconferidas |
+| Bloqueio da entrega | Bytes executáveis privados e sua validação/acesso nominal ainda indisponíveis; gate público preservado |
+| Aproveitamento Actions Windows | Receita aprovada em controlador privado, mesma fonte; atual build não expõe workflow_call |
+| D1/D2/D3 | Destino privado, implantação/execução do controlador e retenção/transferência inicial ainda dependem de decisão específica |
+| Criar repositório privado | CONDICIONAL; dispensável se destino de entregas existente aprovado for indicado |
+| Privacidade/backend/segurança/homologação conectada | PENDENTES; não bloqueiam ensaio inicial sem transmissão e são obrigatórias para ativação conectada |
+| Outros avaliadores | Somente depois de homologação inicial do mantenedor E validação conectada, com autorização nominal posterior |
+| Etapa 9/F9-00–F9-11 | NÃO INICIADA / NÃO EXECUTADO |
+| Roadmap | 27/42, todos os históricos/42 IDs/done preservados |
+
+Uma linha de produto não significa que um ZIP imutável possa ganhar transmissão
+sem rebuild/validação. Mudança executável/configuração posterior exige seu
+próprio SHA/CI/hash. Nenhum resultado físico/AVG foi transferido para bytes
+ainda inexistentes. Nenhuma publicação, nova build, CI, workflow, repositório,
+grant ou execução em PC. Atualizados somente documentos de estratégia/
+continuidade; fatos e evidências anteriores preservados.
+
+**Revisão concluída. Entrega privada pendente. Parada antes de publicar.**
