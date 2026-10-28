@@ -1,11 +1,10 @@
 # Gerenciador Final · GF
 
-**Etapa 8: BLOQUEADA para entrega executável privada.**
-[Relatório e alternativa proposta](docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) ·
-[roteiro futuro PC FORTE](docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md).
-Fonte/CI local reconferidas; apenas manifestos disponíveis. Nenhum ZIP executável,
-hash do pacote ou acesso privado foi entregue. Etapa 9 não iniciada; 27/42,
-AVG/assinatura e homologação física pendentes. Conectada/pública bloqueada.
+**Situação vigente (28/10/2026): piloto BETA único v5.13.11.66, primeira avaliação pelo mantenedor no PC FORTE.**
+A [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65) é a única linha técnica de continuidade. [Decisão e entrega PU-ENTREGA-01](docs/WORK-INTEGRACAO-PILOTO-BETA-UNICO.md) · [checkpoint](docs/WORK-INTEGRACAO-CHECKPOINT.md).
+Destino privado `walissonminel-1991/gf-beta-entregas` criado (D1). D2 (workflow/compilação) e D3 (ZIP/entrega) **autorizadas, porém não executadas**; o novo destino privado tem instruções de retomada no README. **Nenhum ZIP executável, hash final ou link de entrega existe ainda.** A [CI Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213) e a [integridade externa](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155) aprovaram a fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, não uma entrega posterior. Etapa 9 não iniciada; AVG/assinatura e homologação física pendentes, roadmap 27/42. BETA conectada/pública bloqueada. Não há edição local paralela nem necessidade de VM/Sandbox no PC do mantenedor.
+
+[Relatório histórico da Etapa 8](docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) · [roteiro futuro PC FORTE](docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md).
 
 **Ferramenta gratuita e de código aberto para Windows 10/11 x64**, destinada a tornar tarefas de manutenção de aplicativos e do sistema mais compreensíveis para pessoas sem experiência técnica.
 
@@ -16,8 +15,8 @@ AVG/assinatura e homologação física pendentes. Conectada/pública bloqueada.
 [defeitos corrigidos](docs/WORK-INTEGRACAO-DEFEITOS.md) no escopo técnico demonstrado.
 Fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, [CI Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213) e
 [integridade externa](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155) aprovadas.
-Perfil local padrão bloqueia consultas automáticas e coleta/envio de diagnóstico remoto,
-mesmo com consentimento herdado. **BETA LOCAL não preparada; conectada/pública bloqueada.**
+O perfil compilado inicial bloqueia consultas automáticas e coleta/envio de diagnóstico remoto,
+mesmo com consentimento herdado. **A BETA única ainda não foi entregue; fase conectada/pública bloqueada.**
 AVG/assinatura e homologação física continuam pendentes; roadmap 27/42.
 Históricos e critérios na [matriz](docs/WORK-INTEGRACAO-MATRIZ.md).
 [CI .65 histórica dos metadados herdados](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887), distinta da aprovação atual da integração.
@@ -72,7 +71,7 @@ dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contai
 
 O resultado estará em `Distribuicao\GerenciadorFinal.exe`. **Mantenha os arquivos adjacentes ao EXE**; ele depende da DLL e demais componentes publicados. Para uso portátil, consulte [o guia resumido](docs/USO-PORTATIL.md); para validação, siga [o roteiro de testes](docs/TESTES.md). Para um instalador de teste consulte `docs/PUBLICACAO.md`. Os fluxos antigos `Criar-Instalador-Windows-x64.bat`, `Assinar-GF.cmd` e `GerenciadorFinal-Instalador.iss` continuam exigindo certificado Authenticode próprio; **não fazem parte da assinatura gratuita da SignPath**.
 
-Os três workflows atuais estão em `.github/workflows/` (compilação, regressões e política de segurança); configurações antigas foram retiradas da árvore ativa e permanecem recuperáveis no histórico Git. O GitHub Actions compila com um runner Windows hospedado pelo GitHub e conserva **artefatos de teste não assinados** com nome versionado, `BUILD-INFO.txt` e `SHA256SUMS.txt`. O workflow de validação candidata executa regressões de inventário, fontes, instaladores, drivers, resíduos, RAM e segurança. Nenhum desses testes valida o alerta do AVG ou equivale a uma Release pública. Consulte `.github/workflows/build-windows.yml`, `.github/workflows/validar-candidata-windows.yml` e [o roadmap](docs/ROADMAP.md).
+Os quatro workflows atuais estão em `.github/workflows/` (compilação, validação Windows, triagem privada simulada e integridade externa). O GitHub Actions compila em runner Windows hospedado; na BETA, o workflow público **conserva somente manifestos de origem e hashes, não o executável**. A entrega executável está reservada ao destino privado autorizado. O workflow de validação candidata executa regressões de inventário, fontes, instaladores, drivers, resíduos, RAM e segurança. Nenhum desses testes valida o alerta do AVG ou equivale a uma Release pública. Consulte `.github/workflows/build-windows.yml`, `.github/workflows/validar-candidata-windows.yml` e [o roadmap](docs/ROADMAP.md).
 
 **Estado de segurança:** há investigação pendente sobre alerta comportamental `IDP.Generic` no AVG. A amostra foi encaminhada pelo mantenedor. Não desative proteções nem tente executar um arquivo em quarentena. A assinatura SignPath segue pendente.
 
