@@ -97,7 +97,9 @@ jobs:
         shell: pwsh
         run: |
           [xml]$project = Get-Content 'GerenciadorAplicativos.csproj' -Raw
-          $expected = [string]$project.Project.PropertyGroup.Version
+          $versions = @($project.SelectNodes('//PropertyGroup/Version'))
+          if ($versions.Count -ne 1) { throw 'GF_PROJECT_VERSION_AMBIGUOUS' }
+          $expected = $versions[0].InnerText
           foreach ($script in @('Publicar-Portatil-Windows-x64.bat', 'Criar-Instalador-Windows-x64.bat', 'Verificar-Assinaturas-GF.cmd')) {
             $actual = & ".\$script" --print-version
             if ($LASTEXITCODE -ne 0 -or "$actual".Trim() -ne $expected) { throw "Versao incorreta: $script" }

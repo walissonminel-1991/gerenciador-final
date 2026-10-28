@@ -47,7 +47,9 @@ jobs:
         shell: pwsh
         run: |
           [xml]$project = Get-Content 'GerenciadorAplicativos.csproj' -Raw
-          $version = [string]$project.Project.PropertyGroup.Version
+          $versions = @($project.SelectNodes('//PropertyGroup/Version'))
+          if ($versions.Count -ne 1) { throw 'GF_PROJECT_VERSION_AMBIGUOUS' }
+          $version = $versions[0].InnerText
           if ($version -notmatch '^[0-9]+([.][0-9]+){3}$') { throw 'Versao invalida no projeto' }
           $shortCommit = $env:GF_SOURCE_SHA.Substring(0, 8).ToLowerInvariant()
           $artifactName = "GerenciadorFinal-v$version-$shortCommit-TESTE-win-x64"
@@ -88,7 +90,9 @@ jobs:
         shell: pwsh
         run: |
           [xml]$project = Get-Content 'GerenciadorAplicativos.csproj' -Raw
-          $version = [string]$project.Project.PropertyGroup.Version
+          $versions = @($project.SelectNodes('//PropertyGroup/Version'))
+          if ($versions.Count -ne 1) { throw 'GF_PROJECT_VERSION_AMBIGUOUS' }
+          $version = $versions[0].InnerText
           @(
             'Produto: Gerenciador Final'
             'Perfil BETA: local; BETA LOCAL TESTE - NAO HOMOLOGADA'
