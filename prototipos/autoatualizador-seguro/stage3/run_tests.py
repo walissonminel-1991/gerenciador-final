@@ -74,7 +74,13 @@ def main(args):
             for package, label in [("microsoft.netcore.app.runtime.win-x64", "DotNET"), ("microsoft.windowsdesktop.app.runtime.win-x64", "WindowsDesktop")]:
                 package_root = cache / package / "10.0.13"
                 candidates = {p.name.upper(): p for p in package_root.iterdir() if p.is_file()}
-                for source_names, target in [(["LICENSE.TXT", "LICENSE"], "LICENSE.txt"), (["THIRD-PARTY-NOTICES.TXT", "THIRD-PARTY-NOTICES"], "THIRD-PARTY-NOTICES.txt")]:
+                documents = [(["LICENSE.TXT", "LICENSE"], "LICENSE.txt")]
+                if label == "DotNET":
+                    documents.append((["THIRD-PARTY-NOTICES.TXT", "THIRD-PARTY-NOTICES"], "THIRD-PARTY-NOTICES.txt"))
+                else:
+                    # Official WindowsDesktop 10.0.13 ships LICENSE + MIT nuspec, no separate notices file.
+                    documents.append((["MICROSOFT.WINDOWSDESKTOP.APP.RUNTIME.WIN-X64.NUSPEC"], "PACKAGE-METADATA.nuspec"))
+                for source_names, target in documents:
                     chosen = next((candidates[n] for n in source_names if n in candidates), None)
                     if chosen is None:
                         raise SystemExit("Missing real SDK package license: " + package + " " + target)

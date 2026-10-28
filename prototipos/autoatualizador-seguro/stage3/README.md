@@ -68,9 +68,11 @@ Não se afirma ter extraído um bundle GF real de tamanho máximo. O verificador
 aprovado `scripts/verificar_pacote.py` não é alterado ou afrouxado.
 
 A sonda WinForms é compilada self-contained win-x64, runtime fixado 10.0.13,
-manifesto asInvoker/uiAccess=false e versão 0.0.0.1, sob outro nome. Licenças e
-notices reais dos pacotes .NET/WindowsDesktop são copiados pelo runner, sem
-inventar textos. O SDK pode baixar implicitamente o runtime ASP.NET fixado no
+manifesto asInvoker/uiAccess=false e versão 0.0.0.1, sob outro nome. O runner
+copia LICENSE/THIRD-PARTY-NOTICES reais do .NET e LICENSE/nuspec MIT reais do
+WindowsDesktop 10.0.13, que não contém notices separado. ID/versão/licença e
+commit oficial 4099f83977f4d29604a9aeb971fb0a7bc1d5f699 são conferidos no nuspec;
+nenhum aviso é inventado. O SDK pode baixar implicitamente o runtime ASP.NET fixado no
 restore; ele não integra o grafo/sonda aceitos. A configuração NuGet mapeia
 apenas os pacotes necessários e os três lockfiles são versionados.
 

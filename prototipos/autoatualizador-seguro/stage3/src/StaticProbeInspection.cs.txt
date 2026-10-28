@@ -87,7 +87,7 @@ internal static class StaticProbeInspection
     internal static readonly string[] Required=[Exe,"GF.Updater.InertProbe.dll","GF.Updater.InertProbe.deps.json",
         "GF.Updater.InertProbe.runtimeconfig.json","coreclr.dll","hostfxr.dll","hostpolicy.dll","System.Windows.Forms.dll",
         "Licenses/DotNET/LICENSE.txt","Licenses/DotNET/THIRD-PARTY-NOTICES.txt",
-        "Licenses/WindowsDesktop/LICENSE.txt","Licenses/WindowsDesktop/THIRD-PARTY-NOTICES.txt"];
+        "Licenses/WindowsDesktop/LICENSE.txt","Licenses/WindowsDesktop/PACKAGE-METADATA.nuspec"];
     internal static Dictionary<string,byte[]> ReadAndVerify(string root,Dictionary<string,string> authenticatedRecipe,string fixtureRoot)
     {
         Require(authenticatedRecipe.Count is >0 and <=512,"PROBE_FILE_COUNT");
@@ -132,6 +132,19 @@ internal static class StaticProbeInspection
         foreach(string name in Required.Where(n=>n.StartsWith("Licenses/",StringComparison.Ordinal)))
         {string text=Encoding.UTF8.GetString(files[name]);Require(files[name].Length>=100 && (text.Contains("Microsoft",StringComparison.OrdinalIgnoreCase)
             ||text.Contains("MIT License",StringComparison.OrdinalIgnoreCase)||text.Contains(".NET Foundation",StringComparison.OrdinalIgnoreCase)),"PROBE_LICENSE");}
+        using(var stream=new MemoryStream(files["Licenses/WindowsDesktop/PACKAGE-METADATA.nuspec"]))
+        using(var reader=XmlReader.Create(stream,new XmlReaderSettings{DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null,MaxCharactersInDocument=65536}))
+        {
+            var xml=new XmlDocument{XmlResolver=null};xml.Load(reader);
+            var ns=new XmlNamespaceManager(xml.NameTable);ns.AddNamespace("n","http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd");
+            var metadata=xml.SelectSingleNode("/n:package/n:metadata",ns) ?? throw new Rejected("PROBE_LICENSE_METADATA");
+            Require(metadata.SelectSingleNode("n:id",ns)?.InnerText=="Microsoft.WindowsDesktop.App.Runtime.win-x64"
+                && metadata.SelectSingleNode("n:version",ns)?.InnerText=="10.0.13"
+                && metadata.SelectSingleNode("n:license",ns)?.InnerText=="MIT"
+                && metadata.SelectSingleNode("n:license",ns)?.Attributes?["type"]?.Value=="expression"
+                && metadata.SelectSingleNode("n:repository",ns)?.Attributes?["url"]?.Value=="https://github.com/dotnet/dotnet"
+                && metadata.SelectSingleNode("n:repository",ns)?.Attributes?["commit"]?.Value=="4099f83977f4d29604a9aeb971fb0a7bc1d5f699","PROBE_LICENSE_METADATA");
+        }
         return files;
     }
 }
