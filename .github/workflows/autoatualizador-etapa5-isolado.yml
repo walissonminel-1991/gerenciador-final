@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   isolated-gates:
+    if: "!contains(github.event.head_commit.message, '[gf-u5-context]')"
     name: "Evidências dirigidas: handles completos e cancelamento de I/O real"
     runs-on: windows-2022
     timeout-minutes: 20
@@ -41,4 +42,17 @@ jobs:
           $result = Get-Content "$env:RUNNER_TEMP/gf-u5-windows.json" -Raw | ConvertFrom-Json
           if ($result.failed -ne 0) { throw 'GF_U5_TEST_FAILURE' }
           "Etapa 5 isolada: $($result.passed)/$($result.total). Sem produto/artefato/release. Gates não executados continuam abertos no relatório." >> $env:GITHUB_STEP_SUMMARY
+  existing-token-capability:
+    if: "contains(github.event.head_commit.message, '[gf-u5-context]')"
+    name: Consulta read-only de contexto IPC existente
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - name: Fonte exata da consulta
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Consultar sem criar contexto ou modificar seguranca
+        shell: pwsh
+        run: ./prototipos/autoatualizador-seguro/stage5/probe_context.ps1
 # No upload, secrets, delivery repository, scheduled job, product publication or retry.
