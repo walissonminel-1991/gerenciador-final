@@ -1,0 +1,284 @@
+using System.Buffers.Binary;
+using System.Diagnostics;
+using System.IO.Compression;
+using System.IO.Pipes;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Microsoft.Win32.SafeHandles;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal static class Stage3Tests
+{
+    private static readonly List<object> Results=[],Observations=[];
+    private static string fixtures="",suite="",probeSource="",recipePath="";
+    private static async Task<bool> Test(string id,string description,Func<Task> test)
+    {
+        try{await test();Results.Add(new{id,description,status="passed"});Console.WriteLine("PASS "+id+" "+description);return true;}
+        catch(Exception e){Results.Add(new{id,description,status="failed",error=e.GetType().Name+": "+e.Message});Console.WriteLine("FAIL "+id+" "+e);return false;}
+    }
+    private static Task Sync(Action action){action();return Task.CompletedTask;}
+    private static async Task Rejects(Func<Task> action,string? code=null)
+    {
+        try{await action();}
+        catch(Exception e) when(e is Rejected or IOException or InvalidDataException or System.ComponentModel.Win32Exception or OperationCanceledException
+            or JsonException or System.Xml.XmlException or OverflowException)
+        {if(code is not null)Require(e.Message==code,"WRONG_REJECTION:"+e.Message);return;}
+        throw new Rejected("UNSAFE_ACCEPTANCE");
+    }
+    private static Task Rejects(Action action,string? code=null)=>Rejects(()=>Sync(action),code);
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=4)return 2;fixtures=args[0];probeSource=args[1];recipePath=args[2];
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-stage3-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(suite);
+        try{await CommonCases();if(OperatingSystem.IsWindows())await WindowsCases();}
+        finally{Directory.Delete(suite,true);}
+        int failed=Results.Count(x=>JsonSerializer.SerializeToElement(x).GetProperty("status").GetString()=="failed");
+        var report=new{schema=1,stage=3,contract="gf-self-update/1",fixture_only=true,package_installable=false,
+            product_built=false,product_executed=false,private_channel_accessed=false,physical_tests_repeated=0,
+            runtime=RuntimeInformation.FrameworkDescription,os=RuntimeInformation.OSDescription,
+            total=Results.Count,passed=Results.Count-failed,failed,tests=Results,observations=Observations,
+            remaining_gates=new[]{"physical power-loss/storage durability","production bootstrap/custody","GF-specific PE/runtime recipe and full-size extraction","foreign-user/session IPC and non-elevated positive path when not exercised","operational GF lifecycle and integration"},
+            stage4_started=false};
+        await File.WriteAllBytesAsync(args[3],StateCodec.Encode(report));
+        Console.WriteLine($"Stage 3 security experiments: {Results.Count-failed}/{Results.Count}; no GF executable or release.");
+        return failed==0?0:1;
+    }
+    private static async Task CommonCases()
+    {
+        using var clockDoc=Json(File.ReadAllBytes(Path.Combine(fixtures,"stage3-clock.json")));
+        DateTimeOffset reference=DateTimeOffset.Parse(clockDoc.RootElement.GetProperty("reference").GetString()!,System.Globalization.CultureInfo.InvariantCulture);
+        await Test("TUFCLK-01","Original pinned package remains usable with current signed fixtures",()=>ClockExperimentTests.OriginalAccepts(fixtures));
+        await Test("TUFCLK-02","Pinned-source clock experiment validates the chain with one frozen update-start time",async()=>{
+            int reads=await ClockExperimentTests.Verify(fixtures,"valid",reference);Observations.Add(new{kind="frozen_tuf_clock",clock_reads=reads,system_clock_modified=false});
+        });
+        await Test("TUFCLK-03","A future frozen cycle refuses a timestamp accepted at the current system time",()=>ClockExperimentTests.Expires(fixtures,"valid",reference+TimeSpan.FromHours(25)));
+        foreach(string role in new[]{"root","timestamp","snapshot","targets"})
+        {
+            string captured=role;
+            await Test("TUFCLK-expired-"+role,"Library itself refuses expired "+role+" at the injected cycle clock",()=>ClockExperimentTests.Expires(fixtures,captured+"-soon",reference+TimeSpan.FromSeconds(6)));
+        }
+        await Test("TUFCLK-04","Expiry equality is rejected for all four signed roles",async()=>{
+            foreach(string role in new[]{"root","timestamp","snapshot","targets"})await ClockExperimentTests.Expires(fixtures,role+"-soon",reference+TimeSpan.FromSeconds(5));
+        });
+        await Test("TUFCLK-05","Injected time does not bypass signature verification",async()=>{
+            try{_=await ClockExperimentTests.Verify(fixtures,"bad-signature",reference);}
+            catch(Exception e) when(e.GetType().FullName?.StartsWith("Tuf.",StringComparison.Ordinal)==true){return;}
+            throw new Rejected("CLOCK_BYPASSED_SIGNATURE");
+        });
+        await Test("FRAME-01","Bounded frame round-trip retains transaction, nonce and fixed profile",async()=>{
+            using var data=new MemoryStream();var f=new ProbeFrame(1,"ready",new string('a',32),new string('b',64),"fixture-local");
+            await PipeFrames.Send(data,f,CancellationToken.None);data.Position=0;Require(await PipeFrames.Read(data,CancellationToken.None)==f,"FRAME_CHANGED");
+        });
+        await Test("FRAME-02","Oversized length is refused before payload allocation",()=>Rejects(async()=>{
+            using var data=new MemoryStream(new byte[]{1,8,0,0});_=await PipeFrames.Read(data,CancellationToken.None);
+        },"IPC_FRAME_SIZE"));
+        await Test("FRAME-03","Duplicate/unknown fields and connected profile are refused",async()=>{
+            string valid=JsonSerializer.Serialize(new ProbeFrame(1,"ready",new string('a',32),new string('b',64),"fixture-local"));
+            foreach(string body in new[]{valid.Replace("{","{\"Schema\":1,",StringComparison.Ordinal),valid.Replace("{","{\"Command\":\"run\",",StringComparison.Ordinal),valid.Replace("fixture-local","connected",StringComparison.Ordinal)})
+                await Rejects(async()=>{byte[] b=Encoding.UTF8.GetBytes(body);using var data=new MemoryStream();byte[] prefix=new byte[4];BinaryPrimitives.WriteInt32LittleEndian(prefix,b.Length);data.Write(prefix);data.Write(b);data.Position=0;_=await PipeFrames.Read(data,CancellationToken.None);},"IPC_SCHEMA");
+        });
+        await Test("FRAME-04","Truncation, cancellation and wrong transaction are not readiness",async()=>{
+            await Rejects(async()=>{using var data=new MemoryStream(new byte[]{12,0,0,0,1});_=await PipeFrames.Read(data,CancellationToken.None);});
+            using var stop=new CancellationTokenSource();stop.Cancel();await Rejects(async()=>{using var data=new MemoryStream(new byte[4]);_=await PipeFrames.Read(data,stop.Token);});
+            await Rejects(()=>PipeFrames.Bound(new(1,"ready",new string('a',32),new string('b',64),"fixture-local"),"ready",new string('c',32),new string('b',64)),"IPC_BINDING");
+        });
+        await Test("DUR-01","Reordered/lost selector and journal persistence images never authorize an unknown bundle",()=>Sync(PersistenceImages));
+        await Test("DUR-02","Whole-suffix loss exposes the documented local antirollback limitation",()=>Sync(()=>{
+            using var c=new StateCase(suite);var store=new PersistentState(c.Root);var baseline=Directory.GetFiles(store.Ledger).ToDictionary(p=>Path.GetFileName(p)!,File.ReadAllBytes);
+            byte[] selector=File.ReadAllBytes(Path.Combine(c.Root,"active.fixture.json"));c.Begin();Require(store.Load().Record.Trust.ApprovedSequence==2,"SETUP_NOT_APPROVED");
+            foreach(string f in Directory.GetFiles(store.Ledger))File.Delete(f);
+            foreach(var p in baseline)File.WriteAllBytes(Path.Combine(store.Ledger,p.Key!),p.Value);
+            File.WriteAllBytes(Path.Combine(c.Root,"active.fixture.json"),selector);
+            Require(store.Load().Record.Trust.ApprovedSequence==1,"MODEL_COUNTEREXAMPLE_MISSING");
+            Observations.Add(new{kind="whole_suffix_loss_model",approved_before=2,restored_floor=1,power_loss_gate_closed=false,physical_power_cut_executed=false});
+        }));
+        await Test("PE-01","Bounded synthetic AMD64 header is statically classified without loading code",()=>Sync(()=>new BoundedPe(SyntheticPe()).Architecture(true)));
+        await Test("PE-02","Native x86 and ARM64 cannot satisfy the Windows x64 entrypoint contract",async()=>{
+            foreach(ushort machine in new ushort[]{0x14c,0xaa64}){var pe=SyntheticPe();BinaryPrimitives.WriteUInt16LittleEndian(pe.AsSpan(68),machine);await Rejects(()=>new BoundedPe(pe).Architecture(true));}
+        });
+        await Test("PE-03","Truncated/overflowed headers and impossible section ranges are refused",async()=>{
+            var corpus=new List<byte[]>{SyntheticPe()[..100],new byte[512]};
+            var offset=SyntheticPe();BinaryPrimitives.WriteUInt32LittleEndian(offset.AsSpan(60),uint.MaxValue);corpus.Add(offset);
+            var section=SyntheticPe();BinaryPrimitives.WriteUInt32LittleEndian(section.AsSpan(64+24+240+20),uint.MaxValue);corpus.Add(section);
+            foreach(var bytes in corpus)await Rejects(()=>new BoundedPe(bytes));
+        });
+        await Test("PE-04","A claimed CLR header must map inside a bounded PE section",()=>Rejects(()=>{
+            var pe=SyntheticPe();BinaryPrimitives.WriteUInt32LittleEndian(pe.AsSpan(64+24+112+14*8),uint.MaxValue);_=new BoundedPe(pe);
+        }));
+    }
+    private static byte[] SyntheticPe()
+    {
+        byte[] b=new byte[1024];BinaryPrimitives.WriteUInt16LittleEndian(b,0x5a4d);BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(60),64);
+        BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(64),0x4550);BinaryPrimitives.WriteUInt16LittleEndian(b.AsSpan(68),0x8664);
+        BinaryPrimitives.WriteUInt16LittleEndian(b.AsSpan(70),1);BinaryPrimitives.WriteUInt16LittleEndian(b.AsSpan(84),240);
+        BinaryPrimitives.WriteUInt16LittleEndian(b.AsSpan(88),0x20b);BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(104),0x1000);
+        BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(88+108),16);int s=88+240;
+        BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(s+8),512);BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(s+12),0x1000);
+        BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(s+16),512);BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(s+20),512);return b;
+    }
+    private static void PersistenceImages()
+    {
+        using var c=new StateCase(suite);var store=new PersistentState(c.Root);byte[] old=File.ReadAllBytes(Path.Combine(c.Root,"active.fixture.json"));
+        var selected=c.Begin();byte[] next=File.ReadAllBytes(Path.Combine(c.Root,"active.fixture.json"));
+        using(var s=new FixtureSession(c.Root)){var tx=selected.Transaction!;s.Confirm(new(tx.Id,tx.Nonce,tx.Candidate.Sha256));}
+        var records=Directory.GetFiles(store.Ledger).Order().Select(p=>(Path.GetFileName(p),File.ReadAllBytes(p))).ToArray();
+        int safe=0,blocked=0;
+        for(int count=1;count<=4;count++)foreach(string selector in new[]{"old","new","missing","torn"})
+        {
+            foreach(string f in Directory.GetFiles(store.Ledger))File.Delete(f);
+            foreach(var (name,bytes) in records.Take(count))File.WriteAllBytes(Path.Combine(store.Ledger,name),bytes);
+            string path=Path.Combine(c.Root,"active.fixture.json");if(File.Exists(path))File.Delete(path);
+            if(selector!="missing")File.WriteAllBytes(path,selector=="old"?old:selector=="new"?next:"{torn"u8.ToArray());
+            bool expectedSafe=(count<4 && (selector=="old" || count>1&&selector=="new")) || count==4&&selector=="new";
+            BundleRef? inspected=null;bool rejected=false;
+            try
+            {
+                using var session=new FixtureSession(c.Root);session.Recover();inspected=session.SelectionForFixtureInspectionOnly();
+            }
+            catch(Exception e) when(e is Rejected or IOException){rejected=true;}
+            if(rejected){Require(!expectedSafe,"POWER_IMAGE_FALSE_BLOCK");blocked++;}
+            else{Require(expectedSafe && inspected==(count==4?c.Candidate:c.Old),"POWER_IMAGE_UNSAFE_SELECTION");safe++;}
+        }
+        Require(safe+blocked==16,"POWER_IMAGE_COUNT");Observations.Add(new{kind="persistence_image_model",images=16,safe,blocked,physical_power_cut_executed=false});
+    }
+    [SupportedOSPlatform("windows")]
+    private static async Task WindowsCases()
+    {
+        await Test("EXTRACT-01","Authenticated text ZIP extracts through CreateNew with pinned NTFS identities",()=>Sync(()=>{
+            using var c=new StateCase(suite);var zip=ClockExperimentTests.Read(fixtures,"valid")["fixture-package.zip"];
+            var files=ZipInspection.Inspect(zip,16,CancellationToken.None).ToDictionary(p=>p.Key,p=>Hash(p.Value));
+            using var prepared=PreparedTextExtraction.Prepare(c.Root,zip,Hash(zip),files,CancellationToken.None);
+            Require(!prepared.Installable && Directory.GetFiles(prepared.DirectoryPath).Length==3,"EXTRACTION_NOT_INERT");
+        }));
+        await Test("EXTRACT-02","ZIP tampering fails authentication before staging is created",()=>Rejects(()=>{
+            using var c=new StateCase(suite);var zip=ClockExperimentTests.Read(fixtures,"valid")["fixture-package.zip"];string hash=Hash(zip);zip[0]^=1;
+            try{using var p=PreparedTextExtraction.Prepare(c.Root,zip,hash,[],CancellationToken.None);}finally{Require(Directory.GetDirectories(c.Root,"u3-stage-*").Length==0,"UNAUTHENTICATED_WRITE");}
+        },"ZIP_AUTHENTICATION"));
+        await Test("EXTRACT-03","A racing existing file is not truncated or overwritten",async()=>{
+            using var c=new StateCase(suite);var zip=TextZip(("x.txt","safe"));string? touched=null;
+            await Rejects(()=>{using var p=PreparedTextExtraction.Prepare(c.Root,zip,Hash(zip),new(){["x.txt"]=Hash("safe"u8)},CancellationToken.None,
+                (point,path)=>{if(point=="before-file"){touched=path;File.WriteAllText(path,"preserve");}});});
+            Require(touched is not null && File.ReadAllText(touched)=="preserve","CREATE_NEW_TRUNCATED");
+        });
+        await Test("EXTRACT-04","A junction substituted into a new ancestor is rejected without writing outside staging",async()=>{
+            using var c=new StateCase(suite);string outside=Path.Combine(c.Root,"outside");Directory.CreateDirectory(outside);
+            var zip=TextZip(("nested/x.txt","safe"));string? link=null;
+            await Rejects(()=>{using var p=PreparedTextExtraction.Prepare(c.Root,zip,Hash(zip),new(){["nested/x.txt"]=Hash("safe"u8)},CancellationToken.None,
+                (point,path)=>{if(point=="directory-created"){Directory.Delete(path);link=path;Junction(path,outside);}});},"NTFS_REPARSE_OR_TYPE");
+            Require(!File.Exists(Path.Combine(outside,"x.txt")),"JUNCTION_ESCAPE");if(link is not null)Directory.Delete(link);
+        });
+        await Test("EXTRACT-05","Space reservation failure and cancellation never change the active selector",async()=>{
+            using var c=new StateCase(suite);var zip=TextZip(("x.txt","safe"));var expected=new Dictionary<string,string>{["x.txt"]=Hash("safe"u8)};
+            await Rejects(()=>{using var p=PreparedTextExtraction.Prepare(c.Root,zip,Hash(zip),expected,CancellationToken.None,simulatedFreeBytes:1);},"EXTRACTION_SPACE");
+            using var stop=new CancellationTokenSource();stop.Cancel();await Rejects(()=>{using var p=PreparedTextExtraction.Prepare(c.Root,zip,Hash(zip),expected,stop.Token);});
+            using var s=new FixtureSession(c.Root);Require(s.SelectionForFixtureInspectionOnly()==c.Old,"EXTRACTION_CHANGED_ACTIVE");
+        });
+        await Test("EXTRACT-06","Traversal, ADS and case collision are rejected before disk extraction",async()=>{
+            using var c=new StateCase(suite);
+            foreach(var zip in new[]{TextZip(("../x.txt","x")),TextZip(("x.txt:ads","x")),TextZip(("x.txt","x"),("X.TXT","y"))})
+                await Rejects(()=>{using var p=PreparedTextExtraction.Prepare(c.Root,zip,Hash(zip),[],CancellationToken.None);});
+            Require(Directory.GetDirectories(c.Root,"u3-stage-*").Length==0,"UNSAFE_PATH_WRITTEN");
+        });
+        await Test("DUR-03","Native file flush return is checked and reopened bytes retain their digest",()=>Sync(()=>{
+            using var c=new StateCase(suite);string path=Path.Combine(c.Root,"flush.fixture");byte[] expected="GF-U3-FLUSH-INERT\n"u8.ToArray();
+            using(var file=new FileStream(path,FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None,4096,FileOptions.WriteThrough))
+            {file.Write(expected);Require(FlushFileBuffers(file.SafeFileHandle),"FILE_FLUSH_FAILED");}
+            Require(Hash(File.ReadAllBytes(path))==Hash(expected),"FLUSH_REOPEN_CHANGED");
+        }));
+        using var scope=new StateCase(suite);string probe=Path.Combine(scope.Root,"probe");CopyTree(probeSource,probe);
+        var recipe=JsonSerializer.Deserialize<Dictionary<string,string>>(File.ReadAllBytes(recipePath))!;
+        bool bundleValid=await Test("BUNDLE-01","Real self-contained WinForms probe passes static PE/runtime/dependency/license inspection",()=>Sync(()=>{
+            var files=StaticProbeInspection.ReadAndVerify(probe,recipe,scope.Root);Observations.Add(new{kind="inert_probe_bundle",files=files.Count,bytes=files.Values.Sum(b=>(long)b.Length),runtime="10.0.13",application_version="0.0.0.1",not_a_gf_candidate=true});
+        }));
+        await Test("BUNDLE-02","A missing real SDK license is rejected even if the supplied hash recipe omits it",async()=>{
+            string path=Path.Combine(probe,"Licenses/DotNET/LICENSE.txt");byte[] original=File.ReadAllBytes(path);File.Delete(path);var missing=new Dictionary<string,string>(recipe);missing.Remove("Licenses/DotNET/LICENSE.txt");
+            try{await Rejects(()=>StaticProbeInspection.ReadAndVerify(probe,missing,scope.Root),"PROBE_REQUIRED");}finally{File.WriteAllBytes(path,original);}
+        });
+        await Test("BUNDLE-03","A different runtime version is refused independently of file hashes",()=>Changed(probe,recipe,scope.Root,"GF.Updater.InertProbe.runtimeconfig.json",b=>Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(b).Replace("10.0.13","10.0.12",StringComparison.Ordinal)),"PROBE_RUNTIME_VERSION"));
+        await Test("BUNDLE-04","Additional probing paths cannot turn the probe into a host-dependent loader",()=>Changed(probe,recipe,scope.Root,"GF.Updater.InertProbe.runtimeconfig.json",b=>{
+            var node=JsonNode.Parse(b)!;node["runtimeOptions"]!["additionalProbingPaths"]=new JsonArray("C:/outside");return Encoding.UTF8.GetBytes(node.ToJsonString());},"PROBE_NOT_SELF_CONTAINED"));
+        await Test("BUNDLE-05","A PE requesting another execution level is refused after hash verification",()=>Changed(probe,recipe,scope.Root,StaticProbeInspection.Exe,b=>ReplaceAscii(b,"asInvoker","asInvokeR"),"PE_UAC"));
+        await Test("BUNDLE-06","A different embedded Win32 identity cannot use this fixture recipe",()=>Changed(probe,recipe,scope.Root,StaticProbeInspection.Exe,b=>ReplaceAscii(b,"0.0.0.1","0.0.0.2"),"PE_MANIFEST_ID"));
+        await Test("BUNDLE-07","An injected undeclared DLL is refused by the dependency graph even with a recalculated hash list",async()=>{
+            string path=Path.Combine(probe,"unlisted.dll");File.Copy(Path.Combine(probe,"GF.Updater.InertProbe.dll"),path);var extra=new Dictionary<string,string>(recipe){["unlisted.dll"]=Hash(File.ReadAllBytes(path))};
+            try{await Rejects(()=>StaticProbeInspection.ReadAndVerify(probe,extra,scope.Root),"PROBE_DEPENDENCY_SET");}finally{File.Delete(path);}
+        });
+        if(!bundleValid){Observations.Add(new{kind="ipc_blocked",reason="probe_bundle_static_validation_failed",ipc_executed=false});return;}
+        var proof=VerifiedInertProbe.Inspect(scope.Root,probe,recipe);
+        await Test("IPC-10","A changed critical DLL is rejected before creating a child process",async()=>{
+            string path=Path.Combine(probe,"GF.Updater.InertProbe.dll");byte[] original=File.ReadAllBytes(path),changed=original.ToArray();changed[^1]^=1;
+            int before=ProbeChannel.Launches;File.WriteAllBytes(path,changed);
+            try{await Rejects(async()=>{await using var c=await ProbeChannel.Open(proof,"normal");},"PROBE_CHANGED_BEFORE_START");Require(ProbeChannel.Launches==before,"UNVERIFIED_CHILD_STARTED");}
+            finally{File.WriteAllBytes(path,original);}
+        });
+        await Test("IPC-11","Critical probe files stay pinned while the real child is ready",async()=>{
+            await using var c=await ProbeChannel.Open(proof,"normal");await c.Ready();await Rejects(()=>File.WriteAllText(Path.Combine(probe,"GF.Updater.InertProbe.dll"),"racing replacement"));await c.Close();
+        });
+        await Test("IPC-01","Kernel-authenticated child reaches a real WinForms idle loop and exits through the bounded close protocol",async()=>{
+            await using var channel=await ProbeChannel.Open(proof,"normal");await channel.Ready();await channel.Close();
+        });
+        await Test("IPC-02","A kernel PID different from the retained process is rejected before the challenge",()=>Rejects(async()=>{await using var c=await ProbeChannel.Open(proof,"normal",wrongExpectedPid:true);},"IPC_PEER_PID"));
+        await Test("IPC-03","The child rejects a server PID that is not its verified parent",()=>Rejects(async()=>{await using var c=await ProbeChannel.Open(proof,"normal",wrongServerPid:true);await c.Ready(TimeSpan.FromSeconds(5));}));
+        foreach(string mode in new[]{"wrong-nonce","wrong-tx","busy"})
+        {string captured=mode;await Test("IPC-"+mode,"Real child response with "+mode+" is not readiness",()=>Rejects(async()=>{await using var c=await ProbeChannel.Open(proof,captured);await c.Ready();},"IPC_BINDING"));}
+        await Test("IPC-04","A child that exits before readiness cannot be confirmed",()=>Rejects(async()=>{await using var c=await ProbeChannel.Open(proof,"early-exit");await c.Ready();}));
+        await Test("IPC-05","A real thirty-second readiness deadline expires, then the child closes cooperatively",async()=>{
+            await using var c=await ProbeChannel.Open(proof,"no-ready");var timer=Stopwatch.StartNew();
+            await Rejects(()=>c.Ready());Require(timer.Elapsed>=TimeSpan.FromSeconds(29)&&timer.Elapsed<TimeSpan.FromSeconds(40),"READINESS_DEADLINE_NOT_REAL");await c.Close();
+            Observations.Add(new{kind="real_readiness_timeout",elapsed_seconds=Math.Round(timer.Elapsed.TotalSeconds,2),configured_seconds=30});
+        });
+        await Test("IPC-06","A duplicate readiness frame is not accepted as close acknowledgement",()=>Rejects(async()=>{
+            await using var c=await ProbeChannel.Open(proof,"duplicate-ready");await c.Ready();await c.Close();},"IPC_BINDING"));
+        await Test("IPC-07","Refusal to close times out without treating a live process as exited",async()=>{
+            await using var c=await ProbeChannel.Open(proof,"refuse-close");await c.Ready();await Rejects(()=>c.Close(TimeSpan.FromSeconds(1)));
+            Require(!c.Child.HasExited,"CLOSE_TIMEOUT_FALSE_EXIT");
+        });
+        await Test("IPC-08","FirstPipeInstance prevents a second server from adopting the same pipe name",async()=>{
+            string pipe="gf-u3-"+Guid.NewGuid().ToString("N");using var first=new NamedPipeServerStream(pipe,PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.FirstPipeInstance|PipeOptions.CurrentUserOnly);
+            await Rejects(()=>{using var other=new NamedPipeServerStream(pipe,PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.FirstPipeInstance|PipeOptions.CurrentUserOnly);});
+        });
+        await Test("IPC-09","The production context classifier reads the real elevation token and refuses elevation",async()=>{
+            using var current=Process.GetCurrentProcess();bool elevated=PeerIdentity.Facts(current).Elevated;
+            if(elevated)await Rejects(PeerIdentity.RequireNonElevated,"ELEVATED_CONTEXT_BLOCKED");else PeerIdentity.RequireNonElevated();
+            Observations.Add(new{kind="runner_token",elevated,ipc_layer_tested_same_elevation_only=true,foreign_user_or_session_tested=false});
+        });
+        ObserveDirectoryFlush(scope.Root);
+    }
+    private static async Task Changed(string root,Dictionary<string,string> recipe,string fixtureRoot,string name,Func<byte[],byte[]> mutation,string code)
+    {
+        string path=Path.Combine(root,name);byte[] original=File.ReadAllBytes(path),changed=mutation(original.ToArray());
+        var next=new Dictionary<string,string>(recipe){[name]=Hash(changed)};File.WriteAllBytes(path,changed);
+        try{await Rejects(()=>StaticProbeInspection.ReadAndVerify(root,next,fixtureRoot),code);}finally{File.WriteAllBytes(path,original);}
+    }
+    private static byte[] ReplaceAscii(byte[] bytes,string before,string after)
+    {
+        Require(before.Length==after.Length,"TEST_MUTATION_LENGTH");byte[] from=Encoding.UTF8.GetBytes(before),to=Encoding.UTF8.GetBytes(after);int found=0;
+        for(int i=0;i<=bytes.Length-from.Length;i++)if(bytes.AsSpan(i,from.Length).SequenceEqual(from)){to.CopyTo(bytes,i);found++;}
+        Require(found>0,"TEST_RESOURCE_TEXT_MISSING");return bytes;
+    }
+    private static byte[] TextZip(params (string Name,string Text)[] entries)
+    {
+        using var buffer=new MemoryStream();using(var zip=new ZipArchive(buffer,ZipArchiveMode.Create,true))foreach(var item in entries)
+        {var entry=zip.CreateEntry(item.Name,CompressionLevel.NoCompression);using var file=entry.Open();file.Write(Encoding.UTF8.GetBytes(item.Text));}
+        return buffer.ToArray();
+    }
+    private static void CopyTree(string source,string destination)
+    {foreach(string path in Directory.GetFiles(source,"*",SearchOption.AllDirectories)){string target=Path.Combine(destination,Path.GetRelativePath(source,path));Directory.CreateDirectory(Path.GetDirectoryName(target)!);File.Copy(path,target,false);}}
+    [SupportedOSPlatform("windows")]
+    private static void Junction(string path,string target)
+    {var info=new ProcessStartInfo("cmd.exe"){UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true};foreach(string a in new[]{"/c","mklink","/J",path,target})info.ArgumentList.Add(a);using var p=Process.Start(info)!;p.WaitForExit();Require(p.ExitCode==0,"JUNCTION_FIXTURE");}
+    [SupportedOSPlatform("windows")]
+    private static void ObserveDirectoryFlush(string root)
+    {
+        using var handle=CreateFileW(root,0x40000000,7,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
+        bool opened=!handle.IsInvalid;int openError=opened?0:Marshal.GetLastWin32Error();bool flushed=opened&&FlushFileBuffers(handle);int flushError=flushed?0:Marshal.GetLastWin32Error();
+        Observations.Add(new{kind="directory_flush_probe",opened,open_error=openError,flushed,flush_error=flushError,volume_opened=false,privileges_changed=false,power_loss_gate_closed=false});
+    }
+    [DllImport("kernel32.dll",SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)]private static extern bool FlushFileBuffers(SafeFileHandle file);
+    [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]private static extern SafeFileHandle CreateFileW(string path,uint access,uint share,IntPtr security,uint creation,uint flags,IntPtr template);
+}

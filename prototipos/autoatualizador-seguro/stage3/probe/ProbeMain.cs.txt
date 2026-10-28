@@ -1,0 +1,64 @@
+using System.Diagnostics;
+using System.IO.Pipes;
+using System.Windows.Forms;
+
+namespace GfUpdaterFixture;
+
+internal static class ProbeMain
+{
+    // Inert, explicit test child. No GF command, maintenance, updater, download or installation.
+    [STAThread]
+    public static int Main(string[] args)
+    {
+        if(args.Length!=5 || !args[0].StartsWith("gf-u3-",StringComparison.Ordinal))return 2;
+        string pipe=args[0],serverImage=args[2],root=Path.GetFullPath(args[3]),mode=args[4];
+        if(!File.Exists(Path.Combine(root,".gf-u2-fixture")) || !int.TryParse(args[1],out int parent))return 2;
+        if(mode is not ("normal" or "no-ready" or "early-exit" or "wrong-nonce" or "wrong-tx" or "busy" or "duplicate-ready" or "refuse-close"))return 2;
+        using var context=new ProbeContext(pipe,parent,serverImage,mode);
+        Application.Run(context); return context.Result;
+    }
+    private sealed class ProbeContext : ApplicationContext
+    {
+        private readonly Form hidden=new(){ShowInTaskbar=false,Opacity=0,Text="GF INERT TEST PROBE"};
+        private readonly string pipe,image,mode; private readonly int parent; private bool started;
+        internal int Result=12;
+        internal ProbeContext(string pipe,int parent,string image,string mode)
+        {this.pipe=pipe;this.parent=parent;this.image=image;this.mode=mode; _=hidden.Handle; Application.Idle+=OnIdle;}
+        private async void OnIdle(object? sender,EventArgs e)
+        {
+            if(started)return;started=true; Application.Idle-=OnIdle;
+            try
+            {
+                using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(55));
+                using var client=new NamedPipeClientStream(".",pipe,PipeDirection.InOut,PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly);
+                await client.ConnectAsync(budget.Token);
+                PipeFrames.Check(PeerIdentity.OwnParentPid()==parent,"IPC_PARENT");
+                using var server=Process.GetProcessById(parent);
+                PeerIdentity.Verify(client,false,server,image);
+                PipeFrames.Check(Path.GetFileName(image)=="GF.Updater.Stage3.Tests.exe","IPC_SERVER_IMAGE");
+                var challenge=await PipeFrames.Read(client,budget.Token);
+                PipeFrames.Bound(challenge,"challenge",challenge.Transaction,challenge.Nonce);
+                if(mode=="early-exit"){Result=13;return;}
+                var ready=challenge with {Kind=mode=="busy"?"busy":"ready"};
+                if(mode=="wrong-nonce")ready=ready with {Nonce=new string('0',64)};
+                if(mode=="wrong-tx")ready=ready with {Transaction=new string('0',32)};
+                // This point is reached after WinForms created an HWND and entered its message loop.
+                if(mode!="no-ready")await PipeFrames.Send(client,ready,budget.Token);
+                if(mode=="duplicate-ready")await PipeFrames.Send(client,ready,budget.Token);
+                while(true)
+                {
+                    var close=await PipeFrames.Read(client,budget.Token);
+                    PipeFrames.Check(close.Transaction==challenge.Transaction && close.Nonce==challenge.Nonce,"IPC_BINDING");
+                    if(close.Kind=="abort-fixture"){Result=14;break;}
+                    PipeFrames.Bound(close,"close",challenge.Transaction,challenge.Nonce);
+                    if(mode=="refuse-close")continue;
+                    await PipeFrames.Send(client,close with {Kind="bye"},budget.Token); Result=0; break;
+                }
+            }
+            catch(Exception ex) when(ex is IOException or InvalidDataException or InvalidOperationException or OperationCanceledException
+                or System.ComponentModel.Win32Exception or System.Text.Json.JsonException){Result=15;}
+            finally {hidden.Close(); ExitThread();}
+        }
+        protected override void Dispose(bool disposing){if(disposing)hidden.Dispose();base.Dispose(disposing);}
+    }
+}

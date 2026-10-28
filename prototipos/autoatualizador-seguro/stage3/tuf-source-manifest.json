@@ -1,0 +1,26 @@
+{
+  "commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+  "license": "MIT",
+  "files": {
+    "LICENSE": "b162326a202e2e66673ef04822fcd0fca9ae8622a06cf9af0c034a08b54b0fa5",
+    "THIRD-PARTY-NOTICES.md": "8c41d4614e95227cce98df331faeeaf4e7f31e84280c9098883c7e7cbb234811",
+    "src/Tuf/AssemblyInfo.cs": "2a82085d948fa61d76438eb97ee2bbfab978cfaed9772f9254b2ac1029961652",
+    "src/Tuf/FileSystemCacheStorage.cs": "149108ce542321366b3426d2200bae042d7cb22c264097fe191a2f64c58afa7a",
+    "src/Tuf/FileSystemTufCache.cs": "dbde9c031a4f564b52906ec42b2b956a47ae198a510b0630026c1aeb18389d7d",
+    "src/Tuf/HttpTufRepository.cs": "bcfec6482268a927a882eced76fabdcf3962550233d3168f33c86af68acdf7ad",
+    "src/Tuf/ITufCache.cs": "8fdb943a6cd190dbf0b8c6244f3b80a3269e7e694ad2265fbfc1d07b5b5fc532",
+    "src/Tuf/ITufRepository.cs": "d6bf5d1a9457293c35b8fabead6ddec586eebeff8a8aa024bcf8404fcfd1977f",
+    "src/Tuf/InMemoryTufCache.cs": "d49cbf913d82e210485f48552c56a08a44e79507599b6167fb614e53ccf8c28a",
+    "src/Tuf/Metadata/TufMetadata.cs": "7c9ae6a4f05918956d01011189a83dd400dd91b788d5136d296e7a463426a0e4",
+    "src/Tuf/Metadata/TufMetadataTypes.cs": "44f81e33f4aef593a92f1ed8091935de9926618f74280493378e386b526e9f09",
+    "src/Tuf/Serialization/TufJsonTypes.cs": "3d0ba412da47249b6f2de2afd5f526d2e5047d8085ceda5fe6f1f1ea6951ea37",
+    "src/Tuf/Serialization/TufMetadataParser.cs": "d82ef2d753ba0a2e3c7ff224fbfbd3c0bb003e4a4216b6029f0ecf458902fdf3",
+    "src/Tuf/Telemetry/TufInstrumentation.cs": "0ccfd8f76eed396c67339c95f4c47f64cc83c5f0e9d28e63e1c65a7f6d29e50c",
+    "src/Tuf/Telemetry/TufTelemetry.cs": "eeb11286072b96e3b1912e6c32e46af89ed592b31a8dc40824e74c7b1fc0d94c",
+    "src/Tuf/TufClient.cs": "1db047bb34ce7121683f453d6d91b2bbdeb8fe87a5f1968e2ed46f2a10538fbb",
+    "src/Tuf/TufClientOptions.cs": "7c4c378edaccd7ca4cf68fdbbc309a8f493e858be2c1c09ef2f0f52a05c781a5",
+    "src/Tuf/TufException.cs": "bad198c140119c7d0a6a182d2a34a11e9d83483f3730357b4fe55ddd3f6bc1ed",
+    "src/Tuf/TufMetadataVerifier.cs": "a6eec2fb55f7e2a2ca80c7f0372e9cd3bedfe6171b10c02486be7815f50e1a77",
+    "src/Tuf/TufResults.cs": "41b1c58eaeb2bbee946c6b94db20f42088be5b76caa66855867d37a21e9f7fa5"
+  }
+}

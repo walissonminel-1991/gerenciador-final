@@ -1,0 +1,97 @@
+using System.Diagnostics;
+using System.IO.Pipes;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[SupportedOSPlatform("windows")]
+internal sealed class VerifiedInertProbe
+{
+    internal readonly string Root,Folder;
+    private readonly Dictionary<string,string> recipe;
+    private VerifiedInertProbe(string root,string folder,Dictionary<string,string> recipe)
+    {Root=root;Folder=folder;this.recipe=new(recipe,StringComparer.Ordinal);}
+    internal static VerifiedInertProbe Inspect(string root,string folder,Dictionary<string,string> recipe)
+    {_=StaticProbeInspection.ReadAndVerify(folder,recipe,root);return new(root,folder,recipe);}
+    internal WindowsFileGuard Pin(string name)
+    {
+        var pin=WindowsFileGuard.Open(Root,Path.Combine(Folder,name));
+        try{Require(recipe.TryGetValue(name,out var hash)&&Hash(pin.Read(256*1024*1024))==hash,"PROBE_CHANGED_BEFORE_START");return pin;}
+        catch{pin.Dispose();throw;}
+    }
+}
+
+[SupportedOSPlatform("windows")]
+internal sealed class ProbeChannel : IAsyncDisposable
+{
+    internal static int Launches;
+    private readonly NamedPipeServerStream server;
+    internal readonly Process Child;
+    internal readonly string Tx=Guid.NewGuid().ToString("N"),Nonce=Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+    private readonly List<IDisposable> pinned=[];
+    private bool ready,closed;
+    private ProbeChannel(NamedPipeServerStream server,Process child){this.server=server;Child=child;}
+    internal static async Task<ProbeChannel> Open(VerifiedInertProbe proof,string mode,bool wrongExpectedPid=false,bool wrongServerPid=false)
+    {
+        string root=proof.Root,probeFolder=proof.Folder;
+        string pipe="gf-u3-"+Guid.NewGuid().ToString("N");
+        var server=new NamedPipeServerStream(pipe,PipeDirection.InOut,1,PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly|PipeOptions.FirstPipeInstance,4096,4096);
+        string exe=Path.Combine(probeFolder,StaticProbeInspection.Exe);
+        var pins=new List<IDisposable>();
+        Process? child=null;
+        try
+        {
+            foreach(string name in new[]{StaticProbeInspection.Exe,"GF.Updater.InertProbe.dll","GF.Updater.InertProbe.runtimeconfig.json",
+                "GF.Updater.InertProbe.deps.json","coreclr.dll","hostfxr.dll","hostpolicy.dll","System.Windows.Forms.dll"})
+                pins.Add(proof.Pin(name));
+            var info=new ProcessStartInfo(exe){UseShellExecute=false,WorkingDirectory=probeFolder};
+            foreach(string arg in new[]{pipe,(wrongServerPid?Environment.ProcessId+1:Environment.ProcessId).ToString(),Environment.ProcessPath!,root,mode})info.ArgumentList.Add(arg);
+            child=Process.Start(info)??throw new Rejected("PROBE_START");Launches++;
+            var channel=new ProbeChannel(server,child);
+            using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await server.WaitForConnectionAsync(budget.Token);
+            if(wrongExpectedPid)PipeFrames.Check(PeerIdentity.PipePid(server,true)==Environment.ProcessId,"IPC_PEER_PID");
+            PeerIdentity.Verify(server,true,child,exe);
+            await PipeFrames.Send(server,new(1,"challenge",channel.Tx,channel.Nonce,"fixture-local"),budget.Token);
+            channel.pinned.AddRange(pins);pins.Clear();return channel;
+        }
+        catch
+        {
+            server.Dispose();foreach(var p in pins)p.Dispose();
+            if(child is not null){if(!child.HasExited){using var cts=new CancellationTokenSource(TimeSpan.FromSeconds(3));try{await child.WaitForExitAsync(cts.Token);}catch(OperationCanceledException){child.Kill(true);await child.WaitForExitAsync();}}child.Dispose();}
+            throw;
+        }
+    }
+    internal async Task Ready(TimeSpan? timeout=null)
+    {
+        Require(!ready,"IPC_READY_REUSED");using var budget=new CancellationTokenSource(timeout??TimeSpan.FromSeconds(30));
+        var message=await PipeFrames.Read(server,budget.Token);PipeFrames.Bound(message,"ready",Tx,Nonce);ready=true;
+    }
+    internal async Task Close(TimeSpan? timeout=null)
+    {
+        using var budget=new CancellationTokenSource(timeout??TimeSpan.FromSeconds(5));
+        await PipeFrames.Send(server,new(1,"close",Tx,Nonce,"fixture-local"),budget.Token);
+        var response=await PipeFrames.Read(server,budget.Token);PipeFrames.Bound(response,"bye",Tx,Nonce);
+        await Child.WaitForExitAsync(budget.Token);Require(Child.ExitCode==0,"PROBE_EXIT_CODE");closed=true;
+    }
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if(!closed && !Child.HasExited && server.IsConnected)
+            {
+                using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                try{await PipeFrames.Send(server,new(1,"abort-fixture",Tx,Nonce,"fixture-local"),budget.Token);await Child.WaitForExitAsync(budget.Token);}
+                catch(Exception ex) when(ex is IOException or OperationCanceledException){ }
+            }
+        }
+        finally
+        {
+            server.Dispose();if(!Child.HasExited){Child.Kill(true);await Child.WaitForExitAsync();}Child.Dispose();
+            for(int i=pinned.Count-1;i>=0;i--)pinned[i].Dispose();
+        }
+    }
+}
