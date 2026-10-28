@@ -140,7 +140,7 @@ internal static class Stage3Tests
             {
                 using var session=new FixtureSession(c.Root);session.Recover();inspected=session.SelectionForFixtureInspectionOnly();
             }
-            catch(Exception e) when(e is Rejected or IOException){rejected=true;}
+            catch(Exception e) when(e is Rejected or IOException or System.ComponentModel.Win32Exception){rejected=true;}
             if(rejected){Require(!expectedSafe,"POWER_IMAGE_FALSE_BLOCK");blocked++;}
             else{Require(expectedSafe && inspected==(count==4?c.Candidate:c.Old),"POWER_IMAGE_UNSAFE_SELECTION");safe++;}
         }

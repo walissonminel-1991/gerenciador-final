@@ -78,7 +78,11 @@ apenas os pacotes necessários e os três lockfiles são versionados.
 
 A inspeção é estática: conjunto/hashes da receita confiável de teste, PE/AMD64,
 CLI AnyCPU admissível em DLL, recursos Win32 de manifesto/versão, runtimeconfig
-self-contained, versões exatas, dependências declaradas e licenças. Parser PE
+self-contained, versões exatas, dependências declaradas e licenças. Os dois
+pacotes do deps usam o prefixo literal runtimepack. Um conjunto fechado de
+52 satélites WinForms (13 culturas x 4 nomes), copiado pelo SDK mas omitido no
+deps, também é exigido e autenticado; não existe exceção livre para DLL extra.
+Parser PE
 com leituras limitadas; sem Assembly.Load, LoadLibrary ou PEReader sobre dados
 hostis. Não se declara parser universal/auditoria de todos os formatos PE.
 Receita é exclusiva da sonda, **não substitui o contrato de dependências do GF**.

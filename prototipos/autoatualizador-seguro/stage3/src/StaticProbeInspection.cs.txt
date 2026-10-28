@@ -118,8 +118,8 @@ internal static class StaticProbeInspection
         using var deps=Json(files["GF.Updater.InertProbe.deps.json"],512*1024);
         var targets=deps.RootElement.GetProperty("targets"); string target=Text(deps.RootElement.GetProperty("runtimeTarget"),"name");
         Require(target.EndsWith("/win-x64",StringComparison.Ordinal),"PROBE_RUNTIME_ID");var graph=targets.GetProperty(target);
-        Require(graph.TryGetProperty("Microsoft.NETCore.App.Runtime.win-x64/10.0.13",out _)
-            && graph.TryGetProperty("Microsoft.WindowsDesktop.App.Runtime.win-x64/10.0.13",out _),"PROBE_RUNTIME_DEPENDENCIES");
+        Require(graph.TryGetProperty("runtimepack.Microsoft.NETCore.App.Runtime.win-x64/10.0.13",out _)
+            && graph.TryGetProperty("runtimepack.Microsoft.WindowsDesktop.App.Runtime.win-x64/10.0.13",out _),"PROBE_RUNTIME_DEPENDENCIES");
         var binaries=new HashSet<string>(StringComparer.Ordinal){Exe};
         foreach(var library in graph.EnumerateObject())foreach(string group in new[]{"runtime","native","resources"})
             if(library.Value.TryGetProperty(group,out var assets))foreach(var asset in assets.EnumerateObject())
@@ -128,6 +128,12 @@ internal static class StaticProbeInspection
                 string name=group=="resources"?asset.Name:asset.Name.Split('/')[^1];
                 Require(binaries.Add(name),"PROBE_DEPENDENCY_COLLISION");
             }
+        // SDK 10.0.402 copies these WinForms runtime satellites although deps.json omits them.
+        // Closed 13 x 4 set, all still authenticated by the trusted recipe; no free *.resources.dll rule.
+        foreach(string culture in new[]{"cs","de","es","fr","it","ja","ko","pl","pt-BR","ru","tr","zh-Hans","zh-Hant"})
+            foreach(string name in new[]{"Microsoft.VisualBasic.Forms.resources.dll","System.Windows.Forms.Design.resources.dll",
+                "System.Windows.Forms.Primitives.resources.dll","System.Windows.Forms.resources.dll"})
+                Require(binaries.Add(culture+"/"+name),"PROBE_DEPENDENCY_COLLISION");
         Require(binaries.SetEquals(paths.Keys.Where(p=>p.EndsWith(".dll",StringComparison.OrdinalIgnoreCase)||p.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))),"PROBE_DEPENDENCY_SET");
         foreach(string name in Required.Where(n=>n.StartsWith("Licenses/",StringComparison.Ordinal)))
         {string text=Encoding.UTF8.GetString(files[name]);Require(files[name].Length>=100 && (text.Contains("Microsoft",StringComparison.OrdinalIgnoreCase)
