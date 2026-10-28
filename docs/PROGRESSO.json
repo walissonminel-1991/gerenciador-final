@@ -1343,7 +1343,16 @@
       ],
       "known_limits_reference": "docs/evidencias/integracao-etapa3-ci.json",
       "physical_plan": "Planejamento minimo na avaliacao; execucao manual somente apos preparacao/autorizacao adequada.",
-      "general_defect_audit_done": false
+      "general_defect_audit_done": false,
+      "assessment_commit": "a3b362d6b98ff9584eb44d7dd55e60ac36c7977f",
+      "saved_tree_check": {
+        "commit": "a3b362d6b98ff9584eb44d7dd55e60ac36c7977f",
+        "blobs": 437,
+        "inherited_outside_scope_unchanged": 431,
+        "changed_markdown_json": 6,
+        "original_refs_preserved": 7,
+        "new_ci_runs": 0
+      }
     }
   }
 }

@@ -434,7 +434,9 @@
   ],
   "documentary_commit": {
     "skip_ci": true,
-    "head_location": "Conferir HEAD da PR65; este recibo nao e nova build."
+    "head_location": "Conferir HEAD da PR65; este recibo nao e nova build.",
+    "assessment_commit": "a3b362d6b98ff9584eb44d7dd55e60ac36c7977f",
+    "followup": "Fechamento posterior somente checkpoint/matriz/PROGRESSO/recibo; conferir HEAD final na PR65."
   },
   "next_stage": 5,
   "stage5_started": false,
@@ -456,5 +458,25 @@
       "historical_source": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
       "does_not_replace_integration_ci": true
     }
+  },
+  "remote_verification": {
+    "commit": "a3b362d6b98ff9584eb44d7dd55e60ac36c7977f",
+    "tree": "50bc386f22ed6c935a7b91e6b000936fe5dbbb90",
+    "blobs": 437,
+    "inherited_unchanged": 431,
+    "changed_files": [
+      "docs/PROGRESSO.json",
+      "docs/ROADMAP.md",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+      "docs/WORK-INTEGRACAO-MATRIZ.md",
+      "docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md",
+      "docs/evidencias/integracao-etapa4-avaliacao.json"
+    ],
+    "all_blob_hashes_match": true,
+    "documentary_commit": "a3b362d6b98ff9584eb44d7dd55e60ac36c7977f",
+    "original_refs_preserved": 7,
+    "pr_open_draft": true,
+    "base_preserved": true,
+    "new_ci_runs": 0
   }
 }

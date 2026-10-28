@@ -25,7 +25,7 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Código integrado | Origem #64 + delta acumulado #62; 57 exclusivos idênticos, um workflow adaptado e quatro compartilhados conciliados; versão .66 |
 | Roadmap | **27/42**, mesmos 42 IDs/done; nenhum checkpoint promovido |
 | Entrada da Etapa 4 | `b5c2e0e2c7fefc63896123000c3fa34d8c34a7d5` |
-| Commit documental da avaliação | Conferir HEAD final da PR #65; `[skip ci]`, sem nova build |
+| Commit da avaliação | [`a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`](https://github.com/walissonminel-1991/gerenciador-final/commit/a3b362d6b98ff9584eb44d7dd55e60ac36c7977f); fechamento posterior somente documental, conferir HEAD final na PR #65; `[skip ci]`, sem nova build |
 | Próxima etapa | **5 — Organização e limpeza segura do GitHub**, somente em nova sessão |
 
 Documentos da Etapa 1 preservados:
@@ -227,6 +227,19 @@ opcional/não bloqueante/consultivo, gestão de drivers desativada, proteções
 intactas, flags no, BETA conectada bloqueada. Sem pacote, merge, release,
 deploy, distribuição, envio, infraestrutura remota ou operação em PC.
 **Etapa 5 não iniciada.**
+
+## Salvamento e conferência — Etapa 4
+
+Avaliação salva no commit `a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`, filho único da entrada.
+Árvore relida no GitHub: **437 blobs**, **431 herdados fora do escopo intactos**
+e somente os seis Markdown/JSON previstos; todos os blobs do escopo conferidos.
+PR #65 aberta/Draft, base #60 e sete refs originais preservadas; zero run novo
+no commit documental. Código, testes, workflows e configuração continuam
+idênticos aos validados na Etapa 3.
+
+Este recibo de fechamento acrescenta somente o SHA acima e a conferência
+a checkpoint/matriz/PROGRESSO/recibo JSON; não gera build ou executável.
+HEAD documental final a conferir na PR #65. Parada mantida antes da Etapa 5.
 
 ## Retomada obrigatória
 

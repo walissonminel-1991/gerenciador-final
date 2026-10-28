@@ -8,6 +8,7 @@ Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
 **Etapa 4 CONCLUÍDA COMO AVALIAÇÃO — integração 1–4 encerrada tecnicamente.**
 BETA LOCAL não preparada; BETA conectada/pública não liberada. Etapa 5 não iniciada.
+Commit da avaliação: `a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`; fechamento posterior somente documental, HEAD final na PR #65.
 SHA validado: `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`; principal 40604593820 e integridade externa 40604593709, tentativa 1.
 [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) ·
 [Reconciliação](WORK-INTEGRACAO-ETAPA1-RECONCILIACAO.md) ·
@@ -136,6 +137,11 @@ específica. Não há teste de PC executado/solicitado nesta sessão. Todos os
 do adendo é independente da homologação conectada; sucesso local não libera
 piloto privado/público. A integração 1–4 está encerrada, e a missão ampliada
 continua pendente. **Parada antes da Etapa 5.**
+
+Salvamento da Etapa 4 conferido no commit `a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`:
+437 blobs, 431 herdados fora do escopo intactos, seis Markdown/JSON previstos,
+sete refs originais preservadas, PR aberta/Draft e nenhum run novo. Recibo
+posterior somente documental, sem alterar produto/configuração ou criar build.
 
 ## Bloqueios preservados
 
