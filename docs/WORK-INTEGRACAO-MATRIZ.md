@@ -1,13 +1,14 @@
 # Integração final — matriz de continuidade
 
-27/10/2026, America/Fortaleza. Branch `work-integracao-final-20261027`,
+27/10/2026, America/Sao_Paulo. Branch `work-integracao-final-20261027`,
 [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65).
 Commit da análise: `f000ca3227227f11d8412c9a3f87335ead80bd9d`;
 fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
-**Etapa 4 CONCLUÍDA COMO AVALIAÇÃO — integração 1–4 encerrada tecnicamente.**
-BETA LOCAL não preparada; BETA conectada/pública não liberada. Etapa 5 não iniciada.
+**Etapa 5 CONCLUÍDA no escopo organizacional — integração 1–4 preservada.**
+BETA LOCAL não preparada; conectada/pública bloqueada. Etapa 6 não iniciada.
+Entrada da Etapa 5: `d815d1a5348b3f24c29e5c133a45b081cb7f6958`; HEAD final documental na PR #65.
 Commit da avaliação: `a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`; fechamento posterior somente documental, HEAD final na PR #65.
 SHA validado: `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`; principal 40604593820 e integridade externa 40604593709, tentativa 1.
 [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) ·
@@ -19,6 +20,9 @@ SHA validado: `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`; principal 40604593820 
 [Recibo Etapa 3](evidencias/integracao-etapa3-ci.json) ·
 [Avaliação Etapa 4](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md) ·
 [Recibo Etapa 4](evidencias/integracao-etapa4-avaliacao.json) ·
+[Organização Etapa 5](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md) ·
+[Recibo Etapa 5](evidencias/integracao-etapa5-organizacao.json) ·
+[Índice canônico](ORGANIZACAO-REPOSITORIO.md) ·
 [Adendo 5–9](WORK-INTEGRACAO-ADENDO-BETA-LOCAL.md).
 
 ## Fontes e sobreposição
@@ -76,8 +80,8 @@ a homologação física/AVG, conectada ou à preparação da BETA LOCAL.
 | 2 | Integração do código | Concluída; composição validada tecnicamente na Etapa 3 | Histórico/fonte preservados |
 | 3 | Regressões/CI da integração | Concluída tecnicamente; duas CIs aprovadas no SHA próprio | Evidências confirmadas na Etapa 4; sem nova execução |
 | 4 | Avaliação da candidata | Concluída como avaliação; integração 1–4 encerrada tecnicamente | Preparação local e liberação conectada/pública continuam pendentes |
-| 5 | Organização segura do GitHub | Não iniciada; próxima sessão | Uma sessão; mudanças não destrutivas e propostas dependentes de autorização separadas |
-| 6 | Auditoria geral | Não iniciada | Matriz de defeitos/evidências; não confundir riscos desta análise com defeitos reproduzidos |
+| 5 | Organização segura do GitHub | Concluída no escopo documentado; inventários/índices atualizados | D01/D02 não executadas; dependem de autorização específica |
+| 6 | Auditoria geral | Não iniciada; próxima sessão | Matriz de defeitos/evidências nos 14 eixos; parar antes da Etapa 7 |
 | 7 | Correções e regressões | Não iniciada | Críticos/altos resolvidos para o cenário, CI por SHA |
 | 8 | Preparação BETA LOCAL | Não iniciada | Pacote privado/verificável permitido pelo contrato; nenhum avanço automático à Etapa 9 |
 | 9 | Homologação PC FORTE | Não executada; manual | Resultados do mantenedor, AVG ativo, sem presumir acesso ao PC |
@@ -109,13 +113,15 @@ Arquivo de evidência BETA com somente três manifestos, sem EXE/ZIP de distribu
 O [relatório](WORK-INTEGRACAO-ETAPA3-VALIDACAO.md) e o recibo detalham o escopo;
 nenhum checkpoint físico/AVG/conectado foi promovido. Resultado da Etapa 3 confirmado na avaliação da Etapa 4.
 
-## Avaliação final — Etapa 4
+## Avaliação final — Etapa 4 (registro histórico)
 
 Fonte única e CI própria comprovadas; código/configuração continuam os da
 fonte validada. Funcionalidades/correções e cobertura acumuladas preservadas,
 sem ganho operacional físico presumido. Relatório inclui os 15 checkpoints
 abertos, roteiro mínimo futuro PC FORTE, AVG, homologação privada e condições
 da preparação local. A auditoria geral da Etapa 6 ainda não foi executada.
+A tabela abaixo registra os gates no fechamento da Etapa 4; o avanço apenas
+organizacional da Etapa 5 está na seção seguinte.
 
 | Critério | Escopo | Estado | Evidência / condição |
 | --- | --- | --- | --- |
@@ -136,12 +142,34 @@ específica. Não há teste de PC executado/solicitado nesta sessão. Todos os
 42 IDs/done, históricos e candidate/beta preservados. A preparação BETA LOCAL
 do adendo é independente da homologação conectada; sucesso local não libera
 piloto privado/público. A integração 1–4 está encerrada, e a missão ampliada
-continua pendente. **Parada antes da Etapa 5.**
+continua pendente. **Na Etapa 4, parada antes da Etapa 5.**
 
 Salvamento da Etapa 4 conferido no commit `a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`:
 437 blobs, 431 herdados fora do escopo intactos, seis Markdown/JSON previstos,
 sete refs originais preservadas, PR aberta/Draft e nenhum run novo. Recibo
 posterior somente documental, sem alterar produto/configuração ou criar build.
+
+## Organização segura — Etapa 5 concluída
+
+| ID | Escopo | Evidência e decisão |
+| --- | --- | --- |
+| O01 | Branches | 101 refs/100 tips comparados: 83 ancestrais, 17 divergentes e candidata; um alias exato identificado, sem remoção |
+| O02 | PRs/Issues | 31 PRs abertas Draft, 31 encerradas de contexto, três Issues abertas; nenhum fechamento/edição fora da PR #65 |
+| O03 | Árvore | 437 blobs, sem duplicatas/colisões/saídas compiladas; nenhum arquivo demonstrado como removível |
+| O04 | Projetos/testes | 157 referências explícitas resolvidas, 92 fontes de teste excluídas do produto; 13 suítes e duas fixtures preservadas |
+| O05 | CI | Quatro arquivos de workflow/guardrail coerentes; duas CIs próprias reconferidas no SHA 6b5b0e52, sem nova execução |
+| O06 | Artefatos | 36 metadados em cinco runs, nenhum download/exclusão; 100 runs recentes de 2.046; enumeração global fora do alcance do conector |
+| O07 | Documentação | 91 Markdown/279 destinos relativos iniciais válidos; README/índice/Actions/TESTES e continuidade atualizados, históricos preservados |
+| O08 | Autorização | D01 alias de branch e D02 PRs #61–#64 apenas propostas; nenhuma ação pendente iniciada. Etapa 6 não iniciada |
+
+A organização agora está concluída; os demais gates da avaliação 4 continuam
+pendentes. Somente dez Markdown/JSON, sem produto/testes/workflows/configuração
+alterados ou ganho de cobertura funcional presumido. PROGRESSO muda apenas
+integration_final, com históricos/candidate/beta e 42 estados intactos, 27/42.
+Relatório e recibo fixam limites, mudanças seguras e autorização necessária.
+Issue #48 permanece aberta para conferência de aplicabilidade na auditoria 6.
+Nenhuma build/pacote, rede de aplicativo, PC ou infraestrutura operacional.
+**Parada antes da Etapa 6.**
 
 ## Bloqueios preservados
 

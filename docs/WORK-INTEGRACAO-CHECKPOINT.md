@@ -1,6 +1,6 @@
 # WORK INTEGRAÇÃO FINAL — checkpoint
 
-27/10/2026, America/Fortaleza. **Executar uma única etapa por sessão.**
+27/10/2026, America/Sao_Paulo. **Executar uma única etapa por sessão.**
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 ## Estado de continuidade
@@ -8,8 +8,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **4 — Avaliação da candidata integrada** |
-| Resultado | **AVALIAÇÃO CONCLUÍDA; integração 1–4 encerrada tecnicamente**; BETA LOCAL não preparada e conectada/pública não liberada |
+| Etapa desta sessão | **5 — Organização e limpeza segura do GitHub** |
+| Resultado | **ORGANIZAÇÃO 5 CONCLUÍDA no escopo documentado**; integração 1–4 preservada, BETA LOCAL não preparada e conectada/pública bloqueada |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
@@ -26,7 +26,9 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Roadmap | **27/42**, mesmos 42 IDs/done; nenhum checkpoint promovido |
 | Entrada da Etapa 4 | `b5c2e0e2c7fefc63896123000c3fa34d8c34a7d5` |
 | Commit da avaliação | [`a3b362d6b98ff9584eb44d7dd55e60ac36c7977f`](https://github.com/walissonminel-1991/gerenciador-final/commit/a3b362d6b98ff9584eb44d7dd55e60ac36c7977f); fechamento posterior somente documental, conferir HEAD final na PR #65; `[skip ci]`, sem nova build |
-| Próxima etapa | **5 — Organização e limpeza segura do GitHub**, somente em nova sessão |
+| Entrada da Etapa 5 | `d815d1a5348b3f24c29e5c133a45b081cb7f6958` |
+| Commit da organização | Conferir HEAD final da PR #65; `[skip ci]`, sem nova build |
+| Próxima etapa | **6 — Auditoria geral e busca de erros**, somente em nova sessão |
 
 Documentos da Etapa 1 preservados:
 
@@ -186,7 +188,7 @@ com `[skip ci]`, sem nova build ou mudança de produto/testes/workflows/
 configuração validada. Conferir HEAD documental final na PR #65. A aprovação
 é do SHA fonte acima; não atribuir uma nova build ao recibo. Naquele fechamento, a Etapa 4 não havia sido iniciada.
 
-## Etapa 4 — sessão atual concluída
+## Etapa 4 — histórico concluído
 
 Entrada `b5c2e0e2c7fefc63896123000c3fa34d8c34a7d5`, PR #65 aberta/Draft, base #60 e sete refs originais
 conferidas. Checkpoint/matriz/adendo e evidências da Etapa 3 relidos; CIs
@@ -226,7 +228,7 @@ Main, PR #40 e fontes preservadas; VLC somente inventário, WinGet COM
 opcional/não bloqueante/consultivo, gestão de drivers desativada, proteções
 intactas, flags no, BETA conectada bloqueada. Sem pacote, merge, release,
 deploy, distribuição, envio, infraestrutura remota ou operação em PC.
-**Etapa 5 não iniciada.**
+Naquele fechamento, **Etapa 5 não iniciada**.
 
 ## Salvamento e conferência — Etapa 4
 
@@ -239,7 +241,55 @@ idênticos aos validados na Etapa 3.
 
 Este recibo de fechamento acrescenta somente o SHA acima e a conferência
 a checkpoint/matriz/PROGRESSO/recibo JSON; não gera build ou executável.
-HEAD documental final a conferir na PR #65. Parada mantida antes da Etapa 5.
+HEAD daquele fechamento: `d815d1a5348b3f24c29e5c133a45b081cb7f6958`. Na Etapa 4, parada antes da Etapa 5.
+
+## Etapa 5 — sessão atual concluída
+
+Entrada `d815d1a5348b3f24c29e5c133a45b081cb7f6958`, árvore `f36abd8191bed637148ff6e533aa7578bfbd68af`;
+PR #65 aberta/Draft e base #60 conferidas. Checkpoint, matriz, avaliação 4,
+recibo e adendo relidos. CIs principal 40604593820 e externa 40604593709
+reconferidas success, tentativa 1, fonte `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`;
+sete jobs obrigatórios aprovados, dois condicionais skipped. Oito diferenças
+da entrada contra a fonte validada, somente Markdown/JSON.
+
+[Relatório da organização](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md) ·
+[Recibo/inventário](evidencias/integracao-etapa5-organizacao.json) ·
+[Índice canônico](ORGANIZACAO-REPOSITORIO.md).
+
+Inventariadas 101 branches/100 tips distintos: 83 ancestrais, 17 divergentes,
+uma candidata. 31 PRs abertas Draft e três Issues abertas preservadas; 31 PRs
+encerradas consultadas para contexto. Um alias de tip duplicado identificado;
+D01 e D02 apenas propostas de remoção/fechamento com autorização específica.
+Nenhuma ação pendente de aprovação foi iniciada.
+
+Conferidos 437 blobs/4.632.177 bytes, sem blobs duplicados, colisões de caixa
+ou saídas compiladas. 120 textos conferidos por SHA, 91 Markdown/279 destinos
+relativos iniciais sem ausências; 157 referências explícitas de projetos e
+92 fontes de teste excluídas do produto. Quatro workflows, 13 suítes e duas
+fixtures preservados. Metadados de 36 artefatos em cinco runs e 100 runs
+recentes (de 2.046), sem download ou exclusão. Releases/tags: zero.
+Enumeração global de workflows/artefatos não exposta pelo conector; cobertura
+e limites registrados, sem presumir varredura integral do armazenamento.
+
+Corrigidos estado/links de entrada no README, índice de organização, inventário
+de testes/dependências e distinção de Actions atuais/históricas. Atualizados
+checkpoint, matriz, PROGRESSO e ROADMAP; relatório e recibo novos: dez
+Markdown/JSON. Somente integration_final muda no PROGRESSO; candidate/beta,
+históricos e todos os 42 IDs/done preservados, **27/42**.
+
+Verificações documentais/JSON/links e contrato existente de metadados aprovados:
+92 Markdown/324 destinos relativos de arquivo e dois fragmentos novos; .66
+pending e .65 histórica coerentes, sem transferir aprovação. Sem nova suíte
+de produto, CI/build, correção funcional ou preparo de pacote.
+Código/testes/workflows/configuração e todas as refs fora da continuidade
+preservados. Main e PR #40 intactas. Exclusão permanente, COM consultivo,
+drivers desativados, AVG/proteções e flags no preservados. Sem PC, envio,
+infraestrutura remota, merge, release, deploy ou distribuição.
+
+Conhecidos: WUA 2022 inconclusiva/2025 sem ofertas, aviso CS0649 não bloqueante,
+AVG/físico/conectada pendentes e perfil BETA LOCAL restrito ainda não preparado.
+Issue #48 mantida como evidência para conferir na auditoria 6, sem presumir
+correção ou pedir repetição em PC. **Etapa 6 não iniciada.**
 
 ## Retomada obrigatória
 
@@ -247,17 +297,19 @@ HEAD documental final a conferir na PR #65. Parada mantida antes da Etapa 5.
    HEAD remotos antes de qualquer edição. Comparar #60–#64 aos SHAs fixados.
 2. Preservar alterações posteriores e investigar divergências pontuais;
    não usar force-push, apagar histórico ou modificar branches originais.
-3. Executar **somente a Etapa 5 do adendo**: auditar e organizar GitHub,
-   documentação/workflows/artefatos com correções não destrutivas; separar
-   propostas destrutivas que dependem de autorização específica. Não excluir
-   branches/tags/históricos nem fechar PRs/Issues automaticamente.
+3. Executar **somente a Etapa 6 do adendo**: auditoria geral nos 14 eixos,
+   com testes existentes/análise estática/cenários sintéticos. Criar testes
+   somente para lacuna demonstrada. Produzir matriz com localização,
+   reprodução, impacto, evidência e recomendação; classificar severidade.
+   Não corrigir produto, preparar pacote ou executar propostas D01/D02.
+   Não reinvestigar COM/fontes excluídas nem operar nos PCs pessoais.
 4. Atualizar os dois documentos com SHA, arquivos, verificações, problemas,
    pendências e próximo passo; registrar interrupção no ponto exato.
-5. Encerrar antes da Etapa 6. Integração 1–4 concluída; Etapas 5–9 seguem o adendo,
+5. Encerrar antes da Etapa 7. Integração 1–4 e organização 5 concluídas; Etapas 6–9 seguem o adendo,
    uma por sessão. A Etapa 9 depende exclusivamente de execução manual autorizada.
 
 Comando de retomada:
 
-> Continue a missão do Gerenciador Final pela Etapa 5 do adendo na branch work-integracao-final-20261027, PR #65 Draft. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md e docs/WORK-INTEGRACAO-MATRIZ.md e a avaliação da Etapa 4, confira o HEAD e preserve as evidências da CI do SHA 6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8. Execute somente organização e limpeza segura do GitHub, com mudanças não destrutivas e lista separada do que exige autorização específica. Preserve todas as restrições e o adendo BETA LOCAL, salve relatório/checkpoints no GitHub e pare antes da Etapa 6, sem merge, exclusões, fechamento automático de PRs/Issues, release, deploy, distribuição ou ativação remota.
+> Continue pela Etapa 6 na branch work-integracao-final-20261027, PR #65 Draft. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md, docs/WORK-INTEGRACAO-MATRIZ.md, a avaliação da Etapa 4, o relatório da Etapa 5 e o adendo BETA LOCAL; confira o HEAD e as evidências da CI no SHA exato. Execute somente auditoria geral e produza a matriz de defeitos com localização, reprodução, impacto, evidência e recomendação. Use testes existentes e cenários sintéticos; crie testes somente para lacunas demonstradas. Preserve todas as restrições, não execute propostas destrutivas ou operações em PCs, salve evidências/checkpoints no GitHub e pare antes da Etapa 7, sem preparar executável ou liberar BETA.
 
-**Etapa 4 concluída como avaliação. Integração 1–4 encerrada tecnicamente; Etapa 5 não iniciada.**
+**Etapa 5 concluída no escopo organizacional. Integração 1–4 preservada; Etapa 6 não iniciada.**

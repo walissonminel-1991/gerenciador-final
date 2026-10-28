@@ -1,0 +1,4336 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "stage": 5,
+  "date": "2026-10-27",
+  "timezone": "America/Sao_Paulo",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "pr": 65,
+  "draft": true,
+  "status": "organization_complete_audit_pending_local_not_prepared",
+  "entry_commit": "d815d1a5348b3f24c29e5c133a45b081cb7f6958",
+  "entry_tree": "f36abd8191bed637148ff6e533aa7578bfbd68af",
+  "validated_commit": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+  "entry_delta_from_validated": [
+    "docs/PROGRESSO.json",
+    "docs/ROADMAP.md",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-ETAPA3-VALIDACAO.md",
+    "docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/evidencias/integracao-etapa3-ci.json",
+    "docs/evidencias/integracao-etapa4-avaliacao.json"
+  ],
+  "ci_reconfirmed": [
+    {
+      "id": 40604593820,
+      "head": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820",
+      "jobs": [
+        {
+          "id": 122540822898,
+          "name": "politica / Política de segurança e privacidade",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823111,
+          "name": "validar / Drivers somente leitura (windows-2025)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823180,
+          "name": "validar / Regressões Windows",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823188,
+          "name": "validar / Drivers somente leitura (windows-2022)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823311,
+          "name": "validar / Consentimento BETA antecipado (sem rede)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122544352782,
+          "name": "Compilação Windows x64",
+          "conclusion": "success"
+        },
+        {
+          "id": 122544748192,
+          "name": "Atestar pacote apenas na main",
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    {
+      "id": 40604593709,
+      "head": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709",
+      "jobs": [
+        {
+          "id": 122540822651,
+          "name": "Integridade dos instaladores oficiais (sem instalacao)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540824707,
+          "name": "Fontes externas e drivers do runner (somente leitura)",
+          "conclusion": "skipped"
+        }
+      ]
+    }
+  ],
+  "inventory": {
+    "branches": [
+      {
+        "branch": "auditoria-gf-escopo-catalogo-20261025",
+        "sha": "954949eef8ee84785ee6434f964b6f1e3c9e0b50",
+        "status": "diverged",
+        "ahead": 11,
+        "behind": 77,
+        "merge_base": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+        "prs": [
+          {
+            "number": 49,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "auditoria-gf-fluxos-20261024",
+        "sha": "c27231cb56f1a3dc3dfc9ae966bd8aaa0acbb70c",
+        "status": "diverged",
+        "ahead": 4,
+        "behind": 77,
+        "merge_base": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+        "prs": [
+          {
+            "number": 47,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "beta-piloto-consentimento-envio-20261026",
+        "sha": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+        "status": "diverged",
+        "ahead": 21,
+        "behind": 24,
+        "merge_base": "2bc9f4228fd448445fbf181652e5af93005def20",
+        "prs": [
+          {
+            "number": 61,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "candidata-v5.13.11.0-fontes-consolidacao",
+        "sha": "c91a8d2d38179f41a84c14e839c542605ed2dc4d",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 704,
+        "merge_base": "c91a8d2d38179f41a84c14e839c542605ed2dc4d",
+        "prs": [
+          {
+            "number": 36,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "chore/limpeza-historicos-main-2026-10-22",
+        "sha": "20111400ebe6767040679a997150820d9695cb09",
+        "status": "diverged",
+        "ahead": 1,
+        "behind": 703,
+        "merge_base": "9ac3dc167b9e67ac50628749d5ad33c563c09376",
+        "prs": [
+          {
+            "number": 41,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "compatibilidade-avg-integridade-v5.13.10.24",
+        "sha": "f69a2ee04913251e71fc75dc6fdd0650be5195aa",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 717,
+        "merge_base": "f69a2ee04913251e71fc75dc6fdd0650be5195aa",
+        "prs": [
+          {
+            "number": 34,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "correcao-residuos-driver-booster-v5.13.10.20",
+        "sha": "ad22673a3bf725767c40ffdd8409513ae4e5f1d8",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 763,
+        "merge_base": "ad22673a3bf725767c40ffdd8409513ae4e5f1d8",
+        "prs": [
+          {
+            "number": 29,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "diagnostico-bandeja-msix-v5.13.10.21",
+        "sha": "e5080d302447069fdebcd77d7a80eed0ee45590f",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 754,
+        "merge_base": "e5080d302447069fdebcd77d7a80eed0ee45590f",
+        "prs": [
+          {
+            "number": 30,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "experimento-chrome-versionhistory-20261027",
+        "sha": "04f59750739c6bdbaeb0bacd86ed2b734fba1271",
+        "status": "diverged",
+        "ahead": 6,
+        "behind": 24,
+        "merge_base": "2bc9f4228fd448445fbf181652e5af93005def20",
+        "prs": [
+          {
+            "number": 63,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "feat/catalogo-ampliado-consultivo-20261025",
+        "sha": "f179dbabe78d0d42c4112a283040c5c781f109f0",
+        "status": "diverged",
+        "ahead": 32,
+        "behind": 77,
+        "merge_base": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+        "prs": [
+          {
+            "number": 51,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "fix/winget-v5.12.4.3-teste",
+        "sha": "a722af8b80052006745e8a7136b57582a54b7881",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1476,
+        "merge_base": "a722af8b80052006745e8a7136b57582a54b7881",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "identidade-pacotes-v5.13.10.24",
+        "sha": "fcb47dc053d6a3bb3fec82d532c554e5a69a9662",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 715,
+        "merge_base": "fcb47dc053d6a3bb3fec82d532c554e5a69a9662",
+        "prs": [
+          {
+            "number": 35,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "integracao-lotes1-4-work14-17-20261025",
+        "sha": "28beb9607e85d208af4c0864d768a6db7fb5296a",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 28,
+        "merge_base": "28beb9607e85d208af4c0864d768a6db7fb5296a",
+        "prs": [
+          {
+            "number": 59,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "laboratorio-provedores-v0.1",
+        "sha": "b00088cf7ef42e74c8afa7a7cf27391d98300e10",
+        "status": "diverged",
+        "ahead": 10,
+        "behind": 1476,
+        "merge_base": "a722af8b80052006745e8a7136b57582a54b7881",
+        "prs": [],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "main",
+        "sha": "410d65e23546976db456337c71e4705f10217d36",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 701,
+        "merge_base": "410d65e23546976db456337c71e4705f10217d36",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "monitoramento-leve-compatibilidade-v5.13.10.22",
+        "sha": "6f83aa1ba1e95ab2ed050f1db673e160f4bd165a",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 746,
+        "merge_base": "6f83aa1ba1e95ab2ed050f1db673e160f4bd165a",
+        "prs": [
+          {
+            "number": 31,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "painel-memoria-ram-v5.13.10.23",
+        "sha": "47a910b24568875cce0c3b6fcc621461d8fb2b27",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 732,
+        "merge_base": "47a910b24568875cce0c3b6fcc621461d8fb2b27",
+        "prs": [
+          {
+            "number": 32,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "piloto-diagnostico-github-v5.13.11.2",
+        "sha": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 77,
+        "merge_base": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+        "prs": [
+          {
+            "number": 40,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "ram-smart-cleanup-v5.13.10.24",
+        "sha": "c36ba87aa1c4cffa60fb0a2c5715588379acb800",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 721,
+        "merge_base": "c36ba87aa1c4cffa60fb0a2c5715588379acb800",
+        "prs": [
+          {
+            "number": 33,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "security/ci-least-privilege-pin-2026-10-22",
+        "sha": "64ba78bdb6331310079007dfa7e435c277042866",
+        "status": "diverged",
+        "ahead": 1,
+        "behind": 702,
+        "merge_base": "ec8a2111ea9582465eb76aaaa668539ecff91d44",
+        "prs": [
+          {
+            "number": 42,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "telemetria-voluntaria-local-v5.13.11.1",
+        "sha": "77443bb6fad063c05245fbfd1642ccbdabd31ce7",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 671,
+        "merge_base": "77443bb6fad063c05245fbfd1642ccbdabd31ce7",
+        "prs": [
+          {
+            "number": 38,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-abertura-v5.12.21.2",
+        "sha": "0a7fc28b83a1c3886bc20ead5cf25a1742bb3289",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1128,
+        "merge_base": "0a7fc28b83a1c3886bc20ead5cf25a1742bb3289",
+        "prs": [
+          {
+            "number": 16,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-acoes-v5.12.13",
+        "sha": "2792192e7fa9fd8ad9bcd6a46652695b5cf0bc15",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1303,
+        "merge_base": "2792192e7fa9fd8ad9bcd6a46652695b5cf0bc15",
+        "prs": [
+          {
+            "number": 1,
+            "state": "closed",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-atualizador-v5.12.7",
+        "sha": "fa8de2dac363f81c6901395b344ba89b64447746",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1414,
+        "merge_base": "fa8de2dac363f81c6901395b344ba89b64447746",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-auditoria-residuos-v5.12.22",
+        "sha": "37ae63d46aa53ecfa441d475c15b009fd81640d0",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1116,
+        "merge_base": "37ae63d46aa53ecfa441d475c15b009fd81640d0",
+        "prs": [
+          {
+            "number": 17,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-bloqueio-obs-v5.12.17.1",
+        "sha": "34db2135829507158b43a67216d441cdb902a46d",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1228,
+        "merge_base": "34db2135829507158b43a67216d441cdb902a46d",
+        "prs": [
+          {
+            "number": 8,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-botoes-v5.12.18.1",
+        "sha": "2928c669178e5a031a74f563ca5c5e9a752b9a48",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1198,
+        "merge_base": "2928c669178e5a031a74f563ca5c5e9a752b9a48",
+        "prs": [
+          {
+            "number": 10,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-catalogo-residuos-v5.12.20",
+        "sha": "0446b74bbcb28442a2d6b9f96d4327e5328f3a2c",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1160,
+        "merge_base": "0446b74bbcb28442a2d6b9f96d4327e5328f3a2c",
+        "prs": [
+          {
+            "number": 13,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-clareza-v5.12.14.1",
+        "sha": "8773543ec6ae3a5f08f8f5a06bd70d04fa1fbe01",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1274,
+        "merge_base": "8773543ec6ae3a5f08f8f5a06bd70d04fa1fbe01",
+        "prs": [
+          {
+            "number": 4,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-cobertura-ms-v5.12.11",
+        "sha": "dd8bb8f8ee3cb724fb46a891163a706725993433",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1338,
+        "merge_base": "dd8bb8f8ee3cb724fb46a891163a706725993433",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-cobertura-v5.12.10",
+        "sha": "322d8349b15df6bcfa7d5ff734cbb7d110d72d1e",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1347,
+        "merge_base": "322d8349b15df6bcfa7d5ff734cbb7d110d72d1e",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-completo-ruckzuck-v5.12.6",
+        "sha": "70330f789db20410bb4bc57c6e993f5d72a56db1",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1472,
+        "merge_base": "70330f789db20410bb4bc57c6e993f5d72a56db1",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-confiabilidade-v5.12.7.3",
+        "sha": "6ffe33c7ee4a021dc399d4025683c0c54d15c057",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1387,
+        "merge_base": "6ffe33c7ee4a021dc399d4025683c0c54d15c057",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-consolidacao-v5.13.10.17",
+        "sha": "d9a5751230af8b3facf3cb1be788182981c9ceb7",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 785,
+        "merge_base": "d9a5751230af8b3facf3cb1be788182981c9ceb7",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-consolidacao-v5.13.10.18",
+        "sha": "baccbe25332c634d8f21c18c21ab0260ab1ae160",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 779,
+        "merge_base": "baccbe25332c634d8f21c18c21ab0260ab1ae160",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-consolidacao-v5.13.10.19",
+        "sha": "363776ba061e4538a9e805c82562dcaff0ab882e",
+        "status": "diverged",
+        "ahead": 1,
+        "behind": 772,
+        "merge_base": "cbeca35a4bc240eb074a65c18ef48c5a79589e62",
+        "prs": [],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-consolidacao-v5.13.10.20",
+        "sha": "b7679560d11f38a47965ebf4d05423ecb2f781a0",
+        "status": "diverged",
+        "ahead": 4,
+        "behind": 772,
+        "merge_base": "cbeca35a4bc240eb074a65c18ef48c5a79589e62",
+        "prs": [],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-desempenho-v5.13.10.16",
+        "sha": "13b426efcddd25ea5e23bd8fca82af32a8d857d2",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 787,
+        "merge_base": "13b426efcddd25ea5e23bd8fca82af32a8d857d2",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-diagnostico-hardware-v5.13.1",
+        "sha": "cd434269d75c4a379ffccfc9c6e81290c423db05",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1064,
+        "merge_base": "cd434269d75c4a379ffccfc9c6e81290c423db05",
+        "prs": [
+          {
+            "number": 21,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-diagnostico-precisao-v5.13.6",
+        "sha": "dd89e28eab2aa193accbf5e85dc566aeef631c72",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1003,
+        "merge_base": "dd89e28eab2aa193accbf5e85dc566aeef631c72",
+        "prs": [
+          {
+            "number": 26,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-fechamento-v5.12.17",
+        "sha": "e953293efa017d22bb535f2f48fd02f1ec0bd8a6",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1236,
+        "merge_base": "e953293efa017d22bb535f2f48fd02f1ec0bd8a6",
+        "prs": [
+          {
+            "number": 7,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-feedback-v5.12.7.1",
+        "sha": "797ee5a29dcec3fb5e69dcdce0aead122bbd06ae",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1407,
+        "merge_base": "797ee5a29dcec3fb5e69dcdce0aead122bbd06ae",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-gameinput-v5.12.15",
+        "sha": "0d8cf037256872fd7a9455d0530bdb69778118f3",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1262,
+        "merge_base": "0d8cf037256872fd7a9455d0530bdb69778118f3",
+        "prs": [
+          {
+            "number": 5,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-identidade-unificada-v5.12.21",
+        "sha": "8c44bd1ca14946522b2b73db7f14330448965150",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1143,
+        "merge_base": "8c44bd1ca14946522b2b73db7f14330448965150",
+        "prs": [
+          {
+            "number": 14,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-inicializacao-v5.12.6.3",
+        "sha": "d1edbd5807a86ea193167726d27a0b823bcf7c5d",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1437,
+        "merge_base": "d1edbd5807a86ea193167726d27a0b823bcf7c5d",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-inicializacao-v5.12.13.1",
+        "sha": "3dbf87e14f1e16a7f4d2b305179af043b317a567",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1294,
+        "merge_base": "3dbf87e14f1e16a7f4d2b305179af043b317a567",
+        "prs": [
+          {
+            "number": 2,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-inventario-ampliado-v5.13.2",
+        "sha": "2db554350cfb0c421e33ed0129bd370f4b14614e",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1041,
+        "merge_base": "2db554350cfb0c421e33ed0129bd370f4b14614e",
+        "prs": [
+          {
+            "number": 22,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-inventario-jogos-v5.13.5",
+        "sha": "a8cc6d9304910171f0a3fc5a47888a223fdb7e5e",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1012,
+        "merge_base": "a8cc6d9304910171f0a3fc5a47888a223fdb7e5e",
+        "prs": [
+          {
+            "number": 25,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-inventario-msix-v5.12.12",
+        "sha": "58ad471b9c24b270a34228c1e13b62bc0c7f0174",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1323,
+        "merge_base": "58ad471b9c24b270a34228c1e13b62bc0c7f0174",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-inventario-residuos-v5.13.7",
+        "sha": "dd89e28eab2aa193accbf5e85dc566aeef631c72",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1003,
+        "merge_base": "dd89e28eab2aa193accbf5e85dc566aeef631c72",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10",
+        "sha": "863bb6da609804700f3a7eb4926929f57fb33408",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 977,
+        "merge_base": "863bb6da609804700f3a7eb4926929f57fb33408",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.1",
+        "sha": "9a20b46f634dd7a66031321e9f25707165233f12",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 964,
+        "merge_base": "9a20b46f634dd7a66031321e9f25707165233f12",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.2",
+        "sha": "731b6b3a12e34e6984ff66716060fd6c2fa5adca",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 953,
+        "merge_base": "731b6b3a12e34e6984ff66716060fd6c2fa5adca",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.3",
+        "sha": "179468584be589b5b264fe8c344919110e1498f5",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 945,
+        "merge_base": "179468584be589b5b264fe8c344919110e1498f5",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.4",
+        "sha": "a727d0a381a8d8188dcbecad67b4d140ba7e158f",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 934,
+        "merge_base": "a727d0a381a8d8188dcbecad67b4d140ba7e158f",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.5",
+        "sha": "a27b1814c738740f48931d592a540115c063c448",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 917,
+        "merge_base": "a27b1814c738740f48931d592a540115c063c448",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.6",
+        "sha": "9c08bbd2fc2b51704ef257b34477076eb67c8d5a",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 903,
+        "merge_base": "9c08bbd2fc2b51704ef257b34477076eb67c8d5a",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.7",
+        "sha": "2546a8fb745b20e96b21f93d1caa7c01ee76bdbe",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 886,
+        "merge_base": "2546a8fb745b20e96b21f93d1caa7c01ee76bdbe",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.8",
+        "sha": "e31356543262fa654820e393ff60df6ff6f56331",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 876,
+        "merge_base": "e31356543262fa654820e393ff60df6ff6f56331",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.9",
+        "sha": "2a68e34c01682346c54a6a9b61ccf0c87f90a71e",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 864,
+        "merge_base": "2a68e34c01682346c54a6a9b61ccf0c87f90a71e",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.10",
+        "sha": "750ef255c32de4a517210f0eafc5c272dbda4984",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 855,
+        "merge_base": "750ef255c32de4a517210f0eafc5c272dbda4984",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.11",
+        "sha": "545ca55caa8c2e893388f49d62fdba991311b98d",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 840,
+        "merge_base": "545ca55caa8c2e893388f49d62fdba991311b98d",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-layout-v5.13.10.12",
+        "sha": "2de8817222353b7045c417fc7550573072b0c49b",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 833,
+        "merge_base": "2de8817222353b7045c417fc7550573072b0c49b",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-limpeza-profunda-v5.12.19",
+        "sha": "fce0abe8ba6c0410512f0c9879f14f26169db9a7",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1174,
+        "merge_base": "fce0abe8ba6c0410512f0c9879f14f26169db9a7",
+        "prs": [
+          {
+            "number": 12,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-lista-acionavel-v5.13.8",
+        "sha": "ef13e58115105786698adc8fdff4a288248ac7e5",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 984,
+        "merge_base": "ef13e58115105786698adc8fdff4a288248ac7e5",
+        "prs": [
+          {
+            "number": 28,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-monitor-v5.13.10.13",
+        "sha": "ae64eeed67eb8d3c5eaafdbd07aca67fe101802a",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 823,
+        "merge_base": "ae64eeed67eb8d3c5eaafdbd07aca67fe101802a",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-motor-v5.12.8",
+        "sha": "2fdc1b86347e696609bf3f18b35fc53e7f7df6ec",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1373,
+        "merge_base": "2fdc1b86347e696609bf3f18b35fc53e7f7df6ec",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-multifontes-v5.12.9",
+        "sha": "f1c5eebd4eb2b3d51cd04e262136684083078ad7",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1358,
+        "merge_base": "f1c5eebd4eb2b3d51cd04e262136684083078ad7",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-novo-computador-v5.13.9",
+        "sha": "31d8bfaa167bc7322affe09fdaa65d13d77d87c3",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 983,
+        "merge_base": "31d8bfaa167bc7322affe09fdaa65d13d77d87c3",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-posdesinstalacao-v5.12.18.2",
+        "sha": "5d8756c87bb9367266203de43db049cc18a21c22",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1185,
+        "merge_base": "5d8756c87bb9367266203de43db049cc18a21c22",
+        "prs": [
+          {
+            "number": 11,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-precisao-residuos-v5.13.3",
+        "sha": "732c6c5e8832fd91761e8fd2d3a8e66bdcba1538",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1033,
+        "merge_base": "732c6c5e8832fd91761e8fd2d3a8e66bdcba1538",
+        "prs": [
+          {
+            "number": 23,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-protecao-jogos-v5.13.4",
+        "sha": "e124d27f37f4c64509e707e28d1d04f560cf2a9d",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1024,
+        "merge_base": "e124d27f37f4c64509e707e28d1d04f560cf2a9d",
+        "prs": [
+          {
+            "number": 24,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-protecao-v5.12.12.1",
+        "sha": "bd3ab3589239e81cdb70c545bd19b457dd95769f",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1314,
+        "merge_base": "bd3ab3589239e81cdb70c545bd19b457dd95769f",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-qualidade-v5.12.6.1",
+        "sha": "4b76d00ce2be669670365f2736612c95871bf06e",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1460,
+        "merge_base": "4b76d00ce2be669670365f2736612c95871bf06e",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-refinamento-limpeza-v5.12.21.1",
+        "sha": "8540be33162b0946f1429ef332ac1e8dec2038f3",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1137,
+        "merge_base": "8540be33162b0946f1429ef332ac1e8dec2038f3",
+        "prs": [
+          {
+            "number": 15,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-refinamento-v5.13.10.14",
+        "sha": "a41a752dc1db6a42231e440fed9ee4efaf186b61",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 811,
+        "merge_base": "a41a752dc1db6a42231e440fed9ee4efaf186b61",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-residuos-contextuais-v5.13.7",
+        "sha": "7bec359c47c378ca2a9ed4864bff90d94311d7f7",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 993,
+        "merge_base": "7bec359c47c378ca2a9ed4864bff90d94311d7f7",
+        "prs": [
+          {
+            "number": 27,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-residuos-historicos-v5.12.23",
+        "sha": "8e233ff6803adfbf1d5f7c67c86081d6f1469475",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1102,
+        "merge_base": "8e233ff6803adfbf1d5f7c67c86081d6f1469475",
+        "prs": [
+          {
+            "number": 18,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-restartmanager-v5.12.18",
+        "sha": "a68b8d4853537ff7c37f8a47a1e7583a1c6541fe",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1213,
+        "merge_base": "a68b8d4853537ff7c37f8a47a1e7583a1c6541fe",
+        "prs": [
+          {
+            "number": 9,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-revisao-estrutural-v5.13.0",
+        "sha": "a62d338ad84b940ac8514606ec0b86701ddf336a",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1076,
+        "merge_base": "a62d338ad84b940ac8514606ec0b86701ddf336a",
+        "prs": [
+          {
+            "number": 20,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-seguranca-v5.13.10.15",
+        "sha": "748d7734cdbd6aadd022388f400d52cb269eb0ad",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 798,
+        "merge_base": "748d7734cdbd6aadd022388f400d52cb269eb0ad",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-simplicidade-v5.12.6.2",
+        "sha": "ee4fc7ef716de9a39fd90391dcdc9384d8d7d70e",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1449,
+        "merge_base": "ee4fc7ef716de9a39fd90391dcdc9384d8d7d70e",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-terminal-github-v5.12.16",
+        "sha": "b55de2363e01a65640f816803b124687f65cd1e3",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1247,
+        "merge_base": "b55de2363e01a65640f816803b124687f65cd1e3",
+        "prs": [
+          {
+            "number": 6,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-usabilidade-v5.12.7.2",
+        "sha": "ed93094900d031e65b3a918dffaece9f91f9db3c",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1399,
+        "merge_base": "ed93094900d031e65b3a918dffaece9f91f9db3c",
+        "prs": [],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-usabilidade-v5.12.14",
+        "sha": "e42afa28ba5f04bc43860c2319273e31c06dfbd0",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1280,
+        "merge_base": "e42afa28ba5f04bc43860c2319273e31c06dfbd0",
+        "prs": [
+          {
+            "number": 3,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "teste-varredura-ampla-v5.12.24",
+        "sha": "45ee8d6972c541478aa27be0256f38ee9cee8ac5",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 1091,
+        "merge_base": "45ee8d6972c541478aa27be0256f38ee9cee8ac5",
+        "prs": [
+          {
+            "number": 19,
+            "state": "closed",
+            "merged": true
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "validacao-final-v5.13.11.39-pc-forte",
+        "sha": "83f137f86ea5ed1426ea1fed48aae564659697a3",
+        "status": "diverged",
+        "ahead": 1,
+        "behind": 284,
+        "merge_base": "f1457c4577096e8df871d9df4d56f47c003dc65a",
+        "prs": [
+          {
+            "number": 45,
+            "state": "closed",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "validacao-integrada-v5.13.11.39-pc-forte",
+        "sha": "eb7e057262053c40e02864a756e78084c5d472e2",
+        "status": "diverged",
+        "ahead": 1,
+        "behind": 285,
+        "merge_base": "9670739c9cc8f3bb5be776e51d86e998783d3d76",
+        "prs": [
+          {
+            "number": 44,
+            "state": "closed",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "validacao-lote-manutencao-pc-fraco-20261022",
+        "sha": "4218d5b430ad1047ec4b138b2a9801e6835088d0",
+        "status": "diverged",
+        "ahead": 1,
+        "behind": 295,
+        "merge_base": "ca7ad50ed6e22f42d16c8e9f19561e51785f1448",
+        "prs": [
+          {
+            "number": 43,
+            "state": "closed",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "validacao-v5.13.11.40-ram-e-desinstalacao",
+        "sha": "064aff34985525fc9efd37bb8f523e9d63ea85bd",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 277,
+        "merge_base": "064aff34985525fc9efd37bb8f523e9d63ea85bd",
+        "prs": [
+          {
+            "number": 46,
+            "state": "closed",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "work16-ecossistema-20261025",
+        "sha": "680ba3134b5191628ebc9ed83f163fa33b85dda4",
+        "status": "diverged",
+        "ahead": 37,
+        "behind": 77,
+        "merge_base": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+        "prs": [
+          {
+            "number": 52,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "work17-cobertura-execucao-20261025",
+        "sha": "96d5f60f9cd28615e5c1d00792c16879eea724fe",
+        "status": "diverged",
+        "ahead": 43,
+        "behind": 77,
+        "merge_base": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+        "prs": [
+          {
+            "number": 53,
+            "state": "open",
+            "merged": false
+          },
+          {
+            "number": 58,
+            "state": "closed",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "work18-ampliacao-atualizacoes-seguras",
+        "sha": "2bc9f4228fd448445fbf181652e5af93005def20",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 24,
+        "merge_base": "2bc9f4228fd448445fbf181652e5af93005def20",
+        "prs": [
+          {
+            "number": 60,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "work-beta-retencao-issues-20261026",
+        "sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+        "status": "diverged",
+        "ahead": 40,
+        "behind": 24,
+        "merge_base": "2bc9f4228fd448445fbf181652e5af93005def20",
+        "prs": [
+          {
+            "number": 62,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "work-integracao-final-20261027",
+        "sha": "d815d1a5348b3f24c29e5c133a45b081cb7f6958",
+        "status": "identical",
+        "ahead": 0,
+        "behind": 0,
+        "merge_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958",
+        "prs": [
+          {
+            "number": 65,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "current_candidate",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "work-lote1-confiabilidade-relatorios",
+        "sha": "7405d83f308a141d2a7f6c68cc5a5dee4a19067c",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 65,
+        "merge_base": "7405d83f308a141d2a7f6c68cc5a5dee4a19067c",
+        "prs": [
+          {
+            "number": 54,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "work-lote2-drivers-leitura",
+        "sha": "6a020c86ba5024b780334217bb7f38b18b23bb34",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 56,
+        "merge_base": "6a020c86ba5024b780334217bb7f38b18b23bb34",
+        "prs": [
+          {
+            "number": 55,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "work-lote3-seguranca-desempenho",
+        "sha": "8f8d1c8fb109ba4956876b398f02dee6ce70f2e3",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 45,
+        "merge_base": "8f8d1c8fb109ba4956876b398f02dee6ce70f2e3",
+        "prs": [
+          {
+            "number": 56,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "work-lote4-consolidacao",
+        "sha": "cb7ca5ccd986fd11c768ee410ac7c2b46296e1c1",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 39,
+        "merge_base": "cb7ca5ccd986fd11c768ee410ac7c2b46296e1c1",
+        "prs": [
+          {
+            "number": 57,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "work-motores-estruturais-20261025",
+        "sha": "a24753af0a2bfd103c19bdfda4775362c895a720",
+        "status": "diverged",
+        "ahead": 17,
+        "behind": 77,
+        "merge_base": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+        "prs": [
+          {
+            "number": 50,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "diverged_preserve_unique_commits",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      },
+      {
+        "branch": "work-pre-beta-etapa0-20261027",
+        "sha": "357877e9acd628f84e5d9944e02e471fe319d1bc",
+        "status": "behind",
+        "ahead": 0,
+        "behind": 8,
+        "merge_base": "357877e9acd628f84e5d9944e02e471fe319d1bc",
+        "prs": [
+          {
+            "number": 64,
+            "state": "open",
+            "merged": false
+          }
+        ],
+        "classification": "ancestor_preserve",
+        "compare_base": "d815d1a5348b3f24c29e5c133a45b081cb7f6958"
+      }
+    ],
+    "branch_counts": {
+      "total": 101,
+      "distinct_tips": 100,
+      "ancestor": 83,
+      "diverged": 17,
+      "current": 1
+    },
+    "same_tip_aliases": [
+      [
+        "teste-diagnostico-precisao-v5.13.6",
+        "teste-inventario-residuos-v5.13.7"
+      ]
+    ],
+    "all_prs_context": [
+      {
+        "number": 65,
+        "title": "[DRAFT INTEGRAÇÃO] Etapa 4 — avaliação concluída; BETA LOCAL pendente",
+        "state": "open",
+        "draft": true,
+        "head": "work-integracao-final-20261027",
+        "sha": "d815d1a5348b3f24c29e5c133a45b081cb7f6958",
+        "base": "work18-ampliacao-atualizacoes-seguras",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/65"
+      },
+      {
+        "number": 64,
+        "title": "[DRAFT PRÉ-BETA] Etapas 0–7 encerradas — correções validadas, piloto conectado bloqueado",
+        "state": "open",
+        "draft": true,
+        "head": "work-pre-beta-etapa0-20261027",
+        "sha": "357877e9acd628f84e5d9944e02e471fe319d1bc",
+        "base": "work18-ampliacao-atualizacoes-seguras",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/64"
+      },
+      {
+        "number": 63,
+        "title": "[DRAFT TESTE] Fonte oficial Google Chrome Stable consultiva — sem WinGet COM",
+        "state": "open",
+        "draft": true,
+        "head": "experimento-chrome-versionhistory-20261027",
+        "sha": "04f59750739c6bdbaeb0bacd86ed2b734fba1271",
+        "base": "work18-ampliacao-atualizacoes-seguras",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/63"
+      },
+      {
+        "number": 62,
+        "title": "[BETA .66] Preparação do piloto conectado e correções de encerramento",
+        "state": "open",
+        "draft": true,
+        "head": "work-beta-retencao-issues-20261026",
+        "sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+        "base": "beta-piloto-consentimento-envio-20261026",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/62"
+      },
+      {
+        "number": 61,
+        "title": "[DRAFT BETA .66] Piloto seguro de diagnóstico com envio automático após consentimento",
+        "state": "open",
+        "draft": true,
+        "head": "beta-piloto-consentimento-envio-20261026",
+        "sha": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+        "base": "work18-ampliacao-atualizacoes-seguras",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/61"
+      },
+      {
+        "number": 60,
+        "title": "[WORK18 TESTE .65] MSI/WiX e acompanhamento ampliados — CI aprovada",
+        "state": "open",
+        "draft": true,
+        "head": "work18-ampliacao-atualizacoes-seguras",
+        "sha": "2bc9f4228fd448445fbf181652e5af93005def20",
+        "base": "integracao-lotes1-4-work14-17-20261025",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/60"
+      },
+      {
+        "number": 59,
+        "title": "[DRAFT INTEGRAÇÃO] Lotes 1–4 + WORK14–WORK17 — CI antes de qualquer merge",
+        "state": "open",
+        "draft": true,
+        "head": "integracao-lotes1-4-work14-17-20261025",
+        "sha": "28beb9607e85d208af4c0864d768a6db7fb5296a",
+        "base": "work-lote4-consolidacao",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/59"
+      },
+      {
+        "number": 57,
+        "title": "[DRAFT TESTE] v5.13.11.63 — Lote 4: consolidação, relatórios legíveis e pacote verificado",
+        "state": "open",
+        "draft": true,
+        "head": "work-lote4-consolidacao",
+        "sha": "cb7ca5ccd986fd11c768ee410ac7c2b46296e1c1",
+        "base": "work-lote3-seguranca-desempenho",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/57"
+      },
+      {
+        "number": 56,
+        "title": "[DRAFT TESTE] Lote 3 — segurança pós-execução, concorrência, memória e pacote auditável",
+        "state": "open",
+        "draft": true,
+        "head": "work-lote3-seguranca-desempenho",
+        "sha": "8f8d1c8fb109ba4956876b398f02dee6ce70f2e3",
+        "base": "work-lote2-drivers-leitura",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/56"
+      },
+      {
+        "number": 55,
+        "title": "[DRAFT TESTE] Lote 2 — investigação de drivers, fontes oficiais e assinatura INF somente leitura",
+        "state": "open",
+        "draft": true,
+        "head": "work-lote2-drivers-leitura",
+        "sha": "6a020c86ba5024b780334217bb7f38b18b23bb34",
+        "base": "work-lote1-confiabilidade-relatorios",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/55"
+      },
+      {
+        "number": 54,
+        "title": "[DRAFT TESTE] Lote 1 — histórico local, bloqueios, relatório e comparação conservadora",
+        "state": "open",
+        "draft": true,
+        "head": "work-lote1-confiabilidade-relatorios",
+        "sha": "7405d83f308a141d2a7f6c68cc5a5dee4a19067c",
+        "base": "piloto-diagnostico-github-v5.13.11.2",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/54"
+      },
+      {
+        "number": 53,
+        "title": "[GF WORK17][DRAFT] v5.13.11.62 — identidade MSI corroborada e descoberta com falhas isoladas",
+        "state": "open",
+        "draft": true,
+        "head": "work17-cobertura-execucao-20261025",
+        "sha": "96d5f60f9cd28615e5c1d00792c16879eea724fe",
+        "base": "work16-ecossistema-20261025",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/53"
+      },
+      {
+        "number": 52,
+        "title": "[GF WORK16][DRAFT] v5.13.11.61 — ecossistemas consultivos, identidade e contratos verificados",
+        "state": "open",
+        "draft": true,
+        "head": "work16-ecossistema-20261025",
+        "sha": "680ba3134b5191628ebc9ed83f163fa33b85dda4",
+        "base": "feat/catalogo-ampliado-consultivo-20261025",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/52"
+      },
+      {
+        "number": 51,
+        "title": "[GF WORK15][DRAFT] Ampliar descoberta de atualizações com catálogo Microsoft, mantendo execução verificada",
+        "state": "open",
+        "draft": true,
+        "head": "feat/catalogo-ampliado-consultivo-20261025",
+        "sha": "f179dbabe78d0d42c4112a283040c5c781f109f0",
+        "base": "work-motores-estruturais-20261025",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/51"
+      },
+      {
+        "number": 50,
+        "title": "[GF WORK14][DRAFT] v5.13.11.60 — inspeção residual e ampliação segura MSI/NSIS/Inno",
+        "state": "open",
+        "draft": true,
+        "head": "work-motores-estruturais-20261025",
+        "sha": "a24753af0a2bfd103c19bdfda4775362c895a720",
+        "base": "auditoria-gf-escopo-catalogo-20261025",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/50"
+      },
+      {
+        "number": 49,
+        "title": "[GF WORK14][DRAFT] Restringir regras de resíduos per-user, corrigir pré-verificação e preparar evolução de catálogos",
+        "state": "open",
+        "draft": true,
+        "head": "auditoria-gf-escopo-catalogo-20261025",
+        "sha": "954949eef8ee84785ee6434f964b6f1e3c9e0b50",
+        "base": "auditoria-gf-fluxos-20261024",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/49"
+      },
+      {
+        "number": 47,
+        "title": "[AUDITORIA GF] Preservar pendências após falhas de inventário em operações silenciosas",
+        "state": "open",
+        "draft": true,
+        "head": "auditoria-gf-fluxos-20261024",
+        "sha": "c27231cb56f1a3dc3dfc9ae966bd8aaa0acbb70c",
+        "base": "piloto-diagnostico-github-v5.13.11.2",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/47"
+      },
+      {
+        "number": 40,
+        "title": "[DRAFT TESTE] v5.13.11.59 — descoberta automática de compatibilidade silenciosa",
+        "state": "open",
+        "draft": true,
+        "head": "piloto-diagnostico-github-v5.13.11.2",
+        "sha": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+        "base": "main",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/40"
+      },
+      {
+        "number": 38,
+        "title": "[PRIVACIDADE / TESTE] v5.13.11.1 — diagnóstico opt-in local e protótipo de retenção",
+        "state": "open",
+        "draft": true,
+        "head": "telemetria-voluntaria-local-v5.13.11.1",
+        "sha": "77443bb6fad063c05245fbfd1642ccbdabd31ce7",
+        "base": "main",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/38"
+      },
+      {
+        "number": 35,
+        "title": "[DISTRIBUIÇÃO] Nomear ZIPs de testes por versão e commit",
+        "state": "open",
+        "draft": true,
+        "head": "identidade-pacotes-v5.13.10.24",
+        "sha": "fcb47dc053d6a3bb3fec82d532c554e5a69a9662",
+        "base": "compatibilidade-avg-integridade-v5.13.10.24",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/35"
+      },
+      {
+        "number": 34,
+        "title": "[SEGURANÇA/CI] Pacote rastreável com SHA256, origem e processo oficial AVG",
+        "state": "open",
+        "draft": true,
+        "head": "compatibilidade-avg-integridade-v5.13.10.24",
+        "sha": "f69a2ee04913251e71fc75dc6fdd0650be5195aa",
+        "base": "ram-smart-cleanup-v5.13.10.24",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/34"
+      },
+      {
+        "number": 33,
+        "title": "[TESTE] v5.13.10.24 — otimização RAM por pressão, somente cache interno",
+        "state": "open",
+        "draft": true,
+        "head": "ram-smart-cleanup-v5.13.10.24",
+        "sha": "c36ba87aa1c4cffa60fb0a2c5715588379acb800",
+        "base": "painel-memoria-ram-v5.13.10.23",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/33"
+      },
+      {
+        "number": 32,
+        "title": "[TESTE] v5.13.10.23 — gráfico de RAM e monitoramento seguro na bandeja",
+        "state": "open",
+        "draft": true,
+        "head": "painel-memoria-ram-v5.13.10.23",
+        "sha": "47a910b24568875cce0c3b6fcc621461d8fb2b27",
+        "base": "monitoramento-leve-compatibilidade-v5.13.10.22",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/32"
+      },
+      {
+        "number": 31,
+        "title": "[TESTE] v5.13.10.22 — monitoramento leve em segundo plano e compatibilidade",
+        "state": "open",
+        "draft": true,
+        "head": "monitoramento-leve-compatibilidade-v5.13.10.22",
+        "sha": "6f83aa1ba1e95ab2ed050f1db673e160f4bd165a",
+        "base": "diagnostico-bandeja-msix-v5.13.10.21",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/31"
+      },
+      {
+        "number": 30,
+        "title": "[DIAGNÓSTICO] v5.13.10.21 — AVG na bandeja, MSIX e versão real",
+        "state": "open",
+        "draft": true,
+        "head": "diagnostico-bandeja-msix-v5.13.10.21",
+        "sha": "e5080d302447069fdebcd77d7a80eed0ee45590f",
+        "base": "correcao-residuos-driver-booster-v5.13.10.20",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/30"
+      },
+      {
+        "number": 29,
+        "title": "[TESTE] v5.13.10.20 — auditoria Driver Booster e rolagem escura",
+        "state": "open",
+        "draft": true,
+        "head": "correcao-residuos-driver-booster-v5.13.10.20",
+        "sha": "ad22673a3bf725767c40ffdd8409513ae4e5f1d8",
+        "base": "teste-consolidacao-v5.13.10.19",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/29"
+      },
+      {
+        "number": 28,
+        "title": "TESTE v5.13.8 — lista Aplicativos mostra apenas desinstalações e atualizações",
+        "state": "open",
+        "draft": true,
+        "head": "teste-lista-acionavel-v5.13.8",
+        "sha": "ef13e58115105786698adc8fdff4a288248ac7e5",
+        "base": "teste-residuos-contextuais-v5.13.7",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/28"
+      },
+      {
+        "number": 27,
+        "title": "TESTE v5.13.7 — auditoria contextual de fabricantes e falhas de desinstalação",
+        "state": "open",
+        "draft": true,
+        "head": "teste-residuos-contextuais-v5.13.7",
+        "sha": "7bec359c47c378ca2a9ed4864bff90d94311d7f7",
+        "base": "teste-diagnostico-precisao-v5.13.6",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/27"
+      },
+      {
+        "number": 26,
+        "title": "TESTE v5.13.6 — corrigir logs e evitar falsos alertas de PnP e Proton Pass",
+        "state": "open",
+        "draft": true,
+        "head": "teste-diagnostico-precisao-v5.13.6",
+        "sha": "dd89e28eab2aa193accbf5e85dc566aeef631c72",
+        "base": "teste-inventario-jogos-v5.13.5",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/26"
+      },
+      {
+        "number": 25,
+        "title": "TESTE v5.13.5 — exibir jogos Steam/Epic no inventário, sem duplicações",
+        "state": "open",
+        "draft": true,
+        "head": "teste-inventario-jogos-v5.13.5",
+        "sha": "a8cc6d9304910171f0a3fc5a47888a223fdb7e5e",
+        "base": "teste-protecao-jogos-v5.13.4",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/25"
+      },
+      {
+        "number": 24,
+        "title": "TESTE v5.13.4 — proteger jogos Steam/Epic ativos na auditoria de resíduos",
+        "state": "open",
+        "draft": true,
+        "head": "teste-protecao-jogos-v5.13.4",
+        "sha": "e124d27f37f4c64509e707e28d1d04f560cf2a9d",
+        "base": "teste-precisao-residuos-v5.13.3",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/24"
+      },
+      {
+        "number": 58,
+        "title": "[SUPERADA SEM MERGE] Comparação WORK17 → Lotes 1–4 — substituída pela PR #59",
+        "state": "closed",
+        "draft": true,
+        "head": "work17-cobertura-execucao-20261025",
+        "sha": "96d5f60f9cd28615e5c1d00792c16879eea724fe",
+        "base": "integracao-lotes1-4-work14-17-20261025",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/58"
+      },
+      {
+        "number": 46,
+        "title": "[CI APROVADA — SEM MERGE] v5.13.11.40 RAM/desinstalação/resíduos",
+        "state": "closed",
+        "draft": true,
+        "head": "validacao-v5.13.11.40-ram-e-desinstalacao",
+        "sha": "064aff34985525fc9efd37bb8f523e9d63ea85bd",
+        "base": "main",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/46"
+      },
+      {
+        "number": 45,
+        "title": "[CI APROVADA / ENCERRADA SEM MERGE] Validação v5.13.11.39",
+        "state": "closed",
+        "draft": true,
+        "head": "validacao-final-v5.13.11.39-pc-forte",
+        "sha": "83f137f86ea5ed1426ea1fed48aae564659697a3",
+        "base": "main",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/45"
+      },
+      {
+        "number": 44,
+        "title": "[CI SUPERADA / ENCERRADA SEM MERGE] Validação intermediária v5.13.11.39",
+        "state": "closed",
+        "draft": true,
+        "head": "validacao-integrada-v5.13.11.39-pc-forte",
+        "sha": "9670739c9cc8f3bb5be776e51d86e998783d3d76",
+        "base": "main",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/44"
+      },
+      {
+        "number": 43,
+        "title": "[CI APROVADA / ENCERRADA] Validação do lote pós-.38 (não mesclar)",
+        "state": "closed",
+        "draft": true,
+        "head": "validacao-lote-manutencao-pc-fraco-20261022",
+        "sha": "4218d5b430ad1047ec4b138b2a9801e6835088d0",
+        "base": "main",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/43"
+      },
+      {
+        "number": 42,
+        "title": "[SEGURANÇA/CI] Isolar atestação OIDC e fixar GitHub Actions na main",
+        "state": "closed",
+        "draft": false,
+        "head": "security/ci-least-privilege-pin-2026-10-22",
+        "sha": "64ba78bdb6331310079007dfa7e435c277042866",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/42"
+      },
+      {
+        "number": 41,
+        "title": "[MANUTENÇÃO] Remover workflows obsoletos e guias versionados da main",
+        "state": "closed",
+        "draft": false,
+        "head": "chore/limpeza-historicos-main-2026-10-22",
+        "sha": "20111400ebe6767040679a997150820d9695cb09",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/41"
+      },
+      {
+        "number": 36,
+        "title": "[CANDIDATA] v5.13.11.0 — consolidar avanços 5.13, fontes oficiais e CI completo",
+        "state": "closed",
+        "draft": false,
+        "head": "candidata-v5.13.11.0-fontes-consolidacao",
+        "sha": "c91a8d2d38179f41a84c14e839c542605ed2dc4d",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/36"
+      },
+      {
+        "number": 23,
+        "title": "TESTE v5.13.3 — reduzir falsos positivos na auditoria de resíduos",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-precisao-residuos-v5.13.3",
+        "sha": "732c6c5e8832fd91761e8fd2d3a8e66bdcba1538",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/23"
+      },
+      {
+        "number": 22,
+        "title": "TESTE v5.13.2 — inventário Win32 e MSIX independentes das receitas",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-inventario-ampliado-v5.13.2",
+        "sha": "2db554350cfb0c421e33ed0129bd370f4b14614e",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/22"
+      },
+      {
+        "number": 21,
+        "title": "TESTE v5.13.1 — registros PCI/USB antigos, métrica de cobertura e botão sem corte",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-diagnostico-hardware-v5.13.1",
+        "sha": "cd434269d75c4a379ffccfc9c6e81290c423db05",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/21"
+      },
+      {
+        "number": 20,
+        "title": "TESTE v5.13.0 — revisão estrutural: inventário de desinstaladores e hardware PnP antigo",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-revisao-estrutural-v5.13.0",
+        "sha": "a62d338ad84b940ac8514606ec0b86701ddf336a",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/20"
+      },
+      {
+        "number": 19,
+        "title": "TESTE v5.12.24 — descobrir vestígios antigos sem depender de histórico do Gerenciador Final",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-varredura-ampla-v5.12.24",
+        "sha": "45ee8d6972c541478aa27be0256f38ee9cee8ac5",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/19"
+      },
+      {
+        "number": 18,
+        "title": "TESTE v5.12.23 — revisão histórica de vestígios Origin/uTorrent Web/Vivaldi",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-residuos-historicos-v5.12.23",
+        "sha": "8e233ff6803adfbf1d5f7c67c86081d6f1469475",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/18"
+      },
+      {
+        "number": 17,
+        "title": "TESTE v5.12.22 — auditoria complementar após desinstalar (DroidCam/Notepad++)",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-auditoria-residuos-v5.12.22",
+        "sha": "37ae63d46aa53ecfa441d475c15b009fd81640d0",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/17"
+      },
+      {
+        "number": 16,
+        "title": "TESTE v5.12.21.2 — abrir com janela completa e validar pós-desinstalação",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-abertura-v5.12.21.2",
+        "sha": "0a7fc28b83a1c3886bc20ead5cf25a1742bb3289",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/16"
+      },
+      {
+        "number": 15,
+        "title": "Teste v5.12.21.1 — refinamento visual da Limpeza e desempenho",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-refinamento-limpeza-v5.12.21.1",
+        "sha": "8540be33162b0946f1429ef332ac1e8dec2038f3",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/15"
+      },
+      {
+        "number": 14,
+        "title": "TESTE v5.12.21 — catálogo unificado para inventário, fontes oficiais e desinstalação",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-identidade-unificada-v5.12.21",
+        "sha": "8c44bd1ca14946522b2b73db7f14330448965150",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/14"
+      },
+      {
+        "number": 13,
+        "title": "TESTE v5.12.20 — mostrar limpeza avançada e centralizar regras em catálogo JSON embutido",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-catalogo-residuos-v5.12.20",
+        "sha": "0446b74bbcb28442a2d6b9f96d4327e5328f3a2c",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/13"
+      },
+      {
+        "number": 12,
+        "title": "TESTE v5.12.19 — limpeza profunda avançada de dados exclusivos e HKCU",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-limpeza-profunda-v5.12.19",
+        "sha": "fce0abe8ba6c0410512f0c9879f14f26169db9a7",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/12"
+      },
+      {
+        "number": 11,
+        "title": "TESTE v5.12.18.2 — revisão segura de resíduos após desinstalar",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-posdesinstalacao-v5.12.18.2",
+        "sha": "5d8756c87bb9367266203de43db049cc18a21c22",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/11"
+      },
+      {
+        "number": 10,
+        "title": "HOTFIX v5.12.18.1 — botões de atualização Notepad++ e SumatraPDF com regras verificadas",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-botoes-v5.12.18.1",
+        "sha": "2928c669178e5a031a74f563ca5c5e9a752b9a48",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/10"
+      },
+      {
+        "number": 9,
+        "title": "TESTE v5.12.18 — detectar arquivos em uso com Restart Manager antes de atualizar",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-restartmanager-v5.12.18",
+        "sha": "a68b8d4853537ff7c37f8a47a1e7583a1c6541fe",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/9"
+      },
+      {
+        "number": 8,
+        "title": "HOTFIX v5.12.17.1 — verificar Microsoft Edge antes da atualização OBS",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-bloqueio-obs-v5.12.17.1",
+        "sha": "34db2135829507158b43a67216d441cdb902a46d",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/8"
+      },
+      {
+        "number": 7,
+        "title": "TESTE v5.12.17 — fechar programas antes de atualizar, com aviso e opção de forçar",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-fechamento-v5.12.17",
+        "sha": "e953293efa017d22bb535f2f48fd02f1ec0bd8a6",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/7"
+      },
+      {
+        "number": 6,
+        "title": "TESTE v5.12.16 — atualizar Windows Terminal pelo MSIX oficial do GitHub",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-terminal-github-v5.12.16",
+        "sha": "b55de2363e01a65640f816803b124687f65cd1e3",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/6"
+      },
+      {
+        "number": 5,
+        "title": "TESTE v5.12.15 — atualizar GameInput pelo redistribuível oficial (sem Microsoft Store)",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-gameinput-v5.12.15",
+        "sha": "0d8cf037256872fd7a9455d0530bdb69778118f3",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/5"
+      },
+      {
+        "number": 4,
+        "title": "TESTE v5.12.14.1 — distinguir catálogo de atualização oferecida na Store",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-clareza-v5.12.14.1",
+        "sha": "8773543ec6ae3a5f08f8f5a06bd70d04fa1fbe01",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/4"
+      },
+      {
+        "number": 3,
+        "title": "TESTE v5.12.14 — Microsoft Store, progresso visual e receitas GitHub verificadas",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-usabilidade-v5.12.14",
+        "sha": "e42afa28ba5f04bc43860c2319273e31c06dfbd0",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/3"
+      },
+      {
+        "number": 2,
+        "title": "HOTFIX v5.12.13.1 — manifesto de inicialização Win32 (SxS)",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-inicializacao-v5.12.13.1",
+        "sha": "3dbf87e14f1e16a7f4d2b305179af043b317a567",
+        "base": "main",
+        "merged": true,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/2"
+      },
+      {
+        "number": 1,
+        "title": "SUBSTITUÍDA — v5.12.13 com falha SxS no manifesto",
+        "state": "closed",
+        "draft": true,
+        "head": "teste-acoes-v5.12.13",
+        "sha": "2792192e7fa9fd8ad9bcd6a46652695b5cf0bc15",
+        "base": "main",
+        "merged": false,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/pull/1"
+      }
+    ],
+    "open_prs": 31,
+    "closed_prs_context": 31,
+    "closed_prs_merged": 25,
+    "closed_prs_not_merged": 6,
+    "all_open_prs_draft": true,
+    "issues": [
+      {
+        "number": 48,
+        "title": "[R4/R7][TESTE PC FORTE] Cobertura residual inconclusiva após desinstalações silenciosas: HKLM 32/64 erro 5",
+        "state": "open",
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/issues/48",
+        "disposition": "Preservar evidência sanitizada R4/R7; conferir aplicabilidade na Etapa 6, sem operação em PC."
+      },
+      {
+        "number": 39,
+        "title": "Diagnóstico colaborativo + IA GitHub — recebimento seguro, PRs e limpeza automática",
+        "state": "open",
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/issues/39",
+        "disposition": "Plano histórico de diagnóstico; não autoriza envio/infraestrutura."
+      },
+      {
+        "number": 37,
+        "title": "v5.13.11.0 — checklist para pré-lançamento público após consolidação do código",
+        "state": "open",
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/issues/37",
+        "disposition": "Checklist histórico .0/AVG; não aprova .66 ou Release."
+      }
+    ],
+    "releases": 0,
+    "tags": 0,
+    "tree": {
+      "blob_count": 437,
+      "bytes": 4632177,
+      "categories": {
+        "root": 165,
+        ".github": 6,
+        "Assets": 2,
+        "TestesAtualizador": 22,
+        "TestesCatalogo": 3,
+        "TestesDrivers": 7,
+        "TestesEcossistema": 3,
+        "TestesFechamento": 2,
+        "TestesLayout": 17,
+        "TestesManifesto": 1,
+        "TestesMotor": 3,
+        "TestesMsix": 2,
+        "TestesMultifontes": 9,
+        "TestesRede": 2,
+        "TestesResiduos": 30,
+        "TestesSeguranca": 4,
+        "TestesTelemetria": 4,
+        "docs": 114,
+        "prototipos": 29,
+        "scripts": 12
+      },
+      "markdown_files": 91,
+      "relative_links_checked": 279,
+      "broken_relative_links": [],
+      "exact_duplicate_blobs": [],
+      "project_files": [
+        "GerenciadorAplicativos.csproj",
+        "TestesAtualizador/TestesAtualizador.csproj",
+        "TestesCatalogo/TestesCatalogo.csproj",
+        "TestesDrivers/TestesDrivers.csproj",
+        "TestesEcossistema/TestesEcossistema.csproj",
+        "TestesFechamento/TestesFechamento.csproj",
+        "TestesLayout/TestesLayout.csproj",
+        "TestesMotor/TestesMotor.csproj",
+        "TestesMsix/TestesMsix.csproj",
+        "TestesMultifontes/TestesMultifontes.csproj",
+        "TestesRede/TestesRede.csproj",
+        "TestesResiduos/SilentFixture/SilentFixture.csproj",
+        "TestesResiduos/SquirrelFixture/SquirrelFixture.csproj",
+        "TestesResiduos/TestesResiduos.csproj",
+        "TestesSeguranca/TestesSeguranca.csproj",
+        "TestesTelemetria/TestesTelemetria.csproj"
+      ],
+      "root_product_cs": 142,
+      "test_cs": 92,
+      "unexpected_generated_files": [],
+      "windows_case_collisions": []
+    },
+    "projects": {
+      "explicit_project_references": 157,
+      "unresolved_references": [],
+      "test_cs_excluded_from_product": 92,
+      "missing_test_exclusions": [],
+      "test_suites": 13,
+      "synthetic_fixture_projects": 2,
+      "root_product_cs": 142,
+      "root_fixture_sources_excluded": [
+        "SmallAppResidualCleanup.cs",
+        "SevenZipCompleteCleanup.cs"
+      ]
+    },
+    "text_files_read_by_blob_sha": {
+      ".github/dependabot.yml": "ffaffded1d25046f42a7b4a0c11bd6087436d168",
+      ".github/workflows/build-windows.yml": "da93195297f81fdfd5b21c72bbf41e1bf6b3962f",
+      ".github/workflows/integridade-externa.yml": "1b526a3efa1d5c1ebe6ee3876196ec6ad256170d",
+      ".github/workflows/triagem-diagnostico-github.yml": "22631a534244405a84bea98c0fe94531fc1eeb5f",
+      ".github/workflows/validar-candidata-windows.yml": "fc373df744333a86f26eb1640fe9b8a92e9a1d90",
+      ".gitignore": "ac8704b0be958e3282b6a8f03d42399cf8809a7c",
+      "BetaTelemetryPolicy.props": "9017b4ed04d647b7b888bbc1d307dbd08d428307",
+      "CHANGELOG.md": "09c986e30a027dfc6afe66d209addf76861352bf",
+      "CONTRIBUTING.md": "09fba759ca5410098c3d3718381362a486f7905c",
+      "Directory.Build.props": "9ca341e42783131506152997babeb34cb6beb3de",
+      "GerenciadorAplicativos.csproj": "49fa1ec14973fa5f438ccaf7f0fb47945a04d357",
+      "PRIVACY.md": "3816b6d75b91bdf4cd81e4395771bc2f09bd7850",
+      "README.md": "6315c2875b5384b4ee769d8d46d9e3a3ed20adf1",
+      "SECURITY.md": "95ecbecc9ed4bda514fa141b2e6e4c89fbcea878",
+      "TestesAtualizador/TestesAtualizador.csproj": "1e06a7cda7ab3db6dd26c3227cd15714c34406d3",
+      "TestesCatalogo/TestesCatalogo.csproj": "1da07780c86e5e79e2de890975e348c35761ca63",
+      "TestesDrivers/TestesDrivers.csproj": "9bb214a27056ec789cb19937d4040d84c763b82b",
+      "TestesEcossistema/TestesEcossistema.csproj": "d3f83608263b3fb4c3c8b8dfba70a95f4a314248",
+      "TestesFechamento/TestesFechamento.csproj": "6a14554104d01da9499a9a2f30ce480dea661aa5",
+      "TestesLayout/TestesLayout.csproj": "59fb71d676e87d792118edf4cf6fb6383b04d7e5",
+      "TestesMotor/TestesMotor.csproj": "3f6990b653de19745120cac146f34d271b855327",
+      "TestesMsix/TestesMsix.csproj": "51ce291025cc8a33ed7532ff907aa8cb69455eb5",
+      "TestesMultifontes/TestesMultifontes.csproj": "40dceb4f176baaa1b51d47b5dbb92662a6de6ed9",
+      "TestesRede/TestesRede.csproj": "95fe5963828748bd0bb0fb54b757fb62d2a428ec",
+      "TestesResiduos/SilentFixture/SilentFixture.csproj": "4e7c0aa6a2b092975857fb475df1b6367145fcda",
+      "TestesResiduos/SquirrelFixture/SquirrelFixture.csproj": "7810b4a1776b6c15eeb6bfe88ff4e9b57199e267",
+      "TestesResiduos/TestesResiduos.csproj": "954ce1b1feeb79bbd021081967d080b95824c386",
+      "TestesSeguranca/TestesSeguranca.csproj": "343af6e0bafddc71a21e5d38e92b44bfcc2ba237",
+      "TestesTelemetria/TestesTelemetria.csproj": "caefd5b654f597117c139bb686e841f87343182c",
+      "docs/ACTIONS-ATUAIS-E-HISTORICAS.md": "bf198f4ae921f4864dfe7603802068c234017118",
+      "docs/AUDITORIA-BETA-RETENCAO-20261026.md": "f5b975be55af5c3bfe6e25aa9105fc3a6682dd30",
+      "docs/AUDITORIA-BETA-RODADA2-20261026.md": "9883fa3611306cd56953dd2de3f28400e0e3a090",
+      "docs/AUDITORIA-v5.13.11.4.md": "8ba492b5e5a0d846bbed35fc2551ce5a25794983",
+      "docs/AVG-DESENVOLVIMENTO-SEGURO.md": "4bab8805d02739861aca3523e4a8824d95fc1a71",
+      "docs/AVISO-PRIVACIDADE-BETA.md": "533a236d582d43181b9f56fa3cfa2ca0d9b1286e",
+      "docs/BENCHMARKS-WORK3.md": "f8000c2b0bf1d0a08138cc207ad040376c03ad35",
+      "docs/BETA-66-HOMOLOGACAO-CONECTADA.md": "e62afa9a6e2bb8cc649015f0f1ee0be0c966eb52",
+      "docs/DIAGNOSTICO-COLABORATIVO.md": "4d8c1d7d46bc8615ebecd76e9f60317576a81d49",
+      "docs/EXPERIENCIA-CONTRIBUICAO-SIMPLES.md": "074805c5e9d8d58c54d02199ede970e5a4f4cd2c",
+      "docs/EXPERIMENTO-CHROME-VERSIONHISTORY-20261027.md": "4b866a90790818c725e827addc6f5079f9fbbe5b",
+      "docs/GITHUB-PASSO-A-PASSO.md": "373f54ed54879c992d0aad606ba96b6c2ad30a9e",
+      "docs/INFRAESTRUTURA-ENVIO-SEGURO.md": "d8c26c2429b007072daf2f0aae6285d2896b4026",
+      "docs/MEMORIA-RAM.md": "5f3d5321d4e27923fc414f82e0f672b5ca6f70e0",
+      "docs/MISSAO-BETA.md": "79baf4888e98900709bc9a78382d45ebf5cf1aa2",
+      "docs/MISSAO-INTEGRACAO.md": "dddcd28d6a341b1288b6be09b0bc525b980fa018",
+      "docs/MISSAO-LOTE1.md": "abf5439bc9952013c1f1d11053268ae887bc711d",
+      "docs/MISSAO-LOTE2.md": "bef6eee196fbe4ac2c60ce0f9ce811096a150cdb",
+      "docs/MISSAO-LOTE3.md": "9269ea8ad118190a045f13c987131f73acf007ee",
+      "docs/MISSAO-LOTE4.md": "f7eecfe73a93548592efcf50d19fe931bd67ab63",
+      "docs/MISSAO-RESIDUOS-v5.13.11.15.md": "5d177bde2cc62ccf741a582cdb3010bf532ffda3",
+      "docs/MISSAO-WORK10.md": "4c057cbf3e67a928862da695eac295fd5025c56d",
+      "docs/MISSAO-WORK11.md": "62e068893c7d14e113eff57cf1c3ad2d84abb538",
+      "docs/MISSAO-WORK12.md": "f357ae8693af8929ed0842187de7408b8d6436ff",
+      "docs/MISSAO-WORK13.md": "a8b1e4849f6733c5d2cc2d325468d2c060a02809",
+      "docs/MISSAO-WORK14-MOTORES.md": "18ee47f0c329709f7aaeed2811eb3da98c9ff8be",
+      "docs/MISSAO-WORK15-COBERTURA.md": "2edc4cebbbb1d43e6a716f98ab9a99d72222c387",
+      "docs/MISSAO-WORK16.md": "94c037bec732a71b534d90b4b61489133a640d04",
+      "docs/MISSAO-WORK17.md": "c35ac781cffd640a03db186589bf62943d3aa99a",
+      "docs/MISSAO-WORK18.md": "daf068eb0f7b95e74e0d63b350a055c84e1a1dc9",
+      "docs/MISSAO-WORK2-v5.13.11.16.md": "07a9249e6bc1f9d11c1d2262ec43386ee0e7ee58",
+      "docs/MISSAO-WORK3-v5.13.11.17.md": "ad134df4d0020328a61f813d4f5e7a719b93ff6a",
+      "docs/MISSAO-WORK5.md": "13342c17cdbd3c093108d566e1e683b0708f4673",
+      "docs/MISSAO-WORK6-RESULTADO.md": "0bd6b49823771450016de38d9c082f1da110b126",
+      "docs/MISSAO-WORK6.md": "556aa5f3785518f25b5fc1238b6249e2f1515170",
+      "docs/MISSAO-WORK7-RESULTADO.md": "5e621d4c73256f4af160dd82b93ee54e1384e0b4",
+      "docs/MISSAO-WORK9-PARTE1.md": "8f818411d5948692e88d538ef5efb82fa295f298",
+      "docs/MISSAO-WORK9-PARTE2.md": "24f06a35720245bd04427ee680a06e540e7da884",
+      "docs/MODELO-INSCRICAO-SIGNPATH.md": "b84d87a9733f3c8656d1acf2f940840a70defe08",
+      "docs/OPERACAO-FAXINA-FINAL.md": "4081a54ff7cd9358a7abfd9b87ad485a80f22588",
+      "docs/ORGANIZACAO-REPOSITORIO.md": "c4f77ca1222cb9cfdb2df9e3ceec097867c09c63",
+      "docs/PESQUISA-FONTES-v5.13.11.0.md": "5909af3ac4276ceec14aed48addceb62efd01cb4",
+      "docs/PESQUISA-OTIMIZACAO-RAM-2026-10-20.md": "2fd9928cd51d4cca403052fabda56dcef08dc70b",
+      "docs/PILOTO-AUTENTICACAO-GITHUB.md": "710083ffb01aa4c5d0dce5f169f50e9fceb7053e",
+      "docs/PILOTO-DIAGNOSTICO-GITHUB.md": "3afd9cbe6691ab65000dfb12c9195ae94f5fefed",
+      "docs/PIPELINE-IA-GITHUB.md": "7fbe462d063146e533cc42b775c643d34847061f",
+      "docs/PLANO-COMPATIBILIDADE-ANTIVIRUS.md": "61bf9f34faa65925d4bb9db41e3940b42b88f506",
+      "docs/PUBLICACAO.md": "69236aa26ba34fd898f2ca10045551d15aa207b9",
+      "docs/ROADMAP.md": "484fcc0d7a9adec18f400fb3bde58454e573975d",
+      "docs/SEGURANCA-GITHUB-WORK2.md": "adca461c73e3dccbf208641d0228860e2919a23f",
+      "docs/SEGURANCA-v5.13.11.5.md": "18f72882f0da864f28d059652ae381ef820ac28b",
+      "docs/SEGURANCA-v5.13.11.6.md": "1d825d34c59ead4cb57ee3f72e94f91ef082fac5",
+      "docs/SEGURANCA-v5.13.11.7.md": "4cb0435c67ef854e8f96e0a53072ba752bd98008",
+      "docs/SIGNPATH.md": "fe4c9616d54c4de1d49fe1ebe3e3441f41d2ac41",
+      "docs/SIMULACAO-MANUTENCAO-WINMERGE-2026-10-20.md": "ca5c508c079bba446a9db91db7c33840edfc2a39",
+      "docs/TESTE-CONSOLIDADO.md": "4a315bff3685239ce8aff02f4ca74cf2fd3e202d",
+      "docs/TESTE-REAL-v5.13.11.8-2026-10-20.md": "cba1cfca8782a8c30a15bff220640be1995991b8",
+      "docs/TESTES-HISTORICOS-PC-FRACO.md": "aede8497140f91722c6fce082f7b0e8ce8c6d690",
+      "docs/TESTES-RESIDUOS-v5.13.11.15.md": "80683c2f1fa5ad718fe98700975b0c1ab9fb3d51",
+      "docs/TESTES-RESIDUOS-v5.13.11.16.md": "320b0149ce7abf86a728eb31f491897fd4cd917b",
+      "docs/TESTES-RESIDUOS-v5.13.11.17.md": "0cd6ec0ce21481683f1188304473995dc390f246",
+      "docs/TESTES-SIMULADOS-FLUXOS.md": "b90b51ee2331d99fd8586e332d99af87e3a8c1ab",
+      "docs/TESTES.md": "3ec1a98630c0688593c1923b006fc18236741bd3",
+      "docs/THIRD-PARTY-NOTICES.md": "f30d4607e93c892fc21f66ea37a71733a46e5fe0",
+      "docs/TRIAGEM-DIAGNOSTICO-GITHUB.md": "29f7db9fad03882b288c54ec790350501a8537e6",
+      "docs/USO-PORTATIL.md": "56946e25317db2aaf606b1bcab4f0c9e11d50d85",
+      "docs/WORK-HANDOFF-MOTORES-CATALOGOS.md": "7a01d94ec9f297e75d2cb574ab352e7e820c4c63",
+      "docs/WORK-INTEGRACAO-ADENDO-BETA-LOCAL.md": "2b89c91cfd5abca45b72637f5a968317ab319db1",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md": "d5b21a6469c10a19850a3114651d487cdaec157b",
+      "docs/WORK-INTEGRACAO-ETAPA1-RECONCILIACAO.md": "f4b1e3c5ad5dc8c751014b362859abf036c5af6f",
+      "docs/WORK-INTEGRACAO-ETAPA2-CODIGO.md": "54fa22ae110004ea83a8bdc8e466db49d71fc448",
+      "docs/WORK-INTEGRACAO-ETAPA3-VALIDACAO.md": "bf10cd053eddc4718fb1baecca917b68697bc97f",
+      "docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md": "f9b9162c2acd52eaea9ca7d18734bd4a5e4af43e",
+      "docs/WORK-INTEGRACAO-MATRIZ.md": "32109e4181a5398899680838d09b8375db859d9f",
+      "docs/WORK-PRE-BETA-CHECKPOINT.md": "70c29a40ddf8124eac9a04172f6121a3aa69ae17",
+      "docs/WORK-PRE-BETA-ETAPA2-DRIVERS.md": "a3a0600d5e72fd28cc26db21e6dfcbbfe0fb8a4d",
+      "docs/WORK-PRE-BETA-ETAPA3-ATUALIZACOES.md": "25e398c6d3de2b4445af387e929528d77611d4ff",
+      "docs/WORK-PRE-BETA-ETAPA4-DESINSTALACAO.md": "f53a0b7e0e28af26a9f4af53235e541df73dd53f",
+      "docs/WORK-PRE-BETA-ETAPA5-GESTAO-DRIVERS.md": "04cb61fe5311f24e19796316ac58720cc49644cf",
+      "docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md": "bbf8cf9db8a54804c08e65324217a8e045f3d4c6",
+      "docs/WORK-PRE-BETA-ETAPA7-DECISAO.md": "ca3ae1f8bcc411fb2296eefb8ddff0b6edd56187",
+      "docs/WORK-PRE-BETA-MATRIZ.md": "36acaaa7f7e55ef65f1e8508960ae07f9f471b21",
+      "docs/WORK16-AUDITORIA.md": "056bda998a474348a742e95a434f9d22ba585713",
+      "docs/WORK17-AUDITORIA.md": "4804c3c73089148a0082f4641067389b229412ef",
+      "prototipos/beta-telemetria/IMPLANTACAO-PRIVADA.md": "bf45794e8e9bda3aecb338c41a238afcd40e307a",
+      "prototipos/beta-telemetria/OPERACAO-RODADA2.md": "32fc8af6c887b91b6e104b16d6052149b6a21333",
+      "scripts/test_pacote.py": "391ff07165cfe4f383faf26c16a820ac4f4b65d0",
+      "scripts/test_politicas_seguranca.py": "a6b7a0a982eaa4d146aa8ab162a6e867cce838e3",
+      "scripts/verificar_pacote.py": "44523277dcb274981151723a6dfc526a52e6f164",
+      "docs/PROGRESSO.json": "beb28078d085af56aa327ea903a23deb27d70457",
+      "docs/evidencias/integracao-etapa4-avaliacao.json": "3226d40afea899849a58dcd647c89e118ce3db91"
+    },
+    "main_workflows": [
+      {
+        "path": ".github/workflows/build-windows.yml",
+        "sha": "efb832124608d38b26fe2bace94a4a0283e9c169"
+      },
+      {
+        "path": ".github/workflows/validar-candidata-windows.yml",
+        "sha": "1e4458b22625390429ed575cf6f34ce99d4f3295"
+      }
+    ],
+    "recent_workflow_runs": {
+      "total": 2046,
+      "sampled": [
+        {
+          "id": 40604593820,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+          "branch": "work-integracao-final-20261027",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40604593709,
+          "name": "Integridade externa dos atualizadores",
+          "path": ".github/workflows/integridade-externa.yml",
+          "head": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+          "branch": "work-integracao-final-20261027",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40565220517,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "386e7cd5263266a0478e60139e59b036f1d69e31",
+          "branch": "work-pre-beta-etapa0-20261027",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40559631389,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "5a7c0482a759009678b73c7c0cc75727b3b872f0",
+          "branch": "work-pre-beta-etapa0-20261027",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40525913386,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "09fff12b0f854ab9c23886146479a7f993f936b7",
+          "branch": "work-pre-beta-etapa0-20261027",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40519539258,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "341c109b6b8538733b32a02909ff40c8e0a380d9",
+          "branch": "work-pre-beta-etapa0-20261027",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40514120889,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "8e195bfa3dfaab6767d877e78a2ad8d2b538f49c",
+          "branch": "work-pre-beta-etapa0-20261027",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40507858102,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "04f59750739c6bdbaeb0bacd86ed2b734fba1271",
+          "branch": "experimento-chrome-versionhistory-20261027",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40409850849,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "e530d724b7322963c8795b005f13ae6948a73e43",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40409850628,
+          "name": "Integridade externa dos atualizadores",
+          "path": ".github/workflows/integridade-externa.yml",
+          "head": "e530d724b7322963c8795b005f13ae6948a73e43",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40407888824,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "e55b33f9af31e064e466fc804da0de9233f9b6c6",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40407888652,
+          "name": "Integridade externa dos atualizadores",
+          "path": ".github/workflows/integridade-externa.yml",
+          "head": "e55b33f9af31e064e466fc804da0de9233f9b6c6",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40406797976,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "bcaccfc6fd2a1094c1d50d0c4eac67d07aff7d8b",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40406797799,
+          "name": "Integridade externa dos atualizadores",
+          "path": ".github/workflows/integridade-externa.yml",
+          "head": "bcaccfc6fd2a1094c1d50d0c4eac67d07aff7d8b",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40405493554,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "88d5494e69f216e2f00ea1b1b00a2da62dd08525",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40405493420,
+          "name": "Integridade externa dos atualizadores",
+          "path": ".github/workflows/integridade-externa.yml",
+          "head": "88d5494e69f216e2f00ea1b1b00a2da62dd08525",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40404705728,
+          "name": "Integridade externa dos atualizadores",
+          "path": ".github/workflows/integridade-externa.yml",
+          "head": "acdaf35614eda10aa3d73765f723086920996bf7",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40404705607,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "acdaf35614eda10aa3d73765f723086920996bf7",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40381947315,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "35a962ecd1d3508ab73699178d7b08f261c9ff1e",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40380248719,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "8513a4eaf522b5fe4f822e20b9c787b771cd10be",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40378757209,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "c9a910a9294fcf9d3d79b2c9ba961711c78ed1a5",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40376197811,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "504b8c8920c30b4200d86f33e79d73fea02779ea",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40375383814,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "bf37345ac87c0f207de1bf774e242ad0ef1a05b4",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40363104639,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "864e4c73bb975b19a7713ce1befd4121495bcedf",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40360801116,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "ced288eb52e1c1b4d8f98483666778d60243e51c",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40360028974,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "c8681dd6a80f9214d747d9e3ed016af840a6ce94",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40359804666,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "8c7e21b8a52e9698f0698efc1d95937b234b8f9e",
+          "branch": "work-beta-retencao-issues-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40324802334,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40322633817,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "1efdfe0820b52b94d55da3fbed000a8e231036b8",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40322515536,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "79b51f3b4000e822fbb87a6d1d7ba63035341885",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40322451806,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "9470c2a3d07c659e370f0fd9d43a7c04f5738728",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40322309688,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "527f73b8a1e88806dcea2edebc46fbe329366caf",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40322149673,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "c26862654a33172d65b258da6dbd06b71d93cd52",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40322111449,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "2173ced08c3af67056518d29e24308af956842e7",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40321970913,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "fdc961c83b153aca88ea1341ba47289714582404",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40321914019,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "83f3439ba7fb7529d57c35a7ea1b114209f54592",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40321821057,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "3b24a10b421124877845743f7324dbff919762ca",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40321569617,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "a770a5e60c1a6f31966d809fffdd662bd8966a8a",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40321523767,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "95a3779e7b7f219ed9401f5f982fc65949238670",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40321303899,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "01230c6f016e9e462d9613e58f4babd230186885",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40321267679,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "5a5e001c05792bccc7c6dcfad9b794e2cb9c2feb",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40321221685,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "f846251660e3e6866028f9eef694c26fb2de99b1",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40317348016,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "f11324f550d9380e8498d29682209f53ac61478c",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40317091324,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "44b006328a78a44d6d395e59b1ab28df9240df99",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40316946056,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "369b27cb4044d3963a9ffd679e285ec9791eae7d",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40316654258,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "dd7e8d3d9478d96da55b35abbe29b012f757b8e1",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40316161701,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "2bde729a1352d2280e62749b90af824f49482e1e",
+          "branch": "beta-piloto-consentimento-envio-20261026",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40253446761,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "2bc9f4228fd448445fbf181652e5af93005def20",
+          "branch": "work18-ampliacao-atualizacoes-seguras",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40252100887,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
+          "branch": "work18-ampliacao-atualizacoes-seguras",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40251794671,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "9f737fe76130af2d416514da7b183d82c461b194",
+          "branch": "work18-ampliacao-atualizacoes-seguras",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40251285347,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "d19fdd5d3b8724a34e0ccc11d88af6f2ddb92c68",
+          "branch": "work18-ampliacao-atualizacoes-seguras",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40242837652,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "28beb9607e85d208af4c0864d768a6db7fb5296a",
+          "branch": "integracao-lotes1-4-work14-17-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40241712164,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "5793ce1f5816309902207311bc5c171fe62616fd",
+          "branch": "integracao-lotes1-4-work14-17-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40241061453,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "d3f60e4a4d62a3af592cd61e5446582d0ea8022d",
+          "branch": "integracao-lotes1-4-work14-17-20261025",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40240817190,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "5c7d4b854472ee5ce3001e71c8909976401671a7",
+          "branch": "integracao-lotes1-4-work14-17-20261025",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40240588572,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "ab72fff46d0d76b3f2f75fc71517170e4bf1c2bc",
+          "branch": "integracao-lotes1-4-work14-17-20261025",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40235071337,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "cb7ca5ccd986fd11c768ee410ac7c2b46296e1c1",
+          "branch": "work-lote4-consolidacao",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40234268549,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "a893a051f353a1c9db3b5dd086539c6f252de93b",
+          "branch": "work-lote4-consolidacao",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40234097635,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "7595c07ce95bb4213d72f07ba994e7f3eaa24fbf",
+          "branch": "work-lote4-consolidacao",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40233880782,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "2c99aa0d077ff11e389de5f280cedfa0ab227f1e",
+          "branch": "work-lote4-consolidacao",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40233729575,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "1c5ddf9e70c2cf024d1f954de96fe9a520c2d10d",
+          "branch": "work-lote4-consolidacao",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40233614938,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "a2d8c4132b51302adfde818f1f482040f7eadda1",
+          "branch": "work-lote4-consolidacao",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40231535067,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "8f8d1c8fb109ba4956876b398f02dee6ce70f2e3",
+          "branch": "work-lote3-seguranca-desempenho",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40231407304,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "5c056345e4c17f1f021ea832ba5a5c0a5e11518a",
+          "branch": "work-lote3-seguranca-desempenho",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40230495565,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "f23d5155cdcf2512d0b377be8a7e2804300b2109",
+          "branch": "work-lote3-seguranca-desempenho",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40229759024,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "ff6aa1d78700827677041e4fb4ca5dc980080f71",
+          "branch": "work-lote3-seguranca-desempenho",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40229436947,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "5d10339737593b0e6246754f0b75c8a28d4ac5a8",
+          "branch": "work-lote3-seguranca-desempenho",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40228710682,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "3c08386cd69f61d62b4e4dc05e5f97f9cfae70e2",
+          "branch": "work-lote3-seguranca-desempenho",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40219971723,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "6a020c86ba5024b780334217bb7f38b18b23bb34",
+          "branch": "work-lote2-drivers-leitura",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40219016763,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "1e9a5e64dc10fdab2b0c2ff9c684c05c5b1a01cb",
+          "branch": "work-lote2-drivers-leitura",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40218542822,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "2757fa69f3638ae0de7837d30acf98befe1761d4",
+          "branch": "work-lote2-drivers-leitura",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40218082183,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "6a16780e12f686a310e88b4e54d38f10065dcd21",
+          "branch": "work-lote2-drivers-leitura",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40214100769,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "7405d83f308a141d2a7f6c68cc5a5dee4a19067c",
+          "branch": "work-lote1-confiabilidade-relatorios",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40213497182,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "265cdb3ffd5dc06a52fec57e26c58386548adf28",
+          "branch": "work-lote1-confiabilidade-relatorios",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40212942341,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "16cfc621b1426de43b9d8304ad7b9f14ee8e2a9f",
+          "branch": "work-lote1-confiabilidade-relatorios",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40212510457,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "36bbf3ed276663195e44da8ba47a1b67b855cec4",
+          "branch": "work-lote1-confiabilidade-relatorios",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40208712139,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "96d5f60f9cd28615e5c1d00792c16879eea724fe",
+          "branch": "work17-cobertura-execucao-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40207777744,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "9821cf7c2f7bb1ecc962a7b212300f7f05461c56",
+          "branch": "work17-cobertura-execucao-20261025",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40206787800,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "051b04532a4643ff3c31d5b4daeead6c1b9f6778",
+          "branch": "work17-cobertura-execucao-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40206263199,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "8c4c29f175136851f1e9fbfde6b1faaf87463f74",
+          "branch": "work17-cobertura-execucao-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40206172495,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "30f95bfaba09b844513dfad6522ee5ecb8a14e44",
+          "branch": "work17-cobertura-execucao-20261025",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40205799617,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "bf1860aea60704dfd6fc5da625c89e0f5dee1184",
+          "branch": "work17-cobertura-execucao-20261025",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40185290662,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "680ba3134b5191628ebc9ed83f163fa33b85dda4",
+          "branch": "work16-ecossistema-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40184303904,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "cdc6de0d58d69807841fd38beacbcd8ad4461ea4",
+          "branch": "work16-ecossistema-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40183672858,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "ea7fa2c6128365ac51acc61dee5c89e71ef47f5b",
+          "branch": "work16-ecossistema-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40183317901,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "5d5c1ac85451278d933817a25aa7f385bbf39009",
+          "branch": "work16-ecossistema-20261025",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40182676693,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "01d85fee038bf6d66b96e49d82048bb55fecda62",
+          "branch": "work16-ecossistema-20261025",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40179729611,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "f179dbabe78d0d42c4112a283040c5c781f109f0",
+          "branch": "feat/catalogo-ampliado-consultivo-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40179489392,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "1dffb2b4162cf67fcc5295c91534d20351a0a01d",
+          "branch": "feat/catalogo-ampliado-consultivo-20261025",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40179457108,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "90eb90838580928bccdd8dae5662edbee091b12c",
+          "branch": "feat/catalogo-ampliado-consultivo-20261025",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40179414410,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "a43dbd4ff30d8091077d0a76a289065c645fac5f",
+          "branch": "feat/catalogo-ampliado-consultivo-20261025",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40179287341,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "7e57d4fed63b10529064e5795d34604692456350",
+          "branch": "feat/catalogo-ampliado-consultivo-20261025",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40179110166,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "91d6e597e56a2b9c9564201e6e0c1fc90690cbc6",
+          "branch": "feat/catalogo-ampliado-consultivo-20261025",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40156822827,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "a24753af0a2bfd103c19bdfda4775362c895a720",
+          "branch": "work-motores-estruturais-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40155841005,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "89672f5ec50dc19476722286cd6c5e181e36bbb5",
+          "branch": "work-motores-estruturais-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40155540690,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "898e57be507a4518d22b180bb6d8d6c3204dde50",
+          "branch": "work-motores-estruturais-20261025",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "event": "pull_request"
+        },
+        {
+          "id": 40154932503,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "982555d677b84c723eeec33b2354e82e377258a3",
+          "branch": "work-motores-estruturais-20261025",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40154367790,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "c0dc76e00336b81573f9be4e81399e0956d8ab79",
+          "branch": "work-motores-estruturais-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        },
+        {
+          "id": 40153605447,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "72e52050193d2bbcbe1c206a70a874ca8d40b05e",
+          "branch": "work-motores-estruturais-20261025",
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "pull_request"
+        },
+        {
+          "id": 40151238332,
+          "name": "Compilar Windows (sem assinatura)",
+          "path": ".github/workflows/build-windows.yml",
+          "head": "954949eef8ee84785ee6434f964b6f1e3c9e0b50",
+          "branch": "auditoria-gf-escopo-catalogo-20261025",
+          "status": "completed",
+          "conclusion": "success",
+          "event": "pull_request"
+        }
+      ]
+    },
+    "artifacts_by_run": {
+      "40604593820": [
+        {
+          "id": 12780686545,
+          "name": "WORK17-cobertura-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+          "size_in_bytes": 710,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12780686545",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12780686545/zip",
+          "expired": false,
+          "created_at": "2026-10-27T23:51:29Z",
+          "expires_at": "2026-11-03T23:51:28Z",
+          "updated_at": "2026-10-27T23:51:29Z",
+          "digest": "sha256:fdbdfe62f8c100f6adca2666e969d564ce5e73cbddd694f3493b0c0f18f63dda",
+          "workflow_run": {
+            "id": 40604593820,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-integracao-final-20261027",
+            "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+          }
+        },
+        {
+          "id": 12780627014,
+          "name": "WORK16-cobertura-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+          "size_in_bytes": 729,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12780627014",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12780627014/zip",
+          "expired": false,
+          "created_at": "2026-10-27T23:51:30Z",
+          "expires_at": "2026-11-03T23:51:29Z",
+          "updated_at": "2026-10-27T23:51:30Z",
+          "digest": "sha256:e91c1dbf5e78bde9911cec13e6fde911467c7ba5a874a1ae2f89420bad301179",
+          "workflow_run": {
+            "id": 40604593820,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-integracao-final-20261027",
+            "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+          }
+        },
+        {
+          "id": 12780592218,
+          "name": "WORK14-cobertura-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+          "size_in_bytes": 1002,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12780592218",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12780592218/zip",
+          "expired": false,
+          "created_at": "2026-10-27T23:51:30Z",
+          "expires_at": "2026-11-03T23:51:30Z",
+          "updated_at": "2026-10-27T23:51:30Z",
+          "digest": "sha256:58b8f2939f3a5fb32ce50432d4b90c80c72720e081a7691b7d0dfb3f018068cb",
+          "workflow_run": {
+            "id": 40604593820,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-integracao-final-20261027",
+            "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+          }
+        },
+        {
+          "id": 12780541972,
+          "name": "Drivers-leitura-windows-2025-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+          "size_in_bytes": 3829,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12780541972",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12780541972/zip",
+          "expired": false,
+          "created_at": "2026-10-27T23:49:35Z",
+          "expires_at": "2026-11-03T23:49:34Z",
+          "updated_at": "2026-10-27T23:49:35Z",
+          "digest": "sha256:22de951262008365b25e9bb3ef32be220555810949ec8f0c8c353356416338ca",
+          "workflow_run": {
+            "id": 40604593820,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-integracao-final-20261027",
+            "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+          }
+        },
+        {
+          "id": 12780318522,
+          "name": "Antivirus-evidencias-6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+          "size_in_bytes": 621,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12780318522",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12780318522/zip",
+          "expired": false,
+          "created_at": "2026-10-27T23:58:55Z",
+          "expires_at": "2026-11-03T23:58:53Z",
+          "updated_at": "2026-10-27T23:58:55Z",
+          "digest": "sha256:683fc6012865e7eb0ba865d353a8389debc396ba2453c375c642bdb840c4d8fd",
+          "workflow_run": {
+            "id": 40604593820,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-integracao-final-20261027",
+            "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+          }
+        },
+        {
+          "id": 12779957653,
+          "name": "WORK18-cobertura-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+          "size_in_bytes": 888,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12779957653",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12779957653/zip",
+          "expired": false,
+          "created_at": "2026-10-27T23:51:28Z",
+          "expires_at": "2026-11-03T23:51:27Z",
+          "updated_at": "2026-10-27T23:51:28Z",
+          "digest": "sha256:e8b77b81f5a660e4e70702963f7c4e799a5adca5ceea3d866522bae89bf23289",
+          "workflow_run": {
+            "id": 40604593820,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-integracao-final-20261027",
+            "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+          }
+        },
+        {
+          "id": 12779928854,
+          "name": "BETA-manifesto-6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+          "size_in_bytes": 13887,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12779928854",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12779928854/zip",
+          "expired": false,
+          "created_at": "2026-10-27T23:58:56Z",
+          "expires_at": "2026-11-03T23:58:55Z",
+          "updated_at": "2026-10-27T23:58:56Z",
+          "digest": "sha256:ebe688f662593689c0ba8b0f4d43a33828d8b048d8386eed2be8a09043aa6754",
+          "workflow_run": {
+            "id": 40604593820,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-integracao-final-20261027",
+            "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+          }
+        },
+        {
+          "id": 12779399462,
+          "name": "Residuos-layout-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+          "size_in_bytes": 2190769,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12779399462",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12779399462/zip",
+          "expired": false,
+          "created_at": "2026-10-27T23:57:50Z",
+          "expires_at": "2026-11-03T23:57:50Z",
+          "updated_at": "2026-10-27T23:57:50Z",
+          "digest": "sha256:c6e5595f1183c3f1c96df5c1782eae308be3e8cbdda778226ca9745a76e4e8b3",
+          "workflow_run": {
+            "id": 40604593820,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-integracao-final-20261027",
+            "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+          }
+        },
+        {
+          "id": 12779329763,
+          "name": "Drivers-leitura-windows-2022-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+          "size_in_bytes": 3825,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12779329763",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12779329763/zip",
+          "expired": false,
+          "created_at": "2026-10-27T23:50:50Z",
+          "expires_at": "2026-11-03T23:50:50Z",
+          "updated_at": "2026-10-27T23:50:50Z",
+          "digest": "sha256:8308eb00719a6447feaf8e9d19e02e9cd07899de3e4c479684ba9c3f0fdfa68c",
+          "workflow_run": {
+            "id": 40604593820,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-integracao-final-20261027",
+            "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+          }
+        }
+      ],
+      "40604593709": [],
+      "40565220517": [
+        {
+          "id": 12763915129,
+          "name": "Residuos-layout-7230f1fb1c41b59fd34eacf246b73b0606928072",
+          "size_in_bytes": 2246919,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763915129",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763915129/zip",
+          "expired": false,
+          "created_at": "2026-10-27T19:08:59Z",
+          "expires_at": "2026-11-03T19:08:58Z",
+          "updated_at": "2026-10-27T19:08:59Z",
+          "digest": "sha256:6e32315ea7d38bd68e68c9b1c76b09e60167f7649114ea076c41fa60bdf01ace",
+          "workflow_run": {
+            "id": 40565220517,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-pre-beta-etapa0-20261027",
+            "head_sha": "386e7cd5263266a0478e60139e59b036f1d69e31"
+          }
+        },
+        {
+          "id": 12763705479,
+          "name": "Antivirus-evidencias-386e7cd5263266a0478e60139e59b036f1d69e31",
+          "size_in_bytes": 621,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763705479",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763705479/zip",
+          "expired": false,
+          "created_at": "2026-10-27T19:09:52Z",
+          "expires_at": "2026-11-03T19:09:51Z",
+          "updated_at": "2026-10-27T19:09:52Z",
+          "digest": "sha256:66ba02a343adc9003971d1ebce7e71c9c501a15043e8bc99f9e6c308ae897652",
+          "workflow_run": {
+            "id": 40565220517,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-pre-beta-etapa0-20261027",
+            "head_sha": "386e7cd5263266a0478e60139e59b036f1d69e31"
+          }
+        },
+        {
+          "id": 12763690428,
+          "name": "GerenciadorFinal-v5.13.11.65-386e7cd5-TESTE-win-x64",
+          "size_in_bytes": 59448760,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763690428",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763690428/zip",
+          "expired": false,
+          "created_at": "2026-10-27T19:09:56Z",
+          "expires_at": "2026-11-03T19:09:52Z",
+          "updated_at": "2026-10-27T19:09:56Z",
+          "digest": "sha256:308786e6a16dbc455ae50908092666c1c9fc8e889059f96906f58239fa2a7c5c",
+          "workflow_run": {
+            "id": 40565220517,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-pre-beta-etapa0-20261027",
+            "head_sha": "386e7cd5263266a0478e60139e59b036f1d69e31"
+          }
+        },
+        {
+          "id": 12763565333,
+          "name": "WORK17-cobertura-7230f1fb1c41b59fd34eacf246b73b0606928072",
+          "size_in_bytes": 711,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763565333",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763565333/zip",
+          "expired": false,
+          "created_at": "2026-10-27T19:04:13Z",
+          "expires_at": "2026-11-03T19:04:12Z",
+          "updated_at": "2026-10-27T19:04:13Z",
+          "digest": "sha256:fb120181f31798ed36bc67ff93d138c44757d266f80c7174127e09fa91648a86",
+          "workflow_run": {
+            "id": 40565220517,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-pre-beta-etapa0-20261027",
+            "head_sha": "386e7cd5263266a0478e60139e59b036f1d69e31"
+          }
+        },
+        {
+          "id": 12763410499,
+          "name": "WORK14-cobertura-7230f1fb1c41b59fd34eacf246b73b0606928072",
+          "size_in_bytes": 1003,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763410499",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763410499/zip",
+          "expired": false,
+          "created_at": "2026-10-27T19:04:16Z",
+          "expires_at": "2026-11-03T19:04:15Z",
+          "updated_at": "2026-10-27T19:04:16Z",
+          "digest": "sha256:2879e4b7251fea24a59120fd962277fdd16decad0f1056acc00a3e4e2e435e2d",
+          "workflow_run": {
+            "id": 40565220517,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-pre-beta-etapa0-20261027",
+            "head_sha": "386e7cd5263266a0478e60139e59b036f1d69e31"
+          }
+        },
+        {
+          "id": 12763250743,
+          "name": "Drivers-leitura-windows-2022-7230f1fb1c41b59fd34eacf246b73b0606928072",
+          "size_in_bytes": 3830,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763250743",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763250743/zip",
+          "expired": false,
+          "created_at": "2026-10-27T19:02:11Z",
+          "expires_at": "2026-11-03T19:02:10Z",
+          "updated_at": "2026-10-27T19:02:11Z",
+          "digest": "sha256:76097da169e83e9fa5cc6b2027ee86cc87fdae468b7d1d0cec1a349f4783bb98",
+          "workflow_run": {
+            "id": 40565220517,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-pre-beta-etapa0-20261027",
+            "head_sha": "386e7cd5263266a0478e60139e59b036f1d69e31"
+          }
+        },
+        {
+          "id": 12763066586,
+          "name": "WORK16-cobertura-7230f1fb1c41b59fd34eacf246b73b0606928072",
+          "size_in_bytes": 730,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763066586",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763066586/zip",
+          "expired": false,
+          "created_at": "2026-10-27T19:04:14Z",
+          "expires_at": "2026-11-03T19:04:13Z",
+          "updated_at": "2026-10-27T19:04:14Z",
+          "digest": "sha256:921bc2f8d512f669c16e1cf3d97ecd96d1358b8180cfb7e3b9c660c256a8d615",
+          "workflow_run": {
+            "id": 40565220517,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-pre-beta-etapa0-20261027",
+            "head_sha": "386e7cd5263266a0478e60139e59b036f1d69e31"
+          }
+        },
+        {
+          "id": 12763056565,
+          "name": "WORK18-cobertura-7230f1fb1c41b59fd34eacf246b73b0606928072",
+          "size_in_bytes": 888,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763056565",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12763056565/zip",
+          "expired": false,
+          "created_at": "2026-10-27T19:04:11Z",
+          "expires_at": "2026-11-03T19:04:10Z",
+          "updated_at": "2026-10-27T19:04:11Z",
+          "digest": "sha256:bd0e47b8f216b66a3c7f2df3592ce84a5e2aa5dc582dc7c1ac33e4c32874a9a8",
+          "workflow_run": {
+            "id": 40565220517,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-pre-beta-etapa0-20261027",
+            "head_sha": "386e7cd5263266a0478e60139e59b036f1d69e31"
+          }
+        },
+        {
+          "id": 12762951234,
+          "name": "Drivers-leitura-windows-2025-7230f1fb1c41b59fd34eacf246b73b0606928072",
+          "size_in_bytes": 3830,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12762951234",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12762951234/zip",
+          "expired": false,
+          "created_at": "2026-10-27T19:02:14Z",
+          "expires_at": "2026-11-03T19:02:13Z",
+          "updated_at": "2026-10-27T19:02:14Z",
+          "digest": "sha256:07ef6f15b43dc86a5d9c45da03902c15a9b9b0df0df2c47cb9834a050c554c11",
+          "workflow_run": {
+            "id": 40565220517,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-pre-beta-etapa0-20261027",
+            "head_sha": "386e7cd5263266a0478e60139e59b036f1d69e31"
+          }
+        }
+      ],
+      "40409850849": [
+        {
+          "id": 12693955426,
+          "name": "BETA-manifesto-e530d724b7322963c8795b005f13ae6948a73e43",
+          "size_in_bytes": 13885,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12693955426",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12693955426/zip",
+          "expired": false,
+          "created_at": "2026-10-26T22:15:22Z",
+          "expires_at": "2026-11-02T22:15:21Z",
+          "updated_at": "2026-10-26T22:15:22Z",
+          "digest": "sha256:ce1c7b75a3766ffbecfe594263c61396bf93222753751577d66f90dc73c717e6",
+          "workflow_run": {
+            "id": 40409850849,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-beta-retencao-issues-20261026",
+            "head_sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+          }
+        },
+        {
+          "id": 12693525329,
+          "name": "WORK14-cobertura-ee5201279f92b8a0b86f66a1ae2576f77013e0e5",
+          "size_in_bytes": 996,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12693525329",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12693525329/zip",
+          "expired": false,
+          "created_at": "2026-10-26T22:09:09Z",
+          "expires_at": "2026-11-02T22:09:08Z",
+          "updated_at": "2026-10-26T22:09:09Z",
+          "digest": "sha256:1fd38a5da3198b2ddfa83adf4c4956ba7d762675655407acbe98e4428dbf8da7",
+          "workflow_run": {
+            "id": 40409850849,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-beta-retencao-issues-20261026",
+            "head_sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+          }
+        },
+        {
+          "id": 12693445451,
+          "name": "WORK16-cobertura-ee5201279f92b8a0b86f66a1ae2576f77013e0e5",
+          "size_in_bytes": 729,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12693445451",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12693445451/zip",
+          "expired": false,
+          "created_at": "2026-10-26T22:09:08Z",
+          "expires_at": "2026-11-02T22:09:08Z",
+          "updated_at": "2026-10-26T22:09:08Z",
+          "digest": "sha256:9ed7c5ea35cf676c9f76159d147d954b48a0d69613d30abb892ee726e7f53f79",
+          "workflow_run": {
+            "id": 40409850849,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-beta-retencao-issues-20261026",
+            "head_sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+          }
+        },
+        {
+          "id": 12693405529,
+          "name": "WORK17-cobertura-ee5201279f92b8a0b86f66a1ae2576f77013e0e5",
+          "size_in_bytes": 710,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12693405529",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12693405529/zip",
+          "expired": false,
+          "created_at": "2026-10-26T22:09:07Z",
+          "expires_at": "2026-11-02T22:09:07Z",
+          "updated_at": "2026-10-26T22:09:07Z",
+          "digest": "sha256:cd89742d12402ad83674810c19c6f263c72abd086a3bbb6dd6c15d1970b4298d",
+          "workflow_run": {
+            "id": 40409850849,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-beta-retencao-issues-20261026",
+            "head_sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+          }
+        },
+        {
+          "id": 12692627836,
+          "name": "Drivers-leitura-windows-2022-ee5201279f92b8a0b86f66a1ae2576f77013e0e5",
+          "size_in_bytes": 3179,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12692627836",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12692627836/zip",
+          "expired": false,
+          "created_at": "2026-10-26T22:07:22Z",
+          "expires_at": "2026-11-02T22:07:21Z",
+          "updated_at": "2026-10-26T22:07:22Z",
+          "digest": "sha256:90e4a042f8c73761b684166b2bd2524e5446ec15c9e9b88aa81610051bbcf9e9",
+          "workflow_run": {
+            "id": 40409850849,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-beta-retencao-issues-20261026",
+            "head_sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+          }
+        },
+        {
+          "id": 12692593197,
+          "name": "WORK18-cobertura-ee5201279f92b8a0b86f66a1ae2576f77013e0e5",
+          "size_in_bytes": 887,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12692593197",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12692593197/zip",
+          "expired": false,
+          "created_at": "2026-10-26T22:09:06Z",
+          "expires_at": "2026-11-02T22:09:06Z",
+          "updated_at": "2026-10-26T22:09:06Z",
+          "digest": "sha256:eb5f58a4c6236abb52cc20c036319ad05e4da7b40c7578b422bd675c471c7f20",
+          "workflow_run": {
+            "id": 40409850849,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-beta-retencao-issues-20261026",
+            "head_sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+          }
+        },
+        {
+          "id": 12692319472,
+          "name": "Residuos-layout-ee5201279f92b8a0b86f66a1ae2576f77013e0e5",
+          "size_in_bytes": 2196781,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12692319472",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12692319472/zip",
+          "expired": false,
+          "created_at": "2026-10-26T22:14:03Z",
+          "expires_at": "2026-11-02T22:14:02Z",
+          "updated_at": "2026-10-26T22:14:03Z",
+          "digest": "sha256:cc1053587b2c194720a02e66af2f5437d5824abaa933ed3641c5679a3b3347c9",
+          "workflow_run": {
+            "id": 40409850849,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-beta-retencao-issues-20261026",
+            "head_sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+          }
+        },
+        {
+          "id": 12692223010,
+          "name": "Antivirus-evidencias-e530d724b7322963c8795b005f13ae6948a73e43",
+          "size_in_bytes": 620,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12692223010",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12692223010/zip",
+          "expired": false,
+          "created_at": "2026-10-26T22:15:21Z",
+          "expires_at": "2026-11-02T22:15:20Z",
+          "updated_at": "2026-10-26T22:15:21Z",
+          "digest": "sha256:9b8f2bb287b1065a726e7c7fd2f03a2f4af5869ecdedc06b9dc7cc028244aa95",
+          "workflow_run": {
+            "id": 40409850849,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-beta-retencao-issues-20261026",
+            "head_sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+          }
+        },
+        {
+          "id": 12692168415,
+          "name": "Drivers-leitura-windows-2025-ee5201279f92b8a0b86f66a1ae2576f77013e0e5",
+          "size_in_bytes": 3179,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12692168415",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12692168415/zip",
+          "expired": false,
+          "created_at": "2026-10-26T22:07:25Z",
+          "expires_at": "2026-11-02T22:07:24Z",
+          "updated_at": "2026-10-26T22:07:25Z",
+          "digest": "sha256:26e084c0485014a2fa44afe808da705bc5d48383f2713b0475a3c665d5f87abf",
+          "workflow_run": {
+            "id": 40409850849,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work-beta-retencao-issues-20261026",
+            "head_sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+          }
+        }
+      ],
+      "40252100887": [
+        {
+          "id": 12621520106,
+          "name": "Drivers-leitura-windows-2022-54a90d34b00e71a4582719d53b7cfe31c30edd72",
+          "size_in_bytes": 3351,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12621520106",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12621520106/zip",
+          "expired": false,
+          "created_at": "2026-10-26T01:01:54Z",
+          "expires_at": "2026-11-02T01:01:53Z",
+          "updated_at": "2026-10-26T01:01:54Z",
+          "digest": "sha256:7fcfcd70e48ffdf7a5c442ab00e37277237f58f954eca5b0ea028cc2508fd460",
+          "workflow_run": {
+            "id": 40252100887,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work18-ampliacao-atualizacoes-seguras",
+            "head_sha": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d"
+          }
+        },
+        {
+          "id": 12621128988,
+          "name": "GerenciadorFinal-v5.13.11.65-e6d92e2f-TESTE-win-x64",
+          "size_in_bytes": 59443637,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12621128988",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12621128988/zip",
+          "expired": false,
+          "created_at": "2026-10-26T01:11:43Z",
+          "expires_at": "2026-11-02T01:11:38Z",
+          "updated_at": "2026-10-26T01:11:43Z",
+          "digest": "sha256:44af39ede3e30cc88c5ffa42a7ef38ab4931853afb167f717b76a1d5f414ca52",
+          "workflow_run": {
+            "id": 40252100887,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work18-ampliacao-atualizacoes-seguras",
+            "head_sha": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d"
+          }
+        },
+        {
+          "id": 12621083075,
+          "name": "WORK16-cobertura-54a90d34b00e71a4582719d53b7cfe31c30edd72",
+          "size_in_bytes": 729,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12621083075",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12621083075/zip",
+          "expired": false,
+          "created_at": "2026-10-26T01:04:06Z",
+          "expires_at": "2026-11-02T01:04:05Z",
+          "updated_at": "2026-10-26T01:04:06Z",
+          "digest": "sha256:f564b64002881688e2bcc8eb7be41da3faa85408a9bdf63c59a3f33e61be25f6",
+          "workflow_run": {
+            "id": 40252100887,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work18-ampliacao-atualizacoes-seguras",
+            "head_sha": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d"
+          }
+        },
+        {
+          "id": 12620958185,
+          "name": "WORK14-cobertura-54a90d34b00e71a4582719d53b7cfe31c30edd72",
+          "size_in_bytes": 996,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620958185",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620958185/zip",
+          "expired": false,
+          "created_at": "2026-10-26T01:04:08Z",
+          "expires_at": "2026-11-02T01:04:07Z",
+          "updated_at": "2026-10-26T01:04:08Z",
+          "digest": "sha256:5305226709119d05b42281ed0d2c389225e97b0b89ea1dd072497f933a343510",
+          "workflow_run": {
+            "id": 40252100887,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work18-ampliacao-atualizacoes-seguras",
+            "head_sha": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d"
+          }
+        },
+        {
+          "id": 12620958175,
+          "name": "WORK18-cobertura-54a90d34b00e71a4582719d53b7cfe31c30edd72",
+          "size_in_bytes": 887,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620958175",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620958175/zip",
+          "expired": false,
+          "created_at": "2026-10-26T01:04:03Z",
+          "expires_at": "2026-11-02T01:04:02Z",
+          "updated_at": "2026-10-26T01:04:03Z",
+          "digest": "sha256:dafc7250ce315d2b599f9ad484a90295bd3ac874139ab2fedde33adbb933de54",
+          "workflow_run": {
+            "id": 40252100887,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work18-ampliacao-atualizacoes-seguras",
+            "head_sha": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d"
+          }
+        },
+        {
+          "id": 12620854290,
+          "name": "Residuos-layout-54a90d34b00e71a4582719d53b7cfe31c30edd72",
+          "size_in_bytes": 2238910,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620854290",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620854290/zip",
+          "expired": false,
+          "created_at": "2026-10-26T01:10:15Z",
+          "expires_at": "2026-11-02T01:10:13Z",
+          "updated_at": "2026-10-26T01:10:15Z",
+          "digest": "sha256:b19beca28bb230a5d875d0dc0dbdee0cdfa9ae3c21b771bfde9ce4adbb9c5514",
+          "workflow_run": {
+            "id": 40252100887,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work18-ampliacao-atualizacoes-seguras",
+            "head_sha": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d"
+          }
+        },
+        {
+          "id": 12620809641,
+          "name": "Antivirus-evidencias-e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
+          "size_in_bytes": 620,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620809641",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620809641/zip",
+          "expired": false,
+          "created_at": "2026-10-26T01:11:37Z",
+          "expires_at": "2026-11-02T01:11:36Z",
+          "updated_at": "2026-10-26T01:11:37Z",
+          "digest": "sha256:bfa1ef936772fcc52e71bae1c75981d8025c1618522dab86b3fd631884544e21",
+          "workflow_run": {
+            "id": 40252100887,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work18-ampliacao-atualizacoes-seguras",
+            "head_sha": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d"
+          }
+        },
+        {
+          "id": 12620808552,
+          "name": "WORK17-cobertura-54a90d34b00e71a4582719d53b7cfe31c30edd72",
+          "size_in_bytes": 709,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620808552",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620808552/zip",
+          "expired": false,
+          "created_at": "2026-10-26T01:04:05Z",
+          "expires_at": "2026-11-02T01:04:04Z",
+          "updated_at": "2026-10-26T01:04:05Z",
+          "digest": "sha256:98de1cdec878d7ab3889ad71d6848dbbecce9a744fc2a35f837dfb939569c12f",
+          "workflow_run": {
+            "id": 40252100887,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work18-ampliacao-atualizacoes-seguras",
+            "head_sha": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d"
+          }
+        },
+        {
+          "id": 12620359141,
+          "name": "Drivers-leitura-windows-2025-54a90d34b00e71a4582719d53b7cfe31c30edd72",
+          "size_in_bytes": 3353,
+          "url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620359141",
+          "archive_download_url": "https://api.github.com/repos/walissonminel-1991/gerenciador-final/actions/artifacts/12620359141/zip",
+          "expired": false,
+          "created_at": "2026-10-26T01:01:58Z",
+          "expires_at": "2026-11-02T01:01:57Z",
+          "updated_at": "2026-10-26T01:01:58Z",
+          "digest": "sha256:de8377e7939b9b04dd45555c4592d151c010c1a6776c972672285fcfa7f3917b",
+          "workflow_run": {
+            "id": 40252100887,
+            "repository_id": 1423533003,
+            "head_repository_id": 1423533003,
+            "head_branch": "work18-ampliacao-atualizacoes-seguras",
+            "head_sha": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d"
+          }
+        }
+      ]
+    },
+    "artifact_count": 36,
+    "artifact_reported_bytes": 127837710
+  },
+  "coverage_limits": [
+    "Inventário global de workflows/artefatos não exposto pelo fetch; fonte/guardrail e ferramentas por run usados.",
+    "Amostra de 100/2046 runs e 36 artefatos de cinco runs, não armazenamento global.",
+    "Nenhum download ou nova conferência dos bytes de artefatos.",
+    "Links de arquivo relativos conferidos; nem todas as âncoras/sites externos.",
+    "Sem auditoria funcional, varredura geral de segredos ou estado operacional remoto."
+  ],
+  "safe_changes": [
+    "S01 README: entrada #65, CI própria, .65 histórica e remoto não auditado.",
+    "S02 Índice canônico com continuidade e relatórios 1–5, sem índice duplicado.",
+    "S03 Inventário de workflows/suítes/fixtures/dependências atualizado.",
+    "S04 Actions: fonte atual separada dos registros históricos.",
+    "S05 TESTES: entrada da integração e papel documental de TestesEcossistema/Rede.",
+    "S06 Checkpoint/matriz/roadmap e somente integration_final atualizados."
+  ],
+  "proposals_requiring_specific_authorization": [
+    {
+      "id": "D01",
+      "action": "delete_branch_optional",
+      "branch": "teste-inventario-residuos-v5.13.7",
+      "expected_tip": "dd89e28eab2aa193accbf5e85dc566aeef631c72",
+      "preserve_alias": "teste-diagnostico-precisao-v5.13.6",
+      "preconditions": [
+        "Autorização que nomeie a branch",
+        "Revalidar refs/PRs/dependências e registro histórico"
+      ],
+      "executed": false,
+      "required_to_continue": false
+    },
+    {
+      "id": "D02",
+      "action": "close_pull_requests_optional",
+      "prs": [
+        61,
+        62,
+        63,
+        64
+      ],
+      "preconditions": [
+        "Decisão específica do mantenedor sobre cada PR após revisar a candidata",
+        "Recibos/decisões acessíveis",
+        "Preservar branches/commits/histórico"
+      ],
+      "executed": false,
+      "required_to_continue": false
+    }
+  ],
+  "preserved": {
+    "all_100_other_branch_tips": true,
+    "main": "410d65e23546976db456337c71e4705f10217d36",
+    "pr40_draft": true,
+    "original_branches_unchanged": true,
+    "open_pr_issue_states": true,
+    "code_tests_workflows_version_notice_policies": true,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "all_42_states_and_history": true,
+    "progress_changed_root_keys": [
+      "integration_final"
+    ],
+    "candidate_beta_metadata": true,
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "vlc_inventory_only": true,
+    "winget_com_optional_nonblocking_consultative": true,
+    "driver_management_enabled": false,
+    "avg_and_protections_preserved": true,
+    "local_beta_prepared": false,
+    "connected_beta_released": false,
+    "physical_tests": 0,
+    "remote_operations": 0,
+    "diagnostic_transmissions": 0,
+    "merges_releases_deploys_distributions": 0
+  },
+  "changed_files": [
+    "README.md",
+    "docs/ORGANIZACAO-REPOSITORIO.md",
+    "docs/ACTIONS-ATUAIS-E-HISTORICAS.md",
+    "docs/TESTES.md",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/PROGRESSO.json",
+    "docs/ROADMAP.md",
+    "docs/WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md",
+    "docs/evidencias/integracao-etapa5-organizacao.json"
+  ],
+  "new_product_tests": 0,
+  "product_tests_reexecuted": 0,
+  "new_ci_runs_requested": 0,
+  "new_builds": 0,
+  "code_changes": 0,
+  "destructive_actions": 0,
+  "general_defect_audit_done": false,
+  "stage6_started": false,
+  "known_limits_reference": "docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md",
+  "existing_issue_for_next_audit": 48,
+  "documentary_commit": {
+    "skip_ci": true,
+    "head_location": "Conferir HEAD final da PR #65; sem nova build."
+  },
+  "next_stage": 6,
+  "overall_mission_complete": false,
+  "document_validation": {
+    "result": "pass",
+    "changed_documents": 10,
+    "progress_changed_root_keys": [
+      "integration_final"
+    ],
+    "history_candidate_beta_preserved": true,
+    "roadmap": {
+      "done": 27,
+      "total": 42,
+      "all_states_preserved": true
+    },
+    "markdown_files_checked": 92,
+    "relative_file_links_checked": 324,
+    "new_fragments_checked": 2,
+    "matrix_preservation_rows": 15,
+    "matrix_organization_rows": 8,
+    "historical_actions_text_preserved": true,
+    "historical_organization_decisions_preserved": true,
+    "test_command_blocks_preserved": true,
+    "inventory_counts_consistent": true,
+    "metadata_contract": {
+      "result": "pass",
+      "candidate": "5.13.11.66 TESTE",
+      "candidate_status": "pending",
+      "historical_approved": "5.13.11.65 TESTE",
+      "historical_source": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
+      "does_not_replace_integration_ci": true
+    }
+  }
+}

@@ -7,6 +7,28 @@ Não reexecutar roteiros/branches históricos que incluam esse alvo; incorporar
 a exclusão antes de qualquer nova integração. Demais verificações de segurança
 permanecem obrigatórias. Os registros abaixo preservam a história do projeto.
 
+## Continuidade da integração .66 — Etapa 5, 27/10/2026
+
+[Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) · [matriz](WORK-INTEGRACAO-MATRIZ.md) ·
+[validação da Etapa 3](WORK-INTEGRACAO-ETAPA3-VALIDACAO.md) ·
+[avaliação 4](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md) ·
+[organização 5](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md).
+Fonte validada `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`, CIs 40604593820 e
+40604593709 aprovadas; os comandos/roteiros anteriores abaixo conservam seu
+contexto histórico e não autorizam repetir fontes excluídas ou testes físicos.
+
+Inventário atual: 13 suítes de console (TestesRede é externo/opcional), duas
+fixtures de TestesResiduos e TestesManifesto em PowerShell. TestesEcossistema
+integra as regressões Windows; os caminhos e modos efetivamente usados estão
+nos quatro workflows versionados. Não somar modos focados às suítes completas.
+Drivers seguem somente leitura e WinGet COM opcional/não bloqueante/consultivo;
+nesta etapa não foram reexecutados nem reinvestigados.
+
+Organização concluída; próxima sessão somente auditoria 6. Nenhuma suíte de
+produto, consulta externa de aplicativo ou teste em PC nesta sessão. O plano
+físico futuro da avaliação 4 reaproveita E1–E5, mantém AVG ativo e não solicita
+atualização/desinstalação real apenas para evidência. BETA LOCAL não preparada.
+
 ## Continuidade física pré-BETA — Etapa 6 (27/10/2026)
 
 E1–E5 já foram consolidadas no [relatório da Etapa 6](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md).
@@ -59,6 +81,7 @@ confira se algum projeto ficou sem caminho de execução.
 | TestesResiduos | Desinstalação simulada e alvos descartáveis de arquivos/Registro, HKCU/HKLM e visões 32/64, revalidação e preservação |
 | TestesLayout | WinForms, navegação tardia, inventário, RAM, DPI, resoluções e capturas sintéticas |
 | TestesMsix | Falhas COM, retry limitado, fotografia parcial e cancelamento |
+| TestesEcossistema | Inventário gerenciado, identidades e contratos consultivos em isolamento |
 | TestesTelemetria | Consentimento, expiração, esquema e privacidade local |
 | TestesFechamento | Bloqueios, encerramento seguro, concorrência e cancelamento |
 

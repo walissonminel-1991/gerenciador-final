@@ -1,5 +1,7 @@
 # GERENCIADOR FINAL — roadmap funcional
 
+**Integração final — Etapa 5, 27/10/2026:** [organização segura concluída](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md), [checkpoint](WORK-INTEGRACAO-CHECKPOINT.md), [matriz](WORK-INTEGRACAO-MATRIZ.md) e [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65). Próxima sessão somente **Etapa 6 — auditoria geral**, não iniciada. Dez documentos, sem código/testes/workflows/configuração alterados, exclusão, fechamento automático, nova build ou pacote. Mesmos 42 IDs/done e históricos, **27/42**. BETA LOCAL não preparada; conectada/pública bloqueada. D01/D02 são apenas propostas dependentes de autorização específica. O fechamento da Etapa 4 abaixo permanece histórico.
+
 **Integração final — Etapa 4, 27/10/2026:** [avaliação da candidata integrada](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md), [checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) e [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65). **Integração 1–4 encerrada tecnicamente; BETA LOCAL não preparada e conectada/pública não liberada.** Fonte `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`, CIs [40604593820](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820) e [40604593709](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709) aprovadas na tentativa 1. Esta etapa apenas avaliou evidências, sem nova CI/build. Histórico e todos os 42 IDs/done preservados, **27/42**. Próxima sessão: somente Etapa 5 do adendo, organização segura do GitHub; não iniciada aqui. Gestão de drivers e envio remoto desativados, exclusão permanente preservada.
 
 ## Registros históricos de preparação e validação
@@ -229,7 +231,7 @@ A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permiss
 
 ## Próxima etapa prioritária
 
-Integração 1–4 encerrada com a [avaliação da Etapa 4](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md). Próxima sessão: somente **Etapa 5 do adendo — organização e limpeza segura do GitHub**, com mudanças não destrutivas e propostas que exigem autorização específica separadas. [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) e [matriz](WORK-INTEGRACAO-MATRIZ.md) governam a continuidade. Auditoria/correções, preparação local e testes físicos permanecem nas Etapas 6–9, sem avanço automático. O [roteiro focal anterior](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md) é aproveitado para evitar repetições. Não há pacote BETA liberado; flags, gestão de drivers e proteções preservadas. Não exigir 42/42 para uma BETA local limitada nem promover pendências por CI.
+Organização 5 concluída no [relatório e inventário](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md), após integração 1–4. Próxima sessão somente **Etapa 6 — auditoria geral e matriz de defeitos**, nos 14 eixos do adendo, com evidência/reprodução e classificação. Não antecipar correções da Etapa 7, pacote da 8 ou teste físico manual da 9. [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) e [matriz](WORK-INTEGRACAO-MATRIZ.md) governam a continuidade. Issue #48 e limites da avaliação 4 devem ser conferidos sem presumir defeito corrigido ou solicitar operação real apenas para prova. D01/D02 não autorizadas para execução. Sem exigir 42/42 para BETA local limitada ou desbloquear a conectada.
 
 ### Evidências para avançar sem maquiar o percentual
 
