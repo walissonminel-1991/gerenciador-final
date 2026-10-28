@@ -7,7 +7,7 @@ fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
 **Etapa 8 BLOQUEADA — entrega executável privada ainda indisponível.**
-Sessão atual: resolução da entrega da Etapa 8, proposta P8-ENTREGA-01 aguardando A1/A2/A3 e capacidade Windows. A conferência anterior da Etapa 9 é histórica; homologação física NÃO INICIADA, F9-00–F9-11 NÃO EXECUTADO.
+Sessão atual: rota VM descartável + ZIP local aceita em princípio; aguardando identificação de ambiente já disponível. P8-ENTREGA-01 permanece alternativa sem aceites A1/A2/A3. A conferência anterior da Etapa 9 é histórica; homologação física NÃO INICIADA, F9-00–F9-11 NÃO EXECUTADO.
 Fonte/perfil local reconferidos; Etapa 7 permanece concluída e não foi repetida.
 Fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, CIs 40675784213/40675784155 reconferidas success; próxima ação é resolver entrega dentro de 8.
 BETA LOCAL sem pacote entregue; conectada/pública bloqueada. Etapa 9 não iniciada.
@@ -406,3 +406,26 @@ sem alteração de proteções/AVG, gestão de drivers, envio, infraestrutura,
 PC pessoal, recursos privados, acessos, merge/Release/deploy ou distribuição.
 Próxima ação dentro da Etapa 8: decisão A1/A2/A3 e ambiente/capacidade reais,
 antes de qualquer implantação. **Parada; Etapa 9 não iniciada.**
+
+## Etapa 8 — escolha de rota local e pendência de ambiente
+
+28/10/2026, America/Sao_Paulo. [Recibo](evidencias/integracao-etapa8-rota-vm-local.json).
+Entrada 6d6ac6641b8efe751c56f8b3008acace787c3c20; fonte 6df95fdd e duas CIs reconferidas success.
+
+| Requisito | Estado |
+| --- | --- |
+| Preferência por VM Windows descartável e ZIP conservado localmente | ACEITA EM PRINCÍPIO pelo mantenedor |
+| VM pronta / edição e versão do Windows / Sandbox utilizável | NÃO IDENTIFICADOS; não presumir a partir da capacidade do PC |
+| Próxima informação | Edição/versão via winver e presença da Área Restrita no Iniciar, somente texto |
+| Habilitar recurso/instalar virtualização/alterar Windows ou AVG | NÃO AUTORIZADO por consequência implícita; nada executado |
+| Preparar compilação isolada da fonte aprovada após identificar ambiente | Escopo já solicitado; não pedir nova confirmação rotineira |
+| Repositório/workflow/acessos novos ou envio remoto de executável | A1/A2/A3 não aceitas; rota privada de CI não selecionada |
+| ZIP executável / SHA-256 / recebimento | INDISPONÍVEIS |
+| Etapa 9/F9-00–F9-11 | NÃO INICIADA / NÃO EXECUTADO |
+
+Somente checkpoint, matriz, registro novo em integration_final e recibo.
+Históricos e campos anteriores preservados; **27/42**. Nenhuma modificação de
+código/teste/workflow/aprovações/flags ou arquivo publicado. Nenhuma build,
+suíte de produto, CI, instalação, consulta do aplicativo ou operação em PC
+executada. O próximo relato solicitado identifica ambiente de build;
+não é teste físico do GF. **Parada na Etapa 8.**

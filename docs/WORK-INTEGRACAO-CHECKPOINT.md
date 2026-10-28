@@ -8,8 +8,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **8 — resolução da entrega privada; BLOQUEADA por ambiente/canal e autorizações específicas pendentes** |
-| Resultado | Proposta P8-ENTREGA-01 detalhada para decisão: repositório privado, workflow manual Windows e verificação independente. A1/A2/A3 não concedidas; sem pacote executável/SHA-256/link privado. Etapa 9 NÃO INICIADA |
+| Etapa desta sessão | **8 — rota VM descartável + pacote local aceita em princípio; ambiente Windows ainda não identificado** |
+| Resultado | Preferência por VM descartável e ZIP local registrada. Próximo passo: identificar edição/versão do Windows e recurso isolado já disponível, sem instalar/habilitar nada. Sem pacote/hash; Etapa 9 NÃO INICIADA |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
@@ -611,3 +611,54 @@ O commit de salvamento será o que adiciona esta proposta/recibo na branch
 #65; a CI permanece pertencendo ao SHA de código acima. Manter o registro
 anterior de solicitação da Etapa 9 como histórico, sem promover a etapa.
 **Parar na Etapa 8. Etapa 9 NÃO INICIADA; BETA conectada/pública bloqueada.**
+
+## Etapa 8 — rota preferida: VM descartável e pacote local
+
+28/10/2026, America/Sao_Paulo. Entrada `6d6ac6641b8efe751c56f8b3008acace787c3c20`,
+PR #65 aberta/Draft; fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9` e CIs
+40675784213/40675784155 reconferidas success/tentativa 1. Somente documentos
+de continuidade diferem da fonte aprovada; nenhum código ou input publicado
+alterado. As etapas anteriores não foram repetidas.
+
+O mantenedor aceitou em princípio a recomendação de usar VM Windows x64
+descartável sob seu controle e conservar o ZIP localmente. Na identificação
+do ambiente informou apenas o PC destinado ao ensaio; nenhuma VM pronta foi
+identificada. A preferência pela rota não comprova sua disponibilidade e não
+autoriza instalar virtualização, habilitar recursos, alterar BIOS/Windows,
+AVG/permissões ou conceder acessos. A1/A2/A3 de P8-ENTREGA-01 continuam sem
+aceite específico; não criar repositório/workflow ou enviar executável.
+
+Próxima ação restrita à preparação da Etapa 8, sem executar o GF:
+
+1. Mantenedor consulta winver e informa somente edição/versão como texto.
+   Não enviar captura com nome de registro ou outros dados identificáveis.
+2. Pesquisa Área Restrita do Windows/Windows Sandbox no menu Iniciar e
+   informa se aparece, sem abrir, instalar ou habilitar o recurso.
+3. Se já houver ambiente isolado adequado, preparar procedimento de build
+   somente dentro dele. Instalações de SDK/PowerShell/Python/Git ficam no
+   convidado descartável; nenhuma ferramenta deve ser instalada no host
+   por consequência automática deste aceite.
+4. Se não houver ambiente disponível/suportado, manter o bloqueio e avaliar
+   a alternativa antes de qualquer mudança. Não ativar outra rota ou pedir
+   novamente aprovação de escolhas já aceitas dentro do mesmo escopo.
+
+A Microsoft documenta suporte da Área Restrita em edições como Pro,
+Enterprise/Education e ausência de suporte Home. Isso não demonstra que o
+recurso esteja habilitado ou utilizável no PC. Referência:
+[Microsoft Learn](https://learn.microsoft.com/pt-br/windows/security/application-security/application-isolation/windows-sandbox/).
+A consulta acima é identificação de ambiente de compilação, não homologação
+física do GF. Não solicitar abertura do GF ou testes F9 nesta sessão.
+
+Após identificar ambiente adequado, a preparação já solicitada deverá usar
+fonte fixa/SDK 10.0.402/GF_BETA_LOCAL, publish x64 self-contained, manifesto
+Win32, inspetor de assembly e contrato fechado originais, licenças/conteúdo,
+manifesto e hash do ZIP real, reextração e verificação por implementação
+distinta. O resultado ficará em pasta nova do mantenedor, sem sobrescrever
+versões existentes. Nenhum upload é implícito nessa rota.
+
+[Recibo da escolha e pendência](evidencias/integracao-etapa8-rota-vm-local.json).
+**Etapa 8 pendente de identificar ambiente; pacote/hash/entrega indisponíveis.**
+Sem nova build, CI, instalação, controle de PC, mudança de proteção ou teste
+físico. Roadmap **27/42**, diagnóstico remoto bloqueado, drivers desativados,
+COM consultivo, exclusão permanente e flags no preservados. **Etapa 9 NÃO
+INICIADA.** Encerrar aqui aguardando somente as informações de ambiente.

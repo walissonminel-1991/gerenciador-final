@@ -1682,6 +1682,25 @@
       "access_granted": false,
       "executable_transferred": false,
       "next_stage": 8
+    },
+    "stage8_local_vm_route": {
+      "date": "2026-10-28",
+      "status": "awaiting_local_environment_identification",
+      "entry_commit": "6d6ac6641b8efe751c56f8b3008acace787c3c20",
+      "validated_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "preferred_route": "owner_controlled_disposable_windows_vm_and_local_package",
+      "accepted_in_principle": true,
+      "build_preparation_authorized": true,
+      "windows_environment_identified": false,
+      "host_feature_enable_authorized": false,
+      "host_virtualization_install_authorized": false,
+      "new_private_resources_authorized": false,
+      "remote_transfer_authorized": false,
+      "evidence": "docs/evidencias/integracao-etapa8-rota-vm-local.json",
+      "package_available": false,
+      "package_sha256": null,
+      "stage9_started": false,
+      "next_stage": 8
     }
   }
 }

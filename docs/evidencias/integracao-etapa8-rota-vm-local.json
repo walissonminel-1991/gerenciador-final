@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "stage": 8,
+  "date": "2026-10-28",
+  "timezone": "America/Sao_Paulo",
+  "status": "awaiting_local_environment_identification",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "pr": 65,
+  "pr_open": true,
+  "pr_draft": true,
+  "entry_commit": "6d6ac6641b8efe751c56f8b3008acace787c3c20",
+  "entry_tree": "8b568144ab5a4ec5f777b3e06e073e08480f06f1",
+  "entry_blobs": 453,
+  "validated_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+  "version": "5.13.11.66",
+  "candidate_label": "BETA LOCAL TESTE — NÃO HOMOLOGADA",
+  "post_code_documentary_delta": [
+    "README.md",
+    "docs/ACTIONS-ATUAIS-E-HISTORICAS.md",
+    "docs/ORGANIZACAO-REPOSITORIO.md",
+    "docs/PROGRESSO.json",
+    "docs/ROADMAP.md",
+    "docs/TESTES.md",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-DEFEITOS.md",
+    "docs/WORK-INTEGRACAO-ETAPA7-CORRECOES.md",
+    "docs/WORK-INTEGRACAO-ETAPA8-ENTREGA-PRIVADA-PROPOSTA.md",
+    "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+    "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/evidencias/integracao-etapa7-correcoes.json",
+    "docs/evidencias/integracao-etapa8-entrega-privada.json",
+    "docs/evidencias/integracao-etapa8-preparacao.json",
+    "docs/evidencias/integracao-etapa9-verificacao-entrada.json"
+  ],
+  "functional_delta": [],
+  "ci_reconfirmed": [
+    {
+      "id": 40675784213,
+      "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1
+    },
+    {
+      "id": 40675784155,
+      "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1
+    }
+  ],
+  "route": {
+    "preferred": "owner_controlled_disposable_windows_vm_and_local_package",
+    "accepted_in_principle": true,
+    "build_preparation_authorized": true,
+    "windows_environment_identified": false,
+    "existing_vm_provided": false,
+    "host_information_received": "Only the intended test PC is available; no separate build environment identified.",
+    "candidate_if_already_available": "Windows Sandbox",
+    "sandbox_present": null,
+    "windows_edition": null,
+    "windows_version": null,
+    "host_feature_enable_authorized": false,
+    "host_virtualization_install_authorized": false,
+    "new_private_repository_authorized": false,
+    "new_workflow_authorized": false,
+    "new_access_grants_authorized": false,
+    "remote_executable_transfer_authorized": false,
+    "private_ci_proposal": "P8-ENTREGA-01 remains unexecuted; not selected for this route"
+  },
+  "next_manual_information": {
+    "purpose": "Stage 8 build-environment identification, not Stage 9 GF tests",
+    "steps": [
+      "Open winver and report only Windows edition and version as text; no screenshot or registered owner details.",
+      "Search Start for Área Restrita do Windows or Windows Sandbox and report whether it appears; do not launch, install or enable it."
+    ],
+    "avoid_elevation_or_feature_changes": true
+  },
+  "conditional_build_plan": [
+    "Identify a suitable already available disposable Windows x64 environment before executing any build.",
+    "Keep SDK 10.0.402, PowerShell 7, Python and Git needed by the approved packaging procedure inside the guest; no host installation in this route.",
+    "Checkout fixed approved source, compile GF_BETA_LOCAL self-contained win-x64, inspect manifest/assembly without launching GF, preserve all existing package/content/license guards.",
+    "Create actual ZIP, manifest and SHA-256; verify with separate implementation and re-extract into a new folder.",
+    "Keep verified output locally in a new owner-controlled folder; no remote upload, overwrite or physical tests."
+  ],
+  "actual_package": {
+    "created": false,
+    "available": false,
+    "delivered": false,
+    "sha256": null,
+    "private_url": null
+  },
+  "new_builds": 0,
+  "new_ci_runs": 0,
+  "new_product_test_runs": 0,
+  "new_product_defects": [],
+  "stage1_to7_repeated": false,
+  "stage9_started": false,
+  "physical_tests_executed": false,
+  "restrictions": {
+    "avg_and_windows_protections_unchanged": true,
+    "drivers_disabled": true,
+    "winget_com_consultative": true,
+    "vlc_inventory_only_no_specific_tests_or_queries": true,
+    "remote_diagnostics_blocked": true,
+    "pilot_enabled": "no",
+    "github_export_enabled": "no",
+    "public_distribution_gates_unchanged": true,
+    "no_new_repository_workflow_or_access_grants": true,
+    "no_host_installation_or_settings_changes": true,
+    "no_binary_transfer": true,
+    "no_merge_release_deploy": true,
+    "roadmap_done": 27,
+    "roadmap_total": 42
+  },
+  "official_reference": "https://learn.microsoft.com/pt-br/windows/security/application-security/application-isolation/windows-sandbox/",
+  "changed_files": [
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/PROGRESSO.json",
+    "docs/evidencias/integracao-etapa8-rota-vm-local.json"
+  ],
+  "next_stage": 8,
+  "overall_mission_complete": false
+}
