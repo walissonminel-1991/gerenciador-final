@@ -1,0 +1,145 @@
+using System.Security.Cryptography;
+using System.Text;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed record FixtureSelector(string Schema,string InstallationId,BundleRef Bundle);
+internal sealed record FixtureReadiness(string TransactionId,string Nonce,string CandidateSha256);
+
+internal sealed class FixtureFiles
+{
+    internal readonly string Root;
+    internal FixtureFiles(string root) { FixtureSandbox.RequireRoot(root); Root=Path.GetFullPath(root); }
+    internal string BundlePath(BundleRef bundle)=>Path.Combine(Root,"versions",bundle.DirectoryName,"bundle.fixture.txt");
+    internal void Verify(BundleRef bundle)
+    { using var pin=Pin(bundle); }
+    private sealed class ModelPin : IDisposable { public void Dispose() { } }
+    internal IDisposable Pin(BundleRef bundle)
+    {
+        StateCodec.Bundle(bundle); string path=BundlePath(bundle);
+        if(OperatingSystem.IsWindows())
+        {
+            var pinned=WindowsFileGuard.Open(Root,path);
+            try {Require(pinned.Identity==bundle.Identity && Hash(pinned.Read(4096))==bundle.Sha256,"BUNDLE_ID_OR_HASH"); return pinned;}
+            catch {pinned.Dispose(); throw;}
+        }
+        else
+        {
+            // Linux exercises persistence/recovery, NOT NTFS identity or access semantics.
+            Require(bundle.Identity=="linux-fixture-model","NONWINDOWS_IDENTITY_MODEL");
+            Require((File.GetAttributes(path)&FileAttributes.ReparsePoint)==0 && Hash(PersistentState.ReadBounded(path))==bundle.Sha256,"BUNDLE_ID_OR_HASH");
+            return new ModelPin();
+        }
+    }
+    internal FixtureSelector ReadSelector(string installationId)
+    {
+        var selection=StateCodec.Decode<FixtureSelector>(PersistentState.ReadFixtureFile(Root,Path.Combine(Root,"active.fixture.json")));
+        Require(selection.Schema=="gf-selector-fixture/2" && selection.InstallationId==installationId,"SELECTOR_BINDING");
+        StateCodec.Bundle(selection.Bundle); Verify(selection.Bundle); return selection;
+    }
+    internal void ReplaceSelector(string installationId,BundleRef expected,BundleRef next,Action<string>? cut=null)
+    {
+        Require(ReadSelector(installationId).Bundle==expected,"SELECTOR_CONFLICT");
+        Verify(expected); Verify(next);
+        string temporary=Path.Combine(Root,"selector-pending-"+Guid.NewGuid().ToString("N")+".fixture");
+        using(var file=new FileStream(temporary,FileMode.CreateNew,FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough))
+        { file.Write(StateCodec.Encode(new FixtureSelector("gf-selector-fixture/2",installationId,next))); file.Flush(true); }
+        cut?.Invoke("selector-flushed");
+        // On Windows File.Replace uses ReplaceFileW; no unsupported flags or ACL-ignore fallback.
+        // Replacement/target file handles are closed here; pinned ancestor handles remain held by Session.
+        string backup=Path.Combine(Root,"selector-backup-"+Guid.NewGuid().ToString("N")+".fixture");
+        File.Replace(temporary,Path.Combine(Root,"active.fixture.json"),backup,ignoreMetadataErrors:false);
+        cut?.Invoke("selector-replaced");
+        Require(ReadSelector(installationId).Bundle==next,"SELECTOR_POSTCHECK");
+    }
+}
+
+internal sealed class FixtureSession : IDisposable
+{
+    private readonly InstallationLease lease;
+    private readonly IDisposable? rootGuard,ledgerGuard,versionsGuard;
+    internal readonly PersistentState Store;
+    internal readonly FixtureFiles Files;
+    internal FixtureSession(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        // Pin directories before opening the persistent lock, to prevent lock-file aliasing by parent rename.
+        try
+        {
+            if(OperatingSystem.IsWindows())
+            {
+                rootGuard=WindowsFileGuard.Open(root,root,true);
+                ledgerGuard=WindowsFileGuard.Open(root,Path.Combine(root,"ledger"),true);
+                versionsGuard=WindowsFileGuard.Open(root,Path.Combine(root,"versions"),true);
+            }
+            lease=InstallationLease.Acquire(root);
+            Store=new(root); Files=new(root);
+        }
+        catch { versionsGuard?.Dispose(); ledgerGuard?.Dispose(); rootGuard?.Dispose(); throw; }
+    }
+    internal StateRecord Begin(BundleRef candidate,CycleClock cycle,DateTimeOffset expires,bool userConfirmed,Action<string>? cut=null)
+    {
+        var loaded=Store.Load(); var state=loaded.Record;
+        Require(!Pending(state),"RECOVERY_REQUIRED");
+        Require(Files.ReadSelector(state.InstallationId).Bundle==state.Confirmed,"SELECTOR_STATE_MISMATCH");
+        if(!userConfirmed) return state;
+        using var previousPin=Files.Pin(state.Confirmed); using var candidatePin=Files.Pin(candidate);
+        Require(candidate.Sequence>state.Trust.ApprovedSequence && CompareVersion(candidate.Version,state.Trust.HighestVersion)>0,"CANDIDATE_REPLAY");
+        DateTimeOffset observed=cycle.Check(expires);
+        var tx=new FixtureTransaction(Guid.NewGuid().ToString("N"),Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)),
+            "intent",state.Confirmed,candidate,false);
+        var next=state with {Generation=state.Generation+1,PreviousDigest=loaded.Digest,Transaction=tx,
+            Trust=state.Trust with {ApprovedSequence=candidate.Sequence,HighestVersion=candidate.Version,LastObservedUtc=CycleClock.Wire(observed)}};
+        Store.Append(next,loaded.Digest,cut); cut?.Invoke("intent-persisted");
+        // Expiry/clock/budget are checked AGAIN after persistence, before the selection change.
+        _=cycle.Check(expires);
+        Files.ReplaceSelector(state.InstallationId,state.Confirmed,candidate,cut);
+        loaded=Store.Load();
+        next=loaded.Record with {Generation=loaded.Record.Generation+1,PreviousDigest=loaded.Digest,Transaction=tx with {Phase="selected"}};
+        Store.Append(next,loaded.Digest,cut); cut?.Invoke("selected-persisted"); return next;
+    }
+    internal StateRecord Confirm(FixtureReadiness signal)
+    {
+        var loaded=Store.Load(); var state=loaded.Record; var tx=state.Transaction;
+        Require(tx is {Phase:"selected"} && signal.TransactionId==tx.Id && signal.Nonce==tx.Nonce
+            && signal.CandidateSha256==tx.Candidate.Sha256,"READINESS_BINDING");
+        Require(Files.ReadSelector(state.InstallationId).Bundle==tx.Candidate,"SELECTOR_STATE_MISMATCH");
+        using var previousPin=Files.Pin(tx.Previous); using var candidatePin=Files.Pin(tx.Candidate);
+        var next=state with {Generation=state.Generation+1,PreviousDigest=loaded.Digest,Confirmed=tx.Candidate,Transaction=tx with {Phase="confirmed"}};
+        Store.Append(next,loaded.Digest); return next;
+    }
+    internal StateRecord Recover(Action<string>? cut=null)
+    {
+        var loaded=Store.Load(); var state=loaded.Record;
+        var selector=Files.ReadSelector(state.InstallationId);
+        if(!Pending(state))
+        { Require(selector.Bundle==state.Confirmed,"SELECTOR_STATE_MISMATCH"); return state; }
+        var tx=state.Transaction!;
+        Require(selector.Bundle==tx.Previous || selector.Bundle==tx.Candidate,"SELECTOR_OUTSIDE_TRANSACTION");
+        // Even a valid old bundle is not a fallback if the recorded transaction is inconsistent.
+        using var previousPin=Files.Pin(tx.Previous); using var candidatePin=Files.Pin(tx.Candidate);
+        if(tx.Phase!="rollback_intent")
+        {
+            tx=tx with {Phase="rollback_intent",RollbackUsed=true};
+            state=state with {Generation=state.Generation+1,PreviousDigest=loaded.Digest,Transaction=tx};
+            Store.Append(state,loaded.Digest,cut); cut?.Invoke("rollback-intent-persisted");
+        }
+        if(selector.Bundle==tx.Candidate)
+            Files.ReplaceSelector(state.InstallationId,tx.Candidate,tx.Previous,cut);
+        cut?.Invoke("rollback-selector-safe");
+        loaded=Store.Load();
+        var next=loaded.Record with {Generation=loaded.Record.Generation+1,PreviousDigest=loaded.Digest,Confirmed=tx.Previous,
+            Transaction=tx with {Phase="rolled_back",RollbackUsed=true}};
+        Store.Append(next,loaded.Digest,cut); cut?.Invoke("rollback-complete"); return next;
+    }
+    internal static bool Pending(StateRecord s)=>s.Transaction?.Phase is "intent" or "selected" or "rollback_intent";
+    internal BundleRef SelectionForFixtureInspectionOnly()
+    {
+        var state=Store.Load().Record;
+        Require(!Pending(state),"RECOVERY_REQUIRED");
+        Require(Files.ReadSelector(state.InstallationId).Bundle==state.Confirmed,"SELECTOR_STATE_MISMATCH");
+        return state.Confirmed; // Does not launch anything, regardless of metadata expiry.
+    }
+    public void Dispose() { lease.Dispose(); versionsGuard?.Dispose(); ledgerGuard?.Dispose(); rootGuard?.Dispose(); }
+}

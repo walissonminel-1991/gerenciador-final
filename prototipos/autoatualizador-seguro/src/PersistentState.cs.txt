@@ -1,0 +1,232 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed record BundleRef(long Sequence,string Version,string Sha256,string Identity)
+{
+    internal string DirectoryName => Sequence+"-"+Sha256;
+}
+internal sealed record TrustFloor(int Root,int Timestamp,int Snapshot,int Targets,long ApprovedSequence,
+    string HighestVersion,string LastObservedUtc,Dictionary<string,string> Metadata);
+internal sealed record FixtureTransaction(string Id,string Nonce,string Phase,BundleRef Previous,
+    BundleRef Candidate,bool RollbackUsed);
+internal sealed record StateRecord(string Schema,string InstallationId,long Generation,string PreviousDigest,
+    TrustFloor Trust,BundleRef Confirmed,FixtureTransaction? Transaction);
+
+internal static class StateCodec
+{
+    internal const int MaxRecordBytes=2*1024*1024;
+    internal static readonly JsonSerializerOptions Options=new() {
+        PropertyNamingPolicy=JsonNamingPolicy.CamelCase, UnmappedMemberHandling=JsonUnmappedMemberHandling.Disallow,
+        RespectRequiredConstructorParameters=true, MaxDepth=32 };
+    internal static byte[] Encode<T>(T value)=>JsonSerializer.SerializeToUtf8Bytes(value,Options);
+    internal static T Decode<T>(byte[] bytes)
+    {
+        using var preflight=Json(bytes,MaxRecordBytes);
+        try { return JsonSerializer.Deserialize<T>(bytes,Options) ?? throw new Rejected("STATE_NULL"); }
+        catch(JsonException) { throw new Rejected("STATE_SCHEMA"); }
+    }
+    internal static byte[] Wrap(StateRecord record)
+    {
+        var payload=Encode(record);
+        return Encode(new {schema="gf-state-fixture/2",payload=Convert.ToBase64String(payload),sha256=Hash(payload)});
+    }
+    internal static StateRecord Unwrap(byte[] bytes)
+    {
+        using var doc=Json(bytes,MaxRecordBytes);
+        var root=doc.RootElement;
+        Exact(root,"schema","payload","sha256");
+        Require(Text(root,"schema")=="gf-state-fixture/2","STATE_SCHEMA");
+        byte[] payload;
+        try { payload=Convert.FromBase64String(Text(root,"payload")); }
+        catch(FormatException) { throw new Rejected("STATE_BASE64"); }
+        Require(Hash(payload)==Text(root,"sha256"),"STATE_CHECKSUM");
+        var record=Decode<StateRecord>(payload);
+        Validate(record);
+        return record;
+    }
+    internal static void Bundle(BundleRef b)
+    {
+        Require(b is not null && b.Sequence is >0 and <=9007199254740991L && b.Sha256 is not null && Hex(b.Sha256,64)
+            && b.Version is not null && b.Identity is {Length:>0 and <=128} && b.Identity.All(c=>char.IsAsciiLetterOrDigit(c)||c=='-'),"BUNDLE_REF");
+        _=CompareVersion(b.Version,b.Version);
+    }
+    internal static DateTimeOffset Observed(TrustFloor trust)
+    {
+        using var doc=Json(Encode(new {utc=trust.LastObservedUtc}));
+        return Date(doc.RootElement,"utc");
+    }
+    internal static void Validate(StateRecord s)
+    {
+        Require(s.Schema=="gf-state-fixture/2" && s.InstallationId is not null && Hex(s.InstallationId,32)
+            && s.Generation is >0 and <=9007199254740991L && s.PreviousDigest is not null && Hex(s.PreviousDigest,64),"STATE_SCHEMA");
+        Bundle(s.Confirmed);
+        var t=s.Trust;
+        Require(t is not null && t.HighestVersion is not null && t.LastObservedUtc is not null && t.Root>0 && t.Timestamp>0 && t.Snapshot>0 && t.Targets>0
+            && t.ApprovedSequence>=s.Confirmed.Sequence && t.ApprovedSequence<=9007199254740991L,"TRUST_FLOOR");
+        Require(CompareVersion(t.HighestVersion,s.Confirmed.Version)>=0,"TRUST_VERSION");
+        var observed=Observed(t);
+        Require(t.Metadata is not null && t.Metadata.Count is 0 or 4,"STATE_CACHE");
+        foreach(var p in t.Metadata)
+        {
+            Require(p.Key is "root" or "timestamp" or "snapshot" or "targets","STATE_CACHE");
+            Require(p.Value is not null && p.Value.Length<=700000,"STATE_CACHE");
+            byte[] bytes;
+            try { bytes=Convert.FromBase64String(p.Value); }
+            catch(FormatException) { throw new Rejected("STATE_CACHE"); }
+            Envelope(bytes,p.Key,observed,cached:true);
+            using var d=Json(bytes);
+            int v=p.Key switch {"root"=>t.Root,"timestamp"=>t.Timestamp,"snapshot"=>t.Snapshot,_=>t.Targets};
+            Require(Number(d.RootElement.GetProperty("signed"),"version",int.MaxValue)==v,"STATE_CACHE_VERSION");
+        }
+        if(s.Transaction is { } tx)
+        {
+            Require(tx.Id is not null && tx.Nonce is not null && Hex(tx.Id,32) && Hex(tx.Nonce,32)
+                && tx.Phase is "intent" or "selected" or "rollback_intent" or "rolled_back" or "confirmed","JOURNAL_SCHEMA");
+            Bundle(tx.Previous); Bundle(tx.Candidate);
+            Require(tx.Candidate.Sequence>tx.Previous.Sequence && CompareVersion(tx.Candidate.Version,tx.Previous.Version)>0
+                && tx.Candidate.Sequence<=t.ApprovedSequence,"JOURNAL_BUNDLES");
+            Require(s.Confirmed==(tx.Phase=="confirmed" ? tx.Candidate : tx.Previous),"JOURNAL_CONFIRMED");
+            Require(tx.RollbackUsed==(tx.Phase is "rollback_intent" or "rolled_back"),"JOURNAL_ROLLBACK");
+        }
+    }
+    internal static void Follows(StateRecord previous,StateRecord next,string previousDigest)
+    {
+        Validate(next);
+        Require(next.InstallationId==previous.InstallationId && next.Generation==previous.Generation+1
+            && next.PreviousDigest==previousDigest,"STATE_CHAIN");
+        var a=previous.Trust; var b=next.Trust;
+        Require(b.Root>=a.Root && b.Timestamp>=a.Timestamp && b.Snapshot>=a.Snapshot && b.Targets>=a.Targets
+            && b.ApprovedSequence>=a.ApprovedSequence && CompareVersion(b.HighestVersion,a.HighestVersion)>=0
+            && Observed(b)>=Observed(a),"FLOOR_ROLLBACK");
+        Require(a.Metadata.Count==0 || b.Metadata.Count==4,"CACHE_REMOVED");
+        foreach(var p in a.Metadata)
+        {
+            int av=p.Key switch {"root"=>a.Root,"timestamp"=>a.Timestamp,"snapshot"=>a.Snapshot,_=>a.Targets};
+            int bv=p.Key switch {"root"=>b.Root,"timestamp"=>b.Timestamp,"snapshot"=>b.Snapshot,_=>b.Targets};
+            Require(bv!=av || b.Metadata[p.Key]==p.Value,"CACHE_EQUIVOCATION");
+        }
+        var old=previous.Transaction; var tx=next.Transaction;
+        if(old is null || old.Phase is "confirmed" or "rolled_back")
+        {
+            // A metadata-only checkpoint never approves a release or changes the selection.
+            if(tx==old)
+                Require(next.Confirmed==previous.Confirmed && b.ApprovedSequence==a.ApprovedSequence
+                    && b.HighestVersion==a.HighestVersion,"CHECKPOINT_CHANGED_RELEASE");
+            else Require(tx is not null && tx.Phase=="intent" && tx.Previous==previous.Confirmed
+                && tx.Candidate.Sequence>a.ApprovedSequence && CompareVersion(tx.Candidate.Version,a.HighestVersion)>0,"INTENT_ORDER");
+        }
+        else
+        {
+            Require(tx is not null && tx.Id==old.Id && tx.Nonce==old.Nonce && tx.Previous==old.Previous && tx.Candidate==old.Candidate,"JOURNAL_IDENTITY");
+            Require((old.Phase,tx.Phase) is ("intent","selected") or ("intent","rollback_intent")
+                or ("selected","confirmed") or ("selected","rollback_intent") or ("rollback_intent","rolled_back"),"JOURNAL_TRANSITION");
+            Require(Encode(a).AsSpan().SequenceEqual(Encode(b)),"PENDING_TRUST_CHANGED");
+        }
+    }
+}
+
+internal static class FixtureSandbox
+{
+    internal const string Marker="GF-U2-INERT-STATE-TESTS-NO-PRODUCT\n";
+    internal static void RequireRoot(string root)
+    {
+        string full=Path.GetFullPath(root), temp=Path.GetFullPath(Path.GetTempPath());
+        Require(Path.GetRelativePath(temp,full).Split(Path.DirectorySeparatorChar)[0].StartsWith("gf-u2-",StringComparison.Ordinal)
+            && !Path.GetRelativePath(temp,full).StartsWith("..",StringComparison.Ordinal),"FIXTURE_SANDBOX");
+        Require(File.ReadAllText(Path.Combine(full,".gf-u2-fixture"))==Marker,"FIXTURE_SANDBOX");
+        Require((File.GetAttributes(full)&FileAttributes.ReparsePoint)==0,"FIXTURE_REPARSE");
+    }
+}
+
+// Append-only generations are the durable trust floor AND transaction journal.
+// Hashes detect accidents, NOT a malicious same-user rewrite of the entire ledger.
+internal sealed class PersistentState
+{
+    internal readonly string Root;
+    internal string Ledger=>Path.Combine(Root,"ledger");
+    internal PersistentState(string root) { FixtureSandbox.RequireRoot(root); Root=Path.GetFullPath(root); }
+    internal (StateRecord Record,string Digest) Load()
+    {
+        string[] files=Directory.GetFiles(Ledger);
+        Require(files.Length is >0 and <=64,"STATE_MISSING_OR_LIMIT");
+        Require(!files.Any(f=>Path.GetFileName(f).StartsWith("pending-",StringComparison.Ordinal)),"STATE_INCOMPLETE");
+        Array.Sort(files,StringComparer.Ordinal);
+        StateRecord? previous=null; string digest=new('0',64); var usedIds=new HashSet<string>(); var usedNonces=new HashSet<string>();
+        for(int i=0;i<files.Length;i++)
+        {
+            Require(Path.GetFileName(files[i])==Name(i+1),"STATE_GAP_OR_UNKNOWN");
+            byte[] bytes=ReadFixtureFile(Root,files[i]); var current=StateCodec.Unwrap(bytes);
+            Require(current.Generation==i+1,"STATE_GENERATION");
+            if(previous is null) Require(current.Generation==1 && current.PreviousDigest==digest && current.Transaction is null,"STATE_BOOTSTRAP");
+            else StateCodec.Follows(previous,current,digest);
+            if(current.Transaction is {Phase:"intent"} tx && previous?.Transaction?.Id!=tx.Id)
+                Require(usedIds.Add(tx.Id) && usedNonces.Add(tx.Nonce),"TRANSACTION_REUSE");
+            previous=current; digest=Hash(bytes);
+        }
+        return (previous!,digest);
+    }
+    internal void Append(StateRecord record,string expectedDigest,Action<string>? cut=null)
+    {
+        var previous=Load();
+        Require(previous.Digest==expectedDigest,"STATE_CONFLICT");
+        StateCodec.Follows(previous.Record,record,expectedDigest);
+        WriteNew(record,cut);
+    }
+    internal void BootstrapFixture(StateRecord initial)
+    {
+        Require(Directory.GetFiles(Ledger).Length==0,"NO_REBOOTSTRAP");
+        StateCodec.Validate(initial);
+        Require(initial.Generation==1 && initial.PreviousDigest==new string('0',64) && initial.Transaction is null,"STATE_BOOTSTRAP");
+        WriteNew(initial,null);
+    }
+    private void WriteNew(StateRecord record,Action<string>? cut)
+    {
+        byte[] bytes=StateCodec.Wrap(record);
+        Require(bytes.Length<=StateCodec.MaxRecordBytes && Directory.GetFiles(Ledger).Length<64,"STATE_SIZE_OR_LIMIT");
+        string pending=Path.Combine(Ledger,"pending-"+Guid.NewGuid().ToString("N")+".fixture");
+        using(var file=new FileStream(pending,FileMode.CreateNew,FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough))
+        {
+            cut?.Invoke("record-created");
+            file.Write(bytes); cut?.Invoke("record-written");
+            file.Flush(flushToDisk:true); cut?.Invoke("record-flushed");
+        }
+        File.Move(pending,Path.Combine(Ledger,Name(record.Generation)),overwrite:false);
+        cut?.Invoke("record-promoted");
+    }
+    private static string Name(long generation)=>generation.ToString("D16",System.Globalization.CultureInfo.InvariantCulture)+".fixture.json";
+    internal static byte[] ReadFixtureFile(string root,string path)
+    {
+        if(OperatingSystem.IsWindows())
+        { using var guard=WindowsFileGuard.Open(root,path); return guard.Read(StateCodec.MaxRecordBytes); }
+        return ReadBounded(path);
+    }
+    internal static byte[] ReadBounded(string path)
+    {
+        using var file=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read);
+        Require(file.Length is >0 and <=StateCodec.MaxRecordBytes,"STATE_SIZE");
+        var bytes=new byte[checked((int)file.Length)]; file.ReadExactly(bytes);
+        Require(file.ReadByte()==-1,"STATE_GREW"); return bytes;
+    }
+}
+
+internal sealed class InstallationLease : IDisposable
+{
+    private readonly FileStream handle;
+    private InstallationLease(FileStream handle) { this.handle=handle; }
+    internal static InstallationLease Acquire(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        try
+        {
+            if(OperatingSystem.IsWindows()) return new(new FileStream(WindowsFileGuard.OpenExclusiveLease(root),FileAccess.ReadWrite));
+            return new(new FileStream(Path.Combine(root,"lease.fixture"),FileMode.Open,FileAccess.ReadWrite,FileShare.None));
+        }
+        catch(Exception e) when(e is IOException or System.ComponentModel.Win32Exception or UnauthorizedAccessException)
+        { throw new Rejected("INSTALLATION_BUSY_OR_LOCK_MISSING"); }
+    }
+    public void Dispose()=>handle.Dispose(); // Never unlink a lock file; that would create split locks.
+}

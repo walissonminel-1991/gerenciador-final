@@ -32,6 +32,8 @@ internal static class SecurityTests
 
     public static async Task<int> Main(string[] args)
     {
+        if(args.Length>0 && args[0] is "--state-self-test" or "--state-child")
+            return await StateSecurityTests.Entry(args);
         // This executable is only a fixture test runner. No import/apply/production command exists.
         if(args.Length!=3 || args[0]!="--self-test")
         { Console.Error.WriteLine("Usage: --self-test <generated-fixture-directory> <report.json>"); return 2; }

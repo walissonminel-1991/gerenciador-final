@@ -1,4 +1,4 @@
-# GF — protótipo isolado de validação (Etapa 1)
+# GF — protótipo isolado de segurança (Etapas 1 e 2)
 
 **Somente fixtures inertes. Não instala, não baixa atualizações, não executa o
 GF e não é um atualizador distribuível.** Requer SDK .NET 10.0.402 em ambiente
@@ -37,3 +37,16 @@ são dados inventados, não commits/candidatas publicados.
 
 [POUF e limites](POUF.md) · [Relatório da Etapa 1](../../docs/WORK-AUTOATUALIZADOR-ETAPA1.md) ·
 [Contrato gf-self-update/1 preservado](../../docs/WORK-AUTOATUALIZADOR-ETAPA0.md).
+
+## Extensão isolada da Etapa 2
+
+```sh
+python run_stage2_tests.py --report /temporario/gf-u2-results.json
+```
+
+[Protocolo, NTFS, diário, relógio e limites](STATE-PROTOCOL.md).
+Testa somente arquivos de texto em diretórios temporários com marcador de
+fixture; não aceita pasta GF existente, não instala ou abre EXE/DLL.
+Linux valida persistência/modelo; casos NTFS só contam quando executados em
+Windows. Resultados finais e status ficam no checkpoint do autoatualizador.
+Nenhuma Etapa 3 é iniciada por esta extensão.

@@ -74,7 +74,7 @@ O teste RFC8032 §7.1 Test 1 valida o primitivo Ed25519 independentemente dos
 metadados gerados. Seeds públicas de teste e chaves operacionais são conjuntos
 completamente separados. O fingerprint de teste não é parâmetro de manifesto.
 
-## Fronteiras ainda não implementadas
+## Fronteiras pendentes ao final da Etapa 1 — histórico
 
 Persistência/durabilidade do cache e pisos, filesystem NTFS por handle/file ID,
 TOCTOU de arquivos reais, seletor/diário, IPC por identidade do kernel,
@@ -86,3 +86,13 @@ capacidades é inferida dos 66 testes. Nenhuma Etapa 2 iniciada.
 Referências primárias: [TUF 1.0.36](https://theupdateframework.github.io/specification/v1.0.36/),
 [cliente .NET fixado](https://github.com/mitchdenny/sigstore-dotnet/tree/c0f5ff9747aa9b00c45a964dca275be4066cd489/src/Tuf),
 [RFC8032](https://www.rfc-editor.org/rfc/rfc8032.html#section-7.1).
+
+## Extensão experimental da Etapa 2
+
+O [protocolo de estado](STATE-PROTOCOL.md) descreve a nova validação isolada de
+persistência/relógio/NTFS/seletor/diário/concorrência/recuperação. Nenhum formato
+TUF, limite criptográfico, chave, lockfile ou perfil de pacote da Etapa 1 muda.
+Resultados e limites da Etapa 2 são separados dos 66 testes históricos acima.
+Não considerar relógio interno TUF uniforme, durabilidade contra energia, IPC,
+extração de ZIP no Windows ou execução real como comprovados por esta extensão.
+Etapa 3 e integração no produto permanecem não iniciadas.
