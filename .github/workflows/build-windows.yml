@@ -51,12 +51,13 @@ jobs:
           if ($version -notmatch '^[0-9]+([.][0-9]+){3}$') { throw 'Versao invalida no projeto' }
           $shortCommit = $env:GF_SOURCE_SHA.Substring(0, 8).ToLowerInvariant()
           $artifactName = "GerenciadorFinal-v$version-$shortCommit-TESTE-win-x64"
-          if (([string]$project.Project.PropertyGroup.DefineConstants) -match '(^|;)GF_BETA(;|$)') {
+          $defines = @($project.SelectNodes('//PropertyGroup/DefineConstants') | ForEach-Object { $_.InnerText -split ';' })
+          if ($defines -contains 'GF_BETA') {
             $artifactName = "GerenciadorFinal-v$version-$shortCommit-BETA-INTERNA-BLOQUEADA-win-x64"
           }
           "nome=$artifactName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "versao=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          $betaEnabled = ([string]$project.Project.PropertyGroup.DefineConstants) -match '(^|;)GF_BETA(;|$)'
+          $betaEnabled = $defines -contains 'GF_BETA'
           "beta=$($betaEnabled.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Artefato identificado como: $artifactName"
 
@@ -78,10 +79,10 @@ jobs:
         run: |
           dotnet build TestesTelemetria/TestesTelemetria.csproj -c Release --nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $report = & dotnet run --project TestesTelemetria/TestesTelemetria.csproj -c Release --no-build -- --inspect-beta-build "$env:GITHUB_WORKSPACE/Distribuicao/GerenciadorFinal.dll" $env:GF_SOURCE_SHA
+          $report = & dotnet run --project TestesTelemetria/TestesTelemetria.csproj -c Release --no-build -- --inspect-local-beta-build "$env:GITHUB_WORKSPACE/Distribuicao/GerenciadorFinal.dll" $env:GF_SOURCE_SHA
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $report | Set-Content 'Distribuicao/BETA-BUILD.json' -Encoding utf8
-          Write-Host 'Compilacao interna apenas; nao substitui a candidata conectada nem autoriza distribuicao.'
+          Write-Host 'Perfil local inspecionado; validacao tecnica interna, sem autorizacao de distribuicao.'
 
       - name: Registrar origem e versao da compilacao
         shell: pwsh
@@ -90,6 +91,7 @@ jobs:
           $version = [string]$project.Project.PropertyGroup.Version
           @(
             'Produto: Gerenciador Final'
+            'Perfil BETA: local; BETA LOCAL TESTE - NAO HOMOLOGADA'
             "Versao: $version"
             "Commit Git: $env:GITHUB_SHA"
             "Commit fonte: $env:GF_SOURCE_SHA"

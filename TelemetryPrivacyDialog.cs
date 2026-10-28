@@ -44,7 +44,7 @@ internal sealed class TelemetryPrivacyDialog : Form
                    "Você pode simular sem aceitar a coleta."
         };
 #if GF_BETA
-        notice.Text = TelemetryConsentPolicy.RemoteNotice;
+        notice.Text = BetaRuntimePolicy.IsLocalBeta ? BetaRuntimePolicy.LocalNotice : TelemetryConsentPolicy.RemoteNotice;
         // O aviso ultrapassa uma altura fixa em notebook/DPI alto: permitir rolagem e copia.
         var scrollingNotice = new TextBox
         {
@@ -90,7 +90,8 @@ internal sealed class TelemetryPrivacyDialog : Form
 #if GF_BETA
         accept.Text = "Aceito envio automático";
         accept.Enabled = BetaTelemetryUploader.IsConfigured;
-        if (!accept.Enabled) scrollingNotice.Text += "\n\nSem receptor configurado: aceitar e enviar ficam bloqueados.";
+        if (BetaRuntimePolicy.IsLocalBeta) accept.Text = "Coleta remota indisponível";
+        else if (!accept.Enabled) scrollingNotice.Text += "\n\nSem receptor configurado: aceitar e enviar ficam bloqueados.";
 #endif
         var decline = new ModernButton
         {
@@ -182,6 +183,7 @@ internal sealed partial class MainForm
 {
     private void RefreshPrivacyStatus()
     {
+#if !GF_BETA
         if (_privacyStatusButton is null || _privacyStatusButton.IsDisposed) return;
         var state = AnonymousTelemetryContext.Current?.Consent ?? TelemetryConsent.NotAsked;
         _privacyStatusButton.Text = PrivacyConsentPresentation.ButtonLabel(state);
@@ -192,6 +194,7 @@ internal sealed partial class MainForm
         _privacyStatusButton.BackColor = state == TelemetryConsent.LocalOnly
             ? Color.FromArgb(43, 66, 89) : AppServices.Gray;
         _privacyStatusButton.Invalidate();
+#endif
     }
 
     private void OfferAnonymousDiagnosticConsent(bool firstRun = false)

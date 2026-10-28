@@ -247,7 +247,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         {
             Timeout = TimeSpan.FromSeconds(14)
         };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.13.11"));
+        client.DefaultRequestHeaders.UserAgent.Add(ProductHttpIdentity.UserAgent);
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return client;
     }
@@ -263,7 +263,7 @@ internal sealed class OfficialReleaseSources : IDisposable
         };
         if (_ownsHttp)
         {
-            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.13.11"));
+            _http.DefaultRequestHeaders.UserAgent.Add(ProductHttpIdentity.UserAgent);
             _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
     }

@@ -173,7 +173,7 @@ jobs:
       - name: Benchmark sintetico de classificacao e navegacao (sem arquivos reais)
         run: dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release --no-build --no-restore -- --benchmark
       - name: Testes layout e RAM
-        run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release
+        run: dotnet run --project TestesLayout/TestesLayout.csproj -c BetaInternal -p:GfBetaProfile=internal
       - name: Testes inventario MSIX
         run: dotnet run --project TestesMsix/TestesMsix.csproj -c Release
       - name: Preparar Node para SQLite local dos testes BETA
@@ -191,7 +191,7 @@ jobs:
       - name: BETA receptor, retencao GitHub e recuperacao (SQLite local, sem rede)
         run: node --test prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs prototipos/beta-telemetria/round2.test.mjs prototipos/beta-telemetria/finalization.test.mjs
       - name: BETA fechamento, bandeja e Shutdown simulados na janela real
-        run: dotnet run --project TestesLayout/TestesLayout.csproj -c Release -- --beta-close
+        run: dotnet run --project TestesLayout/TestesLayout.csproj -c BetaInternal -p:GfBetaProfile=internal -- --beta-close
       - name: Testes privacidade e diagnostico local
         run: dotnet run --project TestesTelemetria/TestesTelemetria.csproj -c Release
       - name: Testes bloqueio de instaladores e encerramento seguro

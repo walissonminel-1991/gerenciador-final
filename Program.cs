@@ -596,7 +596,9 @@ internal sealed partial class MainForm : Form
     private readonly Label _emptyState = new();
     private readonly TextBox _search = new();
     private readonly DarkLogView _log = new();
+#if !GF_BETA
     private Button? _privacyStatusButton;
+#endif
     private readonly Label _status = new();
     private readonly Label _listTitle = new();
     private readonly Label _itemHint = new();
@@ -656,7 +658,8 @@ internal sealed partial class MainForm : Form
         _updateOperations = new(DiagnosticTrace.Write, _reliability.RecordUpdate);
         _uninstallOperations = new(_reliability.RecordUninstall);
         FormClosed += (_, _) => _reliability.Dispose();
-        Text = "Gerenciador Final — " + DiagnosticTrace.VersionLabel + " BETA";
+        Text = "Gerenciador Final — " + DiagnosticTrace.VersionLabel +
+            (BetaRuntimePolicy.IsLocalBeta ? " BETA LOCAL TESTE — NÃO HOMOLOGADA" : " BETA");
         Font = new Font("Segoe UI", 9.5F);
         BackColor = AppServices.Background;
         ForeColor = Ink;
@@ -803,7 +806,8 @@ internal sealed partial class MainForm : Form
             }
             if (!startServices) return;
             LocalPerformanceMetrics.CompleteStartup();
-            Log("BETA: somente contagens técnicas são elegíveis a envio com consentimento.");
+            Log(BetaRuntimePolicy.IsLocalBeta ? "BETA LOCAL: coleta e envio remotos desativados." :
+                "BETA: somente contagens técnicas são elegíveis a envio com consentimento.");
             // Nao abrir dialogos na sessao que iniciou oculta na bandeja.
             if (!startInTray) OfferAnonymousDiagnosticConsent(firstRun: true);
             // Na abertura, a lista ainda esta vazia: nao animar barra de
@@ -2503,8 +2507,13 @@ internal sealed partial class MainForm : Form
 
     private void BeginStartupChecks()
     {
-        Log("Inicialização: consultando atualizações de aplicativos e Windows Update em segundo plano.");
         BeginBackgroundMemoryMonitoring();
+        if (!BetaRuntimePolicy.AllowsAutomaticOnlineChecks)
+        {
+            Log("BETA LOCAL: consultas de versões disponíveis por ação explícita.");
+            return;
+        }
+        Log("Inicialização: consultando atualizações de aplicativos e Windows Update em segundo plano.");
         if (_startupOnlineProbe is not null) _startupOnlineProbe();
         else _ = RunStaggeredStartupChecksAsync();
     }

@@ -9,6 +9,7 @@ internal static class BetaBuildVerifier
     internal static void Run(string[] args)
     {
         bool connectedRequired = args[0] == "--verify-connected-build";
+        bool localRequired = args[0] == "--inspect-local-beta-build";
         if (args.Length != (connectedRequired ? 4 : 3) || args[2].Length != 40 ||
             args[2].Any(c => !char.IsAsciiHexDigit(c))) throw new InvalidDataException("GF_BETA_BUILD_ARGUMENTS");
         var assembly = Assembly.LoadFile(Path.GetFullPath(args[1]));
@@ -23,13 +24,18 @@ internal static class BetaBuildVerifier
             return items.SingleOrDefault().Value;
         }
         string? endpoint = One("GfBetaEndpoint");
-        var approved = metadata.Where(m => m.Key == "GfApprovedBetaEndpoint").Select(m => m.Value ?? "");
+        string? profile = One("GfBetaProfile");
+        var approved = metadata.Where(m => m.Key == "GfApprovedBetaEndpoint").Select(m => m.Value ?? "").ToArray();
         bool configured = BetaEndpointPolicy.Validate(endpoint, approved) is not null &&
             One("GfReviewedPrivacyNoticeSha256") == TelemetryConsentPolicy.NoticeHash &&
             One("GfPrivacyNoticeVersion") == TelemetryConsentPolicy.Version;
         if (assembly.GetName().Version?.ToString() != "5.13.11.66" || One("GfBuildChannel") != "BETA" ||
             One("GfSourceCommit") != args[2]) throw new InvalidDataException("GF_BETA_BUILD_ORIGIN");
-        if (connectedRequired && (!configured || endpoint != args[3]))
+        if (profile is not ("local" or "internal")) throw new InvalidDataException("GF_BETA_BUILD_PROFILE");
+        if (localRequired && (profile != "local" || configured || endpoint is not null || approved.Length != 0 ||
+            One("GfReviewedPrivacyNoticeSha256") is not null))
+            throw new InvalidDataException("GF_BETA_LOCAL_BUILD_REQUIRED");
+        if (connectedRequired && (profile != "internal" || !configured || endpoint != args[3]))
             throw new InvalidDataException("GF_BETA_CONNECTED_BUILD_REQUIRED");
         Console.WriteLine(JsonSerializer.Serialize(new
         {

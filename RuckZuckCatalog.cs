@@ -27,7 +27,7 @@ internal sealed class RuckZuckCatalog : IDisposable
         {
             Timeout = TimeSpan.FromSeconds(55)
         };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.8"));
+        client.DefaultRequestHeaders.UserAgent.Add(ProductHttpIdentity.UserAgent);
         return client;
     }
 
@@ -40,7 +40,7 @@ internal sealed class RuckZuckCatalog : IDisposable
             Timeout = TimeSpan.FromSeconds(55)
         };
         if (_ownsClient)
-            _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.8"));
+            _http.DefaultRequestHeaders.UserAgent.Add(ProductHttpIdentity.UserAgent);
     }
 
     internal async Task<IReadOnlyList<CatalogEntry>> GetCatalogAsync(

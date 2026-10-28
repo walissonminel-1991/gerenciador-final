@@ -30,7 +30,7 @@ if ($BuildPurpose -eq 'Candidata') {
 }
 if (Test-Path -LiteralPath $OutputDirectory) { throw 'Use pasta de saida nova para impedir mistura com builds anteriores' }
 $arguments = @('publish','GerenciadorAplicativos.csproj','-c','Release','-r','win-x64','--self-contained','true',
-    '-p:PublishSingleFile=false','-p:DebugType=None','-p:DebugSymbols=false',"-p:GfSourceCommit=$source", "-p:GfBetaEndpoint=$Endpoint",'-o',$OutputDirectory)
+    '-p:GfBetaProfile=internal','-p:PublishSingleFile=false','-p:DebugType=None','-p:DebugSymbols=false',"-p:GfSourceCommit=$source", "-p:GfBetaEndpoint=$Endpoint",'-o',$OutputDirectory)
 & dotnet @arguments
 if ($LASTEXITCODE -ne 0) { throw 'Falha de compilacao; nenhuma candidata autorizada' }
 & dotnet build TestesTelemetria/TestesTelemetria.csproj -c Release --nologo

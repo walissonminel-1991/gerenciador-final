@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../ProductHttpIdentity.cs" Link="ProductHttpIdentity.cs" />
     <Compile Include="../RuckZuckCatalog.cs" Link="RuckZuckCatalog.cs" />
     <Compile Include="../RuckZuckModels.cs" Link="RuckZuckModels.cs" />
     <Compile Include="../Matching.cs" Link="Matching.cs" />

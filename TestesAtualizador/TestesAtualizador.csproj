@@ -9,6 +9,7 @@
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../ProductHttpIdentity.cs" Link="ProductHttpIdentity.cs" />
     <Compile Include="../InstalledUpdateIdentity.cs" Link="InstalledUpdateIdentity.cs" />
     <Compile Include="../InventoryReconciler.cs" Link="InventoryReconciler.cs" />
     <Compile Include="../UpdateResultHistory.cs" Link="UpdateResultHistory.cs" />

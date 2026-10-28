@@ -8,6 +8,15 @@ using GerenciadorAplicativos;
 // Nao inicia inventario, WUA, instalador, Shutdown do SO ou receptor real.
 internal static class LocalBetaRegressionTests
 {
+    private static IEnumerable<Control> Descendants(Control root)
+    {
+        foreach (Control child in root.Controls)
+        {
+            yield return child;
+            foreach (var nested in Descendants(child)) yield return nested;
+        }
+    }
+
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> response) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
@@ -34,8 +43,37 @@ internal static class LocalBetaRegressionTests
                 form.Show(); Application.DoEvents();
                 typeof(MainForm).GetMethod("BeginStartupChecks", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, null);
                 Check(automatic == 0, "GF6-001 abertura nao chama HTTP/WUA; observado=" + automatic);
+                Check(form.Text.Contains("BETA LOCAL TESTE — NÃO HOMOLOGADA"), "GF6-001 janela identifica edicao local");
                 form.Close(); Application.DoEvents();
             }
+
+            string pristine = Path.Combine(folder, "sem-preferencia");
+            var fresh = new AnonymousTelemetry(pristine);
+            fresh.Record("APP.FALHA_INTERFACE");
+            Check(!fresh.SaveOnNormalExit("v5.13.11.66") && !Directory.Exists(pristine),
+                "GF6-002 primeira abertura e saida nao criam arquivos de coleta");
+            using (var dialog = new TelemetryPrivacyDialog(fresh))
+            {
+                dialog.Show(); Application.DoEvents();
+                var notice = Descendants(dialog).OfType<TextBox>().Single(c => c.Name == "PrivacyBetaNotice");
+                var accept = Descendants(dialog).OfType<Button>().Single(c => c.Text == "Coleta remota indisponível");
+                Check(!accept.Enabled && dialog.AcceptButton is null && notice.ReadOnly &&
+                    notice.ScrollBars == ScrollBars.Vertical && notice.Text.Contains("inclusive durante falhas e encerramento"),
+                    "GF6-002 aviso local e aceite indisponivel correspondem ao bloqueio real");
+                var preview = Descendants(dialog).OfType<DarkLogView>().Single(c => c.Name == "PrivacyLocalPreview");
+                Check(preview.RenderedText.Contains("COLETA DESATIVADA"), "GF6-002 interface explica estado local sem coleta");
+                Descendants(dialog).OfType<Button>().Single(c => c.Name == "PrivacyOfflineSimulation").PerformClick();
+                for (int i = 0; i < 30 && !preview.RenderedText.Contains("SIMULAÇÃO CONCLUÍDA"); i++)
+                { Thread.Sleep(20); Application.DoEvents(); }
+                Check(preview.RenderedText.Contains("INVENTADOS") && !Directory.Exists(pristine) &&
+                    dialog.DialogResult == DialogResult.None && fresh.Consent == TelemetryConsent.Declined,
+                    "GF6-002 simulacao por clique nao coleta, grava ou aceita");
+                dialog.Close();
+            }
+            var metadata = typeof(MainForm).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().ToArray();
+            Check(metadata.Single(m => m.Key == "GfBetaProfile").Value == "local" &&
+                !metadata.Any(m => m.Key is "GfBetaEndpoint" or "GfApprovedBetaEndpoint" or "GfReviewedPrivacyNoticeSha256"),
+                "GF6-002 assembly local nao incorpora endpoint ou aprovacoes conectadas");
 
             Directory.CreateDirectory(folder);
             string choice = JsonSerializer.Serialize(new { schema = 2, state = 3,

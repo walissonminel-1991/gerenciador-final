@@ -10,6 +10,7 @@ internal static class BetaTelemetryTransport
     internal static async Task<bool> TrySendAsync(AnonymousTelemetry recorder, Uri endpoint,
         HttpClient client, TimeSpan? timeout = null)
     {
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics) return false;
         using var lease = recorder.TryBeginRemoteSend();
         if (lease is null) return false;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(lease.Cancellation);

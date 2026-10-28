@@ -11,6 +11,7 @@ internal static class BetaTelemetryUploader
     internal static bool IsConfigured => Endpoint is not null;
     private static Uri? FindEndpoint()
     {
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics) return null;
         var metadata = typeof(BetaTelemetryUploader).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().ToArray();
         string? source = metadata.FirstOrDefault(x => x.Key == "GfSourceCommit")?.Value;
         if (source is not { Length: 40 } || source.Any(c => !char.IsAsciiHexDigit(c)) ||

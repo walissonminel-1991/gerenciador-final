@@ -7,7 +7,7 @@ void Verify(bool ok, string message)
     Console.WriteLine("OK " + message);
 }
 
-if (args.Length > 0 && args[0] is "--inspect-beta-build" or "--verify-connected-build")
+if (args.Length > 0 && args[0] is "--inspect-beta-build" or "--inspect-local-beta-build" or "--verify-connected-build")
 {
     BetaBuildVerifier.Run(args);
     return;

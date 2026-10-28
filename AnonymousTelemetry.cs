@@ -33,7 +33,10 @@ internal sealed class AnonymousTelemetry
         _folder = storageFolder ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "GerenciadorFinal", "Privacidade");
-        Consent = ReadConsent();
+        Consent = BetaRuntimePolicy.AllowsCollaborativeDiagnostics ? ReadConsent() : TelemetryConsent.Declined;
+        // Nao ler, expirar, remover ou renovar arquivos de uma edicao anterior.
+        // Somente uma revogacao explicita pode alterar a preferencia herdada.
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics) return;
         // Sem criar pasta antes da escolha. Limpeza inicial tambem participa
         // da coordenacao, para nao apagar pendencia criada por outra instancia.
         if (Directory.Exists(_folder))
@@ -114,6 +117,8 @@ internal sealed class AnonymousTelemetry
 
     internal bool SetConsent(TelemetryConsent consent)
     {
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics && consent != TelemetryConsent.Declined)
+            return false;
         if (consent is not (TelemetryConsent.Declined or TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta))
             return false;
         lock (_gate)
@@ -164,6 +169,7 @@ internal sealed class AnonymousTelemetry
 
     internal void Record(string diagnosticEvent)
     {
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics) return;
         if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta) || diagnosticEvent.Length is < 3 or > 4096)
             return;
         // Somente o codigo exato antes do primeiro espaco. Nada apos ele
@@ -187,6 +193,8 @@ internal sealed class AnonymousTelemetry
     // Nunca muda consentimento, nao cria arquivo e nao consulta a rede.
     internal string ExplainLocalCollection(string version)
     {
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics)
+            return "COLETA DESATIVADA\n\n" + BetaRuntimePolicy.LocalNotice;
         lock (_gate)
         {
             if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta))
@@ -273,6 +281,7 @@ internal sealed class AnonymousTelemetry
     // unica pendencia anterior. Nenhum conteudo do disco e confiado sem validacao.
     internal string? ReviewableReport(string version)
     {
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics) return null;
         lock (_gate)
         {
             if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta)) return null;
@@ -312,6 +321,7 @@ internal sealed class AnonymousTelemetry
     // falha/desligamento apenas preservam contagens para uma proxima sessao.
     internal bool SaveOnExit(string version, bool normalExit)
     {
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics) return false;
         lock (_gate)
         {
             if (Consent is not (TelemetryConsent.LocalOnly or TelemetryConsent.RemoteBeta)) return false;
@@ -337,6 +347,7 @@ internal sealed class AnonymousTelemetry
     private string? ReadPendingForRemote(out InstallerFileGuard.FileIdentity? identity)
     {
         identity = null;
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics) return null;
         lock (_gate)
         {
             if (!IsRemoteConsentCurrent()) return null;
@@ -371,6 +382,7 @@ internal sealed class AnonymousTelemetry
 
     internal SendLease? TryBeginRemoteSend()
     {
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics) return null;
         lock (_gate)
         {
             if (Consent != TelemetryConsent.RemoteBeta || _remoteSend is not null) return null;
@@ -388,6 +400,7 @@ internal sealed class AnonymousTelemetry
     }
     internal bool CompleteRemoteSend(SendLease lease)
     {
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics) return false;
         lock (_gate)
         {
             using var state = TryStorageLock("estado-v1.lock");
@@ -412,6 +425,7 @@ internal sealed class AnonymousTelemetry
     }
     internal bool IsRemoteConsentCurrent()
     {
+        if (!BetaRuntimePolicy.AllowsCollaborativeDiagnostics) return false;
         lock (_gate)
         {
             if (Consent != TelemetryConsent.RemoteBeta) return false;

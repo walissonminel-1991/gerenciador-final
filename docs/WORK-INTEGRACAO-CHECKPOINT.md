@@ -9,7 +9,7 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
 | Etapa desta sessão | **7 — Correções e regressões (EM ANDAMENTO)** |
-| Resultado | **ETAPA 7 EM ANDAMENTO**; regressões isoladas adicionadas para demonstrar antes/depois. Nenhuma correção validada ainda; BETA LOCAL/conectada bloqueadas |
+| Resultado | **ETAPA 7 EM ANDAMENTO**; reprodução Windows `f56c9303a66dfa9c3a29b220e38a9afe6f705b47` confirmou 9/12 falhas; correções locais dos quatro IDs em validação. Aprovação depende da nova CI pelo SHA exato; Etapa 8 não iniciada |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
