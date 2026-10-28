@@ -815,3 +815,12 @@ nenhum resultado manual foi presumido. **Entrega concluída; encerrar esta miss�
 
 Comprovantes e guia privados salvos em `68485a26c2c3c572c8021d70c71c8d69e27e22cd`;
 esse fechamento é documental e não altera os bytes da build `c156b901`.
+
+
+## Estado vigente — Etapa 9 PC FORTE parcialmente concluída
+
+28/10/2026, America/Fortaleza. **Resultados fornecidos e avaliados; o mantenedor declara testes amplos, nenhum bug/erro observado e desempenho rápido/leve.** A avaliação da BETA v5.13.11.66 foi registrada como **PARCIALMENTE CONCLUÍDA**: funcionalidade observada aceita para continuidade de desenvolvimento, lacunas formais conservadas sem impor repetir toda a bateria. Esta decisão substitui a afirmação histórica de que a Etapa 9 não começou; não altera o estado das Etapas 1–8 nem a entrega privada.
+
+[Relatório consolidado](WORK-INTEGRACAO-ETAPA9-PC-FORTE-RESULTADOS.md) · [Recibo estruturado](evidencias/integracao-etapa9-avaliacao-parcial.json). Inventário 196 aplicativos e 27 MSIX, drivers 162, 14 atualizações candidatas; consulta parcial e COM não bloqueante, bandeja/encerramento normal. Usuário assinalou os 12 testes, mas hash local/AVG formal/CPU-RAM 30–120s/T11 e alguns critérios específicos permanecem inconclusivos. Operações reais de manutenção aparecem nos logs sem efeito adverso relatado; não são motivo para repeti-las.
+
+Política aprovada: **não repetir testes já feitos por rotina**. Somente regressão dirigida caso haja alteração de produto, novo pacote/configuração relevante ou defeito novo reproduzível. Sem falsa homologação integral, sem publicação conectada/pública, sem alteração dos **27/42** checkpoints. Próxima missão separada: planejar o **autoatualizador seguro do próprio GF**, com manifesto autenticado, verificação de hash, consentimento e rollback; sem iniciar a implementação nesta sessão. Código, compilação e workflow da BETA .66 preservados.

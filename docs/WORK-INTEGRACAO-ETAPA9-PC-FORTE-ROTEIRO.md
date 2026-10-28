@@ -150,3 +150,8 @@ reversão. Sucesso local não libera BETA conectada ou pública.
 Somente após encerrar o bloqueio da Etapa 8 e receber resultados manuais:
 
 > Continue pela Etapa 9 na branch work-integracao-final-20261027, PR #65 Draft. Leia checkpoint, matriz, relatório/recibo da Etapa 8 e roteiro PC FORTE. Confirme primeiro pacote privado efetivamente entregue, versão, fonte, build, SHA-256 e autorização manual. Se faltar algum requisito, mantenha Etapa 9 não iniciada e registre a pendência. Analise somente os resultados/capturas/diagnósticos que eu fornecer, sem presumir acesso ao PC. Classifique cada teste como APROVADO, REPROVADO, INCONCLUSIVO ou NÃO EXECUTADO, preserve dados privados e todas as restrições, registre defeitos específicos sem reiniciar a missão e não libere BETA conectada/pública.
+
+
+## Resultado posterior — Etapa 9 parcialmente concluída em 28/10/2026
+
+O roteiro acima é o estado inicial/histórico. O mantenedor informou a realização dos testes possíveis, sem bugs percebidos, com impressão de rapidez e leveza. Registre **PARCIALMENTE CONCLUÍDA**, preservando testes não integralmente evidenciados; não refazer bateria completa sem alteração específica ou falha concreta. Consulte [resultados detalhados](WORK-INTEGRACAO-ETAPA9-PC-FORTE-RESULTADOS.md). A entrega privada .66 já havia sido concluída; restrições sobre publicação conectada/pública permanecem.

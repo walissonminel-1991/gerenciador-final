@@ -461,3 +461,12 @@ grant ou execução em PC. Atualizados somente documentos de estratégia/
 continuidade; fatos e evidências anteriores preservados.
 
 **Revisão concluída. Entrega privada pendente. Parada antes de publicar.**
+
+
+## Etapa 9 — homologação física parcial no PC FORTE (estado vigente)
+
+28/10/2026. Mantenedor executou a bateria ao máximo possível e não relatou bug reproduzível, considerando o aplicativo rápido e leve. Resultado consolidado: **PARCIALMENTE CONCLUÍDA**; sem reteste completo por rotina. Evidências e discriminação F9-00–F9-11 em [relatório](WORK-INTEGRACAO-ETAPA9-PC-FORTE-RESULTADOS.md) e [recibo](evidencias/integracao-etapa9-avaliacao-parcial.json). Os antigos registros de Etapa 9 não iniciada descrevem sessões anteriores, não o estado atual.
+
+**Evidenciado:** 196 aplicativos, 27 MSIX, 162 drivers, 14 candidatos de atualização, consulta parcial, bandeja e encerramento normal. **Não comprovado integralmente:** hash no PC, veredito AVG, repouso CPU/RAM em três tempos, histórico/INF individual completo, prévia de resíduos, T11 após reboot. Limpeza/serviços/manutenção real observados no histórico, sem dano relatado; não repetir nem promover como teste seguro de mutação. **Roadmap 27/42 mantido**, sem alterar `done` de nenhum ID. A ausência de bugs observados não é ausência universal de defeitos.
+
+**Próximo trabalho:** missão independente de desenho seguro do autoatualizador GF, sem nova compilação/publicação/ativação conectada nesta atualização documental.
