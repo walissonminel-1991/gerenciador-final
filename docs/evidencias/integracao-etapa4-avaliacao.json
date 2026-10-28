@@ -1,0 +1,460 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "stage": 4,
+  "date": "2026-10-27",
+  "timezone": "America/Fortaleza",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "pr": 65,
+  "draft": true,
+  "status": "assessment_complete_local_pending_connected_blocked",
+  "entry_commit": "b5c2e0e2c7fefc63896123000c3fa34d8c34a7d5",
+  "validated_commit": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+  "validated_tree": "e5646e6d419b47aa80e337359b1a49c9262ce6f7",
+  "test_merge_commit": "3bb5e7b44ccc7c362e32678afa9b99791d460211",
+  "base_commit": "2bc9f4228fd448445fbf181652e5af93005def20",
+  "ci_reconfirmed": [
+    {
+      "id": 40604593820,
+      "head": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820",
+      "jobs": [
+        {
+          "id": 122540822898,
+          "name": "politica / Política de segurança e privacidade",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823111,
+          "name": "validar / Drivers somente leitura (windows-2025)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823180,
+          "name": "validar / Regressões Windows",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823188,
+          "name": "validar / Drivers somente leitura (windows-2022)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823311,
+          "name": "validar / Consentimento BETA antecipado (sem rede)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122544352782,
+          "name": "Compilação Windows x64",
+          "conclusion": "success"
+        },
+        {
+          "id": 122544748192,
+          "name": "Atestar pacote apenas na main",
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    {
+      "id": 40604593709,
+      "head": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709",
+      "jobs": [
+        {
+          "id": 122540822651,
+          "name": "Integridade dos instaladores oficiais (sem instalacao)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540824707,
+          "name": "Fontes externas e drivers do runner (somente leitura)",
+          "conclusion": "skipped"
+        }
+      ]
+    }
+  ],
+  "post_validation_entry_delta": [
+    "docs/PROGRESSO.json",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-ETAPA3-VALIDACAO.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/evidencias/integracao-etapa3-ci.json"
+  ],
+  "new_product_tests": 0,
+  "product_tests_reexecuted": 0,
+  "new_ci_runs_requested": 0,
+  "new_builds": 0,
+  "code_changes": 0,
+  "integration_stages_1_4_complete": true,
+  "overall_mission_complete": false,
+  "gates": [
+    {
+      "id": "Fonte",
+      "scope": "integracao",
+      "status": "comprovado",
+      "evidence": "Fonte unica PR65, codigo 06d7dce0; SHA validado 6b5b0e52."
+    },
+    {
+      "id": "CI",
+      "scope": "integracao",
+      "status": "comprovado",
+      "evidence": "40604593820 e 40604593709 success no mesmo SHA, tentativa 1; sete jobs obrigatorios."
+    },
+    {
+      "id": "Organizacao",
+      "scope": "beta_local",
+      "status": "pendente_etapa5",
+      "evidence": "Nao iniciada nesta sessao; nenhuma exclusao/fechamento autorizado por aparencia de antiguidade."
+    },
+    {
+      "id": "Auditoria/correcoes",
+      "scope": "beta_local",
+      "status": "pendente_etapas6_7",
+      "evidence": "A matriz geral de defeitos ainda nao foi produzida; a CI nao demonstra ausencia universal de defeitos."
+    },
+    {
+      "id": "Perfil local restrito",
+      "scope": "beta_local",
+      "status": "pendente_preparacao_validacao",
+      "evidence": "Comprovar consultas oficiais HTTPS por acao explicita, coleta/transmissao remotas bloqueadas inclusive estado antigo/erro/saida, sem dependencia Worker/D1/DNS."
+    },
+    {
+      "id": "Pacote local",
+      "scope": "beta_local",
+      "status": "nao_preparado",
+      "evidence": "Etapa8: fonte/SHA/CI, portatil x64, dependencias/licencas, hashes, canal privado permitido pelo contrato. Somente manifestos publicados atualmente."
+    },
+    {
+      "id": "Fisica/AVG",
+      "scope": "beta_local",
+      "status": "pendente",
+      "evidence": "Revisao do incidente e identidade/integridade antes de teste autorizado; PC FORTE manual na Etapa9, AVG ativo."
+    },
+    {
+      "id": "Aviso/configuracao",
+      "scope": "beta_conectada",
+      "status": "bloqueado_em_fonte",
+      "evidence": "Contato, endpoint e hash revisado vazios; aprovacoes falsas; aviso final nao aprovado."
+    },
+    {
+      "id": "Homologacao privada",
+      "scope": "beta_conectada",
+      "status": "nao_comprovada",
+      "evidence": "Ensaios reais HTTPS/WAF, D1/migracao, GitHub privado/exclusao, retencao/recuperacao e Windows/AVG pendentes. Remoto nao auditado."
+    },
+    {
+      "id": "Distribuicao conectada/publica",
+      "scope": "liberacao",
+      "status": "nao_autorizada",
+      "evidence": "distribution_approved=false; nenhuma consequencia automatica de CI, preparacao local ou sucesso fisico."
+    }
+  ],
+  "preserved_features_reference": "docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md",
+  "coverage": {
+    "historical_work18_reference": {
+      "source": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
+      "updater_suite": 368,
+      "multisource_suite": 159,
+      "residual_uninstall_suite": 707,
+      "normalized_residual_scope_after_exclusion": 705,
+      "python_policy_package_tests": 41
+    },
+    "integrated_source": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+    "integrated_metrics": {
+      "updater_suite": 410,
+      "multisource_suite": 196,
+      "residual_uninstall_suite": 739,
+      "msix_suite": 47,
+      "shutdown_suite": 30,
+      "privacy_transport_assertions": 127,
+      "beta_window_assertions": 15,
+      "receiver_retention_tests": 126,
+      "staging_receiver_tests": 10,
+      "python_policy_package_tests": 47,
+      "ecosystem_assertions": 54,
+      "catalog_suite": 17,
+      "matching_suite": 20,
+      "mutations_rejected": 36,
+      "layout_resolution_tab_combinations": 132,
+      "work18_layout_combinations": 8,
+      "tray_cycles": 12,
+      "windows2022_driver_assertions": 173,
+      "windows2025_driver_assertions": 174,
+      "package_hashes_verified_in_ci": 286,
+      "new_product_tests": 0,
+      "product_code_changes": 0,
+      "sum_not_applicable": "Subconjuntos, repeticoes e runners nao somados como casos unicos ou programas homologados."
+    },
+    "new_functional_gain_claimed_in_stage4": false,
+    "counts_not_summed": true
+  },
+  "known_limits": [
+    {
+      "id": "L-WUA2022",
+      "kind": "inconclusive_native_source",
+      "detail": "Consulta oficial WUA excedeu prazo no runner Windows 2022; nenhuma correspondencia publicada. Limite tratado conservadoramente, job aprovado, G1 aberto."
+    },
+    {
+      "id": "L-WUA2025",
+      "kind": "no_positive_offer_proof",
+      "detail": "Consulta completa no runner Windows 2025 retornou zero ofertas; nao prova compatibilidade de pacote real."
+    },
+    {
+      "id": "L-CS0649",
+      "kind": "nonblocking_compiler_warning",
+      "location": "Program.cs:599",
+      "detail": "Campo MainForm._privacyStatusButton sem atribuicao no perfil GF_BETA; atribuicao do botao ausente esta sob #if !GF_BETA. Build sem erros e testes BETA aprovados; nao alterar produto apenas para ocultar o aviso."
+    },
+    {
+      "id": "L-PHYSICAL",
+      "kind": "not_homologated",
+      "detail": "AVG, DPI/tema fisico, comportamento no PC e homologacao conectada nao comprovados por CI; 27/42 preservados."
+    },
+    {
+      "id": "L-PACKAGE",
+      "kind": "evidence_scope",
+      "detail": "CI verificou distribuicao interna e 286 hashes; conferencia externa limitada aos tres manifestos. Nenhum executavel/ZIP BETA distribuido ou homologado."
+    }
+  ],
+  "local_profile_requirements": {
+    "prepared": false,
+    "source_points_reviewed": [
+      {
+        "file": "Program.cs",
+        "lines": "775–835",
+        "blob": "6e86f817977d76e79898631a1cfa62f49abe0097",
+        "observation": "Shown chama BeginStartupChecks; gatilhos precisam cumprir o perfil explicito futuro."
+      },
+      {
+        "file": "AnonymousTelemetry.cs",
+        "lines": "305–355",
+        "blob": "020baef16a94278c9aefdf7cccc63c9b576da97c",
+        "observation": "SaveOnExit conserva caminhos LocalOnly/RemoteBeta; transporte desconfigurado nao comprova sozinho bloqueio de coleta antiga."
+      }
+    ],
+    "required": "Coleta/transmissao remotas indisponiveis inclusive preferencias antigas/erro/saida; somente consultas oficiais HTTPS consultivas por acao explicita; sem Worker/D1/DNS/EU.org; gestao de drivers off."
+  },
+  "roadmap": {
+    "done": 27,
+    "total": 42,
+    "open_checkpoints": [
+      {
+        "id": "I7",
+        "title": "Cobertura conferida nos dois computadores",
+        "blocked_by": "conferencia_equivalente_da_cobertura"
+      },
+      {
+        "id": "R4",
+        "title": "Limpeza específica após confirmação e revalidação da remoção",
+        "blocked_by": "homologacao_fisica_e_cobertura"
+      },
+      {
+        "id": "R6",
+        "title": "Resolver casos históricos ambíguos com evidências adicionais",
+        "blocked_by": "amostras_reais"
+      },
+      {
+        "id": "R7",
+        "title": "Desinstalação e preservação de dados validadas nos computadores",
+        "blocked_by": "evidencia_fisica_ou_etapa_futura"
+      },
+      {
+        "id": "U8",
+        "title": "Instalação e versão final validadas nos computadores",
+        "blocked_by": "evidencia_fisica_ou_etapa_futura"
+      },
+      {
+        "id": "P5",
+        "title": "Medir tempo de abertura, CPU e RAM nos computadores",
+        "blocked_by": "amostragem_fisica_comparavel_em_repouso"
+      },
+      {
+        "id": "P6",
+        "title": "Diagnosticar bloqueio AVG e verificar estabilidade real",
+        "blocked_by": "causa_resolucao_avg_e_pacote_exato"
+      },
+      {
+        "id": "V5",
+        "title": "Legibilidade e fluidez aprovadas nos dois computadores",
+        "blocked_by": "aprovacao_visual_vinculada_ao_artefato_e_dpi"
+      },
+      {
+        "id": "D2",
+        "title": "Correlacionar dispositivos, pacotes e histórico Windows",
+        "blocked_by": "cobertura_historico_e_interpretacao_real"
+      },
+      {
+        "id": "D4",
+        "title": "Validar interpretação nos computadores",
+        "blocked_by": "interpretacao_humana_dos_vinculos_e_historico"
+      },
+      {
+        "id": "G1",
+        "title": "Consultar versões oficiais e compatibilidade",
+        "blocked_by": "evidencia_fisica_ou_etapa_futura"
+      },
+      {
+        "id": "G2",
+        "title": "Verificar pacote e assinatura",
+        "blocked_by": "evidencia_fisica_ou_etapa_futura"
+      },
+      {
+        "id": "G3",
+        "title": "Instalar e confirmar dispositivo/versão",
+        "blocked_by": "evidencia_fisica_ou_etapa_futura"
+      },
+      {
+        "id": "G4",
+        "title": "Reversão quando suportada e recuperação de falhas",
+        "blocked_by": "evidencia_fisica_ou_etapa_futura"
+      },
+      {
+        "id": "G5",
+        "title": "Validar fluxo controlado nos computadores",
+        "blocked_by": "evidencia_fisica_ou_etapa_futura"
+      }
+    ],
+    "all_done_values_preserved": true,
+    "all_other_root_metadata_preserved": true
+  },
+  "physical_evidence_reused": {
+    "source": "docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md",
+    "blob": "bbf8cf9db8a54804c08e65324217a8e045f3d4c6",
+    "inventory_counts": [
+      169,
+      74
+    ],
+    "msix_already_included": [
+      27,
+      19
+    ],
+    "no_current_artifact_sha_link": true,
+    "repeated_events": [
+      "E3",
+      "E5"
+    ],
+    "new_physical_tests": 0,
+    "physical_plan_reference": "docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md",
+    "planned_blocks_status": "NAO EXECUTADO",
+    "startup_boot_T11": "Nao executado; requer autorizacao especifica.",
+    "no_real_operation_requested_only_for_evidence": true
+  },
+  "avg_requirements_reference": [
+    "docs/AVG-DESENVOLVIMENTO-SEGURO.md",
+    "docs/PLANO-COMPATIBILIDADE-ANTIVIRUS.md"
+  ],
+  "connected_requirements_reference": "docs/BETA-66-HOMOLOGACAO-CONECTADA.md",
+  "source_approvals": {
+    "blob": "0174974a4d13fd12d5a56803d9a5c638ab572d2d",
+    "status": "pending_owner_approval",
+    "endpoint_empty": true,
+    "notice_hash_empty": true,
+    "contact_empty": true,
+    "privacy_approved": false,
+    "connected_homologation_approved": false,
+    "distribution_approved": false,
+    "synthetic_homologation_build_approved": false,
+    "endpoint_policy_blob": "9017b4ed04d647b7b888bbc1d307dbd08d428307"
+  },
+  "manifest_evidence": {
+    "artifact_id": 12779928854,
+    "archive_sha256": "ebe688f662593689c0ba8b0f4d43a33828d8b048d8386eed2be8a09043aa6754",
+    "metadata": {
+      "schema": 1,
+      "version": "5.13.11.66",
+      "source_commit": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "channel": "BETA",
+      "transport_configured": false,
+      "endpoint": "",
+      "notice_version": "gf-beta-20261026-r3",
+      "notice_sha256": "f04863df19be3c40100b9471b9c01962b16bdfb73ba7af2fd58e5ba30bc59701",
+      "reviewed_notice_sha256": "",
+      "distribution": "requires_owner_approval"
+    },
+    "ci_verified_hashes": 286,
+    "independent_scope": "Somente tres manifestos; nenhum pacote executavel fora do runner."
+  },
+  "preserved": {
+    "original_refs": [
+      {
+        "branch": "beta-piloto-consentimento-envio-20261026",
+        "sha": "f64600748b45b0ddc7e39c530ac56809c26f7ea8"
+      },
+      {
+        "branch": "experimento-chrome-versionhistory-20261027",
+        "sha": "04f59750739c6bdbaeb0bacd86ed2b734fba1271"
+      },
+      {
+        "branch": "main",
+        "sha": "410d65e23546976db456337c71e4705f10217d36"
+      },
+      {
+        "branch": "piloto-diagnostico-github-v5.13.11.2",
+        "sha": "ef13aef49083f357f6a14f4de46f8bc976dbd830"
+      },
+      {
+        "branch": "work18-ampliacao-atualizacoes-seguras",
+        "sha": "2bc9f4228fd448445fbf181652e5af93005def20"
+      },
+      {
+        "branch": "work-beta-retencao-issues-20261026",
+        "sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+      },
+      {
+        "branch": "work-pre-beta-etapa0-20261027",
+        "sha": "357877e9acd628f84e5d9944e02e471fe319d1bc"
+      }
+    ],
+    "candidate_beta_and_history": true,
+    "remote_delivery_enabled": false,
+    "driver_management_enabled": false,
+    "pilot_enabled": "no",
+    "github_export_enabled": "no",
+    "remote_operational_state_audited": false,
+    "personal_pc_accessed": false,
+    "avg_settings_changed": false,
+    "authenticode_or_avg_approval_claimed": false,
+    "destructive_github_actions": false,
+    "merge_release_deploy_distribution": false,
+    "local_beta_prepared": false
+  },
+  "changed_files": [
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/PROGRESSO.json",
+    "docs/ROADMAP.md",
+    "docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md",
+    "docs/evidencias/integracao-etapa4-avaliacao.json"
+  ],
+  "documentary_commit": {
+    "skip_ci": true,
+    "head_location": "Conferir HEAD da PR65; este recibo nao e nova build."
+  },
+  "next_stage": 5,
+  "stage5_started": false,
+  "document_validation": {
+    "result": "pass",
+    "scope": "Markdown/JSON e contrato de metadados existente; nenhuma suite de produto repetida",
+    "files": 6,
+    "internal_links": 62,
+    "matrix_rows": 15,
+    "progress_changed_root_keys": [
+      "integration_final"
+    ],
+    "all_42_checkpoint_states_and_history_preserved": true,
+    "metadata_contract": {
+      "result": "pass",
+      "candidate": "5.13.11.66 TESTE",
+      "candidate_status": "pending",
+      "historical_approved": "5.13.11.65 TESTE",
+      "historical_source": "e6d92e2f2aed84edb6b23e9a8e6c064a6a62621d",
+      "does_not_replace_integration_ci": true
+    }
+  }
+}

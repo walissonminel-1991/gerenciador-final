@@ -1,5 +1,11 @@
 # GERENCIADOR FINAL — roadmap funcional
 
+**Integração final — Etapa 4, 27/10/2026:** [avaliação da candidata integrada](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md), [checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) e [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65). **Integração 1–4 encerrada tecnicamente; BETA LOCAL não preparada e conectada/pública não liberada.** Fonte `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`, CIs [40604593820](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820) e [40604593709](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709) aprovadas na tentativa 1. Esta etapa apenas avaliou evidências, sem nova CI/build. Histórico e todos os 42 IDs/done preservados, **27/42**. Próxima sessão: somente Etapa 5 do adendo, organização segura do GitHub; não iniciada aqui. Gestão de drivers e envio remoto desativados, exclusão permanente preservada.
+
+## Registros históricos de preparação e validação
+
+Os estados abaixo registram suas respectivas datas/etapas. A avaliação atual é a da Etapa 4 acima; CI antiga ou texto de preparação não aprova outra fonte ou autoriza distribuição.
+
 **Integração final — Etapa 2, 27/10/2026:** código pré-BETA #64 e BETA .66 acumulada #62 conciliado na [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65). [Relatório e limites](WORK-INTEGRACAO-ETAPA2-CODIGO.md). **VALIDAÇÃO DA INTEGRAÇÃO PENDENTE:** nenhuma CI ou build própria nesta etapa; aprovações das fontes não aprovam a composição. Histórico e todos os 42 estados preservados, **27/42**. Drivers e envio remoto desativados, exclusão permanente preservada. Parada antes da Etapa 3; sem pacote, merge, release, deploy ou distribuição.
 
 **v5.13.11.66 TESTE — BETA EM PREPARAÇÃO, CI E RECEPTOR AINDA NÃO LIBERADOS.** [Última CI aprovada da .65](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887). [PR #61 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/61), derivada da WORK18. Somente contagens anonimizadas após autorização específica; não enviar logs para GitHub público nem embutir credenciais. [Critérios de segurança](MISSAO-BETA.md). Nenhum novo checkpoint concluído: **27/42**.
@@ -223,7 +229,7 @@ A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permiss
 
 ## Próxima etapa prioritária
 
-A missão pré-BETA 0–7 está encerrada com a [decisão e os bloqueios da Etapa 7](WORK-PRE-BETA-ETAPA7-DECISAO.md). Continuidade de fontes, homologação conectada e entrega exigem escopos próprios, sem ação automática. O [roteiro focal da Etapa 6](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md) permanece para as provas físicas ausentes, aproveitando E1–E5 sem repetir bateria completa. Drivers continuam desativados; nenhuma operação ou publicação é autorizada por este registro.
+Integração 1–4 encerrada com a [avaliação da Etapa 4](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md). Próxima sessão: somente **Etapa 5 do adendo — organização e limpeza segura do GitHub**, com mudanças não destrutivas e propostas que exigem autorização específica separadas. [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) e [matriz](WORK-INTEGRACAO-MATRIZ.md) governam a continuidade. Auditoria/correções, preparação local e testes físicos permanecem nas Etapas 6–9, sem avanço automático. O [roteiro focal anterior](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md) é aproveitado para evitar repetições. Não há pacote BETA liberado; flags, gestão de drivers e proteções preservadas. Não exigir 42/42 para uma BETA local limitada nem promover pendências por CI.
 
 ### Evidências para avançar sem maquiar o percentual
 

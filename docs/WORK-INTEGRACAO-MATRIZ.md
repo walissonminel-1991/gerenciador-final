@@ -6,7 +6,8 @@ Commit da análise: `f000ca3227227f11d8412c9a3f87335ead80bd9d`;
 fechamento da Etapa 1: `275cfc396d22c8aff933a3879f0702d20596a2bc`.
 Etapa 2: commit fonte `06d7dce0bb47944f1efd18a10785fa77f5f0c8f7`;
 fechamento posterior somente Markdown/JSON, HEAD final a conferir na PR.
-**Etapa 3 CONCLUÍDA TECNICAMENTE — CIs próprias aprovadas, BETA conectada bloqueada.**
+**Etapa 4 CONCLUÍDA COMO AVALIAÇÃO — integração 1–4 encerrada tecnicamente.**
+BETA LOCAL não preparada; BETA conectada/pública não liberada. Etapa 5 não iniciada.
 SHA validado: `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`; principal 40604593820 e integridade externa 40604593709, tentativa 1.
 [Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) ·
 [Reconciliação](WORK-INTEGRACAO-ETAPA1-RECONCILIACAO.md) ·
@@ -15,6 +16,8 @@ SHA validado: `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`; principal 40604593820 
 [Recibo Etapa 2](evidencias/integracao-etapa2-codigo.json) ·
 [Validação Etapa 3](WORK-INTEGRACAO-ETAPA3-VALIDACAO.md) ·
 [Recibo Etapa 3](evidencias/integracao-etapa3-ci.json) ·
+[Avaliação Etapa 4](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md) ·
+[Recibo Etapa 4](evidencias/integracao-etapa4-avaliacao.json) ·
 [Adendo 5–9](WORK-INTEGRACAO-ADENDO-BETA-LOCAL.md).
 
 ## Fontes e sobreposição
@@ -37,7 +40,7 @@ A Etapa 1 mapeou as decisões, a Etapa 2 aplicou a composição e a Etapa 3
 executou regressões/CI na própria árvore. A aprovação técnica não equivale
 a homologação física/AVG, conectada ou à preparação da BETA LOCAL.
 
-| ID | Área | Origem / arquivos | Decisão de reconciliação | Etapa 3 | Prova atual e limites remanescentes |
+| ID | Área | Origem / arquivos | Decisão de reconciliação | Prova técnica da Etapa 3 | Avaliação/limites da Etapa 4 |
 | --- | --- | --- | --- | --- | --- |
 | M01 | Base e inventário Win32/MSIX/ecossistemas | #60/#64; inventário, reconciliador e leitores | Manter funções existentes e estados parciais | 47 MSIX e 54 ecossistemas; regressões aprovadas | Inventário/identidade em fixtures e runners; I7 físico continua aberto |
 | M02 | Arquitetura e consultas | #64; `InstalledUpdateIdentity.cs`, `Program.cs` | Manter evidência local e unknown quando inconclusivo | 410 atualizadores e gate da tela aprovados | Arquitetura/canal/fabricante/escopo e ligação da tela; U8 físico aberto |
@@ -53,7 +56,7 @@ a homologação física/AVG, conectada ou à preparação da BETA LOCAL.
 | M12 | Projeto, manifesto, licenças e pacote | #62; projeto .66, manifesto e verificadores | Manter .66, dependências, exclusões e contrato fechado | Build x64/AMD64 e 286 hashes aprovados | Três manifestos conferidos separadamente; sem pacote BETA entregue ou homologação AVG |
 | M13 | CI e integridade externa | #62 reorganiza workflows; #64 conserva exclusão | Gates preservados; --official-live obrigatório 2022/2025 restaurado; upload BETA bloqueado | Duas CIs success; sete jobs obrigatórios aprovados | Duas condições skipped conforme desenho; SHA próprio, sem herdar aprovação |
 | M14 | Histórico e roadmap | JSONs #60/#62/#64 | Sete chaves pré-BETA + `candidate`/`beta`, preservação por ID e registros históricos | JSON/históricos e 27/42 preservados | 42 IDs/done intactos; CI própria em integration_final; candidate/beta continuam históricos/bloqueados |
-| M15 | Futuro perfil BETA LOCAL | Adendo do mantenedor | Coleta/transmissão remotas desativadas, consultas explícitas e independência da infraestrutura | Requisito registrado; perfil local não preparado | Somente etapas posteriores; contratos de distribuição e homologação física continuam pendentes |
+| M15 | Futuro perfil BETA LOCAL | Adendo do mantenedor | Coleta/transmissão remotas desativadas, consultas explícitas e independência da infraestrutura | Requisito registrado; perfil local não preparado | Rever abertura/consentimento antigo/erro/saída; transporte false não prova toda a política. Etapas 5–8 e contrato de entrega pendentes |
 
 ## Controle dos arquivos compartilhados
 
@@ -70,9 +73,9 @@ a homologação física/AVG, conectada ou à preparação da BETA LOCAL.
 | --- | --- | --- | --- |
 | 1 | Reconciliação | Concluída na sessão anterior; evidência preservada | Fontes/decisões respeitadas na Etapa 2 |
 | 2 | Integração do código | Concluída; composição validada tecnicamente na Etapa 3 | Histórico/fonte preservados |
-| 3 | Regressões/CI da integração | Concluída tecnicamente; duas CIs aprovadas no SHA próprio | Limites nativos/físicos mantidos; parar antes da Etapa 4 |
-| 4 | Avaliação da candidata | Não iniciada; próxima sessão | Usar as evidências/limites da Etapa 3, sem liberar BETA |
-| 5 | Organização segura do GitHub | Aguardando 1–4 | Uma sessão; nenhuma exclusão/fechamento sem autorização específica |
+| 3 | Regressões/CI da integração | Concluída tecnicamente; duas CIs aprovadas no SHA próprio | Evidências confirmadas na Etapa 4; sem nova execução |
+| 4 | Avaliação da candidata | Concluída como avaliação; integração 1–4 encerrada tecnicamente | Preparação local e liberação conectada/pública continuam pendentes |
+| 5 | Organização segura do GitHub | Não iniciada; próxima sessão | Uma sessão; mudanças não destrutivas e propostas dependentes de autorização separadas |
 | 6 | Auditoria geral | Não iniciada | Matriz de defeitos/evidências; não confundir riscos desta análise com defeitos reproduzidos |
 | 7 | Correções e regressões | Não iniciada | Críticos/altos resolvidos para o cenário, CI por SHA |
 | 8 | Preparação BETA LOCAL | Não iniciada | Pacote privado/verificável permitido pelo contrato; nenhum avanço automático à Etapa 9 |
@@ -103,7 +106,36 @@ BETA sem atribuição registrado como aviso não bloqueante. WUA 2022 inconclusi
 hashes, AMD64, endpoint vazio e transport_configured=false nos metadados reais.
 Arquivo de evidência BETA com somente três manifestos, sem EXE/ZIP de distribuição.
 O [relatório](WORK-INTEGRACAO-ETAPA3-VALIDACAO.md) e o recibo detalham o escopo;
-nenhum checkpoint físico/AVG/conectado foi promovido. Etapa 4 não iniciada.
+nenhum checkpoint físico/AVG/conectado foi promovido. Resultado da Etapa 3 confirmado na avaliação da Etapa 4.
+
+## Avaliação final — Etapa 4
+
+Fonte única e CI própria comprovadas; código/configuração continuam os da
+fonte validada. Funcionalidades/correções e cobertura acumuladas preservadas,
+sem ganho operacional físico presumido. Relatório inclui os 15 checkpoints
+abertos, roteiro mínimo futuro PC FORTE, AVG, homologação privada e condições
+da preparação local. A auditoria geral da Etapa 6 ainda não foi executada.
+
+| Critério | Escopo | Estado | Evidência / condição |
+| --- | --- | --- | --- |
+| Fonte | integracao | comprovado | Fonte unica PR65, codigo 06d7dce0; SHA validado 6b5b0e52. |
+| CI | integracao | comprovado | 40604593820 e 40604593709 success no mesmo SHA, tentativa 1; sete jobs obrigatorios. |
+| Organizacao | beta local | pendente etapa5 | Nao iniciada nesta sessao; nenhuma exclusao/fechamento autorizado por aparencia de antiguidade. |
+| Auditoria/correcoes | beta local | pendente etapas6 7 | A matriz geral de defeitos ainda nao foi produzida; a CI nao demonstra ausencia universal de defeitos. |
+| Perfil local restrito | beta local | pendente preparacao validacao | Comprovar consultas oficiais HTTPS por acao explicita, coleta/transmissao remotas bloqueadas inclusive estado antigo/erro/saida, sem dependencia Worker/D1/DNS. |
+| Pacote local | beta local | nao preparado | Etapa8: fonte/SHA/CI, portatil x64, dependencias/licencas, hashes, canal privado permitido pelo contrato. Somente manifestos publicados atualmente. |
+| Fisica/AVG | beta local | pendente | Revisao do incidente e identidade/integridade antes de teste autorizado; PC FORTE manual na Etapa9, AVG ativo. |
+| Aviso/configuracao | beta conectada | bloqueado em fonte | Contato, endpoint e hash revisado vazios; aprovacoes falsas; aviso final nao aprovado. |
+| Homologacao privada | beta conectada | nao comprovada | Ensaios reais HTTPS/WAF, D1/migracao, GitHub privado/exclusao, retencao/recuperacao e Windows/AVG pendentes. Remoto nao auditado. |
+| Distribuicao conectada/publica | liberacao | nao autorizada | distribution_approved=false; nenhuma consequencia automatica de CI, preparacao local ou sucesso fisico. |
+
+O roteiro físico futuro aproveita E1–E5 e completa lacunas, sem nova bateria
+inteira ou operação real apenas para evidência; T11/boot exige autorização
+específica. Não há teste de PC executado/solicitado nesta sessão. Todos os
+42 IDs/done, históricos e candidate/beta preservados. A preparação BETA LOCAL
+do adendo é independente da homologação conectada; sucesso local não libera
+piloto privado/público. A integração 1–4 está encerrada, e a missão ampliada
+continua pendente. **Parada antes da Etapa 5.**
 
 ## Bloqueios preservados
 

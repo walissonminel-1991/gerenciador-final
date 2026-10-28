@@ -1196,13 +1196,13 @@
   },
   "integration_final": {
     "mission": "WORK-INTEGRACAO-FINAL",
-    "stage": 3,
+    "stage": 4,
     "date": "2026-10-27",
     "timezone": "America/Fortaleza",
     "branch": "work-integracao-final-20261027",
     "draft_pr": 65,
     "version": "5.13.11.66 TESTE",
-    "status": "technically_validated_connected_blocked",
+    "status": "assessment_complete_local_pending_connected_blocked",
     "entry_commit": "275cfc396d22c8aff933a3879f0702d20596a2bc",
     "origins": {
       "base_pr60": "2bc9f4228fd448445fbf181652e5af93005def20",
@@ -1225,9 +1225,9 @@
     "distribution_approved": false,
     "roadmap_done": 27,
     "roadmap_total": 42,
-    "report": "docs/WORK-INTEGRACAO-ETAPA3-VALIDACAO.md",
-    "evidence": "docs/evidencias/integracao-etapa3-ci.json",
-    "next_stage": 4,
+    "report": "docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md",
+    "evidence": "docs/evidencias/integracao-etapa4-avaliacao.json",
+    "next_stage": 5,
     "stage3_entry_commit": "89ee12a8322c5872c61c3fd40030490407cbb173",
     "validated_commit": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
     "ci_merge_commit": "3bb5e7b44ccc7c362e32678afa9b99791d460211",
@@ -1273,6 +1273,77 @@
     },
     "manifest_verified_independently": true,
     "package_verified_independently": false,
-    "local_beta_prepared": false
+    "local_beta_prepared": false,
+    "stage4_entry_commit": "b5c2e0e2c7fefc63896123000c3fa34d8c34a7d5",
+    "integration_stages_1_4_complete": true,
+    "overall_mission_complete": false,
+    "stage4_assessment": {
+      "date": "2026-10-27",
+      "timezone": "America/Fortaleza",
+      "validated_commit": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "technical_integration": "approved_in_tested_scope",
+      "next_authorized_stage": 5,
+      "stage5_started": false,
+      "local_beta_prepared": false,
+      "local_beta_tested": false,
+      "local_distribution_ready": false,
+      "connected_beta_released": false,
+      "public_release_authorized": false,
+      "gates": [
+        {
+          "id": "Fonte",
+          "scope": "integracao",
+          "status": "comprovado"
+        },
+        {
+          "id": "CI",
+          "scope": "integracao",
+          "status": "comprovado"
+        },
+        {
+          "id": "Organizacao",
+          "scope": "beta_local",
+          "status": "pendente_etapa5"
+        },
+        {
+          "id": "Auditoria/correcoes",
+          "scope": "beta_local",
+          "status": "pendente_etapas6_7"
+        },
+        {
+          "id": "Perfil local restrito",
+          "scope": "beta_local",
+          "status": "pendente_preparacao_validacao"
+        },
+        {
+          "id": "Pacote local",
+          "scope": "beta_local",
+          "status": "nao_preparado"
+        },
+        {
+          "id": "Fisica/AVG",
+          "scope": "beta_local",
+          "status": "pendente"
+        },
+        {
+          "id": "Aviso/configuracao",
+          "scope": "beta_conectada",
+          "status": "bloqueado_em_fonte"
+        },
+        {
+          "id": "Homologacao privada",
+          "scope": "beta_conectada",
+          "status": "nao_comprovada"
+        },
+        {
+          "id": "Distribuicao conectada/publica",
+          "scope": "liberacao",
+          "status": "nao_autorizada"
+        }
+      ],
+      "known_limits_reference": "docs/evidencias/integracao-etapa3-ci.json",
+      "physical_plan": "Planejamento minimo na avaliacao; execucao manual somente apos preparacao/autorizacao adequada.",
+      "general_defect_audit_done": false
+    }
   }
 }

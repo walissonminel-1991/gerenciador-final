@@ -8,8 +8,8 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | Campo | Registro |
 | --- | --- |
 | Repositório | `walissonminel-1991/gerenciador-final` |
-| Etapa desta sessão | **3 — Regressões e CI da integração** |
-| Resultado | **ETAPA 3 CONCLUÍDA TECNICAMENTE** — regressões e duas CIs aprovadas; BETA conectada bloqueada |
+| Etapa desta sessão | **4 — Avaliação da candidata integrada** |
+| Resultado | **AVALIAÇÃO CONCLUÍDA; integração 1–4 encerrada tecnicamente**; BETA LOCAL não preparada e conectada/pública não liberada |
 | Branch de continuidade | `work-integracao-final-20261027` |
 | Origem imutável da branch | `357877e9acd628f84e5d9944e02e471fe319d1bc`, #64 |
 | Base comum e base da PR | `2bc9f4228fd448445fbf181652e5af93005def20`, `work18-ampliacao-atualizacoes-seguras`, #60 |
@@ -24,7 +24,9 @@ A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 | CI de integridade externa | [40604593709](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709), **success**, tentativa 1 |
 | Código integrado | Origem #64 + delta acumulado #62; 57 exclusivos idênticos, um workflow adaptado e quatro compartilhados conciliados; versão .66 |
 | Roadmap | **27/42**, mesmos 42 IDs/done; nenhum checkpoint promovido |
-| Próxima etapa | **4 — Avaliação da candidata integrada**, somente em nova sessão |
+| Entrada da Etapa 4 | `b5c2e0e2c7fefc63896123000c3fa34d8c34a7d5` |
+| Commit documental da avaliação | Conferir HEAD final da PR #65; `[skip ci]`, sem nova build |
+| Próxima etapa | **5 — Organização e limpeza segura do GitHub**, somente em nova sessão |
 
 Documentos da Etapa 1 preservados:
 
@@ -139,7 +141,7 @@ na PR #65; CI futura deverá identificar o SHA efetivamente executado.
 Naquele fechamento, a Etapa 3 ainda não havia sido iniciada.
 
 
-## Etapa 3 — sessão atual concluída
+## Etapa 3 — histórico concluído
 
 Entrada `89ee12a8322c5872c61c3fd40030490407cbb173`, PR #65 aberta/Draft, base #60 e sete refs originais
 conferidas e preservadas. Checkpoint, matriz e adendo relidos. Código validado
@@ -182,7 +184,49 @@ a PC pessoal, merge, release, deploy ou distribuição. BETA LOCAL não preparad
 O fechamento posterior altera somente cinco Markdown/JSON de continuidade
 com `[skip ci]`, sem nova build ou mudança de produto/testes/workflows/
 configuração validada. Conferir HEAD documental final na PR #65. A aprovação
-é do SHA fonte acima; não atribuir uma nova build ao recibo. Etapa 4 não iniciada.
+é do SHA fonte acima; não atribuir uma nova build ao recibo. Naquele fechamento, a Etapa 4 não havia sido iniciada.
+
+## Etapa 4 — sessão atual concluída
+
+Entrada `b5c2e0e2c7fefc63896123000c3fa34d8c34a7d5`, PR #65 aberta/Draft, base #60 e sete refs originais
+conferidas. Checkpoint/matriz/adendo e evidências da Etapa 3 relidos; CIs
+40604593820 e 40604593709 reconferidas success, tentativa 1, no SHA
+`6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`. A entrada altera apenas cinco Markdown/JSON
+em relação ao SHA validado; nenhum código/teste/workflow/configuração mudou.
+
+[Avaliação completa](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md) ·
+[Recibo](evidencias/integracao-etapa4-avaliacao.json).
+
+Relatório reúne funcionalidades/correções preservadas, cobertura antes/depois,
+problemas/limites, 15 checkpoints abertos, roteiro físico mínimo, AVG,
+homologação conectada privada e condições para futura BETA LOCAL.
+
+**Fonte única e CI própria comprovadas.** A preparação local ainda depende
+das Etapas 5–8 e do perfil restrito; os caminhos de abertura/consentimento
+antigo precisam ser considerados para consultas explícitas e bloqueio de
+coleta/transmissão remotas inclusive em erro/saída. Transporte configurado
+false na CI não homologa sozinho toda essa política. O contrato BETA atual
+conserva somente manifestos; entrega privada deverá respeitá-lo, sem contorno.
+
+WUA 2022 permanece inconclusiva, 2025 sem ofertas; CS0649 é aviso não
+bloqueante. A auditoria geral 6 não foi executada e não se presume ausência
+universal de críticos/altos. AVG/físico/conectada seguem pendentes. Roteiro
+futuro só completa lacunas E1–E5, sem repetir bateria inteira, exigir
+operações reais só para evidência ou escrever em drivers. Nada foi testado
+ou solicitado no PC nesta sessão.
+
+Seis Markdown/JSON nesta avaliação: checkpoint, matriz, PROGRESSO, ROADMAP,
+relatório e recibo. Somente `integration_final` recebe o estado atual no JSON;
+candidate/beta, históricos e todos os 42 IDs/done preservados, **27/42**.
+Nenhum teste de produto/CI/build repetido; verificações documentais/JSON/links
+e contrato de metadados existentes, mais conferência da árvore no GitHub.
+
+Integração **1–4 encerrada tecnicamente**; missão ampliada 5–9 não concluída.
+Main, PR #40 e fontes preservadas; VLC somente inventário, WinGet COM
+opcional/não bloqueante/consultivo, gestão de drivers desativada, proteções
+intactas, flags no, BETA conectada bloqueada. Sem pacote, merge, release,
+deploy, distribuição, envio, infraestrutura remota ou operação em PC.
+**Etapa 5 não iniciada.**
 
 ## Retomada obrigatória
 
@@ -190,16 +234,17 @@ configuração validada. Conferir HEAD documental final na PR #65. A aprovação
    HEAD remotos antes de qualquer edição. Comparar #60–#64 aos SHAs fixados.
 2. Preservar alterações posteriores e investigar divergências pontuais;
    não usar force-push, apagar histórico ou modificar branches originais.
-3. Executar **somente a Etapa 4**: avaliação da candidata integrada com as
-   evidências desta CI e seus limites, sem repetir testes sem motivo novo.
-   Não liberar piloto conectado, pacote ou distribuição por consequência da CI.
+3. Executar **somente a Etapa 5 do adendo**: auditar e organizar GitHub,
+   documentação/workflows/artefatos com correções não destrutivas; separar
+   propostas destrutivas que dependem de autorização específica. Não excluir
+   branches/tags/históricos nem fechar PRs/Issues automaticamente.
 4. Atualizar os dois documentos com SHA, arquivos, verificações, problemas,
    pendências e próximo passo; registrar interrupção no ponto exato.
-5. Encerrar antes da Etapa 5. Etapas 5–9 aguardam a conclusão de 1–4,
+5. Encerrar antes da Etapa 6. Integração 1–4 concluída; Etapas 5–9 seguem o adendo,
    uma por sessão. A Etapa 9 depende exclusivamente de execução manual autorizada.
 
 Comando de retomada:
 
-> Continue a missão de integração final do Gerenciador Final pela Etapa 4 na branch work-integracao-final-20261027, PR #65 Draft. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md e docs/WORK-INTEGRACAO-MATRIZ.md, confira o HEAD e as CIs da Etapa 3 no SHA 6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8, prepare somente a avaliação da candidata integrada com suas limitações e preserve todas as restrições e o adendo BETA LOCAL. Salve no GitHub e pare antes da Etapa 5, sem merge, release, deploy, distribuição ou ativação remota.
+> Continue a missão do Gerenciador Final pela Etapa 5 do adendo na branch work-integracao-final-20261027, PR #65 Draft. Leia docs/WORK-INTEGRACAO-CHECKPOINT.md e docs/WORK-INTEGRACAO-MATRIZ.md e a avaliação da Etapa 4, confira o HEAD e preserve as evidências da CI do SHA 6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8. Execute somente organização e limpeza segura do GitHub, com mudanças não destrutivas e lista separada do que exige autorização específica. Preserve todas as restrições e o adendo BETA LOCAL, salve relatório/checkpoints no GitHub e pare antes da Etapa 6, sem merge, exclusões, fechamento automático de PRs/Issues, release, deploy, distribuição ou ativação remota.
 
-**Etapa 3 concluída tecnicamente com os limites registrados. Etapa 4 não iniciada.**
+**Etapa 4 concluída como avaliação. Integração 1–4 encerrada tecnicamente; Etapa 5 não iniciada.**
