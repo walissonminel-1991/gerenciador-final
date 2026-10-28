@@ -1,0 +1,38 @@
+using System.Buffers.Binary;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+[SupportedOSPlatform("windows")]
+internal static class OfflineAuthenticode
+{
+    internal const int NoSignature=unchecked((int)0x800b0100);
+    internal static bool HasCertificate(byte[] bytes)
+    {
+        _=new BoundedPe(bytes);int pe=checked((int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(60)));int optional=pe+24;
+        int directories=optional+(BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(optional))==0x20b?112:96);
+        uint at=BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(directories+32)),n=BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(directories+36));
+        Require((at==0)==(n==0) && (at==0 || (at%8==0 && n>=8 && at+(long)n<=bytes.Length)),"AUTH_CERTIFICATE_RANGE");
+        return at!=0;
+    }
+    internal static int Verify(string path)
+    {
+        using var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read);
+        IntPtr filePtr=Marshal.AllocHGlobal(Marshal.SizeOf<FileInfo>()),name=Marshal.StringToHGlobalUni(path);
+        var info=new FileInfo{Size=(uint)Marshal.SizeOf<FileInfo>(),Path=name,Handle=stream.SafeFileHandle.DangerousGetHandle()};
+        var data=new TrustData{Size=(uint)Marshal.SizeOf<TrustData>(),Ui=2,Revocation=0,Choice=1,File=filePtr,Action=1,Flags=0x1000};
+        Guid action=new("00aac56b-cd44-11d0-8cc2-00c04fc295ee");
+        try{Marshal.StructureToPtr(info,filePtr,false);return WinVerifyTrust(new IntPtr(-1),ref action,ref data);}
+        finally{data.Action=2;_=WinVerifyTrust(new IntPtr(-1),ref action,ref data);Marshal.FreeHGlobal(filePtr);Marshal.FreeHGlobal(name);}
+    }
+    internal static void RequireBetaUnsigned(bool certificate,int status)
+        =>Require(!certificate && status==NoSignature,"AUTH_UNSIGNED_DOWNGRADE_BLOCKED");
+    // No pinned GF publisher has been bootstrapped. A Windows trust verdict alone cannot authorize GF.
+    internal static void RequireProductionPublisher(int status)
+    {Require(status==0,"AUTH_TRUST_FAILED");throw new Rejected("GF_PUBLISHER_POLICY_NOT_PROVISIONED");}
+    [StructLayout(LayoutKind.Sequential)]private struct FileInfo{public uint Size;public IntPtr Path,Handle,KnownSubject;}
+    [StructLayout(LayoutKind.Sequential)]private struct TrustData
+    {public uint Size;public IntPtr Policy,Sip;public uint Ui,Revocation,Choice;public IntPtr File;public uint Action;public IntPtr State,Url;public uint Flags,Context;public IntPtr SignatureSettings;}
+    [DllImport("wintrust.dll",ExactSpelling=true)]private static extern int WinVerifyTrust(IntPtr hwnd,ref Guid action,ref TrustData data);
+}

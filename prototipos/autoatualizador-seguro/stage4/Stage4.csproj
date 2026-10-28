@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultItems>false</EnableDefaultItems><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>GF.Updater.Stage4.Tests</AssemblyName><StartupObject>GfUpdaterFixture.Stage4Tests</StartupObject>
+    <IsPackable>false</IsPackable><IsPublishable>false</IsPublishable><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetLockFilePath>stage4.packages.lock.json</NuGetLockFilePath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../src/*.cs.txt" /><Compile Include="../stage3/src/*.cs.txt" /><Compile Include="src/*.cs.txt" />
+    <PackageReference Include="Tuf" Version="[1.1.1]" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="[2.7.0]" />
+    <ProjectReference Include="$(ClockExperimentProject)" Aliases="Clocked" />
+  </ItemGroup>
+  <Target Name="RequireIsolatedClockExperiment" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(ClockExperimentProject)' == ''" Text="Run stage4/run_tests.py; pinned clock experiment is required." />
+  </Target>
+</Project>

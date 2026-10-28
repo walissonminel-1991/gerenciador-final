@@ -1,0 +1,107 @@
+using System.Buffers.Binary;
+using System.IO.Compression;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+// Narrow ZIP profile, same rejected features as Stage 1, larger bounded streaming input.
+// No imported file can be executed by this class. No production capability is returned.
+internal static class StreamPackage
+{
+    internal const long MaxZip=256L*1024*1024, MaxExpanded=768L*1024*1024, MaxFile=256L*1024*1024;
+    internal sealed class Budget(CancellationToken token)
+    {
+        private readonly System.Diagnostics.Stopwatch timer=System.Diagnostics.Stopwatch.StartNew();
+        internal void Check(){token.ThrowIfCancellationRequested();Require(timer.Elapsed<=TimeSpan.FromMinutes(2),"U4_ZIP_TIMEOUT");}
+    }
+    internal sealed record Entry(string Name,uint Crc,long Size,long Compressed,long Offset);
+    internal static List<Entry> Headers(Stream s,CancellationToken token)
+    {
+        Require(s.CanSeek && s.Length is >=22 and <=MaxZip,"U4_ZIP_SIZE");
+        byte[] Read(long at,int n){Require(at>=0 && n>=0 && at+n<=s.Length,"U4_ZIP_RANGE");s.Position=at;var b=new byte[n];s.ReadExactly(b);return b;}
+        static ushort U16(byte[] b,int p)=>BinaryPrimitives.ReadUInt16LittleEndian(b.AsSpan(p));
+        static uint U32(byte[] b,int p)=>BinaryPrimitives.ReadUInt32LittleEndian(b.AsSpan(p));
+        byte[] end=Read(s.Length-22,22);int count=U16(end,10);long central=U32(end,16),centralSize=U32(end,12);
+        Require(U32(end,0)==0x06054b50 && U16(end,4)==0 && U16(end,6)==0 && U16(end,20)==0
+            && count is >0 and <=2048 && U16(end,8)==count && central+centralSize==s.Length-22,"U4_ZIP_END");
+        long p=central,next=0,total=0;var entries=new List<Entry>();var names=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for(int i=0;i<count;i++)
+        {
+            token.ThrowIfCancellationRequested();byte[] c=Read(p,46);int n=U16(c,28),flags=U16(c,8),method=U16(c,10);
+            long size=U32(c,24),compressed=U32(c,20),local=U32(c,42);uint crc=U32(c,16),attrs=U32(c,38),mode=(attrs>>16)&0xf000;
+            Require(U32(c,0)==0x02014b50 && U16(c,6)<=20 && flags is 0 or 2048 && method is 0 or 8
+                && U16(c,30)==0 && U16(c,32)==0 && U16(c,34)==0 && n is >0 and <=220,"U4_ZIP_FORMAT");
+            Require(size is >0 and <=MaxFile && compressed<=MaxZip && (total+=size)<=MaxExpanded,"U4_ZIP_EXPANSION");
+            Require((mode is 0 or 0x8000) && (attrs&0x410)==0,"U4_ZIP_TYPE");
+            byte[] nameBytes=Read(p+46,n);Require(nameBytes.All(b=>b is >=32 and <=126),"U4_ZIP_ASCII");string name=Encoding.ASCII.GetString(nameBytes);
+            ZipInspection.SafeName(name);Require(names.Add(name),"U4_ZIP_DUPLICATE");
+            Require(local==next && local+30+n+compressed<=central,"U4_ZIP_LAYOUT");byte[] l=Read(local,30);
+            Require(U32(l,0)==0x04034b50 && U16(l,4)==U16(c,6) && U16(l,6)==flags && U16(l,8)==method
+                && U32(l,14)==crc && U32(l,18)==compressed && U32(l,22)==size && U16(l,26)==n && U16(l,28)==0
+                && Read(local+30,n).SequenceEqual(nameBytes),"U4_ZIP_LOCAL");
+            entries.Add(new(name,crc,size,compressed,local));next=local+30+n+compressed;p+=46+n;
+        }
+        Require(p==s.Length-22 && next==central,"U4_ZIP_LAYOUT");
+        foreach(var e in entries){string name=e.Name;while(name.Contains('/')){name=name[..name.LastIndexOf('/')];Require(!names.Contains(name),"U4_ZIP_FILE_DIRECTORY_COLLISION");}}
+        s.Position=0;return entries;
+    }
+    internal static string StreamHash(Stream input,CancellationToken token=default,Budget? budget=null)
+    {
+        budget??=new Budget(token);input.Position=0;byte[] buffer=new byte[65536];using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);int n;
+        while(true){budget.Check();n=input.Read(buffer);if(n==0)break;hash.AppendData(buffer,0,n);}budget.Check();input.Position=0;return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+    private static readonly uint[] CrcTable=Enumerable.Range(0,256).Select(i=>{uint c=(uint)i;for(int j=0;j<8;j++)c=(c>>1)^((c&1)!=0?0xedb88320u:0);return c;}).ToArray();
+    internal static Dictionary<string,string> Transfer(Stream input,Func<string,Stream> output,CancellationToken token,Budget? budget=null)
+    {
+        budget??=new Budget(token);budget.Check();var headers=Headers(input,token);budget.Check();var result=new Dictionary<string,string>(StringComparer.Ordinal);long total=0;
+        using var zip=new ZipArchive(input,ZipArchiveMode.Read,true);Require(zip.Entries.Count==headers.Count,"U4_ZIP_COUNT");
+        byte[] buffer=new byte[64*1024];
+        for(int i=0;i<headers.Count;i++)
+        {
+            var expected=headers[i];var e=zip.Entries[i];Require(e.FullName==expected.Name && e.Length==expected.Size,"U4_ZIP_ENTRY");
+            budget.Check();using var source=e.Open();using var destination=output(e.FullName);using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            long actual=0;uint crc=uint.MaxValue;int n;
+            while((n=source.Read(buffer))>0)
+            {
+                budget.Check();
+                Require((actual+=n)<=expected.Size && (total+=n)<=MaxExpanded,"U4_ZIP_ACTUAL_SIZE");
+                foreach(byte b in buffer.AsSpan(0,n))crc=(crc>>8)^CrcTable[(crc^b)&255];hash.AppendData(buffer,0,n);destination.Write(buffer,0,n);
+            }
+            Require(actual==expected.Size && ~crc==expected.Crc,"U4_ZIP_CRC");
+            destination.Flush();if(destination is FileStream f)f.Flush(true);
+            result.Add(e.FullName,Convert.ToHexStringLower(hash.GetHashAndReset()));
+        }
+        budget.Check();return result;
+    }
+    [SupportedOSPlatform("windows")]
+    internal static string ExtractInert(string sandbox,string archive,string sha,Dictionary<string,string> recipe,CancellationToken token)
+    {
+        var budget=new Budget(token);budget.Check();FixtureSandbox.RequireRoot(sandbox);using var root=WindowsFileGuard.Open(sandbox,sandbox,true);using var sourcePin=WindowsFileGuard.Open(sandbox,archive);
+        using var input=new FileStream(archive,FileMode.Open,FileAccess.Read,FileShare.Read);
+        Require(input.Length<=MaxZip && StreamHash(input,token,budget)==sha,"U4_ZIP_HASH");var headers=Headers(input,token);
+        Require(headers.Select(x=>x.Name).ToHashSet(StringComparer.Ordinal).SetEquals(recipe.Keys),"U4_ZIP_SET");
+        long required=checked(input.Length*2+headers.Sum(x=>x.Size)*2+64L*1024*1024);
+        Require(new DriveInfo(Path.GetPathRoot(sandbox)!).AvailableFreeSpace>=required,"U4_ZIP_SPACE");
+        // Authenticate every expanded byte before any staging write. No complete expanded archive in memory.
+        var preflight=Transfer(input,_=>Stream.Null,token,budget);Require(preflight.All(p=>recipe[p.Key]==p.Value),"U4_ZIP_FILE_HASH");input.Position=0;
+        string stage=Path.Combine(sandbox,"u4-"+Guid.NewGuid().ToString("N"));var pins=new List<IDisposable>();
+        void Mk(string path){Require(CreateDirectoryW(path,IntPtr.Zero),"U4_EXCLUSIVE_DIRECTORY");pins.Add(WindowsFileGuard.Open(sandbox,path,true));}
+        try
+        {
+            Mk(stage);var parents=new HashSet<string>(StringComparer.OrdinalIgnoreCase){stage};
+            var actual=Transfer(input,name=>{
+                string target=Path.Combine(stage,name.Replace('/',Path.DirectorySeparatorChar));Require(target.Length<=240,"U4_FINAL_PATH");string parent=stage;
+                foreach(string part in name.Split('/')[..^1]){parent=Path.Combine(parent,part);if(parents.Add(parent))Mk(parent);}
+                return new FileStream(target,FileMode.CreateNew,FileAccess.Write,FileShare.None,65536,FileOptions.WriteThrough);
+            },token,budget);
+            Require(actual.All(p=>p.Value==recipe[p.Key]),"U4_POST_HASH");
+            foreach(string name in recipe.Keys){using var pin=WindowsFileGuard.Open(sandbox,Path.Combine(stage,name));using var f=new FileStream(Path.Combine(stage,name),FileMode.Open,FileAccess.Read,FileShare.Read);Require(StreamHash(f,token,budget)==recipe[name],"U4_DISK_HASH");}
+            return stage; // Path only; installable remains false. Caller must inspect/pin before any inert probe launch.
+        }
+        finally{for(int i=pins.Count-1;i>=0;i--)pins[i].Dispose();}
+    }
+    [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)]private static extern bool CreateDirectoryW(string p,IntPtr security);
+}

@@ -1,0 +1,122 @@
+using System.Diagnostics;
+using System.IO.Compression;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+internal static class Stage4Tests
+{
+    private static readonly List<object> Results=[],Observations=[];private static string suite="",fixtures="",probe="",recipePath="",sdkHost="";
+    private static async Task<bool> Test(string id,string description,Func<Task> action)
+    {try{await action();Results.Add(new{id,description,status="passed"});Console.WriteLine("PASS "+id);return true;}catch(Exception e){Results.Add(new{id,description,status="failed",error=e.ToString()});Console.WriteLine("FAIL "+id+" "+e);return false;}}
+    private static Task Sync(Action a){a();return Task.CompletedTask;}
+    private static void Refuses(Action a,string code)
+    {try{a();}catch(Rejected e){Require(e.Code==code,"WRONG_REJECTION:"+e.Code);return;}throw new Rejected("UNSAFE_ACCEPTANCE:"+code);}
+    private static async Task RefusesAsync(Func<Task> a)
+    {try{await a();}catch(Exception e) when(e is Rejected or InvalidDataException or IOException or OperationCanceledException){return;}throw new Rejected("UNSAFE_ACCEPTANCE");}
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=5)return 2;fixtures=args[0];probe=args[1];recipePath=args[2];sdkHost=args[3];suite=Path.Combine(Path.GetTempPath(),"gf-u2-u4-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(suite);
+        try{await Common();if(OperatingSystem.IsWindows())await Windows();}
+        finally{Directory.Delete(suite,true);}
+        int failed=Results.Count(x=>JsonSerializer.SerializeToElement(x).GetProperty("status").GetString()=="failed");
+        var report=new{schema=1,stage=4,contract="gf-self-update/1",fixture_only=true,package_installable=false,product_built=false,product_executed=false,
+            runtime=RuntimeInformation.FrameworkDescription,os=RuntimeInformation.OSDescription,total=Results.Count,passed=Results.Count-failed,failed,tests=Results,observations=Observations};
+        await File.WriteAllBytesAsync(args[4],StateCodec.Encode(report));return failed==0?0:1;
+    }
+    private static byte[] Zip(params (string Name,byte[] Data)[] entries)
+    {using var m=new MemoryStream();using(var z=new ZipArchive(m,ZipArchiveMode.Create,true))foreach(var x in entries){using var f=z.CreateEntry(x.Name,CompressionLevel.NoCompression).Open();f.Write(x.Data);}return m.ToArray();}
+    private static async Task Common()
+    {
+        var now=DateTimeOffset.UtcNow;
+        await Test("U4-CLOCK-01","Frozen TUF validation and monotonic commit deadline use separate clocks",async()=>{
+            _=await ClockExperimentTests.Verify(fixtures,"valid",now);var clock=new ManualClock(now);var cycle=new CycleClock(clock,now);clock.Advance(TimeSpan.FromSeconds(121));Refuses(()=>cycle.Check(now+TimeSpan.FromHours(1)),"CYCLE_BUDGET");
+        });
+        await Test("U4-CLOCK-02","Wall-clock rollback after TUF validation still blocks commit",async()=>{
+            _=await ClockExperimentTests.Verify(fixtures,"valid",now);var clock=new ManualClock(now);var cycle=new CycleClock(clock,now);clock.Wall-=TimeSpan.FromMinutes(6);Refuses(()=>cycle.Check(now+TimeSpan.FromHours(1)),"CLOCK_CHANGED");
+        });
+        await Test("U4-CLOCK-03","Whole-state rollback remains indistinguishable to a local-only clock",()=>Sync(()=>{
+            var clock=new ManualClock(now-TimeSpan.FromDays(1));var restored=new CycleClock(clock,clock.Wall);_=restored.Check(clock.Wall+TimeSpan.FromHours(1));Observations.Add(new{kind="clock_and_state_rollback_counterexample",local_only_detection=false,system_clock_changed=false});
+        }));
+        await Test("U4-ZIP-01","Streaming reader exceeds the old memory-fixture limit with bounded buffers",()=>Sync(()=>{
+            var data=new byte[2*1024*1024];RandomNumberGenerator.Fill(data);using var s=new MemoryStream(Zip(("inert.bin",data)));var actual=StreamPackage.Transfer(s,_=>Stream.Null,CancellationToken.None);Require(actual["inert.bin"]==Hash(data),"STREAM_HASH");
+        }));
+        foreach(string name in new[]{"../escape.txt","a:b","NUL.txt","a/../x","a\\x"})
+        {string n=name;await Test("U4-ZIP-path-"+Array.IndexOf(new[]{"../escape.txt","a:b","NUL.txt","a/../x","a\\x"},name),"Streaming preflight refuses "+name,()=>Sync(()=>{
+            using var s=new MemoryStream(Zip((n,[1])));Refuses(()=>StreamPackage.Headers(s,CancellationToken.None),"ZIP_PATH");
+        }));}
+        await Test("U4-ZIP-02","File/directory namespace collision is refused before writes",()=>Sync(()=>{using var s=new MemoryStream(Zip(("dir",[1]),("dir/a",[2])));Refuses(()=>StreamPackage.Headers(s,CancellationToken.None),"U4_ZIP_FILE_DIRECTORY_COLLISION");}));
+        await Test("U4-ZIP-03","Actual CRC is checked independently of central/local agreement",()=>Sync(()=>{
+            byte[] b=Zip(("x",[1,2,3]));b[31]^=1;using var s=new MemoryStream(b);Refuses(()=>StreamPackage.Transfer(s,_=>Stream.Null,CancellationToken.None),"U4_ZIP_CRC");
+        }));
+        await Test("U4-ZIP-04","Cancellation precedes output creation",()=>Sync(()=>{using var s=new MemoryStream(Zip(("x",[1])));using var c=new CancellationTokenSource();c.Cancel();bool wrote=false;try{_=StreamPackage.Transfer(s,_=>{wrote=true;return Stream.Null;},c.Token);throw new Rejected("CANCEL_IGNORED");}catch(OperationCanceledException){}Require(!wrote,"CANCEL_WROTE");}));
+        await Test("U4-ZIP-05","2049 entries are refused at the header, not after extraction",()=>Sync(()=>{byte[] b=Zip(("x",[1]));System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(b.AsSpan(b.Length-14),2049);System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(b.AsSpan(b.Length-12),2049);using var s=new MemoryStream(b);Refuses(()=>StreamPackage.Headers(s,CancellationToken.None),"U4_ZIP_END");}));
+        await Test("U4-ZIP-06","A file over 256 MiB is refused without allocating its advertised size",()=>Sync(()=>{
+            byte[] b=Zip(("x",[1]));int central=BitConverter.ToInt32(b,b.Length-6);System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(b.AsSpan(central+24),256*1024*1024+1);using var s=new MemoryStream(b);Refuses(()=>StreamPackage.Headers(s,CancellationToken.None),"U4_ZIP_EXPANSION");
+        }));
+        await Test("U4-ZIP-07","ASCII case collisions are refused before writes",()=>Sync(()=>{using var s=new MemoryStream(Zip(("A.txt",[1]),("a.txt",[2])));Refuses(()=>StreamPackage.Headers(s,CancellationToken.None),"U4_ZIP_DUPLICATE");}));
+        await Test("U4-STATE-01","Recovery retains the approved floor while the selected fixture returns to its exact predecessor",()=>Sync(()=>{
+            using var c=new StateCase(suite);c.Begin();using var session=new FixtureSession(c.Root);var r=session.Recover();Require(r.Confirmed==c.Old && r.Trust.ApprovedSequence==2,"RECOVERY_FLOOR");Refuses(()=>session.Begin(c.Candidate,c.Clock(),now+TimeSpan.FromHours(1),true),"CANDIDATE_REPLAY");
+        }));
+        await Test("U4-STATE-02","Complete ledger restoration is an explicit antireplay counterexample",()=>Sync(()=>{
+            using var c=new StateCase(suite);string first=Directory.GetFiles(Path.Combine(c.Root,"ledger")).Single();byte[] selector=File.ReadAllBytes(Path.Combine(c.Root,"active.fixture.json"));c.Begin();
+            foreach(string p in Directory.GetFiles(Path.Combine(c.Root,"ledger")))if(p!=first)File.Delete(p);File.WriteAllBytes(Path.Combine(c.Root,"active.fixture.json"),selector);
+            using var session=new FixtureSession(c.Root);Require(session.Store.Load().Record.Trust.ApprovedSequence==1,"COUNTEREXAMPLE_NOT_REPRODUCED");Observations.Add(new{kind="complete_restore_counterexample",floor_before=2,floor_after=1,physical_power_loss=false});
+        }));
+    }
+    [SupportedOSPlatform("windows")]
+    private static async Task Windows()
+    {
+        using var c=new StateCase(suite);var recipe=JsonSerializer.Deserialize<Dictionary<string,string>>(File.ReadAllText(recipePath))!;
+        string archive=Path.Combine(c.Root,"inert.zip");using(var stream=File.Create(archive))using(var z=new ZipArchive(stream,ZipArchiveMode.Create))foreach(var item in recipe){var e=z.CreateEntry(item.Key,CompressionLevel.Fastest);using var f=e.Open();using var src=File.OpenRead(Path.Combine(probe,item.Key));src.CopyTo(f);}
+        using var a=File.OpenRead(archive);string sha=StreamPackage.StreamHash(a);a.Dispose();string? extracted=null;VerifiedInertProbe? proof=null;
+        bool prepared=await Test("U4-PACKAGE-01","Full real inert runtime bundle is streamed to new NTFS staging and statically inspected",()=>Sync(()=>{
+            extracted=StreamPackage.ExtractInert(c.Root,archive,sha,recipe,CancellationToken.None);proof=VerifiedInertProbe.Inspect(c.Root,extracted,recipe);
+            Observations.Add(new{kind="full_inert_package",files=recipe.Count,expanded_bytes=Directory.GetFiles(extracted,"*",SearchOption.AllDirectories).Sum(p=>new System.IO.FileInfo(p).Length),zip_bytes=new System.IO.FileInfo(archive).Length,zip_sha256=sha,gf_package=false});
+        }));
+        await Test("U4-AUTH-01","Real unsigned probe is accepted only in explicit beta-unsigned fixture mode",()=>Sync(()=>{
+            string path=Path.Combine(probe,StaticProbeInspection.Exe);bool cert=OfflineAuthenticode.HasCertificate(File.ReadAllBytes(path));int status=OfflineAuthenticode.Verify(path);OfflineAuthenticode.RequireBetaUnsigned(cert,status);Observations.Add(new{kind="unsigned_authenticode",certificate_table=cert,status_hex=unchecked((uint)status).ToString("x8"),revocation="offline-cache-only; online freshness not proved"});
+        }));
+        await Test("U4-AUTH-02","SDK-signed host and a tampered copy receive real offline WinVerifyTrust verdicts",()=>Sync(()=>{
+            byte[] original=File.ReadAllBytes(sdkHost);Require(OfflineAuthenticode.HasCertificate(original),"SDK_HOST_NOT_EMBEDDED_SIGNED");string path=Path.Combine(c.Root,"signed-sdk.fixture.exe");File.WriteAllBytes(path,original);int clean=OfflineAuthenticode.Verify(path);int pe=BitConverter.ToInt32(original,60),table=pe+24+BitConverter.ToUInt16(original,pe+20);int raw=BitConverter.ToInt32(original,table+20);Require(raw>0 && raw<original.Length,"AUTH_MUTATION_RANGE");original[raw]^=1;File.WriteAllBytes(path,original);int tampered=OfflineAuthenticode.Verify(path);Require(tampered!=0,"AUTH_TAMPER_ACCEPTED");Refuses(()=>OfflineAuthenticode.RequireBetaUnsigned(true,tampered),"AUTH_UNSIGNED_DOWNGRADE_BLOCKED");
+            if(clean==0)Refuses(()=>OfflineAuthenticode.RequireProductionPublisher(clean),"GF_PUBLISHER_POLICY_NOT_PROVISIONED");else Refuses(()=>OfflineAuthenticode.RequireProductionPublisher(clean),"AUTH_TRUST_FAILED");
+            Observations.Add(new{kind="signed_sdk_authenticode",clean_status_hex=unchecked((uint)clean).ToString("x8"),tampered_status_hex=unchecked((uint)tampered).ToString("x8"),windows_trust_only=true,gf_publisher_approved=false,trust_store_modified=false});
+        }));
+        await Test("U4-IPC-CONTEXT","Read-only token/session capability inventory; elevated operation is refused before spawn",()=>Sync(()=>{
+            using var self=Process.GetCurrentProcess();var facts=PeerIdentity.Facts(self);int before=BoundLifecycleChannel.Launches;
+            if(facts.Elevated)Refuses(()=>{try{PeerIdentity.RequireNonElevated();}catch(InvalidDataException e){throw new Rejected(e.Message);}},"ELEVATED_CONTEXT_BLOCKED");else PeerIdentity.RequireNonElevated();Require(before==BoundLifecycleChannel.Launches,"ELEVATED_SPAWN");
+            int count=0;bool enumerated=WTSEnumerateSessionsW(IntPtr.Zero,0,1,out var sessions,out int n);if(enumerated){count=n;WTSFreeMemory(sessions);}
+            Observations.Add(new{kind="ipc_context_capabilities",elevated=facts.Elevated,wts_enumerated=enumerated,visible_session_count=count,non_elevated_positive_executed=!facts.Elevated,foreign_session_handshake_executed=false,accounts_or_tokens_created=false});
+        }));
+        if(!prepared || proof is null){Observations.Add(new{kind="lifecycle_not_executed",reason="static package gate failed"});return;}
+        var verified=proof;
+        foreach(string mode in new[]{"normal","wrong-nonce","early-exit"})
+        {
+            string m=mode;await Test("U4-LIFE-"+mode,"Isolated real probe lifecycle bound to the persisted transaction: "+mode,async()=>{
+                using var state=new StateCase(suite);var marker=StateCodec.Encode(new{schema="inert-lifecycle/4",recipe_sha256=Hash(StateCodec.Encode(recipe)),entrypoint=StaticProbeInspection.Exe});
+                string digest=Hash(marker),folder=Path.Combine(state.Root,"versions","2-"+digest);Directory.CreateDirectory(folder);string markerPath=Path.Combine(folder,"bundle.fixture.txt");File.WriteAllBytes(markerPath,marker);using var markerPin=WindowsFileGuard.Open(state.Root,markerPath);
+                var candidate=new BundleRef(2,"0.0.0.2",digest,markerPin.Identity);using var session=new FixtureSession(state.Root);
+                // The running previous application is an owned inert probe, not the GF process.
+                await using(var old=await BoundLifecycleChannel.Open(verified,"normal",Guid.NewGuid().ToString("N"),Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32)))){await old.Ready();await old.Close();Require(old.Child.HasExited,"OLD_STILL_LIVE");}
+                var selected=session.Begin(candidate,state.Clock(),DateTimeOffset.UtcNow+TimeSpan.FromHours(1),true);var tx=selected.Transaction!;string nonce=Hash(Encoding.UTF8.GetBytes(tx.Nonce+candidate.Sha256));
+                bool ready=false;
+                await using(var child=await BoundLifecycleChannel.Open(verified,m,tx.Id,nonce))
+                {if(m=="normal"){await child.Ready();Require(!child.Child.HasExited,"CANDIDATE_ALREADY_EXITED");session.Confirm(new(tx.Id,tx.Nonce,candidate.Sha256));ready=true;await child.Close();}else await RefusesAsync(()=>child.Ready(TimeSpan.FromSeconds(5)));}
+                StateRecord result=ready?session.Store.Load().Record:session.Recover();
+                Require(result.Trust.ApprovedSequence==2 && result.Confirmed==(ready?candidate:state.Old),"LIFECYCLE_RESULT");
+                if(!ready)Refuses(()=>session.Begin(candidate,state.Clock(),DateTimeOffset.UtcNow+TimeSpan.FromHours(1),true),"CANDIDATE_REPLAY");
+                Observations.Add(new{kind="inert_transaction_lifecycle",mode=m,confirmed=ready,exact_previous_recovered=!ready,gf_operational=false,elevation_guard_bypassed_for_named_harness_only=true});
+            });
+        }
+        await Test("U4-LIFE-DEFER","Deferral leaves a real owned application alive, no new intent and unchanged selector",async()=>{
+            using var state=new StateCase(suite);using var session=new FixtureSession(state.Root);await using var old=await BoundLifecycleChannel.Open(verified,"normal",Guid.NewGuid().ToString("N"),Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32)));await old.Ready();
+            var unchanged=session.Begin(state.Candidate,state.Clock(),DateTimeOffset.UtcNow+TimeSpan.FromHours(1),false);Require(unchanged.Transaction is null && !old.Child.HasExited && session.SelectionForFixtureInspectionOnly()==state.Old,"DEFER_SIDE_EFFECT");await old.Close();
+        });
+    }
+    [DllImport("wtsapi32.dll",SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)]private static extern bool WTSEnumerateSessionsW(IntPtr server,int reserved,int version,out IntPtr info,out int count);
+    [DllImport("wtsapi32.dll")]private static extern void WTSFreeMemory(IntPtr p);
+}

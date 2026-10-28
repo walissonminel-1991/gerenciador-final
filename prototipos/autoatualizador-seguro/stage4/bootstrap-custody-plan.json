@@ -1,0 +1,33 @@
+{
+  "schema": "gf-bootstrap-custody-preparation/4",
+  "contract": "gf-self-update/1",
+  "operational": false,
+  "production_root": null,
+  "production_fingerprint": null,
+  "publisher_policy": null,
+  "root_threshold": 2,
+  "root_slots": [
+    {"slot": "root-A", "custodian": null, "offline_medium": null, "restore_drill": "not_executed"},
+    {"slot": "root-B", "custodian": null, "offline_medium": null, "restore_drill": "not_executed"},
+    {"slot": "root-C", "custodian": null, "offline_medium": null, "restore_drill": "not_executed"}
+  ],
+  "other_roles": {
+    "targets": {"custodian": null, "offline": true, "key_created": false},
+    "snapshot": {"custodian": null, "separate_key": true, "key_created": false},
+    "timestamp": {"custodian": null, "separate_key": true, "key_created": false}
+  },
+  "required_receipts": [
+    "named custodians, independent offline storage and recovery access",
+    "two distinct root signers verified without exporting private keys",
+    "independent authenticated delivery of initial public fingerprint",
+    "role separation, rotation with old and new quorum, expiry calendar",
+    "restore and lost-quorum drill; manual authenticated bootstrap recovery",
+    "approved launcher/helper hashes, protocol and asInvoker manifest",
+    "production publisher policy if Authenticode becomes mandatory"
+  ],
+  "private_material_in_repo_or_build_job": false,
+  "github_access_token_in_exe": false,
+  "beta_66_conversion_allowed": false,
+  "automatic_silent_install_allowed": false,
+  "stage5_started": false
+}
