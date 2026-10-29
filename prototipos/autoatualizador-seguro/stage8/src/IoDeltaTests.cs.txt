@@ -1,0 +1,119 @@
+using System.Text;
+using static GfUpdaterFixture.DeltaTests;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+internal sealed class CountedResource(IDisposable? value = null) : IDisposable {
+    internal int Disposals;
+    public void Dispose() { Interlocked.Increment(ref Disposals); value?.Dispose(); }
+}
+internal static class IoDeltaTests
+{
+    private static void LeaseHeld(FixtureScope scope) {
+        try { using var other = new FileStream(scope.File("lease.fixture"), FileMode.Open, FileAccess.ReadWrite, FileShare.None); }
+        catch (IOException) { return; }
+        throw new Rejected("U8_LEASE_RELEASED_EARLY");
+    }
+    internal static async Task Run() {
+        await Test("U8-G8-PRE-CANCEL", "Cancellation before admission starts no factory", async () => {
+            using var scope = new FixtureScope(); using var user = new CancellationTokenSource(); user.Cancel();
+            var owner = OwnedAttempt.StartFixture(scope, user.Token); int calls = 0;
+            try {
+                await Throws<OperationCanceledException>(() => { _ = owner.Start("read", _ => { calls++; return Task.FromResult(1); }); return Task.CompletedTask; });
+                Require(calls == 0 && owner.Facts().Length == 0 && !owner.ValidationCanContinue, "U8_PRE_CANCEL_STARTED");
+            } finally { Finish(owner); }
+        });
+        await Test("U8-G8-CONCURRENT-ADMISSION", "Active operation blocks concurrent admission and release", async () => {
+            using var scope = new FixtureScope(); var owner = OwnedAttempt.StartFixture(scope); var entered = Signal<bool>(); var release = Signal<int>(); int calls = 0;
+            var op = owner.Start("read", _ => { entered.TrySetResult(true); return release.Task; });
+            try {
+                await Watch(entered.Task); Reject(() => owner.Start("read", _ => { calls++; return Task.FromResult(2); }), "U8_OPERATION_IN_FLIGHT");
+                Require(!owner.TryRelease() && calls == 0 && owner.Pending == 1, "U8_ADMISSION_INTERLEAVED"); LeaseHeld(scope);
+            } finally { release.TrySetResult(1); _ = await Watch(op.WaitResult()); Finish(owner); }
+        });
+        await Test("U8-G8-SYNC-START", "Factory blocking before Task return remains owned after waiter cancellation", async () => {
+            using var scope = new FixtureScope(); using var user = new CancellationTokenSource(); using var release = new ManualResetEventSlim();
+            var owner = OwnedAttempt.StartFixture(scope, user.Token); var entered = Signal<bool>(); var resource = new CountedResource();
+            var op = owner.Start("read", _ => { entered.TrySetResult(true); Require(release.Wait(TimeSpan.FromSeconds(7)), "U8_FACTORY_WATCHDOG"); return Task.FromResult(7); }, resource);
+            try {
+                await Watch(entered.Task); user.Cancel(); await Throws<OperationCanceledException>(async () => { _ = await Watch(op.WaitResult()); });
+                Require(owner.State == "unknown" && owner.Pending == 1 && resource.Disposals == 0 && !owner.TryRelease() && !owner.ValidationCanContinue, "U8_SYNC_OWNER_LOST");
+                Reject(() => owner.ReconcileFixture(() => true), "U8_RECONCILE_PENDING"); LeaseHeld(scope);
+            } finally { release.Set(); _ = await Watch(op.ObserveTerminal()); Finish(owner); }
+            Require(resource.Disposals == 1, "U8_RESOURCE_DISPOSAL");
+            Observations.Add(new { kind = "synchronous_factory_block", waiter_canceled_before_Task_return = true, resources_and_lease_retained = true, kernel_hang = false });
+        });
+        await Test("U8-G8-LATE-FILE-WRITE", "Actual delayed file write cannot revive attempt; release requires terminal observation and reconciliation", async () => {
+            using var scope = new FixtureScope(); using var user = new CancellationTokenSource();
+            var stream = new FileStream(scope.File("staging.txt"), FileMode.CreateNew, FileAccess.Write, FileShare.Read, 1, FileOptions.Asynchronous);
+            var resource = new CountedResource(stream); var owner = OwnedAttempt.StartFixture(scope, user.Token); var entered = Signal<bool>(); var release = Signal<bool>();
+            var op = owner.Start("staging_write", async _ => { entered.TrySetResult(true); await release.Task;
+                await stream.WriteAsync(Encoding.UTF8.GetBytes("late-inert-effect"), CancellationToken.None); await stream.FlushAsync(CancellationToken.None); return 17; }, resource);
+            try {
+                await Watch(entered.Task); user.Cancel(); await Throws<OperationCanceledException>(async () => { _ = await Watch(op.WaitResult()); });
+                Require(owner.State == "unknown" && !owner.TryRelease() && resource.Disposals == 0 && stream.CanWrite, "U8_LATE_RELEASED"); LeaseHeld(scope);
+                release.TrySetResult(true); var terminal = await Watch(op.ObserveTerminal());
+                Require(terminal.Outcome == "succeeded" && File.ReadAllText(scope.File("staging.txt")) == "late-inert-effect", "U8_NO_REAL_LATE_EFFECT");
+                await Throws<OperationCanceledException>(async () => { _ = await op.WaitResult(); });
+                Require(!owner.ValidationCanContinue && !owner.TryRelease(), "U8_LATE_REVALIDATED");
+                owner.ReconcileFixture(() => File.ReadAllText(scope.File("staging.txt")) == "late-inert-effect");
+                Reject(() => owner.Start("read", _ => Task.FromResult(1)), "U8_ATTEMPT_CLOSED");
+                Require(owner.TryRelease() && resource.Disposals == 1 && !stream.CanWrite, "U8_RELEASE_FAILED");
+                Observations.Add(new { kind = "controlled_delayed_real_file_write", late_effect_observed = true, late_result_accepted = false,
+                    pending_release_refused = true, reconciliation_required = true, durable_barrier_or_power_loss_proved = false });
+            } finally { release.TrySetResult(true); _ = await Watch(op.ObserveTerminal()); Finish(owner); }
+        });
+        await Test("U8-G8-LATE-FAULT", "Failure after canceled wait remains observable without early resource release", async () => {
+            using var scope = new FixtureScope(); using var user = new CancellationTokenSource(); var owner = OwnedAttempt.StartFixture(scope, user.Token);
+            var entered = Signal<bool>(); var release = Signal<bool>(); var resource = new CountedResource();
+            var op = owner.Start<int>("staging_write", async _ => { entered.TrySetResult(true); await release.Task; throw new IOException("U8_CONTROLLED_FAULT_NOT_DEVICE_FAILURE"); }, resource);
+            try {
+                await Watch(entered.Task); user.Cancel(); await Throws<OperationCanceledException>(async () => { _ = await Watch(op.WaitResult()); });
+                Require(resource.Disposals == 0 && !owner.TryRelease(), "U8_FAULT_OWNER_LOST");
+                release.TrySetResult(true); var terminal = await Watch(op.ObserveTerminal());
+                Require(terminal.Outcome == "failed" && terminal.Error is IOException && !owner.ValidationCanContinue, "U8_FAULT_UNOBSERVED");
+                Observations.Add(new { kind = "controlled_late_fault", error_observed = true, device_fault = false });
+            } finally { release.TrySetResult(true); _ = await Watch(op.ObserveTerminal()); Finish(owner); }
+        });
+        await Test("U8-G8-SHARED-BUDGET", "Two owned phases use one monotonic deadline with pending lease retained", async () => {
+            using var scope = new FixtureScope(); var owner = OwnedAttempt.StartFixture(scope, limit: TimeSpan.FromSeconds(1)); var release = Signal<int>(); OwnedOperation<int>? second = null;
+            try {
+                _ = await Watch(owner.Start("read", async token => { await Task.Delay(200, token); return 1; }).WaitResult());
+                second = owner.Start("read", _ => release.Task); await Throws<OperationCanceledException>(async () => { _ = await Watch(second.WaitResult()); });
+                Require(owner.ElapsedSeconds >= .9 && owner.ElapsedSeconds < 5 && owner.Pending == 1 && !owner.TryRelease(), "U8_BUDGET_RESET");
+                Observations.Add(new { kind = "shared_owned_deadline", configured_seconds = 1, elapsed_seconds = Math.Round(owner.ElapsedSeconds, 3), phases = 2, original_second_pending = true, repeated_120_second_test = false });
+            } finally { release.TrySetResult(2); if (second is not null) _ = await Watch(second.ObserveTerminal()); Finish(owner); }
+        });
+        await Test("U8-G8-COOPERATIVE-END", "Original cooperative cancellation terminates before reconciliation/release", async () => {
+            using var scope = new FixtureScope(); using var user = new CancellationTokenSource(); var owner = OwnedAttempt.StartFixture(scope, user.Token); var entered = Signal<bool>(); var resource = new CountedResource();
+            var op = owner.Start("read", async token => { entered.TrySetResult(true); await Task.Delay(Timeout.Infinite, token); return 1; }, resource);
+            try {
+                await Watch(entered.Task); user.Cancel(); await Throws<OperationCanceledException>(async () => { _ = await Watch(op.WaitResult()); });
+                var terminal = await Watch(op.ObserveTerminal());
+                Require(terminal.Outcome == "canceled" && owner.Pending == 0 && resource.Disposals == 0 && !owner.TryRelease(), "U8_CANCEL_TERMINAL");
+            } finally { _ = await Watch(op.ObserveTerminal()); Finish(owner); }
+        });
+        await Test("U8-G8-SYNC-FAULT", "Synchronous factory exception is tracked terminal failure", async () => {
+            using var scope = new FixtureScope(); var owner = OwnedAttempt.StartFixture(scope); var resource = new CountedResource();
+            var op = owner.Start<int>("read", _ => throw new IOException("U8_CONTROLLED_SYNC_FAULT"), resource);
+            try {
+                await Throws<IOException>(async () => { _ = await Watch(op.WaitResult()); }); var terminal = await Watch(op.ObserveTerminal());
+                Require(terminal.Outcome == "failed" && owner.Pending == 0 && !owner.ValidationCanContinue && !owner.TryRelease() && resource.Disposals == 0, "U8_SYNC_FAULT");
+            } finally { _ = await Watch(op.ObserveTerminal()); Finish(owner); }
+        });
+        await Test("U8-G8-FRESH-OWNER", "New owner requires explicit release of reconciled, permanently closed attempt", async () => {
+            using var scope = new FixtureScope(); using var user = new CancellationTokenSource(); var owner = OwnedAttempt.StartFixture(scope, user.Token);
+            user.Cancel(); Require(!owner.TryRelease(), "U8_INVALID_RELEASED"); LeaseHeld(scope);
+            owner.ReconcileFixture(() => true); Require(!owner.ValidationCanContinue && owner.TryRelease(), "U8_RECONCILED_REOPENED");
+            var fresh = OwnedAttempt.StartFixture(scope);
+            try { Require(fresh.ValidationCanContinue && await Watch(fresh.Start("read", _ => Task.FromResult(1)).WaitResult()) == 1, "U8_FRESH_OWNER"); } finally { Finish(fresh); }
+        });
+        await Test("U8-G8-RESOURCE-ALIAS", "Same retained resource shared across operations is disposed once", async () => {
+            using var scope = new FixtureScope(); var owner = OwnedAttempt.StartFixture(scope); var resource = new CountedResource();
+            try {
+                _ = await Watch(owner.Start("read", _ => Task.FromResult(1), resource).WaitResult());
+                _ = await Watch(owner.Start("read", _ => Task.FromResult(2), resource).WaitResult());
+                Require(resource.Disposals == 0 && owner.TryRelease() && resource.Disposals == 1, "U8_DUPLICATE_OWNERSHIP");
+            } finally { Finish(owner); }
+        });
+    }
+}

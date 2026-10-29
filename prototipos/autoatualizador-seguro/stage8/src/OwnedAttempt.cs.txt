@@ -1,0 +1,142 @@
+using System.Diagnostics;
+using System.Runtime.ExceptionServices;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+// Fixture sandbox only. No product journal, selector, persistent recovery, IPC or installation API.
+internal sealed class FixtureScope : IDisposable
+{
+    internal string Root { get; } = Path.Combine(Path.GetTempPath(), "gf-u8-inert-" + Guid.NewGuid().ToString("N"));
+    private const string Marker = "GF-U8-INERT-NO-PRODUCT-NO-INSTALL\n";
+    internal FixtureScope() { Directory.CreateDirectory(Root); System.IO.File.WriteAllText(Path.Combine(Root, ".fixture"), Marker); }
+    internal string File(string name) {
+        Require(name is "staging.txt" or "lease.fixture", "U8_SCOPE_NAME"); return Path.Combine(Root, name);
+    }
+    internal void Verify() {
+        Require(Path.GetDirectoryName(Root) == Path.TrimEndingDirectorySeparator(Path.GetTempPath())
+            && Path.GetFileName(Root).StartsWith("gf-u8-inert-", StringComparison.Ordinal)
+            && System.IO.File.ReadAllText(Path.Combine(Root, ".fixture")) == Marker, "U8_SCOPE_ONLY");
+    }
+    public void Dispose() { Verify(); Directory.Delete(Root, true); }
+}
+internal sealed record Terminal<T>(string Outcome, T? Value, Exception? Error);
+internal sealed record OperationFact(int Id, string Kind, bool Terminal, string Outcome, double StartedSeconds, double? EndedSeconds);
+internal sealed class OwnedOperation<T>
+{
+    private readonly OwnedAttempt owner;
+    private readonly TaskCompletionSource<Terminal<T>> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal readonly int Id;
+    internal readonly string Kind;
+    internal readonly double Started;
+    internal bool Ended;
+    internal string Outcome = "pending";
+    internal double? EndedAt;
+    internal OwnedOperation(OwnedAttempt owner, int id, string kind) { this.owner = owner; Id = id; Kind = kind; Started = owner.ElapsedSeconds; }
+    internal void Dispatch(Func<CancellationToken, Task<T>> factory) {
+        // Separate the waiter from synchronous factory blocking. This is NOT proof of kernel abort.
+        _ = Task.Run(async () => {
+            Terminal<T> result;
+            try {
+                owner.CheckValid();
+                Task<T> original = factory(owner.Token) ?? throw new InvalidOperationException("U8_NULL_ORIGINAL_TASK");
+                T value = await original.ConfigureAwait(false);
+                result = new("succeeded", value, null);
+            }
+            catch (OperationCanceledException e) { result = new("canceled", default, e); }
+            catch (Exception e) { result = new("failed", default, e); }
+            owner.RecordTerminal(this, result.Outcome);
+            completion.TrySetResult(result); // record rather than abandon an unobserved faulted task
+        });
+    }
+    internal async Task<T> WaitResult() {
+        Terminal<T> result;
+        try { result = await completion.Task.WaitAsync(owner.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) { owner.ObserveCanceledWait(); throw; }
+        if (result.Error is not null) ExceptionDispatchInfo.Capture(result.Error).Throw();
+        owner.CheckValid(); // a late successful original I/O never revalidates the attempt
+        return result.Value!;
+    }
+    internal Task<Terminal<T>> ObserveTerminal() => completion.Task;
+}
+internal sealed class OwnedAttempt
+{
+    private readonly object sync = new();
+    private readonly Stopwatch timer = Stopwatch.StartNew();
+    private readonly CancellationTokenSource source;
+    private readonly CancellationTokenRegistration cancellation;
+    private readonly FileStream lease;
+    private readonly FixtureScope scope;
+    private readonly List<IDisposable> resources = [];
+    private readonly List<Func<OperationFact>> operations = [];
+    private int pending;
+    private bool invalid, reconciled, releasing, releaseFailed, released;
+    internal DateTimeOffset CapturedUtc { get; }
+    internal TimeSpan Limit { get; }
+    internal CancellationToken Token => source.Token;
+    internal double ElapsedSeconds => timer.Elapsed.TotalSeconds;
+    internal int Pending { get { lock (sync) return pending; } }
+    internal string State { get { lock (sync) return released ? "released" : releasing || releaseFailed || invalid && pending != 0 ? "unknown"
+        : reconciled ? "reconciled_closed" : invalid ? "needs_reconciliation" : "open"; } }
+    private OwnedAttempt(FixtureScope scope, TimeSpan limit, CancellationToken user, TimeProvider clock) {
+        Require(limit > TimeSpan.Zero && limit <= TimeSpan.FromMinutes(2), "U8_LIMIT");
+        scope.Verify(); this.scope = scope; Limit = limit;
+        CapturedUtc = clock.GetUtcNow(); // exactly one capture; no provider reaches the TUF client
+        Require(CapturedUtc != default && CapturedUtc.Offset == TimeSpan.Zero, "U8_CAPTURE_UTC");
+        lease = new FileStream(scope.File("lease.fixture"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        source = CancellationTokenSource.CreateLinkedTokenSource(user);
+        cancellation = source.Token.Register(() => { lock (sync) invalid = true; });
+        source.CancelAfter(limit);
+    }
+    internal static OwnedAttempt StartFixture(FixtureScope scope, CancellationToken user = default, TimeSpan? limit = null, TimeProvider? captureClock = null)
+        => new(scope, limit ?? TimeSpan.FromMinutes(2), user, captureClock ?? TimeProvider.System);
+    private void CheckLocked() {
+        if (timer.Elapsed >= Limit || source.IsCancellationRequested) invalid = true;
+        Require(!released && !releasing && !releaseFailed && !reconciled, "U8_ATTEMPT_CLOSED");
+        if (invalid) throw new OperationCanceledException("U8_ATTEMPT_INVALID", source.Token);
+    }
+    internal void CheckValid() { lock (sync) CheckLocked(); }
+    internal void ObserveCanceledWait() { lock (sync) invalid = true; }
+    internal OwnedOperation<T> Start<T>(string kind, Func<CancellationToken, Task<T>> factory, params IDisposable[] retained) {
+        OwnedOperation<T> op;
+        lock (sync) {
+            CheckLocked(); Require(pending == 0, "U8_OPERATION_IN_FLIGHT");
+            Require(kind is "read" or "staging_write" or "tuf", "U8_OPERATION_KIND");
+            op = new(this, operations.Count + 1, kind);
+            foreach (var item in retained) if (!resources.Contains(item, ReferenceEqualityComparer.Instance)) resources.Add(item);
+            pending++;
+            operations.Add(() => new(op.Id, op.Kind, op.Ended, op.Outcome, op.Started, op.EndedAt));
+        }
+        op.Dispatch(factory); // ownership/reservation visible before any factory invocation
+        return op;
+    }
+    internal void RecordTerminal<T>(OwnedOperation<T> op, string outcome) {
+        lock (sync) {
+            Require(!op.Ended, "U8_DOUBLE_TERMINAL"); op.Outcome = outcome; op.EndedAt = ElapsedSeconds; op.Ended = true; pending--;
+            if (outcome != "succeeded" || source.IsCancellationRequested || timer.Elapsed >= Limit) invalid = true;
+        }
+    }
+    internal OperationFact[] Facts() { lock (sync) return operations.Select(x => x()).ToArray(); }
+    internal bool ValidationCanContinue { get { lock (sync) return !invalid && !released && !releasing && !releaseFailed && !reconciled
+        && pending == 0 && timer.Elapsed < Limit && !source.IsCancellationRequested; } }
+    internal void ReconcileFixture(Func<bool> inspectInertState) {
+        // Explicit fixture observation only. Does not implement durable product recovery or reopen attempts.
+        lock (sync) {
+            Require(!released && !releasing && !releaseFailed && pending == 0, "U8_RECONCILE_PENDING");
+            scope.Verify(); Require(inspectInertState(), "U8_RECONCILE_MISMATCH"); invalid = true; reconciled = true;
+        }
+    }
+    internal bool TryRelease() {
+        lock (sync) {
+            if (released) return true;
+            if (pending != 0 || releasing || releaseFailed || invalid && !reconciled) return false;
+            releasing = true;
+        }
+        try {
+            foreach (var item in resources.AsEnumerable().Reverse()) item.Dispose();
+            lease.Dispose(); cancellation.Dispose(); source.Dispose();
+            lock (sync) { released = true; releasing = false; }
+            return true;
+        }
+        catch { lock (sync) { releaseFailed = true; invalid = true; releasing = false; } throw; }
+    }
+}

@@ -1,0 +1,223 @@
+--- a/src/Tuf/TufClient.cs
++++ b/src/Tuf/TufClient.cs
+@@ -13,6 +13,8 @@
+ public sealed class TufClient : IDisposable
+ {
+     private readonly TufClientOptions _options;
++    private readonly DateTimeOffset _validationUtc;
++    private int _attemptUsed;
+     private readonly ITufRepository _repository;
+     private readonly ITufCache _cache;
+     private readonly byte[] _bootstrapRoot;
+@@ -31,6 +33,9 @@
+     public TufClient(TufClientOptions options)
+     {
+         _options = options ?? throw new ArgumentNullException(nameof(options));
++        if (options.ValidationUtc == default || options.ValidationUtc.Offset != TimeSpan.Zero)
++            throw new ArgumentException("GF fixture requires captured, non-default UTC.", nameof(options));
++        _validationUtc = options.ValidationUtc;
+         _cache = options.Cache ?? new InMemoryTufCache();
+         _bootstrapRoot = options.TrustedRoot ?? throw new ArgumentNullException(nameof(options.TrustedRoot));
+ 
+@@ -62,6 +67,7 @@
+     public async Task<TufMetadataResult> GetTrustedMetadataAsync(
+         CancellationToken cancellationToken = default)
+     {
++        BeginAttempt(cancellationToken);
+         using var operation = TufInstrumentation.StartMetadataRefresh();
+         var queueStartedAt = Stopwatch.GetTimestamp();
+         var gateAcquired = false;
+@@ -115,7 +121,8 @@
+         await UpdateRootPhaseAsync(cancellationToken);
+ 
+         // §5.3: Update timestamp metadata
+-        await UpdateTimestampPhaseAsync(cancellationToken);
++        if (!await UpdateTimestampPhaseAsync(cancellationToken))
++            return new TufMetadataResult { Status = TufRefreshStatus.Unchanged, Expires = _trustedTimestamp!.Signed.Expires };
+ 
+         // §5.4: Update snapshot metadata
+         await UpdateSnapshotPhaseAsync(cancellationToken);
+@@ -166,6 +173,7 @@
+         string targetPath,
+         CancellationToken cancellationToken = default)
+     {
++        BeginAttempt(cancellationToken);
+         using var operation = TufInstrumentation.StartTargetGet();
+         var queueStartedAt = Stopwatch.GetTimestamp();
+         var gateAcquired = false;
+@@ -230,7 +238,9 @@
+         {
+             try
+             {
+-                await GetTrustedMetadataCoreAsync(cancellationToken);
++                var metadata = await GetTrustedMetadataCoreAsync(cancellationToken);
++                if (metadata.Status == TufRefreshStatus.Unchanged)
++                    return new TufTargetResult { Metadata = metadata, Content = ReadOnlyMemory<byte>.Empty };
+             }
+             catch (Exception exception)
+             {
+@@ -345,14 +355,14 @@
+         }
+     }
+ 
+-    private async Task UpdateTimestampPhaseAsync(
++    private async Task<bool> UpdateTimestampPhaseAsync(
+         CancellationToken cancellationToken)
+     {
+         using var activity =
+             TufInstrumentation.StartActivity("tuf.metadata.timestamp.update");
+         try
+         {
+-            await UpdateTimestampAsync(cancellationToken);
++            return await UpdateTimestampAsync(cancellationToken);
+         }
+         catch (Exception exception)
+         {
+@@ -530,7 +540,7 @@
+ 
+     private void EnsureFinalRootValid()
+     {
+-        if (_trustedRoot!.Signed.Expires < DateTimeOffset.UtcNow)
++        if (_trustedRoot!.Signed.Expires <= _validationUtc)
+         {
+             throw new TufExpiredException("root", _trustedRoot.Signed.Expires);
+         }
+@@ -539,7 +549,7 @@
+     /// <summary>
+     /// §5.3: Update timestamp metadata.
+     /// </summary>
+-    private async Task UpdateTimestampAsync(CancellationToken cancellationToken)
++    private async Task<bool> UpdateTimestampAsync(CancellationToken cancellationToken)
+     {
+         TryLoadLocalTimestamp();
+ 
+@@ -562,7 +572,7 @@
+         if (_trustedTimestamp != null &&
+             newTimestamp.Signed.Version == _trustedTimestamp.Signed.Version)
+         {
+-            return;
++            return false; // TUF 1.0.36: unchanged ends this entire cycle without target authorization.
+         }
+ 
+         if (_trustedTimestamp != null &&
+@@ -575,6 +585,7 @@
+         _trustedTimestamp = newTimestamp;
+         EnsureFinalTimestampValid();
+         _cache.StoreMetadata("timestamp", timestampBytes);
++        return true;
+     }
+ 
+     /// <summary>
+@@ -638,7 +649,7 @@
+     {
+         if (_trustedTimestamp != null)
+         {
+-            return _trustedTimestamp.Signed.Expires >= DateTimeOffset.UtcNow;
++            return _trustedTimestamp.Signed.Expires > _validationUtc;
+         }
+ 
+         var timestampBytes = _cache.LoadMetadata("timestamp");
+@@ -652,7 +663,7 @@
+             var timestamp = TufMetadataParser.ParseTimestamp(timestampBytes);
+             VerifyTimestampSignatures(timestamp);
+             _trustedTimestamp = timestamp;
+-            return _trustedTimestamp.Signed.Expires >= DateTimeOffset.UtcNow;
++            return _trustedTimestamp.Signed.Expires > _validationUtc;
+         }
+         catch (JsonException)
+         {
+@@ -716,7 +727,7 @@
+             return _trustedSnapshot != null &&
+                 _trustedSnapshot.Signed.Meta.TryGetValue("targets.json", out var targetsMeta) &&
+                 _trustedTargets.Signed.Version == targetsMeta.Version &&
+-                _trustedTargets.Signed.Expires >= DateTimeOffset.UtcNow;
++                _trustedTargets.Signed.Expires > _validationUtc;
+         }
+ 
+         var targetsBytes = _cache.LoadMetadata("targets");
+@@ -893,7 +904,7 @@
+                 $"{roleName} version {targets.Signed.Version} doesn't match snapshot reference {targetsMeta.Version}.");
+         }
+ 
+-        if (targets.Signed.Expires < DateTimeOffset.UtcNow)
++        if (targets.Signed.Expires <= _validationUtc)
+         {
+             throw new TufExpiredException(roleName, targets.Signed.Expires);
+         }
+@@ -967,7 +978,7 @@
+             throw new TufException("No trusted timestamp metadata available.");
+         }
+ 
+-        if (_trustedTimestamp.Signed.Expires < DateTimeOffset.UtcNow)
++        if (_trustedTimestamp.Signed.Expires <= _validationUtc)
+         {
+             throw new TufExpiredException("timestamp", _trustedTimestamp.Signed.Expires);
+         }
+@@ -980,7 +991,7 @@
+             throw new TufException("No trusted snapshot metadata available.");
+         }
+ 
+-        if (_trustedSnapshot.Signed.Expires < DateTimeOffset.UtcNow)
++        if (_trustedSnapshot.Signed.Expires <= _validationUtc)
+         {
+             throw new TufExpiredException("snapshot", _trustedSnapshot.Signed.Expires);
+         }
+@@ -1037,6 +1048,13 @@
+         return verifiedAnySupportedHash;
+     }
+ 
++    private void BeginAttempt(CancellationToken cancellationToken)
++    {
++        cancellationToken.ThrowIfCancellationRequested();
++        if (Interlocked.CompareExchange(ref _attemptUsed, 1, 0) != 0)
++            throw new InvalidOperationException("GF_TUF_ATTEMPT_ALREADY_USED");
++    }
++
+     /// <inheritdoc/>
+     public void Dispose()
+     {
+--- a/src/Tuf/TufClientOptions.cs
++++ b/src/Tuf/TufClientOptions.cs
+@@ -5,6 +5,9 @@
+ /// </summary>
+ public sealed class TufClientOptions
+ {
++    // GF isolated stage 8: immutable captured value, no imported provider/callback.
++    public required DateTimeOffset ValidationUtc { get; init; }
++
+     /// <summary>
+     /// The base URL for the TUF repository metadata.
+     /// </summary>
+--- a/src/Tuf/TufResults.cs
++++ b/src/Tuf/TufResults.cs
+@@ -1,10 +1,15 @@
+ namespace Tuf;
++
++// GF fixture: Unchanged authorizes no target or complete metadata set.
++public enum TufRefreshStatus { Updated, Unchanged }
+ 
+ /// <summary>
+ /// Describes the trusted metadata established by a TUF operation.
+ /// </summary>
+ public sealed record TufMetadataResult
+ {
++    public TufRefreshStatus Status { get; init; } = TufRefreshStatus.Updated;
++
+     /// <summary>
+     /// The earliest expiry across the trusted metadata set.
+     /// </summary>
+@@ -19,7 +24,13 @@
+     /// <summary>
+     /// The verified target contents.
+     /// </summary>
+-    public required ReadOnlyMemory<byte> Content { get; init; }
++    private readonly ReadOnlyMemory<byte> _content;
++    public required ReadOnlyMemory<byte> Content
++    {
++        get => Metadata.Status == TufRefreshStatus.Unchanged
++            ? throw new InvalidOperationException("GF_TUF_UNCHANGED_HAS_NO_TARGET") : _content;
++        init => _content = value;
++    }
+ 
+     /// <summary>
+     /// The trusted metadata that authorized the target.

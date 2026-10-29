@@ -1,0 +1,81 @@
+using System.Collections.Concurrent;
+using System.Text;
+using Tuf;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+internal sealed class Stage8Cache(Dictionary<string, byte[]>? previous = null) : ITufCache
+{
+    internal readonly Dictionary<string, byte[]> Metadata = Snapshot(previous, cache: true);
+    private readonly Dictionary<string, byte[]> targets = new(StringComparer.Ordinal);
+    internal readonly ConcurrentDictionary<string, int> Loads = new(StringComparer.Ordinal);
+    public byte[]? LoadMetadata(string role) { Loads.AddOrUpdate(role, 1, (_, v) => v + 1); return Metadata.TryGetValue(role, out var b) ? b.ToArray() : null; }
+    public void StoreMetadata(string role, byte[] bytes) => Metadata[role] = bytes.ToArray();
+    public byte[]? LoadTarget(string path) { Loads.AddOrUpdate("target", 1, (_, v) => v + 1); return targets.TryGetValue(path, out var b) ? b.ToArray() : null; }
+    public void StoreTarget(string path, byte[] bytes) => targets[path] = bytes.ToArray();
+}
+internal sealed class Stage8Repository(Dictionary<string, byte[]> input, DateTimeOffset start) : ITufRepository
+{
+    private readonly Dictionary<string, byte[]> files = Snapshot(input, cache: false);
+    internal readonly ConcurrentDictionary<string, int> Fetches = new(StringComparer.Ordinal);
+    internal readonly Dictionary<int, byte[]> Roots = [];
+    internal Func<string, CancellationToken, Task>? BeforeFetch;
+    internal int Count(string name) => Fetches.GetValueOrDefault(name);
+    public async Task<byte[]?> FetchMetadataAsync(string role, int? version = null, CancellationToken cancellationToken = default) {
+        cancellationToken.ThrowIfCancellationRequested(); Require(role is "root" or "timestamp" or "snapshot" or "targets", "U8_ROLE");
+        Fetches.AddOrUpdate(role, 1, (_, n) => n + 1);
+        if (BeforeFetch is not null) await BeforeFetch(role, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested(); Require(Count("root") <= 33, "U8_ROOT_LIMIT");
+        string key = version is int v ? $"{v}.{role}.json" : role + ".json";
+        if (!files.TryGetValue(key, out var b)) return null;
+        Envelope(b, role, start);
+        if (role == "root" && version is int n) Roots[n] = b.ToArray();
+        return b.ToArray();
+    }
+    public async Task<byte[]?> FetchTargetAsync(string path, CancellationToken cancellationToken = default) {
+        cancellationToken.ThrowIfCancellationRequested(); Require(path == "fixture-package.zip", "U8_TARGET");
+        Fetches.AddOrUpdate("target", 1, (_, n) => n + 1);
+        if (BeforeFetch is not null) await BeforeFetch("target", cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested(); return files.TryGetValue(path, out var b) ? b.ToArray() : null;
+    }
+}
+internal sealed record Stage8Evaluation(bool Unchanged, byte[]? InertContent, Dictionary<string, byte[]> Metadata) { public bool Installable => false; }
+internal sealed class TufAttempt(OwnedAttempt owner, byte[] anchor, Stage8Repository repository, Dictionary<string, byte[]>? previous = null)
+{
+    private const string AnchorHash = "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e";
+    private readonly byte[] trustedAnchor = anchor.Length <= 512 * 1024 ? anchor.ToArray() : throw new Rejected("U8_ANCHOR_SIZE");
+    private readonly Dictionary<string, byte[]> trustedPrevious = Snapshot(previous, cache: true);
+    private int used;
+    internal volatile bool ClientDisposed;
+    internal OwnedOperation<Stage8Evaluation> VerifyOnce() {
+        Require(Interlocked.CompareExchange(ref used, 1, 0) == 0, "U8_FACADE_ALREADY_USED"); return owner.Start("tuf", Verify);
+    }
+    private async Task<Stage8Evaluation> Verify(CancellationToken token) {
+        owner.CheckValid(); Require(Hash(trustedAnchor) == AnchorHash, "U8_ANCHOR"); Envelope(trustedAnchor, "root", owner.CapturedUtc);
+        var cache = new Stage8Cache(trustedPrevious);
+        foreach (var pair in cache.Metadata) Envelope(pair.Value, pair.Key, owner.CapturedUtc, cached: true);
+        byte[]? priorRoot = cache.LoadMetadata("root"); cache.Metadata.Remove("root");
+        var client = new TufClient(new TufClientOptions { ValidationUtc = owner.CapturedUtc,
+            MetadataBaseUrl = new Uri("https://gf-u8-fixture.invalid/"), TrustedRoot = trustedAnchor.ToArray(),
+            Cache = cache, Repository = repository, MaxRootRotations = 32, MaxDelegations = 1 });
+        try {
+            // GetTarget performs its own refresh: never call GetTrustedMetadataAsync first.
+            var result = await client.GetTargetAsync("fixture-package.zip", token).ConfigureAwait(false); owner.CheckValid();
+            if (priorRoot is not null) {
+                using var doc = Json(priorRoot); int v = checked((int)Number(doc.RootElement.GetProperty("signed"), "version", int.MaxValue));
+                byte[]? linked = v == 1 ? trustedAnchor : repository.Roots.GetValueOrDefault(v);
+                Require(linked is not null && Hash(linked) == Hash(priorRoot), "U8_CACHE_ROOT_NOT_ANCHORED");
+            }
+            if (result.Metadata.Status == TufRefreshStatus.Unchanged) return new(true, null, Snapshot(cache.Metadata, cache: true));
+            foreach (string role in new[] { "root", "timestamp", "snapshot", "targets" }) {
+                byte[] bytes = cache.LoadMetadata(role) ?? throw new Rejected("U8_CHAIN_INCOMPLETE");
+                Envelope(bytes, role, owner.CapturedUtc); using var doc = Json(bytes);
+                Require(Date(doc.RootElement.GetProperty("signed"), "expires") > owner.CapturedUtc, "U8_CHAIN_EXPIRED");
+            }
+            byte[] content = result.Content.ToArray();
+            Require(Encoding.UTF8.GetString(content) == "GF-U8-INERT-TEXT-NO-PRODUCT-NO-INSTALL\n", "U8_INERT_ONLY");
+            owner.CheckValid(); return new(false, content, Snapshot(cache.Metadata, cache: true));
+        }
+        finally { client.Dispose(); ClientDisposed = true; }
+    }
+}

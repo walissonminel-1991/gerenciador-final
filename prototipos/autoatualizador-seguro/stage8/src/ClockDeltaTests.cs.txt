@@ -1,0 +1,106 @@
+using System.Reflection;
+using Tuf;
+using static GfUpdaterFixture.DeltaTests;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+internal static class ClockDeltaTests
+{
+    private static Stage8Cache Seed() => new(new() { ["timestamp"] = Data("base")["timestamp.json"] });
+    private static Dictionary<string, byte[]> Previous() {
+        var d = Data("base"); return new() { ["root"] = Anchor, ["timestamp"] = d["timestamp.json"], ["snapshot"] = d["snapshot.json"], ["targets"] = d["targets.json"] };
+    }
+    internal static async Task Run() {
+        await Test("U8-G2-API", "Immutable scalar API and rejection of default/non-UTC input", async () => {
+            Require(typeof(TufClientOptions).GetProperties().All(p => !typeof(TimeProvider).IsAssignableFrom(p.PropertyType)), "U8_PROVIDER_API");
+            Require(typeof(TufClient).GetField("_validationUtc", BindingFlags.Instance | BindingFlags.NonPublic)!.IsInitOnly, "U8_UTC_MUTABLE");
+            await Throws<ArgumentException>(() => { using var c = Client(new RawRepository(Data("base")), utc: default(DateTimeOffset)); return Task.CompletedTask; });
+            await Throws<ArgumentException>(() => { using var c = Client(new RawRepository(Data("base")), utc: T0.ToOffset(TimeSpan.FromHours(1))); return Task.CompletedTask; });
+        });
+        await Test("U8-G2-CAPTURE", "Single UTC capture despite clock source changing during metadata fetch", async () => {
+            using var scope = new FixtureScope(); var clock = new CaptureClock(T0); var owner = OwnedAttempt.StartFixture(scope, captureClock: clock);
+            try {
+                var repo = new Stage8Repository(Data("base"), T0) { BeforeFetch = (_, _) => { clock.Value = T0 + TimeSpan.FromDays(20); return Task.CompletedTask; } };
+                var result = await Watch(new TufAttempt(owner, Anchor, repo).VerifyOnce().WaitResult());
+                Require(!result.Unchanged && clock.Reads == 1 && owner.CapturedUtc == T0, "U8_TIME_CHANGED");
+                Observations.Add(new { kind = "single_utc_capture", reads = clock.Reads, captured = owner.CapturedUtc, changed_source = clock.Value });
+            } finally { Finish(owner); }
+        });
+        await Test("U8-G2-ONE-CHAIN", "Facade fetches one root probe, timestamp, snapshot, targets and target", async () => {
+            using var scope = new FixtureScope(); var owner = OwnedAttempt.StartFixture(scope, captureClock: new CaptureClock(T0));
+            try {
+                var repo = new Stage8Repository(Data("base"), T0); var facade = new TufAttempt(owner, Anchor, repo);
+                var r = await Watch(facade.VerifyOnce().WaitResult());
+                Require(!r.Unchanged && r.InertContent is not null && !r.Installable && new[] { "root", "timestamp", "snapshot", "targets", "target" }.All(x => repo.Count(x) == 1), "U8_DUPLICATE_REFRESH");
+                Reject(() => facade.VerifyOnce(), "U8_FACADE_ALREADY_USED");
+                Observations.Add(new { kind = "single_metadata_workflow", fetches = repo.Fetches.ToDictionary(x => x.Key, x => x.Value) });
+            } finally { Finish(owner); }
+        });
+        await Test("U8-G2-CLIENT-REUSE", "Second public entry point refused before additional fetch", async () => {
+            var repo = new RawRepository(Data("base")); using var c = Client(repo); _ = await c.GetTargetAsync("fixture-package.zip");
+            await Throws<InvalidOperationException>(async () => { _ = await c.GetTrustedMetadataAsync(); }); Require(repo.Fetches["timestamp"] == 1, "U8_CLIENT_REUSED");
+        });
+        await Test("U8-G2-CLIENT-RACE", "Concurrent public calls cannot share one frozen client", async () => {
+            var entered = Signal<bool>(); var release = Signal<bool>();
+            var repo = new RawRepository(Data("base")) { Before = async role => { if (role == "timestamp") { entered.TrySetResult(true); await release.Task; } } };
+            using var c = Client(repo); var first = c.GetTargetAsync("fixture-package.zip");
+            try { await Watch(entered.Task); await Throws<InvalidOperationException>(async () => { _ = await c.GetTargetAsync("fixture-package.zip"); }); }
+            finally { release.TrySetResult(true); _ = await Watch(first); }
+            Require(repo.Fetches["timestamp"] == 1, "U8_RACING_REFRESH");
+        });
+        await Test("U8-G2-UNCHANGED-METADATA", "Equal timestamp stops before accessing later-role caches/fetches", async () => {
+            var cache = Seed(); cache.Metadata["snapshot"] = [1]; cache.Metadata["targets"] = [1]; var repo = new RawRepository(Data("base")); using var c = Client(repo, cache);
+            var r = await c.GetTrustedMetadataAsync();
+            Require(r.Status == TufRefreshStatus.Unchanged && !repo.Fetches.ContainsKey("snapshot") && !repo.Fetches.ContainsKey("targets") && !cache.Loads.ContainsKey("snapshot") && !cache.Loads.ContainsKey("targets"), "U8_UNCHANGED_CONTINUED");
+        });
+        await Test("U8-G2-UNCHANGED-TARGET", "Equal timestamp authorizes no target access including cached target", async () => {
+            var cache = Seed(); var repo = new RawRepository(Data("base")); using var c = Client(repo, cache); var r = await c.GetTargetAsync("fixture-package.zip");
+            Require(r.Metadata.Status == TufRefreshStatus.Unchanged && !repo.Fetches.ContainsKey("snapshot") && !repo.Fetches.ContainsKey("target") && !cache.Loads.ContainsKey("target"), "U8_UNCHANGED_TARGET");
+            await Throws<InvalidOperationException>(() => { _ = r.Content; return Task.CompletedTask; });
+            Observations.Add(new { kind = "unchanged_terminates_target_workflow", snapshot_fetches = 0, target_fetches = 0, target_cache_reads = 0, content_access_refused = true });
+        });
+        await Test("U8-G2-EQUAL-SIGNATURE", "Equal-version shortcut still verifies incoming timestamp signature", async () => {
+            var repo = new RawRepository(Data("same-version-badsig")); using var c = Client(repo, Seed());
+            await Throws<TufException>(async () => { _ = await c.GetTargetAsync("fixture-package.zip"); }); Require(!repo.Fetches.ContainsKey("snapshot"), "U8_BAD_EQUAL_ADVANCED");
+        });
+        await Test("U8-G2-EQUAL-CONTENT", "Changed signed content with equal timestamp version is discarded", async () => {
+            var cache = Seed(); string old = Hash(cache.Metadata["timestamp"]); var repo = new RawRepository(Data("same-version-changed")); using var c = Client(repo, cache);
+            var r = await c.GetTargetAsync("fixture-package.zip"); Require(r.Metadata.Status == TufRefreshStatus.Unchanged && Hash(cache.Metadata["timestamp"]) == old && !repo.Fetches.ContainsKey("snapshot"), "U8_EQUAL_REPLACED_CACHE");
+        });
+        foreach (string role in new[] { "root", "timestamp", "snapshot", "targets" })
+            await Test("U8-G2-VALUE-EQUALITY-" + role.ToUpperInvariant(), "New scalar clock expiry equality inside TUF: " + role, async () => {
+                using var c = Client(new RawRepository(Data("equal-" + role))); await Throws<TufExpiredException>(async () => { _ = await c.GetTargetAsync("fixture-package.zip"); });
+            });
+        await Test("U8-G2-ROOT-CHAIN", "New scalar clock validates final root after expired intermediate", async () => {
+            var cache = new Stage8Cache(); var repo = new RawRepository(Data("rotation")); using var c = Client(repo, cache); var r = await c.GetTargetAsync("fixture-package.zip");
+            using var doc = Json(cache.Metadata["root"]); Require(r.Metadata.Status == TufRefreshStatus.Updated && Number(doc.RootElement.GetProperty("signed"), "version") == 3 && repo.Fetches["root"] == 3, "U8_ROOT_CHAIN");
+        });
+        await Test("U8-G2-FACADE-UNCHANGED", "One-chain facade returns unchanged without any inert content", async () => {
+            using var scope = new FixtureScope(); var owner = OwnedAttempt.StartFixture(scope, captureClock: new CaptureClock(T0));
+            try {
+                var repo = new Stage8Repository(Data("base"), T0); var r = await Watch(new TufAttempt(owner, Anchor, repo, Previous()).VerifyOnce().WaitResult());
+                Require(r.Unchanged && r.InertContent is null && repo.Count("snapshot") == 0 && repo.Count("target") == 0, "U8_FACADE_CONTINUED");
+            } finally { Finish(owner); }
+        });
+        await Test("U8-G2-NEW-ATTEMPT", "Fresh attempt captures new UTC and refuses expired input without target access", async () => {
+            using var scope = new FixtureScope(); var clock = new CaptureClock(T0 + TimeSpan.FromHours(2)); var owner = OwnedAttempt.StartFixture(scope, captureClock: clock);
+            try {
+                var repo = new Stage8Repository(Data("base"), owner.CapturedUtc);
+                try { _ = await Watch(new TufAttempt(owner, Anchor, repo, Previous()).VerifyOnce().WaitResult()); throw new Rejected("U8_ACCEPTED_OLD_TIME"); }
+                catch (Rejected e) { Require(e.Code == "METADATA_EXPIRED", "U8_WRONG_FRESH_REFUSAL:" + e.Code); }
+                Require(owner.CapturedUtc != T0 && clock.Reads == 1 && repo.Count("timestamp") == 1 && repo.Count("target") == 0, "U8_OLD_TIME_AUTHORIZED");
+            } finally { Finish(owner); }
+        });
+        await Test("U8-G2-OWNED-CANCEL", "Canceled TUF wait retains client until original repository task ends", async () => {
+            using var scope = new FixtureScope(); using var user = new CancellationTokenSource(); var owner = OwnedAttempt.StartFixture(scope, user.Token, captureClock: new CaptureClock(T0));
+            var entered = Signal<bool>(); var release = Signal<bool>();
+            var repo = new Stage8Repository(Data("base"), T0) { BeforeFetch = async (role, _) => { if (role == "timestamp") { entered.TrySetResult(true); await release.Task; } } };
+            var facade = new TufAttempt(owner, Anchor, repo); var operation = facade.VerifyOnce();
+            try {
+                await Watch(entered.Task); user.Cancel(); await Throws<OperationCanceledException>(async () => { _ = await Watch(operation.WaitResult()); });
+                Require(owner.State == "unknown" && !facade.ClientDisposed && !owner.TryRelease(), "U8_TUF_OWNER_LOST");
+            } finally { release.TrySetResult(true); _ = await Watch(operation.ObserveTerminal()); Finish(owner); }
+            Require(facade.ClientDisposed && repo.Count("snapshot") == 0 && repo.Count("target") == 0, "U8_TUF_LATE_ADVANCED");
+            Observations.Add(new { kind = "owned_TUF_cancellation", client_retained_until_repository_end = true, late_downstream_fetches = 0, persistent_state_proved = false });
+        });
+    }
+}
