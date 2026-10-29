@@ -54,7 +54,7 @@ internal static class M3Tests
         catch(OperationCanceledException){return;}
         throw new InvalidDataException("M3_LATE_COMMIT_ACCEPTED");
     }
-    private static async Task ExpectCanceled(Func<Task> operation)
+    private static async Task ExpectCanceledAsync(Func<Task> operation)
     {
         try{await operation();}
         catch(OperationCanceledException){return;}
@@ -106,7 +106,7 @@ internal static class M3Tests
                 using var budget=StageDeadline.ShortFixture(TimeSpan.FromMilliseconds(180));
                 var gate=new M3CommitGate(budget,tx);
                 Task<ProbeFrame> raw=PipeFrames.Read(pair.Server,CancellationToken.None);
-                await ExpectCanceled(async()=>{_=await budget.ObserveRead(raw);});
+                await ExpectCanceledAsync(async()=>{_=await budget.ObserveRead(raw);});
                 Require(!raw.IsCompleted,"M3_IO_NOT_PENDING");
                 await PipeFrames.Send(pair.Client,Ready(tx),CancellationToken.None);
                 var delivered=await raw.WaitAsync(TimeSpan.FromSeconds(5));
@@ -144,7 +144,7 @@ internal static class M3Tests
                 var gate=new M3CommitGate(budget,tx);
                 Task<ProbeFrame> raw=PipeFrames.Read(pair.Server,CancellationToken.None);
                 user.Cancel();
-                await ExpectCanceled(async()=>{_=await budget.ObserveRead(raw);});
+                await ExpectCanceledAsync(async()=>{_=await budget.ObserveRead(raw);});
                 Require(!raw.IsCompleted,"M3_RAW_CANCEL_UNEXPECTED");
                 await PipeFrames.Send(pair.Client,Ready(tx),CancellationToken.None);
                 var message=await raw.WaitAsync(TimeSpan.FromSeconds(5));
