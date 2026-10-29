@@ -1,0 +1,69 @@
+name: M3 L14 — dois textos inertes, crash de processo e retomada
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-l14-recovery/**'
+      - '.github/workflows/autoatualizador-m3-l14-recuperacao-processo-inerte.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-l14-recovery-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  two-versions-process-crash:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - name: Checkout isolado sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Compilar somente o runner L14 e executar 21 casos de processos filhos
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-l14-recovery/L14Recovery.csproj'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-m3-l14-artifacts'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-l14-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'L14_SDK_MISMATCH' }
+          dotnet restore $project "-p:ArtifactsPath=$out" --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exes=@(Get-ChildItem $out -Filter 'GF.Updater.M3.L14RecoveryTests.exe' -Recurse -File)
+          if ($exes.Count -ne 1) { throw 'L14_RUNNER_NOT_UNIQUE' }
+          & $exes[0].FullName --report $report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.passed -ne 21 -or $r.failed -ne 0 -or
+              !$r.real_child_process_killed -or
+              !$r.real_recovery_in_fresh_child_process -or
+              !$r.exclusive_lease_blocks_concurrent_process -or
+              !$r.selector_promoted_before_crash_rolls_back_to_old -or
+              !$r.timeout_does_not_end_child_process -or
+              !$r.unknown_is_not_auto_authorized -or
+              !$r.old_inert_version_preserved -or
+              !$r.confirmed_inert_never_executed -or
+              !$r.static_fixture_only -or
+              !$r.actual_ntfs_single_file_replace_tested -or
+              $r.actual_ntfs_multifile_atomicity_proven -or
+              $r.physical_power_loss_tested -or
+              $r.production_update_or_installation_performed -or
+              $r.real_gf_executable_built -or $r.real_gf_executable_executed -or
+              $r.privileged_helper_created -or
+              $r.operational_gates_closed -ne 0) {
+            throw 'L14_FALSE_OPERATIONAL_SECURITY_CLAIM'
+          }
+          $compile=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leaks=@($compile.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-l14-recovery' })
+          if ($leaks.Count -ne 0) { throw 'L14_PRODUCT_SOURCE_LEAK' }
+          "L14: 21 Windows child-process crash/restart fixture cases PASS; old kept, UNKNOWN blocked, single selector File.Replace only; G1-G8 BLOCKED." >> $env:GITHUB_STEP_SUMMARY
+# No updater, release, deploy, install, telemetry, administrator helper, or WORK.

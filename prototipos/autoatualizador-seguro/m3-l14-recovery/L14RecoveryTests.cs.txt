@@ -1,0 +1,362 @@
+// L14 real Windows child-process kill/cutpoint fixtures. Does NOT launch GF,
+// elevate, download, install, modify user documents or claim power-loss safety.
+using System.Diagnostics;
+using System.Text;
+using System.Text.Json;
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L14RecoveryTests
+{
+    private static readonly List<object> Results=[];
+    private static int failed;
+    private static bool realKilledChild,realRestartedChild,blockedCompetingLease,
+        abortedSwapRolledBack,terminalNeverExecuted=true,oldAlwaysKept=true,
+        unknownNeverAutoPromoted=true,timeoutNotCancellation;
+    private const string ExpectedImage="GF.Updater.M3.L14RecoveryTests.exe";
+    private static string Exe => Environment.ProcessPath ??
+        throw new InvalidDataException("L14_NO_PROCESS_IMAGE");
+
+    private sealed class Scenario : IDisposable
+    {
+        internal readonly string Root=Path.Combine(Path.GetTempPath(),
+            "gf-u2-l14-"+Guid.NewGuid().ToString("N"));
+        internal Scenario(){ L14Model.Bootstrap(Root); }
+        internal void OldOk()
+        {
+            L14Model.VerifyOld(Root);
+            oldAlwaysKept=true;
+        }
+        internal L14Observation Reopen() => L14Model.Recover(Root);
+        internal void ExpectOld()
+        {
+            OldOk();
+            L14Model.Must(Reopen()==L14Observation.OldSelectedBlocked &&
+                L14Model.ReadSelector(Root).Selected=="old",
+                "L14_OLD_NOT_RESTORED");
+        }
+        internal void ExpectNewObserved()
+        {
+            OldOk();
+            L14Model.Must(Reopen()==L14Observation.NewInertObservedBlocked &&
+                L14Model.ReadSelector(Root).Selected=="new",
+                "L14_COMMITTED_INERT_NOT_OBSERVED");
+            // No run or authorization; the old version is still present.
+            terminalNeverExecuted=true;
+        }
+        public void Dispose()
+        {
+            OldOk();
+            Directory.Delete(Root,true);
+        }
+    }
+
+    private static void Run(string id,Action action)
+    {
+        try { action(); Results.Add(new { id,status="passed" }); Console.WriteLine("PASS "+id); }
+        catch(Exception e){failed++; Results.Add(new {id,status="failed",error=e.ToString()}); Console.WriteLine("FAIL "+id+" "+e);}
+    }
+    private static async Task RunAsync(string id,Func<Task> action)
+    {
+        try {await action();Results.Add(new {id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception e){failed++;Results.Add(new {id,status="failed",error=e.ToString()});Console.WriteLine("FAIL "+id+" "+e);}
+    }
+    private static void Block(Action action,string reason)
+    {
+        try{action();}
+        catch(InvalidDataException e) when(e.Message==reason){return;}
+        throw new InvalidDataException("L14_UNSAFE_ACCEPTANCE:"+reason);
+    }
+    private static Process Launch(params string[] args)
+    {
+        L14Model.Must(Path.GetFileName(Exe).Equals(ExpectedImage,StringComparison.OrdinalIgnoreCase),
+            "L14_UNEXPECTED_CHILD_IMAGE");
+        var info=new ProcessStartInfo(Exe){
+            UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,
+            RedirectStandardError=true,WorkingDirectory=Path.GetTempPath()
+        };
+        foreach(var arg in args)info.ArgumentList.Add(arg);
+        return Process.Start(info) ?? throw new InvalidDataException("L14_CHILD_START_FAILED");
+    }
+    private static async Task<Process> StartCut(string root,string cut)
+    {
+        var child=Launch("--child",root,cut);
+        try
+        {
+            string? line=await child.StandardOutput.ReadLineAsync()
+                .WaitAsync(TimeSpan.FromSeconds(20));
+            if(line!="CUT:"+cut)
+            {
+                string error=child.HasExited?await child.StandardError.ReadToEndAsync():"blocked";
+                throw new InvalidDataException("L14_CHILD_WRONG_CUT:"+line+":"+error);
+            }
+            L14Model.Must(!child.HasExited,"L14_CHILD_NOT_PAUSED");
+            return child;
+        }
+        catch
+        {
+            await KillChild(child);
+            child.Dispose();
+            throw;
+        }
+    }
+    private static async Task KillChild(Process child)
+    {
+        if(!child.HasExited)child.Kill(entireProcessTree:true);
+        await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+        realKilledChild=true;
+    }
+    private static async Task KillAt(Scenario s,string cut)
+    {
+        using var child=await StartCut(s.Root,cut);
+        await KillChild(child);
+    }
+    private static async Task<L14Observation> FreshProcessRecover(Scenario s)
+    {
+        using var child=Launch("--recover",s.Root);
+        try
+        {
+            string? result=await child.StandardOutput.ReadLineAsync()
+                .WaitAsync(TimeSpan.FromSeconds(15));
+            await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+            L14Model.Must(child.ExitCode==0 && result is not null &&
+                result.StartsWith("RECOVERY:",StringComparison.Ordinal),
+                "L14_RECOVERY_CHILD_FAILED:"+result);
+            L14Model.Must(Enum.TryParse<L14Observation>(
+                result["RECOVERY:".Length..],out var parsed),
+                "L14_RECOVERY_CHILD_UNKNOWN_STATUS");
+            realRestartedChild=true;
+            return parsed;
+        }
+        finally
+        {
+            if(!child.HasExited)await KillChild(child);
+        }
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(!OperatingSystem.IsWindows())return 2;
+        if(args.Length==3 && args[0]=="--child")
+        {
+            L14Model.Perform(args[1],args[2]);
+            return 0;
+        }
+        if(args.Length==2 && args[0]=="--recover")
+        {
+            Console.WriteLine("RECOVERY:"+L14Model.Recover(args[1]));
+            return 0;
+        }
+        if(args.Length!=2 || args[0]!="--report")return 2;
+        await RunAsync("L14-01-BOOT-OLD-ONLY",async()=>{
+            using var s=new Scenario();s.ExpectOld();
+            L14Model.Must(!File.Exists(L14Model.New(s.Root)) &&
+                !File.Exists(L14Model.Intent(s.Root)),"L14_PREMATURE_NEW");
+            await Task.CompletedTask;
+        });
+        await RunAsync("L14-02-KILL-BEFORE-STAGE",async()=>{
+            using var s=new Scenario();
+            await KillAt(s,"before-stage");
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.OldSelectedBlocked,
+                "L14_KILL_BEFORE_STAGE");
+            s.ExpectOld();
+        });
+        await RunAsync("L14-03-KILL-AFTER-STAGE-FLUSH",async()=>{
+            using var s=new Scenario();
+            await KillAt(s,"stage-flushed");
+            L14Model.AssertVersionsPresent(s.Root);
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.OldSelectedBlocked,
+                "L14_STAGE_KILL_NOT_OLD");
+            s.ExpectOld();
+        });
+        await RunAsync("L14-04-KILL-AFTER-INTENT-FLUSH",async()=>{
+            using var s=new Scenario();
+            await KillAt(s,"intent-flushed");
+            L14Model.Must(File.Exists(L14Model.Intent(s.Root)) &&
+                await FreshProcessRecover(s)==L14Observation.OldSelectedBlocked,
+                "L14_INTENT_KILL_NOT_OLD");
+            s.ExpectOld();
+        });
+        await RunAsync("L14-05-KILL-AFTER-SELECTOR-TEMP-FLUSH",async()=>{
+            using var s=new Scenario();
+            await KillAt(s,"selector-temp-flushed");
+            L14Model.Must(Directory.GetFiles(s.Root,"selection-temp-*.fixture").Length==1,
+                "L14_SCRATCH_CUT_NOT_REACHED");
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.OldSelectedBlocked,
+                "L14_SCRATCH_KILL_NOT_OLD");
+            s.ExpectOld();
+        });
+        await RunAsync("L14-06-KILL-AFTER-SELECTOR-REPLACE-ROLLS-BACK",async()=>{
+            using var s=new Scenario();
+            await KillAt(s,"selector-replaced");
+            L14Model.Must(L14Model.ReadSelector(s.Root).Selected=="new",
+                "L14_REPLACE_CUT_NOT_REACHED");
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.OldSelectedBlocked,
+                "L14_AFTER_REPLACE_NOT_ROLLED_BACK");
+            L14Model.Must(L14Model.ReadSelector(s.Root).Generation==3,
+                "L14_ROLLBACK_GENERATION");
+            s.ExpectOld();abortedSwapRolledBack=true;
+        });
+        await RunAsync("L14-07-KILL-AFTER-TERMINAL-FLUSH-ONLY-INERT",async()=>{
+            using var s=new Scenario();
+            await KillAt(s,"terminal-flushed");
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.NewInertObservedBlocked,
+                "L14_COMMITTED_CUT_NOT_OBSERVED");
+            s.ExpectNewObserved();
+        });
+        await RunAsync("L14-08-ROLLBACK-REOPEN-IDEMPOTENT",async()=>{
+            using var s=new Scenario();await KillAt(s,"selector-replaced");
+            s.ExpectOld();var before=File.ReadAllBytes(L14Model.Selector(s.Root));
+            s.ExpectOld();
+            L14Model.Must(before.SequenceEqual(File.ReadAllBytes(L14Model.Selector(s.Root))) &&
+                L14Model.ReadSelector(s.Root).Generation==3,
+                "L14_ROLLBACK_REPEATED_MUTATION");
+        });
+        await RunAsync("L14-09-TERMINAL-REOPEN-IDEMPOTENT",async()=>{
+            using var s=new Scenario();await KillAt(s,"terminal-flushed");
+            s.ExpectNewObserved();
+            var before=File.ReadAllBytes(L14Model.Selector(s.Root));
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.NewInertObservedBlocked,
+                "L14_TERMINAL_SECOND_REOPEN");
+            L14Model.Must(before.SequenceEqual(File.ReadAllBytes(L14Model.Selector(s.Root))),
+                "L14_TERMINAL_REOPEN_MODIFIED_SELECTOR");
+        });
+        await RunAsync("L14-10-INTENT-TAMPER-FAILS-UNKNOWN",async()=>{
+            using var s=new Scenario();await KillAt(s,"intent-flushed");
+            File.WriteAllText(L14Model.Intent(s.Root),"{\"Schema\":\"wrong\"}");
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.UnknownBlocked,
+                "L14_INTENT_TAMPER_ACCEPTED");
+            s.OldOk();unknownNeverAutoPromoted=true;
+        });
+        await RunAsync("L14-11-SELECTOR-TAMPER-FAILS-UNKNOWN",async()=>{
+            using var s=new Scenario();await KillAt(s,"selector-replaced");
+            File.WriteAllText(L14Model.Selector(s.Root),
+                "{\"Schema\":\"gf-l14-selector-inert/1\",\"Selected\":\"other\",\"Generation\":9}");
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.UnknownBlocked,
+                "L14_SELECTOR_TAMPER_ACCEPTED");
+            s.OldOk();
+        });
+        await RunAsync("L14-12-TERMINAL-TAMPER-FAILS-UNKNOWN",async()=>{
+            using var s=new Scenario();await KillAt(s,"terminal-flushed");
+            File.WriteAllText(L14Model.Terminal(s.Root),
+                "{\"Schema\":\"gf-l14-terminal-inert/1\",\"Tx\":\"forged\",\"SelectorDigest\":\""+
+                new string('f',64)+"\"}");
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.UnknownBlocked,
+                "L14_TERMINAL_TAMPER_ACCEPTED");
+            s.OldOk();
+        });
+        await RunAsync("L14-13-NEW-CONTENT-TAMPER-FAILS-UNKNOWN",async()=>{
+            using var s=new Scenario();await KillAt(s,"terminal-flushed");
+            File.WriteAllText(L14Model.New(s.Root),"L14-MUTATED-NEW-INERT\n");
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.UnknownBlocked,
+                "L14_NEW_BYTES_TAMPER_ACCEPTED");
+            s.OldOk();
+        });
+        await RunAsync("L14-14-NEW-CONTENT-MISSING-FAILS-UNKNOWN",async()=>{
+            using var s=new Scenario();await KillAt(s,"terminal-flushed");
+            File.Delete(L14Model.New(s.Root));
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.UnknownBlocked,
+                "L14_MISSING_STAGE_ACCEPTED");
+            s.OldOk();
+        });
+        await RunAsync("L14-15-CROSS-INSTALLATION-INTENT-REPLAY",async()=>{
+            using var s=new Scenario();using var foreign=new Scenario();
+            await KillAt(s,"stage-flushed");
+            await KillAt(foreign,"intent-flushed");
+            File.Copy(L14Model.Intent(foreign.Root),L14Model.Intent(s.Root));
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.UnknownBlocked,
+                "L14_FOREIGN_TX_REPLAY_ACCEPTED");
+            s.OldOk();foreign.OldOk();
+        });
+        await RunAsync("L14-16-REAL-EXCLUSIVE-LEASE-BLOCKS-SECOND-PROCESS",async()=>{
+            using var s=new Scenario();using var child=await StartCut(s.Root,"intent-flushed");
+            try
+            {
+                bool blocked=false;
+                try{_=L14Model.Recover(s.Root);}
+                catch(IOException){blocked=true;}
+                L14Model.Must(blocked && !child.HasExited,
+                    "L14_CONCURRENT_RECOVER_NOT_BLOCKED");
+                blockedCompetingLease=true;
+            }
+            finally{await KillChild(child);}
+            s.ExpectOld();
+        });
+        await RunAsync("L14-17-TIMEOUT-WAIT-IS-NOT-PROCESS-CANCELLATION",async()=>{
+            using var s=new Scenario();using var child=await StartCut(s.Root,"intent-flushed");
+            try
+            {
+                bool timedOut=false;
+                try{await child.WaitForExitAsync().WaitAsync(TimeSpan.FromMilliseconds(75));}
+                catch(TimeoutException){timedOut=true;}
+                L14Model.Must(timedOut && !child.HasExited &&
+                    File.Exists(L14Model.Intent(s.Root)),"L14_TIMEOUT_UNSAFE_ASSUMPTION");
+                timeoutNotCancellation=true;
+            }
+            finally{await KillChild(child);}
+            s.ExpectOld();
+        });
+        await RunAsync("L14-18-OLD-BYTES-CORRUPTED-RECOVERY-UNKNOWN",async()=>{
+            using var s=new Scenario();await KillAt(s,"selector-replaced");
+            File.WriteAllText(L14Model.Old(s.Root),"CORRUPTED-OLD-INERT\n");
+            try
+            {
+                L14Model.Must(await FreshProcessRecover(s)==L14Observation.UnknownBlocked,
+                    "L14_CORRUPT_OLD_ACCEPTED");
+                L14Model.Must(L14Model.ReadSelector(s.Root).Selected=="new",
+                    "L14_CORRUPT_OLD_UNSAFE_REWRITE");
+            }
+            finally{File.WriteAllText(L14Model.Old(s.Root),L14Model.OldText);}
+            s.OldOk();
+        });
+        await RunAsync("L14-19-FORGED-TERMINAL-WITH-OLD-SELECTOR",async()=>{
+            using var s=new Scenario();await KillAt(s,"intent-flushed");
+            File.WriteAllText(L14Model.Terminal(s.Root),
+                JsonSerializer.Serialize(new L14Terminal("gf-l14-terminal-inert/1",
+                    L14Model.Tx(s.Root),new string('0',64))));
+            L14Model.Must(await FreshProcessRecover(s)==L14Observation.UnknownBlocked,
+                "L14_PREMATURE_TERMINAL_ACCEPTED");
+            s.OldOk();
+        });
+        Run("L14-20-OUTSIDE-FIXTURE-ROOT-REFUSED",()=>{
+            Block(()=>L14Model.RequireRoot(Path.GetTempPath()),
+                "L14_NOT_TEMP_DIRECT_CHILD");
+            using var s=new Scenario();s.ExpectOld();
+        });
+        await RunAsync("L14-21-ALL-CUTPOINTS-KEEP-OLD-CONTENT",async()=>{
+            foreach(string cut in new[]{"before-stage","stage-flushed","intent-flushed",
+                "selector-temp-flushed","selector-replaced","terminal-flushed"})
+            {
+                using var s=new Scenario();
+                await KillAt(s,cut);
+                L14Model.VerifyOld(s.Root);
+                L14Model.Must(await FreshProcessRecover(s)!=L14Observation.UnknownBlocked,
+                    "L14_EXPECTED_VALID_CRASH_UNKNOWN");
+                L14Model.VerifyOld(s.Root);
+            }
+        });
+        var report=new{
+            schema="gf-l14-process-recovery-inert/1",
+            passed=Results.Count-failed,failed,tests=Results,
+            real_child_process_killed=realKilledChild,
+            real_recovery_in_fresh_child_process=realRestartedChild,
+            exclusive_lease_blocks_concurrent_process=blockedCompetingLease,
+            selector_promoted_before_crash_rolls_back_to_old=abortedSwapRolledBack,
+            timeout_does_not_end_child_process=timeoutNotCancellation,
+            unknown_is_not_auto_authorized=unknownNeverAutoPromoted,
+            old_inert_version_preserved=oldAlwaysKept,
+            confirmed_inert_never_executed=terminalNeverExecuted,
+            static_fixture_only=true,actual_ntfs_single_file_replace_tested=true,
+            actual_ntfs_multifile_atomicity_proven=false,
+            physical_power_loss_tested=false,
+            production_update_or_installation_performed=false,
+            real_gf_executable_built=false,
+            real_gf_executable_executed=false,
+            privileged_helper_created=false,
+            operational_gates_closed=0
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_L14_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}

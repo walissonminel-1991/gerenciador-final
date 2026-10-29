@@ -1,0 +1,258 @@
+// L14: separate, fixture-only, Windows NTFS process-crash/recovery model.
+// No real GF product, installation, downloaded code, UAC, services, telemetry.
+// File.Replace changes ONE inert selector, not a tree/atomic deployment.
+// No output grants authorization to run the selected content.
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+namespace GfUpdaterFixture;
+
+internal enum L14Observation
+{
+    OldSelectedBlocked, NewInertObservedBlocked, UnknownBlocked
+}
+internal sealed record L14Selector(string Schema, string Selected, int Generation);
+internal sealed record L14Intent(string Schema, string Tx, string OldDigest, string NewDigest);
+internal sealed record L14Terminal(string Schema, string Tx, string SelectorDigest);
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L14Model
+{
+    internal const string Marker = "GF-U2-L14-ONLY-DISPOSABLE-TEXT\n";
+    internal const string OldText = "GF-L14-V1-OLD-INERT-NO-EXE-NO-DLL\n";
+    internal const string NewText = "GF-L14-V2-NEW-INERT-NO-EXE-NO-DLL\n";
+    private const string SelectorSchema="gf-l14-selector-inert/1";
+    private const string IntentSchema="gf-l14-intent-inert/1";
+    private const string TerminalSchema="gf-l14-terminal-inert/1";
+    internal static string Old(string root) => Path.Combine(root,"versions","old.fixture.txt");
+    internal static string New(string root) => Path.Combine(root,"versions","new.fixture.txt");
+    internal static string Selector(string root) => Path.Combine(root,"active.fixture.json");
+    internal static string Intent(string root) => Path.Combine(root,"intent.fixture.json");
+    internal static string Terminal(string root) => Path.Combine(root,"terminal.fixture.json");
+    internal static string LeasePath(string root) => Path.Combine(root,"exclusive-lease.fixture");
+    internal static string Tx(string root) => Path.GetFileName(root)["gf-u2-l14-".Length..];
+    internal static string Hash(byte[] value) => Convert.ToHexStringLower(SHA256.HashData(value));
+    internal static string Hash(string value) => Hash(Encoding.UTF8.GetBytes(value));
+    private static bool Is64Hex(string s) => s.Length==64 && s.All(c=>c is >= '0' and <= '9' or >= 'a' and <= 'f');
+    internal static void Must(bool state,string code)
+    {
+        if(!state)throw new InvalidDataException(code);
+    }
+    internal static void RequireRoot(string root)
+    {
+        string temp=Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar);
+        string full=Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
+        Must(string.Equals(Path.GetDirectoryName(full),temp,StringComparison.OrdinalIgnoreCase),
+            "L14_NOT_TEMP_DIRECT_CHILD");
+        string name=Path.GetFileName(full);
+        Must(name.StartsWith("gf-u2-l14-",StringComparison.Ordinal) &&
+            Guid.TryParseExact(name["gf-u2-l14-".Length..],"N",out _),
+            "L14_NOT_FIXTURE_ROOT");
+        Must((File.GetAttributes(full)&FileAttributes.ReparsePoint)==0,
+            "L14_ROOT_REPARSE");
+        Must(File.ReadAllText(Path.Combine(full,".gf-u2-fixture"))==Marker,
+            "L14_MISSING_MARKER");
+    }
+    private static void NoReparse(string path)
+    {
+        Must((File.GetAttributes(path)&FileAttributes.ReparsePoint)==0,
+            "L14_REPARSE");
+    }
+    private static void Versions(string root)
+    {
+        RequireRoot(root);NoReparse(Path.Combine(root,"versions"));NoReparse(Old(root));
+        Must(File.ReadAllText(Old(root))==OldText,"L14_OLD_CORRUPT");
+    }
+    internal static void VerifyOld(string root)
+    {
+        Versions(root);
+        Must(File.ReadAllText(Path.Combine(root,"preferences.fixture.txt"))==
+            "KEEP-PREFERENCES-UNMODIFIED\n" &&
+            File.ReadAllText(Path.Combine(root,"beta66.fixture.txt"))==
+            "KEEP-LEGACY66-UNMODIFIED\n","L14_MARKERS_CHANGED");
+    }
+    private static void CreateDurable(string path,byte[] bytes)
+    {
+        using var stream=new FileStream(path,FileMode.CreateNew,FileAccess.Write,
+            FileShare.None,4096,FileOptions.WriteThrough);
+        stream.Write(bytes);stream.Flush(true);
+    }
+    private static byte[] JsonBytes<T>(T value) => JsonSerializer.SerializeToUtf8Bytes(value);
+    private static T Read<T>(string path,int expectedFields) where T:class
+    {
+        NoReparse(path);
+        byte[] data=File.ReadAllBytes(path);
+        Must(data.Length is > 0 and <=1024,"L14_RECORD_SIZE");
+        using var doc=JsonDocument.Parse(data,new JsonDocumentOptions{
+            MaxDepth=8,AllowTrailingCommas=false});
+        var root=doc.RootElement;
+        Must(root.ValueKind==JsonValueKind.Object &&
+            root.EnumerateObject().Count()==expectedFields &&
+            root.EnumerateObject().Select(p=>p.Name).Distinct(StringComparer.Ordinal).Count()==expectedFields,
+            "L14_RECORD_FIELDS");
+        return JsonSerializer.Deserialize<T>(data) ??
+            throw new InvalidDataException("L14_RECORD_EMPTY");
+    }
+    internal static L14Selector ReadSelector(string root)
+    {
+        RequireRoot(root);
+        var selection=Read<L14Selector>(Selector(root),3);
+        Must(selection.Schema==SelectorSchema &&
+            (selection.Selected=="old" && selection.Generation is 1 or 3 ||
+             selection.Selected=="new" && selection.Generation==2),
+            "L14_SELECTOR_INVALID");
+        return selection;
+    }
+    private static L14Intent ReadIntent(string root)
+    {
+        var intent=Read<L14Intent>(Intent(root),4);
+        Must(intent.Schema==IntentSchema && intent.Tx==Tx(root) &&
+            intent.OldDigest==Hash(OldText) &&
+            intent.NewDigest==Hash(NewText),"L14_INTENT_INVALID");
+        return intent;
+    }
+    private static L14Terminal ReadTerminal(string root)
+    {
+        var terminal=Read<L14Terminal>(Terminal(root),3);
+        Must(terminal.Schema==TerminalSchema && terminal.Tx==Tx(root) &&
+            Is64Hex(terminal.SelectorDigest),"L14_TERMINAL_INVALID");
+        return terminal;
+    }
+    internal static void Bootstrap(string root)
+    {
+        string temp=Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar);
+        string name=Path.GetFileName(root);
+        Must(string.Equals(Path.GetDirectoryName(Path.GetFullPath(root)),temp,
+            StringComparison.OrdinalIgnoreCase) &&
+            name.StartsWith("gf-u2-l14-",StringComparison.Ordinal) &&
+            Guid.TryParseExact(name["gf-u2-l14-".Length..],"N",out _),
+            "L14_BOOT_SCOPE");
+        Directory.CreateDirectory(root);
+        CreateDurable(Path.Combine(root,".gf-u2-fixture"),Encoding.UTF8.GetBytes(Marker));
+        Directory.CreateDirectory(Path.Combine(root,"versions"));
+        CreateDurable(Old(root),Encoding.UTF8.GetBytes(OldText));
+        CreateDurable(Selector(root),JsonBytes(new L14Selector(SelectorSchema,"old",1)));
+        CreateDurable(Path.Combine(root,"preferences.fixture.txt"),
+            Encoding.UTF8.GetBytes("KEEP-PREFERENCES-UNMODIFIED\n"));
+        CreateDurable(Path.Combine(root,"beta66.fixture.txt"),
+            Encoding.UTF8.GetBytes("KEEP-LEGACY66-UNMODIFIED\n"));
+        VerifyOld(root);
+    }
+    internal static FileStream Exclusive(string root)
+    {
+        RequireRoot(root);
+        return new FileStream(LeasePath(root),FileMode.OpenOrCreate,FileAccess.ReadWrite,
+            FileShare.None);
+    }
+    internal static void StageNew(string root)
+    {
+        Versions(root);
+        if(!File.Exists(New(root)))
+            CreateDurable(New(root),Encoding.UTF8.GetBytes(NewText));
+        NoReparse(New(root));
+        Must(File.ReadAllText(New(root))==NewText,"L14_NEW_CORRUPT");
+    }
+    internal static void WriteIntent(string root)
+    {
+        VerifyOld(root);StageNew(root);
+        Must(ReadSelector(root).Selected=="old","L14_INTENT_OLD_REQUIRED");
+        if(!File.Exists(Intent(root)))
+            CreateDurable(Intent(root),JsonBytes(new L14Intent(IntentSchema,Tx(root),
+                Hash(OldText),Hash(NewText))));
+        _=ReadIntent(root);
+    }
+    private static void ReplaceSelector(string root,L14Selector change,Action? beforeReplace=null)
+    {
+        RequireRoot(root);NoReparse(Selector(root));
+        string scratch=Path.Combine(root,"selection-temp-"+Guid.NewGuid().ToString("N")+".fixture");
+        string backup=Path.Combine(root,"selection-backup-"+Guid.NewGuid().ToString("N")+".fixture");
+        CreateDurable(scratch,JsonBytes(change));
+        beforeReplace?.Invoke();
+        File.Replace(scratch,Selector(root),backup);
+        Must(ReadSelector(root)==change,"L14_SELECTOR_REPLACE_FAILED");
+        // The backup is intentionally retained in the TEST folder for diagnostics.
+    }
+    internal static void Promote(string root,Action? afterScratchFlush=null)
+    {
+        _=ReadIntent(root);
+        Must(ReadSelector(root)==new L14Selector(SelectorSchema,"old",1),
+            "L14_PROMOTION_CONFLICT");
+        StageNew(root);
+        ReplaceSelector(root,new L14Selector(SelectorSchema,"new",2),afterScratchFlush);
+    }
+    internal static void WriteTerminal(string root)
+    {
+        _=ReadIntent(root);StageNew(root);
+        Must(ReadSelector(root)==new L14Selector(SelectorSchema,"new",2),
+            "L14_TERMINAL_SELECTOR");
+        var target=new L14Terminal(TerminalSchema,Tx(root),
+            Hash(File.ReadAllBytes(Selector(root))));
+        if(!File.Exists(Terminal(root)))CreateDurable(Terminal(root),JsonBytes(target));
+        Must(ReadTerminal(root)==target,"L14_TERMINAL_CONFLICT");
+    }
+    internal static L14Observation Recover(string root)
+    {
+        using var guard=Exclusive(root);
+        // Any malformed/ambiguous state becomes BLOCKED without promotion.
+        // A pending swap can be rolled back to the still-verified OLD text.
+        try
+        {
+            VerifyOld(root);
+            var selector=ReadSelector(root);
+            bool pending=File.Exists(Intent(root)), terminal=File.Exists(Terminal(root));
+            if(!pending)
+                return selector.Selected=="old" && !terminal ?
+                    L14Observation.OldSelectedBlocked : L14Observation.UnknownBlocked;
+            _=ReadIntent(root);
+            if(terminal)
+            {
+                var receipt=ReadTerminal(root);
+                if(selector.Selected!="new" || selector.Generation!=2 ||
+                    receipt.SelectorDigest!=Hash(File.ReadAllBytes(Selector(root))) ||
+                    !File.Exists(New(root))) return L14Observation.UnknownBlocked;
+                StageNew(root);
+                return L14Observation.NewInertObservedBlocked;
+            }
+            if(selector.Selected=="new" && selector.Generation==2)
+            {
+                // A single-file replacement; old/new version files are untouched.
+                ReplaceSelector(root,new L14Selector(SelectorSchema,"old",3));
+            }
+            return L14Observation.OldSelectedBlocked;
+        }
+        catch(Exception ex) when(ex is InvalidDataException or IOException or
+            UnauthorizedAccessException or JsonException or ArgumentException)
+        {
+            return L14Observation.UnknownBlocked;
+        }
+    }
+    internal static void AssertVersionsPresent(string root)
+    {
+        VerifyOld(root);
+        if(File.Exists(New(root)))
+        {
+            NoReparse(New(root));
+            Must(File.ReadAllText(New(root))==NewText,"L14_NEW_LOST");
+        }
+    }
+    internal static void Perform(string root,string cutpoint)
+    {
+        using var guard=Exclusive(root);
+        void Cut(string name)
+        {
+            if(cutpoint!=name)return;
+            Console.WriteLine("CUT:"+name);Console.Out.Flush();
+            Thread.Sleep(Timeout.Infinite);
+        }
+        VerifyOld(root);
+        Cut("before-stage");
+        StageNew(root);
+        Cut("stage-flushed");
+        WriteIntent(root);
+        Cut("intent-flushed");
+        Promote(root,()=>Cut("selector-temp-flushed"));
+        Cut("selector-replaced");
+        WriteTerminal(root);
+        Cut("terminal-flushed");
+    }
+}
