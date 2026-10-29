@@ -5,6 +5,8 @@ using static GfUpdaterFixture.StrictMetadata;
 
 namespace GfUpdaterFixture;
 
+// The integrated harness is Windows-only. The original Stage 2 sources are unchanged.
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 internal static class M2RecoveryTests
 {
     private static readonly List<object> tests=[];
