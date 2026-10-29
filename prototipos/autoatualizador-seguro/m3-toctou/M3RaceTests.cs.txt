@@ -1,0 +1,258 @@
+// M3 negative TOCTOU tests: intentional mutations are confined to disposable
+// Stage2 fixtures. A receipt is always BLOCKED and never authorizes an update.
+using System.Diagnostics;
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal static class M3RaceTests
+{
+    private static readonly List<object> tests=[];
+    private static int failed;
+    private static bool stableBlocked,afterLeaseChangeDetected,
+        changedWithLeaseHeldDetected,otherRootRefused,transientRewriteInvisibility;
+    private const string ChildMarker="M3-INERT-MUTATION-OBSERVED";
+    private static string suite="";
+
+    private static Task Run(string id,Action action)
+    {
+        try{action();tests.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception ex){failed++;tests.Add(new{id,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+id+" "+ex);}
+        return Task.CompletedTask;
+    }
+    private static async Task RunAsync(string id,Func<Task> action)
+    {
+        try{await action();tests.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception ex){failed++;tests.Add(new{id,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+id+" "+ex);}
+    }
+    private static void Refused(Action action,string reason)
+    {
+        try{action();}
+        catch(Rejected e) when(e.Code==reason){return;}
+        throw new InvalidDataException("M3_TOCTOU_STALE_OBSERVATION_ACCEPTED:"+reason);
+    }
+    private static void StillBlocked(PendingAssessment report)
+        =>Require(report.Blocked && !report.Mutated,"M3_TOCTOU_UNBLOCKED");
+    private static string Pending(StateCase c)
+    {
+        var prior=new PersistentState(c.Root).Load();
+        var tx=prior.Record.Transaction!;
+        Require(tx.Phase=="selected","M3_TOCTOU_SELECTED_REQUIRED");
+        var next=prior.Record with{
+            Generation=prior.Record.Generation+1,
+            PreviousDigest=prior.Digest,
+            Confirmed=tx.Candidate,
+            Transaction=tx with {Phase="confirmed"}
+        };
+        string path=Path.Combine(c.Root,"ledger",
+            "pending-"+Guid.NewGuid().ToString("N")+".fixture");
+        File.WriteAllBytes(path,StateCodec.Wrap(next));
+        return path;
+    }
+    private static string FindPending(string root)
+    {
+        string[] candidates=Directory.GetFiles(Path.Combine(root,"ledger"),
+            "pending-*.fixture");
+        Require(candidates.Length==1,"M3_WRITER_PENDING_COUNT");
+        string name=Path.GetFileName(candidates[0]);
+        Require(name.Length==48 && name.StartsWith("pending-",StringComparison.Ordinal) &&
+            name.EndsWith(".fixture",StringComparison.Ordinal),"M3_WRITER_PENDING_NAME");
+        return candidates[0];
+    }
+    private static int Attacker(string[] args)
+    {
+        if(args.Length!=3 || args[0]!="--m3-fixture-writer" ||
+            args[2] is not ("pending" or "selector" or "ledger" or "bundle" or "transient"))
+            return 2;
+        string root=Path.GetFullPath(args[1]);
+        FixtureSandbox.RequireRoot(root);
+        string pending=FindPending(root);
+        var latest=Directory.GetFiles(Path.Combine(root,"ledger"),"*.fixture.json")
+            .OrderBy(x=>x,StringComparer.Ordinal).Last();
+        var record=StateCodec.Unwrap(PersistentState.ReadFixtureFile(root,latest));
+        var tx=record.Transaction!;
+        Require(tx.Phase=="selected","M3_WRITER_STAGED_ONLY");
+        switch(args[2])
+        {
+            case "pending":
+                File.WriteAllText(pending,"M3-TAMPERED-PENDING-ONLY");
+                break;
+            case "selector":
+                File.WriteAllBytes(Path.Combine(root,"active.fixture.json"),
+                    StateCodec.Encode(new FixtureSelector("gf-selector-fixture/2",
+                        record.InstallationId,tx.Previous)));
+                break;
+            case "ledger":
+                File.WriteAllText(Path.Combine(root,"ledger","unrecognized.fixture"),
+                    "M3-PRESERVE-UNRECOGNIZED");
+                break;
+            case "bundle":
+                File.WriteAllText(new FixtureFiles(root).BundlePath(tx.Candidate),
+                    "M3-TAMPERED-CANDIDATE-BUNDLE");
+                break;
+            case "transient":
+                var original=File.ReadAllBytes(pending);
+                File.WriteAllText(pending,"M3-TEMPORARY-TAMPER");
+                Require(Hash(File.ReadAllBytes(pending))!=Hash(original),
+                    "M3_TRANSIENT_NOT_CHANGED");
+                File.WriteAllBytes(pending,original);
+                Require(File.ReadAllBytes(pending).AsSpan().SequenceEqual(original),
+                    "M3_TRANSIENT_NOT_RESTORED");
+                break;
+        }
+        Console.WriteLine(ChildMarker);
+        return 0;
+    }
+    private static async Task MutateWithRealChild(string root,string mode)
+    {
+        string exe=Environment.ProcessPath??throw new InvalidDataException("M3_NO_EXE");
+        Require(Path.GetFileName(exe)=="GF.Updater.M3.RaceTests.exe",
+            "M3_UNEXPECTED_CHILD_IMAGE");
+        var info=new ProcessStartInfo(exe){
+            UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,
+            RedirectStandardError=true,WorkingDirectory=Path.GetTempPath()
+        };
+        foreach(var arg in new[]{"--m3-fixture-writer",root,mode})info.ArgumentList.Add(arg);
+        using var child=Process.Start(info)??throw new InvalidDataException("M3_WRITER_START");
+        try
+        {
+            using var cts=new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            string? marker=await child.StandardOutput.ReadLineAsync().WaitAsync(cts.Token);
+            await child.WaitForExitAsync(cts.Token);
+            Require(marker==ChildMarker && child.ExitCode==0,"M3_CHILD_NOT_COMPLETED");
+        }
+        finally
+        {
+            if(!child.HasExited){child.Kill(true);await child.WaitForExitAsync();}
+        }
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length>0 && args[0]=="--m3-fixture-writer")return Attacker(args);
+        if(args.Length!=2 || args[0]!="--report" || !OperatingSystem.IsWindows())
+            return 2;
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-toctou-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Run("RACE-01-STABLE-REVALIDATION-STILL-BLOCKED",()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();_=Pending(c);
+                M3EvidenceStamp stamp;
+                using(var scope=M3EvidenceScope.Capture(c.Root))
+                {
+                    stamp=scope.Stamp;
+                    Require(stamp.Assessment.Kind==PendingKind.PlausibleSealedUncommitted,
+                        "M3_EXPECT_PLAUSIBLE");
+                    StillBlocked(scope.Revalidate());
+                    Refused(()=>scope.Revalidate(),"M3_EVIDENCE_REPLAY");
+                }
+                StillBlocked(M3EvidenceScope.ReopenAndCompare(c.Root,stamp));
+                c.Preserved();stableBlocked=true;
+            });
+            await RunAsync("RACE-02-PENDING-REWRITTEN-AFTER-RELEASE",async()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();_=Pending(c);
+                M3EvidenceStamp stamp;
+                using(var scope=M3EvidenceScope.Capture(c.Root))stamp=scope.Stamp;
+                await MutateWithRealChild(c.Root,"pending");
+                Refused(()=>M3EvidenceScope.ReopenAndCompare(c.Root,stamp),
+                    "M3_EVIDENCE_STALE");
+                Require(PendingInspection.Inspect(c.Root).Kind==PendingKind.MalformedOrTruncated,
+                    "M3_REWRITTEN_PENDING_NOT_REFUSED");
+                c.Preserved();afterLeaseChangeDetected=true;
+            });
+            await RunAsync("RACE-03-SELECTOR-REPLACED-AFTER-RELEASE",async()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();_=Pending(c);
+                M3EvidenceStamp stamp;
+                using(var scope=M3EvidenceScope.Capture(c.Root))stamp=scope.Stamp;
+                await MutateWithRealChild(c.Root,"selector");
+                Refused(()=>M3EvidenceScope.ReopenAndCompare(c.Root,stamp),
+                    "M3_EVIDENCE_STALE");
+                Require(PendingInspection.Inspect(c.Root).Kind==
+                    PendingKind.SelectorOrBundleInconsistent,"M3_SELECTOR_MISMATCH_NOT_REFUSED");
+                c.Preserved();
+            });
+            await RunAsync("RACE-04-FOREIGN-LEDGER-ENTRY-AFTER-RELEASE",async()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();_=Pending(c);
+                M3EvidenceStamp stamp;
+                using(var scope=M3EvidenceScope.Capture(c.Root))stamp=scope.Stamp;
+                await MutateWithRealChild(c.Root,"ledger");
+                Refused(()=>M3EvidenceScope.ReopenAndCompare(c.Root,stamp),
+                    "M3_EVIDENCE_STALE");
+                Require(PendingInspection.Inspect(c.Root).Kind==PendingKind.UnknownLedgerEntries,
+                    "M3_UNKNOWN_LEDGER_NOT_REFUSED");
+                c.Preserved();
+            });
+            await RunAsync("RACE-05-BUNDLE-CHANGED-AFTER-RELEASE",async()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();_=Pending(c);
+                M3EvidenceStamp stamp;
+                using(var scope=M3EvidenceScope.Capture(c.Root))stamp=scope.Stamp;
+                await MutateWithRealChild(c.Root,"bundle");
+                Refused(()=>M3EvidenceScope.ReopenAndCompare(c.Root,stamp),
+                    "M3_EVIDENCE_STALE");
+                Require(PendingInspection.Inspect(c.Root).Kind==
+                    PendingKind.SelectorOrBundleInconsistent,"M3_BUNDLE_CHANGE_NOT_REFUSED");
+                c.Preserved();
+            });
+            await RunAsync("RACE-06-NONCOOPERATING-WRITER-DURING-LEASE",async()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();_=Pending(c);
+                using(var scope=M3EvidenceScope.Capture(c.Root))
+                {
+                    // An attacker that ignores lease.fixture can still alter a
+                    // closed pending file. Revalidation must reject the evidence.
+                    await MutateWithRealChild(c.Root,"pending");
+                    Refused(()=>scope.Revalidate(),"M3_EVIDENCE_STALE");
+                }
+                c.Preserved();changedWithLeaseHeldDetected=true;
+            });
+            await Run("RACE-07-CROSS-INSTALLATION-STAMP-REFUSED",()=>{
+                using var left=new StateCase(suite);
+                using var right=new StateCase(suite);
+                _=left.Begin();_=right.Begin();_=Pending(left);_=Pending(right);
+                using var scope=M3EvidenceScope.Capture(left.Root);
+                Refused(()=>M3EvidenceScope.ReopenAndCompare(right.Root,scope.Stamp),
+                    "M3_EVIDENCE_DIFFERENT_ROOT");
+                left.Preserved();right.Preserved();otherRootRefused=true;
+            });
+            await RunAsync("RACE-08-TRANSIENT-RESTORE-IS-NOT-FORENSIC-PROOF",async()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();_=Pending(c);
+                using(var scope=M3EvidenceScope.Capture(c.Root))
+                {
+                    var original=scope.Stamp.Fingerprint;
+                    await MutateWithRealChild(c.Root,"transient");
+                    StillBlocked(scope.Revalidate());
+                    Require(scope.Stamp.Fingerprint==original,
+                        "M3_TRANSIENT_FINGERPRINT_MOVED");
+                }
+                c.Preserved();transientRewriteInvisibility=true;
+            });
+        }
+        finally{Directory.Delete(suite,true);}
+        var report=new {
+            schema=1,phase="M3-TOCTOU",fixture_only=true,
+            passed=tests.Count-failed,failed,tests,
+            stable_revalidation_never_authorized=stableBlocked,
+            post_release_mutation_detected=afterLeaseChangeDetected,
+            uncooperative_writer_during_lease_detected=changedWithLeaseHeldDetected,
+            cross_installation_replay_refused=otherRootRefused,
+            transient_change_restored_undetectable=transientRewriteInvisibility,
+            evidence_receipt_is_not_authorization=true,
+            operational_gates_closed=0,product_built=false,product_executed=false,
+            independent_freshness_verified=false,physical_power_loss_tested=false
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("M3_TOCTOU_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}
