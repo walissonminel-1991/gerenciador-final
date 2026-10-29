@@ -115,23 +115,42 @@ internal static class L18Coordinator
     }
     private sealed class PinnedFacts : IDisposable
     {
-        private readonly WindowsFileGuard selectorPin;
+        private readonly WindowsFileGuard selectorPin,stagePin;
+        private readonly byte[] authorizedEntry;
         internal string sha {get;}
         internal L16Selector selector {get;}
         internal string selectorIdentity {get;}
-        internal PinnedFacts(string digest,L16Selector selection,WindowsFileGuard pin)
+        internal string stagedIdentity {get;}
+        internal PinnedFacts(string digest,L16Selector selection,
+            WindowsFileGuard selectorHandle,WindowsFileGuard stagedHandle,
+            byte[] entry)
         {
-            sha=digest;selector=selection;selectorPin=pin;
-            selectorIdentity=pin.Identity;
+            sha=digest;selector=selection;
+            selectorPin=selectorHandle;stagePin=stagedHandle;
+            authorizedEntry=(byte[])entry.Clone();
+            selectorIdentity=selectorPin.Identity;
+            stagedIdentity=stagePin.Identity;
         }
         internal void Recheck()
         {
+            // L21: the exact signed staged bytes, not just the File ID, must
+            // remain pinned until OLD/NEW is classified. NTFS sharing denies
+            // writes/deletes while the handle is held (cooperative lab model).
+            stagePin.Recheck();
+            byte[] current=stagePin.Read(4096);
+            Require(stagePin.Identity==stagedIdentity &&
+                current.AsSpan().SequenceEqual(authorizedEntry) &&
+                Hash(current)==sha,"L21_PINNED_STAGE_BYTES_CHANGED");
             selectorPin.Recheck();
             Require(selectorPin.Identity==selectorIdentity &&
                 StateCodec.Decode<L16Selector>(selectorPin.Read(4096))==selector,
                 "L20_SELECTOR_CHANGED_WHILE_DECIDING");
         }
-        public void Dispose()=>selectorPin.Dispose();
+        public void Dispose()
+        {
+            selectorPin.Dispose();
+            stagePin.Dispose();
+        }
     }
 
     // A same-user writer can still race the pathname BEFORE pin acquisition;
@@ -146,24 +165,31 @@ internal static class L18Coordinator
         var entry=ZipInspection.Inspect(zip,3,CancellationToken.None)["bundle.fixture.txt"];
         Require(Hash(entry)==proof.SignedEntrySha && entry.Length<=4096,
             "L18_AUTHENTICATED_ENTRY");
-        using var stage=WindowsFileGuard.Open(src,L16Boundary.Stage(src));
-        Require(stage.Read(4096).AsSpan().SequenceEqual(entry),
-            "L18_STAGED_MISMATCH");
-        var selectorPin=WindowsFileGuard.Open(src,L16Boundary.Selector(src));
+        var stage=WindowsFileGuard.Open(src,L16Boundary.Stage(src));
         try
         {
-            byte[] selected=selectorPin.Read(4096);
-            using var doc=Json(selected,4096);
-            Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
-                doc.RootElement.EnumerateObject().Count()==3,"L18_SELECTOR_SHAPE");
-            var selector=StateCodec.Decode<L16Selector>(selected);
-            Require(selector.Schema=="gf-l16-selector-inert/1" &&
-                (selector is {Selected:"old",Generation:1 or 3} ||
-                    selector is {Selected:"new",Generation:2}),"L18_SELECTOR_INVALID");
-            stage.Recheck();selectorPin.Recheck();
-            return new PinnedFacts(proof.SignedEntrySha,selector,selectorPin);
+            Require(stage.Read(4096).AsSpan().SequenceEqual(entry),
+                "L18_STAGED_MISMATCH");
+            var selectorPin=WindowsFileGuard.Open(src,L16Boundary.Selector(src));
+            try
+            {
+                byte[] selected=selectorPin.Read(4096);
+                using var doc=Json(selected,4096);
+                Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
+                    doc.RootElement.EnumerateObject().Count()==3,"L18_SELECTOR_SHAPE");
+                var selector=StateCodec.Decode<L16Selector>(selected);
+                Require(selector.Schema=="gf-l16-selector-inert/1" &&
+                    (selector is {Selected:"old",Generation:1 or 3} ||
+                        selector is {Selected:"new",Generation:2}),"L18_SELECTOR_INVALID");
+                stage.Recheck();selectorPin.Recheck();
+                var pinned=new PinnedFacts(proof.SignedEntrySha,selector,
+                    selectorPin,stage,entry);
+                pinned.Recheck();
+                return pinned;
+            }
+            catch { selectorPin.Dispose();throw; }
         }
-        catch { selectorPin.Dispose();throw; }
+        catch { stage.Dispose();throw; }
     }
     // Local coordinator gate is distinct from the L16 owner's lease: it
     // serializes Begin/Execute/Reconcile among cooperative coordinators, even
@@ -231,11 +257,34 @@ internal static class L18Coordinator
         Append(src,lab,Intent,"owner-may-be-launched",facts.sha);
         facts.Recheck();
     }
+    private static string ValidateExecutionArguments(string executable,TimeSpan deadline)
+    {
+        Require(deadline>TimeSpan.Zero && deadline<=TimeSpan.FromMinutes(1),
+            "L18_DEADLINE_SCOPE");
+        Require(!string.IsNullOrWhiteSpace(executable),"L21_EXE_REQUIRED");
+        string own=Path.GetFullPath(executable);
+        string current=Path.GetFullPath(Environment.ProcessPath ??
+            throw new Rejected("L21_PROCESS_IMAGE_UNAVAILABLE"));
+        Require(own.Equals(current,StringComparison.OrdinalIgnoreCase) &&
+            Path.GetFileName(own).Equals("GF.Updater.M3.L18Tests.exe",
+                StringComparison.OrdinalIgnoreCase),"L18_EXE_ALLOWLIST");
+        // Test-only identity is the currently running fixture image at an
+        // exact path, NOT a signature or Windows file-ID attestation. No
+        // external image is authorized, and no owner launch may precede this.
+        Require(File.Exists(own) &&
+            (File.GetAttributes(own)&(FileAttributes.Directory|
+                FileAttributes.ReparsePoint))==0,"L21_EXE_IMAGE_TYPE");
+        return own;
+    }
+
     internal static async Task<L18Decision> Execute(string src,string lab,
         string bootstrap,string executable,string cutpoint,TimeSpan deadline,
         bool cutDuringRecovery=false)
     {
         Root(src,lab);
+        // L21: reject invalid owner image/deadline BEFORE touching a gate,
+        // transaction journal, selector, or starting the owner process.
+        string own=ValidateExecutionArguments(executable,deadline);
         using var gate=TryCoordinatorGate(src);
         if(gate is null)return L18Decision.Busy;
         // The owner hasn't started yet: pin its exclusive lease during
@@ -244,12 +293,6 @@ internal static class L18Coordinator
             BeginCore(src,lab,bootstrap);
         Append(src,lab,Switching,"switch-can-start-only-after-intent",
             Load(src,lab)[0].TargetSha);
-        Require(deadline>TimeSpan.Zero && deadline<=TimeSpan.FromMinutes(1),
-            "L18_DEADLINE_SCOPE");
-        string own=Path.GetFullPath(executable);
-        Require(Path.GetFullPath(Environment.ProcessPath ?? "")==own &&
-            Path.GetFileName(own).Equals("GF.Updater.M3.L18Tests.exe",
-                StringComparison.OrdinalIgnoreCase),"L18_EXE_ALLOWLIST");
         var info=new ProcessStartInfo(own){
             UseShellExecute=false,CreateNoWindow=true,
             RedirectStandardOutput=true,RedirectStandardError=true,

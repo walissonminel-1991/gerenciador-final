@@ -1,0 +1,198 @@
+// L21: continuous pinned signed-stage bytes and side-effect-free preflight.
+// Entirely inert TUF fixtures. Never launches the real Gerenciador Final.
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L21Tests
+{
+    private static readonly List<object> Results=[];
+    private static int Failed;
+    private static string Exe=>Environment.ProcessPath ??
+        throw new InvalidDataException("L21_NO_FIXTURE_EXECUTABLE");
+    private static async Task Check(string name,Func<Task> run)
+    {
+        try
+        {
+            await run();
+            Results.Add(new{name,status="passed"});
+            Console.WriteLine("PASS "+name);
+        }
+        catch(Exception ex)
+        {
+            Failed++;
+            Results.Add(new{name,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+name+" "+ex);
+        }
+    }
+    private static async Task<bool> RejectAsync(Func<Task> action)
+    {
+        try {await action();return false;}
+        catch(Rejected){return true;}
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(!OperatingSystem.IsWindows())return 2;
+        if(args.Length==5 && args[0]=="--owner")
+        {
+            if(args[4]=="known-fail-before-switch")return 7;
+            L16Boundary.Perform(args[1],args[2],args[3],args[4]);return 0;
+        }
+        if(args.Length!=4 || args[0]!="--report")return 2;
+        Require(Path.GetFileName(Exe)=="GF.Updater.M3.L18Tests.exe",
+            "L21_FIXTURE_EXE_ONLY");
+        L16Tests.fixtures=Path.GetFullPath(args[2]);
+        L16Tests.bootstrap=Path.GetFullPath(args[3]);
+        L16Tests.suite=Path.Combine(Path.GetTempPath(),
+            "gf-u2-l21-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(L16Tests.suite);
+        try
+        {
+            await Check("L21-01-STAGED-SAME-ID-MUTATION-REJECTED-WHILE-PINNED",async()=>{
+                using var s=await L16Tests.Prepared();
+                string canary=Path.Combine(s.Lab,"PERSONAL-CANARY-21-01.txt");
+                File.WriteAllText(canary,"PRESERVE-MY-PERSONAL-DATA");
+                Require(await L18Coordinator.Execute(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,Exe,"none",TimeSpan.FromSeconds(30))==
+                    L18Decision.LocalConsistentObserved,
+                    "L21_REQUIRED_HONEST_NEW_MISSING");
+                string staged=L16Boundary.Stage(s.Source.Root);
+                string id;
+                byte[] original;
+                using(var before=WindowsFileGuard.Open(s.Source.Root,staged))
+                {
+                    id=before.Identity;
+                    original=before.Read(4096);
+                }
+                // IMPORTANT: do not keep a test-owned pin alive; only the
+                // reconciler's L21 pin may exclude this competing writer.
+                bool callback=false,mutationBlocked=false;
+                var result=L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,selectorObserved:()=>{
+                    callback=true;
+                    // FileMode.Open would mutate SAME File ID in place, rather
+                    // than use rename/replace. The stage handle must deny it.
+                    try
+                    {
+                        using var writer=new FileStream(staged,FileMode.Open,
+                            FileAccess.Write,FileShare.ReadWrite);
+                        writer.WriteByte((byte)(original[0]^0x01));
+                        writer.Flush(true);
+                    }
+                    catch(IOException){mutationBlocked=true;}
+                    catch(UnauthorizedAccessException){mutationBlocked=true;}
+                });
+                Require(callback && mutationBlocked &&
+                    result==L18Decision.LocalConsistentObserved,
+                    "L21_STAGE_WRITE_ALLOWED_DURING_NEW_DECISION");
+                using(var after=WindowsFileGuard.Open(s.Source.Root,staged))
+                    Require(after.Identity==id &&
+                        after.Read(4096).AsSpan().SequenceEqual(original),
+                        "L21_STAGE_BYTES_OR_ID_CHANGED");
+                Require(File.ReadAllText(canary)=="PRESERVE-MY-PERSONAL-DATA",
+                    "L21_STAGE_OR_CANARY_DRIFTED");
+                s.Preserved();
+            });
+            await Check("L21-02-STAGED-SAME-FILE-ID-CONTENT-DRIFT-IS-UNKNOWN",async()=>{
+                using var s=await L16Tests.Prepared();
+                Require(await L18Coordinator.Execute(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,Exe,"none",TimeSpan.FromSeconds(30))==
+                    L18Decision.LocalConsistentObserved,
+                    "L21_INITIAL_NEW_REQUIRED");
+                string staged=L16Boundary.Stage(s.Source.Root);
+                string canary=Path.Combine(s.Lab,"PERSONAL-CANARY-21-02.txt");
+                File.WriteAllText(canary,"PERSONAL-DATA-STILL-HERE");
+                string id;
+                using(var pin=WindowsFileGuard.Open(s.Source.Root,staged))
+                    id=pin.Identity;
+                byte[] original=File.ReadAllBytes(staged);
+                Require(original.Length>1,"L21_STAGE_TOO_SMALL");
+                byte[] modified=(byte[])original.Clone();
+                modified[0]^=0x01;
+                // Deliberately change existing bytes in-place without
+                // File.Replace: no File ID change is expected on NTFS.
+                using(var writer=new FileStream(staged,FileMode.Open,
+                    FileAccess.Write,FileShare.None))
+                {
+                    writer.Write(modified);
+                    writer.Flush(true);
+                }
+                using(var pin=WindowsFileGuard.Open(s.Source.Root,staged))
+                    Require(pin.Identity==id && pin.Read(4096).AsSpan().SequenceEqual(modified),
+                        "L21_MUTATION_MUST_RETAIN_NTFS_ID");
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked &&
+                    L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked &&
+                    File.ReadAllText(canary)=="PERSONAL-DATA-STILL-HERE",
+                    "L21_CHANGED_STAGED_BYTES_ACCEPTED_DESPITE_SAME_FILE_ID");
+                s.Preserved();
+            });
+            await Check("L21-03-INVALID-DEADLINE-IMAGE-LEAVE-NO-TRANSACTION",async()=>{
+                using var s=await L16Tests.Prepared();
+                string canary=Path.Combine(s.Lab,"PERSONAL-CANARY-21-03.txt");
+                File.WriteAllText(canary,"DO-NOT-TOUCH");
+                async Task VerifyNoEffects()
+                {
+                    Require(!File.Exists(L18Coordinator.EventPath(s.Source.Root,1)) &&
+                        !File.Exists(L16Boundary.Intent(s.Source.Root)) &&
+                        !File.Exists(L16Boundary.Terminal(s.Source.Root)) &&
+                        File.ReadAllText(canary)=="DO-NOT-TOUCH" &&
+                        L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                            L16Tests.bootstrap)==L18Decision.OldVerified,
+                        "L21_BAD_INPUT_STARTED_OR_BLOCKED_TRANSACTION");
+                    await Task.CompletedTask;
+                }
+                Require(await RejectAsync(async()=>{await L18Coordinator.Execute(
+                    s.Source.Root,s.Lab,L16Tests.bootstrap,Exe,"none",
+                    TimeSpan.Zero);}),"L21_ZERO_DEADLINE_NOT_REJECTED");
+                Require(!File.Exists(L18Coordinator.CoordinatorGatePath(s.Source.Root)),
+                    "L21_INVALID_INPUT_CREATED_COORDINATOR_GATE");
+                await VerifyNoEffects();
+                Require(await RejectAsync(async()=>{await L18Coordinator.Execute(
+                    s.Source.Root,s.Lab,L16Tests.bootstrap,Exe,"none",
+                    TimeSpan.FromMinutes(2));}),"L21_TOO_LONG_DEADLINE_NOT_REJECTED");
+                await VerifyNoEffects();
+                string forgedPath=Path.Combine(s.Lab,"GF.Updater.M3.L18Tests.exe");
+                File.WriteAllText(forgedPath,"NOT_A_VALID_OWNER_IMAGE");
+                Require(await RejectAsync(async()=>{await L18Coordinator.Execute(
+                    s.Source.Root,s.Lab,L16Tests.bootstrap,forgedPath,
+                    "none",TimeSpan.FromSeconds(10));}),
+                    "L21_FORGED_FIXTURE_IMAGE_PATH_ACCEPTED");
+                await VerifyNoEffects();
+                Require(await RejectAsync(async()=>{await L18Coordinator.Execute(
+                    s.Source.Root,s.Lab,L16Tests.bootstrap,
+                    Path.Combine(s.Lab,"missing.exe"),"none",
+                    TimeSpan.FromSeconds(10));}),
+                    "L21_MISSING_FIXTURE_IMAGE_ACCEPTED");
+                await VerifyNoEffects();
+                // Confirm that rejected input did not strand OLD in UNKNOWN.
+                Require(await L18Coordinator.Execute(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,Exe,"none",TimeSpan.FromSeconds(30))==
+                    L18Decision.LocalConsistentObserved &&
+                    File.ReadAllText(canary)=="DO-NOT-TOUCH",
+                    "L21_VALID_RETRY_AFTER_BAD_INPUT_FAILED");
+                s.Preserved();
+            });
+        }
+        finally {Directory.Delete(L16Tests.suite,true);}
+        var report=new{
+            schema="gf-l21-pinned-stage-preflight-inert/1",
+            passed=Results.Count-Failed,failed=Failed,tests=Results,
+            continuous_stage_and_selector_pins=true,
+            preflight_before_journal=true,
+            real_gf_operational=false,
+            independent_completion_authority=false,
+            same_user_tamperproof=false,
+            arbitrary_toctou_excluded=false,
+            power_loss_proven=false,whole_disk_restore_resisted=false,
+            operational_gates_closed=0
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_L21_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return Failed==0?0:1;
+    }
+}
