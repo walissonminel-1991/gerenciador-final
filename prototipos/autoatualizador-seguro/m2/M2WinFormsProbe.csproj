@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>GF.Updater.M2.WinFormsProbe</AssemblyName>
+    <StartupObject>GfUpdaterFixture.M2WinFormsProbe</StartupObject>
+    <IsPackable>false</IsPackable><IsPublishable>false</IsPublishable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="M2WinFormsProbe.cs.txt" />
+    <Compile Include="../stage3/src/PipeFrames.cs.txt" />
+    <Compile Include="../stage3/src/PeerIdentity.cs.txt" />
+  </ItemGroup>
+</Project>
