@@ -27,6 +27,27 @@ internal static class L15Binding
 
     private static byte[] PinnedRead(string root,string path,int limit)
     {
+        // L14 uses a DIFFERENT fixture marker and cannot be passed through
+        // FixtureSandbox.RequireRoot. Keep its boundary separate. This lab-side
+        // managed read is NOT a pinned anti-TOCTOU NTFS capability. Stage11/3
+        // source files still use the WindowsFileGuard real handle pin.
+        if(Path.GetFileName(root).StartsWith("gf-u2-l14-",StringComparison.Ordinal))
+        {
+            L14Model.RequireRoot(root);
+            string full=Path.GetFullPath(path),sandbox=Path.GetFullPath(root);
+            Require(full.StartsWith(sandbox+Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase),"L15_LAB_SCOPE");
+            string? folder=Path.GetDirectoryName(full);
+            Require(folder is not null,"L15_LAB_SCOPE");
+            if(!string.Equals(folder,sandbox,StringComparison.OrdinalIgnoreCase))
+                Require((File.GetAttributes(folder)&FileAttributes.ReparsePoint)==0,
+                    "L15_LAB_PARENT_REPARSE");
+            Require((File.GetAttributes(full)&FileAttributes.ReparsePoint)==0,
+                "L15_LAB_FILE_REPARSE");
+            byte[] data=File.ReadAllBytes(full);
+            Require(data.Length is >0 && data.Length<=limit,"L15_LAB_FILE_SIZE");
+            return data;
+        }
         using var pin=WindowsFileGuard.Open(root,path);
         byte[] value=pin.Read(limit);
         pin.Recheck();
