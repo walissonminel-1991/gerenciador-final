@@ -130,7 +130,7 @@ internal sealed class LabPackage : IDisposable
     private static void NoAlternateStreams(string path) {
         using var find = FindFirstStreamW(path, 0, out var data, 0);
         if (find.IsInvalid) { Require(Marshal.GetLastWin32Error() == 38, "U10_STREAM_QUERY"); return; }
-        do { Require(data.Name == ":$DATA", "U10_ALTERNATE_STREAM"); } while (FindNextStreamW(find, out data));
+        do { Require(data.Name == "::$DATA", "U10_ALTERNATE_STREAM"); } while (FindNextStreamW(find, out data));
         Require(Marshal.GetLastWin32Error() == 38, "U10_STREAM_QUERY");
     }
     private sealed class FindHandle : SafeHandleZeroOrMinusOneIsInvalid {

@@ -19,6 +19,7 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       PYTHONUTF8: '1'
       PYTHONDONTWRITEBYTECODE: '1'
+      GF_U10_CASES: ${{ contains(github.event.head_commit.message, '[gf-u10-fix]') && 'U10-GF-STATIC-QUALIFICATION,U10-GF-PINS-DENY-WRITE,U10-GF-PRECOMMIT-BINDING,U10-GF-STALE-STATE,U10-GF-PENDING-JOURNAL,U10-GF-EXTRA-AFTER-QUALIFICATION,U10-GF-CLOSED-TICKET,U10-GF-NTFS-HARDLINK,U10-GF-NTFS-ADS,U10-GF-STREAM-EXTRACTION,U10-GF-CONTAINER-TAMPER,U10-GF-UNKNOWN-READ-OWNERSHIP,U10-TUF-EPOCH-TIMESTAMP,U10-TUF-EPOCH-SNAPSHOT,U10-TUF-EPOCH-TARGETS' || '' }}
       GF_U10_PHASE: ${{ contains(github.event.head_commit.message, '[gf-u10-windows]') && 'windows' || 'full' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,7 +38,7 @@ jobs:
       - name: Qualificar bytes reais sem executar GF ou enviar binários
         shell: pwsh
         run: |
-          python prototipos/autoatualizador-seguro/stage10/run_lab.py --report "$env:RUNNER_TEMP/gf-u10.json" --phase $env:GF_U10_PHASE
+          python prototipos/autoatualizador-seguro/stage10/run_lab.py --report "$env:RUNNER_TEMP/gf-u10.json" --phase $env:GF_U10_PHASE --cases "$env:GF_U10_CASES"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $r = Get-Content "$env:RUNNER_TEMP/gf-u10.json" -Raw | ConvertFrom-Json
           "Etapa 10: $($r.status). $($r.windows.passed)/$($r.windows.total) ensaios Windows. Pacote apagado: $($r.lab_tree_deleted). Zero gate operacional fechado." >> $env:GITHUB_STEP_SUMMARY
