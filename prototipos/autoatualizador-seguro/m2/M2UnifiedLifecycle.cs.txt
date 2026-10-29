@@ -1,0 +1,172 @@
+// Windows-only M2 in-memory orchestration over the EXISTING durable Stage 2 fixture journal.
+// Never launches/updates the Gerenciador Final or authorizes an operational update.
+using System.Diagnostics;
+using System.IO.Pipes;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[SupportedOSPlatform("windows")]
+internal static class M2UnifiedLifecycle
+{
+    internal static string WinFormsProbePath="";
+    internal static bool ValidHwndConfirmed;
+    internal static bool NonElevatedAdmissionObserved;
+    internal static bool RejectedReadyRolledBack;
+    internal static bool WithheldReadyRolledBack;
+
+    private delegate bool WindowVisitor(IntPtr hwnd,IntPtr extra);
+    [DllImport("user32.dll",SetLastError=true)]
+    [return:MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(WindowVisitor visitor,IntPtr unused);
+    [DllImport("user32.dll",SetLastError=true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint pid);
+    private static bool HasHwnd(int pid)
+    {
+        bool found=false;
+        WindowVisitor check=(hwnd,unused)=>{
+            _=GetWindowThreadProcessId(hwnd,out uint owner);
+            if(owner==(uint)pid){found=true;return false;}
+            return true;
+        };
+        _=EnumWindows(check,IntPtr.Zero);
+        GC.KeepAlive(check);
+        return found;
+    }
+
+    private static async Task ExitPrevious()
+    {
+        string exe=Environment.ProcessPath??throw new InvalidDataException("M2_RUNNER_EXE");
+        var info=new ProcessStartInfo(exe){UseShellExecute=false,RedirectStandardOutput=true,
+            RedirectStandardInput=true,CreateNoWindow=true};
+        info.ArgumentList.Add("--m2-predecessor");
+        using var previous=Process.Start(info)??throw new InvalidDataException("M2_PREDECESSOR_START");
+        try
+        {
+            string? announced=await previous.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(8));
+            Require(announced=="M2-INERT-PREDECESSOR","M2_PREDECESSOR_NOT_READY");
+            var barrier=new M2ExitBarrier([previous],TimeSpan.FromSeconds(12));
+            await previous.StandardInput.WriteLineAsync("close");
+            await previous.StandardInput.FlushAsync();
+            using var wait=new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            await previous.WaitForExitAsync(wait.Token);
+            barrier.RequireCanLaunch(); // Kernel observed real exit, not an ACK.
+        }
+        finally
+        {
+            if(!previous.HasExited){previous.Kill(true);await previous.WaitForExitAsync();}
+        }
+    }
+
+    internal static async Task Cycle(StateCase fixture,string mode)
+    {
+        Require(mode is "normal" or "bad-nonce" or "bad-tx" or "no-ready","M2_INVALID_MODE");
+        await ExitPrevious();
+        var selected=fixture.Begin(); // Stage 2 journal: intent -> selector -> selected
+        var tx=selected.Transaction!;
+        Require(tx.Phase=="selected" && tx.Previous==fixture.Old,"M2_NOT_SELECTED");
+
+        string candidateExe=Path.GetFullPath(WinFormsProbePath);
+        Require(File.Exists(candidateExe) &&
+            Path.GetFileName(candidateExe)=="GF.Updater.M2.WinFormsProbe.exe","M2_WRONG_PROBE");
+        string parentExe=Environment.ProcessPath??throw new InvalidDataException("M2_PARENT_EXE");
+        string pipeName="gf-m2-ready-"+Guid.NewGuid().ToString("N");
+        string boundNonce=Hash(Encoding.UTF8.GetBytes(tx.Nonce+fixture.Candidate.Sha256));
+        using var pipe=new NamedPipeServerStream(pipeName,PipeDirection.InOut,1,
+            PipeTransmissionMode.Byte,PipeOptions.Asynchronous|
+            PipeOptions.CurrentUserOnly|PipeOptions.FirstPipeInstance);
+        var info=new ProcessStartInfo(candidateExe){UseShellExecute=false,CreateNoWindow=true};
+        foreach(var arg in new[]{pipeName,Environment.ProcessId.ToString(),parentExe,"fixture-local",mode})
+            info.ArgumentList.Add(arg);
+        using var candidate=Process.Start(info)??throw new InvalidDataException("M2_GUI_START");
+        using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(16));
+        bool accepted=false;
+        try
+        {
+            await pipe.WaitForConnectionAsync(budget.Token);
+            Require(PeerIdentity.PipePid(pipe,true)==candidate.Id,"M2_KERNEL_PID");
+            PeerIdentity.Verify(pipe,true,candidate,candidateExe);
+            await PipeFrames.Send(pipe,new ProbeFrame(1,"challenge",tx.Id,boundNonce,"fixture-local"),budget.Token);
+            ProbeFrame? response=null;
+            if(mode=="no-ready")
+            {
+                using var shortRead=CancellationTokenSource.CreateLinkedTokenSource(budget.Token);
+                shortRead.CancelAfter(TimeSpan.FromMilliseconds(500));
+                try{response=await PipeFrames.Read(pipe,shortRead.Token);}
+                catch(OperationCanceledException) when(!budget.IsCancellationRequested){}
+                Require(response is null,"M2_SILENT_PROBE_SENT_READY");
+            }
+            else
+            {
+                response=await PipeFrames.Read(pipe,budget.Token);
+                Require(!candidate.HasExited && HasHwnd(candidate.Id),"M2_GUI_HWND_MISSING");
+                bool elevated;
+                using(var self=Process.GetCurrentProcess())
+                    elevated=PeerIdentity.Facts(self).Elevated;
+                try
+                {
+                    if(elevated)PipeFrames.Bound(response,"ready",tx.Id,boundNonce);
+                    else
+                    {
+                        using var stream=new FileStream(candidateExe,FileMode.Open,FileAccess.Read,
+                            FileShare.Read|FileShare.Delete,65536,FileOptions.SequentialScan);
+                        var identity=Convert.ToHexStringLower(SHA256.HashData(stream));
+                        var selfFacts=PeerIdentity.Facts(Process.GetCurrentProcess());
+                        var trusted=new G5Trust(candidateExe,identity,candidate.Id,selfFacts.Sid,
+                            selfFacts.Session,false,tx.Id,boundNonce);
+                        new G5Admission(trusted,TimeSpan.FromSeconds(12)).Accept(pipe,candidate,response);
+                        NonElevatedAdmissionObserved=true;
+                    }
+                    accepted=true;
+                }
+                catch(InvalidDataException e) when(mode is "bad-nonce" or "bad-tx" && e.Message=="IPC_BINDING")
+                {accepted=false;}
+            }
+            if(accepted)
+            {
+                Require(mode=="normal","M2_BAD_READY_ADMITTED");
+                // Only after OS identity, HWND, exact frame, real prior exit, with candidate still alive.
+                Require(!candidate.HasExited,"M2_CANDIDATE_EXITED_BEFORE_COMMIT");
+                using var session=new FixtureSession(fixture.Root);
+                var committed=session.Confirm(new FixtureReadiness(tx.Id,tx.Nonce,fixture.Candidate.Sha256));
+                Require(committed.Confirmed==fixture.Candidate &&
+                    committed.Transaction?.Phase=="confirmed","M2_CONFIRM_FAILED");
+                ValidHwndConfirmed=true;
+            }
+            else Require(mode!="normal","M2_VALID_READY_REJECTED");
+            await PipeFrames.Send(pipe,new ProbeFrame(1,"close",tx.Id,boundNonce,"fixture-local"),budget.Token);
+            PipeFrames.Bound(await PipeFrames.Read(pipe,budget.Token),"bye",tx.Id,boundNonce);
+            await candidate.WaitForExitAsync(budget.Token);
+            Require(candidate.ExitCode==0,"M2_GUI_EXIT");
+        }
+        finally
+        {
+            if(!candidate.HasExited){candidate.Kill(true);await candidate.WaitForExitAsync();}
+        }
+
+        using(var resumed=new FixtureSession(fixture.Root))
+        {
+            if(accepted)
+            {
+                Require(resumed.SelectionForFixtureInspectionOnly()==fixture.Candidate,
+                    "M2_CONFIRMED_SELECTOR");
+            }
+            else
+            {
+                var restored=resumed.Recover();
+                Require(restored.Confirmed==fixture.Old &&
+                    restored.Transaction?.Phase=="rolled_back" &&
+                    restored.Trust.ApprovedSequence==2,"M2_INCOMPLETE_ROLLBACK");
+                Require(resumed.SelectionForFixtureInspectionOnly()==fixture.Old,
+                    "M2_ROLLBACK_SELECTOR");
+                if(mode=="no-ready")WithheldReadyRolledBack=true;
+                else RejectedReadyRolledBack=true;
+            }
+        }
+        fixture.Preserved(); // Preserve consent/user files from Stage 2 fixture.
+    }
+}
