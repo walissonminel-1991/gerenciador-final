@@ -1,0 +1,56 @@
+// Minimal Stage2 fixture setup for composed tests only; no legacy fixture
+// validator, executable bundle, production installer, or key material.
+using System.Text;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal sealed class InertComposedCase:IDisposable
+{
+    internal readonly string Root;
+    internal readonly string InstallationId=Guid.NewGuid().ToString("N");
+    internal readonly BundleRef Old,Candidate,Later;
+    internal InertComposedCase(string suite)
+    {
+        Root=Path.Combine(suite,Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Root);
+        File.WriteAllText(Path.Combine(Root,".gf-u2-fixture"),FixtureSandbox.Marker);
+        Directory.CreateDirectory(Path.Combine(Root,"ledger"));
+        Directory.CreateDirectory(Path.Combine(Root,"versions"));
+        File.WriteAllText(Path.Combine(Root,"lease.fixture"),
+            "COMPOSED-FIXTURE-LEASE-NEVER-PRODUCT\n");
+        File.WriteAllText(Path.Combine(Root,"preferences.fixture.txt"),
+            "CONSENT=NO;PERSONAL-DATA-INERT\n");
+        File.WriteAllText(Path.Combine(Root,"legacy66.fixture.txt"),
+            "LEGACY66-NOT-A-REAL-BETA\n");
+        Old=Make(1);Candidate=Make(2);Later=Make(3);
+        var t=new TrustFloor(1,1,1,1,1,Old.Version,
+            CycleClock.Wire(DateTimeOffset.UtcNow-TimeSpan.FromMinutes(1)),[]);
+        new PersistentState(Root).BootstrapFixture(new(
+            "gf-state-fixture/2",InstallationId,1,new string('0',64),t,Old,null));
+        File.WriteAllBytes(Path.Combine(Root,"active.fixture.json"),
+            StateCodec.Encode(new FixtureSelector(
+                "gf-selector-fixture/2",InstallationId,Old)));
+    }
+    private BundleRef Make(int seq)
+    {
+        byte[] bytes=Encoding.UTF8.GetBytes(
+            "GF-U2-INERT-BUNDLE-"+seq+"-NO-EXE-NO-DLL\n");
+        var bundle=new BundleRef(seq,"0.0.0."+seq,Hash(bytes),
+            "linux-fixture-model");
+        string folder=Path.Combine(Root,"versions",bundle.DirectoryName);
+        Directory.CreateDirectory(folder);
+        string file=Path.Combine(folder,"bundle.fixture.txt");
+        File.WriteAllBytes(file,bytes);
+        using var guard=WindowsFileGuard.Open(Root,file);
+        return bundle with {Identity=guard.Identity};
+    }
+    internal void Preserved()
+    {
+        Require(File.ReadAllText(Path.Combine(Root,"preferences.fixture.txt"))==
+            "CONSENT=NO;PERSONAL-DATA-INERT\n" &&
+            File.ReadAllText(Path.Combine(Root,"legacy66.fixture.txt"))==
+            "LEGACY66-NOT-A-REAL-BETA\n","COMPOSED_PERSONAL_MARKERS_CHANGED");
+    }
+    public void Dispose(){Preserved();Directory.Delete(Root,true);}
+}
