@@ -1,0 +1,174 @@
+// L19 — recovery acceptance tests on inert signed TUF fixtures ONLY.
+// No GF product launch, operational READY or independent local authority.
+using System.Diagnostics;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L19Tests
+{
+    private static readonly List<object> Results=[];
+    private static int Failed;
+    private static string Exe=>Environment.ProcessPath ??
+        throw new InvalidDataException("L19_MISSING_EXE");
+    private static void Check(string label,Action action)
+    {
+        try{action();Results.Add(new{label,status="passed"});Console.WriteLine("PASS "+label);}
+        catch(Exception ex)
+        {Failed++;Results.Add(new{label,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+label+" "+ex);}
+    }
+    private static async Task CheckAsync(string label,Func<Task> action)
+    {
+        try{await action();Results.Add(new{label,status="passed"});Console.WriteLine("PASS "+label);}
+        catch(Exception ex)
+        {Failed++;Results.Add(new{label,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+label+" "+ex);}
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(!OperatingSystem.IsWindows())return 2;
+        // This separate test project has the fixture runner's exact image name.
+        // The L18 coordinator only launches the allowlisted fixture executable.
+        if(args.Length==5 && args[0]=="--owner")
+        {
+            if(args[4]=="known-fail-before-switch")return 7;
+            L16Boundary.Perform(args[1],args[2],args[3],args[4]);return 0;
+        }
+        if(args.Length!=4 || args[0]!="--report")return 2;
+        Require(Path.GetFileName(Exe)=="GF.Updater.M3.L18Tests.exe",
+            "L19_FIXTURE_RUNNER_IMAGE");
+        L16Tests.fixtures=Path.GetFullPath(args[2]);
+        L16Tests.bootstrap=Path.GetFullPath(args[3]);
+        L16Tests.suite=Path.Combine(Path.GetTempPath(),
+            "gf-u2-l19-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(L16Tests.suite);
+        try
+        {
+            Check("L19-01-NO-JOURNAL-OLD-CONSISTENT-IDEMPOTENT",()=>{
+                using var s=await L16Tests.Prepared();
+                string canary=Path.Combine(s.Lab,"L19-NO-TOUCH.txt");
+                File.WriteAllText(canary,"PRIVATE-UNTOUCHED");
+                Require(!File.Exists(L18Coordinator.EventPath(s.Source.Root,1)),
+                    "L19_PREEXISTING_EVENTS");
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.OldVerified &&
+                    L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.OldVerified,
+                    "L19_EMPTY_JOURNAL_NOT_OLD");
+                Require(!File.Exists(L18Coordinator.EventPath(s.Source.Root,1)) &&
+                    File.ReadAllText(canary)=="PRIVATE-UNTOUCHED",
+                    "L19_EMPTY_JOURNAL_MUTATED_DISK");
+                s.Preserved();
+            });
+            Check("L19-02-NO-JOURNAL-INCONSISTENT-BLOCKED",()=>{
+                using var s=await L16Tests.Prepared();
+                File.WriteAllBytes(L16Boundary.Selector(s.Source.Root),
+                    StateCodec.Encode(new L16Selector(
+                        "gf-l16-selector-inert/1","new",2)));
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked &&
+                    File.Exists(L18Coordinator.RecoveryBlocked(s.Source.Root)) &&
+                    L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked,
+                    "L19_NO_JOURNAL_NEW_ACCEPTED_OR_BLOCK_NOT_DURABLE");
+                s.Preserved();
+            });
+            await CheckAsync("L19-03-UNKNOWN-RECONCILES-AFTER-NEW-LOCAL-EVIDENCE",async()=>{
+                using var s=await L16Tests.Prepared();
+                Require(await L18Coordinator.Execute(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,Exe,"none",TimeSpan.FromSeconds(30))==
+                    L18Decision.LocalConsistentObserved,
+                    "L19_INITIAL_HONEST_EXIT_UNOBSERVED");
+                string terminalPath=L16Boundary.Terminal(s.Source.Root);
+                byte[] original=File.ReadAllBytes(terminalPath);
+                var receipt=StateCodec.Decode<L16Terminal>(original);
+                File.WriteAllBytes(terminalPath,
+                    StateCodec.Encode(receipt with {SelectorSha=new string('f',64)}));
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked,
+                    "L19_CONFLICT_NOT_UNKNOWN");
+                var phase=Directory.GetFiles(s.Source.Root,
+                    "l18-phase-*.fixture.json").OrderBy(x=>x,StringComparer.Ordinal)
+                    .Select(File.ReadAllBytes).Select(StateCodec.Decode<L18PhaseRecord>)
+                    .ToArray();
+                Require(phase[^1].Phase=="unknown",
+                    "L19_CONFLICT_NOT_PERSISTED_IN_JOURNAL");
+                // New evidence restores local consistency, not independent
+                // historical legitimacy. Exit was already observed by L18.
+                File.WriteAllBytes(terminalPath,original);
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.LocalConsistentObserved &&
+                    L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.LocalConsistentObserved,
+                    "L19_UNKNOWN_DID_NOT_RECONCILE");
+                var ended=Directory.GetFiles(s.Source.Root,
+                    "l18-phase-*.fixture.json").OrderBy(x=>x,StringComparer.Ordinal)
+                    .Select(File.ReadAllBytes).Select(StateCodec.Decode<L18PhaseRecord>)
+                    .ToArray();
+                Require(ended[^2].Phase=="reconciling" &&
+                    ended[^1].Phase=="new-observed" &&
+                    ended.Any(x=>x.Phase=="unknown"),
+                    "L19_UNKNOWN_TO_RECONCILING_JOURNAL_MISSING");
+                s.Preserved();
+            });
+            Check("L19-04-INVALID-JOURNAL-FAIL-CLOSED-AND-CANARY",()=>{
+                using var s=await L16Tests.Prepared();
+                string canary=Path.Combine(s.Lab,"important-personal-file.txt");
+                File.WriteAllText(canary,"UNMODIFIED-L19");
+                // Deliberately create a malformed first journal record.
+                File.WriteAllText(L18Coordinator.EventPath(s.Source.Root,1),
+                    "INVALID-TRUNCATED-L19");
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked &&
+                    File.Exists(L18Coordinator.RecoveryBlocked(s.Source.Root)) &&
+                    L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked &&
+                    File.ReadAllText(canary)=="UNMODIFIED-L19",
+                    "L19_INVALID_JOURNAL_NOT_DURABLY_BLOCKED");
+                s.Preserved();
+            });
+            Check("L19-05-UNKNOWN-APPEND-FAILURE-BLOCKED",()=>{
+                using var s=await L16Tests.Prepared();
+                Require(await L18Coordinator.Execute(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,Exe,"none",TimeSpan.FromSeconds(30))==
+                    L18Decision.LocalConsistentObserved,
+                    "L19_INITIAL_NEW_MISSING");
+                string terminalPath=L16Boundary.Terminal(s.Source.Root);
+                var receipt=StateCodec.Decode<L16Terminal>(
+                    File.ReadAllBytes(terminalPath));
+                File.WriteAllBytes(terminalPath,
+                    StateCodec.Encode(receipt with{SelectorSha=new string('b',64)}));
+                int count=Directory.GetFiles(s.Source.Root,"l18-phase-*.fixture.json").Length;
+                // Precreate the next event with incomplete bytes, simulating
+                // a crash or failure during the append of the UNKNOWN event.
+                File.WriteAllText(L18Coordinator.EventPath(s.Source.Root,count+1),
+                    "PARTIAL-EVENT");
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked &&
+                    File.Exists(L18Coordinator.RecoveryBlocked(s.Source.Root)) &&
+                    L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked,
+                    "L19_PARTIAL_APPEND_NOT_FAIL_CLOSED");
+                s.Preserved();
+            });
+        }
+        finally{Directory.Delete(L16Tests.suite,true);}
+        var report=new{
+            schema="gf-l19-unknown-reconciliation-inert/1",
+            passed=Results.Count-Failed,failed=Failed,tests=Results,
+            old_and_new_observations_are_fixture_only=true,
+            zero_product_compilation_integration=true,
+            timeout_owner_disappearance_not_authority=true,
+            power_loss_proven=false, same_user_tamperproof=false,
+            entire_disk_restore_resisted=false,independent_witness=false,
+            operational_gates_closed=0
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_L19_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return Failed==0?0:1;
+    }
+}
