@@ -1,0 +1,244 @@
+// G1 crypto negative suite; each keypair generated in process and disposed.
+// No fixed secret, remote service, persisted private key or release activation.
+using System.Security.Cryptography;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal static class G1CryptoTests
+{
+    private static readonly List<object> results=[];
+    private static int failed;
+    private static string suite="";
+    private static bool signatureChecked,identityBinding,challengeReplayBlocked,
+        unauthorizedKeyBlocked,rotationEnforced,offlineReplyNotFresh,
+        intentSelectorIntact,rotationBadSignatureBlocked;
+    private sealed class Scenario : IDisposable
+    {
+        internal readonly StateCase Fixture;
+        internal readonly G1DisposableSigner Trusted=new();
+        internal readonly G1PinnedFixtureVerifier Verifier;
+        internal readonly G1BoundIntent Bound;
+        internal Scenario(bool prepare=true)
+        {
+            Fixture=new StateCase(suite);
+            if(prepare)_=G1Preselect.Prepare(Fixture.Root,Fixture.Candidate,true);
+            Verifier=new G1PinnedFixtureVerifier(Trusted.PublicSpkiBase64);
+            Bound=prepare ? G1SignedFixture.BindOnDisk(Fixture.Root) : null!;
+        }
+        internal string Nonce()=>Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
+        internal G1SignedResponse Valid(string challenge)
+            =>Trusted.Sign(Bound,challenge,1);
+        internal void VerifyBlocked(G1SignedResponse reply,string challenge)
+        {
+            Require(Verifier.Verify(Fixture.Root,reply,challenge)==
+                G1CryptoAssessment.SignatureMatchesButBlocked,
+                "G1_CRYPTO_MUST_NEVER_AUTHORIZE");
+            Unselected();
+        }
+        internal void Unselected()
+        {
+            using var s=new FixtureSession(Fixture.Root);
+            var x=s.Store.Load().Record;
+            Require(x.Transaction is {Phase:"intent"} &&
+                x.Confirmed==Fixture.Old &&
+                s.Files.ReadSelector(x.InstallationId).Bundle==Fixture.Old,
+                "G1_CRYPTO_SELECTOR_MOVED");
+            try{_=s.SelectionForFixtureInspectionOnly();}
+            catch(Rejected r) when(r.Code=="RECOVERY_REQUIRED")
+            {intentSelectorIntact=true;return;}
+            throw new InvalidDataException("G1_CRYPTO_ACTIVATION_ALLOWED");
+        }
+        public void Dispose()
+        {
+            Verifier.Dispose();
+            Trusted.Dispose();
+            Fixture.Preserved();
+            Fixture.Dispose();
+        }
+    }
+    private static void Refused(string expected,Action action)
+    {
+        try{action();}
+        catch(Rejected r) when(r.Code==expected){return;}
+        throw new InvalidDataException("G1_CRYPTO_ACCEPTED:"+expected);
+    }
+    private static async Task Case(string label,Func<Task> run)
+    {
+        try{await run();results.Add(new{label,status="passed"});Console.WriteLine("PASS "+label);}
+        catch(Exception e){failed++;results.Add(new{label,status="failed",error=e.ToString()});
+            Console.WriteLine("FAIL "+label+" "+e);}
+    }
+    private static Task Sync(Action action){action();return Task.CompletedTask;}
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=2 || args[0]!="--report" || !OperatingSystem.IsWindows())return 2;
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-g1crypto-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Case("CRYPTO-01-VALID-SIGNED-RESPONSE-IS-STILL-BLOCKED",()=>Sync(()=>{
+                using var s=new Scenario();
+                var challenge=s.Nonce();
+                s.VerifyBlocked(s.Valid(challenge),challenge);
+                signatureChecked=true;
+            }));
+            await Case("CRYPTO-02-SIGNATURE-BYTE-TAMPER-REJECTED",()=>Sync(()=>{
+                using var s=new Scenario();var challenge=s.Nonce();
+                var reply=s.Valid(challenge);
+                byte[] sig=Convert.FromBase64String(reply.SignatureBase64);
+                sig[^1]^=0x01;
+                Refused("G1_CRYPTO_BAD_SIGNATURE",()=>s.Verifier.Verify(
+                    s.Fixture.Root,reply with {SignatureBase64=Convert.ToBase64String(sig)},
+                    challenge));
+                s.Unselected();
+            }));
+            await Case("CRYPTO-03-UNKNOWN-KEY-CANNOT-SELF-ENROLL",()=>Sync(()=>{
+                using var s=new Scenario();using var rogue=new G1DisposableSigner();
+                var challenge=s.Nonce();
+                var response=rogue.Sign(s.Bound,challenge,1);
+                Refused("G1_CRYPTO_UNTRUSTED_EPOCH_OR_KEY",()=>
+                    s.Verifier.Verify(s.Fixture.Root,response,challenge));
+                unauthorizedKeyBlocked=true;
+            }));
+            await Case("CRYPTO-04-SPOOFED-TRUSTED-KEYID-FAILS-SIGNATURE",()=>Sync(()=>{
+                using var s=new Scenario();using var rogue=new G1DisposableSigner();
+                var challenge=s.Nonce();
+                var altered=rogue.Sign(s.Bound,challenge,1) with {KeyId=s.Trusted.KeyId};
+                var forged=rogue.ResignForNegativeFixture(altered);
+                Refused("G1_CRYPTO_BAD_SIGNATURE",()=>
+                    s.Verifier.Verify(s.Fixture.Root,forged,challenge));
+            }));
+            await Case("CRYPTO-05-WRONG-INSTALLATION-SIGNED-BUT-UNBOUND",()=>Sync(()=>{
+                using var s=new Scenario();var challenge=s.Nonce();
+                var prior=s.Valid(challenge);
+                var other=prior with {Receipt=prior.Receipt with {
+                    InstallationId=Guid.NewGuid().ToString("N")}};
+                Refused("G1_CRYPTO_STAGE2_BINDING",()=>s.Verifier.Verify(s.Fixture.Root,
+                    s.Trusted.ResignForNegativeFixture(other),challenge));
+                identityBinding=true;
+            }));
+            await Case("CRYPTO-06-STAGE2-TX-NONCE-REPLACEMENT-REFUSED",()=>Sync(()=>{
+                using var s=new Scenario();var challenge=s.Nonce();
+                var altered=s.Valid(challenge) with {
+                    Stage2Nonce=Guid.NewGuid().ToString("N")};
+                Refused("G1_CRYPTO_STAGE2_BINDING",()=>s.Verifier.Verify(s.Fixture.Root,
+                    s.Trusted.ResignForNegativeFixture(altered),challenge));
+            }));
+            await Case("CRYPTO-07-OLD-CHALLENGE-REPLAY-REFUSED",()=>Sync(()=>{
+                using var s=new Scenario();var old=s.Nonce();var fresh=s.Nonce();
+                Require(old!=fresh,"G1_CRYPTO_REPLAY_TEST_NONCE_COLLISION");
+                Refused("G1_CRYPTO_STALE_CHALLENGE",()=>s.Verifier.Verify(
+                    s.Fixture.Root,s.Valid(old),fresh));
+                challengeReplayBlocked=true;
+            }));
+            await Case("CRYPTO-08-STABLE-CHECKPOINT-DIGEST-MISMATCH",()=>Sync(()=>{
+                using var s=new Scenario();var challenge=s.Nonce();var r=s.Valid(challenge);
+                var other=r with {Receipt=r.Receipt with {Expected=
+                    r.Receipt.Expected with {Digest=new string('f',64)}}};
+                Refused("G1_CRYPTO_STAGE2_BINDING",()=>s.Verifier.Verify(s.Fixture.Root,
+                    s.Trusted.ResignForNegativeFixture(other),challenge));
+            }));
+            await Case("CRYPTO-09-INTENT-DIGEST-MISMATCH",()=>Sync(()=>{
+                using var s=new Scenario();var challenge=s.Nonce();var r=s.Valid(challenge);
+                var other=r with {IntentDigest=new string('a',64)};
+                Refused("G1_CRYPTO_STAGE2_BINDING",()=>s.Verifier.Verify(s.Fixture.Root,
+                    s.Trusted.ResignForNegativeFixture(other),challenge));
+            }));
+            await Case("CRYPTO-10-ROTATE-OLD-SIGNATURE-REJECT-NEW",()=>Sync(()=>{
+                using var s=new Scenario();using var successor=new G1DisposableSigner();
+                var challenge=s.Nonce();var oldReply=s.Valid(challenge);
+                var grant=s.Trusted.Grant(s.Trusted.KeyId,1,2,successor);
+                s.Verifier.Rotate(grant);
+                var newReply=successor.Sign(s.Bound,challenge,2);
+                Require(s.Verifier.Verify(s.Fixture.Root,newReply,challenge)==
+                    G1CryptoAssessment.SignatureMatchesButBlocked,
+                    "G1_CRYPTO_ROTATED_SIGNATURE_NOT_ACCEPTED");
+                Refused("G1_CRYPTO_UNTRUSTED_EPOCH_OR_KEY",()=>s.Verifier.Verify(
+                    s.Fixture.Root,oldReply,challenge));
+                Refused("G1_ROTATION_UNAUTHORIZED_OR_REPLAY",()=>
+                    s.Verifier.Rotate(grant));
+                s.Unselected();rotationEnforced=true;
+            }));
+            await Case("CRYPTO-11-UNAUTHORIZED-ROTATION-BY-ROGUE",()=>Sync(()=>{
+                using var s=new Scenario();using var rogue=new G1DisposableSigner();
+                using var next=new G1DisposableSigner();
+                var grant=rogue.Grant(s.Trusted.KeyId,1,2,next);
+                Refused("G1_ROTATION_BAD_SIGNATURE",()=>s.Verifier.Rotate(grant));
+                Require(s.Verifier.Epoch==1 && s.Verifier.KeyId==s.Trusted.KeyId,
+                    "G1_CRYPTO_ROGUE_ROTATED_ANCHOR");
+                rotationBadSignatureBlocked=true;
+            }));
+            await Case("CRYPTO-12-ROTATION-TARGET-MUTATION-REJECTED",()=>Sync(()=>{
+                using var s=new Scenario();using var next=new G1DisposableSigner();
+                var grant=s.Trusted.Grant(s.Trusted.KeyId,1,2,next);
+                var altered=grant with {NewKeyId=new string('b',64)};
+                Refused("G1_ROTATION_BAD_SIGNATURE",()=>s.Verifier.Rotate(altered));
+                var reSigned=s.Trusted.ResignRotationForNegativeFixture(altered);
+                Refused("G1_ROTATION_KEY_MISMATCH",()=>s.Verifier.Rotate(reSigned));
+                Require(s.Verifier.Epoch==1,"G1_CRYPTO_MUTATED_ROTATION_ADVANCED");
+            }));
+            await Case("CRYPTO-13-SAVED-OLD-SIGNED-REPLY-IS-NOT-LIVE-PROOF",()=>Sync(()=>{
+                using var s=new Scenario();var once=s.Nonce();
+                var old=s.Valid(once);
+                File.WriteAllBytes(Path.Combine(s.Fixture.Root,
+                    "g1-signed-evidence.fixture.json"),StateCodec.Encode(old));
+                var persisted=G1SignedFixture.ReadUntrustedSavedResponse(s.Fixture.Root);
+                var fresh=s.Nonce();
+                Require(fresh!=once,"G1_CRYPTO_SAVED_CHALLENGE_COLLISION");
+                Refused("G1_CRYPTO_STALE_CHALLENGE",()=>s.Verifier.Verify(
+                    s.Fixture.Root,persisted,fresh));
+                offlineReplyNotFresh=true;
+                s.Unselected();
+            }));
+            await Case("CRYPTO-14-SIGNED-FOREIGN-TXID-REFUSED",()=>Sync(()=>{
+                using var s=new Scenario();var challenge=s.Nonce();var r=s.Valid(challenge);
+                var altered=r with {Receipt=r.Receipt with {TxId=Guid.NewGuid().ToString("N")}};
+                Refused("G1_CRYPTO_STAGE2_BINDING",()=>s.Verifier.Verify(s.Fixture.Root,
+                    s.Trusted.ResignForNegativeFixture(altered),challenge));
+            }));
+            await Case("CRYPTO-15-PURPOSE-SEPARATION-ENFORCED",()=>Sync(()=>{
+                using var s=new Scenario();var challenge=s.Nonce();var r=s.Valid(challenge);
+                var wrong=r with {Purpose=G1SignedFixture.RotationPurpose};
+                Refused("G1_CRYPTO_UNTRUSTED_EPOCH_OR_KEY",()=>s.Verifier.Verify(
+                    s.Fixture.Root,s.Trusted.ResignForNegativeFixture(wrong),challenge));
+            }));
+            await Case("CRYPTO-16-NO-INTENT-NEVER-VERIFIES",()=>Sync(()=>{
+                using var s=new Scenario(prepare:false);
+                var response=new G1SignedResponse(G1SignedFixture.Schema,
+                    G1SignedFixture.ResponsePurpose,1,s.Trusted.KeyId,s.Nonce(),
+                    Guid.NewGuid().ToString("N"),new string('0',64),
+                    new TxReceipt(s.Fixture.InstallationId,Guid.NewGuid().ToString("N"),
+                        new TxHead(s.Fixture.InstallationId,1,1,new string('0',64)),
+                        new TxHead(s.Fixture.InstallationId,2,2,new string('1',64))),"");
+                Refused("G1_CRYPTO_INTENT_REQUIRED",()=>s.Verifier.Verify(
+                    s.Fixture.Root,s.Trusted.ResignForNegativeFixture(response),
+                    response.ChallengeNonce));
+            }));
+        }
+        finally{Directory.Delete(suite,recursive:true);}
+        var report=new{
+            schema=1,phase="G1-signed-response-fixture",fixture_only=true,
+            passed=results.Count-failed,failed,tests=results,
+            signed_valid_still_blocked=signatureChecked,
+            stage2_identity_binding_enforced=identityBinding,
+            fresh_challenge_replay_denied=challengeReplayBlocked,
+            untrusted_signer_denied=unauthorizedKeyBlocked,
+            rotation_revoked_prior_epoch=rotationEnforced,
+            invalid_rotation_signature_rejected=rotationBadSignatureBlocked,
+            saved_receipt_not_fresh_without_live_response=offlineReplyNotFresh,
+            intent_candidate_still_not_selected=intentSelectorIntact,
+            private_keys_persisted=false,trust_root_automatically_enrolled=false,
+            authenticated_remote_witness_exists=false,
+            independent_freshness_verified=false,physical_power_loss_tested=false,
+            operational_gates_closed=0,product_built=false,
+            product_executed=false,update_authorization_issued=false
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("G1_CRYPTO_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}
