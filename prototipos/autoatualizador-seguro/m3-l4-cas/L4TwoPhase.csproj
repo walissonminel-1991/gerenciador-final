@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>GF.Updater.M3.L4TwoPhaseTests</AssemblyName>
+    <StartupObject>GfUpdaterFixture.L4TwoPhaseTests</StartupObject>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="L4TwoPhaseModel.cs.txt" />
+    <Compile Include="L4TwoPhaseTests.cs.txt" />
+  </ItemGroup>
+</Project>
