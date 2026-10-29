@@ -19,7 +19,7 @@ def generate(out):
     anchor = (source.parent / "fixtures/bootstrap.test-only.json").read_bytes()
     assert g.digest(anchor) == "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
     (out / "anchor.json").write_bytes(anchor)
-    signers = {name: CryptoSigner(key, SSlibKey.from_dict(g.IDS[name], g.KEYS[name])) for name, key in g.PRIVATE.items()}
+    signers = {name: CryptoSigner(key, SSlibKey.from_dict(g.IDS[name], copy.deepcopy(g.KEYS[name]))) for name, key in g.PRIVATE.items()}
     def signed(data, names):
         metadata = Metadata.from_bytes(g.wire(g.envelope(data, names)))
         for i, name in enumerate(names): metadata.sign(signers[name], append=i != 0)

@@ -16,7 +16,7 @@ internal sealed class TrustChild : IDisposable
         var info = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = Path.GetTempPath() };
         info.ArgumentList.Add(Assembly.GetExecutingAssembly().Location);
         foreach (string a in new[] { "--trust-child", root, fixtures, scenario, point }) info.ArgumentList.Add(a);
-        return new(Process.Start(info) ?? throw new Rejected("U11_CHILD_START"), root);
+        return new(System.Diagnostics.Process.Start(info) ?? throw new Rejected("U11_CHILD_START"), root);
     }
     internal async Task StopAt(string point) {
         string? line = await Process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));

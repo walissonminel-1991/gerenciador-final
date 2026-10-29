@@ -1,0 +1,36 @@
+{
+  "schema": "gf-stage11-receipt/1",
+  "contract": "gf-self-update/1",
+  "status": "in_progress",
+  "entry_head": "2cf5a8fb8addb94da4050667dc8af16d71e413b1",
+  "runs": [
+    {
+      "id": 40858921622,
+      "job": 123396860509,
+      "code": "eecb4c7f835c214f1484bde84cf1120d92362362",
+      "attempt": 1,
+      "conclusion": "failure",
+      "tests_executed": 0,
+      "phase": "native_python_fixture_generation",
+      "error": "DeserializationError:Failed to deserialize JSON",
+      "cause": "SSlibKey.from_dict consumes input dict fields; original shared public key definitions were mutated.",
+      "correction": "Deep-copy key definitions before reference-library deserialization; qualify Process.Start name in fixture child helper.",
+      "raw_controller_report": {
+        "schema": "gf-stage11-controller/1",
+        "contract": "gf-self-update/1",
+        "entry_head": "2cf5a8fb8addb94da4050667dc8af16d71e413b1",
+        "status": "failed",
+        "product_built": false,
+        "product_executed": false,
+        "old_suites_reexecuted": false,
+        "physical_tests": 0,
+        "operational_G2_closed": false,
+        "artifacts_uploaded": 0,
+        "new_production_keys": false,
+        "controller_error": "DeserializationError:Failed to deserialize JSON"
+      }
+    }
+  ],
+  "operational_G2_closed": false,
+  "stage12_started": false
+}
