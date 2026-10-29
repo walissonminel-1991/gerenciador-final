@@ -1,0 +1,134 @@
+// Uses the existing stage2 real fixture journal. No updater or GF product execution.
+using System.Diagnostics;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal static class M2RecoveryTests
+{
+    private static readonly List<object> tests=[];
+    private static int failures;
+    private static async Task Check(string id,Func<Task> action)
+    {
+        try{await action();tests.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception e){failures++;tests.Add(new{id,status="failed",error=e.ToString()});Console.WriteLine("FAIL "+id+" "+e);}
+    }
+    private static void Refuse(Action a,string code)
+    {
+        try{a();}
+        catch(Rejected e) when(e.Code==code){return;}
+        throw new InvalidDataException("M2_UNEXPECTED_JOURNAL_ACCEPTANCE:"+code);
+    }
+    private static async Task<int> CutChild(string[] args)
+    {
+        if(args.Length!=3)return 2;
+        string root=args[1];
+        FixtureSandbox.RequireRoot(root); // Only a marked, isolated temporary fixture.
+        BundleRef candidate=StateCodec.Decode<BundleRef>(Convert.FromBase64String(args[2]));
+        using var session=new FixtureSession(root);
+        var state=session.Store.Load().Record;
+        var cycle=new CycleClock(TimeProvider.System,StateCodec.Observed(state.Trust));
+        session.Begin(candidate,cycle,DateTimeOffset.UtcNow+TimeSpan.FromHours(1),true,point=>{
+            if(point=="selected-persisted")
+            {
+                Console.WriteLine("M2-CUT-AT-SELECTED");
+                Console.Out.Flush();
+                Thread.Sleep(Timeout.Infinite); // Parent kills only this owned inert child.
+            }
+        });
+        return 0;
+    }
+    private static async Task KillAtSelected(StateCase fixture)
+    {
+        string exe=Environment.ProcessPath??throw new InvalidDataException("M2_APPHOST_REQUIRED");
+        Require(!Path.GetFileNameWithoutExtension(exe).Equals("dotnet",StringComparison.OrdinalIgnoreCase),
+            "M2_APPHOST_REQUIRED");
+        var psi=new ProcessStartInfo(exe){UseShellExecute=false,RedirectStandardOutput=true,
+            RedirectStandardError=true,CreateNoWindow=true};
+        foreach(var arg in new[]{"--m2-cut-child",fixture.Root,
+            Convert.ToBase64String(StateCodec.Encode(fixture.Candidate))})psi.ArgumentList.Add(arg);
+        using var child=Process.Start(psi)??throw new InvalidDataException("M2_CUT_CHILD_START");
+        try
+        {
+            var marker=await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(15));
+            Require(marker=="M2-CUT-AT-SELECTED","M2_UNEXPECTED_CUT_POINT");
+            Require(!child.HasExited,"M2_CUT_CHILD_EXITED");
+        }
+        finally
+        {
+            if(!child.HasExited){child.Kill(true);await child.WaitForExitAsync();}
+        }
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length>0 && args[0]=="--m2-cut-child")return await CutChild(args);
+        if(args.Length!=2 || args[0]!="--report")return 2;
+        string suite=Path.Combine(Path.GetTempPath(),"gf-u2-m2-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Check("M2-JOURNAL-NONCE-FAILS-CLOSED",()=>{
+                using var fixture=new StateCase(suite);
+                var selected=fixture.Begin();
+                var tx=selected.Transaction!;
+                using(var s=new FixtureSession(fixture.Root))
+                {
+                    Refuse(()=>s.Confirm(new FixtureReadiness(tx.Id,new string('0',32),
+                        fixture.Candidate.Sha256)),"READINESS_BINDING");
+                    Require(s.Store.Load().Record.Transaction?.Phase=="selected","M2_NONCE_CHANGED_SELECTION");
+                    var recovered=s.Recover();
+                    Require(recovered.Confirmed==fixture.Old &&
+                        recovered.Trust.ApprovedSequence==2 &&
+                        recovered.Transaction?.Phase=="rolled_back","M2_BAD_NONCE_ROLLBACK");
+                }
+                fixture.Preserved();
+                return Task.CompletedTask;
+            });
+            await Check("M2-JOURNAL-CONFIRM-EXACT-RECEIPT",()=>{
+                using var fixture=new StateCase(suite);
+                var selected=fixture.Begin();
+                var tx=selected.Transaction!;
+                using(var s=new FixtureSession(fixture.Root))
+                {
+                    var confirmed=s.Confirm(new FixtureReadiness(tx.Id,tx.Nonce,
+                        fixture.Candidate.Sha256));
+                    Require(confirmed.Confirmed==fixture.Candidate &&
+                        confirmed.Transaction?.Phase=="confirmed","M2_NOT_CONFIRMED");
+                    Require(s.SelectionForFixtureInspectionOnly()==fixture.Candidate,
+                        "M2_NOT_SELECTED");
+                }
+                fixture.Preserved();
+                return Task.CompletedTask;
+            });
+            await Check("M2-JOURNAL-KILLED-CHILD-ROLLBACK",async()=>{
+                using var fixture=new StateCase(suite);
+                await KillAtSelected(fixture);
+                using(var resumed=new FixtureSession(fixture.Root))
+                {
+                    Require(resumed.Store.Load().Record.Transaction?.Phase=="selected",
+                        "M2_NO_DURABLE_SELECTED_STATE");
+                    var recovered=resumed.Recover();
+                    Require(recovered.Confirmed==fixture.Old &&
+                        recovered.Transaction?.Phase=="rolled_back" &&
+                        recovered.Trust.ApprovedSequence==2,"M2_POST_CRASH_RECOVERY");
+                    Require(resumed.SelectionForFixtureInspectionOnly()==fixture.Old,
+                        "M2_WRONG_POST_CRASH_SELECTOR");
+                }
+                fixture.Preserved();
+            });
+        }
+        finally{Directory.Delete(suite,true);}
+        var report=new{
+            schema=1,phase="M2-persistent-fixture",fixture_only=true,
+            passed=tests.Count-failures,failed=failures,tests,
+            operational_gates_closed=0,uses_existing_stage2_journal=true,
+            killed_process_recovery_executed=tests.Any(x=>JsonSerializer.SerializeToElement(x)
+                .GetProperty("id").GetString()=="M2-JOURNAL-KILLED-CHILD-ROLLBACK"),
+            simulated_power_loss=false,window_ready_not_bound_to_journal=true,
+            product_built=false,product_executed=false,hardware_failure_tested=false};
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("M2_STATE_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failures==0?0:1;
+    }
+}
