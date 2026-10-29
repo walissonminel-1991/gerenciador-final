@@ -20,9 +20,9 @@ internal static class M2RecoveryTests
         catch(Rejected e) when(e.Code==code){return;}
         throw new InvalidDataException("M2_UNEXPECTED_JOURNAL_ACCEPTANCE:"+code);
     }
-    private static async Task<int> CutChild(string[] args)
+    private static Task<int> CutChild(string[] args)
     {
-        if(args.Length!=3)return 2;
+        if(args.Length!=3)return Task.FromResult(2);
         string root=args[1];
         FixtureSandbox.RequireRoot(root); // Only a marked, isolated temporary fixture.
         BundleRef candidate=StateCodec.Decode<BundleRef>(Convert.FromBase64String(args[2]));
@@ -37,7 +37,7 @@ internal static class M2RecoveryTests
                 Thread.Sleep(Timeout.Infinite); // Parent kills only this owned inert child.
             }
         });
-        return 0;
+        return Task.FromResult(0);
     }
     private static async Task KillAtSelected(StateCase fixture)
     {
