@@ -7,7 +7,7 @@
     <StartupObject>GfUpdaterFixture.ComposedTests</StartupObject>
     <IsPackable>false</IsPackable><IsPublishable>false</IsPublishable>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <NuGetLockFilePath>../packages.lock.json</NuGetLockFilePath>
+    <NuGetLockFilePath>../stage11/packages.lock.json</NuGetLockFilePath>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../src/*.cs.txt" />
@@ -16,12 +16,15 @@
     <Compile Include="../stage8/src/TufAttempt.cs.txt" />
     <Compile Include="../stage11/src/TrustFixtureProof.cs.txt" />
     <Compile Include="../stage11/src/DurableTrust.cs.txt" />
+    <Compile Include="$(Stage8Source)/src/Tuf/**/*.cs" />
     <Compile Include="../m3-g1-preselect/G1Preselect.cs.txt" />
     <Compile Include="../m3-g1-transaction/G1TransactionModel.cs.txt" />
     <Compile Include="../m3-g1-ack/G1AckFixture.cs.txt" />
     <Compile Include="ComposedCheckpoint.cs.txt" />
     <Compile Include="ComposedTests.cs.txt" />
-    <PackageReference Include="Tuf" Version="[1.1.1]" />
     <PackageReference Include="BouncyCastle.Cryptography" Version="[2.7.0]" />
   </ItemGroup>
+  <Target Name="RequirePinnedFixtureSource" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(Stage8Source)' == ''" Text="Build only using verified Stage8 source outside repository." />
+  </Target>
 </Project>
