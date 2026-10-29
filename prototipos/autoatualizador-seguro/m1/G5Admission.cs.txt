@@ -1,0 +1,62 @@
+// M1: isolated, fail-closed admission check. Not a Gerenciador Final updater.
+using System.Diagnostics;
+using System.IO.Pipes;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using static GfUpdaterFixture.PipeFrames;
+
+namespace GfUpdaterFixture;
+
+internal sealed record G5Trust(
+    string ImagePath, string ExecutableSha256, int ChildPid,
+    string UserSid, int SessionId, bool Elevated, string Transaction, string Nonce);
+
+[SupportedOSPlatform("windows")]
+internal sealed class G5Admission
+{
+    private readonly G5Trust trust;
+    private readonly Stopwatch timer = Stopwatch.StartNew();
+    private readonly TimeSpan limit;
+    private bool accepted;
+
+    internal G5Admission(G5Trust trust, TimeSpan limit)
+    {
+        Check(limit > TimeSpan.Zero && limit <= TimeSpan.FromMinutes(2), "M1_BAD_DEADLINE");
+        Check(!trust.Elevated, "M1_ELEVATED_CONTEXT");
+        Check(trust.ChildPid > 0 && trust.SessionId >= 0 &&
+            !string.IsNullOrWhiteSpace(trust.UserSid), "M1_BAD_IDENTITY");
+        Check(Path.IsPathFullyQualified(trust.ImagePath) &&
+            Path.GetExtension(trust.ImagePath).Equals(".exe", StringComparison.OrdinalIgnoreCase) &&
+            !Path.GetFileNameWithoutExtension(trust.ImagePath).Equals("dotnet", StringComparison.OrdinalIgnoreCase),
+            "M1_BAD_IMAGE");
+        Check(Hex(trust.ExecutableSha256, 64) && Hex(trust.Transaction, 32) && Hex(trust.Nonce, 64),
+            "M1_BAD_BINDING");
+        this.trust = trust;
+        this.limit = limit;
+    }
+
+    // Only call after a real pipe connection, with the process handle retained by the creator.
+    // Neither process arguments nor received frames supply the observed OS identity.
+    internal void Accept(NamedPipeServerStream server, Process expectedChild, ProbeFrame response)
+    {
+        Check(!accepted, "M1_READY_REPLAY");
+        Check(timer.Elapsed < limit, "M1_DEADLINE");
+        Check(server.IsConnected && !expectedChild.HasExited && expectedChild.Id == trust.ChildPid,
+            "M1_EXPECTED_PROCESS");
+        PeerIdentity.Verify(server, true, expectedChild, trust.ImagePath);
+        var facts = PeerIdentity.Facts(expectedChild);
+        Check(facts.Sid == trust.UserSid && facts.Session == trust.SessionId &&
+            facts.Elevated == trust.Elevated, "M1_USER_SESSION");
+        Check(Path.GetFullPath(facts.Image).Equals(Path.GetFullPath(trust.ImagePath),
+            StringComparison.OrdinalIgnoreCase), "M1_IMAGE");
+        // Test fixture identity: hash of the actual executable at the kernel-observed image path.
+        // A production adapter must replace this with its already-verified, pinned bundle identity.
+        using var file = new FileStream(facts.Image, FileMode.Open, FileAccess.Read,
+            FileShare.Read | FileShare.Delete, 65536, FileOptions.SequentialScan);
+        var actual = Convert.ToHexStringLower(SHA256.HashData(file));
+        Check(actual == trust.ExecutableSha256, "M1_INSTALLATION_ID");
+        Check(timer.Elapsed < limit, "M1_DEADLINE");
+        Bound(response, "ready", trust.Transaction, trust.Nonce);
+        accepted = true;
+    }
+}
