@@ -1,0 +1,94 @@
+// M3-pending: read-only forensic TRIAGE of Stage2 fixture pending generations.
+// No promotion, deletion, restore, trust approval, or operational updater path.
+using System.Text.RegularExpressions;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal enum PendingKind
+{
+    NoPending, PlausibleSealedUncommitted, MalformedOrTruncated,
+    ForeignOrStale, UnknownLedgerEntries, MultiplePending, InvalidCommittedPrefix
+}
+internal sealed record PendingAssessment(PendingKind Kind,int CommittedGenerations,
+    int PendingCount,bool Blocked,bool Mutated);
+
+// A structurally sound checksum is NOT a signature, consent, trusted root,
+// durable commit, or independent freshness witness. Never authorize recovery.
+internal static class PendingInspection
+{
+    internal static PendingAssessment Inspect(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        using var lease=InstallationLease.Acquire(root);
+        string ledger=Path.Combine(root,"ledger");
+        var files=Directory.GetFiles(ledger);
+        var directories=Directory.GetDirectories(ledger);
+        var committed=files.Where(x=>Regex.IsMatch(Path.GetFileName(x),
+            @"^[0-9]{16}\.fixture\.json$",RegexOptions.CultureInvariant))
+            .OrderBy(Path.GetFileName,StringComparer.Ordinal).ToArray();
+        var pending=files.Where(x=>Regex.IsMatch(Path.GetFileName(x),
+            @"^pending-[0-9a-f]{32}\.fixture$",RegexOptions.CultureInvariant)).ToArray();
+        PendingAssessment Result(PendingKind type)=>new(type,committed.Length,pending.Length,true,false);
+        if(directories.Length!=0 || files.Length!=committed.Length+pending.Length)
+            return Result(PendingKind.UnknownLedgerEntries);
+        if(committed.Length is 0 or >64 || files.Length>65)
+            return Result(PendingKind.InvalidCommittedPrefix);
+        if(pending.Length>1)return Result(PendingKind.MultiplePending);
+
+        StateRecord? prior=null;
+        string previousDigest=new('0',64);
+        var txIds=new HashSet<string>(StringComparer.Ordinal);
+        var nonces=new HashSet<string>(StringComparer.Ordinal);
+        try
+        {
+            for(int i=0;i<committed.Length;i++)
+            {
+                string exact=(i+1).ToString("D16",
+                    System.Globalization.CultureInfo.InvariantCulture)+".fixture.json";
+                if(Path.GetFileName(committed[i])!=exact)
+                    return Result(PendingKind.InvalidCommittedPrefix);
+                byte[] bytes=PersistentState.ReadFixtureFile(root,committed[i]);
+                var current=StateCodec.Unwrap(bytes);
+                if(current.Generation!=i+1)return Result(PendingKind.InvalidCommittedPrefix);
+                if(prior is null)
+                {
+                    if(current.Generation!=1 || current.PreviousDigest!=previousDigest ||
+                        current.Transaction is not null)
+                        return Result(PendingKind.InvalidCommittedPrefix);
+                }
+                else StateCodec.Follows(prior,current,previousDigest);
+                if(current.Transaction is {Phase:"intent"} tx &&
+                    prior?.Transaction?.Id!=tx.Id)
+                {
+                    if(!txIds.Add(tx.Id)||!nonces.Add(tx.Nonce))
+                        return Result(PendingKind.InvalidCommittedPrefix);
+                }
+                previousDigest=Hash(bytes);prior=current;
+            }
+        }
+        catch(Exception e) when(e is Rejected or IOException or UnauthorizedAccessException
+            or System.ComponentModel.Win32Exception or InvalidDataException)
+        {return Result(PendingKind.InvalidCommittedPrefix);}
+
+        if(pending.Length==0)return Result(PendingKind.NoPending);
+        try
+        {
+            byte[] data=PersistentState.ReadFixtureFile(root,pending[0]);
+            StateRecord next;
+            try{next=StateCodec.Unwrap(data);}
+            catch(Rejected){return Result(PendingKind.MalformedOrTruncated);}
+            // The prefix and the sealed next generation must match. This is
+            // a plausibility classification only; no activation follows it.
+            if(next.Generation!=prior!.Generation+1 ||
+                next.PreviousDigest!=previousDigest)
+                return Result(PendingKind.ForeignOrStale);
+            try{StateCodec.Follows(prior,next,previousDigest);}
+            catch(Rejected){return Result(PendingKind.ForeignOrStale);}
+            return Result(PendingKind.PlausibleSealedUncommitted);
+        }
+        catch(Exception e) when(e is Rejected or IOException or UnauthorizedAccessException
+            or System.ComponentModel.Win32Exception or InvalidDataException)
+        {return Result(PendingKind.MalformedOrTruncated);}
+    }
+}
