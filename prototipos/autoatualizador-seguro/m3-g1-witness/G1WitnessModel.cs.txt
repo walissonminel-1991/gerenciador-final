@@ -1,0 +1,119 @@
+// G1 — in-memory independent-witness MODEL ONLY.
+// NO network, signer, secret, certificate, persisted anchor or updater integration.
+// Trust of IWitnessModel is an EXPLICIT unproven assumption, never inferred from fields.
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed record G1Claim(string InstallationId,long Generation,long ApprovedSequence,
+    string Digest,BundleRef Selector);
+internal sealed record G1Head(string InstallationId,long Generation,long ApprovedSequence,
+    string Digest,BundleRef Selector);
+internal sealed record G1Challenge(string InstallationId,string Nonce);
+internal sealed record G1Reply(string InstallationId,string Nonce,G1Head Head);
+
+// The interface denotes an *assumed authenticated independent source*.
+// No cryptographic authentication is implemented. A malicious implementation
+// can lie and nothing in this model can discover that fact.
+internal interface IG1WitnessModel
+{
+    G1Reply? Query(G1Challenge challenge);
+}
+
+internal static class G1LocalEvidence
+{
+    internal static G1Claim Capture(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        using var session=new FixtureSession(root);
+        var loaded=session.Store.Load();
+        var selector=session.Files.ReadSelector(loaded.Record.InstallationId).Bundle;
+        // Selection must match the journal phase. A valid local checksum alone
+        // cannot justify accepting an arbitrary selector.
+        var tx=loaded.Record.Transaction;
+        BundleRef expected=tx?.Phase switch {
+            "selected" or "confirmed" => tx.Candidate,
+            "intent" or "rolled_back" => tx.Previous,
+            "rollback_intent" => selector, // transition may be between either
+            _ => loaded.Record.Confirmed
+        };
+        Require(selector==expected,"G1_LOCAL_SELECTOR_MISMATCH");
+        return new(loaded.Record.InstallationId,loaded.Record.Generation,
+            loaded.Record.Trust.ApprovedSequence,loaded.Digest,selector);
+    }
+}
+
+internal sealed class G1TrustedMemoryWitness : IG1WitnessModel
+{
+    private readonly Dictionary<string,G1Head> heads=new(StringComparer.Ordinal);
+    internal void Observe(G1Claim claim)
+    {
+        Require(claim.InstallationId is {Length:32} &&
+            claim.Generation>0 && claim.ApprovedSequence>0 &&
+            claim.Digest is {Length:64},"G1_BAD_OBSERVATION");
+        var next=new G1Head(claim.InstallationId,claim.Generation,
+            claim.ApprovedSequence,claim.Digest,claim.Selector);
+        if(heads.TryGetValue(claim.InstallationId,out var old))
+        {
+            Require(next.Generation>=old.Generation &&
+                next.ApprovedSequence>=old.ApprovedSequence,
+                "G1_WITNESS_REGRESSION");
+            Require(next.Generation!=old.Generation ||
+                (next.Digest==old.Digest &&
+                next.ApprovedSequence==old.ApprovedSequence &&
+                next.Selector==old.Selector),"G1_WITNESS_EQUIVOCATION");
+        }
+        heads[claim.InstallationId]=next;
+    }
+    public G1Reply? Query(G1Challenge challenge)
+    {
+        if(!heads.TryGetValue(challenge.InstallationId,out var head))return null;
+        return new(challenge.InstallationId,challenge.Nonce,head);
+    }
+}
+
+internal static class G1WitnessVerifier
+{
+    internal static G1Reply Obtain(IG1WitnessModel witness,G1Challenge challenge)
+    {
+        Require(challenge.InstallationId is {Length:32} &&
+            challenge.Nonce is {Length:32} &&
+            challenge.Nonce.All(Uri.IsHexDigit),"G1_BAD_CHALLENGE");
+        // Null = unavailable or not registered; never fallback to cached local.
+        G1Reply? reply;
+        try{reply=witness.Query(challenge);}
+        catch(Exception e) when(e is IOException or TimeoutException)
+        {throw new Rejected("G1_WITNESS_UNAVAILABLE");}
+        Require(reply is not null,"G1_WITNESS_UNAVAILABLE");
+        Require(reply.InstallationId==challenge.InstallationId &&
+            reply.Nonce==challenge.Nonce &&
+            reply.Head.InstallationId==challenge.InstallationId,
+            "G1_REPLY_REPLAY_OR_IDENTITY");
+        return reply;
+    }
+    internal static bool IsEqualButNeverAuthorizes(G1Claim local,
+        G1Challenge challenge,G1Reply reply)
+    {
+        Require(local.InstallationId==challenge.InstallationId,
+            "G1_LOCAL_INSTALLATION_MISMATCH");
+        Require(reply.InstallationId==challenge.InstallationId &&
+            reply.Nonce==challenge.Nonce &&
+            reply.Head.InstallationId==challenge.InstallationId,
+            "G1_REPLY_REPLAY_OR_IDENTITY");
+        G1Head head=reply.Head;
+        if(local.Generation<head.Generation ||
+            local.ApprovedSequence<head.ApprovedSequence)
+            throw new Rejected("G1_LOCAL_ROLLBACK");
+        Require(local.Generation==head.Generation &&
+            local.ApprovedSequence==head.ApprovedSequence,
+            "G1_WITNESS_BEHIND");
+        Require(local.Digest==head.Digest && local.Selector==head.Selector,
+            "G1_LOCAL_FORK");
+        return true; // Equality of model state; NEVER consent or update permission.
+    }
+    internal static bool Check(G1Claim local,IG1WitnessModel witness,string nonce)
+    {
+        var challenge=new G1Challenge(local.InstallationId,nonce);
+        return IsEqualButNeverAuthorizes(local,challenge,Obtain(witness,challenge));
+    }
+}
