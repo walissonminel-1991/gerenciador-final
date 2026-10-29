@@ -23,9 +23,11 @@ internal static class L4Assert
 }
 internal sealed record L4TufProjection(string Repository,string TrustViewDigest,
     string RootDigest,string TimestampDigest,string SnapshotDigest,
-    string TargetsDigest,string ZipDigest,string CandidateDigest);
+    string TargetsDigest,string ZipDigest,string CandidateDigest,
+    string ValidatedStage3BytesDigest="");
 internal sealed record L4CompositeProjection(string Repository,string Installation,
-    string TxId,string Stage2IntentDigest,string CandidateDigest,string TrustViewDigest);
+    string TxId,string Stage2IntentDigest,string CandidateDigest,string TrustViewDigest,
+    string PreparedOperationDigest="",string CompositeCheckpointBytesDigest="");
 
 // Caller-supplied representations of a Stage3-validated view. THIS MODEL DOES
 // NOT authenticate their provenance or signatures. Stored bytes are copied to
@@ -72,6 +74,12 @@ internal static class L4Claim
             c.TrustViewDigest==t.TrustViewDigest &&
             L4Assert.Hex64(c.CandidateDigest) &&
             L4Assert.Hex64(c.Stage2IntentDigest) &&
+            (t.ValidatedStage3BytesDigest=="" ||
+                L4Assert.Hex64(t.ValidatedStage3BytesDigest)) &&
+            (c.PreparedOperationDigest=="" ||
+                L4Assert.Hex64(c.PreparedOperationDigest)) &&
+            (c.CompositeCheckpointBytesDigest=="" ||
+                L4Assert.Hex64(c.CompositeCheckpointBytesDigest)) &&
             new[]{t.RootDigest,t.TimestampDigest,t.SnapshotDigest,
                 t.TargetsDigest,t.ZipDigest,t.TrustViewDigest}.All(L4Assert.Hex64),
             "L4_INTENT_EVIDENCE_CROSS_BINDING");
