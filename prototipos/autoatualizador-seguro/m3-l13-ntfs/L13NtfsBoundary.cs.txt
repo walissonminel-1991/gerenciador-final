@@ -1,0 +1,163 @@
+// L13 fixture-only Windows/NTFS study. NO updater, installer, elevation,
+// shell, download, service, API, release or permission for product execution.
+// Checks are diagnostic only; never return a selection/installation capability.
+using System.Security.AccessControl;
+using System.Security.Principal;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal enum L13Observation { InertFileObservedBlocked, PendingUnknownBlocked }
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L13NtfsBoundary
+{
+    internal const string Name = "a1b2c3d4.fixture.txt";
+    internal const string Relative = "staging/" + Name;
+    internal static string StageDir(string root) => Path.Combine(root, "staging");
+    internal static string StagePath(string root) => Path.Combine(StageDir(root), Name);
+
+    internal static void CheckRelative(string relative, bool requestElevation = false)
+    {
+        Require(!requestElevation, "L13_ELEVATION_FORBIDDEN");
+        Require(relative == Relative && Regex.IsMatch(relative,
+            @"^staging/[a-f0-9]{8}[.]fixture[.]txt$", RegexOptions.CultureInvariant),
+            "L13_SCOPE_OR_NAME");
+    }
+
+    internal static L13Observation Inspect(string root, string relative = Relative,
+        bool requestElevation = false)
+    {
+        FixtureSandbox.RequireRoot(root);
+        CheckRelative(relative, requestElevation);
+        string full = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+        string owned = Path.GetFullPath(root);
+        Require(full.StartsWith(owned + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase), "L13_SCOPE_OR_NAME");
+        // Preflight is NOT the security boundary: the WindowsFileGuard below
+        // pins the full ancestor chain and opens the target NOFOLLOW.
+        foreach (var component in new[] { StageDir(root), full })
+        {
+            var attrs = File.GetAttributes(component);
+            Require((attrs & FileAttributes.ReparsePoint) == 0, "L13_REPARSE");
+        }
+        using var handle = WindowsFileGuard.Open(root, full);
+        byte[] bytes = handle.Read(1024);
+        Require(bytes.AsSpan().SequenceEqual(Encoding.UTF8.GetBytes(
+            "L13-INERT-NO-EXE-NO-DLL\n")), "L13_DATA_CHANGED");
+        handle.Recheck();
+        return L13Observation.InertFileObservedBlocked;
+    }
+
+    internal static void CheckAclModel(bool broadWrite)
+    {
+        using var token = WindowsIdentity.GetCurrent();
+        string sid = token.User?.Value ?? throw new Rejected("L13_TOKEN_MISSING");
+        string descriptor = broadWrite ? "O:SYG:SYD:(A;;GA;;;WD)" : "O:SYG:SYD:(A;;GA;;;SY)";
+        var sd = new RawSecurityDescriptor(descriptor);
+        WindowsFileGuard.ValidateDescriptor(sd, sid);
+    }
+}
+
+// A separate, inert local receipt; its persistence is not a true atomic update
+// of NTFS, user data, TUF epoch, selector, and an updater process.
+// Never writes to any installed GF path. Does not promote or confirm.
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal sealed record L13PendingRecord(string Schema, string TxId, string Digest, string Phase);
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal sealed class L13PendingJournal(string root)
+{
+    private string Receipt => Path.Combine(root, "l13-pending.fixture.json");
+    private string Unknown => Path.Combine(root, "l13-unknown.fixture.json");
+
+    private void Scope()
+    {
+        FixtureSandbox.RequireRoot(root);
+        Require(Path.GetFullPath(root).StartsWith(Path.GetFullPath(Path.GetTempPath()),
+            StringComparison.OrdinalIgnoreCase), "L13_NOT_TEMP");
+    }
+
+    private static void Validate(L13PendingRecord rec)
+    {
+        Require(rec.Schema == "gf-l13-pending-inert/1" &&
+            Regex.IsMatch(rec.TxId, "^[a-f0-9]{8}$", RegexOptions.CultureInvariant) &&
+            Hex(rec.Digest, 64) &&
+            rec.Phase is "pending" or "unknown", "L13_RECEIPT_INVALID");
+    }
+
+    private static void DurableCreate(string path, L13PendingRecord record)
+    {
+        byte[] encoded = JsonSerializer.SerializeToUtf8Bytes(record);
+        using var writer = new FileStream(path, FileMode.CreateNew, FileAccess.Write,
+            FileShare.None, 4096, FileOptions.WriteThrough);
+        writer.Write(encoded);
+        writer.Flush(true);
+    }
+
+    private static L13PendingRecord ReadFile(string path)
+    {
+        byte[] bytes = File.ReadAllBytes(path);
+        Require(bytes.Length is > 0 and <= 1024, "L13_RECEIPT_SIZE");
+        using var _ = Json(bytes, 1024);
+        var result = JsonSerializer.Deserialize<L13PendingRecord>(bytes)
+            ?? throw new Rejected("L13_RECEIPT_INVALID");
+        Validate(result);
+        return result;
+    }
+
+    internal L13PendingRecord Prepare(string tx, string digest)
+    {
+        Scope();
+        var proposed = new L13PendingRecord("gf-l13-pending-inert/1", tx, digest, "pending");
+        Validate(proposed);
+        if (!File.Exists(Receipt))
+        {
+            try { DurableCreate(Receipt, proposed); }
+            catch (IOException) when (File.Exists(Receipt)) { /* concurrent creator */ }
+        }
+        var saved = ReadFile(Receipt);
+        Require(saved == proposed, "L13_PENDING_CONFLICT");
+        return saved;
+    }
+
+    internal L13PendingRecord MarkUnknown(string tx, string digest)
+    {
+        Scope();
+        var existing = ReadFile(Receipt);
+        Require(existing.TxId == tx && existing.Digest == digest,
+            "L13_UNKNOWN_WRONG_INTENT");
+        var proposed = existing with { Phase = "unknown" };
+        if (!File.Exists(Unknown))
+        {
+            try { DurableCreate(Unknown, proposed); }
+            catch (IOException) when (File.Exists(Unknown)) { }
+        }
+        Require(ReadFile(Unknown) == proposed, "L13_UNKNOWN_CONFLICT");
+        return proposed;
+    }
+
+    internal L13PendingRecord ReopenBlocked()
+    {
+        Scope();
+        var saved = ReadFile(Receipt);
+        Require(saved.Phase == "pending", "L13_MISSING_INTENT");
+        if (File.Exists(Unknown))
+        {
+            var unknown = ReadFile(Unknown);
+            Require(unknown.TxId == saved.TxId && unknown.Digest == saved.Digest &&
+                unknown.Phase == "unknown", "L13_UNKNOWN_FORK");
+            return unknown;
+        }
+        return saved; // Always pending/unknown, NEVER authorized
+    }
+
+    internal L13Observation Reconcile()
+    {
+        _ = ReopenBlocked();
+        return L13Observation.PendingUnknownBlocked;
+    }
+}

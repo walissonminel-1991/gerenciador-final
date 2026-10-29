@@ -1,0 +1,64 @@
+name: M3 L13 — NTFS escrita e UNKNOWN (somente fixtures)
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-l13-ntfs/**'
+      - '.github/workflows/autoatualizador-m3-l13-ntfs-inerte.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-l13-ntfs-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  ntfs-fixture-negative-tests:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Checkout read-only sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK .NET fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Compilar apenas projeto L13 e executar negativos em TEMP
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-l13-ntfs/L13Ntfs.csproj'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-m3-l13-artifacts'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-l13-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'L13_SDK_MISMATCH' }
+          dotnet restore $project "-p:ArtifactsPath=$out" --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exes=@(Get-ChildItem $out -Filter 'GF.Updater.M3.L13NtfsTests.exe' -Recurse -File)
+          if ($exes.Count -ne 1) { throw 'L13_TEST_RUNNER_NOT_UNIQUE' }
+          & $exes[0].FullName --report $report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.passed -ne 21 -or $r.failed -ne 0 -or
+              !$r.fixture_only -or !$r.real_windows_ntfs_guard_exercised -or
+              !$r.real_symlink_reparse_tested -or !$r.real_hardlink_tested -or
+              !$r.acl_sddl_policy_exercised -or !$r.late_io_after_timeout_observed -or
+              !$r.unknown_reopened_without_promotion -or
+              !$r.old_selector_and_markers_preserved -or
+              $r.real_windows_acl_mutation_tested -or $r.unprivileged_token_verified -or
+              $r.actual_program_files_write_tested -or $r.real_junction_tested -or
+              $r.actual_hard_power_loss_tested -or $r.atomic_full_install_tested -or
+              $r.actual_update_or_rollback_executed -or
+              $r.product_built -or $r.product_executed -or
+              $r.selected -or $r.confirmed -or $r.operational_gates_closed -ne 0) {
+            throw 'L13_FALSE_OPERATIONAL_SECURITY_CLAIM'
+          }
+          $product=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leak=@($product.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-l13-ntfs' })
+          if ($leak.Count -ne 0) { throw 'L13_PRODUCT_COMPILE_LEAK' }
+          "L13: 21 Windows NTFS fixture cases; no product activation, actual ACL mutation, unprivileged token or power loss. All gates BLOCKED." >> $env:GITHUB_STEP_SUMMARY
+# No WORK, deployment, real installer, secrets, PR edits, releases, Cloudflare or telemetry.

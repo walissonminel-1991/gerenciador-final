@@ -1,0 +1,8 @@
+# L13 — NTFS boundary / recovery: inerte
+Test runner only. Windows temporary GF-U2 fixture files are the only files created or modified. Reuses the already experimental WindowsFileGuard to pin NTFS handles, reject reparse/hardlinks, and inspect ACL SDDL. A staging-only pure path gate rejects all paths other than one fixed inert text fixture. **No real GF update or installation**; no elevation; no network; no WinGet; no service; no access to personal files or installed GF paths.
+
+Actual Windows runner tests: NTFS handle identity; symbolic links, hard links; rename while a handle is pinned; mutation after release; read-only file; conservative receipt state, reopening, and late I/O after a timed-out wait. The ACL tests use real Windows security descriptor parsing over synthetic trusted/untrusted SDDL, **not actual ACL mutation**. Privilege tests reject requested elevation but **do not establish an unprivileged runner token**. Junction creation, Program Files write, kernel power loss, durable atomic selector promotion, live-update rollback, and NTFS crash guarantees **remain untested**.
+
+UNKNOWN is deliberately a blocked state even if the local asynchronous fixture write completes after the waiting caller times out. Flush(true) on a single receipt does not prove storage survival across physical power loss. No result authorizes READY, select, confirm, installation or recovery.
+
+Standalone project: L13Ntfs.csproj, sources explicit .cs.txt; cannot build into GF executable. Output report includes flags that explicitly assert untested properties false. All G1–G8 operational gates remain BLOCKED (0/8). No WORK.

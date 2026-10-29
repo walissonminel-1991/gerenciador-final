@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultItems>false</EnableDefaultItems><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>GF.Updater.M3.L13NtfsTests</AssemblyName>
+    <StartupObject>GfUpdaterFixture.L13NtfsTests</StartupObject>
+    <IsPackable>false</IsPackable><IsPublishable>false</IsPublishable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../src/StrictMetadata.cs.txt;../src/PersistentState.cs.txt;../src/TransactionPrototype.cs.txt;../src/WindowsFileGuard.cs.txt;../src/CycleClock.cs.txt;../src/ZipInspection.cs.txt" />
+    <Compile Include="../m3-composed/InertComposedCase.cs.txt" />
+    <Compile Include="L13NtfsBoundary.cs.txt;L13NtfsTests.cs.txt" />
+  </ItemGroup>
+</Project>

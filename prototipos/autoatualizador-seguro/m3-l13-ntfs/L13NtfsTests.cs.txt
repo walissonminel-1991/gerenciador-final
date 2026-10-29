@@ -1,0 +1,289 @@
+// Only disposable GF-U2 fixture files in Windows runner TEMP. All tests
+// preserve old selector and user-data marker; no real installation or GF start.
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L13NtfsTests
+{
+    private static readonly List<object> Results = [];
+    private static int failed;
+    private static string suite = "";
+    private const string Bytes = "L13-INERT-NO-EXE-NO-DLL\n";
+    private static readonly string Digest = Hash(Encoding.UTF8.GetBytes(Bytes));
+    private const string Tx = "a1b2c3d4";
+    private static bool reparseReal, hardlinkReal, aclDescriptorReal, guardedIdentityReal,
+        lateWriteObserved, journalReopened, previousKept=true;
+
+    private sealed class Scenario : IDisposable
+    {
+        internal readonly InertComposedCase Case = new(suite);
+        internal readonly string Stage;
+        internal readonly string Dir;
+        internal Scenario()
+        {
+            Dir = L13NtfsBoundary.StageDir(Case.Root);
+            Stage = L13NtfsBoundary.StagePath(Case.Root);
+            Directory.CreateDirectory(Dir);
+            File.WriteAllText(Stage, Bytes);
+            Guard();
+        }
+        internal void Guard()
+        {
+            Require(L13NtfsBoundary.Inspect(Case.Root) ==
+                L13Observation.InertFileObservedBlocked, "L13_NORMAL_GUARD");
+        }
+        internal void Preserved()
+        {
+            using var s = new FixtureSession(Case.Root);
+            Require(s.Files.ReadSelector(Case.InstallationId).Bundle == Case.Old &&
+                s.Store.Load().Record.Confirmed == Case.Old &&
+                s.Store.Load().Record.Transaction is null,
+                "L13_OLD_SELECTOR_MODIFIED");
+            Case.Preserved();
+        }
+        public void Dispose() { Preserved(); Case.Dispose(); previousKept = true; }
+    }
+
+    private static void Reject(string reason, Action work)
+    {
+        try { work(); }
+        catch (Rejected e) when (e.Code == reason) { return; }
+        throw new InvalidDataException("L13_UNSAFE_ACCEPTANCE:" + reason);
+    }
+    private static void RejectGuardedLink(Scenario s)
+    {
+        try { _ = L13NtfsBoundary.Inspect(s.Case.Root); }
+        catch (Rejected e) when (e.Code is "L13_REPARSE" or
+            "NTFS_REPARSE_OR_TYPE" or "NTFS_PATH_ALIAS") { return; }
+        throw new InvalidDataException("L13_REPARSE_LINK_ACCEPTED");
+    }
+    private static void Run(string id, Action test)
+    {
+        try { test(); Results.Add(new { id, status="passed" }); Console.WriteLine("PASS "+id); }
+        catch (Exception ex) { failed++; Results.Add(new {id,status="failed",reason=ex.ToString()}); Console.WriteLine("FAIL "+id+" "+ex); }
+    }
+    private static async Task RunAsync(string id, Func<Task> test)
+    {
+        try { await test(); Results.Add(new {id,status="passed"}); Console.WriteLine("PASS "+id); }
+        catch(Exception ex) { failed++; Results.Add(new{id,status="failed",reason=ex.ToString()}); Console.WriteLine("FAIL "+id+" "+ex); }
+    }
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+    [return:MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateHardLinkW(string link, string existing, IntPtr security);
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=2 || args[0]!="--report" || !OperatingSystem.IsWindows()) return 2;
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-l13-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            Run("L13-01-WINDOWS-REAL-NTFS-HANDLE-AND-OLD-SELECTOR",()=>{
+                using var s=new Scenario();
+                using var pin=WindowsFileGuard.Open(s.Case.Root,s.Stage);
+                Require(pin.Read(1024).AsSpan().SequenceEqual(Encoding.UTF8.GetBytes(Bytes)),
+                    "L13_PINNED_BYTES");
+                guardedIdentityReal=true;
+            });
+            Run("L13-02-PATH-TRAVERSAL",()=>{
+                using var s=new Scenario();
+                Reject("L13_SCOPE_OR_NAME",()=>L13NtfsBoundary.Inspect(s.Case.Root,
+                    "../Documents/personal.fixture.txt"));
+            });
+            Run("L13-03-ABSOLUTE-USER-DOCUMENT",()=>{
+                using var s=new Scenario();
+                Reject("L13_SCOPE_OR_NAME",()=>L13NtfsBoundary.Inspect(s.Case.Root,
+                    "C:/Users/Public/Documents/private.fixture.txt"));
+            });
+            Run("L13-04-ALTERNATE-DATA-STREAM",()=>{
+                using var s=new Scenario();
+                Reject("L13_SCOPE_OR_NAME",()=>L13NtfsBoundary.Inspect(s.Case.Root,
+                    L13NtfsBoundary.Relative+":payload"));
+            });
+            Run("L13-05-DEVICE-NAME-AND-EXTRA-PATH",()=>{
+                using var s=new Scenario();
+                Reject("L13_SCOPE_OR_NAME",()=>L13NtfsBoundary.Inspect(s.Case.Root,
+                    "staging/CON.fixture.txt"));
+                Reject("L13_SCOPE_OR_NAME",()=>L13NtfsBoundary.Inspect(s.Case.Root,
+                    "staging/subdir/a1b2c3d4.fixture.txt"));
+            });
+            Run("L13-06-NO-REQUESTED-PRIVILEGE-ESCALATION",()=>{
+                using var s=new Scenario();
+                Reject("L13_ELEVATION_FORBIDDEN",()=>L13NtfsBoundary.Inspect(
+                    s.Case.Root,requestElevation:true));
+            });
+            Run("L13-07-REAL-DIRECTORY-SYMLINK",()=>{
+                using var s=new Scenario();
+                string external=Path.Combine(s.Case.Root,"external.fixture");
+                Directory.CreateDirectory(external);
+                File.WriteAllText(Path.Combine(external,L13NtfsBoundary.Name),Bytes);
+                File.Delete(s.Stage);
+                Directory.Delete(s.Dir);
+                Directory.CreateSymbolicLink(s.Dir,external);
+                Require((File.GetAttributes(s.Dir)&FileAttributes.ReparsePoint)!=0,
+                    "L13_SYMLINK_NOT_CREATED");
+                RejectGuardedLink(s);reparseReal=true;
+            });
+            Run("L13-08-REAL-FILE-SYMLINK",()=>{
+                using var s=new Scenario();
+                string external=Path.Combine(s.Case.Root,"external.fixture.txt");
+                File.WriteAllText(external,Bytes);
+                File.Delete(s.Stage);
+                File.CreateSymbolicLink(s.Stage,external);
+                Require((File.GetAttributes(s.Stage)&FileAttributes.ReparsePoint)!=0,
+                    "L13_FILE_SYMLINK_NOT_CREATED");
+                RejectGuardedLink(s);reparseReal=true;
+            });
+            Run("L13-09-REAL-NTFS-HARDLINK",()=>{
+                using var s=new Scenario();
+                string external=Path.Combine(s.Case.Root,"external.fixture.txt");
+                File.WriteAllText(external,Bytes);
+                File.Delete(s.Stage);
+                if(!CreateHardLinkW(s.Stage,external,IntPtr.Zero))
+                    throw new Win32Exception(Marshal.GetLastWin32Error(),"L13_CREATE_LINK");
+                using var g=WindowsFileGuard.Open(s.Case.Root,s.Dir,true);
+                Reject("NTFS_HARDLINK",()=>{ using var _=WindowsFileGuard.Open(s.Case.Root,s.Stage); });
+                hardlinkReal=true;
+            });
+            Run("L13-10-ACL-UNTRUSTED-WRITER-SDDL-REJECTED",()=>{
+                using var s=new Scenario();
+                Reject("NTFS_BROAD_WRITE",()=>L13NtfsBoundary.CheckAclModel(true));
+                aclDescriptorReal=true;
+            });
+            Run("L13-11-ACL-TRUSTED-OWNER-SDDL-ACCEPTED",()=>{
+                using var s=new Scenario();
+                L13NtfsBoundary.CheckAclModel(false);
+                aclDescriptorReal=true;
+            });
+            Run("L13-12-PIN-PREVENTS-SAME-FILE-RENAME",()=>{
+                using var s=new Scenario();
+                using(var pin=WindowsFileGuard.Open(s.Case.Root,s.Stage))
+                {
+                    bool blocked=false;
+                    try{File.Move(s.Stage,s.Stage+".other");}
+                    catch(IOException){blocked=true;}
+                    catch(UnauthorizedAccessException){blocked=true;}
+                    Require(blocked && File.Exists(s.Stage),"L13_OPEN_HANDLE_DID_NOT_PROTECT_NAME");
+                    pin.Recheck();
+                }
+            });
+            Run("L13-13-REPLACE-AFTER-PIN-RELEASE-REJECTED",()=>{
+                using var s=new Scenario();
+                string oldId;
+                using(var pin=WindowsFileGuard.Open(s.Case.Root,s.Stage)) oldId=pin.Identity;
+                string replacement=Path.Combine(s.Dir,"replacement.fixture.txt");
+                File.WriteAllText(replacement,"MUTATED-INERT-FIXTURE\n");
+                File.Delete(s.Stage);
+                File.Move(replacement,s.Stage);
+                using(var pin=WindowsFileGuard.Open(s.Case.Root,s.Stage))
+                {
+                    Require(pin.Identity!=oldId || Hash(pin.Read(1024))!=Digest,
+                        "L13_STALE_REPLACEMENT_UNDETECTED");
+                }
+                Reject("L13_DATA_CHANGED",()=>L13NtfsBoundary.Inspect(s.Case.Root));
+            });
+            Run("L13-14-MISSING-TARGET-FAILS-CLOSED",()=>{
+                using var s=new Scenario();
+                File.Delete(s.Stage);
+                bool rejected=false;
+                try {_=L13NtfsBoundary.Inspect(s.Case.Root);}
+                catch(FileNotFoundException){rejected=true;}
+                catch(Win32Exception){rejected=true;}
+                Require(rejected && !File.Exists(s.Stage),"L13_MISSING_WAS_CREATED");
+            });
+            Run("L13-15-READONLY-TARGET-DOES-NOT-BECOME-EXECUTABLE",()=>{
+                using var s=new Scenario();
+                File.SetAttributes(s.Stage,FileAttributes.ReadOnly);
+                try{
+                    bool denied=false;
+                    try{File.WriteAllText(s.Stage,"OVERWRITE");}
+                    catch(UnauthorizedAccessException){denied=true;}
+                    catch(IOException){denied=true;}
+                    Require(denied,"L13_READONLY_WRITE_NOT_DENIED");
+                    s.Guard();
+                }finally{File.SetAttributes(s.Stage,FileAttributes.Normal);}
+            });
+            Run("L13-16-JOURNAL-PREPARE-IS-IDEMPOTENT",()=>{
+                using var s=new Scenario();
+                var j=new L13PendingJournal(s.Case.Root);
+                Require(j.Prepare(Tx,Digest)==j.Prepare(Tx,Digest),
+                    "L13_RECEIPT_DUPLICATED");
+                Require(j.Reconcile()==L13Observation.PendingUnknownBlocked,"L13_AUTHORIZED");
+            });
+            Run("L13-17-JOURNAL-CONFLICT-FAIL-CLOSED",()=>{
+                using var s=new Scenario();var j=new L13PendingJournal(s.Case.Root);
+                j.Prepare(Tx,Digest);
+                Reject("L13_PENDING_CONFLICT",()=>j.Prepare("deadbeef",Digest));
+                Reject("L13_PENDING_CONFLICT",()=>j.Prepare(Tx,new string('f',64)));
+            });
+            Run("L13-18-UNKNOWN-PERSISTS-ACROSS-REOPEN",()=>{
+                using var s=new Scenario();var j=new L13PendingJournal(s.Case.Root);
+                j.Prepare(Tx,Digest);j.MarkUnknown(Tx,Digest);
+                var reopened=new L13PendingJournal(s.Case.Root);
+                Require(reopened.ReopenBlocked().Phase=="unknown" &&
+                    reopened.Reconcile()==L13Observation.PendingUnknownBlocked,
+                    "L13_UNKNOWN_WAS_CLEARED");
+                journalReopened=true;
+            });
+            Run("L13-19-UNKNOWN-INTENT-MISMATCH",()=>{
+                using var s=new Scenario();var j=new L13PendingJournal(s.Case.Root);
+                j.Prepare(Tx,Digest);
+                Reject("L13_UNKNOWN_WRONG_INTENT",()=>j.MarkUnknown("deadbeef",Digest));
+            });
+            await RunAsync("L13-20-TIMEOUT-DOES-NOT-CANCEL-LATE-IO",async()=>{
+                using var s=new Scenario();var j=new L13PendingJournal(s.Case.Root);
+                j.Prepare(Tx,Digest);
+                var release=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var writer=Task.Run(async()=>{
+                    await release.Task;
+                    File.WriteAllText(Path.Combine(s.Case.Root,"late-only.fixture.txt"),
+                        "L13-LATE-WRITE-IN-OWN-TEMP\n");
+                });
+                try{
+                    bool timedOut=false;
+                    try{await writer.WaitAsync(TimeSpan.FromMilliseconds(40));}
+                    catch(TimeoutException){timedOut=true;}
+                    Require(timedOut && !writer.IsCompleted,"L13_TIMEOUT_NOT_REPRODUCED");
+                    j.MarkUnknown(Tx,Digest);
+                }finally{release.TrySetResult(true);}
+                await writer.WaitAsync(TimeSpan.FromSeconds(5));
+                Require(File.Exists(Path.Combine(s.Case.Root,"late-only.fixture.txt")) &&
+                    new L13PendingJournal(s.Case.Root).ReopenBlocked().Phase=="unknown",
+                    "L13_LATE_COMPLETION_UNSAFE");
+                lateWriteObserved=true;
+            });
+            Run("L13-21-NO-SELECTOR-PROMOTION-OR-PERSONAL-DATA",()=>{
+                using var s=new Scenario();
+                var j=new L13PendingJournal(s.Case.Root);
+                j.Prepare(Tx,Digest);j.MarkUnknown(Tx,Digest);
+                s.Preserved();
+            });
+        }
+        finally { Directory.Delete(suite,true); }
+        var report=new {
+            schema="gf-l13-ntfs-inert/1",passed=Results.Count-failed,failed,tests=Results,
+            fixture_only=true,real_windows_ntfs_guard_exercised=guardedIdentityReal,
+            real_symlink_reparse_tested=reparseReal,real_hardlink_tested=hardlinkReal,
+            acl_sddl_policy_exercised=aclDescriptorReal,
+            late_io_after_timeout_observed=lateWriteObserved,
+            unknown_reopened_without_promotion=journalReopened,
+            old_selector_and_markers_preserved=previousKept,
+            real_windows_acl_mutation_tested=false,unprivileged_token_verified=false,
+            actual_program_files_write_tested=false,real_junction_tested=false,
+            actual_hard_power_loss_tested=false,atomic_full_install_tested=false,
+            actual_update_or_rollback_executed=false,
+            product_built=false,product_executed=false,selected=false,confirmed=false,
+            operational_gates_closed=0
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_L13_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}
