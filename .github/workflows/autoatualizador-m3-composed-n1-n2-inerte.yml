@@ -1,0 +1,64 @@
+name: M3 G1-G2 — N1 N2 diario composto inerte
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-composed/**'
+      - '.github/workflows/autoatualizador-m3-composed-n1-n2-inerte.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-composed-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  composed-rollback:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - name: Checkout sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Executar apenas N1 e N2 com diários locais reais em fixture
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-composed/Composed.csproj'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-m3-composed-artifacts'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-composed-report.json'
+          $anchor='prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'COMPOSED_SDK_MISMATCH' }
+          dotnet restore $project "-p:ArtifactsPath=$out" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runners=@(Get-ChildItem $out -Filter 'GF.Updater.M3.ComposedTests.exe' -Recurse -File)
+          if ($runners.Count -ne 1) { throw 'COMPOSED_RUNNER_NOT_UNIQUE' }
+          & $runners[0].FullName --report $report $anchor
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.passed -ne 5 -or $r.failed -ne 0 -or
+              !$r.actual_stage11_trust_only_rollback_blocked -or
+              !$r.stage2_and_ack_byte_preserved -or
+              !$r.two_sequential_intents_with_real_rollback_terminal -or
+              !$r.foreign_operation_digest_denied -or
+              !$r.selector_never_changed -or
+              $r.terminal_external_authenticity_proven -or
+              !$r.witness_is_memory_model -or
+              $r.tuf_targets_validated_for_candidate -or
+              $r.real_commit_receipt_authenticated -or
+              $r.gates_closed -ne 0 -or $r.product_built -or
+              $r.product_executed -or $r.activation_authorized -or
+              $r.physical_power_loss_tested) { throw 'COMPOSED_REPORT_INVALID' }
+          $product=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leak=@($product.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-composed' })
+          if ($leak.Count -ne 0) { throw 'COMPOSED_PRODUCT_COMPILE_LEAK' }
+          "G1-G2 N1/N2: $($r.passed) PASS; Stage11 trust snapshot differs, second intent extends rolled_back, selector never selected; all gates BLOCKED." >> $env:GITHUB_STEP_SUMMARY
+# Purely disposable local TUF root & state fixtures. Never build/run GF or connect a witness.
