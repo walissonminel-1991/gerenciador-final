@@ -7,7 +7,7 @@ using static GfUpdaterFixture.StrictMetadata;
 
 namespace GfUpdaterFixture;
 
-internal enum L16Result { OldBlocked, NewInertObservedBlocked, UnknownBlocked }
+internal enum L16Result { OldBlocked, NewInertObservedBlocked, UnknownBlocked, BusyBlocked }
 internal sealed record L16Selector(string Schema,string Selected,int Generation);
 internal sealed record L16Intent(string Schema,string Transaction,string Installation,
     string EntrySha,string StagedId);
@@ -23,6 +23,21 @@ internal static class L16Boundary
     internal static string Intent(string src)=>Path.Combine(src,"l16-intent.fixture.json");
     internal static string Terminal(string src)=>Path.Combine(src,"l16-terminal.fixture.json");
     internal static string Lease(string src)=>Path.Combine(src,"l16-lease.fixture");
+    internal static string Uncertain(string src)=>Path.Combine(src,"l17-unknown.fixture.txt");
+    // Cooperative, durable INERT uncertainty signal. Not an authenticated
+    // witness. An adversary with local write permissions can delete it.
+    internal static void MarkUncertain(string src)
+    {
+        FixtureSandbox.RequireRoot(src);
+        string path=Uncertain(src);
+        if(!File.Exists(path))
+        {
+            try { Create(path,System.Text.Encoding.UTF8.GetBytes("GF-L17-UNCERTAIN-LOCAL-ONLY\n")); }
+            catch(IOException) when(File.Exists(path)) { }
+        }
+        Require(File.ReadAllText(path)=="GF-L17-UNCERTAIN-LOCAL-ONLY\n",
+            "L17_UNKNOWN_MARKER_INVALID");
+    }
     internal static string Signal(string lab)=>Path.Combine(lab,"l16-go.fixture.txt");
     private static string Tx(string lab)=>L14Model.Tx(lab);
 
@@ -47,12 +62,21 @@ internal static class L16Boundary
             doc.RootElement.EnumerateObject().Count()==count,"L16_RECORD_SHAPE");
         return StateCodec.Decode<T>(data);
     }
-    private static L16Selector Select(string src)
+    private static L16Selector DecodeSelector(WindowsFileGuard pin)
     {
-        var s=Read<L16Selector>(src,Selector(src),3);
+        byte[] data=pin.Read(4096);
+        using var doc=Json(data,4096);
+        Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
+            doc.RootElement.EnumerateObject().Count()==3,"L16_SELECTOR_SHAPE");
+        var s=StateCodec.Decode<L16Selector>(data);
         Require(s.Schema==S && (s is {Selected:"old",Generation:1 or 3} ||
             s is {Selected:"new",Generation:2}),"L16_SELECTOR_FORGED");
         return s;
+    }
+    private static L16Selector Select(string src)
+    {
+        using var pin=WindowsFileGuard.Open(src,Selector(src));
+        return DecodeSelector(pin);
     }
     private static L16Intent GetIntent(string src)
     {
@@ -136,9 +160,24 @@ internal static class L16Boundary
         string temp=Path.Combine(src,"l16-selector-temp-"+Guid.NewGuid().ToString("N")+".fixture");
         string backup=Path.Combine(src,"l16-selector-backup-"+Guid.NewGuid().ToString("N")+".fixture");
         CreateRecord(temp,next);
+        string scratchId;
+        using(var scratch=WindowsFileGuard.Open(src,temp))
+        {
+            Require(DecodeSelector(scratch)==next,"L17_SCRATCH_CONTENT");
+            scratchId=scratch.Identity;
+        }
+        // Closing the scratch before Replace leaves a SAME-USER race window.
+        // Detect a changed identity after the syscall and persist UNKNOWN.
         cut?.Invoke();
         File.Replace(temp,Selector(src),backup); // only ONE inert selector
-        Require(Select(src)==next,"L16_SELECTOR_SWAP_MISMATCH");
+        using var destination=WindowsFileGuard.Open(src,Selector(src));
+        bool matches=DecodeSelector(destination)==next &&
+            destination.Identity==scratchId;
+        if(!matches)
+        {
+            MarkUncertain(src);
+            throw new Rejected("L17_REPLACED_WRONG_SCRATCH");
+        }
     }
 
     internal static FileStream Exclusive(string src)
@@ -152,6 +191,7 @@ internal static class L16Boundary
     {
         Roots(src,lab);
         using var lease=Exclusive(src);
+        Require(!File.Exists(Uncertain(src)),"L17_PERSISTENT_UNKNOWN");
         using var frozen=PinSignedStage(src,lab,bootstrap);
         Require(Select(src)==new L16Selector(S,"old",1) &&
             !File.Exists(Terminal(src)),"L16_ALREADY_ACTIVE");
@@ -178,52 +218,90 @@ internal static class L16Boundary
             Require(File.Exists(Signal(lab)),"L16_RESUME_TIMEOUT");
         }
         Recheck(frozen,src,lab,bootstrap);
+        Require(!File.Exists(Uncertain(src)),"L17_PERSISTENT_UNKNOWN");
         Require(Select(src)==new L16Selector(S,"old",1),"L16_SELECTOR_CHANGED");
-        SwapSelector(src,new L16Selector(S,"new",2),()=>Cut("temp-flushed"));
+        SwapSelector(src,new L16Selector(S,"new",2),()=>
+        {
+            Cut("temp-flushed");
+            if(cutpoint=="scratch-resume")
+            {
+                Console.WriteLine("READY:L17-SCRATCH");Console.Out.Flush();
+                var watch=System.Diagnostics.Stopwatch.StartNew();
+                while(!File.Exists(Signal(lab)) &&
+                    watch.Elapsed<TimeSpan.FromSeconds(15))Thread.Sleep(20);
+                Require(File.Exists(Signal(lab)),"L17_SCRATCH_RESUME_TIMEOUT");
+            }
+        });
         // Stage bytes and physical NTFS ID are still pinned at this point.
         Recheck(frozen,src,lab,bootstrap);
         Cut("selector-replaced");
+        if(cutpoint=="after-replace-resume")
+        {
+            Console.WriteLine("READY:L17-LATE");Console.Out.Flush();
+            var watch=System.Diagnostics.Stopwatch.StartNew();
+            while(!File.Exists(Signal(lab)) &&
+                watch.Elapsed<TimeSpan.FromSeconds(15))Thread.Sleep(20);
+            Require(File.Exists(Signal(lab)),"L17_LATE_RESUME_TIMEOUT");
+        }
         var terminal=new L16Terminal(T,Tx(lab),
             Hash(StateCodec.Encode(Select(src))));
         CreateRecord(Terminal(src),terminal);
         Cut("terminal-flushed");
     }
 
-    internal static L16Result Recover(string src,string lab,string bootstrap)
+    internal static L16Result Recover(string src,string lab,string bootstrap,
+        Action? selectorObserved=null)
     {
-        // No preflight attestation is an authorization to run application code.
+        // BUSY is a cooperative owner. A local terminal is not an independent
+        // commit witness, so NEW is never authorized or affirmed here.
         try
         {
             Roots(src,lab);
-            using var lease=Exclusive(src);
-            using var frozen=PinSignedStage(src,lab,bootstrap);
-            var selector=Select(src);
-            if(!File.Exists(Intent(src)))
-                return selector==new L16Selector(S,"old",1) &&
-                    !File.Exists(Terminal(src)) ? L16Result.OldBlocked :
-                        L16Result.UnknownBlocked;
-            var intent=GetIntent(src);
-            Require(intent==new L16Intent(I,Tx(lab),
-                frozen.Proof.SourceInstallationId,frozen.Proof.SignedEntrySha,
-                frozen.Pin.Identity),"L16_INTENT_MISMATCH");
-            if(File.Exists(Terminal(src)))
+            FileStream lease;
+            try { lease=Exclusive(src); }
+            catch(IOException) { return L16Result.BusyBlocked; }
+            using(lease)
             {
-                var t=GetTerminal(src);
-                Require(t==new L16Terminal(T,Tx(lab),
-                    Hash(StateCodec.Encode(selector))) &&
-                    selector==new L16Selector(S,"new",2),
-                    "L16_TERMINAL_FORK");
+                if(File.Exists(Uncertain(src)))return L16Result.UnknownBlocked;
+                using var frozen=PinSignedStage(src,lab,bootstrap);
+                using var selectorPin=WindowsFileGuard.Open(src,Selector(src));
+                var selector=DecodeSelector(selectorPin);
+                selectorObserved?.Invoke(); // deterministic CI race only
+                if(!File.Exists(Intent(src)))
+                    return selector==new L16Selector(S,"old",1) &&
+                        !File.Exists(Terminal(src)) ? L16Result.OldBlocked :
+                            L16Result.UnknownBlocked;
+                var intent=GetIntent(src);
+                Require(intent==new L16Intent(I,Tx(lab),
+                    frozen.Proof.SourceInstallationId,frozen.Proof.SignedEntrySha,
+                    frozen.Pin.Identity),"L16_INTENT_MISMATCH");
+                if(File.Exists(Terminal(src)))
+                {
+                    var terminal=GetTerminal(src);
+                    Require(terminal==new L16Terminal(T,Tx(lab),
+                        Hash(StateCodec.Encode(selector))) &&
+                        selector==new L16Selector(S,"new",2),
+                        "L16_TERMINAL_FORK");
+                    Recheck(frozen,src,lab,bootstrap);
+                    Require(DecodeSelector(selectorPin)==selector,
+                        "L17_SELECTOR_OBSERVATION_CHANGED");
+                    // Receipt digest is same-user writable: cannot establish
+                    // actual completion. Never return NewInertObservedBlocked.
+                    return L16Result.UnknownBlocked;
+                }
+                if(selector==new L16Selector(S,"new",2))
+                {
+                    Recheck(frozen,src,lab,bootstrap);
+                    selectorPin.Dispose(); // replacing needs DELETE sharing
+                    SwapSelector(src,new L16Selector(S,"old",3));
+                }
+                else Require(selector.Selected=="old","L16_UNEXPECTED_SELECTOR");
                 Recheck(frozen,src,lab,bootstrap);
-                return L16Result.NewInertObservedBlocked;
+                using var finalPin=WindowsFileGuard.Open(src,Selector(src));
+                Require(DecodeSelector(finalPin).Selected=="old",
+                    "L17_OLD_SELECTOR_NOT_RECHECKED");
+                return L16Result.OldBlocked;
             }
-            if(selector==new L16Selector(S,"new",2))
-            {
-                Recheck(frozen,src,lab,bootstrap);
-                SwapSelector(src,new L16Selector(S,"old",3));
-            }
-            else Require(selector.Selected=="old","L16_UNEXPECTED_SELECTOR");
-            Recheck(frozen,src,lab,bootstrap);
-            return L16Result.OldBlocked;
         }
         catch(Exception ex) when(ex is Rejected or InvalidDataException or
             IOException or UnauthorizedAccessException or JsonException or

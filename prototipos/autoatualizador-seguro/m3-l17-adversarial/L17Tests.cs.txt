@@ -1,0 +1,248 @@
+// Three NEW adversarial counterexamples from independent WORK review.
+// Test runner only. Reuses L16Tests.Prepared fixture harness, Stage11/Stage3
+// signed test metadata, WindowsFileGuard and L16Boundary implementation.
+// No GF executable, installation, READY, helper, secrets or public service.
+using System.Diagnostics;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L17Tests
+{
+    private static readonly List<object> results=[];
+    private static int failed;
+    private static bool selectorReadPinned,scratchMismatchDurable,
+        terminalForgeryDenied,ownerBusySeen,unknownPersisted,
+        lateOwnerFinished,priorVersionPreserved=true;
+    private const string ExpectedImage="GF.Updater.M3.L17Tests.exe";
+    private static string Exe=>Environment.ProcessPath ??
+        throw new InvalidDataException("L17_MISSING_EXE");
+    private static Process Spawn(params string[] args)
+    {
+        Require(Path.GetFileName(Exe).Equals(ExpectedImage,
+            StringComparison.OrdinalIgnoreCase),"L17_UNEXPECTED_CHILD_IMAGE");
+        var info=new ProcessStartInfo(Exe){
+            UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,
+            RedirectStandardError=true,WorkingDirectory=Path.GetTempPath()
+        };
+        foreach(var arg in args)info.ArgumentList.Add(arg);
+        return Process.Start(info) ?? throw new InvalidDataException("L17_CHILD_LAUNCH");
+    }
+    private static async Task Kill(Process child)
+    {
+        if(!child.HasExited)child.Kill(entireProcessTree:true);
+        await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+    }
+    private static async Task<Process> Cut(L16Tests.Scenario s,string cut)
+    {
+        var child=Spawn("--child",s.Source.Root,s.Lab,L16Tests.bootstrap,cut);
+        try
+        {
+            string expected=cut switch {
+                "after-replace-resume"=>"READY:L17-LATE",
+                "scratch-resume"=>"READY:L17-SCRATCH",
+                _=>"CUT:"+cut
+            };
+            string? line=await child.StandardOutput.ReadLineAsync()
+                .WaitAsync(TimeSpan.FromSeconds(30));
+            Require(line==expected && !child.HasExited,"L17_CUT_FAILED:"+line);
+            return child;
+        }
+        catch{await Kill(child);child.Dispose();throw;}
+    }
+    private static async Task<L16Result> Reopen(L16Tests.Scenario s,bool pause=false)
+    {
+        using var p=Spawn(pause?"--recover-pause":"--recover",
+            s.Source.Root,s.Lab,L16Tests.bootstrap);
+        try
+        {
+            string? line=await p.StandardOutput.ReadLineAsync()
+                .WaitAsync(TimeSpan.FromSeconds(30));
+            if(pause)
+            {
+                Require(line=="READY:L17-SELECTOR-PINNED","L17_NO_SELECTOR_PIN");
+                string selector=L16Boundary.Selector(s.Source.Root);
+                byte[] prior=File.ReadAllBytes(selector);
+                bool writeDenied=false,renameDenied=false;
+                try{File.WriteAllBytes(selector,prior);}
+                catch(System.IO.IOException){writeDenied=true;}
+                catch(UnauthorizedAccessException){writeDenied=true;}
+                try{File.Move(selector,selector+".moved");}
+                catch(System.IO.IOException){renameDenied=true;}
+                catch(UnauthorizedAccessException){renameDenied=true;}
+                Require(writeDenied && renameDenied,"L17_PIN_MUST_BLOCK_WRITER");
+                selectorReadPinned=true;
+                File.WriteAllText(L16Boundary.Signal(s.Lab),"RELEASE-SELECTOR\n");
+                line=await p.StandardOutput.ReadLineAsync()
+                    .WaitAsync(TimeSpan.FromSeconds(30));
+            }
+            await p.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            Require(p.ExitCode==0 && line is not null &&
+                line.StartsWith("RECOVERY:",StringComparison.Ordinal),
+                "L17_RECOVERY_FAILED:"+line+":"+(p.HasExited?
+                await p.StandardError.ReadToEndAsync():""));
+            Require(Enum.TryParse<L16Result>(line["RECOVERY:".Length..],out var v),
+                "L17_RECOVERY_BAD_ENUM");
+            return v;
+        }
+        finally{if(!p.HasExited)await Kill(p);}
+    }
+    private static async Task Check(string id,Func<Task> f)
+    {
+        try{await f();results.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception e){failed++;results.Add(new{id,status="failed",error=e.ToString()});
+            Console.WriteLine("FAIL "+id+" "+e);}
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(!OperatingSystem.IsWindows())return 2;
+        if(args.Length==5 && args[0]=="--child")
+        {
+            L16Boundary.Perform(args[1],args[2],args[3],args[4]);return 0;
+        }
+        if(args.Length==4 && args[0]=="--recover")
+        {
+            Console.WriteLine("RECOVERY:"+L16Boundary.Recover(args[1],args[2],args[3]));
+            return 0;
+        }
+        if(args.Length==4 && args[0]=="--recover-pause")
+        {
+            var status=L16Boundary.Recover(args[1],args[2],args[3],()=>{
+                Console.WriteLine("READY:L17-SELECTOR-PINNED");
+                Console.Out.Flush();
+                var stop=Stopwatch.StartNew();
+                while(!File.Exists(L16Boundary.Signal(args[2])) &&
+                    stop.Elapsed<TimeSpan.FromSeconds(15))Thread.Sleep(20);
+                Require(File.Exists(L16Boundary.Signal(args[2])),
+                    "L17_RECOVER_RESUME_TIMEOUT");
+            });
+            Console.WriteLine("RECOVERY:"+status);return 0;
+        }
+        if(args.Length!=4 || args[0]!="--report")return 2;
+        L16Tests.fixtures=Path.GetFullPath(args[2]);
+        L16Tests.bootstrap=Path.GetFullPath(args[3]);
+        L16Tests.suite=Path.Combine(Path.GetTempPath(),
+            "gf-u2-l17-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(L16Tests.suite);
+        try
+        {
+            await Check("L17-01-SELECTOR-TOCTOU-AND-SCRATCH-IDENTITY",async()=>{
+                using(var s=await L16Tests.Prepared())
+                {
+                    using(var child=await Cut(s,"terminal-flushed"))await Kill(child);
+                    Require(await Reopen(s,pause:true)==L16Result.UnknownBlocked,
+                        "L17_PINNED_SELECTOR_AUTHORIZED_UNTRUSTED_TERMINAL");
+                    s.Preserved();
+                }
+                using(var s=await L16Tests.Prepared())
+                {
+                    using var child=await Cut(s,"scratch-resume");
+                    try
+                    {
+                        var temp=Directory.GetFiles(s.Source.Root,
+                            "l16-selector-temp-*.fixture");
+                        Require(temp.Length==1,"L17_SCRATCH_NOT_FOUND");
+                        byte[] original=File.ReadAllBytes(temp[0]);
+                        // Same exact bytes but a different NTFS object ID.
+                        File.Delete(temp[0]);File.WriteAllBytes(temp[0],original);
+                        File.WriteAllText(L16Boundary.Signal(s.Lab),"RESUME-SCRATCH\n");
+                        await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(25));
+                        Require(child.ExitCode!=0 &&
+                            File.Exists(L16Boundary.Uncertain(s.Source.Root)),
+                            "L17_UNDETECTED_SCRATCH_REPLACEMENT");
+                        Require(await Reopen(s)==L16Result.UnknownBlocked,
+                            "L17_SCRATCH_FORK_RECOVERY_UNSAFE");
+                        scratchMismatchDurable=true;
+                    }
+                    finally{if(!child.HasExited)await Kill(child);}
+                    s.Preserved();
+                }
+            });
+            await Check("L17-02-FORGED-TERMINAL-AFTER-REPLACE",async()=>{
+                using(var baseline=await L16Tests.Prepared())
+                {
+                    using(var child=await Cut(baseline,"selector-replaced"))
+                        await Kill(child);
+                    Require(await Reopen(baseline)==L16Result.OldBlocked,
+                        "L17_BASELINE_WITHOUT_TERMINAL_NOT_OLD");
+                    baseline.Preserved();
+                }
+                using(var forged=await L16Tests.Prepared())
+                {
+                    using(var child=await Cut(forged,"selector-replaced"))
+                        await Kill(child);
+                    string terminal=L16Boundary.Terminal(forged.Source.Root);
+                    Require(!File.Exists(terminal),"L17_TERMINAL_ALREADY_THERE");
+                    var selector=new L16Selector("gf-l16-selector-inert/1","new",2);
+                    var receipt=new L16Terminal("gf-l16-terminal-inert/1",
+                        L14Model.Tx(forged.Lab),Hash(StateCodec.Encode(selector)));
+                    // Change ONE file only; local writer knows all its fields.
+                    File.WriteAllBytes(terminal,StateCodec.Encode(receipt));
+                    Require(await Reopen(forged)==L16Result.UnknownBlocked,
+                        "L17_FORGED_LOCAL_RECEIPT_ACCEPTED");
+                    var persisted=StateCodec.Decode<L16Selector>(
+                        File.ReadAllBytes(L16Boundary.Selector(forged.Source.Root)));
+                    Require(persisted==selector,"L17_FORGED_RECEIPT_CHANGED_SELECTOR");
+                    terminalForgeryDenied=true;
+                    forged.Preserved();
+                }
+            });
+            await Check("L17-03-TIMEOUT-LATE-OWNER-BUSY-PERSISTENT-UNKNOWN",async()=>{
+                using var s=await L16Tests.Prepared();
+                using var owner=await Cut(s,"after-replace-resume");
+                try
+                {
+                    bool timedOut=false;
+                    try{await owner.WaitForExitAsync()
+                        .WaitAsync(TimeSpan.FromMilliseconds(80));}
+                    catch(TimeoutException){timedOut=true;}
+                    Require(timedOut && !owner.HasExited,
+                        "L17_OWNER_MUST_CONTINUE_AFTER_WAIT_TIMEOUT");
+                    Require(await Reopen(s)==L16Result.BusyBlocked,
+                        "L17_ACTIVE_OWNER_NOT_BUSY");
+                    ownerBusySeen=true;
+                    L16Boundary.MarkUncertain(s.Source.Root);
+                    Require(await Reopen(s)==L16Result.BusyBlocked,
+                        "L17_BUSY_STAYS_BUSY_WITH_MARKER");
+                    File.WriteAllText(L16Boundary.Signal(s.Lab),"LET-LATE-OWNER-FINISH\n");
+                    await owner.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(25));
+                    Require(owner.ExitCode==0 &&
+                        File.Exists(L16Boundary.Terminal(s.Source.Root)),
+                        "L17_LATE_OWNER_DID_NOT_COMPLETE");
+                    lateOwnerFinished=true;
+                    Require(await Reopen(s)==L16Result.UnknownBlocked &&
+                        await Reopen(s)==L16Result.UnknownBlocked,
+                        "L17_LATE_COMMIT_OVERRULED_TIMEOUT_UNKNOWN");
+                    L16Boundary.MarkUncertain(s.Source.Root);
+                    unknownPersisted=true;
+                    s.Preserved();
+                }
+                finally{if(!owner.HasExited)await Kill(owner);}
+            });
+        }
+        finally{Directory.Delete(L16Tests.suite,true);}
+        var report=new{
+            schema="gf-l17-three-counterexamples-inert/1",
+            passed=results.Count-failed,failed,tests=results,
+            selector_read_pinned_against_same_user=selectorReadPinned,
+            scratch_identity_swap_detected_and_unknown_persisted=scratchMismatchDurable,
+            forged_terminal_not_independent_commit_authority=terminalForgeryDenied,
+            busy_while_owner_holds_lease=ownerBusySeen,
+            timeout_unknown_persisted_after_owner_exit=unknownPersisted,
+            late_owner_completes_after_wait_timeout=lateOwnerFinished,
+            original_version_and_markers_preserved=priorVersionPreserved,
+            arbitrary_toctou_excluded=false,
+            same_user_tamperproof_storage=false,
+            independent_freshness_or_witness_present=false,
+            operational_install_or_ready=false,
+            power_loss_proven=false,
+            operational_gates_closed=0
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_L17_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}

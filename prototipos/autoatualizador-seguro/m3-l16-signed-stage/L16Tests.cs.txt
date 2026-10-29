@@ -13,7 +13,7 @@ internal static class L16Tests
 {
     private static readonly List<object> Results=[];
     private static int failed;
-    private static string suite="",fixtures="",bootstrap="";
+    internal static string suite="",fixtures="",bootstrap="";
     private static bool signedExactEntry,pinHeldDuringSwap,childKilled,
         newProcessRecovered,oldPreserved=true,toctouAttemptBlocked,
         concurrentForkRefused;
@@ -21,7 +21,7 @@ internal static class L16Tests
     private static string Exe=>Environment.ProcessPath ??
         throw new InvalidDataException("L16_MISSING_TEST_IMAGE");
 
-    private sealed class Scenario : IDisposable
+    internal sealed class Scenario : IDisposable
     {
         internal readonly InertComposedCase Source=new(suite);
         internal readonly string Lab=Path.Combine(Path.GetTempPath(),
@@ -99,7 +99,7 @@ internal static class L16Tests
         }
     }
 
-    private static async Task<Scenario> Prepared()
+    internal static async Task<Scenario> Prepared()
     {
         var s=new Scenario();
         try{await s.Prepare();return s;}
@@ -243,9 +243,9 @@ internal static class L16Tests
             await RunAsync("L16-08-KILL-AFTER-TERMINAL-ONLY-OBSERVE",async()=>{
                 using var s=await Prepared();
                 await StopAt(s,"terminal-flushed");
-                Require(await Reopen(s)==L16Result.NewInertObservedBlocked &&
-                    await Reopen(s)==L16Result.NewInertObservedBlocked,
-                    "L16_TERMINAL_NOT_IDEMPOTENT");
+                Require(await Reopen(s)==L16Result.UnknownBlocked &&
+                    await Reopen(s)==L16Result.UnknownBlocked,
+                    "L17_LOCAL_TERMINAL_IS_NOT_AUTHORITY");
                 s.Preserved();pinHeldDuringSwap=true;
             });
             await RunAsync("L16-09-SAME-BYTES-STAGE-FILE-ID-SWAP-AFTER-INTENT",async()=>{
@@ -290,7 +290,7 @@ internal static class L16Tests
                 try
                 {
                     Require(L16Boundary.Recover(s.Source.Root,s.Lab,bootstrap)==
-                        L16Result.UnknownBlocked,"L16_LEASE_DID_NOT_BLOCK");
+                        L16Result.BusyBlocked,"L16_LEASE_DID_NOT_BLOCK");
                     concurrentForkRefused=true;
                 }finally{await Kill(child);}
                 Require(await Reopen(s)==L16Result.OldBlocked,"L16_LEASE_REOPEN");
@@ -318,8 +318,8 @@ internal static class L16Tests
                         throw new InvalidDataException("L16_RESUMED_CHILD_FAILED:"+
                             await child.StandardError.ReadToEndAsync());
                 }finally{if(!child.HasExited)await Kill(child);}
-                Require(await Reopen(s)==L16Result.NewInertObservedBlocked,
-                    "L16_PINNED_REPLACE_NOT_OBSERVED");
+                Require(await Reopen(s)==L16Result.UnknownBlocked,
+                    "L17_PINNED_REPLACE_NO_INDEPENDENT_TERMINAL");
                 s.Preserved();
             });
             await RunAsync("L16-16-FORK-OF-SIGNED-SOURCE-BEFORE-COMMIT",async()=>{
