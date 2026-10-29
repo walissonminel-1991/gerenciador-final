@@ -66,10 +66,11 @@ jobs:
           & $journals[0].FullName --report $journalReport $probes[0].FullName
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $jr = Get-Content $journalReport -Raw | ConvertFrom-Json
-          if ($jr.failed -ne 0 -or $jr.passed -ne 7 -or
+          if ($jr.failed -ne 0 -or $jr.passed -ne 8 -or
               !$jr.uses_existing_stage2_journal -or !$jr.killed_process_recovery_executed -or
               !$jr.unified_winforms_journal_confirmed -or
               !$jr.unified_negative_ready_rolled_back -or !$jr.unified_no_ready_rolled_back -or
+              !$jr.unified_disconnect_rolled_back -or
               $jr.operational_gates_closed -ne 0) { throw 'M2_JOURNAL_FAILURE' }
           $compile = dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
           $leaks = @($compile.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m2' })
