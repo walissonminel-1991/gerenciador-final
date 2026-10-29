@@ -10,7 +10,8 @@
     <NuGetLockFilePath>../stage11/packages.lock.json</NuGetLockFilePath>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../src/*.cs.txt" />
+    <Compile Include="../src/StrictMetadata.cs.txt;../src/PersistentState.cs.txt;../src/TransactionPrototype.cs.txt;../src/WindowsFileGuard.cs.txt;../src/CycleClock.cs.txt;../src/ZipInspection.cs.txt" />
+    <Compile Include="InertComposedCase.cs.txt" />
     <Compile Include="../stage9/src/OperationJournal.cs.txt" />
     <Compile Include="../stage8/src/OwnedAttempt.cs.txt" />
     <Compile Include="../stage8/src/TufAttempt.cs.txt" />
