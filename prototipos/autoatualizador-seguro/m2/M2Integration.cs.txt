@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using System.Runtime.Versioning;
+using System.Runtime.InteropServices;
 
 namespace GfUpdaterFixture;
 
@@ -12,6 +13,9 @@ internal static class M2Integration
 {
     internal static bool NonElevatedAdmissionObserved;
     internal static bool InheritedElevatedMechanismObserved;
+    internal static bool WinFormsHwndObserved;
+    internal static bool MissingReadyRefused;
+    internal static string WinFormsProbePath="";
     private static void Refuse(Action action,string code)
     {
         try { action(); }
@@ -26,14 +30,17 @@ internal static class M2Integration
         barrier.RequireCanLaunch(); // real ExitCode=0 on retained process handle
 
         string exe=Environment.ProcessPath??throw new InvalidDataException("M2_NO_APPHOST");
+        string candidateExe=Path.GetFullPath(WinFormsProbePath);
+        PipeFrames.Check(File.Exists(candidateExe) &&
+            Path.GetFileName(candidateExe)=="GF.Updater.M2.WinFormsProbe.exe","M2_PROBE_IDENTITY");
         string name="gf-m2-ready-"+Guid.NewGuid().ToString("N");
         string tx=Guid.NewGuid().ToString("N");
         string nonce=Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         using var server=new NamedPipeServerStream(name,PipeDirection.InOut,1,
             PipeTransmissionMode.Byte,PipeOptions.Asynchronous|
             PipeOptions.CurrentUserOnly|PipeOptions.FirstPipeInstance);
-        var info=new ProcessStartInfo(exe) { UseShellExecute=false,CreateNoWindow=true };
-        foreach(var arg in new[]{"--m2-ready-probe",name,Environment.ProcessId.ToString(),exe,mode})
+        var info=new ProcessStartInfo(candidateExe) { UseShellExecute=false,CreateNoWindow=true };
+        foreach(var arg in new[]{name,Environment.ProcessId.ToString(),exe,"fixture-local",mode})
             info.ArgumentList.Add(arg);
         using var candidate=Process.Start(info)??throw new InvalidDataException("M2_CANDIDATE_START");
         using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(15));
@@ -41,31 +48,45 @@ internal static class M2Integration
         {
             await server.WaitForConnectionAsync(budget.Token);
             PipeFrames.Check(PeerIdentity.PipePid(server,true)==candidate.Id,"M2_KERNEL_PID");
-            PeerIdentity.Verify(server,true,candidate,exe);
+            PeerIdentity.Verify(server,true,candidate,candidateExe);
             using var self=Process.GetCurrentProcess();
             var current=PeerIdentity.Facts(self);
             await PipeFrames.Send(server,new ProbeFrame(1,"challenge",tx,nonce,"fixture-local"),budget.Token);
-            var ready=await PipeFrames.Read(server,budget.Token);
-            if(current.Elevated)
+            ProbeFrame? ready=null;
+            if(mode=="no-ready")
+            {
+                using var shortDeadline=CancellationTokenSource.CreateLinkedTokenSource(budget.Token);
+                shortDeadline.CancelAfter(TimeSpan.FromMilliseconds(500));
+                try {ready=await PipeFrames.Read(server,shortDeadline.Token);}
+                catch(OperationCanceledException) when(!budget.IsCancellationRequested)
+                {MissingReadyRefused=true;}
+                if(ready is not null)throw new InvalidDataException("M2_UNEXPECTED_READY");
+            }
+            else ready=await PipeFrames.Read(server,budget.Token);
+            if(mode!="no-ready" && !HasOwnedHwnd(candidate.Id))
+                throw new InvalidDataException("M2_HWND_MISSING");
+            if(mode!="no-ready" && current.Elevated)
             {
                 // An inherited elevated runner is NEVER a positive operational G5.
-                if(reject) Refuse(()=>PipeFrames.Bound(ready,"ready",tx,nonce),"IPC_BINDING");
-                else PipeFrames.Bound(ready,"ready",tx,nonce);
+                if(reject) Refuse(()=>PipeFrames.Bound(ready!,"ready",tx,nonce),"IPC_BINDING");
+                else PipeFrames.Bound(ready!,"ready",tx,nonce);
                 InheritedElevatedMechanismObserved=true;
+                if(!reject)WinFormsHwndObserved=true;
             }
-            else
+            else if(mode!="no-ready")
             {
-                using var input=new FileStream(exe,FileMode.Open,FileAccess.Read,
+                using var input=new FileStream(candidateExe,FileMode.Open,FileAccess.Read,
                     FileShare.Read|FileShare.Delete,65536,FileOptions.SequentialScan);
                 string digest=Convert.ToHexStringLower(SHA256.HashData(input));
-                var expected=new G5Trust(exe,digest,candidate.Id,current.Sid,current.Session,
+                var expected=new G5Trust(candidateExe,digest,candidate.Id,current.Sid,current.Session,
                     current.Elevated,tx,nonce);
                 var admission=new G5Admission(expected,TimeSpan.FromSeconds(12));
-                if(reject) Refuse(()=>admission.Accept(server,candidate,ready),"IPC_BINDING");
+                if(reject) Refuse(()=>admission.Accept(server,candidate,ready!),"IPC_BINDING");
                 else
                 {
-                    admission.Accept(server,candidate,ready);
+                    admission.Accept(server,candidate,ready!);
                     NonElevatedAdmissionObserved=true;
+                    WinFormsHwndObserved=true;
                 }
             }
             // Close happens solely to clean up an inert child in the harness.
@@ -83,33 +104,23 @@ internal static class M2Integration
         }
     }
 
-    internal static async Task<int> ReadyChild(string[] args)
+    // Confirm a real top-level HWND belongs to the exact spawned candidate PID.
+    private delegate bool WindowIterator(IntPtr hwnd,IntPtr extra);
+    [DllImport("user32.dll",SetLastError=true)]
+    [return:MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(WindowIterator iterator,IntPtr unused);
+    [DllImport("user32.dll",SetLastError=true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint pid);
+    private static bool HasOwnedHwnd(int pid)
     {
-        try
-        {
-            if(!args[1].StartsWith("gf-m2-ready-",StringComparison.Ordinal) ||
-                !int.TryParse(args[2],out int parentPid) ||
-                args[4] is not ("normal" or "bad-nonce" or "bad-tx"))return 2;
-            using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            using var pipe=new NamedPipeClientStream(".",args[1],PipeDirection.InOut,
-                PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly);
-            await pipe.ConnectAsync(budget.Token);
-            PipeFrames.Check(PeerIdentity.OwnParentPid()==parentPid,"M2_PARENT_PID");
-            using var parent=Process.GetProcessById(parentPid);
-            PeerIdentity.Verify(pipe,false,parent,args[3]);
-            var challenge=await PipeFrames.Read(pipe,budget.Token);
-            PipeFrames.Bound(challenge,"challenge",challenge.Transaction,challenge.Nonce);
-            var ready=challenge with { Kind="ready" };
-            if(args[4]=="bad-nonce")ready=ready with { Nonce=new string('0',64) };
-            if(args[4]=="bad-tx")ready=ready with { Transaction=new string('0',32) };
-            await PipeFrames.Send(pipe,ready,budget.Token);
-            var close=await PipeFrames.Read(pipe,budget.Token);
-            PipeFrames.Bound(close,"close",challenge.Transaction,challenge.Nonce);
-            await PipeFrames.Send(pipe,close with { Kind="bye" },budget.Token);
-            return 0;
-        }
-        catch(Exception e) when(e is IOException or InvalidDataException or OperationCanceledException
-            or System.ComponentModel.Win32Exception or InvalidOperationException)
-        { return 15; }
+        bool found=false;
+        WindowIterator callback=(hwnd,unused)=>{
+            _=GetWindowThreadProcessId(hwnd,out uint owner);
+            if(owner==(uint)pid){found=true;return false;}
+            return true;
+        };
+        _=EnumWindows(callback,IntPtr.Zero);
+        GC.KeepAlive(callback);
+        return found;
     }
 }
