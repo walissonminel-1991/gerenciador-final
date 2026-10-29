@@ -1,0 +1,286 @@
+// New G1-ACK tests: parent memory witness survives child crashes. Child receipt
+// is SYNTHETIC and cannot serve as external authorization, even on exact match.
+using System.Diagnostics;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class G1AckTests
+{
+    private static readonly List<object> results=[];
+    private static int failures;
+    private static string suite="";
+    private static bool stableBound,remoteAheadBlocked,ackNeverSelected,
+        pendingEvidenceRetained,flushedReceiptRetained,crashAfterPromotionBlocked,
+        tamperBlocked,offlineBlocked,externalAuthAbsent=true;
+    private static async Task Check(string label,Func<Task> run)
+    {
+        try {await run();results.Add(new{label,status="passed"});Console.WriteLine("PASS "+label);}
+        catch(Exception ex){failures++;results.Add(new{label,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+label+" "+ex);}
+    }
+    private static Task Sync(Action run){run();return Task.CompletedTask;}
+    private static void Refused(string code,Action run)
+    {
+        try{run();}
+        catch(Rejected e) when(e.Code==code){return;}
+        throw new Rejected("G1_ACK_FALSE_ACCEPTANCE:"+code);
+    }
+    private sealed class Fixture : IDisposable
+    {
+        internal readonly StateCase Case;
+        internal readonly G1AtomicMemoryWitness Witness=new();
+        internal readonly TxProposal Proposal;
+        internal readonly TxReceipt Receipt;
+        internal Fixture()
+        {
+            Case=new StateCase(suite);
+            var original=new PersistentState(Case.Root).Load();
+            var initial=new TxHead(Case.InstallationId,original.Record.Generation,
+                original.Record.Trust.ApprovedSequence,original.Digest);
+            Witness.BootstrapTrustedForFixture(initial);
+            _=G1Preselect.Prepare(Case.Root,Case.Candidate,true);
+            Proposal=G1AckFixture.Binding(Case.Root);
+            Require(Proposal.Expected==initial,"G1_ACK_STABLE_HEAD_CHANGED");
+            Require(Proposal.Next.Generation==original.Record.Generation+1,
+                "G1_ACK_NEW_HEAD_NOT_INTENT");
+            Receipt=new(Case.InstallationId,Proposal.TxId,Proposal.Expected,Proposal.Next);
+        }
+        internal void VerifyNotSelected()
+        {
+            using var s=new FixtureSession(Case.Root);
+            var loaded=s.Store.Load();
+            Require(loaded.Record.Transaction is {Phase:"intent"} &&
+                loaded.Record.Confirmed==Case.Old &&
+                loaded.Digest==Proposal.Next.Digest &&
+                loaded.Record.Generation==Proposal.Next.Generation &&
+                s.Files.ReadSelector(Case.InstallationId).Bundle==Case.Old,
+                "G1_ACK_UNEXPECTED_STAGE2_CHANGE");
+            Refused("RECOVERY_REQUIRED",()=>
+                {_=s.SelectionForFixtureInspectionOnly();});
+            Case.Preserved();ackNeverSelected=true;
+        }
+        public void Dispose(){Case.Preserved();Case.Dispose();}
+    }
+    private static int Child(string[] args)
+    {
+        if(args.Length!=3 || args[0]!="--g1-ack-child" ||
+            args[2] is not ("ack-created" or "ack-flushed" or "ack-promoted"))
+            return 2;
+        string root=args[1];
+        FixtureSandbox.RequireRoot(root);
+        // The lab child has NO access to the parent's witness. It recreates
+        // an intentionally UNAUTHENTICATED receipt for the write-race only.
+        var p=G1AckFixture.Binding(root);
+        var fake=new TxReceipt(p.InstallationId,p.TxId,p.Expected,p.Next);
+        G1AckFixture.WriteFixtureReceipt(root,fake,point=>{
+            if(point==args[2])
+            {
+                Console.WriteLine("G1-ACK-INERT-CUT:"+point);
+                Console.Out.Flush();
+                Thread.Sleep(Timeout.Infinite);
+            }
+        });
+        return 0;
+    }
+    private static async Task WaitForLease(string root)
+    {
+        for(int n=0;n<14;n++)
+        {
+            try{using var lease=InstallationLease.Acquire(root);return;}
+            catch(Rejected e) when(e.Code=="INSTALLATION_BUSY_OR_LOCK_MISSING" && n<13)
+            {await Task.Delay(100);}
+        }
+        throw new Rejected("G1_ACK_CHILD_LEASE_NOT_RELEASED");
+    }
+    private static async Task KillAckWriter(Fixture fixture,string point)
+    {
+        string exe=Environment.ProcessPath??throw new InvalidDataException("G1_ACK_NO_APPHOST");
+        Require(Path.GetFileName(exe)=="GF.Updater.M3.G1AckTests.exe",
+            "G1_ACK_WRONG_CHILD_IMAGE");
+        var start=new ProcessStartInfo(exe){
+            UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,
+            RedirectStandardError=true,WorkingDirectory=Path.GetTempPath()
+        };
+        foreach(string a in new[]{"--g1-ack-child",fixture.Case.Root,point})
+            start.ArgumentList.Add(a);
+        using var child=Process.Start(start)??throw new InvalidDataException("G1_ACK_CHILD_START");
+        try
+        {
+            using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            string? line=await child.StandardOutput.ReadLineAsync().WaitAsync(deadline.Token);
+            Require(line=="G1-ACK-INERT-CUT:"+point && !child.HasExited,
+                "G1_ACK_CUT_NOT_REACHED");
+        }
+        finally
+        {
+            if(!child.HasExited)
+            {
+                child.Kill(entireProcessTree:true);
+                using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await child.WaitForExitAsync(budget.Token);
+            }
+        }
+        Require(child.HasExited,"G1_ACK_CHILD_STILL_ACTIVE");
+        await WaitForLease(fixture.Case.Root);
+        fixture.VerifyNotSelected();
+    }
+    private static string ReceiptFile(string root)=>Path.Combine(root,"g1-ack.fixture.json");
+    private static string PendingFile(string root)=>Path.Combine(root,"g1-ack-pending.fixture");
+    private static void Expect(G1AckStatus actual,G1AckStatus expected)
+        =>Require(actual==expected,"G1_ACK_WRONG_CLASS:"+actual+"!="+expected);
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length>0 && args[0]=="--g1-ack-child")return Child(args);
+        if(args.Length!=2 || args[0]!="--report" || !OperatingSystem.IsWindows())
+            return 2;
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-g1ack-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Check("ACK-01-INTENT-DIGEST-BINDS-STABLE-PREDECESSOR",()=>Sync(()=>{
+                using var f=new Fixture();
+                var p=f.Proposal;
+                byte[] predecessor=PersistentState.ReadFixtureFile(f.Case.Root,
+                    Path.Combine(f.Case.Root,"ledger","0000000000000001.fixture.json"));
+                Require(p.Expected.Digest==Hash(predecessor) &&
+                    p.Expected.Generation==1 && p.Next.Generation==2 &&
+                    p.TxId==new PersistentState(f.Case.Root).Load().Record.Transaction!.Id,
+                    "G1_ACK_WRONG_STABLE_BINDING");
+                Expect(G1AckFixture.Inspect(f.Case.Root,f.Witness),
+                    G1AckStatus.UnseenBlocked);
+                f.VerifyNotSelected();stableBound=true;
+            }));
+            await Check("ACK-02-WITNESS-COMMITTED-NO-LOCAL-ACK-REMAINS-BLOCKED",()=>Sync(()=>{
+                using var f=new Fixture();
+                _=f.Witness.Publish(f.Proposal);
+                Expect(G1AckFixture.Inspect(f.Case.Root,f.Witness),
+                    G1AckStatus.RemoteCommittedAckMissingBlocked);
+                Require(!File.Exists(ReceiptFile(f.Case.Root)),
+                    "G1_ACK_AUTOMATICALLY_RECORDED");
+                f.VerifyNotSelected();remoteAheadBlocked=true;
+            }));
+            await Check("ACK-03-CORRECT-RECEIPT-PERSISTED-BUT-NO-ACTIVATION",()=>Sync(()=>{
+                using var f=new Fixture();
+                _=f.Witness.Publish(f.Proposal);
+                G1AckFixture.WriteFixtureReceipt(f.Case.Root,f.Receipt);
+                Expect(G1AckFixture.Inspect(f.Case.Root,f.Witness),
+                    G1AckStatus.AckMatchesStillBlocked);
+                Refused("G1_ACK_ALREADY_PRESENT_OR_UNKNOWN",()=>
+                    G1AckFixture.WriteFixtureReceipt(f.Case.Root,f.Receipt));
+                f.VerifyNotSelected();
+            }));
+            await Check("ACK-04-LOST-WITNESS-REPLY-RECONCILED-BUT-NOT-AUTO-ACK",()=>Sync(()=>{
+                using var f=new Fixture();
+                try{_=f.Witness.Publish(f.Proposal,true);throw new Rejected("G1_ACK_NO_TIMEOUT");}
+                catch(TimeoutException){}
+                Expect(G1AckFixture.Inspect(f.Case.Root,f.Witness),
+                    G1AckStatus.RemoteCommittedAckMissingBlocked);
+                Require(!File.Exists(ReceiptFile(f.Case.Root)),
+                    "G1_ACK_REPLY_LOSS_FORGED_ACK");
+                f.VerifyNotSelected();
+            }));
+            await Check("ACK-05-WRONG-TXID-CANNOT-WRITE-ACK",()=>Sync(()=>{
+                using var f=new Fixture();
+                Refused("G1_ACK_BINDING",()=>G1AckFixture.WriteFixtureReceipt(
+                    f.Case.Root,f.Receipt with {TxId=Guid.NewGuid().ToString("N")}));
+                Require(!File.Exists(ReceiptFile(f.Case.Root)),"G1_ACK_WRONG_TX_WRITTEN");
+                f.VerifyNotSelected();
+            }));
+            await Check("ACK-06-KILL-RECEIPT-CREATED-RETAINS-EVIDENCE",async()=>{
+                using var f=new Fixture();_=f.Witness.Publish(f.Proposal);
+                await KillAckWriter(f,"ack-created");
+                Require(File.Exists(PendingFile(f.Case.Root)) &&
+                    new FileInfo(PendingFile(f.Case.Root)).Length==0,
+                    "G1_ACK_CREATED_FILE_MISSING");
+                Expect(G1AckFixture.Inspect(f.Case.Root,f.Witness),
+                    G1AckStatus.IncompleteBlocked);
+                pendingEvidenceRetained=true;
+            });
+            await Check("ACK-07-KILL-RECEIPT-FLUSHED-RETAINS-EVIDENCE",async()=>{
+                using var f=new Fixture();_=f.Witness.Publish(f.Proposal);
+                await KillAckWriter(f,"ack-flushed");
+                Require(File.Exists(PendingFile(f.Case.Root)) &&
+                    new FileInfo(PendingFile(f.Case.Root)).Length>0,
+                    "G1_ACK_FLUSHED_FILE_MISSING");
+                Expect(G1AckFixture.Inspect(f.Case.Root,f.Witness),
+                    G1AckStatus.IncompleteBlocked);
+                flushedReceiptRetained=true;
+            });
+            await Check("ACK-08-KILL-RECEIPT-PROMOTED-REMAINS-BLOCKED",async()=>{
+                using var f=new Fixture();_=f.Witness.Publish(f.Proposal);
+                await KillAckWriter(f,"ack-promoted");
+                Require(!File.Exists(PendingFile(f.Case.Root)) &&
+                    File.Exists(ReceiptFile(f.Case.Root)),
+                    "G1_ACK_PROMOTED_RECORD_MISSING");
+                Expect(G1AckFixture.Inspect(f.Case.Root,f.Witness),
+                    G1AckStatus.AckMatchesStillBlocked);
+                crashAfterPromotionBlocked=true;
+            });
+            await Check("ACK-09-TAMPERED-SIDECAR-CANNOT-RECONCILE",()=>Sync(()=>{
+                using var f=new Fixture();_=f.Witness.Publish(f.Proposal);
+                G1AckFixture.WriteFixtureReceipt(f.Case.Root,f.Receipt);
+                File.WriteAllText(ReceiptFile(f.Case.Root),"TRUNCATED-SIDECAR");
+                Expect(G1AckFixture.Inspect(f.Case.Root,f.Witness),
+                    G1AckStatus.MalformedBlocked);
+                f.VerifyNotSelected();tamperBlocked=true;
+            }));
+            await Check("ACK-10-UNKNOWN-ACK-ARTIFACT-FAIL-CLOSED",()=>Sync(()=>{
+                using var f=new Fixture();_=f.Witness.Publish(f.Proposal);
+                File.WriteAllText(Path.Combine(f.Case.Root,"g1-ack-unknown.fixture"),
+                    "PRESERVE-UNKNOWN-ACK");
+                Expect(G1AckFixture.Inspect(f.Case.Root,f.Witness),
+                    G1AckStatus.ConflictBlocked);
+                f.VerifyNotSelected();
+            }));
+            await Check("ACK-11-REMOTE-OFFLINE-BLOCKS-EVEN-WITH-LOCAL-ACK",()=>Sync(()=>{
+                using var f=new Fixture();_=f.Witness.Publish(f.Proposal);
+                G1AckFixture.WriteFixtureReceipt(f.Case.Root,f.Receipt);
+                f.Witness.Available=false;
+                Expect(G1AckFixture.Inspect(f.Case.Root,f.Witness),
+                    G1AckStatus.UnavailableBlocked);
+                f.VerifyNotSelected();offlineBlocked=true;
+            }));
+            await Check("ACK-12-REMOTE-CONFLICT-REJECTS-FOREIGN-COMMIT",()=>Sync(()=>{
+                using var f=new Fixture();
+                var alternate=f.Proposal with {TxId=Guid.NewGuid().ToString("N")};
+                _=f.Witness.Publish(alternate);
+                Expect(G1AckFixture.Inspect(f.Case.Root,f.Witness),
+                    G1AckStatus.ConflictBlocked);
+                f.VerifyNotSelected();
+            }));
+            await Check("ACK-13-INTENT-ABSENT-NEVER-ENROLLS-ON-INSPECTION",()=>Sync(()=>{
+                using var f=new StateCase(suite);
+                var witness=new G1AtomicMemoryWitness();
+                Expect(G1AckFixture.Inspect(f.Root,witness),
+                    G1AckStatus.ConflictBlocked);
+                Require(new PersistentState(f.Root).Load().Record.Transaction is null,
+                    "G1_ACK_INSPECTION_PREPARED_UNASKED");
+                f.Preserved();
+            }));
+        }
+        finally{Directory.Delete(suite,true);}
+        var report=new{
+            schema=1,phase="G1-stage2-bound-sidecar",fixture_only=true,
+            passed=results.Count-failures,failed=failures,tests=results,
+            intent_and_stable_predecessor_bound=stableBound,
+            remote_ahead_without_ack_blocked=remoteAheadBlocked,
+            receipt_never_selected_candidate=ackNeverSelected,
+            interrupted_created_receipt_preserved=pendingEvidenceRetained,
+            interrupted_flushed_receipt_preserved=flushedReceiptRetained,
+            promoted_receipt_after_child_kill_still_blocked=crashAfterPromotionBlocked,
+            malformed_receipt_rejected=tamperBlocked,
+            remote_offline_blocked=offlineBlocked,
+            receipt_externally_authenticated=!externalAuthAbsent,
+            witness_in_memory_only=true,
+            operational_gates_closed=0,product_built=false,product_executed=false,
+            physical_power_loss_tested=false,selector_activation_supported=false
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("G1_ACK_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failures==0?0:1;
+    }
+}
