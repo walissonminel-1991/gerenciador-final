@@ -1,0 +1,248 @@
+// Inert counterexample suite. Synthetic Stage3-like TUF/Stage2 snapshots
+// are NOT cryptographic trust evidence. No product, packages or selector.
+using System.Text.Json;
+using System.Collections.Concurrent;
+
+namespace GfUpdaterFixture;
+
+internal static class L4TwoPhaseTests
+{
+    private static readonly List<object> results=[];
+    private static int failed;
+    private static bool twoPhasesOneHead,remoteIntentAmbiguous,remoteTerminalAmbiguous,
+        noSecondIntentBeforeTerminal,competingCASOneWinner,alteredTufRejected,
+        crossTxTerminalDenied,phaseIsPartOfCAS,nextTxUsesTerminalHead,
+        noTOFUAfterLostWitness,allOutputsBlocked;
+
+    private sealed class Scenario
+    {
+        internal readonly string Installation=Guid.NewGuid().ToString("N");
+        internal const string Repo="gf-u2-fixture-repo-not-operational";
+        internal readonly L4AtomicWitnessMemoryFixture Witness=new();
+        internal Scenario(){Witness.BootstrapTrustedForHarness(Installation,Repo);}
+        internal L4Head Head=>Witness.HeadForFixtureOnly!;
+        internal string TxId()=>Guid.NewGuid().ToString("N");
+        internal L4Evidence Evidence(string tx,string suffix="one")
+        {
+            string H(string name)=>L4Assert.Digest(new{suffix,name});
+            var tuf=new L4TufProjection(Repo,H("trust"),H("root"),
+                H("timestamp"),H("snapshot"),H("targets"),H("zip"),H("entry"));
+            var composed=new L4CompositeProjection(Repo,Installation,tx,
+                H("intent"),tuf.CandidateDigest,tuf.TrustViewDigest);
+            return new(tuf,composed);
+        }
+        internal (L4IntentClaim Claim,L4Evidence Evidence) Intent(
+            string? tx=null,L4Head? expected=null,string suffix="one")
+        {
+            tx??=TxId();
+            var evidence=Evidence(tx,suffix);
+            return(L4Claim.Prepare(Installation,Repo,tx,evidence,expected??Head),
+                evidence);
+        }
+        internal L4Receipt Publish(L4IntentClaim claim,L4Evidence evidence)
+            =>Witness.PublishIntent(claim,evidence);
+        internal L4TerminalClaim Terminal(L4Receipt intent,string suffix="terminal")
+            =>L4Claim.Terminal(intent,Installation,Repo,
+                L4Assert.Digest(new{suffix,tx=intent.TxId}));
+        internal L4Receipt Complete(L4Receipt intent)
+            =>Witness.PublishTerminal(Terminal(intent));
+    }
+    private static void Reject(string code,Action action)
+    {
+        try{action();}
+        catch(L4Reject e) when(e.Code==code){return;}
+        throw new Exception("L4_FALSE_ACCEPTANCE:"+code);
+    }
+    private static void Lost(Action action)
+    {
+        try{action();}
+        catch(TimeoutException){return;}
+        throw new Exception("L4_EXPECTED_LOST_REPLY");
+    }
+    private static async Task Case(string label,Func<Task> test)
+    {
+        try{await test();results.Add(new{label,status="passed"});Console.WriteLine("PASS "+label);}
+        catch(Exception e){failed++;results.Add(new{label,status="failed",error=e.ToString()});
+            Console.WriteLine("FAIL "+label+" "+e);}
+    }
+    private static Task Sync(Action a){a();return Task.CompletedTask;}
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=2 || args[0]!="--report" ||
+            !OperatingSystem.IsWindows())return 2;
+        await Case("L4-01-ONE-HEAD-TWO-DISTINCT-PHASES-NO-AUTH",()=>Sync(()=>{
+            var s=new Scenario();
+            var (claim,evidence)=s.Intent();var a=s.Publish(claim,evidence);
+            Require(a.CommittedHead.Sequence==1 &&
+                a.CommittedHead.Phase=="intent", "L4_INTENT_SEQUENCE");
+            var b=s.Complete(a);
+            Require(b.CommittedHead.Sequence==2 &&
+                b.CommittedHead.Phase=="terminal" &&
+                b.PreviousHead==a.CommittedHead &&
+                b.TxId==a.TxId && b.ClaimDigest!=a.ClaimDigest,
+                "L4_TWO_PHASES_NOT_COMPOSED");
+            Require(L4Reconciler.Inspect(s.Witness,s.Installation,claim.TxId,"intent",
+                L4Assert.Digest(claim),claim.ExpectedHead)==
+                L4Reconcile.CommittedButNotAuthorized,"L4_INTENT_BECAME_AUTHORIZED");
+            twoPhasesOneHead=true;allOutputsBlocked=true;
+        }));
+        await Case("L4-02-INTENT-CAS-COMMITTED-REPLY-LOST-EXACT-RECEIPT",()=>Sync(()=>{
+            var s=new Scenario();var (claim,evidence)=s.Intent();
+            Lost(()=>s.Witness.PublishIntent(claim,evidence,true));
+            var status=s.Witness.ReadForReconciliation(s.Installation,claim.TxId,"intent");
+            var retry=s.Publish(claim,evidence);
+            Require(status.Receipt==retry && retry.CommittedHead.Sequence==1 &&
+                s.Head==retry.CommittedHead &&
+                L4Reconciler.Inspect(s.Witness,s.Installation,claim.TxId,"intent",
+                    L4Assert.Digest(claim),claim.ExpectedHead)==
+                    L4Reconcile.CommittedButNotAuthorized,
+                "L4_LOST_INTENT_DOUBLE_ADVANCE");
+            remoteIntentAmbiguous=true;
+        }));
+        await Case("L4-03-TERMINAL-CAS-COMMITTED-REPLY-LOST-EXACT-RECEIPT",()=>Sync(()=>{
+            var s=new Scenario();var(c,e)=s.Intent();var intent=s.Publish(c,e);
+            var terminal=s.Terminal(intent);
+            Lost(()=>s.Witness.PublishTerminal(terminal,true));
+            var r=s.Witness.ReadForReconciliation(s.Installation,c.TxId,"terminal");
+            var duplicate=s.Witness.PublishTerminal(terminal);
+            Require(r.Receipt==duplicate && s.Head.Sequence==2 &&
+                L4Reconciler.Inspect(s.Witness,s.Installation,c.TxId,"terminal",
+                    L4Assert.Digest(terminal),intent.CommittedHead)==
+                    L4Reconcile.CommittedButNotAuthorized,
+                "L4_LOST_TERMINAL_DOUBLE_ADVANCE");
+            remoteTerminalAmbiguous=true;
+        }));
+        await Case("L4-04-NEXT-INTENT-CANNOT-SKIP-TERMINAL",()=>Sync(()=>{
+            var s=new Scenario();var(c,e)=s.Intent();_ =s.Publish(c,e);
+            var (nextClaim,nextEvidence)=s.Intent();
+            Reject("L4_INVALID_PHASE_ORDER",()=>
+                s.Publish(nextClaim,nextEvidence));
+            Require(s.Head.Phase=="intent","L4_INTENT_SKIP_MODIFIED_HEAD");
+            noSecondIntentBeforeTerminal=true;
+        }));
+        await Case("L4-05-TWO-DIFFERENT-TX-COMPETE-SAME-PREDECESSOR",async()=>{
+            var s=new Scenario();var expected=s.Head;
+            var (a,ea)=s.Intent(expected:expected);
+            var (b,eb)=s.Intent(expected:expected);
+            using var ready=new CountdownEvent(2);
+            using var release=new ManualResetEventSlim(false);
+            var outcomes=new ConcurrentBag<string>();
+            Task runner(L4IntentClaim c,L4Evidence e)=>Task.Run(()=>{
+                ready.Signal();release.Wait();
+                try{s.Publish(c,e);outcomes.Add("committed");}
+                catch(L4Reject ex){outcomes.Add(ex.Code);}
+            });
+            var ta=runner(a,ea);var tb=runner(b,eb);
+            Require(ready.Wait(TimeSpan.FromSeconds(5)),"L4_RACE_NOT_STARTED");
+            release.Set();await Task.WhenAll(ta,tb);
+            Require(outcomes.Count(x=>x=="committed")==1 &&
+                outcomes.Count(x=>x=="L4_CAS_PREDECESSOR_CONFLICT")==1 &&
+                s.Head.Sequence==1,"L4_CONCURRENT_DOUBLE_COMMIT");
+            competingCASOneWinner=true;
+        });
+        await Case("L4-06-TUF-BYTES-CHANGED-BETWEEN-PREPARE-AND-CAS",()=>Sync(()=>{
+            var s=new Scenario();var(c,e)=s.Intent();
+            var mutated=e.WithTuf(e.Tuf with {
+                TargetsDigest=L4Assert.Digest("different-signed-targets-bytes")});
+            Reject("L4_INTENT_EVIDENCE_CHANGED",()=>s.Publish(c,mutated));
+            Require(s.Head.Sequence==0,"L4_TUF_MUTATION_ADVANCED");
+            var first=s.Publish(c,e);
+            var(foreign,alternate)=s.Intent(tx:c.TxId,expected:c.ExpectedHead,
+                suffix:"different-but-fully-consistent");
+            Reject("L4_IDEMPOTENCY_CONFLICT",()=>s.Publish(foreign,alternate));
+            Require(s.Head==first.CommittedHead,"L4_TUF_REBIND_CONFLICT_NOT_BLOCKED");
+            alteredTufRejected=true;
+        }));
+        await Case("L4-07-FOREIGN-INTENT-CANNOT-SERVE-TERMINAL",()=>Sync(()=>{
+            var s=new Scenario();var(c,e)=s.Intent();var intent=s.Publish(c,e);
+            var t=s.Terminal(intent);
+            Reject("L4_TERMINAL_INTENT_MISMATCH",()=>s.Witness.PublishTerminal(
+                t with {TxId=s.TxId()}));
+            Reject("L4_TERMINAL_INTENT_MISMATCH",()=>s.Witness.PublishTerminal(
+                t with {IntentReceiptDigest=L4Assert.Digest("wrong-intent")}));
+            Require(s.Head==intent.CommittedHead,"L4_WRONG_TERMINAL_ADVANCED");
+            crossTxTerminalDenied=true;
+        }));
+        await Case("L4-08-FULL-HEAD-INCLUDING-PHASE-CAS",()=>Sync(()=>{
+            var s=new Scenario();
+            var stale=s.Head with {Phase="intent"};
+            var(c,e)=s.Intent(expected:stale);
+            Reject("L4_CAS_PREDECESSOR_CONFLICT",()=>s.Publish(c,e));
+            Require(s.Head.Sequence==0,"L4_PHASE_FORGERY_ADVANCED");
+            phaseIsPartOfCAS=true;
+        }));
+        await Case("L4-09-SECOND-TX-REQUIRES-EXACT-TERMINAL-HEAD",()=>Sync(()=>{
+            var s=new Scenario();var(c,e)=s.Intent();var intent=s.Publish(c,e);
+            var terminal=s.Complete(intent);
+            var (newClaim,newEvidence)=s.Intent();
+            var next=s.Publish(newClaim,newEvidence);
+            Require(next.CommittedHead.Sequence==3 &&
+                next.PreviousHead==terminal.CommittedHead &&
+                next.CommittedHead.Phase=="intent","L4_NEXT_TX_BAD_PREDECESSOR");
+            var wrong=next is null ? throw new Exception("L4_NEVER") :
+                s.Intent(expected:intent.CommittedHead);
+            Reject("L4_CAS_PREDECESSOR_CONFLICT",()=>s.Publish(wrong.Claim,wrong.Evidence));
+            nextTxUsesTerminalHead=true;
+        }));
+        await Case("L4-10-OFFLINE-AND-LOST-WITNESS-NEVER-TOFU",()=>Sync(()=>{
+            var s=new Scenario();var(c,e)=s.Intent();
+            s.Witness.Available=false;
+            Require(L4Reconciler.Inspect(s.Witness,s.Installation,c.TxId,
+                "intent",L4Assert.Digest(c),c.ExpectedHead)==
+                L4Reconcile.UnavailableBlocked,"L4_OFFLINE_FAIL_OPEN");
+            s.Witness.Available=true;
+            var empty=new L4AtomicWitnessMemoryFixture();
+            Require(L4Reconciler.Inspect(empty,s.Installation,c.TxId,"intent",
+                L4Assert.Digest(c),c.ExpectedHead)==
+                L4Reconcile.NotEnrolledBlocked,"L4_NEW_MEMORY_TOFU");
+            Reject("L4_NOT_ENROLLED",()=>empty.PublishIntent(c,e));
+            noTOFUAfterLostWitness=true;
+        }));
+        await Case("L4-11-SAME-TX-CONFLICTING-TERMINAL-CANNOT-REWRITE",()=>Sync(()=>{
+            var s=new Scenario();var(c,e)=s.Intent();
+            var i=s.Publish(c,e);var t=s.Terminal(i);
+            var committed=s.Witness.PublishTerminal(t);
+            var conflict=t with {Stage2TerminalDigest=L4Assert.Digest("different-terminal")};
+            Reject("L4_IDEMPOTENCY_CONFLICT",()=>s.Witness.PublishTerminal(conflict));
+            Require(s.Head==committed.CommittedHead,"L4_TERMINAL_FORK_ADVANCED");
+        }));
+        await Case("L4-12-RECOVER-EARLIER-RECEIPTS-AFTER-NEW-TX",()=>Sync(()=>{
+            var s=new Scenario();var(a,e)=s.Intent();var first=s.Publish(a,e);
+            var terminal=s.Complete(first);
+            var(b,eb)=s.Intent();_ =s.Publish(b,eb);
+            var old=s.Witness.ReadForReconciliation(s.Installation,a.TxId,"terminal");
+            Require(old.Receipt==terminal &&
+                L4Reconciler.Inspect(s.Witness,s.Installation,a.TxId,"terminal",
+                    L4Assert.Digest(s.Terminal(first)),first.CommittedHead)==
+                L4Reconcile.CommittedButNotAuthorized,
+                "L4_OLD_RECEIPT_EVICTED");
+        }));
+        var report=new{schema=1,phase="G1-L4-unified-intent-terminal-CAS-inert",
+            passed=results.Count-failed,failed,tests=results,
+            unified_two_phase_single_monotonic_head=twoPhasesOneHead,
+            intent_lost_reply_reconciled_without_double_CAS=remoteIntentAmbiguous,
+            terminal_lost_reply_reconciled_without_double_CAS=remoteTerminalAmbiguous,
+            subsequent_tx_requires_terminal=noSecondIntentBeforeTerminal,
+            competing_tx_has_exactly_one_winner=competingCASOneWinner,
+            tuf_binding_bytes_tamper_rejected=alteredTufRejected,
+            cross_tx_terminal_rejected=crossTxTerminalDenied,
+            full_head_phase_enforced=phaseIsPartOfCAS,
+            next_tx_continues_at_terminal_head=nextTxUsesTerminalHead,
+            unavailable_or_missing_witness_blocked=noTOFUAfterLostWitness,
+            only_diagnostic_blocked_results=allOutputsBlocked,
+            inputs_cryptographically_authenticated=false,
+            real_tuf_validation_performed=false,durable_witness_exists=false,
+            receipts_signed=false,real_cross_journal_atomicity=false,
+            tested_kernel_io_or_power_loss=false,
+            product_built=false,product_executed=false,
+            permitted_selection=false,permitted_confirmation=false,
+            operational_gates_closed=0};
+        await File.WriteAllTextAsync(args[1],
+            JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("L4_TWO_PHASE_FINAL_REPORT "+
+            JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+    private static void Require(bool ok,string code)=>L4Assert.Require(ok,code);
+}
