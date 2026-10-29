@@ -13,7 +13,7 @@ internal static class M2WinFormsProbe
         if(args.Length != 5 || !args[0].StartsWith("gf-m2-ready-",StringComparison.Ordinal)
             || !int.TryParse(args[1],out int parent) || parent <= 0
             || !Path.IsPathFullyQualified(args[2])
-            || args[4] is not ("normal" or "bad-nonce" or "bad-tx" or "no-ready"))
+            || args[4] is not ("normal" or "bad-nonce" or "bad-tx" or "no-ready" or "disconnect"))
             return 2;
         Application.EnableVisualStyles();
         using var context=new ProbeContext(args[0],parent,args[2],args[4]);
@@ -54,6 +54,7 @@ internal static class M2WinFormsProbe
                     throw new InvalidDataException("M2_UNEXPECTED_SERVER");
                 var challenge=await PipeFrames.Read(client,budget.Token);
                 PipeFrames.Bound(challenge,"challenge",challenge.Transaction,challenge.Nonce);
+                if(mode=="disconnect"){Result=13;return;} // Actual pipe EOF before READY.
                 if(mode!="no-ready")
                 {
                     var ready=challenge with {Kind="ready"};
