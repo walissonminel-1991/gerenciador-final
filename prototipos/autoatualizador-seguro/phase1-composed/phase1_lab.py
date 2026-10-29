@@ -137,8 +137,8 @@ def tuf_sign_and_verify(repo, candidate, target_root):
     targets_meta = verify("targets", tb)
     snapshot_meta = Metadata.from_bytes(sb)
     timestamp_meta = Metadata.from_bytes(ts)
-    require(timestamp_meta.signed.meta["snapshot.json"].length == len(sb) and
-            timestamp_meta.signed.meta["snapshot.json"].hashes["sha256"] == digest(sb),
+    require(timestamp_meta.signed.snapshot_meta.length == len(sb) and
+            timestamp_meta.signed.snapshot_meta.hashes["sha256"] == digest(sb),
             "TUF_TIMESTAMP_SNAPSHOT_MISMATCH")
     require(snapshot_meta.signed.meta["targets.json"].length == len(tb) and
             snapshot_meta.signed.meta["targets.json"].hashes["sha256"] == digest(tb),
