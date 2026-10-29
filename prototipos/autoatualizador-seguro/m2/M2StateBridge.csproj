@@ -13,6 +13,11 @@
   <ItemGroup>
     <Compile Include="../src/*.cs.txt" />
     <Compile Include="M2RecoveryTests.cs.txt" />
+    <Compile Include="M2UnifiedLifecycle.cs.txt" />
+    <Compile Include="M2ExitBarrier.cs.txt" />
+    <Compile Include="../stage3/src/PeerIdentity.cs.txt" />
+    <Compile Include="../stage3/src/PipeFrames.cs.txt" />
+    <Compile Include="../m1/G5Admission.cs.txt" />
     <PackageReference Include="Tuf" Version="[1.1.1]" />
     <PackageReference Include="BouncyCastle.Cryptography" Version="[2.7.0]" />
   </ItemGroup>
