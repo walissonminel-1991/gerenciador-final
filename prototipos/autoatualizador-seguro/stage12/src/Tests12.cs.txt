@@ -1,0 +1,112 @@
+using System.Globalization;
+using System.Text.Json;
+using Tuf;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+// Executes Stage12 only. The Stage11 test definitions supply existing fixture
+// types but their Main and its 45 cases are never called.
+internal static class Tests12
+{
+    private static readonly List<object> Results = [];
+    private static readonly List<object> Observations = [];
+    private static string fixtures = "";
+    private static byte[] anchor = [];
+    private static DateTimeOffset utc;
+    private static int failed;
+    private static object View(TrustView v) => new { root = v.Root, timestamp = v.Timestamp, snapshot = v.Snapshot,
+        targets = v.Targets, epoch = v.Epoch, sequence = v.Sequence, digest = v.Digest, active = v.ActiveAttempt,
+        metadata_sha256 = v.Metadata.ToDictionary(x => x.Key, x => Hash(x.Value)) };
+    private static void Floors(TrustView v, int root, int t, int s, int target, int epoch) =>
+        Require((v.Root, v.Timestamp, v.Snapshot, v.Targets, v.Epoch) == (root, t, s, target, epoch), "U12_FLOORS");
+    private static string Installation(IntegratedFixture f) => new PersistentState(f.Root).Load().Record.InstallationId;
+    private static DurableEpochCache Create(IntegratedFixture f) => new(f.Root, Installation(f), anchor, create: true);
+    private static DurableEpochCache Open(IntegratedFixture f, TrustExitProof? proof = null) => new(f.Root, Installation(f), anchor, recovery: proof);
+    private static async Task<TufTargetResult> Get(DurableEpochCache cache, string scenario) =>
+        await DurableTufAttempt.Get(cache, FixtureInputs.Repository(fixtures, scenario, utc), utc);
+    private static async Task<string> Reject(Func<Task> action) {
+        try { await action(); } catch (Exception e) when (e is Rejected or TufException) { return e.GetType().Name + ":" + e.Message; }
+        throw new Exception("U12_EXPECTED_REJECTION");
+    }
+    private static async Task Case(string id, Func<Task> action) {
+        try { await action(); Results.Add(new { id, status = "passed" }); Console.WriteLine("PASS " + id); }
+        catch (Exception e) { failed++; Results.Add(new { id, status = "failed", error = e.ToString() }); Console.WriteLine("FAIL " + id + " " + e); }
+    }
+    internal static async Task<int> Main(string[] args) {
+        bool childMode = args.Length == 5 && args[0] == "--trust-child";
+        Require(childMode || args.Length == 2, "U12_ARGUMENTS");
+        fixtures = childMode ? args[2] : args[0]; anchor = File.ReadAllBytes(Path.Combine(fixtures, "anchor.json"));
+        using (var d = Json(File.ReadAllBytes(Path.Combine(fixtures, "vectors.json")), 512 * 1024))
+            utc = DateTimeOffset.ParseExact(Text(d.RootElement, "reference_utc"), "yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
+        Require(OperatingSystem.IsWindows() && utc.Offset == TimeSpan.Zero, "U12_WINDOWS_UTC");
+        if (childMode) {
+            string root = args[1], point = args[4]; string id = new PersistentState(root).Load().Record.InstallationId;
+            using var cache = new DurableEpochCache(root, id, anchor);
+            cache.Cut = (p, n, h) => { if (p == point) { Console.WriteLine($"CUT:{p}:{n}:{h}"); Console.Out.Flush(); Thread.Sleep(Timeout.Infinite); } };
+            await Get(cache, args[3]); return 0;
+        }
+        foreach (string role in new[] { "timestamp", "snapshot" }) {
+            string r = role, scenario = "rotate-" + role;
+            foreach (bool retained in new[] { true, false }) {
+                bool old = retained; string mode = old ? "retained" : "clean";
+                await Case("U12-" + r.ToUpperInvariant() + "-" + mode.ToUpperInvariant(), async () => {
+                    var f = new IntegratedFixture();
+                    using var cache = Create(f);
+                    if (old) { await Get(cache, "high"); Floors(cache.View(), 1, 100, 100, 100, 0); }
+                    var before = View(cache.View()); var target = await Get(cache, scenario);
+                    Floors(cache.View(), 2, 1, 1, 1, 1);
+                    Require(target.Content.Span.SequenceEqual(File.ReadAllBytes(Path.Combine(fixtures, scenario, "fixture-package.zip"))), "U12_PAYLOAD");
+                    Require(new PersistentState(f.Root).Load().Record.Confirmed.Sequence == 1, "U12_TRUST_CONFIRMED_GF");
+                    Observations.Add(new { role = r, mode, status = "accepted", before, after = View(cache.View()), target_sha256 = Hash(target.Content.Span) });
+                });
+            }
+            foreach (string phase in new[] { "flushed", "committed" }) {
+                string p = phase, point = phase + "-metadata-root";
+                await Case("U12-" + r.ToUpperInvariant() + "-RECOVER-" + p.ToUpperInvariant(), async () => {
+                    var f = new IntegratedFixture();
+                    using (var cache = Create(f)) { await Get(cache, "high"); cache.WriteHints(); }
+                    using var child = TrustChild.Start(f.Root, fixtures, scenario, point);
+                    await child.StopAt(point); var proof = TrustExitProof.Observe(child);
+                    using var recovered = Open(f, proof); var before = recovered.View(); Floors(before, 2, 0, 0, 0, 1);
+                    Require(recovered.LoadMetadata("timestamp") is null && recovered.LoadMetadata("snapshot") is null, "U12_OLD_EPOCH_RETURNED");
+                    var hints = new[] { "timestamp", "snapshot" }.ToDictionary(n => n, n => Hash(File.ReadAllBytes(Path.Combine(recovered.Hints, n + ".json"))));
+                    foreach (string n in hints.Keys) Require(hints[n] == Hash(File.ReadAllBytes(Path.Combine(fixtures, "high", n + ".json"))), "U12_OLD_HINT_MISSING");
+                    recovered.SettleObservedFixture(proof); await Get(recovered, scenario); Floors(recovered.View(), 2, 1, 1, 1, 1);
+                    Observations.Add(new { role = r, mode = "recover-" + p, status = "accepted", process_exit_observed = child.Process.HasExited,
+                        boundary = point, old_hints_sha256 = hints, after_reopen_before_metadata = View(before), after = View(recovered.View()), power_loss = false });
+                });
+            }
+            await Case("U12-" + r.ToUpperInvariant() + "-SAME-EPOCH-REPLAY", async () => {
+                var f = new IntegratedFixture();
+                using (var cache = Create(f)) {
+                    await Get(cache, "high"); await Get(cache, scenario); await Get(cache, "next-" + r); Floors(cache.View(), 2, 2, 2, 2, 1);
+                    string error = await Reject(async () => await Get(cache, scenario)); Floors(cache.View(), 2, 2, 2, 2, 1);
+                    Observations.Add(new { role = r, mode = "same-epoch-replay", status = "rejected", error, after = View(cache.View()) });
+                }
+                using var reopened = Open(f); await Reject(async () => await Get(reopened, scenario)); Floors(reopened.View(), 2, 2, 2, 2, 1);
+            });
+            await Case("U12-" + r.ToUpperInvariant() + "-REVOKED", async () => {
+                var f = new IntegratedFixture(); using var cache = Create(f); await Get(cache, "high");
+                string error = await Reject(async () => await Get(cache, "revoked-" + r));
+                Floors(cache.View(), 2, r == "snapshot" ? 1 : 0, 0, 0, 1);
+                Observations.Add(new { role = r, mode = "revoked", status = "rejected", error, after = View(cache.View()) });
+            });
+        }
+        await Case("U12-NO-ROTATION-NO-RESET", async () => {
+            var f = new IntegratedFixture(); using var cache = Create(f); await Get(cache, "high");
+            string error = await Reject(async () => await Get(cache, "no-rotation-lower")); Floors(cache.View(), 2, 100, 100, 100, 0);
+            Observations.Add(new { mode = "no-rotation-lower", status = "rejected", error, after = View(cache.View()) });
+        });
+        await Case("U12-ROOT-THRESHOLD-NO-RESET", async () => {
+            var f = new IntegratedFixture(); using var cache = Create(f); await Get(cache, "high");
+            string error = await Reject(async () => await Get(cache, "bad-root-threshold")); Floors(cache.View(), 1, 100, 100, 100, 0);
+            Observations.Add(new { mode = "bad-root-threshold", status = "rejected", error, after = View(cache.View()) });
+        });
+        Require(Results.Count == 14, "U12_CASE_SELECTION");
+        var report = new { schema = "gf-stage12-windows/1", contract = "gf-self-update/1", runtime = Environment.Version.ToString(),
+            fixed_utc = utc.ToString("O"), total = Results.Count, passed = Results.Count - failed, failed, results = Results, observations = Observations,
+            prior_45_executed = false, prototype_correction = false, GF_built_or_executed = false, operational_gate_closed = false, power_loss_tested = false };
+        File.WriteAllText(args[1], JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+        return failed == 0 ? 0 : 1;
+    }
+}
