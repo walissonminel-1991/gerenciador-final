@@ -1,0 +1,138 @@
+// G1/G2 composite-link proof ONLY: Windows temporary fixture, not an updater.
+// Actual Stage11 DurableEpochCache, Stage9 OperationJournal and Stage2 ledger.
+// The "witness" remains honest IN-MEMORY and NO method grants selection.
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+internal sealed record CompositeCheckpoint(
+    string Schema,string InstallationId,string RepositoryIdentity,
+    string TxId,string CandidateSha256,
+    long WitnessSequence,string PriorWitnessDigest,
+    long TufSequence,string TufDigest,int TufEpoch,int TufRoot,
+    int TufTimestamp,int TufSnapshot,int TufTargets,
+    string OperationId,string OperationDigest,string Stage2IntentDigest,
+    long IntentGeneration,string PreviousTerminalDigest,
+    string PreviousWitnessIntentDigest);
+internal sealed record CompositeHead(long Sequence,string Digest,CompositeCheckpoint Checkpoint);
+internal enum CompositeDecision { BoundButNotAuthorized }
+
+internal sealed class InertCompositeAnchor
+{
+    private readonly string installation;
+    private readonly string repo;
+    internal CompositeHead? Head {get;private set;}
+    internal InertCompositeAnchor(string installation,string repository)
+    {this.installation=installation;repo=repository;}
+    internal CompositeHead CommitModelOnly(CompositeCheckpoint cp)
+    {
+        Require(cp.InstallationId==installation && cp.RepositoryIdentity==repo,
+            "COMPOSITE_ANCHOR_IDENTITY");
+        var prev=Head;
+        Require(cp.WitnessSequence==(prev?.Sequence??0)+1 &&
+            cp.PriorWitnessDigest==(prev?.Digest??new string('0',64)),
+            "COMPOSITE_CAS");
+        var digest=Hash(StateCodec.Encode(cp));
+        Head=new CompositeHead(cp.WitnessSequence,digest,cp);
+        return Head;
+    }
+}
+
+internal static class InertCompositeBuilder
+{
+    internal const string Schema="gf-composite-proof-inert/1";
+    internal const string Repository="gf-test-repo-not-registered";
+    internal static string LocalStatePath(string root,long generation)
+        =>Path.Combine(root,"ledger",generation.ToString("D16",
+            System.Globalization.CultureInfo.InvariantCulture)+".fixture.json");
+    private static (StateRecord Record,string Digest) ReadGeneration(string root,long gen)
+    {
+        var bytes=PersistentState.ReadFixtureFile(root,LocalStatePath(root,gen));
+        return (StateCodec.Unwrap(bytes),Hash(bytes));
+    }
+    internal static CompositeCheckpoint Build(string root,TrustView trust,
+        OperationJournal operations,CompositeHead? prior)
+    {
+        FixtureSandbox.RequireRoot(root);
+        using var session=new FixtureSession(root);
+        var latest=session.Store.Load();
+        Require(latest.Record.Transaction is {Phase:"intent"},
+            "COMPOSITE_REQUIRE_INTENT");
+        var tx=latest.Record.Transaction!;
+        Require(session.Files.ReadSelector(latest.Record.InstallationId).Bundle==
+            tx.Previous && latest.Record.Confirmed==tx.Previous,
+            "COMPOSITE_SELECTOR_NOT_PREPARED");
+        var operation=operations.Load();
+        Require(operation.Record is {Phase:"prepared"} &&
+            operation.Record.InstallationId==latest.Record.InstallationId &&
+            operation.Record.Candidate==tx.Candidate &&
+            operation.Record.Permit is not null &&
+            operation.Record.Permit.CacheSha256==trust.Digest &&
+            operation.Record.Permit.EntrySha256==tx.Candidate.Sha256 &&
+            operation.Record.OperationId!=tx.Id,
+            "COMPOSITE_OPERATION_OR_TUF_UNBOUND");
+        Require(trust.ActiveAttempt=="" && trust.Root>0 && trust.Sequence>0 &&
+            trust.Digest.Length==64,"COMPOSITE_TUF_NOT_SETTLED");
+        var predecessor=ReadGeneration(root,latest.Record.Generation-1);
+        Require(predecessor.Digest==latest.Record.PreviousDigest &&
+            predecessor.Record.Transaction is null or {Phase:"confirmed"} or {Phase:"rolled_back"},
+            "COMPOSITE_PREDECESSOR_UNSETTLED");
+
+        string priorIntent="";
+        if(prior is not null)
+        {
+            var old=prior.Checkpoint;
+            Require(old.InstallationId==latest.Record.InstallationId &&
+                old.IntentGeneration<predecessor.Record.Generation &&
+                old.Stage2IntentDigest.Length==64,
+                "COMPOSITE_PRIOR_HEAD");
+            // Replay the stored Stage2 chain over the entire interval since
+            // the prior witness-anchored intent. Never compare local generation
+            // to witness sequence as if they were the same counter.
+            var first=ReadGeneration(root,old.IntentGeneration);
+            Require(first.Digest==old.Stage2IntentDigest &&
+                first.Record.Transaction is {Phase:"intent"} &&
+                first.Record.Transaction.Id==old.TxId,
+                "COMPOSITE_PRIOR_INTENT_RESTORED");
+            var before=first;
+            for(long n=old.IntentGeneration+1;n<=predecessor.Record.Generation;n++)
+            {
+                var now=ReadGeneration(root,n);
+                StateCodec.Follows(before.Record,now.Record,before.Digest);
+                Require(now.Record.Transaction?.Id==old.TxId,
+                    "COMPOSITE_TERMINAL_TXID");
+                before=now;
+            }
+            Require(before.Digest==predecessor.Digest &&
+                before.Record.Transaction is {Phase:"confirmed"} or {Phase:"rolled_back"},
+                "COMPOSITE_TERMINAL_MISSING");
+            // IMPORTANT: a locally valid terminal may still be maliciously
+            // rewritten with all chain hashes. This is not external proof of
+            // terminal authenticity, which remains an OPEN design decision.
+            priorIntent=old.Stage2IntentDigest;
+        }
+        else
+        {
+            Require(latest.Record.Generation==2 &&
+                predecessor.Record.Generation==1 &&
+                predecessor.Record.Transaction is null,
+                "COMPOSITE_GENESIS_REQUIRED");
+        }
+        return new CompositeCheckpoint(Schema,latest.Record.InstallationId,
+            Repository,tx.Id,tx.Candidate.Sha256,(prior?.Sequence??0)+1,
+            prior?.Digest??new string('0',64),trust.Sequence,trust.Digest,
+            trust.Epoch,trust.Root,trust.Timestamp,trust.Snapshot,trust.Targets,
+            operation.Record.OperationId,operation.Digest,latest.Digest,
+            latest.Record.Generation,predecessor.Digest,priorIntent);
+    }
+
+    internal static CompositeDecision InspectBound(string root,
+        TrustView currentTrust,OperationJournal operations,
+        CompositeHead candidate,CompositeHead? predecessor)
+    {
+        var expected=Build(root,currentTrust,operations,predecessor);
+        Require(expected==candidate.Checkpoint &&
+            Hash(StateCodec.Encode(expected))==candidate.Digest,
+            "COMPOSITE_CROSS_JOURNAL_ROLLBACK_OR_FORK");
+        return CompositeDecision.BoundButNotAuthorized;
+    }
+}
