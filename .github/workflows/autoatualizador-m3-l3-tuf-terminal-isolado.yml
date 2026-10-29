@@ -1,0 +1,84 @@
+name: M3 L3 — TUF completo e terminal G1 inertes
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-composed-3/**'
+      - '.github/workflows/autoatualizador-m3-l3-tuf-terminal-isolado.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-l3-tuf-terminal-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  stage3:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - name: Checkout sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Python de fixture
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Bibliotecas do assinador de testes ja fixadas na Etapa 11
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check tuf==7.0.1 securesystemslib==1.3.1 cryptography==50.0.2 urllib3==2.8.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compilar e executar exclusivamente negativos novos L3
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-composed-3/Stage3.csproj'
+          $anchor='prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json'
+          $work=Join-Path $env:RUNNER_TEMP 'gf-m3-l3-source'
+          $fixture=Join-Path $env:RUNNER_TEMP 'gf-m3-l3-signed-fixtures'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-m3-l3-artifacts'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-l3-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'L3_SDK_MISMATCH' }
+          $source=(python prototipos/autoatualizador-seguro/m3-composed/prepare_pinned_source.py $work | Select-Object -Last 1).Trim()
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $source)) { throw 'L3_PINNED_TUF_UNAVAILABLE' }
+          python prototipos/autoatualizador-seguro/m3-composed-3/generate_signed_fixtures.py $fixture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet restore $project "-p:ArtifactsPath=$out" "-p:Stage8Source=$source" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" "-p:Stage8Source=$source" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe=@(Get-ChildItem $out -Filter 'GF.Updater.M3.Stage3Tests.exe' -Recurse -File)
+          if ($exe.Count -ne 1) { throw 'L3_EXE_NOT_UNIQUE' }
+          & $exe[0].FullName --report $report $fixture $anchor
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $v=Get-Content $report -Raw | ConvertFrom-Json
+          if ($v.passed -ne 9 -or $v.failed -ne 0 -or
+              !$v.signed_full_chain_target_entry_binding -or
+              !$v.missing_role_denied -or !$v.role_swap_denied -or
+              !$v.wrong_zip_denied -or !$v.foreign_entry_denied -or
+              !$v.intent_without_terminal_commit_denied -or
+              !$v.terminal_commit_idempotent_in_memory -or
+              !$v.bytewise_terminal_fork_detected_by_memory_anchor -or
+              !$v.vanished_memory_anchor_fail_closed -or
+              !$v.selector_never_selected -or
+              $v.terminal_external_authenticity_proven -or
+              $v.durable_remote_witness_exists -or
+              $v.receipt_cryptographically_authenticated -or
+              $v.authorized_to_select -or $v.authorized_to_confirm -or
+              $v.physical_power_loss_tested -or $v.product_built -or
+              $v.product_executed -or $v.operational_gates_closed -ne 0) {
+            throw 'L3_REPORT_FALSE_AUTHORIZATION'
+          }
+          $product=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leaks=@($product.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-composed-3' })
+          if ($leaks.Count -ne 0) { throw 'L3_PRODUCT_COMPILE_LEAK' }
+          "L3: $($v.passed)/9 targeted signed-TUF/terminal negative fixtures; NO activation, gates blocked." >> $env:GITHUB_STEP_SUMMARY
+# No GF executable, release/deploy, remote witness, telemetry or operational keys.
