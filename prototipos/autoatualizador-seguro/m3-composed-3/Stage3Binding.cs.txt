@@ -1,0 +1,174 @@
+// L3: independent TWO-PHASE diagnostic checkpoints + signed-TUF fixture target.
+// Does not authorize any candidate; memory-only external head. No secret or service.
+using System.Text;
+using System.Text.Json;
+using Tuf;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+internal sealed record Stage3TufTarget(
+    string Schema,string Repository,string TrustDigest,long TrustSequence,
+    int Epoch,int Root,int Timestamp,int Snapshot,int Targets,
+    string RootSha,string TimestampSha,string SnapshotSha,string TargetsSha,
+    string ZipSha,string EntrySha,string ManifestSha,long CandidateSeq,
+    string CandidateVersion,string CompositeDigest);
+internal static class Stage3TufBinding
+{
+    internal static Stage3TufTarget Bind(TrustView live,TrustView observed,
+        byte[] verifiedZip,BundleRef candidate,CompositeHead intent)
+    {
+        Require(live.Digest==observed.Digest && live.Sequence==observed.Sequence &&
+            live.ActiveAttempt=="" && observed.ActiveAttempt=="" &&
+            observed.Metadata.Count==4 && live.Metadata.Count==4 &&
+            new[]{"root","timestamp","snapshot","targets"}.All(role=>
+                observed.Metadata.ContainsKey(role) &&
+                live.Metadata.TryGetValue(role,out var bytes) &&
+                bytes.AsSpan().SequenceEqual(observed.Metadata[role])),
+            "L3_TUF_VIEW_FORK_OR_INCOMPLETE");
+        var roots=observed.Metadata;
+        int version(string role)
+        {
+            using var d=Json(roots[role]);
+            return checked((int)Number(d.RootElement.GetProperty("signed"),
+                "version",int.MaxValue));
+        }
+        Require((version("root"),version("timestamp"),version("snapshot"),
+            version("targets"))==(observed.Root,observed.Timestamp,
+            observed.Snapshot,observed.Targets),"L3_TUF_VERSION_FORK");
+        using(var ts=Json(roots["timestamp"]))
+        {
+            var m=ts.RootElement.GetProperty("signed").GetProperty("meta")
+                .GetProperty("snapshot.json");
+            Require(m.GetProperty("hashes").GetProperty("sha256").GetString()==
+                Hash(roots["snapshot"]) &&
+                m.GetProperty("length").GetInt64()==roots["snapshot"].Length,
+                "L3_TUF_SNAPSHOT_REF_MISMATCH");
+        }
+        using(var sn=Json(roots["snapshot"]))
+        {
+            var m=sn.RootElement.GetProperty("signed").GetProperty("meta")
+                .GetProperty("targets.json");
+            Require(m.GetProperty("hashes").GetProperty("sha256").GetString()==
+                Hash(roots["targets"]) &&
+                m.GetProperty("length").GetInt64()==roots["targets"].Length,
+                "L3_TUF_TARGETS_REF_MISMATCH");
+        }
+        using var tg=Json(roots["targets"]);
+        var target=tg.RootElement.GetProperty("signed").GetProperty("targets")
+            .GetProperty("fixture-package.zip");
+        Require(target.GetProperty("hashes").GetProperty("sha256").GetString()==
+            Hash(verifiedZip) && target.GetProperty("length").GetInt64()==
+            verifiedZip.Length,"L3_TUF_ZIP_REF_MISMATCH");
+        var custom=target.GetProperty("custom").GetProperty("fixture");
+        var parts=ZipInspection.Inspect(verifiedZip,3,CancellationToken.None);
+        Require(parts.Keys.ToHashSet(StringComparer.Ordinal)
+            .SetEquals(new[]{"bundle.fixture.txt","LICENSE.fixture.txt","SHA256SUMS.txt"}),
+            "L3_TUF_BUNDLE_SET");
+        byte[] entry=parts["bundle.fixture.txt"],manifest=parts["SHA256SUMS.txt"];
+        Require(custom.GetProperty("schema").GetString()=="gf-integrated-fixture/9" &&
+            custom.GetProperty("fixture_only").GetBoolean() &&
+            custom.GetProperty("sequence").GetInt64()==candidate.Sequence &&
+            custom.GetProperty("version").GetString()==candidate.Version &&
+            custom.GetProperty("entrypoint").GetString()=="bundle.fixture.txt" &&
+            custom.GetProperty("entry_sha256").GetString()==Hash(entry) &&
+            custom.GetProperty("manifest_sha256").GetString()==Hash(manifest) &&
+            custom.GetProperty("file_count").GetInt32()==3 &&
+            custom.GetProperty("expanded_bytes").GetInt64()==
+                parts.Values.Sum(x=>(long)x.Length) &&
+            candidate.Sha256==Hash(entry) &&
+            Encoding.UTF8.GetString(entry)==
+                "GF-U9-INERT-BUNDLE-"+candidate.Sequence+"-NO-EXE-NO-DLL\n" &&
+            Encoding.UTF8.GetString(manifest)==
+                Hash(entry)+"  bundle.fixture.txt\n"+
+                Hash(parts["LICENSE.fixture.txt"])+"  LICENSE.fixture.txt\n",
+            "L3_TUF_CANDIDATE_NOT_IN_SIGNED_TARGETS");
+        Require(intent.Checkpoint.TufDigest==live.Digest &&
+            intent.Checkpoint.TufSequence==live.Sequence &&
+            intent.Checkpoint.TufRoot==live.Root &&
+            intent.Checkpoint.TufTimestamp==live.Timestamp &&
+            intent.Checkpoint.TufSnapshot==live.Snapshot &&
+            intent.Checkpoint.TufTargets==live.Targets &&
+            intent.Checkpoint.CandidateSha256==candidate.Sha256,
+            "L3_TUF_COMPOSITE_MISMATCH");
+        return new("gf-l3-signed-target-binding-inert/1",
+            InertCompositeBuilder.Repository,live.Digest,live.Sequence,live.Epoch,
+            live.Root,live.Timestamp,live.Snapshot,live.Targets,
+            Hash(roots["root"]),Hash(roots["timestamp"]),Hash(roots["snapshot"]),
+            Hash(roots["targets"]),Hash(verifiedZip),Hash(entry),Hash(manifest),
+            candidate.Sequence,candidate.Version,intent.Digest);
+    }
+}
+
+internal sealed record Stage3TerminalReceipt(
+    string TxId,string IntentDigest,string TerminalDigest,string Outcome,
+    long WitnessSequence,string PreviousCommitDigest,string CommitDigest);
+internal enum Stage3Diagnostic { BoundButNotAuthorized }
+internal sealed class Stage3TerminalMemoryAnchor
+{
+    private readonly Dictionary<string,Stage3TerminalReceipt> receipts=new(StringComparer.Ordinal);
+    private readonly string installation;
+    private readonly CompositeHead intent;
+    internal Stage3TerminalMemoryAnchor(string installationId,CompositeHead committedIntent)
+    {
+        installation=installationId;intent=committedIntent;
+    }
+    internal Stage3TerminalReceipt PublishTerminal(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        var (tx,hash,outcome)=ObserveTerminal(root);
+        Require(tx==intent.Checkpoint.TxId,"L3_TERMINAL_WRONG_TX");
+        if(receipts.TryGetValue(tx,out var saved))
+        {
+            Require(saved.TerminalDigest==hash && saved.Outcome==outcome,
+                "L3_TERMINAL_CONFLICT");
+            return saved;
+        }
+        string prev=intent.Digest;
+        long seq=intent.Sequence+1;
+        var claim=new {installation,tx,priorIntent=intent.Checkpoint.Stage2IntentDigest,
+            terminal=hash,outcome,previousCommit=prev,seq};
+        var receipt=new Stage3TerminalReceipt(tx,intent.Checkpoint.Stage2IntentDigest,
+            hash,outcome,seq,prev,Hash(StateCodec.Encode(claim)));
+        receipts.Add(tx,receipt);
+        return receipt;
+    }
+    private (string,string,string) ObserveTerminal(string root)
+    {
+        using var session=new FixtureSession(root);
+        var current=session.Store.Load();
+        var end=current.Record.Transaction;
+        Require(end is {Phase:"rolled_back"} &&
+            end.Id==intent.Checkpoint.TxId &&
+            current.Record.Confirmed==end.Previous &&
+            session.Files.ReadSelector(installation).Bundle==end.Previous,
+            "L3_TERMINAL_NOT_ROLLED_BACK");
+        long start=intent.Checkpoint.IntentGeneration;
+        Require(current.Record.Generation>start &&
+            current.Record.InstallationId==installation,"L3_TERMINAL_SCOPE");
+        var b=PersistentState.ReadFixtureFile(root,InertCompositeBuilder.LocalStatePath(root,start));
+        var state=StateCodec.Unwrap(b);
+        Require(Hash(b)==intent.Checkpoint.Stage2IntentDigest &&
+            state.Transaction is {Phase:"intent"} &&
+            state.Transaction.Id==end.Id,"L3_TERMINAL_INTENT_MISSING");
+        string digest=Hash(b);
+        for(long n=start+1;n<=current.Record.Generation;n++)
+        {
+            b=PersistentState.ReadFixtureFile(root,InertCompositeBuilder.LocalStatePath(root,n));
+            var next=StateCodec.Unwrap(b);
+            StateCodec.Follows(state,next,digest);
+            state=next;digest=Hash(b);
+        }
+        Require(digest==current.Digest,"L3_TERMINAL_CHAIN_MISMATCH");
+        return(end.Id,digest,"rolled_back");
+    }
+    internal Stage3Diagnostic Inspect(string root,Stage3TerminalReceipt provided)
+    {
+        var (tx,hash,outcome)=ObserveTerminal(root);
+        Require(receipts.TryGetValue(tx,out var stored) &&
+            stored==provided && provided.TerminalDigest==hash &&
+            provided.Outcome==outcome &&
+            provided.IntentDigest==intent.Checkpoint.Stage2IntentDigest,
+            "L3_TERMINAL_NOT_EXTERNALLY_ANCHORED");
+        return Stage3Diagnostic.BoundButNotAuthorized;
+    }
+}
