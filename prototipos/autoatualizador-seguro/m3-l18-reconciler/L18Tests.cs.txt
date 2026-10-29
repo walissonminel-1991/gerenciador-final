@@ -1,0 +1,227 @@
+// L18 experimental runner — fixtures only. Does not launch real GF.
+using System.Diagnostics;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L18Tests
+{
+    private static readonly List<object> Results=[];
+    private static int Failed;
+    private const string Image="GF.Updater.M3.L18Tests.exe";
+    private static string Exe=>Environment.ProcessPath ??
+        throw new InvalidDataException("L18_TEST_EXE");
+    private static Process Spawn(params string[] args)
+    {
+        Require(Path.GetFileName(Exe)==Image,"L18_CHILD_IMAGE");
+        var info=new ProcessStartInfo(Exe){
+            UseShellExecute=false,CreateNoWindow=true,
+            RedirectStandardOutput=true,RedirectStandardError=true,
+            WorkingDirectory=Path.GetTempPath()
+        };
+        foreach(var arg in args)info.ArgumentList.Add(arg);
+        return Process.Start(info) ??
+            throw new InvalidDataException("L18_CHILD_START_FAILED");
+    }
+    private static async Task Kill(Process child)
+    {
+        if(!child.HasExited)child.Kill(entireProcessTree:true);
+        await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+    }
+    private static async Task<Process> Cut(L16Tests.Scenario s,string cut)
+    {
+        var p=Spawn("--owner",s.Source.Root,s.Lab,L16Tests.bootstrap,cut);
+        try
+        {
+            string? line=await p.StandardOutput.ReadLineAsync()
+                .WaitAsync(TimeSpan.FromSeconds(30));
+            Require(line=="CUT:"+cut && !p.HasExited,"L18_CUT_NOT_REACHED:"+line);
+            return p;
+        }
+        catch{await Kill(p);p.Dispose();throw;}
+    }
+    private static async Task Check(string label,Func<Task> body)
+    {
+        try
+        {
+            await body();Results.Add(new{label,status="passed"});
+            Console.WriteLine("PASS "+label);
+        }
+        catch(Exception ex)
+        {
+            Failed++;Results.Add(new{label,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+label+" "+ex);
+        }
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(!OperatingSystem.IsWindows())return 2;
+        if(args.Length==5 && args[0]=="--owner")
+        {
+            if(args[4]=="known-fail-before-switch")return 7;
+            L16Boundary.Perform(args[1],args[2],args[3],args[4]);
+            return 0;
+        }
+        if(args.Length==4 && args[0]=="--execute-recovery-cut")
+        {
+            var result=await L18Coordinator.Execute(args[1],args[2],args[3],
+                Exe,"none",TimeSpan.FromSeconds(30),cutDuringRecovery:true);
+            Console.WriteLine("L18_EXIT:"+result);return 0;
+        }
+        if(args.Length!=4 || args[0]!="--report")return 2;
+        L16Tests.fixtures=Path.GetFullPath(args[2]);
+        L16Tests.bootstrap=Path.GetFullPath(args[3]);
+        L16Tests.suite=Path.Combine(Path.GetTempPath(),
+            "gf-u2-l18-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(L16Tests.suite);
+        try
+        {
+            await Check("L18-01-HONEST-NEW-OBSERVED-IDEMPOTENT",async()=>{
+                using var s=await L16Tests.Prepared();
+                string canary=Path.Combine(s.Lab,"personal-documents-CANARY.txt");
+                File.WriteAllText(canary,"PERSONAL-DATA-UNTOUCHED-18");
+                var first=await L18Coordinator.Execute(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,Exe,"none",TimeSpan.FromSeconds(30));
+                Require(first==L18Decision.LocalConsistentObserved,
+                    "L18_HONEST_FINISH_NOT_OBSERVED");
+                byte[] selectorBefore=File.ReadAllBytes(
+                    L16Boundary.Selector(s.Source.Root));
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.LocalConsistentObserved &&
+                    L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.LocalConsistentObserved,
+                    "L18_REPLAY_NOT_IDEMPOTENT");
+                Require(File.ReadAllBytes(L16Boundary.Selector(s.Source.Root))
+                    .AsSpan().SequenceEqual(selectorBefore),
+                    "L18_REPLAY_MOVED_SELECTOR");
+                Require(File.ReadAllText(canary)=="PERSONAL-DATA-UNTOUCHED-18",
+                    "L18_CANARY_CHANGED");
+                s.Preserved();
+            });
+            await Check("L18-02-FORGED-TERMINAL-NO-OWNER-EXIT",async()=>{
+                using var s=await L16Tests.Prepared();
+                L18Coordinator.Begin(s.Source.Root,s.Lab,L16Tests.bootstrap);
+                using(var child=await Cut(s,"selector-replaced"))await Kill(child);
+                var selector=new L16Selector("gf-l16-selector-inert/1","new",2);
+                var terminal=new L16Terminal("gf-l16-terminal-inert/1",
+                    L14Model.Tx(s.Lab),Hash(StateCodec.Encode(selector)));
+                File.WriteAllBytes(L16Boundary.Terminal(s.Source.Root),
+                    StateCodec.Encode(terminal));
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked,
+                    "L18_FORGED_RECEIPT_AUTHORIZED");
+                s.Preserved();
+            });
+            await Check("L18-03-CONFLICT-AFTER-HONEST-FINISH",async()=>{
+                using var s=await L16Tests.Prepared();
+                Require(await L18Coordinator.Execute(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,Exe,"none",TimeSpan.FromSeconds(30))==
+                    L18Decision.LocalConsistentObserved,
+                    "L18_PRECONDITION_NEW");
+                string terminalPath=L16Boundary.Terminal(s.Source.Root);
+                var t=StateCodec.Decode<L16Terminal>(File.ReadAllBytes(terminalPath));
+                File.WriteAllBytes(terminalPath,
+                    StateCodec.Encode(t with{SelectorSha=new string('d',64)}));
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked,
+                    "L18_CORRUPTED_TERMINAL_ACCEPTED");
+                s.Preserved();
+            });
+            await Check("L18-04-COORDINATOR-OWNS-TIMEOUT-BUSY-LATE-UNKNOWN",async()=>{
+                using var s=await L16Tests.Prepared();
+                var verdict=await L18Coordinator.Execute(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,Exe,"after-replace-resume",
+                    TimeSpan.FromMilliseconds(100));
+                Require(verdict==L18Decision.UnknownBlocked &&
+                    File.Exists(L16Boundary.Uncertain(s.Source.Root)),
+                    "L18_COMPONENT_DID_NOT_PERSIST_TIMEOUT");
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.Busy,
+                    "L18_ACTIVE_OWNER_NOT_BUSY");
+                File.WriteAllText(L16Boundary.Signal(s.Lab),"RESUME-LATE\n");
+                var end=Stopwatch.StartNew();
+                while(!File.Exists(L16Boundary.Terminal(s.Source.Root)) &&
+                    end.Elapsed<TimeSpan.FromSeconds(15))
+                    await Task.Delay(30);
+                Require(File.Exists(L16Boundary.Terminal(s.Source.Root)),
+                    "L18_LATE_OWNER_DID_NOT_TERMINATE");
+                // Owner releases lease after terminal is written.
+                var verdict2=L18Decision.Busy;
+                for(int k=0;k<120 && verdict2==L18Decision.Busy;k++)
+                {
+                    await Task.Delay(40);
+                    verdict2=L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                        L16Tests.bootstrap);
+                }
+                Require(verdict2==L18Decision.UnknownBlocked &&
+                    L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked,
+                    "L18_LATE_FINISH_ERASED_TIMEOUT");
+                s.Preserved();
+            });
+            await Check("L18-05-CRASH-DURING-RECONCILIATION-REENTRANT",async()=>{
+                using var s=await L16Tests.Prepared();
+                using var child=Spawn("--execute-recovery-cut",
+                    s.Source.Root,s.Lab,L16Tests.bootstrap);
+                try
+                {
+                    string? line=await child.StandardOutput.ReadLineAsync()
+                        .WaitAsync(TimeSpan.FromSeconds(40));
+                    Require(line=="CUT:L18-RECONCILE" && !child.HasExited,
+                        "L18_RECOVERY_CUT_NOT_REACHED:"+line);
+                    await Kill(child);
+                    Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                        L16Tests.bootstrap)==L18Decision.LocalConsistentObserved &&
+                        L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                        L16Tests.bootstrap)==L18Decision.LocalConsistentObserved,
+                        "L18_CRASHED_RECOVERY_NOT_IDEMPOTENT");
+                    s.Preserved();
+                }
+                finally{if(!child.HasExited)await Kill(child);}
+            });
+            await Check("L18-06-KNOWN-FAILURE-DISTINCT-FROM-UNKNOWN",async()=>{
+                using var s=await L16Tests.Prepared();
+                Require(await L18Coordinator.Execute(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,Exe,"known-fail-before-switch",
+                    TimeSpan.FromSeconds(30))==L18Decision.FailedKnown,
+                    "L18_KNOWN_FAILURE_MISCLASSIFIED");
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.FailedKnown,
+                    "L18_KNOWN_FAILURE_MUST_BE_IDEMPOTENT");
+                s.Preserved();
+            });
+            await Check("L18-07-REJECT-EXTERNAL-CANARY-REDIRECTION",async()=>{
+                using var s=await L16Tests.Prepared();
+                string canary=Path.Combine(s.Lab,"MY-PERSONAL-FILE.txt");
+                File.WriteAllText(canary,"KEEP-THIS-PRIVATE-TEXT");
+                string eventPath=L18Coordinator.EventPath(s.Source.Root,1);
+                // No need for symlink privileges: a pre-existing event path
+                // must not be overwritten as an attempted journal redirect.
+                File.WriteAllText(eventPath,"PREEXISTING-UNKNOWN-EVENT");
+                bool blocked=false;
+                try{L18Coordinator.Begin(s.Source.Root,s.Lab,L16Tests.bootstrap);}
+                catch(Exception ex) when(ex is Rejected or IOException or
+                    InvalidDataException or JsonException){blocked=true;}
+                Require(blocked && File.ReadAllText(canary)=="KEEP-THIS-PRIVATE-TEXT" &&
+                    File.ReadAllText(eventPath)=="PREEXISTING-UNKNOWN-EVENT",
+                    "L18_WRITE_ESCAPED_SCOPE_OR_OVERWROTE_UNKNOWN");
+                s.Preserved();
+            });
+        }
+        finally{Directory.Delete(L16Tests.suite,true);}
+        var report=new{
+            schema="gf-l18-reconcile-state-machine-inert/1",
+            passed=Results.Count-Failed,failed=Failed,tests=Results,
+            owner_managed_timeout=true, // backed by L18-04 and hard failure if failed
+            real_gf_executed=false,independent_witness=false,
+            same_user_tamperproof=false,whole_disk_restore_protected=false,
+            power_loss_proven=false,operational_gates_closed=0
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_L18_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return Failed==0?0:1;
+    }
+}

@@ -1,0 +1,295 @@
+// L18 prototype only: local-consistency reconciliation. No GF production code.
+// TUF test keys authorize fixture bytes, not completion or independent freshness.
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal enum L18Decision { Busy, UnknownBlocked, FailedKnown, OldVerified, LocalConsistentObserved }
+internal sealed record L18PhaseRecord(string Schema,string Transaction,int Sequence,
+    string Phase,string Detail,string TargetSha);
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L18Coordinator
+{
+    private const string Schema="gf-l18-coordinator-inert/1";
+    private const string Start="started", Intent="switch-intent", Exited="owner-exited",
+        Deadline="timeout", Unknown="unknown", Reconciling="reconciling",
+        Old="old-observed", New="new-observed", Failure="failed-known";
+    internal static string EventPath(string src,int sequence)
+        =>Path.Combine(src,$"l18-phase-{sequence:D6}.fixture.json");
+
+    private static void Root(string src,string lab)
+    {
+        FixtureSandbox.RequireRoot(src);
+        L14Model.RequireRoot(lab);
+    }
+    private static bool Allowed(string previous,string next)=> (previous,next) switch
+    {
+        ("",Start) => true,
+        (Start,Intent) => true,
+        (Intent,Exited or Deadline or Unknown) => true,
+        (Deadline,Unknown) => true,
+        (Exited,Reconciling or Unknown) => true,
+        (Reconciling,New or Old or Failure or Unknown or Reconciling) => true,
+        (Unknown,Reconciling) => true,
+        (Failure,Reconciling) => true,
+        _ => false
+    };
+    private static List<L18PhaseRecord> Load(string src,string lab)
+    {
+        Root(src,lab);
+        var files=Directory.EnumerateFiles(src,"l18-phase-*.fixture.json")
+            .OrderBy(x=>x,StringComparer.Ordinal).ToList();
+        Require(files.Count<=256,"L18_JOURNAL_LIMIT");
+        var records=new List<L18PhaseRecord>();
+        for(int i=0;i<files.Count;i++)
+        {
+            Require(Path.GetFullPath(files[i]).Equals(
+                Path.GetFullPath(EventPath(src,i+1)),StringComparison.OrdinalIgnoreCase),
+                "L18_SEQUENCE_GAP_OR_NAME");
+            using var pin=WindowsFileGuard.Open(src,files[i]);
+            byte[] bytes=pin.Read(4096);
+            using var doc=Json(bytes,4096);
+            Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
+                doc.RootElement.EnumerateObject().Count()==6,"L18_JOURNAL_SHAPE");
+            var item=StateCodec.Decode<L18PhaseRecord>(bytes);
+            Require(item.Schema==Schema && item.Transaction==L14Model.Tx(lab) &&
+                item.Sequence==i+1 && Hex(item.TargetSha,64) &&
+                item.Detail is {Length:<=128} &&
+                Allowed(i==0?"":records[^1].Phase,item.Phase),
+                "L18_JOURNAL_FORK");
+            if(i>0)Require(item.TargetSha==records[0].TargetSha,
+                "L18_TARGET_FORK");
+            records.Add(item);
+        }
+        return records;
+    }
+    private static L18PhaseRecord Append(string src,string lab,string phase,
+        string detail,string target)
+    {
+        var all=Load(src,lab);
+        Require(all.Count<256 && Allowed(all.Count==0?"":all[^1].Phase,phase),
+            "L18_TRANSITION_DENIED");
+        string digest=all.Count==0?target:all[0].TargetSha;
+        Require(Hex(digest,64) && (all.Count==0 || target==digest),
+            "L18_TARGET_CHANGED");
+        var item=new L18PhaseRecord(Schema,L14Model.Tx(lab),all.Count+1,
+            phase,detail,digest);
+        byte[] bytes=StateCodec.Encode(item);
+        Require(bytes.Length is >0 and <=4096,"L18_EVENT_SIZE");
+        using(var stream=new FileStream(EventPath(src,item.Sequence),
+            FileMode.CreateNew,FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough))
+        {
+            stream.Write(bytes);stream.Flush(true);
+        }
+        // Confirm the record was durably observed by the local model.
+        var verify=Load(src,lab);
+        Require(verify.Count==item.Sequence && verify[^1]==item,
+            "L18_EVENT_RECHECK");
+        return item;
+    }
+    private static (string sha,L16Selector selector) Probe(string src,
+        string lab,string bootstrap)
+    {
+        var proof=L15Binding.Guard(lab,src,bootstrap);
+        using var signedZip=WindowsFileGuard.Open(src,L15Binding.SignedZip(src));
+        byte[] zip=signedZip.Read(ZipInspection.MaxBytes);
+        Require(Hash(zip)==proof.SignedZipSha,"L18_ZIP_CHANGED");
+        var entry=ZipInspection.Inspect(zip,3,CancellationToken.None)["bundle.fixture.txt"];
+        Require(Hash(entry)==proof.SignedEntrySha && entry.Length<=4096,
+            "L18_AUTHENTICATED_ENTRY");
+        using var stage=WindowsFileGuard.Open(src,L16Boundary.Stage(src));
+        Require(stage.Read(4096).AsSpan().SequenceEqual(entry),
+            "L18_STAGED_MISMATCH");
+        using var selectorPin=WindowsFileGuard.Open(src,L16Boundary.Selector(src));
+        byte[] selected=selectorPin.Read(4096);
+        using var doc=Json(selected,4096);
+        Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
+            doc.RootElement.EnumerateObject().Count()==3,"L18_SELECTOR_SHAPE");
+        var selector=StateCodec.Decode<L16Selector>(selected);
+        Require(selector.Schema=="gf-l16-selector-inert/1" &&
+            (selector is {Selected:"old",Generation:1 or 3} ||
+                selector is {Selected:"new",Generation:2}),"L18_SELECTOR_INVALID");
+        stage.Recheck();selectorPin.Recheck();
+        return (proof.SignedEntrySha,selector);
+    }
+    internal static void Begin(string src,string lab,string bootstrap)
+    {
+        Root(src,lab);
+        Require(!File.Exists(L16Boundary.Uncertain(src)) &&
+            Load(src,lab).Count==0,"L18_ALREADY_STARTED");
+        var facts=Probe(src,lab,bootstrap);
+        Require(facts.selector is {Selected:"old",Generation:1},
+            "L18_BEGIN_NOT_OLD");
+        Append(src,lab,Start,"old-verified-before-start",facts.sha);
+        // Persist intention BEFORE ANY owner that might modify the selector.
+        Append(src,lab,Intent,"owner-may-be-launched",facts.sha);
+    }
+    internal static async Task<L18Decision> Execute(string src,string lab,
+        string bootstrap,string executable,string cutpoint,TimeSpan deadline,
+        bool cutDuringRecovery=false)
+    {
+        Begin(src,lab,bootstrap);
+        Require(deadline>TimeSpan.Zero && deadline<=TimeSpan.FromMinutes(1),
+            "L18_DEADLINE_SCOPE");
+        string own=Path.GetFullPath(executable);
+        Require(Path.GetFullPath(Environment.ProcessPath ?? "")==own &&
+            Path.GetFileName(own).Equals("GF.Updater.M3.L18Tests.exe",
+                StringComparison.OrdinalIgnoreCase),"L18_EXE_ALLOWLIST");
+        var info=new ProcessStartInfo(own){
+            UseShellExecute=false,CreateNoWindow=true,
+            RedirectStandardOutput=true,RedirectStandardError=true,
+            WorkingDirectory=Path.GetTempPath()
+        };
+        foreach(string part in new[]{"--owner",src,lab,bootstrap,cutpoint})
+            info.ArgumentList.Add(part);
+        using var owner=Process.Start(info) ??
+            throw new InvalidDataException("L18_OWNER_START_FAILED");
+        try
+        {
+            // Deterministic fixture handshake: deadline starts only once the
+            // controlled L16 child reached the late-completion cut. This is
+            // a test barrier, NOT a production deadline or readiness signal.
+            if(cutpoint=="after-replace-resume")
+            {
+                string? ready=await owner.StandardOutput.ReadLineAsync()
+                    .WaitAsync(TimeSpan.FromSeconds(30));
+                Require(ready=="READY:L17-LATE","L18_LATE_CUT_UNREACHED");
+            }
+            try { await owner.WaitForExitAsync().WaitAsync(deadline); }
+            catch(TimeoutException)
+            {
+                // The coordinator, NOT the test supervisor, owns the timeout.
+                // It persists a warning BEFORE returning, while the owner
+                // may still be writing. Never kill/assume aborted I/O.
+                Append(src,lab,Deadline,"wait-expired-owner-may-continue",
+                    Load(src,lab)[0].TargetSha);
+                L16Boundary.MarkUncertain(src);
+                Append(src,lab,Unknown,"timeout-effects-not-reconciled",
+                    Load(src,lab)[0].TargetSha);
+                return L18Decision.UnknownBlocked;
+            }
+            Append(src,lab,Exited,owner.ExitCode==0?"exit-code-zero":
+                "exit-code-nonzero",Load(src,lab)[0].TargetSha);
+            return Reconcile(src,lab,bootstrap,cutDuringRecovery);
+        }
+        catch
+        {
+            // Incomplete switch-intent remains blocking even if this
+            // coordinator dies before it can write another event.
+            throw;
+        }
+    }
+    internal static L18Decision Reconcile(string src,string lab,string bootstrap,
+        bool cutAfterCheckpoint=false)
+    {
+        Root(src,lab);
+        FileStream lease;
+        try { lease=L16Boundary.Exclusive(src); }
+        catch(IOException) {return L18Decision.Busy;}
+        using(lease)
+        {
+            try
+            {
+                var events=Load(src,lab);
+                if(File.Exists(L16Boundary.Uncertain(src)))
+                    return L18Decision.UnknownBlocked;
+                bool began=events.Count>0;
+                if(began && events.Any(x=>x.Phase is Deadline or Unknown))
+                    return L18Decision.UnknownBlocked;
+                // An intent does not prove the owner ever exited.
+                bool exitRecorded=events.Any(x=>x.Phase==Exited);
+                bool recovered=events.Any(x=>x.Phase==New);
+                bool failureRecorded=events.Any(x=>x.Phase==Failure);
+                var facts=Probe(src,lab,bootstrap);
+                if(began && events[0].TargetSha!=facts.sha)
+                    return L18Decision.UnknownBlocked;
+                if(!began)
+                {
+                    if(File.Exists(L16Boundary.Intent(src)) ||
+                        File.Exists(L16Boundary.Terminal(src)))
+                        return L18Decision.UnknownBlocked;
+                    return facts.selector is {Selected:"old",Generation:1}
+                        ?L18Decision.OldVerified:L18Decision.UnknownBlocked;
+                }
+                if(failureRecorded && events[^1].Phase==Failure)
+                {
+                    // A known failure must be idempotent and remain distinct
+                    // from an unknown outcome, provided OLD still verifies.
+                    return exitRecorded && facts.selector.Selected=="old" &&
+                        !File.Exists(L16Boundary.Terminal(src))
+                        ?L18Decision.FailedKnown:L18Decision.UnknownBlocked;
+                }
+                if(recovered)
+                {
+                    // Repeatable, read-only observation; do not trust a prior
+                    // recorded outcome if the auxiliary terminal now conflicts.
+                    if(!exitRecorded ||
+                        facts.selector is not {Selected:"new",Generation:2} ||
+                        !File.Exists(L16Boundary.Terminal(src)))
+                        return L18Decision.UnknownBlocked;
+                    using var terminalPin=WindowsFileGuard.Open(src,
+                        L16Boundary.Terminal(src));
+                    var terminal=StateCodec.Decode<L16Terminal>(
+                        terminalPin.Read(4096));
+                    return terminal.Schema=="gf-l16-terminal-inert/1" &&
+                        terminal.Transaction==L14Model.Tx(lab) &&
+                        terminal.SelectorSha==Hash(StateCodec.Encode(facts.selector))
+                            ?L18Decision.LocalConsistentObserved
+                            :L18Decision.UnknownBlocked;
+                }
+                if(!exitRecorded)return L18Decision.UnknownBlocked;
+                string exitDetail=events.Last(x=>x.Phase==Exited).Detail;
+                if(events[^1].Phase!=Reconciling)
+                    Append(src,lab,Reconciling,"verify-local-facts",facts.sha);
+                if(cutAfterCheckpoint)
+                {
+                    Console.WriteLine("CUT:L18-RECONCILE");Console.Out.Flush();
+                    Thread.Sleep(Timeout.Infinite);
+                }
+                // Re-read actual filesystem AFTER the durable recovery intent.
+                facts=Probe(src,lab,bootstrap);
+                if(exitDetail=="exit-code-zero" &&
+                    facts.selector is {Selected:"new",Generation:2})
+                {
+                    if(!File.Exists(L16Boundary.Terminal(src)))
+                        return Block("missing-auxiliary-terminal");
+                    using var pin=WindowsFileGuard.Open(src,L16Boundary.Terminal(src));
+                    byte[] tBytes=pin.Read(4096);
+                    using var doc=Json(tBytes,4096);
+                    Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
+                        doc.RootElement.EnumerateObject().Count()==3,"L18_TERMINAL_SHAPE");
+                    var terminal=StateCodec.Decode<L16Terminal>(tBytes);
+                    Require(terminal.Schema=="gf-l16-terminal-inert/1" &&
+                        terminal.Transaction==L14Model.Tx(lab) &&
+                        terminal.SelectorSha==Hash(StateCodec.Encode(facts.selector)),
+                        "L18_TERMINAL_CONFLICT");
+                    // Evidence of exit is local/cooperative, NOT a signature
+                    // or same-user tamper-resistant witness.
+                    Append(src,lab,New,"local-fixture-consistent",facts.sha);
+                    return L18Decision.LocalConsistentObserved;
+                }
+                if(exitDetail=="exit-code-nonzero" &&
+                    facts.selector.Selected=="old" &&
+                    !File.Exists(L16Boundary.Terminal(src)))
+                {
+                    Append(src,lab,Failure,"known-owner-error-old-observed",facts.sha);
+                    return L18Decision.FailedKnown;
+                }
+                return Block("owner-outcome-or-selector-conflict");
+                L18Decision Block(string reason)
+                {
+                    Append(src,lab,Unknown,reason,facts.sha);
+                    return L18Decision.UnknownBlocked;
+                }
+            }
+            catch(Exception ex) when(ex is Rejected or InvalidDataException or
+                IOException or UnauthorizedAccessException or JsonException or
+                Win32Exception or ArgumentException)
+            {return L18Decision.UnknownBlocked;}
+        }
+    }
+}
