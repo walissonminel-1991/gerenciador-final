@@ -49,7 +49,8 @@ internal static class M2WinFormsProbe
                     throw new InvalidDataException("M2_WRONG_PARENT");
                 using var server=Process.GetProcessById(parent);
                 PeerIdentity.Verify(client,false,server,serverImage);
-                if(Path.GetFileName(serverImage)!="GF.Updater.M2.Tests.exe")
+                if(Path.GetFileName(serverImage) is not ("GF.Updater.M2.Tests.exe" or
+                    "GF.Updater.M2.RecoveryTests.exe"))
                     throw new InvalidDataException("M2_UNEXPECTED_SERVER");
                 var challenge=await PipeFrames.Read(client,budget.Token);
                 PipeFrames.Bound(challenge,"challenge",challenge.Transaction,challenge.Nonce);
