@@ -1,0 +1,64 @@
+name: M3 G1 — witness independente modelado em memoria
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-g1-witness/**'
+      - '.github/workflows/autoatualizador-m3-g1-witness-inerte.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-g1-witness-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  g1-inert-model:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - name: Checkout read-only sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Instalar SDK fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Executar exclusivamente modelo G1 sem rede nem segredo
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-g1-witness/G1Witness.csproj'
+          $output=Join-Path $env:RUNNER_TEMP 'gf-m3-g1-witness-build'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-g1-witness-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'G1_SDK_MISMATCH' }
+          dotnet restore $project "-p:ArtifactsPath=$output" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$output" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runners=@(Get-ChildItem $output -Filter 'GF.Updater.M3.G1WitnessTests.exe' -Recurse -File)
+          if ($runners.Count -ne 1) { throw 'G1_RUNNER_NOT_UNIQUE' }
+          & $runners[0].FullName --report $report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.failed -ne 0 -or $r.passed -ne 11 -or
+              !$r.full_local_byte_snapshot_accepted_locally -or
+              !$r.independent_memory_head_detected_local_rollback -or
+              !$r.same_generation_fork_refused -or
+              !$r.outage_denied -or !$r.replayed_challenge_denied -or
+              !$r.witness_regression_refused -or !$r.witness_equivocation_refused -or
+              !$r.compromised_witness_can_lie -or
+              !$r.no_network_or_persisted_witness -or
+              $r.witness_authentication_implemented -or
+              $r.operational_gates_closed -ne 0 -or
+              $r.product_built -or $r.product_executed -or
+              $r.real_independent_witness_verified -or $r.power_loss_tested) {
+            throw 'G1_WITNESS_REPORT_INVALID'
+          }
+          $compile=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leaks=@($compile.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-g1-witness' })
+          if ($leaks.Count -ne 0) { throw 'G1_PRODUCT_COMPILE_LEAK' }
+          "G1 witness model: $($r.passed) PASS; local rollback detected under trusted-memory assumption; compromised witness still able to lie; 0 operational gates." >> $env:GITHUB_STEP_SUMMARY
+# Does not use any external witness endpoint, secrets, account or telemetry.
