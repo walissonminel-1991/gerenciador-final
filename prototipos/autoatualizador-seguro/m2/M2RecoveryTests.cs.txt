@@ -63,7 +63,13 @@ internal static class M2RecoveryTests
     public static async Task<int> Main(string[] args)
     {
         if(args.Length>0 && args[0]=="--m2-cut-child")return await CutChild(args);
-        if(args.Length!=2 || args[0]!="--report")return 2;
+        if(args.Length==1 && args[0]=="--m2-predecessor")
+        {
+            Console.WriteLine("M2-INERT-PREDECESSOR");
+            return await Console.In.ReadLineAsync()=="close"?0:3;
+        }
+        if(args.Length!=3 || args[0]!="--report")return 2;
+        M2UnifiedLifecycle.WinFormsProbePath=args[2];
         string suite=Path.Combine(Path.GetTempPath(),"gf-u2-m2-"+Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(suite);
         try
@@ -117,6 +123,14 @@ internal static class M2RecoveryTests
                 }
                 fixture.Preserved();
             });
+            if(OperatingSystem.IsWindows())
+            {
+                foreach(string mode in new[]{"normal","bad-nonce","bad-tx","no-ready"})
+                    await Check("M2-UNIFIED-"+mode.ToUpperInvariant(),async()=>{
+                        using var fixture=new StateCase(suite);
+                        await M2UnifiedLifecycle.Cycle(fixture,mode);
+                    });
+            }
         }
         finally{Directory.Delete(suite,true);}
         var report=new{
@@ -125,7 +139,11 @@ internal static class M2RecoveryTests
             operational_gates_closed=0,uses_existing_stage2_journal=true,
             killed_process_recovery_executed=tests.Any(x=>JsonSerializer.SerializeToElement(x)
                 .GetProperty("id").GetString()=="M2-JOURNAL-KILLED-CHILD-ROLLBACK"),
-            simulated_power_loss=false,window_ready_not_bound_to_journal=true,
+            simulated_power_loss=false,window_ready_not_bound_to_journal=false,
+            unified_winforms_journal_confirmed=M2UnifiedLifecycle.ValidHwndConfirmed,
+            unified_negative_ready_rolled_back=M2UnifiedLifecycle.RejectedReadyRolledBack,
+            unified_no_ready_rolled_back=M2UnifiedLifecycle.WithheldReadyRolledBack,
+            unified_non_elevated_admission_verified=M2UnifiedLifecycle.NonElevatedAdmissionObserved,
             product_built=false,product_executed=false,hardware_failure_tested=false};
         await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
         Console.WriteLine("M2_STATE_FINAL_REPORT "+JsonSerializer.Serialize(report));
