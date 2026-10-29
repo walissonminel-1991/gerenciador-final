@@ -1,0 +1,159 @@
+// M2/G6 tests exercise real OS process exits only for explicitly spawned inert children.
+using System.Diagnostics;
+using System.Text.Json;
+
+namespace GfUpdaterFixture;
+
+internal static class M2Tests
+{
+    private static readonly List<object> results=[];
+    private static int failures;
+    private static async Task Case(string id,Func<Task> action)
+    {
+        try{await action();results.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception e){failures++;results.Add(new{id,status="failed",error=e.ToString()});Console.WriteLine("FAIL "+id+" "+e);}
+    }
+    private static void Refuse(Action action,string code)
+    {
+        try{action();}
+        catch(InvalidDataException e) when(e.Message==code){return;}
+        throw new InvalidDataException("M2_UNSAFE_ACCEPTANCE_OR_WRONG_REFUSAL:"+code);
+    }
+    private static async Task<Process> StartChild(string mode)
+    {
+        string exe=Environment.ProcessPath ?? throw new InvalidDataException("M2_NO_APPHOST");
+        if(Path.GetFileNameWithoutExtension(exe).Equals("dotnet",StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("M2_HOST_MISMATCH");
+        var info=new ProcessStartInfo(exe)
+        {
+            UseShellExecute=false,RedirectStandardInput=true,RedirectStandardOutput=true,
+            RedirectStandardError=true,CreateNoWindow=true
+        };
+        info.ArgumentList.Add("--m2-owned-child");info.ArgumentList.Add(mode);
+        var child=Process.Start(info)??throw new InvalidDataException("M2_PROCESS_START");
+        try
+        {
+            string? marker=await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(8));
+            if(marker!="INERT-CHILD-STARTED")throw new InvalidDataException("M2_CHILD_NOT_STARTED");
+            return child;
+        }
+        catch
+        {
+            await Destroy(child);
+            throw;
+        }
+    }
+    private static async Task Close(Process p,string command="close")
+    {
+        await p.StandardInput.WriteLineAsync(command);
+        await p.StandardInput.FlushAsync();
+        using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(7));
+        await p.WaitForExitAsync(budget.Token);
+    }
+    private static async Task Destroy(Process p)
+    {
+        try{if(!p.HasExited){p.Kill(true);await p.WaitForExitAsync();}}
+        catch(InvalidOperationException){}finally{p.Dispose();}
+    }
+    private static async Task<int> Child(string mode)
+    {
+        if(mode is not ("cooperate" or "busy" or "failure"))return 2;
+        Console.WriteLine("INERT-CHILD-STARTED");
+        string? command=await Console.In.ReadLineAsync();
+        if(command!="close")return 13;
+        if(mode=="failure")return 7;
+        if(mode=="busy")
+        {
+            Console.WriteLine("BUSY");
+            if(await Console.In.ReadLineAsync()!="exit")return 14;
+        }
+        return 0;
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length==2 && args[0]=="--m2-owned-child")
+            return await Child(args[1]);
+        if(args.Length!=2 || args[0]!="--report")return 2;
+        await Case("M2-NO-PARTICIPANTS-REFUSED",()=>{
+            Refuse(()=>new M2ExitBarrier([],TimeSpan.FromSeconds(2)),"M2_PARTICIPANT_COUNT");
+            return Task.CompletedTask;});
+        await Case("M2-PROCESS-EXIT-REQUIRED",async()=>{
+            var child=await StartChild("cooperate");
+            try
+            {
+                var gate=new M2ExitBarrier([child],TimeSpan.FromSeconds(7));
+                Refuse(gate.RequireCanLaunch,"M2_STILL_RUNNING");
+                await Close(child);
+                gate.RequireCanLaunch();
+                Refuse(gate.RequireCanLaunch,"M2_REUSED_APPROVAL");
+            }
+            finally{await Destroy(child);}
+        });
+        await Case("M2-ALL-EXITS-REQUIRED",async()=>{
+            var first=await StartChild("cooperate");
+            Process? second=null;
+            try
+            {
+                second=await StartChild("cooperate");
+                var gate=new M2ExitBarrier([first,second],TimeSpan.FromSeconds(7));
+                await Close(first);
+                Refuse(gate.RequireCanLaunch,"M2_STILL_RUNNING");
+                await Close(second);
+                gate.RequireCanLaunch();
+            }
+            finally{if(second is not null)await Destroy(second);await Destroy(first);}
+        });
+        await Case("M2-BUSY-BLOCKS-CANDIDATE",async()=>{
+            var child=await StartChild("busy");
+            try
+            {
+                var gate=new M2ExitBarrier([child],TimeSpan.FromSeconds(7));
+                await child.StandardInput.WriteLineAsync("close");
+                await child.StandardInput.FlushAsync();
+                string? busy=await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(7));
+                if(busy!="BUSY")throw new InvalidDataException("M2_MISSING_BUSY");
+                Refuse(gate.RequireCanLaunch,"M2_STILL_RUNNING");
+                await Close(child,"exit");
+                gate.RequireCanLaunch();
+            }
+            finally{await Destroy(child);}
+        });
+        await Case("M2-FAILED-EXIT-REFUSED",async()=>{
+            var child=await StartChild("failure");
+            try
+            {
+                var gate=new M2ExitBarrier([child],TimeSpan.FromSeconds(7));
+                await Close(child);
+                Refuse(gate.RequireCanLaunch,"M2_EXIT_FAILURE");
+            }
+            finally{await Destroy(child);}
+        });
+        await Case("M2-DEADLINE-NO-LATE-APPROVAL",async()=>{
+            var child=await StartChild("cooperate");
+            try
+            {
+                var gate=new M2ExitBarrier([child],TimeSpan.FromMilliseconds(30));
+                await Task.Delay(120);
+                await Close(child);
+                Refuse(gate.RequireCanLaunch,"M2_DEADLINE");
+            }
+            finally{await Destroy(child);}
+        });
+        await Case("M2-DUPLICATE-PROCESS-REFUSED",async()=>{
+            var child=await StartChild("cooperate");
+            try{Refuse(()=>new M2ExitBarrier([child,child],TimeSpan.FromSeconds(7)),"M2_DUPLICATE_PROCESS");}
+            finally{await Destroy(child);}
+        });
+        var report=new
+        {
+            schema=1,phase="M2",fixture_only=true,operational_gates_closed=0,
+            passed=results.Count-failures,failed=failures,tests=results,
+            kernel_process_exit_observed=true,window_readiness_verified=false,
+            authenticated_g5_admission_verified=false,durable_rollback_verified=false,
+            real_gf_participants_discovered=false,product_built=false,product_executed=false
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("M2_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failures==0?0:1;
+    }
+}

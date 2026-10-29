@@ -1,0 +1,42 @@
+// Isolated M2/G6 candidate-start barrier. No real GF installation or maintenance.
+using System.Diagnostics;
+
+namespace GfUpdaterFixture;
+
+internal sealed class M2ExitBarrier
+{
+    private readonly (Process Handle,int Pid)[] participants;
+    private readonly Stopwatch clock=Stopwatch.StartNew();
+    private readonly TimeSpan limit;
+    private bool released;
+
+    internal M2ExitBarrier(IEnumerable<Process> ownedParticipants,TimeSpan deadline)
+    {
+        if(deadline<=TimeSpan.Zero || deadline>TimeSpan.FromMinutes(2))
+            throw new InvalidDataException("M2_BAD_DEADLINE");
+        var handles=ownedParticipants.ToArray();
+        if(handles.Length is <1 or >32)throw new InvalidDataException("M2_PARTICIPANT_COUNT");
+        participants=handles.Select(p=>(Handle:p,Pid:p.Id)).ToArray();
+        if(participants.Select(p=>p.Pid).Distinct().Count()!=participants.Length)
+            throw new InvalidDataException("M2_DUPLICATE_PROCESS");
+        if(participants.Any(p=>p.Handle.HasExited))
+            throw new InvalidDataException("M2_PARTICIPANT_NOT_RUNNING");
+        limit=deadline;
+    }
+
+    // Call immediately before creating the candidate. The actual process handles,
+    // not client-provided PID or ack text, prove previous participants exited.
+    internal void RequireCanLaunch()
+    {
+        if(released)throw new InvalidDataException("M2_REUSED_APPROVAL");
+        if(clock.Elapsed>=limit)throw new InvalidDataException("M2_DEADLINE");
+        foreach(var p in participants)
+        {
+            if(p.Handle.Id!=p.Pid)throw new InvalidDataException("M2_PROCESS_ID_CHANGED");
+            if(!p.Handle.HasExited)throw new InvalidDataException("M2_STILL_RUNNING");
+            if(p.Handle.ExitCode!=0)throw new InvalidDataException("M2_EXIT_FAILURE");
+        }
+        if(clock.Elapsed>=limit)throw new InvalidDataException("M2_DEADLINE");
+        released=true;
+    }
+}
