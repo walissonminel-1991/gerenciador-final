@@ -1,0 +1,158 @@
+{
+  "schema": 1,
+  "stage": 3,
+  "contract": "gf-self-update/1",
+  "fixture_only": true,
+  "package_installable": false,
+  "product_built": false,
+  "product_executed": false,
+  "private_channel_accessed": false,
+  "physical_tests_repeated": 0,
+  "runtime": ".NET 10.0.13",
+  "os": "Ubuntu 24.04.3 LTS",
+  "total": 19,
+  "passed": 19,
+  "failed": 0,
+  "tests": [
+    {
+      "id": "TUFCLK-01",
+      "description": "Original pinned package remains usable with current signed fixtures",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-02",
+      "description": "Pinned-source clock experiment validates the chain with one frozen update-start time",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-03",
+      "description": "A future frozen cycle refuses a timestamp accepted at the current system time",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-expired-root",
+      "description": "Library itself refuses expired root at the injected cycle clock",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-expired-timestamp",
+      "description": "Library itself refuses expired timestamp at the injected cycle clock",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-expired-snapshot",
+      "description": "Library itself refuses expired snapshot at the injected cycle clock",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-expired-targets",
+      "description": "Library itself refuses expired targets at the injected cycle clock",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-04",
+      "description": "Expiry equality is rejected for all four signed roles",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-05",
+      "description": "Injected time does not bypass signature verification",
+      "status": "passed"
+    },
+    {
+      "id": "FRAME-01",
+      "description": "Bounded frame round-trip retains transaction, nonce and fixed profile",
+      "status": "passed"
+    },
+    {
+      "id": "FRAME-02",
+      "description": "Oversized length is refused before payload allocation",
+      "status": "passed"
+    },
+    {
+      "id": "FRAME-03",
+      "description": "Duplicate/unknown fields and connected profile are refused",
+      "status": "passed"
+    },
+    {
+      "id": "FRAME-04",
+      "description": "Truncation, cancellation and wrong transaction are not readiness",
+      "status": "passed"
+    },
+    {
+      "id": "DUR-01",
+      "description": "Reordered/lost selector and journal persistence images never authorize an unknown bundle",
+      "status": "passed"
+    },
+    {
+      "id": "DUR-02",
+      "description": "Whole-suffix loss exposes the documented local antirollback limitation",
+      "status": "passed"
+    },
+    {
+      "id": "PE-01",
+      "description": "Bounded synthetic AMD64 header is statically classified without loading code",
+      "status": "passed"
+    },
+    {
+      "id": "PE-02",
+      "description": "Native x86 and ARM64 cannot satisfy the Windows x64 entrypoint contract",
+      "status": "passed"
+    },
+    {
+      "id": "PE-03",
+      "description": "Truncated/overflowed headers and impossible section ranges are refused",
+      "status": "passed"
+    },
+    {
+      "id": "PE-04",
+      "description": "A claimed CLR header must map inside a bounded PE section",
+      "status": "passed"
+    }
+  ],
+  "observations": [
+    {
+      "kind": "frozen_tuf_clock",
+      "clock_reads": 10,
+      "system_clock_modified": false
+    },
+    {
+      "kind": "persistence_image_model",
+      "images": 16,
+      "safe": 6,
+      "blocked": 10,
+      "physical_power_cut_executed": false
+    },
+    {
+      "kind": "whole_suffix_loss_model",
+      "approved_before": 2,
+      "restored_floor": 1,
+      "power_loss_gate_closed": false,
+      "physical_power_cut_executed": false
+    }
+  ],
+  "remaining_gates": [
+    "physical power-loss/storage durability",
+    "production bootstrap/custody",
+    "GF-specific PE/runtime recipe and full-size extraction",
+    "foreign-user/session IPC and non-elevated positive path when not exercised",
+    "operational GF lifecycle and integration"
+  ],
+  "stage4_started": false,
+  "clock_experiment_provenance": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "clock_sites_replaced": 7,
+    "expiry_boundaries_made_strict": 7,
+    "original_nuget_package_changed": false,
+    "production_ready": false
+  },
+  "isolation": {
+    "sdk": "10.0.402",
+    "restore_locked_mode": true,
+    "product_compile_items": 142,
+    "prototype_compile_items": 0,
+    "outputs_outside_repository": true,
+    "product_built": false
+  }
+}

@@ -18,8 +18,9 @@ internal static class EcosystemInventory
         app.Version, app.InstallLocation, app.MsiProductCode, app.MsixPackageFamilyName);
     internal static ProviderInstallation? Get(ProgramEntry app) => Bindings.TryGetValue(app, out var value) && value.Key == Key(app) ? value.Installation : null;
     internal static bool Managed(ProgramEntry app) => Get(app)?.Identity.Provider is "scoop" or "scoop-global" or "chocolatey";
-    internal static bool CanQueryVersions(ProgramEntry app) => !app.InventoryOnly || app.VerifiedMsixIdentity ||
-        app.MsixPackageFamilyName.Length > 0 && app.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) || Managed(app);
+    internal static bool CanQueryVersions(ProgramEntry app) => !ProtectedApplications.IsExcludedFromManagement(app.Name) &&
+        (!app.InventoryOnly || app.VerifiedMsixIdentity ||
+        app.MsixPackageFamilyName.Length > 0 && app.InventoryId.StartsWith("MSIX|", StringComparison.Ordinal) || Managed(app));
     internal static bool Identified(ProgramEntry app) => Bindings.TryGetValue(app, out var value) && value.Key == Key(app) && value.Match.Discovered;
     internal static bool Ambiguous(ProgramEntry app) => Assessments.TryGetValue(app, out var value) &&
         value.Key == Key(app) && value.Match.Confidence == IdentityConfidence.Ambiguous;

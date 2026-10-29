@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "stage": 5,
+  "probe": "read_only_existing_token_capability",
+  "elevated": true,
+  "elevation_type": 1,
+  "linked_query_success": false,
+  "linked_query_error": 1312,
+  "linked_elevated": null,
+  "non_elevated_existing_token_available": false,
+  "non_elevated_positive_handshake_executed": false,
+  "foreign_session_user_handshake_executed": false,
+  "token_modified_or_duplicated": false,
+  "account_acl_uac_privilege_changed": false,
+  "processes_spawned_with_token": 0,
+  "gf_executed": false,
+  "validated_code_commit": "6712f3da6bda1c06fd693b625383cb7b23706d22",
+  "ci": {
+    "run_id": 40775734566,
+    "run_number": 2,
+    "attempt": 1,
+    "job_id": 123124422982,
+    "conclusion": "success",
+    "full_suite_reexecuted": false,
+    "artifacts": 0
+  }
+}

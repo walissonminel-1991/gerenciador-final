@@ -1,6 +1,47 @@
 # GERENCIADOR FINAL — roadmap funcional
 
+**Etapa 8 — BLOQUEADA para pacote/entrega executável privada (28/10/2026).**
+[Preparação e impedimento](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) ·
+[guia/roteiro futuro PC FORTE](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md) ·
+[recibo](evidencias/integracao-etapa8-preparacao.json).
+Fonte 6df95fdd776644cd4b248b5cea61108974ca9ce9 e CIs 40675784213/40675784155
+reconferidas success, tentativa 1; onze diferenças documentais posteriores,
+sem alteração funcional ou de arquivos embarcados. Perfil local e proteções
+preservados. Somente três manifestos disponíveis; ZIP executável, SHA-256 do
+pacote e link privado inexistentes. Alternativa privada documentada, sem
+provisionamento ou contorno de gates. **Etapa 9 não iniciada; todos os testes
+físicos NÃO EXECUTADO.** Roadmap 27/42; conectada/pública bloqueada.
+
+**Etapa 7 concluída — 28/10/2026:** [correções e regressões](WORK-INTEGRACAO-ETAPA7-CORRECOES.md),
+[matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa7-correcoes.json).
+GF6-001/GF6-002 (ALTOS locais), GF6-003/GF6-004 (BAIXOS) e GF7-001
+(regressão de CI, MÉDIO) corrigidos no escopo demonstrado.
+Fonte **`6df95fdd776644cd4b248b5cea61108974ca9ce9`**, [Windows 40675784213](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213)
+e [integridade externa 40675784155](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155) aprovadas,
+tentativa 1. Regra local compilada: zero consultas automáticas e diagnóstico
+remoto desativado inclusive com consentimento herdado/erro/encerramento.
+**BETA LOCAL não preparada; conectada/pública bloqueada.** Próxima sessão
+somente Etapa 8; não iniciada. Roadmap **27/42**, sem homologação física/AVG.
+
+**Integração final — Etapa 6, 27/10/2026:** [auditoria geral concluída](WORK-INTEGRACAO-ETAPA6-AUDITORIA.md), [matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md), [checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) e [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65). **Dois ALTOS locais e dois BAIXOS abertos; BETA LOCAL não preparada e conectada/pública bloqueada.** Próxima sessão somente Etapa 7, não iniciada. 47/47 Python e 136/136 Node isolados; C#/Windows usa evidência existente no SHA 6b5b0e52. Sem correção, nova CI/build ou pacote. Todos os 42 IDs/done e históricos preservados, **27/42**. Registros das Etapas 4–5 abaixo permanecem históricos.
+
+**Integração final — Etapa 5, 27/10/2026:** [organização segura concluída](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md), [checkpoint](WORK-INTEGRACAO-CHECKPOINT.md), [matriz](WORK-INTEGRACAO-MATRIZ.md) e [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65). Próxima sessão somente **Etapa 6 — auditoria geral**, não iniciada. Dez documentos, sem código/testes/workflows/configuração alterados, exclusão, fechamento automático, nova build ou pacote. Mesmos 42 IDs/done e históricos, **27/42**. BETA LOCAL não preparada; conectada/pública bloqueada. D01/D02 são apenas propostas dependentes de autorização específica. O fechamento da Etapa 4 abaixo permanece histórico.
+
+**Integração final — Etapa 4, 27/10/2026:** [avaliação da candidata integrada](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md), [checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) e [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65). **Integração 1–4 encerrada tecnicamente; BETA LOCAL não preparada e conectada/pública não liberada.** Fonte `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`, CIs [40604593820](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820) e [40604593709](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709) aprovadas na tentativa 1. Esta etapa apenas avaliou evidências, sem nova CI/build. Histórico e todos os 42 IDs/done preservados, **27/42**. Próxima sessão: somente Etapa 5 do adendo, organização segura do GitHub; não iniciada aqui. Gestão de drivers e envio remoto desativados, exclusão permanente preservada.
+
+## Registros históricos de preparação e validação
+
+Os estados abaixo registram suas respectivas datas/etapas. A situação atual é a da Etapa 7 acima; CI antiga ou texto de preparação não aprova outra fonte ou autoriza distribuição.
+
+**Integração final — Etapa 2, 27/10/2026:** código pré-BETA #64 e BETA .66 acumulada #62 conciliado na [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65). [Relatório e limites](WORK-INTEGRACAO-ETAPA2-CODIGO.md). **VALIDAÇÃO DA INTEGRAÇÃO PENDENTE:** nenhuma CI ou build própria nesta etapa; aprovações das fontes não aprovam a composição. Histórico e todos os 42 estados preservados, **27/42**. Drivers e envio remoto desativados, exclusão permanente preservada. Parada antes da Etapa 3; sem pacote, merge, release, deploy ou distribuição.
+
+**v5.13.11.66 TESTE — BETA EM PREPARAÇÃO, CI E RECEPTOR AINDA NÃO LIBERADOS.** [Última CI aprovada da .65](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887). [PR #61 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/61), derivada da WORK18. Somente contagens anonimizadas após autorização específica; não enviar logs para GitHub público nem embutir credenciais. [Critérios de segurança](MISSAO-BETA.md). Nenhum novo checkpoint concluído: **27/42**.
+
 **v5.13.11.65 TESTE — WORK18 aprovada tecnicamente.** [CI 40252100887](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887), fonte `e6d92e2f`, [ZIP x64 TESTE](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887/artifacts/12621128988) com 284 hashes conferidos fora do runner. [Relatório e matriz](MISSAO-WORK18.md): quatro novos cenários Atualizar e quatro Acompanhar, sem nova medição física. **Roadmap 27/42**, U8/R7/R4/I7 e demais checkpoints físicos pendentes; AVG não homologado, main e integração preservadas.
+
+**Fechamento pré-BETA — Etapa 7, 27/10/2026:** [avaliação de integração e matriz de liberação](WORK-PRE-BETA-ETAPA7-DECISAO.md). **BETA BLOQUEADA para a candidata conectada neste estado.** Fontes .65/.66 têm CIs separadas; ensaio textual aponta conflito em PROGRESSO e proposta de reconciliação somente em memória. Na fonte BETA, configuração/aviso/aprovações e provas conectadas/AVG continuam pendentes; remoto não auditado. Missão 0–7 encerrada, **27/42**, sem novos checkpoints, composição aplicada ou distribuição. Drivers desativados, exclusão permanente preservada; não há Etapa 8 automática.
+
+**Consolidação física pré-BETA — Etapa 6, 27/10/2026:** [E1–E5 e roteiro focal](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md) relidos, sem novos testes. FORTE .64: 169/27 apps/MSIX, 166/63 associações/INFs; FRACO .65: 74/19, 119/53. Metadados de últimos testes atualizados, com .52/.24 preservados no histórico. Logs sem SHA/hash da build; não homologam o código pré-BETA. I7/P5/P6/V5/D4 continuam parciais; **27/42**, 15 pendentes. T11 não executado; drivers desativados e exclusão permanente preservada.
 
 **v5.13.11.64 TESTE — integração Lotes 1–4 + WORK14–17 aprovada tecnicamente na [CI 40241712164](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164).** Fonte `5793ce1f` e [ZIP portátil x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183) com 284 hashes conferidos também fora do runner; 285 arquivos, AMD64, .NET 10.0.13 e sem assinatura. [Relatório de integração](MISSAO-INTEGRACAO.md) e [PR #59 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/59). **Roadmap 27/42**, sem fechar checkpoints físicos: U8/R7/R4/I7/P5/P6/V5/D2/G1/G2/R6 e gestão de drivers permanecem pendentes; AVG não homologado, main preservada.
 
@@ -158,7 +199,7 @@ A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permiss
 - [x] I4 — Verificação dos desinstaladores em segundo plano. Evidência: Program.cs v5.13.10.17
 - [x] I5 — Contadores de inventário completo e ações disponíveis. Evidência: ActionableInventory.cs; Program.cs v5.13.10.17
 - [x] I6 — Regressões da consolidação aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
-- [ ] I7 — Cobertura conferida nos dois computadores. Evidência: Validação presencial adiada
+- [ ] I7 — Cobertura conferida nos dois computadores. Evidência: E1/E2 com 169/74 incluindo 27/19 MSIX e leituras repetidas sem falhas; referência equivalente e conferência de ausências/duplicidades ainda faltam. Ver WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md.
 
 ### Desinstalação e resíduos — 4/7 (R4 integrado; homologação pendente)
 
@@ -187,8 +228,8 @@ A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permiss
 - [x] P2 — Consultas de caminhos fora da interface. Evidência: Program.cs v5.13.10.17
 - [x] P3 — Atualização incremental e registro em lotes. Evidência atual: MemoryRamDashboard.cs; DarkControls.cs. A antiga tabela de processos foi substituída pelo acesso ao Gerenciador de Tarefas do Windows.
 - [x] P4 — Regressões de monitoramento e bandeja aprovadas no Windows remoto. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
-- [ ] P5 — Medir tempo de abertura, CPU e RAM nos computadores. Evidência: Validação presencial adiada
-- [ ] P6 — Diagnosticar bloqueio AVG e verificar estabilidade real. Evidência: Causa e resolução ainda não comprovadas
+- [ ] P5 — Medir tempo de abertura, CPU e RAM nos computadores. Evidência: E1/E2 têm Startup interno, CPU por etapa e amostras de RAM; faltam artefato/condições vinculados e série comparável de repouso do roteiro. Ver Etapa 6.
+- [ ] P6 — Diagnosticar bloqueio AVG e verificar estabilidade real. Evidência: Encerramento normal em E1/E2 aproveitado; causa/resolução e homologação AVG do pacote exato ainda não comprovadas. Ver Etapa 6.
 
 ### Interface — 4/5 (80%)
 
@@ -196,14 +237,14 @@ A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permiss
 - [x] V2 — Cartões compactos, textos e rolagem. Evidência: Program.cs; IntegratedSystemUi.cs
 - [x] V3 — Descrição acessível do resumo completo de aplicativos. Evidência: Program.cs v5.13.10.17
 - [x] V4 — Matriz automatizada de layout aprovada nesta consolidação. Evidência: CI Windows aprovada: https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39348340045
-- [ ] V5 — Legibilidade e fluidez aprovadas nos dois computadores. Evidência: Validação presencial adiada
+- [ ] V5 — Legibilidade e fluidez aprovadas nos dois computadores. Evidência: DPI/resolução FORTE e bandeja FRACO registrados; falta aprovação visual vinculada ao artefato/resolução/DPI de ambos. T11 não executado. Ver Etapa 6.
 
 ### Investigação de drivers — 2/4 (50%)
 
 - [x] D1 — Comparação histórica PnP somente leitura. Evidência: HistoricalDeviceAudit.cs
 - [ ] D2 — Correlacionar dispositivos, pacotes e histórico Windows. Evidência: Lote 2 adiciona HardwareID, INFs publicados e log SetupAPI explícito; cobertura do histórico e interpretação real ainda pendentes. Ver MISSAO-LOTE2.md.
 - [x] D3 — Inventário funcional na aba DRIVERS. Evidência: Tabela WMI sob demanda; teste real de coleta no runner Windows e matriz de layout aprovados. Sem instalação/remoção.
-- [ ] D4 — Validar interpretação nos computadores. Evidência: Etapa futura
+- [ ] D4 — Validar interpretação nos computadores. Evidência: Associações/INFs 166/63 e 119/53, limites de pacotes/histórico e atributos ausentes consolidados; falta conferência humana da interpretação. Ver Etapa 6.
 
 ### Gestão de drivers — 0/5 (0%)
 
@@ -215,9 +256,7 @@ A conclusão de R4 e G1–G5 continua bloqueada. Consultas não concedem permiss
 
 ## Próxima etapa prioritária
 
-Seguir [TESTES](TESTES.md): primeiro bateria A no PC FORTE, refinar casos
-históricos, repetir A no PC FRACO; operações individuais de apps somente na
-bateria B após backup/consentimento. Drivers continuam apenas leitura.
+Auditoria 6 concluída no [relatório](WORK-INTEGRACAO-ETAPA6-AUDITORIA.md). Próxima sessão somente **Etapa 7 — correções e regressões**: reproduzir e tratar primeiro GF6-001/GF6-002, barreiras do perfil BETA LOCAL, com testes isolados, antes/depois e CI Windows aplicável no SHA exato. [Matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md), [checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) e [matriz de continuidade](WORK-INTEGRACAO-MATRIZ.md) fixam evidências/limites. BAIXOS conforme impacto; bloqueios sem correção segura devem permanecer explícitos. Sem executar D01/D02, operar em PCs, antecipar pacote 8 ou testes físicos 9. A BETA local limitada não exige 42/42 e não homologa/libera a conectada.
 
 ### Evidências para avançar sem maquiar o percentual
 

@@ -55,6 +55,12 @@ internal static class DriverWindowsHistory
                         id.Count(c => c == '\\') >= 2 && !id.Any(char.IsControl)) device = id;
                     else { rejected++; partial = true; }
                 }
+                else if (Match(line, @"^>>>\s+\[Device Install\b").Success)
+                {
+                    // Formato de instalação não compreendido não equivale a
+                    // nenhuma instalação encontrada numa leitura completa.
+                    rejected++; partial = true;
+                }
                 continue;
             }
             if (device is null) continue;

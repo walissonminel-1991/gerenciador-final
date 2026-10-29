@@ -1,0 +1,176 @@
+using System.Text;
+using System.Text.Json;
+using Tuf;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed record LocalContext(string Version, long ApprovedSequence, string InstalledSha256,
+    DateTimeOffset LastTrustedUtc, bool ImportAuthorized = true, bool Elevated = false, bool MaintenanceActive = false);
+
+internal sealed record FixtureResult(string Status, string PayloadSha256, Dictionary<string,byte[]> NextMetadata)
+{
+    public bool FixtureOnly => true;
+    public bool Installable => false;
+}
+
+internal sealed class MemoryCache(Dictionary<string,byte[]>? initial) : ITufCache
+{
+    internal readonly Dictionary<string,byte[]> Metadata = Snapshot(initial,cache:true);
+    private readonly Dictionary<string,byte[]> targets = new(StringComparer.Ordinal);
+    public byte[]? LoadMetadata(string role) => Metadata.TryGetValue(role,out var data) ? data.ToArray() : null;
+    public void StoreMetadata(string role, byte[] data) => Metadata[role] = data.ToArray();
+    public byte[]? LoadTarget(string path) => targets.TryGetValue(path,out var data) ? data.ToArray() : null;
+    public void StoreTarget(string path, byte[] data) => targets[path] = data.ToArray();
+}
+
+// Sealed in-memory transport: no HTTP client, cookie, token, URL or filesystem adapter.
+internal sealed class FixtureRepository(Dictionary<string,byte[]> input, DateTimeOffset start) : ITufRepository
+{
+    private readonly Dictionary<string,byte[]> files = Snapshot(input,cache:false);
+    private int rootFetches;
+    internal int TargetFetches { get; private set; }
+    internal readonly Dictionary<int,byte[]> VisitedRoots = [];
+    internal byte[] Container() => files.TryGetValue("container.zip",out var data) ? data.ToArray() : throw new Rejected("CONTAINER_MISSING");
+    public Task<byte[]?> FetchMetadataAsync(string role, int? version=null, CancellationToken cancellationToken=default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Require(role is "root" or "timestamp" or "snapshot" or "targets", "DELEGATION_DISABLED");
+        if (role=="root") Require(++rootFetches<=33, "ROOT_ROTATION_LIMIT");
+        string key = version is int v ? $"{v}.{role}.json" : $"{role}.json";
+        if (!files.TryGetValue(key,out var data)) return Task.FromResult<byte[]?>(null);
+        Envelope(data,role,start);
+        if (role=="root" && version is int rootVersion) VisitedRoots[rootVersion]=data.ToArray();
+        return Task.FromResult<byte[]?>(data.ToArray());
+    }
+    public Task<byte[]?> FetchTargetAsync(string targetPath,CancellationToken cancellationToken=default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Require(targetPath=="fixture-package.zip", "TARGET_PATH");
+        TargetFetches++;
+        if (!files.TryGetValue(targetPath,out var data)) return Task.FromResult<byte[]?>(null);
+        Require(data.Length<=ZipInspection.MaxBytes,"PAYLOAD_SIZE");
+        return Task.FromResult<byte[]?>(data.ToArray());
+    }
+}
+
+internal static class FixtureValidator
+{
+    // Public test anchor only. Not an operational GF key/root. Never configurable by an imported bundle.
+    internal const string TestAnchorSha256="a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e";
+    internal static async Task<FixtureResult> Evaluate(byte[] bootstrap,Dictionary<string,byte[]> input,
+        LocalContext local,Dictionary<string,byte[]>? trustedMetadata=null,CancellationToken cancellation=default)
+    {
+        using var budget=CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        budget.CancelAfter(TimeSpan.FromMinutes(2));
+        try
+        {
+            Require(bootstrap.Length is > 0 and <= 512*1024,"BOOTSTRAP_SIZE");
+            return await Core(bootstrap.ToArray(),input,local,trustedMetadata,budget.Token);
+        }
+        catch (Rejected) { throw; }
+        catch (OperationCanceledException) { throw; }
+        catch (TufException) { throw new Rejected("TUF_REJECTED"); }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException
+            or InvalidDataException or OverflowException or IndexOutOfRangeException or JsonException or FormatException)
+        { throw new Rejected("UNTRUSTED_FORMAT"); }
+    }
+    private static async Task<FixtureResult> Core(byte[] bootstrap,Dictionary<string,byte[]> input,LocalContext local,
+        Dictionary<string,byte[]>? trustedMetadata,CancellationToken cancellation)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        Require(local.ImportAuthorized,"CONSENT_REQUIRED");
+        Require(!local.Elevated && !local.MaintenanceActive,"CONTEXT_BUSY");
+        DateTimeOffset start=DateTimeOffset.UtcNow;
+        Require(start>=local.LastTrustedUtc-TimeSpan.FromMinutes(5),"CLOCK_ROLLBACK");
+        Require(bootstrap.Length<=512*1024 && Hash(bootstrap)==TestAnchorSha256,"BOOTSTRAP_ANCHOR");
+        Envelope(bootstrap,"root",start);
+        var cache=new MemoryCache(trustedMetadata);
+        foreach (var pair in cache.Metadata) Envelope(pair.Value,pair.Key,start,cached:true);
+        byte[]? previousRoot=cache.LoadMetadata("root");
+        // Rebuild the entire root chain from the independently pinned fixture anchor.
+        // A self-signed root in a caller-supplied cache cannot replace that anchor.
+        cache.Metadata.Remove("root");
+        var repository=new FixtureRepository(input,start);
+        using var client=new TufClient(new TufClientOptions {
+            MetadataBaseUrl=new Uri("https://gf-fixture.invalid/"), TrustedRoot=bootstrap,
+            Repository=repository, Cache=cache, MaxRootRotations=32, MaxDelegations=1 });
+        await client.GetTrustedMetadataAsync(cancellation);
+        if (previousRoot is not null)
+        {
+            using var previous=Json(previousRoot);
+            int version=checked((int)Number(previous.RootElement.GetProperty("signed"),"version",int.MaxValue));
+            byte[]? linked=version==1 ? bootstrap : repository.VisitedRoots.GetValueOrDefault(version);
+            Require(linked is not null && Hash(linked)==Hash(previousRoot),"CACHED_ROOT_NOT_ANCHORED");
+        }
+        var verified=await client.GetTargetAsync("fixture-package.zip",cancellation);
+        byte[] payload=verified.Content.ToArray();
+        foreach (string role in new[]{"root","targets","snapshot","timestamp"})
+        {
+            var bytes=cache.LoadMetadata(role) ?? throw new Rejected("INCOMPLETE_CHAIN");
+            Envelope(bytes,role,start);
+            using var current=Json(bytes);
+            Require(Date(current.RootElement.GetProperty("signed"),"expires")>start,"METADATA_EXPIRED");
+        }
+        using var targetDocument=Json(cache.LoadMetadata("targets")!);
+        var targets=targetDocument.RootElement.GetProperty("signed").GetProperty("targets");
+        Exact(targets,"fixture-package.zip");
+        var target=targets.GetProperty("fixture-package.zip"); Exact(target,"length","hashes","custom");
+        Number(target,"length",ZipInspection.MaxBytes); Exact(target.GetProperty("hashes"),"sha256");
+        string payloadHash=Text(target.GetProperty("hashes"),"sha256");
+        Require(Hex(payloadHash,64) && payloadHash==Hash(payload),"PAYLOAD_HASH");
+        Exact(target.GetProperty("custom"),"gf"); var gf=target.GetProperty("custom").GetProperty("gf");
+        Exact(gf,"schema","product","channel","architecture","version","release_sequence","source_commit","controller_commit",
+            "run_id","artifact_id","run_attempt","runtime_profile","remote_diagnostics","requires_user_confirmation","qualification",
+            "min_updater_protocol","data_schema","entrypoint","content_manifest_sha256","file_count","expanded_bytes",
+            "delivery_repository","container_length","container_sha256","payload_member","artifact_expires_at","authenticode_mode","release_notes");
+        foreach (var item in new Dictionary<string,string> {
+            ["schema"]="gf-self-update/1",["product"]="gerenciador-final",["channel"]="beta",["architecture"]="win-x64",
+            ["runtime_profile"]="local",["qualification"]="beta-test-not-homologated",["entrypoint"]="GerenciadorFinal.exe",
+            ["delivery_repository"]="walissonminel-1991/gf-beta-entregas",["payload_member"]="fixture-package.zip",
+            ["authenticode_mode"]="beta-unsigned" })
+            Require(Text(gf,item.Key)==item.Value,"GF_PROFILE");
+        Boolean(gf,"remote_diagnostics",false); Boolean(gf,"requires_user_confirmation",true);
+        Require(Number(gf,"min_updater_protocol")==1 && Number(gf,"data_schema")==1,"GF_PROTOCOL");
+        Require(Hex(Text(gf,"source_commit"),40) && Hex(Text(gf,"controller_commit"),40),"GF_ORIGIN");
+        foreach (string name in new[]{"run_id","artifact_id"})
+        {
+            string id=Text(gf,name);
+            Require(id.Length<=20 && id[0] is >= '1' and <= '9' && id.All(c=>c is >= '0' and <= '9'),"GF_ORIGIN");
+        }
+        Number(gf,"run_attempt",int.MaxValue);
+        Number(gf,"file_count",16); Number(gf,"expanded_bytes",ZipInspection.MaxExpanded);
+        Number(gf,"container_length",ZipInspection.MaxBytes);
+        string notes=Text(gf,"release_notes"); Require(Encoding.UTF8.GetByteCount(notes)<=4096 && !notes.Contains('<'),"GF_NOTES");
+        Require(Date(gf,"artifact_expires_at")>start,"ARTIFACT_EXPIRED");
+        int comparison=CompareVersion(Text(gf,"version"),local.Version);
+        if (comparison==0 && payloadHash==local.InstalledSha256)
+            return new("already_installed_fixture",payloadHash,cache.Metadata);
+        Require(comparison!=0,"VERSION_CONFLICT"); Require(comparison>0,"RELEASE_DOWNGRADE");
+        Require(Number(gf,"release_sequence")>local.ApprovedSequence,"RELEASE_REPLAY");
+
+        byte[] container=repository.Container();
+        Require(container.Length==Number(gf,"container_length",ZipInspection.MaxBytes)
+            && Hash(container)==Text(gf,"container_sha256"),"CONTAINER_HASH");
+        var wrapper=ZipInspection.Inspect(container,8,cancellation);
+        Require(wrapper.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(new[]{"fixture-package.zip","ENTREGA-PRIVADA.json","ZIP-SHA256SUMS.txt","Antivirus-evidencias.json"}),"CONTAINER_MEMBERS");
+        Require(wrapper["fixture-package.zip"].AsSpan().SequenceEqual(payload),"CONTAINER_PAYLOAD");
+        Require(Encoding.UTF8.GetString(wrapper["ZIP-SHA256SUMS.txt"])==payloadHash+"  fixture-package.zip\n","CONTAINER_MANIFEST");
+        var files=ZipInspection.Inspect(payload,16,cancellation);
+        Require(files.Count==Number(gf,"file_count",16) && files.Values.Sum(b=>(long)b.Length)==Number(gf,"expanded_bytes",ZipInspection.MaxExpanded),"PAYLOAD_COUNTS");
+        Require(files.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(new[]{"fixture-marker.txt","LICENSE.fixture.txt","SHA256SUMS.txt"}),"FIXTURE_MEMBERS");
+        Require(Encoding.UTF8.GetString(files["fixture-marker.txt"])=="GF-U1-INERT-TEXT-NOT-AN-EXECUTABLE\n","FIXTURE_ONLY");
+        Require(Hash(files["SHA256SUMS.txt"])==Text(gf,"content_manifest_sha256"),"CONTENT_MANIFEST_HASH");
+        var lines=Encoding.UTF8.GetString(files["SHA256SUMS.txt"]).Split('\n',StringSplitOptions.RemoveEmptyEntries);
+        var covered=new HashSet<string>(StringComparer.Ordinal);
+        foreach(string line in lines)
+        {
+            Require(line.Length>66 && line.Substring(64,2)=="  ","CONTENT_MANIFEST");
+            string name=line[66..];
+            Require(covered.Add(name) && name!="SHA256SUMS.txt" && files.TryGetValue(name,out var data)
+                && line[..64]==Hash(data),"CONTENT_MANIFEST");
+        }
+        Require(covered.SetEquals(files.Keys.Where(n=>n!="SHA256SUMS.txt")),"CONTENT_MANIFEST");
+        return new("validated_inert_fixture",payloadHash,cache.Metadata);
+    }
+}

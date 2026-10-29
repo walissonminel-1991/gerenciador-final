@@ -1,13 +1,46 @@
 # Privacidade
 
-A coleta opcional do GF é **exclusivamente local**, desativada até consentimento
+## Edição local da integração — Etapa 7, 28/10/2026
+
+A compilação padrão da candidata .66 usa o perfil local. O GF não coleta nem
+transmite diagnóstico colaborativo nessa edição, inclusive em erro/encerramento,
+e não lê/renova consentimento ou pendência remota herdados para ativar coleta.
+Os arquivos antigos ficam intactos até uma revogação explícita, que tenta excluir
+a própria pendência. A simulação usa dados inventados; histórico/relatórios técnicos
+locais descritos abaixo permanecem separados e disponíveis. As consultas de versões
+não são iniciadas automaticamente na abertura; exigem ação explícita.
+
+Perfil e origem são conferidos na CI; pacote de teste ainda não preparado e AVG/PC
+ainda não homologados. As seções BETA r3 e .65 abaixo descrevem seus perfis históricos
+e planos; não ativam o envio na edição local ou autorizam a BETA conectada.
+
+## Aviso BETA r3 preparado para aprovação
+
+O [aviso completo versionado](https://github.com/walissonminel-1991/gerenciador-final/blob/88d5494e69f216e2f00ea1b1b00a2da62dd08525/docs/AVISO-PRIVACIDADE-BETA.md) e o [roteiro conectado](https://github.com/walissonminel-1991/gerenciador-final/blob/88d5494e69f216e2f00ea1b1b00a2da62dd08525/docs/BETA-66-HOMOLOGACAO-CONECTADA.md) são a preparação atual da .66. Responsável proposto: Walisson Minel; contato privado e domínio aguardam aprovação. Aviso/endpoint continuam sem aprovação em fonte e o envio permanece bloqueado. O receptor passa a aceitar os dois estados de encerramento já presentes no esquema (`normal`/`incompleto`), conservando exatamente as mesmas 14 categorias; falhas/desligamento só gravam localmente para sessão posterior autorizada. A janela do aplicativo solicita novo aceite para r3. Persistência e revogação entre instâncias usam locks locais vazios, sem identificador transmitido. As seções históricas a seguir não autorizam o piloto.
+
+## Piloto BETA .66 — não liberado
+
+A branch experimental [PR #61](https://github.com/walissonminel-1991/gerenciador-final/pull/61) prepara o envio automático **após consentimento específico para transmissão**, apresentado ao entrar no programa. Não há opção pré-selecionada e recusar não reduz funções. A revogação é acessível em **Bandeja > Privacidade e diagnóstico**. A BETA remove o botão fixo de coleta do cabeçalho e os perfis de testes PC FORTE/FRACO.
+
+O aplicativo transmite somente resumos validados (schema 1, versão, fechamento, até 14 códigos de falha e suas contagens, até 4096 bytes); jamais inventário, arquivos, nomes ou versões de aplicativos, logs completos, endereços de hardware, caminhos, credenciais, IP no corpo ou identificador persistente. No caminho de rede, o provedor pode processar o IP e metadados para entrega e antifraude. Em caso de falha o relatório pendente permanece no computador com retenção de sete dias; revogar impede novos envios e tenta excluir a pendência. Sem dados de contato/ID estável não é possível identificar individualmente agregados já recebidos; expiram no receptor após sete dias. Uma síntese diária **sem identificadores diretos** pode ser enviada pelo servidor a um **repositório GitHub privado**, somente após autorização de exportação separada. Em grupos pequenos, data, versão e categoria ainda podem permitir inferências sobre participantes: **não presumir anonimato estatístico**. A proposta desta auditoria prevê vencimento das sínteses no sétimo dia contado do dia UTC da coleta, exclusão definitiva na próxima manutenção e recuperação em caso de falha. O código não foi implantado nesta missão; a política precisa de aprovação antes do piloto. Atrasos de cron, indisponibilidade ou falta de permissão podem prolongar a permanência, devendo gerar tratamento operacional. Contagens menores que cinco são omitidas e as demais arredondadas; isso não equivale a cinco pessoas e não garante anonimato. Referências mínimas de exclusão são conservadas enquanto houver pendência. Backups e notificações dos provedores exigem política própria.
+
+**O cliente desta branch continua sem URL de recebimento e não permite aceitar o envio.** Segundo o proprietário, a infraestrutura privada já foi preparada com as flags desligadas; a nova retenção permanece somente em código. Ainda faltam aprovação de LGPD/contato, comprovação de acesso para exclusão, monitoramento e validações antes de convidar pessoas. O plano de envio não substitui os avisos da versão .65 descritos abaixo.
+
+
+**Rodada 2, somente em código:** a autorização remota passa a registrar localmente a versão e o hash do aviso, sem ID do PC, horário do aceite ou histórico individual. Um aceite remoto antigo ou relativo a outro aviso pede nova escolha; LocalOnly não autoriza envio. Revogar cancela a tentativa em andamento e bloqueia novas tentativas mesmo quando persistir a recusa falha. Uma requisição já recebida pelo servidor não pode ser retirada pelo cliente. A confirmação de um envio antigo não apaga uma pendência mais nova.
+
+Somente um domínio e caminho exatos previamente aprovados em `BetaTelemetryPolicy.props` poderão ser inseridos no build, junto da aprovação do aviso. Ambas as aprovações estão vazias: nenhuma URL foi autorizada. A preferência local de aceite é um registro mínimo, editável pelo usuário, e não comprovação independente de identidade ou manifestação humana; a suficiência jurídica permanece pendente.
+
+O backend proposto limita a 1000 relatórios aceitos por dia UTC, além da limitação aproximada por IP/PoP. Eventos são somas de contagens; relatórios contam requisições aceitas e podem incluir reenvios. Não há estimativa confiável de participantes. Não são criados identificadores permanentes para deduplicar computadores. Alertas propostos contêm somente códigos e métricas operacionais. O nonce por exportação e o ID do ator GitHub servem para rastrear a operação do servidor, sem associação a voluntário, e ficam fora dos alertas. Referências de exclusão sem resolução comprovada permanecem em revisão; não são apagadas apenas por expirar ou por deixar de existir correspondência textual.
+
+**Comportamento da versão .65 TESTE (não BETA):** A coleta opcional do GF é **exclusivamente local**, desativada até consentimento
 expresso e revogável. Recusar não reduz funcionalidades. O botão do cabeçalho
 mostra Coleta local ativa, Coleta desativada ou Configurar privacidade; a bandeja
 também permite revisar a escolha. A preferência mínima é mantida entre versões
 e reinicializações para não repetir o aviso. Transmissão de diagnósticos pela
 internet continua desativada e exigirá consentimento separado se implementada.
 
-## Resumo opcional e consentimento
+## Resumo opcional e consentimento — perfis anteriores
 
 O resumo contém somente versão do GF, encerramento normal e contagens das
 categorias técnicas permitidas. Não inclui inventário, nomes de programas,
@@ -54,8 +87,9 @@ ação explícita do usuário. Veja [critérios e limites](https://github.com/wa
 
 ## Rede e outros componentes
 
-Na inicialização e ao consultar atualizações, há requisições HTTPS a RuckZuck e
-fontes oficiais, incluindo GitHub, Mozilla e manifestos públicos de pacotes.
+Na edição local, após ação explícita para consultar atualizações, há requisições
+HTTPS a RuckZuck e fontes oficiais, incluindo GitHub, Mozilla e manifestos públicos
+de pacotes. Nos perfis internos anteriores também havia consultas na inicialização.
 Não se executa a CLI WinGet. Windows Update consulta serviços Microsoft. Os
 provedores recebem metadados normais das requisições, como IP, horário e recurso
 consultado, sujeitos às suas políticas; o GF não envia inventário ou arquivos

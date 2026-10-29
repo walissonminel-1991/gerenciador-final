@@ -1,0 +1,104 @@
+{
+  "schema": 1,
+  "stage": 4,
+  "date": "2026-10-27",
+  "status": "technically_completed_with_physical_residual_uninstall_homologation_pending",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-pre-beta-etapa0-20261027",
+  "pull_request": 64,
+  "baseline_sha": "9a01aee2d14685efa8b28df63fb406d14fd32625",
+  "comparison": {
+    "same_cases": 29,
+    "before": {
+      "passed": 11,
+      "failed": 18,
+      "exit_code": 1
+    },
+    "after": {
+      "passed": 29,
+      "failed": 0,
+      "exit_code": 0
+    },
+    "before_extraction": "Observer and status helper extracted without changing logic"
+  },
+  "local": {
+    "platform": "Linux",
+    "sdk": "10.0.402",
+    "sdk_sha512_verified": true,
+    "focal_passed": 29,
+    "existing_uninstall_flow_passed": 41,
+    "product_build": {
+      "warnings": 0,
+      "errors": 0,
+      "analyzers": true
+    },
+    "full_suite": {
+      "exit_code": 134,
+      "new_checks_reached": false,
+      "blocking_assertion": "RAM: selecao nao respeita limites para segundo plano e seguranca",
+      "ram_code_modified": false
+    },
+    "native_cleanup_executed": false
+  },
+  "previous_ci": {
+    "source_sha": "5a7c0482a759009678b73c7c0cc75727b3b872f0",
+    "run_id": 40559631389,
+    "conclusion": "success",
+    "mandatory_success": 6,
+    "conditional_skipped": 2,
+    "rerun": false
+  },
+  "preserved_refs": {
+    "pr60": "2bc9f4228fd448445fbf181652e5af93005def20",
+    "pr61": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+    "pr62": "e530d724b7322963c8795b005f13ae6948a73e43",
+    "pr63": "04f59750739c6bdbaeb0bacd86ed2b734fba1271"
+  },
+  "roadmap": {
+    "completed": 27,
+    "total": 42,
+    "changed": false,
+    "open_stage_checkpoints": [
+      "R4",
+      "R6",
+      "R7"
+    ]
+  },
+  "safety": {
+    "personal_pc_operations": false,
+    "real_app_uninstall": false,
+    "automatic_elevation_added": false,
+    "acls_changed": false,
+    "reboot_performed": false,
+    "driver_operations": false,
+    "residual_authority_expanded": false,
+    "permanent_exclusion_preserved": true,
+    "new_excluded_product_tests": 0,
+    "private_beta_infrastructure_accessed": false,
+    "stage5_started": false
+  },
+  "source_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+  "native_disposable_cases_passed": [
+    "decline_preserves_bytes",
+    "post_consent_mutation_preserved",
+    "cancel_before_delete",
+    "consent_deletes_only_owned_cache_preserves_documents_neighbor",
+    "competing_owner_blocks_offer"
+  ],
+  "windows_ci": {
+    "run_id": 40565220517,
+    "source_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+    "conclusion": "success",
+    "attempt": 1,
+    "evidence": "pre-beta-etapa4-ci-40565220517.json"
+  },
+  "windows_results": {
+    "focal_checks": 29,
+    "native_cases": 5,
+    "new_checks_total": 34,
+    "residual_suite": 739,
+    "existing_ram_assertion_passed": true,
+    "ram_code_changed": false
+  },
+  "receipt_documentation_only": true
+}

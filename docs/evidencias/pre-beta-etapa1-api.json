@@ -1,0 +1,27 @@
+{
+  "observed_at": "2026-10-27T13:30:19.147131+00:00",
+  "requests": [
+    {
+      "platform": "win64",
+      "url": "https://versionhistory.googleapis.com/v1/chrome/platforms/win64/channels/stable/versions?order_by=version%20desc&pageSize=1",
+      "status": 200,
+      "version": "157.0.8103.15",
+      "bytes": 181,
+      "sha256": "4a5cadc0e86549efeee0163d66bf08e2f96141f814d5dd747212333b3c24edf0",
+      "next_page_token_present": true,
+      "redirect_followed": false
+    },
+    {
+      "platform": "win",
+      "url": "https://versionhistory.googleapis.com/v1/chrome/platforms/win/channels/stable/versions?order_by=version%20desc&pageSize=1",
+      "status": 200,
+      "version": "157.0.8103.15",
+      "bytes": 179,
+      "sha256": "2990353718cbf0a32faebed8b125b118af819dffbaf809229cf15ad709c96a1d",
+      "next_page_token_present": true,
+      "redirect_followed": false
+    }
+  ],
+  "scope": "fixed-public-endpoints-only-no-user-inventory",
+  "csharp_transport_and_parser": "--chrome-live passed for both architectures; same observed version"
+}

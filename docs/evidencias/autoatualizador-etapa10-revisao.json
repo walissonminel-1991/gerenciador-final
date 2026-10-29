@@ -1,0 +1,142 @@
+{
+  "schema": "gf-stage10-targeted-review/1",
+  "contract": "gf-self-update/1",
+  "entry_head": "4c1810a9d49bdb5fa1c6914354b32e5cb4602af9",
+  "date": "2026-10-29",
+  "timezone": "America/Sao_Paulo",
+  "scope": "targeted Stage9 integrated TUF and concrete GF lifecycle entry points; no historical test-suite rerun",
+  "sources": {
+    "upstream": {
+      "repository": "mitchdenny/sigstore-dotnet",
+      "commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+      "file": "src/Tuf/TufClient.cs",
+      "reviewed": true
+    },
+    "specification": "https://theupdateframework.github.io/specification/v1.0.36/",
+    "ntfs_api": "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-findfirststreamw",
+    "repository_files": [
+      {
+        "path": "BetaCloseCoordinator.cs",
+        "git_blob_sha": "6418cf12790faa90c5e4c1e456db7e4d17dffdc4"
+      },
+      {
+        "path": "Program.cs",
+        "git_blob_sha": "589a515c302b055a55bbac52c2792f24472c526b"
+      },
+      {
+        "path": "UpdateProcessCoordinator.cs",
+        "git_blob_sha": "45ab2d26a81e9b133a35393e76ab25cb3f1b0dce"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/src/CycleClock.cs.txt",
+        "git_blob_sha": "8e85aa5a1389d4d454e4f5ab49b418bd91680735"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage8/src/OwnedAttempt.cs.txt",
+        "git_blob_sha": "0cf9d47fc6f3433f835aec0d83117aefa2a873fa"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage8/src/TufAttempt.cs.txt",
+        "git_blob_sha": "e505c9958624522dd78cef6d2c0b88328d401cf3"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage8/tuf-delta.patch",
+        "git_blob_sha": "e9d0963777bf7e8e858b5f3b51b0125b99d613e7"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage9/src/IntegratedPipeline.cs.txt",
+        "git_blob_sha": "b38744b8527001af054ef30d59f04e7d7b197886"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage9/src/OperationJournal.cs.txt",
+        "git_blob_sha": "688413dba468c3a0e86d5ac22ec31fa4dd610cb0"
+      }
+    ]
+  },
+  "tuf": [
+    {
+      "id": "R10-T0",
+      "status": "reviewed",
+      "finding": "OwnedAttempt captures one UTC value; experimental client copies to readonly _validationUtc. No callback/provider reaches internal expiry checks. Original seven-site clock patch unchanged."
+    },
+    {
+      "id": "R10-ONE-USE",
+      "status": "reviewed",
+      "finding": "BeginAttempt and facade reservation reject reuse. GetTarget performs one metadata refresh; no duplicate refresh added."
+    },
+    {
+      "id": "R10-UNCHANGED",
+      "status": "reviewed",
+      "finding": "Unchanged stops before snapshot/targets/payload and Content is inaccessible. Stage9 settles operation without approving a release. Roots newly traversed on this branch are not checkpointed durably; normative per-root persistence remains unqualified."
+    },
+    {
+      "id": "R10-CACHE-FLOORS",
+      "status": "reviewed",
+      "finding": "Stage9 walks root chain from preexisting test anchor, compares cached root identity and validates nondecreasing role versions/equal-version bytes against persistent state. Floors are global per role; no role-key epoch field/reset support."
+    },
+    {
+      "id": "R10-EPOCH",
+      "status": "passed_in_isolated_guarded_cache",
+      "finding": "New EpochGuardedCache rejects non-root role-key/threshold/material changes after TUF verifies contiguous root signatures, before this cache advances. It is a laboratory boundary, not normative rotation/reset implementation and not applied retroactively to Stage9.",
+      "evidence_run": 40853787836
+    },
+    {
+      "id": "R10-DURABLE-INTERMEDIATES",
+      "status": "blocked",
+      "finding": "Stage9 saves cache after complete target validation; neither it nor new in-memory epoch wrapper durably checkpoints each accepted root/timestamp/snapshot on intermediate failure. No interoperable conformance claim."
+    },
+    {
+      "id": "R10-PRECOMMIT",
+      "status": "reviewed",
+      "finding": "CycleClock checks wall/monotonic/floor, expiry and owner cancellation before selector change. New LabBinding only binds read-only qualification to installation/state/selector/operation digests; no real GF transaction/selector capability."
+    },
+    {
+      "id": "R10-RECOVERY",
+      "status": "reviewed",
+      "finding": "Pending journal remains blocking after original task completion. Controlled-child exit proof is fixture supervision; no inference of device-I/O termination, power-loss durability or real product readiness."
+    }
+  ],
+  "gf_lifecycle": [
+    {
+      "id": "L10-MAIN",
+      "file": "Program.cs",
+      "lines": [
+        18,
+        20,
+        23,
+        66
+      ],
+      "finding": "Distinct main GUI, COM-reader argument and --worker entry points exist. No gf-self-update/1 readiness path in these inspected entry points."
+    },
+    {
+      "id": "L10-CLOSE",
+      "file": "Program.cs",
+      "lines": [
+        837,
+        839,
+        857,
+        864,
+        871,
+        878,
+        890
+      ],
+      "finding": "Window close may cancel a wait and defer closure; deployment/uninstaller may continue. These are not evidence that all participants have ended or that update commit is safe."
+    },
+    {
+      "id": "L10-BETA-CLOSE",
+      "file": "BetaCloseCoordinator.cs",
+      "finding": "UI-owned remote-send/shutdown coordination only; not interprocess identity/readiness/rollback."
+    }
+  ],
+  "acceptance": {
+    "maintainer_maintenance_acceptance": "blocked; owner not designated by this mission",
+    "independent_review": "not-executed; this self-review is not independent approval",
+    "interoperable_conformance": "not-executed",
+    "normative_role_epoch_recovery": "blocked",
+    "production_anchor_custody": "blocked; no keys generated",
+    "real_GF_lifecycle": "not-executed",
+    "product_integration": false,
+    "contract_changed": false,
+    "library_dependency_changed": false
+  }
+}

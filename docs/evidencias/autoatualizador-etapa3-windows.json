@@ -1,0 +1,327 @@
+{
+  "schema": 1,
+  "stage": 3,
+  "contract": "gf-self-update/1",
+  "fixture_only": true,
+  "package_installable": false,
+  "product_built": false,
+  "product_executed": false,
+  "private_channel_accessed": false,
+  "physical_tests_repeated": 0,
+  "runtime": ".NET 10.0.14",
+  "os": "Microsoft Windows 10.0.20348",
+  "total": 47,
+  "passed": 47,
+  "failed": 0,
+  "tests": [
+    {
+      "id": "TUFCLK-01",
+      "description": "Original pinned package remains usable with current signed fixtures",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-02",
+      "description": "Pinned-source clock experiment validates the chain with one frozen update-start time",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-03",
+      "description": "A future frozen cycle refuses a timestamp accepted at the current system time",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-expired-root",
+      "description": "Library itself refuses expired root at the injected cycle clock",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-expired-timestamp",
+      "description": "Library itself refuses expired timestamp at the injected cycle clock",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-expired-snapshot",
+      "description": "Library itself refuses expired snapshot at the injected cycle clock",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-expired-targets",
+      "description": "Library itself refuses expired targets at the injected cycle clock",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-04",
+      "description": "Expiry equality is rejected for all four signed roles",
+      "status": "passed"
+    },
+    {
+      "id": "TUFCLK-05",
+      "description": "Injected time does not bypass signature verification",
+      "status": "passed"
+    },
+    {
+      "id": "FRAME-01",
+      "description": "Bounded frame round-trip retains transaction, nonce and fixed profile",
+      "status": "passed"
+    },
+    {
+      "id": "FRAME-02",
+      "description": "Oversized length is refused before payload allocation",
+      "status": "passed"
+    },
+    {
+      "id": "FRAME-03",
+      "description": "Duplicate/unknown fields and connected profile are refused",
+      "status": "passed"
+    },
+    {
+      "id": "FRAME-04",
+      "description": "Truncation, cancellation and wrong transaction are not readiness",
+      "status": "passed"
+    },
+    {
+      "id": "DUR-01",
+      "description": "Reordered/lost selector and journal persistence images never authorize an unknown bundle",
+      "status": "passed"
+    },
+    {
+      "id": "DUR-02",
+      "description": "Whole-suffix loss exposes the documented local antirollback limitation",
+      "status": "passed"
+    },
+    {
+      "id": "PE-01",
+      "description": "Bounded synthetic AMD64 header is statically classified without loading code",
+      "status": "passed"
+    },
+    {
+      "id": "PE-02",
+      "description": "Native x86 and ARM64 cannot satisfy the Windows x64 entrypoint contract",
+      "status": "passed"
+    },
+    {
+      "id": "PE-03",
+      "description": "Truncated/overflowed headers and impossible section ranges are refused",
+      "status": "passed"
+    },
+    {
+      "id": "PE-04",
+      "description": "A claimed CLR header must map inside a bounded PE section",
+      "status": "passed"
+    },
+    {
+      "id": "EXTRACT-01",
+      "description": "Authenticated text ZIP extracts through CreateNew with pinned NTFS identities",
+      "status": "passed"
+    },
+    {
+      "id": "EXTRACT-02",
+      "description": "ZIP tampering fails authentication before staging is created",
+      "status": "passed"
+    },
+    {
+      "id": "EXTRACT-03",
+      "description": "A racing existing file is not truncated or overwritten",
+      "status": "passed"
+    },
+    {
+      "id": "EXTRACT-04",
+      "description": "A junction substituted into a new ancestor is rejected without writing outside staging",
+      "status": "passed"
+    },
+    {
+      "id": "EXTRACT-05",
+      "description": "Space reservation failure and cancellation never change the active selector",
+      "status": "passed"
+    },
+    {
+      "id": "EXTRACT-06",
+      "description": "Traversal, ADS and case collision are rejected before disk extraction",
+      "status": "passed"
+    },
+    {
+      "id": "DUR-03",
+      "description": "Native file flush return is checked and reopened bytes retain their digest",
+      "status": "passed"
+    },
+    {
+      "id": "BUNDLE-01",
+      "description": "Real self-contained WinForms probe passes static PE/runtime/dependency/license inspection",
+      "status": "passed"
+    },
+    {
+      "id": "BUNDLE-02",
+      "description": "A missing real SDK license is rejected even if the supplied hash recipe omits it",
+      "status": "passed"
+    },
+    {
+      "id": "BUNDLE-03",
+      "description": "A different runtime version is refused independently of file hashes",
+      "status": "passed"
+    },
+    {
+      "id": "BUNDLE-04",
+      "description": "Additional probing paths cannot turn the probe into a host-dependent loader",
+      "status": "passed"
+    },
+    {
+      "id": "BUNDLE-05",
+      "description": "A PE requesting another execution level is refused after hash verification",
+      "status": "passed"
+    },
+    {
+      "id": "BUNDLE-06",
+      "description": "A different embedded Win32 identity cannot use this fixture recipe",
+      "status": "passed"
+    },
+    {
+      "id": "BUNDLE-07",
+      "description": "An injected undeclared DLL is refused by the dependency graph even with a recalculated hash list",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-10",
+      "description": "A changed critical DLL is rejected before creating a child process",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-11",
+      "description": "Critical probe files stay pinned while the real child is ready",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-01",
+      "description": "Kernel-authenticated child reaches a real WinForms idle loop and exits through the bounded close protocol",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-02",
+      "description": "A kernel PID different from the retained process is rejected before the challenge",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-03",
+      "description": "The child rejects a server PID that is not its verified parent",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-wrong-nonce",
+      "description": "Real child response with wrong-nonce is not readiness",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-wrong-tx",
+      "description": "Real child response with wrong-tx is not readiness",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-busy",
+      "description": "Real child response with busy is not readiness",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-04",
+      "description": "A child that exits before readiness cannot be confirmed",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-05",
+      "description": "A real thirty-second readiness deadline expires, then the child closes cooperatively",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-06",
+      "description": "A duplicate readiness frame is not accepted as close acknowledgement",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-07",
+      "description": "Refusal to close times out without treating a live process as exited",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-08",
+      "description": "FirstPipeInstance prevents a second server from adopting the same pipe name",
+      "status": "passed"
+    },
+    {
+      "id": "IPC-09",
+      "description": "The production context classifier reads the real elevation token and refuses elevation",
+      "status": "passed"
+    }
+  ],
+  "observations": [
+    {
+      "kind": "frozen_tuf_clock",
+      "clock_reads": 10,
+      "system_clock_modified": false
+    },
+    {
+      "kind": "persistence_image_model",
+      "images": 16,
+      "safe": 6,
+      "blocked": 10,
+      "physical_power_cut_executed": false
+    },
+    {
+      "kind": "whole_suffix_loss_model",
+      "approved_before": 2,
+      "restored_floor": 1,
+      "power_loss_gate_closed": false,
+      "physical_power_cut_executed": false
+    },
+    {
+      "kind": "inert_probe_bundle",
+      "files": 274,
+      "bytes": 123062971,
+      "runtime": "10.0.13",
+      "application_version": "0.0.0.1",
+      "not_a_gf_candidate": true
+    },
+    {
+      "kind": "real_readiness_timeout",
+      "elapsed_seconds": 30.03,
+      "configured_seconds": 30
+    },
+    {
+      "kind": "runner_token",
+      "elevated": true,
+      "ipc_layer_tested_same_elevation_only": true,
+      "foreign_user_or_session_tested": false
+    },
+    {
+      "kind": "directory_flush_probe",
+      "opened": true,
+      "open_error": 0,
+      "flushed": true,
+      "flush_error": 0,
+      "volume_opened": false,
+      "privileges_changed": false,
+      "power_loss_gate_closed": false
+    }
+  ],
+  "remaining_gates": [
+    "physical power-loss/storage durability",
+    "production bootstrap/custody",
+    "GF-specific PE/runtime recipe and full-size extraction",
+    "foreign-user/session IPC and non-elevated positive path when not exercised",
+    "operational GF lifecycle and integration"
+  ],
+  "stage4_started": false,
+  "clock_experiment_provenance": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "clock_sites_replaced": 7,
+    "expiry_boundaries_made_strict": 7,
+    "original_nuget_package_changed": false,
+    "production_ready": false
+  },
+  "isolation": {
+    "sdk": "10.0.402",
+    "restore_locked_mode": true,
+    "product_compile_items": 142,
+    "prototype_compile_items": 0,
+    "outputs_outside_repository": true,
+    "product_built": false
+  }
+}

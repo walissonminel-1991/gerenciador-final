@@ -20,8 +20,11 @@ internal static class LayoutTests
             AppServices.TryParseUninstaller(null, out _, out _) ||
             AppServices.TryParseUninstaller("uninstall.exe /S\ncmd.exe", out _, out _))
             throw new Exception("Parser de desinstalacao nao preservou o executavel ou aceitou controles.");
+        if (args.Contains("--beta-local")) { LocalBetaRegressionTests.Run(); return; }
+        if (args.Contains("--beta-close")) { BetaCloseTests.Run(); return; }
         if (args.Contains("--lote4")) { Lote4LayoutTests.Run(); return; }
-        if (args.Contains("--work18")) { Work18UpdateUiTests.Run(); return; }
+        if (args.Contains("--work18")) { Work18UpdateUiTests.Run(); Stage3UpdateQueryTests.Run(); return; }
+        if (args.Contains("--etapa3")) { Stage3UpdateQueryTests.Run(); return; }
         if (args.Contains("--lote3")) { Lote3LayoutTests.Run(); return; }
         if (args.Contains("--drivers-readonly"))
         {
@@ -105,6 +108,15 @@ internal static class LayoutTests
         {
             privacy.Show();
             Application.DoEvents();
+            var betaNotice = Descendants(privacy).OfType<TextBox>()
+                .SingleOrDefault(c => c.Name == "PrivacyBetaNotice");
+            var betaAccept = Descendants(privacy).OfType<Button>()
+                .SingleOrDefault(c => c.Text == "Aceito envio automático");
+            if (betaNotice is not { Multiline: true, ReadOnly: true, ScrollBars: ScrollBars.Vertical } ||
+                !betaNotice.Text.Contains("7 dias", StringComparison.Ordinal) ||
+                !betaNotice.Text.Contains("Revogue", StringComparison.Ordinal) ||
+                betaAccept is null || betaAccept.Enabled != BetaTelemetryUploader.IsConfigured)
+                throw new Exception("Aviso BETA precisa ser inteiramente rolavel e impedir opt-in sem receptor.");
             var simulate = Descendants(privacy).OfType<Button>().SingleOrDefault(
                 b => b.Name == "PrivacyOfflineSimulation")
                 ?? throw new Exception("Botao de simulacao segura ausente.");
@@ -139,6 +151,29 @@ internal static class LayoutTests
                 throw new Exception("Simulacao aprovou ou recusou consentimento sem autorizacao.");
             privacy.Close();
         }
+        foreach (var area in new[] { new Size(1280,720),new Size(1440,900),new Size(2560,1440) })
+        foreach (int dpi in new[] {96,144,192})
+        {
+            using var dialog = new TelemetryPrivacyDialog(dryRunRecorder);
+            dialog.Show();
+            dialog.Font = new Font("Segoe UI",9.5f*dpi/96f);
+            dialog.FitPrivacyArea(area,dpi);
+            dialog.PerformLayout();
+            Application.DoEvents();
+            if(dialog.Width>area.Width || dialog.Height>area.Height)
+                throw new Exception($"Aviso de privacidade fora da area {area}, DPI {dpi}.");
+            foreach(var button in Descendants(dialog).OfType<Button>())
+            {
+                var bounds=dialog.RectangleToClient(button.RectangleToScreen(button.ClientRectangle));
+                if(!dialog.ClientRectangle.Contains(bounds) || button.ClientSize.Height<TextRenderer.MeasureText(button.Text,button.Font).Height)
+                    throw new Exception($"Botao de privacidade cortado em {area}, DPI {dpi}.");
+            }
+            var notice=Descendants(dialog).OfType<TextBox>().Single(c=>c.Name=="PrivacyBetaNotice");
+            if(notice.ScrollBars!=ScrollBars.Vertical || !notice.ReadOnly || notice.ClientSize.Height<40)
+                throw new Exception("Aviso precisa preservar rolagem/leitura em area pequena.");
+            dialog.Close();
+        }
+        Console.WriteLine("OK R2: aviso de privacidade em viewports 720p/900p/1440p e escala simulada 100/150/200%; DPI fisico ainda depende de homologacao.");
         if (PrivacyConsentPresentation.ButtonLabel(TelemetryConsent.LocalOnly) != "Coleta local ativa" ||
             PrivacyConsentPresentation.ButtonLabel(TelemetryConsent.Declined) != "Coleta desativada" ||
             !PrivacyConsentPresentation.Explanation(TelemetryConsent.LocalOnly)
@@ -274,13 +309,15 @@ internal static class LayoutTests
                 b.AccessibleDescription?.Contains("indeterminada", StringComparison.Ordinal) == true) ||
             Descendants(placeholder).OfType<Button>().Any(b => b.Text == "Não confirmados"))
             throw new Exception("Filtro DRIVERS deve caber inteiro e explicar os casos incertos.");
-        var privacyStatus = Descendants(form).OfType<Button>()
-            .SingleOrDefault(b => b.Name == "PrivacyStatusButton")
-            ?? throw new Exception("Indicador de privacidade ausente do cabecalho.");
-        if (privacyStatus.Text != PrivacyConsentPresentation.ButtonLabel(
-                AnonymousTelemetryContext.Current?.Consent ?? TelemetryConsent.NotAsked) ||
-            privacyStatus.AccessibleDescription?.Contains("Clique", StringComparison.Ordinal) != true)
-            throw new Exception("Consentimento existente nao esta visivel nem revisavel.");
+        // BETA: sem botao permanente no cabecalho. Revogacao acessivel pela bandeja.
+        if (Descendants(form).OfType<Button>().Any(b => b.Name == "PrivacyStatusButton"))
+            throw new Exception("BETA nao pode mostrar botao permanente de coleta no cabecalho.");
+        var trayMenu = typeof(MainForm).GetField("_trayMenu",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            ?.GetValue(form) as ContextMenuStrip;
+        if (trayMenu?.Items.Find("TrayPrivacy", true).SingleOrDefault()
+            is not ToolStripMenuItem { Enabled: true })
+            throw new Exception("BETA perdeu acesso a privacidade e revogacao pela bandeja.");
         var fakeDrivers = Enumerable.Range(0, 184).Select(i => new DriverInventoryEntry(
             "TEST\\\\ID" + i, "Dispositivo sintetico " + i,
             "Fabricante de teste", "1.2.3." + i, "oem" + i + ".inf",
@@ -507,18 +544,22 @@ internal static class LayoutTests
                     if (Descendants(unsupportedFixture).OfType<Button>()
                         .SingleOrDefault(b => b.Name == "OptimizeVolumeD") is not { Enabled: false })
                         throw new Exception("Unidade nao elegivel deve ter otimizacao desabilitada.");
-                    var profile = Descendants(form).OfType<ComboBox>()
-                        .SingleOrDefault(c => c.Name == "TestDiagnosticProfile");
-                    var preview = profile?.Parent?.Parent as TableLayoutPanel;
-                    int minButtonHeight = preview?.Controls.OfType<Button>()
-                        .Select(b => b.Height).DefaultIfEmpty(0).Min() ?? 0;
+                    if (Descendants(form).OfType<ComboBox>()
+                        .Any(c => c.Name == "TestDiagnosticProfile"))
+                        throw new Exception("BETA nao pode exibir seletor PC FORTE/PC FRACO.");
+                    var cleanupPreview = typeof(MainForm).GetField("_cleanupPreview",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                        ?.GetValue(form) as Control;
+                    var preview = cleanupPreview?.Parent as TableLayoutPanel;
                     if (preview is null || preview.RowCount != 1 ||
-                        preview.Height < 32 || minButtonHeight < 24 ||
-                        profile!.Height < 16 ||
+                        preview.ColumnCount != 2 ||
+                        preview.ColumnStyles[1].SizeType != SizeType.Absolute ||
+                        preview.ColumnStyles[1].Width != 0 ||
+                        preview.Height < 32 || cleanupPreview!.Height < 16 ||
                         !preview.RectangleToScreen(preview.ClientRectangle)
-                            .Contains(profile.RectangleToScreen(profile.ClientRectangle)))
-                        throw new Exception($"Linha do diagnostico de testes cortada: {name} {resolution} " +
-                            $"preview={preview?.Height} botao={minButtonHeight} combo={profile?.Height} " +
+                            .Contains(cleanupPreview.RectangleToScreen(cleanupPreview.ClientRectangle)))
+                        throw new Exception($"Linha de resumo de discos BETA cortada: {name} {resolution} " +
+                            $"preview={preview?.Height} resumo={cleanupPreview?.Height} " +
                             $"DPI={preview?.DeviceDpi} linhas={preview?.RowCount}");
                 }
                 var allButtons = Descendants(form).OfType<Button>()

@@ -1,0 +1,34 @@
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+// Stage 2 policy clock; never sets the OS clock. Tuf 1.1.1 has its own wall clock.
+internal sealed class CycleClock
+{
+    private readonly TimeProvider clock;
+    private readonly long timestamp;
+    internal DateTimeOffset StartUtc { get; }
+    internal DateTimeOffset ObservedFloor { get; }
+    internal CycleClock(TimeProvider clock, DateTimeOffset lastObserved)
+    {
+        this.clock=clock;
+        timestamp=clock.GetTimestamp();
+        StartUtc=clock.GetUtcNow();
+        Require(StartUtc>=lastObserved-TimeSpan.FromMinutes(5),"CLOCK_ROLLBACK");
+        ObservedFloor=StartUtc>lastObserved ? StartUtc : lastObserved;
+    }
+    internal DateTimeOffset Check(DateTimeOffset expires)
+    {
+        TimeSpan elapsed=clock.GetElapsedTime(timestamp);
+        Require(elapsed>=TimeSpan.Zero && elapsed<=TimeSpan.FromMinutes(2),"CYCLE_BUDGET");
+        DateTimeOffset expected=StartUtc+elapsed, wall=clock.GetUtcNow();
+        Require((wall-expected).Duration()<=TimeSpan.FromMinutes(5),"CLOCK_CHANGED");
+        // A small backwards correction cannot extend validity or lower a persisted floor.
+        DateTimeOffset effective=wall>expected ? wall : expected;
+        if(ObservedFloor>effective) effective=ObservedFloor;
+        Require(expires>effective,"EXPIRED_BEFORE_COMMIT");
+        return effective>ObservedFloor ? effective : ObservedFloor;
+    }
+    internal static string Wire(DateTimeOffset value) => value.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'",
+        System.Globalization.CultureInfo.InvariantCulture);
+}

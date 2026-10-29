@@ -1,0 +1,95 @@
+using System.Text;
+using Tuf;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+// New composition of Stage9 resources, operation journal and Stage2 selector/transaction.
+// Trust authority is the Stage11 journal; legacy StateRecord trust metadata must remain empty.
+// No migration of old populated Stage9 caches, no GF EXE/DLL or production install capability.
+internal sealed class TrustIntegratedPipeline : IDisposable
+{
+    private readonly string root;
+    private readonly PipelineResources resources;
+    private readonly DurableEpochCache trust;
+    private readonly OperationJournal journal;
+    private readonly FixtureScope auxiliary;
+    private readonly OwnedAttempt owner;
+    private Task? terminal;
+    internal TrustView Trust => trust.View();
+    internal StateRecord State => resources.Session.Store.Load().Record;
+    internal TrustIntegratedPipeline(string root, byte[] anchor, bool create = false) {
+        this.root = root; resources = new(root); DurableEpochCache? openedTrust = null;
+        try {
+            var state = resources.Session.Store.Load(); Require(state.Record.Trust.Metadata.Count == 0, "U11_NO_LEGACY_CACHE_MIGRATION");
+            trust = openedTrust = new(root, state.Record.InstallationId, anchor, create); journal = new(root, state.Record.InstallationId);
+            Require(!OperationJournal.Pending(journal.Load().Record), "U11_PENDING_INSTALLATION");
+            auxiliary = new(); owner = OwnedAttempt.StartFixture(auxiliary);
+        } catch { openedTrust?.Dispose(); resources.Dispose(); throw; }
+    }
+    internal OwnedOperation<StateRecord> Start(string fixtures, string scenario, string failAt = "") {
+        var operation = owner.Start("staging_write", async token => {
+            var before = resources.Session.Store.Load(); var record = journal.Admit(before.Digest, SelectorHash());
+            Require(!FixtureSession.Pending(before.Record), "U11_PENDING_TRANSACTION"); resources.Pins.Add(resources.Session.Files.Pin(before.Record.Confirmed));
+            var clock = new CycleClock(new AttemptGuardClock(owner), StateCodec.Observed(before.Record.Trust));
+            var repo = FixtureInputs.Repository(fixtures, scenario, owner.CapturedUtc);
+            var target = await DurableTufAttempt.Get(trust, repo, owner.CapturedUtc, token); owner.CheckValid();
+            if (target.Metadata.Status == TufRefreshStatus.Unchanged) {
+                journal.Advance(record, "settled", outcome: "unchanged", after: resources.Session.Store.Load().Digest); return before.Record;
+            }
+            var view = trust.View(); string establishedTrust = view.Digest;
+            // The preceding metadata advances are durable even if any package/installation step below fails.
+            var files = ZipInspection.Inspect(target.Content.ToArray(), 3, token);
+            using var t = Json(view.Metadata["targets"]); var targetEntries = t.RootElement.GetProperty("signed").GetProperty("targets"); Exact(targetEntries, "fixture-package.zip");
+            var custom = targetEntries.GetProperty("fixture-package.zip").GetProperty("custom"); Exact(custom, "fixture"); var d = custom.GetProperty("fixture");
+            Exact(d, "schema", "fixture_only", "sequence", "version", "entrypoint", "entry_sha256", "manifest_sha256", "file_count", "expanded_bytes");
+            Require(Text(d, "schema") == "gf-integrated-fixture/9" && Text(d, "entrypoint") == "bundle.fixture.txt", "U11_INERT_PROFILE"); Boolean(d, "fixture_only", true);
+            long seq = Number(d, "sequence", 65535); string version = Text(d, "version");
+            Require(version == "0.0.0." + seq && seq > before.Record.Trust.ApprovedSequence
+                && CompareVersion(version, before.Record.Trust.HighestVersion) > 0, "U11_RELEASE_REPLAY");
+            Require(files.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(new[] { "bundle.fixture.txt", "LICENSE.fixture.txt", "SHA256SUMS.txt" })
+                && Number(d, "file_count", 3) == 3 && files.Values.Sum(b => (long)b.Length) == Number(d, "expanded_bytes", ZipInspection.MaxExpanded), "U11_PACKAGE_SET");
+            Require(Encoding.UTF8.GetString(files["bundle.fixture.txt"]) == "GF-U9-INERT-BUNDLE-" + seq + "-NO-EXE-NO-DLL\n"
+                && Hash(files["bundle.fixture.txt"]) == Text(d, "entry_sha256") && Hash(files["SHA256SUMS.txt"]) == Text(d, "manifest_sha256"), "U11_PACKAGE_IDENTITY");
+            string manifest = string.Concat(new[] { "bundle.fixture.txt", "LICENSE.fixture.txt" }.Select(n => Hash(files[n]) + "  " + n + "\n"));
+            Require(Encoding.UTF8.GetString(files["SHA256SUMS.txt"]) == manifest, "U11_PACKAGE_MANIFEST");
+            var permit = new InertPermit(seq, version, Hash(target.Content.Span), Hash(files["bundle.fixture.txt"]), Hash(files["SHA256SUMS.txt"]), establishedTrust);
+            record = journal.Advance(record, "authorized", permit: permit);
+            var candidate = new BundleRef(seq, version, permit.EntrySha256, "linux-fixture-model");
+            string directory = Path.Combine(root, "versions", candidate.DirectoryName); Directory.CreateDirectory(directory);
+            foreach (var item in files) {
+                owner.CheckValid(); using var stream = new FileStream(Path.Combine(directory, item.Key), FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough);
+                stream.Write(item.Value); stream.Flush(true);
+            }
+            foreach (var item in files) {
+                var pin = WindowsFileGuard.Open(root, Path.Combine(directory, item.Key));
+                try { Require(Hash(pin.Read(4096)) == Hash(item.Value), "U11_DISK_HASH"); resources.Pins.Add(pin); if (item.Key == "bundle.fixture.txt") candidate = candidate with { Identity = pin.Identity }; }
+                catch { pin.Dispose(); throw; }
+            }
+            record = journal.Advance(record, "prepared", candidate: candidate);
+            try {
+                if (failAt == "before-intent") throw new FixtureInstallFailure();
+                _ = resources.Session.Begin(candidate, clock, target.Metadata.Expires, true, point => {
+                    owner.CheckValid(); if (point == failAt) throw new FixtureInstallFailure();
+                });
+                var tx = resources.Session.Store.Load().Record.Transaction!;
+                var state = resources.Session.Confirm(new(tx.Id, tx.Nonce, candidate.Sha256));
+                Require(trust.View().Digest == establishedTrust, "U11_INSTALL_CHANGED_TRUST");
+                journal.Advance(record, "settled", outcome: "confirmed", after: resources.Session.Store.Load().Digest); return state;
+            } catch (FixtureInstallFailure) {
+                // Known, synchronous test exception only. No inference about unknown I/O or foreign processes.
+                if (FixtureSession.Pending(resources.Session.Store.Load().Record)) resources.Session.Recover();
+                Require(trust.View().Digest == establishedTrust, "U11_ROLLBACK_LOWERED_TRUST");
+                var state = resources.Session.Store.Load(); journal.Advance(record, "settled", outcome: "known-fixture-failure", after: state.Digest); return state.Record;
+            }
+        }, resources, trust);
+        terminal = operation.ObserveTerminal(); return operation;
+    }
+    private string SelectorHash() => Hash(PersistentState.ReadFixtureFile(root, Path.Combine(root, "active.fixture.json")));
+    public void Dispose() {
+        if (owner.Pending != 0) return;
+        if (terminal is null) { trust.Dispose(); resources.Dispose(); }
+        if (!owner.TryRelease()) { owner.ReconcileFixture(() => terminal is not null && terminal.IsCompleted); Require(owner.TryRelease(), "U11_OWNER_RELEASE"); }
+        auxiliary.Dispose();
+    }
+    private sealed class FixtureInstallFailure : Exception { }
+}

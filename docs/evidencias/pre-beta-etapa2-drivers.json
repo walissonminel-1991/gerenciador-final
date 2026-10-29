@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "stage": 2,
+  "date": "2026-10-27",
+  "status": "technically_completed_with_physical_package_homologation_pending",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-pre-beta-etapa0-20261027",
+  "pull_request": 64,
+  "baseline_sha": "a4d30a1734fc54af35bec494e65653475970c40b",
+  "sdk": "10.0.402",
+  "comparison": {
+    "same_synthetic_cases": true,
+    "command": "dotnet run --project TestesDrivers/TestesDrivers.csproj -c Release -- --etapa2",
+    "total": 26,
+    "before": {
+      "passed": 6,
+      "failed": 20,
+      "exit_code": 1
+    },
+    "after": {
+      "passed": 26,
+      "failed": 0,
+      "exit_code": 0
+    }
+  },
+  "local": {
+    "platform": "Linux",
+    "driver_regression_passed": 165,
+    "stage2_in_regression": 26,
+    "product_build": {
+      "configuration": "Release",
+      "enable_windows_targeting": true,
+      "analyzers": true,
+      "warnings": 0,
+      "errors": 0
+    },
+    "native_windows_executed": false
+  },
+  "preserved_refs": {
+    "main": "410d65e23546976db456337c71e4705f10217d36",
+    "pr40": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+    "pr60": "2bc9f4228fd448445fbf181652e5af93005def20",
+    "pr61": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+    "pr62": "e530d724b7322963c8795b005f13ae6948a73e43",
+    "pr63": "04f59750739c6bdbaeb0bacd86ed2b734fba1271"
+  },
+  "previous_code_ci": {
+    "source_sha": "341c109b6b8538733b32a02909ff40c8e0a380d9",
+    "run_id": 40519539258,
+    "conclusion": "success",
+    "rerun": false
+  },
+  "personal_pc_evidence_reused": {
+    "new_operations": false,
+    "new_raw_data_collected": false,
+    "FORTE": {
+      "associations": 166,
+      "infs": 63,
+      "shared_infs": 19,
+      "without_inf": 3,
+      "package_detail_partial": true
+    },
+    "FRACO": {
+      "associations": 119,
+      "infs": 53,
+      "shared_infs": 17,
+      "without_inf": 3,
+      "equivalent_package_detail_available": false
+    }
+  },
+  "open_checkpoints": [
+    "D2",
+    "D4",
+    "G1",
+    "G2"
+  ],
+  "official_roadmap": {
+    "completed": 27,
+    "total": 42,
+    "changed": false
+  },
+  "limits": {
+    "driver_packages_downloaded": false,
+    "drivers_installed_removed_reverted": false,
+    "actions_enabled": false,
+    "numeric_version_inferred": false,
+    "full_payload_verified": false,
+    "beta_infrastructure_accessed": false,
+    "permanent_exclusion_preserved": true,
+    "new_excluded_product_tests": 0,
+    "stage3_started": false
+  },
+  "source_sha": "09fff12b0f854ab9c23886146479a7f993f936b7",
+  "windows_ci": {
+    "run_id": 40525913386,
+    "source_sha": "09fff12b0f854ab9c23886146479a7f993f936b7",
+    "conclusion": "success",
+    "attempt": 1,
+    "evidence": "pre-beta-etapa2-ci-40525913386.json"
+  },
+  "receipt_documentation_only": true
+}

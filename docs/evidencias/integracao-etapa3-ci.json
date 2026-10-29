@@ -1,0 +1,1168 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "stage": 3,
+  "date": "2026-10-27",
+  "timezone": "America/Fortaleza",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "pr": 65,
+  "draft": true,
+  "status": "technically_validated_connected_blocked",
+  "entry_commit": "89ee12a8322c5872c61c3fd40030490407cbb173",
+  "validated_commit": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+  "validated_tree": "e5646e6d419b47aa80e337359b1a49c9262ce6f7",
+  "test_merge_commit": "3bb5e7b44ccc7c362e32678afa9b99791d460211",
+  "test_merge_tree": "e5646e6d419b47aa80e337359b1a49c9262ce6f7",
+  "test_merge_tree_equals_head": true,
+  "base_commit": "2bc9f4228fd448445fbf181652e5af93005def20",
+  "code_commit_stage2": "06d7dce0bb47944f1efd18a10785fa77f5f0c8f7",
+  "final_documentary_head": "Conferir HEAD da PR65; fechamento posterior somente Markdown/JSON, sem nova build.",
+  "original_refs": [
+    {
+      "branch": "beta-piloto-consentimento-envio-20261026",
+      "sha": "f64600748b45b0ddc7e39c530ac56809c26f7ea8"
+    },
+    {
+      "branch": "experimento-chrome-versionhistory-20261027",
+      "sha": "04f59750739c6bdbaeb0bacd86ed2b734fba1271"
+    },
+    {
+      "branch": "main",
+      "sha": "410d65e23546976db456337c71e4705f10217d36"
+    },
+    {
+      "branch": "piloto-diagnostico-github-v5.13.11.2",
+      "sha": "ef13aef49083f357f6a14f4de46f8bc976dbd830"
+    },
+    {
+      "branch": "work18-ampliacao-atualizacoes-seguras",
+      "sha": "2bc9f4228fd448445fbf181652e5af93005def20"
+    },
+    {
+      "branch": "work-beta-retencao-issues-20261026",
+      "sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+    },
+    {
+      "branch": "work-pre-beta-etapa0-20261027",
+      "sha": "357877e9acd628f84e5d9944e02e471fe319d1bc"
+    }
+  ],
+  "ci_runs": [
+    {
+      "id": 40604593820,
+      "name": "Compilar Windows (sem assinatura)",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820",
+      "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "head_branch": "work-integracao-final-20261027",
+      "status": "completed",
+      "conclusion": "success",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "created_at": "2026-10-27T23:48:14Z",
+      "updated_at": "2026-10-27T23:59:02Z",
+      "jobs": [
+        {
+          "id": 122540822898,
+          "name": "politica / Política de segurança e privacidade",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820/job/122540822898",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Codigo sem credenciais persistentes",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Exigir ausencia de envio manual e codigo remoto nao confiavel",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Simular receptor HTTPS isolado (Node, sem rede externa)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Preparar Node fixo para SQLite local da BETA",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Retencao e receptor BETA antecipados (SQLite sintetico, sem rede)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 11,
+              "name": "Post Preparar Node fixo para SQLite local da BETA",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 12,
+              "name": "Post Codigo sem credenciais persistentes",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 13,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 122540823111,
+          "name": "validar / Drivers somente leitura (windows-2025)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820/job/122540823111",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": ".NET 10",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Fixtures, SetupAPI, catálogo INF e WUA sem download ou instalação",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Evidências somente dos runners descartáveis",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Post .NET 10",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 10,
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 11,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 122540823180,
+          "name": "validar / Regressões Windows",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820/job/122540823180",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": ".NET 10",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Compilar aplicacao",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Conferir leitura e rolagem do diálogo de drivers em viewport pequeno",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Lote 4 relatório local compacto e íntegro",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "Lote 4 controle negativo em checkout descartável",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 8,
+              "name": "Lote 3 atualizações, concorrência e memória de download",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Lote 3 desinstalações e posse de proteção",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 10,
+              "name": "Lote 3 prévia do registro com volume elevado",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 11,
+              "name": "Ecossistemas e identidades multidimensionais (sem executar scripts)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 12,
+              "name": "Leitor COM real sem reparo ou elevacao automatica",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 13,
+              "name": "Conferir versao dos scripts de distribuicao sem publicar",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 14,
+              "name": "Reproduzir falhas reais WORK12 em alvos sinteticos",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 15,
+              "name": "Descoberta automatica e adversarios sem instalar programas",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 16,
+              "name": "Isolar falhas e validar identidade MSI WORK17",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 17,
+              "name": "WORK18 contratos MSI e acompanhamento sem enfraquecer autorizacoes",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 18,
+              "name": "WORK18 botoes motivos e DPI em 1440x900 e 2560x1440",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 19,
+              "name": "Reproduzir casos WORK13 de atualizacao em isolamento",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 20,
+              "name": "Testes WSC somente leitura",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 21,
+              "name": "Testes motor de comparacao",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 22,
+              "name": "Testes RuckZuck simulados",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 23,
+              "name": "Testes fontes oficiais e antifalsos positivos",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 24,
+              "name": "Testes instaladores verificados",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 25,
+              "name": "Comparar cobertura funcional WORK14 com a base imutavel",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 26,
+              "name": "Comparar contratos WORK16 com a PR51 imutavel",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 27,
+              "name": "Comparar cobertura MSI WORK17 com WORK16 imutavel",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 28,
+              "name": "Comparar cobertura WORK18 com a integracao .64 imutavel",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 29,
+              "name": "Conservar matriz WORK18 antes e depois",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 30,
+              "name": "Conservar matriz MSI WORK17",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 31,
+              "name": "Conservar matriz de ecossistemas WORK16",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 32,
+              "name": "Conservar matriz funcional antes e depois",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 33,
+              "name": "Controles negativos por mutacao em copias isoladas",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 34,
+              "name": "Testes drivers e historico",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 35,
+              "name": "Testes residuos e desinstalacao com alvos sinteticos descartaveis",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 36,
+              "name": "Benchmark sintetico de classificacao e navegacao (sem arquivos reais)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 37,
+              "name": "Testes layout e RAM",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 38,
+              "name": "Testes inventario MSIX",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 39,
+              "name": "Preparar Node para SQLite local dos testes BETA",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 40,
+              "name": "Endpoint BETA nao aprovado deve falhar no build sem habilitar envio",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 41,
+              "name": "BETA receptor, retencao GitHub e recuperacao (SQLite local, sem rede)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 42,
+              "name": "BETA fechamento, bandeja e Shutdown simulados na janela real",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 43,
+              "name": "Testes privacidade e diagnostico local",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 44,
+              "name": "Testes bloqueio de instaladores e encerramento seguro",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 45,
+              "name": "Capturas sinteticas da investigacao de residuos",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 88,
+              "name": "Post Preparar Node para SQLite local dos testes BETA",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 89,
+              "name": "Post .NET 10",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 90,
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 91,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 122540823188,
+          "name": "validar / Drivers somente leitura (windows-2022)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820/job/122540823188",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": ".NET 10",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Fixtures, SetupAPI, catálogo INF e WUA sem download ou instalação",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Evidências somente dos runners descartáveis",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Post .NET 10",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 10,
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 11,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 122540823311,
+          "name": "validar / Consentimento BETA antecipado (sem rede)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820/job/122540823311",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Checkout sem credenciais persistentes",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "SDK .NET fixo",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Gate de compilacao conectada deve recusar aprovacoes pendentes",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Privacidade e transporte com handlers ficticios",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Post SDK .NET fixo",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 10,
+              "name": "Post Checkout sem credenciais persistentes",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 11,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 122544352782,
+          "name": "Compilação Windows x64",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820/job/122544352782",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Baixar fonte",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Preparar SDK .NET 10",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Identificar pacote pela versao e commit",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Publicar para Windows x64 (self-contained)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Verificar ativacao do manifesto Win32 no executavel",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "Conferir configuracao real da BETA no assembly, sem iniciar aplicativo",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 8,
+              "name": "Registrar origem e versao da compilacao",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Gerar e verificar SHA256SUMS.txt",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 10,
+              "name": "Validar composicao, origem, runtime e integridade antes do upload",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 11,
+              "name": "Registrar integridade e assinatura para investigação antivírus",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 12,
+              "name": "Conservar evidência técnica (não é varredura AVG)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 13,
+              "name": "Evidencia de origem e hashes da compilacao BETA (sem executaveis)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 14,
+              "name": "Conservar artefato para testes (nao assinado)",
+              "status": "completed",
+              "conclusion": "skipped"
+            },
+            {
+              "number": 27,
+              "name": "Post Preparar SDK .NET 10",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 28,
+              "name": "Post Baixar fonte",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 29,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 122544748192,
+          "name": "Atestar pacote apenas na main",
+          "status": "completed",
+          "conclusion": "skipped",
+          "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820/job/122544748192",
+          "steps": []
+        }
+      ]
+    },
+    {
+      "id": 40604593709,
+      "name": "Integridade externa dos atualizadores",
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709",
+      "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "head_branch": "work-integracao-final-20261027",
+      "status": "completed",
+      "conclusion": "success",
+      "run_attempt": 1,
+      "event": "pull_request",
+      "created_at": "2026-10-27T23:48:14Z",
+      "updated_at": "2026-10-27T23:49:25Z",
+      "jobs": [
+        {
+          "id": 122540822651,
+          "name": "Integridade dos instaladores oficiais (sem instalacao)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709/job/122540822651",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": ".NET 10",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Catalogo Microsoft autenticado em isolamento (sem WinGet ou instalacao)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "WORK13 hashes identidade e Authenticode (sem execucao)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "SumatraPDF x86 e x64 (sem execucao)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "7-Zip EXE x64 verificado por SHA-256 (sem instalacao)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 8,
+              "name": "GameInput protegido (sem download ou execucao)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Windows Terminal MSIX (sem instalacao)",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 17,
+              "name": "Post .NET 10",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 18,
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "number": 19,
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 122540824707,
+          "name": "Fontes externas e drivers do runner (somente leitura)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709/job/122540824707",
+          "steps": []
+        }
+      ]
+    }
+  ],
+  "required_jobs_success": 7,
+  "conditional_jobs_skipped": 2,
+  "failed_jobs": 0,
+  "reruns": 0,
+  "metrics": {
+    "updater_suite": 410,
+    "multisource_suite": 196,
+    "residual_uninstall_suite": 739,
+    "msix_suite": 47,
+    "shutdown_suite": 30,
+    "privacy_transport_assertions": 127,
+    "beta_window_assertions": 15,
+    "receiver_retention_tests": 126,
+    "staging_receiver_tests": 10,
+    "python_policy_package_tests": 47,
+    "ecosystem_assertions": 54,
+    "catalog_suite": 17,
+    "matching_suite": 20,
+    "mutations_rejected": 36,
+    "layout_resolution_tab_combinations": 132,
+    "work18_layout_combinations": 8,
+    "tray_cycles": 12,
+    "windows2022_driver_assertions": 173,
+    "windows2025_driver_assertions": 174,
+    "package_hashes_verified_in_ci": 286,
+    "new_product_tests": 0,
+    "product_code_changes": 0,
+    "sum_not_applicable": "Subconjuntos, repeticoes e runners nao somados como casos unicos ou programas homologados."
+  },
+  "decoded_job_log_sha256": {
+    "122540823188": "03c5d2fc89dd09c43b1c5756f91f0c167d58e3bc207818414bc1808bbf3082e7",
+    "122540823111": "2d365c0e3f2fe9554b307afd9d5012357d13287a090b5b3c9e3f409b274546eb",
+    "122540822651": "c54bcde4387c14543a81d670a4acf1e2e281c174d100f7499589f5054c01db28",
+    "122544352782": "d51b93db522dcff04c0f106754cff6b8bd400291eb42733581e24ac318e1978d",
+    "122540823180": "b3473a9daae7f353a3cf0f5d15b1274cfdcbe8f94b4fa2663b7e8a00b5e98133",
+    "122540822898": "35e0b931e27ddd16515f631175a12c9dc6ad7ffd2f610eeb8e3a30a96227f6be",
+    "122540823311": "31520a2b1244d5d55337390681553e6de3d8a11b485912991e530d6d9a3e4f68"
+  },
+  "native_driver_observations": {
+    "windows2022": {
+      "assertions": 173,
+      "official_query": "timeout_inconclusive",
+      "published_matches": 0,
+      "offers": null
+    },
+    "windows2025": {
+      "assertions": 174,
+      "official_query": "complete",
+      "offers": 0
+    }
+  },
+  "artifact_metadata": [
+    {
+      "id": 12780686545,
+      "name": "WORK17-cobertura-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+      "size_in_bytes": 710,
+      "digest": "sha256:fdbdfe62f8c100f6adca2666e969d564ce5e73cbddd694f3493b0c0f18f63dda",
+      "expires_at": "2026-11-03T23:51:28Z",
+      "run_id": 40604593820,
+      "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+    },
+    {
+      "id": 12780627014,
+      "name": "WORK16-cobertura-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+      "size_in_bytes": 729,
+      "digest": "sha256:e91c1dbf5e78bde9911cec13e6fde911467c7ba5a874a1ae2f89420bad301179",
+      "expires_at": "2026-11-03T23:51:29Z",
+      "run_id": 40604593820,
+      "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+    },
+    {
+      "id": 12780592218,
+      "name": "WORK14-cobertura-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+      "size_in_bytes": 1002,
+      "digest": "sha256:58b8f2939f3a5fb32ce50432d4b90c80c72720e081a7691b7d0dfb3f018068cb",
+      "expires_at": "2026-11-03T23:51:30Z",
+      "run_id": 40604593820,
+      "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+    },
+    {
+      "id": 12780541972,
+      "name": "Drivers-leitura-windows-2025-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+      "size_in_bytes": 3829,
+      "digest": "sha256:22de951262008365b25e9bb3ef32be220555810949ec8f0c8c353356416338ca",
+      "expires_at": "2026-11-03T23:49:34Z",
+      "run_id": 40604593820,
+      "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+    },
+    {
+      "id": 12780318522,
+      "name": "Antivirus-evidencias-6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "size_in_bytes": 621,
+      "digest": "sha256:683fc6012865e7eb0ba865d353a8389debc396ba2453c375c642bdb840c4d8fd",
+      "expires_at": "2026-11-03T23:58:53Z",
+      "run_id": 40604593820,
+      "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+    },
+    {
+      "id": 12779957653,
+      "name": "WORK18-cobertura-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+      "size_in_bytes": 888,
+      "digest": "sha256:e8b77b81f5a660e4e70702963f7c4e799a5adca5ceea3d866522bae89bf23289",
+      "expires_at": "2026-11-03T23:51:27Z",
+      "run_id": 40604593820,
+      "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+    },
+    {
+      "id": 12779928854,
+      "name": "BETA-manifesto-6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "size_in_bytes": 13887,
+      "digest": "sha256:ebe688f662593689c0ba8b0f4d43a33828d8b048d8386eed2be8a09043aa6754",
+      "expires_at": "2026-11-03T23:58:55Z",
+      "run_id": 40604593820,
+      "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+    },
+    {
+      "id": 12779399462,
+      "name": "Residuos-layout-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+      "size_in_bytes": 2190769,
+      "digest": "sha256:c6e5595f1183c3f1c96df5c1782eae308be3e8cbdda778226ca9745a76e4e8b3",
+      "expires_at": "2026-11-03T23:57:50Z",
+      "run_id": 40604593820,
+      "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+    },
+    {
+      "id": 12779329763,
+      "name": "Drivers-leitura-windows-2022-3bb5e7b44ccc7c362e32678afa9b99791d460211",
+      "size_in_bytes": 3825,
+      "digest": "sha256:8308eb00719a6447feaf8e9d19e02e9cd07899de3e4c479684ba9c3f0fdfa68c",
+      "expires_at": "2026-11-03T23:50:50Z",
+      "run_id": 40604593820,
+      "head_sha": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8"
+    }
+  ],
+  "manifest_verification": {
+    "kind": "manifest",
+    "zip_sha256": "ebe688f662593689c0ba8b0f4d43a33828d8b048d8386eed2be8a09043aa6754",
+    "bytes": 13887,
+    "files": [
+      "BUILD-INFO.txt",
+      "BETA-BUILD.json",
+      "SHA256SUMS.txt"
+    ],
+    "metadata": {
+      "schema": 1,
+      "version": "5.13.11.66",
+      "source_commit": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "channel": "BETA",
+      "transport_configured": false,
+      "endpoint": "",
+      "notice_version": "gf-beta-20261026-r3",
+      "notice_sha256": "f04863df19be3c40100b9471b9c01962b16bdfb73ba7af2fd58e5ba30bc59701",
+      "reviewed_notice_sha256": "",
+      "distribution": "requires_owner_approval"
+    },
+    "build_info": "Produto: Gerenciador Final\r\nVersao: 5.13.11.66\r\nCommit Git: 3bb5e7b44ccc7c362e32678afa9b99791d460211\r\nCommit fonte: 6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8\r\nBase da PR (quando aplicavel): 2bc9f4228fd448445fbf181652e5af93005def20\r\nExecucao GitHub Actions: 40604593820\r\nAssinatura digital: AUSENTE (pacote experimental)\r\nStatus AVG: NAO VALIDADO; nao executar se estiver em quarentena\r\nOrigem: https://github.com/walissonminel-1991/gerenciador-final\r\n",
+    "manifest_entries": 286,
+    "manifest_sha256": "fb34e107af24a355d586b81864e345b2268f846b40d09d5c80160bcb0cd8e260",
+    "file_sha256": {
+      "BUILD-INFO.txt": "67c6dff169b64c74d81d42b3341f4d6f7c4fd9a48a0768da41198ae004de3724",
+      "BETA-BUILD.json": "e53fd3ac7e4bd1f956f11184c1a4a8062f77068bd8b6f6437f07651f0d1201d6",
+      "SHA256SUMS.txt": "fb34e107af24a355d586b81864e345b2268f846b40d09d5c80160bcb0cd8e260"
+    },
+    "critical_hashes": {
+      "AVISO-PRIVACIDADE-BETA.md": "29da0e0c85f27ed49a38473305f703be02fb1251f4478bec5e9979e14b4e9817",
+      "GerenciadorFinal.dll": "0a9c75003f3e28ba0c475461a1ca82f8d0ceb2875439d3153b8401cb1f58b52b",
+      "GerenciadorFinal.exe": "5988380b741c3e65f9b96e5902752d349327424e456bb4d772b2509abb829647",
+      "GerenciadorFinal.runtimeconfig.json": "bff8e794f100e25611d9f3d1cdf7875bf3a4e840908ea539a7284fffe9c22bea"
+    }
+  },
+  "visual_sample": {
+    "artifact_sha256": "c6e5595f1183c3f1c96df5c1782eae308be3e8cbdda778226ca9745a76e4e8b3",
+    "png_count": 83,
+    "inspected": [
+      {
+        "file": "WORK18-1440x900-2.00.png",
+        "sha256": "483dae9bc45a06da55c1d9e5993d10b21d281e7512c63809b57289db7c3e7964"
+      },
+      {
+        "file": "drivers-leitura-500x340.png",
+        "sha256": "405e53a4a6c6a77d3c7a1eafb19f44dbbd08b211f35b50b154665d10f8c21eae"
+      },
+      {
+        "file": "Residuos-Confirmacao-Lote.png",
+        "sha256": "87e1bc18d49787c31a96a8f05cb6434ddf074caca5523afbeaef87bbdbb57ede"
+      }
+    ],
+    "scope": "Amostra sintetica do runner: textos/acoes visiveis e rolagem; nao homologa DPI/tema fisico do PC."
+  },
+  "work18_revalidation": {
+    "artifact_zip_sha256": "e8b77b81f5a660e4e70702963f7c4e799a5adca5ceea3d866522bae89bf23289",
+    "baseline": "28beb9607e85d208af4c0864d768a6db7fb5296a",
+    "candidate": "3bb5e7b44ccc7c362e32678afa9b99791d460211",
+    "fixtures": 28,
+    "before_actions": 5,
+    "after_actions": 13,
+    "payloads_authorized": 0,
+    "third_party_operations": 0,
+    "physical_homologations": 0,
+    "scope": "Revalidacao de cobertura WORK18 existente, nao ganho novo desta etapa."
+  },
+  "synthetic_benchmarks": [
+    {
+      "apps": 500,
+      "evidence_count": 5000,
+      "runtime": "10.0.14",
+      "processor_count": 4,
+      "samples": 3,
+      "elapsed_ms_min": 40.8019,
+      "elapsed_ms_max": 114.1364,
+      "elapsed_ms_median": 59.9387,
+      "peak_working_set_bytes": 82362368,
+      "returned": 2500,
+      "unexamined": 0,
+      "stable_signature": true
+    },
+    {
+      "apps": 1000,
+      "evidence_count": 10000,
+      "runtime": "10.0.14",
+      "processor_count": 4,
+      "samples": 3,
+      "elapsed_ms_min": 101.1187,
+      "elapsed_ms_max": 102.4197,
+      "elapsed_ms_median": 101.8653,
+      "peak_working_set_bytes": 106205184,
+      "returned": 5000,
+      "unexamined": 0,
+      "stable_signature": true
+    },
+    {
+      "apps": 1000,
+      "evidence_count": 20000,
+      "runtime": "10.0.14",
+      "processor_count": 4,
+      "samples": 3,
+      "elapsed_ms_min": 200.825,
+      "elapsed_ms_max": 219.8526,
+      "elapsed_ms_median": 218.7041,
+      "peak_working_set_bytes": 156479488,
+      "returned": 10000,
+      "unexamined": 0,
+      "stable_signature": true
+    },
+    {
+      "apps": 1000,
+      "evidence_count": 50000,
+      "runtime": "10.0.14",
+      "processor_count": 4,
+      "samples": 3,
+      "elapsed_ms_min": 107.4062,
+      "elapsed_ms_max": 160.3564,
+      "elapsed_ms_median": 110.8919,
+      "peak_working_set_bytes": 221720576,
+      "returned": 15000,
+      "unexamined": 20000,
+      "stable_signature": true
+    }
+  ],
+  "functional_defects_reproduced": [],
+  "product_corrections": [],
+  "new_product_tests": 0,
+  "known_limits": [
+    {
+      "id": "L-WUA2022",
+      "kind": "inconclusive_native_source",
+      "detail": "Consulta oficial WUA excedeu prazo no runner Windows 2022; nenhuma correspondencia publicada. Limite tratado conservadoramente, job aprovado, G1 aberto."
+    },
+    {
+      "id": "L-WUA2025",
+      "kind": "no_positive_offer_proof",
+      "detail": "Consulta completa no runner Windows 2025 retornou zero ofertas; nao prova compatibilidade de pacote real."
+    },
+    {
+      "id": "L-CS0649",
+      "kind": "nonblocking_compiler_warning",
+      "location": "Program.cs:599",
+      "detail": "Campo MainForm._privacyStatusButton sem atribuicao no perfil GF_BETA; atribuicao do botao ausente esta sob #if !GF_BETA. Build sem erros e testes BETA aprovados; nao alterar produto apenas para ocultar o aviso."
+    },
+    {
+      "id": "L-PHYSICAL",
+      "kind": "not_homologated",
+      "detail": "AVG, DPI/tema fisico, comportamento no PC e homologacao conectada nao comprovados por CI; 27/42 preservados."
+    },
+    {
+      "id": "L-PACKAGE",
+      "kind": "evidence_scope",
+      "detail": "CI verificou distribuicao interna e 286 hashes; conferencia externa limitada aos tres manifestos. Nenhum executavel/ZIP BETA distribuido ou homologado."
+    }
+  ],
+  "preserved": {
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "checkpoint_done_values_unchanged": true,
+    "pre_beta_history_unchanged": true,
+    "candidate_beta_objects_unchanged": true,
+    "vlc": "Inventario somente, sem novos testes especificos, consultas, verificacoes ou acoes.",
+    "winget_com": "Opcional, nao bloqueante e consultivo; regressao existente mantida, sem investigacao/reparo.",
+    "driver_management_enabled": false,
+    "remote_delivery_enabled": false,
+    "pilot_enabled": "no",
+    "github_export_enabled": "no",
+    "avg_protections_changed": false,
+    "avg_homologation_approved": false,
+    "remote_infrastructure_touched": false,
+    "personal_pc_accessed": false,
+    "public_release_merge_deploy_distribution": false
+  },
+  "validation_scope": {
+    "windows_build": "Internal self-contained x64, AMD64, Win32 manifest and closed package verifier passed in CI.",
+    "package_files_hashed_in_runner": 286,
+    "independently_checked": "Only manifest archive, three files, origins/hashes and disabled transport metadata; no EXE/ZIP package outside runner.",
+    "full_package_independently_checked": false,
+    "local_beta_prepared": false,
+    "physical_homologation": false,
+    "connected_homologation": false
+  },
+  "publication_readback": {
+    "validated_source_readback": "passed",
+    "validated_head": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+    "validated_source_blobs": 435,
+    "source_product_tests_workflows_config_unchanged_vs_entry": true,
+    "documentary_closure_paths": [
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+      "docs/WORK-INTEGRACAO-MATRIZ.md",
+      "docs/PROGRESSO.json",
+      "docs/WORK-INTEGRACAO-ETAPA3-VALIDACAO.md",
+      "docs/evidencias/integracao-etapa3-ci.json"
+    ],
+    "documentary_head": "Consultar HEAD da PR65; sucessor somente Markdown/JSON da fonte validada."
+  },
+  "stage4_started": false,
+  "next_stage": 4,
+  "document_checks": {
+    "json": "passed",
+    "markdown_links_checked": 20,
+    "matrix_rows": 15,
+    "existing_metadata_verifier": "passed_historical_candidate_pending_and_approved_65_preserved",
+    "roadmap_states_unchanged": true
+  }
+}

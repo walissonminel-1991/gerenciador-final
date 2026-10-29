@@ -1,0 +1,644 @@
+{
+  "schema": "gf-stage13-review-preparation/1",
+  "contract": "gf-self-update/1",
+  "date": "2026-10-29",
+  "timezone": "America/Sao_Paulo",
+  "status": "completed_preparation_only_independent_review_blocked",
+  "entry_head": "b2af290cb41402a0d6a1dc3988b44f599cf2b0f4",
+  "final_sha": "Recorded in PR65 description and final response after documentation commit",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "pr": 65,
+  "branch": "work-integracao-final-20261027",
+  "open": true,
+  "draft": true,
+  "review_dossier": "docs/WORK-AUTOATUALIZADOR-ETAPA13.md#dossie-minimo-para-revisao",
+  "repository_review_observations": {
+    "schema": "gf-stage13-repository-review-observations/1",
+    "entry_head": "b2af290cb41402a0d6a1dc3988b44f599cf2b0f4",
+    "checked_scope": "PR65 reviews, top-level comments, inline comments, requested reviewers; CODEOWNERS; existing updater records only. No off-platform or private-personnel search.",
+    "reviews": [],
+    "issue_comments": [],
+    "requested_reviewers": {
+      "users": [],
+      "teams": []
+    },
+    "inline_comments": [],
+    "codeowners": {
+      "path": ".github/CODEOWNERS",
+      "blob_sha": "bf578fa09fb9db8033282b55f74fd084ee7e9e5b",
+      "content": "# Revisao humana do codigo e das rotinas de distribuicao.\n# Exige protecao de branch com \"Require review from Code Owners\" no GitHub;\n# este arquivo sozinho NAO impede merge sem aprovacao.\n* @walissonminel-1991\n.github/workflows/ @walissonminel-1991\nscripts/ @walissonminel-1991\n",
+      "formal_TUF_maintenance_acceptance": false,
+      "independent_review": false
+    },
+    "independent_review": {
+      "status": "blocked",
+      "available_authorized_reviewer_identified": false,
+      "received_verifiable_opinions": [],
+      "not_a_global_claim_about_all_external_reviews": true,
+      "reason": "No independent reviewer supplied by task; no submitted/requested review or review reference found in inspected PR/updater records."
+    },
+    "maintenance": {
+      "status": "blocked",
+      "named_accepted_owner": null,
+      "decision_ref": "D6-02",
+      "owner_or_Work_not_automatically_designated": true
+    },
+    "reused_ci": [
+      {
+        "id": 40859356385,
+        "head_sha": "8dc843ff69b66f55f6e87fab93bd9c71c1242ec5",
+        "status": "completed",
+        "conclusion": "success",
+        "attempt": 1,
+        "updated_at": "2026-10-29T10:41:40Z",
+        "executed_in_stage13": false
+      },
+      {
+        "id": 40864493929,
+        "head_sha": "eafec1070bd7c35420741bad4560dc9be4a37d6e",
+        "status": "completed",
+        "conclusion": "success",
+        "attempt": 1,
+        "updated_at": "2026-10-29T11:21:19Z",
+        "executed_in_stage13": false
+      }
+    ],
+    "lookup_error_preserved": {
+      "path": "docs/evidencias/autoatualizador-etapa6-decisoes.json",
+      "result": "not_found",
+      "effect": "Corrected read to existing autoatualizador-etapa6-dependencias.json; no missing security approval inferred."
+    }
+  },
+  "readonly_integrity": {
+    "schema": "gf-stage13-readonly-integrity/1",
+    "files": [
+      {
+        "path": "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+        "git_blob_sha1": "315fdccc3b4961871b9b661ae2001499e372bd4b",
+        "sha256": "d9bd23741d36027061c5508679f1459008d4c8edd01cfd3ca30c88abd303490a",
+        "bytes": 29635,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/POUF.md",
+        "git_blob_sha1": "28f819b8b3b9aa4e2ca0a7e747b0e6f62ae30fa0",
+        "sha256": "9cb71db81783def8bd3c34ca7f7c1d37a635e64c22641dcd1ad198094341b961",
+        "bytes": 6381,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage8/tuf-delta.patch",
+        "git_blob_sha1": "e9d0963777bf7e8e858b5f3b51b0125b99d613e7",
+        "sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+        "bytes": 8428,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage8/prepare_source.py",
+        "git_blob_sha1": "acac6921a1cfb2afaca6c475bdd87b04def2c890",
+        "sha256": "e657b1622f6304f145f401d15ca0e2429d42022d9630a2d0239087e2fc15c8a2",
+        "bytes": 2510,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage3/tuf-source-manifest.json",
+        "git_blob_sha1": "c660143b38e0e8a41620c068c4c7c6809e56efc8",
+        "sha256": "b46205593e1d68b20bd7c947c51292d6dafee72dd40619a51464b57b8edfbc47",
+        "bytes": 2169,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage11/src/DurableTrust.cs.txt",
+        "git_blob_sha1": "dca0754ae509ab8d21d84f0dd79bcba889835e6a",
+        "sha256": "faad41f3ec587ee7ea21a8c53766ff431ced562453465a2118be34d13f302373",
+        "bytes": 19848,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage11/src/TrustFixtureProof.cs.txt",
+        "git_blob_sha1": "9fc615c67a316ce60939a37fde7379abd30313d1",
+        "sha256": "c30eab448a8c841d6bc1b0ee94784132c13f0b403c156268853e4413b1e83d2d",
+        "bytes": 3001,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage11/src/TrustIntegratedPipeline.cs.txt",
+        "git_blob_sha1": "fff3d7aca16099e31c47259400003ce5599bcfdd",
+        "sha256": "9490d0bd370005ab58a90040190f369bda5d239d1345209e3f9dfad3bfd12798",
+        "bytes": 7835,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage11/Stage11.csproj",
+        "git_blob_sha1": "31537c90c7bc62729b75ef2c18fd5ac3c5d1bb39",
+        "sha256": "14ac6500fc356359953c35a3784cbdf2e4c50aefd3d801de05829e3f9eec1a6e",
+        "bytes": 1378,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage11/packages.lock.json",
+        "git_blob_sha1": "7e7f14555be5cbcc4e0f9bc73800c1356997fcb5",
+        "sha256": "45197010dce2f5b7fc726cdaf066fdb714b5f596d8ed13814bcadfb9603cb01b",
+        "bytes": 320,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage11/fixtures/oracle-source-pin.json",
+        "git_blob_sha1": "00c3bddaf08e2a11e4af581b7915a970cb56fd40",
+        "sha256": "cef4f4f5dd379942923f20285254a4a268fa29706546c0a53ed1eccbdd3a6e6d",
+        "bytes": 474,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage11/fixtures/LICENSE-PYTHON-TUF-MIT.txt",
+        "git_blob_sha1": "096d0b9e2279c4cda1860dd65cfd547529626e20",
+        "sha256": "ad52fe92b0d21a9b3733b484eb6f865e83855f4a6f9b9b8812b9012dc4587d27",
+        "bytes": 1086,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage12/reference_probe.py",
+        "git_blob_sha1": "2826bcbb16ce657158da28028bf88a1215288859",
+        "sha256": "6b880a7458c6d5a8a673afeee0cdcda29a147b53fa1c5f7acf08d0ed08c0b9fc",
+        "bytes": 10775,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage12/make_vectors.py",
+        "git_blob_sha1": "047cc75f933d89a030b6aafb902a86d269dd824d",
+        "sha256": "f4f83a7af794c0dc31b9b2b067b882d791a60e76e97dccfe6f72078c52c79cfe",
+        "bytes": 7085,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa11-windows.json",
+        "git_blob_sha1": "1b9aa3d91e06f0a146e0a648a5b6a8e7633f382c",
+        "sha256": "9c33bddc44e1baa45f2ab08f74bfde6e84a51f0d31e46ef2b48251fc8bf94b8a",
+        "bytes": 41119,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa12-windows.json",
+        "git_blob_sha1": "b6dbefadd7c6246b9166ff5708cebe08e066c501",
+        "sha256": "02cc2c3d44e3652b3d00b0e9d9dc349434a874eac2f54dec8ea14bd0e9ac941b",
+        "bytes": 102332,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa12-vetores.json",
+        "git_blob_sha1": "481ea07bff8a28e36a8686eba1b6f34fb55bb48e",
+        "sha256": "79958777a33a6d43cbbe41f3c73882de3f89d7b44cef5af402726df910978fb5",
+        "bytes": 44206,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa12.json",
+        "git_blob_sha1": "c23af1d59a854509f463161daa19b28925baf15d",
+        "sha256": "3e970d32295f63d4e89af9738e885b60ea06c3ec3f7d51043aae121ddfbd41ec",
+        "bytes": 12496,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa12-gates.json",
+        "git_blob_sha1": "854aa4c7d2d9436ccd6e1faef5defdbc278d6503",
+        "sha256": "3136acf3decbf5ad74bd053df60ab425b1d0f038e4409c237dd138241da6382f",
+        "bytes": 21379,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "docs/WORK-AUTOATUALIZADOR-ETAPA12.md",
+        "git_blob_sha1": "2c3ee6320bfde3897b46c0b00418e677aa4d371e",
+        "sha256": "542e4b459deca0d22fbcb5e701f1d7759bc41c70c022f31e011312c2f1d59fd0",
+        "bytes": 11364,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+        "git_blob_sha1": "f6154fdea8ab1a1f430e0b8d1d3c10d4ec641d08",
+        "sha256": "9b902c8ed27c7df2bb44774e6a0cd6d5001e3078737aa15d16228ebaf1685e45",
+        "bytes": 37339,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "docs/PROGRESSO.json",
+        "git_blob_sha1": "87b04a7df44c71df4f5cc95e211c5afb9a05804f",
+        "sha256": "efd0277647e2edc8f7e815d7eeae2748ebd75c253a51b893745acf8e2726df5f",
+        "bytes": 100043,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "LICENSE",
+        "git_blob_sha1": "dd99b8acf405e87f2ffe2280b21844acc57af4b2",
+        "sha256": "35e605fc2d1705ce6f1cb3d1814ec017752fed088580e6412b7263c3739ca1f8",
+        "bytes": 1087,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      },
+      {
+        "path": "SECURITY.md",
+        "git_blob_sha1": "95ecbecc9ed4bda514fa141b2e6e4c89fbcea878",
+        "sha256": "07b0bf2bbdf92fdede34d63ff9b5e4c361361b645296b27bacd24910ab5653f7",
+        "bytes": 4324,
+        "status": "passed",
+        "method": "matches authoritative Git blob; no source mutation"
+      }
+    ],
+    "catalog_blobs_verified": 20,
+    "scenarios_references_verified": 9,
+    "main_vectors": 2,
+    "recreated_vectors": false,
+    "tests_executed": 0,
+    "new_source_audit": false
+  },
+  "G2_requirements": [
+    {
+      "id": "G2-SOURCE",
+      "requirement": "Fonte, dependências, contrato e escopo rastreáveis",
+      "status": "passed",
+      "basis": "24 arquivos confrontados com os blobs Git; contratos/locks/pins existentes preservados",
+      "limit": "Integridade/proveniência, não auditoria nova ou aprovação operacional"
+    },
+    {
+      "id": "G2-AUTH",
+      "requirement": "Assinaturas, thresholds, referências e rotação contígua",
+      "status": "passed",
+      "basis": "Etapa11 45 casos e Etapa12 controles específicos, reutilizados",
+      "limit": "Perfil fechado de fixture; revisão humana ausente"
+    },
+    {
+      "id": "G2-CLOCK",
+      "requirement": "UTC imutável, uso único e timestamp inalterado",
+      "status": "passed",
+      "basis": "Patch da Etapa8 e provas Etapas8/11 preservadas",
+      "limit": "Sem execução nesta etapa; relógio confiável após restauração integral ainda é G1"
+    },
+    {
+      "id": "G2-PERSIST",
+      "requirement": "Persistência por papel/raiz, pisos e recuperação observada",
+      "status": "passed",
+      "basis": "Diário/selos e cortes supervisionados Etapas11/12, reutilizados",
+      "limit": "Fronteiras síncronas de fixture; flush/rename não provam energia ou durabilidade física"
+    },
+    {
+      "id": "G2-EPOCH",
+      "requirement": "Épocas/pisos nas duas rotações de chave analisadas",
+      "status": "passed",
+      "basis": "Vetores U12-TIMESTAMP e U12-SNAPSHOT, incluindo replay na mesma época",
+      "limit": "Conclusão do implementador para duas transições; não parecer independente ou todos os perfis"
+    },
+    {
+      "id": "G2-INSTALL",
+      "requirement": "Avanço de confiança independente da confirmação da versão",
+      "status": "passed",
+      "basis": "Quatro composições inertes da Etapa11",
+      "limit": "Sem ciclo GF real ou integração operacional"
+    },
+    {
+      "id": "G2-RAW-REFERENCE",
+      "requirement": "Concordância bruta nas duas rotações com Python fixado",
+      "status": "failed",
+      "basis": "Duas divergências reproduzidas na Etapa12; referência recusa por estado antigo",
+      "limit": "Falha de concordância; não prova isoladamente defeito .NET. Ablação não corrigiu upstream"
+    },
+    {
+      "id": "G2-PROFILE",
+      "requirement": "Qualificação de conformidade/interoperabilidade pertinente ao perfil GF",
+      "status": "blocked",
+      "basis": "Falta decisão revisada diante da referência divergente e delimitação aceita da cobertura",
+      "limit": "Não substituir por contagem de testes internos"
+    },
+    {
+      "id": "G2-EXTERNAL-SUITE",
+      "requirement": "Suíte externa integral de conformidade",
+      "status": "not-executed",
+      "basis": "Não executada nas evidências disponíveis nem nesta etapa",
+      "limit": "A revisão deve decidir cobertura pertinente; não afirmar conformidade integral"
+    },
+    {
+      "id": "G2-INDEPENDENT",
+      "requirement": "Revisão independente qualificada",
+      "status": "blocked",
+      "basis": "Zero reviews/comentários/solicitações na PR; nenhum revisor disponibilizado ou parecer verificável nos registros inspecionados",
+      "limit": "Não é afirmação de inexistência de toda revisão externa fora desse escopo"
+    },
+    {
+      "id": "G2-MAINTENANCE",
+      "requirement": "Responsável de manutenção com aceite formal",
+      "status": "blocked",
+      "basis": "D6-02 pendente; CODEOWNERS identifica proprietário, sem aceite TUF específico",
+      "limit": "Nenhuma pessoa ou Work designados automaticamente"
+    },
+    {
+      "id": "G2-STORAGE-ACCEPTANCE",
+      "requirement": "Aceite de persistência/recuperação suficiente ao uso operacional",
+      "status": "blocked",
+      "basis": "Evidências de laboratório ainda não receberam revisão/aceite operacional; faltam recursos pertinentes G1/G8",
+      "limit": "Sem prova de energia, falhas de dispositivo ou frescor fora do domínio restaurável"
+    },
+    {
+      "id": "G2-ADOPTION",
+      "requirement": "Adoção operacional autorizada",
+      "status": "blocked",
+      "basis": "Missão mantém protótipo isolado e produto intacto; demais gates continuam abertos",
+      "limit": "Revisão, manutenção e autorização são condições distintas"
+    }
+  ],
+  "maintenance": {
+    "status": "blocked",
+    "accepted_owner": null,
+    "decision_ref": "D6-02",
+    "requirements_prepared_only": true,
+    "modified_upstream_files": [
+      "src/Tuf/TufClient.cs",
+      "src/Tuf/TufClientOptions.cs",
+      "src/Tuf/TufResults.cs"
+    ],
+    "additional_GF_code_to_own": [
+      "stage11/src/DurableTrust.cs.txt",
+      "stage11/src/TrustIntegratedPipeline.cs.txt",
+      "stage8/src/OwnedAttempt.cs.txt",
+      "stage8/src/TufAttempt.cs.txt"
+    ],
+    "license_trace": {
+      "Tuf_BC": "MIT per preserved Stage1 package metadata; package notices must accompany future accepted build",
+      "upstream_manifest": "prototipos/autoatualizador-seguro/stage3/tuf-source-manifest.json",
+      "python_fixture_license": "prototipos/autoatualizador-seguro/stage11/fixtures/LICENSE-PYTHON-TUF-MIT.txt",
+      "GF_license": "LICENSE",
+      "new_package_license_audit_performed": false
+    },
+    "responsibilities_to_accept": [
+      "Track official upstream/TUF/security advisories and dependency changes; record source/lock/license impacts before updates.",
+      "Require separate review of source/patch/epoch/storage changes and run only affected assurance cases; never silently lower floors or replace authority.",
+      "Triage vulnerabilities via SECURITY.md authorized private route; if channel unavailable, wait for maintainer decision, do not open public exploit Issues.",
+      "Set triage/fix timelines explicitly in acceptance; no SLA or security guarantee invented by this dossier.",
+      "Keep production custody separate from source maintenance; recover/rotate only authenticated contiguous trust under approved ceremony, unknown I/O remains fenced."
+    ],
+    "minimum_change_test_selection": {
+      "clock_or_refresh": "Existing affected Stage8 cases for immutable UTC/single-use/unchanged timestamp, selected by changed path",
+      "epoch_or_role_keys": "Affected Stage12 exact vectors and invalid signer/threshold/same-epoch replay controls",
+      "persistence_or_serialization": "Affected Stage11 journal/cache/missing/corrupt/concurrency and completed crash boundaries",
+      "installation_composition": "Affected four inert trust-vs-installation cases; does not replace GF lifecycle proof"
+    },
+    "acceptance_receipt_fields": [
+      "accepted person/team",
+      "explicit consent and date",
+      "source/profile scope",
+      "responsibilities and vulnerability timelines",
+      "independent reviewer and review reference",
+      "operational decision separate"
+    ]
+  },
+  "dependencies": [
+    {
+      "id": "P13-DOSSIER",
+      "gates": [
+        "G2"
+      ],
+      "work": "Índice de revisão, hashes e requisitos de aceite",
+      "classification": "implementável agora",
+      "stage13_result": "passed",
+      "remaining": "Preparado neste relatório; não é parecer"
+    },
+    {
+      "id": "P13-REVIEW",
+      "gates": [
+        "G2"
+      ],
+      "work": "Parecer humano independente sobre código/épocas e duas divergências",
+      "classification": "dependente de ambiente externo",
+      "stage13_result": "blocked",
+      "remaining": "Recurso humano qualificado e autorizado, sem contato nesta missão"
+    },
+    {
+      "id": "P13-MAINTENANCE",
+      "gates": [
+        "G2"
+      ],
+      "work": "Designação e aceite de manutenção e decisão de perfil/referência",
+      "classification": "dependente de autorização",
+      "stage13_result": "blocked",
+      "remaining": "Decisão explícita do mantenedor e aceite do responsável; não basta CODEOWNERS"
+    },
+    {
+      "id": "P13-TRUST",
+      "gates": [
+        "G7",
+        "G3"
+      ],
+      "work": "Autorizar âncora/custódia e bootstrap de outra entrega futura",
+      "classification": "dependente de autorização",
+      "stage13_result": "blocked",
+      "remaining": "Sem autorização para gerar chaves; .66 não vira alvo retroativo"
+    },
+    {
+      "id": "P13-CUSTODY",
+      "gates": [
+        "G7"
+      ],
+      "work": "Custodiantes, meios separados e cerimônia real/recuperação",
+      "classification": "dependente de ambiente externo",
+      "stage13_result": "blocked",
+      "remaining": "Após autorização, material/meios e recibos verificáveis; nenhum provisionamento nesta etapa"
+    },
+    {
+      "id": "P13-PACKAGE-LAB",
+      "gates": [
+        "G3",
+        "G4"
+      ],
+      "work": "Qualificação local de pacote GF/PE/runtime em laboratório",
+      "classification": "já comprovada",
+      "stage13_result": "passed",
+      "remaining": "Somente bytes de laboratório Etapa10; não autentica pacote futuro ou fecha G3/G4"
+    },
+    {
+      "id": "P13-FUTURE-TARGET",
+      "gates": [
+        "G3",
+        "G4"
+      ],
+      "work": "Autorizar candidato futuro exato e sua política/editoria TUF",
+      "classification": "dependente de autorização",
+      "stage13_result": "blocked",
+      "remaining": "G2/âncora aceitos e futuro pacote autorizado; beta-unsigned preservado"
+    },
+    {
+      "id": "P13-PE-POLICY",
+      "gates": [
+        "G4"
+      ],
+      "work": "Conferir assinaturas/dependências/revogação quando aplicáveis no candidato futuro",
+      "classification": "dependente de ambiente externo",
+      "stage13_result": "blocked",
+      "remaining": "Bytes exatos autorizados e Windows descartável; não exigir certificado comercial nem tratar assinatura inválida como unsigned"
+    },
+    {
+      "id": "P13-ADAPTERS",
+      "gates": [
+        "G6",
+        "G8"
+      ],
+      "work": "Contratos/adaptadores isolados de processos, saída, prontidão e rollback",
+      "classification": "implementável agora",
+      "stage13_result": "not-executed",
+      "remaining": "Trabalho técnico possível em missão própria; fora do escopo desta preparação, não integra GF"
+    },
+    {
+      "id": "P13-IPC",
+      "gates": [
+        "G5",
+        "G6"
+      ],
+      "work": "IPC com identidades/sessões padrão e estrangeiras e participantes GF",
+      "classification": "dependente de ambiente externo",
+      "stage13_result": "blocked",
+      "remaining": "Windows descartável com contextos efetivos e autorização de ensaio; runner elevado anterior não basta"
+    },
+    {
+      "id": "P13-STORAGE",
+      "gates": [
+        "G1",
+        "G8"
+      ],
+      "work": "Energia/armazenamento/I/O com resultado desconhecido",
+      "classification": "dependente de ambiente externo",
+      "stage13_result": "blocked",
+      "remaining": "Laboratório com observação externa e falhas reais; código/recuperação ainda devem ser qualificados"
+    },
+    {
+      "id": "P13-FRESHNESS",
+      "gates": [
+        "G1"
+      ],
+      "work": "Frescor autenticado independente após restauração integral",
+      "classification": "dependente de ambiente externo",
+      "stage13_result": "blocked",
+      "remaining": "Decidir/desenhar/aprovar testemunho fora do estado restaurável; pode ser manual autenticado, sem impor serviço online"
+    }
+  ],
+  "independent_review": "blocked",
+  "independent_divergence_opinions": [],
+  "maintenance_accepted": false,
+  "implementation_changes": [],
+  "correction_commits": [],
+  "new_tests": [],
+  "new_ci_runs": [],
+  "new_defects_demonstrated": [],
+  "old_suites_reexecuted": false,
+  "new_vector_generation": false,
+  "tests_status": "not-executed",
+  "test_selection_reason": "Preparation-only stop condition: no reviewer available, no code changes or new defect; existing integrity and evidence references suffice.",
+  "reused_evidence": [
+    {
+      "stage": 8,
+      "path": "docs/evidencias/autoatualizador-etapa8-rodadas.json",
+      "scope": "clock/single-use/unchanged timestamp deltas; historical composite only",
+      "reexecuted": false
+    },
+    {
+      "stage": 11,
+      "run": 40859356385,
+      "head": "8dc843ff69b66f55f6e87fab93bd9c71c1242ec5",
+      "path": "docs/evidencias/autoatualizador-etapa11-windows.json",
+      "windows_cases_historical": 45,
+      "reexecuted": false
+    },
+    {
+      "stage": 12,
+      "run": 40864493929,
+      "head": "eafec1070bd7c35420741bad4560dc9be4a37d6e",
+      "path": "docs/evidencias/autoatualizador-etapa12-windows.json",
+      "dotnet_cases_historical": 14,
+      "python_observations_historical": 16,
+      "reexecuted": false
+    }
+  ],
+  "failed_results_preserved": [
+    "Both raw Python rotation mismatches from Stage12; diagnostic ablation not upstream remediation",
+    "Stage11 initial generation failure remains in original receipt; no historical files modified"
+  ],
+  "execution_status": {
+    "independent_review": "not-executed",
+    "external_conformance_suite": "not-executed",
+    "security_suites": "not-executed",
+    "GF_build_or_launch": "not-executed",
+    "power_loss_or_personal_PC_tests": "not-executed",
+    "operational_adoption": "blocked"
+  },
+  "pending_maintainer_decisions": [
+    "Select/authorize qualified independent reviewer without assigning the Work as independent",
+    "Designate maintenance responsibility with explicit acceptance, scope and vulnerability timelines",
+    "Decide pertinent profile qualification or reviewed reference remediation after external opinion",
+    "Authorize separately any future custody, lab/product integration or bootstrap delivery"
+  ],
+  "gate_closure": {
+    "G2": "blocked",
+    "closed": 0,
+    "blocked": 8,
+    "no_whole_gate_proved_only_authorization": true
+  },
+  "preserved": {
+    "beta_version": "5.13.11.66",
+    "private_delivery_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "private_delivery_run": 40716548530,
+    "private_delivery_artifact": 12828262039,
+    "private_delivery_zip_sha256": "8e11f2dda5b7e2df2f85c61b57cc6a31a9596628523d2be7ad155dfdd5dda7f2",
+    "private_channel_accessed_or_changed": false,
+    "GF_functional_sources_changed": false,
+    "GF_built": false,
+    "main_changed": false,
+    "old_workflows_changed": false,
+    "AVG_Windows_protections_changed": false,
+    "consent_privacy_changed": false,
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "operational_drivers_enabled": false,
+    "VLC": "inventory_only",
+    "WinGet_COM": "optional_consultative",
+    "credentials_permissions_private_infrastructure_changed": false,
+    "Worker_D1_DNS_changed": false,
+    "production_keys_created": false,
+    "merge_release_deploy_publication": false,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "task_ids_done_unchanged": true,
+    "old_physical_tests_repeated": 0,
+    "remote_diagnostics_enabled": false,
+    "trust_store_changed": false,
+    "personal_computers_used": false,
+    "original_workflows_preserved": 13,
+    "main_sha": "410d65e23546976db456337c71e4705f10217d36"
+  },
+  "stage14_started": false,
+  "changed_paths": [
+    "docs/WORK-AUTOATUALIZADOR-ETAPA13.md",
+    "docs/evidencias/autoatualizador-etapa13.json",
+    "docs/evidencias/autoatualizador-etapa13-gates.json",
+    "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+    "docs/PROGRESSO.json"
+  ],
+  "minimum_next_action": "Provide an authorized qualified independent reviewer and obtain maintenance acceptance; use this dossier before commissioning fixes or integration.",
+  "remote_verification": "Final branch/PR/blob and inherited-source audit is recorded in PR description after save; no self-referential commit hash"
+}

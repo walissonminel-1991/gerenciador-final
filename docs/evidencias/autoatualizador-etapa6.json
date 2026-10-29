@@ -1,0 +1,340 @@
+{
+  "schema": 1,
+  "stage": 6,
+  "date": "2026-10-28",
+  "timezone": "America/Fortaleza",
+  "status": "preparation_completed_external_inputs_and_decisions_pending",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "pr": 65,
+  "draft": true,
+  "branch": "work-integracao-final-20261027",
+  "entry_head": "5f265c7606164120406bf44a5d5bf6b29774cef4",
+  "entry_tree": "8591f7b09b9775e2fe7733de0e2aacc2b4901bf4",
+  "contract": "gf-self-update/1",
+  "contract_unchanged": true,
+  "input_evidence": [
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+      "git_blob": "c82726afc4d0903d1f6c7b13f7b6f0c6fec0a0d3",
+      "sha256_raw": "751781ca9e736b75693fa011f17626dc068a4ee76501ec67f6d5c147a3a87128"
+    },
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+      "git_blob": "315fdccc3b4961871b9b661ae2001499e372bd4b",
+      "sha256_raw": "d9bd23741d36027061c5508679f1459008d4c8edd01cfd3ca30c88abd303490a"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa5-gates.json",
+      "git_blob": "07da3015f2807f8803dcf5646eadfb6d13fd719f",
+      "sha256_raw": "b6c0c896c095883ef963c60bd466a635ea5027b8944189a96d469179d9c9484f"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa5.json",
+      "git_blob": "301b719e64e5bfe983d6d9c5ead290eff2cbe855",
+      "sha256_raw": "8326ce2b3b049ecc5e0b4659f2a47160ca0c320d00603f55f919dd3b1ec745db"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa5-contexto.json",
+      "git_blob": "7c55ee2d5c0707ffd54e1550546af85463c793d2",
+      "sha256_raw": "040478c735f1d8bedc92a6ca5ef801a4c6842f54a51c72b20aaef2d7c1f6e6b9"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/stage3/clock-experiment.patch",
+      "git_blob": "7657873fd95f46551c39f2ad0acaa332c6d8266c",
+      "sha256_raw": "a6cd8a946e69872f0e70b77a5b694008851696eec6affd27dd863d0c7b4f01f0"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/stage3/src/ClockExperimentTests.cs.txt",
+      "git_blob": "80a0939994df0a97f141eff38814698d9e174343",
+      "sha256_raw": "e0c793b033e70b0ed613adb71abecdf7e9462932ccf3ff0f3a93b7a3b1e22a91"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/stage5/src/Deadline.cs.txt",
+      "git_blob": "578626c14b07178e9856720dc100184c0070e563",
+      "sha256_raw": "4498e641695ac2d0e072697d017c0f7ef97214b1069fa1608326a14c42eb43ff"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/stage4/bootstrap-custody-plan.json",
+      "git_blob": "2b4d168830a1fc596662fc0d3bd884cc2c577f19",
+      "sha256_raw": "67a1a99d3c403230cb589ea5e6b460cc671caee850018bd8b6e2117da63c191a"
+    }
+  ],
+  "delivered": {
+    "report": "docs/WORK-AUTOATUALIZADOR-ETAPA6.md",
+    "minimum_evidence_document": "docs/WORK-AUTOATUALIZADOR-ETAPA6-EVIDENCIAS-MINIMAS.md",
+    "dependencies": "docs/evidencias/autoatualizador-etapa6-dependencias.json",
+    "gate_count": 8,
+    "operational_closed": 0,
+    "operational_blocked": 8,
+    "preparation_findings": 5,
+    "decision_records": 7,
+    "pending_excluding_conditional": 6,
+    "conditional_future_only": 1
+  },
+  "scope": {
+    "code_changed": false,
+    "new_builds": 0,
+    "new_ci_runs": 0,
+    "new_security_tests": 0,
+    "prior_tests_repeated": 0,
+    "physical_tests_repeated": 0,
+    "experimental_code_adopted": false,
+    "new_libraries": false,
+    "operational_evidence_newly_collected": false
+  },
+  "static_findings": [
+    {
+      "id": "S6-CLOCK-01",
+      "kind": "source_inspection",
+      "source": "prototipos/autoatualizador-seguro/stage3/clock-experiment.patch",
+      "observation": "API experimental aceita TimeProvider genérico; tipo não assegura imutabilidade",
+      "comparison_source": "prototipos/autoatualizador-seguro/stage3/src/ClockExperimentTests.cs.txt",
+      "comparison": "Fixture sealed retorna valor capturado; explica prova antiga, não autoriza provider mutável",
+      "operational_gate_closed": false
+    },
+    {
+      "id": "S6-IO-01",
+      "kind": "source_inspection_and_prior_evidence",
+      "source": "prototipos/autoatualizador-seguro/stage5/src/Deadline.cs.txt",
+      "observation": "ObserveRead(Task) recebe operação previamente criada e cancela a espera; início e ownership/drenagem precisam de desenho explícito",
+      "prior_evidence": "docs/evidencias/autoatualizador-etapa5-windows.json",
+      "new_execution": false,
+      "operational_gate_closed": false
+    },
+    {
+      "id": "S6-BOOT-01",
+      "kind": "dependency_analysis",
+      "source": "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+      "observation": "Âncora/custódia é insumo da validação; bootstrap final é saída posterior. Separar G7a/G7b evita espera circular de planejamento",
+      "operational_gate_closed": false
+    },
+    {
+      "id": "S6-PE-01",
+      "kind": "contract_analysis",
+      "source": "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+      "observation": "Beta-unsigned já permitido; certificado/publicador obrigatório não é insumo novo do ramo inicial",
+      "operational_gate_closed": false
+    },
+    {
+      "id": "S6-CONTEXT-01",
+      "kind": "primary_documentation_and_prior_observation",
+      "source": "https://docs.github.com/en/actions/reference/runners/github-hosted-runners#administrative-privileges",
+      "prior_evidence": "docs/evidencias/autoatualizador-etapa5-contexto.json",
+      "observation": "Perfil documentado admin/UAC desabilitado é compatível com Default=1/erro 1312 observado; nova CI igual não demonstra positivo padrão",
+      "new_execution": false,
+      "operational_gate_closed": false
+    }
+  ],
+  "verification": {
+    "type": "document_consistency_and_remote_persistence_only",
+    "json_valid": true,
+    "all_eight_gates_covered": true,
+    "dependency_graph_acyclic": true,
+    "topological_input_order": [
+      "ANCHOR",
+      "CLOCK",
+      "LAB_AND_IO_PLAN",
+      "PACKAGE",
+      "PE",
+      "JOINT_EVIDENCE",
+      "BOOTSTRAP_FINAL"
+    ],
+    "all_evidence_ids_defined": true,
+    "decision_refs_valid": true,
+    "relative_links_check": "passed",
+    "prior_stage0_5_progress_records_unchanged": true,
+    "roadmap_ids_done_unchanged": true,
+    "previous_tests_not_recounted": true,
+    "relative_links_checked": 98,
+    "json_document_count": 3
+  },
+  "source_references": [
+    {
+      "url": "https://docs.github.com/en/actions/reference/runners/github-hosted-runners#administrative-privileges",
+      "consulted_on": "2026-10-28",
+      "claim_scope": "Admin/UAC-disabled profile documented by provider; no new environment test"
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/powershell/module/hyper-v/stop-vm?view=windowsserver2025-ps",
+      "consulted_on": "2026-10-28",
+      "claim_scope": "Shutdown/Force/TurnOff semantics for future isolated protocol; no command executed"
+    }
+  ],
+  "preservation": {
+    "beta_version": "5.13.11.66",
+    "functional_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "private_build": 40716548530,
+    "private_attempt": 1,
+    "private_artifact": 12828262039,
+    "private_zip_sha256": "8e11f2dda5b7e2df2f85c61b57cc6a31a9596628523d2be7ad155dfdd5dda7f2",
+    "beta_downloaded": false,
+    "product_executed": false,
+    "private_channel_accessed": false,
+    "private_channel_changed": false,
+    "retention_or_access_changed": false,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "physical_assessment": "partially_completed_unchanged",
+    "AVG_or_Windows_protection_changed": false,
+    "remote_diagnostics_enabled": false,
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "driver_install_remove_rollback_enabled": false,
+    "vlc_specific_operations": 0,
+    "winget_com": "optional_consultative_nonblocking_unchanged",
+    "worker_d1_dns_infrastructure_changed": false,
+    "acl_token_uac_privilege_or_trust_store_changed": false,
+    "operational_keys_created": false,
+    "bootstrap_installed": false,
+    "product_integration_started": false,
+    "merge_release_deploy_publication": false,
+    "stage7_started": false
+  },
+  "preservation_check": {
+    "entry_blobs": 558,
+    "entry_blobs_unchanged_after_closure": 555,
+    "existing_paths_modified": [
+      "docs/PROGRESSO.json",
+      "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md"
+    ],
+    "checkpoint_histories_preserved": true,
+    "progress_delta_only_current_next_mission": true,
+    "protected_blobs": [
+      {
+        "path": ".github/workflows/autoatualizador-etapa2-isolado.yml",
+        "git_blob": "a107f9c6f5e2c7185ac8db2deeccadaffb2cfa07"
+      },
+      {
+        "path": ".github/workflows/autoatualizador-etapa3-isolado.yml",
+        "git_blob": "3d458770b43aef1c8123b97504aa10ffdafe0e43"
+      },
+      {
+        "path": ".github/workflows/autoatualizador-etapa4-isolado.yml",
+        "git_blob": "f1cdf6a1efb8ebbb49aaac43944b3bd53d91ca65"
+      },
+      {
+        "path": ".github/workflows/autoatualizador-etapa5-isolado.yml",
+        "git_blob": "0b969316da8ec40ee42d8f7175801d2c88601931"
+      },
+      {
+        "path": ".github/workflows/build-windows.yml",
+        "git_blob": "92b2b9c95eb1b17dd83a4c3377781205495fa5d5"
+      },
+      {
+        "path": ".github/workflows/integridade-externa.yml",
+        "git_blob": "1b526a3efa1d5c1ebe6ee3876196ec6ad256170d"
+      },
+      {
+        "path": ".github/workflows/triagem-diagnostico-github.yml",
+        "git_blob": "22631a534244405a84bea98c0fe94531fc1eeb5f"
+      },
+      {
+        "path": ".github/workflows/validar-candidata-windows.yml",
+        "git_blob": "cd6cf7f2414314c3d78893d62a1c64490cdc3e16"
+      },
+      {
+        "path": "BetaRuntimePolicy.cs",
+        "git_blob": "15f43abd6ac3266c9e790cd68cd276f7e10c749b"
+      },
+      {
+        "path": "Directory.Build.props",
+        "git_blob": "9ca341e42783131506152997babeb34cb6beb3de"
+      },
+      {
+        "path": "GerenciadorAplicativos.csproj",
+        "git_blob": "d35ff09826d81a4d584ce546a1d3c4bde8fec1ad"
+      },
+      {
+        "path": "app.manifest",
+        "git_blob": "cace6cb635c1c39e19b9d046fad8a3411b860ec8"
+      },
+      {
+        "path": "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+        "git_blob": "315fdccc3b4961871b9b661ae2001499e372bd4b"
+      },
+      {
+        "path": "docs/WORK-AUTOATUALIZADOR-ETAPA1.md",
+        "git_blob": "5b9376a33c8e5bd1687665d9bc415927b4ed9f07"
+      },
+      {
+        "path": "docs/WORK-AUTOATUALIZADOR-ETAPA2.md",
+        "git_blob": "661b921d949a1d296060322381076b678984e120"
+      },
+      {
+        "path": "docs/WORK-AUTOATUALIZADOR-ETAPA3.md",
+        "git_blob": "824d99f25f5c0c00a63db4e6f6cd89613290c497"
+      },
+      {
+        "path": "docs/WORK-AUTOATUALIZADOR-ETAPA4.md",
+        "git_blob": "e0e1c1bca58be16cb0afe4ac9b0c885d77a48c40"
+      },
+      {
+        "path": "docs/WORK-AUTOATUALIZADOR-ETAPA5.md",
+        "git_blob": "b8ec011e1d063b981ff7ddcf47f7d13476ce0bfd"
+      },
+      {
+        "path": "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-RESULTADOS.md",
+        "git_blob": "9ff6ba6781c05c332b057ec648b57a163faf42f9"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa0.json",
+        "git_blob": "3c5c3482aae36a7f8655512a4cc157845a4b5fd5"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa1.json",
+        "git_blob": "ee83e2f9dbe8d7d2f44963276a485185f3896136"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa2.json",
+        "git_blob": "32d8eb20d365de62782075fe89c014dc960a87cb"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa3.json",
+        "git_blob": "a86a0dab847fcbb14fc280df19d009595089ae2b"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa4.json",
+        "git_blob": "676f596b28b706bf973ff55f61805abb71ac16e3"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa5-gates.json",
+        "git_blob": "07da3015f2807f8803dcf5646eadfb6d13fd719f"
+      },
+      {
+        "path": "docs/evidencias/autoatualizador-etapa5.json",
+        "git_blob": "301b719e64e5bfe983d6d9c5ead290eff2cbe855"
+      },
+      {
+        "path": "global.json",
+        "git_blob": "e8a91cbf7506d4f30d2f278f1efdd6fce4156686"
+      },
+      {
+        "path": "prototipos/autoatualizador-seguro/stage4/bootstrap-custody-plan.json",
+        "git_blob": "2b4d168830a1fc596662fc0d3bd884cc2c577f19"
+      },
+      {
+        "path": "scripts/verificar_pacote.py",
+        "git_blob": "44523277dcb274981151723a6dfc526a52e6f164"
+      }
+    ]
+  },
+  "evidence_hashes": [
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-ETAPA6.md",
+      "bytes": 11372,
+      "sha256": "b99b8e2009b942ad895acf1bcb8d2efc50862865444fa645f51c9a75060ba0e7"
+    },
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-ETAPA6-EVIDENCIAS-MINIMAS.md",
+      "bytes": 10975,
+      "sha256": "7dc7bf26ade8235563bcb2336a35ea920e2bf04f54756020b84223adb520b6e1"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa6-dependencias.json",
+      "bytes": 15893,
+      "sha256": "cb868178f7566e80d87b274bc3232d84f3359367ba8ba7c662aff354e483613e"
+    }
+  ],
+  "next_action": "Stop after saving/verifying Stage 6. Obtain only the recorded decisions and external inputs in authorized scope; do not start Stage 7, repeat prior tests, create operational keys, integrate or publish."
+}

@@ -1,0 +1,93 @@
+{
+  "schema": "gf-stage10-runs/1",
+  "contract": "gf-self-update/1",
+  "entry_head": "4c1810a9d49bdb5fa1c6914354b32e5cb4602af9",
+  "coverage": "27 distinct cases: 8 Python R1 + 4 Windows R2 + 15 corrected Windows R3; NOT a full 27-case run on final code",
+  "distinct_passed": 27,
+  "distinct_total": 27,
+  "historical_failures_preserved": true,
+  "automatic_retries": 0,
+  "runs": [
+    {
+      "id": 40852886229,
+      "job": 123376498489,
+      "attempt": 1,
+      "number": 1,
+      "commit": "32021adf8b44f9302321422f7116e61428a9cfb7",
+      "conclusion": "failure",
+      "python_passed": 8,
+      "windows_status": "not-executed",
+      "failure": "Marker newline converted to CRLF by Python on Windows; fixture sandbox refused before C# cases. Product and tool built, static metadata and approved verifier passed.",
+      "fix": "Emit LF explicitly; later let Directory.CreateDirectory create separate data sandbox.",
+      "artifact_count": 0,
+      "lab_tree_deleted": true
+    },
+    {
+      "id": 40853270760,
+      "job": 123377792252,
+      "attempt": 1,
+      "number": 2,
+      "commit": "695cf6a364c7be96ed9df2604b1e992483febaf5",
+      "conclusion": "failure",
+      "passed": 4,
+      "failed": 15,
+      "raw_case_statuses_preserved": "docs/evidencias/autoatualizador-etapa10-windows-primeira.json",
+      "causes": [
+        "Existing NTFS guard rejected OWNER_RIGHTS ACE from Python temporary-directory DACL; prerequisites cascaded into dependent-case failures. No ACL was edited and no guard relaxed.",
+        "New epoch fixtures incorrectly retained an unused old key (7 rather than approved closed 6 keys); rejected ROOT_KEYS before intended epoch boundary."
+      ],
+      "review_fixes": [
+        "Data directory created using normal DotNET inherited ACL; read-only SDDL comparison recorded.",
+        "Epoch fixture replaces old role key to retain exact 6-key schema.",
+        "Win32 default stream spelled ::$DATA; one-colon mistake found before executing that branch.",
+        "Close installation lease before fresh-coordinator pending-journal inspection."
+      ],
+      "artifact_count": 0,
+      "lab_tree_deleted": true
+    },
+    {
+      "id": 40853787836,
+      "job": 123379541676,
+      "attempt": 1,
+      "number": 3,
+      "commit": "7a06b6c217c96f112eb3062be86d750683a58a3d",
+      "conclusion": "success",
+      "passed": 15,
+      "total": 15,
+      "selected_cases": [
+        "U10-GF-STATIC-QUALIFICATION",
+        "U10-GF-PINS-DENY-WRITE",
+        "U10-GF-PRECOMMIT-BINDING",
+        "U10-GF-STALE-STATE",
+        "U10-GF-PENDING-JOURNAL",
+        "U10-GF-EXTRA-AFTER-QUALIFICATION",
+        "U10-GF-CLOSED-TICKET",
+        "U10-GF-NTFS-HARDLINK",
+        "U10-GF-NTFS-ADS",
+        "U10-GF-STREAM-EXTRACTION",
+        "U10-GF-CONTAINER-TAMPER",
+        "U10-GF-UNKNOWN-READ-OWNERSHIP",
+        "U10-TUF-EPOCH-TIMESTAMP",
+        "U10-TUF-EPOCH-SNAPSHOT",
+        "U10-TUF-EPOCH-TARGETS"
+      ],
+      "repeated_previous_passes": false,
+      "new_package_preflight": "Required approved integrity validation on newly built bytes, not a rerun of 8 adversarial cases.",
+      "artifact_count": 0,
+      "lab_tree_deleted": true
+    }
+  ],
+  "not_executed": [
+    "Full suite on final SHA",
+    "Prior stage 1-9 suites",
+    "GF process startup/shutdown/readiness/rollback",
+    "Physical power loss or blocked driver I/O",
+    "Independent TUF review and interoperable conformance",
+    "Signature-trust/revocation validation for every dependency"
+  ],
+  "blocked": [
+    "Operational editorial TUF authority",
+    "G1-G8 operational acceptance"
+  ],
+  "no_product_source_or_distribution_change": true
+}

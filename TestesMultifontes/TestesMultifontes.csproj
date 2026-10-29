@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../ProductHttpIdentity.cs" Link="ProductHttpIdentity.cs" />
     <Compile Include="../WindowsUpdateSearchPolicy.cs" Link="WindowsUpdateSearchPolicy.cs" />
     <Compile Include="../UpdateResultHistory.cs" Link="UpdateResultHistory.cs" />
     <Compile Include="../RuckZuckModels.cs" Link="Models.cs" />

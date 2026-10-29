@@ -1,0 +1,481 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed class ManualClock(DateTimeOffset initial) : TimeProvider
+{
+    internal DateTimeOffset Wall=initial;
+    internal long Ticks;
+    public override DateTimeOffset GetUtcNow()=>Wall;
+    public override long GetTimestamp()=>Ticks;
+    public override long TimestampFrequency=>TimeSpan.TicksPerSecond;
+    internal void Advance(TimeSpan duration) { Wall+=duration; Ticks+=duration.Ticks; }
+}
+
+internal sealed class StateCase : IDisposable
+{
+    internal readonly string Root;
+    internal readonly BundleRef Old,Candidate,Later;
+    internal readonly string InstallationId=Guid.NewGuid().ToString("N");
+    internal StateCase(string suiteRoot)
+    {
+        Root=Path.Combine(suiteRoot,Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Root); File.WriteAllText(Path.Combine(Root,".gf-u2-fixture"),FixtureSandbox.Marker);
+        Directory.CreateDirectory(Path.Combine(Root,"ledger")); Directory.CreateDirectory(Path.Combine(Root,"versions"));
+        File.WriteAllText(Path.Combine(Root,"lease.fixture"),"persistent-lock-file-do-not-unlink\n");
+        File.WriteAllText(Path.Combine(Root,"preferences.fixture.txt"),"CONSENT=NO;PERSONAL-DATA-INERT\n");
+        File.WriteAllText(Path.Combine(Root,"legacy66.fixture.txt"),"LEGACY66-MARKER-NOT-A-REAL-BETA\n");
+        File.WriteAllText(Path.Combine(Root,"unknown.fixture.txt"),"UNKNOWN-FILE-PRESERVE\n");
+        Old=MakeBundle(1); Candidate=MakeBundle(2); Later=MakeBundle(3);
+        var trust=new TrustFloor(1,1,1,1,1,Old.Version,CycleClock.Wire(DateTimeOffset.UtcNow-TimeSpan.FromMinutes(1)),[]);
+        new PersistentState(Root).BootstrapFixture(new("gf-state-fixture/2",InstallationId,1,new string('0',64),trust,Old,null));
+        File.WriteAllBytes(Path.Combine(Root,"active.fixture.json"),StateCodec.Encode(new FixtureSelector("gf-selector-fixture/2",InstallationId,Old)));
+    }
+    private BundleRef MakeBundle(int sequence)
+    {
+        byte[] bytes=Encoding.UTF8.GetBytes("GF-U2-INERT-BUNDLE-"+sequence+"-NO-EXE-NO-DLL\n");
+        var bundle=new BundleRef(sequence,"0.0.0."+sequence,Hash(bytes),"linux-fixture-model");
+        string folder=Path.Combine(Root,"versions",bundle.DirectoryName); Directory.CreateDirectory(folder);
+        string path=Path.Combine(folder,"bundle.fixture.txt"); File.WriteAllBytes(path,bytes);
+        if(OperatingSystem.IsWindows())
+        { using var pinned=WindowsFileGuard.Open(Root,path); bundle=bundle with {Identity=pinned.Identity}; }
+        return bundle;
+    }
+    internal CycleClock Clock()=>new(TimeProvider.System,StateCodec.Observed(new PersistentState(Root).Load().Record.Trust));
+    internal StateRecord Begin(Action<string>? cut=null)
+    { using var session=new FixtureSession(Root); return session.Begin(Candidate,Clock(),DateTimeOffset.UtcNow+TimeSpan.FromHours(1),true,cut); }
+    internal void Preserved()
+    {
+        Require(File.ReadAllText(Path.Combine(Root,"preferences.fixture.txt"))=="CONSENT=NO;PERSONAL-DATA-INERT\n"
+            && File.ReadAllText(Path.Combine(Root,"legacy66.fixture.txt"))=="LEGACY66-MARKER-NOT-A-REAL-BETA\n"
+            && File.ReadAllText(Path.Combine(Root,"unknown.fixture.txt"))=="UNKNOWN-FILE-PRESERVE\n","USER_DATA_CHANGED");
+    }
+    public void Dispose() { Preserved(); Directory.Delete(Root,true); }
+}
+
+internal static class StateSecurityTests
+{
+    private static readonly List<object> Results=[];
+    private static string suiteRoot="",fixtures="";
+    private static readonly DateTimeOffset Epoch=new(2026,10,28,18,0,0,TimeSpan.Zero);
+    private static async Task Test(string id,string description,Func<Task> test)
+    {
+        try { await test(); Results.Add(new{id,description,status="passed"}); Console.WriteLine("PASS "+id+" "+description); }
+        catch(Exception error) { Results.Add(new{id,description,status="failed",error=error.GetType().Name+": "+error.Message}); Console.WriteLine("FAIL "+id+" "+error); }
+    }
+    private static Task Sync(Action test) { test(); return Task.CompletedTask; }
+    private static void Refuses(string code,Action action)
+    {
+        try { action(); } catch(Rejected e) { Require(e.Code==code,"WRONG_REJECTION:"+e.Code+" expected "+code); return; }
+        throw new Rejected("UNSAFE_ACCEPTANCE:"+code);
+    }
+    private static void IoRefuses(Action action)
+    {
+        try { action(); } catch(Exception e) when(e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception) { return; }
+        throw new Rejected("KERNEL_OPERATION_UNEXPECTEDLY_ALLOWED");
+    }
+    private static StateRecord Next((StateRecord Record,string Digest) loaded)=>loaded.Record with {Generation=loaded.Record.Generation+1,PreviousDigest=loaded.Digest};
+    private static Process Start(params string[] arguments)
+    {
+        var info=new ProcessStartInfo(Environment.ProcessPath!) {
+            RedirectStandardOutput=true,RedirectStandardError=true,RedirectStandardInput=true,UseShellExecute=false,
+            WorkingDirectory=Path.GetTempPath() };
+        info.ArgumentList.Add(Assembly.GetExecutingAssembly().Location);
+        info.ArgumentList.Add("--state-child"); foreach(string a in arguments) info.ArgumentList.Add(a);
+        return Process.Start(info) ?? throw new Rejected("CHILD_START");
+    }
+    private static async Task<int> Probe(params string[] arguments)
+    {
+        using var process=Start(arguments);
+        using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        try { await process.WaitForExitAsync(budget.Token); }
+        catch { if(!process.HasExited) process.Kill(true); throw; }
+        string output=await process.StandardOutput.ReadToEndAsync(), error=await process.StandardError.ReadToEndAsync();
+        Require(error.Length==0,"CHILD_ERROR:"+error); return process.ExitCode;
+    }
+    private static async Task KillAt(StateCase c,string point)
+    {
+        using var child=Start("cut",c.Root,point);
+        try
+        {
+            string? line=await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            Require(line=="CUT:"+point,"CUT_NOT_REACHED:"+line+":"+await ReadErrorIfExited(child));
+            child.Kill(entireProcessTree:true); await child.WaitForExitAsync();
+        }
+        finally { if(!child.HasExited) { child.Kill(true); await child.WaitForExitAsync(); } }
+    }
+    private static async Task<string> ReadErrorIfExited(Process p)=>p.HasExited ? await p.StandardError.ReadToEndAsync() : "";
+    internal static async Task<int> Entry(string[] args)
+    {
+        if(args[0]=="--state-child") return await Child(args[1..]);
+        Require(args.Length==3,"STAGE2_USAGE"); fixtures=Path.GetFullPath(args[1]);
+        suiteRoot=Path.Combine(Path.GetTempPath(),"gf-u2-"+Guid.NewGuid().ToString("N")); Directory.CreateDirectory(suiteRoot);
+        try { await Cases(); }
+        finally { Directory.Delete(suiteRoot,true); }
+        int failed=Results.Count(r=>JsonSerializer.SerializeToElement(r).GetProperty("status").GetString()=="failed");
+        var report=new {schema=1,stage=2,contract="gf-self-update/1",fixture_only=true,package_installable=false,
+            product_code_executed=false,network_transport="none; signed fixtures in memory",real_process_crash_tests=6,
+            platform=OperatingSystem.IsWindows()?"Windows NTFS kernel + fixture transaction":"Linux fixture persistence + transaction; no NTFS claim",
+            runtime=RuntimeInformation.FrameworkDescription,os=RuntimeInformation.OSDescription,
+            total=Results.Count,passed=Results.Count-failed,failed,windows_only_tests_not_run=OperatingSystem.IsWindows()?0:14,tests=Results};
+        await File.WriteAllBytesAsync(Path.GetFullPath(args[2]),StateCodec.Encode(report));
+        Console.WriteLine($"Stage 2 fixture security tests: {Results.Count-failed}/{Results.Count}; no GF executable or update package.");
+        Console.WriteLine("GF_U2_REPORT "+Encoding.UTF8.GetString(StateCodec.Encode(report)));
+        return failed==0?0:1;
+    }
+    private static async Task Cases()
+    {
+        await Test("STATE-01","Durable generations survive a fresh session without resetting floors",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root); var loaded=store.Load();
+            store.Append(Next(loaded) with {Trust=loaded.Record.Trust with {Root=2,Timestamp=3,Snapshot=4,Targets=5}},loaded.Digest);
+            var after=new PersistentState(c.Root).Load().Record;
+            Require(after.Generation==2 && after.Trust.Timestamp==3 && after.Trust.Root==2,"PERSISTENCE_LOST");
+        }));
+        await Test("STATE-02","Missing state cannot silently rebootstrap",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root); var state=store.Load().Record;
+            Refuses("NO_REBOOTSTRAP",()=>store.BootstrapFixture(state));
+            File.Delete(Directory.GetFiles(store.Ledger).Single()); Refuses("STATE_MISSING_OR_LIMIT",()=>store.Load());
+        }));
+        await Test("STATE-03","Truncated newest record fails closed instead of loading an older floor",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root); var l=store.Load(); store.Append(Next(l),l.Digest);
+            string file=Directory.GetFiles(store.Ledger).Order().Last(); var bytes=File.ReadAllBytes(file); File.WriteAllBytes(file,bytes[..^1]);
+            Refuses("JSON_INVALID",()=>new PersistentState(c.Root).Load());
+        }));
+        await Test("STATE-04","A gap in generation files is not treated as a fresh installation",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root); var l=store.Load(); store.Append(Next(l),l.Digest);
+            File.Delete(Directory.GetFiles(store.Ledger).Order().First()); Refuses("STATE_GAP_OR_UNKNOWN",()=>store.Load());
+        }));
+        await Test("STATE-05","Checksum corruption is detected before decoding state",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root); string file=Directory.GetFiles(store.Ledger).Single();
+            var json=JsonNode.Parse(File.ReadAllBytes(file))!; json["sha256"]=new string('0',64); File.WriteAllText(file,json.ToJsonString());
+            Refuses("STATE_CHECKSUM",()=>store.Load());
+        }));
+        await Test("STATE-06","Recomputed checksum cannot hide an in-chain trust-floor decrease",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root); var l=store.Load();
+            store.Append(Next(l) with {Trust=l.Record.Trust with {Root=3}},l.Digest); l=store.Load();
+            byte[] bad=StateCodec.Wrap(Next(l) with {Trust=l.Record.Trust with {Root=2}});
+            File.WriteAllBytes(Path.Combine(store.Ledger,"0000000000000003.fixture.json"),bad);
+            Refuses("FLOOR_ROLLBACK",()=>store.Load());
+        }));
+        await Test("STATE-07","Each TUF/sequence/version/time floor refuses regression",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root); var l=store.Load();
+            var high=l.Record.Trust with {Root=3,Timestamp=3,Snapshot=3,Targets=3}; store.Append(Next(l) with {Trust=high},l.Digest); l=store.Load();
+            foreach(var low in new[]{high with {Root=2},high with {Timestamp=2},high with {Snapshot=2},high with {Targets=2},
+                high with {LastObservedUtc=CycleClock.Wire(StateCodec.Observed(high)-TimeSpan.FromSeconds(1))}})
+                Refuses("FLOOR_ROLLBACK",()=>store.Append(Next(l) with {Trust=low},l.Digest));
+            Refuses("TRUST_FLOOR",()=>store.Append(Next(l) with {Trust=high with {ApprovedSequence=0}},l.Digest));
+            Refuses("TRUST_VERSION",()=>store.Append(Next(l) with {Trust=high with {HighestVersion="0.0.0.0"}},l.Digest));
+        }));
+        await Test("STATE-08","Stale expected generation cannot overwrite a newer checkpoint",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root); var l=store.Load(); store.Append(Next(l),l.Digest);
+            Refuses("STATE_CONFLICT",()=>store.Append(Next(l),l.Digest));
+        }));
+        await Test("STATE-09","Duplicate fields, nulls and unknown state fields are refused",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var state=new PersistentState(c.Root).Load().Record;
+            var json=Encoding.UTF8.GetString(StateCodec.Wrap(state));
+            Refuses("JSON_DUPLICATE",()=>StateCodec.Unwrap(Encoding.UTF8.GetBytes(json.Replace("{","{\"schema\":\"duplicate\",",StringComparison.Ordinal))));
+            var node=JsonNode.Parse(StateCodec.Encode(state))!; node["extra"]="untrusted";
+            Refuses("STATE_SCHEMA",()=>StateCodec.Decode<StateRecord>(Encoding.UTF8.GetBytes(node.ToJsonString())));
+            node.AsObject().Remove("extra"); node["trust"]=null;
+            Refuses("TRUST_FLOOR",()=>StateCodec.Validate(StateCodec.Decode<StateRecord>(Encoding.UTF8.GetBytes(node.ToJsonString()))));
+        }));
+        await Test("STATE-10","Oversized records and unknown ledger entries fail closed",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root);
+            File.WriteAllText(Path.Combine(store.Ledger,"unknown.fixture"),"x"); Refuses("STATE_GAP_OR_UNKNOWN",()=>store.Load());
+            File.Delete(Path.Combine(store.Ledger,"unknown.fixture"));
+            File.WriteAllBytes(Directory.GetFiles(store.Ledger).Single(),new byte[StateCodec.MaxRecordBytes+1]);
+            Refuses(OperatingSystem.IsWindows()?"NTFS_SIZE":"STATE_SIZE",()=>store.Load());
+        }));
+        await Test("STATE-11","Signed TUF cache survives a process restart and rejects older metadata",async()=>{
+            using var c=new StateCase(suiteRoot);
+            var input=ReadFixture("metadata-v2"); var anchor=File.ReadAllBytes(Path.Combine(fixtures,"trusted-root-v1.json"));
+            var validated=await FixtureValidator.Evaluate(anchor,input,new("5.13.11.66",66,new string('c',64),DateTimeOffset.UtcNow-TimeSpan.FromMinutes(1)));
+            var store=new PersistentState(c.Root); var l=store.Load();
+            var trust=l.Record.Trust with {Root=2,Timestamp=2,Snapshot=2,Targets=2,LastObservedUtc=CycleClock.Wire(DateTimeOffset.UtcNow),
+                Metadata=validated.NextMetadata.ToDictionary(p=>p.Key,p=>Convert.ToBase64String(p.Value))};
+            store.Append(Next(l) with {Trust=trust},l.Digest);
+            Require(await Probe("cache-replay",c.Root,fixtures)==0,"PERSISTED_REPLAY_ACCEPTED");
+        });
+        await Test("STATE-12","A cache with equal metadata version and different bytes is not a checkpoint",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root); var l=store.Load();
+            var bytes=ReadFixture("valid"); var metadata=new Dictionary<string,string>{["root"]=Convert.ToBase64String(bytes["2.root.json"]),
+                ["timestamp"]=Convert.ToBase64String(bytes["timestamp.json"]),["snapshot"]=Convert.ToBase64String(bytes["snapshot.json"]),["targets"]=Convert.ToBase64String(bytes["targets.json"])};
+            store.Append(Next(l) with {Trust=l.Record.Trust with {Root=2,Metadata=metadata}},l.Digest); l=store.Load();
+            var changed=new Dictionary<string,string>(metadata); changed["targets"]=Convert.ToBase64String(Encoding.UTF8.GetBytes(" "+Encoding.UTF8.GetString(bytes["targets.json"])));
+            Refuses("CACHE_EQUIVOCATION",()=>store.Append(Next(l) with {Trust=l.Record.Trust with {Metadata=changed}},l.Digest));
+        }));
+        await Test("CLOCK-01","Clock rollback beyond five minutes suspends update",()=>Sync(()=>{
+            var clock=new ManualClock(Epoch); Refuses("CLOCK_ROLLBACK",()=>new CycleClock(clock,Epoch+TimeSpan.FromMinutes(5)+TimeSpan.FromSeconds(1)));
+        }));
+        await Test("CLOCK-02","Five-minute boundary never lowers the persisted observation floor",()=>Sync(()=>{
+            var clock=new ManualClock(Epoch); var cycle=new CycleClock(clock,Epoch+TimeSpan.FromMinutes(5));
+            Require(cycle.Check(Epoch+TimeSpan.FromDays(1))==Epoch+TimeSpan.FromMinutes(5),"CLOCK_FLOOR_LOWERED");
+        }));
+        await Test("CLOCK-03","Expiration is checked at the exact boundary",()=>Sync(()=>{
+            var clock=new ManualClock(Epoch); var cycle=new CycleClock(clock,Epoch);
+            Refuses("EXPIRED_BEFORE_COMMIT",()=>cycle.Check(Epoch));
+        }));
+        await Test("CLOCK-04","An initially valid target may expire before commit",()=>Sync(()=>{
+            var clock=new ManualClock(Epoch); var cycle=new CycleClock(clock,Epoch); _=cycle.Check(Epoch+TimeSpan.FromSeconds(20));
+            clock.Advance(TimeSpan.FromSeconds(21)); Refuses("EXPIRED_BEFORE_COMMIT",()=>cycle.Check(Epoch+TimeSpan.FromSeconds(20)));
+        }));
+        await Test("CLOCK-05","Monotonic budget is enforced even with a frozen wall clock",()=>Sync(()=>{
+            var clock=new ManualClock(Epoch); var cycle=new CycleClock(clock,Epoch); clock.Ticks=TimeSpan.FromSeconds(121).Ticks;
+            Refuses("CYCLE_BUDGET",()=>cycle.Check(Epoch+TimeSpan.FromDays(1)));
+        }));
+        await Test("CLOCK-06","Forward and backward jumps during a cycle are refused",()=>Sync(()=>{
+            foreach(int direction in new[]{-1,1})
+            { var clock=new ManualClock(Epoch); var cycle=new CycleClock(clock,Epoch); clock.Wall+=TimeSpan.FromMinutes(6*direction);
+                Refuses("CLOCK_CHANGED",()=>cycle.Check(Epoch+TimeSpan.FromDays(1))); }
+        }));
+        await Test("CLOCK-07","Small backwards correction cannot extend target validity",()=>Sync(()=>{
+            var clock=new ManualClock(Epoch); var cycle=new CycleClock(clock,Epoch); clock.Ticks=TimeSpan.FromSeconds(40).Ticks;
+            clock.Wall=Epoch-TimeSpan.FromSeconds(10); Refuses("EXPIRED_BEFORE_COMMIT",()=>cycle.Check(Epoch+TimeSpan.FromSeconds(30)));
+        }));
+        await Test("CLOCK-08","A large persisted future clock blocks updates but not inspection of the confirmed bundle",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var store=new PersistentState(c.Root); var l=store.Load();
+            store.Append(Next(l) with {Trust=l.Record.Trust with {LastObservedUtc=CycleClock.Wire(DateTimeOffset.UtcNow+TimeSpan.FromDays(90))}},l.Digest);
+            Refuses("CLOCK_ROLLBACK",()=>c.Clock()); using var session=new FixtureSession(c.Root);
+            Require(session.SelectionForFixtureInspectionOnly()==c.Old,"ACTIVE_DISABLED_BY_CLOCK");
+        }));
+        await Test("CLOCK-09","Tolerance for clock rollback never revives a target expired at the observed floor",()=>Sync(()=>{
+            var clock=new ManualClock(Epoch); var cycle=new CycleClock(clock,Epoch+TimeSpan.FromMinutes(5));
+            Refuses("EXPIRED_BEFORE_COMMIT",()=>cycle.Check(Epoch+TimeSpan.FromMinutes(4)));
+        }));
+        await Test("TX-01","Cancel before confirmation writes no intent and approves no release",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var before=new PersistentState(c.Root).Load(); using var s=new FixtureSession(c.Root);
+            s.Begin(c.Candidate,c.Clock(),DateTimeOffset.UtcNow+TimeSpan.FromHours(1),false);
+            Require(s.Store.Load().Digest==before.Digest && s.SelectionForFixtureInspectionOnly()==c.Old,"CANCEL_MUTATED_STATE");
+        }));
+        await Test("TX-02","Intent and sequence floor are persisted before the selector changes",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); bool inspected=false;
+            c.Begin(point=>{if(point=="intent-persisted") {var state=new PersistentState(c.Root).Load().Record;
+                Require(state.Transaction?.Phase=="intent" && state.Trust.ApprovedSequence==2
+                    && new FixtureFiles(c.Root).ReadSelector(c.InstallationId).Bundle==c.Old,"INTENT_ORDER"); inspected=true;}});
+            Require(inspected,"CUT_MISSING");
+        }));
+        await Test("TX-03","Candidate selection remains pending until a transaction-bound readiness fixture",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var state=c.Begin(); using var s=new FixtureSession(c.Root);
+            Refuses("RECOVERY_REQUIRED",()=>s.SelectionForFixtureInspectionOnly()); var tx=state.Transaction!;
+            state=s.Confirm(new(tx.Id,tx.Nonce,c.Candidate.Sha256));
+            Require(state.Transaction?.Phase=="confirmed" && s.SelectionForFixtureInspectionOnly()==c.Candidate,"FALSE_CONFIRMATION");
+        }));
+        await Test("TX-04","Wrong transaction, nonce, digest and a reused readiness fixture are refused",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var tx=c.Begin().Transaction!; using var s=new FixtureSession(c.Root);
+            foreach(var signal in new[]{new FixtureReadiness(new string('0',32),tx.Nonce,c.Candidate.Sha256),
+                new(tx.Id,new string('0',32),c.Candidate.Sha256),new(tx.Id,tx.Nonce,new string('0',64))})
+                Refuses("READINESS_BINDING",()=>s.Confirm(signal));
+            var valid=new FixtureReadiness(tx.Id,tx.Nonce,c.Candidate.Sha256); s.Confirm(valid); Refuses("READINESS_BINDING",()=>s.Confirm(valid));
+        }));
+        await Test("TX-05","Recovery restores only the recorded predecessor and keeps anti-replay floors",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); c.Begin(); using var s=new FixtureSession(c.Root); var state=s.Recover();
+            Require(state.Transaction?.Phase=="rolled_back" && state.Trust.ApprovedSequence==2 && state.Trust.HighestVersion==c.Candidate.Version
+                && s.SelectionForFixtureInspectionOnly()==c.Old,"RECOVERY_FLOOR_LOST");
+            Refuses("CANDIDATE_REPLAY",()=>s.Begin(c.Candidate,c.Clock(),DateTimeOffset.UtcNow+TimeSpan.FromHours(1),true));
+        }));
+        await Test("TX-06","Completed recovery is idempotent and creates no retry loop",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); c.Begin(); using var s=new FixtureSession(c.Root); s.Recover(); string digest=s.Store.Load().Digest;
+            s.Recover(); s.Recover(); Require(s.Store.Load().Digest==digest,"RECOVERY_RETRIED");
+        }));
+        await Test("TX-07","A newer sequence may proceed after recovery without reusing the failed transaction",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string previous=c.Begin().Transaction!.Id; using var s=new FixtureSession(c.Root); s.Recover();
+            var later=s.Begin(c.Later,c.Clock(),DateTimeOffset.UtcNow+TimeSpan.FromHours(1),true);
+            Require(later.Transaction!.Id!=previous && later.Trust.ApprovedSequence==3,"NEXT_TRANSACTION_REUSE"); s.Recover();
+        }));
+        await Test("TX-08","A missing or corrupt backup bundle stops recovery without selecting another version",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); c.Begin(); string path=new FixtureFiles(c.Root).BundlePath(c.Old); File.WriteAllText(path,"corrupt");
+            using var s=new FixtureSession(c.Root); Refuses("BUNDLE_ID_OR_HASH",()=>s.Recover());
+            Require(s.Store.Load().Record.Transaction?.Phase=="selected","FAILED_RECOVERY_MUTATED_STATE");
+        }));
+        await Test("TX-09","A valid selector outside the current transaction is refused",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); c.Begin();
+            File.WriteAllBytes(Path.Combine(c.Root,"active.fixture.json"),StateCodec.Encode(new FixtureSelector("gf-selector-fixture/2",c.InstallationId,c.Later)));
+            using var s=new FixtureSession(c.Root); Refuses("SELECTOR_OUTSIDE_TRANSACTION",()=>s.Recover());
+        }));
+        await Test("TX-10","Selector installation ID, free path, duplicate and unknown fields are refused",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string path=Path.Combine(c.Root,"active.fixture.json"); var files=new FixtureFiles(c.Root);
+            File.WriteAllBytes(path,StateCodec.Encode(new FixtureSelector("gf-selector-fixture/2",new string('0',32),c.Old)));
+            Refuses("SELECTOR_BINDING",()=>files.ReadSelector(c.InstallationId));
+            var node=JsonNode.Parse(StateCodec.Encode(new FixtureSelector("gf-selector-fixture/2",c.InstallationId,c.Old)))!; node["path"]="../anything.exe";
+            File.WriteAllText(path,node.ToJsonString()); Refuses("STATE_SCHEMA",()=>files.ReadSelector(c.InstallationId));
+        }));
+        await Test("TX-11","Metadata expiry after durable intent prevents selector commit",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var clock=new ManualClock(DateTimeOffset.UtcNow); var cycle=new CycleClock(clock,clock.Wall-TimeSpan.FromMinutes(1));
+            using var s=new FixtureSession(c.Root);
+            Refuses("EXPIRED_BEFORE_COMMIT",()=>s.Begin(c.Candidate,cycle,clock.Wall+TimeSpan.FromSeconds(10),true,
+                point=>{if(point=="intent-persisted")clock.Advance(TimeSpan.FromSeconds(11));}));
+            Require(s.Files.ReadSelector(c.InstallationId).Bundle==c.Old && s.Store.Load().Record.Trust.ApprovedSequence==2,"EXPIRED_SELECTOR_COMMIT"); s.Recover();
+        }));
+        await Test("TX-12","Bundle content changed after preparation never reaches selector replacement",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); File.WriteAllText(new FixtureFiles(c.Root).BundlePath(c.Candidate),"changed after prepare");
+            using var s=new FixtureSession(c.Root); Refuses("BUNDLE_ID_OR_HASH",()=>s.Begin(c.Candidate,c.Clock(),DateTimeOffset.UtcNow+TimeSpan.FromHours(1),true));
+            Require(s.Store.Load().Record.Generation==1,"INVALID_BUNDLE_APPROVED");
+        }));
+        foreach(string point in new[]{"record-created","record-written","record-flushed"})
+            await Test("FAULT-"+point,"Incomplete journal at "+point+" blocks state fallback and preserves selector",()=>Sync(()=>{
+                using var c=new StateCase(suiteRoot);
+                IoRefuses(()=>c.Begin(p=>{if(p==point)throw new IOException("injected write/flush interruption");}));
+                Refuses("STATE_INCOMPLETE",()=>new PersistentState(c.Root).Load());
+                Require(new FixtureFiles(c.Root).ReadSelector(c.InstallationId).Bundle==c.Old,"PARTIAL_RECORD_CHANGED_SELECTOR");
+            }));
+        await Test("FAULT-selector","Selector I/O failure leaves a recoverable durable intent",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot);
+            IoRefuses(()=>c.Begin(p=>{if(p=="selector-flushed")throw new IOException("injected selector failure");}));
+            using var s=new FixtureSession(c.Root); Require(s.Store.Load().Record.Transaction?.Phase=="intent","INTENT_LOST");
+            s.Recover(); Require(s.SelectionForFixtureInspectionOnly()==c.Old,"SELECTOR_FAILURE_NOT_RECOVERED");
+        }));
+        foreach(string point in new[]{"begin:intent-persisted","begin:selector-replaced","begin:selected-persisted",
+            "recover:rollback-intent-persisted","recover:selector-replaced","recover:rollback-complete"})
+            await Test("CRASH-"+point,"Kill a separate test process at "+point+" and reconcile in a new session",async()=>{
+                using var c=new StateCase(suiteRoot); await KillAt(c,point); using var s=new FixtureSession(c.Root); s.Recover();
+                var state=s.Store.Load().Record;
+                Require(state.Trust.ApprovedSequence==2 && state.Trust.HighestVersion==c.Candidate.Version
+                    && s.SelectionForFixtureInspectionOnly()==c.Old && state.Transaction?.Phase=="rolled_back","CRASH_INCONSISTENT");
+            });
+        await Test("LOCK-01","A second helper process cannot acquire the same installation lease",async()=>{
+            using var c=new StateCase(suiteRoot);
+            using(var s=new FixtureSession(c.Root)) Require(await Probe("lease",c.Root)==10,"TWO_HELPERS_ACQUIRED");
+            Require(await Probe("lease",c.Root)==0,"LEASE_NOT_RELEASED");
+        });
+        await Test("LOCK-02","A crashed helper releases its kernel lease without deleting the lock file",async()=>{
+            using var c=new StateCase(suiteRoot); await KillAt(c,"begin:intent-persisted");
+            Require(await Probe("lease",c.Root)==0 && File.Exists(Path.Combine(c.Root,"lease.fixture")),"STALE_PID_LOCK");
+        });
+        await Test("LOCK-03","Reopening and cleanup use the same installation lease",async()=>{
+            using var c=new StateCase(suiteRoot); using var s=new FixtureSession(c.Root);
+            Require(await Probe("inspect",c.Root)==10 && await Probe("cleanup-probe",c.Root)==10,"PARTICIPANT_BYPASSED_LOCK");
+        });
+        await Test("LOCK-04","Missing lock file refuses participation instead of creating a second lock identity",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); File.Delete(Path.Combine(c.Root,"lease.fixture"));
+            Refuses("INSTALLATION_BUSY_OR_LOCK_MISSING",()=>{using var s=new FixtureSession(c.Root);});
+        }));
+        if(OperatingSystem.IsWindows()) await WindowsCases();
+    }
+    private static Dictionary<string,byte[]> ReadFixture(string name)=>Directory.GetFiles(Path.Combine(fixtures,name))
+        .ToDictionary(p=>Path.GetFileName(p)!,File.ReadAllBytes,StringComparer.Ordinal);
+    private static async Task<int> Child(string[] args)
+    {
+        Require(args.Length>=2,"CHILD_USAGE"); string mode=args[0],root=args[1]; FixtureSandbox.RequireRoot(root);
+        if(mode is "lease" or "inspect" or "cleanup-probe")
+        {
+            try {using var session=new FixtureSession(root); if(mode=="inspect")_=session.SelectionForFixtureInspectionOnly(); return 0;}
+            catch(Rejected e) when(e.Code=="INSTALLATION_BUSY_OR_LOCK_MISSING") {return 10;}
+        }
+        if(mode=="cut")
+        {
+            Require(args.Length==3,"CHILD_USAGE"); string target=args[2];
+            using var session=new FixtureSession(root); var old=session.Store.Load().Record.Confirmed;
+            byte[] bytes=Encoding.UTF8.GetBytes("GF-U2-INERT-BUNDLE-2-NO-EXE-NO-DLL\n");
+            var candidate=new BundleRef(2,"0.0.0.2",Hash(bytes),"linux-fixture-model");
+            if(OperatingSystem.IsWindows()) {using var guard=WindowsFileGuard.Open(root,session.Files.BundlePath(candidate)); candidate=candidate with {Identity=guard.Identity};}
+            void Cut(string phase,string point)
+            {if(target==phase+":"+point) {Console.WriteLine("CUT:"+target); Console.Out.Flush(); _=Console.ReadLine(); throw new Rejected("PARENT_DID_NOT_KILL");}}
+            session.Begin(candidate,new(TimeProvider.System,StateCodec.Observed(session.Store.Load().Record.Trust)),
+                DateTimeOffset.UtcNow+TimeSpan.FromHours(1),true,p=>Cut("begin",p));
+            if(target.StartsWith("recover:",StringComparison.Ordinal))session.Recover(p=>Cut("recover",p));
+            return 12;
+        }
+        if(mode=="cache-replay")
+        {
+            Require(args.Length==3,"CHILD_USAGE"); fixtures=args[2]; using var s=new FixtureSession(root); var state=s.Store.Load().Record;
+            Require(state.Trust.Timestamp==2 && state.Trust.Metadata.Count==4,"CACHE_NOT_PERSISTED");
+            var cache=state.Trust.Metadata.ToDictionary(p=>p.Key,p=>Convert.FromBase64String(p.Value));
+            try {await FixtureValidator.Evaluate(File.ReadAllBytes(Path.Combine(fixtures,"trusted-root-v1.json")),ReadFixture("valid"),
+                new("5.13.11.66",66,new string('c',64),StateCodec.Observed(state.Trust)),cache);}
+            catch(Rejected e) when(e.Code=="TUF_REJECTED") {return 0;} return 13;
+        }
+        throw new Rejected("CHILD_MODE");
+    }
+    [SupportedOSPlatform("windows")]
+    private static async Task WindowsCases()
+    {
+        await Test("NTFS-01","Pinned NTFS file ID and hash are stable on the same open handle",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string path=new FixtureFiles(c.Root).BundlePath(c.Candidate);
+            using var g=WindowsFileGuard.Open(c.Root,path); Require(g.Identity==c.Candidate.Identity && Hash(g.Read(4096))==c.Candidate.Sha256,"NTFS_ID_HASH");
+        }));
+        await Test("NTFS-02","Kernel sharing denies source write and rename until the guard closes",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string path=new FixtureFiles(c.Root).BundlePath(c.Candidate);
+            using(var g=WindowsFileGuard.Open(c.Root,path)) {IoRefuses(()=>File.WriteAllText(path,"attack")); IoRefuses(()=>File.Move(path,path+".moved")); g.Recheck();}
+            File.Move(path,path+".moved"); File.Move(path+".moved",path);
+        }));
+        await Test("NTFS-03","An ancestor cannot be renamed while the verified descendant is pinned",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string path=new FixtureFiles(c.Root).BundlePath(c.Candidate),parent=Path.GetDirectoryName(path)!;
+            using(var g=WindowsFileGuard.Open(c.Root,path)) IoRefuses(()=>Directory.Move(parent,parent+".moved"));
+            Directory.Move(parent,parent+".moved"); Directory.Move(parent+".moved",parent);
+        }));
+        await Test("NTFS-04","A real NTFS hard link is rejected by link count",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string path=new FixtureFiles(c.Root).BundlePath(c.Candidate),alias=Path.Combine(c.Root,"hardlink.fixture");
+            Require(CreateHardLinkW(alias,path,IntPtr.Zero),"HARDLINK_FIXTURE_FAILED");
+            Refuses("NTFS_HARDLINK",()=>{using var g=WindowsFileGuard.Open(c.Root,path);}); File.Delete(alias);
+        }));
+        await Test("NTFS-05","A real directory junction in the ancestor chain is rejected",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string target=Path.GetDirectoryName(new FixtureFiles(c.Root).BundlePath(c.Candidate))!,link=Path.Combine(c.Root,"junction.fixture");
+            var info=new ProcessStartInfo("cmd.exe") {UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true};
+            info.ArgumentList.Add("/c"); info.ArgumentList.Add("mklink"); info.ArgumentList.Add("/J"); info.ArgumentList.Add(link); info.ArgumentList.Add(target);
+            using var p=Process.Start(info)!; p.WaitForExit(); Require(p.ExitCode==0,"JUNCTION_FIXTURE_FAILED");
+            Refuses("NTFS_REPARSE_OR_TYPE",()=>{using var g=WindowsFileGuard.Open(c.Root,Path.Combine(link,"bundle.fixture.txt"));}); Directory.Delete(link);
+        }));
+        await Test("NTFS-06","A swapped same-content file has a different identity and is rejected",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); var files=new FixtureFiles(c.Root); string path=files.BundlePath(c.Candidate),copy=path+".new";
+            File.Copy(path,copy); File.Move(path,path+".original"); File.Move(copy,path);
+            Refuses("BUNDLE_ID_OR_HASH",()=>files.Verify(c.Candidate));
+        }));
+        await Test("NTFS-07","ReplaceFile succeeds with ancestors pinned and selector handles closed",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); c.Begin(); using var s=new FixtureSession(c.Root); s.Recover();
+            Require(s.SelectionForFixtureInspectionOnly()==c.Old,"NTFS_REPLACE_SHARING");
+        }));
+        await Test("NTFS-08","An incompatible open selector handle causes refusal with no ignore-ACL fallback",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string path=Path.Combine(c.Root,"active.fixture.json");
+            using(var pinned=WindowsFileGuard.Open(c.Root,path)) IoRefuses(()=>c.Begin());
+            using var s=new FixtureSession(c.Root); s.Recover(); Require(s.SelectionForFixtureInspectionOnly()==c.Old,"LOCKED_SELECTOR_FALLBACK");
+        }));
+        await Test("NTFS-09","Guard refuses foreign scope and alternate-data-stream paths",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot);
+            Refuses("NTFS_SCOPE",()=>{using var g=WindowsFileGuard.Open(c.Root,Path.Combine(suiteRoot,"outside.fixture"));});
+            Refuses("NTFS_PATH",()=>{using var g=WindowsFileGuard.Open(c.Root,new FixtureFiles(c.Root).BundlePath(c.Candidate)+":ads");});
+        }));
+        await Test("NTFS-10","A hard-linked selector and ledger record are rejected before parsing",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string alias=Path.Combine(c.Root,"state-hardlink.fixture");
+            string selector=Path.Combine(c.Root,"active.fixture.json"); Require(CreateHardLinkW(alias,selector,IntPtr.Zero),"HARDLINK_FIXTURE_FAILED");
+            Refuses("NTFS_HARDLINK",()=>new FixtureFiles(c.Root).ReadSelector(c.InstallationId)); File.Delete(alias);
+            var store=new PersistentState(c.Root); string record=Directory.GetFiles(store.Ledger).Single();
+            Require(CreateHardLinkW(alias,record,IntPtr.Zero),"HARDLINK_FIXTURE_FAILED"); Refuses("NTFS_HARDLINK",()=>store.Load()); File.Delete(alias);
+        }));
+        await Test("NTFS-11","ACL policy rejects broad write and missing DACL without modifying permissions",()=>Sync(()=>{
+            using var user=System.Security.Principal.WindowsIdentity.GetCurrent(); string sid=user.User!.Value;
+            var trusted=new System.Security.AccessControl.RawSecurityDescriptor("O:"+sid+"D:(A;;FA;;;"+sid+")(A;;FA;;;SY)(A;;FA;;;BA)");
+            WindowsFileGuard.ValidateDescriptor(trusted,sid);
+            var broad=new System.Security.AccessControl.RawSecurityDescriptor("O:"+sid+"D:(A;;FA;;;"+sid+")(A;;GW;;;WD)");
+            Refuses("NTFS_BROAD_WRITE",()=>WindowsFileGuard.ValidateDescriptor(broad,sid));
+            var absent=new System.Security.AccessControl.RawSecurityDescriptor("O:"+sid);
+            Refuses("NTFS_SECURITY",()=>WindowsFileGuard.ValidateDescriptor(absent,sid));
+        }));
+        await Test("NTFS-12","A reparse-point installation root is refused before a state write",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string link=Path.Combine(suiteRoot,Guid.NewGuid().ToString("N"));
+            var info=new ProcessStartInfo("cmd.exe") {UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true};
+            foreach(string a in new[]{"/c","mklink","/J",link,c.Root})info.ArgumentList.Add(a);
+            using var p=Process.Start(info)!; p.WaitForExit(); Require(p.ExitCode==0,"JUNCTION_FIXTURE_FAILED");
+            Refuses("FIXTURE_REPARSE",()=>{using var session=new FixtureSession(link);}); Directory.Delete(link);
+        }));
+        await Test("NTFS-13","Both complete bundles remain pinned across durable intent and selector commit",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string path=new FixtureFiles(c.Root).BundlePath(c.Candidate); bool attacked=false;
+            c.Begin(point=>{if(point=="intent-persisted") {IoRefuses(()=>File.WriteAllText(path,"racing write"));
+                IoRefuses(()=>Directory.Move(Path.GetDirectoryName(path)!,Path.GetDirectoryName(path)!+".swap")); attacked=true;}});
+            Require(attacked,"RACE_NOT_EXERCISED"); using var s=new FixtureSession(c.Root); s.Recover();
+        }));
+        await Test("NTFS-14","An aliased lock object is rejected rather than splitting installation coordination",()=>Sync(()=>{
+            using var c=new StateCase(suiteRoot); string alias=Path.Combine(c.Root,"lease-hardlink.fixture");
+            Require(CreateHardLinkW(alias,Path.Combine(c.Root,"lease.fixture"),IntPtr.Zero),"HARDLINK_FIXTURE_FAILED");
+            Refuses("NTFS_HARDLINK",()=>{using var s=new FixtureSession(c.Root);}); File.Delete(alias);
+        }));
+    }
+    [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateHardLinkW(string name,string existing,IntPtr security);
+}

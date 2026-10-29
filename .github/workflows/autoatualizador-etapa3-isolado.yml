@@ -1,0 +1,49 @@
+name: Autoatualizador Etapa 3 — gates isolados
+on:
+  push:
+    branches: [work-autoatualizador-etapa3-validacao-20261028]
+    paths:
+      - prototipos/autoatualizador-seguro/stage3/**
+      - .github/workflows/autoatualizador-etapa3-isolado.yml
+permissions:
+  contents: read
+concurrency:
+  group: gf-updater-stage3-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  isolated-gates:
+    name: Relógio TUF, ZIP, PE e IPC de sonda inerte
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Fonte exata do ensaio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK fixo
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Python para fixtures independentes
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Dependências exclusivamente de desenvolvimento
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: cryptography==50.0.2 cffi==2.1.1 pycparser==3.11
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Ensaios direcionados sem compilar ou executar o GF
+        shell: pwsh
+        run: |
+          python prototipos/autoatualizador-seguro/stage3/run_tests.py --report "$env:RUNNER_TEMP/gf-u3-windows.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = Get-Content "$env:RUNNER_TEMP/gf-u3-windows.json" -Raw | ConvertFrom-Json
+          if ($result.failed -ne 0) { throw 'GF_U3_TEST_FAILURE' }
+          "Etapa 3 isolada: $($result.passed)/$($result.total). Sem produto/artefato/release. Gates não executados continuam abertos no relatório." >> $env:GITHUB_STEP_SUMMARY
+# No upload, secrets, delivery repository, scheduled job, product publication or retry.

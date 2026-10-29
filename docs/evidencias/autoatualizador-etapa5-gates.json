@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "stage": 5,
+  "contract": "gf-self-update/1",
+  "gate_count": 8,
+  "operational_closed": 0,
+  "operational_blocked": 8,
+  "contract_relaxed": false,
+  "conditional_signed_publisher_not_imposed_on_beta_unsigned": true,
+  "gates": [
+    {
+      "id": "G1",
+      "stage4_key": "physical_power_loss_storage_and_whole_state_restore_freshness",
+      "title": "Durabilidade e antirreplay após restauração integral",
+      "status": "blocked",
+      "reason": "Sem referência autenticada de frescor fora do domínio restaurado e sem ensaio de falha de energia/armazenamento real. Contraexemplo da Etapa 4 não foi repetido ou resolvido.",
+      "minimum_next_action": "Definir referência independente de frescor ou revisar explicitamente a garantia; ambiente descartável com disco persistente e controle externo de falha.",
+      "evidence": [
+        "docs/evidencias/autoatualizador-etapa4.json",
+        "docs/evidencias/autoatualizador-etapa4-windows.json"
+      ]
+    },
+    {
+      "id": "G2",
+      "stage4_key": "supported_review_and_adoption_of_clock_experiment",
+      "title": "Adoção segura do relógio TUF",
+      "status": "blocked",
+      "reason": "Pacote original fixado; patch experimental não tem revisão, suporte/manutenção ou adoção operacional demonstrados.",
+      "minimum_next_action": "Revisão específica e decisão de adoção de implementação suportada com horário fixo; não promover clone experimental por equivalência.",
+      "evidence": [
+        "docs/evidencias/autoatualizador-etapa1.json",
+        "docs/evidencias/autoatualizador-etapa3.json"
+      ]
+    },
+    {
+      "id": "G3",
+      "stage4_key": "authenticated_full_GF_package_and_signed_target_to_state_binding",
+      "title": "Pacote GF autenticado e vínculo ao estado",
+      "status": "blocked",
+      "reason": "Nenhuma âncora operacional e metadados autorizando pacote GF futuro exato foram fornecidos no fluxo. Marcador/sonda não são pacote GF.",
+      "minimum_next_action": "Pacote GF isolado e conjunto de metadados autenticados por âncora aprovada, sem publicar ou converter a BETA .66.",
+      "evidence": [
+        "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+        "prototipos/autoatualizador-seguro/stage4/bootstrap-custody-plan.json"
+      ]
+    },
+    {
+      "id": "G4",
+      "stage4_key": "GF_publisher_policy_and_revocation_when_required",
+      "title": "Política PE, publicador e revogação quando exigidos",
+      "status": "blocked",
+      "reason": "Não há classificação de PE GF autenticado nesta etapa. Windows trust de SDK/sonda anterior não autoriza GF. Beta-unsigned permanece permitido; modo obrigatório não foi adotado.",
+      "minimum_next_action": "Classificar pacote GF autenticado no modo declarado. Só se futuro modo obrigatório for autorizado, incorporar/provar política de publicador/revogação/timestamp.",
+      "evidence": [
+        "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+        "docs/evidencias/autoatualizador-etapa4-windows.json"
+      ]
+    },
+    {
+      "id": "G5",
+      "stage4_key": "non_elevated_positive_and_foreign_session_user_IPC",
+      "title": "IPC sem elevação e entre sessões/usuários",
+      "status": "blocked",
+      "reason": "Runner funcional elevado. Consulta separada: TokenElevationTypeDefault=1, LinkedToken falhou 1312, sem padrão vinculado ao token consultado; nenhum handshake padrão ou estrangeiro executado.",
+      "minimum_next_action": "Contextos descartáveis padrão e pares de sessão/usuário já autorizados; sem alterar contas, token, UAC, ACL ou privilégios para fabricar aprovação.",
+      "evidence": [
+        "docs/evidencias/autoatualizador-etapa5-windows.json",
+        "docs/evidencias/autoatualizador-etapa5-contexto.json"
+      ]
+    },
+    {
+      "id": "G6",
+      "stage4_key": "operational_GF_lifecycle_and_all_file_pinning",
+      "title": "Ciclo transacional GF e identidade durante todo uso",
+      "status": "blocked",
+      "reason": "Subgate provado na sonda: todos os 274 arquivos retidos até saída real. Ainda faltam pacote/participantes GF e controle de inserção/carga tardia; criar nomes novos é possível e revalidação detecta o extra.",
+      "minimum_next_action": "Pacote autenticado e ciclo dos participantes GF em contexto suportado, com casos de inserção/carga tardia/recuperação. Não integrar componente não homologado ao principal.",
+      "evidence": [
+        "docs/evidencias/autoatualizador-etapa5-windows.json"
+      ]
+    },
+    {
+      "id": "G7",
+      "stage4_key": "production_bootstrap_custody_ceremony",
+      "title": "Bootstrap e custódia de produção",
+      "status": "blocked",
+      "reason": "Plano operacional continua com root/fingerprint/publicador e slots de custódia vazios; sem cerimônia, recuperação e rotação reais.",
+      "minimum_next_action": "Custódia/meios offline e recuperação/quórum demonstrados; fingerprint por registro autenticado independente; futuro bootstrap manual aprovado em pasta nova.",
+      "evidence": [
+        "prototipos/autoatualizador-seguro/stage4/bootstrap-custody-plan.json",
+        "docs/evidencias/autoatualizador-etapa1.json"
+      ]
+    },
+    {
+      "id": "G8",
+      "stage4_key": "global_validation_deadline_and_blocking_IO_cancellation",
+      "title": "Prazo global e I/O bloqueante",
+      "status": "blocked",
+      "reason": "Read cancelável expirou em 120,005 s, mas WaitAsync sem token deixou I/O real pendente que completou depois. Pipeline GF/armazenamento bloqueante não ensaiado.",
+      "minimum_next_action": "Deadline nas fases reais e prova de drenagem/término de I/O e ausência de efeitos tardios, inclusive falha de armazenamento, antes de liberar recursos.",
+      "evidence": [
+        "docs/evidencias/autoatualizador-etapa5-windows.json"
+      ]
+    }
+  ],
+  "proved_subgates": [
+    "274 known inert bundle files retained by NTFS handles through owned child exit",
+    "274 write opens denied, plus live DLL delete/license rename denied and post-release control writable",
+    "real default 120-second cooperative Windows pipe-read cancellation",
+    "expired fixture readiness cannot confirm; exact predecessor recovery retains sequence floor"
+  ],
+  "counterexamples_observed": [
+    "WaitAsync cancels wait, not tokenless underlying kernel read",
+    "known-file pins do not prevent new-name creation"
+  ],
+  "unexecuted_operational_scenarios": [
+    "power cut/storage fault",
+    "post-whole-restore authenticated freshness",
+    "GF TUF-authorized package validation",
+    "current GF publisher/revocation policy when required",
+    "non-elevated positive IPC",
+    "foreign session/user IPC",
+    "actual GF operational lifecycle",
+    "production custody/rotation/recovery ceremony",
+    "complete GF validation deadline with hung storage"
+  ],
+  "stage6_started": false
+}

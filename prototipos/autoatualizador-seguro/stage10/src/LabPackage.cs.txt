@@ -1,0 +1,194 @@
+using System.Buffers.Binary;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Text;
+using System.Text.Json;
+using System.Xml;
+using Microsoft.Win32.SafeHandles;
+using static GfUpdaterFixture.StrictMetadata;
+[assembly: SupportedOSPlatform("windows")]
+namespace GfUpdaterFixture;
+
+// Laboratory qualification only. A locally computed recipe is NOT editorial authority.
+// Imported assemblies are parsed, never Assembly.Load/LoadLibrary/Process.Start.
+internal static class LabMetadata
+{
+    internal const string Version = "5.13.11.66";
+    internal static object Inspect(string path, string source)
+    {
+        using var input = File.OpenRead(path); using var pe = new PEReader(input);
+        var r = pe.GetMetadataReader(); var assembly = r.GetAssemblyDefinition();
+        Require(r.GetString(assembly.Name) == "GerenciadorFinal" && assembly.Version.ToString() == Version, "U10_ASSEMBLY_ID");
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var handle in assembly.GetCustomAttributes()) {
+            var attr = r.GetCustomAttribute(handle);
+            if (attr.Constructor.Kind != HandleKind.MemberReference) continue;
+            var ctor = r.GetMemberReference((MemberReferenceHandle)attr.Constructor);
+            if (ctor.Parent.Kind != HandleKind.TypeReference) continue;
+            var type = r.GetTypeReference((TypeReferenceHandle)ctor.Parent);
+            if (r.GetString(type.Namespace) != "System.Reflection" || r.GetString(type.Name) != "AssemblyMetadataAttribute") continue;
+            var value = r.GetBlobReader(attr.Value); Require(value.ReadUInt16() == 1, "U10_ATTRIBUTE");
+            string key = value.ReadSerializedString() ?? throw new Rejected("U10_ATTRIBUTE");
+            string text = value.ReadSerializedString() ?? throw new Rejected("U10_ATTRIBUTE");
+            Require(value.ReadUInt16() == 0 && value.RemainingBytes == 0 && metadata.TryAdd(key, text), "U10_ATTRIBUTE_DUPLICATE");
+        }
+        Require(metadata.GetValueOrDefault("GfBetaProfile") == "local" && metadata.GetValueOrDefault("GfSourceCommit") == source
+            && metadata.GetValueOrDefault("GfBuildChannel") == "BETA" && !metadata.ContainsKey("GfBetaEndpoint")
+            && !metadata.ContainsKey("GfApprovedBetaEndpoint") && !metadata.ContainsKey("GfReviewedPrivacyNoticeSha256"), "U10_LOCAL_ONLY");
+        Require(metadata.GetValueOrDefault("GfPrivacyNoticeVersion") == GerenciadorAplicativos.TelemetryConsentPolicy.Version, "U10_NOTICE_VERSION");
+        var resources = r.ManifestResources.Select(h => r.GetString(r.GetManifestResource(h).Name)).ToHashSet(StringComparer.Ordinal);
+        Require(resources.SetEquals(new[] { "GerenciadorFinal.UninstallCatalog", "GerenciadorFinal.ApplicationIdentityCatalog", "GerenciadorFinal.HistoricalOrphanCatalog" }), "U10_EMBEDDED_RESOURCES");
+        return new { schema = 1, version = Version, source_commit = source, channel = "BETA", transport_configured = false, endpoint = "",
+            notice_version = GerenciadorAplicativos.TelemetryConsentPolicy.Version, notice_sha256 = GerenciadorAplicativos.TelemetryConsentPolicy.NoticeHash,
+            reviewed_notice_sha256 = "", distribution = "requires_owner_approval" };
+    }
+    internal static void Manifest(byte[] bytes, string version)
+    {
+        var pe = new BoundedPe(bytes); pe.Architecture(true);
+        using var input = new MemoryStream(pe.Resource(24));
+        using var reader = XmlReader.Create(input, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = 65536 });
+        var doc = new XmlDocument { XmlResolver = null }; doc.Load(reader);
+        var ids = doc.GetElementsByTagName("assemblyIdentity", "urn:schemas-microsoft-com:asm.v1");
+        Require(ids.Count == 1 && ids[0]!.Attributes?["version"]?.Value == version && ids[0]!.Attributes?["name"]?.Value == "GerenciadorFinal.app", "U10_MANIFEST_ID");
+        var levels = doc.GetElementsByTagName("requestedExecutionLevel", "urn:schemas-microsoft-com:asm.v3");
+        Require(levels.Count == 1 && levels[0]!.Attributes?["level"]?.Value == "asInvoker" && levels[0]!.Attributes?["uiAccess"]?.Value == "false", "U10_MANIFEST_UAC");
+        var supported = doc.GetElementsByTagName("supportedOS", "urn:schemas-microsoft-com:compatibility.v1");
+        Require(supported.Count == 1 && supported[0]!.Attributes?["Id"]?.Value == "{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}", "U10_MANIFEST_OS");
+        byte[] resource = pe.Resource(16); var v = System.Version.Parse(version); bool found = false;
+        for (int p = 0; p <= resource.Length - 16; p += 4)
+            if (BinaryPrimitives.ReadUInt32LittleEndian(resource.AsSpan(p)) == 0xfeef04bd) {
+                found = BinaryPrimitives.ReadUInt32LittleEndian(resource.AsSpan(p + 8)) == ((uint)v.Major << 16 | (uint)v.Minor)
+                    && BinaryPrimitives.ReadUInt32LittleEndian(resource.AsSpan(p + 12)) == ((uint)v.Build << 16 | (uint)v.Revision); break;
+            }
+        Require(found, "U10_FILE_VERSION");
+    }
+}
+
+internal sealed class LabPackage : IDisposable
+{
+    private readonly string sandbox, directory;
+    private readonly Dictionary<string, string> recipe;
+    private readonly List<WindowsFileGuard> pins = [];
+    private bool disposed;
+    internal readonly List<object> Inventory = [];
+    internal readonly string ManifestHash;
+    internal readonly string RecipeHash;
+    internal int PeCount, NativeAmd64, ManagedAnyCpu, WithCertificate;
+    internal int ExeTrust, DllTrust;
+    private LabPackage(string sandbox, string directory, Dictionary<string, string> recipe) {
+        this.sandbox = sandbox; this.directory = directory; this.recipe = new(recipe, StringComparer.Ordinal);
+        RecipeHash = Hash(StateCodec.Encode(new SortedDictionary<string, string>(recipe, StringComparer.Ordinal)));
+        ManifestHash = recipe["SHA256SUMS.txt"];
+    }
+    internal static LabPackage Open(string sandbox, string directory, Dictionary<string, string> recipe, CancellationToken token = default) {
+        var result = new LabPackage(sandbox, directory, recipe);
+        try { result.Check(token, first: true); return result; } catch { result.Dispose(); throw; }
+    }
+    internal void Check(CancellationToken token = default, bool first = false) {
+        Require(!disposed, "U10_QUALIFICATION_CLOSED"); token.ThrowIfCancellationRequested();
+        var budget = new StreamPackage.Budget(token);
+        if (first) pins.Add(WindowsFileGuard.Open(sandbox, directory, true));
+        var paths = new Dictionary<string, string>(StringComparer.Ordinal);
+        // Enumerate one level at a time and reject before descending into any reparse point.
+        void Walk(string folder) {
+            foreach (string path in Directory.EnumerateFileSystemEntries(folder)) {
+                budget.Check(); string name = Path.GetRelativePath(directory, path).Replace('\\', '/'); ZipInspection.SafeName(name);
+                var attrs = File.GetAttributes(path); Require((attrs & FileAttributes.ReparsePoint) == 0, "U10_REPARSE");
+                if ((attrs & FileAttributes.Directory) != 0) {
+                    Require(recipe.Keys.Any(n => n.StartsWith(name + "/", StringComparison.Ordinal)), "U10_EXTRA_DIRECTORY");
+                    if (first) pins.Add(WindowsFileGuard.Open(sandbox, path, true)); Walk(path);
+                } else Require(paths.TryAdd(name, path), "U10_DUPLICATE");
+            }
+        }
+        Walk(directory); Require(paths.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(recipe.Keys), "U10_EXACT_SET");
+        foreach (var entry in paths.OrderBy(x => x.Key, StringComparer.Ordinal)) {
+            budget.Check(); using var temporary = first ? null : WindowsFileGuard.Open(sandbox, entry.Value);
+            var pin = temporary;
+            if (first) { pin = WindowsFileGuard.Open(sandbox, entry.Value); pins.Add(pin); }
+            byte[] bytes = pin!.Read(256 * 1024 * 1024); Require(Hash(bytes) == recipe[entry.Key], "U10_FILE_HASH");
+            NoAlternateStreams(entry.Value);
+            if (first) {
+                Inventory.Add(new { name = entry.Key, bytes = bytes.Length, sha256 = recipe[entry.Key], identity = pin.Identity });
+                if (entry.Key.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) || entry.Key.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) {
+                    var pe = new BoundedPe(bytes); pe.Architecture(entry.Key == "GerenciadorFinal.exe"); PeCount++;
+                    if (pe.Machine == 0x8664) NativeAmd64++; else ManagedAnyCpu++;
+                    if (OfflineAuthenticode.HasCertificate(bytes)) WithCertificate++;
+                }
+                if (entry.Key is "GerenciadorFinal.exe" or "GerenciadorFinal.dll") {
+                    int trust = OfflineAuthenticode.Verify(entry.Value);
+                    OfflineAuthenticode.RequireBetaUnsigned(OfflineAuthenticode.HasCertificate(bytes), trust);
+                    if (entry.Key.EndsWith(".exe", StringComparison.Ordinal)) { ExeTrust = trust; LabMetadata.Manifest(bytes, LabMetadata.Version); } else DllTrust = trust;
+                }
+            }
+        }
+        foreach (var pin in pins) pin.Recheck(); budget.Check();
+    }
+    internal void Revalidate(CancellationToken token = default) => Check(token);
+    public void Dispose() { if (disposed) return; for (int i = pins.Count - 1; i >= 0; i--) pins[i].Dispose(); disposed = true; }
+    private static void NoAlternateStreams(string path) {
+        using var find = FindFirstStreamW(path, 0, out var data, 0);
+        if (find.IsInvalid) { Require(Marshal.GetLastWin32Error() == 38, "U10_STREAM_QUERY"); return; }
+        do { Require(data.Name == "::$DATA", "U10_ALTERNATE_STREAM"); } while (FindNextStreamW(find, out data));
+        Require(Marshal.GetLastWin32Error() == 38, "U10_STREAM_QUERY");
+    }
+    private sealed class FindHandle : SafeHandleZeroOrMinusOneIsInvalid {
+        public FindHandle() : base(true) { }
+        protected override bool ReleaseHandle() => FindClose(handle);
+    }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] private struct StreamData { public long Size; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 296)] public string Name; }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern FindHandle FindFirstStreamW(string path, int level, out StreamData data, uint flags);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool FindNextStreamW(FindHandle find, out StreamData data);
+    [DllImport("kernel32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool FindClose(IntPtr find);
+}
+
+// No application/launch/selector API. Tickets are in-memory inspection bindings only.
+internal sealed record LabBinding(string Installation, string StateDigest, string SelectorHash, string OperationDigest, string RecipeHash, string ManifestHash) {
+    public bool Installable => false;
+    internal static LabBinding Capture(IntegratedPipeline pipeline, LabPackage package) {
+        pipeline.Owner.CheckValid(); Require(pipeline.CanContinue, "U10_IO_PENDING");
+        var s = pipeline.Resources.Session.Store.Load(); var op = pipeline.Operations.Load();
+        Require(!FixtureSession.Pending(s.Record) && !OperationJournal.Pending(op.Record), "U10_PENDING_STATE");
+        package.Revalidate(pipeline.Owner.Token);
+        return new(s.Record.InstallationId, s.Digest, Hash(PersistentState.ReadFixtureFile(pipeline.Root, Path.Combine(pipeline.Root, "active.fixture.json"))), op.Digest, package.RecipeHash, package.ManifestHash);
+    }
+    internal void Revalidate(IntegratedPipeline pipeline, LabPackage package) {
+        Require(this == Capture(pipeline, package), "U10_STALE_BINDING");
+    }
+}
+
+// Deliberate fail-closed boundary for the still-unqualified role-key epoch transition.
+// Input must ALREADY have passed contiguous double-threshold root validation.
+// This function does not validate signatures and cannot establish a trusted root.
+internal static class RoleEpochFence
+{
+    internal static string Fingerprint(byte[] authenticatedRoot, string role) {
+        using var d = Json(authenticatedRoot); var root = d.RootElement.GetProperty("signed");
+        var spec = root.GetProperty("roles").GetProperty(role);
+        var ids = spec.GetProperty("keyids").EnumerateArray().Select(x => x.GetString()!).Order(StringComparer.Ordinal).ToArray();
+        Require(ids.Length > 0 && ids.Distinct(StringComparer.Ordinal).Count() == ids.Length, "U10_EPOCH_KEYS");
+        var keys = root.GetProperty("keys");
+        // Canonicalize parsed key content; key-id reuse with changed key material is detected too.
+        var material = ids.Select(id => { var k = keys.GetProperty(id); return new { id, keytype = Text(k, "keytype"), scheme = Text(k, "scheme"), value = Text(k.GetProperty("keyval"), "public") }; }).ToArray();
+        return Hash(StateCodec.Encode(new { threshold = Number(spec, "threshold", ids.Length), keys = material }));
+    }
+    internal static void RequireSameEpoch(byte[] previous, byte[] current) {
+        using var p = Json(previous); using var c = Json(current);
+        Require(Number(c.RootElement.GetProperty("signed"), "version", int.MaxValue) >= Number(p.RootElement.GetProperty("signed"), "version", int.MaxValue), "U10_ROOT_ROLLBACK");
+        foreach (string role in new[] { "timestamp", "snapshot", "targets" })
+            Require(Fingerprint(previous, role) == Fingerprint(current, role), "U10_ROLE_EPOCH_UNQUALIFIED:" + role);
+    }
+}
+
+internal sealed class EpochGuardedCache(Stage8Cache inner, byte[] anchor) : Tuf.ITufCache
+{
+    private byte[] accepted = anchor.ToArray();
+    public byte[]? LoadMetadata(string role) => inner.LoadMetadata(role);
+    public void StoreMetadata(string role, byte[] bytes) {
+        if (role == "root") { RoleEpochFence.RequireSameEpoch(accepted, bytes); accepted = bytes.ToArray(); }
+        inner.StoreMetadata(role, bytes);
+    }
+    public byte[]? LoadTarget(string path) => inner.LoadTarget(path);
+    public void StoreTarget(string path, byte[] bytes) => inner.StoreTarget(path, bytes);
+}

@@ -1,0 +1,166 @@
+{
+  "schema": "gf-stage9-receipt/1",
+  "stage": 9,
+  "date": "2026-10-28",
+  "timezone": "America/Sao_Paulo",
+  "entry_commit": "eccdd16ddcfa247fd2a72df82bcd2a243ff49743",
+  "entry_tree": "a2eb00ed47c45e5a38820810f86b920ac948a41b",
+  "entry_blobs": 587,
+  "contract": "gf-self-update/1",
+  "contract_changed": false,
+  "accepted_as_client_manifest": false,
+  "code_commits": [
+    "b2932f0be83d92963b49f197331f800df55ad067",
+    "b784456626a82555019729bdaa8ffe0662a6f685",
+    "32e8d9064b49e8b0ed7ac99edd4168f2f34aa87a"
+  ],
+  "runs": [
+    {
+      "run_id": 40810376313,
+      "run_number": 1,
+      "attempt": 1,
+      "job_id": 123239001165,
+      "conclusion": "failure",
+      "stage": "build_before_tests"
+    },
+    {
+      "run_id": 40810646898,
+      "run_number": 2,
+      "attempt": 1,
+      "job_id": 123239870882,
+      "conclusion": "success",
+      "total": 22,
+      "passed": 22,
+      "failed": 0
+    },
+    {
+      "run_id": 40811610734,
+      "run_number": 3,
+      "attempt": 1,
+      "job_id": 123242980250,
+      "conclusion": "success",
+      "total": 1,
+      "passed": 1,
+      "failed": 0
+    }
+  ],
+  "distinct_cases": 23,
+  "evidence_composed": true,
+  "full_final_code_suite_rerun": false,
+  "operational_gates_closed": 0,
+  "operational_gates_blocked": 8,
+  "input_blobs": {
+    "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md": "484722ffa02219192bd78ac427f1dad5abcbf0a0",
+    "docs/WORK-AUTOATUALIZADOR-ETAPA8.md": "8b23bd63c5168f3f7d8ca0cd8f2722f2f52d0ce6",
+    "docs/evidencias/autoatualizador-etapa8-gates.json": "7d20375b85d90a23c193047032e18cd05803d833",
+    "docs/WORK-AUTOATUALIZADOR-ETAPA0.md": "315fdccc3b4961871b9b661ae2001499e372bd4b",
+    "prototipos/autoatualizador-seguro/src/PersistentState.cs.txt": "adcd3a3ed9c9c2d9c720d459077f3dd14b1fb81a",
+    "prototipos/autoatualizador-seguro/src/TransactionPrototype.cs.txt": "05efeedf35e08bac791889c4c034d85c04436c63",
+    "prototipos/autoatualizador-seguro/src/CycleClock.cs.txt": "8e85aa5a1389d4d454e4f5ab49b418bd91680735",
+    "prototipos/autoatualizador-seguro/src/WindowsFileGuard.cs.txt": "5882f3d82092cc48c950ef45d3d9cb6ad25302f6",
+    "prototipos/autoatualizador-seguro/stage8/src/OwnedAttempt.cs.txt": "0cf9d47fc6f3433f835aec0d83117aefa2a873fa",
+    "prototipos/autoatualizador-seguro/stage8/tuf-delta.patch": "e9d0963777bf7e8e858b5f3b51b0125b99d613e7"
+  },
+  "reused_source_sha256_normalized_LF": {
+    "src/StrictMetadata.cs.txt": "5a16d809d5c4ff45e0e7f47c58db56c15afada7047d0664ab05aa14777cc54fb",
+    "src/ZipInspection.cs.txt": "2bbaf2ea19d99f529de66ac0068b1f372823853a9d85cd19c61c9e5362faea2f",
+    "src/PersistentState.cs.txt": "add61f0ad51e5cb9e6993bb555276685f9f335ef03e24fba5ff7dffd4c29a4b1",
+    "src/TransactionPrototype.cs.txt": "5f303531a500dcb68781d88dcf3fc4f91e04a8849bd45c4edaf92a434b167f4f",
+    "src/WindowsFileGuard.cs.txt": "7a550f0392de4a030fea2706c856d751d904cf46787a5a9ef9af2fc039390980",
+    "src/CycleClock.cs.txt": "4ed4bec59e4037d66e0ae6e8f11e2419c978ff803f8182accc127e3616b20df9",
+    "stage8/src/OwnedAttempt.cs.txt": "6aa7c5cdfdd780c939e2f305b7723b8a4b9f9e18a8a1fb77dceaf3dff0218479",
+    "stage8/src/TufAttempt.cs.txt": "7f53277b7819b368d36744ff4f93ae49040e27ff79d746d14100d099dc8e7151",
+    "stage8/tuf-delta.patch": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "stage8/prepare_source.py": "e657b1622f6304f145f401d15ca0e2429d42022d9630a2d0239087e2fc15c8a2"
+  },
+  "reused_source_hashes_equal_in_both_successful_runs": true,
+  "TUF_provenance": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "modified_source_sha256": {
+      "src/Tuf/TufClient.cs": "69414de567f872249d00559c1dd57e5bee43d94d476da61f8569738b77040268",
+      "src/Tuf/TufClientOptions.cs": "9820744a9989a0f8b6d0cbcfd68f31c7dc0c56819b8ad830d6d3a79c7bb4fd4b",
+      "src/Tuf/TufResults.cs": "94d6c7bc2d80cf2f1f72f1180f479aff4ffb748a7aaae3676105a7c8d2d198a1"
+    },
+    "crypto_parser_sources_unchanged": true,
+    "original_nuget_package_changed": false,
+    "production_adoption": false
+  },
+  "new_internal_fixture_formats": [
+    "gf-integrated-fixture/9",
+    "gf-operation-fixture/9"
+  ],
+  "proof_scope": "supervised own-process exit at completed boundary + fixture state; not device completion, product IPC or power loss",
+  "artifact_count": 0,
+  "automatic_retries": 0,
+  "previous_suites_executed": false,
+  "documents": [
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-ETAPA9.md",
+      "sha256": "a70a7f3b37a83c67344f5ac40aa198b404aacbbbecc91fcf3fc3d763a56bb02b"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa9-build-inicial.json",
+      "sha256": "4c94b96b8fe917a669f97faf908d7d9827fe1b21bc697307c5ccfd34d2a00aad"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa9-windows.json",
+      "sha256": "2a30868522fbfa06b6fc3eb75e24317f74ca0f8bb91034fea5c80fa029aaffa8"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa9-admissao.json",
+      "sha256": "96d5933f931d3087c4d3301a760bf2bebbc3301c5eb0e32393c8ae00bf3e5731"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa9-rodadas.json",
+      "sha256": "522db9ec1f0023abf097663a45344f5a9166cfa4a7ddb87fb664d0ece9df671a"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa9-gates.json",
+      "sha256": "bcf9f20ca6b91e54ecdfb5dd6549de10db747002ad2a787fbb8bedc7d268a8ae"
+    }
+  ],
+  "preservation": {
+    "unchanged_other_inherited_blobs": 584,
+    "previous_workflows_unchanged": true,
+    "previous_updater_stage_records": 9,
+    "beta_version": "5.13.11.66",
+    "beta_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "beta_run": 40716548530,
+    "beta_attempt": 1,
+    "beta_artifact": 12828262039,
+    "beta_zip_sha256": "8e11f2dda5b7e2df2f85c61b57cc6a31a9596628523d2be7ad155dfdd5dda7f2",
+    "beta_downloaded_rebuilt_or_managed": false,
+    "private_channel_accessed_or_changed": false,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "physical_assessment": "partial_unchanged",
+    "physical_tests_repeated": 0,
+    "product_compile_items": 142,
+    "prototype_items_in_product": 0,
+    "product_built_or_executed": false,
+    "AVG_Windows_unchanged": true,
+    "consent_data_unchanged": true,
+    "remote_diagnostics": false,
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "drivers_install_remove_rollback": false,
+    "VLC": "inventory_only_no_specific_tests_or_queries",
+    "winget_COM": "optional_consultative",
+    "operational_keys_created": false,
+    "credentials_permissions_infrastructure_worker_D1_DNS_changed": false,
+    "product_integration": false,
+    "merge_release_deploy_publication": false
+  },
+  "document_checks": {
+    "JSON_documents": 7,
+    "relative_links": 130,
+    "roadmap_pairs": 42,
+    "old_records_preserved": 9,
+    "physical_record_unchanged": true,
+    "all_gates_blocked": true,
+    "history_preserved": true
+  },
+  "stage10_started": false
+}

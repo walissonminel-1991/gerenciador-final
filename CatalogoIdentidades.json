@@ -40,6 +40,20 @@
       "cleanupPolicy": null
     },
     {
+      "id": "chrome-stable",
+      "name": "Google Chrome",
+      "names": [
+        "Google Chrome"
+      ],
+      "publishers": [
+        "Google LLC",
+        "Google Inc.",
+        "Google"
+      ],
+      "officialSource": "chrome-stable",
+      "cleanupPolicy": null
+    },
+    {
       "id": "proton-pass-desktop",
       "name": "Proton Pass",
       "names": [
@@ -196,20 +210,6 @@
       ],
       "officialSource": "sumatrapdf",
       "cleanupPolicy": "sumatrapdf"
-    },
-    {
-      "id": "vlc",
-      "name": "VLC media player",
-      "names": [
-        "VLC media player",
-        "VLC media player (*"
-      ],
-      "publishers": [
-        "VideoLAN",
-        "VideoLAN Team"
-      ],
-      "officialSource": null,
-      "cleanupPolicy": "vlc"
     },
     {
       "id": "audacity",

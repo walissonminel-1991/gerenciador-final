@@ -1,5 +1,19 @@
 using GerenciadorAplicativos;
 
+if (args.Contains("--etapa2"))
+{
+    int total = 0, failed = 0;
+    Stage2DriverTests.Run((ok, message) =>
+    {
+        total++;
+        if (!ok) failed++;
+        Console.WriteLine((ok ? "OK " : "FALHA ") + message);
+    });
+    Console.WriteLine($"ETAPA2_FIXTURES total={total} aprovadas={total - failed} falhas={failed}");
+    Environment.ExitCode = failed == 0 ? 0 : 1;
+    return;
+}
+
 void Check(bool value, string message)
 {
     if (!value) throw new Exception(message);
@@ -70,6 +84,7 @@ Check(TestDiagnosticDetail.TryFormat(1, "FONTES", new (string, int)[] {
     "Falha de fonte identificada apenas por categoria segura e nao pelo caminho real");
 DriverStoreTests.Run(Check);
 ReadOnlyDriverTests.Run(Check);
+Stage2DriverTests.Run(Check);
 DiagnosticFailureTests.Run(Check);
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };

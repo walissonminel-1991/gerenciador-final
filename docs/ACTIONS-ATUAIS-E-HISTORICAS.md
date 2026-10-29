@@ -1,5 +1,58 @@
 # GitHub Actions — manutenção e arquivo histórico
 
+**Etapa 7 concluída — 28/10/2026:** [correções e regressões](WORK-INTEGRACAO-ETAPA7-CORRECOES.md),
+[matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa7-correcoes.json).
+GF6-001/GF6-002 (ALTOS locais), GF6-003/GF6-004 (BAIXOS) e GF7-001
+(regressão de CI, MÉDIO) corrigidos no escopo demonstrado.
+Fonte **`6df95fdd776644cd4b248b5cea61108974ca9ce9`**, [Windows 40675784213](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213)
+e [integridade externa 40675784155](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155) aprovadas,
+tentativa 1. Regra local compilada: zero consultas automáticas e diagnóstico
+remoto desativado inclusive com consentimento herdado/erro/encerramento.
+**BETA LOCAL não preparada; conectada/pública bloqueada.** Próxima sessão
+somente Etapa 8; não iniciada. Roadmap **27/42**, sem homologação física/AVG.
+
+Perfil local inspecionado no assembly, GF_BETA reconhecido por todas as constantes
+e versão por XPath/unicidade. Upload BETA somente de manifestos; os gates de
+regressões, política e integridade não foram removidos. A seção 5 abaixo é histórica.
+
+## Situação da candidata PR #65 — 27/10/2026
+
+Branch `work-integracao-final-20261027`; [checkpoint](WORK-INTEGRACAO-CHECKPOINT.md),
+[organização 5](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md) e [validação 3](WORK-INTEGRACAO-ETAPA3-VALIDACAO.md).
+Há **quatro arquivos** versionados e aprovados na lista explícita do guardrail:
+
+| Arquivo | Gatilho/papel na fonte integrada |
+| --- | --- |
+| `build-windows.yml` | PR/push main/dispatch; chama regressões e política, e build depende de ambas |
+| `validar-candidata-windows.yml` | workflow_call/dispatch; regressões Windows, consentimento e drivers somente leitura 2022/2025 |
+| `triagem-diagnostico-github.yml` | workflow_call/dispatch; guardrails e Node/SQLite sintéticos, sem processar Issues automaticamente |
+| `integridade-externa.yml` | PR/dispatch separado; integridade sem instalação e consultas adicionais condicionais |
+
+Dois chamadores produzem duas CIs de PR; não esperar quatro runs independentes.
+Fonte `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`: principal
+[40604593820](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820)
+e externa [40604593709](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709)
+aprovadas, tentativa 1; sete jobs obrigatórios success, dois condicionais skipped.
+Fonte/merge sintético têm a mesma árvore, como documentado no recibo da Etapa 3.
+
+No perfil GF_BETA, build interna mantém apenas manifestos/evidências no upload;
+o caminho de pacote executável exige não BETA. Atestação continua condicionada
+à main/não BETA e não é Authenticode ou aprovação AVG. Actions fixadas por SHA,
+checkout sem credenciais persistentes, permissões e retenção de sete dias
+foram preservados. Não há mudança de workflow/teste ou nova CI nesta Etapa 5.
+
+A main consultada no SHA `410d65e23546976db456337c71e4705f10217d36` tem dois
+workflows; seus arquivos e settings não foram alterados. Esta é conferência
+da fonte, não afirmação de enabled/disabled nas configurações do servidor.
+
+## Como interpretar o arquivo histórico abaixo
+
+Os registros WORK9 e 21–22/10 descrevem suas revisões, inclusive a lista então
+composta por três workflows na PR #40 e dois na main. Não são a lista atual
+da candidata #65. A regra vigente continua lista explícita/revisão de finalidade;
+não criar workflows por versão nem remover testes para simplificar CI. As
+remoções históricas não foram repetidas. Nenhum run/artefato foi apagado.
+
 ## Consolidação WORK9 (.49)
 
 O build depende das regressões e da política da mesma revisão. O SDK vem de global.json, Actions continuam fixadas por SHA e NuGetAudit permanece obrigatório. Os modos focados WORK9/WORK6 já fazem parte das suítes completas e não rodam duplicados; testes Node ficam na política Ubuntu. O benchmark reutiliza o build. Reutilizáveis incluem o chamador no grupo de concorrência para separar dispatch de chamadas por outro workflow.

@@ -1,5 +1,12 @@
 # Histórico de alterações
 
+## 5.13.11.66 TESTE — piloto BETA ainda não liberado (26/10/2026)
+
+- Interface BETA sem perfis PC FORTE/FRACO e sem botão fixo de ativação no cabeçalho.
+- Aviso inicial para consentimento remoto explícito, escolha de recusa sem perda das funções e revogação pela bandeja.
+- Preparado envio no fechamento por HTTPS de contagens técnicas permitidas, prazo 1,7 segundo, sem redirecionamento, sem arquivos ou tokens de GitHub. Receptor permanece sem URL até implantação segura.
+- Não distribuir nem declarar coleta online em operação antes de revisão, CI integral, D1 privado, limitador/WAF, política de privacidade e consentimento validado; roadmap 27/42.
+
 ## 5.13.11.65 TESTE — WORK18: ampliação segura (25/10/2026)
 
 - MSI/WiX sem Scope no manifesto passam a poder criar receita quando contexto e identidade forem confirmados pelo próprio MSI autenticado antes do lançamento. Divergência explícita, serviços, arquitetura ou produto diferente continuam bloqueados.

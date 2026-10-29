@@ -1,0 +1,203 @@
+{
+  "schema": "gf-stage9-gates/1",
+  "contract": "gf-self-update/1",
+  "accepted_as_client_manifest": false,
+  "closed": 0,
+  "blocked": 8,
+  "gates": [
+    {
+      "id": "G1",
+      "title": "Durabilidade e antirreplay após restauração integral",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Sem referência autenticada de frescor fora do domínio restaurado e sem ensaio de falha de energia/armazenamento real. Contraexemplo da Etapa 4 não foi repetido ou resolvido.",
+      "decision_refs": [
+        "D6-01",
+        "D6-03"
+      ],
+      "minimum_evidence_ids": [
+        "E6-STORAGE",
+        "E6-FRESHNESS"
+      ],
+      "stage9_subproof": "partial_local_domain_restore_detected",
+      "evidence_cases": [
+        "U9-RESTORE-ONE-DOMAIN",
+        "U9-PARTIAL-STATE",
+        "U9-CORRUPT-OP"
+      ],
+      "still_missing": [
+        "No physical power loss/blocked storage evidence",
+        "No independent freshness witness after whole-state restore; old counterexample not repeated or resolved"
+      ]
+    },
+    {
+      "id": "G2",
+      "title": "Adoção segura do relógio TUF",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Pacote original fixado; patch experimental não tem revisão, suporte/manutenção ou adoção operacional demonstrados.",
+      "decision_refs": [
+        "D6-02"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CLOCK"
+      ],
+      "stage9_subproof": "immutable_TUF_integrated_with_persistent_fixture_state",
+      "evidence_cases": [
+        "U9-FLOW",
+        "U9-CACHE-UNCHANGED",
+        "U9-ROTATION-CACHE",
+        "U9-REPLAY-LOWER",
+        "U9-REPLAY-REPLAY2FRESH3",
+        "U9-CACHE-ANCHOR",
+        "U9-PERSISTED-CLOCK"
+      ],
+      "still_missing": [
+        "Maintainer maintenance acceptance/designated independent review",
+        "Interoperable conformance vectors absent",
+        "Role-key epoch changes/resets and full normative per-role/root persistence not qualified; cache checkpoint happens after complete fixture target validation"
+      ]
+    },
+    {
+      "id": "G3",
+      "title": "Pacote GF autenticado e vínculo ao estado",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Nenhuma âncora operacional e metadados autorizando pacote GF futuro exato foram fornecidos no fluxo. Marcador/sonda não são pacote GF.",
+      "decision_refs": [
+        "D6-05"
+      ],
+      "minimum_evidence_ids": [
+        "E6-PACKAGE"
+      ],
+      "stage9_subproof": "signed_inert_ZIP_to_candidate_identity_and_state_only",
+      "evidence_cases": [
+        "U9-FLOW",
+        "U9-PACKAGE-MIXED",
+        "U9-PACKAGE-WRONG-IDENTITY",
+        "U9-PREPARED-PINS"
+      ],
+      "still_missing": [
+        "No operational anchor or exact authenticated GF package",
+        "Internal fixture descriptor/three text files are not gf-self-update/1 product target qualification"
+      ]
+    },
+    {
+      "id": "G4",
+      "title": "Política PE, publicador e revogação quando exigidos",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Não há classificação de PE GF autenticado nesta etapa. Windows trust de SDK/sonda anterior não autoriza GF. Beta-unsigned permanece permitido; modo obrigatório não foi adotado.",
+      "decision_refs": [
+        "D6-06"
+      ],
+      "minimum_evidence_ids": [
+        "E6-PE"
+      ],
+      "stage9_subproof": "no_new_PE_or_publisher_evidence",
+      "evidence_cases": [],
+      "still_missing": [
+        "Real GF PE/runtime/licenses/publication policy inputs absent; beta-unsigned remains allowed, no certificate requirement introduced"
+      ]
+    },
+    {
+      "id": "G5",
+      "title": "IPC sem elevação e entre sessões/usuários",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Runner funcional elevado. Consulta separada: TokenElevationTypeDefault=1, LinkedToken falhou 1312, sem padrão vinculado ao token consultado; nenhum handshake padrão ou estrangeiro executado.",
+      "decision_refs": [
+        "D6-03"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CONTEXT"
+      ],
+      "stage9_subproof": "owned_test_process_supervision_not_product_IPC",
+      "evidence_cases": [],
+      "still_missing": [
+        "No non-elevated/foreign-session authenticated product IPC",
+        "Held child Process object and stdout barriers are harness evidence, not product IPC authentication"
+      ]
+    },
+    {
+      "id": "G6",
+      "title": "Ciclo transacional GF e identidade durante todo uso",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Subgate provado na sonda: todos os 274 arquivos retidos até saída real. Ainda faltam pacote/participantes GF e controle de inserção/carga tardia; criar nomes novos é possível e revalidação detecta o extra.",
+      "decision_refs": [
+        "D6-05",
+        "D6-07"
+      ],
+      "minimum_evidence_ids": [
+        "E6-LIFECYCLE",
+        "E6-STORAGE",
+        "E6-DEADLINE"
+      ],
+      "stage9_subproof": "inert_selection_synthetic_confirmation_and_supervised_recovery",
+      "evidence_cases": [
+        "U9-FLOW",
+        "U9-PREPARED-PINS"
+      ],
+      "still_missing": [
+        "Real GF lifecycle, instances/workers, readiness and late-load/insertion control absent",
+        "Synthetic confirmation is not physical/AVG or product readiness qualification"
+      ]
+    },
+    {
+      "id": "G7",
+      "title": "Bootstrap e custódia de produção",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Plano operacional continua com root/fingerprint/publicador e slots de custódia vazios; sem cerimônia, recuperação e rotação reais.",
+      "decision_refs": [
+        "D6-04"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CUSTODY",
+        "E6-BOOTSTRAP"
+      ],
+      "stage9_subproof": "no_operational_bootstrap_or_custody",
+      "evidence_cases": [],
+      "still_missing": [
+        "Operational custody authorization/materials/quorum/rotation/bootstrap still absent; no keys created"
+      ]
+    },
+    {
+      "id": "G8",
+      "title": "Prazo global e I/O bloqueante",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Read cancelável expirou em 120,005 s, mas WaitAsync sem token deixou I/O real pendente que completou depois. Pipeline GF/armazenamento bloqueante não ensaiado.",
+      "decision_refs": [
+        "D6-07"
+      ],
+      "minimum_evidence_ids": [
+        "E6-DEADLINE",
+        "E6-STORAGE"
+      ],
+      "stage9_subproof": "persistent_pending_operation_fence_integrated_with_owned_IO",
+      "evidence_cases": [
+        "U9-UNKNOWN-LATE-WRITE",
+        "U9-FOREIGN-PROOF",
+        "U9-CANCEL-AFTER-INTENT",
+        "U9-CANCEL-BEFORE-ADMISSION",
+        "U9-CRASH-OP-ADMITTED",
+        "U9-CRASH-CACHE-CHECKPOINTED",
+        "U9-CRASH-INTENT-PERSISTED",
+        "U9-CRASH-SELECTOR-REPLACED",
+        "U9-CRASH-SELECTED-PERSISTED",
+        "U9-CRASH-CONFIRMED-PERSISTED"
+      ],
+      "still_missing": [
+        "General unknown-device-I/O termination and power-loss durability unproved",
+        "Recovery requires observed controlled child exit at completed whitelist boundary; unknown/partial cases stay blocked",
+        "Crash during this new recovery composition, device/Flush/ReplaceFile hangs and disposal faults not executed",
+        "Qualified GF participants and full storage laboratory still missing"
+      ]
+    }
+  ],
+  "no_contract_guarantee_relaxed": true,
+  "no_maintenance_approval_inferred": true,
+  "stage10_started": false
+}

@@ -1,0 +1,80 @@
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+// Internal fixture protocol, not an updater manifest. Hashes do NOT prevent whole-state restoration.
+internal sealed record InertPermit(long Sequence, string Version, string PayloadSha256, string EntrySha256, string ManifestSha256, string CacheSha256);
+internal sealed record OperationRecord(string Schema, string InstallationId, long Generation, string PreviousDigest,
+    string OperationId, string Phase, string BeforeStateDigest, string BeforeSelectorSha256,
+    InertPermit? Permit, BundleRef? Candidate, string Outcome, string AfterStateDigest);
+
+internal sealed class OperationJournal(string root, string installationId)
+{
+    internal string Folder => Path.Combine(root, "operations");
+    internal static bool Pending(OperationRecord? r) => r is not null && r.Phase != "settled";
+    internal (OperationRecord? Record, string Digest) Load() {
+        string[] files = Directory.GetFiles(Folder); Require(files.Length <= 64, "U9_OP_LIMIT");
+        Require(!files.Any(p => Path.GetFileName(p).StartsWith("pending-", StringComparison.Ordinal)), "U9_OP_INCOMPLETE");
+        Array.Sort(files, StringComparer.Ordinal); OperationRecord? previous = null; string digest = new('0', 64);
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        for (int i = 0; i < files.Length; i++) {
+            Require(Path.GetFileName(files[i]) == Name(i + 1), "U9_OP_GAP");
+            byte[] bytes = PersistentState.ReadFixtureFile(root, files[i]);
+            using var d = Json(bytes, 32768); var e = d.RootElement; Exact(e, "schema", "payload", "sha256");
+            Require(Text(e, "schema") == "gf-operation-fixture/9", "U9_OP_SCHEMA");
+            byte[] payload;
+            try { payload = Convert.FromBase64String(Text(e, "payload")); } catch (FormatException) { throw new Rejected("U9_OP_BASE64"); }
+            Require(Hash(payload) == Text(e, "sha256"), "U9_OP_CHECKSUM");
+            var r = StateCodec.Decode<OperationRecord>(payload); Validate(r);
+            Require(r.Generation == i + 1 && r.PreviousDigest == digest, "U9_OP_CHAIN");
+            if (previous is null || previous.Phase == "settled") {
+                Require(r.Phase == "admitted" && ids.Add(r.OperationId), "U9_OP_ADMISSION");
+            } else {
+                Require(r.OperationId == previous.OperationId && r.BeforeStateDigest == previous.BeforeStateDigest
+                    && r.BeforeSelectorSha256 == previous.BeforeSelectorSha256, "U9_OP_BINDING");
+                Require((previous.Phase, r.Phase) is ("admitted", "authorized") or ("admitted", "settled") or ("admitted", "recovering")
+                    or ("authorized", "prepared") or ("authorized", "recovering") or ("prepared", "settled")
+                    or ("prepared", "recovering") or ("recovering", "settled"), "U9_OP_TRANSITION");
+                Require(previous.Permit is null || r.Permit == previous.Permit, "U9_OP_AUTH_CHANGED");
+                Require(previous.Candidate is null || r.Candidate == previous.Candidate, "U9_OP_CANDIDATE_CHANGED");
+            }
+            previous = r; digest = Hash(bytes);
+        }
+        return (previous, digest);
+    }
+    private void Validate(OperationRecord r) {
+        Require(r.Schema == "gf-operation-fixture/9" && r.InstallationId == installationId && r.Generation is >0 and <=64
+            && Hex(r.OperationId, 32) && Hex(r.PreviousDigest, 64) && Hex(r.BeforeStateDigest, 64) && Hex(r.BeforeSelectorSha256, 64), "U9_OP_SCHEMA");
+        Require(r.Phase is "admitted" or "authorized" or "prepared" or "recovering" or "settled", "U9_OP_PHASE");
+        Require(r.Outcome is not null && r.AfterStateDigest is not null && r.Outcome.Length <= 40 && (r.Phase == "settled" ? Hex(r.AfterStateDigest, 64) : r.AfterStateDigest == ""), "U9_OP_OUTCOME");
+        if (r.Phase is "authorized" or "prepared") Require(r.Permit is not null, "U9_OP_NO_PERMIT");
+        if (r.Permit is { } p) {
+            Require(p.Sequence is >0 and <=9007199254740991 && p.Version == "0.0.0." + p.Sequence
+                && Hex(p.PayloadSha256, 64) && Hex(p.EntrySha256, 64) && Hex(p.ManifestSha256, 64) && Hex(p.CacheSha256, 64), "U9_OP_PERMIT");
+        }
+        if (r.Candidate is { } b) { StateCodec.Bundle(b); Require(r.Permit is { } bound && b.Sequence == bound.Sequence && b.Version == bound.Version && b.Sha256 == bound.EntrySha256, "U9_OP_PACKAGE_BINDING"); }
+        if (r.Phase == "prepared") Require(r.Candidate is not null, "U9_OP_NO_CANDIDATE");
+    }
+    internal OperationRecord Admit(string beforeState, string selectorHash, Action<string>? cut = null) {
+        var l = Load(); Require(!Pending(l.Record), "U9_PENDING_OPERATION");
+        var r = new OperationRecord("gf-operation-fixture/9", installationId, (l.Record?.Generation ?? 0) + 1, l.Digest,
+            Guid.NewGuid().ToString("N"), "admitted", beforeState, selectorHash, null, null, "", "");
+        Append(r, cut); return r;
+    }
+    internal OperationRecord Advance(OperationRecord current, string phase, InertPermit? permit = null, BundleRef? candidate = null, string outcome = "", string after = "") {
+        var l = Load(); Require(l.Record == current, "U9_OP_CONFLICT");
+        var r = current with { Generation = current.Generation + 1, PreviousDigest = l.Digest, Phase = phase,
+            Permit = permit ?? current.Permit, Candidate = candidate ?? current.Candidate, Outcome = outcome, AfterStateDigest = after };
+        Append(r, null); return r;
+    }
+    private void Append(OperationRecord r, Action<string>? cut) {
+        Validate(r); byte[] data = StateCodec.Encode(r);
+        byte[] bytes = StateCodec.Encode(new { schema = "gf-operation-fixture/9", payload = Convert.ToBase64String(data), sha256 = Hash(data) });
+        Require(bytes.Length <= 32768 && Directory.GetFiles(Folder).Length < 64, "U9_OP_SIZE");
+        string pending = Path.Combine(Folder, "pending-" + Guid.NewGuid().ToString("N") + ".fixture");
+        using (var file = new FileStream(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
+            cut?.Invoke("operation-record-created"); file.Write(bytes); file.Flush(true);
+        }
+        File.Move(pending, Path.Combine(Folder, Name(r.Generation)), false);
+    }
+    private static string Name(long n) => n.ToString("D16", System.Globalization.CultureInfo.InvariantCulture) + ".operation.json";
+}

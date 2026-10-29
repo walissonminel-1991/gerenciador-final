@@ -1,0 +1,62 @@
+{
+  "baseline": "2bc9f4228fd448445fbf181652e5af93005def20",
+  "scope": "synthetic-consultative-components-only",
+  "before": {
+    "ref": "2bc9f4228fd448445fbf181652e5af93005def20",
+    "source_sha256": {
+      "WindowsUpdateSearchPolicy.cs": "f91fa975de6c0d527b17e5675002c2e8ff00542c622aaca439219089286f00a4",
+      "UpdateResultHistory.cs": "3e3ac1d744b9cd48318d2ae64dc8a3b1005cf8a29d35c2214bf7cf0c89f5dd0f",
+      "RuckZuckModels.cs": "e2602d92ebe71452270178f92a35440858d0fb48256668726ed15e5f49cd6972",
+      "Matching.cs": "72fb2715cb0fc516ea28651004c81bb52443725ea569d54f6b6c31f514d64381",
+      "ProtectedApplications.cs": "5bfca4e1b477e68489807ef99fe429e65d8e881dcb15c3261af2121ca11e68f4",
+      "WingetConsultativeProvider.cs": "83cf52503e5e742967fccef589ce7bbc012539d3a0d43b47dec2c59e7d113861",
+      "OfficialReleaseSources.cs": "a0076033899cc76b6e3c457fc7e0908473d9b8b4509680e5f6ccd18fe7b30e4d",
+      "ApplicationIdentityCatalog.cs": "cab927b546cee20e976918124164353e0ac757b363a4aae4f3a1bb32062b57fc",
+      "CatalogoIdentidades.json": "fd71e3108f0c76245d2e699982d7eda0c849b58c069e942a419527f4cb645d4e"
+    },
+    "measurement": {
+      "sample_size": 7,
+      "findings": 1,
+      "requests": 1,
+      "candidates": 1,
+      "chrome_candidates": 0,
+      "excluded_candidates": 0,
+      "observed_sources": [
+        "firefox-stable"
+      ]
+    }
+  },
+  "after": {
+    "ref": "working-tree",
+    "source_sha256": {
+      "WindowsUpdateSearchPolicy.cs": "f91fa975de6c0d527b17e5675002c2e8ff00542c622aaca439219089286f00a4",
+      "UpdateResultHistory.cs": "3e3ac1d744b9cd48318d2ae64dc8a3b1005cf8a29d35c2214bf7cf0c89f5dd0f",
+      "RuckZuckModels.cs": "e2602d92ebe71452270178f92a35440858d0fb48256668726ed15e5f49cd6972",
+      "Matching.cs": "72fb2715cb0fc516ea28651004c81bb52443725ea569d54f6b6c31f514d64381",
+      "ProtectedApplications.cs": "5bfca4e1b477e68489807ef99fe429e65d8e881dcb15c3261af2121ca11e68f4",
+      "WingetConsultativeProvider.cs": "83cf52503e5e742967fccef589ce7bbc012539d3a0d43b47dec2c59e7d113861",
+      "OfficialReleaseSources.cs": "5265438fcc0ba91a223a75493b585440b15efae5a7421168da77b7840909e0ff",
+      "ApplicationIdentityCatalog.cs": "cab927b546cee20e976918124164353e0ac757b363a4aae4f3a1bb32062b57fc",
+      "CatalogoIdentidades.json": "479c2a8f7b46876ca7905a4e0008d9ce8bcb692b03c20e6d316110e25ae33c7b"
+    },
+    "measurement": {
+      "sample_size": 7,
+      "findings": 3,
+      "requests": 3,
+      "candidates": 3,
+      "chrome_candidates": 2,
+      "excluded_candidates": 0,
+      "observed_sources": [
+        "chrome-win",
+        "chrome-win64",
+        "firefox-stable"
+      ]
+    }
+  },
+  "real_pc_measurement": false,
+  "payloads_executed": 0,
+  "limitations": [
+    "Duas arquiteturas Chrome são uma família, não dois produtos novos.",
+    "A tela atual não fornece arquitetura comprovada para o nome simples Google Chrome."
+  ]
+}

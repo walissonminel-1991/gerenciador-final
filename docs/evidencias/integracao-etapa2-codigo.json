@@ -1,0 +1,659 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "stage": 2,
+  "date": "2026-10-27",
+  "timezone": "America/Fortaleza",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "pr": 65,
+  "draft": true,
+  "entry_commit": "275cfc396d22c8aff933a3879f0702d20596a2bc",
+  "code_commit": "06d7dce0bb47944f1efd18a10785fa77f5f0c8f7",
+  "final_documentary_head": "Consultar HEAD da PR65; fechamento posterior nao e build aprovada.",
+  "status": "code_integrated_validation_pending",
+  "version": "5.13.11.66",
+  "profile": "BETA-INTERNA-BLOQUEADA",
+  "origins": {
+    "40": {
+      "branch": "piloto-diagnostico-github-v5.13.11.2",
+      "sha": "ef13aef49083f357f6a14f4de46f8bc976dbd830"
+    },
+    "60": {
+      "branch": "work18-ampliacao-atualizacoes-seguras",
+      "sha": "2bc9f4228fd448445fbf181652e5af93005def20"
+    },
+    "61": {
+      "branch": "beta-piloto-consentimento-envio-20261026",
+      "sha": "f64600748b45b0ddc7e39c530ac56809c26f7ea8"
+    },
+    "62": {
+      "branch": "work-beta-retencao-issues-20261026",
+      "sha": "e530d724b7322963c8795b005f13ae6948a73e43"
+    },
+    "63": {
+      "branch": "experimento-chrome-versionhistory-20261027",
+      "sha": "04f59750739c6bdbaeb0bacd86ed2b734fba1271"
+    },
+    "64": {
+      "branch": "work-pre-beta-etapa0-20261027",
+      "sha": "357877e9acd628f84e5d9944e02e471fe319d1bc"
+    }
+  },
+  "main_preserved": "410d65e23546976db456337c71e4705f10217d36",
+  "accumulated_beta_contains_pr61": true,
+  "pr61_reimported": false,
+  "pr63_reimported": false,
+  "previous_mission_repeated": false,
+  "source_copy_verification": {
+    "files": 70,
+    "git_sha_match": 70
+  },
+  "imports": [
+    {
+      "path": ".github/workflows/build-windows.yml",
+      "mode": "100644",
+      "entry_blob": "40a929a0532f03d853de192ea43aa722fb9ab89f",
+      "beta_blob": "da93195297f81fdfd5b21c72bbf41e1bf6b3962f",
+      "result_blob": "da93195297f81fdfd5b21c72bbf41e1bf6b3962f",
+      "identical_to_beta": true
+    },
+    {
+      "path": ".github/workflows/integridade-externa.yml",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "1b526a3efa1d5c1ebe6ee3876196ec6ad256170d",
+      "result_blob": "1b526a3efa1d5c1ebe6ee3876196ec6ad256170d",
+      "identical_to_beta": true
+    },
+    {
+      "path": ".github/workflows/triagem-diagnostico-github.yml",
+      "mode": "100644",
+      "entry_blob": "79bce9d33565e2900129d31d061ff7669905e4d0",
+      "beta_blob": "22631a534244405a84bea98c0fe94531fc1eeb5f",
+      "result_blob": "22631a534244405a84bea98c0fe94531fc1eeb5f",
+      "identical_to_beta": true
+    },
+    {
+      "path": ".github/workflows/validar-candidata-windows.yml",
+      "mode": "100644",
+      "entry_blob": "e539571b618e7a7d17f6e1d7e60507e51b10b6e0",
+      "beta_blob": "8372061dca1cca1cbc99d75c5c0afb2451243524",
+      "result_blob": "fc373df744333a86f26eb1640fe9b8a92e9a1d90",
+      "identical_to_beta": false
+    },
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "entry_blob": "44e085ad349b4a726f38be53b5a7271d8794a5fd",
+      "beta_blob": "ac8704b0be958e3282b6a8f03d42399cf8809a7c",
+      "result_blob": "ac8704b0be958e3282b6a8f03d42399cf8809a7c",
+      "identical_to_beta": true
+    },
+    {
+      "path": "AnonymousTelemetry.cs",
+      "mode": "100644",
+      "entry_blob": "1778dee77eb61fdd5153fdf51fa1a2aa58db8efa",
+      "beta_blob": "020baef16a94278c9aefdf7cccc63c9b576da97c",
+      "result_blob": "020baef16a94278c9aefdf7cccc63c9b576da97c",
+      "identical_to_beta": true
+    },
+    {
+      "path": "BetaCloseCoordinator.cs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "6418cf12790faa90c5e4c1e456db7e4d17dffdc4",
+      "result_blob": "6418cf12790faa90c5e4c1e456db7e4d17dffdc4",
+      "identical_to_beta": true
+    },
+    {
+      "path": "BetaEndpointPolicy.cs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "1f8b416f6ff59598367aa6280d9c90f6c1898778",
+      "result_blob": "1f8b416f6ff59598367aa6280d9c90f6c1898778",
+      "identical_to_beta": true
+    },
+    {
+      "path": "BetaTelemetryPolicy.props",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "9017b4ed04d647b7b888bbc1d307dbd08d428307",
+      "result_blob": "9017b4ed04d647b7b888bbc1d307dbd08d428307",
+      "identical_to_beta": true
+    },
+    {
+      "path": "BetaTelemetryTransport.cs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "2dbf12cca215e431bfadba8e97a8d1f84a11eda4",
+      "result_blob": "2dbf12cca215e431bfadba8e97a8d1f84a11eda4",
+      "identical_to_beta": true
+    },
+    {
+      "path": "BetaTelemetryUploader.cs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "a05cd9a2f8c91039fdd1e94a25c7bfb3121a4136",
+      "result_blob": "a05cd9a2f8c91039fdd1e94a25c7bfb3121a4136",
+      "identical_to_beta": true
+    },
+    {
+      "path": "CHANGELOG.md",
+      "mode": "100644",
+      "entry_blob": "032a49d1a5d3c6ccec76f965781e97045f31021b",
+      "beta_blob": "09c986e30a027dfc6afe66d209addf76861352bf",
+      "result_blob": "09c986e30a027dfc6afe66d209addf76861352bf",
+      "identical_to_beta": true
+    },
+    {
+      "path": "GerenciadorAplicativos.csproj",
+      "mode": "100644",
+      "entry_blob": "4834842875b48ca5dd096eeef48a5dc2eb505735",
+      "beta_blob": "49fa1ec14973fa5f438ccaf7f0fb47945a04d357",
+      "result_blob": "49fa1ec14973fa5f438ccaf7f0fb47945a04d357",
+      "identical_to_beta": true
+    },
+    {
+      "path": "InstallerFileGuard.cs",
+      "mode": "100644",
+      "entry_blob": "c525be45162fb0b53ededfad7f70516aa0a7d3ab",
+      "beta_blob": "c88aabf063af94fee71fab1beb9726e845b043be",
+      "result_blob": "c88aabf063af94fee71fab1beb9726e845b043be",
+      "identical_to_beta": true
+    },
+    {
+      "path": "PRIVACY.md",
+      "mode": "100644",
+      "entry_blob": "ae220fb7747c0a002c5e568dad38129f71a89585",
+      "beta_blob": "3816b6d75b91bdf4cd81e4395771bc2f09bd7850",
+      "result_blob": "3816b6d75b91bdf4cd81e4395771bc2f09bd7850",
+      "identical_to_beta": true
+    },
+    {
+      "path": "PrivacyConsentPresentation.cs",
+      "mode": "100644",
+      "entry_blob": "71a4dbcd58f2ba86582e7e5efd137d1aff9153bf",
+      "beta_blob": "dfdff4f68213691037bd73eb897f0c08129c8b71",
+      "result_blob": "dfdff4f68213691037bd73eb897f0c08129c8b71",
+      "identical_to_beta": true
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "entry_blob": "a1b98383c924a16c63cb39f39970d05e6eca987a",
+      "beta_blob": "6315c2875b5384b4ee769d8d46d9e3a3ed20adf1",
+      "result_blob": "6315c2875b5384b4ee769d8d46d9e3a3ed20adf1",
+      "identical_to_beta": true
+    },
+    {
+      "path": "TelemetryConsentPolicy.cs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "1d0bc1733b5377a193f86c6f92226510e183d83b",
+      "result_blob": "1d0bc1733b5377a193f86c6f92226510e183d83b",
+      "identical_to_beta": true
+    },
+    {
+      "path": "TelemetryPrivacyDialog.cs",
+      "mode": "100644",
+      "entry_blob": "9ef7ba9b0a9a6582dacab2fdccdc72f06a6289eb",
+      "beta_blob": "e9d1fc9293f7969b665744acef073bcb4335649f",
+      "result_blob": "e9d1fc9293f7969b665744acef073bcb4335649f",
+      "identical_to_beta": true
+    },
+    {
+      "path": "TestesLayout/BetaCloseTests.cs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "6e06f07aa55166d4d36d14baa8889e65af3cb571",
+      "result_blob": "6e06f07aa55166d4d36d14baa8889e65af3cb571",
+      "identical_to_beta": true
+    },
+    {
+      "path": "TestesTelemetria/BetaBuildVerifier.cs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "6243ae90a5e4b690db312e358cc85f7a281b1afb",
+      "result_blob": "6243ae90a5e4b690db312e358cc85f7a281b1afb",
+      "identical_to_beta": true
+    },
+    {
+      "path": "TestesTelemetria/BetaTelemetryTransportTests.cs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "718a6703ce6cb2d11332a47eb567e749262bb9e1",
+      "result_blob": "718a6703ce6cb2d11332a47eb567e749262bb9e1",
+      "identical_to_beta": true
+    },
+    {
+      "path": "TestesTelemetria/Program.cs",
+      "mode": "100644",
+      "entry_blob": "e13eab26b948225e6bed064b098cc6eebf3cd350",
+      "beta_blob": "9aa2dd9fe641775de10e4eeeda1cb984e1c1d37a",
+      "result_blob": "9aa2dd9fe641775de10e4eeeda1cb984e1c1d37a",
+      "identical_to_beta": true
+    },
+    {
+      "path": "TestesTelemetria/TestesTelemetria.csproj",
+      "mode": "100644",
+      "entry_blob": "2f6ef16a88eca5e9e6698eaef791006381dde95c",
+      "beta_blob": "caefd5b654f597117c139bb686e841f87343182c",
+      "result_blob": "caefd5b654f597117c139bb686e841f87343182c",
+      "identical_to_beta": true
+    },
+    {
+      "path": "WindowChrome.cs",
+      "mode": "100644",
+      "entry_blob": "f338b16f65adead3f30667abbdba9842554c71b2",
+      "beta_blob": "54c94e7a4dea35d31480aa8c72967a4746f879a1",
+      "result_blob": "54c94e7a4dea35d31480aa8c72967a4746f879a1",
+      "identical_to_beta": true
+    },
+    {
+      "path": "app.manifest",
+      "mode": "100644",
+      "entry_blob": "553c3ace33c31e8e3a9d840abcde00767129cda4",
+      "beta_blob": "cace6cb635c1c39e19b9d046fad8a3411b860ec8",
+      "result_blob": "cace6cb635c1c39e19b9d046fad8a3411b860ec8",
+      "identical_to_beta": true
+    },
+    {
+      "path": "docs/AUDITORIA-BETA-RETENCAO-20261026.md",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "f5b975be55af5c3bfe6e25aa9105fc3a6682dd30",
+      "result_blob": "f5b975be55af5c3bfe6e25aa9105fc3a6682dd30",
+      "identical_to_beta": true
+    },
+    {
+      "path": "docs/AUDITORIA-BETA-RODADA2-20261026.md",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "9883fa3611306cd56953dd2de3f28400e0e3a090",
+      "result_blob": "9883fa3611306cd56953dd2de3f28400e0e3a090",
+      "identical_to_beta": true
+    },
+    {
+      "path": "docs/AVISO-PRIVACIDADE-BETA.md",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "533a236d582d43181b9f56fa3cfa2ca0d9b1286e",
+      "result_blob": "533a236d582d43181b9f56fa3cfa2ca0d9b1286e",
+      "identical_to_beta": true
+    },
+    {
+      "path": "docs/BETA-66-HOMOLOGACAO-CONECTADA.md",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "e62afa9a6e2bb8cc649015f0f1ee0be0c966eb52",
+      "result_blob": "e62afa9a6e2bb8cc649015f0f1ee0be0c966eb52",
+      "identical_to_beta": true
+    },
+    {
+      "path": "docs/BETA-APROVACOES.json",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "0174974a4d13fd12d5a56803d9a5c638ab572d2d",
+      "result_blob": "0174974a4d13fd12d5a56803d9a5c638ab572d2d",
+      "identical_to_beta": true
+    },
+    {
+      "path": "docs/MISSAO-BETA.md",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "79baf4888e98900709bc9a78382d45ebf5cf1aa2",
+      "result_blob": "79baf4888e98900709bc9a78382d45ebf5cf1aa2",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/IMPLANTACAO-PRIVADA.md",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "bf45794e8e9bda3aecb338c41a238afcd40e307a",
+      "result_blob": "bf45794e8e9bda3aecb338c41a238afcd40e307a",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/OPERACAO-RODADA2.md",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "32fc8af6c887b91b6e104b16d6052149b6a21333",
+      "result_blob": "32fc8af6c887b91b6e104b16d6052149b6a21333",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/endpoint-waf.proposed.json",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "19755fd631dc5520d312f72210466a03b30a5104",
+      "result_blob": "19755fd631dc5520d312f72210466a03b30a5104",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/finalization.test.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "8e317a477b966f305374beb5f7fe944fee9dd249",
+      "result_blob": "8e317a477b966f305374beb5f7fe944fee9dd249",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/github-rehearsal.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "524b42f7e09fa213aec30a4f38db63e0ee31713e",
+      "result_blob": "524b42f7e09fa213aec30a4f38db63e0ee31713e",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/github-retention.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "4c55b2e0979a420515e6ee31d50e8dabfc1726f7",
+      "result_blob": "4c55b2e0979a420515e6ee31d50e8dabfc1726f7",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/health-observer.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "51cc08cf526b83f09ce41b11409514a6f135d86f",
+      "result_blob": "51cc08cf526b83f09ce41b11409514a6f135d86f",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/ingest.test.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "58f4d97d9766a8c123efa4af107cb18a51ea041a",
+      "result_blob": "58f4d97d9766a8c123efa4af107cb18a51ea041a",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/migrations/0002_github_retention.sql",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "0db48e1210ae5192200a05f256ff148f5434dfd1",
+      "result_blob": "0db48e1210ae5192200a05f256ff148f5434dfd1",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/observability.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "e7aac216b2e0711f6f6537dbb3801a5d7cea573d",
+      "result_blob": "e7aac216b2e0711f6f6537dbb3801a5d7cea573d",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/plan-migration-local.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "f6ec4a13f3fe1283f8493053cfaf3a374488d96f",
+      "result_blob": "f6ec4a13f3fe1283f8493053cfaf3a374488d96f",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/policy.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "7db39cb0a502e565bf77805a0971ffe9da8686e2",
+      "result_blob": "7db39cb0a502e565bf77805a0971ffe9da8686e2",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/retention.test.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "022620af7d9a1857deb24c625d220432badac97f",
+      "result_blob": "022620af7d9a1857deb24c625d220432badac97f",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/round2.test.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "3970d06fa653f7788eeb1a24ba40055f7216ae5a",
+      "result_blob": "3970d06fa653f7788eeb1a24ba40055f7216ae5a",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/schema-migration.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "8c04c32accee35ee82d8fa3827ee56d6e48514af",
+      "result_blob": "8c04c32accee35ee82d8fa3827ee56d6e48514af",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/schema.sql",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "35dc606a2eb38dbb1aaa166d6bd955cf6c318d7d",
+      "result_blob": "35dc606a2eb38dbb1aaa166d6bd955cf6c318d7d",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/strict-json.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "1a67472bf2befa9be52b2c69ed1ef1b1cfe85c0d",
+      "result_blob": "1a67472bf2befa9be52b2c69ed1ef1b1cfe85c0d",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/test-support.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "a11a031b7b9f75b11cb9f55ba18ff72c1badb295",
+      "result_blob": "a11a031b7b9f75b11cb9f55ba18ff72c1badb295",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/test.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "f93b67b36b6c37682dd26ffac1bc2b9de17cd8f7",
+      "result_blob": "f93b67b36b6c37682dd26ffac1bc2b9de17cd8f7",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/worker.mjs",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "78f0feadcad02085a07d50e32f6297d288a61369",
+      "result_blob": "78f0feadcad02085a07d50e32f6297d288a61369",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/wrangler.observer.toml.example",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "1205da98f8e2d06c3e07b10a9c07aa215559dcdc",
+      "result_blob": "1205da98f8e2d06c3e07b10a9c07aa215559dcdc",
+      "identical_to_beta": true
+    },
+    {
+      "path": "prototipos/beta-telemetria/wrangler.toml.example",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "cfdd64a78798ce7cd0664c5e200a4cc1b7c5cdc1",
+      "result_blob": "cfdd64a78798ce7cd0664c5e200a4cc1b7c5cdc1",
+      "identical_to_beta": true
+    },
+    {
+      "path": "scripts/Compilar-Beta-Conectada.ps1",
+      "mode": "100644",
+      "entry_blob": null,
+      "beta_blob": "a083bfbf2e877ac128ed4e9919a802c17648cc80",
+      "result_blob": "a083bfbf2e877ac128ed4e9919a802c17648cc80",
+      "identical_to_beta": true
+    },
+    {
+      "path": "scripts/test_pacote.py",
+      "mode": "100644",
+      "entry_blob": "7f7b10f11018d82ff18648f22514bc791c16877e",
+      "beta_blob": "391ff07165cfe4f383faf26c16a820ac4f4b65d0",
+      "result_blob": "391ff07165cfe4f383faf26c16a820ac4f4b65d0",
+      "identical_to_beta": true
+    },
+    {
+      "path": "scripts/test_politicas_seguranca.py",
+      "mode": "100644",
+      "entry_blob": "1c2ac1914dedc55fa0f082e06e351ea0597f2082",
+      "beta_blob": "a6b7a0a982eaa4d146aa8ab162a6e867cce838e3",
+      "result_blob": "a6b7a0a982eaa4d146aa8ab162a6e867cce838e3",
+      "identical_to_beta": true
+    },
+    {
+      "path": "scripts/verificar_pacote.py",
+      "mode": "100644",
+      "entry_blob": "aa0f1028936fa1ab8adcba70effb31cdc2cac8be",
+      "beta_blob": "44523277dcb274981151723a6dfc526a52e6f164",
+      "result_blob": "44523277dcb274981151723a6dfc526a52e6f164",
+      "identical_to_beta": true
+    }
+  ],
+  "shared_files": [
+    {
+      "path": "Program.cs",
+      "entry_blob": "fbae097acdd2b177e8e72013f199a28568535b90",
+      "beta_blob": "c2c2d8c189e37325fc6287e541c9cd7e26dd1cf6",
+      "result_blob": "6e86f817977d76e79898631a1cfa62f49abe0097"
+    },
+    {
+      "path": "TestesLayout/Program.cs",
+      "entry_blob": "c851edb07556a839f283e30d947a88ffb6e31b53",
+      "beta_blob": "5f58f85b8949c53c4b3af50a61456446a93122eb",
+      "result_blob": "d505302c0fbc42e2215e3562f0a260f34543ac81"
+    },
+    {
+      "path": "docs/PROGRESSO.json",
+      "entry_blob": "ba573d94003d7ede950158f7bf841f3425e5528e",
+      "beta_blob": "54cbd5621f24139d9d68519580ca0780944be523",
+      "result_blob": "871607822e23c82e206007a53c9d608a93e96555"
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "entry_blob": "649796098b89498aea5d3c46893238edbb44528e",
+      "beta_blob": "b6e0c779ab2ccd10405fda796c40c2517849e91f",
+      "result_blob": "fceea8608f0b9ebc359074f0f2e6c9ae088d4267"
+    }
+  ],
+  "workflow_adaptation": {
+    "path": ".github/workflows/validar-candidata-windows.yml",
+    "reason": "Preservar --official-live obrigatorio da pre-BETA em Windows 2022/2025; importacao literal #62 o retiraria.",
+    "old_ci_command_blocks_identical": 42,
+    "old_ci_command_blocks_equivalent_flags": 1,
+    "driver_dispatcher_blob": "80fc0dcd2c15c3ebf1f6da95d12c24d54313bd4a",
+    "commands_executed": false
+  },
+  "structural_checks": {
+    "status": "passed",
+    "source_copies_git_sha_verified": 70,
+    "beta_exclusive_paths": 58,
+    "beta_exclusive_blobs_unchanged": 57,
+    "workflow_adapted_to_preserve_required_gate": ".github/workflows/validar-candidata-windows.yml",
+    "old_ci_blocks_identical": 42,
+    "old_ci_blocks_equivalent_flags": 1,
+    "product_test_sources_excluded": 92,
+    "linked_project_paths_resolved": 105,
+    "roadmap_total": 42,
+    "roadmap_done": 27,
+    "source_candidate_and_beta_preserved": true,
+    "pre_beta_history_preserved": true,
+    "empty_remote_config": true,
+    "remote_approvals_unchanged_false": true,
+    "operational_flags_unchanged_no": true,
+    "conflict_markers": 0,
+    "version": "5.13.11.66",
+    "product_tests_run": 0,
+    "builds_started": 0,
+    "ci_status": "not_run"
+  },
+  "progress_reconciliation": {
+    "pre_beta_root_keys_preserved": [
+      "sections",
+      "latest_real_test",
+      "latest_real_test_pc_fraco",
+      "latest_real_test_pc_forte",
+      "historical_real_tests_before_pre_beta_etapa6",
+      "pre_beta_physical_evidence",
+      "pre_beta_final_assessment"
+    ],
+    "beta_root_keys_preserved": [
+      "candidate",
+      "beta"
+    ],
+    "all_other_pre_beta_fields_preserved": true,
+    "new_status_key": "integration_final",
+    "inherited_candidate_metadata_historical": true,
+    "roadmap_done": 27,
+    "roadmap_total": 42
+  },
+  "safety": {
+    "vlc": "Somente inventario, sem acoes, novos testes especificos, consultas ou verificacoes. Arquivos da exclusao preservados.",
+    "winget_com": "Opcional, nao bloqueante, somente consultivo; nao reinvestigado.",
+    "driver_management_enabled": false,
+    "remote_delivery_enabled": false,
+    "approved_endpoint_list_empty": true,
+    "reviewed_notice_hash_empty": true,
+    "approvals_unchanged_false": true,
+    "pilot_enabled": "no",
+    "github_export_enabled": "no",
+    "remote_infrastructure_inspected": false,
+    "avg_protections_changed": false,
+    "avg_homologation_claimed": false,
+    "personal_pc_accessed": false,
+    "release_deploy_distribution": false,
+    "new_package_created": false
+  },
+  "ci": {
+    "status": "not_run",
+    "runs_started": 0,
+    "skip_ci": true,
+    "parent_approval_transferred": false,
+    "next_stage": 3
+  },
+  "known_limits": [
+    "Nao compilado ou testado em execucao conjunta; CI propria reservada para Etapa3.",
+    "Sem artefato e sem prova AVG/fisica/conectada.",
+    "Perfil BETA LOCAL restrito ainda depende das etapas posteriores e do contrato de distribuicao.",
+    "Falha externa historica preservada sem reinvestigacao/reexecucao do alvo excluido."
+  ],
+  "publication_verification": {
+    "code_commit": "06d7dce0bb47944f1efd18a10785fa77f5f0c8f7",
+    "all_blobs_verified": 433,
+    "unchanged_entry_blobs": 367,
+    "scope_paths": 66,
+    "own_workflow_runs": 0,
+    "parents": 1,
+    "status": "passed",
+    "original_refs_unchanged": 7
+  },
+  "next_stage": 3,
+  "stage3_started": false,
+  "prepublication_checks": {
+    "changed_paths": 66,
+    "new_files": 41,
+    "modified_files": 25,
+    "expected_blobs": 433,
+    "json_parsed": 4,
+    "xml_parsed": 4,
+    "yaml_parsed": 4,
+    "local_links_checked": 100,
+    "scope": "passed",
+    "product_tests_run": 0,
+    "builds_started": 0,
+    "whitespace_diff_checks": "passed_no_diagnostics"
+  },
+  "result_blob_scope": "code_commit; fechamento posterior altera somente Markdown/JSON de continuidade, sem codigo/testes/workflows.",
+  "documentary_closure_paths": [
+    "docs/PROGRESSO.json",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/WORK-INTEGRACAO-ETAPA2-CODIGO.md",
+    "docs/evidencias/integracao-etapa2-codigo.json"
+  ]
+}

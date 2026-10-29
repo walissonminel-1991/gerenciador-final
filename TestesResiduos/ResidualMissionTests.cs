@@ -218,8 +218,6 @@ internal static class ResidualMissionTests
             BroadResidualDiscovery.ProductFromChild("EditorAlpha", "BackupsPro") == "BackupsPro" &&
             subordinate.All(n => !BroadResidualDiscovery.EligibleName(n)),
             "Nomes de produtos parecidos continuam distintos de nomes exatos de dados");
-        check(HistoricalResidualAudit.Rules.Count == 5 && HistoricalResidualAudit.Rules.Any(r => r.Id == "vlc-profile"),
-            "Catálogo histórico valida nomes curtos VLC e carrega todas as cinco regras");
         var app = new ProgramEntry { Name = "Editor Antigo", MsiProductCode = "{ID-SINTETICO}" };
         check(UninstallResiduals.StillInstalled(app, new[] { new ProgramEntry
             { Name = "Nome Novo", MsiProductCode = "{ID-SINTETICO}" } }),

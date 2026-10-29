@@ -1,0 +1,190 @@
+{
+  "schema": "gf-stage9-executions/1",
+  "stage": 9,
+  "entry_commit": "eccdd16ddcfa247fd2a72df82bcd2a243ff49743",
+  "runs": [
+    {
+      "run_id": 40810376313,
+      "run_number": 1,
+      "attempt": 1,
+      "job_id": 123239001165,
+      "conclusion": "failure",
+      "stage": "build_before_tests"
+    },
+    {
+      "run_id": 40810646898,
+      "run_number": 2,
+      "attempt": 1,
+      "job_id": 123239870882,
+      "conclusion": "success",
+      "total": 22,
+      "passed": 22,
+      "failed": 0
+    },
+    {
+      "run_id": 40811610734,
+      "run_number": 3,
+      "attempt": 1,
+      "job_id": 123242980250,
+      "conclusion": "success",
+      "total": 1,
+      "passed": 1,
+      "failed": 0
+    }
+  ],
+  "initial_failure": "CS0029 before any tests: discard assignment resolved to CancellationToken parameter; removed assignment",
+  "initial_failure_evidence": "docs/evidencias/autoatualizador-etapa9-build-inicial.json",
+  "focused_followup": {
+    "reason": "Static review found pre-canceled no-registration disposal could reject fixture acknowledgment; added explicit zero-operation close branch",
+    "previous_behavior_executed_as_a_failing_test": false,
+    "new_case": "U9-CANCEL-BEFORE-ADMISSION",
+    "previous_22_cases_rerun": false,
+    "change_scope": "No-registered-operation close branch and its test/prefix only; acquired-operation, TUF, journal and recovery paths unchanged"
+  },
+  "coverage_composition": "22 integrated cases at C2 + one admission case at C3; NOT a full 23-case run of final code",
+  "unique_cases": 23,
+  "coverage": [
+    {
+      "id": "U9-FLOW",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-CACHE-UNCHANGED",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-ROTATION-CACHE",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-REPLAY-LOWER",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-REPLAY-REPLAY2FRESH3",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-CACHE-ANCHOR",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-PACKAGE-MIXED",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-PACKAGE-WRONG-IDENTITY",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-PREPARED-PINS",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-UNKNOWN-LATE-WRITE",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-CRASH-OP-ADMITTED",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-CRASH-CACHE-CHECKPOINTED",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-CRASH-INTENT-PERSISTED",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-CRASH-SELECTOR-REPLACED",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-CRASH-SELECTED-PERSISTED",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-CRASH-CONFIRMED-PERSISTED",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-PARTIAL-STATE",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-CORRUPT-OP",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-RESTORE-ONE-DOMAIN",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-FOREIGN-PROOF",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-PERSISTED-CLOCK",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-CANCEL-AFTER-INTENT",
+      "status": "passed",
+      "commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+      "run_id": 40810646898
+    },
+    {
+      "id": "U9-CANCEL-BEFORE-ADMISSION",
+      "status": "passed",
+      "commit": "32e8d9064b49e8b0ed7ac99edd4168f2f34aa87a",
+      "run_id": 40811610734
+    }
+  ],
+  "previous_suites_executed": false,
+  "automatic_retries": 0,
+  "artifacts": 0,
+  "stage10_started": false
+}

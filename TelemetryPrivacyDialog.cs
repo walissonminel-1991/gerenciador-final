@@ -4,8 +4,7 @@ using System.Windows.Forms;
 
 namespace GerenciadorAplicativos;
 
-// A primeira fase nao oferece envio; somente registra preferencia e relatorio
-// local resumido. Uma futura ativacao de rede exigira novo consentimento.
+// Aceite remoto especifico, versionado e bloqueado sem receptor/aviso aprovados.
 internal sealed class TelemetryPrivacyDialog : Form
 {
     internal TelemetryPrivacyDialog(AnonymousTelemetry recorder)
@@ -44,7 +43,20 @@ internal sealed class TelemetryPrivacyDialog : Form
                    "não limita o uso do programa.\n\n" +
                    "Você pode simular sem aceitar a coleta."
         };
+#if GF_BETA
+        notice.Text = BetaRuntimePolicy.IsLocalBeta ? BetaRuntimePolicy.LocalNotice : TelemetryConsentPolicy.RemoteNotice;
+        // O aviso ultrapassa uma altura fixa em notebook/DPI alto: permitir rolagem e copia.
+        var scrollingNotice = new TextBox
+        {
+            Name = "PrivacyBetaNotice", Multiline = true, ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical, WordWrap = true, TabStop = true,
+            Dock = DockStyle.Fill, BorderStyle = BorderStyle.None,
+            BackColor = BackColor, ForeColor = ForeColor, Text = notice.Text
+        };
+        root.Controls.Add(scrollingNotice, 0, 0);
+#else
         root.Controls.Add(notice, 0, 0);
+#endif
 
         var preview = new DarkLogView
         {
@@ -75,6 +87,12 @@ internal sealed class TelemetryPrivacyDialog : Form
             Size = new Size(115, 34), BackColor = AppServices.Blue,
             ForeColor = Color.White, Margin = new Padding(6, 0, 0, 0)
         };
+#if GF_BETA
+        accept.Text = "Aceito envio automático";
+        accept.Enabled = BetaTelemetryUploader.IsConfigured;
+        if (BetaRuntimePolicy.IsLocalBeta) accept.Text = "Coleta remota indisponível";
+        else if (!accept.Enabled) scrollingNotice.Text += "\n\nSem receptor configurado: aceitar e enviar ficam bloqueados.";
+#endif
         var decline = new ModernButton
         {
             Text = "Não participar / Desativar", DialogResult = DialogResult.No,
@@ -119,6 +137,30 @@ internal sealed class TelemetryPrivacyDialog : Form
         // Nao definir AcceptButton. Enter nao pode aprovar coleta por acidente.
     }
 
+    internal void FitPrivacyArea(Size available, int dpi)
+    {
+        float scale = Math.Max(1, dpi) / 96f;
+        MinimumSize = Size.Empty;
+        MaximumSize = Size.Empty;
+        Size border = new(Width - ClientSize.Width, Height - ClientSize.Height);
+        ClientSize = new Size(Math.Max(1, Math.Min((int)(586 * scale), available.Width - border.Width - 24)),
+            Math.Max(1, Math.Min((int)(505 * scale), available.Height - border.Height - 24)));
+        var root = Controls.OfType<TableLayoutPanel>().Single();
+        float buttons = 90 * scale;
+        root.RowStyles[2].Height = buttons;
+        root.RowStyles[0].Height = Math.Min(207 * scale,
+            Math.Max(48 * scale, ClientSize.Height - root.Padding.Vertical - buttons - 50 * scale));
+        root.PerformLayout();
+        MinimumSize = Size;
+        MaximumSize = Size;
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        FitPrivacyArea(Screen.FromControl(Owner ?? this).WorkingArea.Size, DeviceDpi);
+    }
+
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
@@ -141,6 +183,7 @@ internal sealed partial class MainForm
 {
     private void RefreshPrivacyStatus()
     {
+#if !GF_BETA
         if (_privacyStatusButton is null || _privacyStatusButton.IsDisposed) return;
         var state = AnonymousTelemetryContext.Current?.Consent ?? TelemetryConsent.NotAsked;
         _privacyStatusButton.Text = PrivacyConsentPresentation.ButtonLabel(state);
@@ -151,20 +194,21 @@ internal sealed partial class MainForm
         _privacyStatusButton.BackColor = state == TelemetryConsent.LocalOnly
             ? Color.FromArgb(43, 66, 89) : AppServices.Gray;
         _privacyStatusButton.Invalidate();
+#endif
     }
 
     private void OfferAnonymousDiagnosticConsent(bool firstRun = false)
     {
         var collector = AnonymousTelemetryContext.Current;
         if (collector is null || IsDisposed ||
-            (firstRun && collector.Consent != TelemetryConsent.NotAsked))
+            (firstRun && collector.Consent is TelemetryConsent.Declined or TelemetryConsent.RemoteBeta))
             return;
         using var dialog = new TelemetryPrivacyDialog(collector);
         var decision = dialog.ShowDialog(this);
         if (decision is not (DialogResult.Yes or DialogResult.No)) return;
 
         var choice = decision == DialogResult.Yes
-            ? TelemetryConsent.LocalOnly : TelemetryConsent.Declined;
+            ? TelemetryConsent.RemoteBeta : TelemetryConsent.Declined;
         bool saved = collector.SetConsent(choice);
         RefreshPrivacyStatus();
         if (!saved)
@@ -174,8 +218,8 @@ internal sealed partial class MainForm
                 : "Não foi possível salvar a preferência. A escolha anterior foi mantida.");
             return;
         }
-        Status(choice == TelemetryConsent.LocalOnly
-            ? "Diagnóstico local voluntário ativo. Nenhum dado é enviado pela internet."
+        Status(choice == TelemetryConsent.RemoteBeta
+            ? "BETA: envio de contagens autorizado ao fechar; revogável na bandeja."
             : "Diagnóstico colaborativo desativado; dados pendentes apagados.");
     }
 }

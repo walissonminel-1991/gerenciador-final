@@ -15,8 +15,6 @@ internal static class ScopedAppProfileCleanup
             return new("foobar2000", ["foobar2000", "foobar2000-v2"], ["foobar2000"], "foobar2000");
         if (ResidualAudit.TrackedApplicationStillPresent("OBS Studio", [product]))
             return new("OBS Studio", ["obs-studio"], ["obs64", "obs32"], "OBS Studio");
-        if (ResidualAudit.TrackedApplicationStillPresent("VLC media player", [product]))
-            return new("VLC media player", ["vlc"], ["vlc"], @"VideoLAN\VLC");
         return null;
     }
 

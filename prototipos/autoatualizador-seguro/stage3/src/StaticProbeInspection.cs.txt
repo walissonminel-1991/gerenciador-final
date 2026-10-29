@@ -1,0 +1,156 @@
+using System.Buffers.Binary;
+using System.Text;
+using System.Xml;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+// Bounded static parsing only. No Assembly.Load, LoadLibrary, PEReader or execution of imported files.
+internal sealed class BoundedPe
+{
+    private readonly byte[] bytes;
+    private readonly List<(uint Rva,uint VirtualSize,uint Raw,uint RawSize)> sections=[];
+    private readonly int optional,directories;
+    internal ushort Machine {get;}
+    internal bool Managed {get;}
+    internal uint ClrFlags {get;}
+    internal ushort Magic {get;}
+    internal BoundedPe(byte[] bytes)
+    {
+        this.bytes=bytes; Require(bytes.Length is >=256 and <=256*1024*1024,"PE_SIZE");
+        Require(U16(0)==0x5a4d,"PE_DOS"); int pe=checked((int)U32(60));
+        Require(pe>=64 && pe<bytes.Length-256 && U32(pe)==0x4550,"PE_SIGNATURE");
+        Machine=U16(pe+4); int count=U16(pe+6),size=U16(pe+20); optional=pe+24;
+        Require(count is >0 and <=96 && size is >=224 and <=512,"PE_HEADER");
+        Magic=U16(optional); Require(Magic is 0x10b or 0x20b,"PE_MAGIC");
+        directories=optional+(Magic==0x20b?112:96);
+        Require(U32(directories-4)>=15 && directories+15*8<=optional+size,"PE_DIRECTORIES");
+        int table=optional+size;
+        for(int i=0;i<count;i++)
+        {
+            int p=table+i*40; uint vs=U32(p+8),rva=U32(p+12),rawSize=U32(p+16),raw=U32(p+20);
+            Require(raw+(long)rawSize<=bytes.Length,"PE_SECTION_RANGE"); sections.Add((rva,vs,raw,rawSize));
+        }
+        uint cli=U32(directories+14*8); Managed=cli!=0;
+        if(Managed) {int p=Rva(cli,20);Require(U32(p)>=72,"PE_CLR_HEADER");ClrFlags=U32(p+16);}
+    }
+    private ushort U16(int p){Require(p>=0&&p<=bytes.Length-2,"PE_RANGE");return BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(p));}
+    private uint U32(int p){Require(p>=0&&p<=bytes.Length-4,"PE_RANGE");return BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(p));}
+    private int Rva(uint rva,int length)
+    {
+        foreach(var s in sections)if(rva>=s.Rva && rva-s.Rva+(long)length<=s.RawSize)
+        {long p=s.Raw+(long)(rva-s.Rva);Require(p>=0&&p+length<=bytes.Length,"PE_RVA");return checked((int)p);}
+        throw new Rejected("PE_RVA");
+    }
+    internal void Architecture(bool executable)
+    {
+        Require(Machine is 0x8664 or 0x14c,"PE_ARCHITECTURE");
+        Require(Machine!=0x14c || (Managed && (ClrFlags&2)==0),"PE_32BIT_REQUIRED");
+        if(executable)Require(Machine==0x8664 && Magic==0x20b && U32(optional+16)>0,"PE_ENTRYPOINT");
+    }
+    internal byte[] Resource(uint type)
+    {
+        uint rva=U32(directories+16),size=U32(directories+20);
+        Require(rva!=0 && size is >=16 and <=4*1024*1024,"PE_RESOURCE_SIZE");int start=Rva(rva,checked((int)size));
+        int Find(int relative,uint? wanted)
+        {
+            Require(relative>=0 && relative<=size-16,"PE_RESOURCE_RANGE");int p=start+relative,count=U16(p+12)+U16(p+14);
+            Require(count is >0 and <=256 && relative+16L+count*8<=size,"PE_RESOURCE_ENTRIES");
+            for(int i=0;i<count;i++) {uint id=U32(p+16+i*8),child=U32(p+20+i*8); if(wanted is null || id==wanted)return unchecked((int)child);}
+            throw new Rejected("PE_RESOURCE_MISSING");
+        }
+        int first=Find(0,type);Require((first&int.MinValue)!=0,"PE_RESOURCE_TREE");
+        int second=Find(first&int.MaxValue,null);Require((second&int.MinValue)!=0,"PE_RESOURCE_TREE");
+        int data=Find(second&int.MaxValue,null);Require(data>=0 && data<=size-16,"PE_RESOURCE_DATA");
+        int d=start+data; int n=checked((int)U32(d+4));Require(n is >0 and <=65536,"PE_RESOURCE_PAYLOAD");
+        return bytes.AsSpan(Rva(U32(d),n),n).ToArray();
+    }
+    internal void ManifestAndVersion()
+    {
+        var settings=new XmlReaderSettings{DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null,MaxCharactersInDocument=65536};
+        using var source=new MemoryStream(Resource(24));using var reader=XmlReader.Create(source,settings);
+        var xml=new System.Xml.XmlDocument{XmlResolver=null};xml.Load(reader);
+        var levels=xml.GetElementsByTagName("requestedExecutionLevel","urn:schemas-microsoft-com:asm.v3");
+        Require(levels.Count==1 && levels[0]!.Attributes?["level"]?.Value=="asInvoker" && levels[0]!.Attributes?["uiAccess"]?.Value=="false","PE_UAC");
+        var ids=xml.GetElementsByTagName("assemblyIdentity","urn:schemas-microsoft-com:asm.v1");
+        Require(ids.Count==1 && ids[0]!.Attributes?["version"]?.Value=="0.0.0.1" && ids[0]!.Attributes?["name"]?.Value=="GF.Updater.InertProbe","PE_MANIFEST_ID");
+        byte[] version=Resource(16);int signature=-1;
+        for(int i=0;i<=version.Length-16;i+=4)if(BinaryPrimitives.ReadUInt32LittleEndian(version.AsSpan(i))==0xfeef04bd){signature=i;break;}
+        Require(signature>=0 && BinaryPrimitives.ReadUInt32LittleEndian(version.AsSpan(signature+8))==0
+            && BinaryPrimitives.ReadUInt32LittleEndian(version.AsSpan(signature+12))==1,"PE_FILE_VERSION");
+    }
+}
+
+internal static class StaticProbeInspection
+{
+    internal const string Exe="GF.Updater.InertProbe.exe";
+    internal static readonly string[] Required=[Exe,"GF.Updater.InertProbe.dll","GF.Updater.InertProbe.deps.json",
+        "GF.Updater.InertProbe.runtimeconfig.json","coreclr.dll","hostfxr.dll","hostpolicy.dll","System.Windows.Forms.dll",
+        "Licenses/DotNET/LICENSE.txt","Licenses/DotNET/THIRD-PARTY-NOTICES.txt",
+        "Licenses/WindowsDesktop/LICENSE.txt","Licenses/WindowsDesktop/PACKAGE-METADATA.nuspec"];
+    internal static Dictionary<string,byte[]> ReadAndVerify(string root,Dictionary<string,string> authenticatedRecipe,string fixtureRoot)
+    {
+        Require(authenticatedRecipe.Count is >0 and <=512,"PROBE_FILE_COUNT");
+        var paths=Directory.GetFiles(root,"*",SearchOption.AllDirectories).ToDictionary(p=>Path.GetRelativePath(root,p).Replace('\\','/'),StringComparer.Ordinal);
+        Require(paths.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(authenticatedRecipe.Keys),"PROBE_EXACT_CONTENT");
+        Require(Required.All(paths.ContainsKey),"PROBE_REQUIRED");
+        long total=0;var files=new Dictionary<string,byte[]>(StringComparer.Ordinal);var names=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach(var p in paths)
+        {
+            ZipInspection.SafeName(p.Key);Require(names.Add(p.Key),"PROBE_CASE_COLLISION");
+            Require((File.GetAttributes(p.Value)&FileAttributes.ReparsePoint)==0,"PROBE_LINK");
+            byte[] bytes;
+            if(OperatingSystem.IsWindows()){using var pin=WindowsFileGuard.Open(fixtureRoot,p.Value);bytes=pin.Read(256*1024*1024);}
+            else {using var input=File.OpenRead(p.Value);Require(input.Length is >0 and <=256*1024*1024,"PROBE_BYTES");bytes=new byte[(int)input.Length];input.ReadExactly(bytes);}
+            Require((total+=bytes.Length)<=256L*1024*1024,"PROBE_BYTES");
+            Require(Hash(bytes)==authenticatedRecipe[p.Key],"PROBE_HASH"); files.Add(p.Key,bytes);
+            if(p.Key.EndsWith(".dll",StringComparison.OrdinalIgnoreCase) || p.Key.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))
+            {var pe=new BoundedPe(bytes);pe.Architecture(p.Key==Exe);if(p.Key==Exe)pe.ManifestAndVersion();}
+        }
+        using var runtime=Json(files["GF.Updater.InertProbe.runtimeconfig.json"],16384);
+        var options=runtime.RootElement.GetProperty("runtimeOptions");
+        Require(!options.TryGetProperty("framework",out _) && !options.TryGetProperty("frameworks",out _)
+            && !options.TryGetProperty("additionalProbingPaths",out _),"PROBE_NOT_SELF_CONTAINED");
+        var frameworks=options.GetProperty("includedFrameworks");Require(frameworks.GetArrayLength()==2,"PROBE_FRAMEWORKS");
+        var frameworksByName=frameworks.EnumerateArray().ToDictionary(e=>Text(e,"name"),e=>Text(e,"version"),StringComparer.Ordinal);
+        Require(frameworksByName.Count==2 && frameworksByName.GetValueOrDefault("Microsoft.NETCore.App")=="10.0.13"
+            && frameworksByName.GetValueOrDefault("Microsoft.WindowsDesktop.App")=="10.0.13","PROBE_RUNTIME_VERSION");
+        using var deps=Json(files["GF.Updater.InertProbe.deps.json"],512*1024);
+        var targets=deps.RootElement.GetProperty("targets"); string target=Text(deps.RootElement.GetProperty("runtimeTarget"),"name");
+        Require(target.EndsWith("/win-x64",StringComparison.Ordinal),"PROBE_RUNTIME_ID");var graph=targets.GetProperty(target);
+        Require(graph.TryGetProperty("runtimepack.Microsoft.NETCore.App.Runtime.win-x64/10.0.13",out _)
+            && graph.TryGetProperty("runtimepack.Microsoft.WindowsDesktop.App.Runtime.win-x64/10.0.13",out _),"PROBE_RUNTIME_DEPENDENCIES");
+        var binaries=new HashSet<string>(StringComparer.Ordinal){Exe};
+        foreach(var library in graph.EnumerateObject())foreach(string group in new[]{"runtime","native","resources"})
+            if(library.Value.TryGetProperty(group,out var assets))foreach(var asset in assets.EnumerateObject())
+            {
+                ZipInspection.SafeName(asset.Name);
+                string name=group=="resources"?asset.Name:asset.Name.Split('/')[^1];
+                Require(binaries.Add(name),"PROBE_DEPENDENCY_COLLISION");
+            }
+        // SDK 10.0.402 copies these WinForms runtime satellites although deps.json omits them.
+        // Closed 13 x 4 set, all still authenticated by the trusted recipe; no free *.resources.dll rule.
+        foreach(string culture in new[]{"cs","de","es","fr","it","ja","ko","pl","pt-BR","ru","tr","zh-Hans","zh-Hant"})
+            foreach(string name in new[]{"Microsoft.VisualBasic.Forms.resources.dll","System.Windows.Forms.Design.resources.dll",
+                "System.Windows.Forms.Primitives.resources.dll","System.Windows.Forms.resources.dll"})
+                Require(binaries.Add(culture+"/"+name),"PROBE_DEPENDENCY_COLLISION");
+        Require(binaries.SetEquals(paths.Keys.Where(p=>p.EndsWith(".dll",StringComparison.OrdinalIgnoreCase)||p.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))),"PROBE_DEPENDENCY_SET");
+        foreach(string name in Required.Where(n=>n.StartsWith("Licenses/",StringComparison.Ordinal)))
+        {string text=Encoding.UTF8.GetString(files[name]);Require(files[name].Length>=100 && (text.Contains("Microsoft",StringComparison.OrdinalIgnoreCase)
+            ||text.Contains("MIT License",StringComparison.OrdinalIgnoreCase)||text.Contains(".NET Foundation",StringComparison.OrdinalIgnoreCase)),"PROBE_LICENSE");}
+        using(var stream=new MemoryStream(files["Licenses/WindowsDesktop/PACKAGE-METADATA.nuspec"]))
+        using(var reader=XmlReader.Create(stream,new XmlReaderSettings{DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null,MaxCharactersInDocument=65536}))
+        {
+            var xml=new XmlDocument{XmlResolver=null};xml.Load(reader);
+            var ns=new XmlNamespaceManager(xml.NameTable);ns.AddNamespace("n","http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd");
+            var metadata=xml.SelectSingleNode("/n:package/n:metadata",ns) ?? throw new Rejected("PROBE_LICENSE_METADATA");
+            Require(metadata.SelectSingleNode("n:id",ns)?.InnerText=="Microsoft.WindowsDesktop.App.Runtime.win-x64"
+                && metadata.SelectSingleNode("n:version",ns)?.InnerText=="10.0.13"
+                && metadata.SelectSingleNode("n:license",ns)?.InnerText=="MIT"
+                && metadata.SelectSingleNode("n:license",ns)?.Attributes?["type"]?.Value=="expression"
+                && metadata.SelectSingleNode("n:repository",ns)?.Attributes?["url"]?.Value=="https://github.com/dotnet/dotnet"
+                && metadata.SelectSingleNode("n:repository",ns)?.Attributes?["commit"]?.Value=="4099f83977f4d29604a9aeb971fb0a7bc1d5f699","PROBE_LICENSE_METADATA");
+        }
+        return files;
+    }
+}

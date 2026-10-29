@@ -44,9 +44,13 @@ internal static class DriverInventory
                 // DeviceName pode ser vazio na associação do driver. O nome
                 // PnP só é aproveitado quando pertence ao MESMO ID de dispositivo.
                 DeviceName = string.IsNullOrWhiteSpace(d.DeviceName)
-                    ? names.GetValueOrDefault(d.DeviceId, "") : d.DeviceName
+                    ? names.GetValueOrDefault(d.DeviceId.Trim(), "") : d.DeviceName,
+                HardwareIds = d.HardwareIds.Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Order(StringComparer.OrdinalIgnoreCase).ToArray()
             })
-            .DistinctBy(d => (d.DeviceId.ToUpperInvariant(), d.InfName.ToUpperInvariant(), d.Version, d.Provider.ToUpperInvariant(), d.Signed))
+            // Não descartar HardwareIDs divergentes antes de avaliar a ambiguidade.
+            .DistinctBy(d => (d.DeviceId.ToUpperInvariant(), d.InfName.ToUpperInvariant(), d.Version,
+                d.Provider.ToUpperInvariant(), d.Signed, d.Present, string.Join('\n', d.HardwareIds).ToUpperInvariant()))
             .OrderBy(d => d.DeviceName, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 

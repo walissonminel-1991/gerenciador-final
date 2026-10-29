@@ -701,7 +701,7 @@ internal static class VerifiedUpdaters
         using HttpMessageHandler handler = AutomaticUpdateDiscovery.IsAutomatic(recipe) ? AutomaticUpdateDiscovery.DownloadHandler() :
             new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(8) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GerenciadorFinal/5.12.18.1");
+        client.DefaultRequestHeaders.UserAgent.Add(ProductHttpIdentity.UserAgent);
         Uri target = recipe.Download;
         const long maxBytes = 260L * 1024 * 1024;
         for (int redirect = 0; redirect <= 7; redirect++)

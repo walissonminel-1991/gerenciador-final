@@ -1,0 +1,593 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "stage": 6,
+  "date": "2026-10-27",
+  "timezone": "America/Sao_Paulo",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "pr": 65,
+  "draft": true,
+  "status": "audit_complete_local_blockers_open",
+  "entry_commit": "db67cde412db306c316e79c0761e8dafef4b3b34",
+  "entry_tree": "7dfb4d0f957691792a93ada5eabda321f210f92c",
+  "source_blobs_verified_before_and_after_tests": 439,
+  "source_blob_mismatches": 0,
+  "validated_commit": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+  "validated_tree": "e5646e6d419b47aa80e337359b1a49c9262ce6f7",
+  "ci_reconfirmed": [
+    {
+      "id": 40604593820,
+      "head": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593820",
+      "jobs": [
+        {
+          "id": 122540822898,
+          "name": "politica / Política de segurança e privacidade",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823111,
+          "name": "validar / Drivers somente leitura (windows-2025)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823180,
+          "name": "validar / Regressões Windows",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823188,
+          "name": "validar / Drivers somente leitura (windows-2022)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540823311,
+          "name": "validar / Consentimento BETA antecipado (sem rede)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122544352782,
+          "name": "Compilação Windows x64",
+          "conclusion": "success"
+        },
+        {
+          "id": 122544748192,
+          "name": "Atestar pacote apenas na main",
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    {
+      "id": 40604593709,
+      "head": "6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40604593709",
+      "jobs": [
+        {
+          "id": 122540822651,
+          "name": "Integridade dos instaladores oficiais (sem instalacao)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122540824707,
+          "name": "Fontes externas e drivers do runner (somente leitura)",
+          "conclusion": "skipped"
+        }
+      ]
+    }
+  ],
+  "post_validation_document_delta": [
+    "README.md",
+    "docs/ACTIONS-ATUAIS-E-HISTORICAS.md",
+    "docs/ORGANIZACAO-REPOSITORIO.md",
+    "docs/PROGRESSO.json",
+    "docs/ROADMAP.md",
+    "docs/TESTES.md",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-ETAPA3-VALIDACAO.md",
+    "docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md",
+    "docs/WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/evidencias/integracao-etapa3-ci.json",
+    "docs/evidencias/integracao-etapa4-avaliacao.json",
+    "docs/evidencias/integracao-etapa5-organizacao.json"
+  ],
+  "read_continuity_documents": [
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/WORK-INTEGRACAO-ETAPA4-AVALIACAO.md",
+    "docs/WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md",
+    "docs/WORK-INTEGRACAO-ADENDO-BETA-LOCAL.md"
+  ],
+  "local_results": {
+    "python": {
+      "tests": 47,
+      "passed": 47,
+      "exit_code": 0,
+      "runtime": "Python 3.12.14",
+      "static_source_files": 278
+    },
+    "node": {
+      "tests": 136,
+      "pass": 136,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "exit_code": 0,
+      "runtime": "Node v24.22.1",
+      "isolation": "SQLite em memoria e transportes ficticios; nenhuma operacao no receptor real."
+    },
+    "static_formats": {
+      "source_sha": "db67cde412db306c316e79c0761e8dafef4b3b34",
+      "result": "pass",
+      "counts": {
+        "python_ast": 9,
+        "node_check": 19,
+        "xml_projects_props_manifest": 19,
+        "yaml": 5,
+        "toml_examples": 4,
+        "json": 34
+      },
+      "failures": [],
+      "csharp_compiler_local": "not_available",
+      "windows_runtime_local": "not_available"
+    },
+    "log_sha256": {
+      "python-existing.txt": "eee5faf815c0629c3edec54f992afd333ce9a3938801af05c450720f51091fe1",
+      "node-existing.tap": "976422ceeb6885eb544b0123461543fab8cc052648441e9c6230b75f6b4530c0"
+    },
+    "commands": {
+      "python": "python3 -B -m unittest discover -s scripts -p 'test_p*.py' -v",
+      "node": "node --test --test-reporter=tap prototipos/telemetria-worker/test.mjs prototipos/telemetria-worker/staging-receiver.test.mjs prototipos/beta-telemetria/test.mjs prototipos/beta-telemetria/ingest.test.mjs prototipos/beta-telemetria/retention.test.mjs prototipos/beta-telemetria/round2.test.mjs prototipos/beta-telemetria/finalization.test.mjs"
+    }
+  },
+  "source_evidence_blobs": {
+    "Program.cs": "6e86f817977d76e79898631a1cfa62f49abe0097",
+    "AnonymousTelemetry.cs": "020baef16a94278c9aefdf7cccc63c9b576da97c",
+    "DiagnosticTrace.cs": "05544869a8e6e031a6a1afbff0616a6959a07a63",
+    "TelemetryConsentPolicy.cs": "1d0bc1733b5377a193f86c6f92226510e183d83b",
+    "BetaEndpointPolicy.cs": "1f8b416f6ff59598367aa6280d9c90f6c1898778",
+    "BetaTelemetryPolicy.props": "9017b4ed04d647b7b888bbc1d307dbd08d428307",
+    "BetaTelemetryUploader.cs": "a05cd9a2f8c91039fdd1e94a25c7bfb3121a4136",
+    "BetaTelemetryTransport.cs": "2dbf12cca215e431bfadba8e97a8d1f84a11eda4",
+    "BetaCloseCoordinator.cs": "6418cf12790faa90c5e4c1e456db7e4d17dffdc4",
+    "TestesLayout/BetaCloseTests.cs": "6e06f07aa55166d4d36d14baa8889e65af3cb571",
+    "TestesLayout/Stage3UpdateQueryTests.cs": "88695ec53f04703476730ff54d5ecf932c34f936",
+    "TestesTelemetria/BetaTelemetryTransportTests.cs": "718a6703ce6cb2d11332a47eb567e749262bb9e1",
+    "RuckZuckCatalog.cs": "36527e89b7ec301ef0d555a20778654d8cdea93b",
+    "OfficialReleaseSources.cs": "ff9db3cb4b40475f915ad7af4f24df8ab8dbfd55",
+    "VerifiedUpdaters.cs": "c7a52a06b2fd0c7d975b04ef8ae0e0e150ce4927",
+    "WindowsTerminalUpdater.cs": "a9380a82e58644da973c0c7f066a526ae4537384",
+    "GerenciadorAplicativos.csproj": "49fa1ec14973fa5f438ccaf7f0fb47945a04d357",
+    "IntegratedResidualPolicy.cs": "de174819a64a9e6abc6350662c149d39f8a63cc5",
+    "ResidualRegistryGuard.cs": "c9a82a573f82e16d282322d83c0d3db57ff55387",
+    "ResidualPersonalDataBoundary.cs": "8f26185d1f11272a0179da12ef33dba2383bdc87",
+    "TestesResiduos/Work14RegistryTests.cs": "b5b1b3eb738675f6a8a61f7907084d70c637416e",
+    "LocalMsixSnapshot.cs": "ef3c6e3e89dff585a255176d1b2fc5dc392f3f0b",
+    "InstalledUpdateIdentity.cs": "ad2fcee1206e7aeef40953ee29051d4a2679c9f8",
+    "InventoryReconciler.cs": "3b7708cd0e5a69542216121ad9428a99fa61995a",
+    "AutomaticDiscoveryPipeline.cs": "835c42023f027410a21801c1a717b3a4414d8440",
+    "UpdateResultHistory.cs": "81327c10c128d827159eb60b711d61eb30582be9",
+    "UninstallBatch.cs": "68b97bca2a8f82e7936c58de4c6de5075d73cdb4",
+    "RegisteredUninstaller.cs": "609913dc23b5a0b34570dff922b1463caac17727",
+    "UpdateLaunchGate.cs": "e08e655e6d39391fb1659a6f4df10547fa41174b",
+    "InstallerFileGuard.cs": "c88aabf063af94fee71fab1beb9726e845b043be",
+    "DriverOfficialLookup.cs": "f906ae03273b6545cdf84af0742e4c81df78d6bc",
+    "DriverQueryCoordinator.cs": "4fe71e9a5158444b1e936e853280a5e1ed88c796",
+    "DriverReadOnlyDialog.cs": "c76ca3f4e4184a96cd13ede9ca22bfba0334d677",
+    "ProcessSamplingPolicy.cs": "aaa4189d286d4e75c06dfbc2eeca962d2e383e3b",
+    "BoundedLogText.cs": "85c790e644c6416d84b7bd3af53352b008f28bca",
+    "scripts/verificar_pacote.py": "44523277dcb274981151723a6dfc526a52e6f164",
+    "scripts/test_politicas_seguranca.py": "a6b7a0a982eaa4d146aa8ab162a6e867cce838e3"
+  },
+  "coverage_axes": [
+    {
+      "id": "A01",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A02",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A03",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A04",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A05",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A06",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A07",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A08",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A09",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A10",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A11",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A12",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A13",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    },
+    {
+      "id": "A14",
+      "details": "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "physically_homologated": false
+    }
+  ],
+  "findings": [
+    {
+      "id": "GF6-001",
+      "severity": "ALTO",
+      "scope": "BETA_LOCAL_TESTE",
+      "status": "open",
+      "title": "Consultas automaticas na abertura sem acao explicita",
+      "locations": [
+        {
+          "file": "Program.cs",
+          "lines": [
+            651,
+            788,
+            811,
+            2302,
+            2501,
+            2514,
+            2518
+          ]
+        }
+      ],
+      "reproduction_type": "static_reachability",
+      "preconditions": [
+        "Abertura normal com startServices=true",
+        "Inventario nao vazio",
+        "Janela aberta e nenhum clique de consulta"
+      ],
+      "trace": [
+        "Shown -> LoadInstalledAsync -> BeginStartupChecks",
+        "RunStaggeredStartupChecksAsync -> LoadUpdatesAsync -> provedores HTTPS",
+        "Depois -> ScanWindowsUpdatesInBackgroundAsync"
+      ],
+      "expected": "Zero consulta externa na abertura local; somente acao explicita autorizada.",
+      "observed": "Fonte alcanca consultas automaticamente, sem barreira de perfil local.",
+      "impact": "Impede conformidade do cenario local solicitado.",
+      "network_executed_in_audit": false,
+      "existing_coverage_limit": "Testes de janela usam startServices=false para isolamento.",
+      "recommendation": "Barreira de perfil local, inventario/monitoramento locais preservados, teste com HTTP/WUA ficticios antes/depois.",
+      "blocks_planned_local_scenario": true
+    },
+    {
+      "id": "GF6-002",
+      "severity": "ALTO",
+      "scope": "BETA_LOCAL_TESTE",
+      "status": "open",
+      "title": "Consentimento RemoteBeta valido herdado mantem coleta e pendencia sem endpoint",
+      "locations": [
+        {
+          "file": "Program.cs",
+          "lines": [
+            40,
+            61,
+            62,
+            73,
+            783
+          ]
+        },
+        {
+          "file": "AnonymousTelemetry.cs",
+          "lines": [
+            31,
+            36,
+            92,
+            99,
+            165,
+            178,
+            313,
+            328
+          ]
+        },
+        {
+          "file": "DiagnosticTrace.cs",
+          "lines": [
+            154
+          ]
+        },
+        {
+          "file": "TestesLayout/BetaCloseTests.cs",
+          "lines": [
+            64,
+            68,
+            72,
+            73
+          ]
+        },
+        {
+          "file": "TestesTelemetria/BetaTelemetryTransportTests.cs",
+          "lines": [
+            165,
+            168
+          ]
+        }
+      ],
+      "reproduction_type": "static_flow_and_existing_windows_fixture",
+      "preconditions": [
+        "Pasta temporaria da fixture",
+        "Consentimento schema=2/state=3 com aviso/hash atuais",
+        "Endpoint real desconfigurado"
+      ],
+      "trace": [
+        "Construtor -> ReadConsent -> RemoteBeta",
+        "Record de codigo permitido -> SaveOnExit",
+        "Pendencia agregada preservada sem endpoint, inclusive falha"
+      ],
+      "expected": "Preferencia remota antiga nao ativa coleta para envio ou nova pendencia remota no perfil local.",
+      "observed": "Endpoint desconfigurado bloqueia transporte, mas gravador RemoteBeta ainda registra/salva.",
+      "impact": "Impede conformidade da coleta remota desligada no cenario local.",
+      "evidence_ci": "40604593820, SHA 6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8, caso existente dentre 15 de janela",
+      "fresh_windows_execution": false,
+      "real_transmission_observed": false,
+      "recommendation": "Politica local independente de endpoint/consentimento antigo em inicio, falha e saida; preservar diagnosticos locais e futuras guardas conectadas.",
+      "blocks_planned_local_scenario": true
+    },
+    {
+      "id": "GF6-003",
+      "severity": "BAIXO",
+      "scope": "fonte_integrada",
+      "status": "open",
+      "title": "CS0649 no campo sem atribuicao GF_BETA",
+      "locations": [
+        {
+          "file": "Program.cs",
+          "lines": [
+            599,
+            941,
+            942,
+            950
+          ]
+        },
+        {
+          "file": "GerenciadorAplicativos.csproj",
+          "lines": [
+            15
+          ]
+        }
+      ],
+      "reproduction_type": "existing_compiler_warning_and_static_conditional",
+      "expected": "Declaracao/usos coerentes com perfil, sem reintroduzir botao permanente.",
+      "observed": "Atribuicao so compila em !GF_BETA; campo fica sem atribuicao em GF_BETA.",
+      "impact": "Ruido de compilacao; falha funcional nao demonstrada.",
+      "recommendation": "Ajustar condicional conforme impacto, sem suprimir aviso/teste.",
+      "blocks_planned_local_scenario": false
+    },
+    {
+      "id": "GF6-004",
+      "severity": "BAIXO",
+      "scope": "clientes_HTTP",
+      "status": "open",
+      "title": "User-Agent anuncia versoes fixas divergentes da .66",
+      "locations": [
+        {
+          "file": "RuckZuckCatalog.cs",
+          "lines": [
+            30,
+            43
+          ],
+          "values": [
+            "5.12.8"
+          ]
+        },
+        {
+          "file": "OfficialReleaseSources.cs",
+          "lines": [
+            250,
+            266
+          ],
+          "values": [
+            "5.13.11"
+          ]
+        },
+        {
+          "file": "VerifiedUpdaters.cs",
+          "lines": [
+            704
+          ],
+          "values": [
+            "5.12.18.1"
+          ]
+        },
+        {
+          "file": "WindowsTerminalUpdater.cs",
+          "lines": [
+            105
+          ],
+          "values": [
+            "5.12.17"
+          ]
+        }
+      ],
+      "reproduction_type": "static_header_assignments",
+      "expected": "Versao de produto rastreavel ou contrato de versao de protocolo explicitamente documentado.",
+      "observed": "Seis atribuicoes usam quatro valores fixos diferentes de 5.13.11.66.",
+      "impact": "Rastreabilidade do cliente; sem falha HTTP comprovada ou alteracao de autorizacao.",
+      "http_failure_proven": false,
+      "network_executed_in_audit": false,
+      "recommendation": "Conferir contrato; se versao do produto, usar referencia unica. Somente handler ficticio se necessario.",
+      "blocks_planned_local_scenario": false
+    }
+  ],
+  "severity_counts": {
+    "CRÍTICO": 0,
+    "ALTO": 2,
+    "MÉDIO": 0,
+    "BAIXO": 2,
+    "EXTERNO": 0
+  },
+  "no_critical_medium_external_demonstrated_not_universal_guarantee": true,
+  "existing_issue48": {
+    "state": "open",
+    "source_scope": "Catalogo per-user HKCU/Registry64; Read=0x00009 e handle predefinido",
+    "existing_regression": "TestesResiduos/Work14RegistryTests.cs",
+    "physical_case_closed": false,
+    "new_pc_test_requested": false,
+    "raw_body_not_republished": true
+  },
+  "inconclusive_or_pending": [
+    "WUA Windows2022 timeout; 2025 sem ofertas, sem causa externa comprovada",
+    "AVG/Authenticode e DPI/foco/CPU/RAM fisicos nao homologados",
+    "Sem novo ensaio Windows/.NET/PowerShell local; evidencias C# da CI da propria composicao",
+    "Perfil/pacote BETA LOCAL e entrega privada conforme contrato pendentes",
+    "Homologacao conectada/infraestrutura remota nao executada"
+  ],
+  "new_product_tests": 0,
+  "new_windows_ci_runs_requested": 0,
+  "new_builds": 0,
+  "corrections_applied": 0,
+  "product_code_changes": 0,
+  "proposals_D01_D02_executed": false,
+  "changed_files": [
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/PROGRESSO.json",
+    "docs/ROADMAP.md",
+    "README.md",
+    "docs/ORGANIZACAO-REPOSITORIO.md",
+    "docs/TESTES.md",
+    "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+    "docs/WORK-INTEGRACAO-DEFEITOS.md",
+    "docs/evidencias/integracao-etapa6-auditoria.json"
+  ],
+  "preserved": {
+    "all_other_100_branch_tips": true,
+    "main": "410d65e23546976db456337c71e4705f10217d36",
+    "pr40_draft": true,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "all_42_states_and_history": true,
+    "progress_changed_root_keys": [
+      "integration_final"
+    ],
+    "candidate_beta": true,
+    "source_code_tests_workflows_version_notice_approvals": true,
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "driver_management_enabled": false,
+    "winget_com_reinvestigated": false,
+    "vlc_specific_tests_queries_actions": 0,
+    "avg_and_protections": true,
+    "personal_computers_used": 0,
+    "real_diagnostic_transmissions": 0,
+    "remote_infrastructure_operations": 0,
+    "merges_releases_deploys_distributions": 0
+  },
+  "local_beta_prepared": false,
+  "local_profile_compliant": false,
+  "connected_beta_released": false,
+  "documentary_commit": {
+    "skip_ci": true,
+    "head_location": "Conferir HEAD final da PR65; nao e nova build aprovada.",
+    "audit_commit": "d1fee1eca87938e82d3e4253efce121b2cb1edba",
+    "followup": "Fechamento posterior somente checkpoint/matriz/PROGRESSO/recibo; conferir HEAD final da PR65."
+  },
+  "next_stage": 7,
+  "stage7_started": false,
+  "overall_mission_complete": false,
+  "document_validation": {
+    "result": "pass",
+    "changed_documents": 10,
+    "new_documents": 3,
+    "inherited_outside_scope_unchanged": 432,
+    "expected_tree_blobs": 442,
+    "markdown_files": 94,
+    "relative_file_links": 354,
+    "coverage_axes": 14,
+    "preservation_matrix_rows": 15,
+    "findings": 4,
+    "severity_counts": {
+      "CRÍTICO": 0,
+      "ALTO": 2,
+      "MÉDIO": 0,
+      "BAIXO": 2,
+      "EXTERNO": 0
+    },
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "history_candidate_beta_preserved": true,
+    "test_command_blocks_preserved": true,
+    "progress_changed_root_keys": [
+      "integration_final"
+    ],
+    "policy_package_recheck_after_docs": {
+      "tests": 47,
+      "passed": 47,
+      "exit_code": 0,
+      "same_cases_not_added_to_coverage": true,
+      "log_sha256": "099d874b21d984a08d86eec04e7651eebcfa94b2c4bebe1e6ef71f44b430f5a0"
+    }
+  },
+  "remote_verification": {
+    "commit": "d1fee1eca87938e82d3e4253efce121b2cb1edba",
+    "tree": "9c1a10233a2c5c3ffa3e1ed4b01d12307e2913eb",
+    "blobs": 442,
+    "inherited_outside_scope_unchanged": 432,
+    "changed_files": [
+      "README.md",
+      "docs/ORGANIZACAO-REPOSITORIO.md",
+      "docs/PROGRESSO.json",
+      "docs/ROADMAP.md",
+      "docs/TESTES.md",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+      "docs/WORK-INTEGRACAO-MATRIZ.md",
+      "docs/WORK-INTEGRACAO-DEFEITOS.md",
+      "docs/WORK-INTEGRACAO-ETAPA6-AUDITORIA.md",
+      "docs/evidencias/integracao-etapa6-auditoria.json"
+    ],
+    "other_branch_tips_preserved": 100,
+    "pr65_open_draft": true,
+    "base_preserved": true,
+    "issue48_open_unchanged": true,
+    "new_ci_runs": 0
+  }
+}

@@ -65,7 +65,8 @@ internal static class IntegratedResidualPolicy
         if (SyntheticScope is not null) return SyntheticScope(identity);
 #endif
         var app = identity.Entry();
-        if (ProtectedApplications.IsProtectedName(app.Name) || string.IsNullOrWhiteSpace(app.InventoryId))
+        if (ProtectedApplications.IsProtectedName(app.Name) || ProtectedApplications.IsExcludedFromManagement(app.Name) ||
+            string.IsNullOrWhiteSpace(app.InventoryId))
             return new("unsupported", [], [], []);
         var known = ApplicationIdentityCatalog.Resolve(app.Name, app.Publisher);
         if (known?.CleanupPolicy is null && app.Publisher.Equals("Microsoft Corporation", StringComparison.OrdinalIgnoreCase))
@@ -104,7 +105,7 @@ internal static class IntegratedResidualPolicy
         {
             "notepadpp" => ["notepad++"], "sumatrapdf" => ["SumatraPDF", "Sumatra-Uninstaller"],
             "sevenzip" => ["7zFM", "7zG", "7z", "7za", "7zr"],
-            "obs" => ["obs64", "obs32"], "vlc" => ["vlc"],
+            "obs" => ["obs64", "obs32"],
             "audacity" => ["audacity"], "foobar2000" => ["foobar2000"], _ => []
         };
         return new(rule?.Id ?? (install is null ? "unsupported" : "registered-install"),

@@ -1,0 +1,95 @@
+using System.Buffers.Binary;
+using System.IO.Compression;
+using System.Text;
+using System.Text.RegularExpressions;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal static class ZipInspection
+{
+    // Intentionally smaller fixture limits. No file is extracted to disk.
+    internal const int MaxBytes = 64 * 1024, MaxExpanded = 1024 * 1024;
+    internal static void SafeName(string name)
+    {
+        Require(name.Length is > 0 and <= 220 && name.All(c => c is >= ' ' and <= '~')
+            && !name.Contains('\\') && !name.Contains(':') && !name.StartsWith('/')
+            && !name.Any(c => "<>\"|?*".Contains(c)), "ZIP_PATH");
+        foreach (string part in name.Split('/'))
+        {
+            Require(part.Length > 0 && part is not "." and not ".." && !part.EndsWith('.') && !part.EndsWith(' '), "ZIP_PATH");
+            string stem = part.Split('.')[0].ToUpperInvariant();
+            Require(stem is not ("CON" or "PRN" or "AUX" or "NUL" or "CONIN$" or "CONOUT$")
+                && !Regex.IsMatch(stem, "^(COM|LPT)[1-9]$", RegexOptions.CultureInvariant), "ZIP_PATH");
+        }
+    }
+    internal static uint Crc32(ReadOnlySpan<byte> data)
+    {
+        uint crc = uint.MaxValue;
+        foreach (byte b in data)
+        {
+            crc ^= b;
+            for (int i = 0; i < 8; i++) crc = (crc >> 1) ^ ((crc & 1) != 0 ? 0xedb88320u : 0);
+        }
+        return ~crc;
+    }
+    internal static Dictionary<string, byte[]> Inspect(byte[] bytes, int maxEntries, CancellationToken cancellation)
+    {
+        Require(bytes.Length is >= 22 and <= MaxBytes, "ZIP_SIZE");
+        uint U32(int p) { Require(p >= 0 && p <= bytes.Length - 4, "ZIP_STRUCTURE"); return BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(p)); }
+        int U16(int p) { Require(p >= 0 && p <= bytes.Length - 2, "ZIP_STRUCTURE"); return BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(p)); }
+        int end = bytes.Length - 22;
+        Require(U32(end) == 0x06054b50 && U16(end+4) == 0 && U16(end+6) == 0 && U16(end+20) == 0, "ZIP_STRUCTURE");
+        int count = U16(end+10), offset = checked((int)U32(end+16)), centralSize = checked((int)U32(end+12));
+        Require(count is > 0 && count <= maxEntries && U16(end+8) == count && offset + (long)centralSize == end, "ZIP_STRUCTURE");
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var headers = new Dictionary<string, (uint Crc, int Length)>(StringComparer.Ordinal);
+        long total = 0; int nextLocal = 0;
+        for (int i = 0, p = offset; i < count; i++)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            Require(U32(p) == 0x02014b50, "ZIP_STRUCTURE");
+            int flags = U16(p+8), method = U16(p+10), n = U16(p+28), extra = U16(p+30), comment = U16(p+32);
+            long size = U32(p+24), compressed = U32(p+20), local = U32(p+42);
+            Require(flags is 0 or 2048 && method is 0 or 8 && extra == 0 && comment == 0
+                && size <= MaxExpanded && compressed <= MaxBytes && U16(p+34) == 0, "ZIP_FORMAT");
+            Require(p+46L+n <= end, "ZIP_STRUCTURE");
+            string name = Encoding.UTF8.GetString(bytes, p+46, n); SafeName(name);
+            Require(seen.Add(name), "ZIP_DUPLICATE");
+            uint attrs = U32(p+38); uint mode = (attrs >> 16) & 0xf000;
+            Require((mode is 0 or 0x8000) && (attrs & 0x400) == 0, "ZIP_TYPE");
+            Require(local == nextLocal && local + 30 < offset, "ZIP_STRUCTURE");
+            int l = checked((int)local);
+            Require(U32(l) == 0x04034b50 && U16(l+6) == flags && U16(l+8) == method
+                && U32(l+14) == U32(p+16) && U32(l+18) == compressed && U32(l+22) == size
+                && U16(l+26) == n && U16(l+28) == 0, "ZIP_LOCAL_HEADER");
+            Require(bytes.AsSpan(l+30,n).SequenceEqual(bytes.AsSpan(p+46,n)), "ZIP_LOCAL_HEADER");
+            nextLocal = checked(l + 30 + n + (int)compressed);
+            Require(nextLocal <= offset && (total += size) <= MaxExpanded, "ZIP_EXPANSION");
+            headers.Add(name, (U32(p+16), (int)size));
+            p += 46+n;
+            if (i == count-1) Require(p == end && nextLocal == offset, "ZIP_STRUCTURE");
+        }
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        using var memory = new MemoryStream(bytes, writable:false);
+        using var archive = new ZipArchive(memory, ZipArchiveMode.Read, leaveOpen:false);
+        Require(archive.Entries.Count == count, "ZIP_STRUCTURE");
+        long actualTotal = 0;
+        foreach (var entry in archive.Entries)
+        {
+            using var source = entry.Open(); using var target = new MemoryStream();
+            byte[] buffer = new byte[4096]; int read;
+            while ((read = source.Read(buffer)) != 0)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                actualTotal += read;
+                Require(actualTotal <= MaxExpanded && target.Length+read <= headers[entry.FullName].Length, "ZIP_EXPANSION");
+                target.Write(buffer,0,read);
+            }
+            byte[] data = target.ToArray(); var expected = headers[entry.FullName];
+            Require(data.Length == expected.Length && Crc32(data) == expected.Crc, "ZIP_CRC");
+            files.Add(entry.FullName,data);
+        }
+        return files;
+    }
+}

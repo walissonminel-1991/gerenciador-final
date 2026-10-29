@@ -1,0 +1,53 @@
+name: Autoatualizador Etapa 2 — fixtures isoladas
+
+# A dedicated push branch avoids rerunning the product/installer workflows.
+# No binary, ZIP, artifact, release, token or delivery-repository access.
+on:
+  push:
+    branches: [work-autoatualizador-etapa2-validacao-20261028]
+    paths:
+      - prototipos/autoatualizador-seguro/**
+      - .github/workflows/autoatualizador-etapa2-isolado.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gf-updater-stage2-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ntfs-fixtures:
+    name: Estado, NTFS e recuperação sem produto
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - name: Checkout da fonte da rodada isolada
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK exato
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Python para assinante independente de fixtures
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Dependências exclusivamente de desenvolvimento
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: cryptography==50.0.2 cffi==2.1.1 pycparser==3.11
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Testes direcionados em diretórios temporários
+        shell: pwsh
+        run: |
+          python prototipos/autoatualizador-seguro/run_stage2_tests.py --report "$env:RUNNER_TEMP/gf-u2-windows-results.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = Get-Content "$env:RUNNER_TEMP/gf-u2-windows-results.json" -Raw | ConvertFrom-Json
+          if ($result.failed -ne 0 -or $result.windows_only_tests_not_run -ne 0) { throw 'GF_U2_INCOMPLETE' }
+          "Etapa 2 isolada: $($result.passed)/$($result.total). Produto não compilado/executado; nenhum pacote/artefato publicado." >> $env:GITHUB_STEP_SUMMARY

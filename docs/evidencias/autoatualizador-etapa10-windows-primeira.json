@@ -1,0 +1,214 @@
+{
+  "schema": "gf-stage10-controller/1",
+  "contract": "gf-self-update/1",
+  "entry_head": "4c1810a9d49bdb5fa1c6914354b32e5cb4602af9",
+  "status": "failed",
+  "phase": "windows",
+  "failed": 15,
+  "results": [],
+  "product_executed": false,
+  "candidate_uploaded": false,
+  "production_keys_created": false,
+  "old_suites_repeated": false,
+  "private_channel_changed": false,
+  "stage11_started": false,
+  "tool_build": {
+    "status": "passed",
+    "sdk": "10.0.402",
+    "tuf_source": {
+      "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+      "verified_files": 20,
+      "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+      "modified_source_sha256": {
+        "src/Tuf/TufClient.cs": "69414de567f872249d00559c1dd57e5bee43d94d476da61f8569738b77040268",
+        "src/Tuf/TufClientOptions.cs": "9820744a9989a0f8b6d0cbcfd68f31c7dc0c56819b8ad830d6d3a79c7bb4fd4b",
+        "src/Tuf/TufResults.cs": "94d6c7bc2d80cf2f1f72f1180f479aff4ffb748a7aaae3676105a7c8d2d198a1"
+      },
+      "crypto_parser_sources_unchanged": true,
+      "original_nuget_package_changed": false,
+      "production_adoption": false
+    },
+    "locked_restore": true
+  },
+  "product_build": {
+    "status": "passed",
+    "checkout_head": "695cf6a364c7be96ed9df2604b1e992483febaf5",
+    "functional_source_commit": "4c1810a9d49bdb5fa1c6914354b32e5cb4602af9",
+    "product_version": "5.13.11.66",
+    "profile": "local",
+    "compile_items": 142,
+    "prototype_compile_items": 0,
+    "outputs_outside_repo": true
+  },
+  "new_build_preflight": {
+    "files": 287,
+    "verified_hashes": 286,
+    "expanded_bytes": 153051445,
+    "version": "5.13.11.66",
+    "source": "4c1810a9d49bdb5fa1c6914354b32e5cb4602af9",
+    "build": "695cf6a364c7be96ed9df2604b1e992483febaf5",
+    "runtime": [
+      {
+        "name": "Microsoft.NETCore.App",
+        "version": "10.0.13"
+      },
+      {
+        "name": "Microsoft.WindowsDesktop.App",
+        "version": "10.0.13"
+      }
+    ],
+    "architecture": "AMD64"
+  },
+  "container": {
+    "sha256": "ac66594afa995e690af3fff6b4a71ae5820759ab6d120f0bfcd2345122fa150f",
+    "bytes": 57710207,
+    "file_count": 287,
+    "expanded_bytes": 153051445,
+    "local_recipe_only": true,
+    "tuf_authorized": false
+  },
+  "tuf_fixtures": {
+    "cases": 6,
+    "catalog_sha256": "e7561912707079fa9a67c902d68fc588f7fd05b3e9cf364eee435f0269fd308e",
+    "reference_utc": "2026-10-29T09:55:54Z",
+    "public_test_keys_only": true,
+    "real_GF_bytes_signed": false,
+    "new_epoch_fixtures": 3,
+    "public_preexisting_seeds_only": true
+  },
+  "windows": {
+    "schema": "gf-stage10-windows/1",
+    "contract": "gf-self-update/1",
+    "runtime": "10.0.14",
+    "total": 19,
+    "passed": 4,
+    "failed": 15,
+    "results": [
+      {
+        "id": "U10-GF-STATIC-QUALIFICATION",
+        "status": "failed",
+        "error": "Rejected:NTFS_BROAD_WRITE",
+        "milliseconds": 29
+      },
+      {
+        "id": "U10-GF-PINS-DENY-WRITE",
+        "status": "failed",
+        "error": "Rejected:U10_NO_QUALIFICATION",
+        "milliseconds": 0
+      },
+      {
+        "id": "U10-GF-PRECOMMIT-BINDING",
+        "status": "failed",
+        "error": "Rejected:U10_NO_QUALIFICATION",
+        "milliseconds": 0
+      },
+      {
+        "id": "U10-GF-STALE-STATE",
+        "status": "failed",
+        "error": "Rejected:U10_NO_QUALIFICATION",
+        "milliseconds": 0
+      },
+      {
+        "id": "U10-GF-PENDING-JOURNAL",
+        "status": "failed",
+        "error": "Rejected:U10_NO_QUALIFICATION",
+        "milliseconds": 0
+      },
+      {
+        "id": "U10-GF-EXTRA-AFTER-QUALIFICATION",
+        "status": "failed",
+        "error": "Rejected:U10_NO_QUALIFICATION",
+        "milliseconds": 0
+      },
+      {
+        "id": "U10-GF-CLOSED-TICKET",
+        "status": "failed",
+        "error": "Rejected:U10_NO_QUALIFICATION",
+        "milliseconds": 0
+      },
+      {
+        "id": "U10-GF-AMD64-REJECTION",
+        "status": "passed",
+        "milliseconds": 1
+      },
+      {
+        "id": "U10-GF-VERSION-REJECTION",
+        "status": "passed",
+        "milliseconds": 5
+      },
+      {
+        "id": "U10-GF-NTFS-HARDLINK",
+        "status": "failed",
+        "error": "Rejected:NTFS_BROAD_WRITE",
+        "milliseconds": 1
+      },
+      {
+        "id": "U10-GF-NTFS-ADS",
+        "status": "failed",
+        "error": "Rejected:NTFS_BROAD_WRITE",
+        "milliseconds": 2
+      },
+      {
+        "id": "U10-GF-STREAM-EXTRACTION",
+        "status": "failed",
+        "error": "Rejected:NTFS_BROAD_WRITE",
+        "milliseconds": 53
+      },
+      {
+        "id": "U10-GF-CONTAINER-TAMPER",
+        "status": "failed",
+        "error": "Rejected:NTFS_BROAD_WRITE",
+        "milliseconds": 0
+      },
+      {
+        "id": "U10-GF-CANCELED-VALIDATION",
+        "status": "passed",
+        "milliseconds": 0
+      },
+      {
+        "id": "U10-GF-UNKNOWN-READ-OWNERSHIP",
+        "status": "failed",
+        "error": "Rejected:NTFS_BROAD_WRITE",
+        "milliseconds": 87
+      },
+      {
+        "id": "U10-TUF-EPOCH-TIMESTAMP",
+        "status": "failed",
+        "error": "Rejected:ROOT_KEYS",
+        "milliseconds": 74
+      },
+      {
+        "id": "U10-TUF-EPOCH-SNAPSHOT",
+        "status": "failed",
+        "error": "Rejected:ROOT_KEYS",
+        "milliseconds": 1
+      },
+      {
+        "id": "U10-TUF-EPOCH-TARGETS",
+        "status": "failed",
+        "error": "Rejected:ROOT_KEYS",
+        "milliseconds": 1
+      },
+      {
+        "id": "U10-TUF-ROOT-ONLY-ROTATION",
+        "status": "passed",
+        "milliseconds": 31
+      }
+    ],
+    "qualification": null,
+    "product_launched": false,
+    "operational_gate_closed": false,
+    "production_authority": false
+  },
+  "resolved_packages": {
+    "Microsoft.WindowsPackageManager.ComInterop/1.29.380": {
+      "type": "package",
+      "sha512": "O2KWbqShmCi9KZgmweDo2DxPFDskM8IDtXkhnVt1d/lNL22eBqPAM69YobFLbMUB+cdTQrApQJx+qhQRXkiltw=="
+    },
+    "YamlDotNet/18.1.0": {
+      "type": "package",
+      "sha512": "5K+9KFg2TdTl7VXv88Qzi/0lqK6JFoNP3lRuImPYGRV7K/QYklDyTrj4+A+KAki1JsQi6qKY+hDyY7d6WRqjrw=="
+    }
+  },
+  "lab_tree_deleted": true
+}

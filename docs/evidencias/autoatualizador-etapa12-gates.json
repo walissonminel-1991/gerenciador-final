@@ -1,0 +1,465 @@
+{
+  "schema": "gf-stage12-gates/1",
+  "contract": "gf-self-update/1",
+  "accepted_as_client_manifest": false,
+  "closed": 0,
+  "blocked": 8,
+  "gates": [
+    {
+      "id": "G1",
+      "title": "Durabilidade e antirreplay após restauração integral",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Sem referência autenticada de frescor fora do domínio restaurado e sem ensaio de falha de energia/armazenamento real. Contraexemplo da Etapa 4 não foi repetido ou resolvido.",
+      "decision_refs": [
+        "D6-01",
+        "D6-03"
+      ],
+      "minimum_evidence_ids": [
+        "E6-STORAGE",
+        "E6-FRESHNESS"
+      ],
+      "stage9_subproof": "partial_local_domain_restore_detected",
+      "evidence_cases": [
+        "U9-RESTORE-ONE-DOMAIN",
+        "U9-PARTIAL-STATE",
+        "U9-CORRUPT-OP"
+      ],
+      "still_missing": [
+        "No physical power loss, blocked storage or independent authenticated freshness witness; whole-state restore remains outside the local trust domain."
+      ],
+      "stage9_still_missing_historical": [
+        "No physical power loss/blocked storage evidence",
+        "No independent freshness witness after whole-state restore; old counterexample not repeated or resolved"
+      ],
+      "stage10_subproof": "no_new_power_loss_or_external_freshness_evidence",
+      "stage10_cases": [],
+      "stage10_evidence": [
+        "docs/evidencias/autoatualizador-etapa10-revisao.json"
+      ],
+      "stage11_subproof": "Stale hints and partial record loss refused; no independent freshness and no whole-domain restore solution",
+      "stage11_cases": [
+        "U11-RESTORED-CACHE-HINTS",
+        "U11-RECORD-MISSING",
+        "U11-RECORD-STALE",
+        "U11-RECORD-CORRUPT"
+      ],
+      "stage11_evidence": "docs/evidencias/autoatualizador-etapa11-windows.json",
+      "stage12_subproof": "No new operational qualification; historical status and blockers preserved."
+    },
+    {
+      "id": "G2",
+      "title": "Validação e adoção segura do TUF",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Pacote original fixado; patch experimental não tem revisão, suporte/manutenção ou adoção operacional demonstrados.",
+      "decision_refs": [
+        "D6-02"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CLOCK"
+      ],
+      "stage9_subproof": "immutable_TUF_integrated_with_persistent_fixture_state",
+      "evidence_cases": [
+        "U9-FLOW",
+        "U9-CACHE-UNCHANGED",
+        "U9-ROTATION-CACHE",
+        "U9-REPLAY-LOWER",
+        "U9-REPLAY-REPLAY2FRESH3",
+        "U9-CACHE-ANCHOR",
+        "U9-PERSISTED-CLOCK"
+      ],
+      "still_missing": [
+        "Qualified independent review of the epoch/invalidation analysis and pinned source/experimental patches is absent; this session is not independent review.",
+        "Named maintenance owner and formal maintenance acceptance are absent.",
+        "The two raw Python 7.0.1 divergences remain reproducible. Technical cause is isolated, but profile interoperability/adoption decision and accepted reference remediation or justified qualification are pending.",
+        "Pertinent GF conformance/profile coverage and persistence/recovery/storage sufficiency have not been operationally accepted; no operational adoption authorization."
+      ],
+      "stage9_still_missing_historical": [
+        "Maintainer maintenance acceptance/designated independent review",
+        "Interoperable conformance vectors absent",
+        "Role-key epoch changes/resets and full normative per-role/root persistence not qualified; cache checkpoint happens after complete fixture target validation"
+      ],
+      "stage10_subproof": "signed_role_epoch_changes_fail_closed_in_new_isolated_cache",
+      "stage10_cases": [
+        "U10-TUF-EPOCH-TIMESTAMP",
+        "U10-TUF-EPOCH-SNAPSHOT",
+        "U10-TUF-EPOCH-TARGETS",
+        "U10-TUF-ROOT-ONLY-ROTATION"
+      ],
+      "stage10_evidence": [
+        "docs/evidencias/autoatualizador-etapa10-rodadas.json",
+        "docs/evidencias/autoatualizador-etapa10-windows.json"
+      ],
+      "stage11_subproof": "Signed per-role journal, root/epoch transitions, partial recovery and independent install state demonstrated in closed fixture profile",
+      "stage10_still_missing_historical": [
+        "Maintenance owner/acceptance and designated independent review are absent.",
+        "No interoperable conformance vectors; normative root/per-role durable checkpointing and epoch-aware version reset/recovery are unqualified.",
+        "Stage9 historical adapter remains unchanged; new guarded cache is an isolated Stage10 boundary, not production adoption."
+      ],
+      "stage11_cases": [
+        "U11-PERSIST-CHAIN",
+        "U11-PERSIST-ON-METADATA-FAILURE",
+        "U11-RESTORED-CACHE-HINTS",
+        "U11-RECORD-MISSING",
+        "U11-RECORD-STALE",
+        "U11-RECORD-CORRUPT",
+        "U11-CONCURRENCY",
+        "U11-OLD-VALID-METADATA",
+        "U11-UNCHANGED-TIMESTAMP",
+        "U11-UTC-FLOOR",
+        "U11-FAIL-AUTH-BEFORE-PERSIST",
+        "U11-FAIL-PARTIAL-RECORD",
+        "U11-ROLE-ASSIGNMENT-REFUSAL",
+        "U11-INTEROP-RELEASE2",
+        "U11-INTEROP-ROOT-INSUFFICIENT",
+        "U11-INTEROP-ROOT-OLD-ONLY",
+        "U11-INTEROP-ROOT-UNAUTHORIZED",
+        "U11-INTEROP-EXPIRED-FINAL-ROOT",
+        "U11-INTEROP-EXPIRED-INTERMEDIATE",
+        "U11-INTEROP-ROOT-GAP",
+        "U11-INTEROP-BAD-REFERENCE",
+        "U11-INTEROP-EXPIRED-TIMESTAMP",
+        "U11-INTEROP-ROTATE-TIMESTAMP",
+        "U11-INTEROP-ROTATE-SNAPSHOT",
+        "U11-INTEROP-ROTATE-TARGETS-HIGH",
+        "U11-INTEROP-ROTATE-TARGETS-LOW",
+        "U11-INTEROP-REVOKED-TIMESTAMP",
+        "U11-EXTERNAL-CURATED-BYTES",
+        "U11-CRASH-FLUSHED-ROOT",
+        "U11-CRASH-PROMOTED-ROOT",
+        "U11-CRASH-COMMITTED-ROOT",
+        "U11-CRASH-FLUSHED-TIMESTAMP",
+        "U11-CRASH-PROMOTED-TIMESTAMP",
+        "U11-CRASH-COMMITTED-TIMESTAMP",
+        "U11-CRASH-FLUSHED-SNAPSHOT",
+        "U11-CRASH-PROMOTED-SNAPSHOT",
+        "U11-CRASH-COMMITTED-SNAPSHOT",
+        "U11-CRASH-FLUSHED-TARGETS",
+        "U11-CRASH-PROMOTED-TARGETS",
+        "U11-CRASH-COMMITTED-TARGETS",
+        "U11-UNKNOWN-CRASH-STAYS-BLOCKED"
+      ],
+      "stage11_interop": {
+        "agreements": 13,
+        "total": 15,
+        "blocked_divergences": 2,
+        "full_conformance": false
+      },
+      "stage11_evidence": "docs/evidencias/autoatualizador-etapa11-windows.json",
+      "previous_title": "Adoção segura do relógio TUF",
+      "stage11_still_missing_historical": [
+        "Independent review and designated maintenance ownership/acceptance are absent",
+        "Two reset comparisons (timestamp-only and snapshot-only key rotation from version100 to version1) differ from the pinned Python Updater; normative invalidation behavior needs independent adjudication",
+        "Full pertinent interoperable conformance/profile adoption and storage/recovery sufficiency are not accepted operationally; no generic epoch reset or legacy populated-cache migration qualified"
+      ],
+      "stage12_subproof": "Two causal minimal vectors: joint invalidation omission isolated in pinned Python; closed .NET behavior unchanged and consistent with section5.3.11 for these vectors.",
+      "stage12_cases": [
+        "U12-TIMESTAMP-RETAINED",
+        "U12-TIMESTAMP-CLEAN",
+        "U12-TIMESTAMP-RECOVER-FLUSHED",
+        "U12-TIMESTAMP-RECOVER-COMMITTED",
+        "U12-TIMESTAMP-SAME-EPOCH-REPLAY",
+        "U12-TIMESTAMP-REVOKED",
+        "U12-SNAPSHOT-RETAINED",
+        "U12-SNAPSHOT-CLEAN",
+        "U12-SNAPSHOT-RECOVER-FLUSHED",
+        "U12-SNAPSHOT-RECOVER-COMMITTED",
+        "U12-SNAPSHOT-SAME-EPOCH-REPLAY",
+        "U12-SNAPSHOT-REVOKED",
+        "U12-NO-ROTATION-NO-RESET",
+        "U12-ROOT-THRESHOLD-NO-RESET"
+      ],
+      "stage12_interop": {
+        "main_vectors": 2,
+        "raw_divergences_reproduced": 2,
+        "raw_divergences_removed": 0,
+        "technical_cause_isolated": true,
+        "independent_review": false,
+        "diagnostic_invalidation_not_upstream_fix": true,
+        "full_conformance": false
+      },
+      "stage12_evidence": [
+        "docs/evidencias/autoatualizador-etapa12-windows.json",
+        "docs/evidencias/autoatualizador-etapa12-vetores.json"
+      ]
+    },
+    {
+      "id": "G3",
+      "title": "Pacote GF autenticado e vínculo ao estado",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Nenhuma âncora operacional e metadados autorizando pacote GF futuro exato foram fornecidos no fluxo. Marcador/sonda não são pacote GF.",
+      "decision_refs": [
+        "D6-05"
+      ],
+      "minimum_evidence_ids": [
+        "E6-PACKAGE"
+      ],
+      "stage9_subproof": "signed_inert_ZIP_to_candidate_identity_and_state_only",
+      "evidence_cases": [
+        "U9-FLOW",
+        "U9-PACKAGE-MIXED",
+        "U9-PACKAGE-WRONG-IDENTITY",
+        "U9-PREPARED-PINS"
+      ],
+      "still_missing": [
+        "Operational approved anchor and exact operational TUF metadata are absent. No real GF bytes were signed using fixture keys.",
+        "Local recipe/build provenance is not editorial authorization; LabBinding has Installable=false and cannot select real GF."
+      ],
+      "stage9_still_missing_historical": [
+        "No operational anchor or exact authenticated GF package",
+        "Internal fixture descriptor/three text files are not gf-self-update/1 product target qualification"
+      ],
+      "stage10_subproof": "real_GF_lab_bytes_exact_manifest_hashes_extracted_and_bound_to_fixture_state",
+      "stage10_cases": [
+        "U10-APPROVED-PACKAGE-VERIFIER",
+        "U10-TAMPERED-DLL",
+        "U10-MISSING-DEPENDENCY",
+        "U10-UNEXPECTED-FILE",
+        "U10-INCONSISTENT-MANIFEST",
+        "U10-MISSING-DEPENDENCY-REHASHED",
+        "U10-GF-STREAM-EXTRACTION",
+        "U10-GF-CONTAINER-TAMPER",
+        "U10-GF-PRECOMMIT-BINDING",
+        "U10-GF-STALE-STATE"
+      ],
+      "stage10_evidence": [
+        "docs/evidencias/autoatualizador-etapa10-rodadas.json",
+        "docs/evidencias/autoatualizador-etapa10-windows.json"
+      ],
+      "stage11_subproof": "Trust and in-memory fixture target linked to existing state primitives; no authenticated operational GF target or anchor",
+      "stage11_evidence": "docs/evidencias/autoatualizador-etapa11-windows.json",
+      "stage12_subproof": "No new operational qualification; historical status and blockers preserved."
+    },
+    {
+      "id": "G4",
+      "title": "Política PE, publicador e revogação quando exigidos",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Não há classificação de PE GF autenticado nesta etapa. Windows trust de SDK/sonda anterior não autoriza GF. Beta-unsigned permanece permitido; modo obrigatório não foi adotado.",
+      "decision_refs": [
+        "D6-06"
+      ],
+      "minimum_evidence_ids": [
+        "E6-PE"
+      ],
+      "stage9_subproof": "no_new_PE_or_publisher_evidence",
+      "evidence_cases": [],
+      "still_missing": [
+        "Editorially authenticated GF target and operational policy adoption are absent. Beta-unsigned remains valid without requiring a commercial certificate.",
+        "270 certificate tables were inventoried; independent dependency publisher/revocation checks were not executed. No failed existing signature was classified unsigned."
+      ],
+      "stage9_still_missing_historical": [
+        "Real GF PE/runtime/licenses/publication policy inputs absent; beta-unsigned remains allowed, no certificate requirement introduced"
+      ],
+      "stage10_subproof": "real_GF_PE_manifest_resources_runtime_and_beta_unsigned_classified",
+      "stage10_cases": [
+        "U10-GF-STATIC-QUALIFICATION",
+        "U10-GF-AMD64-REJECTION",
+        "U10-GF-VERSION-REJECTION",
+        "U10-INCOMPATIBLE-VERSION",
+        "U10-SECRET-SCAN"
+      ],
+      "stage10_evidence": [
+        "docs/evidencias/autoatualizador-etapa10-rodadas.json",
+        "docs/evidencias/autoatualizador-etapa10-windows.json"
+      ],
+      "stage11_subproof": "No new operational evidence; previous limitations preserved",
+      "stage11_evidence": "docs/evidencias/autoatualizador-etapa11-windows.json",
+      "stage12_subproof": "No new operational qualification; historical status and blockers preserved."
+    },
+    {
+      "id": "G5",
+      "title": "IPC sem elevação e entre sessões/usuários",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Runner funcional elevado. Consulta separada: TokenElevationTypeDefault=1, LinkedToken falhou 1312, sem padrão vinculado ao token consultado; nenhum handshake padrão ou estrangeiro executado.",
+      "decision_refs": [
+        "D6-03"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CONTEXT"
+      ],
+      "stage9_subproof": "owned_test_process_supervision_not_product_IPC",
+      "evidence_cases": [],
+      "still_missing": [
+        "No new authenticated IPC between standard/foreign sessions or users; runner evidence is not that test."
+      ],
+      "stage9_still_missing_historical": [
+        "No non-elevated/foreign-session authenticated product IPC",
+        "Held child Process object and stdout barriers are harness evidence, not product IPC authentication"
+      ],
+      "stage10_subproof": "targeted_source_entrypoint_review_only",
+      "stage10_cases": [],
+      "stage10_evidence": [
+        "docs/evidencias/autoatualizador-etapa10-revisao.json"
+      ],
+      "stage11_subproof": "No new operational evidence; previous limitations preserved",
+      "stage11_evidence": "docs/evidencias/autoatualizador-etapa11-windows.json",
+      "stage12_subproof": "No new operational qualification; historical status and blockers preserved."
+    },
+    {
+      "id": "G6",
+      "title": "Ciclo transacional GF e identidade durante todo uso",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Subgate provado na sonda: todos os 274 arquivos retidos até saída real. Ainda faltam pacote/participantes GF e controle de inserção/carga tardia; criar nomes novos é possível e revalidação detecta o extra.",
+      "decision_refs": [
+        "D6-05",
+        "D6-07"
+      ],
+      "minimum_evidence_ids": [
+        "E6-LIFECYCLE",
+        "E6-STORAGE",
+        "E6-DEADLINE"
+      ],
+      "stage9_subproof": "inert_selection_synthetic_confirmation_and_supervised_recovery",
+      "evidence_cases": [
+        "U9-FLOW",
+        "U9-PREPARED-PINS"
+      ],
+      "still_missing": [
+        "GF was not launched; all-instance/COM-reader/elevated-worker safe closure, real readiness and rollback remain unqualified.",
+        "Revalidation detects insertion but does not prevent every late-load/insertion path. No operational transaction adapter exists."
+      ],
+      "stage9_still_missing_historical": [
+        "Real GF lifecycle, instances/workers, readiness and late-load/insertion control absent",
+        "Synthetic confirmation is not physical/AVG or product readiness qualification"
+      ],
+      "stage10_subproof": "287_real_GF_files_pinned_and_revalidated_only",
+      "stage10_cases": [
+        "U10-GF-PINS-DENY-WRITE",
+        "U10-GF-EXTRA-AFTER-QUALIFICATION",
+        "U10-GF-CLOSED-TICKET",
+        "U10-GF-NTFS-HARDLINK",
+        "U10-GF-NTFS-ADS",
+        "U10-GF-PRECOMMIT-BINDING"
+      ],
+      "stage10_evidence": [
+        "docs/evidencias/autoatualizador-etapa10-rodadas.json",
+        "docs/evidencias/autoatualizador-etapa10-windows.json"
+      ],
+      "stage11_subproof": "Four inert composition cases confirm or recover selection while keeping trust journal unchanged; GF lifecycle not exercised",
+      "stage11_cases": [
+        "U11-INTEGRATION-CONFIRM",
+        "U11-INTEGRATION-BEFORE-INTENT",
+        "U11-INTEGRATION-INTENT-PERSISTED",
+        "U11-INTEGRATION-SELECTOR-REPLACED"
+      ],
+      "stage11_evidence": "docs/evidencias/autoatualizador-etapa11-windows.json",
+      "stage12_subproof": "No new operational qualification; historical status and blockers preserved."
+    },
+    {
+      "id": "G7",
+      "title": "Bootstrap e custódia de produção",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Plano operacional continua com root/fingerprint/publicador e slots de custódia vazios; sem cerimônia, recuperação e rotação reais.",
+      "decision_refs": [
+        "D6-04"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CUSTODY",
+        "E6-BOOTSTRAP"
+      ],
+      "stage9_subproof": "no_operational_bootstrap_or_custody",
+      "evidence_cases": [],
+      "still_missing": [
+        "Explicit custody authorization, independent custodians/quorum, approved operational anchor and real rotation/recovery ceremony are absent. No production keys created."
+      ],
+      "stage9_still_missing_historical": [
+        "Operational custody authorization/materials/quorum/rotation/bootstrap still absent; no keys created"
+      ],
+      "stage10_subproof": "no_new_operational_bootstrap_or_custody",
+      "stage10_cases": [],
+      "stage10_evidence": [
+        "docs/evidencias/autoatualizador-etapa10-revisao.json"
+      ],
+      "stage11_subproof": "No new operational evidence; previous limitations preserved",
+      "stage11_evidence": "docs/evidencias/autoatualizador-etapa11-windows.json",
+      "stage12_subproof": "No new operational qualification; historical status and blockers preserved."
+    },
+    {
+      "id": "G8",
+      "title": "Prazo global e I/O bloqueante",
+      "status": "blocked",
+      "operational_gate_closed": false,
+      "prior_reason_preserved": "Read cancelável expirou em 120,005 s, mas WaitAsync sem token deixou I/O real pendente que completou depois. Pipeline GF/armazenamento bloqueante não ensaiado.",
+      "decision_refs": [
+        "D6-07"
+      ],
+      "minimum_evidence_ids": [
+        "E6-DEADLINE",
+        "E6-STORAGE"
+      ],
+      "stage9_subproof": "persistent_pending_operation_fence_integrated_with_owned_IO",
+      "evidence_cases": [
+        "U9-UNKNOWN-LATE-WRITE",
+        "U9-FOREIGN-PROOF",
+        "U9-CANCEL-AFTER-INTENT",
+        "U9-CANCEL-BEFORE-ADMISSION",
+        "U9-CRASH-OP-ADMITTED",
+        "U9-CRASH-CACHE-CHECKPOINTED",
+        "U9-CRASH-INTENT-PERSISTED",
+        "U9-CRASH-SELECTOR-REPLACED",
+        "U9-CRASH-SELECTED-PERSISTED",
+        "U9-CRASH-CONFIRMED-PERSISTED"
+      ],
+      "still_missing": [
+        "Pause before validation and cancellation of waiter are controlled task tests, not a stuck kernel/device I/O termination certificate.",
+        "Real GF participants, driver/Flush/ReplaceFile hang, disposal-fault/crash-during-recovery, power-loss and global operational deadline remain unqualified."
+      ],
+      "stage9_still_missing_historical": [
+        "General unknown-device-I/O termination and power-loss durability unproved",
+        "Recovery requires observed controlled child exit at completed whitelist boundary; unknown/partial cases stay blocked",
+        "Crash during this new recovery composition, device/Flush/ReplaceFile hangs and disposal faults not executed",
+        "Qualified GF participants and full storage laboratory still missing"
+      ],
+      "stage10_subproof": "real_package_pins_and_persistent_pending_fence_under_controlled_wait",
+      "stage10_cases": [
+        "U10-GF-CANCELED-VALIDATION",
+        "U10-GF-UNKNOWN-READ-OWNERSHIP",
+        "U10-GF-PENDING-JOURNAL"
+      ],
+      "stage10_evidence": [
+        "docs/evidencias/autoatualizador-etapa10-rodadas.json",
+        "docs/evidencias/autoatualizador-etapa10-windows.json"
+      ],
+      "stage11_subproof": "12 supervised synchronous process cut boundaries plus unknown/partial-write fences; no general kernel-I/O or physical durability proof",
+      "stage11_cases": [
+        "U11-FAIL-AUTH-BEFORE-PERSIST",
+        "U11-FAIL-PARTIAL-RECORD",
+        "U11-CRASH-FLUSHED-ROOT",
+        "U11-CRASH-PROMOTED-ROOT",
+        "U11-CRASH-COMMITTED-ROOT",
+        "U11-CRASH-FLUSHED-TIMESTAMP",
+        "U11-CRASH-PROMOTED-TIMESTAMP",
+        "U11-CRASH-COMMITTED-TIMESTAMP",
+        "U11-CRASH-FLUSHED-SNAPSHOT",
+        "U11-CRASH-PROMOTED-SNAPSHOT",
+        "U11-CRASH-COMMITTED-SNAPSHOT",
+        "U11-CRASH-FLUSHED-TARGETS",
+        "U11-CRASH-PROMOTED-TARGETS",
+        "U11-CRASH-COMMITTED-TARGETS",
+        "U11-UNKNOWN-CRASH-STAYS-BLOCKED"
+      ],
+      "stage11_evidence": "docs/evidencias/autoatualizador-etapa11-windows.json",
+      "stage12_subproof": "Four new controlled child exits during authenticated key rotation, at completed root flushed/committed boundaries; no kernel/device I/O or power test.",
+      "stage12_cases": [
+        "U12-TIMESTAMP-RECOVER-FLUSHED",
+        "U12-TIMESTAMP-RECOVER-COMMITTED",
+        "U12-SNAPSHOT-RECOVER-FLUSHED",
+        "U12-SNAPSHOT-RECOVER-COMMITTED"
+      ],
+      "stage12_evidence": "docs/evidencias/autoatualizador-etapa12-windows.json"
+    }
+  ],
+  "no_contract_guarantee_relaxed": true,
+  "no_maintenance_approval_inferred": true,
+  "previous_matrix": "docs/evidencias/autoatualizador-etapa11-gates.json",
+  "stage10_completed": true,
+  "stage11_completed": true,
+  "stage12_completed": true,
+  "stage13_started": false
+}

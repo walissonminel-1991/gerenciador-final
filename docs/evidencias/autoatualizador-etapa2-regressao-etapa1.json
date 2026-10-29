@@ -1,0 +1,358 @@
+{
+  "schema": 1,
+  "stage": 1,
+  "contract": "gf-self-update/1",
+  "fixture_only": true,
+  "product_code_executed": false,
+  "package_installable": false,
+  "network_transport": "sealed in-memory only",
+  "library": {
+    "tuf": "1.1.1",
+    "bouncycastle": "2.7.0"
+  },
+  "runtime": ".NET 10.0.13",
+  "os": "Ubuntu 24.04.3 LTS",
+  "total": 66,
+  "passed": 66,
+  "failed": 0,
+  "tests": [
+    {
+      "id": "CRYPTO-01",
+      "description": "RFC8032 Ed25519 empty-message known answer",
+      "status": "passed"
+    },
+    {
+      "id": "ZIP-CRC",
+      "description": "CRC32 independent known answer",
+      "status": "passed"
+    },
+    {
+      "id": "GFU-V01-positive",
+      "description": "Python-signed full chain, double-authorized root rotation and inert ZIP",
+      "status": "passed"
+    },
+    {
+      "id": "CANONICAL-01",
+      "description": "Independent canonical signature across escaped Unicode/quotes/newline",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-bad-signature",
+      "description": "TUF_REJECTED",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-wrong-role",
+      "description": "TUF_REJECTED",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-duplicate-signature",
+      "description": "DUPLICATE_SIGNATURE",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-downgrade",
+      "description": "RELEASE_DOWNGRADE",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-replayed-sequence",
+      "description": "RELEASE_REPLAY",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-same-version-conflict",
+      "description": "VERSION_CONFLICT",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-expired",
+      "description": "METADATA_EXPIRED",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-long-timestamp",
+      "description": "EXPIRY_HORIZON",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-expired-artifact",
+      "description": "ARTIFACT_EXPIRED",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-wrong-architecture",
+      "description": "GF_PROFILE",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-connected",
+      "description": "GF_PROFILE",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-wrong-repository",
+      "description": "GF_PROFILE",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-unsupported-protocol",
+      "description": "GF_PROTOCOL",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-unknown-field",
+      "description": "SCHEMA_FIELDS",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-overflow-sequence",
+      "description": "JSON_INTEGER",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-fractional-sequence",
+      "description": "JSON_INTEGER",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-duplicate-target",
+      "description": "SCHEMA_FIELDS",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-snapshot-mismatch",
+      "description": "TUF_REJECTED",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-timestamp-version-mismatch",
+      "description": "TUF_REJECTED",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-rotation-old-only",
+      "description": "TUF_REJECTED",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-rotation-new-only",
+      "description": "TUF_REJECTED",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-root-wrong-threshold",
+      "description": "ROOT_THRESHOLD",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-root-unknown-algorithm",
+      "description": "ALGORITHM",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-bad-container",
+      "description": "CONTAINER_HASH",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-zip-case-collision",
+      "description": "ZIP_DUPLICATE",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-zip-symlink",
+      "description": "ZIP_TYPE",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-zip-bomb",
+      "description": "SCHEMA_INTEGER",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-content-manifest-hash",
+      "description": "CONTENT_MANIFEST_HASH",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-notes-markup",
+      "description": "GF_NOTES",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-leading-zero-version",
+      "description": "VERSION_FORMAT",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-version-component-range",
+      "description": "VERSION_RANGE",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-root-skip",
+      "description": "TUF_REJECTED",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-zip-path-55c500e8",
+      "description": "ZIP_PATH",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-zip-path-0241e4ee",
+      "description": "ZIP_PATH",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-zip-path-f5a9751d",
+      "description": "ZIP_PATH",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-zip-path-9c45d475",
+      "description": "ZIP_PATH",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-zip-path-1f0f1e95",
+      "description": "ZIP_PATH",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-zip-path-e1d6faa8",
+      "description": "ZIP_PATH",
+      "status": "passed"
+    },
+    {
+      "id": "NEG-zip-path-c9474d3b",
+      "description": "ZIP_PATH",
+      "status": "passed"
+    },
+    {
+      "id": "GFU-V02-noop",
+      "description": "Already installed exact version/hash produces no installation",
+      "status": "passed"
+    },
+    {
+      "id": "GFU-V03-clock",
+      "description": "Clock rollback is rejected without modifying the clock",
+      "status": "passed"
+    },
+    {
+      "id": "GFU-V15-bootstrap",
+      "description": "Changed root cannot replace independently pinned anchor",
+      "status": "passed"
+    },
+    {
+      "id": "GFU-V15-cache-root",
+      "description": "Self-signed cached root is not a substitute for an anchored chain",
+      "status": "passed"
+    },
+    {
+      "id": "GFU-V15-metadata-replay",
+      "description": "Trusted timestamp/snapshot version floor survives a new validator instance",
+      "status": "passed"
+    },
+    {
+      "id": "CACHE-refresh",
+      "description": "Expired cached timestamp may refresh through a fresh signed chain",
+      "status": "passed"
+    },
+    {
+      "id": "CONSENT-01",
+      "description": "No import without explicit local action",
+      "status": "passed"
+    },
+    {
+      "id": "CONTEXT-01",
+      "description": "Elevated context cannot prepare fixture update",
+      "status": "passed"
+    },
+    {
+      "id": "CONTEXT-02",
+      "description": "Active maintenance blocks fixture preparation",
+      "status": "passed"
+    },
+    {
+      "id": "CANCEL-01",
+      "description": "Cancellation is honored before metadata access",
+      "status": "passed"
+    },
+    {
+      "id": "JSON-duplicate",
+      "description": "Duplicate nested JSON keys are refused before library parsing",
+      "status": "passed"
+    },
+    {
+      "id": "JSON-utf8",
+      "description": "Invalid UTF-8 cannot be normalized into trusted metadata",
+      "status": "passed"
+    },
+    {
+      "id": "JSON-budget",
+      "description": "Oversized timestamp is rejected before cryptography",
+      "status": "passed"
+    },
+    {
+      "id": "CACHE-budget",
+      "description": "Oversized cached metadata is rejected before copying it",
+      "status": "passed"
+    },
+    {
+      "id": "BOOTSTRAP-budget",
+      "description": "Oversized bootstrap is refused before allocating its snapshot",
+      "status": "passed"
+    },
+    {
+      "id": "INPUT-unknown",
+      "description": "Unknown input members are refused before snapshotting",
+      "status": "passed"
+    },
+    {
+      "id": "CHAIN-missing",
+      "description": "Missing target metadata leaves active state unchanged",
+      "status": "passed"
+    },
+    {
+      "id": "PAYLOAD-corrupt",
+      "description": "TUF rejects modified payload before it is exposed",
+      "status": "passed"
+    },
+    {
+      "id": "ROOT-limit",
+      "description": "Root fetch budget cannot be bypassed",
+      "status": "passed"
+    },
+    {
+      "id": "NO-transport",
+      "description": "Unconfigured roles and remote-looking target paths have no fallback transport",
+      "status": "passed"
+    },
+    {
+      "id": "ZIP-truncated",
+      "description": "Truncated central directory is rejected",
+      "status": "passed"
+    },
+    {
+      "id": "ZIP-crc",
+      "description": "CRC mismatch is rejected even for a structurally readable ZIP",
+      "status": "passed"
+    },
+    {
+      "id": "JSON-mutation-corpus",
+      "description": "Deterministic byte mutations never yield an unexpected validator exception",
+      "status": "passed"
+    }
+  ],
+  "isolation": {
+    "product_compile_items": 142,
+    "prototype_compile_items": 0,
+    "outputs_outside_repository": true,
+    "sdk": "10.0.402",
+    "restore_locked_mode": true,
+    "product_built": false
+  }
+}

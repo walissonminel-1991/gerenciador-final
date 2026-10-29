@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "stage": 3,
+  "automatic_retries": 0,
+  "physical_tests_repeated": 0,
+  "initial": {
+    "schema": 1,
+    "stage": 3,
+    "run_id": 40763350794,
+    "job_id": 123080831759,
+    "head_sha": "b70387842ece401147a0cd5ca2bc05ff9aeb6af6",
+    "attempt": 1,
+    "conclusion": "failure",
+    "test_suite_executed": false,
+    "test_counts": null,
+    "error": "Collector required a WindowsDesktop THIRD-PARTY-NOTICES file absent from the official 10.0.13 package.",
+    "verified_package_fact": {
+      "id": "Microsoft.WindowsDesktop.App.Runtime.win-x64",
+      "version": "10.0.13",
+      "license_expression": "MIT",
+      "license_file": "LICENSE",
+      "separate_notices_present": false,
+      "repository_commit": "4099f83977f4d29604a9aeb971fb0a7bc1d5f699"
+    },
+    "correction": "f12d3eb3a16b0c747ab3f43c70950d34b4614b92",
+    "requirements_preserved": "Real .NET LICENSE/NOTICES and WindowsDesktop LICENSE plus authenticated nuspec; no invented notice or skipped licensing gate."
+  },
+  "second": {
+    "run_id": 40763986158,
+    "job_id": 123083084231,
+    "head_sha": "f12d3eb3a16b0c747ab3f43c70950d34b4614b92",
+    "attempt": 1,
+    "conclusion": "failure",
+    "total": 33,
+    "passed": 30,
+    "failed": 3,
+    "failures": [
+      {
+        "id": "DUR-01",
+        "description": "Reordered/lost selector and journal persistence images never authorize an unknown bundle",
+        "status": "failed",
+        "error": "Win32Exception: NTFS_OPEN_FAILED"
+      },
+      {
+        "id": "BUNDLE-01",
+        "description": "Real self-contained WinForms probe passes static PE/runtime/dependency/license inspection",
+        "status": "failed",
+        "error": "Rejected: PROBE_RUNTIME_DEPENDENCIES"
+      },
+      {
+        "id": "BUNDLE-07",
+        "description": "An injected undeclared DLL is refused by the dependency graph even with a recalculated hash list",
+        "status": "failed",
+        "error": "Rejected: WRONG_REJECTION:PROBE_RUNTIME_DEPENDENCIES"
+      }
+    ],
+    "observations": [
+      {
+        "kind": "frozen_tuf_clock",
+        "clock_reads": 10,
+        "system_clock_modified": false
+      },
+      {
+        "kind": "whole_suffix_loss_model",
+        "approved_before": 2,
+        "restored_floor": 1,
+        "power_loss_gate_closed": false,
+        "physical_power_cut_executed": false
+      },
+      {
+        "kind": "ipc_blocked",
+        "reason": "probe_bundle_static_validation_failed",
+        "ipc_executed": false
+      }
+    ],
+    "ipc_executed": false,
+    "ipc_cases_not_executed": 14,
+    "diagnosis": "Windows missing-selector opens throw Win32Exception, not IOException. SDK deps uses runtimepack.* names; WinForms includes a closed set of 52 satellite DLLs outside deps.json.",
+    "correction": "6e17b7268fb1182669e9a2646b34cfb52071dd00"
+  },
+  "policy": "Each new scoped push followed a demonstrated prototype/collector defect. No automatic rerun or product CI."
+}

@@ -1,0 +1,248 @@
+using System.Globalization;
+using System.Text.Json;
+using Tuf;
+using Tuf.Metadata;
+using Tuf.Serialization;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+// Internal laboratory journal. Not a gf-self-update/1 production wire format.
+internal sealed record TrustEvent(string Schema, string Installation, long Sequence, string Previous,
+    string Kind, string Attempt, string Utc, string Role, string Payload, int Epoch);
+internal sealed record TrustSeal(string Schema, string Installation, long Sequence, string Digest);
+internal sealed record TrustView(long Sequence, string Digest, int Epoch, int Root, int Timestamp,
+    int Snapshot, int Targets, string ActiveAttempt, DateTimeOffset LastUtc, Dictionary<string, byte[]> Metadata);
+
+internal sealed class TrustModel
+{
+    internal const string AnchorSha256 = "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e";
+    internal Dictionary<string, byte[]> Metadata = new(StringComparer.Ordinal);
+    internal int Epoch, Root, Timestamp, Snapshot, Targets;
+    internal string Active = "";
+    internal DateTimeOffset LastUtc;
+    private HashSet<string> seen = new(StringComparer.Ordinal);
+    internal TrustModel Copy() => new() { Metadata = Metadata.ToDictionary(x => x.Key, x => x.Value.ToArray(), StringComparer.Ordinal),
+        Epoch = Epoch, Root = Root, Timestamp = Timestamp, Snapshot = Snapshot, Targets = Targets, Active = Active, LastUtc = LastUtc,
+        seen = new(seen, StringComparer.Ordinal) };
+    internal static DateTimeOffset Utc(string text) {
+        Require(DateTimeOffset.TryParseExact(text, "O", CultureInfo.InvariantCulture, DateTimeStyles.None, out var t)
+            && t.Offset == TimeSpan.Zero && t != default, "U11_EVENT_UTC"); return t;
+    }
+    internal static string KeySet(byte[] root, string role) {
+        var parsed = TufMetadataParser.ParseRoot(root).Signed; var r = parsed.Roles[role];
+        var keys = r.KeyIds.Order(StringComparer.Ordinal).Select(id => new { id, type = parsed.Keys[id].KeyType,
+            scheme = parsed.Keys[id].Scheme, value = parsed.Keys[id].KeyVal["public"] }).ToArray();
+        return Hash(StateCodec.Encode(keys)); // threshold is separately constrained by closed RootPolicy
+    }
+    private static void Signature<T>(SignedMetadata<T> metadata, RootMetadata root, string role) where T : TufMetadata
+        => Require(TufMetadataVerifier.VerifyThreshold(metadata.Signatures, metadata.SignedBytes, root.Roles[role], root.Keys), "U11_SIGNATURE:" + role);
+    private static void Reference(byte[] bytes, MetaFileInfo reference, int version) {
+        Require(reference.Version == version && reference.Length == bytes.Length && reference.Hashes is { Count: 1 }
+            && reference.Hashes.GetValueOrDefault("sha256") == Hash(bytes), "U11_REFERENCE");
+    }
+    internal TrustModel Apply(TrustEvent e) {
+        var n = Copy(); DateTimeOffset utc = Utc(e.Utc);
+        Require(utc >= LastUtc, "U11_UTC_ROLLBACK");
+        Require(e.Kind is "bootstrap" or "begin" or "metadata" or "finish", "U11_EVENT_KIND");
+        if (e.Kind == "bootstrap") {
+            Require(Root == 0 && e.Role == "root" && e.Attempt == "", "U11_BOOTSTRAP_ORDER");
+            byte[] b = Decode(e.Payload); Require(Hash(b) == AnchorSha256, "U11_ANCHOR"); Envelope(b, "root", utc, cached: true);
+            var r = TufMetadataParser.ParseRoot(b); Signature(r, r.Signed, "root"); Require(r.Signed.Version == 1, "U11_ANCHOR_VERSION");
+            n.Metadata.Add("root", b); n.Root = 1;
+        } else if (e.Kind == "begin") {
+            Require(Root > 0 && Active == "" && e.Role == "" && e.Payload == "" && Hex(e.Attempt, 32)
+                && n.seen.Add(e.Attempt), "U11_ATTEMPT_BUSY_OR_REUSED"); n.Active = e.Attempt;
+        } else {
+            Require(Active != "" && e.Attempt == Active, "U11_ATTEMPT_BINDING");
+            if (e.Kind == "finish") { Require(e.Role == "" && e.Payload == "", "U11_FINISH_SCHEMA"); n.Active = ""; }
+            else {
+                byte[] b = Decode(e.Payload); Require(e.Role is "root" or "timestamp" or "snapshot" or "targets", "U11_ROLE");
+                Envelope(b, e.Role, utc, cached: e.Role == "root");
+                var root = TufMetadataParser.ParseRoot(Metadata["root"]).Signed;
+                if (e.Role == "root") {
+                    var r = TufMetadataParser.ParseRoot(b); Signature(r, root, "root"); Signature(r, r.Signed, "root");
+                    Require(r.Signed.Version == Root + 1, "U11_ROOT_CONTIGUOUS");
+                    bool reset = KeySet(Metadata["root"], "timestamp") != KeySet(b, "timestamp")
+                        || KeySet(Metadata["root"], "snapshot") != KeySet(b, "snapshot");
+                    if (reset) {
+                        // TUF 1.0.36 §5.3.11: invalidate timestamp/snapshot after their key rotation.
+                        // targets floor derives from snapshot; history is retained in the PREVIOUS epoch.
+                        n.Epoch++; n.Timestamp = n.Snapshot = n.Targets = 0;
+                        n.Metadata.Remove("timestamp"); n.Metadata.Remove("snapshot"); n.Metadata.Remove("targets");
+                    } else if (KeySet(Metadata["root"], "targets") != KeySet(b, "targets")) {
+                        n.Metadata.Remove("targets"); // must reverify new key; do NOT lower version/reference floors
+                    }
+                    n.Root = r.Signed.Version;
+                } else {
+                    Require(root.Expires > utc, "U11_FINAL_ROOT_EXPIRED");
+                    if (e.Role == "timestamp") {
+                        var t = TufMetadataParser.ParseTimestamp(b); Signature(t, root, "timestamp");
+                        Require(t.Signed.Version > Timestamp, "U11_TIMESTAMP_ROLLBACK_OR_EQUAL");
+                        if (Metadata.TryGetValue("timestamp", out var old))
+                            Require(t.Signed.SnapshotMeta.Version >= TufMetadataParser.ParseTimestamp(old).Signed.SnapshotMeta.Version, "U11_SNAPSHOT_REFERENCE_ROLLBACK");
+                        n.Timestamp = t.Signed.Version;
+                    } else if (e.Role == "snapshot") {
+                        Require(Metadata.TryGetValue("timestamp", out var tb), "U11_NO_TIMESTAMP"); var t = TufMetadataParser.ParseTimestamp(tb!).Signed;
+                        Require(t.Expires > utc, "U11_TIMESTAMP_EXPIRED");
+                        var s = TufMetadataParser.ParseSnapshot(b); Signature(s, root, "snapshot"); Reference(b, t.SnapshotMeta, s.Signed.Version);
+                        Require(s.Signed.Version >= Snapshot, "U11_SNAPSHOT_ROLLBACK");
+                        if (Metadata.TryGetValue("snapshot", out var old)) {
+                            var prior = TufMetadataParser.ParseSnapshot(old).Signed;
+                            foreach (var item in prior.Meta) Require(s.Signed.Meta.TryGetValue(item.Key, out var next) && next.Version >= item.Value.Version, "U11_TARGET_REFERENCE_ROLLBACK");
+                            if (s.Signed.Version == Snapshot) Require(Hash(old) == Hash(b), "U11_SNAPSHOT_EQUIVOCATION");
+                        }
+                        n.Snapshot = s.Signed.Version;
+                    } else {
+                        Require(Metadata.TryGetValue("snapshot", out var sb) && Metadata.TryGetValue("timestamp", out _), "U11_NO_SNAPSHOT");
+                        var s = TufMetadataParser.ParseSnapshot(sb!).Signed; var t = TufMetadataParser.ParseTimestamp(Metadata["timestamp"]).Signed;
+                        Require(t.Expires > utc && s.Expires > utc && s.Version == t.SnapshotMeta.Version, "U11_FINAL_SNAPSHOT");
+                        var target = TufMetadataParser.ParseTargets(b); Signature(target, root, "targets"); Reference(b, s.Meta["targets.json"], target.Signed.Version);
+                        Require(target.Signed.Version >= Targets, "U11_TARGETS_ROLLBACK");
+                        if (Metadata.TryGetValue("targets", out var old) && target.Signed.Version == Targets) Require(Hash(old) == Hash(b), "U11_TARGETS_EQUIVOCATION");
+                        n.Targets = target.Signed.Version;
+                    }
+                }
+                n.Metadata[e.Role] = b;
+            }
+        }
+        n.LastUtc = utc; Require(e.Epoch == n.Epoch, "U11_EPOCH_BINDING"); return n;
+    }
+    internal static byte[] Decode(string text) {
+        Require(text.Length is > 0 and <= 710000, "U11_METADATA_BUDGET");
+        try { return Convert.FromBase64String(text); } catch (FormatException) { throw new Rejected("U11_METADATA_BASE64"); }
+    }
+}
+
+internal sealed class DurableEpochCache : ITufCache, IDisposable
+{
+    internal readonly string Root, DirectoryPath, Installation;
+    private readonly List<WindowsFileGuard> directoryPins = [];
+    private readonly InstallationLease lease;
+    private readonly object sync = new();
+    private TrustModel model = new();
+    private long sequence;
+    private string digest = new('0', 64);
+    private DateTimeOffset captured;
+    private bool disposed, uncertain;
+    private readonly Dictionary<string, byte[]> targetCache = new(StringComparer.Ordinal);
+    internal Action<string, long, string>? Cut;
+    internal string Records => Path.Combine(DirectoryPath, "records");
+    internal string Seals => Path.Combine(DirectoryPath, "seals");
+    internal string Hints => Path.Combine(DirectoryPath, "hints");
+    private string Pending => Path.Combine(DirectoryPath, "pending.fixture");
+    internal DurableEpochCache(string root, string installation, byte[] anchor, bool create = false, TrustExitProof? recovery = null) {
+        FixtureSandbox.RequireRoot(root); Require(Hex(installation, 32) && Hash(anchor) == TrustModel.AnchorSha256, "U11_SCOPE_ANCHOR");
+        Root = Path.GetFullPath(root); Installation = installation; DirectoryPath = Path.Combine(Root, "tuf11");
+        if (create) {
+            Require(!Directory.Exists(DirectoryPath), "U11_NO_REBOOTSTRAP"); Directory.CreateDirectory(DirectoryPath);
+            File.WriteAllText(Path.Combine(DirectoryPath, ".gf-u2-fixture"), FixtureSandbox.Marker);
+            foreach (string folder in new[] { Records, Seals, Hints }) Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(DirectoryPath, "lease.fixture"), "GF-U11-TRUST-LEASE\n");
+        }
+        Require(Directory.Exists(DirectoryPath), "U11_TRUST_MISSING");
+        try {
+            if (OperatingSystem.IsWindows()) foreach (string folder in new[] { DirectoryPath, Records, Seals, Hints }) directoryPins.Add(WindowsFileGuard.Open(Root, folder, true));
+            lease = InstallationLease.Acquire(DirectoryPath);
+            try {
+                if (create) { captured = DateTimeOffset.UtcNow; Append("bootstrap", "root", anchor, ""); }
+                else Reload(recovery);
+            } catch { lease.Dispose(); throw; }
+        } catch { foreach (var pin in directoryPins.AsEnumerable().Reverse()) pin.Dispose(); throw; }
+    }
+    internal TrustView View() { lock (sync) { Check(); return new(sequence, digest, model.Epoch, model.Root, model.Timestamp, model.Snapshot,
+        model.Targets, model.Active, model.LastUtc, model.Metadata.ToDictionary(x => x.Key, x => x.Value.ToArray(), StringComparer.Ordinal)); } }
+    internal DateTimeOffset CapturedUtc { get { lock (sync) { Check(); Require(model.Active != "", "U11_NO_ATTEMPT"); return captured; } } }
+    private void Check() { Require(!disposed, "U11_CACHE_CLOSED"); foreach (var pin in directoryPins) pin.Recheck(); }
+    private static string Name(long n) => n.ToString("D16", CultureInfo.InvariantCulture) + ".json";
+    private byte[] Read(string path) => PersistentState.ReadFixtureFile(Root, path);
+    private static byte[] Wrap(TrustEvent e) { byte[] p = StateCodec.Encode(e); return StateCodec.Encode(new { schema = "gf-trust-record/11", payload = Convert.ToBase64String(p), sha256 = Hash(p) }); }
+    private static TrustEvent Unwrap(byte[] b) {
+        using var d = Json(b, StateCodec.MaxRecordBytes); Exact(d.RootElement, "schema", "payload", "sha256");
+        Require(Text(d.RootElement, "schema") == "gf-trust-record/11", "U11_RECORD_SCHEMA");
+        byte[] p; try { p = Convert.FromBase64String(Text(d.RootElement, "payload")); } catch (FormatException) { throw new Rejected("U11_RECORD_BASE64"); }
+        Require(Hash(p) == Text(d.RootElement, "sha256"), "U11_RECORD_CHECKSUM"); return StateCodec.Decode<TrustEvent>(p);
+    }
+    private TrustModel Validate(TrustEvent e) {
+        Require(e.Schema == "gf-trust-event/11" && e.Installation == Installation && e.Sequence == sequence + 1 && e.Previous == digest, "U11_RECORD_CHAIN");
+        return model.Apply(e);
+    }
+    private void WriteNew(string path, byte[] bytes) {
+        using var f = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough); f.Write(bytes); f.Flush(true);
+    }
+    private void Seal() => WriteNew(Path.Combine(Seals, Name(sequence)), StateCodec.Encode(new TrustSeal("gf-trust-seal/11", Installation, sequence, digest)));
+    private void Reload(TrustExitProof? recovery) {
+        string[] records = System.IO.Directory.GetFiles(Records), seals = System.IO.Directory.GetFiles(Seals);
+        Require(records.Length is > 0 and <= 256 && seals.Length <= records.Length, "U11_MISSING_OR_LIMIT");
+        Array.Sort(records, StringComparer.Ordinal); Array.Sort(seals, StringComparer.Ordinal);
+        for (int i = 0; i < records.Length; i++) {
+            Require(Path.GetFileName(records[i]) == Name(i + 1), "U11_RECORD_GAP");
+            byte[] bytes = Read(records[i]); var e = Unwrap(bytes); var next = Validate(e); sequence = e.Sequence; digest = Hash(bytes); model = next;
+            if (i < seals.Length) {
+                Require(Path.GetFileName(seals[i]) == Name(i + 1), "U11_SEAL_GAP");
+                var seal = StateCodec.Decode<TrustSeal>(Read(seals[i]));
+                Require(seal == new TrustSeal("gf-trust-seal/11", Installation, sequence, digest), "U11_RECORD_LOST_OR_CHANGED");
+            } else {
+                Require(i == records.Length - 1 && recovery is not null, "U11_SEAL_MISSING"); recovery.Verify(Root, sequence, digest); Seal();
+            }
+        }
+        if (File.Exists(Pending)) {
+            Require(recovery is not null, "U11_PENDING_RECORD"); byte[] bytes = Read(Pending); var e = Unwrap(bytes); var next = Validate(e);
+            recovery.Verify(Root, e.Sequence, Hash(bytes)); File.Move(Pending, Path.Combine(Records, Name(e.Sequence)), false);
+            sequence = e.Sequence; digest = Hash(bytes); model = next; Seal();
+        }
+        Require(System.IO.Directory.GetFiles(DirectoryPath).Select(Path.GetFileName).ToHashSet(StringComparer.Ordinal).SetEquals(new[] { ".gf-u2-fixture", "lease.fixture" }), "U11_UNKNOWN_TRUST_FILE");
+        if (recovery is not null) recovery.Verify(Root, sequence, digest);
+        // Hints never supply authority or floors. A stale/missing hint is rebuilt from the authenticated event chain.
+    }
+    private void Append(string kind, string role, byte[]? payload, string attempt) {
+        Check(); Require(!uncertain && !File.Exists(Pending), "U11_WRITE_UNCERTAIN");
+        string b64 = payload is null ? "" : Convert.ToBase64String(payload);
+        int epoch = model.Epoch;
+        if (kind == "metadata" && role == "root" && (TrustModel.KeySet(model.Metadata["root"], "timestamp") != TrustModel.KeySet(payload!, "timestamp")
+            || TrustModel.KeySet(model.Metadata["root"], "snapshot") != TrustModel.KeySet(payload!, "snapshot"))) epoch++;
+        var e = new TrustEvent("gf-trust-event/11", Installation, sequence + 1, digest, kind, attempt, captured.ToString("O", CultureInfo.InvariantCulture), role, b64, epoch);
+        var next = Validate(e); byte[] bytes = Wrap(e); Require(bytes.Length <= StateCodec.MaxRecordBytes && sequence < 256, "U11_RECORD_LIMIT"); string hash = Hash(bytes);
+        // The begin event predates metadata authentication. Unrecorded authenticated advances cannot silently reopen an interrupted attempt.
+        try {
+            Cut?.Invoke("authenticated-" + kind + "-" + role, e.Sequence, hash);
+            using (var f = new FileStream(Pending, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
+                Cut?.Invoke("created-" + kind + "-" + role, e.Sequence, hash); f.Write(bytes); f.Flush(true);
+            }
+            Cut?.Invoke("flushed-" + kind + "-" + role, e.Sequence, hash);
+            File.Move(Pending, Path.Combine(Records, Name(e.Sequence)), false); sequence = e.Sequence; digest = hash; model = next;
+            Cut?.Invoke("promoted-" + kind + "-" + role, sequence, digest); Seal();
+            Cut?.Invoke("committed-" + kind + "-" + role, sequence, digest);
+        } catch { uncertain = true; throw; }
+    }
+    internal void Begin(DateTimeOffset utc) { lock (sync) { Check(); Require(model.Active == "" && !uncertain, "U11_INTERRUPTED_ATTEMPT");
+        Require(utc.Offset == TimeSpan.Zero && utc >= model.LastUtc, "U11_UTC_ROLLBACK"); captured = utc; targetCache.Clear(); Append("begin", "", null, Guid.NewGuid().ToString("N")); } }
+    internal void Finish() { lock (sync) { Check(); Require(model.Active != "", "U11_NO_ATTEMPT"); Append("finish", "", null, model.Active); } }
+    internal void SettleObservedFixture(TrustExitProof proof) { lock (sync) { proof.Verify(Root, sequence, digest); Require(model.Active != "", "U11_NO_INTERRUPTED_ATTEMPT");
+        captured = model.LastUtc; Append("finish", "", null, model.Active); } }
+    internal void WriteHints() { lock (sync) {
+        Check(); foreach (string path in System.IO.Directory.GetFiles(Hints)) { Require(Path.GetFileName(path) is "root.json" or "timestamp.json" or "snapshot.json" or "targets.json", "U11_HINT_NAME"); File.Delete(path); }
+        foreach (var item in model.Metadata) WriteNew(Path.Combine(Hints, item.Key + ".json"), item.Value);
+    } }
+    public byte[]? LoadMetadata(string role) { lock (sync) { Check(); return model.Metadata.TryGetValue(role, out var b) ? b.ToArray() : null; } }
+    public void StoreMetadata(string role, byte[] bytes) { lock (sync) { Check(); Require(model.Active != "", "U11_NO_ATTEMPT");
+        if (model.Metadata.TryGetValue(role, out var old) && old.SequenceEqual(bytes)) return;
+        Append("metadata", role, bytes.ToArray(), model.Active);
+    } }
+    public byte[]? LoadTarget(string path) { lock (sync) return targetCache.TryGetValue(path, out var b) ? b.ToArray() : null; }
+    public void StoreTarget(string path, byte[] bytes) { lock (sync) { Require(path == "fixture-package.zip" && bytes.Length <= ZipInspection.MaxBytes, "U11_INERT_TARGET_ONLY"); targetCache[path] = bytes.ToArray(); } }
+    public void Dispose() { lock (sync) { if (disposed) return; lease.Dispose(); foreach (var pin in directoryPins.AsEnumerable().Reverse()) pin.Dispose(); disposed = true; } }
+}
+
+internal static class DurableTufAttempt
+{
+    internal static async Task<TufTargetResult> Get(DurableEpochCache cache, Stage8Repository repository, DateTimeOffset utc, CancellationToken token = default) {
+        cache.Begin(utc);
+        using var client = new TufClient(new TufClientOptions { ValidationUtc = utc, TrustedRoot = cache.LoadMetadata("root")!, Cache = cache,
+            Repository = repository, MetadataBaseUrl = new Uri("https://gf-u11-fixture.invalid/"), MaxRootRotations = 32, MaxDelegations = 1 });
+        try { var result = await client.GetTargetAsync("fixture-package.zip", token); cache.Finish(); return result; }
+        catch (Exception ex) when (ex is TufException or Rejected or OperationCanceledException) {
+            // Finish is permitted only if all preceding synchronous journal writes completed. Pending/unknown writes keep the fence.
+            try { cache.Finish(); } catch (Rejected) { } throw;
+        }
+    }
+}

@@ -102,7 +102,7 @@ internal static class WindowsTerminalUpdater
         using var directoryLock = InstallerFileGuard.PinDirectory(folder, allowLeafWrites: true);
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(5) };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GerenciadorFinal", "5.12.17"));
+        client.DefaultRequestHeaders.UserAgent.Add(ProductHttpIdentity.UserAgent);
         Uri target = recipe.Download;
         const long maxBytes = 90L * 1024 * 1024;
         for (int redirect = 0; redirect <= 7; redirect++)

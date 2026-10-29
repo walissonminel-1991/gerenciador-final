@@ -11,7 +11,9 @@
     <ApplicationIcon>Assets\GerenciadorFinal.ico</ApplicationIcon>
     <AssemblyName>GerenciadorFinal</AssemblyName>
     <RootNamespace>GerenciadorAplicativos</RootNamespace>
-    <Version>5.13.11.65</Version>
+    <Version>5.13.11.66</Version>
+    <GfBetaProfile Condition="'$(GfBetaProfile)' == ''">local</GfBetaProfile>
+    <DefineConstants>$(DefineConstants);GF_BETA</DefineConstants>
     <Title>Gerenciador Final</Title>
     <Description>Gerenciador Final: atualizações, diagnóstico e manutenção do Windows.</Description>
     <PublishSingleFile>false</PublishSingleFile>
@@ -20,6 +22,13 @@
     <MicrosoftManagementDeployment-FactoryLinkage>static</MicrosoftManagementDeployment-FactoryLinkage>
     <MicrosoftManagementDeployment-OutputWinMD>false</MicrosoftManagementDeployment-OutputWinMD>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(GfBetaProfile)' == 'local'">
+    <DefineConstants>$(DefineConstants);GF_BETA_LOCAL</DefineConstants>
+  </PropertyGroup>
+  <Target Name="ValidateGfBetaProfile" BeforeTargets="CoreCompile">
+    <Error Condition="'$(GfBetaProfile)' != 'local' And '$(GfBetaProfile)' != 'internal'"
+      Text="GF_BETA_PROFILE_INVALID: perfil exige local ou internal." />
+  </Target>
   <!-- Os projetos de testes sao compilados separadamente. -->
   <ItemGroup>
     <Compile Remove="TestesMotor/**/*.cs;TestesRede/**/*.cs;TestesAtualizador/**/*.cs;TestesCatalogo/**/*.cs;TestesMultifontes/**/*.cs;TestesMsix/**/*.cs;TestesFechamento/**/*.cs;TestesResiduos/**/*.cs;TestesLayout/**/*.cs;TestesSeguranca/**/*.cs;TestesDrivers/**/*.cs;TestesTelemetria/**/*.cs" />
@@ -37,6 +46,7 @@
   <ItemGroup>
     <None Update="LICENSE" CopyToPublishDirectory="PreserveNewest" TargetPath="LICENSE.txt" />
     <None Update="PRIVACY.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="docs/AVISO-PRIVACIDADE-BETA.md" CopyToPublishDirectory="PreserveNewest" TargetPath="AVISO-PRIVACIDADE-BETA.md" />
     <None Update="docs/USO-PORTATIL.md" CopyToPublishDirectory="PreserveNewest" TargetPath="LEIA-ME.md" />
     <None Update="docs/THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" TargetPath="THIRD-PARTY-NOTICES.md" />
   </ItemGroup>
@@ -56,6 +66,53 @@
   <ItemGroup>
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
     <PackageReference Include="Microsoft.WindowsPackageManager.ComInterop" Version="1.29.380" GeneratePathProperty="true" />
+  </ItemGroup>
+  <Import Project="BetaTelemetryPolicy.props" />
+  <Target Name="ValidateGfBetaEndpoint" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_MatchedGfBetaEndpoint Include="@(GfApprovedBetaEndpoint)" Condition="'%(Identity)' == '$(GfBetaEndpoint)'" />
+    </ItemGroup>
+    <Error Condition="'$(GfBetaEndpoint)' != '' And ('@(_MatchedGfBetaEndpoint)' == '' Or '$(GfReviewedPrivacyNoticeSha256)' == '')"
+      Text="GF_BETA_ENDPOINT_NOT_APPROVED: receptor e aviso exigem revisao em codigo." />
+    <Error Condition="'$(GfBetaEndpoint)' != '' And !$([System.Text.RegularExpressions.Regex]::IsMatch('$(GfSourceCommit)', '^[a-f0-9]{40}$'))"
+      Text="GF_BETA_SOURCE_COMMIT_REQUIRED: a compilacao conectada exige commit fonte exato." />
+    <Error Condition="'$(GfBetaProfile)' == 'local' And '$(GfBetaEndpoint)' != ''"
+      Text="GF_BETA_LOCAL_ENDPOINT_FORBIDDEN: a edicao local nao aceita receptor remoto." />
+  </Target>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'$(GfBetaProfile)' == 'internal' And '@(GfApprovedBetaEndpoint)' != ''">
+      <_Parameter1>GfApprovedBetaEndpoint</_Parameter1>
+      <_Parameter2>%(GfApprovedBetaEndpoint.Identity)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'$(GfBetaProfile)' == 'internal' And '$(GfReviewedPrivacyNoticeSha256)' != ''">
+      <_Parameter1>GfReviewedPrivacyNoticeSha256</_Parameter1>
+      <_Parameter2>$(GfReviewedPrivacyNoticeSha256)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>GfBetaProfile</_Parameter1>
+      <_Parameter2>$(GfBetaProfile)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>GfBuildChannel</_Parameter1>
+      <_Parameter2>BETA</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>GfPrivacyNoticeVersion</_Parameter1>
+      <_Parameter2>gf-beta-20261026-r3</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'$(GfSourceCommit)' != ''">
+      <_Parameter1>GfSourceCommit</_Parameter1>
+      <_Parameter2>$(GfSourceCommit)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <!-- Somente URL do endpoint: nunca token privado no aplicativo. -->
+  <ItemGroup Condition="'$(GfBetaProfile)' == 'internal' And '$(GfBetaEndpoint)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>GfBetaEndpoint</_Parameter1>
+      <_Parameter2>$(GfBetaEndpoint)</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>
 

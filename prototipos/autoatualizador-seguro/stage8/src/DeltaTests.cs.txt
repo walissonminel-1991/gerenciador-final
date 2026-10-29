@@ -1,0 +1,68 @@
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using Tuf;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+internal static class DeltaTests
+{
+    internal static readonly List<object> Results = [], Observations = [];
+    internal static string FixtureRoot = "", Prefix = "";
+    internal static readonly DateTimeOffset T0 = DateTimeOffset.Parse("2026-11-02T12:00:00Z");
+    internal static byte[] Anchor => File.ReadAllBytes(Path.Combine(FixtureRoot, "anchor.json"));
+    internal static Dictionary<string, byte[]> Data(string name) => Directory.GetFiles(Path.Combine(FixtureRoot, name)).ToDictionary(p => Path.GetFileName(p), File.ReadAllBytes, StringComparer.Ordinal);
+    internal static async Task Test(string id, string delta, Func<Task> run) {
+        if (!id.StartsWith(Prefix, StringComparison.Ordinal)) return;
+        try { await run(); Results.Add(new { id, delta, status = "passed" }); Console.WriteLine("PASS " + id); }
+        catch (Exception e) { Results.Add(new { id, delta, status = "failed", error = e.ToString() }); Console.WriteLine("FAIL " + id + " " + e); }
+    }
+    internal static async Task<T> Watch<T>(Task<T> task) => await task.WaitAsync(TimeSpan.FromSeconds(8));
+    internal static TaskCompletionSource<T> Signal<T>() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal static void Reject(Action run, string code) {
+        try { run(); } catch (Rejected e) { Require(e.Code == code, "U8_WRONG_REFUSAL:" + e.Code); return; }
+        throw new Rejected("U8_ACCEPTED:" + code);
+    }
+    internal static async Task Throws<T>(Func<Task> run) where T : Exception {
+        try { await run(); } catch (T) { return; } throw new Rejected("U8_EXPECTED:" + typeof(T).Name);
+    }
+    internal static void Finish(OwnedAttempt owner) {
+        Require(owner.Pending == 0, "U8_FIXTURE_STILL_PENDING");
+        if (!owner.TryRelease()) { owner.ReconcileFixture(() => true); Require(owner.TryRelease(), "U8_NOT_RELEASED"); }
+    }
+    internal static TufClient Client(ITufRepository repo, Stage8Cache? cache = null, DateTimeOffset? utc = null)
+        => new(new TufClientOptions { ValidationUtc = utc ?? T0, MetadataBaseUrl = new Uri("https://gf-u8-fixture.invalid/"),
+            Repository = repo, TrustedRoot = Anchor, Cache = cache ?? new(), MaxRootRotations = 32, MaxDelegations = 1 });
+    public static async Task<int> Main(string[] args) {
+        if (args.Length != 3) return 2;
+        FixtureRoot = args[0]; Prefix = args[2]; await ClockDeltaTests.Run(); await IoDeltaTests.Run();
+        int failed = Results.Count(x => JsonSerializer.SerializeToElement(x).GetProperty("status").GetString() == "failed");
+        var report = new { schema = "gf-stage8-delta-tests/1", stage = 8, contract = "gf-self-update/1", fixture_only = true,
+            installable = false, runtime = RuntimeInformation.FrameworkDescription, os = RuntimeInformation.OSDescription,
+            total = Results.Count, passed = Results.Count - failed, failed, blocked = 0, case_prefix = Prefix, tests = Results, observations = Observations,
+            operational_gates_closed = 0, operational_gates_blocked = 8,
+            limits = new[] { "No operational maintenance acceptance or interoperability certification", "No persistent unknown-I/O barrier or crash durability proof",
+                "No storage hang or power-loss test", "No authenticated GF package/PE, product lifecycle or IPC", "No operational keys/bootstrap" },
+            old_suites_executed = false, real_120_second_test_repeated = false, physical_tests_repeated = 0,
+            product_built = false, product_executed = false, private_channel_accessed = false, stage9_started = false };
+        await File.WriteAllTextAsync(args[1], JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }) + "\n");
+        return failed == 0 && Results.Count > 0 ? 0 : 1;
+    }
+}
+internal sealed class CaptureClock(DateTimeOffset value) : TimeProvider {
+    internal DateTimeOffset Value = value; internal int Reads;
+    public override DateTimeOffset GetUtcNow() { Interlocked.Increment(ref Reads); return Value; }
+}
+// Direct signed fixtures bypass GF preflight solely to expose the library's changed internal clock branches.
+internal sealed class RawRepository(Dictionary<string, byte[]> data) : ITufRepository {
+    internal readonly Dictionary<string, int> Fetches = [];
+    internal Func<string, Task>? Before;
+    public async Task<byte[]?> FetchMetadataAsync(string role, int? version = null, CancellationToken cancellationToken = default) {
+        cancellationToken.ThrowIfCancellationRequested(); Fetches[role] = Fetches.GetValueOrDefault(role) + 1;
+        if (Before is not null) await Before(role);
+        cancellationToken.ThrowIfCancellationRequested();
+        return data.TryGetValue(version is int n ? $"{n}.{role}.json" : role + ".json", out var b) ? b.ToArray() : null;
+    }
+    public Task<byte[]?> FetchTargetAsync(string path, CancellationToken cancellationToken = default) {
+        cancellationToken.ThrowIfCancellationRequested(); Fetches["target"] = Fetches.GetValueOrDefault("target") + 1;
+        return Task.FromResult(data.TryGetValue(path, out var b) ? b.ToArray() : null);
+    }
+}

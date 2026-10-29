@@ -1,3 +1,94 @@
+# Exclusão permanente de escopo — 27/10/2026
+
+**Etapa 8 — BLOQUEADA para pacote/entrega executável privada (28/10/2026).**
+[Preparação e impedimento](WORK-INTEGRACAO-ETAPA8-PREPARACAO.md) ·
+[guia/roteiro futuro PC FORTE](WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md) ·
+[recibo](evidencias/integracao-etapa8-preparacao.json).
+Fonte 6df95fdd776644cd4b248b5cea61108974ca9ce9 e CIs 40675784213/40675784155
+reconferidas success, tentativa 1; onze diferenças documentais posteriores,
+sem alteração funcional ou de arquivos embarcados. Perfil local e proteções
+preservados. Somente três manifestos disponíveis; ZIP executável, SHA-256 do
+pacote e link privado inexistentes. Alternativa privada documentada, sem
+provisionamento ou contorno de gates. **Etapa 9 não iniciada; todos os testes
+físicos NÃO EXECUTADO.** Roadmap 27/42; conectada/pública bloqueada.
+
+O roteiro novo é planejamento condicional: aproveitar E1–E5 e completar só lacunas
+do artefato exato. Não repetir baterias antigas, provocar falhas ou iniciar teste
+físico nesta sessão. Somente testes de documentação/metadados após as edições;
+nenhuma regressão Windows/Node ou compilação repetida.
+
+**Etapa 7 concluída — 28/10/2026:** [correções e regressões](WORK-INTEGRACAO-ETAPA7-CORRECOES.md),
+[matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) e [recibo](evidencias/integracao-etapa7-correcoes.json).
+GF6-001/GF6-002 (ALTOS locais), GF6-003/GF6-004 (BAIXOS) e GF7-001
+(regressão de CI, MÉDIO) corrigidos no escopo demonstrado.
+Fonte **`6df95fdd776644cd4b248b5cea61108974ca9ce9`**, [Windows 40675784213](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213)
+e [integridade externa 40675784155](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155) aprovadas,
+tentativa 1. Regra local compilada: zero consultas automáticas e diagnóstico
+remoto desativado inclusive com consentimento herdado/erro/encerramento.
+**BETA LOCAL não preparada; conectada/pública bloqueada.** Próxima sessão
+somente Etapa 8; não iniciada. Roadmap **27/42**, sem homologação física/AVG.
+
+Reprodução Windows isolada: `dotnet run --project TestesLayout -c Release -- --beta-local`.
+As regressões do perfil interno usam `-c BetaInternal -p:GfBetaProfile=internal`,
+inclusive `--beta-close`; não executam um receptor real nem autorizam piloto.
+
+Por instrução do mantenedor, VLC não participa de testes, consultas de versões,
+verificações de sites, downloads ou homologações futuras. Não propor botões ou
+ações para ele. A entrada pode permanecer somente no inventário, sem ações.
+Não reexecutar roteiros/branches históricos que incluam esse alvo; incorporar
+a exclusão antes de qualquer nova integração. Demais verificações de segurança
+permanecem obrigatórias. Os registros abaixo preservam a história do projeto.
+
+## Auditoria da integração — Etapa 6, 27/10/2026
+
+[Relatório/14 eixos](WORK-INTEGRACAO-ETAPA6-AUDITORIA.md) ·
+[matriz de defeitos](WORK-INTEGRACAO-DEFEITOS.md) ·
+[recibo](evidencias/integracao-etapa6-auditoria.json).
+Fonte auditada db67cde4, funcionalmente igual à CI da composição 6b5b0e52.
+Executados 47/47 Python e 136/136 Node com SQLite/transportes fictícios;
+analisadores de sintaxe/formatos aprovados. Nenhum teste novo ou correção.
+Windows/.NET indisponíveis localmente; C#/UI e analisadores de compilação
+usam os runs próprios já aprovados, sem nova build/CI ou PC pessoal.
+
+Dois ALTOS do futuro perfil BETA LOCAL (abertura e coleta remota herdada) e
+dois BAIXOS registrados. Próxima sessão somente Etapa 7, com reprodução,
+testes antes/depois e CI Windows no SHA exato; pacote e teste físico permanecem
+posteriores. Os registros/comandos históricos abaixo conservam seu contexto.
+
+## Continuidade da integração .66 — Etapa 5, 27/10/2026
+
+[Checkpoint](WORK-INTEGRACAO-CHECKPOINT.md) · [matriz](WORK-INTEGRACAO-MATRIZ.md) ·
+[validação da Etapa 3](WORK-INTEGRACAO-ETAPA3-VALIDACAO.md) ·
+[avaliação 4](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md) ·
+[organização 5](WORK-INTEGRACAO-ETAPA5-ORGANIZACAO.md).
+Fonte validada `6b5b0e52f3a576c1c59eb20ca66ed8c61bfb48d8`, CIs 40604593820 e
+40604593709 aprovadas; os comandos/roteiros anteriores abaixo conservam seu
+contexto histórico e não autorizam repetir fontes excluídas ou testes físicos.
+
+Inventário atual: 13 suítes de console (TestesRede é externo/opcional), duas
+fixtures de TestesResiduos e TestesManifesto em PowerShell. TestesEcossistema
+integra as regressões Windows; os caminhos e modos efetivamente usados estão
+nos quatro workflows versionados. Não somar modos focados às suítes completas.
+Drivers seguem somente leitura e WinGet COM opcional/não bloqueante/consultivo;
+nesta etapa não foram reexecutados nem reinvestigados.
+
+Organização concluída; próxima sessão somente auditoria 6. Nenhuma suíte de
+produto, consulta externa de aplicativo ou teste em PC nesta sessão. O plano
+físico futuro da avaliação 4 reaproveita E1–E5, mantém AVG ativo e não solicita
+atualização/desinstalação real apenas para evidência. BETA LOCAL não preparada.
+
+## Continuidade física pré-BETA — Etapa 6 (27/10/2026)
+
+E1–E5 já foram consolidadas no [relatório da Etapa 6](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md).
+O roteiro físico vigente desta missão é o focal desse relatório: cobertura/
+interpretação, amostras comparáveis de repouso, aprovação visual/T11 e prova AVG.
+**Não solicitar ou repetir a bateria A inteira.** Reutilizar os pontos já
+executados e pedir somente a evidência ausente. T11 do PC FRACO não foi executado;
+nenhum reinício é solicitado agora. As baterias anteriores abaixo permanecem
+como histórico e critérios de referência, sem conceder autorização para ações.
+Drivers continuam desativados; sem operação nos PCs nesta etapa. Nenhuma nova
+build ou teste de produto foi executado na consolidação.
+
 # Regressões do GERENCIADOR FINAL
 
 WORK18 (.65): executar também `dotnet run --project TestesAtualizador -c Release -- --work18`,
@@ -38,6 +129,7 @@ confira se algum projeto ficou sem caminho de execução.
 | TestesResiduos | Desinstalação simulada e alvos descartáveis de arquivos/Registro, HKCU/HKLM e visões 32/64, revalidação e preservação |
 | TestesLayout | WinForms, navegação tardia, inventário, RAM, DPI, resoluções e capturas sintéticas |
 | TestesMsix | Falhas COM, retry limitado, fotografia parcial e cancelamento |
+| TestesEcossistema | Inventário gerenciado, identidades e contratos consultivos em isolamento |
 | TestesTelemetria | Consentimento, expiração, esquema e privacidade local |
 | TestesFechamento | Bloqueios, encerramento seguro, concorrência e cancelamento |
 

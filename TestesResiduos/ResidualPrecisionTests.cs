@@ -11,7 +11,7 @@ internal static class ResidualPrecisionTests
             "Eidos Montreal", "Guerrilla Games", "nWay Inc", "Opera Software", "Red Dot Games", "Sucker Punch Productions", "Western Digital" })
             check(BroadResidualDiscovery.Classify(Pair(name), []).Single().Findings.All(f =>
                 f.Disposition == ResidualDisposition.PreserveShared && !f.CanRemove), "Fabricante preservado: " + name);
-        foreach (string name in new[] { "foobar2000", "LegacyEditor", "VLC Player" })
+        foreach (string name in new[] { "foobar2000", "LegacyEditor", "LegacyPlayer" })
             check(BroadResidualDiscovery.Classify(Pair(name, "ProgramData"), []).Single().Findings.All(f =>
                 f.Disposition == ResidualDisposition.PreserveData), "Perfis desconhecidos, configurações e dados compartilháveis são preservados: " + name);
         var installed = new[] { new ProgramEntry { Name = "Editor Pro 2", Publisher = "Empresa A" } };

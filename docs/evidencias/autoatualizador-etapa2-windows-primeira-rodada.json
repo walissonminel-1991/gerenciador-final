@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "stage": 2,
+  "run_id": 40746736121,
+  "job_id": 123022398870,
+  "attempt": 1,
+  "head_sha": "5e9961b6fbba938ac8869d41dd9119b56a2057f8",
+  "conclusion": "failure",
+  "total": 60,
+  "passed": 39,
+  "failed": 21,
+  "diagnosis": "Directory handles denied WRITE sharing, blocking child journal promotion; one assertion expected STATE_SIZE although NTFS rejected earlier as NTFS_SIZE.",
+  "failed_cases": [
+    {
+      "id": "STATE-10",
+      "error": "Rejected: WRONG_REJECTION:NTFS_SIZE expected STATE_SIZE"
+    },
+    {
+      "id": "TX-02",
+      "error": "IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "TX-03",
+      "error": "IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "TX-04",
+      "error": "IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "TX-05",
+      "error": "IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "TX-06",
+      "error": "IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "TX-07",
+      "error": "IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "TX-08",
+      "error": "IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "TX-09",
+      "error": "IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "TX-11",
+      "error": "IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "FAULT-selector",
+      "error": "Rejected: STATE_INCOMPLETE"
+    },
+    {
+      "id": "CRASH-begin:intent-persisted",
+      "error": "Rejected: CUT_NOT_REACHED::Unhandled exception. System.IO.IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "CRASH-begin:selector-replaced",
+      "error": "Rejected: CUT_NOT_REACHED::Unhandled exception. System.IO.IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "CRASH-begin:selected-persisted",
+      "error": "Rejected: CUT_NOT_REACHED::Unhandled exception. System.IO.IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "CRASH-recover:rollback-intent-persisted",
+      "error": "Rejected: CUT_NOT_REACHED::Unhandled exception. System.IO.IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "CRASH-recover:selector-replaced",
+      "error": "Rejected: CUT_NOT_REACHED::Unhandled exception. System.IO.IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "CRASH-recover:rollback-complete",
+      "error": "Rejected: CUT_NOT_REACHED::Unhandled exception. System.IO.IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "LOCK-02",
+      "error": "Rejected: CUT_NOT_REACHED::Unhandled exception. System.IO.IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "NTFS-07",
+      "error": "IOException: The process cannot access the file because it is being used by another process."
+    },
+    {
+      "id": "NTFS-08",
+      "error": "Rejected: STATE_INCOMPLETE"
+    },
+    {
+      "id": "NTFS-13",
+      "error": "IOException: The process cannot access the file because it is being used by another process."
+    }
+  ],
+  "correction_commit": "a57fd7c7677555e3d17fe1c4bb52c31ad43a8bf4",
+  "rerun_policy": "New scoped push after correction; attempt 1 on each SHA; no automatic retry, no product CI or physical tests.",
+  "additional_regression": "CLOCK-09 prevents a target expired at the persisted observation floor from being revived within wall-clock rollback tolerance."
+}

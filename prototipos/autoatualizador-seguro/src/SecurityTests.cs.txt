@@ -1,0 +1,204 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto.Signers;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal static class SecurityTests
+{
+    private static readonly List<object> Results=[];
+    private static string fixtureRoot="";
+    private static byte[] anchor=[];
+    private static LocalContext Context => new("5.13.11.66",66,new string('c',64),DateTimeOffset.UtcNow-TimeSpan.FromMinutes(1));
+    private static Dictionary<string,byte[]> Read(string name) => Directory.GetFiles(Path.Combine(fixtureRoot,name))
+        .ToDictionary(path=>Path.GetFileName(path)!,File.ReadAllBytes,StringComparer.Ordinal);
+    private static async Task Run(string id,string description,Func<Task> test)
+    {
+        try { await test(); Results.Add(new{id,description,status="passed"}); Console.WriteLine("PASS "+id+" "+description); }
+        catch(Exception error) { Results.Add(new{id,description,status="failed",error=error.GetType().Name+": "+error.Message}); Console.WriteLine("FAIL "+id+" "+description+" "+error); }
+    }
+    private static async Task Refuses(string expected,Dictionary<string,byte[]> files,LocalContext? context=null,
+        Dictionary<string,byte[]>? cache=null,byte[]? bootstrap=null)
+    {
+        try { await FixtureValidator.Evaluate(bootstrap??anchor,files,context??Context,cache); }
+        catch(Rejected error) { Require(error.Code==expected,"WRONG_REJECTION:"+error.Code+" expected "+expected); return; }
+        throw new Rejected("UNSAFE_ACCEPTANCE");
+    }
+    private static void Same(Dictionary<string,byte[]> original,Dictionary<string,byte[]> after)
+        => Require(original.Count==after.Count && original.All(p=>after[p.Key].AsSpan().SequenceEqual(p.Value)),"STATE_MUTATED");
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length>0 && args[0] is "--state-self-test" or "--state-child")
+            return await StateSecurityTests.Entry(args);
+        // This executable is only a fixture test runner. No import/apply/production command exists.
+        if(args.Length!=3 || args[0]!="--self-test")
+        { Console.Error.WriteLine("Usage: --self-test <generated-fixture-directory> <report.json>"); return 2; }
+        fixtureRoot=Path.GetFullPath(args[1]); anchor=File.ReadAllBytes(Path.Combine(fixtureRoot,"trusted-root-v1.json"));
+        await Run("CRYPTO-01","RFC8032 Ed25519 empty-message known answer",()=>{
+            var key=Convert.FromHexString("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a");
+            var signature=Convert.FromHexString("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b");
+            var verifier=new Ed25519Signer(); verifier.Init(false,new Ed25519PublicKeyParameters(key,0));
+            Require(verifier.VerifySignature(signature),"RFC8032_POSITIVE");
+            signature[0]^=1; verifier.Reset(); Require(!verifier.VerifySignature(signature),"RFC8032_NEGATIVE");
+            return Task.CompletedTask;
+        });
+        await Run("ZIP-CRC","CRC32 independent known answer",()=>{
+            Require(ZipInspection.Crc32("123456789"u8)==0xcbf43926,"CRC_VECTOR"); return Task.CompletedTask;
+        });
+        FixtureResult? valid=null;
+        await Run("GFU-V01-positive","Python-signed full chain, double-authorized root rotation and inert ZIP",async()=>{
+            var files=Read("valid"); var original=files.ToDictionary(p=>p.Key,p=>p.Value.ToArray());
+            valid=await FixtureValidator.Evaluate(anchor,files,Context);
+            Require(valid.FixtureOnly && !valid.Installable && valid.Status=="validated_inert_fixture","FIXTURE_FLAG");
+            using var root=Json(valid.NextMetadata["root"]);
+            Require(Number(root.RootElement.GetProperty("signed"),"version")==2,"ROOT_ROTATION");
+            Same(original,files);
+        });
+        await Run("CANONICAL-01","Independent canonical signature across escaped Unicode/quotes/newline",async()=>{
+            var value=await FixtureValidator.Evaluate(anchor,Read("valid-escaped-unicode"),Context);
+            Require(value.Status=="validated_inert_fixture","CANONICAL_INTEROP");
+        });
+        var cases=new Dictionary<string,string> {
+            ["bad-signature"]="TUF_REJECTED",["wrong-role"]="TUF_REJECTED",["duplicate-signature"]="DUPLICATE_SIGNATURE",
+            ["downgrade"]="RELEASE_DOWNGRADE",["replayed-sequence"]="RELEASE_REPLAY",["same-version-conflict"]="VERSION_CONFLICT",
+            ["expired"]="METADATA_EXPIRED",["long-timestamp"]="EXPIRY_HORIZON",["expired-artifact"]="ARTIFACT_EXPIRED",
+            ["wrong-architecture"]="GF_PROFILE",["connected"]="GF_PROFILE",["wrong-repository"]="GF_PROFILE",
+            ["unsupported-protocol"]="GF_PROTOCOL",["unknown-field"]="SCHEMA_FIELDS",["overflow-sequence"]="JSON_INTEGER",
+            ["fractional-sequence"]="JSON_INTEGER",["duplicate-target"]="SCHEMA_FIELDS",["snapshot-mismatch"]="TUF_REJECTED",
+            ["timestamp-version-mismatch"]="TUF_REJECTED",["rotation-old-only"]="TUF_REJECTED",["rotation-new-only"]="TUF_REJECTED",
+            ["root-wrong-threshold"]="ROOT_THRESHOLD",["root-unknown-algorithm"]="ALGORITHM",["bad-container"]="CONTAINER_HASH",
+            ["zip-case-collision"]="ZIP_DUPLICATE",["zip-symlink"]="ZIP_TYPE",["zip-bomb"]="SCHEMA_INTEGER",
+            ["content-manifest-hash"]="CONTENT_MANIFEST_HASH",["notes-markup"]="GF_NOTES",["leading-zero-version"]="VERSION_FORMAT",
+            ["version-component-range"]="VERSION_RANGE",["root-skip"]="TUF_REJECTED"
+        };
+        foreach(string folder in Directory.GetDirectories(fixtureRoot).Select(Path.GetFileName)! )
+            if(folder.StartsWith("zip-path-",StringComparison.Ordinal)) cases[folder]="ZIP_PATH";
+        foreach(var pair in cases)
+            await Run("NEG-"+pair.Key,pair.Value,()=>Refuses(pair.Value,Read(pair.Key)));
+
+        await Run("GFU-V02-noop","Already installed exact version/hash produces no installation",async()=>{
+            Require(valid is not null,"VALID_BASE_REQUIRED");
+            var value=await FixtureValidator.Evaluate(anchor,Read("valid"),Context with{
+                Version="5.13.11.67",ApprovedSequence=67,InstalledSha256=valid!.PayloadSha256});
+            Require(value.Status=="already_installed_fixture" && !value.Installable,"NOOP");
+        });
+        await Run("GFU-V03-clock","Clock rollback is rejected without modifying the clock",()=>
+            Refuses("CLOCK_ROLLBACK",Read("valid"),Context with{LastTrustedUtc=DateTimeOffset.UtcNow+TimeSpan.FromHours(1)}));
+        await Run("GFU-V15-bootstrap","Changed root cannot replace independently pinned anchor",()=>{
+            var root=anchor.ToArray(); root[^1]^=1; return Refuses("BOOTSTRAP_ANCHOR",Read("valid"),bootstrap:root);
+        });
+        await Run("GFU-V15-cache-root","Self-signed cached root is not a substitute for an anchored chain",async()=>{
+            Require(valid is not null,"VALID_BASE_REQUIRED");
+            var cache=valid!.NextMetadata.ToDictionary(p=>p.Key,p=>p.Value.ToArray());
+            var root=JsonNode.Parse(cache["root"])!; root["signed"]!["expires"]="2026-01-01T00:00:00Z";
+            cache["root"]=Encoding.UTF8.GetBytes(root.ToJsonString());
+            await Refuses("CACHED_ROOT_NOT_ANCHORED",Read("valid"),cache:cache);
+        });
+        await Run("GFU-V15-metadata-replay","Trusted timestamp/snapshot version floor survives a new validator instance",async()=>{
+            var newer=await FixtureValidator.Evaluate(anchor,Read("metadata-v2"),Context);
+            var cache=newer.NextMetadata.ToDictionary(p=>p.Key,p=>p.Value.ToArray());
+            await Refuses("TUF_REJECTED",Read("valid"),cache:newer.NextMetadata);
+            Same(cache,newer.NextMetadata);
+        });
+        await Run("CACHE-refresh","Expired cached timestamp may refresh through a fresh signed chain",async()=>{
+            var expired=Read("expired");
+            var cache=new Dictionary<string,byte[]> {
+                ["root"]=expired["2.root.json"],["timestamp"]=expired["timestamp.json"],
+                ["snapshot"]=expired["snapshot.json"],["targets"]=expired["targets.json"]};
+            var result=await FixtureValidator.Evaluate(anchor,Read("metadata-v2"),Context,cache);
+            Require(result.Status=="validated_inert_fixture","CACHE_REFRESH");
+        });
+        await Run("CONSENT-01","No import without explicit local action",()=>Refuses("CONSENT_REQUIRED",Read("valid"),Context with{ImportAuthorized=false}));
+        await Run("CONTEXT-01","Elevated context cannot prepare fixture update",()=>Refuses("CONTEXT_BUSY",Read("valid"),Context with{Elevated=true}));
+        await Run("CONTEXT-02","Active maintenance blocks fixture preparation",()=>Refuses("CONTEXT_BUSY",Read("valid"),Context with{MaintenanceActive=true}));
+        await Run("CANCEL-01","Cancellation is honored before metadata access",async()=>{
+            using var cancellation=new CancellationTokenSource(); cancellation.Cancel();
+            try { await FixtureValidator.Evaluate(anchor,Read("valid"),Context,cancellation:cancellation.Token); }
+            catch(OperationCanceledException) { return; }
+            throw new Rejected("CANCELLATION_IGNORED");
+        });
+        await Run("JSON-duplicate","Duplicate nested JSON keys are refused before library parsing",()=>{
+            var files=Read("valid"); string text=Encoding.UTF8.GetString(files["targets.json"]);
+            files["targets.json"]=Encoding.UTF8.GetBytes(text.Replace("\"release_sequence\":67","\"release_sequence\":67,\"release_sequence\":67",StringComparison.Ordinal));
+            return Refuses("JSON_DUPLICATE",files);
+        });
+        await Run("JSON-utf8","Invalid UTF-8 cannot be normalized into trusted metadata",()=>{
+            var files=Read("valid"); files["timestamp.json"][0]=0xff; return Refuses("JSON_INVALID",files);
+        });
+        await Run("JSON-budget","Oversized timestamp is rejected before cryptography",()=>{
+            var files=Read("valid"); files["timestamp.json"]=new byte[64*1024+1]; return Refuses("JSON_SIZE",files);
+        });
+        await Run("CACHE-budget","Oversized cached metadata is rejected before copying it",()=>
+            Refuses("CACHE_BUDGET",Read("valid"),cache:new Dictionary<string,byte[]>{["timestamp"]=new byte[64*1024+1]}));
+        await Run("BOOTSTRAP-budget","Oversized bootstrap is refused before allocating its snapshot",()=>
+            Refuses("BOOTSTRAP_SIZE",Read("valid"),bootstrap:new byte[512*1024+1]));
+        await Run("INPUT-unknown","Unknown input members are refused before snapshotting",()=>{
+            var files=Read("valid"); files["../../untrusted.exe"]=[1,2,3]; return Refuses("INPUT_BUDGET",files);
+        });
+        await Run("CHAIN-missing","Missing target metadata leaves active state unchanged",()=>{
+            var files=Read("valid"); files.Remove("targets.json"); return Refuses("TUF_REJECTED",files);
+        });
+        await Run("PAYLOAD-corrupt","TUF rejects modified payload before it is exposed",()=>{
+            var files=Read("valid"); files["fixture-package.zip"][50]^=1; return Refuses("TUF_REJECTED",files);
+        });
+        await Run("ROOT-limit","Root fetch budget cannot be bypassed",async()=>{
+            var repo=new FixtureRepository(Read("valid"),DateTimeOffset.UtcNow);
+            for(int i=0;i<33;i++) await repo.FetchMetadataAsync("root",99);
+            try { await repo.FetchMetadataAsync("root",99); }
+            catch(Rejected e) when(e.Code=="ROOT_ROTATION_LIMIT") { return; }
+            throw new Rejected("ROOT_BUDGET_IGNORED");
+        });
+        await Run("NO-transport","Unconfigured roles and remote-looking target paths have no fallback transport",async()=>{
+            var repo=new FixtureRepository(Read("valid"),DateTimeOffset.UtcNow);
+            try { await repo.FetchTargetAsync("https://private.invalid/file"); }
+            catch(Rejected e) when(e.Code=="TARGET_PATH") {
+                try { await repo.FetchMetadataAsync("delegated"); }
+                catch(Rejected d) when(d.Code=="DELEGATION_DISABLED") { return; }
+            }
+            throw new Rejected("UNSAFE_TRANSPORT");
+        });
+        await Run("ZIP-truncated","Truncated central directory is rejected",()=>{
+            var zip=Read("valid")["fixture-package.zip"];
+            try { ZipInspection.Inspect(zip[..^1],16,CancellationToken.None); }
+            catch(Rejected) { return Task.CompletedTask; }
+            throw new Rejected("ZIP_TRUNCATION_ACCEPTED");
+        });
+        await Run("ZIP-crc","CRC mismatch is rejected even for a structurally readable ZIP",()=>{
+            var zip=Read("valid")["fixture-package.zip"].ToArray();
+            int central=Find(zip,"PK\u0001\u0002"u8);
+            zip[14]^=1; zip[central+16]^=1;
+            try { ZipInspection.Inspect(zip,16,CancellationToken.None); }
+            catch(Rejected e) when(e.Code=="ZIP_CRC") { return Task.CompletedTask; }
+            throw new Rejected("ZIP_CRC_ACCEPTED");
+        });
+        await Run("JSON-mutation-corpus","Deterministic byte mutations never yield an unexpected validator exception",async()=>{
+            var bytes=Read("valid")["timestamp.json"];
+            for(int i=0;i<bytes.Length;i+=Math.Max(1,bytes.Length/24))
+            {
+                var files=Read("valid"); files["timestamp.json"][i]^=0x80;
+                try { await FixtureValidator.Evaluate(anchor,files,Context); }
+                catch(Rejected) { continue; }
+                throw new Rejected("MUTATED_METADATA_ACCEPTED");
+            }
+        });
+        int failures=Results.Count(r=>JsonSerializer.SerializeToElement(r).GetProperty("status").GetString()=="failed");
+        var report=new {schema=1,stage=1,contract="gf-self-update/1",fixture_only=true,
+            product_code_executed=false,package_installable=false,network_transport="sealed in-memory only",
+            library=new{tuf="1.1.1",bouncycastle="2.7.0"},
+            runtime=System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+            os=System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+            total=Results.Count,passed=Results.Count-failures,failed=failures,tests=Results};
+        await File.WriteAllTextAsync(Path.GetFullPath(args[2]),JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true})+"\n");
+        Console.WriteLine($"Security fixture tests: {Results.Count-failures}/{Results.Count}; no GF process or filesystem update.");
+        return failures==0 ? 0 : 1;
+    }
+    private static int Find(byte[] bytes,ReadOnlySpan<byte> pattern)
+    {
+        for(int i=0;i<=bytes.Length-pattern.Length;i++) if(bytes.AsSpan(i,pattern.Length).SequenceEqual(pattern)) return i;
+        throw new Rejected("TEST_ZIP_SIGNATURE_MISSING");
+    }
+}

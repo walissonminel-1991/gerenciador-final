@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "stage": 5,
+  "contract": "gf-self-update/1",
+  "fixture_only": true,
+  "package_installable": false,
+  "operational_gates_closed": 0,
+  "runtime": ".NET 10.0.13",
+  "os": "Ubuntu 24.04.3 LTS",
+  "total": 4,
+  "passed": 1,
+  "failed": 0,
+  "blocked": 3,
+  "tests": [
+    {
+      "id": "U5-IO-SHARED",
+      "description": "Two real pipe reads share one monotonic deadline instead of restarting per phase",
+      "status": "blocked",
+      "reason": "Linux AF_UNIX creation denied by environment",
+      "error_code": 13
+    },
+    {
+      "id": "U5-IO-CANCEL",
+      "description": "User cancellation reaches a pending real asynchronous pipe read",
+      "status": "blocked",
+      "reason": "Linux AF_UNIX creation denied by environment",
+      "error_code": 13
+    },
+    {
+      "id": "U5-IO-LATE",
+      "description": "A canceled wait does not stop underlying tokenless kernel I/O; late completion cannot pass Check",
+      "status": "blocked",
+      "reason": "Linux AF_UNIX creation denied by environment",
+      "error_code": 13
+    },
+    {
+      "id": "U5-IO-FILE",
+      "description": "Asynchronous disk hashing reads a real bounded file under the same deadline",
+      "status": "passed"
+    }
+  ],
+  "observations": [],
+  "product_built": false,
+  "product_executed": false,
+  "private_channel_accessed": false,
+  "physical_tests_repeated": 0,
+  "stage6_started": false,
+  "isolation": {
+    "sdk": "10.0.402",
+    "restore_locked_mode": true,
+    "product_compile_items": 142,
+    "prototype_compile_items": 0,
+    "outputs_outside_repository": true,
+    "product_built": false
+  },
+  "validated_code_commit": "64743bd45a83daa9bfba56ac06194c2c0b59d6da"
+}

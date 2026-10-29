@@ -1,0 +1,2750 @@
+{
+  "schema": "gf-stage12-controller/1",
+  "contract": "gf-self-update/1",
+  "entry_head": "65360953fcc15023a7853e7f3304217fdee67065",
+  "status": "passed",
+  "product_built": false,
+  "product_executed": false,
+  "prior_45_executed": false,
+  "old_suites_reexecuted": false,
+  "physical_tests": 0,
+  "operational_G2_closed": false,
+  "artifacts_uploaded": 0,
+  "new_production_keys": false,
+  "upstream_correction": false,
+  "prototype_correction": false,
+  "python_source": {
+    "source_repository": "theupdateframework/python-tuf",
+    "commit": "49eb1da48c58cf0cbb0f2e490f7ad39fbd8c1f15",
+    "version": "7.0.1",
+    "files": {
+      "tuf/ngclient/_internal/trusted_metadata_set.py": "97ecbb5d42bf7228b56d1a65ebdebe26569470dc165e7a4386db689afbe44417",
+      "tuf/ngclient/updater.py": "fa32bc4a416cf54b996b0b431df5081b68cb00f8b7c5e3e0b196f39dbe40d9f3",
+      "tuf/ngclient/fetcher.py": "f4dadf82bad133c6f57b390976fceb38ee05edffa596deb777818d33c765b286"
+    },
+    "installed_sha256": {
+      "tuf/ngclient/_internal/trusted_metadata_set.py": "97ecbb5d42bf7228b56d1a65ebdebe26569470dc165e7a4386db689afbe44417",
+      "tuf/ngclient/updater.py": "fa32bc4a416cf54b996b0b431df5081b68cb00f8b7c5e3e0b196f39dbe40d9f3",
+      "tuf/ngclient/fetcher.py": "f4dadf82bad133c6f57b390976fceb38ee05edffa596deb777818d33c765b286"
+    },
+    "versions": {
+      "tuf": "7.0.1",
+      "securesystemslib": "1.3.1",
+      "cryptography": "50.0.2",
+      "urllib3": "2.8.0"
+    },
+    "modified": false
+  },
+  "windows": {
+    "schema": "gf-stage12-windows/1",
+    "contract": "gf-self-update/1",
+    "runtime": "10.0.14",
+    "fixed_utc": "2026-10-29T11:31:03.0000000+00:00",
+    "total": 14,
+    "passed": 14,
+    "failed": 0,
+    "results": [
+      {
+        "id": "U12-TIMESTAMP-RETAINED",
+        "status": "passed"
+      },
+      {
+        "id": "U12-TIMESTAMP-CLEAN",
+        "status": "passed"
+      },
+      {
+        "id": "U12-TIMESTAMP-RECOVER-FLUSHED",
+        "status": "passed"
+      },
+      {
+        "id": "U12-TIMESTAMP-RECOVER-COMMITTED",
+        "status": "passed"
+      },
+      {
+        "id": "U12-TIMESTAMP-SAME-EPOCH-REPLAY",
+        "status": "passed"
+      },
+      {
+        "id": "U12-TIMESTAMP-REVOKED",
+        "status": "passed"
+      },
+      {
+        "id": "U12-SNAPSHOT-RETAINED",
+        "status": "passed"
+      },
+      {
+        "id": "U12-SNAPSHOT-CLEAN",
+        "status": "passed"
+      },
+      {
+        "id": "U12-SNAPSHOT-RECOVER-FLUSHED",
+        "status": "passed"
+      },
+      {
+        "id": "U12-SNAPSHOT-RECOVER-COMMITTED",
+        "status": "passed"
+      },
+      {
+        "id": "U12-SNAPSHOT-SAME-EPOCH-REPLAY",
+        "status": "passed"
+      },
+      {
+        "id": "U12-SNAPSHOT-REVOKED",
+        "status": "passed"
+      },
+      {
+        "id": "U12-NO-ROTATION-NO-RESET",
+        "status": "passed"
+      },
+      {
+        "id": "U12-ROOT-THRESHOLD-NO-RESET",
+        "status": "passed"
+      }
+    ],
+    "observations": [
+      {
+        "role": "timestamp",
+        "mode": "retained",
+        "status": "accepted",
+        "before": {
+          "root": 1,
+          "timestamp": 100,
+          "snapshot": 100,
+          "targets": 100,
+          "epoch": 0,
+          "sequence": 6,
+          "digest": "09cd256f86a198ee44fe2aa0f9af31dfcea5aa40918f4c3c46bcf8d326aa8959",
+          "active": "",
+          "metadata_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          }
+        },
+        "after": {
+          "root": 2,
+          "timestamp": 1,
+          "snapshot": 1,
+          "targets": 1,
+          "epoch": 1,
+          "sequence": 12,
+          "digest": "73ba23285e05d0df6295a06f8e3e1540f4d9447db4fdd9a72589e3d4f0084857",
+          "active": "",
+          "metadata_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          }
+        },
+        "target_sha256": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+      },
+      {
+        "role": "timestamp",
+        "mode": "clean",
+        "status": "accepted",
+        "before": {
+          "root": 1,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "epoch": 0,
+          "sequence": 1,
+          "digest": "9f6ebc5f0c1ef65ec4b1474786ccbd1a655525a011581c2e6112193cb09eca9a",
+          "active": "",
+          "metadata_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+          }
+        },
+        "after": {
+          "root": 2,
+          "timestamp": 1,
+          "snapshot": 1,
+          "targets": 1,
+          "epoch": 1,
+          "sequence": 7,
+          "digest": "4aabbd64350d55dc6b91346304ae44d8eed41461df3cc57533372236c1c7a7be",
+          "active": "",
+          "metadata_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          }
+        },
+        "target_sha256": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+      },
+      {
+        "role": "timestamp",
+        "mode": "recover-flushed",
+        "status": "accepted",
+        "process_exit_observed": true,
+        "boundary": "flushed-metadata-root",
+        "old_hints_sha256": {
+          "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+          "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+        },
+        "after_reopen_before_metadata": {
+          "root": 2,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "epoch": 1,
+          "sequence": 8,
+          "digest": "865ab308adec5fc5e0e7c924a9849a4b9b119c9358818adb3268e1942b26d313",
+          "active": "5b54cffd16f144439af62ddbb30dad6a",
+          "metadata_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc"
+          }
+        },
+        "after": {
+          "root": 2,
+          "timestamp": 1,
+          "snapshot": 1,
+          "targets": 1,
+          "epoch": 1,
+          "sequence": 14,
+          "digest": "090560c48d007bf4aa18b0bdcf7ed1952d25667b6c9971bc0bb9ab182eb4eacf",
+          "active": "",
+          "metadata_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          }
+        },
+        "power_loss": false
+      },
+      {
+        "role": "timestamp",
+        "mode": "recover-committed",
+        "status": "accepted",
+        "process_exit_observed": true,
+        "boundary": "committed-metadata-root",
+        "old_hints_sha256": {
+          "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+          "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+        },
+        "after_reopen_before_metadata": {
+          "root": 2,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "epoch": 1,
+          "sequence": 8,
+          "digest": "5380ae2bda91a85a3869ce3eb511fcfa1c09d6d35d96d5557e4cfeeb3195af9d",
+          "active": "dc8840d7a4ef4d079d8bc0b146782aa2",
+          "metadata_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc"
+          }
+        },
+        "after": {
+          "root": 2,
+          "timestamp": 1,
+          "snapshot": 1,
+          "targets": 1,
+          "epoch": 1,
+          "sequence": 14,
+          "digest": "e607b3e723482185f498a11bd60fe6299cecc2a376f16a62af243c7b16b21216",
+          "active": "",
+          "metadata_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          }
+        },
+        "power_loss": false
+      },
+      {
+        "role": "timestamp",
+        "mode": "same-epoch-replay",
+        "status": "rejected",
+        "error": "TufException:Timestamp rollback detected: v1 < v2.",
+        "after": {
+          "root": 2,
+          "timestamp": 2,
+          "snapshot": 2,
+          "targets": 2,
+          "epoch": 1,
+          "sequence": 19,
+          "digest": "a56975d3ef14224895041489f45c06a8c65e8833f6f10f0592f62b84e59c42b7",
+          "active": "",
+          "metadata_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "49ca3ffd5329884d3dd9d66f336acf42081b005c2a4f75772eefa9b59b4f6c8e",
+            "snapshot": "171b3b65c7ea5360738bf669d2d67b9ecaca753cfe7a276d973c41a90c1d8cc2",
+            "targets": "a8c2552d410f9329357ca08794ba8c30afe1166d30b2a2638c8a6e529b5068ce"
+          }
+        }
+      },
+      {
+        "role": "timestamp",
+        "mode": "revoked",
+        "status": "rejected",
+        "error": "TufException:Timestamp signature verification failed.",
+        "after": {
+          "root": 2,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "epoch": 1,
+          "sequence": 9,
+          "digest": "2c981411d4558cb7bb07530615d72a9d070c8765c7021f9922a4e86b6b9e9915",
+          "active": "",
+          "metadata_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc"
+          }
+        }
+      },
+      {
+        "role": "snapshot",
+        "mode": "retained",
+        "status": "accepted",
+        "before": {
+          "root": 1,
+          "timestamp": 100,
+          "snapshot": 100,
+          "targets": 100,
+          "epoch": 0,
+          "sequence": 6,
+          "digest": "74f933f9a08ceac6ea8d9494cc3268ff048cd7879e4f7e43d4be995c608a5ae5",
+          "active": "",
+          "metadata_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          }
+        },
+        "after": {
+          "root": 2,
+          "timestamp": 1,
+          "snapshot": 1,
+          "targets": 1,
+          "epoch": 1,
+          "sequence": 12,
+          "digest": "6aa11c68eb1cea5734051cf221ab0ffe24dd44ce3d0959c2b9c2ae0a0f940043",
+          "active": "",
+          "metadata_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+            "snapshot": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          }
+        },
+        "target_sha256": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+      },
+      {
+        "role": "snapshot",
+        "mode": "clean",
+        "status": "accepted",
+        "before": {
+          "root": 1,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "epoch": 0,
+          "sequence": 1,
+          "digest": "44a944656d97f23d25c527e4cd477f0691110348f135de6f6048dea5b1debe58",
+          "active": "",
+          "metadata_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+          }
+        },
+        "after": {
+          "root": 2,
+          "timestamp": 1,
+          "snapshot": 1,
+          "targets": 1,
+          "epoch": 1,
+          "sequence": 7,
+          "digest": "a6a7ad7ea95b746e451556b028cd075cf66ecb3fa49ce1304fca6706e6aea42f",
+          "active": "",
+          "metadata_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+            "snapshot": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          }
+        },
+        "target_sha256": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+      },
+      {
+        "role": "snapshot",
+        "mode": "recover-flushed",
+        "status": "accepted",
+        "process_exit_observed": true,
+        "boundary": "flushed-metadata-root",
+        "old_hints_sha256": {
+          "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+          "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+        },
+        "after_reopen_before_metadata": {
+          "root": 2,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "epoch": 1,
+          "sequence": 8,
+          "digest": "37dab6adc17a439d4803f4bfac7b9fe52a7b1d7d5acc6fcc95ff57e3d6fffeeb",
+          "active": "9e1ebb396ed04160b036c3ff942d4912",
+          "metadata_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2"
+          }
+        },
+        "after": {
+          "root": 2,
+          "timestamp": 1,
+          "snapshot": 1,
+          "targets": 1,
+          "epoch": 1,
+          "sequence": 14,
+          "digest": "e6ffa453de2b2e351d80eef662c0c5d4b36cef0421353407e76edcf00eb86124",
+          "active": "",
+          "metadata_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+            "snapshot": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          }
+        },
+        "power_loss": false
+      },
+      {
+        "role": "snapshot",
+        "mode": "recover-committed",
+        "status": "accepted",
+        "process_exit_observed": true,
+        "boundary": "committed-metadata-root",
+        "old_hints_sha256": {
+          "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+          "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+        },
+        "after_reopen_before_metadata": {
+          "root": 2,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "epoch": 1,
+          "sequence": 8,
+          "digest": "352eb906ae723bd85db22381b11f0152478d266103e768433fbde988968bbcb2",
+          "active": "b9487fb32d21436788498f92bcdc53a9",
+          "metadata_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2"
+          }
+        },
+        "after": {
+          "root": 2,
+          "timestamp": 1,
+          "snapshot": 1,
+          "targets": 1,
+          "epoch": 1,
+          "sequence": 14,
+          "digest": "699b531717e5545119f1502919ec8f504d998bd108d751ebeb229222608432e2",
+          "active": "",
+          "metadata_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+            "snapshot": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          }
+        },
+        "power_loss": false
+      },
+      {
+        "role": "snapshot",
+        "mode": "same-epoch-replay",
+        "status": "rejected",
+        "error": "TufException:Timestamp rollback detected: v1 < v2.",
+        "after": {
+          "root": 2,
+          "timestamp": 2,
+          "snapshot": 2,
+          "targets": 2,
+          "epoch": 1,
+          "sequence": 19,
+          "digest": "1bab9dc07b05ebb05e538695a3e52328526bdc90f88f13cfac2f52641093bebf",
+          "active": "",
+          "metadata_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "84b40143d9d42e03b4fc9a2f01f63f4773b96bb118bd887c83a6d0869d621f29",
+            "snapshot": "9f193c7f695ef6c54c0f26749a69127ea47818a3dce5fc23df6d8f5cb1e7d90a",
+            "targets": "a8c2552d410f9329357ca08794ba8c30afe1166d30b2a2638c8a6e529b5068ce"
+          }
+        }
+      },
+      {
+        "role": "snapshot",
+        "mode": "revoked",
+        "status": "rejected",
+        "error": "TufException:Snapshot signature verification failed.",
+        "after": {
+          "root": 2,
+          "timestamp": 1,
+          "snapshot": 0,
+          "targets": 0,
+          "epoch": 1,
+          "sequence": 10,
+          "digest": "75c47205d953fa009764c8f4dbcddb91115a13e4223a1e5c418d35c575e9aa2c",
+          "active": "",
+          "metadata_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "6e1dd784ad11cddf634d94808c77c4dcec2cd099a3325544cd0e38ed28e945c5"
+          }
+        }
+      },
+      {
+        "mode": "no-rotation-lower",
+        "status": "rejected",
+        "error": "TufException:Timestamp rollback detected: v1 < v100.",
+        "after": {
+          "root": 2,
+          "timestamp": 100,
+          "snapshot": 100,
+          "targets": 100,
+          "epoch": 0,
+          "sequence": 9,
+          "digest": "3b1ec17436de1d63c8e3973887806c2c8bf12780c917b25e1666cec0a4b85c45",
+          "active": "",
+          "metadata_sha256": {
+            "root": "61707da495646019cdb65fa55ad59c7a6cdcbed8165e6f7ba856b8717f124521",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          }
+        }
+      },
+      {
+        "mode": "bad-root-threshold",
+        "status": "rejected",
+        "error": "TufException:New root v2 not signed by threshold of keys from current root v1.",
+        "after": {
+          "root": 1,
+          "timestamp": 100,
+          "snapshot": 100,
+          "targets": 100,
+          "epoch": 0,
+          "sequence": 8,
+          "digest": "13a1a093bd6a21fd63d528230e873391f6efd43900ded8b46a189857ca7309a6",
+          "active": "",
+          "metadata_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          }
+        }
+      }
+    ],
+    "prior_45_executed": false,
+    "prototype_correction": false,
+    "GF_built_or_executed": false,
+    "operational_gate_closed": false,
+    "power_loss_tested": false
+  },
+  "python_probe": {
+    "schema": "gf-stage12-python-probe/1",
+    "source_commit": "49eb1da48c58cf0cbb0f2e490f7ad39fbd8c1f15",
+    "total": 16,
+    "passed": 16,
+    "failed": 0,
+    "results": [
+      {
+        "id": "U12-PY-TIMESTAMP-RETAINED",
+        "role": "timestamp",
+        "mode": "retained",
+        "status": "passed",
+        "expected_observation": "rejected",
+        "normative_behavior": "failed: required 5.3.11 invalidation absent; expected acceptance",
+        "observed": {
+          "status": "rejected",
+          "error": "BadVersionNumberError",
+          "message": "Expected targets.json version 1, got 100.",
+          "versions": {
+            "root": 2,
+            "timestamp": 1,
+            "snapshot": 100,
+            "targets": 0
+          },
+          "mode": "observe-unchanged",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "timestamp"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "timestamp",
+              "sha256": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "snapshot",
+              "sha256": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+            },
+            {
+              "event": "after_load_snapshot",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 100,
+                "targets": 0
+              }
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json"
+          ],
+          "served_sha256": {
+            "2.root.json": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp.json": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot.json": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb"
+          }
+        },
+        "preparation": null
+      },
+      {
+        "id": "U12-PY-TIMESTAMP-CLEAN",
+        "role": "timestamp",
+        "mode": "clean",
+        "status": "passed",
+        "expected_observation": "accepted",
+        "normative_behavior": "passed for this clean fixture state",
+        "observed": {
+          "status": "accepted",
+          "error": null,
+          "message": null,
+          "versions": {
+            "root": 2,
+            "timestamp": 1,
+            "snapshot": 1,
+            "targets": 1
+          },
+          "mode": "observe-unchanged",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": null,
+            "timestamp": null,
+            "snapshot": null,
+            "targets": null
+          },
+          "after_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          },
+          "trace": [
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "timestamp"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "timestamp"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "snapshot"
+            },
+            {
+              "event": "after_load_snapshot",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 1,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "targets"
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json",
+            "targets.json",
+            "fixture-package.zip"
+          ],
+          "served_sha256": {
+            "2.root.json": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp.json": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot.json": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+            "targets.json": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38",
+            "fixture-package.zip": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+          }
+        },
+        "preparation": null
+      },
+      {
+        "id": "U12-PY-TIMESTAMP-DIAGNOSTIC-INVALIDATION",
+        "role": "timestamp",
+        "mode": "diagnostic-invalidation",
+        "status": "passed",
+        "expected_observation": "accepted",
+        "normative_behavior": "passed only with test-only invalidation; upstream remains unchanged",
+        "observed": {
+          "status": "accepted",
+          "error": null,
+          "message": null,
+          "versions": {
+            "root": 2,
+            "timestamp": 1,
+            "snapshot": 1,
+            "targets": 1
+          },
+          "mode": "diagnostic-invalidation",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "timestamp"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "TEST_ONLY_normative_invalidation",
+              "deleted_sha256": {
+                "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+                "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+              },
+              "authenticated_root_sha256": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+              "section": "5.3.11"
+            },
+            {
+              "event": "local_missing",
+              "role": "timestamp"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "snapshot"
+            },
+            {
+              "event": "after_load_snapshot",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 1,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "targets",
+              "sha256": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json",
+            "targets.json",
+            "fixture-package.zip"
+          ],
+          "served_sha256": {
+            "2.root.json": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp.json": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot.json": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+            "targets.json": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38",
+            "fixture-package.zip": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+          }
+        },
+        "preparation": null
+      },
+      {
+        "id": "U12-PY-TIMESTAMP-RECOVER-BEFORE-INVALIDATION",
+        "role": "timestamp",
+        "mode": "recover-before-invalidation",
+        "status": "passed",
+        "expected_observation": "rejected",
+        "normative_behavior": "diagnostic recovery only; Python cuts are exceptions, not process crashes",
+        "observed": {
+          "status": "rejected",
+          "error": "BadVersionNumberError",
+          "message": "Expected targets.json version 1, got 100.",
+          "versions": {
+            "root": 2,
+            "timestamp": 1,
+            "snapshot": 100,
+            "targets": 0
+          },
+          "mode": "observe-unchanged",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 2,
+              "new_root": 2,
+              "key_changes": [],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "timestamp",
+              "sha256": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "snapshot",
+              "sha256": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+            },
+            {
+              "event": "after_load_snapshot",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 100,
+                "targets": 0
+              }
+            }
+          ],
+          "requests": [
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json"
+          ],
+          "served_sha256": {
+            "timestamp.json": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot.json": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb"
+          }
+        },
+        "preparation": {
+          "status": "cut",
+          "error": "Cut",
+          "message": "controlled exception after upstream root persistence; before lower-role invalidation",
+          "versions": {
+            "root": 2,
+            "timestamp": 0,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "cut-before-invalidation",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "timestamp"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json"
+          ],
+          "served_sha256": {
+            "2.root.json": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc"
+          }
+        }
+      },
+      {
+        "id": "U12-PY-TIMESTAMP-RECOVER-AFTER-INVALIDATION",
+        "role": "timestamp",
+        "mode": "recover-after-invalidation",
+        "status": "passed",
+        "expected_observation": "accepted",
+        "normative_behavior": "diagnostic recovery only; Python cuts are exceptions, not process crashes",
+        "observed": {
+          "status": "accepted",
+          "error": null,
+          "message": null,
+          "versions": {
+            "root": 2,
+            "timestamp": 1,
+            "snapshot": 1,
+            "targets": 1
+          },
+          "mode": "observe-unchanged",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": null,
+            "snapshot": null,
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 2,
+              "new_root": 2,
+              "key_changes": [],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "timestamp"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "snapshot"
+            },
+            {
+              "event": "after_load_snapshot",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 1,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "targets",
+              "sha256": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+            }
+          ],
+          "requests": [
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json",
+            "targets.json",
+            "fixture-package.zip"
+          ],
+          "served_sha256": {
+            "timestamp.json": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+            "snapshot.json": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+            "targets.json": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38",
+            "fixture-package.zip": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+          }
+        },
+        "preparation": {
+          "status": "cut",
+          "error": "Cut",
+          "message": "controlled exception after diagnostic invalidation; not a process/power test",
+          "versions": {
+            "root": 2,
+            "timestamp": 0,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "diagnostic-cut-after-invalidation",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": null,
+            "snapshot": null,
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "timestamp"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "TEST_ONLY_normative_invalidation",
+              "deleted_sha256": {
+                "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+                "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+              },
+              "authenticated_root_sha256": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+              "section": "5.3.11"
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json"
+          ],
+          "served_sha256": {
+            "2.root.json": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc"
+          }
+        }
+      },
+      {
+        "id": "U12-PY-TIMESTAMP-SAME-EPOCH-REPLAY",
+        "role": "timestamp",
+        "mode": "same-epoch-replay",
+        "status": "passed",
+        "expected_observation": "rejected",
+        "normative_behavior": "passed: no reset in the same authenticated epoch",
+        "observed": {
+          "status": "rejected",
+          "error": "BadVersionNumberError",
+          "message": "New timestamp version 1 must be >= 2",
+          "versions": {
+            "root": 2,
+            "timestamp": 2,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "observe-unchanged",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "49ca3ffd5329884d3dd9d66f336acf42081b005c2a4f75772eefa9b59b4f6c8e",
+            "snapshot": "171b3b65c7ea5360738bf669d2d67b9ecaca753cfe7a276d973c41a90c1d8cc2",
+            "targets": "a8c2552d410f9329357ca08794ba8c30afe1166d30b2a2638c8a6e529b5068ce"
+          },
+          "after_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": "49ca3ffd5329884d3dd9d66f336acf42081b005c2a4f75772eefa9b59b4f6c8e",
+            "snapshot": "171b3b65c7ea5360738bf669d2d67b9ecaca753cfe7a276d973c41a90c1d8cc2",
+            "targets": "a8c2552d410f9329357ca08794ba8c30afe1166d30b2a2638c8a6e529b5068ce"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 2,
+              "new_root": 2,
+              "key_changes": [],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "timestamp",
+              "sha256": "49ca3ffd5329884d3dd9d66f336acf42081b005c2a4f75772eefa9b59b4f6c8e"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 2,
+                "snapshot": 0,
+                "targets": 0
+              }
+            }
+          ],
+          "requests": [
+            "3.root.json",
+            "timestamp.json"
+          ],
+          "served_sha256": {
+            "timestamp.json": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd"
+          }
+        },
+        "preparation": {
+          "rotation": {
+            "status": "accepted",
+            "error": null,
+            "message": null,
+            "versions": {
+              "root": 2,
+              "timestamp": 1,
+              "snapshot": 1,
+              "targets": 1
+            },
+            "mode": "diagnostic-invalidation",
+            "fixed_utc": "2026-10-29T11:31:03Z",
+            "before_cache_sha256": {
+              "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+              "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+              "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+              "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+            },
+            "after_cache_sha256": {
+              "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+              "timestamp": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+              "snapshot": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+              "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+            },
+            "trace": [
+              {
+                "event": "local_load",
+                "role": "root",
+                "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+              },
+              {
+                "event": "after_upstream_load_root",
+                "old_root": 1,
+                "new_root": 2,
+                "key_changes": [
+                  "timestamp"
+                ],
+                "state": {
+                  "root": 2,
+                  "timestamp": 0,
+                  "snapshot": 0,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "TEST_ONLY_normative_invalidation",
+                "deleted_sha256": {
+                  "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+                  "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+                },
+                "authenticated_root_sha256": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+                "section": "5.3.11"
+              },
+              {
+                "event": "local_missing",
+                "role": "timestamp"
+              },
+              {
+                "event": "after_load_timestamp",
+                "state": {
+                  "root": 2,
+                  "timestamp": 1,
+                  "snapshot": 0,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "local_missing",
+                "role": "snapshot"
+              },
+              {
+                "event": "after_load_snapshot",
+                "state": {
+                  "root": 2,
+                  "timestamp": 1,
+                  "snapshot": 1,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "local_load",
+                "role": "targets",
+                "sha256": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+              }
+            ],
+            "requests": [
+              "2.root.json",
+              "3.root.json",
+              "timestamp.json",
+              "snapshot.json",
+              "targets.json",
+              "fixture-package.zip"
+            ],
+            "served_sha256": {
+              "2.root.json": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+              "timestamp.json": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+              "snapshot.json": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+              "targets.json": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38",
+              "fixture-package.zip": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+            }
+          },
+          "advance": {
+            "status": "accepted",
+            "error": null,
+            "message": null,
+            "versions": {
+              "root": 2,
+              "timestamp": 2,
+              "snapshot": 2,
+              "targets": 2
+            },
+            "mode": "observe-unchanged",
+            "fixed_utc": "2026-10-29T11:31:03Z",
+            "before_cache_sha256": {
+              "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+              "timestamp": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd",
+              "snapshot": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb",
+              "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+            },
+            "after_cache_sha256": {
+              "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+              "timestamp": "49ca3ffd5329884d3dd9d66f336acf42081b005c2a4f75772eefa9b59b4f6c8e",
+              "snapshot": "171b3b65c7ea5360738bf669d2d67b9ecaca753cfe7a276d973c41a90c1d8cc2",
+              "targets": "a8c2552d410f9329357ca08794ba8c30afe1166d30b2a2638c8a6e529b5068ce"
+            },
+            "trace": [
+              {
+                "event": "local_load",
+                "role": "root",
+                "sha256": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc"
+              },
+              {
+                "event": "after_upstream_load_root",
+                "old_root": 2,
+                "new_root": 2,
+                "key_changes": [],
+                "state": {
+                  "root": 2,
+                  "timestamp": 0,
+                  "snapshot": 0,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "local_load",
+                "role": "timestamp",
+                "sha256": "16d309e46bdc8a7af90db589f89c60421af90609c902f7448583ec6eba0045bd"
+              },
+              {
+                "event": "after_load_timestamp",
+                "state": {
+                  "root": 2,
+                  "timestamp": 2,
+                  "snapshot": 0,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "local_load",
+                "role": "snapshot",
+                "sha256": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb"
+              },
+              {
+                "event": "after_load_snapshot",
+                "state": {
+                  "root": 2,
+                  "timestamp": 2,
+                  "snapshot": 2,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "local_load",
+                "role": "targets",
+                "sha256": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+              }
+            ],
+            "requests": [
+              "3.root.json",
+              "timestamp.json",
+              "snapshot.json",
+              "targets.json",
+              "fixture-package.zip"
+            ],
+            "served_sha256": {
+              "timestamp.json": "49ca3ffd5329884d3dd9d66f336acf42081b005c2a4f75772eefa9b59b4f6c8e",
+              "snapshot.json": "171b3b65c7ea5360738bf669d2d67b9ecaca753cfe7a276d973c41a90c1d8cc2",
+              "targets.json": "a8c2552d410f9329357ca08794ba8c30afe1166d30b2a2638c8a6e529b5068ce",
+              "fixture-package.zip": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+            }
+          }
+        }
+      },
+      {
+        "id": "U12-PY-TIMESTAMP-REVOKED",
+        "role": "timestamp",
+        "mode": "revoked",
+        "status": "passed",
+        "expected_observation": "rejected",
+        "normative_behavior": "passed: revoked signer rejected after authenticated invalidation",
+        "observed": {
+          "status": "rejected",
+          "error": "UnsignedMetadataError",
+          "message": "timestamp was signed by 0/1 keys",
+          "versions": {
+            "root": 2,
+            "timestamp": 0,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "diagnostic-invalidation",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp": null,
+            "snapshot": null,
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "timestamp"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "TEST_ONLY_normative_invalidation",
+              "deleted_sha256": {
+                "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+                "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+              },
+              "authenticated_root_sha256": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+              "section": "5.3.11"
+            },
+            {
+              "event": "local_missing",
+              "role": "timestamp"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json"
+          ],
+          "served_sha256": {
+            "2.root.json": "066f706d2cde5cc016c37175a3688749308dc2ed772e69c3d815007ba54bb2bc",
+            "timestamp.json": "6e1dd784ad11cddf634d94808c77c4dcec2cd099a3325544cd0e38ed28e945c5"
+          }
+        },
+        "preparation": null
+      },
+      {
+        "id": "U12-PY-SNAPSHOT-RETAINED",
+        "role": "snapshot",
+        "mode": "retained",
+        "status": "passed",
+        "expected_observation": "rejected",
+        "normative_behavior": "failed: required 5.3.11 invalidation absent; expected acceptance",
+        "observed": {
+          "status": "rejected",
+          "error": "BadVersionNumberError",
+          "message": "New timestamp version 1 must be >= 100",
+          "versions": {
+            "root": 2,
+            "timestamp": 100,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "observe-unchanged",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "snapshot"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "timestamp",
+              "sha256": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 100,
+                "snapshot": 0,
+                "targets": 0
+              }
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json"
+          ],
+          "served_sha256": {
+            "2.root.json": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp.json": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1"
+          }
+        },
+        "preparation": null
+      },
+      {
+        "id": "U12-PY-SNAPSHOT-CLEAN",
+        "role": "snapshot",
+        "mode": "clean",
+        "status": "passed",
+        "expected_observation": "accepted",
+        "normative_behavior": "passed for this clean fixture state",
+        "observed": {
+          "status": "accepted",
+          "error": null,
+          "message": null,
+          "versions": {
+            "root": 2,
+            "timestamp": 1,
+            "snapshot": 1,
+            "targets": 1
+          },
+          "mode": "observe-unchanged",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": null,
+            "timestamp": null,
+            "snapshot": null,
+            "targets": null
+          },
+          "after_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+            "snapshot": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          },
+          "trace": [
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "snapshot"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "timestamp"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "snapshot"
+            },
+            {
+              "event": "after_load_snapshot",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 1,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "targets"
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json",
+            "targets.json",
+            "fixture-package.zip"
+          ],
+          "served_sha256": {
+            "2.root.json": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp.json": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+            "snapshot.json": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+            "targets.json": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38",
+            "fixture-package.zip": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+          }
+        },
+        "preparation": null
+      },
+      {
+        "id": "U12-PY-SNAPSHOT-DIAGNOSTIC-INVALIDATION",
+        "role": "snapshot",
+        "mode": "diagnostic-invalidation",
+        "status": "passed",
+        "expected_observation": "accepted",
+        "normative_behavior": "passed only with test-only invalidation; upstream remains unchanged",
+        "observed": {
+          "status": "accepted",
+          "error": null,
+          "message": null,
+          "versions": {
+            "root": 2,
+            "timestamp": 1,
+            "snapshot": 1,
+            "targets": 1
+          },
+          "mode": "diagnostic-invalidation",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+            "snapshot": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "snapshot"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "TEST_ONLY_normative_invalidation",
+              "deleted_sha256": {
+                "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+                "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+              },
+              "authenticated_root_sha256": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+              "section": "5.3.11"
+            },
+            {
+              "event": "local_missing",
+              "role": "timestamp"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "snapshot"
+            },
+            {
+              "event": "after_load_snapshot",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 1,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "targets",
+              "sha256": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json",
+            "targets.json",
+            "fixture-package.zip"
+          ],
+          "served_sha256": {
+            "2.root.json": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp.json": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+            "snapshot.json": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+            "targets.json": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38",
+            "fixture-package.zip": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+          }
+        },
+        "preparation": null
+      },
+      {
+        "id": "U12-PY-SNAPSHOT-RECOVER-BEFORE-INVALIDATION",
+        "role": "snapshot",
+        "mode": "recover-before-invalidation",
+        "status": "passed",
+        "expected_observation": "rejected",
+        "normative_behavior": "diagnostic recovery only; Python cuts are exceptions, not process crashes",
+        "observed": {
+          "status": "rejected",
+          "error": "BadVersionNumberError",
+          "message": "New timestamp version 1 must be >= 100",
+          "versions": {
+            "root": 2,
+            "timestamp": 100,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "observe-unchanged",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 2,
+              "new_root": 2,
+              "key_changes": [],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "timestamp",
+              "sha256": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 100,
+                "snapshot": 0,
+                "targets": 0
+              }
+            }
+          ],
+          "requests": [
+            "3.root.json",
+            "timestamp.json"
+          ],
+          "served_sha256": {
+            "timestamp.json": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1"
+          }
+        },
+        "preparation": {
+          "status": "cut",
+          "error": "Cut",
+          "message": "controlled exception after upstream root persistence; before lower-role invalidation",
+          "versions": {
+            "root": 2,
+            "timestamp": 0,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "cut-before-invalidation",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "snapshot"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json"
+          ],
+          "served_sha256": {
+            "2.root.json": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2"
+          }
+        }
+      },
+      {
+        "id": "U12-PY-SNAPSHOT-RECOVER-AFTER-INVALIDATION",
+        "role": "snapshot",
+        "mode": "recover-after-invalidation",
+        "status": "passed",
+        "expected_observation": "accepted",
+        "normative_behavior": "diagnostic recovery only; Python cuts are exceptions, not process crashes",
+        "observed": {
+          "status": "accepted",
+          "error": null,
+          "message": null,
+          "versions": {
+            "root": 2,
+            "timestamp": 1,
+            "snapshot": 1,
+            "targets": 1
+          },
+          "mode": "observe-unchanged",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": null,
+            "snapshot": null,
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+            "snapshot": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+            "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 2,
+              "new_root": 2,
+              "key_changes": [],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "timestamp"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "snapshot"
+            },
+            {
+              "event": "after_load_snapshot",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 1,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "targets",
+              "sha256": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+            }
+          ],
+          "requests": [
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json",
+            "targets.json",
+            "fixture-package.zip"
+          ],
+          "served_sha256": {
+            "timestamp.json": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+            "snapshot.json": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+            "targets.json": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38",
+            "fixture-package.zip": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+          }
+        },
+        "preparation": {
+          "status": "cut",
+          "error": "Cut",
+          "message": "controlled exception after diagnostic invalidation; not a process/power test",
+          "versions": {
+            "root": 2,
+            "timestamp": 0,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "diagnostic-cut-after-invalidation",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": null,
+            "snapshot": null,
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "snapshot"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "TEST_ONLY_normative_invalidation",
+              "deleted_sha256": {
+                "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+                "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+              },
+              "authenticated_root_sha256": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+              "section": "5.3.11"
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json"
+          ],
+          "served_sha256": {
+            "2.root.json": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2"
+          }
+        }
+      },
+      {
+        "id": "U12-PY-SNAPSHOT-SAME-EPOCH-REPLAY",
+        "role": "snapshot",
+        "mode": "same-epoch-replay",
+        "status": "passed",
+        "expected_observation": "rejected",
+        "normative_behavior": "passed: no reset in the same authenticated epoch",
+        "observed": {
+          "status": "rejected",
+          "error": "BadVersionNumberError",
+          "message": "New timestamp version 1 must be >= 2",
+          "versions": {
+            "root": 2,
+            "timestamp": 2,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "observe-unchanged",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "84b40143d9d42e03b4fc9a2f01f63f4773b96bb118bd887c83a6d0869d621f29",
+            "snapshot": "9f193c7f695ef6c54c0f26749a69127ea47818a3dce5fc23df6d8f5cb1e7d90a",
+            "targets": "a8c2552d410f9329357ca08794ba8c30afe1166d30b2a2638c8a6e529b5068ce"
+          },
+          "after_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "84b40143d9d42e03b4fc9a2f01f63f4773b96bb118bd887c83a6d0869d621f29",
+            "snapshot": "9f193c7f695ef6c54c0f26749a69127ea47818a3dce5fc23df6d8f5cb1e7d90a",
+            "targets": "a8c2552d410f9329357ca08794ba8c30afe1166d30b2a2638c8a6e529b5068ce"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 2,
+              "new_root": 2,
+              "key_changes": [],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "timestamp",
+              "sha256": "84b40143d9d42e03b4fc9a2f01f63f4773b96bb118bd887c83a6d0869d621f29"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 2,
+                "snapshot": 0,
+                "targets": 0
+              }
+            }
+          ],
+          "requests": [
+            "3.root.json",
+            "timestamp.json"
+          ],
+          "served_sha256": {
+            "timestamp.json": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1"
+          }
+        },
+        "preparation": {
+          "rotation": {
+            "status": "accepted",
+            "error": null,
+            "message": null,
+            "versions": {
+              "root": 2,
+              "timestamp": 1,
+              "snapshot": 1,
+              "targets": 1
+            },
+            "mode": "diagnostic-invalidation",
+            "fixed_utc": "2026-10-29T11:31:03Z",
+            "before_cache_sha256": {
+              "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+              "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+              "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+              "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+            },
+            "after_cache_sha256": {
+              "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+              "timestamp": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+              "snapshot": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+              "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+            },
+            "trace": [
+              {
+                "event": "local_load",
+                "role": "root",
+                "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+              },
+              {
+                "event": "after_upstream_load_root",
+                "old_root": 1,
+                "new_root": 2,
+                "key_changes": [
+                  "snapshot"
+                ],
+                "state": {
+                  "root": 2,
+                  "timestamp": 0,
+                  "snapshot": 0,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "TEST_ONLY_normative_invalidation",
+                "deleted_sha256": {
+                  "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+                  "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+                },
+                "authenticated_root_sha256": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+                "section": "5.3.11"
+              },
+              {
+                "event": "local_missing",
+                "role": "timestamp"
+              },
+              {
+                "event": "after_load_timestamp",
+                "state": {
+                  "root": 2,
+                  "timestamp": 1,
+                  "snapshot": 0,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "local_missing",
+                "role": "snapshot"
+              },
+              {
+                "event": "after_load_snapshot",
+                "state": {
+                  "root": 2,
+                  "timestamp": 1,
+                  "snapshot": 1,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "local_load",
+                "role": "targets",
+                "sha256": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+              }
+            ],
+            "requests": [
+              "2.root.json",
+              "3.root.json",
+              "timestamp.json",
+              "snapshot.json",
+              "targets.json",
+              "fixture-package.zip"
+            ],
+            "served_sha256": {
+              "2.root.json": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+              "timestamp.json": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+              "snapshot.json": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+              "targets.json": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38",
+              "fixture-package.zip": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+            }
+          },
+          "advance": {
+            "status": "accepted",
+            "error": null,
+            "message": null,
+            "versions": {
+              "root": 2,
+              "timestamp": 2,
+              "snapshot": 2,
+              "targets": 2
+            },
+            "mode": "observe-unchanged",
+            "fixed_utc": "2026-10-29T11:31:03Z",
+            "before_cache_sha256": {
+              "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+              "timestamp": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1",
+              "snapshot": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd",
+              "targets": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+            },
+            "after_cache_sha256": {
+              "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+              "timestamp": "84b40143d9d42e03b4fc9a2f01f63f4773b96bb118bd887c83a6d0869d621f29",
+              "snapshot": "9f193c7f695ef6c54c0f26749a69127ea47818a3dce5fc23df6d8f5cb1e7d90a",
+              "targets": "a8c2552d410f9329357ca08794ba8c30afe1166d30b2a2638c8a6e529b5068ce"
+            },
+            "trace": [
+              {
+                "event": "local_load",
+                "role": "root",
+                "sha256": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2"
+              },
+              {
+                "event": "after_upstream_load_root",
+                "old_root": 2,
+                "new_root": 2,
+                "key_changes": [],
+                "state": {
+                  "root": 2,
+                  "timestamp": 0,
+                  "snapshot": 0,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "local_load",
+                "role": "timestamp",
+                "sha256": "6a63c1c10b5431ee457f0ef2ede5fe72e983fe4b906ca475d61fb15b0a8332e1"
+              },
+              {
+                "event": "after_load_timestamp",
+                "state": {
+                  "root": 2,
+                  "timestamp": 2,
+                  "snapshot": 0,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "local_load",
+                "role": "snapshot",
+                "sha256": "ac9271a1344df782d0439f9a6dea30127a2b1a65c95d78686340686e57b60fbd"
+              },
+              {
+                "event": "after_load_snapshot",
+                "state": {
+                  "root": 2,
+                  "timestamp": 2,
+                  "snapshot": 2,
+                  "targets": 0
+                }
+              },
+              {
+                "event": "local_load",
+                "role": "targets",
+                "sha256": "0c341eb13866e282c3f893f8a796be1a004f7e6e18a04d2e5916e2e48532af38"
+              }
+            ],
+            "requests": [
+              "3.root.json",
+              "timestamp.json",
+              "snapshot.json",
+              "targets.json",
+              "fixture-package.zip"
+            ],
+            "served_sha256": {
+              "timestamp.json": "84b40143d9d42e03b4fc9a2f01f63f4773b96bb118bd887c83a6d0869d621f29",
+              "snapshot.json": "9f193c7f695ef6c54c0f26749a69127ea47818a3dce5fc23df6d8f5cb1e7d90a",
+              "targets.json": "a8c2552d410f9329357ca08794ba8c30afe1166d30b2a2638c8a6e529b5068ce",
+              "fixture-package.zip": "23a6fd72974260823482da48d958e11b53bbe1ec6b3a37d1a60ac9c7f28702af"
+            }
+          }
+        }
+      },
+      {
+        "id": "U12-PY-SNAPSHOT-REVOKED",
+        "role": "snapshot",
+        "mode": "revoked",
+        "status": "passed",
+        "expected_observation": "rejected",
+        "normative_behavior": "passed: revoked signer rejected after authenticated invalidation",
+        "observed": {
+          "status": "rejected",
+          "error": "UnsignedMetadataError",
+          "message": "snapshot was signed by 0/1 keys",
+          "versions": {
+            "root": 2,
+            "timestamp": 1,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "diagnostic-invalidation",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp": "6e1dd784ad11cddf634d94808c77c4dcec2cd099a3325544cd0e38ed28e945c5",
+            "snapshot": null,
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [
+                "snapshot"
+              ],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "TEST_ONLY_normative_invalidation",
+              "deleted_sha256": {
+                "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+                "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65"
+              },
+              "authenticated_root_sha256": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+              "section": "5.3.11"
+            },
+            {
+              "event": "local_missing",
+              "role": "timestamp"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_missing",
+              "role": "snapshot"
+            },
+            {
+              "event": "after_load_snapshot",
+              "state": {
+                "root": 2,
+                "timestamp": 1,
+                "snapshot": 0,
+                "targets": 0
+              }
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json"
+          ],
+          "served_sha256": {
+            "2.root.json": "c9265fb1a6852e1354ddcf5bba37dd8b1946bed680d137271e197d5b60f390d2",
+            "timestamp.json": "6e1dd784ad11cddf634d94808c77c4dcec2cd099a3325544cd0e38ed28e945c5",
+            "snapshot.json": "136353fe7677dfef9daba81165922d340e5f70a7ef5be35b54d30b23c9da1deb"
+          }
+        },
+        "preparation": null
+      },
+      {
+        "id": "U12-PY-CONTROL-NO-ROTATION-LOWER",
+        "role": "control",
+        "mode": "no-rotation-lower",
+        "status": "passed",
+        "expected_observation": "rejected",
+        "normative_behavior": "passed: diagnostic must not invalidate without an authenticated role key change",
+        "observed": {
+          "status": "rejected",
+          "error": "BadVersionNumberError",
+          "message": "New timestamp version 1 must be >= 100",
+          "versions": {
+            "root": 2,
+            "timestamp": 100,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "diagnostic-invalidation",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "61707da495646019cdb65fa55ad59c7a6cdcbed8165e6f7ba856b8717f124521",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            },
+            {
+              "event": "after_upstream_load_root",
+              "old_root": 1,
+              "new_root": 2,
+              "key_changes": [],
+              "state": {
+                "root": 2,
+                "timestamp": 0,
+                "snapshot": 0,
+                "targets": 0
+              }
+            },
+            {
+              "event": "local_load",
+              "role": "timestamp",
+              "sha256": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9"
+            },
+            {
+              "event": "after_load_timestamp",
+              "state": {
+                "root": 2,
+                "timestamp": 100,
+                "snapshot": 0,
+                "targets": 0
+              }
+            }
+          ],
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json"
+          ],
+          "served_sha256": {
+            "2.root.json": "61707da495646019cdb65fa55ad59c7a6cdcbed8165e6f7ba856b8717f124521",
+            "timestamp.json": "6e1dd784ad11cddf634d94808c77c4dcec2cd099a3325544cd0e38ed28e945c5"
+          }
+        },
+        "preparation": null
+      },
+      {
+        "id": "U12-PY-CONTROL-BAD-ROOT-THRESHOLD",
+        "role": "control",
+        "mode": "bad-root-threshold",
+        "status": "passed",
+        "expected_observation": "rejected",
+        "normative_behavior": "passed: diagnostic must not invalidate without an authenticated role key change",
+        "observed": {
+          "status": "rejected",
+          "error": "UnsignedMetadataError",
+          "message": "root was signed by 1/2 keys",
+          "versions": {
+            "root": 1,
+            "timestamp": 0,
+            "snapshot": 0,
+            "targets": 0
+          },
+          "mode": "diagnostic-invalidation",
+          "fixed_utc": "2026-10-29T11:31:03Z",
+          "before_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "after_cache_sha256": {
+            "root": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "timestamp": "1857ad2e62b61a15c688f0972a0236fe8b21b33276cfddced0d995cf4ccea3a9",
+            "snapshot": "93710daecb4486de4cff6caaea41d4314d57fc67c3cfeabd13b7b28e82e38f65",
+            "targets": "4124193c4471d20f8e657c48a6eee1a70edb5f2248dcb20a802ebe80f1c00fe6"
+          },
+          "trace": [
+            {
+              "event": "local_load",
+              "role": "root",
+              "sha256": "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e"
+            }
+          ],
+          "requests": [
+            "2.root.json"
+          ],
+          "served_sha256": {
+            "2.root.json": "ec159293b4d577bf67c0642cabe25c07b62573a2ed77adfccc38dbac9ecd0dc5"
+          }
+        },
+        "preparation": null
+      }
+    ],
+    "upstream_source_modified": false,
+    "clock_seam": "set reference_time once before refresh, identical recorded UTC",
+    "diagnostic_adapter_operational": false,
+    "full_conformance": false,
+    "external_independent_review": false
+  },
+  "interoperability": {
+    "comparisons": [
+      {
+        "role": "timestamp",
+        "mode": "retained",
+        "dotnet": "accepted",
+        "python": "rejected",
+        "status": "blocked",
+        "upstream_unchanged_algorithm": true,
+        "normative_result": "failed",
+        "same_bytes_and_utc": true,
+        "full_conformance": false
+      },
+      {
+        "role": "timestamp",
+        "mode": "clean",
+        "dotnet": "accepted",
+        "python": "accepted",
+        "status": "passed",
+        "upstream_unchanged_algorithm": true,
+        "normative_result": "passed",
+        "same_bytes_and_utc": true,
+        "full_conformance": false
+      },
+      {
+        "role": "timestamp",
+        "mode": "diagnostic-invalidation",
+        "dotnet": "accepted",
+        "python": "accepted",
+        "status": "passed",
+        "upstream_unchanged_algorithm": false,
+        "normative_result": "passed",
+        "same_bytes_and_utc": true,
+        "full_conformance": false
+      },
+      {
+        "role": "timestamp",
+        "mode": "same-epoch-replay",
+        "dotnet": "rejected",
+        "python": "rejected",
+        "status": "passed",
+        "upstream_unchanged_algorithm": true,
+        "normative_result": "passed",
+        "same_bytes_and_utc": true,
+        "full_conformance": false
+      },
+      {
+        "role": "timestamp",
+        "mode": "revoked",
+        "dotnet": "rejected",
+        "python": "rejected",
+        "status": "passed",
+        "upstream_unchanged_algorithm": true,
+        "normative_result": "passed",
+        "same_bytes_and_utc": true,
+        "full_conformance": false
+      },
+      {
+        "role": "snapshot",
+        "mode": "retained",
+        "dotnet": "accepted",
+        "python": "rejected",
+        "status": "blocked",
+        "upstream_unchanged_algorithm": true,
+        "normative_result": "failed",
+        "same_bytes_and_utc": true,
+        "full_conformance": false
+      },
+      {
+        "role": "snapshot",
+        "mode": "clean",
+        "dotnet": "accepted",
+        "python": "accepted",
+        "status": "passed",
+        "upstream_unchanged_algorithm": true,
+        "normative_result": "passed",
+        "same_bytes_and_utc": true,
+        "full_conformance": false
+      },
+      {
+        "role": "snapshot",
+        "mode": "diagnostic-invalidation",
+        "dotnet": "accepted",
+        "python": "accepted",
+        "status": "passed",
+        "upstream_unchanged_algorithm": false,
+        "normative_result": "passed",
+        "same_bytes_and_utc": true,
+        "full_conformance": false
+      },
+      {
+        "role": "snapshot",
+        "mode": "same-epoch-replay",
+        "dotnet": "rejected",
+        "python": "rejected",
+        "status": "passed",
+        "upstream_unchanged_algorithm": true,
+        "normative_result": "passed",
+        "same_bytes_and_utc": true,
+        "full_conformance": false
+      },
+      {
+        "role": "snapshot",
+        "mode": "revoked",
+        "dotnet": "rejected",
+        "python": "rejected",
+        "status": "passed",
+        "upstream_unchanged_algorithm": true,
+        "normative_result": "passed",
+        "same_bytes_and_utc": true,
+        "full_conformance": false
+      }
+    ],
+    "raw_divergences_reproduced": 2,
+    "raw_divergences_removed": 0,
+    "technical_cause_isolated": true,
+    "independent_review": false,
+    "adjudication": "Implementer analysis: pinned Python lacks joint timestamp/snapshot invalidation required by TUF 1.0.36 section5.3.11; closed .NET fixtures follow it. Raw implementation difference persists.",
+    "diagnostic_is_operational_fix": false
+  },
+  "unchanged_reference_sources_sha256": {
+    "stage11/src/DurableTrust.cs.txt": "faad41f3ec587ee7ea21a8c53766ff431ced562453465a2118be34d13f302373",
+    "stage11/src/TrustFixtureProof.cs.txt": "c30eab448a8c841d6bc1b0ee94784132c13f0b403c156268853e4413b1e83d2d",
+    "stage11/fixtures/oracle-source-pin.json": "cef4f4f5dd379942923f20285254a4a268fa29706546c0a53ed1eccbdd3a6e6d",
+    "stage11/reference_interop.py": "4d87482257e71f9e6877ece614c991951a9fae42b5160d3a48f19f07b3388d0d",
+    "stage11/src/Tests11.cs.txt": "6edcfdc1a8b0e599d3c7c881ea8bfc876b5848849b6ce5c347b46b0142484a75",
+    "stage8/prepare_source.py": "e657b1622f6304f145f401d15ca0e2429d42022d9630a2d0239087e2fc15c8a2",
+    "stage8/tuf-delta.patch": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f"
+  },
+  "tuf_source": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "modified_source_sha256": {
+      "src/Tuf/TufClient.cs": "69414de567f872249d00559c1dd57e5bee43d94d476da61f8569738b77040268",
+      "src/Tuf/TufClientOptions.cs": "9820744a9989a0f8b6d0cbcfd68f31c7dc0c56819b8ad830d6d3a79c7bb4fd4b",
+      "src/Tuf/TufResults.cs": "94d6c7bc2d80cf2f1f72f1180f479aff4ffb748a7aaae3676105a7c8d2d198a1"
+    },
+    "crypto_parser_sources_unchanged": true,
+    "original_nuget_package_changed": false,
+    "production_adoption": false
+  },
+  "isolation": {
+    "sdk": "10.0.402",
+    "locked_restore": true,
+    "product_compile_items": 142,
+    "prototype_items_in_product": 0,
+    "outputs_outside_repo": true,
+    "GF_code_changed": false,
+    "catalog_roundtrip_exact": true
+  },
+  "controller_tree_deleted": true,
+  "vectors_evidence": {
+    "path": "docs/evidencias/autoatualizador-etapa12-vetores.json",
+    "sha256": "79958777a33a6d43cbbe41f3c73882de3f89d7b44cef5af402726df910978fb5",
+    "main_vectors": 2,
+    "scenarios_with_controls": 9,
+    "deduplicated_blobs": 20
+  },
+  "ci": {
+    "id": 40864493929,
+    "head_sha": "eafec1070bd7c35420741bad4560dc9be4a37d6e",
+    "run_number": 1,
+    "run_attempt": 1,
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40864493929",
+    "run_started_at": "2026-10-29T11:19:29Z",
+    "updated_at": "2026-10-29T11:21:19Z",
+    "job_id": 123415702830,
+    "artifacts": 0,
+    "compile_warnings": 0,
+    "compile_errors": 0
+  },
+  "postprocessing_checks": {
+    "same_initial_root_bytes": true,
+    "same_preserved_cache_bytes_in_raw_and_diagnostic": true,
+    "dotnet_accepted_metadata_matches_served_catalog": true,
+    "same_fixed_UTC": true,
+    "unchanged_dotnet_source_and_stage8_patch_vs_stage11": true
+  }
+}

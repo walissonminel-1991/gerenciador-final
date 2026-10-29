@@ -123,7 +123,7 @@ internal static class BroadResidualDiscovery
 
     internal static bool EligibleName(string? rawName)
     {
-        if (string.IsNullOrWhiteSpace(rawName)) return false;
+        if (string.IsNullOrWhiteSpace(rawName) || ProtectedApplications.IsExcludedFromManagement(rawName)) return false;
         string name = rawName.Trim();
         if (name.Length is < 4 or > 70 || name is "." or ".." || Reserved.Contains(name) || GenericChildNames.Contains(name) ||
             Guid.TryParse(name, out _) || Regex.IsMatch(name, @"^\d+$"))

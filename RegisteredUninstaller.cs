@@ -2,6 +2,13 @@ using System.Diagnostics;
 using System.Reflection.PortableExecutable;
 namespace GerenciadorAplicativos;
 
+// Distingue erro ao acompanhar um processo já criado de falha de Process.Start.
+internal sealed class UninstallObservationException(System.ComponentModel.Win32Exception error)
+    : IOException("Fornecedor iniciado; acompanhamento indisponível. Não repetir.", error)
+{
+    internal int NativeError => error.NativeErrorCode;
+}
+
 // Preparado ANTES da confirmação. Lease permanece até Process.Start retornar;
 // depois é solto para permitir que o próprio fornecedor remova seus arquivos.
 internal sealed class PreparedUninstaller(UninstallRequest request, ProcessStartInfo start, IDisposable? lease,
@@ -26,11 +33,19 @@ internal sealed class PreparedUninstaller(UninstallRequest request, ProcessStart
         using(process)
         using(var deadline=CancellationTokenSource.CreateLinkedTokenSource(token)) {
             deadline.CancelAfter(waitLimit ?? TimeSpan.FromMinutes(3));
-            try { await process.WaitForExitAsync(deadline.Token); }
-            catch(OperationCanceledException) when (token.IsCancellationRequested) { throw new OperationCanceledException(token); }
-            catch(OperationCanceledException) { throw new TimeoutException("Fornecedor iniciado; conclusão pendente. Não repetir automaticamente."); }
-            return process.ExitCode;
+            return await ObserveStartedAsync(async () =>
+            {
+                try { await process.WaitForExitAsync(deadline.Token); }
+                catch(OperationCanceledException) when (token.IsCancellationRequested) { throw new OperationCanceledException(token); }
+                catch(OperationCanceledException) { throw new TimeoutException("Fornecedor iniciado; conclusão pendente. Não repetir automaticamente."); }
+                return process.ExitCode;
+            });
         }
+    }
+    internal static async Task<int?> ObserveStartedAsync(Func<Task<int?>> observe)
+    {
+        try { return await observe().ConfigureAwait(false); }
+        catch (System.ComponentModel.Win32Exception error) { throw new UninstallObservationException(error); }
     }
     public void Dispose()
     {

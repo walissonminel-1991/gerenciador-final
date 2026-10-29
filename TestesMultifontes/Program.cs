@@ -9,7 +9,24 @@ void Assert(bool ok, string label)
     tests++;
     Console.WriteLine("OK " + label);
 }
+if (args.Contains("--chrome-live"))
+{
+    await ChromeVersionHistoryReviewTests.RunLive(Assert);
+    return;
+}
+if (args.Contains("--pre-beta-fontes"))
+{
+    int failures = 0;
+    void Check(bool ok, string label) { tests++; if (!ok) failures++; Console.WriteLine((ok ? "PASS " : "FAIL ") + label); }
+    await ChromeVersionHistoryTests.Run(Check);
+    await ChromeVersionHistoryReviewTests.Run(Check);
+    Console.WriteLine($"PRE_BETA_FONTES verificacoes={tests} falhas={failures}");
+    if (failures > 0) throw new Exception($"Pré-BETA fontes: {failures} falhas");
+    return;
+}
 Work6HistoryTests.Run(Assert);
+await ChromeVersionHistoryTests.Run(Assert);
+await ChromeVersionHistoryReviewTests.Run(Assert);
 if (args.Contains("--work7"))
 {
     int failures = 0;
@@ -38,9 +55,9 @@ var esr = App("Mozilla Firefox ESR", "115.0.0", "Mozilla Corporation");
 var thunderbirdEsr = App("Thunderbird ESR", "128.0", "Mozilla Corporation");
 var unknownThunderbird = App("Mozilla Thunderbird", "140.0", "Mozilla Corporation");
 Assert(ApplicationIdentityCatalog.RuleCount == 27,
-    "Catálogo unificado reconhece 26 famílias verificadas");
-Assert(ApplicationIdentityCatalog.Rules.Count(r => r.OfficialSource is not null) == 23,
-    "Vinte e três identidades de fontes oficiais referenciam identidade estável");
+    "Catálogo unificado reconhece 27 famílias verificadas");
+Assert(ApplicationIdentityCatalog.Rules.Count(r => r.OfficialSource is not null) == 24,
+    "Vinte e quatro identidades de fontes oficiais referenciam identidade estável");
 Assert(ApplicationIdentityCatalog.Resolve("OBS Studio", "OBS Project")?.Id == "obs" &&
     ApplicationIdentityCatalog.Resolve("OBS Studio", "OBS Project, LLC")?.Id == "obs",
     "Mesmo ID para versões de fabricante oficial do OBS");

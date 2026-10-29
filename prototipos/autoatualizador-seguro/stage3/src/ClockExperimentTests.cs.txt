@@ -1,0 +1,50 @@
+extern alias Clocked;
+using System.Text.Json;
+using Tuf;
+using C=Clocked::Tuf;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed class FrozenValidationClock(DateTimeOffset captured) : TimeProvider
+{
+    internal int Reads;
+    public override DateTimeOffset GetUtcNow(){Reads++;return captured;}
+}
+internal sealed class DualFixtureRepository(Dictionary<string,byte[]> files) : ITufRepository,C.ITufRepository
+{
+    internal int Fetches;
+    public Task<byte[]?> FetchMetadataAsync(string role,int? version=null,CancellationToken cancellationToken=default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();Fetches++;
+        Require(role is "root" or "timestamp" or "snapshot" or "targets","EXPERIMENT_ROLE");
+        string name=version is int v?$"{v}.{role}.json":role+".json";
+        return Task.FromResult(files.TryGetValue(name,out var bytes)?bytes.ToArray():null);
+    }
+    public Task<byte[]?> FetchTargetAsync(string path,CancellationToken cancellationToken=default)
+    {cancellationToken.ThrowIfCancellationRequested();Require(path=="fixture-package.zip","EXPERIMENT_TARGET");return Task.FromResult(files.TryGetValue(path,out var bytes)?bytes.ToArray():null);}
+}
+internal static class ClockExperimentTests
+{
+    internal static Dictionary<string,byte[]> Read(string root,string name)=>Directory.GetFiles(Path.Combine(root,name))
+        .ToDictionary(p=>Path.GetFileName(p)!,File.ReadAllBytes,StringComparer.Ordinal);
+    internal static async Task<int> Verify(string fixtureRoot,string name,DateTimeOffset start)
+    {
+        var clock=new FrozenValidationClock(start);var repository=new DualFixtureRepository(Read(fixtureRoot,name));
+        using var client=new C.TufClient(new C.TufClientOptions{
+            MetadataBaseUrl=new Uri("https://gf-clock-fixture.invalid/"),Repository=repository,Cache=new C.InMemoryTufCache(),
+            TrustedRoot=File.ReadAllBytes(Path.Combine(fixtureRoot,"trusted-root-v1.json")),ValidationTimeProvider=clock,
+            MaxRootRotations=32,MaxDelegations=1});
+        _=await client.GetTrustedMetadataAsync(); _=await client.GetTargetAsync("fixture-package.zip");
+        Require(clock.Reads>=4 && repository.Fetches>0,"CLOCK_NOT_USED");return clock.Reads;
+    }
+    internal static async Task OriginalAccepts(string fixtureRoot)
+    {
+        using var client=new TufClient(new TufClientOptions{MetadataBaseUrl=new Uri("https://gf-clock-fixture.invalid/"),
+            Repository=new DualFixtureRepository(Read(fixtureRoot,"valid")),Cache=new InMemoryTufCache(),
+            TrustedRoot=File.ReadAllBytes(Path.Combine(fixtureRoot,"trusted-root-v1.json")),MaxRootRotations=32,MaxDelegations=1});
+        _=await client.GetTargetAsync("fixture-package.zip");
+    }
+    internal static async Task Expires(string fixtureRoot,string name,DateTimeOffset start)
+    {try{_=await Verify(fixtureRoot,name,start);}catch(C.TufExpiredException){return;}throw new Rejected("CLOCK_EXPIRED_ACCEPTED");}
+}

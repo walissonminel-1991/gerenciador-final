@@ -1,0 +1,34 @@
+using System.Buffers.Binary;
+using System.Text.Json;
+
+namespace GfUpdaterFixture;
+
+internal sealed record ProbeFrame(int Schema,string Kind,string Transaction,string Nonce,string Profile);
+internal static class PipeFrames
+{
+    internal static void Check(bool value,string code) {if(!value)throw new InvalidDataException(code);}
+    internal static async Task Send(Stream stream,ProbeFrame frame,CancellationToken cancellation)
+    {
+        byte[] body=JsonSerializer.SerializeToUtf8Bytes(frame);
+        Check(body.Length<=2048,"IPC_FRAME_SIZE"); byte[] prefix=new byte[4];
+        BinaryPrimitives.WriteInt32LittleEndian(prefix,body.Length);
+        await stream.WriteAsync(prefix,cancellation); await stream.WriteAsync(body,cancellation); await stream.FlushAsync(cancellation);
+    }
+    internal static async Task<ProbeFrame> Read(Stream stream,CancellationToken cancellation)
+    {
+        byte[] prefix=new byte[4]; await stream.ReadExactlyAsync(prefix,cancellation);
+        int length=BinaryPrimitives.ReadInt32LittleEndian(prefix); Check(length is >0 and <=2048,"IPC_FRAME_SIZE");
+        byte[] body=new byte[length]; await stream.ReadExactlyAsync(body,cancellation);
+        using var doc=JsonDocument.Parse(body,new JsonDocumentOptions{MaxDepth=4}); var root=doc.RootElement;
+        Check(root.ValueKind==JsonValueKind.Object,"IPC_SCHEMA");
+        string[] names=root.EnumerateObject().Select(x=>x.Name).ToArray();
+        Check(names.Length==5 && names.ToHashSet(StringComparer.Ordinal).SetEquals(new[]{"Schema","Kind","Transaction","Nonce","Profile"}),"IPC_SCHEMA");
+        var frame=JsonSerializer.Deserialize<ProbeFrame>(body) ?? throw new InvalidDataException("IPC_SCHEMA");
+        Check(frame.Schema==1 && frame.Kind is "challenge" or "ready" or "close" or "bye" or "busy" or "abort-fixture"
+            && Hex(frame.Transaction,32) && Hex(frame.Nonce,64) && frame.Profile=="fixture-local","IPC_SCHEMA");
+        return frame;
+    }
+    internal static bool Hex(string? value,int length)=>value is not null && value.Length==length && value.All(c=>c is >= '0' and <= '9' or >= 'a' and <= 'f');
+    internal static void Bound(ProbeFrame frame,string kind,string tx,string nonce)
+        =>Check(frame.Kind==kind && frame.Transaction==tx && frame.Nonce==nonce && frame.Profile=="fixture-local","IPC_BINDING");
+}

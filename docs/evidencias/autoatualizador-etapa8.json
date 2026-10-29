@@ -1,0 +1,120 @@
+{
+  "schema": "gf-stage8-receipt/1",
+  "stage": 8,
+  "date": "2026-10-28",
+  "timezone": "America/Sao_Paulo",
+  "entry_commit": "13afd9766bd99a54a451865cf76b133eb1b29671",
+  "entry_tree": "a28740469441c8db0792df2b3625687ed70db613",
+  "entry_blobs": 567,
+  "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+  "corrected_test_commit": "bcc681079a209306132e0f03b5a47c9b5f4ee1af",
+  "contract": "gf-self-update/1",
+  "contract_changed": false,
+  "product_integration": false,
+  "accepted_as_client_manifest": false,
+  "delta_cases": 27,
+  "full_corrected_commit_suite_rerun": false,
+  "operational_gates_closed": 0,
+  "operational_gates_blocked": 8,
+  "inputs": {
+    "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md": "e7a9bd0636acdc03086688d065c1dcbc31f31400",
+    "docs/WORK-AUTOATUALIZADOR-ETAPA7.md": "b7a238ded045476d7b6eb43f473c1bc9d93d6c0a",
+    "docs/WORK-AUTOATUALIZADOR-ETAPA7-RELOGIO.md": "95f86840644b66cf2f196e834dca9f3bade20dd6",
+    "docs/WORK-AUTOATUALIZADOR-ETAPA7-PRAZO-IO.md": "8d451b96fe97e2794dfe51afa4ad976dcb0cb525",
+    "docs/evidencias/autoatualizador-etapa7-decisoes.json": "c1fa36bcbc28886e46fc61ee4ec772fb64c4c4d2",
+    "docs/WORK-AUTOATUALIZADOR-ETAPA0.md": "315fdccc3b4961871b9b661ae2001499e372bd4b"
+  },
+  "source_provenance_LF": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "modified_source_sha256": {
+      "src/Tuf/TufClient.cs": "3820259c175a790b51c4dcac572e03e1d1af6067b7e9a2c2bfe9062dc69a45ba",
+      "src/Tuf/TufClientOptions.cs": "a199e4d8850a045a8bc41155947f14b09e1e6e13bdd2a8d83bcc8a3b60aefd7a",
+      "src/Tuf/TufResults.cs": "67abebc48df9fede7998122a5f31ddabd595cc561cdf0265ca453d637144afbc"
+    },
+    "crypto_parser_sources_unchanged": true,
+    "original_nuget_package_changed": false,
+    "production_adoption": false
+  },
+  "source_provenance_Windows_CRLF": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "modified_source_sha256": {
+      "src/Tuf/TufClient.cs": "69414de567f872249d00559c1dd57e5bee43d94d476da61f8569738b77040268",
+      "src/Tuf/TufClientOptions.cs": "9820744a9989a0f8b6d0cbcfd68f31c7dc0c56819b8ad830d6d3a79c7bb4fd4b",
+      "src/Tuf/TufResults.cs": "94d6c7bc2d80cf2f1f72f1180f479aff4ffb748a7aaae3676105a7c8d2d198a1"
+    },
+    "crypto_parser_sources_unchanged": true,
+    "original_nuget_package_changed": false,
+    "production_adoption": false
+  },
+  "LF_to_CRLF_transform_exactly_matches_three_hashes": true,
+  "windows_provenance_equal_both_runs": true,
+  "documents": [
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-ETAPA8.md",
+      "sha256": "0998289fdeed92436375046240bc00e1b9fa03e96a2b540b4e40afb0a177caac"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa8-windows-inicial.json",
+      "sha256": "821afe72c40e37d6d4d17c97939ae254a56f5f55e2a5ed5adf2f972f660f27a4"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa8-windows-correcao.json",
+      "sha256": "3ceae391d531a14d5b1526b74c29937d74967512666b0a7890ed336413c4bcaf"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa8-rodadas.json",
+      "sha256": "0dd087071ea3023247bf2aadb050a1061518a87b711f0197f2d4baeb0ecd630c"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa8-gates.json",
+      "sha256": "7a14fd7f2caa0fe939f93bc9074f5519ae1ee3b458007983a52dd74e56935097"
+    }
+  ],
+  "preservation": {
+    "unchanged_other_inherited_blobs": 564,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "prior_updater_records_unchanged": 8,
+    "product_compile_items": 142,
+    "prototype_compile_items_in_product": 0,
+    "old_suites_repeated": false,
+    "physical_tests_repeated": 0,
+    "private_channel_accessed_or_changed": false,
+    "beta_version": "5.13.11.66",
+    "beta_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "beta_zip_sha256": "8e11f2dda5b7e2df2f85c61b57cc6a31a9596628523d2be7ad155dfdd5dda7f2",
+    "physical_assessment": "partial_unchanged",
+    "AVG_Windows_protections_unchanged": true,
+    "remote_diagnostics": false,
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "VLC": "inventory_only_no_specific_queries_or_tests",
+    "winget_COM": "optional_consultative",
+    "driver_install_remove_rollback": false,
+    "consent_data_unchanged": true,
+    "worker_D1_DNS_infrastructure_changed": false,
+    "permissions_UAC_ACL_accounts_changed": false,
+    "operational_keys_created": false,
+    "publication": false,
+    "merge": false,
+    "product_builds": 0
+  },
+  "new_prototype_CI_runs": 2,
+  "automatic_retries": 0,
+  "artifacts_uploaded": 0,
+  "local_execution_result": "unavailable_reset_not_counted",
+  "document_checks": {
+    "JSON_documents": 6,
+    "relative_links": 121,
+    "gate_count": 8,
+    "all_blocked": true,
+    "roadmap_pairs": 42,
+    "prior_records": 8,
+    "history_preserved": true
+  },
+  "stage9_started": false
+}

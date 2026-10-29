@@ -1,0 +1,257 @@
+{
+  "schema": "gf-stage7-review-receipt/1",
+  "stage": 7,
+  "date": "2026-10-28",
+  "timezone": "America/Fortaleza",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "pull_request": 65,
+  "draft": true,
+  "branch": "work-integracao-final-20261027",
+  "entry_commit": "bee4bebd5c5714bae7430a9249c961e1b85af523",
+  "entry_tree": "60a061a244098e83a69d86eaaed5b1cc5ed83640",
+  "entry_blob_count": 562,
+  "closure": "one_documentation_commit_parented_to_entry_no_self_referential_hash",
+  "contract": "gf-self-update/1",
+  "contract_revision": 1,
+  "contract_changed": false,
+  "status": "documented_architectural_review_completed_operational_gates_still_blocked",
+  "accepted_as_client_manifest": false,
+  "operational_authorization": false,
+  "architecture_decisions": 6,
+  "D6_decisions_tracked": 7,
+  "static_findings": 6,
+  "operational_gates": {
+    "total": 8,
+    "closed": 0,
+    "blocked": 8
+  },
+  "inputs": [
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+      "git_blob": "a75a5c8cc3a4a5b2e0afafaa094364fbb1231f04",
+      "sha256": "0e1f2d665ff890ef626be0d7bcd42b469657433ce3741b274fb0ebeec05c2dbc"
+    },
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-ETAPA0.md",
+      "git_blob": "315fdccc3b4961871b9b661ae2001499e372bd4b",
+      "sha256": "d9bd23741d36027061c5508679f1459008d4c8edd01cfd3ca30c88abd303490a"
+    },
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-ETAPA6.md",
+      "git_blob": "247fcb8a1624fdbd9648dc685a749a3c47195d98",
+      "sha256": "b99b8e2009b942ad895acf1bcb8d2efc50862865444fa645f51c9a75060ba0e7"
+    },
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-ETAPA6-EVIDENCIAS-MINIMAS.md",
+      "git_blob": "6b6a8180ec4b61e7e9af90cbb0d0c3d5e26d06c3",
+      "sha256": "7dc7bf26ade8235563bcb2336a35ea920e2bf04f54756020b84223adb520b6e1"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa6-dependencias.json",
+      "git_blob": "2683be2fc0be2866247e3cec9cd04280d3925b0f",
+      "sha256": "cb868178f7566e80d87b274bc3232d84f3359367ba8ba7c662aff354e483613e"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/stage3/clock-experiment.patch",
+      "git_blob": "7657873fd95f46551c39f2ad0acaa332c6d8266c",
+      "sha256": "a6cd8a946e69872f0e70b77a5b694008851696eec6affd27dd863d0c7b4f01f0"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/stage3/prepare_clock.py",
+      "git_blob": "4e9ccf65aa0fd8a190e66143c93bf9a08260ab9e",
+      "sha256": "5d369bce783eca697c302a3dd38042b3c2eca362ea120a69ac925a0799b64e54"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/stage3/src/ClockExperimentTests.cs.txt",
+      "git_blob": "80a0939994df0a97f141eff38814698d9e174343",
+      "sha256": "e0c793b033e70b0ed613adb71abecdf7e9462932ccf3ff0f3a93b7a3b1e22a91"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/stage3/tuf-source-manifest.json",
+      "git_blob": "c660143b38e0e8a41620c068c4c7c6809e56efc8",
+      "sha256": "b46205593e1d68b20bd7c947c51292d6dafee72dd40619a51464b57b8edfbc47"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/src/CycleClock.cs.txt",
+      "git_blob": "8e85aa5a1389d4d454e4f5ab49b418bd91680735",
+      "sha256": "4ed4bec59e4037d66e0ae6e8f11e2419c978ff803f8182accc127e3616b20df9"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/src/FixtureValidator.cs.txt",
+      "git_blob": "e3c515aa93d8d8e842b0a55a64fe39ad6e6d1ecc",
+      "sha256": "fa92b8766ee3779d2faa258ca72fc00376a3a530e4ac7a8c6a2f94e73f660e52"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/src/StrictMetadata.cs.txt",
+      "git_blob": "7f0f5b5c4e13a38f585f23739c99c1bec75ff0f5",
+      "sha256": "5a16d809d5c4ff45e0e7f47c58db56c15afada7047d0664ab05aa14777cc54fb"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/stage5/src/Deadline.cs.txt",
+      "git_blob": "578626c14b07178e9856720dc100184c0070e563",
+      "sha256": "4498e641695ac2d0e072697d017c0f7ef97214b1069fa1608326a14c42eb43ff"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa5-windows.json",
+      "git_blob": "a67452eadffb51c0a907971dd0bf4a0679b949fa",
+      "sha256": "4c0653d55c371a2c11a1fb3baa840d91a568b7999147a790e54f81bd0f3efdc2"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa5-gates.json",
+      "git_blob": "07da3015f2807f8803dcf5646eadfb6d13fd719f",
+      "sha256": "b6c0c896c095883ef963c60bd466a635ea5027b8944189a96d469179d9c9484f"
+    }
+  ],
+  "upstream_review": {
+    "repository": "mitchdenny/sigstore-dotnet",
+    "commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "files_checked_against_existing_pin": [
+      {
+        "path": "src/Tuf/TufClient.cs",
+        "sha256": "1db047bb34ce7121683f453d6d91b2bbdeb8fe87a5f1968e2ed46f2a10538fbb",
+        "bytes": 35281
+      },
+      {
+        "path": "src/Tuf/TufClientOptions.cs",
+        "sha256": "7c4c378edaccd7ca4cf68fdbbc309a8f493e858be2c1c09ef2f0f52a05c781a5",
+        "bytes": 1808
+      }
+    ],
+    "scope": "clock_call_graph_and_options_only_not_full_audit",
+    "license": "MIT_previously_recorded_unchanged",
+    "existing_patch_executed": false,
+    "original_package_changed": false,
+    "new_library_selected": false,
+    "maintenance_acceptance_inferred": false,
+    "new_runtime_execution": false
+  },
+  "primary_sources": [
+    {
+      "id": "S7-TUF-SPEC",
+      "url": "https://theupdateframework.github.io/specification/v1.0.36/",
+      "scope": "§5.1 horário fixo, §§5.3–5.6 validade e §5.4.3.1 término por timestamp igual",
+      "consulted_date": "2026-10-28",
+      "consulted_for": "targeted_static_review_only"
+    },
+    {
+      "id": "S7-WAIT",
+      "url": "https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.waitasync?view=net-10.0",
+      "scope": "Task que representa espera, não prova de término da operação original",
+      "consulted_date": "2026-10-28",
+      "consulted_for": "targeted_static_review_only"
+    },
+    {
+      "id": "S7-CANCEL",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelioex",
+      "scope": "Solicitação não aguarda término; status terminal precisa de observação",
+      "consulted_date": "2026-10-28",
+      "consulted_for": "targeted_static_review_only"
+    },
+    {
+      "id": "S7-WIN-IO",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/fileio/canceling-pending-i-o-operations",
+      "scope": "Dependência de suporte do driver; ReplaceFile entre funções sem cancelamento por essas APIs",
+      "consulted_date": "2026-10-28",
+      "consulted_for": "targeted_static_review_only"
+    }
+  ],
+  "new_evidence_kind": [
+    "static_source_review",
+    "architectural_decision_records",
+    "primary_API_semantics",
+    "documentary_preservation_checks"
+  ],
+  "new_security_tests": 0,
+  "prior_tests_repeated": 0,
+  "physical_tests_repeated": 0,
+  "new_product_builds": 0,
+  "new_prototype_builds": 0,
+  "new_ci_runs": 0,
+  "production_keys_created": 0,
+  "operational_design_implemented": false,
+  "documents": [
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-ETAPA7.md",
+      "sha256": "14e9d6f864b224ea6c299823048d8e1157a794c1b0d6bdef0165383a65ef728e",
+      "git_blob": "b7a238ded045476d7b6eb43f473c1bc9d93d6c0a"
+    },
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-ETAPA7-RELOGIO.md",
+      "sha256": "293f4eec801e0ee4f58aab7c1f1b251459f123f3312939f797a19bc7f6a3b267",
+      "git_blob": "95f86840644b66cf2f196e834dca9f3bade20dd6"
+    },
+    {
+      "path": "docs/WORK-AUTOATUALIZADOR-ETAPA7-PRAZO-IO.md",
+      "sha256": "e87f007a777e2aa688528658ed87084065894d036d860f2a0d6a074ac31880e8",
+      "git_blob": "8d451b96fe97e2794dfe51afa4ad976dcb0cb525"
+    },
+    {
+      "path": "docs/evidencias/autoatualizador-etapa7-decisoes.json",
+      "sha256": "dec231eec253bb5a38b870d0c32ddcd35be3310d5ba57fa8fcb6277bf9aa33e9",
+      "git_blob": "c1fa36bcbc28886e46fc61ee4ec772fb64c4c4d2"
+    }
+  ],
+  "preservation": {
+    "expected_changed_inherited_paths": [
+      "docs/PROGRESSO.json",
+      "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md"
+    ],
+    "expected_added_paths": [
+      "docs/WORK-AUTOATUALIZADOR-ETAPA7.md",
+      "docs/WORK-AUTOATUALIZADOR-ETAPA7-RELOGIO.md",
+      "docs/WORK-AUTOATUALIZADOR-ETAPA7-PRAZO-IO.md",
+      "docs/evidencias/autoatualizador-etapa7-decisoes.json",
+      "docs/evidencias/autoatualizador-etapa7.json"
+    ],
+    "expected_unchanged_inherited_blob_count": 559,
+    "protected_inherited_manifest_sha256": "9eb751a553ae362102ffe84e8da9c77e04a9fa0fc38752089215d289172efab5",
+    "manifest_definition": "UTF8 canonical JSON: keys sorted paths excluding three current documents; values mode/type/sha; separators comma/colon; one final LF",
+    "beta_version": "5.13.11.66",
+    "product_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "beta_run_id": 40716548530,
+    "beta_attempt": 1,
+    "beta_artifact_id": 12828262039,
+    "beta_zip_sha256": "8e11f2dda5b7e2df2f85c61b57cc6a31a9596628523d2be7ad155dfdd5dda7f2",
+    "beta_downloaded_or_rebuilt": false,
+    "private_channel_accessed_or_changed": false,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "roadmap_ids_done_unchanged": true,
+    "stage0_through_stage6_records_unchanged": true,
+    "previous_checkpoint_body_preserved": true,
+    "physical_assessment": "partially_completed_unchanged",
+    "protections_and_AVG_unchanged": true,
+    "remote_diagnostics_enabled": false,
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "VLC": "inventory_only_no_specific_queries_actions_tests",
+    "winget_COM": "optional_consultative_nonblocking",
+    "driver_install_remove_rollback_enabled": false,
+    "consent_data_unchanged": true,
+    "permissions_accounts_tokens_ACLs_UAC_changed": false,
+    "worker_D1_DNS_infrastructure_changed": false,
+    "product_code_or_workflows_changed": false,
+    "bootstrap_installed": false,
+    "product_integration_started": false,
+    "merge_release_publication_performed": false
+  },
+  "document_checks": {
+    "kind": "documentation_checks_not_security_tests",
+    "valid_json_documents": 3,
+    "relative_links_checked": 120,
+    "D6_decisions_covered": 7,
+    "architecture_refs_valid": true,
+    "gates_preserved_blocked": 8,
+    "roadmap_pairs_checked": 42,
+    "roadmap_done": 27,
+    "prior_stage_records_preserved": 7,
+    "previous_checkpoint_body_preserved": true,
+    "tracked_changes_limited_to_three_current_documents": true,
+    "allowed_added_documents": 5,
+    "all_other_inherited_blobs_expected_unchanged": true,
+    "new_code_or_workflow_files": 0
+  },
+  "next_action": "Decisões/insumos específicos D6 e eventual delta isolado em missão posterior autorizada; parar antes da Etapa 8",
+  "stage8_started": false
+}

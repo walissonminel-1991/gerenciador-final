@@ -1,0 +1,463 @@
+{
+  "schema": 1,
+  "stage": 7,
+  "date": "2026-10-27",
+  "timezone": "America/Sao_Paulo",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-pre-beta-etapa0-20261027",
+  "pull_request": 64,
+  "input_documentation_sha": "d01e37708bc06141e6dc7ffdee4ca346caddec4c",
+  "unchanged_product_source_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+  "status": "assessment_completed_mission_closed",
+  "decision": {
+    "classification": "BETA_BLOQUEADA",
+    "scope": "Candidata BETA conectada que reúna pré-BETA e .66 neste estado",
+    "connected_pilot_recommended": false,
+    "offline_distribution_substitute": false,
+    "all_42_checkpoints_required_by_new_rule": false,
+    "remote_operational_state_audited": false
+  },
+  "report": "../WORK-PRE-BETA-ETAPA7-DECISAO.md",
+  "references": [
+    {
+      "reference": "main",
+      "sha": "410d65e23546976db456337c71e4705f10217d36",
+      "unchanged": true
+    },
+    {
+      "pull_request": 40,
+      "source_sha": "ef13aef49083f357f6a14f4de46f8bc976dbd830",
+      "base_sha": "410d65e23546976db456337c71e4705f10217d36",
+      "draft": true,
+      "state": "open",
+      "unchanged_at_audit": true
+    },
+    {
+      "pull_request": 59,
+      "source_sha": "28beb9607e85d208af4c0864d768a6db7fb5296a",
+      "base_sha": "cb7ca5ccd986fd11c768ee410ac7c2b46296e1c1",
+      "draft": true,
+      "state": "open",
+      "unchanged_at_audit": true
+    },
+    {
+      "pull_request": 60,
+      "source_sha": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "base_sha": "28beb9607e85d208af4c0864d768a6db7fb5296a",
+      "draft": true,
+      "state": "open",
+      "unchanged_at_audit": true
+    },
+    {
+      "pull_request": 61,
+      "source_sha": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+      "base_sha": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "draft": true,
+      "state": "open",
+      "unchanged_at_audit": true
+    },
+    {
+      "pull_request": 62,
+      "source_sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+      "base_sha": "f64600748b45b0ddc7e39c530ac56809c26f7ea8",
+      "draft": true,
+      "state": "open",
+      "unchanged_at_audit": true
+    },
+    {
+      "pull_request": 63,
+      "source_sha": "04f59750739c6bdbaeb0bacd86ed2b734fba1271",
+      "base_sha": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "draft": true,
+      "state": "open",
+      "unchanged_at_audit": true
+    },
+    {
+      "pull_request": 64,
+      "source_sha": "d01e37708bc06141e6dc7ffdee4ca346caddec4c",
+      "base_sha": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "draft": true,
+      "state": "open",
+      "unchanged_at_audit": true
+    }
+  ],
+  "compatibility": {
+    "common_base_sha": "2bc9f4228fd448445fbf181652e5af93005def20",
+    "pre_beta_sha": "d01e37708bc06141e6dc7ffdee4ca346caddec4c",
+    "beta_sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+    "pre_beta_files": 62,
+    "beta_files": 62,
+    "pre_beta_file_categories": {
+      "production_and_catalogues": 21,
+      "tests": 17,
+      "documentation": 23,
+      "scripts": 1
+    },
+    "shared_files": [
+      "Program.cs",
+      "TestesLayout/Program.cs",
+      "docs/PROGRESSO.json",
+      "docs/ROADMAP.md"
+    ],
+    "check_method": "git apply --cached --3way --check, temporary index initialized from beta",
+    "patch_scope": "full base-to-pre-beta delta at immutable input head",
+    "exit_code": 0,
+    "textual_conflicts": [
+      "docs/PROGRESSO.json"
+    ],
+    "shared_files_textually_clean": [
+      "Program.cs",
+      "TestesLayout/Program.cs",
+      "docs/ROADMAP.md"
+    ],
+    "exit_code_alone_is_not_approval": true,
+    "real_index_head_and_worktree_unchanged": true,
+    "temporary_index_discarded": true,
+    "product_composition_applied": false,
+    "combined_code_built": false,
+    "combined_tests_executed": false,
+    "combined_ci_created": false,
+    "metadata_projection": {
+      "kind": "metadata_projection_only_in_memory",
+      "base": "2bc9f4228fd448445fbf181652e5af93005def20",
+      "pre_beta": "d01e37708bc06141e6dc7ffdee4ca346caddec4c",
+      "beta": "e530d724b7322963c8795b005f13ae6948a73e43",
+      "pre_beta_changed_root_keys": [
+        "historical_real_tests_before_pre_beta_etapa6",
+        "latest_real_test",
+        "latest_real_test_pc_forte",
+        "latest_real_test_pc_fraco",
+        "pre_beta_physical_evidence",
+        "sections"
+      ],
+      "beta_changed_root_keys": [
+        "beta",
+        "candidate"
+      ],
+      "shared_changed_root_keys": [],
+      "candidate_preserved_from_beta": true,
+      "beta_block_preserved": true,
+      "physical_history_preserved_from_pre_beta": true,
+      "tasks": 42,
+      "done": 27,
+      "proposal_sha256": "c14b3c059545820e2cfa040fa1d0f2b2650b7daaf9831c7a4eac43c24bf002ad",
+      "applied": false,
+      "proposal_file_written": false
+    },
+    "future_reconciliation_rules": [
+      "Preservar candidate e beta da fonte .66, mantendo pending/bloqueios e sem copiar CI .65 como validação .66.",
+      "Preservar sections, últimos testes, histórico .52/.24 e resumo físico da pré-BETA.",
+      "Conservar 27/42 e todos os valores done; não preencher aprovações/endpoint/aviso por conveniência.",
+      "Aplicar somente a futura fonte isolada rastreada e validar seu próprio SHA antes de recomendar piloto."
+    ]
+  },
+  "release_gates": [
+    {
+      "id": "L1",
+      "name": "Fonte integrada rastreada",
+      "state": "pending",
+      "blocking": true,
+      "evidence": "Ensaio textual e proposta de metadados; composição não aplicada."
+    },
+    {
+      "id": "L2",
+      "name": "CI da fonte integrada",
+      "state": "pending",
+      "blocking": true,
+      "evidence": "CIs dos dois SHAs separadas; nenhuma CI da composição."
+    },
+    {
+      "id": "L3",
+      "name": "Configuração e aviso revisados",
+      "state": "blocked_in_source",
+      "blocking": true,
+      "evidence": "Endpoint/hash/contato vazios; aprovação de privacidade false na fonte BETA."
+    },
+    {
+      "id": "L4",
+      "name": "Homologação conectada e retenção",
+      "state": "unproven",
+      "blocking": true,
+      "evidence": "Aprovação e referências de ensaio remoto vazias no registro; remoto não inspecionado."
+    },
+    {
+      "id": "L5",
+      "name": "Windows e AVG do pacote exato",
+      "state": "pending",
+      "blocking": true,
+      "evidence": "Referência de homologação vazia; E1/E2 não identificam SHA/hash do pacote."
+    },
+    {
+      "id": "L6",
+      "name": "Integridade das demais receitas",
+      "state": "approved_for_pre_beta_code_scope",
+      "blocking": false,
+      "evidence": "CI 40565220517 aprovada no código 386e7cd; não autoriza payload ou composição futura."
+    },
+    {
+      "id": "L7",
+      "name": "Escopo funcional e homologações",
+      "state": "partial",
+      "blocking": false,
+      "evidence": "Roadmap 27/42; 15 pendentes, gestão de drivers desativada. Não se inventa exigência de 42/42."
+    },
+    {
+      "id": "L8",
+      "name": "Autorização de distribuição",
+      "state": "not_granted",
+      "blocking": true,
+      "evidence": "distribution_approved=false no registro; esta sessão proíbe merge/release/deploy."
+    }
+  ],
+  "versioned_beta_configuration": {
+    "source_sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+    "approvals_status": "pending_owner_approval",
+    "endpoint_present": false,
+    "notice_hash_present": false,
+    "private_contact_present": false,
+    "privacy_approved": false,
+    "connected_homologation_approved": false,
+    "distribution_approved": false,
+    "synthetic_homologation_build_approved": false,
+    "cloudflare_evidence_reference_present": false,
+    "github_delete_evidence_reference_present": false,
+    "windows_avg_evidence_reference_present": false,
+    "approved_build_endpoint_list_empty": true,
+    "source_only_not_remote_state": true,
+    "configuration_or_approvals_changed": false
+  },
+  "ci": {
+    "pre_beta": {
+      "run_id": 40565220517,
+      "source_sha": "386e7cd5263266a0478e60139e59b036f1d69e31",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "mandatory_success": 6,
+      "conditional_skipped": 2,
+      "jobs": [
+        {
+          "id": 122404562081,
+          "name": "politica / Política de segurança e privacidade",
+          "conclusion": "success"
+        },
+        {
+          "id": 122404562142,
+          "name": "validar / Drivers somente leitura (windows-2022)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122404562162,
+          "name": "validar / Regressões Windows",
+          "conclusion": "success"
+        },
+        {
+          "id": 122404562292,
+          "name": "validar / Integridade dos instaladores oficiais (sem instalacao)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122404562500,
+          "name": "validar / Drivers somente leitura (windows-2025)",
+          "conclusion": "success"
+        },
+        {
+          "id": 122404564566,
+          "name": "validar / Fontes externas e drivers do runner (somente leitura)",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 122408967698,
+          "name": "Compilação Windows x64",
+          "conclusion": "success"
+        },
+        {
+          "id": 122409478927,
+          "name": "Atestar pacote apenas na main",
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    "beta": {
+      "run_id": 40409850849,
+      "source_sha": "e530d724b7322963c8795b005f13ae6948a73e43",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "success": 6,
+      "conditional_skipped": 1,
+      "jobs": [
+        {
+          "id": 121877400785,
+          "name": "politica / Política de segurança e privacidade",
+          "conclusion": "success"
+        },
+        {
+          "id": 121877400836,
+          "name": "validar / Consentimento BETA antecipado (sem rede)",
+          "conclusion": "success"
+        },
+        {
+          "id": 121877400996,
+          "name": "validar / Drivers somente leitura (windows-2025)",
+          "conclusion": "success"
+        },
+        {
+          "id": 121877401047,
+          "name": "validar / Drivers somente leitura (windows-2022)",
+          "conclusion": "success"
+        },
+        {
+          "id": 121877401096,
+          "name": "validar / Regressões Windows",
+          "conclusion": "success"
+        },
+        {
+          "id": 121880817518,
+          "name": "Compilação Windows x64",
+          "conclusion": "success"
+        },
+        {
+          "id": 121881410986,
+          "name": "Atestar pacote apenas na main",
+          "conclusion": "skipped"
+        }
+      ],
+      "build_channel": "BETA-INTERNA-BLOQUEADA",
+      "beta_workflow_uploads_only_manifests": true,
+      "connected_candidate_proven": false
+    },
+    "beta_external_historical": {
+      "run_id": 40409850628,
+      "conclusion": "failure",
+      "status_only_reviewed": true,
+      "reexecuted": false,
+      "excluded_target_not_reopened_as_mission_requirement": true
+    },
+    "documents_since_validated_pre_beta_code": [
+      "docs/PROGRESSO.json",
+      "docs/ROADMAP.md",
+      "docs/TESTES.md",
+      "docs/WORK-PRE-BETA-CHECKPOINT.md",
+      "docs/WORK-PRE-BETA-ETAPA4-DESINSTALACAO.md",
+      "docs/WORK-PRE-BETA-ETAPA5-GESTAO-DRIVERS.md",
+      "docs/WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md",
+      "docs/WORK-PRE-BETA-MATRIZ.md",
+      "docs/evidencias/pre-beta-etapa4-ci-40565220517.json",
+      "docs/evidencias/pre-beta-etapa4-desinstalacao.json",
+      "docs/evidencias/pre-beta-etapa5-estudo-drivers.json",
+      "docs/evidencias/pre-beta-etapa6-fisica.json"
+    ],
+    "new_runs_requested": 0,
+    "product_suites_reexecuted": 0,
+    "reason": "No executable change since validated code; new work is assessment, textual check, metadata projection and documents. Existing CI does not prove combined tree."
+  },
+  "historical_coverage_not_reexecuted": {
+    "multisource": {
+      "before": 159,
+      "after": 196
+    },
+    "updater": {
+      "before": 368,
+      "after": 410,
+      "comparable": 41,
+      "before_passed": 36,
+      "before_failed": 5,
+      "after_passed": 41,
+      "additional_memory_case": 1
+    },
+    "uninstall_residual": {
+      "historical_before_scope_change": 707,
+      "scope_adjusted_baseline": 705,
+      "after": 739,
+      "new_stage4_cases": 34,
+      "comparable": 29,
+      "before_passed": 11,
+      "before_failed": 18,
+      "after_passed": 29,
+      "additional_native_cases": 5
+    },
+    "drivers": {
+      "stage2_comparable": 26,
+      "before_passed": 6,
+      "before_failed": 20,
+      "after_passed": 26,
+      "windows_checks_per_runner": 174
+    },
+    "ui_consultation": {
+      "fixture_entries": 4,
+      "before_candidates": 0,
+      "after_candidates": 2,
+      "executed_recipes": 0,
+      "real_network_requests": 0,
+      "new_physically_homologated_apps": 0
+    },
+    "proof_limits": "Do not sum overlapping suites or infer physical updates from candidates/fixtures."
+  },
+  "physical_evidence": {
+    "stage6_receipt": "pre-beta-etapa6-fisica.json",
+    "new_physical_tests": 0,
+    "source_sha_or_hash_in_logs": false,
+    "pre_beta_code_physically_homologated": false,
+    "repeated_full_battery_requested": false,
+    "t11_weak_pc": "not_executed"
+  },
+  "roadmap": {
+    "done": 27,
+    "total": 42,
+    "pending": 15,
+    "newly_closed": [],
+    "all_done_values_unchanged": true,
+    "driver_management": "disabled",
+    "G3_G4_G5_completed": false
+  },
+  "validation": {
+    "status": "passed",
+    "scope": "six Markdown/JSON only",
+    "new_textual_check": 1,
+    "metadata_projection_only_in_memory": true,
+    "product_tests_new_or_reexecuted": 0,
+    "changed_files": [
+      "docs/PROGRESSO.json",
+      "docs/ROADMAP.md",
+      "docs/WORK-PRE-BETA-CHECKPOINT.md",
+      "docs/WORK-PRE-BETA-ETAPA7-DECISAO.md",
+      "docs/WORK-PRE-BETA-MATRIZ.md",
+      "docs/evidencias/pre-beta-etapa7-decisao.json"
+    ],
+    "local_markdown_links_checked": 81,
+    "all_42_done_values_preserved": true,
+    "previous_progress_fields_identical": true,
+    "roadmap_checkbox_states_preserved": true,
+    "candidate_artifacts_and_physical_history_identical": true,
+    "existing_package_metadata_validator": "passed",
+    "new_private_identifiers_detected": false,
+    "compile_exclusion_check": {
+      "pre_beta_changed_test_cs_files": 16,
+      "beta_changed_test_cs_files": 5,
+      "all_excluded_from_product": true,
+      "fixture_symbol_defined_in_product_project": false
+    },
+    "diff_check": "passed"
+  },
+  "limits": {
+    "vlc_permanently_excluded": true,
+    "new_vlc_tests_verifications_or_buttons": 0,
+    "driver_operations": 0,
+    "personal_pc_operations": 0,
+    "private_logs_published": false,
+    "elevation_or_acl_changes": 0,
+    "reboots": 0,
+    "winget_reinvestigated": false,
+    "diagnostic_transmission": false,
+    "private_beta_branches_modified": false,
+    "infrastructure_or_secrets_accessed": false,
+    "merge_rebase_release_deploy_distribution": false
+  },
+  "continuity": {
+    "mission_stages_0_to_7_closed_as_recorded": true,
+    "automatic_next_stage": null,
+    "follow_up_scope": "A future separately requested isolated source reconciliation with sending disabled and CI of its own tree.",
+    "connected_homologation_or_operations_started": false
+  }
+}

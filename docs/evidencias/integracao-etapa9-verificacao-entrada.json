@@ -1,0 +1,177 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "record_type": "stage9_entry_check_only",
+  "requested_stage": 9,
+  "date": "2026-10-28",
+  "timezone": "America/Sao_Paulo",
+  "status": "blocked_prerequisites_and_awaiting_manual_results",
+  "stage9_started": false,
+  "physical_tests_executed": false,
+  "overall_mission_complete": false,
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "pr": 65,
+  "pr_open": true,
+  "pr_draft": true,
+  "entry_commit": "e13612c1969bf5497810166cbbc579b782222e8e",
+  "entry_tree": "f9b918709c416d51dd1f288ece536df560ad7ebc",
+  "version": "5.13.11.66",
+  "candidate_label": "BETA LOCAL TESTE — NÃO HOMOLOGADA",
+  "validated_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+  "ci_build_commit": "384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+  "ci_runs": [
+    {
+      "id": 40675784213,
+      "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213"
+    },
+    {
+      "id": 40675784155,
+      "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155"
+    }
+  ],
+  "entry_unchanged_since_stage8": true,
+  "ci_approval_applies_to_source_not_documentary_head": true,
+  "read_documents": [
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md",
+    "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+    "docs/evidencias/integracao-etapa8-preparacao.json",
+    "docs/WORK-INTEGRACAO-ADENDO-BETA-LOCAL.md"
+  ],
+  "package": {
+    "available_in_verified_references": false,
+    "delivered_in_verified_references": false,
+    "name": null,
+    "sha256": null,
+    "private_url": null,
+    "created_this_session": false,
+    "full_binary_verification_possible": false
+  },
+  "manifest_only_artifact": {
+    "id": 12811032013,
+    "name": "BETA-manifesto-6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "sha256": "50b7a8c4d8bc15a826ebe2d54c7ada8f291d6cd2dbd19b8f805572f962c4c35c",
+    "expired": false,
+    "entries": [
+      "BETA-BUILD.json",
+      "BUILD-INFO.txt",
+      "SHA256SUMS.txt"
+    ],
+    "github_metadata_reconfirmed": true,
+    "retained_stage8_archive_rehashed": true,
+    "archive_redownloaded_this_session": false,
+    "executable_package": false,
+    "executable_package_sha256": false
+  },
+  "manual_results_received": 0,
+  "manual_results_analyzed": 0,
+  "physical_tests": [
+    {
+      "id": "F9-00",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    },
+    {
+      "id": "F9-01",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    },
+    {
+      "id": "F9-02",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    },
+    {
+      "id": "F9-03",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    },
+    {
+      "id": "F9-04",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    },
+    {
+      "id": "F9-05",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    },
+    {
+      "id": "F9-06",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    },
+    {
+      "id": "F9-07",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    },
+    {
+      "id": "F9-08",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    },
+    {
+      "id": "F9-09",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    },
+    {
+      "id": "F9-10",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    },
+    {
+      "id": "F9-11",
+      "status": "NÃO EXECUTADO",
+      "reason": "Nenhum resultado manual fornecido nesta solicitação; pré-requisito de pacote não comprovado."
+    }
+  ],
+  "pending_prerequisites": [
+    "Concluir a entrega privada compatível com o contrato na Etapa 8, com bytes reais, proveniência e SHA-256 verificados.",
+    "Receber do mantenedor a identificação da entrega e os resultados manuais; não presumir execução."
+  ],
+  "limitations": [
+    "AVG/assinatura e homologação física não comprovados para pacote entregue.",
+    "Manifestos não constituem pacote executável e seu hash não é o hash de um ZIP executável.",
+    "Nenhum novo defeito funcional demonstrado ou correção necessária nesta conferência."
+  ],
+  "restrictions": {
+    "runtime_tests_workflows_and_config_unchanged": true,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "remote_diagnostics_disabled": true,
+    "driver_mutations_disabled": true,
+    "winget_com_optional_consultative": true,
+    "permanent_inventory_only_exclusion_preserved": true,
+    "avg_and_windows_protections_unchanged": true,
+    "pilot_enabled": "no",
+    "github_export_enabled": "no",
+    "no_personal_pc_access": true,
+    "no_actual_updates_uninstalls_or_residue_deletion": true,
+    "no_merge_release_deploy": true,
+    "no_worker_d1_dns_eu_org_activation": true,
+    "no_connected_or_public_beta_release": true
+  },
+  "new_builds": 0,
+  "new_ci_runs": 0,
+  "new_product_tests": 0,
+  "new_functional_defects": [],
+  "changed_files": [
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/evidencias/integracao-etapa9-verificacao-entrada.json"
+  ],
+  "progress_json_and_stage1_to8_receipts_unchanged": true,
+  "continuation": "Resolve the existing Stage 8 delivery prerequisite in an explicitly authorized session; analyze only subsequent owner-supplied manual results in Stage 9."
+}

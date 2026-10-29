@@ -1,0 +1,478 @@
+{
+  "schema": 1,
+  "mission": "WORK-INTEGRACAO-FINAL",
+  "stage": 8,
+  "date": "2026-10-28",
+  "timezone": "America/Sao_Paulo",
+  "status": "blocked_distribution_contract",
+  "decision": "BLOQUEADA",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "branch": "work-integracao-final-20261027",
+  "pr": 65,
+  "draft": true,
+  "entry_commit": "4ccb20c8e724d9d630b288e3cd8e997c12daad80",
+  "entry_tree": "4fcaae411b05bb9e1f7361d037d5fb15f89186a8",
+  "validated_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+  "version": "5.13.11.66",
+  "candidate_label": "BETA LOCAL TESTE — NÃO HOMOLOGADA",
+  "entry_validation": {
+    "repository": "walissonminel-1991/gerenciador-final",
+    "branch": "work-integracao-final-20261027",
+    "pr": 65,
+    "pr_open": true,
+    "pr_draft": true,
+    "entry_commit": "4ccb20c8e724d9d630b288e3cd8e997c12daad80",
+    "entry_tree": "4fcaae411b05bb9e1f7361d037d5fb15f89186a8",
+    "entry_blobs": 447,
+    "validated_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "validated_tree": "e29acb3619b85050a4cf5becaf81bfa3fdda0bd2",
+    "tested_merge": "384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+    "base": "2bc9f4228fd448445fbf181652e5af93005def20",
+    "repository_private": false,
+    "post_ci_documentary_diff": [
+      "README.md",
+      "docs/ACTIONS-ATUAIS-E-HISTORICAS.md",
+      "docs/ORGANIZACAO-REPOSITORIO.md",
+      "docs/PROGRESSO.json",
+      "docs/ROADMAP.md",
+      "docs/TESTES.md",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+      "docs/WORK-INTEGRACAO-DEFEITOS.md",
+      "docs/WORK-INTEGRACAO-ETAPA7-CORRECOES.md",
+      "docs/WORK-INTEGRACAO-MATRIZ.md",
+      "docs/evidencias/integracao-etapa7-correcoes.json"
+    ],
+    "all_447_local_blobs_verified": true,
+    "published_inputs_identical_to_validated_source": true,
+    "ci_runs": [
+      {
+        "id": 40675784213,
+        "name": "Compilar Windows (sem assinatura)",
+        "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+        "status": "completed",
+        "conclusion": "success",
+        "attempt": 1,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213",
+        "jobs": [
+          {
+            "id": 122773708206,
+            "name": "politica / Política de segurança e privacidade",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "id": 122773708311,
+            "name": "validar / Regressões Windows",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "id": 122773708343,
+            "name": "validar / Drivers somente leitura (windows-2022)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "id": 122773708413,
+            "name": "validar / Consentimento BETA antecipado (sem rede)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "id": 122773708455,
+            "name": "validar / Drivers somente leitura (windows-2025)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "id": 122777811188,
+            "name": "Compilação Windows x64",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "id": 122778304320,
+            "name": "Atestar pacote apenas na main",
+            "status": "completed",
+            "conclusion": "skipped"
+          }
+        ]
+      },
+      {
+        "id": 40675784155,
+        "name": "Integridade externa dos atualizadores",
+        "head_sha": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+        "status": "completed",
+        "conclusion": "success",
+        "attempt": 1,
+        "url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784155",
+        "jobs": [
+          {
+            "id": 122773706879,
+            "name": "Integridade dos instaladores oficiais (sem instalacao)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "id": 122773708793,
+            "name": "Fontes externas e drivers do runner (somente leitura)",
+            "status": "completed",
+            "conclusion": "skipped"
+          }
+        ]
+      }
+    ],
+    "ci_package_result": {
+      "files": 287,
+      "verified_hashes": 286,
+      "expanded_bytes": 153051536,
+      "version": "5.13.11.66",
+      "source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "build": "384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+      "runtime": [
+        {
+          "name": "Microsoft.NETCore.App",
+          "version": "10.0.13"
+        },
+        {
+          "name": "Microsoft.WindowsDesktop.App",
+          "version": "10.0.13"
+        }
+      ],
+      "architecture": "AMD64"
+    },
+    "ci_build_markers": [
+      "2026-10-28T11:04:28.9090397Z OK: manifesto Win32 5.13.11.66, identidade do projeto e ativacao SxS do executavel.",
+      "2026-10-28T11:04:32.9733563Z Perfil local inspecionado; validacao tecnica interna, sem autorizacao de distribuicao.",
+      "2026-10-28T11:04:34.6024432Z Integridade aprovada: 286 arquivos."
+    ],
+    "ci_local_profile_markers": [
+      "2026-10-28T10:55:08.7591308Z PASS GF7_LOCAL GF6-001 abertura nao chama HTTP/WUA; observado=0",
+      "2026-10-28T10:55:08.7592340Z PASS GF7_LOCAL GF6-001 janela identifica edicao local",
+      "2026-10-28T10:55:08.8021786Z PASS GF7_LOCAL GF6-002 primeira abertura e saida nao criam arquivos de coleta",
+      "2026-10-28T10:55:08.8936894Z PASS GF7_LOCAL GF6-002 aviso local e aceite indisponivel correspondem ao bloqueio real",
+      "2026-10-28T10:55:08.8941885Z PASS GF7_LOCAL GF6-002 interface explica estado local sem coleta",
+      "2026-10-28T10:55:09.1629696Z PASS GF7_LOCAL GF6-002 simulacao por clique nao coleta, grava ou aceita",
+      "2026-10-28T10:55:09.1775985Z PASS GF7_LOCAL GF6-002 assembly local nao incorpora endpoint ou aprovacoes conectadas",
+      "2026-10-28T10:55:09.1906056Z PASS GF7_LOCAL GF6-002 escolha remota herdada nao ativa coleta",
+      "2026-10-28T10:55:09.1907318Z PASS GF7_LOCAL GF6-002 saida normal nao grava pendencia remota",
+      "2026-10-28T10:55:09.1911700Z PASS GF7_LOCAL GF6-002 falha nao grava pendencia remota",
+      "2026-10-28T10:55:09.2010550Z PASS GF7_LOCAL GF6-002 transporte ficticio nao e chamado; observado=0",
+      "2026-10-28T10:55:09.2016387Z PASS GF7_LOCAL GF6-002 pendencia antiga nao e elegivel a envio",
+      "2026-10-28T10:55:09.3799866Z PASS GF7_LOCAL GF6-002 fechamento preserva arquivos herdados sem regravar",
+      "2026-10-28T10:55:09.3800908Z PASS GF7_LOCAL GF6-002 reabertura permanece sem coleta remota",
+      "2026-10-28T10:55:09.4067153Z PASS GF7_LOCAL GF6-002 revogacao explicita continua disponivel",
+      "2026-10-28T10:55:09.4068239Z PASS GF7_LOCAL GF6-002 esta edicao nao pode ativar o gravador colaborativo",
+      "2026-10-28T10:55:09.4069097Z PASS GF7_LOCAL GF6-002 uploader real permanece desconfigurado",
+      "2026-10-28T10:55:09.4223730Z GF7_LOCAL_RESULT checks=18 failed=0 rede_real=0 drivers_alterados=0"
+    ],
+    "artifact_metadata": [
+      {
+        "id": 12811500220,
+        "name": "Residuos-layout-384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+        "size": 2192433,
+        "digest": "sha256:f4c81ce7f7d064de5959a32ec0c061fd492afc838b62f837ca4f0f9a0f95316c",
+        "expired": false,
+        "expires_at": "2026-11-04T11:03:32Z"
+      },
+      {
+        "id": 12811475586,
+        "name": "Antivirus-evidencias-6df95fdd776644cd4b248b5cea61108974ca9ce9",
+        "size": 619,
+        "digest": "sha256:3f85536a9a5574e4a8d0e089062070244c83445726936134fc7f0d9f1bd4b69b",
+        "expired": false,
+        "expires_at": "2026-11-04T11:04:37Z"
+      },
+      {
+        "id": 12811032013,
+        "name": "BETA-manifesto-6df95fdd776644cd4b248b5cea61108974ca9ce9",
+        "size": 13932,
+        "digest": "sha256:50b7a8c4d8bc15a826ebe2d54c7ada8f291d6cd2dbd19b8f805572f962c4c35c",
+        "expired": false,
+        "expires_at": "2026-11-04T11:04:39Z"
+      },
+      {
+        "id": 12810896358,
+        "name": "WORK17-cobertura-384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+        "size": 706,
+        "digest": "sha256:1a3b6c52cf3a1a13ec8810903491637d20ff58c8f2374ca4f45460c33566ebe4",
+        "expired": false,
+        "expires_at": "2026-11-04T10:57:27Z"
+      },
+      {
+        "id": 12810721794,
+        "name": "WORK18-cobertura-384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+        "size": 884,
+        "digest": "sha256:7409924e97c18848f3d52cd882cd92ec5d0b41e5487c3dafe0202ec2c0dec037",
+        "expired": false,
+        "expires_at": "2026-11-04T10:57:25Z"
+      },
+      {
+        "id": 12810496753,
+        "name": "Drivers-leitura-windows-2025-384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+        "size": 3829,
+        "digest": "sha256:9fa60bbf3b401d84b50a2440b3515c31483319c920efb5c2812b2dce588dee68",
+        "expired": false,
+        "expires_at": "2026-11-04T10:55:23Z"
+      },
+      {
+        "id": 12810257538,
+        "name": "WORK16-cobertura-384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+        "size": 727,
+        "digest": "sha256:7d8ba8e41909ef900cd882d634e883fbf00ca4575d95c41f59610d33177f18d6",
+        "expired": false,
+        "expires_at": "2026-11-04T10:57:28Z"
+      },
+      {
+        "id": 12809909070,
+        "name": "WORK14-cobertura-384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+        "size": 1000,
+        "digest": "sha256:f85be9ad07d3bb528e660c9263645bb20183ed149bbe290383e542553c2e367f",
+        "expired": false,
+        "expires_at": "2026-11-04T10:57:30Z"
+      },
+      {
+        "id": 12809319908,
+        "name": "Drivers-leitura-windows-2022-384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad",
+        "size": 3827,
+        "digest": "sha256:0565cdf1b9f32495ea52afb77be2a00db9b6441e6d1006b03ac389311bbebebd",
+        "expired": false,
+        "expires_at": "2026-11-04T10:56:03Z"
+      }
+    ],
+    "new_builds": 0,
+    "new_product_test_runs": 0,
+    "new_physical_test_runs": 0,
+    "private_channel_created": false,
+    "source_changed": false,
+    "workflow_changed": false,
+    "connected_approval_changed": false,
+    "public_artifact_access_reference": "https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts"
+  },
+  "manifest_verification": {
+    "artifact_id": 12811032013,
+    "name": "BETA-manifesto-6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "zip_sha256": "50b7a8c4d8bc15a826ebe2d54c7ada8f291d6cd2dbd19b8f805572f962c4c35c",
+    "files": [
+      "BETA-BUILD.json",
+      "BUILD-INFO.txt",
+      "SHA256SUMS.txt"
+    ],
+    "beta_build": {
+      "schema": 1,
+      "version": "5.13.11.66",
+      "source_commit": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+      "channel": "BETA",
+      "transport_configured": false,
+      "endpoint": "",
+      "notice_version": "gf-beta-20261026-r3",
+      "notice_sha256": "f04863df19be3c40100b9471b9c01962b16bdfb73ba7af2fd58e5ba30bc59701",
+      "reviewed_notice_sha256": "",
+      "distribution": "requires_owner_approval"
+    },
+    "build_info": "Produto: Gerenciador Final\r\nPerfil BETA: local; BETA LOCAL TESTE - NAO HOMOLOGADA\r\nVersao: 5.13.11.66\r\nCommit Git: 384f0a96acb8ccc5f99cccb0a930d8a9cedc50ad\r\nCommit fonte: 6df95fdd776644cd4b248b5cea61108974ca9ce9\r\nBase da PR (quando aplicavel): 2bc9f4228fd448445fbf181652e5af93005def20\r\nExecucao GitHub Actions: 40675784213\r\nAssinatura digital: AUSENTE (pacote experimental)\r\nStatus AVG: NAO VALIDADO; nao executar se estiver em quarentena\r\nOrigem: https://github.com/walissonminel-1991/gerenciador-final\r\n",
+    "manifest_entries": 286,
+    "ci_directory_file_count": 287,
+    "files_present_for_independent_verification": 3,
+    "embedded_document_hashes_verified": 2,
+    "manifest_file_sha256": {
+      "BETA-BUILD.json": "991139124e85fe3f50c18a6595ab6016775a6cf3da6c2eb17b072b7505a21f1c",
+      "BUILD-INFO.txt": "11bc0f7726b34fc8aa83ac93441f0ba5b1bfbcfa95aa7819fe81bdf90c29a4b2",
+      "SHA256SUMS.txt": "3bee2eae86dbb6ccae45809daf933caa01bc1ebdb5736cbe218222401ab5f3b4"
+    },
+    "full_executable_package_available": false,
+    "full_executable_package_independently_verified": false,
+    "private_package_url": null,
+    "package_sha256": null
+  },
+  "package": {
+    "created": false,
+    "available": false,
+    "delivered": false,
+    "name": null,
+    "sha256": null,
+    "private_url": null,
+    "ci_internal_directory_generated": true,
+    "ci_internal_files": 287,
+    "ci_internal_hashes": 286,
+    "full_binary_secret_scan_outside_ci": false
+  },
+  "blockers": [
+    {
+      "id": "B8-DIST-01",
+      "cause": "Public GF_BETA workflow conserves only manifests and guards executable upload with beta != true"
+    },
+    {
+      "id": "B8-DIST-02",
+      "cause": "No owner-only private build/delivery exception/channel implemented and verified"
+    },
+    {
+      "id": "B8-BYTES-01",
+      "cause": "Full executable package bytes unavailable; no new ZIP hash or full independent binary scan possible"
+    }
+  ],
+  "private_proposal": {
+    "status": "proposed_not_implemented",
+    "recipient": "walissonminel-1991",
+    "build_environment": "owner-controlled disposable Windows x64, separate from personal test PC",
+    "source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "requires_local_distribution_decision": true,
+    "requires_verified_nominal_access_channel": true,
+    "public_workflow_unchanged": true,
+    "connected_approvals_unchanged": true,
+    "connected_infrastructure_not_required": true
+  },
+  "physical_plan": "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md",
+  "physical_tests": [
+    {
+      "id": "F9-00",
+      "status": "NÃO EXECUTADO"
+    },
+    {
+      "id": "F9-01",
+      "status": "NÃO EXECUTADO"
+    },
+    {
+      "id": "F9-02",
+      "status": "NÃO EXECUTADO"
+    },
+    {
+      "id": "F9-03",
+      "status": "NÃO EXECUTADO"
+    },
+    {
+      "id": "F9-04",
+      "status": "NÃO EXECUTADO"
+    },
+    {
+      "id": "F9-05",
+      "status": "NÃO EXECUTADO"
+    },
+    {
+      "id": "F9-06",
+      "status": "NÃO EXECUTADO"
+    },
+    {
+      "id": "F9-07",
+      "status": "NÃO EXECUTADO"
+    },
+    {
+      "id": "F9-08",
+      "status": "NÃO EXECUTADO"
+    },
+    {
+      "id": "F9-09",
+      "status": "NÃO EXECUTADO"
+    },
+    {
+      "id": "F9-10",
+      "status": "NÃO EXECUTADO"
+    },
+    {
+      "id": "F9-11",
+      "status": "NÃO EXECUTADO"
+    }
+  ],
+  "restrictions": {
+    "main_and_original_branches_preserved": true,
+    "no_merge_release_deploy": true,
+    "no_driver_write": true,
+    "winget_com_consultative_optional": true,
+    "permanent_inventory_only_exclusion_preserved": true,
+    "avg_and_windows_permissions_unchanged": true,
+    "no_remote_diagnostics": true,
+    "no_worker_d1_dns_eu_org_activation": true,
+    "pilot_enabled": "no",
+    "github_export_enabled": "no",
+    "no_personal_pc_operations": true,
+    "no_destructive_or_actual_app_mutations": true,
+    "no_history_deletions": true,
+    "roadmap_done": 27,
+    "roadmap_total": 42
+  },
+  "new_tests": 0,
+  "new_ci_runs": 0,
+  "new_product_builds": 0,
+  "new_functional_defects_demonstrated": [],
+  "physical_tests_executed": false,
+  "stage9_started": false,
+  "local_beta_prepared": false,
+  "overall_mission_complete": false,
+  "next_stage": 8,
+  "next_action": "Complete stage 8 through a compatible authorized private route; stage 9 remains conditional",
+  "documentary_validation": {
+    "entry_delta_files": [
+      "README.md",
+      "docs/ORGANIZACAO-REPOSITORIO.md",
+      "docs/PROGRESSO.json",
+      "docs/ROADMAP.md",
+      "docs/TESTES.md",
+      "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+      "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+      "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md",
+      "docs/WORK-INTEGRACAO-MATRIZ.md",
+      "docs/evidencias/integracao-etapa8-preparacao.json"
+    ],
+    "new_files": [
+      "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+      "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md",
+      "docs/evidencias/integracao-etapa8-preparacao.json"
+    ],
+    "total_files": 450,
+    "original_files_preserved_except_documentary_delta": true,
+    "compiled_and_published_inputs_unchanged": true,
+    "all_roots_except_integration_final_preserved": true,
+    "all_prior_integration_history_preserved": true,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "package_sha256": null,
+    "private_url": null,
+    "stage9_started": false,
+    "python_documentation_metadata_policy_tests": 47,
+    "new_tests": 0,
+    "new_product_test_runs": 0,
+    "new_windows_ci_runs": 0,
+    "full_package_scan_outside_ci": false,
+    "manifest_only_verification": true
+  },
+  "changed_files_from_entry": [
+    "README.md",
+    "docs/ORGANIZACAO-REPOSITORIO.md",
+    "docs/PROGRESSO.json",
+    "docs/ROADMAP.md",
+    "docs/TESTES.md",
+    "docs/WORK-INTEGRACAO-CHECKPOINT.md",
+    "docs/WORK-INTEGRACAO-ETAPA8-PREPARACAO.md",
+    "docs/WORK-INTEGRACAO-ETAPA9-PC-FORTE-ROTEIRO.md",
+    "docs/WORK-INTEGRACAO-MATRIZ.md",
+    "docs/evidencias/integracao-etapa8-preparacao.json"
+  ],
+  "remote_save_verification": {
+    "documentation_commit": "7511ef7af6af029848794572a8e50398f28ce5de",
+    "documentation_tree": "c6893b17a41bf4aace44cc14211c347bc5ba4adf",
+    "remote_blobs_verified": 450,
+    "unchanged_entry_blobs": 440,
+    "stage8_documentary_delta_files": 10,
+    "new_documentary_files": 3,
+    "post_code_ci_documentary_delta_files": 14,
+    "compiled_and_published_inputs_unchanged": true,
+    "validated_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "ci_reconfirmed_success": [
+      40675784213,
+      40675784155
+    ],
+    "runs_on_documentation_commit": 0,
+    "other_branches_preserved": 100,
+    "main_and_base_preserved": true,
+    "pr65_open_draft": true,
+    "pr40_open_draft_preserved": true,
+    "issue48_open_unedited": true,
+    "package_created": false,
+    "package_delivered": false,
+    "package_sha256": null,
+    "private_url": null,
+    "stage9_started": false,
+    "roadmap_done": 27,
+    "roadmap_total": 42
+  }
+}
