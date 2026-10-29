@@ -1,0 +1,66 @@
+name: M3 G1 — recibo inerte vinculado ao Stage2
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-g1-ack/**'
+      - '.github/workflows/autoatualizador-m3-g1-ack-isolado.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-g1-ack-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  g1-sidecar:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - name: Checkout sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Somente ACK de fixture, crash em processo filho e reconciliacao read-only
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-g1-ack/G1Ack.csproj'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-m3-g1ack-artifacts'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-g1ack-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'G1_ACK_SDK_MISMATCH' }
+          dotnet restore $project "-p:ArtifactsPath=$out" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $executables=@(Get-ChildItem $out -Filter 'GF.Updater.M3.G1AckTests.exe' -Recurse -File)
+          if ($executables.Count -ne 1) { throw 'G1_ACK_RUNNER_NOT_UNIQUE' }
+          & $executables[0].FullName --report $report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.failed -ne 0 -or $r.passed -ne 13 -or
+              !$r.intent_and_stable_predecessor_bound -or
+              !$r.remote_ahead_without_ack_blocked -or
+              !$r.receipt_never_selected_candidate -or
+              !$r.interrupted_created_receipt_preserved -or
+              !$r.interrupted_flushed_receipt_preserved -or
+              !$r.promoted_receipt_after_child_kill_still_blocked -or
+              !$r.malformed_receipt_rejected -or
+              !$r.remote_offline_blocked -or
+              $r.receipt_externally_authenticated -or
+              !$r.witness_in_memory_only -or
+              $r.operational_gates_closed -ne 0 -or
+              $r.product_built -or $r.product_executed -or
+              $r.physical_power_loss_tested -or $r.selector_activation_supported) {
+              throw 'G1_ACK_REPORT_INVALID'
+          }
+          $items=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leaks=@($items.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-g1-ack' })
+          if ($leaks.Count -ne 0) { throw 'G1_ACK_PRODUCT_COMPILE_LEAK' }
+          "G1 ACK: $($r.passed) fixtures PASS; checkpoint tied to Stage2 intent, selector never switched; ALL operational gates blocked." >> $env:GITHUB_STEP_SUMMARY
+# No product build, physical PC, telemetry, keys, account or external witness.
