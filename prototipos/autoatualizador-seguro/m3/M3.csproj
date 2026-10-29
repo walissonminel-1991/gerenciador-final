@@ -17,6 +17,7 @@
     <Compile Include="../stage3/src/PipeFrames.cs.txt" />
     <Compile Include="M3CommitGate.cs.txt" />
     <Compile Include="M3Tests.cs.txt" />
+    <Compile Include="M3WriteRace.cs.txt" />
     <PackageReference Include="Tuf" Version="[1.1.1]" />
     <PackageReference Include="BouncyCastle.Cryptography" Version="[2.7.0]" />
   </ItemGroup>
