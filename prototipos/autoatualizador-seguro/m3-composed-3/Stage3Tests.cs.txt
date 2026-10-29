@@ -1,0 +1,215 @@
+// L3 only: actual Stage11 signed metadata target, exact ZIP/entry binding,
+// and negative demonstration that intent commitment ≠ terminal commitment.
+// Uses only inert .fixture data. Never selects or confirms a candidate.
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class Stage3Tests
+{
+    private static readonly List<object> results=[];
+    private static string suite="",fixtures="",anchorPath="";
+    private static int failed;
+    private static bool completeTargetsBinding,missingRoleDenied,roleSwapDenied,
+        wrongPayloadDenied,wrongEntryDenied,missingTerminalCommitDenied,
+        idempotentTerminalCommit,terminalForkRejected,remoteLostBlocks,
+        selectorUnchanged=true;
+
+    private sealed class Scenario:IDisposable
+    {
+        internal readonly InertComposedCase Case=new(suite);
+        internal readonly OperationJournal Operations;
+        internal readonly InertCompositeAnchor IntentAnchor;
+        private readonly byte[] anchor;
+        internal Scenario()
+        {
+            Directory.CreateDirectory(Path.Combine(Case.Root,"operations"));
+            Operations=new OperationJournal(Case.Root,Case.InstallationId);
+            IntentAnchor=new(Case.InstallationId,InertCompositeBuilder.Repository);
+            anchor=File.ReadAllBytes(anchorPath);
+            using var trust=new DurableEpochCache(Case.Root,Case.InstallationId,anchor,create:true);
+        }
+        internal DurableEpochCache Open()=>new(Case.Root,Case.InstallationId,anchor);
+        internal async Task<(TrustView Trust,byte[] Zip,BundleRef Candidate,CompositeHead Intent,Stage3TufTarget Link)> PrepareSigned()
+        {
+            using var trust=Open();
+            var folder=Path.Combine(fixtures,"release2");
+            var files=Directory.GetFiles(folder).ToDictionary(
+                x=>Path.GetFileName(x),File.ReadAllBytes,StringComparer.Ordinal);
+            var utc=DateTimeOffset.UtcNow;
+            var repo=new Stage8Repository(files,utc);
+            var result=await DurableTufAttempt.Get(trust,repo,utc);
+            Require(result.Content.Length>0,"L3_SIGNED_TARGET_EMPTY");
+            byte[] zip=result.Content.ToArray();
+            var parts=ZipInspection.Inspect(zip,3,CancellationToken.None);
+            var entry=parts["bundle.fixture.txt"];
+            string hash=Hash(entry);
+            var candidate=new BundleRef(2,"0.0.0.2",hash,"linux-fixture-model");
+            string path=Path.Combine(Case.Root,"versions",candidate.DirectoryName);
+            Directory.CreateDirectory(path);
+            string entryPath=Path.Combine(path,"bundle.fixture.txt");
+            File.WriteAllBytes(entryPath,entry);
+            using(var guard=WindowsFileGuard.Open(Case.Root,entryPath))
+                candidate=candidate with {Identity=guard.Identity};
+            var live=trust.View();
+            Require(live.Metadata.Count==4 && live.Targets>0 && live.ActiveAttempt=="",
+                "L3_TUF_NOT_COMPLETE");
+            var original=new PersistentState(Case.Root).Load();
+            string selectorHash=Hash(PersistentState.ReadFixtureFile(Case.Root,
+                Path.Combine(Case.Root,"active.fixture.json")));
+            var admitted=Operations.Admit(original.Digest,selectorHash);
+            var permit=new InertPermit(candidate.Sequence,candidate.Version,
+                Hash(zip),Hash(entry),Hash(parts["SHA256SUMS.txt"]),live.Digest);
+            var auth=Operations.Advance(admitted,"authorized",permit:permit);
+            _=Operations.Advance(auth,"prepared",candidate:candidate);
+            _=G1Preselect.Prepare(Case.Root,candidate,true);
+            var cp=InertCompositeBuilder.Build(Case.Root,live,Operations,null);
+            var committed=IntentAnchor.CommitModelOnly(cp);
+            var bound=Stage3TufBinding.Bind(live,live,zip,candidate,committed);
+            CheckNoSelection();
+            return(live,zip,candidate,committed,bound);
+        }
+        internal void RecoverInert()
+        {
+            using var session=new FixtureSession(Case.Root);
+            var state=session.Recover();
+            Require(state.Transaction?.Phase=="rolled_back" && state.Confirmed==Case.Old,
+                "L3_RECOVERY_NOT_INERT");
+            CheckNoSelection();
+        }
+        internal void CheckNoSelection()
+        {
+            using var session=new FixtureSession(Case.Root);
+            Require(session.Files.ReadSelector(Case.InstallationId).Bundle==Case.Old &&
+                session.Store.Load().Record.Confirmed==Case.Old &&
+                session.Store.Load().Record.Transaction is not {Phase:"selected" or "confirmed"},
+                "L3_SELECTOR_CHANGED");
+            selectorUnchanged=true;
+        }
+        public void Dispose(){CheckNoSelection();Case.Dispose();}
+    }
+    private static void Reject(string expected,Action action)
+    {
+        try {action();} catch(Rejected ex) when(ex.Code==expected){return;}
+        throw new Rejected("L3_FALSE_ACCEPTANCE:"+expected);
+    }
+    private static async Task Test(string id,Func<Task> work)
+    {
+        try {await work();results.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception e){failed++;results.Add(new{id,status="failed",error=e.ToString()});
+            Console.WriteLine("FAIL "+id+" "+e);}
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=4 || args[0]!="--report" || !OperatingSystem.IsWindows())return 2;
+        fixtures=Path.GetFullPath(args[2]);anchorPath=Path.GetFullPath(args[3]);
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-l3-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Test("L3-TUF-01-SIGNED-ROOT-TIMESTAMP-SNAPSHOT-TARGETS-AND-ENTRY",async()=>{
+                using var s=new Scenario();
+                var t=await s.PrepareSigned();
+                using var cache=s.Open();
+                var fresh=Stage3TufBinding.Bind(cache.View(),t.Trust,t.Zip,t.Candidate,t.Intent);
+                Require(fresh==t.Link && t.Link.TargetsSha==Hash(t.Trust.Metadata["targets"])
+                    && t.Link.EntrySha==t.Candidate.Sha256,"L3_TUF_NOT_BOUND");
+                completeTargetsBinding=true;
+            });
+            await Test("L3-TUF-02-MISSING-SIGNED-ROLE-DENIED",async()=>{
+                using var s=new Scenario();var t=await s.PrepareSigned();
+                var copy=t.Trust.Metadata.ToDictionary(x=>x.Key,x=>x.Value,StringComparer.Ordinal);
+                copy.Remove("targets");
+                Reject("L3_TUF_VIEW_FORK_OR_INCOMPLETE",()=>Stage3TufBinding.Bind(
+                    t.Trust,t.Trust with {Metadata=copy},t.Zip,t.Candidate,t.Intent));
+                missingRoleDenied=true;
+            });
+            await Test("L3-TUF-03-SIGNED-ROLE-SWAP-WITHOUT-REAL-REFRESH-DENIED",async()=>{
+                using var s=new Scenario();var t=await s.PrepareSigned();
+                var copy=t.Trust.Metadata.ToDictionary(x=>x.Key,x=>x.Value,StringComparer.Ordinal);
+                copy["targets"]=File.ReadAllBytes(Path.Combine(fixtures,"release3","targets.json"));
+                Reject("L3_TUF_VIEW_FORK_OR_INCOMPLETE",()=>Stage3TufBinding.Bind(
+                    t.Trust,t.Trust with {Metadata=copy},t.Zip,t.Candidate,t.Intent));
+                roleSwapDenied=true;
+            });
+            await Test("L3-TUF-04-ALTERED-ZIP-IS-NOT-TUF-TARGET",async()=>{
+                using var s=new Scenario();var t=await s.PrepareSigned();
+                var zip=t.Zip.ToArray();zip[^8]^=1;
+                Reject("L3_TUF_ZIP_REF_MISMATCH",()=>Stage3TufBinding.Bind(
+                    t.Trust,t.Trust,zip,t.Candidate,t.Intent));
+                wrongPayloadDenied=true;
+            });
+            await Test("L3-TUF-05-FOREIGN-BUNDLE-NOT-IN-SIGNED-TARGETS",async()=>{
+                using var s=new Scenario();var t=await s.PrepareSigned();
+                Reject("L3_TUF_CANDIDATE_NOT_IN_SIGNED_TARGETS",()=>Stage3TufBinding.Bind(
+                    t.Trust,t.Trust,t.Zip,s.Case.Candidate,t.Intent));
+                wrongEntryDenied=true;
+            });
+            await Test("L3-TERM-01-INTENT-COMMIT-ALONE-NO-TERMINAL-AUTHORITY",async()=>{
+                using var s=new Scenario();var t=await s.PrepareSigned();s.RecoverInert();
+                var model=new Stage3TerminalMemoryAnchor(s.Case.InstallationId,t.Intent);
+                var state=new PersistentState(s.Case.Root).Load();
+                var spoof=new Stage3TerminalReceipt(t.Intent.Checkpoint.TxId,
+                    t.Intent.Checkpoint.Stage2IntentDigest,state.Digest,
+                    "rolled_back",t.Intent.Sequence+1,t.Intent.Digest,new string('1',64));
+                Reject("L3_TERMINAL_NOT_EXTERNALLY_ANCHORED",()=>
+                    model.Inspect(s.Case.Root,spoof));
+                missingTerminalCommitDenied=true;
+            });
+            await Test("L3-TERM-02-TERMINAL-COMMIT-IS-IDEMPOTENT-BUT-BLOCKED",async()=>{
+                using var s=new Scenario();var t=await s.PrepareSigned();s.RecoverInert();
+                var model=new Stage3TerminalMemoryAnchor(s.Case.InstallationId,t.Intent);
+                var first=model.PublishTerminal(s.Case.Root);
+                var repeated=model.PublishTerminal(s.Case.Root);
+                Require(first==repeated && model.Inspect(s.Case.Root,first)==
+                    Stage3Diagnostic.BoundButNotAuthorized,"L3_TERMINAL_STILL_BLOCKED");
+                idempotentTerminalCommit=true;
+            });
+            await Test("L3-TERM-03-VALID-LOCAL-TERMINAL-BYTES-FORK-BLOCKED",async()=>{
+                using var s=new Scenario();var t=await s.PrepareSigned();s.RecoverInert();
+                var model=new Stage3TerminalMemoryAnchor(s.Case.InstallationId,t.Intent);
+                var receipt=model.PublishTerminal(s.Case.Root);
+                var state=new PersistentState(s.Case.Root).Load();
+                string path=InertCompositeBuilder.LocalStatePath(s.Case.Root,state.Record.Generation);
+                File.AppendAllText(path," \n",Encoding.UTF8); // harmless JSON whitespace, different bytes
+                Require(new PersistentState(s.Case.Root).Load().Digest!=state.Digest,
+                    "L3_TERMINAL_LOCAL_FORK_MISSING");
+                Reject("L3_TERMINAL_NOT_EXTERNALLY_ANCHORED",()=>
+                    model.Inspect(s.Case.Root,receipt));
+                Reject("L3_TERMINAL_CONFLICT",()=>model.PublishTerminal(s.Case.Root));
+                terminalForkRejected=true;
+            });
+            await Test("L3-TERM-04-LOST-REMOTE-MEMORY-IS-NOT-TRUST-ON-FIRST-USE",async()=>{
+                using var s=new Scenario();var t=await s.PrepareSigned();s.RecoverInert();
+                var model=new Stage3TerminalMemoryAnchor(s.Case.InstallationId,t.Intent);
+                var receipt=model.PublishTerminal(s.Case.Root);
+                var restarted=new Stage3TerminalMemoryAnchor(s.Case.InstallationId,t.Intent);
+                Reject("L3_TERMINAL_NOT_EXTERNALLY_ANCHORED",()=>
+                    restarted.Inspect(s.Case.Root,receipt));
+                remoteLostBlocks=true;
+            });
+        }
+        finally {Directory.Delete(suite,true);}
+        var report=new{schema=1,phase="G1-G2-L3-full-tuf-terminal-inert",
+            fixture_only=true,passed=results.Count-failed,failed,tests=results,
+            signed_full_chain_target_entry_binding=completeTargetsBinding,
+            missing_role_denied=missingRoleDenied,role_swap_denied=roleSwapDenied,
+            wrong_zip_denied=wrongPayloadDenied,foreign_entry_denied=wrongEntryDenied,
+            intent_without_terminal_commit_denied=missingTerminalCommitDenied,
+            terminal_commit_idempotent_in_memory=idempotentTerminalCommit,
+            bytewise_terminal_fork_detected_by_memory_anchor=terminalForkRejected,
+            vanished_memory_anchor_fail_closed=remoteLostBlocks,
+            selector_never_selected=selectorUnchanged,
+            terminal_external_authenticity_proven=false,
+            durable_remote_witness_exists=false,
+            receipt_cryptographically_authenticated=false,
+            authorized_to_select=false,authorized_to_confirm=false,
+            physical_power_loss_tested=false,product_built=false,product_executed=false,
+            operational_gates_closed=0};
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_L3_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}
