@@ -1,7 +1,9 @@
 // Minimal Stage2 fixture setup for composed tests only; no legacy fixture
 // validator, executable bundle, production installer, or key material.
 using System.Text;
+using System.Runtime.Versioning;
 using static GfUpdaterFixture.StrictMetadata;
+[assembly: SupportedOSPlatform("windows")]
 namespace GfUpdaterFixture;
 
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
