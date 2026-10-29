@@ -1,0 +1,295 @@
+// L11: uses real SIGNED Stage11 TUF test fixture, stages a Stage3 in a
+// disposable .fixture sandbox, then only models admission/rejection. No
+// network, updater process, GF executable, installation or Windows changes.
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L11PublicTests
+{
+    private static readonly List<object> Results = [];
+    private static int failed;
+    private static string suite = "", fixtures = "", bootstrap = "";
+    private const string DefaultUri = "https://updates.gf.invalid/tuf/timestamp.json";
+
+    private sealed class Scenario : IDisposable
+    {
+        internal readonly InertComposedCase Case = new(suite);
+        internal readonly OperationJournal Operations;
+        internal readonly InertCompositeAnchor Stage3Anchor;
+        private readonly byte[] rootPublic;
+        internal Stage3TufTarget Binding = null!;
+        internal L11FrozenPublicFixture PublicProof = null!;
+        internal byte[] Zip = [];
+        internal byte[] Advisory = [];
+
+        internal Scenario()
+        {
+            Directory.CreateDirectory(Path.Combine(Case.Root, "operations"));
+            Operations = new OperationJournal(Case.Root, Case.InstallationId);
+            Stage3Anchor = new(Case.InstallationId, InertCompositeBuilder.Repository);
+            rootPublic = File.ReadAllBytes(bootstrap);
+            using var trust = new DurableEpochCache(Case.Root,
+                Case.InstallationId, rootPublic, create: true);
+        }
+
+        internal async Task Prepare()
+        {
+            using var trust = new DurableEpochCache(Case.Root,
+                Case.InstallationId, rootPublic);
+            var input = Directory.GetFiles(Path.Combine(fixtures, "release2"))
+                .ToDictionary(x => Path.GetFileName(x)!, File.ReadAllBytes,
+                    StringComparer.Ordinal);
+            var utc = DateTimeOffset.UtcNow;
+            var verified = await DurableTufAttempt.Get(trust,
+                new Stage8Repository(input, utc), utc);
+            Zip = verified.Content.ToArray();
+            var parts = ZipInspection.Inspect(Zip, 3, CancellationToken.None);
+            var entry = parts["bundle.fixture.txt"];
+            var candidate = new BundleRef(2, "0.0.0.2",
+                Hash(entry), "linux-fixture-model");
+            var folder = Path.Combine(Case.Root, "versions", candidate.DirectoryName);
+            Directory.CreateDirectory(folder);
+            var file = Path.Combine(folder, "bundle.fixture.txt");
+            File.WriteAllBytes(file, entry); // inert .fixture.txt only, no exe/dll
+            using (var guard = WindowsFileGuard.Open(Case.Root, file))
+                candidate = candidate with { Identity = guard.Identity };
+
+            var view = trust.View();
+            Require(view.Metadata.Count == 4 && view.ActiveAttempt == "" &&
+                view.Targets > 0 && Zip.Length > 0, "L11_TUF_SIGNED_REFRESH_MISSING");
+            var prior = new PersistentState(Case.Root).Load();
+            var selector = Hash(PersistentState.ReadFixtureFile(Case.Root,
+                Path.Combine(Case.Root, "active.fixture.json")));
+            var admitted = Operations.Admit(prior.Digest, selector);
+            var permit = new InertPermit(candidate.Sequence, candidate.Version,
+                Hash(Zip), Hash(entry), Hash(parts["SHA256SUMS.txt"]), view.Digest);
+            var authorized = Operations.Advance(admitted, "authorized", permit: permit);
+            Operations.Advance(authorized, "prepared", candidate: candidate);
+            _ = G1Preselect.Prepare(Case.Root, candidate, true);
+            var checkpoint = InertCompositeBuilder.Build(Case.Root, view, Operations, null);
+            var intent = Stage3Anchor.CommitModelOnly(checkpoint);
+            Binding = Stage3TufBinding.Bind(view, view, Zip, candidate, intent);
+            PublicProof = L11FrozenPublicFixture.CaptureAfterVerifiedStage3(Binding, Zip);
+            Advisory = L11FrozenPublicFixture.SafeFixtureAdvisory(Binding);
+            EnsureSelectorPreserved();
+        }
+
+        internal L11Decision Inspect(byte[]? zip = null, Stage3TufTarget? b = null,
+            byte[]? advisory = null, string channel = "public-fixture",
+            string architecture = "x64-fixture", long floor = 1)
+            => PublicProof.Inspect(zip ?? Zip, b ?? Binding, advisory ?? Advisory,
+                channel, architecture, floor);
+
+        internal void EnsureSelectorPreserved()
+        {
+            using var session = new FixtureSession(Case.Root);
+            Require(session.Files.ReadSelector(Case.InstallationId).Bundle == Case.Old &&
+                session.Store.Load().Record.Confirmed == Case.Old &&
+                session.Store.Load().Record.Transaction is not
+                    { Phase: "selected" or "confirmed" },
+                "L11_SELECTOR_CHANGED");
+            Case.Preserved();
+        }
+        public void Dispose() { EnsureSelectorPreserved(); Case.Dispose(); }
+    }
+
+    private static byte[] Alter(Scenario s, Action<Dictionary<string, object>> modify)
+    {
+        // Advisory represents UNTRUSTED data. Nothing about its bytes grants authority.
+        var d = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(s.Advisory)!;
+        var values = d.ToDictionary(p => p.Key, p => (object)p.Value,
+            StringComparer.Ordinal);
+        modify(values);
+        return JsonSerializer.SerializeToUtf8Bytes(values);
+    }
+    private static void Reject(string code, Action action)
+    {
+        try { action(); }
+        catch (Rejected ex) when (ex.Code == code) { return; }
+        throw new InvalidDataException("L11_UNSAFE_ACCEPTANCE:" + code);
+    }
+    private static async Task Run(string name, Func<Task> body)
+    {
+        try { await body(); Results.Add(new { name, status = "passed" });
+            Console.WriteLine("PASS " + name); }
+        catch (Exception ex) { failed++; Results.Add(new { name,
+            status = "failed", error = ex.ToString() });
+            Console.WriteLine("FAIL " + name + " " + ex); }
+    }
+
+    public static async Task<int> Main(string[] args)
+    {
+        if (args.Length != 4 || args[0] != "--report" ||
+            !OperatingSystem.IsWindows()) return 2;
+        fixtures = Path.GetFullPath(args[2]);
+        bootstrap = Path.GetFullPath(args[3]);
+        suite = Path.Combine(Path.GetTempPath(), "gf-u2-l11-" +
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Run("L11-01-SIGNED-TUF-INERT-FIXTURE-RECOGNIZED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                Require(s.Inspect() == L11Decision.RecognizedInertFixtureOnly,
+                    "L11_POSITIVE_IS_NOT_ONLY_INERT");
+            });
+            await Run("L11-02-TARGET-BYTES-MUTATION-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                var zip = s.Zip.ToArray(); zip[zip.Length / 2] ^= 0x01;
+                Reject("L11_ZIP_BYTES_CHANGED", () => s.Inspect(zip: zip));
+            });
+            await Run("L11-03-STAGE3-MANIFEST-FIELD-CHANGE-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                var tampered = s.Binding with { ManifestSha = new string('f', 64) };
+                Reject("L11_TUF_BINDING_DRIFT", () => s.Inspect(b: tampered));
+            });
+            await Run("L11-04-REMOTE-COMMAND-EXTRA-FIELD-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                var a = Alter(s, d => d.Add("command", "powershell -command Remove-Item"));
+                Reject("SCHEMA_FIELDS", () => s.Inspect(advisory: a));
+            });
+            await Run("L11-05-REMOTE-DELETE-OPERATION-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                var a = Alter(s, d => d["operation"] = "delete-directory");
+                Reject("L11_REMOTE_ACTION_FORBIDDEN", () => s.Inspect(advisory: a));
+            });
+            await Run("L11-06-PATH-TRAVERSAL-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                var a = Alter(s, d => d["file"] = "../../Windows/System32/config/SAM");
+                Reject("L11_PATH_OUT_OF_SCOPE", () => s.Inspect(advisory: a));
+            });
+            await Run("L11-07-ABSOLUTE-USER-PATH-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                var a = Alter(s, d => d["file"] = "C:\\Users\\User\\Documents\\file.txt");
+                Reject("L11_PATH_OUT_OF_SCOPE", () => s.Inspect(advisory: a));
+            });
+            await Run("L11-08-NTFS-ADS-PATH-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                var a = Alter(s, d => d["file"] = "bundle.fixture.txt:evil");
+                Reject("L11_PATH_OUT_OF_SCOPE", () => s.Inspect(advisory: a));
+            });
+            await Run("L11-09-OTHER-APP-CHANNEL-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                Reject("L11_CHANNEL", () => s.Inspect(channel: "other-app"));
+            });
+            await Run("L11-10-WRONG-ARCHITECTURE-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                Reject("L11_ARCHITECTURE", () => s.Inspect(architecture: "arm64"));
+            });
+            await Run("L11-11-LOCAL-VERSION-FLOOR-ENFORCED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                Reject("L11_LOCAL_ROLLBACK", () => s.Inspect(floor: 2));
+            });
+            await Run("L11-12-SPOOFED-METADATA-VERSION-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                var a = Alter(s, d => d["version"] = "0.0.0.900");
+                Reject("L11_VERSION_NOT_IN_SIGNED_TARGET", () => s.Inspect(advisory: a));
+            });
+            await Run("L11-13-UNSIGNED-TARGET-HASH-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                var a = Alter(s, d => d["target_sha256"] = new string('a', 64));
+                Reject("L11_TARGET_HASH_MISMATCH", () => s.Inspect(advisory: a));
+            });
+            await Run("L11-14-ADVISORY-OVERSIZE-REJECTED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                Reject("L11_ADVISORY_SIZE", () => s.Inspect(advisory: new byte[5000]));
+            });
+            await Run("L11-15-ALLOWLIST-ONLY-FIXTURE-HTTPS", () =>
+            {
+                Require(L11PublicTransportPolicy.CheckMetadataUri(DefaultUri) == DefaultUri,
+                    "L11_URI_NOT_CANONICAL");
+                foreach (var u in new[] {
+                    "http://updates.gf.invalid/tuf/timestamp.json",
+                    "https://evil.invalid/tuf/timestamp.json",
+                    "https://updates.gf.invalid.evil.invalid/tuf/timestamp.json",
+                    "https://updates.gf.invalid:444/tuf/timestamp.json",
+                    "https://updates.gf.invalid/tuf/../admin",
+                    "https://updates.gf.invalid/tuf/timestamp.json?run=1",
+                    "https://updates.gf.invalid/tuf/timestamp.json#flag",
+                    "https://admin@updates.gf.invalid/tuf/timestamp.json"
+                }) Reject("L11_URI_NOT_ALLOWLISTED", () =>
+                    L11PublicTransportPolicy.CheckMetadataUri(u));
+                return Task.CompletedTask;
+            });
+            await Run("L11-16-RESTORED-FLOOR-COUNTEREXAMPLE-NOT-SOLVED", async () =>
+            {
+                using var s = new Scenario(); await s.Prepare();
+                // Existing floor 2 refuses candidate 2, but an integral prior
+                // disk image includes floor 1 and the old verifier: identical
+                // authentic signed fixture becomes admissible again.
+                Reject("L11_LOCAL_ROLLBACK", () => s.Inspect(floor: 2));
+                Require(s.Inspect(floor: 1) == L11Decision.RecognizedInertFixtureOnly,
+                    "L11_RESTORE_COUNTEREXAMPLE_NOT_REPRODUCED");
+            });
+            await Run("L11-17-UNTRUSTED-ROLE-METADATA-REJECTED", async () =>
+            {
+                using var s = new Scenario();
+                // Cannot use a successful Scenario first, because the cache
+                // would already trust the role. Verification must reject the
+                // mutated signed bytes BEFORE constructing any L11 proof.
+                var input = Directory.GetFiles(Path.Combine(fixtures, "release2"))
+                    .ToDictionary(x => Path.GetFileName(x)!, File.ReadAllBytes,
+                        StringComparer.Ordinal);
+                var role = input["targets.json"].ToArray();
+                role[role.Length / 2] ^= 0x01;
+                input["targets.json"] = role;
+                using var trust = new DurableEpochCache(s.Case.Root,
+                    s.Case.InstallationId, File.ReadAllBytes(bootstrap));
+                bool rejected = false;
+                try
+                {
+                    var utc = DateTimeOffset.UtcNow;
+                    _ = await DurableTufAttempt.Get(trust,
+                        new Stage8Repository(input, utc), utc);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException &&
+                    ex is not StackOverflowException) { rejected = true; }
+                Require(rejected, "L11_TAMPERED_SIGNED_ROLE_ACCEPTED");
+                s.EnsureSelectorPreserved();
+            });
+
+            var report = new {
+                suite = "GF_L11_PUBLIC_READONLY_TEST_ONLY",
+                passed = Results.Count - failed, failed, cases = Results,
+                stage11_signed_tuf_fixture_consumed = true,
+                stage3_binding_and_zip_verified = true,
+                remote_commands_and_other_paths_rejected = true,
+                public_no_enrollment_protocol_modeled = true,
+                original_selector_preserved_in_every_scenario = true,
+                full_disk_restore_rollback_protection_proven = false,
+                actual_http_requests_sent = false,
+                updater_or_product_executable_built = false,
+                updater_or_product_executable_executed = false,
+                privileged_writes_or_installation_performed = false,
+                real_windows_reparse_race_tested = false,
+                physical_power_loss_tested = false,
+                production_tuf_key_used = false,
+                operational_gates_closed = 0
+            };
+            File.WriteAllText(Path.GetFullPath(args[1]),
+                JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+            Console.WriteLine("GF_L11_FINAL_REPORT passed=" + report.passed +
+                " failed=" + failed + " gates=0");
+            return failed == 0 && Results.Count == 17 ? 0 : 1;
+        }
+        finally { Directory.Delete(suite, recursive: true); }
+    }
+}

@@ -1,0 +1,119 @@
+// L11 - Strict PUBLIC, read-only admission contract over an existing SIGNED
+// Stage11/Stage3 test fixture. Never used by the GF executable. No downloader,
+// installation, shell, elevation, service, or command execution path exists.
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal enum L11Decision { RecognizedInertFixtureOnly }
+
+// Construct only after DurableTufAttempt.Get and Stage3TufBinding.Bind succeed.
+// This class intentionally does NOT independently implement TUF signature checking.
+internal sealed class L11FrozenPublicFixture
+{
+    private readonly Stage3TufTarget bound;
+    private readonly string boundBytesSha;
+    private readonly string zipSha;
+    private readonly string bundleSha;
+    private L11FrozenPublicFixture(Stage3TufTarget b, byte[] zip)
+    {
+        Require(b.Schema == "gf-l3-signed-target-binding-inert/1" &&
+            b.Repository == InertCompositeBuilder.Repository &&
+            b.ZipSha == Hash(zip) && Hex(b.EntrySha, 64) &&
+            b.Root > 0 && b.Timestamp > 0 && b.Snapshot > 0 && b.Targets > 0 &&
+            new[] { b.RootSha, b.TimestampSha, b.SnapshotSha, b.TargetsSha,
+                b.ManifestSha, b.TrustDigest, b.CompositeDigest }.All(x => Hex(x, 64)),
+            "L11_SIGNED_BINDING_REQUIRED");
+        var files = ZipInspection.Inspect(zip, 3, CancellationToken.None);
+        Require(files.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(
+            new[] { "bundle.fixture.txt", "LICENSE.fixture.txt", "SHA256SUMS.txt" }) &&
+            b.EntrySha == Hash(files["bundle.fixture.txt"]) &&
+            b.ManifestSha == Hash(files["SHA256SUMS.txt"]),
+            "L11_SIGNED_CONTENT_MISMATCH");
+        bound = b;
+        boundBytesSha = Hash(StateCodec.Encode(b));
+        zipSha = Hash(zip);
+        bundleSha = Hash(files["bundle.fixture.txt"]);
+    }
+
+    internal static L11FrozenPublicFixture CaptureAfterVerifiedStage3(
+        Stage3TufTarget verifiedStage3, byte[] verifiedZip)
+        => new(verifiedStage3, verifiedZip);
+
+    // Any supplied bytes are rechecked against FROZEN hashes before parsing.
+    // The output enum cannot become a runnable installation authorization.
+    internal L11Decision Inspect(byte[] suppliedZip, Stage3TufTarget liveBinding,
+        byte[] advisoryBytes, string localChannel, string localArchitecture,
+        long localSequenceFloor)
+    {
+        Require(Hash(StateCodec.Encode(liveBinding)) == boundBytesSha &&
+            liveBinding == bound, "L11_TUF_BINDING_DRIFT");
+        Require(Hash(suppliedZip) == zipSha && liveBinding.ZipSha == zipSha,
+            "L11_ZIP_BYTES_CHANGED");
+        Require(advisoryBytes.Length is > 0 and <= 4096, "L11_ADVISORY_SIZE");
+        using var doc = Json(advisoryBytes, 4096);
+        var root = doc.RootElement;
+        Exact(root, "schema", "channel", "architecture", "version", "sequence",
+            "target", "target_sha256", "file", "operation");
+        Require(Text(root, "schema") == "gf-public-readonly-fixture/11" &&
+            Text(root, "target") == "fixture-package.zip" &&
+            Text(root, "operation") == "inspect-inert-only", "L11_REMOTE_ACTION_FORBIDDEN");
+        Require(Text(root, "channel") == "public-fixture" &&
+            localChannel == "public-fixture", "L11_CHANNEL");
+        Require(Text(root, "architecture") == "x64-fixture" &&
+            localArchitecture == "x64-fixture", "L11_ARCHITECTURE");
+        Require(Text(root, "file") == "bundle.fixture.txt", "L11_PATH_OUT_OF_SCOPE");
+        string targetHash = Text(root, "target_sha256");
+        Require(Hex(targetHash, 64) && targetHash == zipSha,
+            "L11_TARGET_HASH_MISMATCH");
+        Require(Text(root, "version") == bound.CandidateVersion &&
+            Number(root, "sequence", int.MaxValue) == bound.CandidateSeq,
+            "L11_VERSION_NOT_IN_SIGNED_TARGET");
+        Require(localSequenceFloor >= 1 && bound.CandidateSeq > localSequenceFloor,
+            "L11_LOCAL_ROLLBACK");
+        var parts = ZipInspection.Inspect(suppliedZip, 3, CancellationToken.None);
+        Require(parts.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(
+            new[] { "bundle.fixture.txt", "LICENSE.fixture.txt", "SHA256SUMS.txt" }) &&
+            Hash(parts["bundle.fixture.txt"]) == bundleSha,
+            "L11_EXTRACTED_SCOPE");
+        Require(Encoding.UTF8.GetString(parts["bundle.fixture.txt"]) ==
+            "GF-U9-INERT-BUNDLE-" + bound.CandidateSeq + "-NO-EXE-NO-DLL\n",
+            "L11_NOT_INERT_DATA");
+        return L11Decision.RecognizedInertFixtureOnly;
+    }
+
+    internal static byte[] SafeFixtureAdvisory(Stage3TufTarget b)
+        => JsonSerializer.SerializeToUtf8Bytes(new Dictionary<string, object>
+        {
+            ["schema"] = "gf-public-readonly-fixture/11",
+            ["channel"] = "public-fixture",
+            ["architecture"] = "x64-fixture",
+            ["version"] = b.CandidateVersion,
+            ["sequence"] = b.CandidateSeq,
+            ["target"] = "fixture-package.zip",
+            ["target_sha256"] = b.ZipSha,
+            ["file"] = "bundle.fixture.txt",
+            ["operation"] = "inspect-inert-only"
+        });
+}
+
+// This is a PURE planning guard, not a networking implementation. The URI
+// is a reserved .invalid fixture host; no HTTP requests will be issued.
+internal static class L11PublicTransportPolicy
+{
+    internal static string CheckMetadataUri(string url)
+    {
+        Require(Uri.TryCreate(url, UriKind.Absolute, out var uri),
+            "L11_URI_INVALID");
+        Require(uri.Scheme == Uri.UriSchemeHttps &&
+            uri.Host.Equals("updates.gf.invalid", StringComparison.OrdinalIgnoreCase) &&
+            uri.Port == 443 && uri.UserInfo.Length == 0 &&
+            uri.Fragment.Length == 0 && uri.Query.Length == 0 &&
+            uri.AbsolutePath == "/tuf/timestamp.json" &&
+            uri.OriginalString == "https://updates.gf.invalid/tuf/timestamp.json",
+            "L11_URI_NOT_ALLOWLISTED");
+        return uri.AbsoluteUri;
+    }
+}

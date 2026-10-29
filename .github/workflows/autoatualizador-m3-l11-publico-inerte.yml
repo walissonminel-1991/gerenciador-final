@@ -1,0 +1,83 @@
+name: M3 L11 — TUF publico e contrato sem comandos (inerte)
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-l11-public/**'
+      - '.github/workflows/autoatualizador-m3-l11-publico-inerte.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-l11-public-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  public-contract-negative-tests:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - name: Checkout read only no persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Pinned dotnet SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Pinned fixture python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Test-only signing dependencies from existing Stage11
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check tuf==7.0.1 securesystemslib==1.3.1 cryptography==50.0.2 urllib3==2.8.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify signed fixture and run 17 negative contract scenarios
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-l11-public/L11Public.csproj'
+          $anchor='prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json'
+          $work=Join-Path $env:RUNNER_TEMP 'gf-m3-l11-pinned-source'
+          $fixtures=Join-Path $env:RUNNER_TEMP 'gf-m3-l11-test-only-signed-fixtures'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-m3-l11-artifacts'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-l11-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'L11_SDK_MISMATCH' }
+          $source=(python prototipos/autoatualizador-seguro/m3-composed/prepare_pinned_source.py $work | Select-Object -Last 1).Trim()
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $source)) { throw 'L11_PINNED_TUF_UNAVAILABLE' }
+          python prototipos/autoatualizador-seguro/m3-composed-3/generate_signed_fixtures.py $fixtures
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet restore $project "-p:ArtifactsPath=$out" "-p:Stage8Source=$source" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" "-p:Stage8Source=$source" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exes=@(Get-ChildItem $out -Filter 'GF.Updater.M3.L11PublicTests.exe' -Recurse -File)
+          if ($exes.Count -ne 1) { throw 'L11_TEST_EXECUTABLE_NOT_UNIQUE' }
+          & $exes[0].FullName --report $report $fixtures $anchor
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.passed -ne 17 -or $r.failed -ne 0 -or
+              !$r.stage11_signed_tuf_fixture_consumed -or
+              !$r.stage3_binding_and_zip_verified -or
+              !$r.remote_commands_and_other_paths_rejected -or
+              !$r.public_no_enrollment_protocol_modeled -or
+              !$r.original_selector_preserved_in_every_scenario -or
+              $r.full_disk_restore_rollback_protection_proven -or
+              $r.actual_http_requests_sent -or
+              $r.updater_or_product_executable_built -or
+              $r.updater_or_product_executable_executed -or
+              $r.privileged_writes_or_installation_performed -or
+              $r.real_windows_reparse_race_tested -or
+              $r.physical_power_loss_tested -or
+              $r.production_tuf_key_used -or
+              $r.operational_gates_closed -ne 0) { throw 'L11_FALSE_OPERATIONAL_SECURITY_CLAIM' }
+          # Bounded project uses explicit .cs.txt; should never enter product compile.
+          $items=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leak=@($items.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-l11-public' })
+          if ($leak.Count -ne 0) { throw 'L11_PRODUCT_COMPILE_LEAK' }
+          "L11: 17 scenarios PASS; signed TUF TEST fixture and strict read-only plan; full disk restore remains UNSOLVED; all gates BLOCKED." >> $env:GITHUB_STEP_SUMMARY
+# No product build, update, CI publishing, deploy, credentials or user data.
