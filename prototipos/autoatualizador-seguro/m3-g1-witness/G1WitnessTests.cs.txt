@@ -1,0 +1,255 @@
+// G1 adversarial witness model fixture. No cryptographic authentication,
+// network, credentials, updater, policy change or external infrastructure.
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal static class G1WitnessTests
+{
+    private static readonly List<object> outcomes=[];
+    private static int failed;
+    private static string suite="";
+    private static bool localRollbackValid,witnessRollbackDetected,
+        sameGenerationForkDetected,outageBlocked,replayBlocked,
+        compromisedWitnessCanLie,regressionRejected,equivocationRejected;
+
+    private sealed class UnavailableWitness : IG1WitnessModel
+    {
+        public G1Reply? Query(G1Challenge challenge)=>null;
+    }
+    private sealed class TimeoutWitness : IG1WitnessModel
+    {
+        public G1Reply? Query(G1Challenge challenge)=>throw new TimeoutException("inert fixture");
+    }
+    private sealed class ReplayWitness(G1Reply recorded) : IG1WitnessModel
+    {
+        public G1Reply? Query(G1Challenge challenge)=>recorded;
+    }
+    private sealed class CompromisedWitness(G1Claim falseLocal) : IG1WitnessModel
+    {
+        public G1Reply? Query(G1Challenge challenge)
+            =>new(challenge.InstallationId,challenge.Nonce,
+                new G1Head(challenge.InstallationId,falseLocal.Generation,
+                    falseLocal.ApprovedSequence,falseLocal.Digest,falseLocal.Selector));
+    }
+
+    // Captures every inert fixture byte in memory, not a disk snapshot.
+    // Replacing these named files and removing new files simulates rollback
+    // of the entire LOCAL directory; the separate memory witness is untouched.
+    private static Dictionary<string,byte[]> CaptureFiles(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        return Directory.GetFiles(root,"*",SearchOption.AllDirectories)
+            .ToDictionary(x=>Path.GetRelativePath(root,x),File.ReadAllBytes,
+                StringComparer.Ordinal);
+    }
+    private static void RestoreLocalFixture(string root,Dictionary<string,byte[]> before)
+    {
+        FixtureSandbox.RequireRoot(root);
+        foreach(string existing in Directory.GetFiles(root,"*",SearchOption.AllDirectories))
+        {
+            string name=Path.GetRelativePath(root,existing);
+            if(!before.ContainsKey(name))File.Delete(existing);
+        }
+        foreach(var item in before)
+        {
+            string path=Path.Combine(root,item.Key);
+            Require(Path.GetFullPath(path).StartsWith(Path.GetFullPath(root)+
+                Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase),
+                "G1_LOCAL_RESTORE_SCOPE");
+            File.WriteAllBytes(path,item.Value);
+        }
+        var restored=CaptureFiles(root);
+        Require(restored.Count==before.Count && before.All(x=>
+            restored.TryGetValue(x.Key,out var data) &&
+            data.AsSpan().SequenceEqual(x.Value)),"G1_RESTORE_NOT_IDENTICAL");
+    }
+
+    private static void ExpectReject(string code,Action action)
+    {
+        try{action();}
+        catch(Rejected e) when(e.Code==code){return;}
+        throw new InvalidDataException("G1_FALSE_ACCEPTANCE:"+code);
+    }
+    private static async Task Test(string id,Func<Task> run)
+    {
+        try{await run();outcomes.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception ex){failed++;outcomes.Add(new{id,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+id+" "+ex);}
+    }
+    private static Task Sync(Action action){action();return Task.CompletedTask;}
+    private static string Nonce()=>Guid.NewGuid().ToString("N");
+    private static G1Head Head(G1Claim claim)=>new(claim.InstallationId,
+        claim.Generation,claim.ApprovedSequence,claim.Digest,claim.Selector);
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=2 || args[0]!="--report" || !OperatingSystem.IsWindows())return 2;
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-witness-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Test("G1-01-LOCAL-AND-INDEPENDENT-HEAD-MATCH-NOT-AUTHORIZATION",()=>Sync(()=>{
+                using var fixture=new StateCase(suite);
+                var witness=new G1TrustedMemoryWitness();
+                var initial=G1LocalEvidence.Capture(fixture.Root);
+                witness.Observe(initial);
+                Require(G1WitnessVerifier.Check(initial,witness,Nonce()),
+                    "G1_INITIAL_HEAD_MISMATCH");
+                var after=fixture.Begin();
+                Require(after.Trust.ApprovedSequence==fixture.Candidate.Sequence,
+                    "G1_EXPECT_ADVANCED_FLOOR");
+                var current=G1LocalEvidence.Capture(fixture.Root);
+                witness.Observe(current);
+                Require(G1WitnessVerifier.Check(current,witness,Nonce()),
+                    "G1_UPDATED_HEAD_MISMATCH");
+                fixture.Preserved();
+            }));
+            await Test("G1-02-BYTE_FOR_BYTE-LOCAL-ROLLBACK-DETECTED-BY-INDEPENDENT-HEAD",
+                ()=>Sync(()=>{
+                using var fixture=new StateCase(suite);
+                var witness=new G1TrustedMemoryWitness();
+                var original=G1LocalEvidence.Capture(fixture.Root);
+                var snapshot=CaptureFiles(fixture.Root);
+                witness.Observe(original);
+                _=fixture.Begin();
+                var upgraded=G1LocalEvidence.Capture(fixture.Root);
+                Require(upgraded.Generation>original.Generation &&
+                    upgraded.ApprovedSequence>original.ApprovedSequence,
+                    "G1_ADVANCEMENT_NOT_REAL");
+                witness.Observe(upgraded);
+                RestoreLocalFixture(fixture.Root,snapshot);
+                var restored=G1LocalEvidence.Capture(fixture.Root);
+                Require(restored==original &&
+                    new PersistentState(fixture.Root).Load().Record.Transaction is null,
+                    "G1_ROLLBACK_LOCAL_NOT_INTERNALLY_VALID");
+                localRollbackValid=true;
+                ExpectReject("G1_LOCAL_ROLLBACK",
+                    ()=>{_=G1WitnessVerifier.Check(restored,witness,Nonce());});
+                witnessRollbackDetected=true;
+                fixture.Preserved();
+            }));
+            await Test("G1-03-SAME-GENERATION-DIFFERENT-VALID-HISTORY-REFUSED",()=>Sync(()=>{
+                using var fixture=new StateCase(suite);
+                var snapshot=CaptureFiles(fixture.Root);
+                var witness=new G1TrustedMemoryWitness();
+                witness.Observe(G1LocalEvidence.Capture(fixture.Root));
+                _=fixture.Begin();
+                var first=G1LocalEvidence.Capture(fixture.Root);
+                witness.Observe(first);
+                RestoreLocalFixture(fixture.Root,snapshot);
+                _=fixture.Begin(); // new valid intent/nonce, identical generation/floor
+                var fork=G1LocalEvidence.Capture(fixture.Root);
+                Require(fork.Generation==first.Generation &&
+                    fork.ApprovedSequence==first.ApprovedSequence &&
+                    fork.Digest!=first.Digest,"G1_FORK_NOT_DISTINCT");
+                ExpectReject("G1_LOCAL_FORK",
+                    ()=>{_=G1WitnessVerifier.Check(fork,witness,Nonce());});
+                sameGenerationForkDetected=true;
+                fixture.Preserved();
+            }));
+            await Test("G1-04-UNAVAILABLE-WITNESS-FAILS-CLOSED",()=>Sync(()=>{
+                using var fixture=new StateCase(suite);
+                var state=G1LocalEvidence.Capture(fixture.Root);
+                ExpectReject("G1_WITNESS_UNAVAILABLE",
+                    ()=>{_=G1WitnessVerifier.Check(state,new UnavailableWitness(),Nonce());});
+                outageBlocked=true;
+            }));
+            await Test("G1-05-TIMEOUT-WITNESS-FAILS-CLOSED",()=>Sync(()=>{
+                using var fixture=new StateCase(suite);
+                var state=G1LocalEvidence.Capture(fixture.Root);
+                ExpectReject("G1_WITNESS_UNAVAILABLE",
+                    ()=>{_=G1WitnessVerifier.Check(state,new TimeoutWitness(),Nonce());});
+            }));
+            await Test("G1-06-OLD-NONCE-RESPONSE-REPLAY-REFUSED",()=>Sync(()=>{
+                using var fixture=new StateCase(suite);
+                var local=G1LocalEvidence.Capture(fixture.Root);
+                var witness=new G1TrustedMemoryWitness();
+                witness.Observe(local);
+                var captured=G1WitnessVerifier.Obtain(witness,
+                    new G1Challenge(local.InstallationId,Nonce()));
+                Require(captured.Nonce.Length==32,"G1_BAD_REPLAY_FIXTURE");
+                ExpectReject("G1_REPLY_REPLAY_OR_IDENTITY",
+                    ()=>{_=G1WitnessVerifier.Check(local,new ReplayWitness(captured),Nonce());});
+                replayBlocked=true;
+            }));
+            await Test("G1-07-UNINITIALIZED-WITNESS-IS-NOT-TRUST-ON-FIRST-USE",()=>Sync(()=>{
+                using var fixture=new StateCase(suite);
+                var local=G1LocalEvidence.Capture(fixture.Root);
+                var empty=new G1TrustedMemoryWitness();
+                ExpectReject("G1_WITNESS_UNAVAILABLE",
+                    ()=>{_=G1WitnessVerifier.Check(local,empty,Nonce());});
+            }));
+            await Test("G1-08-WITNESS-BEHIND-LOCAL-REFUSED",()=>Sync(()=>{
+                using var fixture=new StateCase(suite);
+                var witness=new G1TrustedMemoryWitness();
+                witness.Observe(G1LocalEvidence.Capture(fixture.Root));
+                _=fixture.Begin();
+                var newer=G1LocalEvidence.Capture(fixture.Root);
+                ExpectReject("G1_WITNESS_BEHIND",
+                    ()=>{_=G1WitnessVerifier.Check(newer,witness,Nonce());});
+            }));
+            await Test("G1-09-WITNESS-CANNOT-REGRESS-OR-EQUIVOCATE",()=>Sync(()=>{
+                using var fixture=new StateCase(suite);
+                var witness=new G1TrustedMemoryWitness();
+                var initial=G1LocalEvidence.Capture(fixture.Root);
+                witness.Observe(initial);
+                _=fixture.Begin();
+                var newer=G1LocalEvidence.Capture(fixture.Root);
+                witness.Observe(newer);
+                ExpectReject("G1_WITNESS_REGRESSION",()=>witness.Observe(initial));
+                regressionRejected=true;
+                ExpectReject("G1_WITNESS_EQUIVOCATION",()=>
+                    witness.Observe(newer with {Digest=new string('0',64)}));
+                equivocationRejected=true;
+            }));
+            await Test("G1-10-CROSS-INSTALLATION-RESPONSE-REFUSED",()=>Sync(()=>{
+                using var a=new StateCase(suite);
+                using var b=new StateCase(suite);
+                var left=G1LocalEvidence.Capture(a.Root);
+                var right=G1LocalEvidence.Capture(b.Root);
+                var c=new G1Challenge(left.InstallationId,Nonce());
+                var forged=new G1Reply(left.InstallationId,c.Nonce,Head(right));
+                ExpectReject("G1_REPLY_REPLAY_OR_IDENTITY",
+                    ()=>{_=G1WitnessVerifier.IsEqualButNeverAuthorizes(left,c,forged);});
+                a.Preserved();b.Preserved();
+            }));
+            await Test("G1-11-COMPROMISED-WITNESS-CAN-ECHO-ROLLED-BACK-LOCAL",()=>Sync(()=>{
+                using var fixture=new StateCase(suite);
+                var snapshot=CaptureFiles(fixture.Root);
+                _=fixture.Begin();
+                RestoreLocalFixture(fixture.Root,snapshot);
+                var reverted=G1LocalEvidence.Capture(fixture.Root);
+                // The malicious witness echoes the challenged local state.
+                // This MODEL check succeeds: it is NOT authenticated, not an
+                // update permit, and demonstrates the required trust boundary.
+                Require(G1WitnessVerifier.Check(reverted,
+                    new CompromisedWitness(reverted),Nonce()),"G1_COMPROMISE_MODEL");
+                compromisedWitnessCanLie=true;
+                fixture.Preserved();
+            }));
+        }
+        finally{Directory.Delete(suite,true);}
+        var report=new{
+            schema=1,phase="M3-G1-memory-witness",fixture_only=true,
+            passed=outcomes.Count-failed,failed,tests=outcomes,
+            full_local_byte_snapshot_accepted_locally=localRollbackValid,
+            independent_memory_head_detected_local_rollback=witnessRollbackDetected,
+            same_generation_fork_refused=sameGenerationForkDetected,
+            outage_denied=outageBlocked,replayed_challenge_denied=replayBlocked,
+            witness_regression_refused=regressionRejected,
+            witness_equivocation_refused=equivocationRejected,
+            compromised_witness_can_lie=compromisedWitnessCanLie,
+            witness_authentication_implemented=false,
+            no_network_or_persisted_witness=true,
+            operational_gates_closed=0,product_built=false,product_executed=false,
+            real_independent_witness_verified=false,
+            power_loss_tested=false
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("G1_WITNESS_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}
