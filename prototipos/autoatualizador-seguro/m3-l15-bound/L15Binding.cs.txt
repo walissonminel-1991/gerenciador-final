@@ -1,0 +1,150 @@
+// L15 laboratory-only cross-process inspection. Reuses Stage11 durable signed
+// fixture chain, Stage3 binding, WindowsFileGuard and L14 recovery. This does
+// not upgrade a local journal into an independent cryptographic witness.
+// No READY, installation, remote execution, elevation, updater, or GF binary.
+using System.ComponentModel;
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed record L15LocalEvidence(
+    string Schema,string SourceInstallationId,string SourceRoot,string LabTx,
+    string Stage3Digest,string TrustDigest,string SignedZipSha,
+    string SignedEntrySha,string CandidateNtfsIdentity,
+    string OperationDigest,string Stage2IntentDigest,
+    string LabOldSha,string LabNewSha);
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L15Binding
+{
+    private const string Schema="gf-l15-evidence-observation-only/1";
+    internal static string Receipt(string lab)=>Path.Combine(lab,"l15-binding.fixture.json");
+    internal static string SignedZip(string source)=>Path.Combine(source,"l15-signed-zip.fixture");
+    internal static string CandidatePath(string source,BundleRef candidate)
+        =>Path.Combine(source,"versions",candidate.DirectoryName,"bundle.fixture.txt");
+
+    private static byte[] PinnedRead(string root,string path,int limit)
+    {
+        using var pin=WindowsFileGuard.Open(root,path);
+        byte[] value=pin.Read(limit);
+        pin.Recheck();
+        return value;
+    }
+
+    private static void StrictLabFile(string lab,string path,string expected)
+    {
+        byte[] contents=PinnedRead(lab,path,1024);
+        Require(contents.AsSpan().SequenceEqual(Encoding.UTF8.GetBytes(expected)),
+            "L15_LAB_BYTES_CHANGED");
+    }
+
+    // This reconstructs from the durable Stage11 epoch, Stage9 journal and
+    // Stage2 intent. Stage3 checks signed metadata refs to the exact ZIP.
+    // The TUF signatures were verified when Stage11 committed the test epoch;
+    // DurableEpochCache replays/verifies its signed chain on reopening.
+    private static L15LocalEvidence Rebuild(string lab,string source,string bootstrap)
+    {
+        L14Model.RequireRoot(lab);
+        FixtureSandbox.RequireRoot(source);
+        L14Model.Must(File.Exists(bootstrap),"L15_BOOTSTRAP_MISSING");
+        L14Model.VerifyOld(lab);
+        StrictLabFile(lab,L14Model.Old(lab),L14Model.OldText);
+        if(File.Exists(L14Model.New(lab)))
+            StrictLabFile(lab,L14Model.New(lab),L14Model.NewText);
+
+        var stage2=new PersistentState(source).Load();
+        string installation=stage2.Record.InstallationId;
+        var journal=new OperationJournal(source,installation);
+        var op=journal.Load();
+        Require(op.Record is {Phase:"prepared",Candidate:not null} &&
+            op.Record.InstallationId==installation,"L15_PREPARED_OPERATION_REQUIRED");
+        BundleRef candidate=op.Record.Candidate!;
+        string candidatePath=CandidatePath(source,candidate);
+        using var pinned=WindowsFileGuard.Open(source,candidatePath);
+        Require(candidate.Identity==pinned.Identity &&
+            Hash(pinned.Read(4096))==candidate.Sha256,
+            "L15_CANDIDATE_NTFS_IDENTITY_OR_HASH");
+        byte[] zip=PinnedRead(source,SignedZip(source),ZipInspection.MaxBytes);
+        using var trust=new DurableEpochCache(source,installation,
+            File.ReadAllBytes(bootstrap));
+        var view=trust.View();
+        var checkpoint=InertCompositeBuilder.Build(source,view,journal,null);
+        var intent=new CompositeHead(checkpoint.WitnessSequence,
+            Hash(StateCodec.Encode(checkpoint)),checkpoint);
+        var binding=Stage3TufBinding.Bind(view,view,zip,candidate,intent);
+        Require(binding.EntrySha==candidate.Sha256 &&
+            binding.ZipSha==Hash(zip) &&
+            binding.CompositeDigest==intent.Digest &&
+            op.Record.Permit?.PayloadSha256==binding.ZipSha,
+            "L15_SIGNED_PROOF_OR_OPERATION_FORK");
+        return new L15LocalEvidence(Schema,installation,
+            Path.GetFullPath(source),L14Model.Tx(lab),
+            Hash(StateCodec.Encode(binding)),view.Digest,Hash(zip),
+            binding.EntrySha,pinned.Identity,op.Digest,
+            checkpoint.Stage2IntentDigest,
+            L14Model.Hash(L14Model.OldText),L14Model.Hash(L14Model.NewText));
+    }
+
+    internal static void CreateAfterVerifiedTuf(string lab,string source,
+        string bootstrap)
+    {
+        var current=Rebuild(lab,source,bootstrap);
+        // This is local diagnostic data and is not signed/independent.
+        using var writer=new FileStream(Receipt(lab),FileMode.CreateNew,
+            FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough);
+        byte[] bytes=StateCodec.Encode(current);
+        Require(bytes.Length is >0 and <=4096,"L15_EVIDENCE_SIZE");
+        writer.Write(bytes);writer.Flush(true);
+        _=Guard(lab,source,bootstrap);
+    }
+
+    private static L15LocalEvidence Read(string lab)
+    {
+        L14Model.RequireRoot(lab);
+        byte[] bytes=PinnedRead(lab,Receipt(lab),4096);
+        using var doc=Json(bytes,4096);
+        Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
+            doc.RootElement.EnumerateObject().Count()==13,"L15_EVIDENCE_SCHEMA");
+        var record=JsonSerializer.Deserialize<L15LocalEvidence>(bytes)
+            ??throw new Rejected("L15_EVIDENCE_MISSING");
+        Require(record.Schema==Schema && Hex(record.Stage3Digest,64) &&
+            Hex(record.SignedZipSha,64) && Hex(record.SignedEntrySha,64) &&
+            Hex(record.OperationDigest,64) && Hex(record.Stage2IntentDigest,64) &&
+            Hex(record.LabOldSha,64) && Hex(record.LabNewSha,64),
+            "L15_EVIDENCE_FIELDS");
+        return record;
+    }
+
+    internal static L15LocalEvidence Guard(string lab,string source,
+        string bootstrap)
+    {
+        var previous=Read(lab);
+        var current=Rebuild(lab,source,bootstrap);
+        Require(previous==current,"L15_EVIDENCE_FORK_OR_REPLAY");
+        return current;
+    }
+
+    internal static L14Observation RecoverBlocked(string lab,string source,
+        string bootstrap)
+    {
+        // Fail closed BEFORE allowing L14 to inspect/change even the inert selector.
+        // UNKNOWN does not silently reconstruct receipts or authorize recovery.
+        try
+        {
+            _=Guard(lab,source,bootstrap);
+            var before=L14Model.Recover(lab);
+            // Recheck after selector change to expose a race; no real
+            // atomic protection exists between guard and File.Replace.
+            _=Guard(lab,source,bootstrap);
+            return before;
+        }
+        catch(Exception ex) when(ex is Rejected or InvalidDataException or
+            IOException or UnauthorizedAccessException or JsonException or
+            Win32Exception or ArgumentException)
+        {
+            return L14Observation.UnknownBlocked;
+        }
+    }
+}

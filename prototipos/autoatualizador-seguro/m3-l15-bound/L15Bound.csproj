@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>GF.Updater.M3.L15BoundTests</AssemblyName>
+    <StartupObject>GfUpdaterFixture.L15BoundTests</StartupObject>
+    <IsPackable>false</IsPackable><IsPublishable>false</IsPublishable>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetLockFilePath>../stage11/packages.lock.json</NuGetLockFilePath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../src/StrictMetadata.cs.txt;../src/PersistentState.cs.txt;../src/TransactionPrototype.cs.txt;../src/WindowsFileGuard.cs.txt;../src/CycleClock.cs.txt;../src/ZipInspection.cs.txt" />
+    <Compile Include="../stage8/src/OwnedAttempt.cs.txt;../stage8/src/TufAttempt.cs.txt" />
+    <Compile Include="../stage9/src/OperationJournal.cs.txt" />
+    <Compile Include="../stage11/src/TrustFixtureProof.cs.txt;../stage11/src/DurableTrust.cs.txt" />
+    <Compile Include="$(Stage8Source)/src/Tuf/**/*.cs" />
+    <Compile Include="../m3-g1-preselect/G1Preselect.cs.txt" />
+    <Compile Include="../m3-composed/InertComposedCase.cs.txt;../m3-composed/ComposedCheckpoint.cs.txt" />
+    <Compile Include="../m3-composed-3/Stage3Binding.cs.txt" />
+    <Compile Include="../m3-l14-recovery/L14Model.cs.txt" />
+    <Compile Include="L15Binding.cs.txt;L15BoundTests.cs.txt" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="[2.7.0]" />
+  </ItemGroup>
+  <Target Name="RequirePinnedFixtureSource" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(Stage8Source)' == ''" Text="L15 needs verified pinned Stage8 fixture source." />
+  </Target>
+</Project>
