@@ -1,0 +1,64 @@
+name: M3 G1 — intent persistente sem selecao antecipada
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-g1-preselect/**'
+      - '.github/workflows/autoatualizador-m3-g1-preselect-inerte.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-g1-preselect-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  preselection-stage2:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - name: Fonte experimental sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Ensaiar prepare-only e cutpoints do diario Stage2
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-g1-preselect/G1Preselect.csproj'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-g1-preselect-artifacts'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-g1-preselect-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'G1_PRESELECT_SDK' }
+          dotnet restore $project "-p:ArtifactsPath=$out" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runner=@(Get-ChildItem $out -Filter 'GF.Updater.M3.G1PreselectTests.exe' -Recurse -File)
+          if ($runner.Count -ne 1) { throw 'G1_PRESELECT_RUNNER_NOT_UNIQUE' }
+          & $runner[0].FullName --report $report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.passed -ne 10 -or $r.failed -ne 0 -or
+              !$r.original_selector_preserved -or
+              !$r.killed_worker_exited_before_inspection -or
+              !$r.pending_blocks_journal -or
+              !$r.flushed_pending_preserved -or
+              !$r.promoted_intent_still_no_candidate_selection -or
+              !$r.memory_witness_commit_did_not_activate -or
+              !$r.no_real_witness_used -or
+              !$r.stage2_flush_called_not_physical_durability -or
+              $r.operational_gates_closed -ne 0 -or
+              $r.real_external_witness_authenticated -or
+              $r.product_built -or $r.product_executed -or
+              $r.physical_power_loss_tested -or
+              $r.selection_activation_supported) { throw 'G1_PRESELECT_REPORT_INVALID' }
+          $items=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leaks=@($items.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-g1-preselect' })
+          if ($leaks.Count -ne 0) { throw 'G1_PRESELECT_PRODUCT_COMPILE_LEAK' }
+          "G1 preselection fixture: $($r.passed) tests passed; selector old at 3 child kill cutpoints; G1-G8 blocked." >> $env:GITHUB_STEP_SUMMARY
+# Only temporary inerts; no product, service, telemetry or deploy.
