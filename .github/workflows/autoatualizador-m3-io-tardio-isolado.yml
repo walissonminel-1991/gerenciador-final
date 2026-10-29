@@ -1,0 +1,58 @@
+name: M3 G8 — I/O tardio e journal isolados
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3/**'
+      - '.github/workflows/autoatualizador-m3-io-tardio-isolado.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-late-io-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  late-io:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - name: Revisão isolada do fonte
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK exato e fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Validar I/O tardio e recuperação do journal inerte
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3/M3.csproj'
+          $output=Join-Path $env:RUNNER_TEMP 'gf-m3-output'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'M3_SDK_MISMATCH' }
+          dotnet restore $project "-p:ArtifactsPath=$output" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$output" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runners=@(Get-ChildItem $output -Filter 'GF.Updater.M3.Tests.exe' -Recurse -File)
+          if ($runners.Count -ne 1) { throw 'M3_RUNNER_NOT_UNIQUE' }
+          & $runners[0].FullName --report $report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result=Get-Content $report -Raw | ConvertFrom-Json
+          if ($result.failed -ne 0 -or $result.passed -ne 7 -or
+              !$result.real_named_pipe_late_io_observed -or
+              !$result.late_completion_blocked_from_journal -or
+              !$result.prior_selection_recovered -or
+              $result.operational_gates_closed -ne 0 -or
+              $result.physical_power_loss_tested -or
+              $result.synchronous_journal_write_preemptible -or
+              $result.product_built -or $result.product_executed) { throw 'M3_REPORT_INCOMPLETE' }
+          $compile=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leaks=@($compile.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3' })
+          if ($leaks.Count -ne 0) { throw 'M3_PRODUCT_COMPILE_LEAK' }
+          "M3 isolated: $($result.passed) passed; no operational gate closed, no GF execution, no physical power loss simulated." >> $env:GITHUB_STEP_SUMMARY
+# No credentials, uploads, deployment, product build, users, ACLs, or real updates.
