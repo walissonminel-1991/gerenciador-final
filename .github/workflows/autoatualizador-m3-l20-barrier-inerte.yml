@@ -66,7 +66,7 @@ jobs:
           if ($r.passed -ne 4 -or $r.failed -ne 0 -or
               !$r.gate_is_only_cooperative -or
               !$r.selector_is_pinned_during_observed_decision -or
-              !$r.no_real_gf_operation -or $r.no_independent_witness -or
+              !$r.no_real_gf_operation -or !$r.no_independent_witness -or
               $r.adversarial_same_user_closed -or
               $r.whole_disk_restore_resisted -or $r.power_loss_proven -or
               $r.operational_gates_closed -ne 0) {
