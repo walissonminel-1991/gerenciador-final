@@ -113,11 +113,15 @@ internal static class L15Binding
     {
         var current=Rebuild(lab,source,bootstrap);
         // This is local diagnostic data and is not signed/independent.
-        using var writer=new FileStream(Receipt(lab),FileMode.CreateNew,
-            FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough);
         byte[] bytes=StateCodec.Encode(current);
         Require(bytes.Length is >0 and <=4096,"L15_EVIDENCE_SIZE");
-        writer.Write(bytes);writer.Flush(true);
+        using(var writer=new FileStream(Receipt(lab),FileMode.CreateNew,
+            FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough))
+        {
+            writer.Write(bytes);
+            writer.Flush(true);
+        }
+        // FileShare.None writer MUST be closed before first independent read.
         _=Guard(lab,source,bootstrap);
     }
 
