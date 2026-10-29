@@ -1,0 +1,81 @@
+// L12 signed global public continuity fixture: signed observations, NOT permissions.
+// All RSA private keys are generated in-memory by the TEST runner only.
+using System.Security.Cryptography;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+internal sealed record L12PublicSnapshot(
+    string Schema,string Repository,string Channel,string Mode,
+    long PublicationSequence,long MinimumSequence,int RootFloor,
+    long IssuedUnix,long ExpiresUnix,string Nonce,
+    string TargetSha,string Stage3BindingSha);
+internal sealed record L12StoredHead(long Sequence,string PayloadDigest);
+internal enum L12Observation { AuthenticatedStaticOnly, AuthenticatedChallengeOnly }
+internal static class L12Wire {
+    internal static byte[] Encode(L12PublicSnapshot p)=>JsonSerializer.SerializeToUtf8Bytes(p);
+    internal static L12PublicSnapshot Decode(byte[] bytes) {
+        Require(bytes.Length is >0 and <=4096,"L12_SIZE");
+        using var doc=Json(bytes,4096);
+        Exact(doc.RootElement,"Schema","Repository","Channel","Mode",
+            "PublicationSequence","MinimumSequence","RootFloor","IssuedUnix",
+            "ExpiresUnix","Nonce","TargetSha","Stage3BindingSha");
+        L12PublicSnapshot p;
+        try { p=JsonSerializer.Deserialize<L12PublicSnapshot>(bytes)
+            ?? throw new Rejected("L12_FORMAT"); }
+        catch(JsonException) { throw new Rejected("L12_FORMAT"); }
+        Require(Encode(p).AsSpan().SequenceEqual(bytes),"L12_NOT_CANONICAL");
+        return p;
+    }
+}
+internal sealed class L12PublicVerifier(byte[] pinnedPublicKey) {
+    internal L12Observation Observe(byte[]? bytes,byte[]? sig,string nonce,
+        DateTimeOffset localUtc,string expectedTarget,string expectedBinding,
+        long candidateSeq,int candidateRoot,long localFloor,L12StoredHead? prior=null) {
+        Require(bytes is {Length: >0 and <=4096} &&
+            sig is {Length: >0 and <=512},"L12_NO_REFERENCE");
+        using(var key=RSA.Create()) {
+            try { key.ImportSubjectPublicKeyInfo(pinnedPublicKey,out int consumed);
+                Require(consumed==pinnedPublicKey.Length,"L12_KEY"); }
+            catch(CryptographicException) { throw new Rejected("L12_KEY"); }
+            Require(key.VerifyData(bytes,sig,HashAlgorithmName.SHA256,
+                RSASignaturePadding.Pss),"L12_SIGNATURE");
+        }
+        var p=L12Wire.Decode(bytes);
+        Require(p.Schema=="gf-public-checkpoint-inert/12" &&
+            p.Repository=="gerenciador-final-fixture" &&
+            p.Channel=="public-fixture","L12_SCOPE");
+        Require(Hex(p.TargetSha,64) && p.TargetSha==expectedTarget &&
+            Hex(p.Stage3BindingSha,64) && p.Stage3BindingSha==expectedBinding,
+            "L12_BINDING");
+        Require(p.PublicationSequence>0 && p.MinimumSequence>0 &&
+            p.MinimumSequence<=p.PublicationSequence &&
+            p.RootFloor>0 && p.RootFloor<100000,"L12_FLOOR_FORMAT");
+        Require(p.IssuedUnix>0 && p.ExpiresUnix>p.IssuedUnix &&
+            p.ExpiresUnix-p.IssuedUnix<=86400 &&
+            localUtc.ToUnixTimeSeconds()>=p.IssuedUnix &&
+            localUtc.ToUnixTimeSeconds()<p.ExpiresUnix,"L12_TIME");
+        Require(Hex(nonce,64),"L12_CLIENT_NONCE");
+        L12Observation observed=p.Mode switch {
+            "static" when p.Nonce=="" => L12Observation.AuthenticatedStaticOnly,
+            "challenge" when p.Nonce==nonce => L12Observation.AuthenticatedChallengeOnly,
+            _ => throw new Rejected("L12_CHALLENGE")
+        };
+        Require(prior is null || (p.PublicationSequence>=prior.Sequence &&
+            (p.PublicationSequence!=prior.Sequence ||
+             Hash(bytes)==prior.PayloadDigest)),"L12_HEAD_ROLLBACK_OR_FORK");
+        Require(candidateSeq>localFloor,"L12_LOCAL_ROLLBACK");
+        Require(candidateSeq>=p.MinimumSequence && candidateRoot>=p.RootFloor,
+            "L12_GLOBAL_FLOOR");
+        return observed;
+    }
+}
+internal sealed class L12FixtureSigner:IDisposable {
+    private readonly RSA key=RSA.Create();
+    internal L12FixtureSigner(){key.KeySize=2048;}
+    internal byte[] PublicKey=>key.ExportSubjectPublicKeyInfo();
+    internal (byte[] Wire,byte[] Sig) Sign(L12PublicSnapshot p){
+        var b=L12Wire.Encode(p);return (b,SignRawForNegative(b));}
+    internal byte[] SignRawForNegative(byte[] bytes)=>
+        key.SignData(bytes,HashAlgorithmName.SHA256,RSASignaturePadding.Pss);
+    public void Dispose()=>key.Dispose();
+}

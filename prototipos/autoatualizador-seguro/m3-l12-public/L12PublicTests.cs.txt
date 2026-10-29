@@ -1,0 +1,279 @@
+// L11: uses real SIGNED Stage11 TUF test fixture, stages a Stage3 in a
+// disposable .fixture sandbox, then only models admission/rejection. No
+// network, updater process, GF executable, installation or Windows changes.
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L12PublicTests
+{
+    private static readonly List<object> Results = [];
+    private static int failed;
+    private static string suite = "", fixtures = "", bootstrap = "";
+    private const string DefaultUri = "https://updates.gf.invalid/tuf/timestamp.json";
+
+    private sealed class Scenario : IDisposable
+    {
+        internal readonly InertComposedCase Case = new(suite);
+        internal readonly OperationJournal Operations;
+        internal readonly InertCompositeAnchor Stage3Anchor;
+        private readonly byte[] rootPublic;
+        internal Stage3TufTarget Binding = null!;
+        internal L11FrozenPublicFixture PublicProof = null!;
+        internal byte[] Zip = [];
+        internal byte[] Advisory = [];
+
+        internal Scenario()
+        {
+            Directory.CreateDirectory(Path.Combine(Case.Root, "operations"));
+            Operations = new OperationJournal(Case.Root, Case.InstallationId);
+            Stage3Anchor = new(Case.InstallationId, InertCompositeBuilder.Repository);
+            rootPublic = File.ReadAllBytes(bootstrap);
+            using var trust = new DurableEpochCache(Case.Root,
+                Case.InstallationId, rootPublic, create: true);
+        }
+
+        internal async Task Prepare()
+        {
+            using var trust = new DurableEpochCache(Case.Root,
+                Case.InstallationId, rootPublic);
+            var input = Directory.GetFiles(Path.Combine(fixtures, "release2"))
+                .ToDictionary(x => Path.GetFileName(x)!, File.ReadAllBytes,
+                    StringComparer.Ordinal);
+            var utc = DateTimeOffset.UtcNow;
+            var verified = await DurableTufAttempt.Get(trust,
+                new Stage8Repository(input, utc), utc);
+            Zip = verified.Content.ToArray();
+            var parts = ZipInspection.Inspect(Zip, 3, CancellationToken.None);
+            var entry = parts["bundle.fixture.txt"];
+            var candidate = new BundleRef(2, "0.0.0.2",
+                Hash(entry), "linux-fixture-model");
+            var folder = Path.Combine(Case.Root, "versions", candidate.DirectoryName);
+            Directory.CreateDirectory(folder);
+            var file = Path.Combine(folder, "bundle.fixture.txt");
+            File.WriteAllBytes(file, entry); // inert .fixture.txt only, no exe/dll
+            using (var guard = WindowsFileGuard.Open(Case.Root, file))
+                candidate = candidate with { Identity = guard.Identity };
+
+            var view = trust.View();
+            Require(view.Metadata.Count == 4 && view.ActiveAttempt == "" &&
+                view.Targets > 0 && Zip.Length > 0, "L11_TUF_SIGNED_REFRESH_MISSING");
+            var prior = new PersistentState(Case.Root).Load();
+            var selector = Hash(PersistentState.ReadFixtureFile(Case.Root,
+                Path.Combine(Case.Root, "active.fixture.json")));
+            var admitted = Operations.Admit(prior.Digest, selector);
+            var permit = new InertPermit(candidate.Sequence, candidate.Version,
+                Hash(Zip), Hash(entry), Hash(parts["SHA256SUMS.txt"]), view.Digest);
+            var authorized = Operations.Advance(admitted, "authorized", permit: permit);
+            Operations.Advance(authorized, "prepared", candidate: candidate);
+            _ = G1Preselect.Prepare(Case.Root, candidate, true);
+            var checkpoint = InertCompositeBuilder.Build(Case.Root, view, Operations, null);
+            var intent = Stage3Anchor.CommitModelOnly(checkpoint);
+            Binding = Stage3TufBinding.Bind(view, view, Zip, candidate, intent);
+            PublicProof = L11FrozenPublicFixture.CaptureAfterVerifiedStage3(Binding, Zip);
+            Advisory = L11FrozenPublicFixture.SafeFixtureAdvisory(Binding);
+            EnsureSelectorPreserved();
+        }
+
+        internal L11Decision Inspect(byte[]? zip = null, Stage3TufTarget? b = null,
+            byte[]? advisory = null, string channel = "public-fixture",
+            string architecture = "x64-fixture", long floor = 1)
+            => PublicProof.Inspect(zip ?? Zip, b ?? Binding, advisory ?? Advisory,
+                channel, architecture, floor);
+
+        internal void EnsureSelectorPreserved()
+        {
+            using var session = new FixtureSession(Case.Root);
+            Require(session.Files.ReadSelector(Case.InstallationId).Bundle == Case.Old &&
+                session.Store.Load().Record.Confirmed == Case.Old &&
+                session.Store.Load().Record.Transaction is not
+                    { Phase: "selected" or "confirmed" },
+                "L11_SELECTOR_CHANGED");
+            Case.Preserved();
+        }
+        public void Dispose() { EnsureSelectorPreserved(); Case.Dispose(); }
+    }
+
+    private static byte[] Alter(Scenario s, Action<Dictionary<string, object>> modify)
+    {
+        // Advisory represents UNTRUSTED data. Nothing about its bytes grants authority.
+        var d = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(s.Advisory)!;
+        var values = d.ToDictionary(p => p.Key, p => (object)p.Value,
+            StringComparer.Ordinal);
+        modify(values);
+        return JsonSerializer.SerializeToUtf8Bytes(values);
+    }
+    private static void Reject(string code, Action action)
+    {
+        try { action(); }
+        catch (Rejected ex) when (ex.Code == code) { return; }
+        throw new InvalidDataException("L11_UNSAFE_ACCEPTANCE:" + code);
+    }
+    private static async Task Run(string name, Func<Task> body)
+    {
+        try { await body(); Results.Add(new { name, status = "passed" });
+            Console.WriteLine("PASS " + name); }
+        catch (Exception ex) { failed++; Results.Add(new { name,
+            status = "failed", error = ex.ToString() });
+            Console.WriteLine("FAIL " + name + " " + ex); }
+    }
+
+    public static async Task<int> Main(string[] args) {
+        if(args.Length!=4 || args[0]!="--report" || !OperatingSystem.IsWindows()) return 2;
+        fixtures=Path.GetFullPath(args[2]);bootstrap=Path.GetFullPath(args[3]);
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-l12-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try {
+            using var s=new Scenario();await s.Prepare();
+            Require(s.Inspect()==L11Decision.RecognizedInertFixtureOnly,"L12_TUF_L11_NOT_BOUND");
+            using var signer=new L12FixtureSigner();
+            using var other=new L12FixtureSigner();
+            var ver=new L12PublicVerifier(signer.PublicKey);
+            var now=DateTimeOffset.UtcNow;
+            string nonce=Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+            string another=Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+            string binding=Hash(StateCodec.Encode(s.Binding));
+            L12PublicSnapshot Snapshot(string mode="static",string value="",long floor=2,
+                    long seq=7,int root=1,DateTimeOffset? issued=null,DateTimeOffset? expires=null,
+                    string? target=null,string? bind=null) =>
+                new("gf-public-checkpoint-inert/12","gerenciador-final-fixture",
+                    "public-fixture",mode,seq,floor,root,
+                    (issued??now.AddMinutes(-1)).ToUnixTimeSeconds(),
+                    (expires??now.AddMinutes(45)).ToUnixTimeSeconds(),
+                    value,target??s.Binding.ZipSha,bind??binding);
+            L12Observation Check((byte[] Wire,byte[] Sig) pair,long local=1,
+                string? challenge=null,DateTimeOffset? at=null,L12StoredHead? previous=null,
+                long candidate=2,int root=1)=>
+                ver.Observe(pair.Wire,pair.Sig,challenge??nonce,at??now,
+                    s.Binding.ZipSha,binding,candidate,root,local,previous);
+            var staticSigned=signer.Sign(Snapshot());
+            await Run("L12-01-STATIC-ONLY-AUTHENTICATED",()=> {
+                Require(Check(staticSigned)==L12Observation.AuthenticatedStaticOnly,"L12_POSITIVE");
+                return Task.CompletedTask;});
+            await Run("L12-02-SIGNATURE-MUTATED",()=> {
+                var bad=staticSigned.Sig.ToArray();bad[0]^=1;
+                Reject("L12_SIGNATURE",()=>Check((staticSigned.Wire,bad)));
+                return Task.CompletedTask;});
+            await Run("L12-03-BYTES-MUTATED",()=> {
+                var bad=staticSigned.Wire.ToArray();bad[8]^=1;
+                Reject("L12_SIGNATURE",()=>Check((bad,staticSigned.Sig)));
+                return Task.CompletedTask;});
+            await Run("L12-04-UNTRUSTED-SIGNER",()=> {
+                Reject("L12_SIGNATURE",()=>Check(other.Sign(Snapshot())));
+                return Task.CompletedTask;});
+            await Run("L12-05-OFFLINE-EMPTY-RESPONSE",()=> {
+                Reject("L12_NO_REFERENCE",()=>ver.Observe(null,null,nonce,now,
+                    s.Binding.ZipSha,binding,2,1,1));
+                return Task.CompletedTask;});
+            await Run("L12-06-CROSS-REPOSITORY",()=> {
+                Reject("L12_SCOPE",()=>Check(signer.Sign(Snapshot() with{Repository="foreign"})));
+                return Task.CompletedTask;});
+            await Run("L12-07-CROSS-CHANNEL",()=> {
+                Reject("L12_SCOPE",()=>Check(signer.Sign(Snapshot() with{Channel="beta"})));
+                return Task.CompletedTask;});
+            await Run("L12-08-TARGET-HASH-MISMATCH",()=> {
+                Reject("L12_BINDING",()=>Check(signer.Sign(Snapshot(target:new string('a',64)))));
+                return Task.CompletedTask;});
+            await Run("L12-09-STAGE3-BINDING-MISMATCH",()=> {
+                Reject("L12_BINDING",()=>Check(signer.Sign(Snapshot(bind:new string('b',64)))));
+                return Task.CompletedTask;});
+            await Run("L12-10-LOCAL-HISTORY-INTACT-REJECTS-ROLLBACK",()=> {
+                Reject("L12_LOCAL_ROLLBACK",()=>Check(staticSigned,local:3));
+                return Task.CompletedTask;});
+            await Run("L12-11-GLOBAL-FLOOR-REJECTS-DOWNGRADE",()=> {
+                Reject("L12_GLOBAL_FLOOR",()=>Check(signer.Sign(Snapshot(floor:4))));
+                return Task.CompletedTask;});
+            await Run("L12-12-ROOT-FLOOR-REJECTS-DOWNGRADE",()=> {
+                Reject("L12_GLOBAL_FLOOR",()=>Check(signer.Sign(Snapshot(root:3))));
+                return Task.CompletedTask;});
+            await Run("L12-13-EXPIRED-REJECTED-WITH-CLOCK",()=> {
+                Reject("L12_TIME",()=>Check(staticSigned,at:now.AddDays(3)));
+                return Task.CompletedTask;});
+            await Run("L12-14-FUTURE-ISSUE-REJECTED",()=> {
+                Reject("L12_TIME",()=>Check(signer.Sign(Snapshot(issued:now.AddHours(1),expires:now.AddHours(2)))));
+                return Task.CompletedTask;});
+            await Run("L12-15-OVERLONG-LIFETIME-REJECTED",()=> {
+                Reject("L12_TIME",()=>Check(signer.Sign(Snapshot(expires:now.AddDays(5)))));
+                return Task.CompletedTask;});
+            await Run("L12-16-STATIC-NOT-CHALLENGE",()=> {
+                Require(Check(staticSigned)!=L12Observation.AuthenticatedChallengeOnly,"L12_STATIC_FALSE_FRESH");
+                return Task.CompletedTask;});
+            await Run("L12-17-MODELED-CHALLENGE-OBSERVATION",()=> {
+                Require(Check(signer.Sign(Snapshot("challenge",nonce)))==
+                    L12Observation.AuthenticatedChallengeOnly,"L12_LIVE_ONLY");
+                return Task.CompletedTask;});
+            await Run("L12-18-NONCE-REPLAY-BLOCKED",()=> {
+                Reject("L12_CHALLENGE",()=>Check(signer.Sign(Snapshot("challenge",another))));
+                return Task.CompletedTask;});
+            await Run("L12-19-HEAD-ROLLBACK-WITH-LOCAL-PIN",()=> {
+                Reject("L12_HEAD_ROLLBACK_OR_FORK",()=>Check(staticSigned,
+                    previous:new L12StoredHead(8,new string('0',64))));
+                return Task.CompletedTask;});
+            await Run("L12-20-SPLIT-HEAD-SAME-SEQUENCE-LOCAL-PIN",()=> {
+                Reject("L12_HEAD_ROLLBACK_OR_FORK",()=>Check(staticSigned,
+                    previous:new L12StoredHead(7,new string('0',64))));
+                return Task.CompletedTask;});
+            await Run("L12-21-CLOCK-RESTORE-FREEZE-UNSOLVED",()=> {
+                Reject("L12_TIME",()=>Check(staticSigned,at:now.AddDays(3)));
+                Require(Check(staticSigned,at:now)==L12Observation.AuthenticatedStaticOnly,
+                    "L12_CLOCK_CONTRAEXAMPLE");return Task.CompletedTask;});
+            await Run("L12-22-FULL-DISK-RESTORE-ROLLBACK-UNSOLVED",()=> {
+                Reject("L12_LOCAL_ROLLBACK",()=>Check(staticSigned,local:3));
+                Require(Check(staticSigned,local:1)==L12Observation.AuthenticatedStaticOnly,
+                    "L12_RESTORE_COUNTEREXAMPLE");return Task.CompletedTask;});
+            await Run("L12-23-HONEST-GLOBAL-PUBLIC-FLOOR-HELPS-CONDITIONALLY",()=> {
+                Reject("L12_GLOBAL_FLOOR",()=>Check(signer.Sign(Snapshot(
+                    "challenge",nonce,floor:4,seq:8)),local:1));
+                return Task.CompletedTask;});
+            await Run("L12-24-COMPROMISED-SIGNER-SIGNS-REGRESSION",()=> {
+                var forged=signer.Sign(Snapshot("challenge",nonce,floor:1,seq:3));
+                Require(Check(forged,local:1)==L12Observation.AuthenticatedChallengeOnly,
+                    "L12_SIGNER_COUNTEREXAMPLE");return Task.CompletedTask;});
+            await Run("L12-25-COMPROMISED-SIGNER-SPLIT-VIEW-UNMONITORED",()=> {
+                var left=signer.Sign(Snapshot("challenge",nonce,floor:1,seq:9));
+                var right=signer.Sign(Snapshot("challenge",another,floor:2,seq:9));
+                Require(Check(left)==L12Observation.AuthenticatedChallengeOnly &&
+                    Check(right,challenge:another)==L12Observation.AuthenticatedChallengeOnly,
+                    "L12_FORK_COUNTEREXAMPLE");return Task.CompletedTask;});
+            await Run("L12-26-SIGNED-EXTRA-COMMAND-REJECTED",()=> {
+                var raw=System.Text.Encoding.UTF8.GetBytes(
+                    System.Text.Encoding.UTF8.GetString(staticSigned.Wire).TrimEnd('}')+
+                    ",\"command\":\"powershell -Command Remove-Item\"}");
+                Reject("SCHEMA_FIELDS",()=>Check((raw,signer.SignRawForNegative(raw))));
+                return Task.CompletedTask;});
+            await Run("L12-27-REMOTE-ACTION-MODE-REJECTED",()=> {
+                Reject("L12_CHALLENGE",()=>Check(signer.Sign(Snapshot("execute",nonce))));
+                return Task.CompletedTask;});
+            await Run("L12-28-SIGNED-INVALID-CANONICALIZATION",()=> {
+                var raw=staticSigned.Wire.Concat(new byte[]{32}).ToArray();
+                Reject("L12_NOT_CANONICAL",()=>Check((raw,signer.SignRawForNegative(raw))));
+                return Task.CompletedTask;});
+            s.EnsureSelectorPreserved();
+            var report=new {
+                schema="gf-l12-public-reference-fixture/1", passed=Results.Count-failed,
+                failed, cases=Results,stage11_signed_tuf_fixture_consumed=true,
+                l11_inert_admission_verified=true,
+                full_disk_restore_residual_reproduced=true,
+                restored_clock_freeze_residual_reproduced=true,
+                compromised_signer_replay_residual_reproduced=true,
+                unmonitored_split_view_residual_reproduced=true,
+                original_selector_preserved_in_every_scenario=true,
+                no_enrollment_or_device_identity=true,
+                all_outputs_observations_never_permissions=true,
+                actual_http_requests_sent=false,operational_key_generated=false,
+                product_built=false,product_executed=false,installation_performed=false,
+                physical_reboot_or_power_loss_tested=false,
+                trusted_clock_or_independent_witness_proven=false,
+                full_disk_restore_rollback_protection_proven=false,
+                operational_gates_closed=0
+            };
+            File.WriteAllText(Path.GetFullPath(args[1]),JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
+            Console.WriteLine("GF_L12_FINAL_REPORT passed="+report.passed+" failed="+failed+" gates=0");
+            return failed==0 && Results.Count==28?0:1;
+        }
+        finally { Directory.Delete(suite,recursive:true); }
+    }
+}
