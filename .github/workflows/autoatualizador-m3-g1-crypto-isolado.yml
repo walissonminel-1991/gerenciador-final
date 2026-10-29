@@ -1,0 +1,67 @@
+name: M3 G1 — resposta assinada inerte e rotacao de chave
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-g1-crypto/**'
+      - '.github/workflows/autoatualizador-m3-g1-crypto-isolado.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-g1-crypto-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  g1-crypto-inert:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - name: Codigo de fixture sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK Windows fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Testar apenas autenticacao de recibos com chaves descartaveis
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-g1-crypto/G1Crypto.csproj'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-m3-g1-crypto-out'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-g1-crypto-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'G1_CRYPTO_SDK_MISMATCH' }
+          dotnet restore $project "-p:ArtifactsPath=$out" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runners=@(Get-ChildItem $out -Filter 'GF.Updater.M3.G1CryptoTests.exe' -Recurse -File)
+          if ($runners.Count -ne 1) { throw 'G1_CRYPTO_RUNNER_NOT_UNIQUE' }
+          & $runners[0].FullName --report $report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.passed -ne 16 -or $r.failed -ne 0 -or
+              !$r.signed_valid_still_blocked -or
+              !$r.stage2_identity_binding_enforced -or
+              !$r.fresh_challenge_replay_denied -or
+              !$r.untrusted_signer_denied -or
+              !$r.rotation_revoked_prior_epoch -or
+              !$r.invalid_rotation_signature_rejected -or
+              !$r.saved_receipt_not_fresh_without_live_response -or
+              !$r.intent_candidate_still_not_selected -or
+              $r.private_keys_persisted -or
+              $r.trust_root_automatically_enrolled -or
+              $r.authenticated_remote_witness_exists -or
+              $r.independent_freshness_verified -or
+              $r.physical_power_loss_tested -or
+              $r.operational_gates_closed -ne 0 -or
+              $r.product_built -or $r.product_executed -or
+              $r.update_authorization_issued) { throw 'G1_CRYPTO_REPORT_INVALID' }
+          $product=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leak=@($product.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-g1-crypto' })
+          if ($leak.Count -ne 0) { throw 'G1_CRYPTO_PRODUCT_LEAK' }
+          "G1 crypto: $($r.passed) negative/signature cases PASS; test-only P-256, no operational key or gate." >> $env:GITHUB_STEP_SUMMARY
+# No external witness, network service, secret, telemetry, release, deploy or GF integration.
