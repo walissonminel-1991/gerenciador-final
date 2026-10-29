@@ -12,6 +12,9 @@
   <ItemGroup>
     <Compile Include="../src/*.cs.txt" />
     <Compile Include="../stage9/src/OperationJournal.cs.txt" />
+    <Compile Include="../stage8/src/OwnedAttempt.cs.txt" />
+    <Compile Include="../stage8/src/TufAttempt.cs.txt" />
+    <Compile Include="../stage11/src/TrustFixtureProof.cs.txt" />
     <Compile Include="../stage11/src/DurableTrust.cs.txt" />
     <Compile Include="../m3-g1-preselect/G1Preselect.cs.txt" />
     <Compile Include="../m3-g1-transaction/G1TransactionModel.cs.txt" />
