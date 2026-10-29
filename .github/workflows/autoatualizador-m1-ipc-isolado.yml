@@ -1,0 +1,52 @@
+name: G5 M1 — IPC isolado em Windows descartável
+on:
+  push:
+    branches:
+      - experimento-g5-ipc-chat-alto-20261029
+    paths:
+      - 'prototipos/autoatualizador-seguro/m1/**'
+      - '.github/workflows/autoatualizador-m1-ipc-isolado.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-g5-m1-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  ipc-experimental:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - name: Fonte de teste isolada
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK exato
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Compilar e executar somente o teste IPC inerte
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $project = 'prototipos/autoatualizador-seguro/m1/M1.csproj'
+          $out = Join-Path $env:RUNNER_TEMP 'gf-g5-m1-build'
+          $report = Join-Path $env:RUNNER_TEMP 'gf-g5-m1-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'SDK_NOT_PINNED' }
+          dotnet restore $project "-p:ArtifactsPath=$out" --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runners = @(Get-ChildItem $out -Filter 'GF.Updater.M1.Tests.exe' -Recurse -File)
+          if ($runners.Count -ne 1) { throw 'M1_RUNNER_NOT_UNIQUE' }
+          & $runners[0].FullName --report $report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = Get-Content $report -Raw | ConvertFrom-Json
+          if ($result.failed -ne 0 -or $result.operational_gates_closed -ne 0) { throw 'M1_FAILURE' }
+          $compile = dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leaks = @($compile.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m1' })
+          if ($leaks.Count -ne 0) { throw 'M1_PRODUCT_COMPILE_LEAK' }
+          "M1 IPC: $($result.passed) passed, $($result.blocked) blocked, $($result.failed) failed. G5 not approved; no GF execution or artifact publication." >> $env:GITHUB_STEP_SUMMARY
+# No product build, privileged token fabrication, secrets, uploads, release, deploy or remote telemetry.
