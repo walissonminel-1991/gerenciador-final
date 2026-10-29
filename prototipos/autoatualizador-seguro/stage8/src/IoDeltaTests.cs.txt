@@ -8,6 +8,11 @@ internal sealed class CountedResource(IDisposable? value = null) : IDisposable {
 }
 internal static class IoDeltaTests
 {
+    private static string ReadWhileWriterRetained(FixtureScope scope) {
+        using var input = new FileStream(scope.File("staging.txt"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(input, Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
     private static void LeaseHeld(FixtureScope scope) {
         try { using var other = new FileStream(scope.File("lease.fixture"), FileMode.Open, FileAccess.ReadWrite, FileShare.None); }
         catch (IOException) { return; }
@@ -52,10 +57,10 @@ internal static class IoDeltaTests
                 await Watch(entered.Task); user.Cancel(); await Throws<OperationCanceledException>(async () => { _ = await Watch(op.WaitResult()); });
                 Require(owner.State == "unknown" && !owner.TryRelease() && resource.Disposals == 0 && stream.CanWrite, "U8_LATE_RELEASED"); LeaseHeld(scope);
                 release.TrySetResult(true); var terminal = await Watch(op.ObserveTerminal());
-                Require(terminal.Outcome == "succeeded" && File.ReadAllText(scope.File("staging.txt")) == "late-inert-effect", "U8_NO_REAL_LATE_EFFECT");
+                Require(terminal.Outcome == "succeeded" && ReadWhileWriterRetained(scope) == "late-inert-effect", "U8_NO_REAL_LATE_EFFECT");
                 await Throws<OperationCanceledException>(async () => { _ = await op.WaitResult(); });
                 Require(!owner.ValidationCanContinue && !owner.TryRelease(), "U8_LATE_REVALIDATED");
-                owner.ReconcileFixture(() => File.ReadAllText(scope.File("staging.txt")) == "late-inert-effect");
+                owner.ReconcileFixture(() => ReadWhileWriterRetained(scope) == "late-inert-effect");
                 Reject(() => owner.Start("read", _ => Task.FromResult(1)), "U8_ATTEMPT_CLOSED");
                 Require(owner.TryRelease() && resource.Disposals == 1 && !stream.CanWrite, "U8_RELEASE_FAILED");
                 Observations.Add(new { kind = "controlled_delayed_real_file_write", late_effect_observed = true, late_result_accepted = false,

@@ -19,6 +19,7 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       PYTHONUTF8: '1'
       PYTHONDONTWRITEBYTECODE: '1'
+      GF_U8_CASE_PREFIX: ${{ contains(github.event.head_commit.message, '[gf-u8-late-file]') && 'U8-G8-LATE-FILE-WRITE' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,7 +36,9 @@ jobs:
       - name: Somente deltas G2 G8, sem GF ou sonda GUI
         shell: pwsh
         run: |
-          python prototipos/autoatualizador-seguro/stage8/run_tests.py --report "$env:RUNNER_TEMP/gf-u8-windows.json"
+          $arguments = @('--report', "$env:RUNNER_TEMP/gf-u8-windows.json")
+          if ($env:GF_U8_CASE_PREFIX) { $arguments += @('--prefix', $env:GF_U8_CASE_PREFIX) }
+          python prototipos/autoatualizador-seguro/stage8/run_tests.py @arguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $result = Get-Content "$env:RUNNER_TEMP/gf-u8-windows.json" -Raw | ConvertFrom-Json
           "Etapa 8: $($result.passed)/$($result.total); zero gates operacionais fechados." >> $env:GITHUB_STEP_SUMMARY
