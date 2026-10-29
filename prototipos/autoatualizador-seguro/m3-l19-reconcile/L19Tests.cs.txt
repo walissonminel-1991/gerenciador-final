@@ -47,7 +47,7 @@ internal static class L19Tests
         Directory.CreateDirectory(L16Tests.suite);
         try
         {
-            Check("L19-01-NO-JOURNAL-OLD-CONSISTENT-IDEMPOTENT",()=>{
+            await CheckAsync("L19-01-NO-JOURNAL-OLD-CONSISTENT-IDEMPOTENT",async()=>{
                 using var s=await L16Tests.Prepared();
                 string canary=Path.Combine(s.Lab,"L19-NO-TOUCH.txt");
                 File.WriteAllText(canary,"PRIVATE-UNTOUCHED");
@@ -63,7 +63,7 @@ internal static class L19Tests
                     "L19_EMPTY_JOURNAL_MUTATED_DISK");
                 s.Preserved();
             });
-            Check("L19-02-NO-JOURNAL-INCONSISTENT-BLOCKED",()=>{
+            await CheckAsync("L19-02-NO-JOURNAL-INCONSISTENT-BLOCKED",async()=>{
                 using var s=await L16Tests.Prepared();
                 File.WriteAllBytes(L16Boundary.Selector(s.Source.Root),
                     StateCodec.Encode(new L16Selector(
@@ -114,7 +114,7 @@ internal static class L19Tests
                     "L19_UNKNOWN_TO_RECONCILING_JOURNAL_MISSING");
                 s.Preserved();
             });
-            Check("L19-04-INVALID-JOURNAL-FAIL-CLOSED-AND-CANARY",()=>{
+            await CheckAsync("L19-04-INVALID-JOURNAL-FAIL-CLOSED-AND-CANARY",async()=>{
                 using var s=await L16Tests.Prepared();
                 string canary=Path.Combine(s.Lab,"important-personal-file.txt");
                 File.WriteAllText(canary,"UNMODIFIED-L19");
@@ -130,7 +130,7 @@ internal static class L19Tests
                     "L19_INVALID_JOURNAL_NOT_DURABLY_BLOCKED");
                 s.Preserved();
             });
-            Check("L19-05-UNKNOWN-APPEND-FAILURE-BLOCKED",()=>{
+            await CheckAsync("L19-05-UNKNOWN-APPEND-FAILURE-BLOCKED",async()=>{
                 using var s=await L16Tests.Prepared();
                 Require(await L18Coordinator.Execute(s.Source.Root,s.Lab,
                     L16Tests.bootstrap,Exe,"none",TimeSpan.FromSeconds(30))==
