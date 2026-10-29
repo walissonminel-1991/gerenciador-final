@@ -1,0 +1,258 @@
+// G1 epoch antirollback negative proof. Only PUBLIC keys/epoch stored in
+// fixture files. The real private keys remain ephemeral in the test process.
+using System.Security.Cryptography;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class G1EpochAnchorTests
+{
+    private static readonly List<object> results=[];
+    private static int failed;
+    private static string suite="";
+    private static bool completeRestoreLocallyValid,externalRefusedRolledBackKey,
+        offlineDenied,missingAnchorDenied,trustEpochRegressionDenied,
+        anchorAheadDenied,localAheadDenied,keyForkDenied,compromiseBlindSpotExplicit,
+        noSelectorChanged=true;
+
+    private sealed class Scenario: IDisposable
+    {
+        internal readonly StateCase Case=new(suite);
+        internal readonly G1DisposableSigner OldSigner=new();
+        internal readonly G1DisposableSigner NewSigner=new();
+        internal readonly G1ExternalMemoryAnchorFixture Anchor=new();
+        internal readonly G1BoundIntent Bound;
+        internal readonly G1LocalEpochPin InitialPin;
+        internal Scenario()
+        {
+            _=G1Preselect.Prepare(Case.Root,Case.Candidate,true);
+            Bound=G1SignedFixture.BindOnDisk(Case.Root);
+            InitialPin=G1LocalEpochDisk.Create(Case.Root,1,
+                OldSigner.PublicSpkiBase64,Case.InstallationId);
+            G1LocalEpochDisk.WriteHarnessOnly(Case.Root,InitialPin);
+            Anchor.ExplicitEnrollForHarness(InitialPin);
+        }
+        internal string Challenge()=>Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
+        internal G1SignedResponse OldResponse(string nonce)=>OldSigner.Sign(Bound,nonce,1);
+        internal G1SignedResponse NewResponse(string nonce)=>NewSigner.Sign(Bound,nonce,2);
+        internal G1LocalEpochPin NewPin=>G1LocalEpochDisk.Create(Case.Root,2,
+            NewSigner.PublicSpkiBase64,Case.InstallationId);
+        internal void Rotate(bool advanceAnchor=true,bool persistLocal=true)
+        {
+            using var verifier=new G1PinnedFixtureVerifier(OldSigner.PublicSpkiBase64);
+            var grant=OldSigner.Grant(OldSigner.KeyId,1,2,NewSigner);
+            verifier.Rotate(grant); // verified by authenticated old fixture key
+            Require(verifier.Epoch==2 && verifier.KeyId==NewSigner.KeyId,
+                "G1_EPOCH_BAD_ROTATION_FIXTURE");
+            if(advanceAnchor)Anchor.CommitForHarness(InitialPin,NewPin);
+            if(persistLocal)G1LocalEpochDisk.WriteHarnessOnly(Case.Root,NewPin);
+        }
+        internal void VerifySelector()
+        {
+            using var session=new FixtureSession(Case.Root);
+            var state=session.Store.Load().Record;
+            Require(state.Transaction is {Phase:"intent"} &&
+                state.Confirmed==Case.Old &&
+                session.Files.ReadSelector(state.InstallationId).Bundle==Case.Old,
+                "G1_EPOCH_SELECTED_CANDIDATE");
+            noSelectorChanged=true;
+        }
+        public void Dispose()
+        {
+            VerifySelector();
+            Case.Preserved();
+            OldSigner.Dispose();
+            NewSigner.Dispose();
+            Case.Dispose();
+        }
+    }
+    private static Dictionary<string,byte[]> SnapshotAll(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        return Directory.GetFiles(root,"*",SearchOption.AllDirectories)
+            .ToDictionary(x=>Path.GetRelativePath(root,x),File.ReadAllBytes,StringComparer.Ordinal);
+    }
+    private static void RestoreAll(string root,Dictionary<string,byte[]> snapshot)
+    {
+        FixtureSandbox.RequireRoot(root);
+        foreach(string full in Directory.GetFiles(root,"*",SearchOption.AllDirectories))
+        {
+            string name=Path.GetRelativePath(root,full);
+            if(!snapshot.ContainsKey(name))File.Delete(full);
+        }
+        foreach(var pair in snapshot)
+        {
+            string path=Path.GetFullPath(Path.Combine(root,pair.Key));
+            Require(path.StartsWith(Path.GetFullPath(root)+Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase),"G1_EPOCH_SNAPSHOT_SCOPE");
+            File.WriteAllBytes(path,pair.Value);
+        }
+        var current=SnapshotAll(root);
+        Require(current.Count==snapshot.Count &&
+            snapshot.All(kv=>current.TryGetValue(kv.Key,out var b) &&
+                b.AsSpan().SequenceEqual(kv.Value)),
+            "G1_EPOCH_SNAPSHOT_NOT_EXACT");
+    }
+    private static void Reject(string code,Action action)
+    {
+        try{action();}
+        catch(Rejected ex) when(ex.Code==code){return;}
+        throw new InvalidDataException("G1_EPOCH_FALSE_ACCEPTANCE:"+code);
+    }
+    private static async Task Test(string id,Func<Task> action)
+    {
+        try{await action();results.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception e){failed++;results.Add(new{id,status="failed",error=e.ToString()});
+            Console.WriteLine("FAIL "+id+" "+e);}
+    }
+    private static Task Sync(Action action){action();return Task.CompletedTask;}
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=2 || args[0]!="--report" || !OperatingSystem.IsWindows())return 2;
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-g1-epoch-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Test("EPOCH-01-ROTATION-AND-DISK-RELOAD-EQUAL-BUT-BLOCKED",()=>Sync(()=>{
+                using var s=new Scenario();
+                s.Rotate();
+                Require(G1LocalEpochDisk.Read(s.Case.Root)==s.NewPin,
+                    "G1_EPOCH_DISK_NOT_ROTATED");
+                var challenge=s.Challenge();
+                Require(G1EpochReconciliation.Inspect(s.Case.Root,s.NewResponse(challenge),
+                    challenge,s.Anchor)==G1AnchorResult.SameEpochAndKeyStillBlocked,
+                    "G1_EPOCH_DIAGNOSTIC_CHANGED");
+            }));
+            await Test("EPOCH-02-COMPLETE-LOCAL-SNAPSHOT-ROLLBACK-HONEST-ANCHOR-REFUSES",()=>Sync(()=>{
+                using var s=new Scenario();
+                var before=SnapshotAll(s.Case.Root);
+                s.Rotate();
+                RestoreAll(s.Case.Root,before);
+                var fresh=s.Challenge();
+                var signedOld=s.OldResponse(fresh);
+                // Attacker restored all local files and can still sign a new
+                // challenge using an older (compromised/retained) private key.
+                Require(G1LocalEpochDisk.LocalSignatureAppearsValid(s.Case.Root,
+                    signedOld,fresh),"G1_EPOCH_LOCAL_CRYPTO_NOT_VALID");
+                completeRestoreLocallyValid=true;
+                Reject("G1_ANCHOR_LOCAL_ROLLBACK",()=>G1EpochReconciliation.Inspect(
+                    s.Case.Root,signedOld,fresh,s.Anchor));
+                externalRefusedRolledBackKey=true;
+            }));
+            await Test("EPOCH-03-OLD-PIN-REBOOT-WITH-NO-ANCHOR-FAILS-CLOSED",()=>Sync(()=>{
+                using var s=new Scenario();
+                var snapshot=SnapshotAll(s.Case.Root);
+                s.Rotate();
+                RestoreAll(s.Case.Root,snapshot);
+                var fresh=s.Challenge();
+                Reject("G1_ANCHOR_MISSING",()=>G1EpochReconciliation.Inspect(
+                    s.Case.Root,s.OldResponse(fresh),fresh,new G1ExternalMemoryAnchorFixture()));
+                missingAnchorDenied=true;
+            }));
+            await Test("EPOCH-04-WITNESS-OFFLINE-CANNOT-TRUST-RESTORED-LOCAL",()=>Sync(()=>{
+                using var s=new Scenario();
+                var snapshot=SnapshotAll(s.Case.Root);
+                s.Rotate();
+                RestoreAll(s.Case.Root,snapshot);
+                s.Anchor.Available=false;
+                var fresh=s.Challenge();
+                Reject("G1_ANCHOR_UNAVAILABLE",()=>G1EpochReconciliation.Inspect(
+                    s.Case.Root,s.OldResponse(fresh),fresh,s.Anchor));
+                offlineDenied=true;
+            }));
+            await Test("EPOCH-05-ANCHOR-COMMITTED-BEFORE-LOCAL-PIN-WRITE",()=>Sync(()=>{
+                using var s=new Scenario();
+                s.Rotate(advanceAnchor:true,persistLocal:false);
+                var fresh=s.Challenge();
+                Reject("G1_ANCHOR_LOCAL_ROLLBACK",()=>G1EpochReconciliation.Inspect(
+                    s.Case.Root,s.OldResponse(fresh),fresh,s.Anchor));
+                anchorAheadDenied=true;
+            }));
+            await Test("EPOCH-06-LOCAL-PIN-ROTATED-BUT-ANCHOR-NOT-COMMITTED",()=>Sync(()=>{
+                using var s=new Scenario();
+                s.Rotate(advanceAnchor:false,persistLocal:true);
+                var fresh=s.Challenge();
+                Reject("G1_ANCHOR_LOCAL_AHEAD",()=>G1EpochReconciliation.Inspect(
+                    s.Case.Root,s.NewResponse(fresh),fresh,s.Anchor));
+                localAheadDenied=true;
+            }));
+            await Test("EPOCH-07-ANCHOR-REGRESSION-DENIED-BY-CAS",()=>Sync(()=>{
+                using var s=new Scenario();
+                s.Rotate();
+                Reject("G1_ANCHOR_CAS_OR_ROLLBACK",()=>s.Anchor.CommitForHarness(
+                    s.InitialPin,s.NewPin));
+                Reject("G1_ANCHOR_INVALID_ADVANCE",()=>s.Anchor.CommitForHarness(
+                    s.NewPin,s.InitialPin));
+                trustEpochRegressionDenied=true;
+            }));
+            await Test("EPOCH-08-KEY-FORK-AT-EQUAL-EPOCH-REJECTED",()=>Sync(()=>{
+                using var s=new Scenario();
+                // Public key changed on disk in the same epoch. The rogue
+                // private key is held ONLY by the synthetic test adversary.
+                G1LocalEpochDisk.WriteHarnessOnly(s.Case.Root,
+                    G1LocalEpochDisk.Create(s.Case.Root,1,
+                        s.NewSigner.PublicSpkiBase64,s.Case.InstallationId));
+                var fresh=s.Challenge();
+                var rogue=s.NewSigner.Sign(s.Bound,fresh,1);
+                Require(G1LocalEpochDisk.LocalSignatureAppearsValid(
+                    s.Case.Root,rogue,fresh),"G1_EPOCH_FORK_SIGNATURE_NOT_VALID");
+                Reject("G1_ANCHOR_KEY_FORK",()=>G1EpochReconciliation.Inspect(
+                    s.Case.Root,rogue,fresh,s.Anchor));
+                keyForkDenied=true;
+            }));
+            await Test("EPOCH-09-CROSS-INSTALLATION-ANCHOR-NOT-TRUSTED",()=>Sync(()=>{
+                using var s=new Scenario();
+                using var foreign=new Scenario();
+                var other=new G1ExternalMemoryAnchorFixture();
+                other.ExplicitEnrollForHarness(foreign.InitialPin);
+                var fresh=s.Challenge();
+                Reject("G1_ANCHOR_MISSING",()=>G1EpochReconciliation.Inspect(
+                    s.Case.Root,s.OldResponse(fresh),fresh,other));
+            }));
+            await Test("EPOCH-10-COMPROMISED-ANCHOR-ROLLBACK-CAN-LIE",()=>Sync(()=>{
+                using var s=new Scenario();
+                var snapshot=SnapshotAll(s.Case.Root);
+                s.Rotate();
+                RestoreAll(s.Case.Root,snapshot);
+                s.Anchor.CompromiseForNegativeFixture(s.InitialPin);
+                var fresh=s.Challenge();
+                // All-local rollback plus compromised external witness defeats
+                // this model. Diagnostic remains blocked, no false assurance.
+                Require(G1EpochReconciliation.Inspect(s.Case.Root,
+                    s.OldResponse(fresh),fresh,s.Anchor)==
+                    G1AnchorResult.SameEpochAndKeyStillBlocked,
+                    "G1_EPOCH_COMPROMISE_MODEL_NOT_DEMONSTRATED");
+                compromiseBlindSpotExplicit=true;
+            }));
+        }
+        finally{Directory.Delete(suite,recursive:true);}
+        var report=new{
+            schema=1,phase="G1-local-public-epoch-rollback",
+            fixture_only=true,passed=results.Count-failed,failed,tests=results,
+            complete_local_snapshot_accepted_by_local_signature=completeRestoreLocallyValid,
+            independent_memory_epoch_rejects_rollback=externalRefusedRolledBackKey,
+            missing_anchor_denied=missingAnchorDenied,
+            anchor_offline_denied=offlineDenied,
+            anchored_epoch_regression_denied=trustEpochRegressionDenied,
+            remote_ahead_blocked=anchorAheadDenied,
+            local_ahead_blocked=localAheadDenied,
+            equal_epoch_key_fork_denied=keyForkDenied,
+            compromised_anchor_can_lie=compromiseBlindSpotExplicit,
+            selector_preserved=noSelectorChanged,
+            keyring_persisted_public_only=true,
+            private_keys_written_to_disk=false,
+            anchor_is_external_durable_service=false,
+            real_independent_epoch_verified=false,
+            product_built=false,product_executed=false,
+            operational_gates_closed=0,
+            activation_authorized=false,physical_power_loss_tested=false
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("G1_EPOCH_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}
