@@ -23,6 +23,10 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.402
+      - name: Python para preparar fonte TUF upstream fixada
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
       - name: Executar apenas N1 e N2 com diários locais reais em fixture
         shell: pwsh
         env:
@@ -34,10 +38,14 @@ jobs:
           $out=Join-Path $env:RUNNER_TEMP 'gf-m3-composed-artifacts'
           $report=Join-Path $env:RUNNER_TEMP 'gf-m3-composed-report.json'
           $anchor='prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json'
+          $sourceWork=Join-Path $env:RUNNER_TEMP 'gf-m3-composed-source'
+          $tuf=(python prototipos/autoatualizador-seguro/m3-composed/prepare_pinned_source.py $sourceWork | Select-Object -Last 1).Trim()
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $tuf)) { throw 'COMPOSED_PINNED_TUF_UNAVAILABLE' }
+          $sourceArg="-p:Stage8Source=$tuf"
           if ((dotnet --version).Trim() -ne '10.0.402') { throw 'COMPOSED_SDK_MISMATCH' }
-          dotnet restore $project "-p:ArtifactsPath=$out" --locked-mode --nologo
+          dotnet restore $project "-p:ArtifactsPath=$out" $sourceArg --locked-mode --nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet build $project "-p:ArtifactsPath=$out" -c Release --no-restore --nologo
+          dotnet build $project "-p:ArtifactsPath=$out" $sourceArg -c Release --no-restore --nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $runners=@(Get-ChildItem $out -Filter 'GF.Updater.M3.ComposedTests.exe' -Recurse -File)
           if ($runners.Count -ne 1) { throw 'COMPOSED_RUNNER_NOT_UNIQUE' }
