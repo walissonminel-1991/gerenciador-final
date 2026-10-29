@@ -7,6 +7,7 @@ using static GfUpdaterFixture.StrictMetadata;
 
 namespace GfUpdaterFixture;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 internal static class M3RaceTests
 {
     private static readonly List<object> tests=[];
