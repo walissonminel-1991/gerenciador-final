@@ -1,0 +1,256 @@
+// G1 preselection Windows-only negative suite. The killed child is the
+// test executable and operates exclusively inside a marked Stage2 sandbox.
+// Never a real product updater, never an executable bundle or a real witness.
+using System.Diagnostics;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class G1PreselectTests
+{
+    private static readonly List<object> tests=[];
+    private static int failed;
+    private static string suite="";
+    private static bool oldSelectorKept,childExitedBeforeReopen,pendingRemainedBlocked,
+        flushedPendingPreserved,committedIntentDidNotSelect,remoteModelDidNotSelect,
+        noRealWitnessUsed=true;
+
+    private static async Task Check(string id,Func<Task> run)
+    {
+        try{await run();tests.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception e){failed++;tests.Add(new{id,status="failed",error=e.ToString()});
+            Console.WriteLine("FAIL "+id+" "+e);}
+    }
+    private static Task Sync(Action run){run();return Task.CompletedTask;}
+    private static void Refused(string code,Action action)
+    {
+        try{action();}
+        catch(Rejected e) when(e.Code==code){return;}
+        throw new Rejected("G1_PRESELECT_UNSAFE_ACCEPTANCE:"+code);
+    }
+    private static void Untouched(StateCase c)
+    {
+        G1Preselect.AssertSelectorUnchanged(c.Root,c.Old);
+        c.Preserved();
+        oldSelectorKept=true;
+    }
+    private static void RecoverIsNotSelection(StateCase c)
+    {
+        using var session=new FixtureSession(c.Root);
+        var record=session.Store.Load().Record;
+        Require(record.Transaction is {Phase:"intent"} &&
+            record.Confirmed==c.Old &&
+            record.Transaction.Candidate==c.Candidate &&
+            record.Trust.ApprovedSequence==c.Candidate.Sequence,
+            "G1_PRESELECT_INTENT_NOT_PERSISTED");
+        Refused("RECOVERY_REQUIRED",()=>
+            {_=session.SelectionForFixtureInspectionOnly();});
+        Require(session.Files.ReadSelector(record.InstallationId).Bundle==c.Old,
+            "G1_PRESELECT_PREMATURE_SELECTION");
+        committedIntentDidNotSelect=true;
+    }
+    private static int Child(string[] args)
+    {
+        if(args.Length!=3 || args[0]!="--g1-prepare-child" ||
+            args[2] is not ("record-created" or "record-flushed" or "record-promoted"))
+            return 2;
+        FixtureSandbox.RequireRoot(args[1]);
+        var candidate=G1Preselect.FixtureCandidateFromMarkedRoot(args[1]);
+        _=G1Preselect.Prepare(args[1],candidate,true,point=>{
+            if(point==args[2])
+            {
+                Console.WriteLine("G1-INERT-CUT:"+point);
+                Console.Out.Flush();
+                Thread.Sleep(Timeout.Infinite);
+            }
+        });
+        return 0;
+    }
+    private static async Task LeaseReleased(string root)
+    {
+        for(int i=0;i<10;i++)
+        {
+            try
+            {
+                using var lease=InstallationLease.Acquire(root);
+                return;
+            }
+            catch(Rejected ex) when(ex.Code=="INSTALLATION_BUSY_OR_LOCK_MISSING" && i<9)
+            {await Task.Delay(100);}
+        }
+        throw new Rejected("G1_PRESELECT_WORKER_STILL_HAS_LEASE");
+    }
+    private static async Task KillAtCut(StateCase c,string point)
+    {
+        string exe=Environment.ProcessPath??throw new InvalidDataException("G1_PRESELECT_APPHOST");
+        Require(Path.GetFileName(exe)=="GF.Updater.M3.G1PreselectTests.exe",
+            "G1_PRESELECT_WRONG_EXECUTABLE");
+        var psi=new ProcessStartInfo(exe){
+            UseShellExecute=false,CreateNoWindow=true,
+            RedirectStandardOutput=true,RedirectStandardError=true,
+            WorkingDirectory=Path.GetTempPath()
+        };
+        foreach(string arg in new[]{"--g1-prepare-child",c.Root,point})
+            psi.ArgumentList.Add(arg);
+        using var worker=Process.Start(psi)??throw new InvalidDataException("G1_PRESELECT_CHILD_START");
+        try
+        {
+            using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            string? observed=await worker.StandardOutput.ReadLineAsync().WaitAsync(budget.Token);
+            Require(observed=="G1-INERT-CUT:"+point && !worker.HasExited,
+                "G1_PRESELECT_CUT_NOT_REACHED");
+        }
+        finally
+        {
+            if(!worker.HasExited)
+            {
+                worker.Kill(entireProcessTree:true);
+                using var exitBudget=new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await worker.WaitForExitAsync(exitBudget.Token);
+            }
+        }
+        Require(worker.HasExited,"G1_PRESELECT_WORKER_ALIVE");
+        await LeaseReleased(c.Root);
+        childExitedBeforeReopen=true;
+        Untouched(c);
+        string[] pending=Directory.GetFiles(Path.Combine(c.Root,"ledger"),"pending-*");
+        if(point=="record-promoted")
+        {
+            Require(pending.Length==0,"G1_PRESELECT_PENDING_NOT_MOVED");
+            RecoverIsNotSelection(c);
+            return;
+        }
+        Require(pending.Length==1,"G1_PRESELECT_PENDING_EVIDENCE_MISSING");
+        Refused("STATE_INCOMPLETE",()=>{_=new PersistentState(c.Root).Load();});
+        pendingRemainedBlocked=true;
+        if(point=="record-flushed")
+        {
+            var next=StateCodec.Unwrap(PersistentState.ReadFixtureFile(c.Root,pending[0]));
+            Require(next.Transaction is {Phase:"intent"} &&
+                next.Confirmed==c.Old,"G1_PRESELECT_FLUSHED_PENDING_WRONG_PHASE");
+            flushedPendingPreserved=true;
+        }
+        else
+        {
+            Require(new FileInfo(pending[0]).Length==0,
+                "G1_PRESELECT_CREATED_PENDING_WRONG_LENGTH");
+        }
+    }
+    private static void RemoteCommitDoesNotSelect(StateCase c,bool lostReply)
+    {
+        var before=new PersistentState(c.Root).Load();
+        var baseHead=new TxHead(c.InstallationId,before.Record.Generation,
+            before.Record.Trust.ApprovedSequence,before.Digest);
+        var candidate=G1Preselect.Prepare(c.Root,c.Candidate,true);
+        var after=new PersistentState(c.Root).Load();
+        var proposed=new TxHead(c.InstallationId,candidate.Generation,
+            candidate.Trust.ApprovedSequence,after.Digest);
+        var witness=new G1AtomicMemoryWitness();
+        witness.BootstrapTrustedForFixture(baseHead);
+        var tx=new TxProposal(c.InstallationId,candidate.Transaction!.Id,baseHead,proposed);
+        if(lostReply)
+        {
+            try{_=witness.Publish(tx,true);throw new InvalidDataException("G1_NO_TIMEOUT");}
+            catch(TimeoutException){}
+        }
+        else _=witness.Publish(tx);
+        Require(witness.HeadForFixtureInspectionOnly(c.InstallationId)==proposed,
+            "G1_PRESELECT_REMOTE_MEMORY_NOT_ADVANCED");
+        Untouched(c);
+        RecoverIsNotSelection(c);
+        remoteModelDidNotSelect=true;
+    }
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length>0 && args[0]=="--g1-prepare-child")return Child(args);
+        if(args.Length!=2 || args[0]!="--report" || !OperatingSystem.IsWindows())
+            return 2;
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-preselect-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Check("PRE-01-APPEND-INTENT-PERSISTS-NO-SELECT",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=G1Preselect.Prepare(c.Root,c.Candidate,true);
+                RecoverIsNotSelection(c);Untouched(c);
+            }));
+            await Check("PRE-02-CONSENT-DENIED-NO-PERSIST",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                Refused("G1_PREPARE_CONSENT_REQUIRED",()=>
+                    {_=G1Preselect.Prepare(c.Root,c.Candidate,false);});
+                Require(new PersistentState(c.Root).Load().Record.Transaction is null,
+                    "G1_PRESELECT_CONSENT_CHANGED_LEDGER");
+                Untouched(c);
+            }));
+            await Check("PRE-03-SECOND-PREPARE-REFUSED",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=G1Preselect.Prepare(c.Root,c.Candidate,true);
+                Refused("G1_PREPARE_RECOVERY_REQUIRED",()=>
+                    {_=G1Preselect.Prepare(c.Root,c.Candidate,true);});
+                RecoverIsNotSelection(c);Untouched(c);
+            }));
+            await Check("PRE-04-KILL-ON-CREATED-PENDING-REMAINS-BLOCKED",async()=>{
+                using var c=new StateCase(suite);await KillAtCut(c,"record-created");
+            });
+            await Check("PRE-05-KILL-AFTER-FLUSH-PENDING-REMAINS-BLOCKED",async()=>{
+                using var c=new StateCase(suite);await KillAtCut(c,"record-flushed");
+            });
+            await Check("PRE-06-KILL-AFTER-PROMOTE-INTENT-NOT-SELECTED",async()=>{
+                using var c=new StateCase(suite);await KillAtCut(c,"record-promoted");
+            });
+            await Check("PRE-07-MEMORY-WITNESS-COMMIT-STILL-NOT-SELECT",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                RemoteCommitDoesNotSelect(c,false);
+            }));
+            await Check("PRE-08-LOST-COMMIT-REPLY-STILL-NOT-SELECT",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                RemoteCommitDoesNotSelect(c,true);
+            }));
+            await Check("PRE-09-CANDIDATE-TAMPER-REFUSED-BEFORE-APPEND",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                File.WriteAllText(new FixtureFiles(c.Root).BundlePath(c.Candidate),
+                    "CORRUPTED INERT CANDIDATE");
+                Refused("BUNDLE_ID_OR_HASH",()=>
+                    {_=G1Preselect.Prepare(c.Root,c.Candidate,true);});
+                Require(new PersistentState(c.Root).Load().Record.Transaction is null,
+                    "G1_PRESELECT_TAMPER_CHANGED_LEDGER");
+                Untouched(c);
+            }));
+            await Check("PRE-10-WRONG-SELECTOR-REFUSED-BEFORE-APPEND",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                File.WriteAllBytes(Path.Combine(c.Root,"active.fixture.json"),
+                    StateCodec.Encode(new FixtureSelector("gf-selector-fixture/2",
+                        c.InstallationId,c.Candidate)));
+                Refused("G1_PREPARE_SELECTOR_UNEXPECTED",()=>
+                    {_=G1Preselect.Prepare(c.Root,c.Candidate,true);});
+                Require(new PersistentState(c.Root).Load().Record.Transaction is null,
+                    "G1_PRESELECT_SELECTOR_CHANGED_LEDGER");
+                c.Preserved();
+            }));
+        }
+        finally{Directory.Delete(suite,true);}
+        var report=new {
+            schema=1,phase="G1-preselection-stage2-fixture",fixture_only=true,
+            passed=tests.Count-failed,failed,tests,
+            original_selector_preserved=oldSelectorKept,
+            killed_worker_exited_before_inspection=childExitedBeforeReopen,
+            pending_blocks_journal=pendingRemainedBlocked,
+            flushed_pending_preserved=flushedPendingPreserved,
+            promoted_intent_still_no_candidate_selection=committedIntentDidNotSelect,
+            memory_witness_commit_did_not_activate=remoteModelDidNotSelect,
+            no_real_witness_used=noRealWitnessUsed,
+            stage2_flush_called_not_physical_durability=true,
+            operational_gates_closed=0,real_external_witness_authenticated=false,
+            product_built=false,product_executed=false,
+            physical_power_loss_tested=false,
+            selection_activation_supported=false
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("G1_PRESELECT_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}
