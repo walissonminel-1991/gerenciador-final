@@ -1,0 +1,76 @@
+// G1 preselection proof: a NEW fixture-only prepare path, never FixtureSession.Begin.
+// Stage2 append journal (WriteThrough + Flush(true) + File.Move) is reused UNMODIFIED.
+// There is intentionally NO selector mutation, activation API, remote credential,
+// receipt adoption, trust release, or change to production updater.
+using System.Security.Cryptography;
+using System.Text;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal static class G1Preselect
+{
+    internal static StateRecord Prepare(string root,BundleRef candidate,
+        bool userConfirmed,Action<string>? cut=null)
+    {
+        FixtureSandbox.RequireRoot(root);
+        Require(userConfirmed,"G1_PREPARE_CONSENT_REQUIRED");
+        using var session=new FixtureSession(root); // pins dirs and exclusive lock
+        var loaded=session.Store.Load();
+        var previous=loaded.Record;
+        Require(previous.Transaction is null ||
+            previous.Transaction.Phase is "confirmed" or "rolled_back",
+            "G1_PREPARE_RECOVERY_REQUIRED");
+        Require(session.Files.ReadSelector(previous.InstallationId).Bundle==
+            previous.Confirmed,"G1_PREPARE_SELECTOR_UNEXPECTED");
+        using var oldPin=session.Files.Pin(previous.Confirmed);
+        using var newPin=session.Files.Pin(candidate);
+        Require(candidate.Sequence>previous.Trust.ApprovedSequence &&
+            CompareVersion(candidate.Version,previous.Trust.HighestVersion)>0,
+            "G1_PREPARE_REPLAY");
+        // This is the LOCAL Stage2 metadata trust-floor update, NOT an
+        // external G1-witness commitment or authorization of a release.
+        var observed=DateTimeOffset.UtcNow;
+        var oldTime=StateCodec.Observed(previous.Trust);
+        if(observed<oldTime) observed=oldTime;
+        var tx=new FixtureTransaction(Guid.NewGuid().ToString("N"),
+            Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)),
+            "intent",previous.Confirmed,candidate,false);
+        var next=previous with {
+            Generation=previous.Generation+1,PreviousDigest=loaded.Digest,
+            Transaction=tx,Trust=previous.Trust with {
+                ApprovedSequence=candidate.Sequence,
+                HighestVersion=candidate.Version,
+                LastObservedUtc=CycleClock.Wire(observed)
+            }
+        };
+        session.Store.Append(next,loaded.Digest,cut);
+        cut?.Invoke("intent-persisted");
+        // Deliberately no ReplaceSelector, selected, confirmed or recovery.
+        Require(session.Files.ReadSelector(previous.InstallationId).Bundle==
+            previous.Confirmed,"G1_PREPARE_SELECTOR_MOVED");
+        return next;
+    }
+
+    internal static BundleRef FixtureCandidateFromMarkedRoot(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        byte[] expected=Encoding.UTF8.GetBytes("GF-U2-INERT-BUNDLE-2-NO-EXE-NO-DLL\n");
+        string sha=Hash(expected);
+        string path=Path.Combine(root,"versions","2-"+sha,"bundle.fixture.txt");
+        using var guard=WindowsFileGuard.Open(root,path);
+        Require(guard.Read(4096).AsSpan().SequenceEqual(expected),
+            "G1_PREPARE_NOT_INERT_CANDIDATE");
+        return new BundleRef(2,"0.0.0.2",sha,guard.Identity);
+    }
+
+    internal static void AssertSelectorUnchanged(string root,BundleRef previous)
+    {
+        FixtureSandbox.RequireRoot(root);
+        var active=new FixtureFiles(root).ReadSelector(
+            StateCodec.Decode<FixtureSelector>(
+                PersistentState.ReadFixtureFile(root,
+                    Path.Combine(root,"active.fixture.json"))).InstallationId);
+        Require(active.Bundle==previous,"G1_PREPARE_SELECTED_BEFORE_TRUST");
+    }
+}
