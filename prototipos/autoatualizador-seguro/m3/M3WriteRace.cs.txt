@@ -1,0 +1,162 @@
+// M3 isolated synchronous write race. Uses the EXISTING Stage2 append
+// cut hooks and only marked temp fixtures, never the Gerenciador Final.
+using System.Diagnostics;
+using System.Text;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal enum M3AfterTimeout { RecoveredPrevious, LateConfirmedReviewRequired }
+
+// The coordinator must own the worker's real process handle, establish the
+// worker has exited, then acquire the exclusive installation lease. No fake
+// "timeout == rollback" assumption, no silent cleanup of pending evidence.
+internal static class M3TimeoutReconciler
+{
+    internal static M3AfterTimeout InspectAfterExit(
+        string root,FixtureTransaction expected,Process worker)
+    {
+        Require(worker.HasExited,"M3_WORKER_STILL_RUNNING");
+        using var session=new FixtureSession(root);
+        var state=session.Store.Load().Record; // Refuses pending-*, invalid or unknown files.
+        var tx=state.Transaction;
+        Require(tx is not null && tx.Id==expected.Id &&
+            tx.Nonce==expected.Nonce && tx.Previous==expected.Previous &&
+            tx.Candidate==expected.Candidate,"M3_RECONCILE_IDENTITY");
+        if(tx.Phase is "selected" or "rollback_intent" or "intent")
+        {
+            var recovered=session.Recover();
+            Require(recovered.Transaction?.Phase=="rolled_back" &&
+                recovered.Confirmed==expected.Previous &&
+                recovered.Trust.ApprovedSequence>=expected.Candidate.Sequence &&
+                session.SelectionForFixtureInspectionOnly()==expected.Previous,
+                "M3_RECONCILE_ROLLBACK_FAILED");
+            return M3AfterTimeout.RecoveredPrevious;
+        }
+        Require(tx.Phase=="confirmed" && state.Confirmed==expected.Candidate,
+            "M3_RECONCILE_UNKNOWN_PHASE");
+        // A confirmation may already be durable after the outer timeout.
+        // It is NOT a successful/authorized update, and cannot be rolled back
+        // by the Stage2 journal once committed. Keep for explicit review.
+        Require(session.SelectionForFixtureInspectionOnly()==expected.Candidate,
+            "M3_RECONCILE_WRONG_SELECTION");
+        return M3AfterTimeout.LateConfirmedReviewRequired;
+    }
+}
+
+internal static class M3WriteRace
+{
+    internal static bool ActualSyncAppendInterrupted;
+    internal static bool PreWriteRecovered;
+    internal static bool PendingFlushBlocked;
+    internal static bool LatePromotionDetected;
+    private const string Marker="M3-INERT-PAUSE:";
+
+    internal static int Child(string[] args)
+    {
+        // No user path accepted without a pre-existing fixture sandbox marker.
+        if(args.Length!=4 || args[0]!="--m3-write-child" ||
+            args[2] is not ("pre-append" or "record-flushed" or "record-promoted"))
+            return 2;
+        FixtureSandbox.RequireRoot(args[1]);
+        using var session=new FixtureSession(args[1]);
+        var loaded=session.Store.Load();
+        var tx=loaded.Record.Transaction;
+        Require(tx is {Phase:"selected"} && tx.Id==args[3],
+            "M3_CHILD_NOT_SELECTED");
+        Require(session.Files.ReadSelector(loaded.Record.InstallationId).Bundle==tx.Candidate,
+            "M3_CHILD_SELECTOR");
+        using var oldPin=session.Files.Pin(tx.Previous);
+        using var candidatePin=session.Files.Pin(tx.Candidate);
+        var next=loaded.Record with
+        {
+            Generation=loaded.Record.Generation+1,
+            PreviousDigest=loaded.Digest,Confirmed=tx.Candidate,
+            Transaction=tx with {Phase="confirmed"}
+        };
+        // Explicit same Stage2 confirmed transition and same durable Append.
+        // This is a test hook, not a replacement for FixtureSession.Confirm.
+        if(args[2]=="pre-append")Hold("pre-append");
+        session.Store.Append(next,loaded.Digest,point=>{
+            if(point==args[2])Hold(point);
+        });
+        return 0;
+    }
+    private static void Hold(string point)
+    {
+        Console.WriteLine(Marker+point);
+        Console.Out.Flush();
+        Thread.Sleep(Timeout.Infinite);
+    }
+
+    internal static async Task<M3AfterTimeout?> Exercise(StateCase fixture,string point)
+    {
+        string exe=Environment.ProcessPath??throw new InvalidDataException("M3_NO_APPHOST");
+        Require(Path.GetFileName(exe)=="GF.Updater.M3.Tests.exe","M3_UNEXPECTED_APPHOST");
+        var tx=fixture.Begin().Transaction!;
+        var psi=new ProcessStartInfo(exe)
+        {
+            UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true,
+            CreateNoWindow=true,WorkingDirectory=Path.GetTempPath()
+        };
+        foreach(var arg in new[]{"--m3-write-child",fixture.Root,point,tx.Id})
+            psi.ArgumentList.Add(arg);
+        using var deadline=StageDeadline.ShortFixture(TimeSpan.FromMilliseconds(250));
+        using var child=Process.Start(psi)??throw new InvalidDataException("M3_CHILD_START");
+        try
+        {
+            string? line=await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(9));
+            Require(line==Marker+point,"M3_WRONG_CUT_POINT");
+            Require(!child.HasExited,"M3_NOT_PAUSED");
+            // The supervisor deadline has expired while a synchronous append
+            // is paused inside an actual Stage2 cut hook.
+            await Task.Delay(400);
+            bool expired=false;
+            try{deadline.Check();}
+            catch(OperationCanceledException){expired=true;}
+            Require(expired,"M3_DEADLINE_NOT_EXPIRED");
+            Require(!child.HasExited,"M3_WORKER_EXITED_ON_TIMEOUT");
+        }
+        finally
+        {
+            if(!child.HasExited)
+            {
+                child.Kill(entireProcessTree:true); // Only this owned inert worker.
+                using var exitBudget=new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                await child.WaitForExitAsync(exitBudget.Token);
+            }
+        }
+        Require(child.HasExited,"M3_WORKER_NOT_TERMINATED");
+        ActualSyncAppendInterrupted=true;
+
+        if(point=="record-flushed")
+        {
+            // A fully flushed but not yet promoted pending file must NOT be
+            // silently deleted, adopted or exposed as confirmed.
+            bool blocked=false;
+            try{_=M3TimeoutReconciler.InspectAfterExit(fixture.Root,tx,child);}
+            catch(Rejected ex) when(ex.Code=="STATE_INCOMPLETE"){blocked=true;}
+            Require(blocked,"M3_PENDING_AUTOMATICALLY_ACCEPTED");
+            Require(Directory.GetFiles(Path.Combine(fixture.Root,"ledger"),
+                "pending-*.fixture").Length==1,"M3_MISSING_PENDING_EVIDENCE");
+            PendingFlushBlocked=true;
+            fixture.Preserved();
+            return null;
+        }
+
+        var result=M3TimeoutReconciler.InspectAfterExit(fixture.Root,tx,child);
+        if(point=="pre-append")
+        {
+            Require(result==M3AfterTimeout.RecoveredPrevious,"M3_EARLY_ROLLBACK_FAILED");
+            PreWriteRecovered=true;
+        }
+        else
+        {
+            Require(result==M3AfterTimeout.LateConfirmedReviewRequired,
+                "M3_LATE_COMMIT_MISCLASSIFIED");
+            LatePromotionDetected=true;
+        }
+        fixture.Preserved();
+        return result;
+    }
+}
