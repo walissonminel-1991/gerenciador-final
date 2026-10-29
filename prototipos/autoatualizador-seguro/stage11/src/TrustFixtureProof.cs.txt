@@ -1,0 +1,46 @@
+using System.Diagnostics;
+using System.Reflection;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+// Only held children created by this harness, stopped at a completed synchronous fixture boundary.
+// Not authentication of GF IPC and not proof that arbitrary kernel/device I/O ended.
+internal sealed class TrustChild : IDisposable
+{
+    internal readonly Process Process;
+    internal readonly string Root;
+    internal string? Point, Digest;
+    internal long Sequence;
+    private TrustChild(Process process, string root) { Process = process; Root = root; }
+    internal static TrustChild Start(string root, string fixtures, string scenario, string point) {
+        var info = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = Path.GetTempPath() };
+        info.ArgumentList.Add(Assembly.GetExecutingAssembly().Location);
+        foreach (string a in new[] { "--trust-child", root, fixtures, scenario, point }) info.ArgumentList.Add(a);
+        return new(Process.Start(info) ?? throw new Rejected("U11_CHILD_START"), root);
+    }
+    internal async Task StopAt(string point) {
+        string? line = await Process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
+        if (line is null || !line.StartsWith("CUT:" + point + ":", StringComparison.Ordinal)) {
+            string error = Process.HasExited ? await Process.StandardError.ReadToEndAsync() : "";
+            throw new Rejected("U11_BOUNDARY_NOT_OBSERVED:" + line + ":" + error);
+        }
+        var fields = line.Split(':'); Require(fields.Length == 4 && Hex(fields[3], 64), "U11_CUT_FORMAT");
+        Require(long.TryParse(fields[2], out long n), "U11_CUT_FORMAT");
+        Point = point; Sequence = n; Digest = fields[3]; Process.Kill(entireProcessTree: true);
+        await Process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+    }
+    public void Dispose() { if (!Process.HasExited) { Process.Kill(entireProcessTree: true); Process.WaitForExit(); } Process.Dispose(); }
+}
+internal sealed class TrustExitProof
+{
+    private readonly TrustChild child;
+    private TrustExitProof(TrustChild child) { this.child = child; }
+    internal static TrustExitProof Observe(TrustChild child) {
+        Require(child.Process.HasExited && child.Point is not null && child.Digest is not null, "U11_CHILD_NOT_ENDED"); return new(child);
+    }
+    internal void Verify(string root, long sequence, string digest) {
+        Require(child.Process.HasExited && child.Root == root && child.Sequence == sequence && child.Digest == digest, "U11_EXIT_SCOPE");
+        Require(child.Point is not null && (child.Point.StartsWith("flushed-metadata-", StringComparison.Ordinal)
+            || child.Point.StartsWith("promoted-metadata-", StringComparison.Ordinal) || child.Point.StartsWith("committed-metadata-", StringComparison.Ordinal)), "U11_UNQUALIFIED_BOUNDARY");
+    }
+}

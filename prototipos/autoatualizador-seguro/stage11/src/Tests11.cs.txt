@@ -1,0 +1,213 @@
+using System.Runtime.Versioning;
+using System.Text.Json;
+using Tuf;
+using static GfUpdaterFixture.StrictMetadata;
+[assembly: SupportedOSPlatform("windows")]
+namespace GfUpdaterFixture;
+
+internal static class FixtureInputs
+{
+    internal static Stage8Repository Repository(string fixtures, string scenario, DateTimeOffset utc)
+        => new(Directory.GetFiles(Path.Combine(fixtures, scenario)).ToDictionary(p => Path.GetFileName(p), File.ReadAllBytes, StringComparer.Ordinal), utc);
+}
+internal sealed class ExternalRepository(Dictionary<string, byte[]> files) : ITufRepository
+{
+    public Task<byte[]?> FetchMetadataAsync(string role, int? version = null, CancellationToken cancellationToken = default) {
+        cancellationToken.ThrowIfCancellationRequested(); string name = version is int v ? v + "." + role + ".json" : role + ".json";
+        return Task.FromResult(files.TryGetValue(name, out var b) ? b.ToArray() : null);
+    }
+    public Task<byte[]?> FetchTargetAsync(string path, CancellationToken cancellationToken = default) {
+        cancellationToken.ThrowIfCancellationRequested(); Require(path == "file1.txt", "U11_EXTERNAL_TEXT_ONLY");
+        return Task.FromResult(files.TryGetValue(path, out var b) ? b.ToArray() : null);
+    }
+}
+internal static class Tests11
+{
+    private static readonly List<object> Results = [];
+    private static readonly List<object> Interop = [];
+    private static readonly List<object> Observations = [];
+    private static HashSet<string>? only;
+    private static int failed;
+    private static string fixtures = "";
+    private static byte[] anchor = [];
+    private static async Task Case(string id, Func<Task> run) {
+        if (only is not null && !only.Contains(id)) return;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        try { await run(); Results.Add(new { id, status = "passed", milliseconds = clock.ElapsedMilliseconds }); Console.WriteLine("PASS " + id); }
+        catch (Exception e) { failed++; Results.Add(new { id, status = "failed", error = e.GetType().Name + ":" + e.Message, milliseconds = clock.ElapsedMilliseconds }); Console.WriteLine("FAIL " + id + " " + e); }
+    }
+    private static Task Sync(Action run) { run(); return Task.CompletedTask; }
+    private static void Reject(Action run, string prefix = "") {
+        try { run(); } catch (Rejected e) when (e.Message.StartsWith(prefix, StringComparison.Ordinal)) { return; }
+        throw new Exception("Expected rejection " + prefix);
+    }
+    private static async Task RejectAsync(Func<Task> run) {
+        try { await run(); } catch (Exception e) when (e is Rejected or TufException) { return; }
+        throw new Exception("Expected TUF rejection");
+    }
+    private static string Installation(IntegratedFixture f) => new PersistentState(f.Root).Load().Record.InstallationId;
+    private static DurableEpochCache Create(IntegratedFixture f) => new(f.Root, Installation(f), anchor, create: true);
+    private static DurableEpochCache Open(IntegratedFixture f, TrustExitProof? proof = null) => new(f.Root, Installation(f), anchor, recovery: proof);
+    private static async Task<TufTargetResult> Get(DurableEpochCache cache, string scenario) {
+        var utc = DateTimeOffset.UtcNow; return await DurableTufAttempt.Get(cache, FixtureInputs.Repository(fixtures, scenario, utc), utc);
+    }
+    private static object Versions(TrustView v) => new { v.Sequence, v.Digest, v.Epoch, v.Root, v.Timestamp, v.Snapshot, v.Targets, v.ActiveAttempt };
+    private static void Floors(TrustView v, int root, int timestamp, int snapshot, int targets, int epoch = 0) {
+        Require((v.Root, v.Timestamp, v.Snapshot, v.Targets, v.Epoch) == (root, timestamp, snapshot, targets, epoch), "U11_FLOORS");
+    }
+    internal static async Task<int> Main(string[] args) {
+        if (args.Length == 5 && args[0] == "--trust-child") {
+            fixtures = args[2]; anchor = File.ReadAllBytes(Path.Combine(fixtures, "anchor.json")); string root = args[1], point = args[4];
+            string id = new PersistentState(root).Load().Record.InstallationId;
+            using var cache = new DurableEpochCache(root, id, anchor);
+            cache.Cut = (p, sequence, digest) => { if (p == point) { Console.WriteLine($"CUT:{p}:{sequence}:{digest}"); Console.Out.Flush(); Thread.Sleep(Timeout.Infinite); } };
+            await Get(cache, args[3]); return 0;
+        }
+        Require(args.Length is 2 or 3 && OperatingSystem.IsWindows(), "U11_WINDOWS_ARGUMENTS"); fixtures = args[0]; anchor = File.ReadAllBytes(Path.Combine(fixtures, "anchor.json"));
+        if (args.Length == 3 && args[2].Length > 0) only = args[2].Split(',').ToHashSet(StringComparer.Ordinal);
+        await Case("U11-PERSIST-CHAIN", async () => {
+            var f = new IntegratedFixture(); TrustView first;
+            using (var cache = Create(f)) { await Get(cache, "release2"); first = cache.View(); Floors(first, 2, 2, 2, 2); }
+            using (var cache = Open(f)) { Require(cache.View().Digest == first.Digest, "U11_REOPEN_CHANGED"); await Get(cache, "release3"); Floors(cache.View(), 3, 3, 3, 3); Observations.Add(new { kind = "per_role_persisted", state = Versions(cache.View()) }); }
+            Require(new PersistentState(f.Root).Load().Record.Confirmed.Sequence == 1, "U11_TRUST_CONFIRMED_RELEASE");
+        });
+        await Case("U11-PERSIST-ON-METADATA-FAILURE", async () => {
+            var f = new IntegratedFixture();
+            using (var cache = Create(f)) { await RejectAsync(async () => await Get(cache, "missing-snapshot")); Floors(cache.View(), 2, 2, 0, 0); }
+            using (var cache = Open(f)) { await RejectAsync(async () => await Get(cache, "old1")); Floors(cache.View(), 2, 2, 0, 0); }
+        });
+        await Case("U11-RESTORED-CACHE-HINTS", async () => {
+            var f = new IntegratedFixture(); string hints;
+            using (var cache = Create(f)) { await Get(cache, "release2"); cache.WriteHints(); hints = cache.Hints; await Get(cache, "release3"); }
+            File.WriteAllBytes(Path.Combine(hints, "timestamp.json"), File.ReadAllBytes(Path.Combine(fixtures, "release2/timestamp.json")));
+            File.WriteAllBytes(Path.Combine(hints, "root.json"), anchor);
+            using var reopened = Open(f); Floors(reopened.View(), 3, 3, 3, 3); reopened.WriteHints();
+            Require(File.ReadAllBytes(Path.Combine(hints, "root.json")).SequenceEqual(reopened.LoadMetadata("root")!), "U11_STALE_HINT_USED");
+        });
+        foreach (string mutation in new[] { "missing", "stale", "corrupt" }) {
+            string m = mutation;
+            await Case("U11-RECORD-" + m.ToUpperInvariant(), async () => {
+                var f = new IntegratedFixture(); string records;
+                using (var cache = Create(f)) { await Get(cache, "release2"); records = cache.Records; }
+                string[] files = Directory.GetFiles(records).Order(StringComparer.Ordinal).ToArray();
+                if (m == "missing") File.Delete(files[^1]);
+                else if (m == "stale") File.WriteAllBytes(files[^1], File.ReadAllBytes(files[0]));
+                else File.WriteAllText(files[^1], "{\"partial\":");
+                Reject(() => { using var cache = Open(f); });
+            });
+        }
+        await Case("U11-CONCURRENCY", async () => {
+            var f = new IntegratedFixture(); using var cache = Create(f);
+            Reject(() => { using var second = Open(f); }, "INSTALLATION_BUSY_OR_LOCK_MISSING");
+            var utc = DateTimeOffset.UtcNow; int admitted = 0, blocked = 0;
+            await Task.WhenAll(Enumerable.Range(0, 2).Select(_ => Task.Run(() => {
+                try { cache.Begin(utc); Interlocked.Increment(ref admitted); }
+                catch (Rejected e) when (e.Message == "U11_INTERRUPTED_ATTEMPT") { Interlocked.Increment(ref blocked); }
+            })));
+            Require(admitted == 1 && blocked == 1, "U11_CONCURRENT_ADMISSION"); cache.Finish();
+        });
+        await Case("U11-OLD-VALID-METADATA", async () => {
+            var f = new IntegratedFixture(); using var cache = Create(f); await Get(cache, "release3");
+            await RejectAsync(async () => await Get(cache, "old1")); Floors(cache.View(), 3, 3, 3, 3);
+        });
+        await Case("U11-UNCHANGED-TIMESTAMP", async () => {
+            var f = new IntegratedFixture(); using var cache = Create(f); await Get(cache, "release2"); var before = cache.View();
+            var utc = DateTimeOffset.UtcNow; var repo = FixtureInputs.Repository(fixtures, "same-timestamp-changed", utc);
+            var result = await DurableTufAttempt.Get(cache, repo, utc);
+            Require(result.Metadata.Status == TufRefreshStatus.Unchanged && repo.Count("snapshot") == 0 && repo.Count("targets") == 0 && repo.Count("target") == 0, "U11_UNCHANGED_CONTINUED");
+            Require(cache.LoadMetadata("timestamp")!.SequenceEqual(before.Metadata["timestamp"]), "U11_EQUAL_VERSION_REPLACED");
+            try { _ = result.Content; throw new Exception("Unchanged had target"); } catch (InvalidOperationException) { }
+        });
+        await Case("U11-UTC-FLOOR", () => Sync(() => {
+            var f = new IntegratedFixture(); using var cache = Create(f);
+            Reject(() => cache.Begin(cache.View().LastUtc.AddSeconds(-1)), "U11_UTC_ROLLBACK");
+            Reject(() => cache.Begin(DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(1))), "U11_UTC_ROLLBACK");
+        }));
+        await Case("U11-FAIL-AUTH-BEFORE-PERSIST", async () => {
+            var f = new IntegratedFixture();
+            using (var cache = Create(f)) {
+                cache.Cut = (point, _, _) => { if (point == "authenticated-metadata-timestamp") throw new IOException("directed-before-persist"); };
+                try { await Get(cache, "release2"); throw new Exception("No injection"); } catch (IOException) { }
+                Floors(cache.View(), 2, 0, 0, 0);
+            }
+            using var reopened = Open(f); Require(reopened.View().ActiveAttempt != "", "U11_UNRECORDED_ADVANCE_UNFENCED");
+            Reject(() => reopened.Begin(DateTimeOffset.UtcNow), "U11_INTERRUPTED_ATTEMPT");
+        });
+        await Case("U11-FAIL-PARTIAL-RECORD", async () => {
+            var f = new IntegratedFixture();
+            using (var cache = Create(f)) {
+                cache.Cut = (point, _, _) => { if (point == "created-metadata-timestamp") throw new IOException("directed-partial-record"); };
+                try { await Get(cache, "release2"); throw new Exception("No injection"); } catch (IOException) { }
+                Floors(cache.View(), 2, 0, 0, 0);
+            }
+            Reject(() => { using var reopened = Open(f); }, "U11_PENDING_RECORD");
+        });
+        await Case("U11-ROLE-ASSIGNMENT-REFUSAL", async () => {
+            var f = new IntegratedFixture(); using var cache = Create(f); await RejectAsync(async () => await Get(cache, "role-reuse")); Floors(cache.View(), 1, 0, 0, 0);
+        });
+        // New cross-implementation cases: own native vectors plus independently curated upstream bytes.
+        var expected = new Dictionary<string, bool> { ["release2"] = true, ["root-insufficient"] = false, ["root-old-only"] = false, ["root-unauthorized"] = false,
+            ["expired-final-root"] = false, ["expired-intermediate"] = true, ["root-gap"] = false, ["bad-reference"] = false, ["expired-timestamp"] = false,
+            ["rotate-timestamp"] = true, ["rotate-snapshot"] = true, ["rotate-targets-high"] = true, ["rotate-targets-low"] = false, ["revoked-timestamp"] = false };
+        foreach (var item in expected) {
+            string name = item.Key; bool success = item.Value;
+            await Case("U11-INTEROP-" + name.ToUpperInvariant(), async () => {
+                var f = new IntegratedFixture(); using var cache = Create(f);
+                if (name.StartsWith("rotate-", StringComparison.Ordinal) || name == "revoked-timestamp") await Get(cache, "high");
+                string outcome = "accepted", error = "";
+                try { await Get(cache, name); } catch (Exception e) when (e is Rejected or TufException) { outcome = "rejected"; error = e.GetType().Name + ":" + e.Message; }
+                var v = cache.View(); Interop.Add(new { scenario = name, status = outcome, error, root = v.Root, timestamp = v.Timestamp, snapshot = v.Snapshot, targets = v.Targets, epoch = v.Epoch });
+                Require((outcome == "accepted") == success, "U11_INTEROP_BEHAVIOR:" + name + ":" + error);
+                if (name is "rotate-timestamp" or "rotate-snapshot") Floors(v, 2, 1, 1, 1, epoch: 1);
+                if (name == "rotate-targets-high") Floors(v, 2, 101, 101, 101);
+                if (name == "rotate-targets-low") Require(v.Epoch == 0 && v.Timestamp == 100, "U11_UNAUTHORIZED_RESET");
+            });
+        }
+        await Case("U11-EXTERNAL-CURATED-BYTES", async () => {
+            var files = Directory.GetFiles(Path.Combine(fixtures, "external")).ToDictionary(p => Path.GetFileName(p), File.ReadAllBytes, StringComparer.Ordinal);
+            using var client = new TufClient(new TufClientOptions { ValidationUtc = DateTimeOffset.UtcNow, TrustedRoot = files["root.json"], Cache = new InMemoryTufCache(),
+                Repository = new ExternalRepository(files), MetadataBaseUrl = new Uri("https://gf-u11-fixture.invalid/"), MaxRootRotations = 32, MaxDelegations = 1 });
+            var target = await client.GetTargetAsync("file1.txt"); Require(target.Content.Span.SequenceEqual(files["file1.txt"]), "U11_EXTERNAL_TARGET");
+            Interop.Add(new { scenario = "external", status = "accepted", scope = "raw pinned library; external root is not admissible as GF authority" });
+        });
+        foreach (string role in new[] { "root", "timestamp", "snapshot", "targets" }) foreach (string phase in new[] { "flushed", "promoted", "committed" }) {
+            string r = role, p = phase, point = phase + "-metadata-" + role;
+            await Case("U11-CRASH-" + p.ToUpperInvariant() + "-" + r.ToUpperInvariant(), async () => {
+                var f = new IntegratedFixture(); using (var initialized = Create(f)) { }
+                using var child = TrustChild.Start(f.Root, fixtures, "release2", point); await child.StopAt(point); var proof = TrustExitProof.Observe(child);
+                using var recovered = Open(f, proof); var v = recovered.View();
+                Require(v.Root == 2 && (r == "root" || v.Timestamp == 2) && (r is "root" or "timestamp" || v.Snapshot == 2)
+                    && (r != "targets" || v.Targets == 2), "U11_DURABLE_ADVANCE_LOST");
+                recovered.SettleObservedFixture(proof); Require(recovered.View().ActiveAttempt == "", "U11_RECOVERY_NOT_SETTLED");
+                if (r == "root") { await Get(recovered, "release2"); Floors(recovered.View(), 2, 2, 2, 2); }
+                else { await RejectAsync(async () => await Get(recovered, "old1")); Require(recovered.View().Timestamp == 2, "U11_RECOVERY_TIMESTAMP_ROLLBACK"); }
+                Observations.Add(new { kind = "supervised_process_interruption", point, recovered = Versions(v), power_loss = false });
+            });
+        }
+        await Case("U11-UNKNOWN-CRASH-STAYS-BLOCKED", async () => {
+            var f = new IntegratedFixture(); using (var initialized = Create(f)) { }
+            const string point = "authenticated-metadata-timestamp";
+            using var child = TrustChild.Start(f.Root, fixtures, "release2", point); await child.StopAt(point); var proof = TrustExitProof.Observe(child);
+            using var recovered = Open(f); Floors(recovered.View(), 2, 0, 0, 0);
+            Reject(() => recovered.SettleObservedFixture(proof)); Reject(() => recovered.Begin(DateTimeOffset.UtcNow), "U11_INTERRUPTED_ATTEMPT");
+        });
+        foreach (string cut in new[] { "", "before-intent", "intent-persisted", "selector-replaced" }) {
+            string at = cut;
+            await Case("U11-INTEGRATION-" + (cut == "" ? "CONFIRM" : cut.ToUpperInvariant()), async () => {
+                var f = new IntegratedFixture(); TrustView established;
+                using (var pipeline = new TrustIntegratedPipeline(f.Root, anchor, create: true)) {
+                    var state = await pipeline.Start(fixtures, "release2", at).WaitResult(); established = pipeline.Trust; Floors(established, 2, 2, 2, 2);
+                    Require(state.Confirmed.Sequence == (at == "" ? 2 : 1), "U11_INSTALL_CONFIRMATION");
+                    Require(state.Trust.Metadata.Count == 0, "U11_LEGACY_AUTHORITY_AMBIGUOUS");
+                }
+                using var reopened = Open(f); Require(reopened.View().Digest == established.Digest, "U11_INSTALLATION_LOWERED_TUF");
+                await RejectAsync(async () => await Get(reopened, "old1")); Require(reopened.View().Timestamp == 2, "U11_FAILED_INSTALL_REPLAY"); f.Preserved();
+                Observations.Add(new { kind = "independent_metadata_and_installation", fail_at = at, metadata = Versions(established), confirmed = new PersistentState(f.Root).Load().Record.Confirmed.Sequence });
+            });
+        }
+        var report = new { schema = "gf-stage11-windows/1", contract = "gf-self-update/1", runtime = Environment.Version.ToString(), total = Results.Count,
+            passed = Results.Count - failed, failed, results = Results, interop = Interop, observations = Observations,
+            GF_built_or_executed = false, operational_gate_closed = false, power_loss_tested = false, production_authority = false };
+        File.WriteAllText(args[1], JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true })); return failed == 0 ? 0 : 1;
+    }
+}

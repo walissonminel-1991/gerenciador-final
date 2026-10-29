@@ -1,0 +1,10 @@
+{
+  "source_repository": "theupdateframework/python-tuf",
+  "commit": "49eb1da48c58cf0cbb0f2e490f7ad39fbd8c1f15",
+  "version": "7.0.1",
+  "files": {
+    "tuf/ngclient/_internal/trusted_metadata_set.py": "97ecbb5d42bf7228b56d1a65ebdebe26569470dc165e7a4386db689afbe44417",
+    "tuf/ngclient/updater.py": "fa32bc4a416cf54b996b0b431df5081b68cb00f8b7c5e3e0b196f39dbe40d9f3",
+    "tuf/ngclient/fetcher.py": "f4dadf82bad133c6f57b390976fceb38ee05edffa596deb777818d33c765b286"
+  }
+}

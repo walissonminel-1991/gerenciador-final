@@ -1,0 +1,45 @@
+name: Autoatualizador Etapa 11 — confiança TUF persistente
+on:
+  push:
+    branches: [work-autoatualizador-etapa11-validacao-20261029]
+    paths:
+      - prototipos/autoatualizador-seguro/stage11/**
+      - .github/workflows/autoatualizador-etapa11-isolado.yml
+permissions:
+  contents: read
+concurrency:
+  group: gf-updater-stage11-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  directed-trust:
+    name: Persistência, épocas, recuperação e interoperabilidade
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: 10.0.402
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Oráculo independente de teste, sem alterar dependências do produto
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check tuf==7.0.1 securesystemslib==1.3.1 cryptography==50.0.2 urllib3==2.8.0
+      - name: Somente deltas novos; GF e suites anteriores não executados
+        shell: pwsh
+        run: |
+          python prototipos/autoatualizador-seguro/stage11/run_tests.py --report "$env:RUNNER_TEMP/gf-u11.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r = Get-Content "$env:RUNNER_TEMP/gf-u11.json" -Raw | ConvertFrom-Json
+          "Etapa 11: $($r.windows.passed)/$($r.windows.total). Interoperabilidade: $($r.interoperability_comparison.passed) concordâncias, $($r.interoperability_comparison.blocked) divergências bloqueadas. G2 operacional continua bloqueado." >> $env:GITHUB_STEP_SUMMARY
+# No upload, production secrets/keys, GF build/launch, release, private delivery, deploy or retry.
