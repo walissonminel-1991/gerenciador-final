@@ -90,7 +90,13 @@ internal static class M1Tests
         var f=PeerIdentity.Facts(self);
         if(f.Elevated)
         {
-            Block("M1-NON-ELEVATED-POSITIVE", "Runner elevated; no operational IPC admission or fabricated token downgrade");
+            Block("M1-NON-ELEVATED-POSITIVE", "Runner elevated; operational admission remains refused, without artificial token changes");
+            // Under inherited elevation we test OS pipe/identity/frame MECHANICS only.
+            // Never call G5Admission.Accept or classify these as positive G5 admission.
+            await Case("M1-ELEVATED-FIXTURE-PIPE",()=>InheritedContextMechanics("normal",null));
+            await Case("M1-ELEVATED-FIXTURE-BAD-NONCE",()=>InheritedContextMechanics("bad-nonce","IPC_BINDING"));
+            await Case("M1-ELEVATED-FIXTURE-BAD-TX",()=>InheritedContextMechanics("bad-tx","IPC_BINDING"));
+            Block("M1-FOREIGN-CONTEXT", "No independently established user/session token or cross-session handshake in this environment");
             return;
         }
         await Case("M1-REAL-READY",()=>Roundtrip("normal",x=>x,null));
@@ -103,6 +109,46 @@ internal static class M1Tests
         await Case("M1-EXECUTABLE-DIGEST-MISMATCH",()=>Roundtrip("normal",x=>x with { ExecutableSha256=new string('0',64) },"M1_INSTALLATION_ID"));
         await Case("M1-MONOTONIC-EXPIRY",()=>Roundtrip("normal",x=>x,"M1_DEADLINE",false,true));
         Block("M1-FOREIGN-CONTEXT", "A real distinct Windows user/session is not available in this isolated runner; altered expected facts are negative models only");
+    }
+
+    // Inherited-elevation *mechanism* test: intentionally does not instantiate
+    // G5Admission (which fails closed for elevation). Nothing here approves G5.
+    [SupportedOSPlatform("windows")]
+    private static async Task InheritedContextMechanics(string mode,string? rejection)
+    {
+        string exe=Environment.ProcessPath ?? throw new InvalidDataException("M1_NO_APPHOST");
+        PipeFrames.Check(!Path.GetFileNameWithoutExtension(exe).Equals("dotnet",
+            StringComparison.OrdinalIgnoreCase),"M1_NO_OWN_APPHOST");
+        string pipeName="gf-m1-"+Guid.NewGuid().ToString("N");
+        string tx=Guid.NewGuid().ToString("N");
+        string nonce=Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+        using var server=new NamedPipeServerStream(pipeName,PipeDirection.InOut,1,
+            PipeTransmissionMode.Byte,PipeOptions.Asynchronous|
+            PipeOptions.CurrentUserOnly|PipeOptions.FirstPipeInstance);
+        var info=new ProcessStartInfo(exe){UseShellExecute=false};
+        foreach(var arg in new[]{"--m1-probe",pipeName,Environment.ProcessId.ToString(),exe,mode})
+            info.ArgumentList.Add(arg);
+        using var child=Process.Start(info) ?? throw new InvalidDataException("M1_CHILD_START");
+        using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        try
+        {
+            await server.WaitForConnectionAsync(budget.Token);
+            PipeFrames.Check(PeerIdentity.PipePid(server,true)==child.Id,"M1_KERNEL_PID");
+            PeerIdentity.Verify(server,true,child,exe);
+            await PipeFrames.Send(server,new ProbeFrame(1,"challenge",tx,nonce,"fixture-local"),budget.Token);
+            var response=await PipeFrames.Read(server,budget.Token);
+            if(rejection is null) PipeFrames.Bound(response,"ready",tx,nonce);
+            else Refuse(()=>PipeFrames.Bound(response,"ready",tx,nonce),rejection);
+            await PipeFrames.Send(server,new ProbeFrame(1,"close",tx,nonce,"fixture-local"),budget.Token);
+            var bye=await PipeFrames.Read(server,budget.Token);
+            PipeFrames.Bound(bye,"bye",tx,nonce);
+            await child.WaitForExitAsync(budget.Token);
+            PipeFrames.Check(child.ExitCode==0,"M1_PROBE_EXIT");
+        }
+        finally
+        {
+            if(!child.HasExited){child.Kill(true);await child.WaitForExitAsync();}
+        }
     }
 
     [SupportedOSPlatform("windows")]
