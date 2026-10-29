@@ -22,6 +22,15 @@ internal static class PendingInspection
     {
         FixtureSandbox.RequireRoot(root);
         using var lease=InstallationLease.Acquire(root);
+        return InspectUnderLease(root,lease);
+    }
+
+    // The caller owns an exclusive Stage2 lease for the entire inspection and
+    // evidence capture. This is only a read-only diagnostic, never authorization.
+    internal static PendingAssessment InspectUnderLease(string root,InstallationLease lease)
+    {
+        FixtureSandbox.RequireRoot(root);
+        ArgumentNullException.ThrowIfNull(lease);
         string ledger=Path.Combine(root,"ledger");
         var files=Directory.GetFiles(ledger);
         var directories=Directory.GetDirectories(ledger);
