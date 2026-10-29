@@ -1,0 +1,232 @@
+// Isolated M3 test suite: actual local named pipes, tokenless asynchronous reads,
+// and Stage2 selected/confirmed/rolled_back fixture journal, never a GF update.
+using System.IO.Pipes;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal static class M3Tests
+{
+    private static readonly List<object> results=[];
+    private static int failed;
+    private static bool lateIoObserved,lateCommitBlocked,rollbackPreserved;
+    private static string suite="";
+
+    private sealed class PipePair : IDisposable
+    {
+        internal readonly NamedPipeServerStream Server;
+        internal readonly NamedPipeClientStream Client;
+        private PipePair(string name)
+        {
+            Server=new(name,PipeDirection.InOut,1,PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly|PipeOptions.FirstPipeInstance);
+            Client=new(".",name,PipeDirection.InOut,
+                PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly);
+        }
+        internal static async Task<PipePair> Connect()
+        {
+            var pair=new PipePair("gf-m3-"+Guid.NewGuid().ToString("N"));
+            try
+            {
+                using var cts=new CancellationTokenSource(TimeSpan.FromSeconds(7));
+                Task pending=pair.Server.WaitForConnectionAsync(cts.Token);
+                await pair.Client.ConnectAsync(cts.Token);
+                await pending;
+                return pair;
+            }
+            catch{pair.Dispose();throw;}
+        }
+        public void Dispose(){Client.Dispose();Server.Dispose();}
+    }
+
+    private static async Task Test(string name,Func<Task> test)
+    {
+        try{await test();results.Add(new{id=name,status="passed"});Console.WriteLine("PASS "+name);}
+        catch(Exception ex)
+        {failed++;results.Add(new{id=name,status="failed",error=ex.ToString()});Console.WriteLine("FAIL "+name+" "+ex);}
+    }
+    private static void ExpectCanceled(Action operation)
+    {
+        try{operation();}
+        catch(OperationCanceledException){return;}
+        throw new InvalidDataException("M3_LATE_COMMIT_ACCEPTED");
+    }
+    private static async Task ExpectCanceled(Func<Task> operation)
+    {
+        try{await operation();}
+        catch(OperationCanceledException){return;}
+        throw new InvalidDataException("M3_LATE_READ_ACCEPTED");
+    }
+    private static void RefuseRejected(Action operation,string code)
+    {
+        try{operation();}
+        catch(Rejected e) when(e.Code==code){return;}
+        throw new InvalidDataException("M3_UNEXPECTED_JOURNAL_ACCEPTANCE:"+code);
+    }
+    private static void RefuseFrame(Action operation,string code)
+    {
+        try{operation();}
+        catch(InvalidDataException e) when(e.Message==code){return;}
+        throw new InvalidDataException("M3_UNEXPECTED_FRAME_ACCEPTANCE:"+code);
+    }
+    private static ProbeFrame Ready(FixtureTransaction tx) => new(1,"ready",tx.Id,
+        Hash(Encoding.UTF8.GetBytes(tx.Nonce+tx.Candidate.Sha256)),"fixture-local");
+
+    private static void Recover(StateCase fixture,FixtureSession session)
+    {
+        var state=session.Store.Load().Record;
+        Require(state.Transaction?.Phase=="selected" && state.Confirmed==fixture.Old,
+            "M3_EARLY_OR_UNEXPECTED_CONFIRM");
+        var recovered=session.Recover();
+        Require(recovered.Confirmed==fixture.Old && recovered.Transaction?.Phase=="rolled_back"
+            && recovered.Trust.ApprovedSequence==fixture.Candidate.Sequence,
+            "M3_MISSING_RECOVERY");
+        Require(session.SelectionForFixtureInspectionOnly()==fixture.Old,
+            "M3_WRONG_SELECTOR");
+        fixture.Preserved();
+        rollbackPreserved=true;
+    }
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=2 || args[0]!="--report")return 2;
+        if(!OperatingSystem.IsWindows())return 3;
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-m3-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Test("M3-REAL-PIPE-LATE-RESULT-NO-COMMIT",async()=>{
+                using var fixture=new StateCase(suite);
+                var tx=fixture.Begin().Transaction!;
+                using var session=new FixtureSession(fixture.Root);
+                using var pair=await PipePair.Connect();
+                using var budget=StageDeadline.ShortFixture(TimeSpan.FromMilliseconds(180));
+                var gate=new M3CommitGate(budget,tx);
+                Task<ProbeFrame> raw=PipeFrames.Read(pair.Server,CancellationToken.None);
+                await ExpectCanceled(async()=>{_=await budget.ObserveRead(raw);});
+                Require(!raw.IsCompleted,"M3_IO_NOT_PENDING");
+                await PipeFrames.Send(pair.Client,Ready(tx),CancellationToken.None);
+                var delivered=await raw.WaitAsync(TimeSpan.FromSeconds(5));
+                lateIoObserved=true;
+                ExpectCanceled(()=>{_=gate.Confirm(delivered,session);});
+                RefuseRejected(()=>{_=gate.Confirm(delivered,session);},"M3_ATTEMPT_CONSUMED");
+                Recover(fixture,session);
+                lateCommitBlocked=true;
+            });
+
+            await Test("M3-REAL-PIPE-TIMELY-READY-CONFIRMS",async()=>{
+                using var fixture=new StateCase(suite);
+                var tx=fixture.Begin().Transaction!;
+                using var session=new FixtureSession(fixture.Root);
+                using var pair=await PipePair.Connect();
+                using var budget=StageDeadline.ShortFixture(TimeSpan.FromSeconds(7));
+                var gate=new M3CommitGate(budget,tx);
+                Task<ProbeFrame> read=PipeFrames.Read(pair.Server,budget.Token);
+                await PipeFrames.Send(pair.Client,Ready(tx),budget.Token);
+                var response=await budget.ObserveRead(read);
+                var result=gate.Confirm(response,session);
+                Require(result.Confirmed==fixture.Candidate && result.Transaction?.Phase=="confirmed",
+                    "M3_VALID_READY_NOT_CONFIRMED");
+                RefuseRejected(()=>{_=gate.Confirm(response,session);},"M3_ATTEMPT_CONSUMED");
+                fixture.Preserved();
+            });
+
+            await Test("M3-REAL-PIPE-USER-CANCEL-NO-LATE-COMMIT",async()=>{
+                using var fixture=new StateCase(suite);
+                var tx=fixture.Begin().Transaction!;
+                using var session=new FixtureSession(fixture.Root);
+                using var pair=await PipePair.Connect();
+                using var user=new CancellationTokenSource();
+                using var budget=StageDeadline.ShortFixture(TimeSpan.FromSeconds(7),user.Token);
+                var gate=new M3CommitGate(budget,tx);
+                Task<ProbeFrame> raw=PipeFrames.Read(pair.Server,CancellationToken.None);
+                user.Cancel();
+                await ExpectCanceled(async()=>{_=await budget.ObserveRead(raw);});
+                Require(!raw.IsCompleted,"M3_RAW_CANCEL_UNEXPECTED");
+                await PipeFrames.Send(pair.Client,Ready(tx),CancellationToken.None);
+                var message=await raw.WaitAsync(TimeSpan.FromSeconds(5));
+                ExpectCanceled(()=>{_=gate.Confirm(message,session);});
+                Recover(fixture,session);
+            });
+
+            await Test("M3-ON-TIME-READ-LATE-VALIDATION-NO-COMMIT",async()=>{
+                using var fixture=new StateCase(suite);
+                var tx=fixture.Begin().Transaction!;
+                using var session=new FixtureSession(fixture.Root);
+                using var pair=await PipePair.Connect();
+                using var budget=StageDeadline.ShortFixture(TimeSpan.FromMilliseconds(260));
+                var gate=new M3CommitGate(budget,tx);
+                Task<ProbeFrame> raw=PipeFrames.Read(pair.Server,budget.Token);
+                await PipeFrames.Send(pair.Client,Ready(tx),budget.Token);
+                var received=await budget.ObserveRead(raw);
+                await Task.Delay(400);
+                ExpectCanceled(()=>{_=gate.Confirm(received,session);});
+                Recover(fixture,session);
+            });
+
+            await Test("M3-INVALID-NONCE-CANNOT-COMMIT",async()=>{
+                using var fixture=new StateCase(suite);
+                var tx=fixture.Begin().Transaction!;
+                using var session=new FixtureSession(fixture.Root);
+                using var pair=await PipePair.Connect();
+                using var budget=StageDeadline.ShortFixture(TimeSpan.FromSeconds(7));
+                var gate=new M3CommitGate(budget,tx);
+                var bad=Ready(tx) with {Nonce=new string('0',64)};
+                var pending=PipeFrames.Read(pair.Server,budget.Token);
+                await PipeFrames.Send(pair.Client,bad,budget.Token);
+                var received=await budget.ObserveRead(pending);
+                RefuseFrame(()=>{_=gate.Confirm(received,session);},"IPC_BINDING");
+                RefuseRejected(()=>{_=gate.Confirm(Ready(tx),session);},"M3_ATTEMPT_CONSUMED");
+                Recover(fixture,session);
+            });
+
+            await Test("M3-MALFORMED-FRAME-RECOVERS-SELECTED",async()=>{
+                using var fixture=new StateCase(suite);
+                _=fixture.Begin();
+                using var session=new FixtureSession(fixture.Root);
+                using var pair=await PipePair.Connect();
+                using var budget=StageDeadline.ShortFixture(TimeSpan.FromSeconds(7));
+                Task<ProbeFrame> pending=PipeFrames.Read(pair.Server,budget.Token);
+                await pair.Client.WriteAsync(new byte[]{0,0,0,0},budget.Token);
+                await pair.Client.FlushAsync(budget.Token);
+                try{_=await budget.ObserveRead(pending);throw new InvalidDataException("M3_BAD_FRAME_ACCEPTED");}
+                catch(InvalidDataException e) when(e.Message=="IPC_FRAME_SIZE"){}
+                Recover(fixture,session);
+            });
+
+            await Test("M3-STALE-TRANSACTION-CANNOT-RECONFIRM",()=>{
+                using var fixture=new StateCase(suite);
+                var tx=fixture.Begin().Transaction!;
+                using var session=new FixtureSession(fixture.Root);
+                using var budget=StageDeadline.ShortFixture(TimeSpan.FromSeconds(7));
+                var gate=new M3CommitGate(budget,tx);
+                session.Recover();
+                RefuseRejected(()=>{_=gate.Confirm(Ready(tx),session);},"M3_STALE_JOURNAL");
+                Require(session.SelectionForFixtureInspectionOnly()==fixture.Old,
+                    "M3_STALE_REOPENED");
+                fixture.Preserved();
+                return Task.CompletedTask;
+            });
+        }
+        finally{Directory.Delete(suite,true);}
+        var report=new
+        {
+            schema=1,phase="M3",fixture_only=true,
+            passed=results.Count-failed,failed,tests=results,
+            real_named_pipe_late_io_observed=lateIoObserved,
+            late_completion_blocked_from_journal=lateCommitBlocked,
+            prior_selection_recovered=rollbackPreserved,
+            operational_gates_closed=0,product_built=false,product_executed=false,
+            authenticated_ipc_or_bundle_verified=false,physical_power_loss_tested=false,
+            synchronous_journal_write_preemptible=false,
+            independent_freshness_anchor_verified=false
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("M3_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}
