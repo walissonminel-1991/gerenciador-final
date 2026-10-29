@@ -1,5 +1,43 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+29/10/2026, America/Sao_Paulo. **Etapa 10 concluída no laboratório de pacote
+GF real. Oito gates operacionais bloqueados; zero fechado. Etapa 11 NÃO INICIADA.**
+PR #65 aberta/Draft; branch work-integracao-final-20261027.
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | GF_SELF_UPDATER_STAGE10_REAL_PACKAGE_LAB |
+| Entrada obrigatória | 4c1810a9d49bdb5fa1c6914354b32e5cb4602af9 |
+| Código validado | 7a06b6c217c96f112eb3062be86d750683a58a3d |
+| Pacote GF de laboratório | 287 arquivos / 153.051.445 bytes; ZIP 57.710.208 bytes; nenhuma distribuição |
+| Integridade / PE | 286 hashes de manifesto + receita externa; 273 PEs, AMD64/IL compatível; recursos/manifesto/runtime/licenças |
+| Runtime pacote / verificador | Core/Desktop 10.0.13; verificador 10.0.14; SDK 10.0.402 |
+| Windows final dirigido | Run 40853787836: 15/15; sem repetir quatro aprovados anteriores |
+| Evidência composta | 27 distintos: 8 Python da run 40852886229 + 4 Windows da run 40853270760 + 15 corrigidos; não full rerun final |
+| Falhas preservadas | Marcador CRLF; ACL Python OWNER_RIGHTS recusada; fixtures com chave excedente; sem enfraquecer verificadores/permissões |
+| Implementado | Inspeção estática GF, pins NTFS/ADS, extração aprovada, LabBinding pacote→estado e fronteira isolada de época TUF |
+| G2 | Fronteira assinada recusa chaves dos três papéis; persistência normativa/épocas/conformance/manutenção/revisão continuam pendentes |
+| G3/G4 | Bytes GF reais qualificados localmente, sem âncora/autoria TUF operacional; beta-unsigned preservado |
+| G6/G8 | Binding, pins e pendências provados; GF não iniciado, sem prontidão/encerramento/rollback/driver I/O reais |
+| Descarte / uploads | Três laboratórios apagados; zero EXE/DLL/ZIP ou artefato enviado |
+| Preservado | .66/canal privado/main/10 workflows anteriores/27 de 42/físico parcial/proteções/flags no |
+
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA10.md) ·
+[Windows/inventário](evidencias/autoatualizador-etapa10-windows.json) ·
+[Rodadas](evidencias/autoatualizador-etapa10-rodadas.json) ·
+[Revisão](evidencias/autoatualizador-etapa10-revisao.json) ·
+[Matriz](evidencias/autoatualizador-etapa10-gates.json) ·
+[Recibo](evidencias/autoatualizador-etapa10.json).
+
+Contrato gf-self-update/1 intacto. Recipe/ticket de laboratório não autorizam
+instalar; nenhuma fixture assinou GF real. API nova não aplica ou confirma
+pacote GF. Cancelar espera não prova término de driver; estado pendente continua
+bloqueante. Esta revisão não é aceite independente nem cerimônia de custódia.
+Próximo escopo mínimo proposto: G2 isolado, persistência/épocas/recuperação e
+interoperabilidade, mediante missão própria. **Parar; não iniciar Etapa 11.**
+
+## Registro da Etapa 9 — histórico preservado
+
 28/10/2026, America/Sao_Paulo. **Etapa 9 do autoatualizador concluída no
 protótipo integrado. Não é a Etapa 9 física. Oito gates operacionais bloqueados;
 zero fechado. Etapa 10 NÃO INICIADA.**
@@ -396,3 +434,4 @@ privado. Históricos da integração e da homologação parcial não são reaber
 Cadência de cinco dias condicionada à aprovação e qualidade; revisão de limpeza
 dois dias após publicação planejada, sem adiar expurgo obrigatório. Nenhuma
 automação ou mudança de retenção. **Encerrar após salvar e conferir a Etapa 0.**
+

@@ -9,7 +9,12 @@ para instalar. O diretório temporário e todos os binários são eliminados.
 
 `python prototipos/autoatualizador-seguro/stage10/run_lab.py --report <fora-do-repositorio>/recibo.json`
 
-Requer Windows/NTFS e SDK 10.0.402. Linux recebe `blocked`, nunca aprovação.
+Requer Windows/NTFS e SDK 10.0.402. O diretório de dados é criado pela API
+normal Directory.CreateDirectory, com ACL herdada; nenhuma ACL é editada.
+O controlador compara os descritores do diretório Python e do diretório .NET
+somente por leitura, para diagnosticar recusas da guarda NTFS.
+
+Linux recebe `blocked`, nunca aprovação.
 O workflow separado tem `contents: read`, ações fixadas por SHA, nenhuma etapa
 de upload, nenhum segredo e nenhum retry. Executa somente a nova qualificação
 e os deltas abaixo, sem suites anteriores. Saídas C# ficam fora dos globs GF.

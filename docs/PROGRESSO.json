@@ -1825,9 +1825,9 @@
       "source_evidence": "User-submitted screenshots and three local text/log artifacts in conversation; raw private data not committed"
     },
     "next_mission": {
-      "id": "GF_SELF_UPDATER_STAGE9_INTEGRATED_INERT_PIPELINE",
-      "status": "completed_integrated_fixture_pipeline_operational_gates_blocked",
-      "scope": "TUF_persistent_state_owned_IO_pending_journal_transaction_supervised_recovery",
+      "id": "GF_SELF_UPDATER_STAGE10_REAL_PACKAGE_LAB",
+      "status": "completed_technical_lab_scope_operational_gates_blocked",
+      "scope": "real_GF_package_static_integrity_PE_NTFS_state_binding_and_targeted_TUF_boundary",
       "no_repeated_physical_test_without_product_change": true,
       "stage0": {
         "date": "2026-10-28",
@@ -2294,6 +2294,31 @@
         "product_integration": false,
         "publication": false,
         "next_stage": 10,
+        "next_stage_started": false
+      },
+      "stage10": {
+        "date": "2026-10-29",
+        "timezone": "America/Sao_Paulo",
+        "status": "completed_technical_lab_scope_operational_gates_blocked",
+        "entry_head": "4c1810a9d49bdb5fa1c6914354b32e5cb4602af9",
+        "validated_lab_code": "7a06b6c217c96f112eb3062be86d750683a58a3d",
+        "distinct_passed": 27,
+        "distinct_total": 27,
+        "evidence_composition": "27 distinct cases: 8 Python R1 + 4 Windows R2 + 15 corrected Windows R3; NOT a full 27-case run on final code",
+        "operational_gates_closed": 0,
+        "operational_gates_blocked": 8,
+        "new_product_lab_builds": 3,
+        "product_functional_source_changed": false,
+        "product_launched": false,
+        "binary_uploads": 0,
+        "report": "docs/WORK-AUTOATUALIZADOR-ETAPA10.md",
+        "evidence": "docs/evidencias/autoatualizador-etapa10.json",
+        "gates": "docs/evidencias/autoatualizador-etapa10-gates.json",
+        "windows_run": 40853787836,
+        "private_channel_changed": false,
+        "physical_tests_repeated": 0,
+        "roadmap_advanced": false,
+        "next_stage": 11,
         "next_stage_started": false
       }
     }

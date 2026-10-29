@@ -1,0 +1,116 @@
+{
+  "schema": "gf-stage10-receipt/1",
+  "contract": "gf-self-update/1",
+  "mission": "GF_SELF_UPDATER_STAGE10_REAL_PACKAGE_LAB",
+  "date": "2026-10-29",
+  "timezone": "America/Sao_Paulo",
+  "status": "completed_technical_lab_scope_operational_gates_blocked",
+  "entry_head": "4c1810a9d49bdb5fa1c6914354b32e5cb4602af9",
+  "validated_lab_code": "7a06b6c217c96f112eb3062be86d750683a58a3d",
+  "closure_sha": "Recorded in PR #65 body and final response; documentary commit follows validated code.",
+  "pr": 65,
+  "branch": "work-integracao-final-20261027",
+  "draft": true,
+  "open": true,
+  "package": {
+    "sha256": "db823c42664da274b7df2ab030f325154436d03d59b42f144484529353916858",
+    "bytes": 57710208,
+    "file_count": 287,
+    "expanded_bytes": 153051445,
+    "local_recipe_only": true,
+    "tuf_authorized": false
+  },
+  "package_integrity": {
+    "files": 287,
+    "verified_hashes": 286,
+    "expanded_bytes": 153051445,
+    "version": "5.13.11.66",
+    "source": "4c1810a9d49bdb5fa1c6914354b32e5cb4602af9",
+    "build": "7a06b6c217c96f112eb3062be86d750683a58a3d",
+    "runtime": [
+      {
+        "name": "Microsoft.NETCore.App",
+        "version": "10.0.13"
+      },
+      {
+        "name": "Microsoft.WindowsDesktop.App",
+        "version": "10.0.13"
+      }
+    ],
+    "architecture": "AMD64"
+  },
+  "static_inspection": {
+    "pe_count": 273,
+    "amd64_count": 131,
+    "managed_anycpu_count": 142,
+    "certificate_table_count": 270,
+    "exe_authenticode": "800b0100",
+    "dll_authenticode": "800b0100",
+    "recipe_sha256": "12b70858dbff56e7bc79f3f2078d43c591fe3db2da11ce1bcecf3c62de17a6dd",
+    "manifest_sha256": "e00317b1fb9f934f1520b007dd0769e0c961bdc285d481c35202d2b8ea6a5dc2",
+    "authorship_authorized": false,
+    "installable": false,
+    "dependencies_signature_trust": "not-executed; certificate tables only, hashes covered by local recipe"
+  },
+  "runtime_of_verifier": "10.0.14",
+  "sdk": "10.0.402",
+  "package_runtimes": "10.0.13 / 10.0.13",
+  "distinct_passed": 27,
+  "distinct_total": 27,
+  "evidence_composition": "27 distinct cases: 8 Python R1 + 4 Windows R2 + 15 corrected Windows R3; NOT a full 27-case run on final code",
+  "operational_gates_closed": 0,
+  "operational_gates_blocked": 8,
+  "new_product_lab_builds": 3,
+  "product_functional_source_changed": false,
+  "product_launched": false,
+  "complete_inventory": "docs/evidencias/autoatualizador-etapa10-windows.json",
+  "runs": "docs/evidencias/autoatualizador-etapa10-rodadas.json",
+  "review": "docs/evidencias/autoatualizador-etapa10-revisao.json",
+  "gates": "docs/evidencias/autoatualizador-etapa10-gates.json",
+  "lab_data_deleted_all_runs": true,
+  "binary_uploads": 0,
+  "workflow_artifacts": 0,
+  "acl_edited": false,
+  "ntfs_guard_weakened": false,
+  "private_beta_preserved": {
+    "version": "5.13.11.66",
+    "functional_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "run": 40716548530,
+    "artifact": 12828262039,
+    "zip_sha256": "8e11f2dda5b7e2df2f85c61b57cc6a31a9596628523d2be7ad155dfdd5dda7f2",
+    "old_zip_accessed_or_converted": false,
+    "private_channel_accessed_or_changed": false
+  },
+  "preserved": {
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "task_ids_done_unchanged": true,
+    "physical_evaluation_partial": true,
+    "physical_tests_repeated": 0,
+    "remote_diagnostics_enabled": false,
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "consent_privacy": true,
+    "AVG_Windows_protections": true,
+    "drivers_install_remove_rollback_enabled": false,
+    "VLC": "inventory_only",
+    "WinGet_COM": "optional_consultative_nonblocking",
+    "production_keys_created": false,
+    "Worker_D1_DNS_changed": false,
+    "permissions_trust_store_private_infrastructure_changed": false,
+    "main_changed": false,
+    "existing_workflows_changed": false,
+    "merge_release_deploy_publication": false
+  },
+  "integration_blockers": [
+    "TUF normative persistence/epochs, independent review/maintenance and interoperable conformance",
+    "Approved editorial anchor/custody",
+    "Real GF lifecycle/IPC across contexts, instances/workers, readiness and rollback",
+    "Independent freshness and power/storage/unknown-I/O laboratory"
+  ],
+  "minimum_stage11": {
+    "work": "Implement isolated normative TUF root/per-role persistence and epoch-aware floors/reset/recovery with directed interruption/replay and interoperability vectors. Keep real GF recipe reuse without converting it to an operational target.",
+    "authorization": "New Stage11 mission; name independent reviewer and maintenance owner for eventual G2 acceptance. No production-key ceremony, product integration, private channel, deploy or .66 changes needed for this minimal scope.",
+    "started": false
+  }
+}
