@@ -7,8 +7,8 @@
   `ee73a850f6d7454ed9e81ce0f0dd35c5b8b88fcc`.
 - Branch exclusiva de ensaio: `experimento-g5-ipc-chat-alto-20261029`.
 - Baseline M1/M2 recebido: `b957d92ebeff5edf5429b6e7409af2fee067b2fb`.
-- SHA **M3 de código/CI**: `c71322015e6c44f25b5e0ee4bcf03e8b1258736e`.
-- CI isolada Windows 2022: [40886591578](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40886591578), **success**.
+- SHA **M3 de código/CI para a segunda frente**: `acca88c42fcbf3fbce8d58311ecdf0fc99e2b1c8`.
+- CI isolada Windows 2022 (segunda frente): [40891129725](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40891129725), **success**. Rodada anterior: [40886591578](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40886591578).
 - Nenhuma compilação ou execução do Gerenciador Final, publicação, release, merge, deploy, alteração do Worker/D1, flag, telemetria ou canal privado.
 
 ## Lacuna investigada
@@ -33,7 +33,7 @@ correspondente. Uma falha consome a tentativa e não libera retry automático.
 
 ## Evidência observada
 
-**7/7 testes aprovados; 0 falhas; 0 warnings; 0 errors** no Windows:
+**10/10 testes aprovados; 0 falhas; 0 warnings; 0 errors** no Windows, sendo sete já validados na primeira frente e três novos cenários de escrita síncrona:
 
 1. `M3-REAL-PIPE-LATE-RESULT-NO-COMMIT`: um `PipeFrames.Read` real
    sem cancellation token continua pendente após `ObserveRead` vencer;
@@ -59,6 +59,63 @@ Relatório da CI: `real_named_pipe_late_io_observed=true`,
 `synchronous_journal_write_preemptible=false` e
 `independent_freshness_anchor_verified=false`.
 
+## Segunda frente — atraso dentro da gravação síncrona e reconciliação
+
+O M3 ganhou `m3/M3WriteRace.cs.txt`, compilado somente na suite inerte.
+Um processo filho da própria suíte executa a **mesma transição de estado
+selected→confirmed** que `FixtureSession.Confirm`, pela **mesma
+PersistentState.Append** da Etapa 2, com os ganchos de falha já existentes
+(`record-flushed` e `record-promoted`). A instrumentação de testes
+replica a validação de selector e pinagem dos dois bundles; **não** altera
+a implementação de produção ou a Etapa 2.
+
+A injeção de atraso é deliberada (`Thread.Sleep(Timeout.Infinite)` dentro
+de um gancho), não é uma simulação honesta da duração de um `FlushFileBuffers`
+real. Um controlador no processo de testes observa a pausa, deixa expirar
+um prazo monotônico, mata **somente seu próprio filho inerte**, aguarda a
+saída confirmada pelo kernel e reabre o diário sob lock exclusivo.
+
+Casos novos aprovados na CI **40891129725**, SHA
+`acca88c42fcbf3fbce8d58311ecdf0fc99e2b1c8`:
+
+- `M3-SYNC-WRITE-PRE-APPEND-TIMEOUT-RECOVERS`: interrupção antes da
+  persistência; estado `selected` íntegro, `Recover` restaura o
+  antecessor e preserva o piso de confiança.
+- `M3-SYNC-FLUSHED-PENDING-BLOCKS`: `record-flushed` após
+  `Flush(flushToDisk:true)`, antes de `File.Move`; sobra um
+  `pending-*.fixture`. `Store.Load` recusa `STATE_INCOMPLETE`;
+  não excluímos nem promovemos automaticamente o arquivo ambíguo.
+- `M3-SYNC-PROMOTED-LATE-COMMIT-REQUIRES-REVIEW`: `record-promoted`
+  após `File.Move`; o diário já contém `confirmed`, apesar do
+  timeout externo. A reconciliação identifica o **commit tardio**,
+  mantém os dados e sinaliza revisão obrigatória; não declara rollback,
+  sucesso operacional ou autorização retroativa.
+
+A primeira CI do novo lote [40890630970](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40890630970)
+teve **9 passes / 1 falha** causada por compartilhamento transitório de
+`lease.fixture` durante limpeza da sandbox após kill. Foi acrescentada
+sondagem limitada de liberação do lock de instalação, antes de remoção da
+fixture: se ele continuar ocupado, o teste falha. Reexecução
+[40891129725](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40891129725)
+aprovou **10/10**, zero warnings e zero errors. Sem supressão de
+warnings ou afrouxamento dos asserts de segurança.
+
+Propriedades **não provadas**: atraso real dentro de syscall bloqueante,
+interrupção segura de commit síncrono, confiabilidade de `Flush(true)`
+contra desligamento elétrico, proteção contra snapshot/rollback integral
+do disco, âncora de frescor independente, equivalência entre fixture e
+executável GF. Um `pending` mantém a instalação **bloqueada para revisão**;
+não é recuperação automática concluída. Um `confirmed` tardio não pode
+ser revertido pela máquina de estados existente, exigindo reconciliação
+política separada.
+
+Relatório: `real_sync_append_interrupted=true`,
+`timeout_pre_append_recovered=true`,
+`flushed_pending_refused=true`,
+`promoted_after_timeout_requires_review=true`,
+`operational_gates_closed=0`, `physical_power_loss_tested=false`,
+`independent_freshness_anchor_verified=false`.
+
 ## Limites de segurança — gates permanecem BLOCKED
 
 - **G8:** impedir a **inicialização** de uma confirmação depois do prazo não
@@ -77,10 +134,11 @@ Relatório da CI: `real_named_pipe_late_io_observed=true`,
 
 ## Próximo passo do CHAT ALTO
 
-Inspecionar a janela entre autorização e conclusão da escrita síncrona do diário.
-Projetar *em um protótipo isolado* um teste com atraso controlado dentro da fase
-de persistência e recuperação sem falso sinal de confirmação, ou demonstrar um
-limite que precise de armazenamento específico. Não afirmar cancelamento de
+A janela entre autorização e persistência foi demonstrada com cortes
+determinísticos. Próxima investigação dirigida: examinar como inspecionar
+e classificar com segurança um `pending-*.fixture` após interrupção,
+sem autopromover nem excluir evidências desconhecidas, e delimitar a
+necessidade de armazenamento/âncora G1 externos. Não declarar G8 fechado. Não afirmar cancelamento de
 escrita kernel ou perda elétrica sem evidência física. Manter as etapas M1/M2
 aprovadas, não repetir suites históricas sem regressão.
 
