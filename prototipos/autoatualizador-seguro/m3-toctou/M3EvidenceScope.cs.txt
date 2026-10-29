@@ -1,0 +1,109 @@
+// M3/TOCTOU: fixture-only, read-only evidence receipts.
+// A receipt can NEVER authorize update, confirmation, promotion or recovery.
+// It merely detects stale observations when read again under a new Stage2 lease.
+using System.Text;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed record M3EvidenceStamp(string Root,string Fingerprint,PendingAssessment Assessment);
+
+internal sealed class M3EvidenceScope : IDisposable
+{
+    private readonly InstallationLease lease;
+    private readonly string root;
+    private bool disposed, consumed;
+    internal M3EvidenceStamp Stamp {get;}
+
+    private M3EvidenceScope(string root,InstallationLease lease)
+    {
+        this.root=root; this.lease=lease;
+        // This inspection and the fingerprint share the SAME exclusive lease.
+        // There is no gap between classification and fingerprint acquisition
+        // through which a cooperating updater can start a transaction.
+        var assessment=PendingInspection.InspectUnderLease(root,lease);
+        var fingerprint=Fingerprint(root);
+        Stamp=new(root,fingerprint,assessment);
+    }
+    internal static M3EvidenceScope Capture(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        string full=Path.GetFullPath(root);
+        var lease=InstallationLease.Acquire(full);
+        try{return new M3EvidenceScope(full,lease);}
+        catch{lease.Dispose();throw;}
+    }
+
+    private static string Fingerprint(string root)
+    {
+        // Pin and validate each on-disk fixture file before hashing it. A
+        // filename-only list or a checksum from yesterday is NOT sufficient.
+        // No recursive traversal through untrusted links.
+        var lines=new List<string>();
+        void FileEntry(string path)
+        {
+            using var guard=WindowsFileGuard.Open(root,path);
+            var digest=Hash(guard.Read(StateCodec.MaxRecordBytes));
+            string relative=Path.GetRelativePath(root,path).Replace('\\','/');
+            lines.Add("file:"+relative+":"+guard.Identity+":"+digest);
+        }
+        void DirectoryEntry(string path)
+        {
+            using var guard=WindowsFileGuard.Open(root,path,true);
+            string relative=Path.GetRelativePath(root,path).Replace('\\','/');
+            lines.Add("dir:"+relative+":"+guard.Identity);
+        }
+        DirectoryEntry(root);
+        FileEntry(Path.Combine(root,"active.fixture.json"));
+        string ledger=Path.Combine(root,"ledger");
+        DirectoryEntry(ledger);
+        var files=Directory.GetFiles(ledger);
+        Require(files.Length is >0 and <=66,"M3_EVIDENCE_FILES_LIMIT");
+        foreach(var file in files.OrderBy(p=>p,StringComparer.Ordinal))FileEntry(file);
+        Require(Directory.GetDirectories(ledger).Length==0,"M3_EVIDENCE_LEDGER_DIRECTORY");
+        string versions=Path.Combine(root,"versions");
+        DirectoryEntry(versions);
+        var dirs=Directory.GetDirectories(versions);
+        Require(dirs.Length is >0 and <=8,"M3_EVIDENCE_VERSIONS_LIMIT");
+        foreach(string dir in dirs.OrderBy(p=>p,StringComparer.Ordinal))
+        {
+            DirectoryEntry(dir);
+            Require(Directory.GetDirectories(dir).Length==0,"M3_EVIDENCE_NESTED_VERSION");
+            var bundles=Directory.GetFiles(dir);
+            Require(bundles.Length is >0 and <=4,"M3_EVIDENCE_BUNDLE_LIMIT");
+            foreach(var file in bundles.OrderBy(p=>p,StringComparer.Ordinal))FileEntry(file);
+        }
+        // Structural hash is NOT an independent, authenticated freshness anchor.
+        return Hash(Encoding.UTF8.GetBytes("GF-M3-READONLY-EVIDENCE-V1\n"+
+            string.Join("\n",lines.OrderBy(p=>p,StringComparer.Ordinal))));
+    }
+
+    internal PendingAssessment Revalidate()
+    {
+        Require(!disposed,"M3_EVIDENCE_SCOPE_CLOSED");
+        Require(!consumed,"M3_EVIDENCE_REPLAY");
+        consumed=true;
+        var refreshed=PendingInspection.InspectUnderLease(root,lease);
+        string now=Fingerprint(root);
+        Require(Stamp.Fingerprint==now && Stamp.Assessment==refreshed,
+            "M3_EVIDENCE_STALE");
+        Require(refreshed.Blocked && !refreshed.Mutated,"M3_EVIDENCE_NOT_BLOCKED");
+        return refreshed; // Still blocked. Never returns an authorization token.
+    }
+
+    internal static PendingAssessment ReopenAndCompare(string root,M3EvidenceStamp prior)
+    {
+        Require(Path.GetFullPath(root)==prior.Root,"M3_EVIDENCE_DIFFERENT_ROOT");
+        using var fresh=Capture(root);
+        Require(fresh.Stamp.Fingerprint==prior.Fingerprint &&
+            fresh.Stamp.Assessment==prior.Assessment,"M3_EVIDENCE_STALE");
+        return fresh.Revalidate();
+    }
+
+    public void Dispose()
+    {
+        if(disposed)return;
+        disposed=true;
+        lease.Dispose();
+    }
+}
