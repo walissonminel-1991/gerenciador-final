@@ -4,7 +4,7 @@
 
 - PR #65 Draft: `work-integracao-final-20261027`, baseline `ee73a850f6d7454ed9e81ce0f0dd35c5b8b88fcc`. **Não modificada** por estes experimentos.
 - Branch experimental: `experimento-g5-ipc-chat-alto-20261029`.
-- SHA **de código com CI aprovada**: `e5923000babc2f1eb8f54c26517eddf59a1b6c6e`.
+- SHA **de código com CI aprovada**: `5d87a178ca2f962a5e5c53494c9aef5b43422132`.
 - M1/G5 e M2/G6 foram executados pelo Chat Alto; zero utilização do Work.
 - Nenhum commit no produto, `main`, beta .66, canal de entrega, infraestrutura conectada ou flags de telemetria.
 
@@ -21,14 +21,14 @@ Sondas e testes em `prototipos/autoatualizador-seguro/m2/`:
 - `M2ExitBarrier`: permite avançar só depois da saída real e bem-sucedida de todos os processos inertes registrados; recusa busy, erro, duplicação, prazo e reutilização.
 - `M2WinFormsProbe`: executável inerte com HWND WinForms e envio de READY após `Application.Idle` no loop de mensagens; o servidor cruza a janela com PID do processo criado e a identidade do canal.
 - `M2StateBridge`: compila o **mesmo diário transacional da Etapa 2**, sem novo formato de persistência e com dependências fixadas pelos locks originais.
-- `M2UnifiedLifecycle`: conecta saída real do antecessor de teste, transação `intent → selected`, prontidão com transação/nonce derivado e janela real, confirmação no diário enquanto o filho está vivo, ou recuperação do antecessor com piso de confiança retido.
+- `M2UnifiedLifecycle`: conecta saída real do antecessor de teste, transação `intent → selected`, prontidão com transação/nonce derivado e janela real, confirmação no diário enquanto o filho está vivo, ou recuperação do antecessor com piso de confiança retido. Falha de transporte antes da confirmação encerra primeiro a sonda inerte e recupera a transação; falha depois da confirmação não provoca rollback artificial.
 - Os testes de recuperação também matam um **filho inerte criado pelo próprio harness** após persistir `selected` e reabrem o estado em novo processo. Não simulam perda elétrica.
 
-CI Windows **[40884262423](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40884262423)** no SHA `e5923000babc2f1eb8f54c26517eddf59a1b6c6e`:
+CI Windows **[40885330176](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40885330176)** no SHA `5d87a178ca2f962a5e5c53494c9aef5b43422132`:
 - M2 ciclo/Named Pipes/WinForms: **11/11 passed**.
-- M2 diário/recuperação + fluxo unificado: **7/7 passed**, incluindo normal, nonce incorreto, transação incorreta e sem READY.
+- M2 diário/recuperação + fluxo unificado: **8/8 passed**, incluindo normal, nonce incorreto, transação incorreta, sem READY e desconexão antecipada do pipe.
 - Três compilações: **zero warnings e zero errors**.
-- `unified_winforms_journal_confirmed=true`; `unified_negative_ready_rolled_back=true`; `unified_no_ready_rolled_back=true`; `unified_non_elevated_admission_verified=false`.
+- `unified_winforms_journal_confirmed=true`; `unified_negative_ready_rolled_back=true`; `unified_no_ready_rolled_back=true`; `unified_disconnect_rolled_back=true`; `unified_non_elevated_admission_verified=false`.
 - `product_built=false`, `product_executed=false`, `simulated_power_loss=false`, `hardware_failure_tested=false`, `operational_gates_closed=0`.
 
 O runner elevado **não** equivale a aprovação da política não elevada; a sonda de teste não é o GF; HWND não prova saúde funcional do produto. Digest do apphost da fixture não é identidade de pacote GF autenticado/pinado. A recuperação é do diário de fixture, não do instalador Windows operacional.
@@ -42,3 +42,12 @@ Os oito gates G1–G8 continuam **blocked**, nenhum homologado. O roadmap funcio
 **WORK**: não convocar por hábito. Só preparar prompt com SHA e critérios precisos se for disponibilizado um ambiente Windows descartável realmente capaz de autenticar outros usuários/sessões, ou se existir falha reproduzível impossível de analisar com Chat Alto + GitHub Actions. Não criar contas, alterar ACL, token, UAC, trust store ou infraestrutura por iniciativa própria.
 
 Nenhum merge, release, deploy, publicação, ativação de telemetria ou integração de autoatualizador no GF está autorizado por este checkpoint.
+
+## Observação sobre a desconexão (M2/G8)
+
+O teste `M2-UNIFIED-DISCONNECT` usa EOF real antes de READY. Foi aprovado no
+Windows, demonstrando recuperação da seleção pendente da fixture após saída
+do filho. Isso **não** garante cancelamento de I/O síncrono bloqueado nem um
+prazo global sobre TUF→ZIP→PE→confirmação; esses permanecem no escopo M3/G8.
+A simulação de encerramento de processo não equivale a queda física de energia
+ou garantia de frescor independente (G1).
