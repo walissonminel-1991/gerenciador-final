@@ -1,0 +1,71 @@
+name: M3 L4 — CAS unico intent terminal (inerte)
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-l4-cas/**'
+      - '.github/workflows/autoatualizador-m3-l4-cas-duas-fases-inerte.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-l4-cas-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  two-phase:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - name: Checkout sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Executar apenas 12 contraexemplos de CAS, sem dependencia TUF externa
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-l4-cas/L4TwoPhase.csproj'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-l4-artifacts'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-l4-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'L4_SDK_MISMATCH' }
+          dotnet restore $project "-p:ArtifactsPath=$out" --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exes=@(Get-ChildItem $out -Filter 'GF.Updater.M3.L4TwoPhaseTests.exe' -Recurse -File)
+          if ($exes.Count -ne 1) { throw 'L4_RUNNER_NOT_UNIQUE' }
+          & $exes[0].FullName --report $report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.passed -ne 12 -or $r.failed -ne 0 -or
+              !$r.unified_two_phase_single_monotonic_head -or
+              !$r.intent_lost_reply_reconciled_without_double_CAS -or
+              !$r.terminal_lost_reply_reconciled_without_double_CAS -or
+              !$r.subsequent_tx_requires_terminal -or
+              !$r.competing_tx_has_exactly_one_winner -or
+              !$r.tuf_binding_bytes_tamper_rejected -or
+              !$r.cross_tx_terminal_rejected -or
+              !$r.full_head_phase_enforced -or
+              !$r.next_tx_continues_at_terminal_head -or
+              !$r.unavailable_or_missing_witness_blocked -or
+              !$r.only_diagnostic_blocked_results -or
+              $r.inputs_cryptographically_authenticated -or
+              $r.real_tuf_validation_performed -or
+              $r.durable_witness_exists -or
+              $r.receipts_signed -or
+              $r.real_cross_journal_atomicity -or
+              $r.tested_kernel_io_or_power_loss -or
+              $r.product_built -or $r.product_executed -or
+              $r.permitted_selection -or $r.permitted_confirmation -or
+              $r.operational_gates_closed -ne 0) { throw 'L4_FALSE_AUTHORIZATION_REPORT' }
+          $product=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leak=@($product.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-l4-cas' })
+          if ($leak.Count -ne 0) { throw 'L4_PRODUCT_SOURCE_LEAK' }
+          "L4: $($r.passed)/12 in-memory two-phase CAS cases PASS; receipts in same head, signed TUF / durability still absent; all gates BLOCKED." >> $env:GITHUB_STEP_SUMMARY
+# No production key, network, TUF execution, user data, release, deployment or activation.
