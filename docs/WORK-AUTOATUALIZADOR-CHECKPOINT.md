@@ -1,5 +1,35 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+29/10/2026, America/Sao_Paulo. **Etapa 12 concluída; G2 blocked; oito gates
+operacionais bloqueados, zero fechado. Etapa 13 não iniciada.** PR #65 aberta/Draft.
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | GF_SELF_UPDATER_STAGE12_MINIMAL_TUF_DIVERGENCE_ADJUDICATION |
+| Branch / entrada | work-integracao-final-20261027 / 65360953fcc15023a7853e7f3304217fdee67065 |
+| Código validado | eafec1070bd7c35420741bad4560dc9be4a37d6e |
+| Resultado | Duas divergências reproduzidas e causa isolada: Python fixado não invalida conjuntamente timestamp/snapshot; .NET preservado |
+| Implementado | Harness causal, catálogo exato dos dois vetores, traces/cache/UTC compartilhados e controles; sem correção artificial |
+| Windows | Run 40864493929, número1/tentativa1, success: 14/14 .NET e 16/16 observações Python; zero warning/erro |
+| Interoperabilidade | Duas comparações brutas ainda blocked; ablação normativa de teste aceita; não é patch operacional ou conformidade integral |
+| Recuperação | Quatro cortes .NET de raiz com rotação/hints100; Python usa quatro exceções distintas, sem prova de energia |
+| Reuso | 45 casos anteriores e suítes históricas não reexecutados; mesmos Tuf1.1.1/BC2.7.0/fonte/patch e Python7.0.1/hash |
+| G2 | Blocked: revisão independente/manutenção/decisão de perfil-interoperabilidade/aceite de persistência-recuperação/adoção operacional |
+| Preservação | .66, canal privado, fonte GF, main, 12 workflows anteriores, proteções/flags no, físico parcial, 27/42 |
+
+[Relatório e comparação antes/depois](WORK-AUTOATUALIZADOR-ETAPA12.md) ·
+[Vetores](evidencias/autoatualizador-etapa12-vetores.json) ·
+[Resultados/interop](evidencias/autoatualizador-etapa12-windows.json) ·
+[Recibo](evidencias/autoatualizador-etapa12.json) ·
+[Matriz](evidencias/autoatualizador-etapa12-gates.json).
+
+Análise do próprio implementador não é revisão independente. Menor próxima
+ação: designar revisor qualificado e mantenedor, revisar o dossiê e decidir
+qualificação/remediação da referência antes da integração. Sem iniciar Etapa 13.
+Contrato gf-self-update/1 preservado; zero build/execução GF ou publicação.
+
+## Registro da Etapa 11 — histórico preservado
+
 29/10/2026, America/Sao_Paulo. **Etapa 11 concluída no escopo experimental.
 G2 blocked; oito gates operacionais blocked, zero fechado. Etapa 12 NÃO INICIADA.**
 PR #65 aberta/Draft; branch work-integracao-final-20261027.

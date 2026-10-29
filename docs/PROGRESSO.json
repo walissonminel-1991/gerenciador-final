@@ -1825,9 +1825,9 @@
       "source_evidence": "User-submitted screenshots and three local text/log artifacts in conversation; raw private data not committed"
     },
     "next_mission": {
-      "id": "GF_SELF_UPDATER_STAGE11_PERSISTENT_TRUST_EPOCHS",
-      "status": "completed_experimental_trust_scope_G2_blocked",
-      "scope": "isolated_per_role_TUF_persistence_epochs_recovery_interoperability_and_inert_stage9_composition",
+      "id": "GF_SELF_UPDATER_STAGE12_MINIMAL_TUF_DIVERGENCE_ADJUDICATION",
+      "status": "completed_minimal_divergence_investigation_G2_blocked",
+      "scope": "two_minimal_rotation_divergences_causal_normative_investigation_only",
       "no_repeated_physical_test_without_product_change": true,
       "stage0": {
         "date": "2026-10-28",
@@ -2345,6 +2345,38 @@
         "physical_tests_repeated": 0,
         "roadmap_advanced": false,
         "next_stage": 12,
+        "next_stage_started": false
+      },
+      "stage12": {
+        "date": "2026-10-29",
+        "timezone": "America/Sao_Paulo",
+        "entry_head": "65360953fcc15023a7853e7f3304217fdee67065",
+        "validated_code": "eafec1070bd7c35420741bad4560dc9be4a37d6e",
+        "status": "completed_minimal_divergence_investigation_G2_blocked",
+        "report": "docs/WORK-AUTOATUALIZADOR-ETAPA12.md",
+        "evidence": "docs/evidencias/autoatualizador-etapa12.json",
+        "windows": "docs/evidencias/autoatualizador-etapa12-windows.json",
+        "vectors": "docs/evidencias/autoatualizador-etapa12-vetores.json",
+        "gates": "docs/evidencias/autoatualizador-etapa12-gates.json",
+        "windows_run": 40864493929,
+        "dotnet_passed": 14,
+        "dotnet_total": 14,
+        "python_observations_passed": 16,
+        "python_observations_total": 16,
+        "raw_divergences_reproduced": 2,
+        "technical_causes_isolated": 2,
+        "raw_divergences_removed": 0,
+        "prototype_correction": false,
+        "independent_review": false,
+        "old45_reexecuted": false,
+        "operational_gates_closed": 0,
+        "operational_gates_blocked": 8,
+        "product_code_changed": false,
+        "product_builds": 0,
+        "private_channel_changed": false,
+        "physical_tests_repeated": 0,
+        "roadmap_advanced": false,
+        "next_stage": 13,
         "next_stage_started": false
       }
     }

@@ -1,0 +1,289 @@
+{
+  "schema": "gf-stage12/1",
+  "contract": "gf-self-update/1",
+  "date": "2026-10-29",
+  "timezone": "America/Sao_Paulo",
+  "status": "completed_minimal_divergence_investigation_G2_blocked",
+  "entry_head": "65360953fcc15023a7853e7f3304217fdee67065",
+  "validated_code": "eafec1070bd7c35420741bad4560dc9be4a37d6e",
+  "closure_sha": "Final documentation commit recorded in PR65 description and final delivery; no self-referential hash",
+  "pr": 65,
+  "branch": "work-integracao-final-20261027",
+  "open": true,
+  "draft": true,
+  "report": "docs/WORK-AUTOATUALIZADOR-ETAPA12.md",
+  "runs": [
+    {
+      "id": 40864493929,
+      "head_sha": "eafec1070bd7c35420741bad4560dc9be4a37d6e",
+      "run_number": 1,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40864493929",
+      "run_started_at": "2026-10-29T11:19:29Z",
+      "updated_at": "2026-10-29T11:21:19Z",
+      "job_id": 123415702830,
+      "artifacts": 0,
+      "compile_warnings": 0,
+      "compile_errors": 0
+    }
+  ],
+  "correction_commits": [],
+  "automatic_retries": 0,
+  "new_ci_failures": [],
+  "historical_failures_preserved": [
+    "Stage11 initial fixture-generation failure 40858921622, unchanged",
+    "Both original raw Python BadVersionNumberError outcomes reproduced, not erased"
+  ],
+  "implementation": [
+    "Nine new files only: directed Windows harness, minimal native signed vectors, source-pinned observation/ablation and exact-byte catalog replay",
+    "No changes to DurableEpochCache, original TUF sources/Stage8 patch, verifiers, approved locks or product code"
+  ],
+  "G2_assessment": {
+    "A_reproduced": {
+      "status": "passed",
+      "count": 2
+    },
+    "B_cause": {
+      "status": "passed",
+      "classification": "Pinned Python implementation omission in joint cached timestamp/snapshot invalidation; adjudication by implementer only"
+    },
+    "C_correction": {
+      "prototype_required": false,
+      "upstream_changed": false,
+      "test_harness_added": true
+    },
+    "D_minimal_vectors": {
+      "dotnet_passed": 14,
+      "dotnet_total": 14,
+      "python_expected_observations_passed": 16,
+      "python_total": 16,
+      "raw_reference_normative_mismatches": 2
+    },
+    "E_specification": {
+      "status": "passed",
+      "scope": "These two closed-profile single-root transitions only",
+      "full_conformance": false
+    },
+    "F_independent_review": {
+      "status": "blocked",
+      "completed": false
+    },
+    "G_operational_G2": {
+      "status": "blocked",
+      "closed": false
+    }
+  },
+  "adjudication": [
+    {
+      "role": "timestamp",
+      "reproduced": true,
+      "status": "technically_explained_by_implementer",
+      "raw_interoperability_status": "blocked",
+      "python_error": "BadVersionNumberError",
+      "python_message": "Expected targets.json version 1, got 100.",
+      "python_versions": {
+        "root": 2,
+        "timestamp": 1,
+        "snapshot": 100,
+        "targets": 0
+      },
+      "cause": "Old snapshot100 is still loaded with trusted=True after timestamp-key rotation. Its targets100 reference rejects new targets1.",
+      "normative_expectation": "Authenticated contiguous root2 changing either role key invalidates both cached timestamp and snapshot; new references may start at version1.",
+      "diagnostic_with_same_bytes": "accepted",
+      "dotnet_correction_required_for_vector": false,
+      "independent_adjudication": "blocked",
+      "upstream_issue_opened_or_contacted": false
+    },
+    {
+      "role": "snapshot",
+      "reproduced": true,
+      "status": "technically_explained_by_implementer",
+      "raw_interoperability_status": "blocked",
+      "python_error": "BadVersionNumberError",
+      "python_message": "New timestamp version 1 must be >= 100",
+      "python_versions": {
+        "root": 2,
+        "timestamp": 100,
+        "snapshot": 0,
+        "targets": 0
+      },
+      "cause": "Old timestamp100 still verifies under unchanged timestamp key after snapshot-key rotation and rejects timestamp1.",
+      "normative_expectation": "Authenticated contiguous root2 changing either role key invalidates both cached timestamp and snapshot; new references may start at version1.",
+      "diagnostic_with_same_bytes": "accepted",
+      "dotnet_correction_required_for_vector": false,
+      "independent_adjudication": "blocked",
+      "upstream_issue_opened_or_contacted": false
+    }
+  ],
+  "specification": {
+    "version": "1.0.36",
+    "url": "https://theupdateframework.github.io/specification/v1.0.36/",
+    "source_commit": "59e601ed29c0d2e497264ae8b31c11b8ef07df1e",
+    "path": "tuf-spec.md",
+    "git_blob_sha1": "9f9d8f3577bddd90397d0637d6c48860c4368270",
+    "sha256": "d36ada5b8e894edc62239eaac4f4d7c54a5f2aad18a3b658b7d5128f43052170",
+    "sections": [
+      "5.1",
+      "5.3.4",
+      "5.3.5",
+      "5.3.8",
+      "5.3.10",
+      "5.3.11",
+      "5.4.3",
+      "5.5.5",
+      "5.6.4",
+      "6.1"
+    ]
+  },
+  "python_reference": {
+    "source_repository": "theupdateframework/python-tuf",
+    "commit": "49eb1da48c58cf0cbb0f2e490f7ad39fbd8c1f15",
+    "version": "7.0.1",
+    "files": {
+      "tuf/ngclient/_internal/trusted_metadata_set.py": "97ecbb5d42bf7228b56d1a65ebdebe26569470dc165e7a4386db689afbe44417",
+      "tuf/ngclient/updater.py": "fa32bc4a416cf54b996b0b431df5081b68cb00f8b7c5e3e0b196f39dbe40d9f3",
+      "tuf/ngclient/fetcher.py": "f4dadf82bad133c6f57b390976fceb38ee05edffa596deb777818d33c765b286"
+    },
+    "installed_sha256": {
+      "tuf/ngclient/_internal/trusted_metadata_set.py": "97ecbb5d42bf7228b56d1a65ebdebe26569470dc165e7a4386db689afbe44417",
+      "tuf/ngclient/updater.py": "fa32bc4a416cf54b996b0b431df5081b68cb00f8b7c5e3e0b196f39dbe40d9f3",
+      "tuf/ngclient/fetcher.py": "f4dadf82bad133c6f57b390976fceb38ee05edffa596deb777818d33c765b286"
+    },
+    "versions": {
+      "tuf": "7.0.1",
+      "securesystemslib": "1.3.1",
+      "cryptography": "50.0.2",
+      "urllib3": "2.8.0"
+    },
+    "modified": false
+  },
+  "dotnet_reference": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "modified_source_sha256": {
+      "src/Tuf/TufClient.cs": "69414de567f872249d00559c1dd57e5bee43d94d476da61f8569738b77040268",
+      "src/Tuf/TufClientOptions.cs": "9820744a9989a0f8b6d0cbcfd68f31c7dc0c56819b8ad830d6d3a79c7bb4fd4b",
+      "src/Tuf/TufResults.cs": "94d6c7bc2d80cf2f1f72f1180f479aff4ffb748a7aaae3676105a7c8d2d198a1"
+    },
+    "crypto_parser_sources_unchanged": true,
+    "original_nuget_package_changed": false,
+    "production_adoption": false
+  },
+  "evidence": {
+    "vectors": {
+      "path": "docs/evidencias/autoatualizador-etapa12-vetores.json",
+      "sha256": "79958777a33a6d43cbbe41f3c73882de3f89d7b44cef5af402726df910978fb5"
+    },
+    "results_and_interop": {
+      "path": "docs/evidencias/autoatualizador-etapa12-windows.json",
+      "sha256": "02cc2c3d44e3652b3d00b0e9d9dc349434a874eac2f54dec8ea14bd0e9ac941b"
+    },
+    "gates": "docs/evidencias/autoatualizador-etapa12-gates.json"
+  },
+  "selected_test_justification": "Only the two unresolved original transitions, clean/preserved-cache ablations, four root crash boundaries, epoch replay and directly relevant authentication controls; no old battery rerun.",
+  "reused_without_execution": [
+    "Stage11 prior45-case evidence and Stage8 clock/single-use evidence",
+    "Stage10 GF package/PE/runtime/NTFS evidence",
+    "Prior physical tests and other G1-G8 results"
+  ],
+  "not_executed": [
+    {
+      "item": "Original45 Stage11 cases or earlier complete suites",
+      "status": "not-executed"
+    },
+    {
+      "item": "Full external TUF conformance suite",
+      "status": "not-executed"
+    },
+    {
+      "item": "Independent qualified review and formal maintenance acceptance",
+      "status": "not-executed"
+    },
+    {
+      "item": "Real power loss, device/kernel I/O stalls or personal-computer tests",
+      "status": "not-executed"
+    },
+    {
+      "item": "GF build/launch/install, product IPC/readiness/rollback or operational adoption",
+      "status": "not-executed"
+    },
+    {
+      "item": "Multiple key reintroduction epochs, delegation/consistent-snapshot profiles or populated legacy-cache migration",
+      "status": "not-executed"
+    }
+  ],
+  "limitations": [
+    "The test-only Python invalidation is not an upstream fix or a durable transactional adapter.",
+    "Technical analysis is by the same implementer/session; independent review remains blocked.",
+    "Four .NET process exits and four Python exception cuts have different proof scopes; no power-loss claim.",
+    "Exact catalog has a fixed historical UTC; a later full .NET filesystem replay requires an explicitly controlled laboratory clock before that UTC. Production UTC floor must not be bypassed.",
+    "Same-domain journal/seal rollback does not resolve G1. No gate was operationally closed."
+  ],
+  "preserved": {
+    "beta_version": "5.13.11.66",
+    "private_delivery_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "private_delivery_run": 40716548530,
+    "private_delivery_artifact": 12828262039,
+    "private_delivery_zip_sha256": "8e11f2dda5b7e2df2f85c61b57cc6a31a9596628523d2be7ad155dfdd5dda7f2",
+    "private_channel_accessed_or_changed": false,
+    "GF_functional_sources_changed": false,
+    "GF_built": false,
+    "main_changed": false,
+    "old_workflows_changed": false,
+    "AVG_Windows_protections_changed": false,
+    "consent_privacy_changed": false,
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "operational_drivers_enabled": false,
+    "VLC": "inventory_only",
+    "WinGet_COM": "optional_consultative",
+    "credentials_permissions_private_infrastructure_changed": false,
+    "Worker_D1_DNS_changed": false,
+    "production_keys_created": false,
+    "merge_release_deploy_publication": false,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "task_ids_done_unchanged": true,
+    "old_physical_tests_repeated": 0,
+    "remote_diagnostics_enabled": false,
+    "trust_store_changed": false,
+    "personal_computers_used": false,
+    "original_workflows_preserved": 12,
+    "main_sha": "410d65e23546976db456337c71e4705f10217d36"
+  },
+  "gates_closed": 0,
+  "gates_blocked": 8,
+  "operational_G2_closed": false,
+  "stage13_started": false,
+  "external_requirements": [
+    "Qualified independent review of the epoch/invalidation analysis and pinned source/experimental patches is absent; this session is not independent review.",
+    "Named maintenance owner and formal maintenance acceptance are absent.",
+    "The two raw Python 7.0.1 divergences remain reproducible. Technical cause is isolated, but profile interoperability/adoption decision and accepted reference remediation or justified qualification are pending.",
+    "Pertinent GF conformance/profile coverage and persistence/recovery/storage sufficiency have not been operationally accepted; no operational adoption authorization."
+  ],
+  "minimum_next_action": "Designate a qualified independent reviewer and a maintenance owner; review this two-vector dossier and decide the pinned-reference/profile qualification or reviewed remediation before any product integration.",
+  "remote_verification": {
+    "final_ref_blob_and_preservation_audit": "Recorded in PR description after saving; validation commit and final documentation commit separated"
+  },
+  "changed_paths": [
+    ".github/workflows/autoatualizador-etapa12-isolado.yml",
+    "docs/PROGRESSO.json",
+    "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+    "docs/WORK-AUTOATUALIZADOR-ETAPA12.md",
+    "docs/evidencias/autoatualizador-etapa12-gates.json",
+    "docs/evidencias/autoatualizador-etapa12-vetores.json",
+    "docs/evidencias/autoatualizador-etapa12-windows.json",
+    "docs/evidencias/autoatualizador-etapa12.json",
+    "prototipos/autoatualizador-seguro/stage12/README.md",
+    "prototipos/autoatualizador-seguro/stage12/Stage12.csproj",
+    "prototipos/autoatualizador-seguro/stage12/make_vectors.py",
+    "prototipos/autoatualizador-seguro/stage12/nuget.config",
+    "prototipos/autoatualizador-seguro/stage12/packages.lock.json",
+    "prototipos/autoatualizador-seguro/stage12/reference_probe.py",
+    "prototipos/autoatualizador-seguro/stage12/run_tests.py",
+    "prototipos/autoatualizador-seguro/stage12/src/Tests12.cs.txt"
+  ]
+}
