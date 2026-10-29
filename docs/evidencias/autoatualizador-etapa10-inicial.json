@@ -1,0 +1,124 @@
+{
+  "schema": "gf-stage10-controller/1",
+  "contract": "gf-self-update/1",
+  "entry_head": "4c1810a9d49bdb5fa1c6914354b32e5cb4602af9",
+  "status": "failed",
+  "failed": 1,
+  "results": [
+    {
+      "id": "U10-APPROVED-PACKAGE-VERIFIER",
+      "status": "passed",
+      "detail": {
+        "files": 287,
+        "verified_hashes": 286,
+        "expanded_bytes": 153051445,
+        "version": "5.13.11.66",
+        "source": "4c1810a9d49bdb5fa1c6914354b32e5cb4602af9",
+        "build": "32021adf8b44f9302321422f7116e61428a9cfb7",
+        "runtime": [
+          {
+            "name": "Microsoft.NETCore.App",
+            "version": "10.0.13"
+          },
+          {
+            "name": "Microsoft.WindowsDesktop.App",
+            "version": "10.0.13"
+          }
+        ],
+        "architecture": "AMD64"
+      }
+    },
+    {
+      "id": "U10-TAMPERED-DLL",
+      "status": "passed",
+      "rejection": "hash divergente: GerenciadorFinal.dll"
+    },
+    {
+      "id": "U10-MISSING-DEPENDENCY",
+      "status": "passed",
+      "rejection": "arquivos obrigatorios ausentes: hostfxr.dll"
+    },
+    {
+      "id": "U10-UNEXPECTED-FILE",
+      "status": "passed",
+      "rejection": "manifesto nao cobre exatamente todos os arquivos"
+    },
+    {
+      "id": "U10-INCONSISTENT-MANIFEST",
+      "status": "passed",
+      "rejection": "manifesto nao cobre exatamente todos os arquivos"
+    },
+    {
+      "id": "U10-INCOMPATIBLE-VERSION",
+      "status": "passed",
+      "rejection": "versao de dependencia divergente"
+    },
+    {
+      "id": "U10-MISSING-DEPENDENCY-REHASHED",
+      "status": "passed",
+      "rejection": "binario declarado ausente"
+    },
+    {
+      "id": "U10-SECRET-SCAN",
+      "status": "passed",
+      "detail": {
+        "scanned_files": 287,
+        "findings": 0,
+        "scope": "bounded GitHub-token/private-key patterns; not proof of absence of all secrets"
+      }
+    }
+  ],
+  "product_executed": false,
+  "candidate_uploaded": false,
+  "production_keys_created": false,
+  "old_suites_repeated": false,
+  "private_channel_changed": false,
+  "stage11_started": false,
+  "tool_build": {
+    "status": "passed",
+    "sdk": "10.0.402",
+    "tuf_source": {
+      "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+      "verified_files": 20,
+      "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+      "modified_source_sha256": {
+        "src/Tuf/TufClient.cs": "69414de567f872249d00559c1dd57e5bee43d94d476da61f8569738b77040268",
+        "src/Tuf/TufClientOptions.cs": "9820744a9989a0f8b6d0cbcfd68f31c7dc0c56819b8ad830d6d3a79c7bb4fd4b",
+        "src/Tuf/TufResults.cs": "94d6c7bc2d80cf2f1f72f1180f479aff4ffb748a7aaae3676105a7c8d2d198a1"
+      },
+      "crypto_parser_sources_unchanged": true,
+      "original_nuget_package_changed": false,
+      "production_adoption": false
+    },
+    "locked_restore": true
+  },
+  "product_build": {
+    "status": "passed",
+    "checkout_head": "32021adf8b44f9302321422f7116e61428a9cfb7",
+    "functional_source_commit": "4c1810a9d49bdb5fa1c6914354b32e5cb4602af9",
+    "product_version": "5.13.11.66",
+    "profile": "local",
+    "compile_items": 142,
+    "prototype_compile_items": 0,
+    "outputs_outside_repo": true
+  },
+  "container": {
+    "sha256": "3d698b74a571c0fbc2daac69d1ebac9f3dda047655dd5886938b2ff50156c2f2",
+    "bytes": 57710201,
+    "file_count": 287,
+    "expanded_bytes": 153051445,
+    "local_recipe_only": true,
+    "tuf_authorized": false
+  },
+  "tuf_fixtures": {
+    "cases": 6,
+    "catalog_sha256": "e3fd5f19488f08f1bfd0f45a8fe3bde9d6dede8ae274ca358af31acba9ad4728",
+    "reference_utc": "2026-10-29T09:52:50Z",
+    "public_test_keys_only": true,
+    "real_GF_bytes_signed": false,
+    "new_epoch_fixtures": 3,
+    "public_preexisting_seeds_only": true
+  },
+  "controller_error": "RuntimeError:Static harness failed before complete report",
+  "lab_tree_deleted": true
+}

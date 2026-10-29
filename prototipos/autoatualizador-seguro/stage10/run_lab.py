@@ -33,10 +33,10 @@ def digest(path):
         return hashlib.file_digest(f, "sha256").hexdigest()
 
 
-def main(report):
+def main(report, phase):
     report = report.resolve()
     result = {"schema": "gf-stage10-controller/1", "contract": "gf-self-update/1", "entry_head": ENTRY,
-              "status": "not-executed", "failed": 0, "results": [], "product_executed": False,
+              "status": "not-executed", "phase": phase, "failed": 0, "results": [], "product_executed": False,
               "candidate_uploaded": False, "production_keys_created": False, "old_suites_repeated": False,
               "private_channel_changed": False, "stage11_started": False}
     work_path = None
@@ -75,7 +75,7 @@ def main(report):
         with tempfile.TemporaryDirectory(prefix="gf-u2-u10-") as directory:
             work = Path(directory).resolve(); work_path = work
             assert not work.is_relative_to(REPO)
-            (work / ".gf-u2-fixture").write_text("GF-U2-INERT-STATE-TESTS-NO-PRODUCT\n")
+            (work / ".gf-u2-fixture").write_text("GF-U2-INERT-STATE-TESTS-NO-PRODUCT\n", encoding="utf-8", newline="\n")
             prepare = module(HERE.parent / "stage8/prepare_source.py", "u10_prepare")
             source, provenance = prepare.prepare(work)
             common = ["-p:ArtifactsPath=" + str(work / "tool-build"), "-p:Stage8Source=" + str(source)]
@@ -103,35 +103,37 @@ def main(report):
             sums()
             verifier = module(REPO / "scripts/verificar_pacote.py", "u10_existing_verifier")
             def verify(): return verifier.verify(product, VERSION, ENTRY, head, beta=True)
-            case("U10-APPROVED-PACKAGE-VERIFIER", verify)
+            if phase == "full": case("U10-APPROVED-PACKAGE-VERIFIER", verify)
+            else: result["new_build_preflight"] = verify()
             recipe = {p.relative_to(product).as_posix(): digest(p) for p in sorted(product.rglob("*")) if p.is_file()}
-            # Every mutation is restored before the next independent check. Never mutates source or old .66 ZIP.
-            def mutate(name, change):
-                path = product / name; before = path.read_bytes() if path.exists() else None
-                try: change(path); return verify()
-                finally:
-                    if before is None: path.unlink(missing_ok=True)
-                    else: path.write_bytes(before)
-            case("U10-TAMPERED-DLL", lambda: mutate("GerenciadorFinal.dll", lambda p: p.write_bytes(p.read_bytes() + b"tamper")), True)
-            case("U10-MISSING-DEPENDENCY", lambda: mutate("hostfxr.dll", lambda p: p.unlink()), True)
-            case("U10-UNEXPECTED-FILE", lambda: mutate("unexpected.dll", lambda p: p.write_bytes((product / "GerenciadorFinal.dll").read_bytes())), True)
-            case("U10-INCONSISTENT-MANIFEST", lambda: mutate("SHA256SUMS.txt", lambda p: p.write_text(p.read_text().splitlines()[0] + "\n")), True)
-            case("U10-INCOMPATIBLE-VERSION", lambda: verifier.verify(product, "5.13.11.65", ENTRY, head, beta=True), True)
-            # Also reject a missing dependency after a maliciously regenerated checksum manifest.
-            old_sums = (product / "SHA256SUMS.txt").read_bytes(); dependency = product / "hostpolicy.dll"; old_dependency = dependency.read_bytes()
-            try:
-                dependency.unlink(); sums(); case("U10-MISSING-DEPENDENCY-REHASHED", verify, True)
-            finally: dependency.write_bytes(old_dependency); (product / "SHA256SUMS.txt").write_bytes(old_sums)
-            def scan():
-                patterns = [rb"(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{50,255})", rb"-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----[\r\n]+[A-Za-z0-9+/=\r\n]{128,}-----END"]
-                hits = []
-                for p in product.rglob("*"):
-                    if p.is_file():
-                        data = p.read_bytes()
-                        if any(re.search(pattern, candidate) for pattern in patterns for candidate in (data, data.replace(b"\x00", b""))): hits.append(p.name)
-                if hits: raise ValueError("high-confidence secret marker; matching contents withheld")
-                return {"scanned_files": len(recipe), "findings": 0, "scope": "bounded GitHub-token/private-key patterns; not proof of absence of all secrets"}
-            case("U10-SECRET-SCAN", scan)
+            if phase == "full":
+                # Every mutation is restored before the next independent check. Never mutates source or old .66 ZIP.
+                def mutate(name, change):
+                    path = product / name; before = path.read_bytes() if path.exists() else None
+                    try: change(path); return verify()
+                    finally:
+                        if before is None: path.unlink(missing_ok=True)
+                        else: path.write_bytes(before)
+                case("U10-TAMPERED-DLL", lambda: mutate("GerenciadorFinal.dll", lambda p: p.write_bytes(p.read_bytes() + b"tamper")), True)
+                case("U10-MISSING-DEPENDENCY", lambda: mutate("hostfxr.dll", lambda p: p.unlink()), True)
+                case("U10-UNEXPECTED-FILE", lambda: mutate("unexpected.dll", lambda p: p.write_bytes((product / "GerenciadorFinal.dll").read_bytes())), True)
+                case("U10-INCONSISTENT-MANIFEST", lambda: mutate("SHA256SUMS.txt", lambda p: p.write_text(p.read_text().splitlines()[0] + "\n")), True)
+                case("U10-INCOMPATIBLE-VERSION", lambda: verifier.verify(product, "5.13.11.65", ENTRY, head, beta=True), True)
+                # Also reject a missing dependency after a maliciously regenerated checksum manifest.
+                old_sums = (product / "SHA256SUMS.txt").read_bytes(); dependency = product / "hostpolicy.dll"; old_dependency = dependency.read_bytes()
+                try:
+                    dependency.unlink(); sums(); case("U10-MISSING-DEPENDENCY-REHASHED", verify, True)
+                finally: dependency.write_bytes(old_dependency); (product / "SHA256SUMS.txt").write_bytes(old_sums)
+                def scan():
+                    patterns = [rb"(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{50,255})", rb"-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----[\r\n]+[A-Za-z0-9+/=\r\n]{128,}-----END"]
+                    hits = []
+                    for p in product.rglob("*"):
+                        if p.is_file():
+                            data = p.read_bytes()
+                            if any(re.search(pattern, candidate) for pattern in patterns for candidate in (data, data.replace(b"\x00", b""))): hits.append(p.name)
+                    if hits: raise ValueError("high-confidence secret marker; matching contents withheld")
+                    return {"scanned_files": len(recipe), "findings": 0, "scope": "bounded GitHub-token/private-key patterns; not proof of absence of all secrets"}
+                case("U10-SECRET-SCAN", scan)
             archive = work / "gf-lab.zip"
             with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as z:
                 for name in recipe:
@@ -173,4 +175,6 @@ def main(report):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report", type=Path, required=True)
-    raise SystemExit(main(parser.parse_args().report))
+    parser.add_argument("--phase", choices=("full", "windows"), default="full")
+    args = parser.parse_args()
+    raise SystemExit(main(args.report, args.phase))
