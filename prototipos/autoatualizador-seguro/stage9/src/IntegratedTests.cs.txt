@@ -72,6 +72,16 @@ internal static class IntegratedTests
         _ = await op.WaitResult(); return 0;
     }
     private static async Task Cases() {
+        await Test("U9-CANCEL-BEFORE-ADMISSION", "Pre-canceled admission registers no operation and releases fixture lease for a fresh coordinator", () => {
+            var f = new IntegratedFixture(); using var cancel = new CancellationTokenSource(); cancel.Cancel();
+            using (var p = new IntegratedPipeline(f.Root, user: cancel.Token)) {
+                try { _ = p.Start(fixtures, "release2"); throw new Rejected("U9_PRE_CANCEL_ADMITTED"); } catch (OperationCanceledException) { }
+                Require(p.Owner.Facts().Length == 0 && p.Operations.Load().Record is null && p.Resources.Session.Store.Load().Record.Generation == 1, "U9_PRE_CANCEL_MUTATED");
+            }
+            using (var fresh = new IntegratedPipeline(f.Root)) Require(fresh.Resources.Session.SelectionForFixtureInspectionOnly() == f.Old, "U9_PRE_CANCEL_LOST_LEASE");
+            f.Preserved(); Observations.Add(new { kind = "cancel_before_admission", registered_operations = 0, persistent_operations = 0, fresh_coordinator_acquired_lease = true });
+            return Task.CompletedTask;
+        });
         await Test("U9-FLOW", "Signed inert ZIP to persistent cache, pinned files, selection and synthetic confirmation", async () => {
             var f = new IntegratedFixture(); using (var p = new IntegratedPipeline(f.Root)) {
                 var op = p.Start(fixtures, "release2"); var r = await Watch(op.WaitResult());

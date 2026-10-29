@@ -19,6 +19,7 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       PYTHONUTF8: '1'
       PYTHONDONTWRITEBYTECODE: '1'
+      GF_U9_CASE_PREFIX: ${{ contains(github.event.head_commit.message, '[gf-u9-pre-admit]') && 'U9-CANCEL-BEFORE-ADMISSION' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,7 +36,9 @@ jobs:
       - name: Apenas deltas da composição, sem suites anteriores ou artefatos
         shell: pwsh
         run: |
-          python prototipos/autoatualizador-seguro/stage9/run_tests.py --report "$env:RUNNER_TEMP/gf-u9-windows.json"
+          $arguments = @('--report', "$env:RUNNER_TEMP/gf-u9-windows.json")
+          if ($env:GF_U9_CASE_PREFIX) { $arguments += @('--prefix', $env:GF_U9_CASE_PREFIX) }
+          python prototipos/autoatualizador-seguro/stage9/run_tests.py @arguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $result = Get-Content "$env:RUNNER_TEMP/gf-u9-windows.json" -Raw | ConvertFrom-Json
           "Etapa 9 integrada: $($result.passed)/$($result.total); energia real e gates operacionais não homologados." >> $env:GITHUB_STEP_SUMMARY

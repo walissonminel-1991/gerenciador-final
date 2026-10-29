@@ -172,7 +172,14 @@ internal sealed class IntegratedPipeline : IDisposable
     }
     public void Dispose() {
         if (Owner.Pending != 0) return; // preserve ownership while original work can still produce effects
-        if (terminal is null) Resources.Dispose();
+        if (terminal is null) {
+            Resources.Dispose();
+            if (!Owner.TryRelease()) {
+                Owner.ReconcileFixture(() => Owner.Facts().Length == 0);
+                Require(Owner.TryRelease(), "U9_EMPTY_OWNER_RELEASE_BLOCKED");
+            }
+            auxiliary.Dispose(); return;
+        }
         if (!Owner.TryRelease()) { Owner.ReconcileFixture(() => terminal is not null && terminal.IsCompleted); Require(Owner.TryRelease(), "U9_RELEASE_BLOCKED"); }
         auxiliary.Dispose(); // NEVER removes the persistent root or an unresolved operation record
     }
