@@ -1,0 +1,207 @@
+// G1 crypto fixture. NEVER integrated with product; test keys live only in RAM.
+// A VALID signature is not a trustworthy *fresh* witness until identity, trust
+// bootstrap, durable monotonicity and remote availability are proven outside model.
+using System.Security.Cryptography;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed record G1BoundIntent(TxProposal Proposal,string TxNonce,string IntentDigest);
+internal sealed record G1SignedResponse(string Schema,string Purpose,int Epoch,
+    string KeyId,string ChallengeNonce,string Stage2Nonce,string IntentDigest,
+    TxReceipt Receipt,string SignatureBase64);
+internal sealed record G1RotationGrant(string Schema,string Purpose,int FromEpoch,
+    int ToEpoch,string FromKeyId,string NewKeyId,string NewPublicSpkiBase64,
+    string SignatureBase64);
+internal enum G1CryptoAssessment { SignatureMatchesButBlocked }
+
+// The *only* keypair use is via ephemeral fixture private keys. Private keys
+// are never exported, written, checked into the repository or logged.
+internal sealed class G1DisposableSigner : IDisposable
+{
+    private readonly ECDsa signer=ECDsa.Create(ECCurve.NamedCurves.nistP256);
+    internal string PublicSpkiBase64=>Convert.ToBase64String(signer.ExportSubjectPublicKeyInfo());
+    internal string KeyId=>Hash(signer.ExportSubjectPublicKeyInfo());
+    internal G1SignedResponse Sign(G1BoundIntent bound,string challenge,int epoch)
+    {
+        var response=new G1SignedResponse(G1SignedFixture.Schema,G1SignedFixture.ResponsePurpose,
+            epoch,KeyId,challenge,bound.TxNonce,bound.IntentDigest,
+            new TxReceipt(bound.Proposal.InstallationId,bound.Proposal.TxId,
+                bound.Proposal.Expected,bound.Proposal.Next),"");
+        return ResignForNegativeFixture(response);
+    }
+    internal G1SignedResponse ResignForNegativeFixture(G1SignedResponse response)
+        =>response with {SignatureBase64=Convert.ToBase64String(
+            signer.SignData(G1SignedFixture.ResponseBytes(response),
+                HashAlgorithmName.SHA256,DSASignatureFormat.Rfc3279DerSequence))};
+    internal G1RotationGrant Grant(string fromKid,int fromEpoch,int toEpoch,
+        G1DisposableSigner successor)
+    {
+        var grant=new G1RotationGrant(G1SignedFixture.Schema,
+            G1SignedFixture.RotationPurpose,fromEpoch,toEpoch,fromKid,
+            successor.KeyId,successor.PublicSpkiBase64,"");
+        return ResignRotationForNegativeFixture(grant);
+    }
+    internal G1RotationGrant ResignRotationForNegativeFixture(G1RotationGrant grant)
+        =>grant with {SignatureBase64=Convert.ToBase64String(
+            signer.SignData(G1SignedFixture.RotationBytes(grant),
+                HashAlgorithmName.SHA256,DSASignatureFormat.Rfc3279DerSequence))};
+    public void Dispose()=>signer.Dispose();
+}
+
+internal sealed class G1PinnedFixtureVerifier : IDisposable
+{
+    private ECDsa current;
+    internal int Epoch {get;private set;}=1;
+    internal string KeyId {get;private set;}
+    private bool disposed;
+    internal G1PinnedFixtureVerifier(string explicitlyPinnedSpkiBase64)
+    {
+        current=G1SignedFixture.ImportP256(explicitlyPinnedSpkiBase64);
+        KeyId=Hash(current.ExportSubjectPublicKeyInfo());
+    }
+    internal void Rotate(G1RotationGrant grant)
+    {
+        Require(!disposed,"G1_CRYPTO_CLOSED");
+        Require(grant.Schema==G1SignedFixture.Schema &&
+            grant.Purpose==G1SignedFixture.RotationPurpose &&
+            grant.FromEpoch==Epoch && grant.ToEpoch==Epoch+1 &&
+            grant.FromKeyId==KeyId,"G1_ROTATION_UNAUTHORIZED_OR_REPLAY");
+        Require(G1SignedFixture.ValidSignature(current,
+            G1SignedFixture.RotationBytes(grant),grant.SignatureBase64),
+            "G1_ROTATION_BAD_SIGNATURE");
+        using var newKey=G1SignedFixture.ImportP256(grant.NewPublicSpkiBase64);
+        Require(Hash(newKey.ExportSubjectPublicKeyInfo())==grant.NewKeyId &&
+            grant.NewKeyId!=KeyId,"G1_ROTATION_KEY_MISMATCH");
+        var retained=G1SignedFixture.ImportP256(grant.NewPublicSpkiBase64);
+        current.Dispose();
+        current=retained;
+        KeyId=grant.NewKeyId;
+        Epoch=grant.ToEpoch;
+    }
+    internal G1CryptoAssessment Verify(string root,G1SignedResponse response,string freshChallenge)
+    {
+        Require(!disposed,"G1_CRYPTO_CLOSED");
+        FixtureSandbox.RequireRoot(root);
+        var bound=G1SignedFixture.BindOnDisk(root);
+        Require(response.Schema==G1SignedFixture.Schema &&
+            response.Purpose==G1SignedFixture.ResponsePurpose &&
+            response.Epoch==Epoch && response.KeyId==KeyId,
+            "G1_CRYPTO_UNTRUSTED_EPOCH_OR_KEY");
+        Require(response.ChallengeNonce==freshChallenge &&
+            freshChallenge is {Length:32} &&
+            freshChallenge.All(c=>char.IsAsciiHexDigit(c)),
+            "G1_CRYPTO_STALE_CHALLENGE");
+        Require(G1SignedFixture.ValidSignature(current,
+            G1SignedFixture.ResponseBytes(response),response.SignatureBase64),
+            "G1_CRYPTO_BAD_SIGNATURE");
+        Require(response.Stage2Nonce==bound.TxNonce &&
+            response.IntentDigest==bound.IntentDigest &&
+            response.Receipt.InstallationId==bound.Proposal.InstallationId &&
+            response.Receipt.TxId==bound.Proposal.TxId &&
+            response.Receipt.Expected==bound.Proposal.Expected &&
+            response.Receipt.Committed==bound.Proposal.Next,
+            "G1_CRYPTO_STAGE2_BINDING");
+        return G1CryptoAssessment.SignatureMatchesButBlocked;
+    }
+    public void Dispose()
+    {
+        if(disposed)return;
+        disposed=true;
+        current.Dispose();
+    }
+}
+
+internal static class G1SignedFixture
+{
+    internal const string Schema="gf-g1-crypto-fixture/1";
+    internal const string ResponsePurpose="g1-witness-fresh-response-not-update-permit";
+    internal const string RotationPurpose="g1-witness-key-rotation-not-root-reset";
+
+    internal static byte[] ResponseBytes(G1SignedResponse r)
+        =>StateCodec.Encode(new {r.Schema,r.Purpose,r.Epoch,r.KeyId,r.ChallengeNonce,
+            r.Stage2Nonce,r.IntentDigest,r.Receipt});
+    internal static byte[] RotationBytes(G1RotationGrant r)
+        =>StateCodec.Encode(new {r.Schema,r.Purpose,r.FromEpoch,r.ToEpoch,r.FromKeyId,
+            r.NewKeyId,r.NewPublicSpkiBase64});
+
+    internal static ECDsa ImportP256(string base64)
+    {
+        byte[] bytes;
+        try{bytes=Convert.FromBase64String(base64);}
+        catch(FormatException){throw new Rejected("G1_CRYPTO_BAD_PUBLIC_KEY");}
+        Require(bytes.Length is >0 and <=256,"G1_CRYPTO_BAD_PUBLIC_KEY");
+        var verifier=ECDsa.Create();
+        try
+        {
+            verifier.ImportSubjectPublicKeyInfo(bytes,out int read);
+            Require(read==bytes.Length &&
+                verifier.ExportParameters(false).Curve.Oid.Value==
+                    ECCurve.NamedCurves.nistP256.Oid.Value,"G1_CRYPTO_BAD_PUBLIC_KEY");
+            return verifier;
+        }
+        catch(Exception e) when(e is CryptographicException or ArgumentException or Rejected)
+        {
+            verifier.Dispose();
+            throw new Rejected("G1_CRYPTO_BAD_PUBLIC_KEY");
+        }
+    }
+    internal static bool ValidSignature(ECDsa key,byte[] data,string signatureBase64)
+    {
+        if(signatureBase64 is null || signatureBase64.Length>512)return false;
+        try
+        {
+            byte[] signature=Convert.FromBase64String(signatureBase64);
+            return signature.Length is >0 and <256 &&
+                key.VerifyData(data,signature,HashAlgorithmName.SHA256,
+                    DSASignatureFormat.Rfc3279DerSequence);
+        }
+        catch(Exception e) when(e is FormatException or CryptographicException)
+        {return false;}
+    }
+    // The caller's memory keyring is explicitly pinned; no public key is read
+    // from response payload or from untrusted Stage2 files.
+    internal static G1BoundIntent BindOnDisk(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        using var session=new FixtureSession(root);
+        var now=session.Store.Load();
+        Require(now.Record.Transaction is {Phase:"intent"},
+            "G1_CRYPTO_INTENT_REQUIRED");
+        var tx=now.Record.Transaction!;
+        string priorName=(now.Record.Generation-1).ToString("D16",
+            System.Globalization.CultureInfo.InvariantCulture)+".fixture.json";
+        Require(now.Record.Generation>=2,"G1_CRYPTO_STABLE_MISSING");
+        byte[] priorBytes=PersistentState.ReadFixtureFile(root,
+            Path.Combine(session.Store.Ledger,priorName));
+        var prior=StateCodec.Unwrap(priorBytes);
+        string priorDigest=Hash(priorBytes);
+        Require(prior.Generation+1==now.Record.Generation &&
+            now.Record.PreviousDigest==priorDigest &&
+            prior.InstallationId==now.Record.InstallationId &&
+            prior.Confirmed==tx.Previous &&
+            (prior.Transaction is null ||
+                prior.Transaction.Phase is "confirmed" or "rolled_back"),
+            "G1_CRYPTO_STABLE_MISMATCH");
+        Require(session.Files.ReadSelector(now.Record.InstallationId).Bundle==
+            tx.Previous && now.Record.Confirmed==tx.Previous,
+            "G1_CRYPTO_SELECTOR_MOVED");
+        using var previousPin=session.Files.Pin(tx.Previous);
+        using var candidatePin=session.Files.Pin(tx.Candidate);
+        var expected=new TxHead(now.Record.InstallationId,prior.Generation,
+            prior.Trust.ApprovedSequence,priorDigest);
+        var next=new TxHead(now.Record.InstallationId,now.Record.Generation,
+            now.Record.Trust.ApprovedSequence,now.Digest);
+        return new(new TxProposal(now.Record.InstallationId,tx.Id,expected,next),
+            tx.Nonce,now.Digest);
+    }
+    // Saved reply is ONLY evidence: freshChallenge after restart must differ.
+    // Nothing in this helper verifies authenticity or grants offline trust.
+    internal static G1SignedResponse ReadUntrustedSavedResponse(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        return StateCodec.Decode<G1SignedResponse>(PersistentState.ReadFixtureFile(
+            root,Path.Combine(root,"g1-signed-evidence.fixture.json")));
+    }
+}
