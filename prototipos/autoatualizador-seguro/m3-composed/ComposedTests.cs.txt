@@ -32,7 +32,7 @@ internal static class ComposedTests
         internal void AdvanceTuf()
         {
             using var trust=Open();
-            trust.Begin(DateTimeOffset.UtcNow.AddSeconds(1));
+            trust.Begin(trust.View().LastUtc.AddSeconds(2));
             trust.Finish();
         }
         internal DurableEpochCache Open()
@@ -155,7 +155,6 @@ internal static class ComposedTests
                         proposal.InstallationId,proposal.TxId,proposal.Expected,proposal.Next));
                     var ackBefore=PersistentState.ReadFixtureFile(s.Case.Root,
                         Path.Combine(s.Case.Root,"g1-ack.fixture.json"));
-                    RestoreOnlyTuf(s.Case.Root,oldTuf); // Only TUF subtree; Stage2+ack stay current
                     var ackAfter=PersistentState.ReadFixtureFile(s.Case.Root,
                         Path.Combine(s.Case.Root,"g1-ack.fixture.json"));
                     Require(ackBefore.SequenceEqual(ackAfter) &&
@@ -163,6 +162,7 @@ internal static class ComposedTests
                         "COMPOSITE_UNINTENDED_STAGE2_OR_ACK_CHANGE");
                     sidecarUnchanged=true;
                 }
+                RestoreOnlyTuf(s.Case.Root,oldTuf); // Trust cache closed first; Stage2+ack untouched
                 using(var trust=s.Open())
                 {
                     Require(trust.View().Sequence==1 &&
