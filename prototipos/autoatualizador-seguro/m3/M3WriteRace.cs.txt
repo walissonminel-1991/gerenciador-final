@@ -89,6 +89,26 @@ internal static class M3WriteRace
         Thread.Sleep(Timeout.Infinite);
     }
 
+    // Verify worker teardown released the real exclusive Stage2 installation
+    // lease. A lease still held after process exit is a failure, not a passed
+    // rollback. A small bounded settle period handles Windows handle teardown
+    // before the fixture's recursive deletion.
+    private static async Task VerifyLeaseQuiescent(string root)
+    {
+        for(int attempt=0;attempt<8;attempt++)
+        {
+            try
+            {
+                using var lease=InstallationLease.Acquire(root);
+                await Task.Delay(100);
+                return;
+            }
+            catch(Rejected e) when(e.Code=="INSTALLATION_BUSY_OR_LOCK_MISSING" && attempt<7)
+            {await Task.Delay(100);}
+        }
+        throw new Rejected("M3_WORKER_LEASE_REMAINS_BUSY");
+    }
+
     internal static async Task<M3AfterTimeout?> Exercise(StateCase fixture,string point)
     {
         string exe=Environment.ProcessPath??throw new InvalidDataException("M3_NO_APPHOST");
@@ -140,6 +160,7 @@ internal static class M3WriteRace
             Require(Directory.GetFiles(Path.Combine(fixture.Root,"ledger"),
                 "pending-*.fixture").Length==1,"M3_MISSING_PENDING_EVIDENCE");
             PendingFlushBlocked=true;
+            await VerifyLeaseQuiescent(fixture.Root);
             fixture.Preserved();
             return null;
         }
@@ -156,6 +177,7 @@ internal static class M3WriteRace
                 "M3_LATE_COMMIT_MISCLASSIFIED");
             LatePromotionDetected=true;
         }
+        await VerifyLeaseQuiescent(fixture.Root);
         fixture.Preserved();
         return result;
     }
