@@ -1,0 +1,170 @@
+// L22 inert Windows-only proof: OLD NTFS handle lives through OLD/NEW decision.
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L22Tests
+{
+    private static readonly List<object> Results=[];
+    private static int Failed;
+    private static string Exe => Environment.ProcessPath ??
+        throw new InvalidDataException("L22_NO_PROCESS_IMAGE");
+
+    private static async Task Check(string name,Func<Task> test)
+    {
+        try
+        {
+            await test();
+            Results.Add(new{name,status="passed"});
+            Console.WriteLine("PASS "+name);
+        }
+        catch(Exception ex)
+        {
+            Failed++;
+            Results.Add(new{name,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+name+" "+ex);
+        }
+    }
+
+    private static (bool ran,bool blocked,string identity,string expected)
+        TryMutateOld(L16Tests.Scenario s)
+    {
+        // Called while the reconciler holds the OLD pin, and WITHOUT any
+        // extra test-owned lock. FileMode.Open writes IN PLACE, not rename.
+        string oldPath=L14Model.Old(s.Lab);
+        bool blocked=false;
+        try
+        {
+            using var writer=new FileStream(oldPath,FileMode.Open,
+                FileAccess.Write,FileShare.ReadWrite);
+            writer.WriteByte((byte)'X');writer.Flush(true);
+        }
+        catch(IOException) {blocked=true;}
+        catch(UnauthorizedAccessException) {blocked=true;}
+        return (true,blocked,oldPath,L14Model.OldText);
+    }
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(!OperatingSystem.IsWindows())return 2;
+        if(args.Length==5 && args[0]=="--owner")
+        {
+            if(args[4]=="known-fail-before-switch")return 7;
+            L16Boundary.Perform(args[1],args[2],args[3],args[4]);
+            return 0;
+        }
+        if(args.Length!=4 || args[0]!="--report")return 2;
+        Require(Path.GetFileName(Exe)=="GF.Updater.M3.L18Tests.exe",
+            "L22_FIXTURE_RUNNER_IMAGE");
+        L16Tests.fixtures=Path.GetFullPath(args[2]);
+        L16Tests.bootstrap=Path.GetFullPath(args[3]);
+        L16Tests.suite=Path.Combine(Path.GetTempPath(),
+            "gf-u2-l22-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(L16Tests.suite);
+        try
+        {
+            await Check("L22-01-OLD-IN-PLACE-WRITE-BLOCKED-UNTIL-OLD-DECISION",()=>{
+                using var s=L16Tests.Prepared().GetAwaiter().GetResult();
+                string canary=Path.Combine(s.Lab,"PERSONAL-DOC-CANARY-L22.txt");
+                File.WriteAllText(canary,"LEAVE-MY-DOCUMENT-ALONE");
+                string oldPath=L14Model.Old(s.Lab);
+                string id;
+                using(var pin=WindowsFileGuard.OpenLabOld(s.Lab))
+                {
+                    id=pin.Identity;
+                    Require(pin.Read(1024).AsSpan().SequenceEqual(
+                        System.Text.Encoding.UTF8.GetBytes(L14Model.OldText)),
+                        "L22_PRECONDITION_OLD_BYTES");
+                } // test-owned handle CLOSED before race
+                bool called=false,writeBlocked=false;
+                var result=L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,selectorObserved:()=>{
+                    var attempt=TryMutateOld(s);
+                    called=attempt.ran;
+                    writeBlocked=attempt.blocked;
+                });
+                Require(called && writeBlocked && result==L18Decision.OldVerified,
+                    "L22_OLD_WRITE_ALLOWED_DURING_DECISION");
+                using(var pin=WindowsFileGuard.OpenLabOld(s.Lab))
+                    Require(pin.Identity==id && pin.Read(1024).AsSpan().SequenceEqual(
+                        System.Text.Encoding.UTF8.GetBytes(L14Model.OldText)),
+                        "L22_OLD_ID_OR_BYTES_CHANGED");
+                Require(File.ReadAllText(canary)=="LEAVE-MY-DOCUMENT-ALONE",
+                    "L22_CANARY_MUTATED");
+                s.Preserved();
+                return Task.CompletedTask;
+            });
+            await Check("L22-02-OLD-PIN-ALSO-PRESERVED-THROUGH-NEW-DECISION",async()=>{
+                using var s=await L16Tests.Prepared();
+                Require(await L18Coordinator.Execute(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,Exe,"none",TimeSpan.FromSeconds(30))==
+                    L18Decision.LocalConsistentObserved,
+                    "L22_HONEST_NEW_MISSING");
+                string canary=Path.Combine(s.Lab,"PERSONAL-DOC-CANARY-NEW.txt");
+                File.WriteAllText(canary,"NEVER-ERASE");
+                bool writeBlocked=false;
+                var result=L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,selectorObserved:()=>{
+                    writeBlocked=TryMutateOld(s).blocked;
+                });
+                Require(writeBlocked &&
+                    result==L18Decision.LocalConsistentObserved &&
+                    File.ReadAllText(L14Model.Old(s.Lab))==L14Model.OldText &&
+                    File.ReadAllText(canary)=="NEVER-ERASE",
+                    "L22_NEW_ACCEPTED_WITH_OLD_MODIFIED");
+                s.Preserved();
+            });
+            await Check("L22-03-CORRUPT-OLD-SAME-NTFS-ID-RETURNS-UNKNOWN",async()=>{
+                using var s=await L16Tests.Prepared();
+                string oldPath=L14Model.Old(s.Lab);
+                string original=File.ReadAllText(oldPath);
+                string beforeId;
+                using(var pin=WindowsFileGuard.OpenLabOld(s.Lab))
+                    beforeId=pin.Identity;
+                try
+                {
+                    using(var writer=new FileStream(oldPath,FileMode.Open,
+                        FileAccess.Write,FileShare.None))
+                    {
+                        writer.WriteByte((byte)'X');writer.Flush(true);
+                    }
+                    using(var pin=WindowsFileGuard.OpenLabOld(s.Lab))
+                        Require(pin.Identity==beforeId,"L22_MUST_PRESERVE_SAME_FILE_ID");
+                    Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                        L16Tests.bootstrap)==L18Decision.UnknownBlocked,
+                        "L22_CORRUPTED_OLD_ACCEPTED");
+                }
+                finally
+                {
+                    // Restore ONLY the inert OLD fixture so scenario teardown
+                    // can independently prove the original preserved layout.
+                    File.WriteAllText(oldPath,original);
+                }
+                Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.UnknownBlocked,
+                    "L22_FALLBACK_UNKNOWN_NOT_PERSISTENT");
+                s.Preserved();
+            });
+        }
+        finally{Directory.Delete(L16Tests.suite,true);}
+        var report=new{
+            schema="gf-l22-old-pinned-ntfs-inert/1",
+            passed=Results.Count-Failed,failed=Failed,tests=Results,
+            old_pinned_during_old_and_new_decisions=true,
+            same_file_id_old_corruption_blocked=true,
+            no_real_gf_execution=true,
+            independent_witness=false,
+            same_user_tamperproof=false,
+            universal_toctou_closed=false,
+            power_loss_proven=false,
+            whole_disk_restore_resisted=false,
+            operational_gates_closed=0
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_L22_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return Failed==0?0:1;
+    }
+}

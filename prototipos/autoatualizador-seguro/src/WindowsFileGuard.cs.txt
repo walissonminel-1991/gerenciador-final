@@ -25,6 +25,21 @@ internal sealed class WindowsFileGuard : IDisposable
     internal static WindowsFileGuard Open(string sandbox,string path,bool directory=false)
     {
         FixtureSandbox.RequireRoot(sandbox);
+        return OpenScoped(sandbox,path,directory);
+    }
+
+    // L22: dedicated capability for the ONLY OLD text fixture in the
+    // separately marked L14 disposable sandbox. Reuse all NTFS ancestor,
+    // no-follow, volume, single-link, ACL and identity checks below.
+    // This never accepts an arbitrary lab path or relaxes Open's root policy.
+    internal static WindowsFileGuard OpenLabOld(string lab)
+    {
+        L14Model.RequireRoot(lab);
+        return OpenScoped(lab,L14Model.Old(lab),false);
+    }
+
+    private static WindowsFileGuard OpenScoped(string sandbox,string path,bool directory)
+    {
         string full=Path.GetFullPath(path), root=Path.GetFullPath(sandbox);
         Require(full==root || full.StartsWith(root+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase),"NTFS_SCOPE");
         Require(full.Length<=240 && !full.StartsWith("\\\\",StringComparison.Ordinal) && !full[3..].Contains(':'),"NTFS_PATH");

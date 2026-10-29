@@ -115,24 +115,36 @@ internal static class L18Coordinator
     }
     private sealed class PinnedFacts : IDisposable
     {
-        private readonly WindowsFileGuard selectorPin,stagePin;
-        private readonly byte[] authorizedEntry;
+        private readonly WindowsFileGuard selectorPin,stagePin,oldPin;
+        private readonly byte[] authorizedEntry,authorizedOld;
         internal string sha {get;}
         internal L16Selector selector {get;}
         internal string selectorIdentity {get;}
         internal string stagedIdentity {get;}
+        internal string oldIdentity {get;}
         internal PinnedFacts(string digest,L16Selector selection,
             WindowsFileGuard selectorHandle,WindowsFileGuard stagedHandle,
-            byte[] entry)
+            WindowsFileGuard oldHandle,byte[] entry,byte[] old)
         {
             sha=digest;selector=selection;
-            selectorPin=selectorHandle;stagePin=stagedHandle;
+            selectorPin=selectorHandle;stagePin=stagedHandle;oldPin=oldHandle;
             authorizedEntry=(byte[])entry.Clone();
+            authorizedOld=(byte[])old.Clone();
             selectorIdentity=selectorPin.Identity;
             stagedIdentity=stagePin.Identity;
+            oldIdentity=oldPin.Identity;
         }
         internal void Recheck()
         {
+            // L22: retain OLD as a live NTFS capability throughout the
+            // complete reconciliation. Revalidate exact inert OLD bytes,
+            // not only a historical digest in a local journal.
+            oldPin.Recheck();
+            byte[] oldNow=oldPin.Read(1024);
+            Require(oldPin.Identity==oldIdentity &&
+                oldNow.AsSpan().SequenceEqual(authorizedOld) &&
+                Hash(oldNow)==L14Model.Hash(L14Model.OldText),
+                "L22_OLD_BYTES_OR_ID_CHANGED");
             // L21: the exact signed staged bytes, not just the File ID, must
             // remain pinned until OLD/NEW is classified. NTFS sharing denies
             // writes/deletes while the handle is held (cooperative lab model).
@@ -150,6 +162,7 @@ internal static class L18Coordinator
         {
             selectorPin.Dispose();
             stagePin.Dispose();
+            oldPin.Dispose();
         }
     }
 
@@ -158,6 +171,14 @@ internal static class L18Coordinator
     private static PinnedFacts Probe(string src,
         string lab,string bootstrap)
     {
+        // Acquire OLD BEFORE L15 performs its lab-side ordinary read;
+        // otherwise an in-place write could win between L15 and pinning.
+        var oldPin=WindowsFileGuard.OpenLabOld(lab);
+        try
+        {
+        byte[] old=System.Text.Encoding.UTF8.GetBytes(L14Model.OldText);
+        Require(oldPin.Read(1024).AsSpan().SequenceEqual(old),
+            "L22_OLD_NOT_EXPECTED_BYTES");
         var proof=L15Binding.Guard(lab,src,bootstrap);
         using var signedZip=WindowsFileGuard.Open(src,L15Binding.SignedZip(src));
         byte[] zip=signedZip.Read(ZipInspection.MaxBytes);
@@ -183,13 +204,15 @@ internal static class L18Coordinator
                         selector is {Selected:"new",Generation:2}),"L18_SELECTOR_INVALID");
                 stage.Recheck();selectorPin.Recheck();
                 var pinned=new PinnedFacts(proof.SignedEntrySha,selector,
-                    selectorPin,stage,entry);
+                    selectorPin,stage,oldPin,entry,old);
                 pinned.Recheck();
                 return pinned;
             }
             catch { selectorPin.Dispose();throw; }
         }
         catch { stage.Dispose();throw; }
+        }
+        catch { oldPin.Dispose();throw; }
     }
     // Local coordinator gate is distinct from the L16 owner's lease: it
     // serializes Begin/Execute/Reconcile among cooperative coordinators, even
