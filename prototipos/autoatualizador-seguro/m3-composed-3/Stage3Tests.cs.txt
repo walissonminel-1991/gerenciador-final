@@ -72,10 +72,12 @@ internal static class Stage3Tests
         }
         internal void RecoverInert()
         {
-            using var session=new FixtureSession(Case.Root);
-            var state=session.Recover();
-            Require(state.Transaction?.Phase=="rolled_back" && state.Confirmed==Case.Old,
-                "L3_RECOVERY_NOT_INERT");
+            using(var session=new FixtureSession(Case.Root))
+            {
+                var state=session.Recover();
+                Require(state.Transaction?.Phase=="rolled_back" && state.Confirmed==Case.Old,
+                    "L3_RECOVERY_NOT_INERT");
+            }
             CheckNoSelection();
         }
         internal void CheckNoSelection()
