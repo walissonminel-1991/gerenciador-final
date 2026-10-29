@@ -17,7 +17,7 @@ internal static class ComposedTests
 
     private sealed class Scenario: IDisposable
     {
-        internal readonly StateCase Case=new(suite);
+        internal readonly InertComposedCase Case=new(suite);
         internal readonly OperationJournal Operations;
         internal readonly InertCompositeAnchor Anchor;
         internal readonly byte[] AnchorRoot;
