@@ -43,6 +43,7 @@ A implementação passou por três falhas de integração, todas mantidas no his
 | [40943594592](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40943594592) | 07d6bd03 | FAILURE | Codec JSON divergente (camelCase StateCodec versus defaults), L15_EVIDENCE_FIELDS |
 | [40943845715](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40943845715) | 2962c25a | SUCCESS | 17/17, 0 warnings, 0 errors; codec unificado |
 | [40944125021](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40944125021) | 76b81693 | SUCCESS | 17/17, 0 warnings, 0 errors, com caso de adulteração L15-05 corrigido para alterar SOMENTE o digest alvo |
+| [40944154054](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40944154054) | 7b518505 | SUCCESS | 17/17, 0 warnings, 0 errors; valida a HEAD técnica final incluindo o README de limites de sandboxes |
 
 A correção da causa primária foi feita por commits experimentais:
 - 69d40f6bd0aa44f30d64f5369519d158ce3af446 — separa os dois sandboxes sem enfraquecer marcador original.
@@ -51,7 +52,7 @@ A correção da causa primária foi feita por commits experimentais:
 - 76b81693d4ae7141562cc3f2fa7acfcec1645a17 — reusa o mesmo decoder no negativo de digest, evitando falso positivo por nulls.
 - 7b51850537b5881f0f6b9b38c08d448b72e55b27 — atualiza README com limite explícito do pin NTFS entre sandboxes.
 
-Os relatórios das duas execuções SUCCESS apresentaram GF_L15_FINAL_REPORT passed=17 failed=0 e todas as flags exigidas pelo workflow. O resultado técnico foi baseado nos LOGS dos jobs, não apenas no status verde.
+Os relatórios das três execuções SUCCESS apresentaram GF_L15_FINAL_REPORT passed=17 failed=0 e todas as flags exigidas pelo workflow. O resultado técnico foi baseado nos LOGS dos jobs, não apenas no status verde.
 
 ### 5. Os 17 casos executados
 
