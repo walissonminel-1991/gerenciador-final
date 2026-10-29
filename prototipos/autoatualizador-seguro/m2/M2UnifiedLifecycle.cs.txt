@@ -115,7 +115,8 @@ internal static class M2UnifiedLifecycle
                         using var stream=new FileStream(candidateExe,FileMode.Open,FileAccess.Read,
                             FileShare.Read|FileShare.Delete,65536,FileOptions.SequentialScan);
                         var identity=Convert.ToHexStringLower(SHA256.HashData(stream));
-                        var selfFacts=PeerIdentity.Facts(Process.GetCurrentProcess());
+                        using var currentProcess=Process.GetCurrentProcess();
+                        var selfFacts=PeerIdentity.Facts(currentProcess);
                         var trusted=new G5Trust(candidateExe,identity,candidate.Id,selfFacts.Sid,
                             selfFacts.Session,false,tx.Id,boundNonce);
                         new G5Admission(trusted,TimeSpan.FromSeconds(12)).Accept(pipe,candidate,response);
@@ -123,7 +124,7 @@ internal static class M2UnifiedLifecycle
                     }
                     accepted=true;
                 }
-                catch(InvalidDataException e) when(mode is "bad-nonce" or "bad-tx" && e.Message=="IPC_BINDING")
+                catch(InvalidDataException e) when((mode=="bad-nonce" || mode=="bad-tx") && e.Message=="IPC_BINDING")
                 {accepted=false;}
             }
             if(accepted)
