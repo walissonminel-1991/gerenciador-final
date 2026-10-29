@@ -132,8 +132,9 @@ internal static class L15Binding
         using var doc=Json(bytes,4096);
         Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
             doc.RootElement.EnumerateObject().Count()==13,"L15_EVIDENCE_SCHEMA");
-        var record=JsonSerializer.Deserialize<L15LocalEvidence>(bytes)
-            ??throw new Rejected("L15_EVIDENCE_MISSING");
+        // StateCodec.Encode writes camelCase and a closed schema; decoding
+        // with default JsonSerializer options silently loses those fields.
+        var record=StateCodec.Decode<L15LocalEvidence>(bytes);
         Require(record.Schema==Schema && Hex(record.Stage3Digest,64) &&
             Hex(record.SignedZipSha,64) && Hex(record.SignedEntrySha,64) &&
             Hex(record.OperationDigest,64) && Hex(record.Stage2IntentDigest,64) &&
