@@ -1,0 +1,156 @@
+// Minimal M1/G5 laboratory runner: no GF process, update, UAC or account creation.
+using System.Diagnostics;
+using System.IO.Pipes;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text.Json;
+
+namespace GfUpdaterFixture;
+
+internal static class M1Tests
+{
+    private static readonly List<object> cases = [];
+    private static int failed, blocked;
+    private static async Task Case(string id, Func<Task> test)
+    {
+        try { await test(); cases.Add(new { id, status="passed" }); Console.WriteLine("PASS " + id); }
+        catch(Exception e) { failed++; cases.Add(new { id, status="failed", error=e.ToString() }); Console.WriteLine("FAIL " + id + " " + e); }
+    }
+    private static void Block(string id, string reason)
+    { blocked++; cases.Add(new { id, status="blocked", reason }); Console.WriteLine("BLOCKED " + id + " " + reason); }
+    private static void Refuse(Action action, string code)
+    {
+        try { action(); }
+        catch(InvalidDataException e) when(e.Message==code) { return; }
+        throw new InvalidDataException("M1_UNSAFE_ACCEPTANCE_OR_WRONG_REFUSAL:" + code);
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length==5 && args[0]=="--m1-probe") return await Probe(args);
+        if(args.Length!=2 || args[0]!="--report") return 2;
+        await Case("M1-INPUT-REFUSAL", () =>
+        {
+            var valid = new G5Trust(Path.Combine(Path.GetTempPath(),"fixture.exe"),new string('a',64),
+                42,"S-1-5-21-fixture",1,false,new string('b',32),new string('c',64));
+            Refuse(()=>new G5Admission(valid with { Elevated=true },TimeSpan.FromSeconds(1)),"M1_ELEVATED_CONTEXT");
+            Refuse(()=>new G5Admission(valid with { ExecutableSha256="invalid" },TimeSpan.FromSeconds(1)),"M1_BAD_BINDING");
+            Refuse(()=>new G5Admission(valid with { ImagePath="dotnet.exe" },TimeSpan.FromSeconds(1)),"M1_BAD_IMAGE");
+            Refuse(()=>new G5Admission(valid,TimeSpan.Zero),"M1_BAD_DEADLINE");
+            return Task.CompletedTask;
+        });
+        if(OperatingSystem.IsWindows()) await Windows();
+        else Block("M1-KERNEL-PROBE", "Real Windows token, process and named-pipe handshake not available");
+        var report = new { schema=1, phase="M1", fixture_only=true, operational_gates_closed=0,
+            passed=cases.Count-failed-blocked, failed, blocked, tests=cases,
+            gf_executed=false, changed_accounts=false, changed_acl=false, product_built=false,
+            foreign_user_session_handshake_executed=false, physical_homologation=false };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("M1_FINAL_REPORT " + JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static async Task Windows()
+    {
+        using var self=Process.GetCurrentProcess();
+        var f=PeerIdentity.Facts(self);
+        if(f.Elevated)
+        {
+            Block("M1-NON-ELEVATED-POSITIVE", "Runner elevated; no operational IPC admission or fabricated token downgrade");
+            return;
+        }
+        await Case("M1-REAL-READY",()=>Roundtrip("normal",x=>x,null));
+        await Case("M1-REAL-READY-REPLAY",()=>Roundtrip("duplicate",x=>x,null,true));
+        await Case("M1-REAL-WRONG-NONCE",()=>Roundtrip("bad-nonce",x=>x,"IPC_BINDING"));
+        await Case("M1-REAL-WRONG-TX",()=>Roundtrip("bad-tx",x=>x,"IPC_BINDING"));
+        await Case("M1-REAL-PID-MISMATCH",()=>Roundtrip("normal",x=>x with { ChildPid=x.ChildPid+1 },"M1_EXPECTED_PROCESS"));
+        await Case("M1-EXPECTED-USER-MISMATCH",()=>Roundtrip("normal",x=>x with { UserSid=x.UserSid+"-other" },"M1_USER_SESSION"));
+        await Case("M1-EXPECTED-SESSION-MISMATCH",()=>Roundtrip("normal",x=>x with { SessionId=x.SessionId+1 },"M1_USER_SESSION"));
+        await Case("M1-EXECUTABLE-DIGEST-MISMATCH",()=>Roundtrip("normal",x=>x with { ExecutableSha256=new string('0',64) },"M1_INSTALLATION_ID"));
+        await Case("M1-MONOTONIC-EXPIRY",()=>Roundtrip("normal",x=>x,"M1_DEADLINE",false,true));
+        Block("M1-FOREIGN-CONTEXT", "A real distinct Windows user/session is not available in this isolated runner; altered expected facts are negative models only");
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static async Task Roundtrip(string mode,Func<G5Trust,G5Trust> change,string? rejection,
+        bool replay=false,bool expired=false)
+    {
+        string exe=Environment.ProcessPath ?? throw new InvalidDataException("M1_NO_APPHOST");
+        if(Path.GetFileNameWithoutExtension(exe).Equals("dotnet",StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("M1_NO_OWN_APPHOST");
+        string name="gf-m1-"+Guid.NewGuid().ToString("N");
+        string tx=Guid.NewGuid().ToString("N");
+        string nonce=Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+        using var server=new NamedPipeServerStream(name,PipeDirection.InOut,1,PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly|PipeOptions.FirstPipeInstance);
+        var info=new ProcessStartInfo(exe) { UseShellExecute=false };
+        foreach(var arg in new[]{"--m1-probe",name,Environment.ProcessId.ToString(),exe,mode})
+            info.ArgumentList.Add(arg);
+        using var child=Process.Start(info) ?? throw new InvalidDataException("M1_CHILD_START");
+        using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        try
+        {
+            await server.WaitForConnectionAsync(budget.Token);
+            PipeFrames.Check(PeerIdentity.PipePid(server,true)==child.Id,"M1_KERNEL_PID");
+            using var self=Process.GetCurrentProcess();
+            var facts=PeerIdentity.Facts(self);
+            using var executable=new FileStream(exe,FileMode.Open,FileAccess.Read,
+                FileShare.Read|FileShare.Delete,65536,FileOptions.SequentialScan);
+            string digest=Convert.ToHexStringLower(SHA256.HashData(executable));
+            var expected=new G5Trust(exe,digest,child.Id,facts.Sid,facts.Session,facts.Elevated,tx,nonce);
+            var admission=new G5Admission(change(expected),expired?TimeSpan.FromMilliseconds(1):TimeSpan.FromSeconds(15));
+            await PipeFrames.Send(server,new(1,"challenge",tx,nonce,"fixture-local"),budget.Token);
+            var response=await PipeFrames.Read(server,budget.Token);
+            if(expired) await Task.Delay(30,budget.Token);
+            if(rejection is null && !expired) admission.Accept(server,child,response);
+            else Refuse(()=>admission.Accept(server,child,response),rejection??"M1_DEADLINE");
+            if(replay)
+            {
+                var second=await PipeFrames.Read(server,budget.Token);
+                Refuse(()=>admission.Accept(server,child,second),"M1_READY_REPLAY");
+            }
+            await PipeFrames.Send(server,new(1,"close",tx,nonce,"fixture-local"),budget.Token);
+            var bye=await PipeFrames.Read(server,budget.Token);
+            PipeFrames.Bound(bye,"bye",tx,nonce);
+            await child.WaitForExitAsync(budget.Token);
+            PipeFrames.Check(child.ExitCode==0,"M1_PROBE_EXIT");
+        }
+        finally
+        {
+            if(!child.HasExited) { child.Kill(true); await child.WaitForExitAsync(); }
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static async Task<int> Probe(string[] args)
+    {
+        try
+        {
+            string name=args[1], image=args[3], mode=args[4];
+            if(!name.StartsWith("gf-m1-",StringComparison.Ordinal) ||
+                !int.TryParse(args[2],out int pid) || !new[]{"normal","bad-nonce","bad-tx","duplicate"}.Contains(mode))
+                return 2;
+            using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            using var client=new NamedPipeClientStream(".",name,PipeDirection.InOut,
+                PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly);
+            await client.ConnectAsync(budget.Token);
+            PipeFrames.Check(PeerIdentity.OwnParentPid()==pid,"M1_PARENT_PID");
+            using var parent=Process.GetProcessById(pid);
+            PeerIdentity.Verify(client,false,parent,image);
+            var challenge=await PipeFrames.Read(client,budget.Token);
+            PipeFrames.Bound(challenge,"challenge",challenge.Transaction,challenge.Nonce);
+            var ready=challenge with { Kind="ready" };
+            if(mode=="bad-nonce")ready=ready with { Nonce=new string('0',64) };
+            if(mode=="bad-tx")ready=ready with { Transaction=new string('0',32) };
+            await PipeFrames.Send(client,ready,budget.Token);
+            if(mode=="duplicate")await PipeFrames.Send(client,ready,budget.Token);
+            var close=await PipeFrames.Read(client,budget.Token);
+            PipeFrames.Bound(close,"close",challenge.Transaction,challenge.Nonce);
+            await PipeFrames.Send(client,close with { Kind="bye" },budget.Token);
+            return 0;
+        }
+        catch(Exception ex) when(ex is IOException or InvalidDataException or OperationCanceledException
+            or System.ComponentModel.Win32Exception or InvalidOperationException)
+        { return 15; }
+    }
+}
