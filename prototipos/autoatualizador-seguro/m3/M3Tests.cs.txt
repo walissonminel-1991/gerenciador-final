@@ -92,6 +92,8 @@ internal static class M3Tests
 
     public static async Task<int> Main(string[] args)
     {
+        if(args.Length>0 && args[0]=="--m3-write-child")
+            return M3WriteRace.Child(args);
         if(args.Length!=2 || args[0]!="--report")return 2;
         if(!OperatingSystem.IsWindows())return 3;
         suite=Path.Combine(Path.GetTempPath(),"gf-u2-m3-"+Guid.NewGuid().ToString("N"));
@@ -210,6 +212,22 @@ internal static class M3Tests
                 fixture.Preserved();
                 return Task.CompletedTask;
             });
+            await Test("M3-SYNC-WRITE-PRE-APPEND-TIMEOUT-RECOVERS",async()=>{
+                using var fixture=new StateCase(suite);
+                var result=await M3WriteRace.Exercise(fixture,"pre-append");
+                Require(result==M3AfterTimeout.RecoveredPrevious,"M3_PRE_APPEND_UNRECOVERED");
+            });
+            await Test("M3-SYNC-FLUSHED-PENDING-BLOCKS",async()=>{
+                using var fixture=new StateCase(suite);
+                var result=await M3WriteRace.Exercise(fixture,"record-flushed");
+                Require(result is null,"M3_PENDING_MISCLASSIFIED");
+            });
+            await Test("M3-SYNC-PROMOTED-LATE-COMMIT-REQUIRES-REVIEW",async()=>{
+                using var fixture=new StateCase(suite);
+                var result=await M3WriteRace.Exercise(fixture,"record-promoted");
+                Require(result==M3AfterTimeout.LateConfirmedReviewRequired,
+                    "M3_LATE_COMMIT_AUTOMATICALLY_ROLLED_BACK");
+            });
         }
         finally{Directory.Delete(suite,true);}
         var report=new
@@ -219,6 +237,10 @@ internal static class M3Tests
             real_named_pipe_late_io_observed=lateIoObserved,
             late_completion_blocked_from_journal=lateCommitBlocked,
             prior_selection_recovered=rollbackPreserved,
+            real_sync_append_interrupted=M3WriteRace.ActualSyncAppendInterrupted,
+            timeout_pre_append_recovered=M3WriteRace.PreWriteRecovered,
+            flushed_pending_refused=M3WriteRace.PendingFlushBlocked,
+            promoted_after_timeout_requires_review=M3WriteRace.LatePromotionDetected,
             operational_gates_closed=0,product_built=false,product_executed=false,
             authenticated_ipc_or_bundle_verified=false,physical_power_loss_tested=false,
             synchronous_journal_write_preemptible=false,
