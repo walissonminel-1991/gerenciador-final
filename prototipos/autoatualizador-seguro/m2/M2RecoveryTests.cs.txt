@@ -127,7 +127,7 @@ internal static class M2RecoveryTests
             });
             if(OperatingSystem.IsWindows())
             {
-                foreach(string mode in new[]{"normal","bad-nonce","bad-tx","no-ready"})
+                foreach(string mode in new[]{"normal","bad-nonce","bad-tx","no-ready","disconnect"})
                     await Check("M2-UNIFIED-"+mode.ToUpperInvariant(),async()=>{
                         using var fixture=new StateCase(suite);
                         await M2UnifiedLifecycle.Cycle(fixture,mode);
@@ -145,6 +145,7 @@ internal static class M2RecoveryTests
             unified_winforms_journal_confirmed=M2UnifiedLifecycle.ValidHwndConfirmed,
             unified_negative_ready_rolled_back=M2UnifiedLifecycle.RejectedReadyRolledBack,
             unified_no_ready_rolled_back=M2UnifiedLifecycle.WithheldReadyRolledBack,
+            unified_disconnect_rolled_back=M2UnifiedLifecycle.TransportDisconnectRolledBack,
             unified_non_elevated_admission_verified=M2UnifiedLifecycle.NonElevatedAdmissionObserved,
             product_built=false,product_executed=false,hardware_failure_tested=false};
         await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
