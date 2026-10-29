@@ -1,0 +1,248 @@
+// N1/N2 only: selective Stage11 journal restoration and two Stage2
+// intent/rolled_back rounds with an in-memory logical witness checkpoint.
+// NO Stage2 selector change/selection/confirmation, no real remote anchor.
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class ComposedTests
+{
+    private static readonly List<object> results=[];
+    private static int failed;
+    private static string suite="",bootstrap="";
+    private static bool tufSelectiveRollbackDetected,secondRoundLogicalExtension,
+        noStage2Selection=true,sidecarUnchanged,operationBound,
+        terminalAuthenticityProved=false;
+
+    private sealed class Scenario: IDisposable
+    {
+        internal readonly StateCase Case=new(suite);
+        internal readonly OperationJournal Operations;
+        internal readonly InertCompositeAnchor Anchor;
+        internal readonly byte[] AnchorRoot;
+        internal Scenario()
+        {
+            AnchorRoot=File.ReadAllBytes(bootstrap);
+            Directory.CreateDirectory(Path.Combine(Case.Root,"operations"));
+            Operations=new OperationJournal(Case.Root,Case.InstallationId);
+            Anchor=new InertCompositeAnchor(Case.InstallationId,InertCompositeBuilder.Repository);
+            using var trust=new DurableEpochCache(Case.Root,Case.InstallationId,AnchorRoot,create:true);
+        }
+        internal void AdvanceTuf()
+        {
+            using var trust=Open();
+            trust.Begin(DateTimeOffset.UtcNow.AddSeconds(1));
+            trust.Finish();
+        }
+        internal DurableEpochCache Open()
+            =>new(Case.Root,Case.InstallationId,AnchorRoot);
+        internal OperationRecord PreparedOperation(BundleRef candidate,TrustView trust)
+        {
+            var state=new PersistentState(Case.Root).Load();
+            var selector=Hash(PersistentState.ReadFixtureFile(Case.Root,
+                Path.Combine(Case.Root,"active.fixture.json")));
+            var admitted=Operations.Admit(state.Digest,selector);
+            var permit=new InertPermit(candidate.Sequence,candidate.Version,
+                new string('b',64),candidate.Sha256,new string('c',64),trust.Digest);
+            var authorized=Operations.Advance(admitted,"authorized",permit:permit);
+            return Operations.Advance(authorized,"prepared",candidate:candidate);
+        }
+        internal CompositeHead First(TrustView trust)
+        {
+            PreparedOperation(Case.Candidate,trust);
+            _=G1Preselect.Prepare(Case.Root,Case.Candidate,true);
+            var cp=InertCompositeBuilder.Build(Case.Root,trust,Operations,null);
+            var head=Anchor.CommitModelOnly(cp);
+            Require(InertCompositeBuilder.InspectBound(Case.Root,trust,Operations,head,null)==
+                CompositeDecision.BoundButNotAuthorized,"COMPOSITE_FALSE_AUTHORIZATION");
+            CheckNoSelectorChange();
+            return head;
+        }
+        internal (CompositeHead first,CompositeHead second) TwoRounds(TrustView trust)
+        {
+            var first=First(trust);
+            using(var session=new FixtureSession(Case.Root))
+            {
+                var r=session.Recover();
+                Require(r.Transaction is {Phase:"rolled_back"} &&
+                    r.Generation>first.Checkpoint.IntentGeneration &&
+                    r.Confirmed==Case.Old,"COMPOSITE_FIRST_NOT_TERMINAL");
+                var current=Operations.Load().Record!;
+                _=Operations.Advance(current,"settled",outcome:"rolled_back",
+                    after:session.Store.Load().Digest);
+            }
+            PreparedOperation(Case.Later,trust);
+            _=G1Preselect.Prepare(Case.Root,Case.Later,true);
+            var cp=InertCompositeBuilder.Build(Case.Root,trust,Operations,first);
+            var second=Anchor.CommitModelOnly(cp);
+            return(first,second);
+        }
+        internal void CheckNoSelectorChange()
+        {
+            using var session=new FixtureSession(Case.Root);
+            Require(session.Files.ReadSelector(Case.InstallationId).Bundle==Case.Old &&
+                session.Store.Load().Record.Confirmed==Case.Old &&
+                session.Store.Load().Record.Transaction is not {Phase:"selected" or "confirmed"},
+                "COMPOSITE_SELECTOR_CHANGED");
+            noStage2Selection=true;
+        }
+        public void Dispose()
+        {
+            CheckNoSelectorChange();
+            Case.Preserved();Case.Dispose();
+        }
+    }
+    private static Dictionary<string,byte[]> TufSnapshot(string root)
+    {
+        var basePath=Path.Combine(root,"tuf11");
+        FixtureSandbox.RequireRoot(root);
+        return Directory.GetFiles(basePath,"*",SearchOption.AllDirectories)
+            .ToDictionary(x=>Path.GetRelativePath(basePath,x),File.ReadAllBytes,
+                StringComparer.Ordinal);
+    }
+    private static void RestoreOnlyTuf(string root,Dictionary<string,byte[]> old)
+    {
+        FixtureSandbox.RequireRoot(root);
+        var basePath=Path.Combine(root,"tuf11");
+        foreach(var file in Directory.GetFiles(basePath,"*",SearchOption.AllDirectories))
+            if(!old.ContainsKey(Path.GetRelativePath(basePath,file)))File.Delete(file);
+        foreach(var (name,data) in old)
+        {
+            string target=Path.GetFullPath(Path.Combine(basePath,name));
+            Require(target.StartsWith(Path.GetFullPath(basePath)+Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase),"COMPOSITE_RESTORE_OUTSIDE_TUF");
+            File.WriteAllBytes(target,data);
+        }
+        Require(TufSnapshot(root).Count==old.Count &&
+            old.All(x=>TufSnapshot(root).TryGetValue(x.Key,out var a) &&
+                a.SequenceEqual(x.Value)),"COMPOSITE_RESTORE_INEXACT");
+    }
+    private static void Reject(string code,Action a)
+    {
+        try{a();}
+        catch(Rejected ex) when(ex.Code==code){return;}
+        throw new Rejected("COMPOSITE_UNSAFE_ACCEPTANCE:"+code);
+    }
+    private static async Task Test(string id,Func<Task> run)
+    {
+        try{await run();results.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception e){failed++;results.Add(new{id,status="failed",error=e.ToString()});
+            Console.WriteLine("FAIL "+id+" "+e);}
+    }
+    private static Task Sync(Action a){a();return Task.CompletedTask;}
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=3 || args[0]!="--report" || !OperatingSystem.IsWindows())
+            return 2;
+        bootstrap=Path.GetFullPath(args[2]);
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-composed-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Test("N1-01-RESTORE-ONLY-REAL-TUF11-JOURNAL-REJECT",()=>Sync(()=>{
+                using var s=new Scenario();
+                var oldTuf=TufSnapshot(s.Case.Root); // authenticated root record, sequence 1
+                s.AdvanceTuf(); // authenticated Stage11 begin/finish events, sequence 3
+                CompositeHead head;
+                using(var trust=s.Open())
+                {
+                    head=s.First(trust.View());
+                    var stage2=new PersistentState(s.Case.Root).Load();
+                    var proposal=G1AckFixture.Binding(s.Case.Root);
+                    G1AckFixture.WriteFixtureReceipt(s.Case.Root,new TxReceipt(
+                        proposal.InstallationId,proposal.TxId,proposal.Expected,proposal.Next));
+                    var ackBefore=PersistentState.ReadFixtureFile(s.Case.Root,
+                        Path.Combine(s.Case.Root,"g1-ack.fixture.json"));
+                    RestoreOnlyTuf(s.Case.Root,oldTuf); // Only TUF subtree; Stage2+ack stay current
+                    var ackAfter=PersistentState.ReadFixtureFile(s.Case.Root,
+                        Path.Combine(s.Case.Root,"g1-ack.fixture.json"));
+                    Require(ackBefore.SequenceEqual(ackAfter) &&
+                        new PersistentState(s.Case.Root).Load().Digest==stage2.Digest,
+                        "COMPOSITE_UNINTENDED_STAGE2_OR_ACK_CHANGE");
+                    sidecarUnchanged=true;
+                }
+                using(var trust=s.Open())
+                {
+                    Require(trust.View().Sequence==1 &&
+                        trust.View().Digest!=head.Checkpoint.TufDigest,
+                        "COMPOSITE_TUF_RESTORE_NOT_EFFECTIVE");
+                    Reject("COMPOSITE_OPERATION_OR_TUF_UNBOUND",()=>
+                        InertCompositeBuilder.InspectBound(
+                            s.Case.Root,trust.View(),s.Operations,head,null));
+                }
+                s.CheckNoSelectorChange();
+                tufSelectiveRollbackDetected=true;
+            }));
+            await Test("N1-02-TUF-ADVANCE-AFTER-CHECKPOINT-CANNOT-SILENTLY-REBIND",()=>Sync(()=>{
+                using var s=new Scenario();s.AdvanceTuf();
+                CompositeHead head;
+                using(var t=s.Open())head=s.First(t.View());
+                s.AdvanceTuf(); // separately authenticated TUF advance not in the old checkpoint
+                using var changed=s.Open();
+                Reject("COMPOSITE_OPERATION_OR_TUF_UNBOUND",()=>
+                    InertCompositeBuilder.InspectBound(s.Case.Root,changed.View(),
+                        s.Operations,head,null));
+                s.CheckNoSelectorChange();
+            }));
+            await Test("N2-01-TWO-CONSECUTIVE-ROLLED_BACK-THEN-INTENT-EXTENSION",()=>Sync(()=>{
+                using var s=new Scenario();s.AdvanceTuf();
+                using var trust=s.Open();
+                var (first,second)=s.TwoRounds(trust.View());
+                Require(first.Checkpoint.IntentGeneration==2 &&
+                    second.Checkpoint.IntentGeneration==5 &&
+                    first.Sequence==1 && second.Sequence==2 &&
+                    second.Checkpoint.PriorWitnessDigest==first.Digest &&
+                    second.Checkpoint.PreviousWitnessIntentDigest==
+                        first.Checkpoint.Stage2IntentDigest,
+                    "COMPOSITE_GENERATION_CONFUSED_WITH_WITNESS_SEQUENCE");
+                Require(InertCompositeBuilder.InspectBound(s.Case.Root,trust.View(),
+                    s.Operations,second,first)==CompositeDecision.BoundButNotAuthorized,
+                    "COMPOSITE_UNEXPECTED_AUTHORIZATION");
+                s.CheckNoSelectorChange();
+                secondRoundLogicalExtension=true;
+            }));
+            await Test("N2-02-ALTERED-PRIOR-INTENT-DIGEST-BLOCKS-EXTENSION",()=>Sync(()=>{
+                using var s=new Scenario();s.AdvanceTuf();using var trust=s.Open();
+                var (first,second)=s.TwoRounds(trust.View());
+                var wrong=first with {Checkpoint=first.Checkpoint with {
+                    Stage2IntentDigest=new string('e',64)}};
+                Reject("COMPOSITE_PRIOR_INTENT_RESTORED",()=>
+                    InertCompositeBuilder.InspectBound(s.Case.Root,trust.View(),
+                        s.Operations,second,wrong));
+            }));
+            await Test("N2-03-FOREIGN-OPERATION-DIGEST-CANNOT-SWAP-CHECKPOINT",()=>Sync(()=>{
+                using var s=new Scenario();s.AdvanceTuf();using var trust=s.Open();
+                var (first,second)=s.TwoRounds(trust.View());
+                var counterfeit=second.Checkpoint with {
+                    OperationDigest=new string('f',64)};
+                var forged=second with {
+                    Digest=Hash(StateCodec.Encode(counterfeit)),Checkpoint=counterfeit};
+                Reject("COMPOSITE_CROSS_JOURNAL_ROLLBACK_OR_FORK",()=>
+                    InertCompositeBuilder.InspectBound(s.Case.Root,trust.View(),
+                        s.Operations,forged,first));
+                operationBound=true;
+            }));
+        }
+        finally{Directory.Delete(suite,true);}
+        var report=new {
+            schema=1,phase="G1-G2-G8-composed-N1-N2-inert",fixture_only=true,
+            passed=results.Count-failed,failed,tests=results,
+            actual_stage11_trust_only_rollback_blocked=tufSelectiveRollbackDetected,
+            stage2_and_ack_byte_preserved=sidecarUnchanged,
+            two_sequential_intents_with_real_rollback_terminal=secondRoundLogicalExtension,
+            foreign_operation_digest_denied=operationBound,
+            selector_never_changed=noStage2Selection,
+            terminal_external_authenticity_proven=terminalAuthenticityProved,
+            witness_is_memory_model=true,
+            tuf_targets_validated_for_candidate=false,
+            real_commit_receipt_authenticated=false,
+            gates_closed=0,product_built=false,product_executed=false,
+            activation_authorized=false,physical_power_loss_tested=false
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_COMPOSED_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}
