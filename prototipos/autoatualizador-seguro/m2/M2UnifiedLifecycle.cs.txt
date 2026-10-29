@@ -18,6 +18,7 @@ internal static class M2UnifiedLifecycle
     internal static bool NonElevatedAdmissionObserved;
     internal static bool RejectedReadyRolledBack;
     internal static bool WithheldReadyRolledBack;
+    internal static bool TransportDisconnectRolledBack;
 
     private delegate bool WindowVisitor(IntPtr hwnd,IntPtr extra);
     [DllImport("user32.dll",SetLastError=true)]
@@ -64,7 +65,7 @@ internal static class M2UnifiedLifecycle
 
     internal static async Task Cycle(StateCase fixture,string mode)
     {
-        Require(mode is "normal" or "bad-nonce" or "bad-tx" or "no-ready","M2_INVALID_MODE");
+        Require(mode is "normal" or "bad-nonce" or "bad-tx" or "no-ready" or "disconnect","M2_INVALID_MODE");
         await ExitPrevious();
         var selected=fixture.Begin(); // Stage 2 journal: intent -> selector -> selected
         var tx=selected.Transaction!;
@@ -85,6 +86,7 @@ internal static class M2UnifiedLifecycle
         using var candidate=Process.Start(info)??throw new InvalidDataException("M2_GUI_START");
         using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(16));
         bool accepted=false;
+        Exception? transportFault=null;
         try
         {
             await pipe.WaitForConnectionAsync(budget.Token);
@@ -144,13 +146,24 @@ internal static class M2UnifiedLifecycle
             await candidate.WaitForExitAsync(budget.Token);
             Require(candidate.ExitCode==0,"M2_GUI_EXIT");
         }
+        catch(Exception error)
+        {
+            // Fail closed. Recover AFTER child exit; do not leave selected state behind
+            // just because the named pipe disconnected, timed out or was malformed.
+            transportFault=error;
+        }
         finally
         {
             if(!candidate.HasExited){candidate.Kill(true);await candidate.WaitForExitAsync();}
         }
+        if(mode=="disconnect" && (transportFault is not IOException || accepted))
+            throw new InvalidDataException("M2_DISCONNECT_NOT_OBSERVED",transportFault);
 
         using(var resumed=new FixtureSession(fixture.Root))
         {
+            var current=resumed.Store.Load().Record;
+            if(transportFault is not null && !FixtureSession.Pending(current))
+                throw new InvalidDataException("M2_FAILURE_AFTER_CONFIRM_NOT_ROLLBACKABLE",transportFault);
             if(accepted)
             {
                 Require(resumed.SelectionForFixtureInspectionOnly()==fixture.Candidate,
@@ -165,9 +178,12 @@ internal static class M2UnifiedLifecycle
                 Require(resumed.SelectionForFixtureInspectionOnly()==fixture.Old,
                     "M2_ROLLBACK_SELECTOR");
                 if(mode=="no-ready")WithheldReadyRolledBack=true;
+                else if(mode=="disconnect")TransportDisconnectRolledBack=true;
                 else RejectedReadyRolledBack=true;
             }
         }
         fixture.Preserved(); // Preserve consent/user files from Stage 2 fixture.
+        if(transportFault is not null && mode!="disconnect")
+            throw new InvalidDataException("M2_TRANSPORT_FAILURE_RECOVERED",transportFault);
     }
 }
