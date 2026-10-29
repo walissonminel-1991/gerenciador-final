@@ -8,7 +8,8 @@ namespace GfUpdaterFixture;
 internal enum PendingKind
 {
     NoPending, PlausibleSealedUncommitted, MalformedOrTruncated,
-    ForeignOrStale, UnknownLedgerEntries, MultiplePending, InvalidCommittedPrefix
+    ForeignOrStale, SelectorOrBundleInconsistent, UnknownLedgerEntries,
+    MultiplePending, InvalidCommittedPrefix
 }
 internal sealed record PendingAssessment(PendingKind Kind,int CommittedGenerations,
     int PendingCount,bool Blocked,bool Mutated);
@@ -85,6 +86,29 @@ internal static class PendingInspection
                 return Result(PendingKind.ForeignOrStale);
             try{StateCodec.Follows(prior,next,previousDigest);}
             catch(Rejected){return Result(PendingKind.ForeignOrStale);}
+            // A checksum-valid next record is still inconsistent if the
+            // active selector or either immutable bundle cannot be pinned.
+            // This check never repairs, updates, deletes, or selects a bundle.
+            try
+            {
+                var refs=new FixtureFiles(root);
+                var tx=next.Transaction;
+                if(tx is null)return Result(PendingKind.SelectorOrBundleInconsistent);
+                using var priorPin=refs.Pin(tx.Previous);
+                using var candidatePin=refs.Pin(tx.Candidate);
+                var active=refs.ReadSelector(next.InstallationId).Bundle;
+                bool consistent=tx.Phase switch
+                {
+                    "intent" or "rolled_back" => active==tx.Previous,
+                    "selected" or "confirmed" => active==tx.Candidate,
+                    "rollback_intent" => active==tx.Previous || active==tx.Candidate,
+                    _ => false
+                };
+                if(!consistent)return Result(PendingKind.SelectorOrBundleInconsistent);
+            }
+            catch(Exception e) when(e is Rejected or IOException or UnauthorizedAccessException
+                or System.ComponentModel.Win32Exception or InvalidDataException)
+            {return Result(PendingKind.SelectorOrBundleInconsistent);}
             return Result(PendingKind.PlausibleSealedUncommitted);
         }
         catch(Exception e) when(e is Rejected or IOException or UnauthorizedAccessException
