@@ -188,8 +188,10 @@ internal static class L18Tests
                     TimeSpan.FromSeconds(30))==L18Decision.FailedKnown,
                     "L18_KNOWN_FAILURE_MISCLASSIFIED");
                 Require(L18Coordinator.Reconcile(s.Source.Root,s.Lab,
-                    L16Tests.bootstrap)==L18Decision.FailedKnown,
-                    "L18_KNOWN_FAILURE_MUST_BE_IDEMPOTENT");
+                    L16Tests.bootstrap)==L18Decision.OldVerified &&
+                    L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap)==L18Decision.OldVerified,
+                    "L18_KNOWN_FAILURE_DID_NOT_REVERIFY_OLD_IDEMPOTENTLY");
                 s.Preserved();
             });
             await Check("L18-07-REJECT-EXTERNAL-CANARY-REDIRECTION",async()=>{

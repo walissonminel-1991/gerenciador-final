@@ -9,15 +9,19 @@ namespace GfUpdaterFixture;
 
 internal enum L18Decision { Busy, UnknownBlocked, FailedKnown, OldVerified, LocalConsistentObserved }
 internal sealed record L18PhaseRecord(string Schema,string Transaction,int Sequence,
-    string Phase,string Detail,string TargetSha);
+    string Phase,string Detail,string TargetSha,string StagedIdentity,
+    string BaselineDigest);
 
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 internal static class L18Coordinator
 {
     private const string Schema="gf-l18-coordinator-inert/1";
-    private const string Start="started", Intent="switch-intent", Exited="owner-exited",
-        Deadline="timeout", Unknown="unknown", Reconciling="reconciling",
-        Old="old-observed", New="new-observed", Failure="failed-known";
+    private const string Start="old-verified", Authorizing="authorizing",
+        Preparing="preparing", Staged="staged-verified", Intent="intent-durable",
+        Switching="switching", Launched="owner-launched", Exited="owner-exited",
+        Switched="switched-unconfirmed", Deadline="timeout", Unknown="unknown",
+        Reconciling="reconciling", Old="old-observed",
+        New="new-observed", Failure="failed-known";
     internal static string EventPath(string src,int sequence)
         =>Path.Combine(src,$"l18-phase-{sequence:D6}.fixture.json");
 
@@ -28,15 +32,21 @@ internal static class L18Coordinator
     }
     private static bool Allowed(string previous,string next)=> (previous,next) switch
     {
-        ("",Start) => true,
-        (Start,Intent) => true,
-        (Intent,Exited or Deadline or Unknown) => true,
-        (Deadline,Unknown) => true,
-        (Exited,Reconciling or Unknown) => true,
-        (Reconciling,New or Old or Failure or Unknown or Reconciling) => true,
-        (Unknown,Reconciling) => true,
-        (Failure,Reconciling) => true,
-        _ => false
+        ("",Start)=>true,
+        (Start,Authorizing)=>true,
+        (Authorizing,Preparing)=>true,
+        (Preparing,Staged)=>true,
+        (Staged,Intent)=>true,
+        (Intent,Switching)=>true,
+        (Switching,Launched or Deadline or Unknown)=>true,
+        (Launched,Exited or Deadline or Unknown)=>true,
+        (Deadline,Unknown)=>true,
+        (Exited,Switched or Reconciling or Unknown)=>true,
+        (Switched,Reconciling or Unknown)=>true,
+        (Reconciling,New or Old or Failure or Unknown or Reconciling)=>true,
+        (Unknown,Reconciling)=>true,
+        (Failure,Reconciling)=>true,
+        _=>false
     };
     private static List<L18PhaseRecord> Load(string src,string lab)
     {
@@ -54,15 +64,19 @@ internal static class L18Coordinator
             byte[] bytes=pin.Read(4096);
             using var doc=Json(bytes,4096);
             Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
-                doc.RootElement.EnumerateObject().Count()==6,"L18_JOURNAL_SHAPE");
+                doc.RootElement.EnumerateObject().Count()==8,"L18_JOURNAL_SHAPE");
             var item=StateCodec.Decode<L18PhaseRecord>(bytes);
             Require(item.Schema==Schema && item.Transaction==L14Model.Tx(lab) &&
                 item.Sequence==i+1 && Hex(item.TargetSha,64) &&
+                Hex(item.BaselineDigest,64) &&
+                !string.IsNullOrEmpty(item.StagedIdentity) &&
                 item.Detail is {Length:<=128} &&
                 Allowed(i==0?"":records[^1].Phase,item.Phase),
                 "L18_JOURNAL_FORK");
-            if(i>0)Require(item.TargetSha==records[0].TargetSha,
-                "L18_TARGET_FORK");
+            if(i>0)Require(item.TargetSha==records[0].TargetSha &&
+                item.StagedIdentity==records[0].StagedIdentity &&
+                item.BaselineDigest==records[0].BaselineDigest,
+                "L18_AUTHORIZATION_OR_STAGE_FORK");
             records.Add(item);
         }
         return records;
@@ -76,8 +90,14 @@ internal static class L18Coordinator
         string digest=all.Count==0?target:all[0].TargetSha;
         Require(Hex(digest,64) && (all.Count==0 || target==digest),
             "L18_TARGET_CHANGED");
+        using var stagePin=WindowsFileGuard.Open(src,L16Boundary.Stage(src));
+        string stagedId=stagePin.Identity;
+        string oldDigest=L14Model.Hash(L14Model.OldText);
+        if(all.Count>0)
+            Require(stagedId==all[0].StagedIdentity &&
+                oldDigest==all[0].BaselineDigest,"L18_STAGE_BASELINE_IDENTITY_FORK");
         var item=new L18PhaseRecord(Schema,L14Model.Tx(lab),all.Count+1,
-            phase,detail,digest);
+            phase,detail,digest,stagedId,oldDigest);
         byte[] bytes=StateCodec.Encode(item);
         Require(bytes.Length is >0 and <=4096,"L18_EVENT_SIZE");
         using(var stream=new FileStream(EventPath(src,item.Sequence),
@@ -124,7 +144,12 @@ internal static class L18Coordinator
         var facts=Probe(src,lab,bootstrap);
         Require(facts.selector is {Selected:"old",Generation:1},
             "L18_BEGIN_NOT_OLD");
-        Append(src,lab,Start,"old-verified-before-start",facts.sha);
+        Append(src,lab,Start,"old-observed-before-start",facts.sha);
+        Append(src,lab,Authorizing,"stage11-stage3-proof-checked",facts.sha);
+        // L16 Prepare already created staged bytes. PREPARING in this wrapper
+        // verifies that PRE-EXISTING fixture; it does not install real files.
+        Append(src,lab,Preparing,"l16-prestaged-fixture-only",facts.sha);
+        Append(src,lab,Staged,"exact-signed-entry-staged-id-pinned",facts.sha);
         // Persist intention BEFORE ANY owner that might modify the selector.
         Append(src,lab,Intent,"owner-may-be-launched",facts.sha);
     }
@@ -133,6 +158,8 @@ internal static class L18Coordinator
         bool cutDuringRecovery=false)
     {
         Begin(src,lab,bootstrap);
+        Append(src,lab,Switching,"switch-can-start-only-after-intent",
+            Load(src,lab)[0].TargetSha);
         Require(deadline>TimeSpan.Zero && deadline<=TimeSpan.FromMinutes(1),
             "L18_DEADLINE_SCOPE");
         string own=Path.GetFullPath(executable);
@@ -148,6 +175,9 @@ internal static class L18Coordinator
             info.ArgumentList.Add(part);
         using var owner=Process.Start(info) ??
             throw new InvalidDataException("L18_OWNER_START_FAILED");
+        // PID is diagnostic context, not a security credential.
+        Append(src,lab,Launched,"pid-"+owner.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Load(src,lab)[0].TargetSha);
         try
         {
             // Deterministic fixture handshake: deadline starts only once the
@@ -174,6 +204,9 @@ internal static class L18Coordinator
             }
             Append(src,lab,Exited,owner.ExitCode==0?"exit-code-zero":
                 "exit-code-nonzero",Load(src,lab)[0].TargetSha);
+            if(owner.ExitCode==0)
+                Append(src,lab,Switched,"switched-pending-reconciliation",
+                    Load(src,lab)[0].TargetSha);
             return Reconcile(src,lab,bootstrap,cutDuringRecovery);
         }
         catch
@@ -204,9 +237,17 @@ internal static class L18Coordinator
                 bool exitRecorded=events.Any(x=>x.Phase==Exited);
                 bool recovered=events.Any(x=>x.Phase==New);
                 bool failureRecorded=events.Any(x=>x.Phase==Failure);
+                bool oldObserved=events[^1].Phase==Old;
                 var facts=Probe(src,lab,bootstrap);
                 if(began && events[0].TargetSha!=facts.sha)
                     return L18Decision.UnknownBlocked;
+                if(began)
+                {
+                    using var stagePin=WindowsFileGuard.Open(src,L16Boundary.Stage(src));
+                    if(stagePin.Identity!=events[0].StagedIdentity ||
+                        events[0].BaselineDigest!=L14Model.Hash(L14Model.OldText))
+                        return L18Decision.UnknownBlocked;
+                }
                 if(!began)
                 {
                     if(File.Exists(L16Boundary.Intent(src)) ||
@@ -215,13 +256,18 @@ internal static class L18Coordinator
                     return facts.selector is {Selected:"old",Generation:1}
                         ?L18Decision.OldVerified:L18Decision.UnknownBlocked;
                 }
-                if(failureRecorded && events[^1].Phase==Failure)
-                {
-                    // A known failure must be idempotent and remain distinct
-                    // from an unknown outcome, provided OLD still verifies.
+                if(oldObserved)
                     return exitRecorded && facts.selector.Selected=="old" &&
                         !File.Exists(L16Boundary.Terminal(src))
-                        ?L18Decision.FailedKnown:L18Decision.UnknownBlocked;
+                        ?L18Decision.OldVerified:L18Decision.UnknownBlocked;
+                if(failureRecorded && events[^1].Phase==Failure)
+                {
+                    if(!exitRecorded || facts.selector.Selected!="old" ||
+                        File.Exists(L16Boundary.Terminal(src)))
+                        return L18Decision.UnknownBlocked;
+                    Append(src,lab,Reconciling,"reconfirm-known-failure-old",facts.sha);
+                    Append(src,lab,Old,"old-reverified-after-known-failure",facts.sha);
+                    return L18Decision.OldVerified;
                 }
                 if(recovered)
                 {
