@@ -1,0 +1,66 @@
+name: M3 G1 — rollback da epoca e chave local
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-g1-anchor/**'
+      - '.github/workflows/autoatualizador-m3-g1-epoch-rollback-isolado.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-g1-epoch-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  epoch-fixture:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - name: Checkout isolado sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Somente prova de rollback da chave publica e epoca em fixtures inertes
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-g1-anchor/G1EpochAnchor.csproj'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-m3-epoch-artifacts'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-epoch-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'G1_EPOCH_SDK_MISMATCH' }
+          dotnet restore $project "-p:ArtifactsPath=$out" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runners=@(Get-ChildItem $out -Filter 'GF.Updater.M3.G1EpochTests.exe' -Recurse -File)
+          if ($runners.Count -ne 1) { throw 'G1_EPOCH_RUNNER_NOT_UNIQUE' }
+          & $runners[0].FullName --report $report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.failed -ne 0 -or $r.passed -ne 10 -or
+              !$r.complete_local_snapshot_accepted_by_local_signature -or
+              !$r.independent_memory_epoch_rejects_rollback -or
+              !$r.missing_anchor_denied -or !$r.anchor_offline_denied -or
+              !$r.anchored_epoch_regression_denied -or
+              !$r.remote_ahead_blocked -or !$r.local_ahead_blocked -or
+              !$r.equal_epoch_key_fork_denied -or
+              !$r.compromised_anchor_can_lie -or
+              !$r.selector_preserved -or !$r.keyring_persisted_public_only -or
+              $r.private_keys_written_to_disk -or
+              $r.anchor_is_external_durable_service -or
+              $r.real_independent_epoch_verified -or $r.product_built -or
+              $r.product_executed -or $r.operational_gates_closed -ne 0 -or
+              $r.activation_authorized -or $r.physical_power_loss_tested) {
+            throw 'G1_EPOCH_REPORT_INVALID'
+          }
+          $items=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leaks=@($items.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-g1-anchor' })
+          if ($leaks.Count -ne 0) { throw 'G1_EPOCH_PRODUCT_COMPILE_LEAK' }
+          "G1 epoch rollback: $($r.passed) PASS; restored local pin accepts old signer, independent memory anchor rejects; physical anchor absent, all gates BLOCKED." >> $env:GITHUB_STEP_SUMMARY
+# No product, persisted private key, remote service, telemetry, release, or deployment.
