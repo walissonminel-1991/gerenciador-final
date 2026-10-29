@@ -1,5 +1,33 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+29/10/2026, America/Sao_Paulo. **Etapa13: preparação concluída; revisão
+independente blocked/não executada. G2 blocked; oito gates bloqueados, zero
+fechado. Etapa14 não iniciada.** PR65 aberta/Draft.
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | GF_SELF_UPDATER_STAGE13_INDEPENDENT_REVIEW_PREPARATION |
+| Branch / entrada | work-integracao-final-20261027 / b2af290cb41402a0d6a1dc3988b44f599cf2b0f4 |
+| Código | Sem alterações; mesmos fontes/patch/locks validados nas Etapas8/11/12 |
+| Revisão real | Zero reviews/comentários/revisores solicitados na PR; nenhum revisor independente disponibilizado |
+| Manutenção | D6-02 pendente; CODEOWNERS não é aceite específico TUF; ninguém designado automaticamente |
+| Entrega | Dossiê dentro do relatório, requisitos G2 e manutenção, decisões e dependências classificadas |
+| Verificações | 24 arquivos/Git blobs,20 blobs do catálogo e metadados de duas runs existentes; sem recriar vetores |
+| Testes / CI | Zero novos ou repetidos; as evidências anteriores são referências históricas |
+| G2 | Blocked: revisão, manutenção, decisão de conformidade/interoperabilidade, aceite de recuperação e adoção |
+| Próxima ação mínima | Disponibilizar revisor qualificado e obter aceite de manutenção antes de eventual correção/integração |
+| Preservações | .66, fonte GF/canal privado, main,13 workflows, físico parcial, proteções/flags no e27/42 |
+
+[Relatório/dossiê](WORK-AUTOATUALIZADOR-ETAPA13.md) ·
+[Evidência](evidencias/autoatualizador-etapa13.json) ·
+[Matriz](evidencias/autoatualizador-etapa13-gates.json).
+
+Preparação não é homologação independente. Não atribuir revisão ao próprio
+Work ou a testes automatizados. Sem chaves operacionais, produto integrado,
+testes pessoais ou publicação. **Parar; Etapa14 não iniciada.**
+
+## Registro da Etapa 12 — histórico preservado
+
 29/10/2026, America/Sao_Paulo. **Etapa 12 concluída; G2 blocked; oito gates
 operacionais bloqueados, zero fechado. Etapa 13 não iniciada.** PR #65 aberta/Draft.
 
