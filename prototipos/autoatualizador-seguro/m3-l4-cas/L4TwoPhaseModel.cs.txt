@@ -1,0 +1,219 @@
+// Two-phase G1 fixture MODEL. Never authenticates upstream TUF evidence or
+// an external witness; no disk, keys, accounts, activation or production code.
+using System.Security.Cryptography;
+using System.Text.Json;
+
+namespace GfUpdaterFixture;
+
+internal sealed class L4Reject(string code) : Exception(code)
+{
+    internal string Code=>Message;
+}
+internal static class L4Assert
+{
+    internal static void Require(bool ok,string error)
+    {
+        if(!ok)throw new L4Reject(error);
+    }
+    internal static string Hash(byte[] bytes)=>Convert.ToHexStringLower(SHA256.HashData(bytes));
+    internal static byte[] Serialize<T>(T value)=>JsonSerializer.SerializeToUtf8Bytes(value);
+    internal static string Digest<T>(T value)=>Hash(Serialize(value));
+    internal static bool Hex64(string value)=>value is {Length:64} &&
+        value.All(char.IsAsciiHexDigit);
+}
+internal sealed record L4TufProjection(string Repository,string TrustViewDigest,
+    string RootDigest,string TimestampDigest,string SnapshotDigest,
+    string TargetsDigest,string ZipDigest,string CandidateDigest);
+internal sealed record L4CompositeProjection(string Repository,string Installation,
+    string TxId,string Stage2IntentDigest,string CandidateDigest,string TrustViewDigest);
+
+// Caller-supplied representations of a Stage3-validated view. THIS MODEL DOES
+// NOT authenticate their provenance or signatures. Stored bytes are copied to
+// prevent mutation across prepare/publish inside the fixture.
+internal sealed class L4Evidence
+{
+    private readonly byte[] tuf;
+    private readonly byte[] composite;
+    internal L4Evidence(L4TufProjection t,L4CompositeProjection c)
+    {
+        tuf=L4Assert.Serialize(t);composite=L4Assert.Serialize(c);
+    }
+    internal string TufDigest=>L4Assert.Hash(tuf);
+    internal string CompositeDigest=>L4Assert.Hash(composite);
+    internal L4TufProjection Tuf=>JsonSerializer.Deserialize<L4TufProjection>(tuf)!;
+    internal L4CompositeProjection Composite=>JsonSerializer.Deserialize<L4CompositeProjection>(composite)!;
+    internal L4Evidence WithTuf(L4TufProjection changed)=>new(changed,Composite);
+    internal L4Evidence WithComposite(L4CompositeProjection changed)=>new(Tuf,changed);
+}
+internal sealed record L4Head(long Sequence,string Digest,string Phase,string TxId);
+internal sealed record L4IntentClaim(string Schema,string Installation,string Repository,
+    string TxId,string Stage2IntentDigest,string CandidateDigest,string TrustViewDigest,
+    string TufBindingBytesDigest,string CompositeCheckpointBytesDigest,
+    L4Head ExpectedHead);
+internal sealed record L4TerminalClaim(string Schema,string Installation,string Repository,
+    string TxId,string IntentReceiptDigest,string Stage2TerminalDigest,
+    string Outcome,L4Head ExpectedHead);
+internal sealed record L4Receipt(string Phase,string TxId,string ClaimDigest,
+    L4Head PreviousHead,L4Head CommittedHead);
+internal enum L4Reconcile { UnavailableBlocked,NotEnrolledBlocked,
+    UnseenBlocked,CommittedButNotAuthorized,ConflictBlocked }
+
+internal static class L4Claim
+{
+    internal const string IntentSchema="gf-g1-intent-commit-model/1";
+    internal const string TerminalSchema="gf-g1-terminal-commit-model/1";
+    internal static L4IntentClaim Prepare(string installation,string repository,
+        string txId,L4Evidence evidence,L4Head predecessor)
+    {
+        var t=evidence.Tuf;var c=evidence.Composite;
+        L4Assert.Require(t.Repository==repository && c.Repository==repository &&
+            c.Installation==installation && c.TxId==txId &&
+            c.CandidateDigest==t.CandidateDigest &&
+            c.TrustViewDigest==t.TrustViewDigest &&
+            L4Assert.Hex64(c.CandidateDigest) &&
+            L4Assert.Hex64(c.Stage2IntentDigest) &&
+            new[]{t.RootDigest,t.TimestampDigest,t.SnapshotDigest,
+                t.TargetsDigest,t.ZipDigest,t.TrustViewDigest}.All(L4Assert.Hex64),
+            "L4_INTENT_EVIDENCE_CROSS_BINDING");
+        return new(IntentSchema,installation,repository,txId,
+            c.Stage2IntentDigest,c.CandidateDigest,t.TrustViewDigest,
+            evidence.TufDigest,evidence.CompositeDigest,predecessor);
+    }
+    internal static L4TerminalClaim Terminal(L4Receipt intent,string installation,
+        string repo,string terminalDigest)
+        =>new(TerminalSchema,installation,repo,intent.TxId,
+            intent.CommittedHead.Digest,terminalDigest,"rolled_back",
+            intent.CommittedHead);
+}
+
+internal sealed class L4AtomicWitnessMemoryFixture
+{
+    private readonly object mutex=new();
+    private string installation="",repo="";
+    private L4Head? head;
+    private readonly Dictionary<(string,string),(string Digest,L4Receipt Receipt)> receipts=new();
+    internal bool Available=true;
+
+    // Explicit *harness* enrollment; absent head never triggers TOFU.
+    internal void BootstrapTrustedForHarness(string install,string repository)
+    {
+        lock(mutex)
+        {
+            L4Assert.Require(head is null && install.Length==32 &&
+                repository.Length>0,"L4_NO_TOFU_RESET");
+            installation=install;repo=repository;
+            head=new(0,L4Assert.Digest(new{schema="l4-bootstrap-fixture",install,repository}),
+                "stable","");
+        }
+    }
+    internal L4Head? HeadForFixtureOnly {get{lock(mutex)return head;}}
+    internal L4Receipt PublishIntent(L4IntentClaim claim,L4Evidence evidence,
+        bool dropReplyAfterCommit=false)
+    {
+        EnsureOnline();
+        L4Receipt receipt;
+        lock(mutex)
+        {
+            EnsureEnrolled();
+            L4Assert.Require(claim.Schema==L4Claim.IntentSchema &&
+                claim.Installation==installation && claim.Repository==repo &&
+                claim.TxId.Length==32,"L4_INTENT_SCOPE");
+            var expected=L4Claim.Prepare(installation,repo,claim.TxId,
+                evidence,claim.ExpectedHead);
+            L4Assert.Require(claim==expected,"L4_INTENT_EVIDENCE_CHANGED");
+            receipt=Write("intent",claim.TxId,L4Assert.Digest(claim),
+                claim.ExpectedHead);
+        }
+        if(dropReplyAfterCommit)throw new TimeoutException("L4_INTENT_REPLY_LOST");
+        return receipt;
+    }
+    internal L4Receipt PublishTerminal(L4TerminalClaim claim,
+        bool dropReplyAfterCommit=false)
+    {
+        EnsureOnline();
+        L4Receipt receipt;
+        lock(mutex)
+        {
+            EnsureEnrolled();
+            L4Assert.Require(claim.Schema==L4Claim.TerminalSchema &&
+                claim.Installation==installation && claim.Repository==repo &&
+                claim.TxId.Length==32 && L4Assert.Hex64(claim.Stage2TerminalDigest) &&
+                claim.Outcome=="rolled_back","L4_TERMINAL_SCOPE");
+            L4Assert.Require(receipts.TryGetValue(("intent",claim.TxId),
+                out var prior) && prior.Receipt.CommittedHead.Digest==
+                claim.IntentReceiptDigest && claim.IntentReceiptDigest==
+                claim.ExpectedHead.Digest,"L4_TERMINAL_INTENT_MISMATCH");
+            receipt=Write("terminal",claim.TxId,L4Assert.Digest(claim),
+                claim.ExpectedHead);
+        }
+        if(dropReplyAfterCommit)throw new TimeoutException("L4_TERMINAL_REPLY_LOST");
+        return receipt;
+    }
+    private L4Receipt Write(string phase,string tx,string payloadDigest,L4Head expected)
+    {
+        var key=(phase,tx);
+        // Idempotency must precede checking the moving head: old receipts
+        // remain queryable after a later phase or another transaction.
+        if(receipts.TryGetValue(key,out var existing))
+        {
+            L4Assert.Require(existing.Digest==payloadDigest,
+                "L4_IDEMPOTENCY_CONFLICT");
+            return existing.Receipt;
+        }
+        L4Assert.Require(head==expected,"L4_CAS_PREDECESSOR_CONFLICT");
+        L4Assert.Require((phase=="intent" && head!.Phase is "stable" or "terminal") ||
+            (phase=="terminal" && head!.Phase=="intent" && head.TxId==tx),
+            "L4_INVALID_PHASE_ORDER");
+        var next=new L4Head(head!.Sequence+1,
+            L4Assert.Digest(new{schema="gf-l4-commit-fixture/1",phase,tx,
+                previous=head.Digest,payloadDigest,sequence=head.Sequence+1}),
+            phase,tx);
+        var receipt=new L4Receipt(phase,tx,payloadDigest,head,next);
+        receipts.Add(key,(payloadDigest,receipt));
+        head=next;
+        return receipt;
+    }
+    internal (L4Head Head,L4Receipt? Receipt) ReadForReconciliation(
+        string install,string txId,string phase)
+    {
+        EnsureOnline();
+        lock(mutex)
+        {
+            EnsureEnrolled();
+            L4Assert.Require(installation==install,"L4_OTHER_INSTALLATION");
+            L4Assert.Require(phase is "intent" or "terminal",
+                "L4_BAD_PHASE");
+            receipts.TryGetValue((phase,txId),out var saved);
+            return(head!,saved.Receipt);
+        }
+    }
+    private void EnsureOnline()
+    {
+        if(!Available)throw new TimeoutException("L4_WITNESS_OFFLINE");
+    }
+    private void EnsureEnrolled()=>L4Assert.Require(head is not null,
+        "L4_NOT_ENROLLED");
+}
+internal static class L4Reconciler
+{
+    internal static L4Reconcile Inspect(L4AtomicWitnessMemoryFixture witness,
+        string install,string txId,string phase,string claimDigest,L4Head expected)
+    {
+        try
+        {
+            var (head,receipt)=witness.ReadForReconciliation(install,txId,phase);
+            if(receipt is not null)
+                return receipt.ClaimDigest==claimDigest &&
+                    receipt.PreviousHead==expected
+                    ? L4Reconcile.CommittedButNotAuthorized
+                    : L4Reconcile.ConflictBlocked;
+            return head==expected
+                ? L4Reconcile.UnseenBlocked
+                : L4Reconcile.ConflictBlocked;
+        }
+        catch(TimeoutException){return L4Reconcile.UnavailableBlocked;}
+        catch(L4Reject e) when(e.Code=="L4_NOT_ENROLLED")
+        {return L4Reconcile.NotEnrolledBlocked;}
+        catch(L4Reject){return L4Reconcile.ConflictBlocked;}
+    }
+}
