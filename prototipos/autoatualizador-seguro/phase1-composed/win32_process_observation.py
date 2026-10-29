@@ -161,21 +161,37 @@ def observe_real_gf(proc, executable: Path, expected_sha: str,
         report["main_form_hwnd_observed"] = True
         report["main_form_owner_pid_matches"] = window["owner_pid"] == proc.pid
         report["main_form_visible"] = window["visible"]
-        report["main_form_message_loop_responded"] = message_pump_ping(hwnd)
-        # WM_CLOSE is only sent to a verified window of THIS child, not to
-        # the user's other programs or an unrelated desktop window.
-        if (report["main_form_message_loop_responded"] and
-                report["actual_image_path_matches"] and
-                report["image_on_disk_sha_matches_manifest"] and
-                proc.poll() is None):
-            report["graceful_close_requested"] = bool(_post(hwnd, 0x0010, 0, 0))
-            if report["graceful_close_requested"]:
-                try:
-                    proc.wait(timeout=12)
-                except subprocess.TimeoutExpired:
-                    pass
-                report["graceful_exit_observed"] = (
-                    proc.poll() == 0)
+        # MainForm.Shown starts asynchronous inventory. Its FormClosing
+        # explicitly cancels a close while _busy is true. Allow startup to
+        # settle instead of immediately dismissing a newly created window.
+        settle_until = time.monotonic() + 10.0
+        while proc.poll() is None and time.monotonic() < settle_until:
+            time.sleep(0.25)
+        report["startup_settle_wait_seconds"] = 10
+        report["main_form_message_loop_responded"] = (
+            proc.poll() is None and message_pump_ping(hwnd))
+        report["normal_close_attempts"] = 0
+        # Only the verified child HWND receives WM_CLOSE, bounded twice to
+        # handle the real GF's legitimate busy/async cancellation. The second
+        # attempt may follow a first canceled close, but no indefinite loops.
+        for _ in range(2):
+            if (not report["main_form_message_loop_responded"] or
+                    not report["actual_image_path_matches"] or
+                    not report["image_on_disk_sha_matches_manifest"] or
+                    proc.poll() is not None or not _is_window(hwnd)):
+                break
+            if not message_pump_ping(hwnd):
+                break
+            if not _post(hwnd, 0x0010, 0, 0):
+                break
+            report["graceful_close_requested"] = True
+            report["normal_close_attempts"] += 1
+            try:
+                proc.wait(timeout=12)
+            except subprocess.TimeoutExpired:
+                continue
+            report["graceful_exit_observed"] = proc.returncode == 0
+            break
     report["early_exit_code"] = proc.poll()
     report["reason"] = ("GRACEFUL_MAIN_FORM_EXIT_OBSERVED"
                         if report["graceful_exit_observed"] else
