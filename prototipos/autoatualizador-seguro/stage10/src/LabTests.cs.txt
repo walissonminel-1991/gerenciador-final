@@ -1,0 +1,146 @@
+using System.Buffers.Binary;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using Tuf;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+internal static class LabTests
+{
+    private static readonly List<object> Results = [];
+    private static int failed;
+    private static async Task Case(string id, Func<Task> body) {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        try { await body(); Results.Add(new { id, status = "passed", milliseconds = watch.ElapsedMilliseconds }); Console.WriteLine("PASS " + id); }
+        catch (Exception e) { failed++; Results.Add(new { id, status = "failed", error = e.GetType().Name + ":" + e.Message, milliseconds = watch.ElapsedMilliseconds }); Console.WriteLine("FAIL " + id + " " + e); }
+    }
+    private static Task Sync(Action body) { body(); return Task.CompletedTask; }
+    private static void Reject(Action action, string code) {
+        try { action(); } catch (Rejected e) when (e.Message.StartsWith(code, StringComparison.Ordinal)) { return; }
+        throw new Exception("Expected rejection: " + code);
+    }
+    internal static async Task<int> Main(string[] args) {
+        if (args.Length == 4 && args[0] == "--metadata") {
+            File.WriteAllText(args[3], JsonSerializer.Serialize(LabMetadata.Inspect(args[1], args[2]))); return 0;
+        }
+        Require(args.Length == 6 && OperatingSystem.IsWindows(), "U10_WINDOWS_LAB_ARGUMENTS");
+        string sandbox = args[0], package = args[1], archive = args[2], fixtures = args[4], report = args[5];
+        var recipe = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(args[3]))!;
+        FixtureSandbox.RequireRoot(sandbox); LabPackage? qualified = null; object? qualification = null;
+        await Case("U10-GF-STATIC-QUALIFICATION", () => Sync(() => {
+            qualified = LabPackage.Open(sandbox, package, recipe);
+            Require(qualified.PeCount > 200 && qualified.NativeAmd64 > 0 && qualified.ManagedAnyCpu > 0, "U10_REAL_RUNTIME");
+            qualification = new { files = qualified.Inventory, pe_count = qualified.PeCount, amd64_count = qualified.NativeAmd64, managed_anycpu_count = qualified.ManagedAnyCpu,
+                certificate_table_count = qualified.WithCertificate, exe_authenticode = qualified.ExeTrust.ToString("x8"), dll_authenticode = qualified.DllTrust.ToString("x8"),
+                recipe_sha256 = qualified.RecipeHash, manifest_sha256 = qualified.ManifestHash, authorship_authorized = false, installable = false,
+                dependencies_signature_trust = "not-executed; certificate tables only, hashes covered by local recipe" };
+        }));
+        await Case("U10-GF-PINS-DENY-WRITE", () => Sync(() => {
+            Require(qualified is not null, "U10_NO_QUALIFICATION"); int denied = 0;
+            foreach (string name in recipe.Keys) {
+                try { using var f = new FileStream(Path.Combine(package, name), FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete); }
+                catch (IOException) { denied++; }
+            }
+            Require(denied == recipe.Count, "U10_PIN_WRITE_ALLOWED");
+        }));
+        await Case("U10-GF-PRECOMMIT-BINDING", () => Sync(() => {
+            Require(qualified is not null, "U10_NO_QUALIFICATION"); var f = new IntegratedFixture(); using var pipeline = new IntegratedPipeline(f.Root);
+            var binding = LabBinding.Capture(pipeline, qualified); binding.Revalidate(pipeline, qualified);
+            Require(!binding.Installable && pipeline.Resources.Session.Store.Load().Record.Transaction is null, "U10_APPLIED_REAL_FILES");
+        }));
+        await Case("U10-GF-STALE-STATE", () => Sync(() => {
+            Require(qualified is not null, "U10_NO_QUALIFICATION"); var f = new IntegratedFixture(); using var pipeline = new IntegratedPipeline(f.Root);
+            var binding = LabBinding.Capture(pipeline, qualified); var state = pipeline.Resources.Session.Store.Load();
+            pipeline.Resources.Session.Store.Append(state.Record with { Generation = state.Record.Generation + 1, PreviousDigest = state.Digest }, state.Digest);
+            Reject(() => binding.Revalidate(pipeline, qualified), "U10_STALE_BINDING");
+        }));
+        await Case("U10-GF-PENDING-JOURNAL", () => Sync(() => {
+            Require(qualified is not null, "U10_NO_QUALIFICATION"); var f = new IntegratedFixture(); using var pipeline = new IntegratedPipeline(f.Root);
+            var binding = LabBinding.Capture(pipeline, qualified); var state = pipeline.Resources.Session.Store.Load();
+            pipeline.Operations.Admit(state.Digest, binding.SelectorHash);
+            Reject(() => binding.Revalidate(pipeline, qualified), "U10_PENDING_STATE");
+        }));
+        await Case("U10-GF-EXTRA-AFTER-QUALIFICATION", () => Sync(() => {
+            Require(qualified is not null, "U10_NO_QUALIFICATION"); string extra = Path.Combine(package, "late.dll");
+            try { File.WriteAllText(extra, "new laboratory file"); Reject(() => qualified.Revalidate(), "U10_EXACT_SET"); }
+            finally { File.Delete(extra); }
+        }));
+        qualified?.Dispose();
+        await Case("U10-GF-CLOSED-TICKET", () => Sync(() => { Require(qualified is not null, "U10_NO_QUALIFICATION"); Reject(() => qualified.Revalidate(), "U10_QUALIFICATION_CLOSED"); }));
+        await Case("U10-GF-AMD64-REJECTION", () => Sync(() => {
+            byte[] bytes = File.ReadAllBytes(Path.Combine(package, "GerenciadorFinal.exe")); int pe = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(60)));
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(pe + 4), 0x14c); Reject(() => new BoundedPe(bytes).Architecture(true), "PE_32BIT_REQUIRED");
+        }));
+        await Case("U10-GF-VERSION-REJECTION", () => Sync(() => {
+            Reject(() => LabMetadata.Manifest(File.ReadAllBytes(Path.Combine(package, "GerenciadorFinal.exe")), "5.13.11.65"), "U10_MANIFEST_ID");
+        }));
+        await Case("U10-GF-NTFS-HARDLINK", () => Sync(() => {
+            string link = Path.Combine(sandbox, "hardlink-lab.txt"), target = Path.Combine(package, "LICENSE.txt");
+            Require(CreateHardLinkW(link, target, IntPtr.Zero), "U10_CREATE_LAB_HARDLINK");
+            try { Reject(() => { using var p = WindowsFileGuard.Open(sandbox, target); }, "NTFS_HARDLINK"); } finally { File.Delete(link); }
+        }));
+        await Case("U10-GF-NTFS-ADS", () => Sync(() => {
+            string ads = Path.Combine(package, "LICENSE.txt") + ":u10lab"; File.WriteAllText(ads, "inert alternate stream");
+            try { Reject(() => { using var p = LabPackage.Open(sandbox, package, recipe); }, "U10_ALTERNATE_STREAM"); } finally { File.Delete(ads); }
+        }));
+        await Case("U10-GF-STREAM-EXTRACTION", () => Sync(() => {
+            using var input = File.OpenRead(archive); string hash = StreamPackage.StreamHash(input);
+            string extracted = StreamPackage.ExtractInert(sandbox, archive, hash, recipe, default);
+            using var result = LabPackage.Open(sandbox, extracted, recipe); Require(result.PeCount > 200, "U10_EXTRACTED_PE");
+        }));
+        await Case("U10-GF-CONTAINER-TAMPER", () => Sync(() => {
+            Reject(() => StreamPackage.ExtractInert(sandbox, archive, new string('0', 64), recipe, default), "U4_ZIP_HASH");
+        }));
+        await Case("U10-GF-CANCELED-VALIDATION", () => Sync(() => {
+            using var cancel = new CancellationTokenSource(); cancel.Cancel();
+            try { using var p = LabPackage.Open(sandbox, package, recipe, cancel.Token); } catch (OperationCanceledException) { return; }
+            throw new Exception("Canceled qualification issued a ticket");
+        }));
+        await Case("U10-GF-UNKNOWN-READ-OWNERSHIP", async () => {
+            var f = new IntegratedFixture(); using var cancel = new CancellationTokenSource(); using var pipeline = new IntegratedPipeline(f.Root, user: cancel.Token);
+            var original = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var pinned = LabPackage.Open(sandbox, package, recipe);
+            var state = pipeline.Resources.Session.Store.Load(); string selector = Hash(PersistentState.ReadFixtureFile(f.Root, Path.Combine(f.Root, "active.fixture.json")));
+            pipeline.Operations.Admit(state.Digest, selector);
+            var op = pipeline.Owner.Start("read", async token => { entered.SetResult(true); await original.Task; pinned.Revalidate(token); return true; }, pinned);
+            try {
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(10)); cancel.Cancel();
+                try { await op.WaitResult(); throw new Exception("Canceled waiter returned a ticket"); } catch (OperationCanceledException) { }
+                Require(pipeline.Owner.Pending == 1 && !pipeline.CanContinue && OperationJournal.Pending(pipeline.Operations.Load().Record), "U10_UNKNOWN_UNFENCED");
+                try { using var writer = File.OpenWrite(Path.Combine(package, "LICENSE.txt")); throw new Exception("Ownership lost"); } catch (IOException) { }
+            } finally { original.TrySetResult(true); await op.ObserveTerminal().WaitAsync(TimeSpan.FromSeconds(10)); }
+            Require(OperationJournal.Pending(pipeline.Operations.Load().Record) && !pipeline.CanContinue, "U10_LATE_COMPLETION_REOPENED");
+            pipeline.Owner.ReconcileFixture(() => pipeline.Owner.Pending == 0); Require(pipeline.Owner.TryRelease(), "U10_RELEASE");
+            // Persistent admitted journal deliberately remains unresolved, including across a fresh coordinator.
+            Reject(() => { using var retry = new IntegratedPipeline(f.Root); }, "U9_PENDING_OPERATION");
+        });
+        byte[] anchor = File.ReadAllBytes(Path.Combine(fixtures, "anchor.json"));
+        foreach (string role in new[] { "timestamp", "snapshot", "targets" }) {
+            string captured = role;
+            await Case("U10-TUF-EPOCH-" + role.ToUpperInvariant(), async () => {
+                var files = Directory.GetFiles(Path.Combine(fixtures, "epoch-" + captured)).ToDictionary(p => Path.GetFileName(p), File.ReadAllBytes, StringComparer.Ordinal);
+                var repo = new Stage8Repository(files!, DateTimeOffset.UtcNow); var cache = new Stage8Cache();
+                using var client = new TufClient(new TufClientOptions { ValidationUtc = DateTimeOffset.UtcNow, TrustedRoot = anchor, Cache = new EpochGuardedCache(cache, anchor),
+                    Repository = repo, MetadataBaseUrl = new Uri("https://gf-u10-test.invalid/"), MaxRootRotations = 32, MaxDelegations = 1 });
+                try { await client.GetTrustedMetadataAsync(); } catch (Rejected e) when (e.Message == "U10_ROLE_EPOCH_UNQUALIFIED:" + captured) {
+                    Require(repo.Count("timestamp") == 0 && cache.Metadata.GetValueOrDefault("root")!.SequenceEqual(anchor), "U10_EPOCH_CACHE_ADVANCED"); return;
+                }
+                throw new Exception("Epoch transition not fenced");
+            });
+        }
+        await Case("U10-TUF-ROOT-ONLY-ROTATION", async () => {
+            var files = Directory.GetFiles(Path.Combine(fixtures, "release2")).ToDictionary(p => Path.GetFileName(p), File.ReadAllBytes, StringComparer.Ordinal);
+            var repo = new Stage8Repository(files, DateTimeOffset.UtcNow); var cache = new Stage8Cache();
+            using var client = new TufClient(new TufClientOptions { ValidationUtc = DateTimeOffset.UtcNow, TrustedRoot = anchor, Cache = new EpochGuardedCache(cache, anchor),
+                Repository = repo, MetadataBaseUrl = new Uri("https://gf-u10-test.invalid/"), MaxRootRotations = 32, MaxDelegations = 1 });
+            var result = await client.GetTargetAsync("fixture-package.zip");
+            Require(result.Metadata.Status == TufRefreshStatus.Updated && repo.Count("target") == 1, "U10_ROOT_ROTATION_BLOCKED");
+        });
+        var data = new { schema = "gf-stage10-windows/1", contract = "gf-self-update/1", runtime = Environment.Version.ToString(),
+            total = Results.Count, passed = Results.Count - failed, failed, results = Results, qualification,
+            product_launched = false, operational_gate_closed = false, production_authority = false };
+        File.WriteAllText(report, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true })); return failed == 0 ? 0 : 1;
+    }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CreateHardLinkW(string name, string target, IntPtr security);
+}
