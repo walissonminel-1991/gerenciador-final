@@ -11,7 +11,8 @@ internal static class PendingTests
     private static readonly List<object> results=[];
     private static int failures;
     private static bool plausibleBlocked,corruptionBlocked,foreignBlocked,unknownBlocked,
-        multipleBlocked,lockedRejected,bytesPreserved,prefixVerified;
+        multipleBlocked,lockedRejected,bytesPreserved,prefixVerified,
+        selectorMismatchBlocked,bundleTamperBlocked;
     private static string suite="";
     private static async Task Check(string id,Func<Task> run)
     {
@@ -145,6 +146,26 @@ internal static class PendingTests
                 lockedRejected=true;
                 c.Preserved();
             }));
+            await Check("PEND-11-SELECTOR-MISMATCH-REFUSED",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                File.WriteAllBytes(PendingPath(c),StateCodec.Wrap(Next(c)));
+                // Synthetic mismatch is intentionally confined to this test.
+                File.WriteAllBytes(Path.Combine(c.Root,"active.fixture.json"),
+                    StateCodec.Encode(new FixtureSelector("gf-selector-fixture/2",
+                        c.InstallationId,c.Old)));
+                Expect(c,PendingKind.SelectorOrBundleInconsistent);
+                selectorMismatchBlocked=true;
+            }));
+            await Check("PEND-12-BUNDLE-TAMPER-REFUSED",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                File.WriteAllBytes(PendingPath(c),StateCodec.Wrap(Next(c)));
+                File.WriteAllText(new FixtureFiles(c.Root).BundlePath(c.Candidate),
+                    "TAMPERED-INERT-BUNDLE-TEST");
+                Expect(c,PendingKind.SelectorOrBundleInconsistent);
+                bundleTamperBlocked=true;
+            }));
             await Check("PEND-10-UNRECOGNIZED-PENDING-NAME-REFUSED",()=>Sync(()=>{
                 using var c=new StateCase(suite);
                 _=c.Begin();
@@ -165,6 +186,8 @@ internal static class PendingTests
             unknown_ledger_entries_blocked=unknownBlocked,
             multiple_pending_blocked=multipleBlocked,
             committed_prefix_checked=prefixVerified,
+            selector_mismatch_blocked=selectorMismatchBlocked,
+            bundle_tamper_blocked=bundleTamperBlocked,
             lease_contention_blocked=lockedRejected,
             inspection_preserved_bytes=bytesPreserved,
             pending_auto_promoted=false,pending_auto_deleted=false,
