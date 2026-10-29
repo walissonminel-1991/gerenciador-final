@@ -1,0 +1,168 @@
+// G1-ACK: Stage2 on-disk intent + sidecar receipt, fixture-only.
+// No release authentication; no selector write, activation, recovery or trust reset.
+// This sidecar is informational and is NOT a new Stage2 ledger generation.
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed record G1AckBody(string Schema,TxReceipt Receipt,string TxNonce,
+    string IntentDigest,string Checksum);
+internal enum G1AckStatus {
+    UnseenBlocked,RemoteCommittedAckMissingBlocked,AckMatchesStillBlocked,
+    IncompleteBlocked,MalformedBlocked,ConflictBlocked,UnavailableBlocked
+}
+
+internal static class G1AckFixture
+{
+    private const string AckFile="g1-ack.fixture.json";
+    private const string PendingFile="g1-ack-pending.fixture";
+    private const string Schema="gf-g1-inert-ack/1";
+    private static string AckPath(string root)=>Path.Combine(root,AckFile);
+    private static string PendingPath(string root)=>Path.Combine(root,PendingFile);
+    private static string Checksum(TxReceipt receipt,string nonce,string intentDigest)
+        =>Hash(StateCodec.Encode(new {schema=Schema,receipt,txNonce=nonce,intentDigest}));
+
+    // Reads the EXACT stable predecessor from the validated Stage2 chain.
+    // Ack and other sidecar data never affect the logical checkpoint hash.
+    private static TxProposal BoundIntent(FixtureSession session,out string nonce,
+        out string intentDigest)
+    {
+        var loaded=session.Store.Load();
+        StateRecord state=loaded.Record;
+        Require(state.Transaction is {Phase:"intent"},"G1_ACK_INTENT_REQUIRED");
+        var tx=state.Transaction;
+        Require(state.Generation>=2 && state.Confirmed==tx.Previous,
+            "G1_ACK_INTENT_INVALID");
+        string previousName=(state.Generation-1).ToString("D16",
+            System.Globalization.CultureInfo.InvariantCulture)+".fixture.json";
+        byte[] previousBytes=PersistentState.ReadFixtureFile(session.Store.Root,
+            Path.Combine(session.Store.Ledger,previousName));
+        var previous=StateCodec.Unwrap(previousBytes);
+        string prevDigest=Hash(previousBytes);
+        Require(state.PreviousDigest==prevDigest &&
+            previous.Generation+1==state.Generation &&
+            previous.InstallationId==state.InstallationId &&
+            previous.Confirmed==tx.Previous &&
+            (previous.Transaction is null ||
+             previous.Transaction.Phase is "confirmed" or "rolled_back"),
+            "G1_ACK_PREDECESSOR_MISMATCH");
+        Require(session.Files.ReadSelector(state.InstallationId).Bundle==tx.Previous,
+            "G1_ACK_SELECTOR_CHANGED");
+        using var prior=session.Files.Pin(tx.Previous);
+        using var candidate=session.Files.Pin(tx.Candidate);
+        nonce=tx.Nonce;
+        intentDigest=loaded.Digest;
+        var oldHead=new TxHead(state.InstallationId,previous.Generation,
+            previous.Trust.ApprovedSequence,prevDigest);
+        var newHead=new TxHead(state.InstallationId,state.Generation,
+            state.Trust.ApprovedSequence,loaded.Digest);
+        return new TxProposal(state.InstallationId,tx.Id,oldHead,newHead);
+    }
+    internal static TxProposal Binding(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        using var session=new FixtureSession(root);
+        return BoundIntent(session,out _,out _);
+    }
+
+    private static G1AckBody Decode(string root,string path,TxProposal proposal,
+        string nonce,string intentDigest)
+    {
+        byte[] bytes=PersistentState.ReadFixtureFile(root,path);
+        G1AckBody value;
+        try {value=StateCodec.Decode<G1AckBody>(bytes);}
+        catch(Exception ex) when(ex is Rejected or JsonException or ArgumentException)
+        {throw new Rejected("G1_ACK_MALFORMED");}
+        Require(value.Schema==Schema && value.Receipt is not null &&
+            value.TxNonce==nonce && value.IntentDigest==intentDigest &&
+            value.Checksum==Checksum(value.Receipt,nonce,intentDigest),
+            "G1_ACK_MALFORMED");
+        Require(value.Receipt.InstallationId==proposal.InstallationId &&
+            value.Receipt.TxId==proposal.TxId &&
+            value.Receipt.Expected==proposal.Expected &&
+            value.Receipt.Committed==proposal.Next,"G1_ACK_BINDING");
+        return value;
+    }
+
+    // ONLY for inert fixtures. Caller-provided receipt remains unauthenticated;
+    // matching fields or checksum do not prove remote witness authenticity.
+    internal static void WriteFixtureReceipt(string root,TxReceipt receipt,
+        Action<string>? cut=null)
+    {
+        FixtureSandbox.RequireRoot(root);
+        using var session=new FixtureSession(root);
+        var proposal=BoundIntent(session,out var nonce,out var digest);
+        Require(receipt.InstallationId==proposal.InstallationId &&
+            receipt.TxId==proposal.TxId &&
+            receipt.Expected==proposal.Expected &&
+            receipt.Committed==proposal.Next,"G1_ACK_BINDING");
+        Require(!File.Exists(AckPath(root)) && !File.Exists(PendingPath(root)) &&
+            !Directory.GetFiles(root,"g1-ack-*",SearchOption.TopDirectoryOnly)
+                .Any(),"G1_ACK_ALREADY_PRESENT_OR_UNKNOWN");
+        var body=new G1AckBody(Schema,receipt,nonce,digest,
+            Checksum(receipt,nonce,digest));
+        byte[] data=StateCodec.Encode(body);
+        Require(data.Length is >0 and <=StateCodec.MaxRecordBytes,"G1_ACK_SIZE");
+        using(var file=new FileStream(PendingPath(root),FileMode.CreateNew,
+            FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough))
+        {
+            cut?.Invoke("ack-created");
+            file.Write(data);
+            file.Flush(flushToDisk:true);
+            cut?.Invoke("ack-flushed");
+        }
+        File.Move(PendingPath(root),AckPath(root),overwrite:false);
+        cut?.Invoke("ack-promoted");
+        Require(session.Files.ReadSelector(proposal.InstallationId).Bundle==
+            session.Store.Load().Record.Confirmed,"G1_ACK_SELECTOR_MOVED");
+    }
+
+    internal static G1AckStatus Inspect(string root,G1AtomicMemoryWitness witness)
+    {
+        FixtureSandbox.RequireRoot(root);
+        using var session=new FixtureSession(root);
+        TxProposal proposal;
+        string nonce,digest;
+        try {proposal=BoundIntent(session,out nonce,out digest);}
+        catch(Rejected){return G1AckStatus.ConflictBlocked;}
+        // Do not interpret, delete, complete or adopt any pending receipt.
+        string[] suspicious=Directory.GetFiles(root,"g1-ack-*",
+            SearchOption.TopDirectoryOnly);
+        if(suspicious.Any(x=>Path.GetFileName(x)!=PendingFile))
+            return G1AckStatus.ConflictBlocked;
+        if(File.Exists(PendingPath(root)))
+            return G1AckStatus.IncompleteBlocked;
+        bool hasAck=File.Exists(AckPath(root));
+        TxReceipt? localReceipt=null;
+        if(hasAck)
+        {
+            try {localReceipt=Decode(root,AckPath(root),proposal,nonce,digest).Receipt;}
+            catch(Exception e) when(e is Rejected or IOException or UnauthorizedAccessException)
+            {return G1AckStatus.MalformedBlocked;}
+        }
+        TxHead remoteHead;
+        TxReceipt? remoteReceipt;
+        try
+        {
+            var r=witness.ReadForReconciliation(proposal.InstallationId,proposal.TxId);
+            remoteHead=r.Head;remoteReceipt=r.Receipt;
+        }
+        catch(TimeoutException){return G1AckStatus.UnavailableBlocked;}
+        catch(Rejected){return G1AckStatus.ConflictBlocked;}
+
+        if(remoteReceipt is not null && (remoteReceipt.InstallationId!=proposal.InstallationId ||
+            remoteReceipt.TxId!=proposal.TxId || remoteReceipt.Expected!=proposal.Expected ||
+            remoteReceipt.Committed!=proposal.Next))
+            return G1AckStatus.ConflictBlocked;
+        if(remoteReceipt is null && !hasAck && remoteHead==proposal.Expected)
+            return G1AckStatus.UnseenBlocked;
+        if(remoteReceipt is not null && !hasAck && remoteHead==proposal.Next)
+            return G1AckStatus.RemoteCommittedAckMissingBlocked;
+        if(localReceipt is not null && localReceipt==remoteReceipt &&
+            remoteHead==proposal.Next)
+            return G1AckStatus.AckMatchesStillBlocked;
+        return G1AckStatus.ConflictBlocked;
+    }
+}
