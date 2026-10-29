@@ -52,6 +52,7 @@ internal static class G1Preselect
         return next;
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     internal static BundleRef FixtureCandidateFromMarkedRoot(string root)
     {
         FixtureSandbox.RequireRoot(root);
