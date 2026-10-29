@@ -1,0 +1,142 @@
+// G1 ANCHOR: negative proof of rollback of the LOCALLY PINNED PUBLIC KEY.
+// Fixture only. Memory anchor is independent of snapshot IN THIS TEST ONLY.
+// No network, remote signer, durable monotonic counter, TPM, product or permit.
+using System.Security.Cryptography;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed record G1LocalEpochPin(string Schema,string InstallationId,
+    int Epoch,string KeyId,string PublicSpkiBase64);
+internal enum G1AnchorResult { SameEpochAndKeyStillBlocked }
+
+internal static class G1LocalEpochDisk
+{
+    internal const string Schema="gf-g1-local-public-pin-fixture/1";
+    private const string FileName="g1-local-public-pin.fixture.json";
+    internal static string PathFor(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        return Path.Combine(root,FileName);
+    }
+    internal static G1LocalEpochPin Create(string root,int epoch,
+        string publicSpkiBase64,string installationId)
+    {
+        FixtureSandbox.RequireRoot(root);
+        Require(epoch>0,"G1_EPOCH_INVALID");
+        using var pub=G1SignedFixture.ImportP256(publicSpkiBase64);
+        string keyId=Hash(pub.ExportSubjectPublicKeyInfo());
+        var pin=new G1LocalEpochPin(Schema,installationId,epoch,keyId,
+            publicSpkiBase64);
+        Require(G1SignedFixture.BindOnDisk(root).Proposal.InstallationId==
+            installationId,"G1_EPOCH_WRONG_INSTALLATION");
+        return pin;
+    }
+    // Harness-only. This intentionally writes a tamperable PUBLIC pin, not an
+    // antirollback store; a disk image restoration can replace this whole file.
+    internal static void WriteHarnessOnly(string root,G1LocalEpochPin pin)
+    {
+        FixtureSandbox.RequireRoot(root);
+        using var pub=G1SignedFixture.ImportP256(pin.PublicSpkiBase64);
+        Require(Hash(pub.ExportSubjectPublicKeyInfo())==pin.KeyId &&
+            pin.Schema==Schema && pin.Epoch>0,"G1_EPOCH_BAD_PIN");
+        Require(G1SignedFixture.BindOnDisk(root).Proposal.InstallationId==
+            pin.InstallationId,"G1_EPOCH_WRONG_INSTALLATION");
+        File.WriteAllBytes(PathFor(root),StateCodec.Encode(pin));
+    }
+    internal static G1LocalEpochPin Read(string root)
+    {
+        FixtureSandbox.RequireRoot(root);
+        var bytes=PersistentState.ReadFixtureFile(root,PathFor(root));
+        var pin=StateCodec.Decode<G1LocalEpochPin>(bytes);
+        Require(pin.Schema==Schema && pin.Epoch is >0 and <100000 &&
+            pin.InstallationId is {Length:32},"G1_EPOCH_BAD_PIN");
+        using var pub=G1SignedFixture.ImportP256(pin.PublicSpkiBase64);
+        Require(Hash(pub.ExportSubjectPublicKeyInfo())==pin.KeyId,"G1_EPOCH_BAD_PIN");
+        Require(G1SignedFixture.BindOnDisk(root).Proposal.InstallationId==
+            pin.InstallationId,"G1_EPOCH_WRONG_INSTALLATION");
+        return pin;
+    }
+
+    // NO trust claim: signed with a locally trusted key that can itself be
+    // rolled back. Even a FRESH nonce does not solve key-epoch rollback.
+    internal static bool LocalSignatureAppearsValid(string root,
+        G1SignedResponse response,string challenge)
+    {
+        var pin=Read(root);
+        var bound=G1SignedFixture.BindOnDisk(root);
+        Require(challenge is {Length:32} &&
+            challenge.All(char.IsAsciiHexDigit) &&
+            response.ChallengeNonce==challenge,"G1_EPOCH_CHALLENGE");
+        Require(response.Schema==G1SignedFixture.Schema &&
+            response.Purpose==G1SignedFixture.ResponsePurpose &&
+            response.Epoch==pin.Epoch && response.KeyId==pin.KeyId,
+            "G1_EPOCH_LOCAL_PIN_MISMATCH");
+        using var pub=G1SignedFixture.ImportP256(pin.PublicSpkiBase64);
+        Require(G1SignedFixture.ValidSignature(pub,
+            G1SignedFixture.ResponseBytes(response),response.SignatureBase64),
+            "G1_EPOCH_BAD_SIGNATURE");
+        Require(response.Stage2Nonce==bound.TxNonce &&
+            response.IntentDigest==bound.IntentDigest &&
+            response.Receipt.InstallationId==bound.Proposal.InstallationId &&
+            response.Receipt.TxId==bound.Proposal.TxId &&
+            response.Receipt.Expected==bound.Proposal.Expected &&
+            response.Receipt.Committed==bound.Proposal.Next,
+            "G1_EPOCH_LOCAL_BINDING");
+        return true; // explicitly NOT release/update authorization
+    }
+}
+
+internal interface IG1EpochAnchorFixture
+{
+    G1LocalEpochPin? Query(string installationId);
+}
+
+internal sealed class G1ExternalMemoryAnchorFixture : IG1EpochAnchorFixture
+{
+    private readonly Dictionary<string,G1LocalEpochPin> heads=new(StringComparer.Ordinal);
+    internal bool Available=true;
+    internal void ExplicitEnrollForHarness(G1LocalEpochPin pin)
+        =>Require(heads.TryAdd(pin.InstallationId,pin),"G1_ANCHOR_ALREADY_ENROLLED");
+    internal void CommitForHarness(G1LocalEpochPin before,G1LocalEpochPin after)
+    {
+        Require(before.InstallationId==after.InstallationId &&
+            after.Epoch==before.Epoch+1 && after.KeyId!=before.KeyId,
+            "G1_ANCHOR_INVALID_ADVANCE");
+        Require(heads.TryGetValue(before.InstallationId,out var existing) &&
+            existing==before,"G1_ANCHOR_CAS_OR_ROLLBACK");
+        heads[before.InstallationId]=after;
+    }
+    public G1LocalEpochPin? Query(string installationId)
+    {
+        if(!Available)throw new TimeoutException("G1_ANCHOR_OFFLINE");
+        return heads.GetValueOrDefault(installationId);
+    }
+    // Negative model of COMPROMISE; deliberately bypasses the honest CAS.
+    // Cannot be exposed by a verifier if the whole anchor is malicious.
+    internal void CompromiseForNegativeFixture(G1LocalEpochPin forged)
+        =>heads[forged.InstallationId]=forged;
+}
+
+internal static class G1EpochReconciliation
+{
+    internal static G1AnchorResult Inspect(string root,G1SignedResponse response,
+        string challenge,IG1EpochAnchorFixture anchor)
+    {
+        // Signature under a local public pin is NOT proof of external trust.
+        Require(G1LocalEpochDisk.LocalSignatureAppearsValid(root,response,challenge),
+            "G1_EPOCH_LOCAL_INVALID");
+        var pin=G1LocalEpochDisk.Read(root);
+        G1LocalEpochPin? trusted;
+        try { trusted=anchor.Query(pin.InstallationId); }
+        catch(TimeoutException){throw new Rejected("G1_ANCHOR_UNAVAILABLE");}
+        Require(trusted is not null,"G1_ANCHOR_MISSING");
+        Require(trusted.InstallationId==pin.InstallationId &&
+            trusted.Schema==G1LocalEpochDisk.Schema,"G1_ANCHOR_IDENTITY");
+        Require(pin.Epoch>=trusted.Epoch,"G1_ANCHOR_LOCAL_ROLLBACK");
+        Require(pin.Epoch<=trusted.Epoch,"G1_ANCHOR_LOCAL_AHEAD");
+        Require(pin.KeyId==trusted.KeyId &&
+            pin.PublicSpkiBase64==trusted.PublicSpkiBase64,"G1_ANCHOR_KEY_FORK");
+        return G1AnchorResult.SameEpochAndKeyStillBlocked;
+    }
+}
