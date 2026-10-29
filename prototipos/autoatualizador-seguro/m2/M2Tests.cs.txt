@@ -19,7 +19,7 @@ internal static class M2Tests
         catch(InvalidDataException e) when(e.Message==code){return;}
         throw new InvalidDataException("M2_UNSAFE_ACCEPTANCE_OR_WRONG_REFUSAL:"+code);
     }
-    private static async Task<Process> StartChild(string mode)
+    internal static async Task<Process> StartChild(string mode)
     {
         string exe=Environment.ProcessPath ?? throw new InvalidDataException("M2_NO_APPHOST");
         if(Path.GetFileNameWithoutExtension(exe).Equals("dotnet",StringComparison.OrdinalIgnoreCase))
@@ -43,14 +43,14 @@ internal static class M2Tests
             throw;
         }
     }
-    private static async Task Close(Process p,string command="close")
+    internal static async Task Close(Process p,string command="close")
     {
         await p.StandardInput.WriteLineAsync(command);
         await p.StandardInput.FlushAsync();
         using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(7));
         await p.WaitForExitAsync(budget.Token);
     }
-    private static async Task Destroy(Process p)
+    internal static async Task Destroy(Process p)
     {
         try{if(!p.HasExited){p.Kill(true);await p.WaitForExitAsync();}}
         catch(InvalidOperationException){}finally{p.Dispose();}
@@ -73,6 +73,8 @@ internal static class M2Tests
     {
         if(args.Length==2 && args[0]=="--m2-owned-child")
             return await Child(args[1]);
+        if(args.Length==5 && args[0]=="--m2-ready-probe")
+            return await M2Integration.ReadyChild(args);
         if(args.Length!=2 || args[0]!="--report")return 2;
         await Case("M2-NO-PARTICIPANTS-REFUSED",()=>{
             Refuse(()=>new M2ExitBarrier([],TimeSpan.FromSeconds(2)),"M2_PARTICIPANT_COUNT");
@@ -144,13 +146,19 @@ internal static class M2Tests
             try{Refuse(()=>new M2ExitBarrier([child,child],TimeSpan.FromSeconds(7)),"M2_DUPLICATE_PROCESS");}
             finally{await Destroy(child);}
         });
+        if(OperatingSystem.IsWindows())
+        {
+            await Case("M2-INTEGRATED-READY-AFTER-EXIT",()=>M2Integration.Run("normal",false));
+            await Case("M2-INTEGRATED-WRONG-NONCE",()=>M2Integration.Run("bad-nonce",true));
+            await Case("M2-INTEGRATED-WRONG-TX",()=>M2Integration.Run("bad-tx",true));
+        }
         var report=new
         {
             schema=1,phase="M2",fixture_only=true,operational_gates_closed=0,
             passed=results.Count-failures,failed=failures,tests=results,
             kernel_process_exit_observed=true,window_readiness_verified=false,
-            authenticated_g5_admission_verified=false,durable_rollback_verified=false,
-            real_gf_participants_discovered=false,product_built=false,product_executed=false
+            authenticated_g5_admission_verified=M2Integration.NonElevatedAdmissionObserved,durable_rollback_verified=false,
+            real_gf_participants_discovered=false,integrated_inherited_elevation_mechanism_observed=M2Integration.InheritedElevatedMechanismObserved,product_built=false,product_executed=false
         };
         await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
         Console.WriteLine("M2_FINAL_REPORT "+JsonSerializer.Serialize(report));

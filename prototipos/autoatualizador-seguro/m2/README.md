@@ -28,3 +28,16 @@ dotnet run --project prototipos/autoatualizador-seguro/m2/M2.csproj -- --report 
 The next M2 increment should bind this exit barrier to verified M1 READY for
 an inert candidate, and to the existing Stage 2 transaction journal. That is
 not included in this subproof. G6 and all G1–G8 stay blocked.
+
+## Integration increment — actual pipe READY after real predecessor exit
+
+`M2Integration` connects the exit barrier to the already isolated Stage 3
+`PipeFrames`/`PeerIdentity` identity checks, and invokes the M1 `G5Admission`
+**only when the runner truly is non-elevated**. It spawns an inert previous
+process, waits for actual OS exit, then spawns an inert candidate and receives
+a transaction/nonce-bound READY on a real Named Pipe. Negative tests corrupt
+the candidate's nonce and transaction. Runner elevation inherited from GitHub
+Actions validates only OS transport/frame mechanics, explicitly **not**
+operational admission. The candidate sends READY immediately in a console app;
+this is not WinForms HWND readiness, functional health, actual GF executable
+identity or durable rollback. M2/G6 remains blocked.

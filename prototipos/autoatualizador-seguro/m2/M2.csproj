@@ -13,5 +13,9 @@
   <ItemGroup>
     <Compile Include="M2ExitBarrier.cs.txt" />
     <Compile Include="M2Tests.cs.txt" />
+    <Compile Include="M2Integration.cs.txt" />
+    <Compile Include="../stage3/src/PipeFrames.cs.txt" />
+    <Compile Include="../stage3/src/PeerIdentity.cs.txt" />
+    <Compile Include="../m1/G5Admission.cs.txt" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,115 @@
+// Integrates the REAL inert predecessor exit barrier with an authenticated
+// candidate pipe probe. Elevated Windows CI tests mechanism only: never G5 admission.
+using System.Diagnostics;
+using System.IO.Pipes;
+using System.Security.Cryptography;
+using System.Runtime.Versioning;
+
+namespace GfUpdaterFixture;
+
+[SupportedOSPlatform("windows")]
+internal static class M2Integration
+{
+    internal static bool NonElevatedAdmissionObserved;
+    internal static bool InheritedElevatedMechanismObserved;
+    private static void Refuse(Action action,string code)
+    {
+        try { action(); }
+        catch(InvalidDataException e) when(e.Message==code) { return; }
+        throw new InvalidDataException("M2_UNSAFE_READY_OR_WRONG_REFUSAL:"+code);
+    }
+    internal static async Task Run(string mode,bool reject)
+    {
+        using var previous=await M2Tests.StartChild("cooperate");
+        var barrier=new M2ExitBarrier([previous],TimeSpan.FromSeconds(15));
+        await M2Tests.Close(previous);
+        barrier.RequireCanLaunch(); // real ExitCode=0 on retained process handle
+
+        string exe=Environment.ProcessPath??throw new InvalidDataException("M2_NO_APPHOST");
+        string name="gf-m2-ready-"+Guid.NewGuid().ToString("N");
+        string tx=Guid.NewGuid().ToString("N");
+        string nonce=Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+        using var server=new NamedPipeServerStream(name,PipeDirection.InOut,1,
+            PipeTransmissionMode.Byte,PipeOptions.Asynchronous|
+            PipeOptions.CurrentUserOnly|PipeOptions.FirstPipeInstance);
+        var info=new ProcessStartInfo(exe) { UseShellExecute=false,CreateNoWindow=true };
+        foreach(var arg in new[]{"--m2-ready-probe",name,Environment.ProcessId.ToString(),exe,mode})
+            info.ArgumentList.Add(arg);
+        using var candidate=Process.Start(info)??throw new InvalidDataException("M2_CANDIDATE_START");
+        using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        try
+        {
+            await server.WaitForConnectionAsync(budget.Token);
+            PipeFrames.Check(PeerIdentity.PipePid(server,true)==candidate.Id,"M2_KERNEL_PID");
+            PeerIdentity.Verify(server,true,candidate,exe);
+            using var self=Process.GetCurrentProcess();
+            var current=PeerIdentity.Facts(self);
+            await PipeFrames.Send(server,new ProbeFrame(1,"challenge",tx,nonce,"fixture-local"),budget.Token);
+            var ready=await PipeFrames.Read(server,budget.Token);
+            if(current.Elevated)
+            {
+                // An inherited elevated runner is NEVER a positive operational G5.
+                if(reject) Refuse(()=>PipeFrames.Bound(ready,"ready",tx,nonce),"IPC_BINDING");
+                else PipeFrames.Bound(ready,"ready",tx,nonce);
+                InheritedElevatedMechanismObserved=true;
+            }
+            else
+            {
+                using var input=new FileStream(exe,FileMode.Open,FileAccess.Read,
+                    FileShare.Read|FileShare.Delete,65536,FileOptions.SequentialScan);
+                string digest=Convert.ToHexStringLower(SHA256.HashData(input));
+                var expected=new G5Trust(exe,digest,candidate.Id,current.Sid,current.Session,
+                    current.Elevated,tx,nonce);
+                var admission=new G5Admission(expected,TimeSpan.FromSeconds(12));
+                if(reject) Refuse(()=>admission.Accept(server,candidate,ready),"IPC_BINDING");
+                else
+                {
+                    admission.Accept(server,candidate,ready);
+                    NonElevatedAdmissionObserved=true;
+                }
+            }
+            // Close happens solely to clean up an inert child in the harness.
+            await PipeFrames.Send(server,new ProbeFrame(1,"close",tx,nonce,"fixture-local"),budget.Token);
+            PipeFrames.Bound(await PipeFrames.Read(server,budget.Token),"bye",tx,nonce);
+            await candidate.WaitForExitAsync(budget.Token);
+            PipeFrames.Check(candidate.ExitCode==0,"M2_CANDIDATE_EXIT");
+        }
+        finally
+        {
+            if(!candidate.HasExited)
+            {
+                candidate.Kill(true);await candidate.WaitForExitAsync();
+            }
+        }
+    }
+
+    internal static async Task<int> ReadyChild(string[] args)
+    {
+        try
+        {
+            if(!args[1].StartsWith("gf-m2-ready-",StringComparison.Ordinal) ||
+                !int.TryParse(args[2],out int parentPid) ||
+                args[4] is not ("normal" or "bad-nonce" or "bad-tx"))return 2;
+            using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var pipe=new NamedPipeClientStream(".",args[1],PipeDirection.InOut,
+                PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly);
+            await pipe.ConnectAsync(budget.Token);
+            PipeFrames.Check(PeerIdentity.OwnParentPid()==parentPid,"M2_PARENT_PID");
+            using var parent=Process.GetProcessById(parentPid);
+            PeerIdentity.Verify(pipe,false,parent,args[3]);
+            var challenge=await PipeFrames.Read(pipe,budget.Token);
+            PipeFrames.Bound(challenge,"challenge",challenge.Transaction,challenge.Nonce);
+            var ready=challenge with { Kind="ready" };
+            if(args[4]=="bad-nonce")ready=ready with { Nonce=new string('0',64) };
+            if(args[4]=="bad-tx")ready=ready with { Transaction=new string('0',32) };
+            await PipeFrames.Send(pipe,ready,budget.Token);
+            var close=await PipeFrames.Read(pipe,budget.Token);
+            PipeFrames.Bound(close,"close",challenge.Transaction,challenge.Nonce);
+            await PipeFrames.Send(pipe,close with { Kind="bye" },budget.Token);
+            return 0;
+        }
+        catch(Exception e) when(e is IOException or InvalidDataException or OperationCanceledException
+            or System.ComponentModel.Win32Exception or InvalidOperationException)
+        { return 15; }
+    }
+}
