@@ -146,23 +146,25 @@ internal static class ComposedTests
                 var oldTuf=TufSnapshot(s.Case.Root); // authenticated root record, sequence 1
                 s.AdvanceTuf(); // authenticated Stage11 begin/finish events, sequence 3
                 CompositeHead head;
+                byte[] ackBefore;
+                string stage2Digest;
                 using(var trust=s.Open())
                 {
                     head=s.First(trust.View());
-                    var stage2=new PersistentState(s.Case.Root).Load();
+                    stage2Digest=new PersistentState(s.Case.Root).Load().Digest;
                     var proposal=G1AckFixture.Binding(s.Case.Root);
                     G1AckFixture.WriteFixtureReceipt(s.Case.Root,new TxReceipt(
                         proposal.InstallationId,proposal.TxId,proposal.Expected,proposal.Next));
-                    var ackBefore=PersistentState.ReadFixtureFile(s.Case.Root,
+                    ackBefore=PersistentState.ReadFixtureFile(s.Case.Root,
                         Path.Combine(s.Case.Root,"g1-ack.fixture.json"));
-                    var ackAfter=PersistentState.ReadFixtureFile(s.Case.Root,
-                        Path.Combine(s.Case.Root,"g1-ack.fixture.json"));
-                    Require(ackBefore.SequenceEqual(ackAfter) &&
-                        new PersistentState(s.Case.Root).Load().Digest==stage2.Digest,
-                        "COMPOSITE_UNINTENDED_STAGE2_OR_ACK_CHANGE");
-                    sidecarUnchanged=true;
                 }
                 RestoreOnlyTuf(s.Case.Root,oldTuf); // Trust cache closed first; Stage2+ack untouched
+                var ackAfter=PersistentState.ReadFixtureFile(s.Case.Root,
+                    Path.Combine(s.Case.Root,"g1-ack.fixture.json"));
+                Require(ackBefore.SequenceEqual(ackAfter) &&
+                    new PersistentState(s.Case.Root).Load().Digest==stage2Digest,
+                    "COMPOSITE_UNINTENDED_STAGE2_OR_ACK_CHANGE");
+                sidecarUnchanged=true;
                 using(var trust=s.Open())
                 {
                     Require(trust.View().Sequence==1 &&
