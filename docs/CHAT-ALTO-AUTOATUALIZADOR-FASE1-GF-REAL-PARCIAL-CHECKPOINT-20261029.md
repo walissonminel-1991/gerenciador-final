@@ -1,0 +1,56 @@
+# GERENCIADOR FINAL — MISSÃO ÚNICA DE CONCLUSÃO DO AUTOATUALIZADOR
+## Fase 1 — Primeiro ensaio composto com os bytes reais do GF — checkpoint parcial
+
+**2026-10-29 · experimental · Windows descartável GitHub Actions · FASE 1 AINDA ABERTA**
+
+### 1. Regras e contexto
+- Repositório: `walissonminel-1991/gerenciador-final`.
+- Branch exclusivamente experimental: `experimento-g5-ipc-chat-alto-20261029`.
+- Baseline obrigatória: `352293ab4431f4643feee406699c5d1cb308d78b`. HEAD verificado idêntico no início, ahead/behind 0.
+- Commit inicial de fontes de ensaio: `5b12a59189a00ef32acd68a7936c84b6e590f40b`.
+- **Commit técnico aprovado:** `1292e76bbd69b06a1a1b727bc35132ad7eb17f6e`.
+- Main `410d65e23546976db456337c71e4705f10217d36` preservada.
+- PR #65 permanece aberta/Draft no HEAD `ee73a850f6d7454ed9e81ce0f0dd35c5b8b88fcc`, sem merge.
+- BETA .66 distribuída, telemetria conectada, Cloudflare, D1, domínio, credenciais, produção, PC FORTE, PC FRACO e distribuição: inalterados.
+- Sem WORK, merge, release, deploy, ativação de telemetria ou integração operacional. **G1–G8 BLOCKED (0/8), riscos residuais não aceitos.**
+
+### 2. Arquivos experimentais adicionados
+- `prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py`.
+- `prototipos/autoatualizador-seguro/phase1-composed/README.md`.
+- `.github/workflows/gf-autoatualizador-fase1-real-lab.yml`.
+- Este checkpoint. Nenhum arquivo do código do produto `GerenciadorAplicativos.csproj`, `Program.cs` ou das PRs de integração foi modificado.
+- O ensaio **não é um novo motor de autoatualização operacional**: é um adaptador temporário de CI para demonstrar composição com bytes reais de GF enquanto L1–L22 permanecem como base de contratos/proteções.
+
+### 3. Ciclo executado no runner Windows
+1. Compilou **duas variantes reais de GF** a partir do mesmo código `GerenciadorAplicativos.csproj` e SDK .NET 10.0.402, com `GfBetaProfile=local` e alterações **efêmeras** do metadado `Version` para 5.13.11.65 e 5.13.11.66. Não são versões publicadas; fonte idêntica e byte-diff de `GerenciadorFinal.dll` demonstram builds distintos para simular o ciclo.
+2. Cada diretório de distribuição tinha **284 arquivos**, com `GerenciadorFinal.exe`, DLLs e runtime self-contained. Ambos foram copiados para `RUNNER_TEMP` em estrutura descartável de duas versões, sem atualizar instalação de usuário.
+3. Gerou manifesto estrito de caminhos, tamanho e SHA256 de **todos os arquivos** de NEW. Autenticou seu digest e comprimento por metadata TUF `targets`, `snapshot`, `timestamp`, com a raiz de laboratório fixa `bootstrap.test-only.json`, verificada em SHA256 `a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e`. Chaves Ed25519 públicas e determinísticas de teste do Stage11 **não servem para produção**. O perfil não é operacional nem migrável diretamente para `gf-self-update/1`.
+4. Alterou `GerenciadorFinal.dll` de NEW **in-place**; o manifesto autenticado recusou a candidata. Restaurou o DLL exato do build descartável e revalidou o conjunto completo antes de selecionar NEW.
+5. Executou o **GerenciadorFinal.exe real** OLD com `--tray`: PID criado, ainda ativo após ~3 s, encerrado pelo ensaio. O mesmo ocorreu com NEW, depois da seleção de fixture. A existência de PID ou sua duração **não demonstra WinForms READY**, saúde de motores, fechamento gracioso de todas as instâncias nem ausência de I/O pendente.
+6. Por ausência de READY verificado, **sempre reverteu a seleção local para OLD**, conferindo SHA256 de todos seus 284 arquivos, seletor final `old` e canário fictício `PERSONAL-KEEP-UNCHANGED.txt` inalterado.
+7. Relatório declara `phase1_complete=false`, `ready_verified=false`, `automatic_update_authorized=false`, `operational_gates_closed=0`. Não há upload de EXE/DLL nem instrução de uso público.
+
+### 4. Evidência Windows e histórico completo
+- **Execução definitiva bem-sucedida:** https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40973919264
+  - Commit técnico `1292e76bbd69b06a1a1b727bc35132ad7eb17f6e`.
+  - Job `completed/success`. No log `GF_PHASE1_LAB` e JSON `GF_PHASE1_REPORT`.
+  - `old_files=284`, `new_files=284`, `authenticated_real_package=true`, `tampered_dll_rejected_before_selection=true`, `candidate_selected_in_disposable_sandbox=true`, `old_and_canary_preserved=true`.
+  - OLD criado PID 1536, permaneceu ativo ao limite; NEW criado PID 1212, permaneceu ativo ao limite; ambos encerrados ao final do ensaio. Esses PIDs são exclusivos do runner efêmero e não são identidades operacionais persistentes.
+  - `rolled_back_due_to_no_ready=true`, `ready_verified=false`. A execução é **PASS de evidências parciais, não PASS da Fase 1**.
+  - Test-only target manifest digest: `08fe0c68625e86628e0fbd8791c9d10e0cde901f0d072c8419ce1bde618974f8`.
+- **Tentativa inicial falha, preservada:** https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40973674172
+  - Dois builds reais de 284 arquivos já haviam passado; Python-TUF 7.0.1 expõe `timestamp.signed.snapshot_meta`, não `timestamp.signed.meta["snapshot.json"]`; `AttributeError` bloqueou antes da seleção de NEW. A contingência manteve OLD selecionada.
+  - Corrigido **somente o acesso à API** no commit técnico definitivo; critérios TUF, assinatura e hashes não foram enfraquecidos.
+
+### 5. Estado dos quatro marcos — sem promoção prematura
+- **Fase 1 — ciclo GF real:** **PARCIAL / AINDA ABERTA**. Autenticação de pacote real em laboratório, adulteração rejeitada, criação e observação limitada de OLD/NEW e restauração de OLD **demonstradas**. Faltam contrato comprovável de encerramento gracioso e **READY específico da aplicação**, além de vínculo operacional dos bytes à imagem de processo. O runner não comprova automaticamente desktop WinForms saudável.
+- **Fase 2 — qualificação de segurança / WORK independente:** não iniciada; **G1–G8 BLOCKED (0/8)**, revisão/aceite de manutenção TUF, frescor após restore integral e trust anchor operacional ainda ausentes.
+- **Fase 3 — integração operacional:** não iniciada; não modificar PR #65 sem aprovação explícita.
+- **Fase 4 — homologação real:** não iniciada; sem testes pessoais, sem distribuição.
+
+**Progresso formal: 0/4 FASES ENCERRADAS.** Ganho verificável na Fase 1: primeiro ensaio com os executáveis GF reais e retorno conservador OLD em CI descartável.
+
+### 6. Próxima ação única dentro da mesma Fase 1
+Projetar e demonstrar **um contrato mínimo de saúde e encerramento que dependa do processo GF real**, com identidade de processo e pacote vinculados e observação em ambiente Windows descartável. Nenhuma confirmação por mero `Process.Start`, PID, terminal same-user, login UI inexistente ou log sintético deve ser usada como READY. Distinguir limites de sessão não interativa Windows CI de falha do GF. Manter a troca reversível e fail-closed. Corrigir **dentro da Fase 1**, sem criar novo Lote 24 ou outras tarefas paralelas.
+
+**Próximo WORK só após candidato composto com health/shutdown/recuperação demonstrados; não consumir quota para repetir TUF/NTFS já testados.**
