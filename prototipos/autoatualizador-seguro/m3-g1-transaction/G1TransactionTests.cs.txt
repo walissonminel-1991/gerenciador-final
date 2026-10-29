@@ -1,0 +1,253 @@
+// Directed G1-TX state-transition tests, not previous snapshot/witness tests.
+// Real Stage2 inert fixture is used only for the initial anchor; local publish
+// journal and independent witness are IN-MEMORY models, with simulated crashes.
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal static class G1TransactionTests
+{
+    private static readonly List<object> outcomes=[];
+    private static int failed;
+    private static bool responseLostAfterCommitDetected,concurrentCasSingleWinner,
+        ackNeverActivates,offlineBlocked,conflictBlocked,idempotentRetry,
+        crashPointsCovered,localFixtureUntouched;
+    private static string suite="";
+    private sealed class Scenario : IDisposable
+    {
+        internal readonly StateCase Fixture;
+        internal readonly TxHead Initial;
+        internal readonly G1LocalJournalModel Local;
+        internal readonly G1AtomicMemoryWitness Witness=new();
+        internal Scenario()
+        {
+            Fixture=new StateCase(suite);
+            var (record,digest)=new PersistentState(Fixture.Root).Load();
+            Initial=new(record.InstallationId,record.Generation,
+                record.Trust.ApprovedSequence,digest);
+            Local=new(Initial);
+            Witness.BootstrapTrustedForFixture(Initial); // Explicit trusted TEST bootstrap.
+        }
+        internal TxProposal NewProposal(string? id=null,string? digest=null)
+            =>new(Initial.InstallationId,id??Guid.NewGuid().ToString("N"),Initial,
+                Initial with {Generation=Initial.Generation+1,
+                    ApprovedSequence=Initial.ApprovedSequence+1,
+                    Digest=digest??Hash(System.Text.Encoding.UTF8.GetBytes(
+                        Initial.Digest+Guid.NewGuid().ToString("N")))});
+        internal void AssertUnchanged()
+        {
+            var (record,digest)=new PersistentState(Fixture.Root).Load();
+            Require(record.Generation==Initial.Generation &&
+                record.Trust.ApprovedSequence==Initial.ApprovedSequence &&
+                digest==Initial.Digest &&
+                record.Transaction is null,"G1TX_STAGE2_LEDGER_MUTATED");
+            Require(new FixtureFiles(Fixture.Root).ReadSelector(record.InstallationId).Bundle==
+                Fixture.Old,"G1TX_SELECTOR_ACTIVATED");
+            Fixture.Preserved();localFixtureUntouched=true;
+        }
+        public void Dispose(){AssertUnchanged();Fixture.Dispose();}
+    }
+    private static void ExpectReject(string code,Action run)
+    {
+        try{run();}
+        catch(Rejected e) when(e.Code==code){return;}
+        throw new InvalidDataException("G1TX_UNEXPECTED_ACCEPT:"+code);
+    }
+    private static void Timeout(Action run)
+    {
+        try{run();}
+        catch(TimeoutException){return;}
+        throw new InvalidDataException("G1TX_TIMEOUT_NOT_RAISED");
+    }
+    private static void Expect(TxReconcile actual,TxReconcile expected)
+        =>Require(actual==expected,"G1TX_WRONG_RECONCILIATION:"+actual+" != "+expected);
+    private static async Task Check(string id,Func<Task> run)
+    {
+        try{await run();outcomes.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception e){failed++;outcomes.Add(new{id,status="failed",error=e.ToString()});
+            Console.WriteLine("FAIL "+id+" "+e);}
+    }
+    private static Task Sync(Action run){run();return Task.CompletedTask;}
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=2 || args[0]!="--report" || !OperatingSystem.IsWindows())return 2;
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-g1tx-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Check("G1TX-01-STABLE-NO-WITNESS-MISMATCH-STILL-BLOCKED",()=>Sync(()=>{
+                using var s=new Scenario();
+                Expect(G1TransactionReconciler.Inspect(s.Local,s.Witness),
+                    TxReconcile.StableMatchBlocked);
+                Require(s.Local.Phase==TxLocalPhase.Stable,"G1TX_LOCAL_CHANGED");
+            }));
+            await Check("G1TX-02-CRASH-BEFORE-PREPARE",()=>Sync(()=>{
+                using var s=new Scenario();
+                var reboot=s.Local.CrashAndRestart();
+                Expect(G1TransactionReconciler.Inspect(reboot,s.Witness),
+                    TxReconcile.StableMatchBlocked);
+                crashPointsCovered=true;
+            }));
+            await Check("G1TX-03-CRASH-AFTER-LOCAL-PREPARE-BEFORE-PUBLISH",()=>Sync(()=>{
+                using var s=new Scenario();var proposal=s.NewProposal();
+                s.Local.Prepare(proposal);
+                var reboot=s.Local.CrashAndRestart();
+                Expect(G1TransactionReconciler.Inspect(reboot,s.Witness),
+                    TxReconcile.PreparedUnseenBlocked);
+                Require(reboot.Phase==TxLocalPhase.Prepared && reboot.Ack is null,
+                    "G1TX_FALSE_ACK");
+            }));
+            await Check("G1TX-04-REPLY-LOST-AFTER-REMOTE-CAS",()=>Sync(()=>{
+                using var s=new Scenario();var proposal=s.NewProposal();s.Local.Prepare(proposal);
+                Timeout(()=>s.Witness.Publish(proposal,loseReplyAfterCommit:true));
+                var reboot=s.Local.CrashAndRestart();
+                Expect(G1TransactionReconciler.Inspect(reboot,s.Witness),
+                    TxReconcile.RemoteCommittedAckMissingBlocked);
+                Require(reboot.Ack is null,"G1TX_AMBIGUOUS_ACK_INVENTED");
+                responseLostAfterCommitDetected=true;
+            }));
+            await Check("G1TX-05-IDEMPOTENT-RETRY-AFTER-LOST-REPLY",()=>Sync(()=>{
+                using var s=new Scenario();var proposal=s.NewProposal();s.Local.Prepare(proposal);
+                Timeout(()=>s.Witness.Publish(proposal,true));
+                var prior=s.Witness.HeadForFixtureInspectionOnly(s.Initial.InstallationId);
+                var receipt=s.Witness.Publish(proposal);
+                Require(receipt.Committed==prior &&
+                    s.Witness.HeadForFixtureInspectionOnly(s.Initial.InstallationId)==prior,
+                    "G1TX_DUPLICATE_COMMITTED_TWICE");
+                s.Local.RecordAck(receipt);
+                Expect(G1TransactionReconciler.Inspect(s.Local.CrashAndRestart(),s.Witness),
+                    TxReconcile.AckMatchesButNotAuthorized);
+                idempotentRetry=true;
+            }));
+            await Check("G1TX-06-CRASH-AFTER-PUBLISH-BEFORE-LOCAL-ACK",()=>Sync(()=>{
+                using var s=new Scenario();var p=s.NewProposal();s.Local.Prepare(p);
+                _=s.Witness.Publish(p);
+                var reboot=s.Local.CrashAndRestart();
+                Expect(G1TransactionReconciler.Inspect(reboot,s.Witness),
+                    TxReconcile.RemoteCommittedAckMissingBlocked);
+                Require(reboot.Ack is null,"G1TX_CRASH_ACK_FABRICATED");
+            }));
+            await Check("G1TX-07-CRASH-AFTER-ACK-REMAINS-NON-ACTIVATING",()=>Sync(()=>{
+                using var s=new Scenario();var p=s.NewProposal();s.Local.Prepare(p);
+                var receipt=s.Witness.Publish(p);s.Local.RecordAck(receipt);
+                var reboot=s.Local.CrashAndRestart();
+                Expect(G1TransactionReconciler.Inspect(reboot,s.Witness),
+                    TxReconcile.AckMatchesButNotAuthorized);
+                Require(reboot.Stable==s.Initial &&
+                    reboot.Phase==TxLocalPhase.AckRecorded,"G1TX_ACK_CHANGED_STABLE");
+                ackNeverActivates=true;
+            }));
+            await Check("G1TX-08-TXID-REUSE-WITH-CHANGED-PAYLOAD-REJECTED",()=>Sync(()=>{
+                using var s=new Scenario();var p=s.NewProposal();
+                _=s.Witness.Publish(p);
+                var mutation=p with {Next=p.Next with {Digest=new string('e',64)}};
+                ExpectReject("G1TX_IDEMPOTENCY_CONFLICT",()=>{_=s.Witness.Publish(mutation);});
+                Require(s.Witness.HeadForFixtureInspectionOnly(s.Initial.InstallationId)==p.Next,
+                    "G1TX_TAMPERED_RETRY_CHANGED_WITNESS");
+            }));
+            await Check("G1TX-09-COMPETING-STABLE-PARENT-CAS-CONFLICT",()=>Sync(()=>{
+                using var s=new Scenario();
+                var p=s.NewProposal();var other=s.NewProposal();
+                _=s.Witness.Publish(p);
+                ExpectReject("G1TX_CAS_CONFLICT",()=>{_=s.Witness.Publish(other);});
+                Require(s.Witness.HeadForFixtureInspectionOnly(s.Initial.InstallationId)==p.Next,
+                    "G1TX_COMPETING_PARENT_OVERWROTE");
+                conflictBlocked=true;
+            }));
+            await Check("G1TX-10-CONCURRENT-WRITERS-HAVE-EXACTLY-ONE-WINNER",async()=>{
+                using var s=new Scenario();
+                var a=s.NewProposal();var b=s.NewProposal();
+                using var launch=new ManualResetEventSlim(false);
+                async Task<string> Race(TxProposal p)
+                    =>await Task.Run(()=>{
+                        launch.Wait();
+                        try{_=s.Witness.Publish(p);return "committed";}
+                        catch(Rejected e) when(e.Code=="G1TX_CAS_CONFLICT")
+                        {return "conflict";}
+                    });
+                var left=Race(a);var right=Race(b);launch.Set();
+                var results=await Task.WhenAll(left,right);
+                Require(results.Count(x=>x=="committed")==1 &&
+                    results.Count(x=>x=="conflict")==1,
+                    "G1TX_CAS_NOT_SINGLE_WINNER");
+                var final=s.Witness.HeadForFixtureInspectionOnly(s.Initial.InstallationId);
+                Require(final==a.Next || final==b.Next,"G1TX_WRONG_COMMITTED_HEAD");
+                concurrentCasSingleWinner=true;
+            });
+            await Check("G1TX-11-REMOTE-CONFLICT-DURING-LOCAL-PREPARE",()=>Sync(()=>{
+                using var s=new Scenario();var prepared=s.NewProposal();
+                s.Local.Prepare(prepared);_=s.Witness.Publish(s.NewProposal());
+                Expect(G1TransactionReconciler.Inspect(s.Local.CrashAndRestart(),s.Witness),
+                    TxReconcile.ConflictBlocked);
+            }));
+            await Check("G1TX-12-ACK-CANNOT-BE-FORGED-LOCALLY",()=>Sync(()=>{
+                using var s=new Scenario();var p=s.NewProposal();s.Local.Prepare(p);
+                var forged=new TxReceipt(s.Initial.InstallationId,p.TxId,p.Expected,
+                    p.Next with {Digest=new string('a',64)});
+                ExpectReject("G1TX_LOCAL_ACK_MISMATCH",()=>s.Local.RecordAck(forged));
+                Expect(G1TransactionReconciler.Inspect(s.Local,s.Witness),
+                    TxReconcile.PreparedUnseenBlocked);
+            }));
+            await Check("G1TX-13-OFFLINE-PUBLISH-AND-RECOVERY-FAIL-CLOSED",()=>Sync(()=>{
+                using var s=new Scenario();var p=s.NewProposal();s.Local.Prepare(p);
+                s.Witness.Available=false;
+                Timeout(()=>s.Witness.Publish(p));
+                Expect(G1TransactionReconciler.Inspect(s.Local.CrashAndRestart(),s.Witness),
+                    TxReconcile.UnavailableBlocked);
+                s.Witness.Available=true;
+                Expect(G1TransactionReconciler.Inspect(s.Local,s.Witness),
+                    TxReconcile.PreparedUnseenBlocked);
+                offlineBlocked=true;
+            }));
+            await Check("G1TX-14-RECEIPT-VISIBLE-BUT-LOCAL-ACK-MISSING",()=>Sync(()=>{
+                using var s=new Scenario();var p=s.NewProposal();s.Local.Prepare(p);
+                var receipt=s.Witness.Publish(p);
+                Require(receipt.TxId==p.TxId,"G1TX_MISSING_RECEIPT");
+                Expect(G1TransactionReconciler.Inspect(s.Local,s.Witness),
+                    TxReconcile.RemoteCommittedAckMissingBlocked);
+                // *No automatic RecordAck* on reconciliation.
+                Require(s.Local.Ack is null && s.Local.Phase==TxLocalPhase.Prepared,
+                    "G1TX_AUTO_ACKED");
+            }));
+            await Check("G1TX-15-NO-AUTOMATIC-FIRST-USE-ENROLLMENT",()=>Sync(()=>{
+                using var s=new Scenario();
+                var stranger=new G1AtomicMemoryWitness();
+                var p=s.NewProposal();s.Local.Prepare(p);
+                ExpectReject("G1TX_NOT_ENROLLED",()=>{_=stranger.Publish(p);});
+                Expect(G1TransactionReconciler.Inspect(s.Local,stranger),
+                    TxReconcile.ConflictBlocked);
+            }));
+            await Check("G1TX-16-NO-SILENT-RESET-OF-WITNESS",()=>Sync(()=>{
+                using var s=new Scenario();
+                ExpectReject("G1TX_NO_TOFU_RESET",()=>
+                    s.Witness.BootstrapTrustedForFixture(s.Initial));
+                Require(s.Witness.HeadForFixtureInspectionOnly(s.Initial.InstallationId)==
+                    s.Initial,"G1TX_BOOTSTRAP_RESET");
+            }));
+        }
+        finally{Directory.Delete(suite,recursive:true);}
+        var report=new{
+            schema=1,phase="G1-transaction-model",fixture_only=true,
+            passed=outcomes.Count-failed,failed,tests=outcomes,
+            post_commit_lost_reply_reconciled_blocked=responseLostAfterCommitDetected,
+            concurrent_cas_single_winner=concurrentCasSingleWinner,
+            ack_did_not_activate=ackNeverActivates,
+            offline_did_not_fallback=offlineBlocked,
+            competing_commit_refused=conflictBlocked,
+            idempotent_retry_no_double_commit=idempotentRetry,
+            simulated_crash_boundaries_exercised=crashPointsCovered,
+            stage2_original_fixture_untouched=localFixtureUntouched,
+            operational_gates_closed=0,
+            local_journal_durable=false,remote_witness_durable=false,
+            authenticated_witness=false,physical_power_loss_tested=false,
+            product_built=false,product_executed=false,
+            update_execution_implemented=false
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("G1_TRANSACTION_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}
