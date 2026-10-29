@@ -75,6 +75,14 @@ jobs:
               !$r.tampered_dll_rejected_before_selection -or
               !$r.rolled_back_due_to_no_ready -or !$r.old_and_canary_preserved -or
               !$r.tuf_laboratory_test_keys_only -or
+              !$r.old_process.created -or !$r.new_process.created -or
+              !$r.old_process.terminated -or !$r.new_process.terminated -or
+              !$r.old_process.actual_image_path_matches -or
+              !$r.new_process.actual_image_path_matches -or
+              !$r.old_process.image_on_disk_sha_matches_manifest -or
+              !$r.new_process.image_on_disk_sha_matches_manifest -or
+              $r.old_process.application_functional_health_verified -or
+              $r.new_process.application_functional_health_verified -or
               $r.ready_verified -or $r.phase1_complete -or
               $r.automatic_update_authorized -or
               $r.operational_gates_closed -ne 0 -or
@@ -88,6 +96,11 @@ jobs:
             '* DLL modificada recusada antes da selecao'
             "* OLD processo criado: $($r.old_process.created); NEW processo criado: $($r.new_process.created)"
             "* NEW ainda ativo na janela limitada: $($r.new_process.still_alive_at_bound)"
+            "* OLD imagem/manifesto: $($r.old_process.actual_image_path_matches) / $($r.old_process.image_on_disk_sha_matches_manifest)"
+            "* NEW imagem/manifesto: $($r.new_process.actual_image_path_matches) / $($r.new_process.image_on_disk_sha_matches_manifest)"
+            "* OLD hwnd / mensagem / fechamento normal: $($r.old_process.main_form_hwnd_observed) / $($r.old_process.main_form_message_loop_responded) / $($r.old_process.graceful_exit_observed)"
+            "* NEW hwnd / mensagem / fechamento normal: $($r.new_process.main_form_hwnd_observed) / $($r.new_process.main_form_message_loop_responded) / $($r.new_process.graceful_exit_observed)"
+            "* Runner session: $($r.new_process.runner_session_id), desktop interativo: $($r.new_process.interactive_user_desktop_verified)"
             '* READY real NAO demonstrado; OLD restaurada, hashes e canario intactos'
             '* FASE 1 PARCIAL; G1-G8 BLOCKED (0/8)'
             '* Nenhum upload de pacote, deploy ou integracao operacional'

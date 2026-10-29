@@ -173,9 +173,13 @@ def write_selector(root, selected):
             "SELECTOR_WRITE_FAILED")
 
 
-def observed_process(directory, seconds):
-    """Launch real GF, bound observation, then kill isolated owned process tree.
-    PID existence/elapsed time is NOT WinForms READY or independent health."""
+def observed_process(directory, expected_exe_sha, seconds=12):
+    """Measure HWND owner, UI message loop, graceful WM_CLOSE of *this* GF.
+
+    Observation is process-bound, not application READY. If Windows runner
+    lacks interactive desktop, keep that limitation explicit and roll OLD.
+    """
+    from win32_process_observation import observe_real_gf
     exe = directory / "GerenciadorFinal.exe"
     start = time.monotonic()
     env = dict(os.environ)
@@ -184,27 +188,45 @@ def observed_process(directory, seconds):
     proc = None
     result = {"launch_attempted": True, "created": False,
               "still_alive_at_bound": False, "ready": False,
-              "independent_health": False, "terminated": False}
+              "independent_health": False, "terminated": False,
+              "graceful_exit_observed": False,
+              "main_form_message_loop_responded": False}
     try:
+        # The real GF's --tray mode suppresses first-start modal consent.
+        # The HWND may be hidden, but a responsive message loop is observable.
+        # Never use a diagnostic log/terminal receipt as a health witness.
         proc = subprocess.Popen([str(exe), "--tray"], cwd=str(directory),
                                 env=env, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
         result["created"] = True
         result["pid_observed"] = proc.pid
-        until = time.monotonic() + seconds
-        while time.monotonic() < until and proc.poll() is None:
-            time.sleep(0.25)
+        observed = observe_real_gf(proc, exe, expected_exe_sha, seconds=seconds)
+        result.update(observed)
         result["still_alive_at_bound"] = proc.poll() is None
         result["exit_if_early"] = proc.poll()
+        result["graceful_shutdown_verified_for_owned_process"] = (
+            result["graceful_exit_observed"]
+            and observed.get("actual_image_path_matches", False)
+            and observed.get("image_on_disk_sha_matches_manifest", False)
+            and observed.get("main_form_message_loop_responded", False))
+        # A process whose window responds is not a verified healthy GF.
+        result["ready"] = False
+        result["independent_health"] = False
     except OSError as exc:
         result["error"] = type(exc).__name__
     finally:
         if proc is not None:
             if proc.poll() is None:
+                # Fallback only in disposable CI, after graceful path has been
+                # attempted or explicitly unavailable. Force-kill is NOT proof
+                # of controlled shutdown and never authorizes NEW.
+                result["forced_cleanup_required"] = True
                 subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                timeout=12, check=False)
+            else:
+                result["forced_cleanup_required"] = False
             try:
                 proc.wait(timeout=12)
             except subprocess.TimeoutExpired:
@@ -288,17 +310,28 @@ def main():
         shutil.copyfile(args.new / "GerenciadorFinal.dll", dll)
         validate_package(new, new_manifest)
 
-        old_observation = observed_process(old, 3)
+        old_observation = observed_process(old, old_manifest["GerenciadorFinal.exe"]["sha256"])
         result["old_process"] = old_observation
         require(old_observation["terminated"], "OLD_PROCESS_NOT_TERMINATED")
         require(validate_package(old, old_manifest), "OLD_DRIFT_BEFORE_SWAP")
         require(validate_package(new, new_manifest), "NEW_DRIFT_BEFORE_SWAP")
         write_selector(sandbox, "new")
         result["candidate_selected_in_disposable_sandbox"] = True
-        candidate = observed_process(new, 3)
+        candidate = observed_process(new, new_manifest["GerenciadorFinal.exe"]["sha256"])
         result["new_process"] = candidate
         result["real_gf_process_attempted"] = candidate["launch_attempted"]
         require(candidate["terminated"], "NEW_PROCESS_NOT_TERMINATED")
+        # Health and shutdown are independently recorded for the REAL
+        # image/window; successful limited observations never promote READY.
+        result["old_graceful_shutdown_verified"] = old_observation.get(
+            "graceful_shutdown_verified_for_owned_process", False)
+        result["new_graceful_shutdown_verified"] = candidate.get(
+            "graceful_shutdown_verified_for_owned_process", False)
+        result["desktop_health_blocker"] = (
+            "NONINTERACTIVE_WINDOWS_RUNNER_OR_NO_APPLICATION_HEALTH_CONTRACT")
+        require(not candidate.get("ready_verified") and not
+                candidate.get("application_functional_health_verified"),
+                "UNSUPPORTED_APP_READY_CLAIM")
         # Crucial: the GitHub Windows service runner cannot attest a real
         # WinForms READY. Regardless of PID, ALWAYS revert to OLD.
         write_selector(sandbox, "old")
@@ -310,8 +343,9 @@ def main():
                 "OLD_NOT_RESELECTED")
         result["old_and_canary_preserved"] = True
         result["verified_result"] = "REAL_BYTES_TUF_AUTHENTICATED_PROCESS_BOUND_OBSERVED_ROLLBACK_OLD"
-        print("GF_PHASE1_LAB: real package signed and verified, tamper rejected; "
-              "bounded actual process observation; rollback OLD; READY NOT PROVEN")
+        print("GF_PHASE1_LAB: real GF package TUF-verified, modified DLL rejected; "
+              "real PID/image/HWND message-pump and graceful-close probed; "
+              "OLD restored; operational READY NOT PROVEN")
     except BaseException as e:
         # Recover OLD conservatively if it exists and looks intact; never
         # promote NEW on an exception or mark successful readiness.
