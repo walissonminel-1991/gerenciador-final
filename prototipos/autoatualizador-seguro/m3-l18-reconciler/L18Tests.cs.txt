@@ -197,16 +197,16 @@ internal static class L18Tests
                 string canary=Path.Combine(s.Lab,"MY-PERSONAL-FILE.txt");
                 File.WriteAllText(canary,"KEEP-THIS-PRIVATE-TEXT");
                 string eventPath=L18Coordinator.EventPath(s.Source.Root,1);
-                // No need for symlink privileges: a pre-existing event path
-                // must not be overwritten as an attempted journal redirect.
-                File.WriteAllText(eventPath,"PREEXISTING-UNKNOWN-EVENT");
+                // A reparse point inside the fixture points OUTSIDE source
+                // to a pretend personal document. NTFS guard must refuse it.
+                File.CreateSymbolicLink(eventPath,canary);
                 bool blocked=false;
                 try{L18Coordinator.Begin(s.Source.Root,s.Lab,L16Tests.bootstrap);}
                 catch(Exception ex) when(ex is Rejected or IOException or
                     InvalidDataException or JsonException){blocked=true;}
                 Require(blocked && File.ReadAllText(canary)=="KEEP-THIS-PRIVATE-TEXT" &&
-                    File.ReadAllText(eventPath)=="PREEXISTING-UNKNOWN-EVENT",
-                    "L18_WRITE_ESCAPED_SCOPE_OR_OVERWROTE_UNKNOWN");
+                    (File.GetAttributes(eventPath)&FileAttributes.ReparsePoint)!=0,
+                    "L18_SYMLINK_ESCAPED_SCOPE_OR_CANARY_CHANGED");
                 s.Preserved();
             });
         }
