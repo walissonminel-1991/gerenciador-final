@@ -1,5 +1,37 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+28/10/2026, America/Sao_Paulo. **Etapa 8 concluída no protótipo isolado.
+Zero de oito gates operacionais fechado; oito bloqueados. Etapa 9 NÃO INICIADA.**
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | GF_SELF_UPDATER_STAGE8_ISOLATED_G2_G8_DELTAS |
+| PR / branch | #65 aberta/Draft, work-integracao-final-20261027 |
+| Entrada | 13afd9766bd99a54a451865cf76b133eb1b29671 |
+| Código / correção dirigida | 8b947d3c54c74af938d8bcfb43463eebe181e2ff / bcc681079a209306132e0f03b5a47c9b5f4ee1af |
+| G2 implementado | UTC escalar readonly por tentativa, cliente de uso único, Unchanged encerra ciclo sem alvo, facade sem refresh duplicado |
+| G8 implementado | Admissão/ownership antes da factory, tarefa original/lease/recursos retidos, prazo compartilhado e resultado desconhecido bloqueante |
+| Windows inicial | Run 40805278830/número 1/tentativa 1: 26/27; falha de sharing no leitor de conferência preservada |
+| Correção Windows | Run 40805755390/número 2/tentativa 1: 1/1, somente o caso falho; 26 aprovados não repetidos |
+| Cobertura composta | 27 casos distintos com provas pertinentes; não é bateria completa no SHA da correção |
+| Isolamento | SDK 10.0.402/runtime 10.0.14, 142 fontes GF/zero protótipo, saídas externas, zero build/execução GF/artifacts |
+| Gates | Todos bloqueados; G2 manutenção/revisão/interoperabilidade/estado; G8 barreira durável/armazenamento/pipeline GF; G1/G3–G7 insumos externos |
+| Limite da recuperação | Sessão local reiniciada, resultado inicial indisponível não contado; código salvo antes da CI Windows |
+| Preservação | .66/canal/proteções/físico parcial/27 de 42 intactos; zero chaves operacionais, integração ou publicação |
+
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA8.md) ·
+[Rodadas](evidencias/autoatualizador-etapa8-rodadas.json) ·
+[Gates](evidencias/autoatualizador-etapa8-gates.json) ·
+[Recibo](evidencias/autoatualizador-etapa8.json).
+
+Contrato gf-self-update/1 intacto. Não promover subprovas de runtime ou TUF de
+fixture a homologação operacional. Nenhum ensaio de armazenamento travado,
+durabilidade pós-crash, IPC/contexto padrão, pacote/ciclo GF ou custódia novo.
+Próxima ação: decisões/insumos D6 pendentes e revisão dos limites concretos em
+escopo posterior autorizado. **Parar; não iniciar Etapa 9 ou integrar/publicar.**
+
+## Registro da Etapa 7 — histórico preservado
+
 28/10/2026, America/Fortaleza. **Etapa 7 de decisões e revisão concluída.
 Zero de oito gates operacionais fechado; oito bloqueados. Etapa 8 NÃO INICIADA.**
 

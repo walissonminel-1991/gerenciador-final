@@ -1,0 +1,245 @@
+{
+  "schema": "gf-stage8-delta-tests/1",
+  "stage": 8,
+  "contract": "gf-self-update/1",
+  "fixture_only": true,
+  "installable": false,
+  "runtime": ".NET 10.0.14",
+  "os": "Microsoft Windows 10.0.20348",
+  "total": 27,
+  "passed": 26,
+  "failed": 1,
+  "blocked": 0,
+  "case_prefix": "",
+  "tests": [
+    {
+      "id": "U8-G2-API",
+      "delta": "Immutable scalar API and rejection of default/non-UTC input",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-CAPTURE",
+      "delta": "Single UTC capture despite clock source changing during metadata fetch",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-ONE-CHAIN",
+      "delta": "Facade fetches one root probe, timestamp, snapshot, targets and target",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-CLIENT-REUSE",
+      "delta": "Second public entry point refused before additional fetch",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-CLIENT-RACE",
+      "delta": "Concurrent public calls cannot share one frozen client",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-UNCHANGED-METADATA",
+      "delta": "Equal timestamp stops before accessing later-role caches/fetches",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-UNCHANGED-TARGET",
+      "delta": "Equal timestamp authorizes no target access including cached target",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-EQUAL-SIGNATURE",
+      "delta": "Equal-version shortcut still verifies incoming timestamp signature",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-EQUAL-CONTENT",
+      "delta": "Changed signed content with equal timestamp version is discarded",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-VALUE-EQUALITY-ROOT",
+      "delta": "New scalar clock expiry equality inside TUF: root",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-VALUE-EQUALITY-TIMESTAMP",
+      "delta": "New scalar clock expiry equality inside TUF: timestamp",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-VALUE-EQUALITY-SNAPSHOT",
+      "delta": "New scalar clock expiry equality inside TUF: snapshot",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-VALUE-EQUALITY-TARGETS",
+      "delta": "New scalar clock expiry equality inside TUF: targets",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-ROOT-CHAIN",
+      "delta": "New scalar clock validates final root after expired intermediate",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-FACADE-UNCHANGED",
+      "delta": "One-chain facade returns unchanged without any inert content",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-NEW-ATTEMPT",
+      "delta": "Fresh attempt captures new UTC and refuses expired input without target access",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G2-OWNED-CANCEL",
+      "delta": "Canceled TUF wait retains client until original repository task ends",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G8-PRE-CANCEL",
+      "delta": "Cancellation before admission starts no factory",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G8-CONCURRENT-ADMISSION",
+      "delta": "Active operation blocks concurrent admission and release",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G8-SYNC-START",
+      "delta": "Factory blocking before Task return remains owned after waiter cancellation",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G8-LATE-FILE-WRITE",
+      "delta": "Actual delayed file write cannot revive attempt; release requires terminal observation and reconciliation",
+      "status": "failed",
+      "error": "System.IO.IOException: The process cannot access the file 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\gf-u8-inert-b6bc32f9555c42d9ad5412d12fab6f10\\staging.txt' because it is being used by another process.\r\n   at Microsoft.Win32.SafeHandles.SafeFileHandle.CreateFile(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options)\r\n   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)\r\n   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)\r\n   at System.IO.Strategies.FileStreamHelpers.ChooseStrategyCore(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)\r\n   at System.IO.StreamReader.ValidateArgsAndOpenPath(String path, Int32 bufferSize)\r\n   at System.IO.File.ReadAllText(String path, Encoding encoding)\r\n   at GfUpdaterFixture.IoDeltaTests.<>c.<<Run>b__1_3>d.MoveNext() in D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage8\\src\\IoDeltaTests.cs.txt:line 55\r\n--- End of stack trace from previous location ---\r\n   at GfUpdaterFixture.IoDeltaTests.<>c.<<Run>b__1_3>d.MoveNext() in D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage8\\src\\IoDeltaTests.cs.txt:line 63\r\n--- End of stack trace from previous location ---\r\n   at GfUpdaterFixture.DeltaTests.Test(String id, String delta, Func`1 run) in D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage8\\src\\DeltaTests.cs.txt:line 15"
+    },
+    {
+      "id": "U8-G8-LATE-FAULT",
+      "delta": "Failure after canceled wait remains observable without early resource release",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G8-SHARED-BUDGET",
+      "delta": "Two owned phases use one monotonic deadline with pending lease retained",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G8-COOPERATIVE-END",
+      "delta": "Original cooperative cancellation terminates before reconciliation/release",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G8-SYNC-FAULT",
+      "delta": "Synchronous factory exception is tracked terminal failure",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G8-FRESH-OWNER",
+      "delta": "New owner requires explicit release of reconciled, permanently closed attempt",
+      "status": "passed"
+    },
+    {
+      "id": "U8-G8-RESOURCE-ALIAS",
+      "delta": "Same retained resource shared across operations is disposed once",
+      "status": "passed"
+    }
+  ],
+  "observations": [
+    {
+      "kind": "single_utc_capture",
+      "reads": 1,
+      "captured": "2026-11-02T12:00:00+00:00",
+      "changed_source": "2026-11-22T12:00:00+00:00"
+    },
+    {
+      "kind": "single_metadata_workflow",
+      "fetches": {
+        "target": 1,
+        "root": 1,
+        "snapshot": 1,
+        "timestamp": 1,
+        "targets": 1
+      }
+    },
+    {
+      "kind": "unchanged_terminates_target_workflow",
+      "snapshot_fetches": 0,
+      "target_fetches": 0,
+      "target_cache_reads": 0,
+      "content_access_refused": true
+    },
+    {
+      "kind": "owned_TUF_cancellation",
+      "client_retained_until_repository_end": true,
+      "late_downstream_fetches": 0,
+      "persistent_state_proved": false
+    },
+    {
+      "kind": "synchronous_factory_block",
+      "waiter_canceled_before_Task_return": true,
+      "resources_and_lease_retained": true,
+      "kernel_hang": false
+    },
+    {
+      "kind": "controlled_late_fault",
+      "error_observed": true,
+      "device_fault": false
+    },
+    {
+      "kind": "shared_owned_deadline",
+      "configured_seconds": 1,
+      "elapsed_seconds": 1.001,
+      "phases": 2,
+      "original_second_pending": true,
+      "repeated_120_second_test": false
+    }
+  ],
+  "operational_gates_closed": 0,
+  "operational_gates_blocked": 8,
+  "limits": [
+    "No operational maintenance acceptance or interoperability certification",
+    "No persistent unknown-I/O barrier or crash durability proof",
+    "No storage hang or power-loss test",
+    "No authenticated GF package/PE, product lifecycle or IPC",
+    "No operational keys/bootstrap"
+  ],
+  "old_suites_executed": false,
+  "real_120_second_test_repeated": false,
+  "physical_tests_repeated": 0,
+  "product_built": false,
+  "product_executed": false,
+  "private_channel_accessed": false,
+  "stage9_started": false,
+  "isolation": {
+    "sdk": "10.0.402",
+    "restore_locked_mode": true,
+    "product_compile_items": 142,
+    "prototype_items_in_product": 0,
+    "outputs_outside_repository": true,
+    "product_built": false
+  },
+  "tuf_source_delta": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "modified_source_sha256": {
+      "src/Tuf/TufClient.cs": "69414de567f872249d00559c1dd57e5bee43d94d476da61f8569738b77040268",
+      "src/Tuf/TufClientOptions.cs": "9820744a9989a0f8b6d0cbcfd68f31c7dc0c56819b8ad830d6d3a79c7bb4fd4b",
+      "src/Tuf/TufResults.cs": "94d6c7bc2d80cf2f1f72f1180f479aff4ffb748a7aaae3676105a7c8d2d198a1"
+    },
+    "crypto_parser_sources_unchanged": true,
+    "original_nuget_package_changed": false,
+    "production_adoption": false
+  },
+  "fixtures": {
+    "cases": 8,
+    "catalog_sha256": "70373432edcc2c1cfea8a9dff2ab5bdf37788676e9c7c57b68b3b64e6f81603d",
+    "reference_utc": "2026-11-02T12:00:00Z",
+    "test_only": true
+  }
+}

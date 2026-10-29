@@ -1,0 +1,182 @@
+{
+  "schema": "gf-stage8-gates/1",
+  "contract": "gf-self-update/1",
+  "accepted_as_client_manifest": false,
+  "gate_count": 8,
+  "closed": 0,
+  "blocked": 8,
+  "gates": [
+    {
+      "id": "G1",
+      "title": "Durabilidade e antirreplay após restauração integral",
+      "status": "blocked",
+      "decision_refs": [
+        "D6-01",
+        "D6-03"
+      ],
+      "minimum_evidence_ids": [
+        "E6-STORAGE",
+        "E6-FRESHNESS"
+      ],
+      "prior_reason_preserved": "Sem referência autenticada de frescor fora do domínio restaurado e sem ensaio de falha de energia/armazenamento real. Contraexemplo da Etapa 4 não foi repetido ou resolvido.",
+      "operational_gate_closed": false,
+      "stage8": "blocked_external_inputs_unchanged_no_retest",
+      "new_operational_evidence": false
+    },
+    {
+      "id": "G2",
+      "title": "Adoção segura do relógio TUF",
+      "status": "blocked",
+      "decision_refs": [
+        "D6-02"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CLOCK"
+      ],
+      "prior_reason_preserved": "Pacote original fixado; patch experimental não tem revisão, suporte/manutenção ou adoção operacional demonstrados.",
+      "operational_gate_closed": false,
+      "stage8": "isolated_clock_and_flow_delta_demonstrated",
+      "evidence_cases": [
+        "U8-G2-API",
+        "U8-G2-CAPTURE",
+        "U8-G2-ONE-CHAIN",
+        "U8-G2-CLIENT-REUSE",
+        "U8-G2-CLIENT-RACE",
+        "U8-G2-UNCHANGED-METADATA",
+        "U8-G2-UNCHANGED-TARGET",
+        "U8-G2-EQUAL-SIGNATURE",
+        "U8-G2-EQUAL-CONTENT",
+        "U8-G2-VALUE-EQUALITY-ROOT",
+        "U8-G2-VALUE-EQUALITY-TIMESTAMP",
+        "U8-G2-VALUE-EQUALITY-SNAPSHOT",
+        "U8-G2-VALUE-EQUALITY-TARGETS",
+        "U8-G2-ROOT-CHAIN",
+        "U8-G2-FACADE-UNCHANGED",
+        "U8-G2-NEW-ATTEMPT",
+        "U8-G2-OWNED-CANCEL"
+      ],
+      "still_missing": [
+        "maintainer maintenance acceptance and designated review",
+        "interoperable TUF vectors/conformance review",
+        "persistent cache/key epoch/clock floor and pre-commit guard adoption",
+        "operationally qualified client and exact product inputs"
+      ]
+    },
+    {
+      "id": "G3",
+      "title": "Pacote GF autenticado e vínculo ao estado",
+      "status": "blocked",
+      "decision_refs": [
+        "D6-05"
+      ],
+      "minimum_evidence_ids": [
+        "E6-PACKAGE"
+      ],
+      "prior_reason_preserved": "Nenhuma âncora operacional e metadados autorizando pacote GF futuro exato foram fornecidos no fluxo. Marcador/sonda não são pacote GF.",
+      "operational_gate_closed": false,
+      "stage8": "blocked_external_inputs_unchanged_no_retest",
+      "new_operational_evidence": false
+    },
+    {
+      "id": "G4",
+      "title": "Política PE, publicador e revogação quando exigidos",
+      "status": "blocked",
+      "decision_refs": [
+        "D6-06"
+      ],
+      "minimum_evidence_ids": [
+        "E6-PE"
+      ],
+      "prior_reason_preserved": "Não há classificação de PE GF autenticado nesta etapa. Windows trust de SDK/sonda anterior não autoriza GF. Beta-unsigned permanece permitido; modo obrigatório não foi adotado.",
+      "operational_gate_closed": false,
+      "stage8": "blocked_external_inputs_unchanged_no_retest",
+      "new_operational_evidence": false
+    },
+    {
+      "id": "G5",
+      "title": "IPC sem elevação e entre sessões/usuários",
+      "status": "blocked",
+      "decision_refs": [
+        "D6-03"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CONTEXT"
+      ],
+      "prior_reason_preserved": "Runner funcional elevado. Consulta separada: TokenElevationTypeDefault=1, LinkedToken falhou 1312, sem padrão vinculado ao token consultado; nenhum handshake padrão ou estrangeiro executado.",
+      "operational_gate_closed": false,
+      "stage8": "blocked_external_inputs_unchanged_no_retest",
+      "new_operational_evidence": false
+    },
+    {
+      "id": "G6",
+      "title": "Ciclo transacional GF e identidade durante todo uso",
+      "status": "blocked",
+      "decision_refs": [
+        "D6-05",
+        "D6-07"
+      ],
+      "minimum_evidence_ids": [
+        "E6-LIFECYCLE",
+        "E6-STORAGE",
+        "E6-DEADLINE"
+      ],
+      "prior_reason_preserved": "Subgate provado na sonda: todos os 274 arquivos retidos até saída real. Ainda faltam pacote/participantes GF e controle de inserção/carga tardia; criar nomes novos é possível e revalidação detecta o extra.",
+      "operational_gate_closed": false,
+      "stage8": "blocked_external_inputs_unchanged_no_retest",
+      "new_operational_evidence": false
+    },
+    {
+      "id": "G7",
+      "title": "Bootstrap e custódia de produção",
+      "status": "blocked",
+      "decision_refs": [
+        "D6-04"
+      ],
+      "minimum_evidence_ids": [
+        "E6-CUSTODY",
+        "E6-BOOTSTRAP"
+      ],
+      "prior_reason_preserved": "Plano operacional continua com root/fingerprint/publicador e slots de custódia vazios; sem cerimônia, recuperação e rotação reais.",
+      "operational_gate_closed": false,
+      "stage8": "blocked_external_inputs_unchanged_no_retest",
+      "new_operational_evidence": false
+    },
+    {
+      "id": "G8",
+      "title": "Prazo global e I/O bloqueante",
+      "status": "blocked",
+      "decision_refs": [
+        "D6-07"
+      ],
+      "minimum_evidence_ids": [
+        "E6-DEADLINE",
+        "E6-STORAGE"
+      ],
+      "prior_reason_preserved": "Read cancelável expirou em 120,005 s, mas WaitAsync sem token deixou I/O real pendente que completou depois. Pipeline GF/armazenamento bloqueante não ensaiado.",
+      "operational_gate_closed": false,
+      "stage8": "runtime_ownership_admission_deadline_unknown_results_subproofs",
+      "evidence_cases": [
+        "U8-G8-PRE-CANCEL",
+        "U8-G8-CONCURRENT-ADMISSION",
+        "U8-G8-SYNC-START",
+        "U8-G8-LATE-FILE-WRITE",
+        "U8-G8-LATE-FAULT",
+        "U8-G8-SHARED-BUDGET",
+        "U8-G8-COOPERATIVE-END",
+        "U8-G8-SYNC-FAULT",
+        "U8-G8-FRESH-OWNER",
+        "U8-G8-RESOURCE-ALIAS"
+      ],
+      "still_missing": [
+        "persistent barrier/restart reconciliation with G1",
+        "real blocked storage/Flush/ReplaceFile durability and original termination",
+        "qualified GF pipeline and lifecycle",
+        "resource disposal failure/hang not executed"
+      ]
+    }
+  ],
+  "D6_02": "isolated implementation authorized and executed; no operational maintenance acceptance inferred",
+  "D6_07": "runtime subset implemented; durable/full pipeline evidence pending",
+  "G1_G3_through_G7": "remain blocked on previously recorded external inputs",
+  "stage9_started": false
+}

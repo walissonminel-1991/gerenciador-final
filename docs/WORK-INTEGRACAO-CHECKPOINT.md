@@ -4,9 +4,9 @@
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 **Estado vigente: BETA privada .66 entregue; avaliação física parcialmente
-concluída; Etapa 7 de decisões/revisão do autoatualizador concluída; oito gates operacionais bloqueados.** Ver os
+concluída; Etapa 8 de deltas isolados G2/G8 do autoatualizador concluída; oito gates operacionais bloqueados.** Ver os
 registros finais e o [checkpoint do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
-Sem integração no produto ou Etapa 8; conectada bloqueada; roadmap 27/42.
+Sem integração no produto ou Etapa 9; conectada bloqueada; roadmap 27/42.
 
 ## Estado de continuidade
 
@@ -1058,3 +1058,24 @@ AVG/proteções, dados/consentimento, remoto bloqueado/flags no, drivers inativo
 VLC só inventário e COM consultivo preservados. Sem chave operacional,
 infraestrutura/permissões, integração, merge/Release/publicação. Históricos
 mantidos. **Parar após salvar/conferir; Etapa 8 não iniciada.**
+
+
+## Autoatualizador — Etapa 8: deltas G2/G8 (estado vigente)
+
+28/10/2026, America/Sao_Paulo. Entrada `13afd9766bd99a54a451865cf76b133eb1b29671`.
+Protótipo isolado `8b947d3c54c74af938d8bcfb43463eebe181e2ff`, correção de teste `bcc681079a209306132e0f03b5a47c9b5f4ee1af`.
+UTC imutável/uso único, término TUF por timestamp igual, um refresh e controle
+de admissão/ownership/prazo/resultado desconhecido implementados. Windows:
+40805278830, 26/27 com falha preservada; 40805755390, 1/1 só o caso corrigido.
+27 casos distintos em evidência composta, sem repetir os 26 aprovados ou as
+suítes antigas/120 s/físico. Sem atribuir aprovação à tentativa local perdida
+no reset. [Relatório](WORK-AUTOATUALIZADOR-ETAPA8.md),
+[rodadas](evidencias/autoatualizador-etapa8-rodadas.json),
+[gates](evidencias/autoatualizador-etapa8-gates.json) e
+[recibo](evidencias/autoatualizador-etapa8.json).
+
+**Oito gates bloqueados, zero fechado.** Faltam manutenção/revisão/estado e
+armazenamento/pipeline real; G1/G3–G7 continuam dependentes dos insumos externos.
+Contrato, BETA .66/canal privado, 27/42, proteções e físico parcial intactos.
+Zero build/execução GF, chaves operacionais, permissões/infraestrutura,
+integração, merge/Release/publicação. **Encerrar antes da Etapa 9.**

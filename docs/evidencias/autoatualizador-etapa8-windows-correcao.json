@@ -1,0 +1,74 @@
+{
+  "schema": "gf-stage8-delta-tests/1",
+  "stage": 8,
+  "contract": "gf-self-update/1",
+  "fixture_only": true,
+  "installable": false,
+  "runtime": ".NET 10.0.14",
+  "os": "Microsoft Windows 10.0.20348",
+  "total": 1,
+  "passed": 1,
+  "failed": 0,
+  "blocked": 0,
+  "case_prefix": "U8-G8-LATE-FILE-WRITE",
+  "tests": [
+    {
+      "id": "U8-G8-LATE-FILE-WRITE",
+      "delta": "Actual delayed file write cannot revive attempt; release requires terminal observation and reconciliation",
+      "status": "passed"
+    }
+  ],
+  "observations": [
+    {
+      "kind": "controlled_delayed_real_file_write",
+      "late_effect_observed": true,
+      "late_result_accepted": false,
+      "pending_release_refused": true,
+      "reconciliation_required": true,
+      "durable_barrier_or_power_loss_proved": false
+    }
+  ],
+  "operational_gates_closed": 0,
+  "operational_gates_blocked": 8,
+  "limits": [
+    "No operational maintenance acceptance or interoperability certification",
+    "No persistent unknown-I/O barrier or crash durability proof",
+    "No storage hang or power-loss test",
+    "No authenticated GF package/PE, product lifecycle or IPC",
+    "No operational keys/bootstrap"
+  ],
+  "old_suites_executed": false,
+  "real_120_second_test_repeated": false,
+  "physical_tests_repeated": 0,
+  "product_built": false,
+  "product_executed": false,
+  "private_channel_accessed": false,
+  "stage9_started": false,
+  "isolation": {
+    "sdk": "10.0.402",
+    "restore_locked_mode": true,
+    "product_compile_items": 142,
+    "prototype_items_in_product": 0,
+    "outputs_outside_repository": true,
+    "product_built": false
+  },
+  "tuf_source_delta": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "modified_source_sha256": {
+      "src/Tuf/TufClient.cs": "69414de567f872249d00559c1dd57e5bee43d94d476da61f8569738b77040268",
+      "src/Tuf/TufClientOptions.cs": "9820744a9989a0f8b6d0cbcfd68f31c7dc0c56819b8ad830d6d3a79c7bb4fd4b",
+      "src/Tuf/TufResults.cs": "94d6c7bc2d80cf2f1f72f1180f479aff4ffb748a7aaae3676105a7c8d2d198a1"
+    },
+    "crypto_parser_sources_unchanged": true,
+    "original_nuget_package_changed": false,
+    "production_adoption": false
+  },
+  "fixtures": {
+    "cases": 8,
+    "catalog_sha256": "70373432edcc2c1cfea8a9dff2ab5bdf37788676e9c7c57b68b3b64e6f81603d",
+    "reference_utc": "2026-11-02T12:00:00Z",
+    "test_only": true
+  }
+}

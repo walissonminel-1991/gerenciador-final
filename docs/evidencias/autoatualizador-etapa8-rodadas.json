@@ -1,0 +1,221 @@
+{
+  "schema": "gf-stage8-executions/1",
+  "stage": 8,
+  "entry_commit": "13afd9766bd99a54a451865cf76b133eb1b29671",
+  "local_attempt": {
+    "status": "unavailable_environment_reset",
+    "code_not_committed_at_that_time": true,
+    "result_or_count_not_recoverable": true,
+    "counted_as_pass_or_fail": false,
+    "full_suite_repeated": false
+  },
+  "runs": [
+    {
+      "run_id": 40805278830,
+      "run_number": 1,
+      "attempt": 1,
+      "job_id": 123222615733,
+      "commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "conclusion": "failure",
+      "total": 27,
+      "passed": 26,
+      "failed": 1,
+      "result": "docs/evidencias/autoatualizador-etapa8-windows-inicial.json"
+    },
+    {
+      "run_id": 40805755390,
+      "run_number": 2,
+      "attempt": 1,
+      "job_id": 123224196800,
+      "commit": "bcc681079a209306132e0f03b5a47c9b5f4ee1af",
+      "conclusion": "success",
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "prefix": "U8-G8-LATE-FILE-WRITE",
+      "result": "docs/evidencias/autoatualizador-etapa8-windows-correcao.json"
+    }
+  ],
+  "correction": {
+    "kind": "test_readback_sharing_only",
+    "failure": "ReadAllText opens reader with sharing incompatible with retained writer; actual IOException in first run",
+    "fix": "Explicit read-only FileStream with FileShare.ReadWrite for evidence readback; writer remains retained",
+    "paths": [
+      "prototipos/autoatualizador-seguro/stage8/src/IoDeltaTests.cs.txt",
+      ".github/workflows/autoatualizador-etapa8-isolado.yml"
+    ],
+    "runtime_coordinator_or_TUF_changed": false,
+    "approved_cases_rerun": 0,
+    "only_failed_case_repeated": true
+  },
+  "unique_delta_cases": 27,
+  "evidence_composition": "26 initial passes at unchanged relevant code plus corrected failed case at C2; NOT a full 27-case run of C2",
+  "coverage": [
+    {
+      "id": "U8-G2-API",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-CAPTURE",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-ONE-CHAIN",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-CLIENT-REUSE",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-CLIENT-RACE",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-UNCHANGED-METADATA",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-UNCHANGED-TARGET",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-EQUAL-SIGNATURE",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-EQUAL-CONTENT",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-VALUE-EQUALITY-ROOT",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-VALUE-EQUALITY-TIMESTAMP",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-VALUE-EQUALITY-SNAPSHOT",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-VALUE-EQUALITY-TARGETS",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-ROOT-CHAIN",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-FACADE-UNCHANGED",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-NEW-ATTEMPT",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G2-OWNED-CANCEL",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G8-PRE-CANCEL",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G8-CONCURRENT-ADMISSION",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G8-SYNC-START",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G8-LATE-FILE-WRITE",
+      "status": "passed",
+      "code_commit": "bcc681079a209306132e0f03b5a47c9b5f4ee1af",
+      "run_id": 40805755390
+    },
+    {
+      "id": "U8-G8-LATE-FAULT",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G8-SHARED-BUDGET",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G8-COOPERATIVE-END",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G8-SYNC-FAULT",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G8-FRESH-OWNER",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    },
+    {
+      "id": "U8-G8-RESOURCE-ALIAS",
+      "status": "passed",
+      "code_commit": "8b947d3c54c74af938d8bcfb43463eebe181e2ff",
+      "run_id": 40805278830
+    }
+  ],
+  "artifacts_uploaded": 0,
+  "automatic_retries": 0,
+  "old_suites_reexecuted": false,
+  "stage9_started": false
+}
