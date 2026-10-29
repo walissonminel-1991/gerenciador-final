@@ -1,0 +1,31 @@
+// M3 experimental fixture-only bridge: a late I/O result is never
+// sufficient to authorize Stage2 journal confirmation. Not an operational updater.
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed class M3CommitGate(StageDeadline deadline,FixtureTransaction transaction)
+{
+    private bool consumed;
+    private readonly string wireNonce=Hash(System.Text.Encoding.UTF8.GetBytes(
+        transaction.Nonce+transaction.Candidate.Sha256));
+
+    internal StateRecord Confirm(ProbeFrame ready,FixtureSession session)
+    {
+        Require(!consumed,"M3_ATTEMPT_CONSUMED");
+        // Mark terminal before anything that could throw: no replay or late retry.
+        consumed=true;
+        deadline.Check();
+        PipeFrames.Bound(ready,"ready",transaction.Id,wireNonce);
+        deadline.Check();
+        var live=session.Store.Load().Record.Transaction;
+        Require(live is not null && live.Phase=="selected" &&
+            live.Id==transaction.Id && live.Nonce==transaction.Nonce &&
+            live.Candidate==transaction.Candidate,"M3_STALE_JOURNAL");
+        deadline.Check(); // Final pre-commit check on the same monotonic budget.
+        return session.Confirm(new FixtureReadiness(transaction.Id,transaction.Nonce,
+            transaction.Candidate.Sha256));
+        // Limit: Stage2 Confirm is synchronous and not preemptible. This gate
+        // cannot prove an absolute deadline *during* a blocked journal write.
+    }
+}
