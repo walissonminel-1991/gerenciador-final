@@ -162,7 +162,7 @@ internal sealed class IntegratedPipeline : IDisposable
                 Require(loaded.Digest == current.BeforeStateDigest && SelectorHash() == current.BeforeSelectorSha256, "U9_RECOVERY_BASELINE");
             Owner.CheckValid(); CurrentOperation = Operations.Advance(current, "recovering"); Owner.CheckValid();
             if (FixtureSession.Pending(state)) state = Resources.Session.Recover(p => { Trace.Add(p); Owner.CheckValid(); });
-            else { _ = Resources.Session.SelectionForFixtureInspectionOnly(); }
+            else { Resources.Session.SelectionForFixtureInspectionOnly(); }
             loaded = Resources.Session.Store.Load();
             Owner.CheckValid();
             CurrentOperation = Operations.Advance(CurrentOperation, "settled", outcome: state.Transaction?.Phase == "confirmed" ? "observed-confirmed" : "reconciled-previous", after: loaded.Digest);
