@@ -54,7 +54,22 @@ jobs:
           $result = Get-Content $report -Raw | ConvertFrom-Json
           if ($result.failed -ne 0 -or $result.operational_gates_closed -ne 0 -or
               !$result.window_readiness_verified -or !$result.missing_ready_refused) { throw 'M2_FAILURE' }
+          $journal = 'prototipos/autoatualizador-seguro/m2/M2StateBridge.csproj'
+          $journalOut = Join-Path $env:RUNNER_TEMP 'gf-g6-m2-journal'
+          $journalReport = Join-Path $env:RUNNER_TEMP 'gf-g6-m2-journal.json'
+          dotnet restore $journal "-p:ArtifactsPath=$journalOut" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $journal "-p:ArtifactsPath=$journalOut" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $journals = @(Get-ChildItem $journalOut -Filter 'GF.Updater.M2.RecoveryTests.exe' -Recurse -File)
+          if ($journals.Count -ne 1) { throw 'M2_JOURNAL_RUNNER_NOT_UNIQUE' }
+          & $journals[0].FullName --report $journalReport
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $jr = Get-Content $journalReport -Raw | ConvertFrom-Json
+          if ($jr.failed -ne 0 -or $jr.passed -ne 3 -or
+              !$jr.uses_existing_stage2_journal -or !$jr.killed_process_recovery_executed -or
+              $jr.operational_gates_closed -ne 0) { throw 'M2_JOURNAL_FAILURE' }
           $compile = dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
           $leaks = @($compile.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m2' })
           if ($leaks.Count -ne 0) { throw 'M2_PRODUCT_COMPILE_LEAK' }
-          "M2 inert barrier: $($result.passed) passed, $($result.failed) failed. G6 not approved; no GF execution." >> $env:GITHUB_STEP_SUMMARY
+          "M2 inert lifecycle: $($result.passed) passed; Stage2 durable journal: $($jr.passed) passed, no failures. G6 blocked; no GF execution." >> $env:GITHUB_STEP_SUMMARY
