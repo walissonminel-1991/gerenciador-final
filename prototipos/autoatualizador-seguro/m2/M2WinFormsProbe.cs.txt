@@ -1,0 +1,76 @@
+// Inert WinForms test child. Not the Gerenciador Final application.
+using System.Diagnostics;
+using System.IO.Pipes;
+using System.Windows.Forms;
+
+namespace GfUpdaterFixture;
+
+internal static class M2WinFormsProbe
+{
+    [STAThread]
+    public static int Main(string[] args)
+    {
+        if(args.Length != 5 || !args[0].StartsWith("gf-m2-ready-",StringComparison.Ordinal)
+            || !int.TryParse(args[1],out int parent) || parent <= 0
+            || !Path.IsPathFullyQualified(args[2])
+            || args[4] is not ("normal" or "bad-nonce" or "bad-tx" or "no-ready"))
+            return 2;
+        Application.EnableVisualStyles();
+        using var context=new ProbeContext(args[0],parent,args[2],args[4]);
+        Application.Run(context);
+        return context.Result;
+    }
+    private sealed class ProbeContext : ApplicationContext
+    {
+        private readonly Form form=new(){ShowInTaskbar=false,Opacity=0,Text="GF INERT M2 PROBE"};
+        private readonly string pipeName,serverImage,mode;
+        private readonly int parent;
+        private bool started;
+        internal int Result {get;private set;}=12;
+        internal ProbeContext(string pipe,int pid,string image,string behavior)
+        {
+            pipeName=pipe;parent=pid;serverImage=image;mode=behavior;
+            _=form.Handle; // Real HWND created on the STA thread.
+            Application.Idle+=OnIdle;
+        }
+        private async void OnIdle(object? sender,EventArgs e)
+        {
+            if(started)return;
+            started=true;
+            Application.Idle-=OnIdle;
+            try
+            {
+                if(!form.IsHandleCreated)throw new InvalidDataException("M2_NO_HWND");
+                using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(18));
+                using var client=new NamedPipeClientStream(".",pipeName,PipeDirection.InOut,
+                    PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly);
+                await client.ConnectAsync(budget.Token);
+                if(PeerIdentity.OwnParentPid()!=parent)
+                    throw new InvalidDataException("M2_WRONG_PARENT");
+                using var server=Process.GetProcessById(parent);
+                PeerIdentity.Verify(client,false,server,serverImage);
+                if(Path.GetFileName(serverImage)!="GF.Updater.M2.Tests.exe")
+                    throw new InvalidDataException("M2_UNEXPECTED_SERVER");
+                var challenge=await PipeFrames.Read(client,budget.Token);
+                PipeFrames.Bound(challenge,"challenge",challenge.Transaction,challenge.Nonce);
+                if(mode!="no-ready")
+                {
+                    var ready=challenge with {Kind="ready"};
+                    if(mode=="bad-nonce")ready=ready with {Nonce=new string('0',64)};
+                    if(mode=="bad-tx")ready=ready with {Transaction=new string('0',32)};
+                    await PipeFrames.Send(client,ready,budget.Token);
+                }
+                var close=await PipeFrames.Read(client,budget.Token);
+                PipeFrames.Bound(close,"close",challenge.Transaction,challenge.Nonce);
+                await PipeFrames.Send(client,close with {Kind="bye"},budget.Token);
+                Result=0;
+            }
+            catch(Exception ex) when(ex is IOException or InvalidDataException or InvalidOperationException
+                or OperationCanceledException or System.ComponentModel.Win32Exception or System.Text.Json.JsonException)
+            { Result=15; }
+            finally{form.Close();ExitThread();}
+        }
+        protected override void Dispose(bool disposing)
+        {if(disposing)form.Dispose();base.Dispose(disposing);}
+    }
+}
