@@ -1,0 +1,279 @@
+{
+  "schema": "gf-stage9-tests/1",
+  "stage": 9,
+  "contract": "gf-self-update/1",
+  "fixture_only": true,
+  "installable": false,
+  "total": 22,
+  "passed": 22,
+  "failed": 0,
+  "blocked": 0,
+  "case_prefix": "",
+  "runtime": ".NET 10.0.14",
+  "os": "Microsoft Windows 10.0.20348",
+  "tests": [
+    {
+      "id": "U9-FLOW",
+      "description": "Signed inert ZIP to persistent cache, pinned files, selection and synthetic confirmation",
+      "status": "passed"
+    },
+    {
+      "id": "U9-CACHE-UNCHANGED",
+      "description": "Persistent cache reanchors and unchanged timestamp terminates without target or transaction",
+      "status": "passed"
+    },
+    {
+      "id": "U9-ROTATION-CACHE",
+      "description": "Persisted root2 chain advances contiguously to root3 and release3",
+      "status": "passed"
+    },
+    {
+      "id": "U9-REPLAY-LOWER",
+      "description": "Persistent floors refuse lower before new selection",
+      "status": "passed"
+    },
+    {
+      "id": "U9-REPLAY-REPLAY2FRESH3",
+      "description": "Persistent floors refuse replay2fresh3 before new selection",
+      "status": "passed"
+    },
+    {
+      "id": "U9-CACHE-ANCHOR",
+      "description": "Missing intermediate cannot make cached root2 a new anchor",
+      "status": "passed"
+    },
+    {
+      "id": "U9-PACKAGE-MIXED",
+      "description": "Authenticated target binding rejects mixed before staging",
+      "status": "passed"
+    },
+    {
+      "id": "U9-PACKAGE-WRONG-IDENTITY",
+      "description": "Authenticated target binding rejects wrong-identity before staging",
+      "status": "passed"
+    },
+    {
+      "id": "U9-PREPARED-PINS",
+      "description": "Integrated package file identities remain pinned before transaction and through confirmation",
+      "status": "passed"
+    },
+    {
+      "id": "U9-UNKNOWN-LATE-WRITE",
+      "description": "Persistent pending operation fences retry after canceled waiter and controlled late disk effect",
+      "status": "passed"
+    },
+    {
+      "id": "U9-CRASH-OP-ADMITTED",
+      "description": "Owned child crash and supervised fresh-coordinator reconciliation at op-admitted",
+      "status": "passed"
+    },
+    {
+      "id": "U9-CRASH-CACHE-CHECKPOINTED",
+      "description": "Owned child crash and supervised fresh-coordinator reconciliation at cache-checkpointed",
+      "status": "passed"
+    },
+    {
+      "id": "U9-CRASH-INTENT-PERSISTED",
+      "description": "Owned child crash and supervised fresh-coordinator reconciliation at intent-persisted",
+      "status": "passed"
+    },
+    {
+      "id": "U9-CRASH-SELECTOR-REPLACED",
+      "description": "Owned child crash and supervised fresh-coordinator reconciliation at selector-replaced",
+      "status": "passed"
+    },
+    {
+      "id": "U9-CRASH-SELECTED-PERSISTED",
+      "description": "Owned child crash and supervised fresh-coordinator reconciliation at selected-persisted",
+      "status": "passed"
+    },
+    {
+      "id": "U9-CRASH-CONFIRMED-PERSISTED",
+      "description": "Owned child crash and supervised fresh-coordinator reconciliation at confirmed-persisted",
+      "status": "passed"
+    },
+    {
+      "id": "U9-PARTIAL-STATE",
+      "description": "Crash during new cache checkpoint preserves partial record and rejects fallback/recovery",
+      "status": "passed"
+    },
+    {
+      "id": "U9-CORRUPT-OP",
+      "description": "Truncated operation generation is never ignored to reuse previous settled operation",
+      "status": "passed"
+    },
+    {
+      "id": "U9-RESTORE-ONE-DOMAIN",
+      "description": "Restoring only state/selector while operation ledger stays new is detected",
+      "status": "passed"
+    },
+    {
+      "id": "U9-FOREIGN-PROOF",
+      "description": "Actual exited child evidence cannot reconcile another fixture installation/operation",
+      "status": "passed"
+    },
+    {
+      "id": "U9-PERSISTED-CLOCK",
+      "description": "Captured UTC rollback versus persistent floor stops before metadata or release approval",
+      "status": "passed"
+    },
+    {
+      "id": "U9-CANCEL-AFTER-INTENT",
+      "description": "Cancellation after persisted intent retains high floor and prevents selector publication",
+      "status": "passed"
+    }
+  ],
+  "observations": [
+    {
+      "kind": "complete_inert_pipeline",
+      "phases": [
+        "operation-record-created",
+        "op-admitted",
+        "package-authorized",
+        "cache-record-created",
+        "cache-record-written",
+        "cache-record-flushed",
+        "cache-record-promoted",
+        "cache-checkpointed",
+        "bundle-prepared",
+        "record-created",
+        "record-written",
+        "record-flushed",
+        "record-promoted",
+        "intent-persisted",
+        "selector-flushed",
+        "selector-replaced",
+        "record-created",
+        "record-written",
+        "record-flushed",
+        "record-promoted",
+        "selected-persisted",
+        "confirmed-persisted",
+        "operation-settled"
+      ],
+      "cache_roles": 4,
+      "pinned_entries_including_predecessor": 4,
+      "target_fetches": 1,
+      "real_GF_readiness": false
+    },
+    {
+      "kind": "pending_operation_survives_runtime_owner_end",
+      "late_inert_file_written": true,
+      "approved_sequence": 1,
+      "automatic_retry_blocked": true,
+      "cleanup_or_selection_authorized": false,
+      "kernel_device_hang": false
+    },
+    {
+      "kind": "supervised_owned_process_crash",
+      "point": "op-admitted",
+      "child_pid": 784,
+      "recovery_pid": 7656,
+      "active_sequence": 1,
+      "approved_floor": 1,
+      "physical_power_loss": false
+    },
+    {
+      "kind": "supervised_owned_process_crash",
+      "point": "cache-checkpointed",
+      "child_pid": 2740,
+      "recovery_pid": 7656,
+      "active_sequence": 1,
+      "approved_floor": 1,
+      "physical_power_loss": false
+    },
+    {
+      "kind": "supervised_owned_process_crash",
+      "point": "intent-persisted",
+      "child_pid": 7376,
+      "recovery_pid": 7656,
+      "active_sequence": 1,
+      "approved_floor": 2,
+      "physical_power_loss": false
+    },
+    {
+      "kind": "supervised_owned_process_crash",
+      "point": "selector-replaced",
+      "child_pid": 7452,
+      "recovery_pid": 7656,
+      "active_sequence": 1,
+      "approved_floor": 2,
+      "physical_power_loss": false
+    },
+    {
+      "kind": "supervised_owned_process_crash",
+      "point": "selected-persisted",
+      "child_pid": 3824,
+      "recovery_pid": 7656,
+      "active_sequence": 1,
+      "approved_floor": 2,
+      "physical_power_loss": false
+    },
+    {
+      "kind": "supervised_owned_process_crash",
+      "point": "confirmed-persisted",
+      "child_pid": 6948,
+      "recovery_pid": 7656,
+      "active_sequence": 2,
+      "approved_floor": 2,
+      "physical_power_loss": false
+    },
+    {
+      "kind": "partial_domain_restore_detection",
+      "whole_state_restore_retested_or_solved": false
+    }
+  ],
+  "operational_gates_closed": 0,
+  "operational_gates_blocked": 8,
+  "previous_suites_executed": false,
+  "physical_tests_repeated": 0,
+  "power_loss_tested": false,
+  "kernel_storage_hang_tested": false,
+  "independent_replay_witness": false,
+  "product_built": false,
+  "product_executed": false,
+  "private_channel_accessed": false,
+  "operational_keys_created": false,
+  "unresolved_fixture_roots_retained_until_disposable_runner_teardown": true,
+  "stage10_started": false,
+  "reused_source_sha256_normalized_LF": {
+    "src/StrictMetadata.cs.txt": "5a16d809d5c4ff45e0e7f47c58db56c15afada7047d0664ab05aa14777cc54fb",
+    "src/ZipInspection.cs.txt": "2bbaf2ea19d99f529de66ac0068b1f372823853a9d85cd19c61c9e5362faea2f",
+    "src/PersistentState.cs.txt": "add61f0ad51e5cb9e6993bb555276685f9f335ef03e24fba5ff7dffd4c29a4b1",
+    "src/TransactionPrototype.cs.txt": "5f303531a500dcb68781d88dcf3fc4f91e04a8849bd45c4edaf92a434b167f4f",
+    "src/WindowsFileGuard.cs.txt": "7a550f0392de4a030fea2706c856d751d904cf46787a5a9ef9af2fc039390980",
+    "src/CycleClock.cs.txt": "4ed4bec59e4037d66e0ae6e8f11e2419c978ff803f8182accc127e3616b20df9",
+    "stage8/src/OwnedAttempt.cs.txt": "6aa7c5cdfdd780c939e2f305b7723b8a4b9f9e18a8a1fb77dceaf3dff0218479",
+    "stage8/src/TufAttempt.cs.txt": "7f53277b7819b368d36744ff4f93ae49040e27ff79d746d14100d099dc8e7151",
+    "stage8/tuf-delta.patch": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "stage8/prepare_source.py": "e657b1622f6304f145f401d15ca0e2429d42022d9630a2d0239087e2fc15c8a2"
+  },
+  "isolation": {
+    "sdk": "10.0.402",
+    "locked_restore": true,
+    "product_compile_items": 142,
+    "prototype_items_in_product": 0,
+    "outputs_outside_repository": true,
+    "product_built": false,
+    "previous_workflows_modified": false
+  },
+  "tuf_source_delta": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "modified_source_sha256": {
+      "src/Tuf/TufClient.cs": "69414de567f872249d00559c1dd57e5bee43d94d476da61f8569738b77040268",
+      "src/Tuf/TufClientOptions.cs": "9820744a9989a0f8b6d0cbcfd68f31c7dc0c56819b8ad830d6d3a79c7bb4fd4b",
+      "src/Tuf/TufResults.cs": "94d6c7bc2d80cf2f1f72f1180f479aff4ffb748a7aaae3676105a7c8d2d198a1"
+    },
+    "crypto_parser_sources_unchanged": true,
+    "original_nuget_package_changed": false,
+    "production_adoption": false
+  },
+  "fixtures": {
+    "cases": 6,
+    "catalog_sha256": "419ac6f5eee5f743ed8a810895ece4fa9e4db64b4e69c7e60a68234483e5f440",
+    "reference_utc": "2026-10-29T03:11:23Z",
+    "public_test_keys_only": true
+  }
+}

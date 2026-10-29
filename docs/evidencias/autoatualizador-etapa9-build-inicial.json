@@ -1,0 +1,17 @@
+{
+  "schema": "gf-stage9-initial-build/1",
+  "run_id": 40810376313,
+  "run_number": 1,
+  "attempt": 1,
+  "job_id": 123239001165,
+  "commit": "b2932f0be83d92963b49f197331f800df55ad067",
+  "status": "build_failed_before_tests",
+  "tests_executed": 0,
+  "error_code": "CS0029",
+  "diagnostic_lines": [
+    "2026-10-29T03:08:55.6913788Z ##[error]D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage9\\src\\IntegratedPipeline.cs.txt(165,24): error CS0029: Cannot implicitly convert type 'GfUpdaterFixture.BundleRef' to 'System.Threading.CancellationToken' [D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage9\\Stage9.csproj]",
+    "2026-10-29T03:08:55.7095772Z ##[error]D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage9\\src\\IntegratedPipeline.cs.txt(165,24): error CS0029: Cannot implicitly convert type 'GfUpdaterFixture.BundleRef' to 'System.Threading.CancellationToken' [D:\\a\\gerenciador-final\\gerenciador-final\\prototipos\\autoatualizador-seguro\\stage9\\Stage9.csproj]"
+  ],
+  "correction_commit": "b784456626a82555019729bdaa8ffe0662a6f685",
+  "correction": "Removed discarded assignment to lambda parameter '_' (CancellationToken) in recovery branch; reused components/workflows unchanged"
+}

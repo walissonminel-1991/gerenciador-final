@@ -1,5 +1,39 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+28/10/2026, America/Sao_Paulo. **Etapa 9 do autoatualizador concluída no
+protótipo integrado. Não é a Etapa 9 física. Oito gates operacionais bloqueados;
+zero fechado. Etapa 10 NÃO INICIADA.**
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | GF_SELF_UPDATER_STAGE9_INTEGRATED_INERT_PIPELINE |
+| PR / branch | #65 aberta/Draft, work-integracao-final-20261027 |
+| Entrada | eccdd16ddcfa247fd2a72df82bcd2a243ff49743 |
+| Código | Integração b784456626a82555019729bdaa8ffe0662a6f685; encerramento de admissão 32e8d9064b49e8b0ed7ac99edd4168f2f34aa87a |
+| Fluxo demonstrado | TUF assinado → ZIP inerte/manifesto → cache/pisos persistidos → arquivos e identidade presos → intenção/seleção/confirmação sintética → journal concluído |
+| G2 | UTC imutável/cliente único/um refresh, cache e raiz reancorados, timestamp igual sem alvo, floors/seq/replay ligados ao estado |
+| G8 | Journal de pendências append-only + owner/lease da instalação; desconhecido bloqueia repetir/aplicar/limpar; término da tarefa não apaga pendência |
+| Windows | Run 40810646898: 22/22; run 40811610734: 1/1 só admissão cancelada. Evidência composta de 23, não full rerun final |
+| Falha preservada | Run 40810376313: CS0029 antes de testes, correção de uma linha; zero teste executado nessa run |
+| Recuperação | Seis barreiras observadas/filhos próprios terminados; outro coordenador reconcilia disco e outro processo inspeciona; sem prova de energia/IPC de produto |
+| Bloqueios | Todos G1–G8; laboratório/frescor, manutenção/conformance/épocas, pacote/PE GF, IPC/ciclo GF, custódia e falhas não observadas |
+| Isolamento | SDK 10.0.402/runtime 10.0.14, Compile GF 142/zero protótipo, saídas externas; zero build GF/artefato |
+| Preservação | .66/canal/workflows existentes/proteções/27 de 42/físico parcial intactos; sem chaves operacionais, integração ou publicação |
+
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA9.md) ·
+[Matriz](evidencias/autoatualizador-etapa9-gates.json) ·
+[Rodadas](evidencias/autoatualizador-etapa9-rodadas.json) ·
+[Recibo](evidencias/autoatualizador-etapa9.json).
+
+Contrato gf-self-update/1 intacto. Journal/descriptor de fixture não são wire
+format operacional. Recuperação não deduz término de I/O por PID; pendências
+sem prova e registros parciais permanecem bloqueados. Hashes locais não dão
+frescor após restauração integral. Nenhuma chave ou aceite de manutenção inferidos.
+Próxima ação: revisão independente e insumos específicos ainda ausentes em
+missão posterior autorizada. **Parar após salvar/conferir; não iniciar Etapa 10.**
+
+## Registro da Etapa 8 — histórico preservado
+
 28/10/2026, America/Sao_Paulo. **Etapa 8 concluída no protótipo isolado.
 Zero de oito gates operacionais fechado; oito bloqueados. Etapa 9 NÃO INICIADA.**
 

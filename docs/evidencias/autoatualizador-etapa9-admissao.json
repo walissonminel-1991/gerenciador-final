@@ -1,0 +1,82 @@
+{
+  "schema": "gf-stage9-tests/1",
+  "stage": 9,
+  "contract": "gf-self-update/1",
+  "fixture_only": true,
+  "installable": false,
+  "total": 1,
+  "passed": 1,
+  "failed": 0,
+  "blocked": 0,
+  "case_prefix": "U9-CANCEL-BEFORE-ADMISSION",
+  "runtime": ".NET 10.0.14",
+  "os": "Microsoft Windows 10.0.20348",
+  "tests": [
+    {
+      "id": "U9-CANCEL-BEFORE-ADMISSION",
+      "description": "Pre-canceled admission registers no operation and releases fixture lease for a fresh coordinator",
+      "status": "passed"
+    }
+  ],
+  "observations": [
+    {
+      "kind": "cancel_before_admission",
+      "registered_operations": 0,
+      "persistent_operations": 0,
+      "fresh_coordinator_acquired_lease": true
+    }
+  ],
+  "operational_gates_closed": 0,
+  "operational_gates_blocked": 8,
+  "previous_suites_executed": false,
+  "physical_tests_repeated": 0,
+  "power_loss_tested": false,
+  "kernel_storage_hang_tested": false,
+  "independent_replay_witness": false,
+  "product_built": false,
+  "product_executed": false,
+  "private_channel_accessed": false,
+  "operational_keys_created": false,
+  "unresolved_fixture_roots_retained_until_disposable_runner_teardown": true,
+  "stage10_started": false,
+  "reused_source_sha256_normalized_LF": {
+    "src/StrictMetadata.cs.txt": "5a16d809d5c4ff45e0e7f47c58db56c15afada7047d0664ab05aa14777cc54fb",
+    "src/ZipInspection.cs.txt": "2bbaf2ea19d99f529de66ac0068b1f372823853a9d85cd19c61c9e5362faea2f",
+    "src/PersistentState.cs.txt": "add61f0ad51e5cb9e6993bb555276685f9f335ef03e24fba5ff7dffd4c29a4b1",
+    "src/TransactionPrototype.cs.txt": "5f303531a500dcb68781d88dcf3fc4f91e04a8849bd45c4edaf92a434b167f4f",
+    "src/WindowsFileGuard.cs.txt": "7a550f0392de4a030fea2706c856d751d904cf46787a5a9ef9af2fc039390980",
+    "src/CycleClock.cs.txt": "4ed4bec59e4037d66e0ae6e8f11e2419c978ff803f8182accc127e3616b20df9",
+    "stage8/src/OwnedAttempt.cs.txt": "6aa7c5cdfdd780c939e2f305b7723b8a4b9f9e18a8a1fb77dceaf3dff0218479",
+    "stage8/src/TufAttempt.cs.txt": "7f53277b7819b368d36744ff4f93ae49040e27ff79d746d14100d099dc8e7151",
+    "stage8/tuf-delta.patch": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "stage8/prepare_source.py": "e657b1622f6304f145f401d15ca0e2429d42022d9630a2d0239087e2fc15c8a2"
+  },
+  "isolation": {
+    "sdk": "10.0.402",
+    "locked_restore": true,
+    "product_compile_items": 142,
+    "prototype_items_in_product": 0,
+    "outputs_outside_repository": true,
+    "product_built": false,
+    "previous_workflows_modified": false
+  },
+  "tuf_source_delta": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "modified_source_sha256": {
+      "src/Tuf/TufClient.cs": "69414de567f872249d00559c1dd57e5bee43d94d476da61f8569738b77040268",
+      "src/Tuf/TufClientOptions.cs": "9820744a9989a0f8b6d0cbcfd68f31c7dc0c56819b8ad830d6d3a79c7bb4fd4b",
+      "src/Tuf/TufResults.cs": "94d6c7bc2d80cf2f1f72f1180f479aff4ffb748a7aaae3676105a7c8d2d198a1"
+    },
+    "crypto_parser_sources_unchanged": true,
+    "original_nuget_package_changed": false,
+    "production_adoption": false
+  },
+  "fixtures": {
+    "cases": 6,
+    "catalog_sha256": "c0119afa8811814dfd1f8e61fd96586978de82d740fe3b2246b017d2c6a09278",
+    "reference_utc": "2026-10-29T03:21:43Z",
+    "public_test_keys_only": true
+  }
+}

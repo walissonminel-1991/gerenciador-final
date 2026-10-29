@@ -4,9 +4,9 @@
 A missão pré-BETA 0–7 está encerrada e não deve ser repetida.
 
 **Estado vigente: BETA privada .66 entregue; avaliação física parcialmente
-concluída; Etapa 8 de deltas isolados G2/G8 do autoatualizador concluída; oito gates operacionais bloqueados.** Ver os
+concluída; Etapa 9 do autoatualizador integrada em fixtures concluída; oito gates operacionais bloqueados.** Ver os
 registros finais e o [checkpoint do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md).
-Sem integração no produto ou Etapa 9; conectada bloqueada; roadmap 27/42.
+Sem integração no produto ou Etapa 10; conectada bloqueada; roadmap 27/42.
 
 ## Estado de continuidade
 
@@ -1079,3 +1079,22 @@ armazenamento/pipeline real; G1/G3–G7 continuam dependentes dos insumos extern
 Contrato, BETA .66/canal privado, 27/42, proteções e físico parcial intactos.
 Zero build/execução GF, chaves operacionais, permissões/infraestrutura,
 integração, merge/Release/publicação. **Encerrar antes da Etapa 9.**
+
+
+## Autoatualizador — Etapa 9 integrada (distinta da avaliação física)
+
+28/10/2026, America/Sao_Paulo; entrada `eccdd16ddcfa247fd2a72df82bcd2a243ff49743`. Fluxo TUF → ZIP inerte →
+estado/cache/pisos → transação/seleção/confirmação sintética → reconciliação de
+filhos próprios demonstrado, com journal persistente de operações pendentes.
+Código `b784456626a82555019729bdaa8ffe0662a6f685` / admissão `32e8d9064b49e8b0ed7ac99edd4168f2f34aa87a`. Windows 40810646898: 22/22;
+dirigida 40811610734: 1/1. Build inicial 40810376313 falhou antes
+de testes e permanece registrado. Evidência composta de 23, sem repetir os 22
+ou suítes anteriores. Seis barreiras de recuperação observadas, sem energia real.
+[Relatório](WORK-AUTOATUALIZADOR-ETAPA9.md), [gates](evidencias/autoatualizador-etapa9-gates.json),
+[rodadas](evidencias/autoatualizador-etapa9-rodadas.json), [recibo](evidencias/autoatualizador-etapa9.json).
+
+**Oito gates operacionais bloqueados.** .66/SHA/canal/workflows anteriores,
+avaliação física parcial, AVG/proteções/consentimento, remoto bloqueado/flags no,
+drivers inativos, VLC inventário, COM consultivo e 27/42 preservados. Zero build/
+execução GF, chaves operacionais, permissões/infraestrutura, merge/Release/deploy/
+publicação. Históricos mantidos. **Encerrar antes da Etapa 10 do autoatualizador.**
