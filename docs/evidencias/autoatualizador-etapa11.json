@@ -1,7 +1,7 @@
 {
   "schema": "gf-stage11-receipt/1",
   "contract": "gf-self-update/1",
-  "status": "in_progress",
+  "status": "completed_experimental_trust_scope_G2_blocked",
   "entry_head": "2cf5a8fb8addb94da4050667dc8af16d71e413b1",
   "runs": [
     {
@@ -29,8 +29,309 @@
         "new_production_keys": false,
         "controller_error": "DeserializationError:Failed to deserialize JSON"
       }
+    },
+    {
+      "id": 40859356385,
+      "job": 123398334226,
+      "code": "8dc843ff69b66f55f6e87fab93bd9c71c1242ec5",
+      "number": 2,
+      "attempt": 1,
+      "conclusion": "success",
+      "new_windows_passed": 45,
+      "new_windows_total": 45,
+      "build_warnings": 0,
+      "build_errors": 0,
+      "reference_comparisons": 15,
+      "reference_agreements": 13,
+      "reference_divergences_blocked": 2,
+      "artifact_count": 0,
+      "product_builds": 0
     }
   ],
   "operational_G2_closed": false,
-  "stage12_started": false
+  "stage12_started": false,
+  "date": "2026-10-29",
+  "timezone": "America/Sao_Paulo",
+  "validated_code": "8dc843ff69b66f55f6e87fab93bd9c71c1242ec5",
+  "pr": 65,
+  "branch": "work-integracao-final-20261027",
+  "open": true,
+  "draft": true,
+  "closure_sha": "Recorded in PR #65 body and final response; closure changes are documentary only.",
+  "report": "docs/WORK-AUTOATUALIZADOR-ETAPA11.md",
+  "windows_evidence": "docs/evidencias/autoatualizador-etapa11-windows.json",
+  "gate_matrix": "docs/evidencias/autoatualizador-etapa11-gates.json",
+  "implementation": [
+    "Per-role signed metadata event journal and separate seals; replay from pinned public fixture anchor",
+    "Immutable per-attempt UTC and per-epoch floors; validated root N+1/old+new thresholds",
+    "Authenticated timestamp/snapshot key transitions invalidate old metadata and establish a new recovery epoch; isolated targets-key changes preserve floors",
+    "Non-authoritative cache hints restored from journal; partial/corrupt/missing records refuse progress",
+    "Persistent attempt admission fences unrecorded/unknown writes; 12 supervised completed boundaries recover without lowering prior trust",
+    "New composition reusing Stage9 resources/operation journal and Stage2 transaction/selector; metadata trust independent of version confirmation"
+  ],
+  "proof_scope": {
+    "new_windows_tests": 45,
+    "passed": 45,
+    "failed": 0,
+    "new_native_fixture_scenarios": 20,
+    "supervised_process_interruption_boundaries": 12,
+    "known_fixture_installation_cases": 4,
+    "physical_power_loss": false,
+    "GF_process_or_update_executed": false,
+    "legacy_suites_repeated": false,
+    "interoperability": "13 accept/reject agreements out of 15; two key-reset comparisons blocked; not full conformance"
+  },
+  "interoperability": {
+    "total": 15,
+    "passed": 13,
+    "blocked": 2,
+    "results": [
+      {
+        "scenario": "release2",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "accepted",
+        "python_status": "accepted",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "root-insufficient",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "root-old-only",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "root-unauthorized",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "expired-final-root",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "expired-intermediate",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "accepted",
+        "python_status": "accepted",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "root-gap",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "bad-reference",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "expired-timestamp",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "rotate-timestamp",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "dotnet_status": "accepted",
+        "python_status": "rejected",
+        "status": "blocked",
+        "limitation": "Cross-implementation divergence: investigate independently; not conformance approval"
+      },
+      {
+        "scenario": "rotate-snapshot",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "dotnet_status": "accepted",
+        "python_status": "rejected",
+        "status": "blocked",
+        "limitation": "Cross-implementation divergence: investigate independently; not conformance approval"
+      },
+      {
+        "scenario": "rotate-targets-high",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "dotnet_status": "accepted",
+        "python_status": "accepted",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "rotate-targets-low",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "revoked-timestamp",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "external",
+        "kind": "unmodified_curated_upstream_bytes",
+        "dotnet_status": "accepted",
+        "python_status": "accepted",
+        "status": "passed",
+        "limitation": null
+      }
+    ],
+    "full_conformance": false
+  },
+  "reference": {
+    "python_tuf": "7.0.1",
+    "source_commit": "49eb1da48c58cf0cbb0f2e490f7ad39fbd8c1f15",
+    "securesystemslib": "1.3.1",
+    "cryptography": "50.0.2",
+    "urllib3": "2.8.0",
+    "curated_external_vector_case": "U11-EXTERNAL-CURATED-BYTES",
+    "curated_external_scope": "Unmodified upstream root/timestamp/snapshot/targets/file1.txt; RSA-PSS root and Ed25519 roles, raw pinned client only. This root is not a GF anchor.",
+    "own_vector_scope": "Own scenarios serialized/signed by native Python TUF with preexisting public seeds, independently exercised by Python Updater and .NET client.",
+    "source_hashes_checked": true,
+    "production_dependencies_changed": false
+  },
+  "divergence_diagnosis": [
+    {
+      "scenario": "rotate-timestamp",
+      "dotnet": "root2/timestamp1/snapshot1/targets1, epoch1",
+      "python": "root2/timestamp1/snapshot100 then BadVersionNumberError",
+      "status": "blocked",
+      "interpretation": "Source-directed inference: reference updater retains old snapshot when only timestamp key changes; implementation invalidates timestamp+snapshot following TUF 1.0.36 section 5.3.11. Independent adjudication still required."
+    },
+    {
+      "scenario": "rotate-snapshot",
+      "dotnet": "root2/timestamp1/snapshot1/targets1, epoch1",
+      "python": "root2/timestamp100 then BadVersionNumberError",
+      "status": "blocked",
+      "interpretation": "Source-directed inference: reference updater retains old timestamp when snapshot key changes; implementation invalidates both. Do not treat differing acceptance as conformance approval."
+    }
+  ],
+  "G2_acceptance": {
+    "operational_status": "blocked",
+    "maintenance_owner_acceptance": false,
+    "independent_review_completed": false,
+    "cross_implementation_reset_differences_resolved": false,
+    "full_conformance_claimed": false,
+    "physical_durability_claimed": false,
+    "metadata_persistence_demonstrated_in_fixture": true,
+    "operational_adoption_authorized": false
+  },
+  "limitations": [
+    "Whole-domain restore/freshness G1 remains unresolved; local seals are in the same restorable domain",
+    "Recovery proof covers held harness children at completed synchronous boundaries, not arbitrary driver I/O/energy or foreign processes",
+    "Cache hints are disposable; corrupt authoritative journal or partial pending record remains blocked",
+    "Six-key Ed25519/nondelegating/nonconsistent-snapshot fixture profile only; other profiles fail closed or are unqualified",
+    "Legacy populated Stage9 cache migration and crash recovery during installation in the new composition are not implemented/qualified",
+    "GF lifecycle/IPC, readiness, operational rollback, production custody/anchor and other gates remain blocked"
+  ],
+  "reused_without_execution": [
+    "Stage8 UTC/single-use/unchanged patch and approved source hashes",
+    "Stage9 operation journal, session/selector/transaction primitives and previous fixture results",
+    "Stage10 real-GF package/PE/unsigned/NTFS qualification; no build/retest required here"
+  ],
+  "not_executed": [
+    "Old stage 1-10 suites",
+    "GF build or launch",
+    "Physical tests or maintenance on personal PCs",
+    "Full external conformance suite",
+    "Independent review or maintenance signoff",
+    "Power loss/blocked storage/arbitrary kernel I/O tests",
+    "Operational keys/custody/bootstrap or publication"
+  ],
+  "preserved": {
+    "beta_version": "5.13.11.66",
+    "private_delivery_source": "6df95fdd776644cd4b248b5cea61108974ca9ce9",
+    "private_delivery_run": 40716548530,
+    "private_delivery_artifact": 12828262039,
+    "private_delivery_zip_sha256": "8e11f2dda5b7e2df2f85c61b57cc6a31a9596628523d2be7ad155dfdd5dda7f2",
+    "private_channel_accessed_or_changed": false,
+    "GF_functional_sources_changed": false,
+    "GF_built": false,
+    "main_changed": false,
+    "old_workflows_changed": false,
+    "AVG_Windows_protections_changed": false,
+    "consent_privacy_changed": false,
+    "PILOT_ENABLED": "no",
+    "GITHUB_EXPORT_ENABLED": "no",
+    "operational_drivers_enabled": false,
+    "VLC": "inventory_only",
+    "WinGet_COM": "optional_consultative",
+    "credentials_permissions_private_infrastructure_changed": false,
+    "Worker_D1_DNS_changed": false,
+    "production_keys_created": false,
+    "merge_release_deploy_publication": false,
+    "roadmap_done": 27,
+    "roadmap_total": 42,
+    "task_ids_done_unchanged": true,
+    "old_physical_tests_repeated": 0
+  },
+  "minimum_next_work": {
+    "technical": "Adjudicate the two timestamp/snapshot reset divergences with minimal cross-implementation vectors and independent review of normative cache invalidation/epoch floors. Do not add a broad new suite or operational integration before this.",
+    "external": "Designate a maintenance owner and independent reviewer; operational anchor/custody and GF lifecycle/storage laboratory remain separate future requirements.",
+    "stage12_started": false
+  },
+  "changed_paths": [
+    ".github/workflows/autoatualizador-etapa11-isolado.yml",
+    "docs/PROGRESSO.json",
+    "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md",
+    "docs/WORK-AUTOATUALIZADOR-ETAPA11.md",
+    "docs/evidencias/autoatualizador-etapa11-gates.json",
+    "docs/evidencias/autoatualizador-etapa11-windows.json",
+    "docs/evidencias/autoatualizador-etapa11.json",
+    "prototipos/autoatualizador-seguro/stage11/README.md",
+    "prototipos/autoatualizador-seguro/stage11/Stage11.csproj",
+    "prototipos/autoatualizador-seguro/stage11/fixtures/LICENSE-PYTHON-TUF-MIT.txt",
+    "prototipos/autoatualizador-seguro/stage11/fixtures/oracle-source-pin.json",
+    "prototipos/autoatualizador-seguro/stage11/fixtures/upstream-vectors.json",
+    "prototipos/autoatualizador-seguro/stage11/make_fixtures.py",
+    "prototipos/autoatualizador-seguro/stage11/nuget.config",
+    "prototipos/autoatualizador-seguro/stage11/packages.lock.json",
+    "prototipos/autoatualizador-seguro/stage11/reference_interop.py",
+    "prototipos/autoatualizador-seguro/stage11/run_tests.py",
+    "prototipos/autoatualizador-seguro/stage11/src/DurableTrust.cs.txt",
+    "prototipos/autoatualizador-seguro/stage11/src/Tests11.cs.txt",
+    "prototipos/autoatualizador-seguro/stage11/src/TrustFixtureProof.cs.txt",
+    "prototipos/autoatualizador-seguro/stage11/src/TrustIntegratedPipeline.cs.txt"
+  ],
+  "remote_verification": {
+    "base_blobs": 622,
+    "expected_inherited_unchanged": 620,
+    "allowed_inherited_changes": [
+      "docs/PROGRESSO.json",
+      "docs/WORK-AUTOATUALIZADOR-CHECKPOINT.md"
+    ],
+    "removed_files": 0,
+    "method": "Remote final tree compared against immutable base and local UTF-8 Git blob hashes; actual result recorded in PR closure."
+  }
 }

@@ -1,0 +1,1254 @@
+{
+  "schema": "gf-stage11-controller/1",
+  "contract": "gf-self-update/1",
+  "entry_head": "2cf5a8fb8addb94da4050667dc8af16d71e413b1",
+  "status": "passed",
+  "product_built": false,
+  "product_executed": false,
+  "old_suites_reexecuted": false,
+  "physical_tests": 0,
+  "operational_G2_closed": false,
+  "artifacts_uploaded": 0,
+  "new_production_keys": false,
+  "windows": {
+    "schema": "gf-stage11-windows/1",
+    "contract": "gf-self-update/1",
+    "runtime": "10.0.14",
+    "total": 45,
+    "passed": 45,
+    "failed": 0,
+    "results": [
+      {
+        "id": "U11-PERSIST-CHAIN",
+        "status": "passed",
+        "milliseconds": 964
+      },
+      {
+        "id": "U11-PERSIST-ON-METADATA-FAILURE",
+        "status": "passed",
+        "milliseconds": 343
+      },
+      {
+        "id": "U11-RESTORED-CACHE-HINTS",
+        "status": "passed",
+        "milliseconds": 904
+      },
+      {
+        "id": "U11-RECORD-MISSING",
+        "status": "passed",
+        "milliseconds": 344
+      },
+      {
+        "id": "U11-RECORD-STALE",
+        "status": "passed",
+        "milliseconds": 347
+      },
+      {
+        "id": "U11-RECORD-CORRUPT",
+        "status": "passed",
+        "milliseconds": 582
+      },
+      {
+        "id": "U11-CONCURRENCY",
+        "status": "passed",
+        "milliseconds": 164
+      },
+      {
+        "id": "U11-OLD-VALID-METADATA",
+        "status": "passed",
+        "milliseconds": 457
+      },
+      {
+        "id": "U11-UNCHANGED-TIMESTAMP",
+        "status": "passed",
+        "milliseconds": 463
+      },
+      {
+        "id": "U11-UTC-FLOOR",
+        "status": "passed",
+        "milliseconds": 76
+      },
+      {
+        "id": "U11-FAIL-AUTH-BEFORE-PERSIST",
+        "status": "passed",
+        "milliseconds": 191
+      },
+      {
+        "id": "U11-FAIL-PARTIAL-RECORD",
+        "status": "passed",
+        "milliseconds": 183
+      },
+      {
+        "id": "U11-ROLE-ASSIGNMENT-REFUSAL",
+        "status": "passed",
+        "milliseconds": 158
+      },
+      {
+        "id": "U11-INTEROP-RELEASE2",
+        "status": "passed",
+        "milliseconds": 351
+      },
+      {
+        "id": "U11-INTEROP-ROOT-INSUFFICIENT",
+        "status": "passed",
+        "milliseconds": 147
+      },
+      {
+        "id": "U11-INTEROP-ROOT-OLD-ONLY",
+        "status": "passed",
+        "milliseconds": 153
+      },
+      {
+        "id": "U11-INTEROP-ROOT-UNAUTHORIZED",
+        "status": "passed",
+        "milliseconds": 228
+      },
+      {
+        "id": "U11-INTEROP-EXPIRED-FINAL-ROOT",
+        "status": "passed",
+        "milliseconds": 187
+      },
+      {
+        "id": "U11-INTEROP-EXPIRED-INTERMEDIATE",
+        "status": "passed",
+        "milliseconds": 336
+      },
+      {
+        "id": "U11-INTEROP-ROOT-GAP",
+        "status": "passed",
+        "milliseconds": 158
+      },
+      {
+        "id": "U11-INTEROP-BAD-REFERENCE",
+        "status": "passed",
+        "milliseconds": 229
+      },
+      {
+        "id": "U11-INTEROP-EXPIRED-TIMESTAMP",
+        "status": "passed",
+        "milliseconds": 186
+      },
+      {
+        "id": "U11-INTEROP-ROTATE-TIMESTAMP",
+        "status": "passed",
+        "milliseconds": 536
+      },
+      {
+        "id": "U11-INTEROP-ROTATE-SNAPSHOT",
+        "status": "passed",
+        "milliseconds": 502
+      },
+      {
+        "id": "U11-INTEROP-ROTATE-TARGETS-HIGH",
+        "status": "passed",
+        "milliseconds": 513
+      },
+      {
+        "id": "U11-INTEROP-ROTATE-TARGETS-LOW",
+        "status": "passed",
+        "milliseconds": 371
+      },
+      {
+        "id": "U11-INTEROP-REVOKED-TIMESTAMP",
+        "status": "passed",
+        "milliseconds": 385
+      },
+      {
+        "id": "U11-EXTERNAL-CURATED-BYTES",
+        "status": "passed",
+        "milliseconds": 14
+      },
+      {
+        "id": "U11-CRASH-FLUSHED-ROOT",
+        "status": "passed",
+        "milliseconds": 676
+      },
+      {
+        "id": "U11-CRASH-PROMOTED-ROOT",
+        "status": "passed",
+        "milliseconds": 677
+      },
+      {
+        "id": "U11-CRASH-COMMITTED-ROOT",
+        "status": "passed",
+        "milliseconds": 691
+      },
+      {
+        "id": "U11-CRASH-FLUSHED-TIMESTAMP",
+        "status": "passed",
+        "milliseconds": 602
+      },
+      {
+        "id": "U11-CRASH-PROMOTED-TIMESTAMP",
+        "status": "passed",
+        "milliseconds": 605
+      },
+      {
+        "id": "U11-CRASH-COMMITTED-TIMESTAMP",
+        "status": "passed",
+        "milliseconds": 639
+      },
+      {
+        "id": "U11-CRASH-FLUSHED-SNAPSHOT",
+        "status": "passed",
+        "milliseconds": 649
+      },
+      {
+        "id": "U11-CRASH-PROMOTED-SNAPSHOT",
+        "status": "passed",
+        "milliseconds": 674
+      },
+      {
+        "id": "U11-CRASH-COMMITTED-SNAPSHOT",
+        "status": "passed",
+        "milliseconds": 637
+      },
+      {
+        "id": "U11-CRASH-FLUSHED-TARGETS",
+        "status": "passed",
+        "milliseconds": 705
+      },
+      {
+        "id": "U11-CRASH-PROMOTED-TARGETS",
+        "status": "passed",
+        "milliseconds": 729
+      },
+      {
+        "id": "U11-CRASH-COMMITTED-TARGETS",
+        "status": "passed",
+        "milliseconds": 711
+      },
+      {
+        "id": "U11-UNKNOWN-CRASH-STAYS-BLOCKED",
+        "status": "passed",
+        "milliseconds": 461
+      },
+      {
+        "id": "U11-INTEGRATION-CONFIRM",
+        "status": "passed",
+        "milliseconds": 688
+      },
+      {
+        "id": "U11-INTEGRATION-BEFORE-INTENT",
+        "status": "passed",
+        "milliseconds": 544
+      },
+      {
+        "id": "U11-INTEGRATION-INTENT-PERSISTED",
+        "status": "passed",
+        "milliseconds": 633
+      },
+      {
+        "id": "U11-INTEGRATION-SELECTOR-REPLACED",
+        "status": "passed",
+        "milliseconds": 644
+      }
+    ],
+    "interop": [
+      {
+        "scenario": "release2",
+        "status": "accepted",
+        "error": "",
+        "root": 2,
+        "timestamp": 2,
+        "snapshot": 2,
+        "targets": 2,
+        "epoch": 0
+      },
+      {
+        "scenario": "root-insufficient",
+        "status": "rejected",
+        "error": "TufException:New root v2 not signed by threshold of keys from current root v1.",
+        "root": 1,
+        "timestamp": 0,
+        "snapshot": 0,
+        "targets": 0,
+        "epoch": 0
+      },
+      {
+        "scenario": "root-old-only",
+        "status": "rejected",
+        "error": "TufException:New root v2 not self-signed by its own threshold.",
+        "root": 1,
+        "timestamp": 0,
+        "snapshot": 0,
+        "targets": 0,
+        "epoch": 0
+      },
+      {
+        "scenario": "root-unauthorized",
+        "status": "rejected",
+        "error": "TufException:New root v2 not signed by threshold of keys from current root v1.",
+        "root": 1,
+        "timestamp": 0,
+        "snapshot": 0,
+        "targets": 0,
+        "epoch": 0
+      },
+      {
+        "scenario": "expired-final-root",
+        "status": "rejected",
+        "error": "TufExpiredException:TUF root metadata expired at 2026-10-28T10:41:03.0000000+00:00.",
+        "root": 2,
+        "timestamp": 0,
+        "snapshot": 0,
+        "targets": 0,
+        "epoch": 0
+      },
+      {
+        "scenario": "expired-intermediate",
+        "status": "accepted",
+        "error": "",
+        "root": 3,
+        "timestamp": 3,
+        "snapshot": 3,
+        "targets": 3,
+        "epoch": 0
+      },
+      {
+        "scenario": "root-gap",
+        "status": "rejected",
+        "error": "TufException:Timestamp signature verification failed.",
+        "root": 1,
+        "timestamp": 0,
+        "snapshot": 0,
+        "targets": 0,
+        "epoch": 0
+      },
+      {
+        "scenario": "bad-reference",
+        "status": "rejected",
+        "error": "TufException:snapshot sha256 hash mismatch: expected 0000000000000000000000000000000000000000000000000000000000000000, got a5e9fd7009d8a2c9d20f94307ec729311a1f37748060b391c321730db03c6119.",
+        "root": 2,
+        "timestamp": 2,
+        "snapshot": 0,
+        "targets": 0,
+        "epoch": 0
+      },
+      {
+        "scenario": "expired-timestamp",
+        "status": "rejected",
+        "error": "Rejected:METADATA_EXPIRED",
+        "root": 2,
+        "timestamp": 0,
+        "snapshot": 0,
+        "targets": 0,
+        "epoch": 0
+      },
+      {
+        "scenario": "rotate-timestamp",
+        "status": "accepted",
+        "error": "",
+        "root": 2,
+        "timestamp": 1,
+        "snapshot": 1,
+        "targets": 1,
+        "epoch": 1
+      },
+      {
+        "scenario": "rotate-snapshot",
+        "status": "accepted",
+        "error": "",
+        "root": 2,
+        "timestamp": 1,
+        "snapshot": 1,
+        "targets": 1,
+        "epoch": 1
+      },
+      {
+        "scenario": "rotate-targets-high",
+        "status": "accepted",
+        "error": "",
+        "root": 2,
+        "timestamp": 101,
+        "snapshot": 101,
+        "targets": 101,
+        "epoch": 0
+      },
+      {
+        "scenario": "rotate-targets-low",
+        "status": "rejected",
+        "error": "TufException:Timestamp rollback detected: v1 < v100.",
+        "root": 2,
+        "timestamp": 100,
+        "snapshot": 100,
+        "targets": 100,
+        "epoch": 0
+      },
+      {
+        "scenario": "revoked-timestamp",
+        "status": "rejected",
+        "error": "TufException:Timestamp signature verification failed.",
+        "root": 2,
+        "timestamp": 0,
+        "snapshot": 0,
+        "targets": 0,
+        "epoch": 1
+      },
+      {
+        "scenario": "external",
+        "status": "accepted",
+        "scope": "raw pinned library; external root is not admissible as GF authority"
+      }
+    ],
+    "observations": [
+      {
+        "kind": "per_role_persisted",
+        "state": {
+          "Sequence": 13,
+          "Digest": "bc074e6a1ee7683acff92a4515f232e483e1af8c02a814e0b1fbfa38bdf95a23",
+          "Epoch": 0,
+          "Root": 3,
+          "Timestamp": 3,
+          "Snapshot": 3,
+          "Targets": 3,
+          "ActiveAttempt": ""
+        }
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "flushed-metadata-root",
+        "recovered": {
+          "Sequence": 3,
+          "Digest": "1f6922a740ef51f3d89baa5ec71bfc315ec8147dc7f8be31b2dd9e79da0a06d6",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 0,
+          "Snapshot": 0,
+          "Targets": 0,
+          "ActiveAttempt": "5a0c411aa4884590bd9df5c55ed26bd7"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "promoted-metadata-root",
+        "recovered": {
+          "Sequence": 3,
+          "Digest": "f95e3c501541f281142b315cd82e04f29dcb3c1b62e1c52d4c0ed3a08e003a48",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 0,
+          "Snapshot": 0,
+          "Targets": 0,
+          "ActiveAttempt": "a874eee7d5414a869c04f3e8355c5459"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "committed-metadata-root",
+        "recovered": {
+          "Sequence": 3,
+          "Digest": "6cd211bfec722782f141bd200c733d84c795ea8eb2c7616f397aa0f81e45a665",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 0,
+          "Snapshot": 0,
+          "Targets": 0,
+          "ActiveAttempt": "86225501faf24f578c8a5e83ecc6e8f7"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "flushed-metadata-timestamp",
+        "recovered": {
+          "Sequence": 4,
+          "Digest": "b538a6e41cc9ea586e0d29c21f39455ff3a04cf6bb5fd624ccafd0302751f54c",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 0,
+          "Targets": 0,
+          "ActiveAttempt": "26f4e35a848143f68385ca167b94fa85"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "promoted-metadata-timestamp",
+        "recovered": {
+          "Sequence": 4,
+          "Digest": "3964aa848295898176e11b3c8d42d79fecc624192e7f750bb19e6006a1eab21a",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 0,
+          "Targets": 0,
+          "ActiveAttempt": "1dfca9f1f83148e0a2e03da423a4ad61"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "committed-metadata-timestamp",
+        "recovered": {
+          "Sequence": 4,
+          "Digest": "e8106faabc6455ee9bde5e06a6912c74cd2ba5768e52c7f942848c47b26ea5ac",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 0,
+          "Targets": 0,
+          "ActiveAttempt": "c5c78ef250c1471ca40a42ccd042ef28"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "flushed-metadata-snapshot",
+        "recovered": {
+          "Sequence": 5,
+          "Digest": "574427badf782e8290160389e66b2176a128814ba4fac8135e47a524e7dc3250",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 2,
+          "Targets": 0,
+          "ActiveAttempt": "0ee12152fb7547efad227f2e8bfd7656"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "promoted-metadata-snapshot",
+        "recovered": {
+          "Sequence": 5,
+          "Digest": "e8424e78dd8cdea22d064d403698f816e5f48d02444fcf2d6563a52a5fdd3586",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 2,
+          "Targets": 0,
+          "ActiveAttempt": "f0b8851229684904ad7cc234a99f0e0e"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "committed-metadata-snapshot",
+        "recovered": {
+          "Sequence": 5,
+          "Digest": "cdde6e66a47cfc42444cfee085fab34768cbdbfbe8ae8354425e2ed0fbb8367d",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 2,
+          "Targets": 0,
+          "ActiveAttempt": "06a0b1f9d51b4fc2870d272f1bb62359"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "flushed-metadata-targets",
+        "recovered": {
+          "Sequence": 6,
+          "Digest": "b114d087726637c81195d27a24526ebc25b992f7202532ede2d001e5f41e07f9",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 2,
+          "Targets": 2,
+          "ActiveAttempt": "d92f96850555442da503a8d27e410cbf"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "promoted-metadata-targets",
+        "recovered": {
+          "Sequence": 6,
+          "Digest": "d3a56c7d119280bb0e33d9ca49ab395dbe43478f3370c61a1e1508dade6b1d69",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 2,
+          "Targets": 2,
+          "ActiveAttempt": "5d651656fb3f41cba87e6069f37a891a"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "supervised_process_interruption",
+        "point": "committed-metadata-targets",
+        "recovered": {
+          "Sequence": 6,
+          "Digest": "2195a0d3525b34891ecd20aac1e180fc8752fcd6be05fd1e595d4a5002ec2fb6",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 2,
+          "Targets": 2,
+          "ActiveAttempt": "2b64b6a637374c25ba6cabb24925f7b1"
+        },
+        "power_loss": false
+      },
+      {
+        "kind": "independent_metadata_and_installation",
+        "fail_at": "",
+        "metadata": {
+          "Sequence": 7,
+          "Digest": "19ad3e9b8527c96f4e2d6576b86f8a47b81c5f6df6b43d1fdab0502fe9e97730",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 2,
+          "Targets": 2,
+          "ActiveAttempt": ""
+        },
+        "confirmed": 2
+      },
+      {
+        "kind": "independent_metadata_and_installation",
+        "fail_at": "before-intent",
+        "metadata": {
+          "Sequence": 7,
+          "Digest": "363944a58b1aa0b65752a6b6ac7f620a9c4b5578dd1b97cbcc6187b3a389849d",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 2,
+          "Targets": 2,
+          "ActiveAttempt": ""
+        },
+        "confirmed": 1
+      },
+      {
+        "kind": "independent_metadata_and_installation",
+        "fail_at": "intent-persisted",
+        "metadata": {
+          "Sequence": 7,
+          "Digest": "cd5352a9ccab847c8b3a99c99e4f7bbf7a8b60f2b26503c01538c718860c7661",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 2,
+          "Targets": 2,
+          "ActiveAttempt": ""
+        },
+        "confirmed": 1
+      },
+      {
+        "kind": "independent_metadata_and_installation",
+        "fail_at": "selector-replaced",
+        "metadata": {
+          "Sequence": 7,
+          "Digest": "3b8a3efef99fe8f757661c55d8d2160f954afc45e161e667043762d977f66082",
+          "Epoch": 0,
+          "Root": 2,
+          "Timestamp": 2,
+          "Snapshot": 2,
+          "Targets": 2,
+          "ActiveAttempt": ""
+        },
+        "confirmed": 1
+      }
+    ],
+    "GF_built_or_executed": false,
+    "operational_gate_closed": false,
+    "power_loss_tested": false,
+    "production_authority": false
+  },
+  "tuf_source": {
+    "upstream_commit": "c0f5ff9747aa9b00c45a964dca275be4066cd489",
+    "verified_files": 20,
+    "patch_canonical_lf_sha256": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "modified_source_sha256": {
+      "src/Tuf/TufClient.cs": "69414de567f872249d00559c1dd57e5bee43d94d476da61f8569738b77040268",
+      "src/Tuf/TufClientOptions.cs": "9820744a9989a0f8b6d0cbcfd68f31c7dc0c56819b8ad830d6d3a79c7bb4fd4b",
+      "src/Tuf/TufResults.cs": "94d6c7bc2d80cf2f1f72f1180f479aff4ffb748a7aaae3676105a7c8d2d198a1"
+    },
+    "crypto_parser_sources_unchanged": true,
+    "original_nuget_package_changed": false,
+    "production_adoption": false
+  },
+  "fixtures": {
+    "schema": "gf-stage11-fixtures/1",
+    "reference_utc": "2026-10-29T10:41:03Z",
+    "cases": {
+      "release2": {
+        "timestamp.json": "7908569ecef67efa67855318b77105229b9c9f22f9fea0ebc390280f4e0b027a",
+        "snapshot.json": "a5e9fd7009d8a2c9d20f94307ec729311a1f37748060b391c321730db03c6119",
+        "targets.json": "4f1f8ba2685659650f379ae49a37eaf3bd9884869f19e29f6aae357f6ecf0988",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "2.root.json": "2176b59ccdf31ed8e3504073a7b895c0394ac42ee24864184c7652ca5c9524cf"
+      },
+      "release3": {
+        "timestamp.json": "228739fb3c0781fd0e0e5be259c9857e473e491aaf9df0537920c987dee63560",
+        "snapshot.json": "43981776d9694344624546827b1f9bcef022ad130ec242aa47623408de836c4d",
+        "targets.json": "0a8add04593d0f033b2b5b3eeb5ff84bec96a7a8d24257fb892cd78909030db3",
+        "fixture-package.zip": "c3e4e580936de46955cc90b935862d3e35cccb1171b08bea3f1e0a26faee405e",
+        "2.root.json": "2176b59ccdf31ed8e3504073a7b895c0394ac42ee24864184c7652ca5c9524cf",
+        "3.root.json": "c3c6c8094c898fff8fc3dd1dc8fc280df9e6d3493f2d31255cbfd9dee3bdf125"
+      },
+      "high": {
+        "timestamp.json": "04c84f3c792dab1670caea6c5579dad455ceeb8812603b7710e9d4d5e16f6781",
+        "snapshot.json": "a95de7471a36789b5f43394e5b322f96d8e79ff7878836d19b054503f915470c",
+        "targets.json": "865a029d583496146a60a884b13fac66ef87292838d37771b59f2d530e21e6ef",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825"
+      },
+      "old1": {
+        "timestamp.json": "1a899a1f6c7582cf048c8f47745091f9bd85c4d5fee13ed608de27f9648aabb2",
+        "snapshot.json": "a20aca0a07b61c347073a8045e4d6183a28db7f9d52c5229076e942f3e4de13d",
+        "targets.json": "c0a62a089dc7de0cbc9a8eb95568be4f3d2881340c20c09b37b3814265508dc8",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825"
+      },
+      "rotate-timestamp": {
+        "timestamp.json": "a2b54c9111c6b621aaec8513cb674b66d07ee590bdf4c3d9b91f2137fe6b4e69",
+        "snapshot.json": "b287db1ad366faaabae9366e11eaea3e19f8d4049aec16db0f9cb2ff3afa09d9",
+        "targets.json": "e5a479bae10b31e1b485eedeecefab15607170777fd810591d1cbe17f5429ab7",
+        "fixture-package.zip": "c3e4e580936de46955cc90b935862d3e35cccb1171b08bea3f1e0a26faee405e",
+        "2.root.json": "6fb55e1c393d69125b95ff582cef7756f253bb0a7f20ea4ada461382933e3423"
+      },
+      "rotate-snapshot": {
+        "timestamp.json": "59bd9b5d0dd11a1f6efda7772a0bced59eef4bc38a93ed3d50525bd8beeeaa5b",
+        "snapshot.json": "19d1478beaf14e401b86ff6903aa4191c3734602a800494379451232d98489f3",
+        "targets.json": "e5a479bae10b31e1b485eedeecefab15607170777fd810591d1cbe17f5429ab7",
+        "fixture-package.zip": "c3e4e580936de46955cc90b935862d3e35cccb1171b08bea3f1e0a26faee405e",
+        "2.root.json": "75db84ecef9d77f321057fbab84c16564eb484135c2f99eddaa0e3f93f2d786d"
+      },
+      "rotate-targets-high": {
+        "timestamp.json": "85d8548b19f69295266b172bede9f321bc5d2bce898f09f7f5646864965f8e38",
+        "snapshot.json": "469240ae82636186b1da8bb5e90417f930c678f421e3bfdca5260b8f3a35015c",
+        "targets.json": "cb303b1016760a0a2fefc7879aa05aa90640feb02a6cfbc2e92cbd3a130ddf9d",
+        "fixture-package.zip": "c3e4e580936de46955cc90b935862d3e35cccb1171b08bea3f1e0a26faee405e",
+        "2.root.json": "ac38ea03bed92181a6709ef53b64f0ffd6393046349143f3d41313b01cb0c152"
+      },
+      "rotate-targets-low": {
+        "timestamp.json": "801a8670fed1691c478fa71bd89db2b8e2b93547df488fa24ed30c77b36b988f",
+        "snapshot.json": "ae64d121b699998856c8a3bcea8225fe595b1b0638953d36db05722ec708b2db",
+        "targets.json": "940dce74182db518edc52d7921199c68dfdf18b3cac63e182a7f56ae354fb3e7",
+        "fixture-package.zip": "c3e4e580936de46955cc90b935862d3e35cccb1171b08bea3f1e0a26faee405e",
+        "2.root.json": "ac38ea03bed92181a6709ef53b64f0ffd6393046349143f3d41313b01cb0c152"
+      },
+      "revoked-timestamp": {
+        "timestamp.json": "1a899a1f6c7582cf048c8f47745091f9bd85c4d5fee13ed608de27f9648aabb2",
+        "snapshot.json": "a20aca0a07b61c347073a8045e4d6183a28db7f9d52c5229076e942f3e4de13d",
+        "targets.json": "c0a62a089dc7de0cbc9a8eb95568be4f3d2881340c20c09b37b3814265508dc8",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "2.root.json": "6fb55e1c393d69125b95ff582cef7756f253bb0a7f20ea4ada461382933e3423"
+      },
+      "root-old-only": {
+        "timestamp.json": "7908569ecef67efa67855318b77105229b9c9f22f9fea0ebc390280f4e0b027a",
+        "snapshot.json": "a5e9fd7009d8a2c9d20f94307ec729311a1f37748060b391c321730db03c6119",
+        "targets.json": "4f1f8ba2685659650f379ae49a37eaf3bd9884869f19e29f6aae357f6ecf0988",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "2.root.json": "f7204b1dc1116957f42f413a3dab24624cd5c878be5dd1825200baa21478ec17"
+      },
+      "root-insufficient": {
+        "timestamp.json": "7908569ecef67efa67855318b77105229b9c9f22f9fea0ebc390280f4e0b027a",
+        "snapshot.json": "a5e9fd7009d8a2c9d20f94307ec729311a1f37748060b391c321730db03c6119",
+        "targets.json": "4f1f8ba2685659650f379ae49a37eaf3bd9884869f19e29f6aae357f6ecf0988",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "2.root.json": "361345a4e10c465954f7b906edbd7d6a2b69a1cf0da89ccc89f2ac187f08ada7"
+      },
+      "root-unauthorized": {
+        "timestamp.json": "7908569ecef67efa67855318b77105229b9c9f22f9fea0ebc390280f4e0b027a",
+        "snapshot.json": "a5e9fd7009d8a2c9d20f94307ec729311a1f37748060b391c321730db03c6119",
+        "targets.json": "4f1f8ba2685659650f379ae49a37eaf3bd9884869f19e29f6aae357f6ecf0988",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "2.root.json": "153edc18d50985462afeca2da88bea9b0302b93a8b3395f395023144b05e467c"
+      },
+      "expired-final-root": {
+        "timestamp.json": "c614d70e6fe939192f87bc09db1abb8e8cb32499576fde5b1a23f37785ce77bb",
+        "snapshot.json": "e998bf625e957151f05b13920eeabfc07181935a201d5cfd1ea78baf667b94e3",
+        "targets.json": "6de76c6801a4dfbaba1aec78a8af4c02cd2b5a9de62bf8594772db43e8b0f112",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "2.root.json": "3dd83a5e1819212141b74883e7efeef9cbf5fcb0de0e1f9b7fd4760b070aea16"
+      },
+      "expired-intermediate": {
+        "timestamp.json": "c614d70e6fe939192f87bc09db1abb8e8cb32499576fde5b1a23f37785ce77bb",
+        "snapshot.json": "e998bf625e957151f05b13920eeabfc07181935a201d5cfd1ea78baf667b94e3",
+        "targets.json": "6de76c6801a4dfbaba1aec78a8af4c02cd2b5a9de62bf8594772db43e8b0f112",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "2.root.json": "3dd83a5e1819212141b74883e7efeef9cbf5fcb0de0e1f9b7fd4760b070aea16",
+        "3.root.json": "c3c6c8094c898fff8fc3dd1dc8fc280df9e6d3493f2d31255cbfd9dee3bdf125"
+      },
+      "root-gap": {
+        "timestamp.json": "fb541a1e970093a1432d5ea4d4ae7e22ea3625cebd2aaf945ecc5b98efb4a41b",
+        "snapshot.json": "e998bf625e957151f05b13920eeabfc07181935a201d5cfd1ea78baf667b94e3",
+        "targets.json": "6de76c6801a4dfbaba1aec78a8af4c02cd2b5a9de62bf8594772db43e8b0f112",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "3.root.json": "393520b7f649adebe264606ea715deee99299fe6eb505c8ea67c8a2681d4508d"
+      },
+      "missing-snapshot": {
+        "timestamp.json": "7908569ecef67efa67855318b77105229b9c9f22f9fea0ebc390280f4e0b027a",
+        "targets.json": "4f1f8ba2685659650f379ae49a37eaf3bd9884869f19e29f6aae357f6ecf0988",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "2.root.json": "2176b59ccdf31ed8e3504073a7b895c0394ac42ee24864184c7652ca5c9524cf"
+      },
+      "bad-reference": {
+        "timestamp.json": "9d885b16cf0425c9ed33a95a8acda2e7fe805f8b43fc270ed43d6f3142ffd9b3",
+        "snapshot.json": "a5e9fd7009d8a2c9d20f94307ec729311a1f37748060b391c321730db03c6119",
+        "targets.json": "4f1f8ba2685659650f379ae49a37eaf3bd9884869f19e29f6aae357f6ecf0988",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "2.root.json": "2176b59ccdf31ed8e3504073a7b895c0394ac42ee24864184c7652ca5c9524cf"
+      },
+      "expired-timestamp": {
+        "timestamp.json": "fd3e7b68c01e143a5a36436ecae9ce51c3b96165b4cea6d847ac975ed8df94ea",
+        "snapshot.json": "a5e9fd7009d8a2c9d20f94307ec729311a1f37748060b391c321730db03c6119",
+        "targets.json": "4f1f8ba2685659650f379ae49a37eaf3bd9884869f19e29f6aae357f6ecf0988",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "2.root.json": "2176b59ccdf31ed8e3504073a7b895c0394ac42ee24864184c7652ca5c9524cf"
+      },
+      "same-timestamp-changed": {
+        "2.root.json": "2176b59ccdf31ed8e3504073a7b895c0394ac42ee24864184c7652ca5c9524cf",
+        "fixture-package.zip": "6830b54ec09f21975f499da9dfc49291ea914425e78347d1206f984662dc0825",
+        "snapshot.json": "a5e9fd7009d8a2c9d20f94307ec729311a1f37748060b391c321730db03c6119",
+        "targets.json": "4f1f8ba2685659650f379ae49a37eaf3bd9884869f19e29f6aae357f6ecf0988",
+        "timestamp.json": "3548032c4b9b46ea966de42d95368e827a27e5c3c323642d4c542654e62a3129"
+      },
+      "role-reuse": {
+        "2.root.json": "2c12a26555e5a151b9daf73237be9a7d7ebb97fe4c5e6f4c44183f4e2933b55f"
+      }
+    },
+    "native_serializer_signer": "python-tuf 7.0.1 / securesystemslib 1.3.1 / existing public seeds",
+    "new_production_keys": false,
+    "real_GF_bytes": false,
+    "upstream_vectors_commit": "49eb1da48c58cf0cbb0f2e490f7ad39fbd8c1f15"
+  },
+  "reference_oracle": {
+    "schema": "gf-stage11-reference-oracle/1",
+    "versions": {
+      "tuf": "7.0.1",
+      "securesystemslib": "1.3.1",
+      "cryptography": "50.0.2",
+      "urllib3": "2.8.0"
+    },
+    "results": [
+      {
+        "id": "U11-REF-release2",
+        "scenario": "release2",
+        "kind": "own_native_python_tuf_vectors",
+        "oracle": {
+          "status": "accepted",
+          "error": null,
+          "root": 2,
+          "timestamp": 2,
+          "snapshot": 2,
+          "targets": 2,
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json",
+            "targets.json",
+            "fixture-package.zip"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-root-insufficient",
+        "scenario": "root-insufficient",
+        "kind": "own_native_python_tuf_vectors",
+        "oracle": {
+          "status": "rejected",
+          "error": "UnsignedMetadataError",
+          "root": 1,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "requests": [
+            "2.root.json"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-root-old-only",
+        "scenario": "root-old-only",
+        "kind": "own_native_python_tuf_vectors",
+        "oracle": {
+          "status": "rejected",
+          "error": "UnsignedMetadataError",
+          "root": 1,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "requests": [
+            "2.root.json"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-root-unauthorized",
+        "scenario": "root-unauthorized",
+        "kind": "own_native_python_tuf_vectors",
+        "oracle": {
+          "status": "rejected",
+          "error": "UnsignedMetadataError",
+          "root": 1,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "requests": [
+            "2.root.json"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-expired-final-root",
+        "scenario": "expired-final-root",
+        "kind": "own_native_python_tuf_vectors",
+        "oracle": {
+          "status": "rejected",
+          "error": "ExpiredMetadataError",
+          "root": 2,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-expired-intermediate",
+        "scenario": "expired-intermediate",
+        "kind": "own_native_python_tuf_vectors",
+        "oracle": {
+          "status": "accepted",
+          "error": null,
+          "root": 3,
+          "timestamp": 3,
+          "snapshot": 3,
+          "targets": 3,
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "4.root.json",
+            "timestamp.json",
+            "snapshot.json",
+            "targets.json",
+            "fixture-package.zip"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-root-gap",
+        "scenario": "root-gap",
+        "kind": "own_native_python_tuf_vectors",
+        "oracle": {
+          "status": "rejected",
+          "error": "UnsignedMetadataError",
+          "root": 1,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "requests": [
+            "2.root.json",
+            "timestamp.json"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-bad-reference",
+        "scenario": "bad-reference",
+        "kind": "own_native_python_tuf_vectors",
+        "oracle": {
+          "status": "rejected",
+          "error": "LengthOrHashMismatchError",
+          "root": 2,
+          "timestamp": 2,
+          "snapshot": 0,
+          "targets": 0,
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-expired-timestamp",
+        "scenario": "expired-timestamp",
+        "kind": "own_native_python_tuf_vectors",
+        "oracle": {
+          "status": "rejected",
+          "error": "ExpiredMetadataError",
+          "root": 2,
+          "timestamp": 2,
+          "snapshot": 0,
+          "targets": 0,
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-rotate-timestamp",
+        "scenario": "rotate-timestamp",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "oracle": {
+          "status": "rejected",
+          "error": "BadVersionNumberError",
+          "root": 2,
+          "timestamp": 1,
+          "snapshot": 100,
+          "targets": 0,
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-rotate-snapshot",
+        "scenario": "rotate-snapshot",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "oracle": {
+          "status": "rejected",
+          "error": "BadVersionNumberError",
+          "root": 2,
+          "timestamp": 100,
+          "snapshot": 0,
+          "targets": 0,
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-rotate-targets-high",
+        "scenario": "rotate-targets-high",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "oracle": {
+          "status": "accepted",
+          "error": null,
+          "root": 2,
+          "timestamp": 101,
+          "snapshot": 101,
+          "targets": 101,
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json",
+            "snapshot.json",
+            "targets.json",
+            "fixture-package.zip"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-rotate-targets-low",
+        "scenario": "rotate-targets-low",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "oracle": {
+          "status": "rejected",
+          "error": "BadVersionNumberError",
+          "root": 2,
+          "timestamp": 100,
+          "snapshot": 0,
+          "targets": 0,
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-revoked-timestamp",
+        "scenario": "revoked-timestamp",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "oracle": {
+          "status": "rejected",
+          "error": "UnsignedMetadataError",
+          "root": 2,
+          "timestamp": 0,
+          "snapshot": 0,
+          "targets": 0,
+          "requests": [
+            "2.root.json",
+            "3.root.json",
+            "timestamp.json"
+          ]
+        }
+      },
+      {
+        "id": "U11-REF-EXTERNAL",
+        "scenario": "external",
+        "kind": "unmodified_curated_upstream_bytes",
+        "oracle": {
+          "status": "accepted",
+          "error": null,
+          "root": 1,
+          "timestamp": 1,
+          "snapshot": 1,
+          "targets": 1,
+          "requests": [
+            "2.root.json",
+            "timestamp.json",
+            "snapshot.json",
+            "targets.json",
+            "file1.txt"
+          ]
+        }
+      }
+    ],
+    "source_commit": "49eb1da48c58cf0cbb0f2e490f7ad39fbd8c1f15",
+    "internal_api_used": "TrustedMetadataSet version inspection only; Updater refresh/download used unchanged",
+    "full_conformance_suite": false,
+    "network_requests_to_real_service": 0
+  },
+  "interoperability_comparison": {
+    "total": 15,
+    "passed": 13,
+    "blocked": 2,
+    "results": [
+      {
+        "scenario": "release2",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "accepted",
+        "python_status": "accepted",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "root-insufficient",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "root-old-only",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "root-unauthorized",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "expired-final-root",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "expired-intermediate",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "accepted",
+        "python_status": "accepted",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "root-gap",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "bad-reference",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "expired-timestamp",
+        "kind": "own_native_python_tuf_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "rotate-timestamp",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "dotnet_status": "accepted",
+        "python_status": "rejected",
+        "status": "blocked",
+        "limitation": "Cross-implementation divergence: investigate independently; not conformance approval"
+      },
+      {
+        "scenario": "rotate-snapshot",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "dotnet_status": "accepted",
+        "python_status": "rejected",
+        "status": "blocked",
+        "limitation": "Cross-implementation divergence: investigate independently; not conformance approval"
+      },
+      {
+        "scenario": "rotate-targets-high",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "dotnet_status": "accepted",
+        "python_status": "accepted",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "rotate-targets-low",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "revoked-timestamp",
+        "kind": "own_cross_attempt_rotation_vectors",
+        "dotnet_status": "rejected",
+        "python_status": "rejected",
+        "status": "passed",
+        "limitation": null
+      },
+      {
+        "scenario": "external",
+        "kind": "unmodified_curated_upstream_bytes",
+        "dotnet_status": "accepted",
+        "python_status": "accepted",
+        "status": "passed",
+        "limitation": null
+      }
+    ],
+    "full_conformance": false
+  },
+  "unchanged_reference_sources_sha256": {
+    "src/StrictMetadata.cs.txt": "5a16d809d5c4ff45e0e7f47c58db56c15afada7047d0664ab05aa14777cc54fb",
+    "src/PersistentState.cs.txt": "add61f0ad51e5cb9e6993bb555276685f9f335ef03e24fba5ff7dffd4c29a4b1",
+    "src/TransactionPrototype.cs.txt": "5f303531a500dcb68781d88dcf3fc4f91e04a8849bd45c4edaf92a434b167f4f",
+    "src/WindowsFileGuard.cs.txt": "7a550f0392de4a030fea2706c856d751d904cf46787a5a9ef9af2fc039390980",
+    "src/CycleClock.cs.txt": "4ed4bec59e4037d66e0ae6e8f11e2419c978ff803f8182accc127e3616b20df9",
+    "stage8/src/OwnedAttempt.cs.txt": "6aa7c5cdfdd780c939e2f305b7723b8a4b9f9e18a8a1fb77dceaf3dff0218479",
+    "stage8/tuf-delta.patch": "6fc508a44ba6afb9e231601094b699f01d897da75f0de828f2819737c305591f",
+    "stage8/prepare_source.py": "e657b1622f6304f145f401d15ca0e2429d42022d9630a2d0239087e2fc15c8a2",
+    "stage9/src/IntegratedPipeline.cs.txt": "44d7719b2f0dfc50dc494c7efedc4b3bad50de416cac9528ccb0ad399de7750b",
+    "stage9/src/OperationJournal.cs.txt": "22dadc73fa10645a976e19ad3914cc025c6d2542c0b3d91f81be108c38fba918",
+    "stage10/src/LabPackage.cs.txt": "f008e99d2951cd216909bc18d4a08f11ba3b2e482d85197bac9aa2c8fa3b74ae"
+  },
+  "isolation": {
+    "sdk": "10.0.402",
+    "locked_restore": true,
+    "product_compile_items": 142,
+    "prototype_items_in_product": 0,
+    "outputs_outside_repo": true,
+    "legacy_product_code_changed": false
+  },
+  "controller_tree_deleted": true
+}

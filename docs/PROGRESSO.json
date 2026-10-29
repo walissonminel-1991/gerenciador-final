@@ -1825,9 +1825,9 @@
       "source_evidence": "User-submitted screenshots and three local text/log artifacts in conversation; raw private data not committed"
     },
     "next_mission": {
-      "id": "GF_SELF_UPDATER_STAGE10_REAL_PACKAGE_LAB",
-      "status": "completed_technical_lab_scope_operational_gates_blocked",
-      "scope": "real_GF_package_static_integrity_PE_NTFS_state_binding_and_targeted_TUF_boundary",
+      "id": "GF_SELF_UPDATER_STAGE11_PERSISTENT_TRUST_EPOCHS",
+      "status": "completed_experimental_trust_scope_G2_blocked",
+      "scope": "isolated_per_role_TUF_persistence_epochs_recovery_interoperability_and_inert_stage9_composition",
       "no_repeated_physical_test_without_product_change": true,
       "stage0": {
         "date": "2026-10-28",
@@ -2319,6 +2319,32 @@
         "physical_tests_repeated": 0,
         "roadmap_advanced": false,
         "next_stage": 11,
+        "next_stage_started": false
+      },
+      "stage11": {
+        "date": "2026-10-29",
+        "timezone": "America/Sao_Paulo",
+        "entry_head": "2cf5a8fb8addb94da4050667dc8af16d71e413b1",
+        "validated_code": "8dc843ff69b66f55f6e87fab93bd9c71c1242ec5",
+        "status": "completed_experimental_trust_scope_G2_blocked",
+        "report": "docs/WORK-AUTOATUALIZADOR-ETAPA11.md",
+        "evidence": "docs/evidencias/autoatualizador-etapa11.json",
+        "windows": "docs/evidencias/autoatualizador-etapa11-windows.json",
+        "gates": "docs/evidencias/autoatualizador-etapa11-gates.json",
+        "windows_run": 40859356385,
+        "windows_passed": 45,
+        "windows_total": 45,
+        "interop_agreements": 13,
+        "interop_total": 15,
+        "interop_blocked": 2,
+        "operational_gates_closed": 0,
+        "operational_gates_blocked": 8,
+        "product_code_changed": false,
+        "product_builds": 0,
+        "private_channel_changed": false,
+        "physical_tests_repeated": 0,
+        "roadmap_advanced": false,
+        "next_stage": 12,
         "next_stage_started": false
       }
     }

@@ -1,5 +1,40 @@
 # Autoatualizador seguro do Gerenciador Final — checkpoint
 
+29/10/2026, America/Sao_Paulo. **Etapa 11 concluída no escopo experimental.
+G2 blocked; oito gates operacionais blocked, zero fechado. Etapa 12 NÃO INICIADA.**
+PR #65 aberta/Draft; branch work-integracao-final-20261027.
+
+| Campo | Estado vigente |
+| --- | --- |
+| Missão | GF_SELF_UPDATER_STAGE11_PERSISTENT_TRUST_EPOCHS |
+| Entrada obrigatória | 2cf5a8fb8addb94da4050667dc8af16d71e413b1 |
+| Código validado | 8dc843ff69b66f55f6e87fab93bd9c71c1242ec5 |
+| Implementado | DurableEpochCache, diário por raiz/papel e recibos, épocas, cache auxiliar não autoritativo e composição inerte com estado/transação 2/9 |
+| Windows | Run 40859356385, número 2/tentativa 1: 45/45 novos; zero warning/erro |
+| Recuperação | 12 interrupções supervisionadas: flushed/promoted/committed × root/timestamp/snapshot/targets; não energia |
+| Separação | Confiança TUF persistida antes da instalação; confirmação/rollback inerte não reduz seus pisos |
+| Interoperabilidade | 15 comparações: 13 concordâncias e 2 divergências blocked; não conformidade integral |
+| Divergências | Resets após rotação isolada de timestamp/snapshot, com cache anterior versão 100; adjudicação independente pendente |
+| Fonte / dependências | Tuf 1.1.1/BC 2.7.0 e patch Etapa 8 preservados; Python TUF 7.0.1 só oráculo de teste fixado por fonte |
+| Falha preservada | Run 40858921622 falhou ao gerar vetores, zero ensaio C#; cópia profunda das chaves corrigiu desserialização mutante |
+| G2 | Implementação avançou; revisão independente, manutenção, divergências/perfis pertinentes e adoção operacional continuam bloqueados |
+| Preservação | .66/canal privado/main/11 workflows anteriores/27 de 42/físico parcial/proteções/flags no intactos |
+
+[Relatório/tabela G2](WORK-AUTOATUALIZADOR-ETAPA11.md) ·
+[Windows/oráculo](evidencias/autoatualizador-etapa11-windows.json) ·
+[Recibo/rodadas/falha](evidencias/autoatualizador-etapa11.json) ·
+[Matriz](evidencias/autoatualizador-etapa11-gates.json).
+
+Contrato gf-self-update/1 preservado. Diário novo é formato interno de fixture;
+sem migração de cache legado populado, autoridade GF, chaves operacionais ou
+integração ao produto. Escrita parcial e fronteira desconhecida mantêm bloqueio.
+G1 não foi resolvido por hashes/recibos locais. Resultado de implementação não
+é revisão independente nem fechamento operacional G2.
+Próximo escopo mínimo proposto: vetores mínimos para as duas divergências,
+adjudicação independente e designação de manutenção. **Parar; não iniciar Etapa 12.**
+
+## Registro da Etapa 10 — histórico preservado
+
 29/10/2026, America/Sao_Paulo. **Etapa 10 concluída no laboratório de pacote
 GF real. Oito gates operacionais bloqueados; zero fechado. Etapa 11 NÃO INICIADA.**
 PR #65 aberta/Draft; branch work-integracao-final-20261027.

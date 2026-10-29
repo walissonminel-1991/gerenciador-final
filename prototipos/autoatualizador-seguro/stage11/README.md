@@ -53,7 +53,7 @@ não altera o diário TUF. Recuperação de instalação por crash nessa nova
 composição, migração de cache legado, IPC e ciclo GF ainda exigem qualificação.
 
 Os vetores nativos são criados pelo serializador/assinador Python TUF usando
-somente seeds públicas já existentes. Os bytes em `fixtures/upstream-vectors`
+somente seeds públicas já existentes. Os bytes em `fixtures/upstream-vectors.json`
 são de testes públicos do python-tuf no commit indicado, com licença e hashes;
 exercitam o cliente/biblioteca separadamente, sem virar âncora GF. Concordâncias
 com a referência e divergências são registradas separadamente: nenhuma aprovação
