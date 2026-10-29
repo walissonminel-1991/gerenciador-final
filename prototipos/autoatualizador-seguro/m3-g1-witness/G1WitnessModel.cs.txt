@@ -31,12 +31,13 @@ internal static class G1LocalEvidence
         // Selection must match the journal phase. A valid local checksum alone
         // cannot justify accepting an arbitrary selector.
         var tx=loaded.Record.Transaction;
-        BundleRef expected=tx?.Phase switch {
-            "selected" or "confirmed" => tx.Candidate,
-            "intent" or "rolled_back" => tx.Previous,
-            "rollback_intent" => selector, // transition may be between either
-            _ => loaded.Record.Confirmed
-        };
+        BundleRef expected=tx is null ? loaded.Record.Confirmed :
+            tx.Phase switch {
+                "selected" or "confirmed" => tx.Candidate,
+                "intent" or "rolled_back" => tx.Previous,
+                "rollback_intent" => selector, // transition may be between either
+                _ => loaded.Record.Confirmed
+            };
         Require(selector==expected,"G1_LOCAL_SELECTOR_MISMATCH");
         return new(loaded.Record.InstallationId,loaded.Record.Generation,
             loaded.Record.Trust.ApprovedSequence,loaded.Digest,selector);
