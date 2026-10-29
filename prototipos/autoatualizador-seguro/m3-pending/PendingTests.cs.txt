@@ -1,0 +1,179 @@
+// Directed read-only M3 pending inspection, no update and no file repair.
+// Operates only on inert Stage2 fixtures under %TEMP%/gf-u2-*.
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal static class PendingTests
+{
+    private static readonly List<object> results=[];
+    private static int failures;
+    private static bool plausibleBlocked,corruptionBlocked,foreignBlocked,unknownBlocked,
+        multipleBlocked,lockedRejected,bytesPreserved,prefixVerified;
+    private static string suite="";
+    private static async Task Check(string id,Func<Task> run)
+    {
+        try {await run();results.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception e){failures++;results.Add(new{id,status="failed",error=e.ToString()});Console.WriteLine("FAIL "+id+" "+e);}
+    }
+    private static Task Sync(Action action){action();return Task.CompletedTask;}
+    private static string PendingPath(StateCase c)
+        => Path.Combine(c.Root,"ledger","pending-"+Guid.NewGuid().ToString("N")+".fixture");
+    private static StateRecord Next(StateCase c)
+    {
+        var state=new PersistentState(c.Root).Load();
+        var tx=state.Record.Transaction!;
+        Require(tx.Phase=="selected","PENDING_TEST_PHASE");
+        return state.Record with {Generation=state.Record.Generation+1,
+            PreviousDigest=state.Digest,Confirmed=tx.Candidate,
+            Transaction=tx with {Phase="confirmed"}};
+    }
+    private static byte[] Snapshot(string root)
+    {
+        var snapshot=Directory.GetFiles(root,"*",SearchOption.AllDirectories)
+            .OrderBy(p=>p,StringComparer.Ordinal).Select(path=>
+                Path.GetRelativePath(root,path)+":"+Hash(File.ReadAllBytes(path)));
+        return Encoding.UTF8.GetBytes(string.Join("\n",snapshot));
+    }
+    private static void Expect(StateCase c,PendingKind expected,bool expectLoadBlocked=true)
+    {
+        byte[] before=Snapshot(c.Root);
+        var report=PendingInspection.Inspect(c.Root);
+        byte[] after=Snapshot(c.Root);
+        Require(before.AsSpan().SequenceEqual(after),"PENDING_INSPECTION_MUTATED_BYTES");
+        Require(report.Kind==expected && report.Blocked && !report.Mutated,
+            "PENDING_UNSAFE_CLASSIFICATION:"+report.Kind);
+        bytesPreserved=true;
+        if(expectLoadBlocked)
+        {
+            bool refused=false;
+            try{_=new PersistentState(c.Root).Load();}
+            catch(Rejected e) when(e.Code=="STATE_INCOMPLETE" ||
+                e.Code=="STATE_GAP_OR_UNKNOWN"){refused=true;}
+            Require(refused,"PENDING_BASELINE_LOAD_ACCEPTED");
+        }
+        c.Preserved();
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=2 || args[0]!="--report" || !OperatingSystem.IsWindows())return 2;
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-pending-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await Check("PEND-01-SEALED-NEXT-STILL-BLOCKED",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                File.WriteAllBytes(PendingPath(c),StateCodec.Wrap(Next(c)));
+                Expect(c,PendingKind.PlausibleSealedUncommitted);
+                plausibleBlocked=true;
+            }));
+            await Check("PEND-02-TRUNCATED-STILL-BLOCKED",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                byte[] sealedRecord=StateCodec.Wrap(Next(c));
+                File.WriteAllBytes(PendingPath(c),sealedRecord[..(sealedRecord.Length/2)]);
+                Expect(c,PendingKind.MalformedOrTruncated);
+                corruptionBlocked=true;
+            }));
+            await Check("PEND-03-STALE-GENERATION-REFUSED",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                File.WriteAllBytes(PendingPath(c),StateCodec.Wrap(Next(c) with
+                    {Generation=Next(c).Generation+1}));
+                Expect(c,PendingKind.ForeignOrStale);
+                foreignBlocked=true;
+            }));
+            await Check("PEND-04-CROSS-TRANSACTION-REFUSED",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                var n=Next(c);
+                File.WriteAllBytes(PendingPath(c),StateCodec.Wrap(n with
+                    {Transaction=n.Transaction! with {Id=Guid.NewGuid().ToString("N")}}));
+                Expect(c,PendingKind.ForeignOrStale);
+            }));
+            await Check("PEND-05-MULTIPLE-PENDING-REFUSED",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                var bytes=StateCodec.Wrap(Next(c));
+                File.WriteAllBytes(PendingPath(c),bytes);
+                File.WriteAllBytes(PendingPath(c),bytes);
+                Expect(c,PendingKind.MultiplePending);
+                multipleBlocked=true;
+            }));
+            await Check("PEND-06-UNKNOWN-LEDGER-ENTRY-REFUSED",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                File.WriteAllBytes(PendingPath(c),StateCodec.Wrap(Next(c)));
+                File.WriteAllText(Path.Combine(c.Root,"ledger","unexpected.fixture"),
+                    "PRESERVE-UNKNOWN-EVIDENCE");
+                Expect(c,PendingKind.UnknownLedgerEntries);
+                unknownBlocked=true;
+            }));
+            await Check("PEND-07-BROKEN-COMMITTED-PREFIX",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                File.WriteAllBytes(PendingPath(c),StateCodec.Wrap(Next(c)));
+                string latest=Directory.GetFiles(Path.Combine(c.Root,"ledger"),
+                    "*.fixture.json").OrderBy(x=>x,StringComparer.Ordinal).Last();
+                File.WriteAllText(latest,"CORRUPTED-SEALED-PREFIX");
+                Expect(c,PendingKind.InvalidCommittedPrefix);
+                prefixVerified=true;
+            }));
+            await Check("PEND-08-NO-PENDING-REPORT-NOT-AUTHORIZATION",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                Expect(c,PendingKind.NoPending,expectLoadBlocked:false);
+            }));
+            await Check("PEND-09-EXCLUSIVE-LEASE-REQUIRED",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                File.WriteAllBytes(PendingPath(c),StateCodec.Wrap(Next(c)));
+                byte[] before=Snapshot(c.Root);
+                bool refused=false;
+                using(var competing=InstallationLease.Acquire(c.Root))
+                {
+                    try{_=PendingInspection.Inspect(c.Root);}
+                    catch(Rejected e) when(e.Code=="INSTALLATION_BUSY_OR_LOCK_MISSING")
+                    {refused=true;}
+                }
+                Require(refused,"PENDING_INSPECTED_WITHOUT_EXCLUSIVE_LEASE");
+                Require(before.AsSpan().SequenceEqual(Snapshot(c.Root)),
+                    "PENDING_BUSY_MUTATED_FILES");
+                lockedRejected=true;
+                c.Preserved();
+            }));
+            await Check("PEND-10-UNRECOGNIZED-PENDING-NAME-REFUSED",()=>Sync(()=>{
+                using var c=new StateCase(suite);
+                _=c.Begin();
+                File.WriteAllBytes(Path.Combine(c.Root,"ledger","pending-not-a-guid.fixture"),
+                    StateCodec.Wrap(Next(c)));
+                // Stage2 treats this as pending and blocks. New inspector
+                // explicitly marks the unexpected name as unknown.
+                Expect(c,PendingKind.UnknownLedgerEntries);
+            }));
+        }
+        finally{Directory.Delete(suite,recursive:true);}
+        var report=new{
+            phase="M3-pending",schema=1,fixture_only=true,
+            passed=results.Count-failures,failed=failures,tests=results,
+            plausible_pending_never_accepted=plausibleBlocked,
+            corrupted_pending_blocked=corruptionBlocked,
+            stale_or_foreign_pending_blocked=foreignBlocked,
+            unknown_ledger_entries_blocked=unknownBlocked,
+            multiple_pending_blocked=multipleBlocked,
+            committed_prefix_checked=prefixVerified,
+            lease_contention_blocked=lockedRejected,
+            inspection_preserved_bytes=bytesPreserved,
+            pending_auto_promoted=false,pending_auto_deleted=false,
+            operational_gates_closed=0,product_built=false,product_executed=false,
+            durable_power_loss_tested=false,external_freshness_witness=false
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("M3_PENDING_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failures==0?0:1;
+    }
+}
