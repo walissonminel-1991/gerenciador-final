@@ -1,0 +1,155 @@
+// G1-TX — isolated adversarial state-machine MODEL, not an updater.
+// Witness + local journal are separate IN-MEMORY fault domains. No auth,
+// network, secrets, disk writes, installation or production side effects.
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal sealed record TxHead(string InstallationId,long Generation,long ApprovedSequence,string Digest);
+internal sealed record TxProposal(string InstallationId,string TxId,TxHead Expected,TxHead Next);
+internal sealed record TxReceipt(string InstallationId,string TxId,TxHead Expected,TxHead Committed);
+internal enum TxLocalPhase { Stable, Prepared, AckRecorded }
+internal enum TxReconcile {
+    StableMatchBlocked, PreparedUnseenBlocked, RemoteCommittedAckMissingBlocked,
+    AckMatchesButNotAuthorized, UnavailableBlocked, ConflictBlocked
+}
+
+// The witness is *assumed* honest/atomic/independent in the model.
+// It has no authentication or persistence. All CAS+receipt writes share one lock.
+internal sealed class G1AtomicMemoryWitness
+{
+    private readonly object gate=new();
+    private readonly Dictionary<string,TxHead> heads=new(StringComparer.Ordinal);
+    private readonly Dictionary<(string Installation,string TxId), (TxProposal Proposal,TxReceipt Receipt)>
+        commits=new();
+    internal bool Available=true;
+
+    internal void BootstrapTrustedForFixture(TxHead first)
+    {
+        Require(first.InstallationId is {Length:32} && first.Generation>0 &&
+            first.ApprovedSequence>0 && first.Digest is {Length:64},"G1TX_BAD_BOOTSTRAP");
+        lock(gate)Require(heads.TryAdd(first.InstallationId,first),"G1TX_NO_TOFU_RESET");
+    }
+    internal TxReceipt Publish(TxProposal proposal,bool loseReplyAfterCommit=false)
+    {
+        if(!Available)throw new TimeoutException("G1TX_WITNESS_OFFLINE");
+        TxReceipt receipt;
+        lock(gate)
+        {
+            Require(proposal.InstallationId==proposal.Expected.InstallationId &&
+                proposal.InstallationId==proposal.Next.InstallationId &&
+                proposal.TxId is {Length:32},"G1TX_BAD_PROPOSAL");
+            var key=(proposal.InstallationId,proposal.TxId);
+            if(commits.TryGetValue(key,out var saved))
+            {
+                Require(saved.Proposal==proposal,"G1TX_IDEMPOTENCY_CONFLICT");
+                receipt=saved.Receipt;
+            }
+            else
+            {
+                Require(heads.TryGetValue(proposal.InstallationId,out var current),
+                    "G1TX_NOT_ENROLLED");
+                Require(proposal.Expected==current,"G1TX_CAS_CONFLICT");
+                Require(proposal.Next.Generation==current.Generation+1 &&
+                    proposal.Next.ApprovedSequence>=current.ApprovedSequence &&
+                    proposal.Next.Digest is {Length:64} &&
+                    proposal.Next.Digest!=current.Digest,"G1TX_INVALID_ADVANCE");
+                receipt=new(proposal.InstallationId,proposal.TxId,proposal.Expected,proposal.Next);
+                heads[proposal.InstallationId]=proposal.Next;
+                commits.Add(key,(proposal,receipt));
+            }
+        }
+        if(loseReplyAfterCommit)throw new TimeoutException("G1TX_REPLY_LOST_AFTER_COMMIT");
+        return receipt;
+    }
+
+    internal (TxHead Head,TxReceipt? Receipt) ReadForReconciliation(
+        string installation,string txId)
+    {
+        if(!Available)throw new TimeoutException("G1TX_WITNESS_OFFLINE");
+        lock(gate)
+        {
+            Require(heads.TryGetValue(installation,out var head),"G1TX_NOT_ENROLLED");
+            commits.TryGetValue((installation,txId),out var saved);
+            return (head,saved.Receipt);
+        }
+    }
+    internal TxHead HeadForFixtureInspectionOnly(string installation)
+    {
+        lock(gate)return heads[installation];
+    }
+}
+
+// A local journal stand-in; persistently cloned on each simulated crash.
+// All operations are evidence-only. No method produces an activation permit.
+// This does NOT change or claim equivalence with Stage2's NTFS journal.
+internal sealed class G1LocalJournalModel(TxHead initial)
+{
+    internal TxHead Stable {get;private set;}=initial;
+    internal TxProposal? Prepared {get;private set;}
+    internal TxReceipt? Ack {get;private set;}
+    internal TxLocalPhase Phase {get;private set;}=TxLocalPhase.Stable;
+
+    internal G1LocalJournalModel CrashAndRestart()
+    {
+        var copy=new G1LocalJournalModel(Stable) {
+            Prepared=Prepared,Ack=Ack,Phase=Phase
+        };
+        return copy;
+    }
+    internal void Prepare(TxProposal proposal)
+    {
+        Require(Phase==TxLocalPhase.Stable && Prepared is null &&
+            proposal.InstallationId==Stable.InstallationId &&
+            proposal.Expected==Stable,"G1TX_LOCAL_PREPARE_REJECTED");
+        Prepared=proposal;
+        Phase=TxLocalPhase.Prepared;
+    }
+    internal void RecordAck(TxReceipt receipt)
+    {
+        Require(Phase==TxLocalPhase.Prepared && Prepared is not null &&
+            receipt.InstallationId==Prepared.InstallationId &&
+            receipt.TxId==Prepared.TxId &&
+            receipt.Expected==Prepared.Expected &&
+            receipt.Committed==Prepared.Next,"G1TX_LOCAL_ACK_MISMATCH");
+        Ack=receipt;Phase=TxLocalPhase.AckRecorded;
+        // Stable is NOT rewritten as Next. Selection/activation unavailable.
+    }
+}
+
+internal static class G1TransactionReconciler
+{
+    internal static TxReconcile Inspect(G1LocalJournalModel local,
+        G1AtomicMemoryWitness witness)
+    {
+        TxHead witnessHead; TxReceipt? receipt;
+        try
+        {
+            var status=witness.ReadForReconciliation(local.Stable.InstallationId,
+                local.Prepared?.TxId??new string('0',32));
+            witnessHead=status.Head;receipt=status.Receipt;
+        }
+        catch(TimeoutException){return TxReconcile.UnavailableBlocked;}
+        catch(Rejected){return TxReconcile.ConflictBlocked;}
+
+        if(local.Phase==TxLocalPhase.Stable)
+            return local.Stable==witnessHead && receipt is null
+                ? TxReconcile.StableMatchBlocked:TxReconcile.ConflictBlocked;
+        if(local.Prepared is not { } proposal || proposal.Expected!=local.Stable)
+            return TxReconcile.ConflictBlocked;
+        if(receipt is not null && (receipt.TxId!=proposal.TxId ||
+            receipt.InstallationId!=proposal.InstallationId ||
+            receipt.Expected!=proposal.Expected || receipt.Committed!=proposal.Next))
+            return TxReconcile.ConflictBlocked;
+        if(local.Phase==TxLocalPhase.Prepared && receipt is null &&
+            witnessHead==proposal.Expected)
+            return TxReconcile.PreparedUnseenBlocked;
+        if(local.Phase==TxLocalPhase.Prepared && receipt is not null &&
+            witnessHead==proposal.Next)
+            return TxReconcile.RemoteCommittedAckMissingBlocked;
+        if(local.Phase==TxLocalPhase.AckRecorded && local.Ack==receipt &&
+            receipt is not null && witnessHead==proposal.Next)
+            return TxReconcile.AckMatchesButNotAuthorized;
+        return TxReconcile.ConflictBlocked;
+    }
+}
