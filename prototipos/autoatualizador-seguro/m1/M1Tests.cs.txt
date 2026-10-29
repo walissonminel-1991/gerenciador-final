@@ -38,6 +38,40 @@ internal static class M1Tests
             Refuse(()=>new G5Admission(valid,TimeSpan.Zero),"M1_BAD_DEADLINE");
             return Task.CompletedTask;
         });
+        // Same decision routine used after kernel verification; these are models,
+        // not claims that another Windows SID/session has actually connected.
+        string modelImage=Path.Combine(Path.GetTempPath(),"fixture.exe");
+        var trusted=new G5Trust(modelImage,new string('a',64),42,
+            "S-1-5-21-fixture",1,false,new string('b',32),new string('c',64));
+        var observed=new G5Observed(42,"S-1-5-21-fixture",1,false,modelImage,new string('a',64));
+        await Case("M1-MODEL-EXACT-CONTEXT",()=>{
+            G5ContextPolicy.Demand(trusted,observed);return Task.CompletedTask;});
+        await Case("M1-MODEL-PID-REJECT",()=>{
+            Refuse(()=>G5ContextPolicy.Demand(trusted,observed with { Pid=43 }),"M1_EXPECTED_PROCESS");
+            return Task.CompletedTask;});
+        await Case("M1-MODEL-USER-REJECT",()=>{
+            Refuse(()=>G5ContextPolicy.Demand(trusted,observed with { Sid="S-1-5-21-other" }),"M1_USER_SESSION");
+            return Task.CompletedTask;});
+        await Case("M1-MODEL-SESSION-REJECT",()=>{
+            Refuse(()=>G5ContextPolicy.Demand(trusted,observed with { Session=2 }),"M1_USER_SESSION");
+            return Task.CompletedTask;});
+        await Case("M1-MODEL-ELEVATION-REJECT",()=>{
+            Refuse(()=>G5ContextPolicy.Demand(trusted,observed with { Elevated=true }),"M1_USER_SESSION");
+            return Task.CompletedTask;});
+        await Case("M1-MODEL-IMAGE-REJECT",()=>{
+            Refuse(()=>G5ContextPolicy.Demand(trusted,observed with { ImagePath=Path.Combine(Path.GetTempPath(),"other.exe") }),"M1_IMAGE");
+            return Task.CompletedTask;});
+        await Case("M1-MODEL-INSTALLATION-REJECT",()=>{
+            Refuse(()=>G5ContextPolicy.Demand(trusted,observed with { ExecutableSha256=new string('0',64) }),"M1_INSTALLATION_ID");
+            return Task.CompletedTask;});
+        await Case("M1-MODEL-TX-NONCE-REJECT",()=>{
+            var frame=new ProbeFrame(1,"ready",trusted.Transaction,trusted.Nonce,"fixture-local");
+            PipeFrames.Bound(frame,"ready",trusted.Transaction,trusted.Nonce);
+            Refuse(()=>PipeFrames.Bound(frame with { Nonce=new string('0',64) },"ready",
+                trusted.Transaction,trusted.Nonce),"IPC_BINDING");
+            Refuse(()=>PipeFrames.Bound(frame with { Transaction=new string('0',32) },"ready",
+                trusted.Transaction,trusted.Nonce),"IPC_BINDING");
+            return Task.CompletedTask;});
         if(OperatingSystem.IsWindows()) await Windows();
         else Block("M1-KERNEL-PROBE", "Real Windows token, process and named-pipe handshake not available");
         var report = new { schema=1, phase="M1", fixture_only=true, operational_gates_closed=0,

@@ -45,18 +45,34 @@ internal sealed class G5Admission
             "M1_EXPECTED_PROCESS");
         PeerIdentity.Verify(server, true, expectedChild, trust.ImagePath);
         var facts = PeerIdentity.Facts(expectedChild);
-        Check(facts.Sid == trust.UserSid && facts.Session == trust.SessionId &&
-            facts.Elevated == trust.Elevated, "M1_USER_SESSION");
-        Check(Path.GetFullPath(facts.Image).Equals(Path.GetFullPath(trust.ImagePath),
-            StringComparison.OrdinalIgnoreCase), "M1_IMAGE");
-        // Test fixture identity: hash of the actual executable at the kernel-observed image path.
-        // A production adapter must replace this with its already-verified, pinned bundle identity.
+        // Fixture identity is a hash of the actual image opened by the verified child.
+        // This is NOT the pinned full-bundle identity required by an operational adapter.
         using var file = new FileStream(facts.Image, FileMode.Open, FileAccess.Read,
             FileShare.Read | FileShare.Delete, 65536, FileOptions.SequentialScan);
-        var actual = Convert.ToHexStringLower(SHA256.HashData(file));
-        Check(actual == trust.ExecutableSha256, "M1_INSTALLATION_ID");
+        var digest = Convert.ToHexStringLower(SHA256.HashData(file));
+        G5ContextPolicy.Demand(trust, new G5Observed(expectedChild.Id, facts.Sid,
+            facts.Session, facts.Elevated, facts.Image, digest));
         Check(timer.Elapsed < limit, "M1_DEADLINE");
         Bound(response, "ready", trust.Transaction, trust.Nonce);
         accepted = true;
+    }
+}
+
+
+// Pure decision kernel, always fed from OS observations in G5Admission.Accept.
+// Tests with invented observations are unit tests ONLY, not foreign-user handshakes.
+internal sealed record G5Observed(int Pid, string Sid, int Session, bool Elevated,
+    string ImagePath, string ExecutableSha256);
+internal static class G5ContextPolicy
+{
+    internal static void Demand(G5Trust trusted, G5Observed observed)
+    {
+        PipeFrames.Check(trusted.ChildPid == observed.Pid, "M1_EXPECTED_PROCESS");
+        PipeFrames.Check(trusted.UserSid == observed.Sid &&
+            trusted.SessionId == observed.Session && trusted.Elevated == observed.Elevated,
+            "M1_USER_SESSION");
+        PipeFrames.Check(Path.GetFullPath(trusted.ImagePath).Equals(
+            Path.GetFullPath(observed.ImagePath), StringComparison.OrdinalIgnoreCase), "M1_IMAGE");
+        PipeFrames.Check(trusted.ExecutableSha256 == observed.ExecutableSha256, "M1_INSTALLATION_ID");
     }
 }
