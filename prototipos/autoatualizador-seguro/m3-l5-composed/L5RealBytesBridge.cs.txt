@@ -1,0 +1,191 @@
+// L5: only in-lab composite bridge. Stage11 TUF verification occurs BEFORE
+// Stage3 binding; this bridge freezes EXACT Stage3/Stage9/Stage2 bytes, then
+// calls the unchanged L4 single-head memory witness. NEVER returns a permit.
+// It does not authenticate the witness, persist CAS or prove NTFS power loss.
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+internal sealed class L5FrozenProof
+{
+    private readonly string root;
+    private readonly byte[] rootPublic;
+    private readonly byte[] signedZip;
+    private readonly Stage3TufTarget verifiedBinding;
+    private readonly BundleRef candidate;
+    private readonly CompositeHead stage3Intent;
+    private readonly OperationJournal operation;
+    private readonly L4AtomicWitnessMemoryFixture memory;
+    private readonly L4Evidence originalEvidence;
+    internal readonly L4IntentClaim IntentClaim;
+
+    private L5FrozenProof(string root,byte[] rootPublic,byte[] signedZip,
+        Stage3TufTarget verifiedBinding,BundleRef candidate,
+        CompositeHead stage3Intent,OperationJournal operation,
+        L4AtomicWitnessMemoryFixture memory,L4Evidence originalEvidence,
+        L4IntentClaim claim)
+    {
+        this.root=root;this.rootPublic=rootPublic.ToArray();
+        this.signedZip=signedZip.ToArray();this.verifiedBinding=verifiedBinding;
+        this.candidate=candidate;this.stage3Intent=stage3Intent;
+        this.operation=operation;this.memory=memory;
+        this.originalEvidence=originalEvidence;IntentClaim=claim;
+    }
+
+    // Includes both the validated bytes from the full Stage3TufTarget and the
+    // exact (not merely matching field names) Stage9/Stage2 checkpoint digests
+    // in the L4 claim payload. These optional L4 fields are REQUIRED HERE.
+    internal static L4Evidence EvidenceFromStage3(Stage3TufTarget binding,
+        CompositeHead cp,string opDigest)
+    {
+        L4Assert.Require(L4Assert.Hex64(opDigest),"L5_BAD_OPERATION_DIGEST");
+        var tuf=new L4TufProjection(binding.Repository,binding.TrustDigest,
+            binding.RootSha,binding.TimestampSha,binding.SnapshotSha,
+            binding.TargetsSha,binding.ZipSha,binding.EntrySha,
+            Hash(StateCodec.Encode(binding)));
+        var composite=new L4CompositeProjection(cp.Checkpoint.RepositoryIdentity,
+            cp.Checkpoint.InstallationId,cp.Checkpoint.TxId,
+            cp.Checkpoint.Stage2IntentDigest,cp.Checkpoint.CandidateSha256,
+            cp.Checkpoint.TufDigest,opDigest,
+            Hash(StateCodec.Encode(cp.Checkpoint)));
+        L4Assert.Require(binding.CompositeDigest==cp.Digest &&
+            binding.Repository==cp.Checkpoint.RepositoryIdentity &&
+            binding.EntrySha==cp.Checkpoint.CandidateSha256 &&
+            binding.TrustDigest==cp.Checkpoint.TufDigest &&
+            binding.TrustSequence==cp.Checkpoint.TufSequence &&
+            tuf.ValidatedStage3BytesDigest.Length==64 &&
+            composite.PreparedOperationDigest.Length==64 &&
+            composite.CompositeCheckpointBytesDigest.Length==64,
+            "L5_CROSS_LAYER_IDENTITY");
+        return new L4Evidence(tuf,composite);
+    }
+
+    internal static L5FrozenProof Freeze(string root,byte[] rootPublic,
+        TrustView verifiedLive,byte[] verifiedZip,BundleRef candidate,
+        CompositeHead stage3Intent,OperationJournal operation,
+        L4AtomicWitnessMemoryFixture witness)
+    {
+        FixtureSandbox.RequireRoot(root);
+        var check=InertCompositeBuilder.InspectBound(root,verifiedLive,
+            operation,stage3Intent,null);
+        Require(check==CompositeDecision.BoundButNotAuthorized,
+            "L5_STAGE2_NOT_BOUND");
+        var stage3=Stage3TufBinding.Bind(verifiedLive,verifiedLive,
+            verifiedZip,candidate,stage3Intent);
+        var op=operation.Load();
+        Require(op.Record is {Phase:"prepared"} &&
+            op.Record.OperationId==stage3Intent.Checkpoint.OperationId &&
+            op.Digest==stage3Intent.Checkpoint.OperationDigest,
+            "L5_OPERATION_NOT_PREPARED");
+        var evidence=EvidenceFromStage3(stage3,stage3Intent,op.Digest);
+        var expected=witness.HeadForFixtureOnly;
+        Require(expected is not null,"L5_NO_ANCHOR");
+        var claim=L4Claim.Prepare(stage3Intent.Checkpoint.InstallationId,
+            stage3.Repository,stage3Intent.Checkpoint.TxId,evidence,expected);
+        return new L5FrozenProof(root,rootPublic,verifiedZip,stage3,candidate,
+            stage3Intent,operation,witness,evidence,claim);
+    }
+
+    private void RevalidateExactInput()
+    {
+        using var tuf=new DurableEpochCache(root,
+            stage3Intent.Checkpoint.InstallationId,rootPublic);
+        var live=tuf.View();
+        Require(InertCompositeBuilder.InspectBound(root,live,operation,
+            stage3Intent,null)==CompositeDecision.BoundButNotAuthorized,
+            "L5_STAGE2_OR_OPERATION_CHANGED");
+        var current=Stage3TufBinding.Bind(live,live,signedZip,candidate,
+            stage3Intent);
+        Require(StateCodec.Encode(current).SequenceEqual(
+            StateCodec.Encode(verifiedBinding)),"L5_TUF_BYTES_CHANGED");
+        using var session=new FixtureSession(root);
+        using var pinned=session.Files.Pin(candidate); // compare NTFS identity
+        Require(session.Files.ReadSelector(stage3Intent.Checkpoint.InstallationId)
+            .Bundle==session.Store.Load().Record.Confirmed,
+            "L5_SELECTOR_CHANGED");
+        var op=operation.Load();
+        Require(op.Digest==stage3Intent.Checkpoint.OperationDigest &&
+            op.Record is {Phase:"prepared"},"L5_OPERATION_CHANGED");
+        var renewed=EvidenceFromStage3(current,stage3Intent,op.Digest);
+        Require(renewed.TufDigest==originalEvidence.TufDigest &&
+            renewed.CompositeDigest==originalEvidence.CompositeDigest,
+            "L5_PAYLOAD_DIVERGED");
+    }
+
+    internal L4Evidence EvidenceForNegativeFixture=>originalEvidence;
+    internal Stage3TufTarget BindingForNegativeFixture=>verifiedBinding;
+    internal L4Receipt PublishIntentModelOnly(bool loseReply=false)
+    {
+        RevalidateExactInput();
+        return memory.PublishIntent(IntentClaim,originalEvidence,loseReply);
+    }
+    internal L4Receipt? ReadCommittedIntentForFixtureOnly()
+    {
+        var r=memory.ReadForReconciliation(IntentClaim.Installation,
+            IntentClaim.TxId,"intent");
+        return r.Receipt is not null &&
+            r.Receipt.ClaimDigest==L4Assert.Digest(IntentClaim) &&
+            r.Receipt.PreviousHead==IntentClaim.ExpectedHead
+            ? r.Receipt:null;
+    }
+
+    internal string ReadRealRollbackTerminal()
+    {
+        using var session=new FixtureSession(root);
+        var current=session.Store.Load();
+        var terminal=current.Record.Transaction;
+        Require(terminal is {Phase:"rolled_back"} &&
+            terminal.Id==IntentClaim.TxId &&
+            current.Record.InstallationId==IntentClaim.Installation &&
+            current.Record.Confirmed==terminal.Previous &&
+            session.Files.ReadSelector(IntentClaim.Installation).Bundle==
+                terminal.Previous,"L5_TERMINAL_NOT_SETTLED");
+        long start=stage3Intent.Checkpoint.IntentGeneration;
+        byte[] bytes=PersistentState.ReadFixtureFile(root,
+            InertCompositeBuilder.LocalStatePath(root,start));
+        var prior=StateCodec.Unwrap(bytes);
+        string digest=Hash(bytes);
+        Require(digest==IntentClaim.Stage2IntentDigest &&
+            prior.Transaction is {Phase:"intent"} &&
+            prior.Transaction.Id==IntentClaim.TxId,
+            "L5_TERMINAL_WRONG_INTENT");
+        for(long gen=start+1;gen<=current.Record.Generation;gen++)
+        {
+            bytes=PersistentState.ReadFixtureFile(root,
+                InertCompositeBuilder.LocalStatePath(root,gen));
+            var next=StateCodec.Unwrap(bytes);
+            StateCodec.Follows(prior,next,digest);
+            prior=next;digest=Hash(bytes);
+        }
+        Require(digest==current.Digest &&
+            prior.Transaction?.Phase=="rolled_back",
+            "L5_TERMINAL_CHAIN_FORK");
+        return current.Digest;
+    }
+
+    internal L4TerminalClaim PrepareTerminalClaim(L4Receipt intent)
+    {
+        Require(intent.Phase=="intent" &&
+            intent.TxId==IntentClaim.TxId &&
+            intent.ClaimDigest==L4Assert.Digest(IntentClaim) &&
+            intent.PreviousHead==IntentClaim.ExpectedHead,
+            "L5_NOT_OWN_INTENT_RECEIPT");
+        Require(ReadCommittedIntentForFixtureOnly()==intent,
+            "L5_INTENT_NOT_WITNESSED");
+        return L4Claim.Terminal(intent,IntentClaim.Installation,
+            IntentClaim.Repository,ReadRealRollbackTerminal());
+    }
+    internal L4Receipt PublishTerminalModelOnly(L4TerminalClaim claim,
+        bool loseReply=false)
+    {
+        Require(claim.Stage2TerminalDigest==ReadRealRollbackTerminal(),
+            "L5_TERMINAL_BYTES_CHANGED");
+        return memory.PublishTerminal(claim,loseReply);
+    }
+    internal L4Reconcile InspectTerminal(L4TerminalClaim claim)
+    {
+        Require(claim.Stage2TerminalDigest==ReadRealRollbackTerminal(),
+            "L5_TERMINAL_BYTES_CHANGED");
+        return L4Reconciler.Inspect(memory,claim.Installation,claim.TxId,
+            "terminal",L4Assert.Digest(claim),claim.ExpectedHead);
+    }
+}
