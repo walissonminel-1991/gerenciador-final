@@ -1,0 +1,76 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Text;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+internal sealed class IntegratedFixture
+{
+    internal readonly string Root = Path.Combine(Path.GetTempPath(), "gf-u2-u9-" + Guid.NewGuid().ToString("N"));
+    internal readonly BundleRef Old;
+    internal IntegratedFixture() {
+        Directory.CreateDirectory(Root);
+        File.WriteAllText(Path.Combine(Root, ".gf-u2-fixture"), FixtureSandbox.Marker);
+        foreach (var d in new[] { "ledger", "versions", "operations" }) Directory.CreateDirectory(Path.Combine(Root, d));
+        File.WriteAllText(Path.Combine(Root, "lease.fixture"), "U9-PERSISTENT-LEASE-DO-NOT-UNLINK\n");
+        File.WriteAllText(Path.Combine(Root, "preferences.fixture.txt"), "CONSENT=NO;INERT\n");
+        File.WriteAllText(Path.Combine(Root, "unknown.fixture.txt"), "PRESERVE-UNKNOWN-INERT\n");
+        File.WriteAllText(Path.Combine(Root, "legacy66.fixture.txt"), "NOT-THE-REAL-BETA-66\n");
+        byte[] content = Encoding.UTF8.GetBytes("GF-U9-INERT-BUNDLE-1-NO-EXE-NO-DLL\n");
+        var b = new BundleRef(1, "0.0.0.1", Hash(content), "linux-fixture-model");
+        string folder = Path.Combine(Root, "versions", b.DirectoryName); Directory.CreateDirectory(folder);
+        string file = Path.Combine(folder, "bundle.fixture.txt"); File.WriteAllBytes(file, content);
+        if (OperatingSystem.IsWindows()) { using var pin = WindowsFileGuard.Open(Root, file); b = b with { Identity = pin.Identity }; }
+        Old = b; string id = Guid.NewGuid().ToString("N");
+        var trust = new TrustFloor(1, 1, 1, 1, 1, b.Version, CycleClock.Wire(DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1)), []);
+        new PersistentState(Root).BootstrapFixture(new("gf-state-fixture/2", id, 1, new string('0', 64), trust, b, null));
+        File.WriteAllBytes(Path.Combine(Root, "active.fixture.json"), StateCodec.Encode(new FixtureSelector("gf-selector-fixture/2", id, b)));
+    }
+    internal void Preserved() {
+        Require(File.ReadAllText(Path.Combine(Root, "preferences.fixture.txt")) == "CONSENT=NO;INERT\n"
+            && File.ReadAllText(Path.Combine(Root, "unknown.fixture.txt")) == "PRESERVE-UNKNOWN-INERT\n"
+            && File.ReadAllText(Path.Combine(Root, "legacy66.fixture.txt")) == "NOT-THE-REAL-BETA-66\n", "U9_DATA_CHANGED");
+    }
+    // Deliberately no recursive deletion. Quarantined/inconsistent fixtures remain until disposable runner teardown.
+}
+internal sealed class FixedCapture(DateTimeOffset utc) : TimeProvider { public override DateTimeOffset GetUtcNow() => utc; }
+
+internal sealed class OwnedChild : IDisposable
+{
+    internal readonly Process Process;
+    internal readonly string Root;
+    internal string? ObservedPoint, OperationId;
+    private OwnedChild(Process process, string root) { Process = process; Root = root; }
+    internal static OwnedChild Start(string root, string fixtures, string point, bool inspect = false) {
+        FixtureSandbox.RequireRoot(root);
+        var info = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+            WorkingDirectory = Path.GetTempPath() };
+        info.ArgumentList.Add(Assembly.GetExecutingAssembly().Location);
+        foreach (string a in new[] { inspect ? "--inspect" : "--child", root, fixtures, point }) info.ArgumentList.Add(a);
+        return new(System.Diagnostics.Process.Start(info) ?? throw new Rejected("U9_CHILD_START"), root);
+    }
+    internal async Task StopAt(string point) {
+        string? line = await Process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(25));
+        if (line is null || !line.StartsWith("CUT:" + point + ":", StringComparison.Ordinal)) {
+            string error = Process.HasExited ? await Process.StandardError.ReadToEndAsync() : "";
+            throw new Rejected("U9_CUT_NOT_REACHED:" + line + ":" + error);
+        }
+        ObservedPoint = point; OperationId = line[("CUT:" + point + ":").Length..]; Require(Hex(OperationId, 32), "U9_CUT_OPERATION");
+        Process.Kill(entireProcessTree: true); await Process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+    }
+    public void Dispose() { if (!Process.HasExited) { Process.Kill(entireProcessTree: true); Process.WaitForExit(); } Process.Dispose(); }
+}
+internal sealed class ExitProof
+{
+    private readonly OwnedChild child;
+    private ExitProof(OwnedChild child) { this.child = child; }
+    internal static ExitProof Observe(OwnedChild child) {
+        Require(child.Process.HasExited && child.ObservedPoint is not null && child.OperationId is not null, "U9_PROCESS_NOT_OBSERVED_ENDED"); return new(child);
+    }
+    internal void Verify(string root, OperationRecord record) {
+        Require(child.Process.HasExited && child.Root == root && child.OperationId == record.OperationId, "U9_PROOF_SCOPE");
+        Require(child.ObservedPoint is "op-admitted" or "cache-checkpointed" or "bundle-prepared" or "intent-persisted"
+            or "selector-replaced" or "selected-persisted" or "confirmed-persisted", "U9_UNPROVEN_BOUNDARY");
+        // Supervised fixture boundary proof, NOT authenticated product IPC or an OS power-loss certificate.
+    }
+}

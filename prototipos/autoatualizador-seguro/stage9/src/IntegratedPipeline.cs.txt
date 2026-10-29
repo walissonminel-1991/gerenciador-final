@@ -1,0 +1,179 @@
+using System.Diagnostics;
+using System.Text;
+using Tuf;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+internal sealed class PipelineResources : IDisposable
+{
+    internal readonly FixtureSession Session;
+    internal readonly List<IDisposable> Pins = [];
+    private readonly IDisposable? operationDirectory;
+    internal PipelineResources(string root) {
+        Session = new(root);
+        try { if (OperatingSystem.IsWindows()) operationDirectory = WindowsFileGuard.Open(root, Path.Combine(root, "operations"), true); }
+        catch { Session.Dispose(); throw; }
+    }
+    public void Dispose() { foreach (var p in Pins.AsEnumerable().Reverse()) p.Dispose(); operationDirectory?.Dispose(); Session.Dispose(); }
+}
+internal sealed class AttemptGuardClock(OwnedAttempt owner) : TimeProvider
+{
+    private int reads;
+    public override DateTimeOffset GetUtcNow() {
+        owner.CheckValid(); return Interlocked.Increment(ref reads) == 1 ? owner.CapturedUtc : DateTimeOffset.UtcNow;
+    }
+}
+internal sealed record CycleResult(string Status, StateRecord State, Dictionary<string, int> Fetches);
+
+internal sealed class IntegratedPipeline : IDisposable
+{
+    private const string AnchorHash = "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e";
+    internal readonly string Root;
+    internal readonly PipelineResources Resources;
+    internal readonly OwnedAttempt Owner;
+    internal readonly OperationJournal Operations;
+    private readonly FixtureScope auxiliary;
+    private Task? terminal;
+    internal readonly List<string> Trace = [];
+    internal BundleRef? Prepared;
+    internal OperationRecord? CurrentOperation;
+    internal bool CanContinue => Owner.ValidationCanContinue;
+    internal IntegratedPipeline(string root, bool recovery = false, CancellationToken user = default, TimeProvider? clock = null) {
+        Root = Path.GetFullPath(root); Resources = new(Root);
+        try {
+            var state = Resources.Session.Store.Load().Record;
+            Operations = new(Root, state.InstallationId); var l = Operations.Load();
+            Require(recovery || !OperationJournal.Pending(l.Record), "U9_PENDING_OPERATION");
+            if (l.Record is { Phase: "settled" } completed) Require(completed.AfterStateDigest == Resources.Session.Store.Load().Digest, "U9_OP_STATE_MISMATCH");
+            auxiliary = new();
+            try { Owner = OwnedAttempt.StartFixture(auxiliary, user, captureClock: clock); }
+            catch { auxiliary.Dispose(); throw; }
+        } catch { Resources.Dispose(); throw; }
+    }
+    private string SelectorHash() => Hash(PersistentState.ReadFixtureFile(Root, Path.Combine(Root, "active.fixture.json")));
+    internal static string CacheHash(Dictionary<string, string> data) => Hash(StateCodec.Encode(new SortedDictionary<string, string>(data, StringComparer.Ordinal)));
+    private void Point(string p, Action<string>? cut) { Trace.Add(p); cut?.Invoke(p); Owner.CheckValid(); }
+    internal OwnedOperation<CycleResult> Start(string fixtures, string scenario, Action<string>? cut = null, Func<Task>? beforeEntryWrite = null) {
+        var op = Owner.Start("staging_write", async token => {
+            var initial = Resources.Session.Store.Load();
+            Require(!FixtureSession.Pending(initial.Record), "RECOVERY_REQUIRED");
+            Require(Resources.Session.Files.ReadSelector(initial.Record.InstallationId).Bundle == initial.Record.Confirmed, "SELECTOR_STATE_MISMATCH");
+            Resources.Pins.Add(Resources.Session.Files.Pin(initial.Record.Confirmed)); Owner.CheckValid();
+            var current = Operations.Admit(initial.Digest, SelectorHash(), p => Point(p, cut)); CurrentOperation = current;
+            Point("op-admitted", cut); Owner.CheckValid();
+            var guard = new CycleClock(new AttemptGuardClock(Owner), StateCodec.Observed(initial.Record.Trust));
+            byte[] anchor = File.ReadAllBytes(Path.Combine(fixtures, "anchor.json"));
+            Require(Hash(anchor) == AnchorHash, "U9_ANCHOR"); Envelope(anchor, "root", Owner.CapturedUtc);
+            var prior = initial.Record.Trust.Metadata.ToDictionary(x => x.Key, x => Convert.FromBase64String(x.Value), StringComparer.Ordinal);
+            var cache = new Stage8Cache(prior); byte[]? priorRoot = cache.LoadMetadata("root"); cache.Metadata.Remove("root");
+            var input = Directory.GetFiles(Path.Combine(fixtures, scenario)).ToDictionary(p => Path.GetFileName(p), File.ReadAllBytes, StringComparer.Ordinal);
+            var repo = new Stage8Repository(input, Owner.CapturedUtc);
+            repo.BeforeFetch = null; // no injected callback/transport in this integrated adapter
+            using var client = new TufClient(new TufClientOptions { ValidationUtc = Owner.CapturedUtc,
+                MetadataBaseUrl = new Uri("https://gf-u9-fixture.invalid/"), TrustedRoot = anchor,
+                Cache = cache, Repository = repo, MaxRootRotations = 32, MaxDelegations = 1 });
+            var target = await client.GetTargetAsync("fixture-package.zip", token); Owner.CheckValid();
+            if (priorRoot is not null) {
+                using var rootDoc = Json(priorRoot); int v = checked((int)Number(rootDoc.RootElement.GetProperty("signed"), "version", int.MaxValue));
+                byte[]? linked = v == 1 ? anchor : repo.Roots.GetValueOrDefault(v);
+                Require(linked is not null && Hash(linked) == Hash(priorRoot), "U9_CACHE_ROOT_NOT_ANCHORED");
+            }
+            if (target.Metadata.Status == TufRefreshStatus.Unchanged) {
+                Require(Resources.Session.Store.Load().Digest == initial.Digest && SelectorHash() == current.BeforeSelectorSha256, "U9_UNCHANGED_MUTATED_STATE");
+                CurrentOperation = Operations.Advance(current, "settled", outcome: "unchanged", after: initial.Digest);
+                return new CycleResult("unchanged", initial.Record, repo.Fetches.ToDictionary(x => x.Key, x => x.Value));
+            }
+            var versions = new Dictionary<string, int>(); DateTimeOffset expiry = target.Metadata.Expires;
+            foreach (string role in new[] { "root", "timestamp", "snapshot", "targets" }) {
+                byte[] bytes = cache.LoadMetadata(role) ?? throw new Rejected("U9_INCOMPLETE_CHAIN");
+                Envelope(bytes, role, Owner.CapturedUtc); using var doc = Json(bytes); var signed = doc.RootElement.GetProperty("signed");
+                versions[role] = checked((int)Number(signed, "version", int.MaxValue));
+                int floor = role switch { "root" => initial.Record.Trust.Root, "timestamp" => initial.Record.Trust.Timestamp, "snapshot" => initial.Record.Trust.Snapshot, _ => initial.Record.Trust.Targets };
+                Require(versions[role] >= floor && Date(signed, "expires") > Owner.CapturedUtc, "U9_TUF_FLOOR_OR_EXPIRY");
+                if (versions[role] == floor && prior.TryGetValue(role, out var old)) Require(Hash(old) == Hash(bytes), "U9_CACHE_EQUIVOCATION");
+            }
+            byte[] zip = target.Content.ToArray(); var files = ZipInspection.Inspect(zip, 3, token);
+            using var targetsDoc = Json(cache.Metadata["targets"]);
+            var targets = targetsDoc.RootElement.GetProperty("signed").GetProperty("targets"); Exact(targets, "fixture-package.zip");
+            var descriptor = targets.GetProperty("fixture-package.zip").GetProperty("custom"); Exact(descriptor, "fixture"); descriptor = descriptor.GetProperty("fixture");
+            Exact(descriptor, "schema", "fixture_only", "sequence", "version", "entrypoint", "entry_sha256", "manifest_sha256", "file_count", "expanded_bytes");
+            Require(Text(descriptor, "schema") == "gf-integrated-fixture/9" && Text(descriptor, "entrypoint") == "bundle.fixture.txt", "U9_FIXTURE_PROFILE"); Boolean(descriptor, "fixture_only", true);
+            long seq = Number(descriptor, "sequence", 65535); string version = Text(descriptor, "version");
+            Require(version == "0.0.0." + seq, "U9_PACKAGE_IDENTITY");
+            Require(seq > initial.Record.Trust.ApprovedSequence && CompareVersion(version, initial.Record.Trust.HighestVersion) > 0, "U9_RELEASE_REPLAY");
+            Require(files.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(new[] { "bundle.fixture.txt", "LICENSE.fixture.txt", "SHA256SUMS.txt" })
+                && Number(descriptor, "file_count", 3) == 3 && files.Values.Sum(x => (long)x.Length) == Number(descriptor, "expanded_bytes", ZipInspection.MaxExpanded), "U9_PACKAGE_SET");
+            Require(Encoding.UTF8.GetString(files["bundle.fixture.txt"]) == "GF-U9-INERT-BUNDLE-" + seq + "-NO-EXE-NO-DLL\n", "U9_PACKAGE_IDENTITY");
+            Require(Hash(files["bundle.fixture.txt"]) == Text(descriptor, "entry_sha256") && Hash(files["SHA256SUMS.txt"]) == Text(descriptor, "manifest_sha256"), "U9_PACKAGE_HASH");
+            string manifest = string.Concat(new[] { "bundle.fixture.txt", "LICENSE.fixture.txt" }.Select(n => Hash(files[n]) + "  " + n + "\n"));
+            Require(Encoding.UTF8.GetString(files["SHA256SUMS.txt"]) == manifest, "U9_PACKAGE_MANIFEST");
+            var encoded = cache.Metadata.ToDictionary(x => x.Key, x => Convert.ToBase64String(x.Value), StringComparer.Ordinal);
+            var permit = new InertPermit(seq, version, Hash(zip), Hash(files["bundle.fixture.txt"]), Hash(files["SHA256SUMS.txt"]), CacheHash(encoded));
+            Owner.CheckValid();
+            current = Operations.Advance(current, "authorized", permit: permit); CurrentOperation = current; Point("package-authorized", cut);
+            Owner.CheckValid(); var loaded = Resources.Session.Store.Load();
+            DateTimeOffset observed = guard.Check(expiry);
+            var trust = loaded.Record.Trust with { Root = versions["root"], Timestamp = versions["timestamp"], Snapshot = versions["snapshot"], Targets = versions["targets"],
+                Metadata = encoded, LastObservedUtc = CycleClock.Wire(observed) };
+            Resources.Session.Store.Append(loaded.Record with { Generation = loaded.Record.Generation + 1, PreviousDigest = loaded.Digest, Trust = trust }, loaded.Digest,
+                p => Point("cache-" + p, cut));
+            Point("cache-checkpointed", cut); Owner.CheckValid();
+            var provisional = new BundleRef(seq, version, permit.EntrySha256, "linux-fixture-model");
+            string folder = Path.Combine(Root, "versions", provisional.DirectoryName); Directory.CreateDirectory(folder);
+            foreach (var item in files) {
+                Owner.CheckValid();
+                if (item.Key == "bundle.fixture.txt" && beforeEntryWrite is not null) await beforeEntryWrite();
+                // Controlled late-write test may finish this original write after cancellation; next guard refuses progress.
+                using (var f = new FileStream(Path.Combine(folder, item.Key), FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) { f.Write(item.Value); f.Flush(true); }
+                Owner.CheckValid();
+            }
+            foreach (var item in files) {
+                Owner.CheckValid(); string path = Path.Combine(folder, item.Key);
+                if (OperatingSystem.IsWindows()) {
+                    var pin = WindowsFileGuard.Open(Root, path);
+                    try { Require(Hash(pin.Read(4096)) == Hash(item.Value), "U9_EXTRACTED_HASH"); if (item.Key == "bundle.fixture.txt") provisional = provisional with { Identity = pin.Identity }; Resources.Pins.Add(pin); }
+                    catch { pin.Dispose(); throw; }
+                } else Require(Hash(PersistentState.ReadBounded(path)) == Hash(item.Value), "U9_EXTRACTED_HASH");
+            }
+            Owner.CheckValid(); Prepared = provisional; current = Operations.Advance(current, "prepared", candidate: provisional); CurrentOperation = current;
+            Point("bundle-prepared", cut); Owner.CheckValid();
+            var selected = Resources.Session.Begin(provisional, guard, expiry, true, p => Point(p, cut));
+            Owner.CheckValid(); var tx = selected.Transaction!;
+            var confirmed = Resources.Session.Confirm(new FixtureReadiness(tx.Id, tx.Nonce, provisional.Sha256));
+            Point("confirmed-persisted", cut); Owner.CheckValid();
+            loaded = Resources.Session.Store.Load();
+            CurrentOperation = Operations.Advance(current, "settled", outcome: "confirmed", after: loaded.Digest); Point("operation-settled", cut);
+            return new CycleResult("confirmed", confirmed, repo.Fetches.ToDictionary(x => x.Key, x => x.Value));
+        }, Resources);
+        terminal = op.ObserveTerminal(); return op;
+    }
+    internal OwnedOperation<StateRecord> Recover(ExitProof proof) {
+        var op = Owner.Start("staging_write", _ => {
+            var l = Operations.Load(); var current = l.Record; Require(OperationJournal.Pending(current), "U9_NO_PENDING_OPERATION");
+            proof.Verify(Root, current!); // held actual child process, completed boundary, exact installation/operation
+            var loaded = Resources.Session.Store.Load(); var state = loaded.Record;
+            Resources.Pins.Add(Resources.Session.Files.Pin(state.Confirmed));
+            if (current!.Permit is { } permit) Require(CacheHash(state.Trust.Metadata) == permit.CacheSha256, "U9_RECOVERY_CACHE_BINDING");
+            if (current.Candidate is { } candidate) {
+                Resources.Session.Files.Verify(candidate);
+                if (FixtureSession.Pending(state) || state.Transaction?.Phase == "confirmed")
+                    Require(state.Transaction!.Candidate == candidate, "U9_RECOVERY_TRANSACTION_BINDING");
+            } else if (current.Permit is null)
+                Require(loaded.Digest == current.BeforeStateDigest && SelectorHash() == current.BeforeSelectorSha256, "U9_RECOVERY_BASELINE");
+            Owner.CheckValid(); CurrentOperation = Operations.Advance(current, "recovering"); Owner.CheckValid();
+            if (FixtureSession.Pending(state)) state = Resources.Session.Recover(p => { Trace.Add(p); Owner.CheckValid(); });
+            else { _ = Resources.Session.SelectionForFixtureInspectionOnly(); }
+            loaded = Resources.Session.Store.Load();
+            Owner.CheckValid();
+            CurrentOperation = Operations.Advance(CurrentOperation, "settled", outcome: state.Transaction?.Phase == "confirmed" ? "observed-confirmed" : "reconciled-previous", after: loaded.Digest);
+            return Task.FromResult(state);
+        }, Resources);
+        terminal = op.ObserveTerminal(); return op;
+    }
+    public void Dispose() {
+        if (Owner.Pending != 0) return; // preserve ownership while original work can still produce effects
+        if (terminal is null) Resources.Dispose();
+        if (!Owner.TryRelease()) { Owner.ReconcileFixture(() => terminal is not null && terminal.IsCompleted); Require(Owner.TryRelease(), "U9_RELEASE_BLOCKED"); }
+        auxiliary.Dispose(); // NEVER removes the persistent root or an unresolved operation record
+    }
+}

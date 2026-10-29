@@ -1,0 +1,210 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using Tuf;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+internal static class IntegratedTests
+{
+    private static readonly List<object> Results = [], Observations = [];
+    private static string fixtures = "", prefix = "";
+    private static TaskCompletionSource<T> Signal<T>() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static async Task<T> Watch<T>(Task<T> task) => await task.WaitAsync(TimeSpan.FromSeconds(25));
+    private static async Task Test(string id, string description, Func<Task> run) {
+        if (!id.StartsWith(prefix, StringComparison.Ordinal)) return;
+        try { await run(); Results.Add(new { id, description, status = "passed" }); Console.WriteLine("PASS " + id); }
+        catch (Exception e) { Results.Add(new { id, description, status = "failed", error = e.ToString() }); Console.WriteLine("FAIL " + id + " " + e); }
+    }
+    private static void Reject(Action run, string code) {
+        try { run(); } catch (Rejected e) { Require(e.Code == code, "U9_WRONG_REJECTION:" + e.Code + ":" + code); return; }
+        throw new Rejected("U9_UNSAFE_ACCEPTANCE:" + code);
+    }
+    private static async Task<Exception> Failure<T>(OwnedOperation<T> op) {
+        try { _ = await Watch(op.WaitResult()); } catch (Exception e) { _ = await Watch(op.ObserveTerminal()); return e; }
+        throw new Rejected("U9_EXPECTED_FAILURE");
+    }
+    private static async Task<CycleResult> Run(IntegratedFixture f, string scenario) {
+        using var pipeline = new IntegratedPipeline(f.Root); var op = pipeline.Start(fixtures, scenario);
+        try { return await Watch(op.WaitResult()); } finally { _ = await Watch(op.ObserveTerminal()); f.Preserved(); }
+    }
+    private static async Task InspectFromFreshProcess(IntegratedFixture f, long active, long floor) {
+        using var child = OwnedChild.Start(f.Root, fixtures, "inspect", inspect: true);
+        string? text = await child.Process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
+        await child.Process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+        Require(child.Process.ExitCode == 0 && text == "INSPECT:" + active + ":" + floor, "U9_FRESH_PROCESS_STATE:" + text);
+    }
+    public static async Task<int> Main(string[] args) {
+        if (args.Length > 0 && args[0] is "--child" or "--inspect") return await Child(args);
+        if (args.Length != 3) return 2;
+        fixtures = args[0]; prefix = args[2];
+        if (!OperatingSystem.IsWindows()) {
+            await File.WriteAllTextAsync(args[1], JsonSerializer.Serialize(new { schema = "gf-stage9-tests/1", total = 0, passed = 0, failed = 0, blocked = 1,
+                reason = "Windows NTFS required for this integrated profile; no Linux identity substitution", stage10_started = false })); return 0;
+        }
+        await Cases();
+        int failed = Results.Count(x => JsonSerializer.SerializeToElement(x).GetProperty("status").GetString() == "failed");
+        var result = new { schema = "gf-stage9-tests/1", stage = 9, contract = "gf-self-update/1", fixture_only = true, installable = false,
+            total = Results.Count, passed = Results.Count - failed, failed, blocked = 0, case_prefix = prefix,
+            runtime = RuntimeInformation.FrameworkDescription, os = RuntimeInformation.OSDescription, tests = Results, observations = Observations,
+            operational_gates_closed = 0, operational_gates_blocked = 8, previous_suites_executed = false, physical_tests_repeated = 0,
+            power_loss_tested = false, kernel_storage_hang_tested = false, independent_replay_witness = false,
+            product_built = false, product_executed = false, private_channel_accessed = false, operational_keys_created = false,
+            unresolved_fixture_roots_retained_until_disposable_runner_teardown = true, stage10_started = false };
+        await File.WriteAllTextAsync(args[1], JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }) + "\n");
+        return failed == 0 && Results.Count != 0 ? 0 : 1;
+    }
+    private static async Task<int> Child(string[] args) {
+        if (args.Length != 4) return 2;
+        if (args[0] == "--inspect") {
+            using var p = new IntegratedPipeline(args[1]); var state = p.Resources.Session.Store.Load().Record;
+            BundleRef b = p.Resources.Session.SelectionForFixtureInspectionOnly(); Console.WriteLine("INSPECT:" + b.Sequence + ":" + state.Trust.ApprovedSequence); return 0;
+        }
+        using var pipeline = new IntegratedPipeline(args[1]);
+        var op = pipeline.Start(args[2], "release2", point => {
+            if (point == args[3]) {
+                var record = pipeline.CurrentOperation ?? pipeline.Operations.Load().Record;
+                Require(record is not null, "U9_CUT_NO_OPERATION");
+                Console.WriteLine("CUT:" + point + ":" + record.OperationId); Console.Out.Flush();
+                Thread.Sleep(Timeout.Infinite); // only the owning harness kills this fixture process
+            }
+        });
+        _ = await op.WaitResult(); return 0;
+    }
+    private static async Task Cases() {
+        await Test("U9-FLOW", "Signed inert ZIP to persistent cache, pinned files, selection and synthetic confirmation", async () => {
+            var f = new IntegratedFixture(); using (var p = new IntegratedPipeline(f.Root)) {
+                var op = p.Start(fixtures, "release2"); var r = await Watch(op.WaitResult());
+                Require(r.Status == "confirmed" && r.State.Confirmed.Sequence == 2 && r.State.Trust.ApprovedSequence == 2 && r.State.Trust.Metadata.Count == 4
+                    && r.State.Trust.Root == 2 && r.State.Trust.Timestamp == 2 && p.Operations.Load().Record?.Phase == "settled", "U9_FLOW_STATE");
+                Require(r.Fetches["timestamp"] == 1 && r.Fetches["target"] == 1 && p.Resources.Pins.Count == 4, "U9_FLOW_REFRESH_OR_PINS");
+                var tx = r.State.Transaction!;
+                Reject(() => p.Resources.Session.Confirm(new(tx.Id, tx.Nonce, tx.Candidate.Sha256)), "READINESS_BINDING");
+                Observations.Add(new { kind = "complete_inert_pipeline", phases = p.Trace.ToArray(), cache_roles = 4,
+                    pinned_entries_including_predecessor = p.Resources.Pins.Count, target_fetches = 1, real_GF_readiness = false });
+            }
+            await InspectFromFreshProcess(f, 2, 2); f.Preserved();
+        });
+        await Test("U9-CACHE-UNCHANGED", "Persistent cache reanchors and unchanged timestamp terminates without target or transaction", async () => {
+            var f = new IntegratedFixture(); var first = await Run(f, "release2"); long generation = first.State.Generation;
+            var r = await Run(f, "release2");
+            Require(r.Status == "unchanged" && r.State.Generation == generation && r.State.Trust.ApprovedSequence == 2
+                && !r.Fetches.ContainsKey("target") && !r.Fetches.ContainsKey("snapshot"), "U9_CACHE_CONTINUED");
+            await InspectFromFreshProcess(f, 2, 2);
+        });
+        await Test("U9-ROTATION-CACHE", "Persisted root2 chain advances contiguously to root3 and release3", async () => {
+            var f = new IntegratedFixture(); _ = await Run(f, "release2"); var r = await Run(f, "release3");
+            Require(r.State.Trust.Root == 3 && r.State.Trust.Timestamp == 3 && r.State.Trust.Targets == 3 && r.State.Trust.ApprovedSequence == 3 && r.State.Confirmed.Sequence == 3, "U9_ROTATION_LOWERED");
+            await InspectFromFreshProcess(f, 3, 3);
+        });
+        foreach (var scenario in new[] { "lower", "replay2fresh3" })
+            await Test("U9-REPLAY-" + scenario.ToUpperInvariant(), "Persistent floors refuse " + scenario + " before new selection", async () => {
+                var f = new IntegratedFixture(); _ = await Run(f, "release2");
+                using (var p = new IntegratedPipeline(f.Root)) {
+                    Exception e = await Failure(p.Start(fixtures, scenario));
+                    Require(e is TufException || e is Rejected { Code: "U9_RELEASE_REPLAY" }, "U9_WRONG_REPLAY_FAILURE");
+                    var s = p.Resources.Session.Store.Load().Record;
+                    Require(s.Confirmed.Sequence == 2 && s.Trust.ApprovedSequence == 2 && s.Trust.Timestamp >= 2 && p.Prepared is null, "U9_REPLAY_APPLIED");
+                }
+                Reject(() => { using var p = new IntegratedPipeline(f.Root); }, "U9_PENDING_OPERATION"); f.Preserved();
+            });
+        await Test("U9-CACHE-ANCHOR", "Missing intermediate cannot make cached root2 a new anchor", async () => {
+            var f = new IntegratedFixture(); _ = await Run(f, "release2");
+            string temporary = Path.Combine(fixtures, "missing-intermediate"); Directory.CreateDirectory(temporary);
+            foreach (string file in Directory.GetFiles(Path.Combine(fixtures, "release3"))) if (Path.GetFileName(file) != "2.root.json") File.Copy(file, Path.Combine(temporary, Path.GetFileName(file)));
+            using var p = new IntegratedPipeline(f.Root); Exception e = await Failure(p.Start(fixtures, "missing-intermediate"));
+            Require(e is Rejected { Code: "U9_CACHE_ROOT_NOT_ANCHORED" } && p.Resources.Session.Store.Load().Record.Trust.Root == 2 && p.Prepared is null, "U9_ANCHOR_REPLACED"); f.Preserved();
+        });
+        foreach (var scenario in new[] { "mixed", "wrong-identity" })
+            await Test("U9-PACKAGE-" + scenario.ToUpperInvariant(), "Authenticated target binding rejects " + scenario + " before staging", async () => {
+                var f = new IntegratedFixture(); using var p = new IntegratedPipeline(f.Root);
+                Exception e = await Failure(p.Start(fixtures, scenario));
+                Require(e is TufException || e is Rejected { Code: "U9_PACKAGE_IDENTITY" }, "U9_WRONG_PACKAGE_FAILURE");
+                Require(p.Resources.Session.Store.Load().Record.Generation == 1 && p.Prepared is null && Directory.GetDirectories(Path.Combine(f.Root, "versions")).Length == 1, "U9_BAD_PACKAGE_WRITTEN"); f.Preserved();
+            });
+        await Test("U9-PREPARED-PINS", "Integrated package file identities remain pinned before transaction and through confirmation", async () => {
+            var f = new IntegratedFixture(); var entered = Signal<bool>(); var release = Signal<bool>(); using var p = new IntegratedPipeline(f.Root);
+            var op = p.Start(fixtures, "release2", point => { if (point == "bundle-prepared") { entered.TrySetResult(true); Require(release.Task.Wait(TimeSpan.FromSeconds(15)), "U9_PIN_WATCHDOG"); } });
+            try {
+                await Watch(entered.Task); string path = p.Resources.Session.Files.BundlePath(p.Prepared!);
+                try { using var denied = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete); throw new Rejected("U9_PIN_WRITE_ALLOWED"); }
+                catch (IOException) { }
+                Require(!p.Owner.TryRelease() && p.Owner.Pending == 1, "U9_PIN_OWNER_RELEASED");
+            } finally { release.TrySetResult(true); _ = await Watch(op.ObserveTerminal()); }
+            Require((await op.WaitResult()).State.Confirmed.Sequence == 2, "U9_PIN_FLOW_FAILED"); f.Preserved();
+        });
+        await Test("U9-UNKNOWN-LATE-WRITE", "Persistent pending operation fences retry after canceled waiter and controlled late disk effect", async () => {
+            var f = new IntegratedFixture(); using var cancel = new CancellationTokenSource(); var entered = Signal<bool>(); var release = Signal<bool>();
+            var p = new IntegratedPipeline(f.Root, user: cancel.Token);
+            var op = p.Start(fixtures, "release2", beforeEntryWrite: async () => { entered.TrySetResult(true); await release.Task; });
+            try {
+                await Watch(entered.Task); cancel.Cancel();
+                try { _ = await Watch(op.WaitResult()); throw new Rejected("U9_CANCELED_RESULT_ACCEPTED"); } catch (OperationCanceledException) { }
+                Require(p.Owner.State == "unknown" && !p.Owner.TryRelease() && p.Owner.Pending == 1, "U9_UNKNOWN_RELEASED");
+                Reject(() => { using var other = new IntegratedPipeline(f.Root); }, "INSTALLATION_BUSY_OR_LOCK_MISSING");
+                release.TrySetResult(true); var terminal = await Watch(op.ObserveTerminal()); Require(terminal.Outcome == "canceled", "U9_LATE_STATUS");
+                Require(Directory.GetFiles(Path.Combine(f.Root, "versions"), "bundle.fixture.txt", SearchOption.AllDirectories).Length == 2
+                    && p.Resources.Session.Store.Load().Record.Trust.ApprovedSequence == 1, "U9_LATE_EFFECT_OR_SELECTION");
+            } finally { release.TrySetResult(true); _ = await Watch(op.ObserveTerminal()); p.Dispose(); }
+            Reject(() => { using var next = new IntegratedPipeline(f.Root); }, "U9_PENDING_OPERATION");
+            Observations.Add(new { kind = "pending_operation_survives_runtime_owner_end", late_inert_file_written = true, approved_sequence = 1,
+                automatic_retry_blocked = true, cleanup_or_selection_authorized = false, kernel_device_hang = false }); f.Preserved();
+        });
+        foreach (string point in new[] { "op-admitted", "cache-checkpointed", "intent-persisted", "selector-replaced", "selected-persisted", "confirmed-persisted" })
+            await Test("U9-CRASH-" + point.ToUpperInvariant(), "Owned child crash and supervised fresh-coordinator reconciliation at " + point, async () => {
+                var f = new IntegratedFixture(); using var child = OwnedChild.Start(f.Root, fixtures, point);
+                await child.StopAt(point);
+                Reject(() => { using var next = new IntegratedPipeline(f.Root); }, "U9_PENDING_OPERATION");
+                using (var recovery = new IntegratedPipeline(f.Root, recovery: true)) {
+                    var op = recovery.Recover(ExitProof.Observe(child)); var state = await Watch(op.WaitResult());
+                    long active = point == "confirmed-persisted" ? 2 : 1;
+                    long floor = point is "op-admitted" or "cache-checkpointed" ? 1 : 2;
+                    Require(state.Confirmed.Sequence == active && state.Trust.ApprovedSequence == floor
+                        && recovery.Operations.Load().Record?.Phase == "settled", "U9_CRASH_RECOVERY_STATE");
+                    Observations.Add(new { kind = "supervised_owned_process_crash", point, child_pid = child.Process.Id,
+                        recovery_pid = Environment.ProcessId, active_sequence = active, approved_floor = floor, physical_power_loss = false });
+                }
+                await InspectFromFreshProcess(f, point == "confirmed-persisted" ? 2 : 1, point is "op-admitted" or "cache-checkpointed" ? 1 : 2); f.Preserved();
+            });
+        await Test("U9-PARTIAL-STATE", "Crash during new cache checkpoint preserves partial record and rejects fallback/recovery", async () => {
+            var f = new IntegratedFixture(); using var child = OwnedChild.Start(f.Root, fixtures, "cache-record-created"); await child.StopAt("cache-record-created");
+            Reject(() => { using var next = new IntegratedPipeline(f.Root); }, "STATE_INCOMPLETE");
+            Reject(() => { using var recovery = new IntegratedPipeline(f.Root, recovery: true); }, "STATE_INCOMPLETE"); f.Preserved();
+        });
+        await Test("U9-CORRUPT-OP", "Truncated operation generation is never ignored to reuse previous settled operation", async () => {
+            var f = new IntegratedFixture(); _ = await Run(f, "release2"); string file = Directory.GetFiles(Path.Combine(f.Root, "operations")).Order().Last();
+            byte[] bytes = File.ReadAllBytes(file); File.WriteAllBytes(file, bytes[..^1]);
+            Reject(() => { using var next = new IntegratedPipeline(f.Root); }, "JSON_INVALID"); f.Preserved();
+        });
+        await Test("U9-RESTORE-ONE-DOMAIN", "Restoring only state/selector while operation ledger stays new is detected", async () => {
+            var f = new IntegratedFixture(); byte[] selector = File.ReadAllBytes(Path.Combine(f.Root, "active.fixture.json")); _ = await Run(f, "release2");
+            foreach (string file in Directory.GetFiles(Path.Combine(f.Root, "ledger")).Order().Skip(1)) File.Delete(file);
+            File.WriteAllBytes(Path.Combine(f.Root, "active.fixture.json"), selector);
+            Reject(() => { using var next = new IntegratedPipeline(f.Root); }, "U9_OP_STATE_MISMATCH");
+            Observations.Add(new { kind = "partial_domain_restore_detection", whole_state_restore_retested_or_solved = false }); f.Preserved();
+        });
+        await Test("U9-FOREIGN-PROOF", "Actual exited child evidence cannot reconcile another fixture installation/operation", async () => {
+            var a = new IntegratedFixture(); using var child = OwnedChild.Start(a.Root, fixtures, "op-admitted"); await child.StopAt("op-admitted");
+            var b = new IntegratedFixture();
+            using (var s = new FixtureSession(b.Root)) {
+                var l = s.Store.Load(); var j = new OperationJournal(b.Root, l.Record.InstallationId);
+                j.Admit(l.Digest, Hash(PersistentState.ReadFixtureFile(b.Root, Path.Combine(b.Root, "active.fixture.json"))));
+            }
+            using var recovery = new IntegratedPipeline(b.Root, recovery: true); Exception e = await Failure(recovery.Recover(ExitProof.Observe(child)));
+            Require(e is Rejected { Code: "U9_PROOF_SCOPE" } && recovery.Operations.Load().Record?.Phase == "admitted", "U9_FOREIGN_PROOF_ACCEPTED"); a.Preserved(); b.Preserved();
+        });
+        await Test("U9-PERSISTED-CLOCK", "Captured UTC rollback versus persistent floor stops before metadata or release approval", async () => {
+            var f = new IntegratedFixture(); var r = await Run(f, "release2");
+            using var p = new IntegratedPipeline(f.Root, clock: new FixedCapture(StateCodec.Observed(r.State.Trust) - TimeSpan.FromMinutes(6)));
+            Exception e = await Failure(p.Start(fixtures, "release3"));
+            Require(e is Rejected { Code: "CLOCK_ROLLBACK" } && p.Resources.Session.Store.Load().Record.Trust.ApprovedSequence == 2 && p.Prepared is null, "U9_CLOCK_FLOOR_IGNORED"); f.Preserved();
+        });
+        await Test("U9-CANCEL-AFTER-INTENT", "Cancellation after persisted intent retains high floor and prevents selector publication", async () => {
+            var f = new IntegratedFixture(); using var cancel = new CancellationTokenSource(); using var p = new IntegratedPipeline(f.Root, user: cancel.Token);
+            Exception e = await Failure(p.Start(fixtures, "release2", point => { if (point == "intent-persisted") cancel.Cancel(); }));
+            var s = p.Resources.Session.Store.Load().Record;
+            Require(e is OperationCanceledException && s.Trust.ApprovedSequence == 2 && s.Transaction?.Phase == "intent"
+                && p.Resources.Session.Files.ReadSelector(s.InstallationId).Bundle == f.Old && OperationJournal.Pending(p.Operations.Load().Record), "U9_CANCEL_INTENT_APPLIED"); f.Preserved();
+        });
+    }
+}

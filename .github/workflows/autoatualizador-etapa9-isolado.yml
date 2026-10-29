@@ -1,0 +1,42 @@
+name: Autoatualizador Etapa 9 — fluxo integrado inerte
+on:
+  push:
+    branches: [work-autoatualizador-etapa9-validacao-20261028]
+    paths:
+      - prototipos/autoatualizador-seguro/stage9/**
+      - .github/workflows/autoatualizador-etapa9-isolado.yml
+permissions:
+  contents: read
+concurrency:
+  group: gf-updater-stage9-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  isolated-integration:
+    name: TUF, journal pendente, transação e recuperação de fixtures
+    runs-on: windows-2022
+    timeout-minutes: 15
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: 10.0.402
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Signer público de fixtures já utilizado
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check cryptography==50.0.2
+      - name: Apenas deltas da composição, sem suites anteriores ou artefatos
+        shell: pwsh
+        run: |
+          python prototipos/autoatualizador-seguro/stage9/run_tests.py --report "$env:RUNNER_TEMP/gf-u9-windows.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = Get-Content "$env:RUNNER_TEMP/gf-u9-windows.json" -Raw | ConvertFrom-Json
+          "Etapa 9 integrada: $($result.passed)/$($result.total); energia real e gates operacionais não homologados." >> $env:GITHUB_STEP_SUMMARY
+# No upload, private channel, operational secrets/keys, cron or automatic retry.
