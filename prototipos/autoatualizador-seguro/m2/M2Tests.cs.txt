@@ -73,9 +73,8 @@ internal static class M2Tests
     {
         if(args.Length==2 && args[0]=="--m2-owned-child")
             return await Child(args[1]);
-        if(args.Length==5 && args[0]=="--m2-ready-probe")
-            return await M2Integration.ReadyChild(args);
-        if(args.Length!=2 || args[0]!="--report")return 2;
+        if(args.Length!=3 || args[0]!="--report")return 2;
+        M2Integration.WinFormsProbePath=args[2];
         await Case("M2-NO-PARTICIPANTS-REFUSED",()=>{
             Refuse(()=>new M2ExitBarrier([],TimeSpan.FromSeconds(2)),"M2_PARTICIPANT_COUNT");
             return Task.CompletedTask;});
@@ -151,14 +150,16 @@ internal static class M2Tests
             await Case("M2-INTEGRATED-READY-AFTER-EXIT",()=>M2Integration.Run("normal",false));
             await Case("M2-INTEGRATED-WRONG-NONCE",()=>M2Integration.Run("bad-nonce",true));
             await Case("M2-INTEGRATED-WRONG-TX",()=>M2Integration.Run("bad-tx",true));
+            await Case("M2-INTEGRATED-NO-READY",()=>M2Integration.Run("no-ready",true));
         }
         var report=new
         {
             schema=1,phase="M2",fixture_only=true,operational_gates_closed=0,
             passed=results.Count-failures,failed=failures,tests=results,
-            kernel_process_exit_observed=true,window_readiness_verified=false,
+            kernel_process_exit_observed=true,window_readiness_verified=M2Integration.WinFormsHwndObserved,
             authenticated_g5_admission_verified=M2Integration.NonElevatedAdmissionObserved,durable_rollback_verified=false,
-            real_gf_participants_discovered=false,integrated_inherited_elevation_mechanism_observed=M2Integration.InheritedElevatedMechanismObserved,product_built=false,product_executed=false
+            real_gf_participants_discovered=false,missing_ready_refused=M2Integration.MissingReadyRefused,
+            integrated_inherited_elevation_mechanism_observed=M2Integration.InheritedElevatedMechanismObserved,product_built=false,product_executed=false
         };
         await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
         Console.WriteLine("M2_FINAL_REPORT "+JsonSerializer.Serialize(report));
