@@ -41,3 +41,28 @@ Actions validates only OS transport/frame mechanics, explicitly **not**
 operational admission. The candidate sends READY immediately in a console app;
 this is not WinForms HWND readiness, functional health, actual GF executable
 identity or durable rollback. M2/G6 remains blocked.
+
+## M2 increment: real WinForms HWND and message loop
+
+The dedicated `GF.Updater.M2.WinFormsProbe.exe` test apphost is produced by
+`M2WinFormsProbe.csproj` in a separate temporary folder and is never
+the GF product. It creates a hidden WinForms form and only sends its
+transaction/nonce-bound READY from `Application.Idle` after entry into
+the STA WinForms message loop. The parent verifies a top-level HWND
+belonging to the exact candidate PID with Windows APIs after kernel pipe
+identity checks. The flow retains the real predecessor-exit gate.
+
+Negative cases exercise a wrong nonce, wrong transaction and a connected
+probe withholding READY. The missing-READY case uses a 500 ms real async
+read deadline and must refuse to treat silence as success. The candidate
+receives CLOSE solely for test cleanup; it has no update or maintenance
+capability. The Windows runner checks both `window_readiness_verified`
+and `missing_ready_refused` in its JSON report.
+
+**Boundary:** a hidden HWND after message-loop idle is *not* proof of
+the main GF's functional health, tray lifecycle, other instances,
+workers, durable state, crash recovery, power loss or authenticated
+bundle. Elevated CI can test the mechanism without authorizing elevated
+operational IPC. Distinct users and sessions and an actual non-elevated
+G5 admission remain blocked, as does G6. No WORK, rollout or product
+integration is justified solely by these tests.
