@@ -269,7 +269,9 @@ internal static class L15BoundTests
                 string file=L15Binding.Receipt(s.Lab);
                 byte[] prior=File.ReadAllBytes(file);
                 using var doc=Json(prior,4096);
-                var e=JsonSerializer.Deserialize<L15LocalEvidence>(prior)!;
+                // Mutate ONLY the one digest; use the same camelCase closed
+                // codec as the producer, to avoid a false positive from nulls.
+                var e=StateCodec.Decode<L15LocalEvidence>(prior);
                 File.WriteAllBytes(file,StateCodec.Encode(e with {Stage3Digest=new string('f',64)}));
                 await Unknown(s,"L15_ADVISORY_PROOF_TAMPER_ACCEPTED");
             });
