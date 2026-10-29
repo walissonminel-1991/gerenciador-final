@@ -32,7 +32,7 @@ internal static class G1AckFixture
         var loaded=session.Store.Load();
         StateRecord state=loaded.Record;
         Require(state.Transaction is {Phase:"intent"},"G1_ACK_INTENT_REQUIRED");
-        var tx=state.Transaction;
+        var tx=state.Transaction!;
         Require(state.Generation>=2 && state.Confirmed==tx.Previous,
             "G1_ACK_INTENT_INVALID");
         string previousName=(state.Generation-1).ToString("D16",
