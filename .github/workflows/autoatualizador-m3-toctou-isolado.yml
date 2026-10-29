@@ -1,0 +1,63 @@
+name: M3 G8 G1 — TOCTOU de evidências com processo concorrente
+on:
+  push:
+    branches:
+      - experimento-g5-ipc-chat-alto-20261029
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-toctou/**'
+      - '.github/workflows/autoatualizador-m3-toctou-isolado.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-toctou-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  race-fixture:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - name: Fonte isolada, sem token persistente
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Executar somente os ensaios TOCTOU com processos inertes
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-toctou/M3Race.csproj'
+          $output=Join-Path $env:RUNNER_TEMP 'gf-m3-toctou-artifacts'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-toctou-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'M3_TOCTOU_SDK_MISMATCH' }
+          dotnet restore $project "-p:ArtifactsPath=$output" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$output" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runners=@(Get-ChildItem $output -Filter 'GF.Updater.M3.RaceTests.exe' -Recurse -File)
+          if ($runners.Count -ne 1) { throw 'M3_TOCTOU_RUNNER_NOT_UNIQUE' }
+          & $runners[0].FullName --report $report
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.passed -ne 8 -or $r.failed -ne 0 -or
+              !$r.stable_revalidation_never_authorized -or
+              !$r.post_release_mutation_detected -or
+              !$r.uncooperative_writer_during_lease_detected -or
+              !$r.cross_installation_replay_refused -or
+              !$r.transient_change_restored_undetectable -or
+              !$r.evidence_receipt_is_not_authorization -or
+              $r.operational_gates_closed -ne 0 -or
+              $r.product_built -or $r.product_executed -or
+              $r.independent_freshness_verified -or $r.physical_power_loss_tested) {
+            throw 'M3_TOCTOU_REPORT_INVALID'
+          }
+          $compile=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leaks=@($compile.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-toctou' })
+          if ($leaks.Count -ne 0) { throw 'M3_TOCTOU_PRODUCT_COMPILE_LEAK' }
+          "M3 TOCTOU: $($r.passed) tests passed, no operational authorization; transient mutation invisible after restoration and G1 blocked." >> $env:GITHUB_STEP_SUMMARY
+# No credential, real product, telemetry, user account, or infrastructure changes.
