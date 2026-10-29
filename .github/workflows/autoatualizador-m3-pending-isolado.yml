@@ -44,13 +44,14 @@ jobs:
           & $runners[0].FullName --report $report
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $r=Get-Content $report -Raw | ConvertFrom-Json
-          if ($r.failed -ne 0 -or $r.passed -ne 10 -or
+          if ($r.failed -ne 0 -or $r.passed -ne 12 -or
               !$r.plausible_pending_never_accepted -or
               !$r.corrupted_pending_blocked -or
               !$r.stale_or_foreign_pending_blocked -or
               !$r.unknown_ledger_entries_blocked -or
               !$r.multiple_pending_blocked -or
               !$r.committed_prefix_checked -or
+              !$r.selector_mismatch_blocked -or !$r.bundle_tamper_blocked -or
               !$r.lease_contention_blocked -or
               !$r.inspection_preserved_bytes -or
               $r.pending_auto_promoted -or $r.pending_auto_deleted -or
