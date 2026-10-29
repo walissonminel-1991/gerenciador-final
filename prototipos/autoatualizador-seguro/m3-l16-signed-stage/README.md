@@ -1,0 +1,13 @@
+# L16 — os EXATOS bytes TUF em staged NTFS (SOMENTE TESTE)
+
+O lote liga os bytes de entrada do ZIP de fixture assinada TUF Stage11/Stage3 à cópia de mesmo conteúdo no NTFS, mantendo um handle WindowsFileGuard do staged aberto durante a troca de UM seletor fictício por File.Replace. Não há executável GF, READY, elevação, instalação, download operacional, transformação de pacote, script remoto, serviço ou deploy.
+
+- Reusa DurableTufAttempt, DurableEpochCache, Stage3TufBinding, Stage2/Stage9, L15Binding.Guard, WindowsFileGuard e conceito de recuperação L14 com estados conservadores. Novo adaptador L16 isolado e restrito a fixture. Não altera o L14 nem os demais mecanismos.
+- O arquivo staged é uma cópia sem alteração do conteúdo bundle.fixture.txt de um ZIP TUF de laboratório, no sandbox Stage2 com marcador reconhecido pelo WindowsFileGuard. Verificação de hash E igualdade byte a byte contra o entry do ZIP após recompilar o binding Stage3, e identidade NTFS pinada durante o único File.Replace de l16-active.fixture.json.
+- O seletor substituído está FORA do seletor verdadeiro de Stage2 e do GF. Os dois candidatos continuam sendo textos inertes de teste. Um recibo local vincula transação, instalação, digest da entry assinada e identidade do arquivo staged. Sem witness independente e sem autoridade antifork contra escritor malicioso que regrave tudo.
+- Processos filhos reais são terminados em pontos de corte, com recuperação em outro processo. Antes do terminal, a recuperação de fixture retorna OLD; após terminal íntegro, apenas NewInertObservedBlocked. Divergências retornam UnknownBlocked.
+- Janela TOCTOU: pin de staged impede alterações de bytes e renomeação concorrentes comuns por outro processo limitado; uma troca de fonte/TUF antes do commit é detectada na segunda checagem. Isto NÃO fecha todas as corridas do seletor, ACL, operação administrativa, kernel I/O ou ataque pós-retirada do handle. A verificação não estabelece atomicidade de várias estruturas.
+- A raiz TUF é SOMENTE de teste e a fixture staged é um texto, não um executável. Nenhum Signed Binary real, cadeia Authenticode, software release, signatário independente, proteção antirollback após restore, fonte de tempo externa, ou teste de power loss foi criado.
+- Projeto .NET 10 separado, com fontes .cs.txt explícitas e git checkout de CI sem credenciais persistentes. CI Windows 2022 usa fixture assinada e arquivos temporários. G1–G8 permanecem BLOQUEADOS (0/8).
+
+Importante: as verificações de validade do TUF são herdadas do Stage11; L16 NÃO reimplementa ou homologa norma TUF. Os mecanismos não devem ser integrados ao GF sem auditoria externa, análise de privilégios e homologação.

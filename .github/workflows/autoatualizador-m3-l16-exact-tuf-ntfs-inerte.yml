@@ -1,0 +1,83 @@
+name: M3 L16 — bytes exatos TUF no staged NTFS (inerte)
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/m3-l16-signed-stage/**'
+      - '.github/workflows/autoatualizador-m3-l16-exact-tuf-ntfs-inerte.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-m3-l16-signed-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  signed-entry-ntfs-fixture:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - name: Checkout sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: .NET SDK fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Python de fixtures
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Dependencias TUF fixadas para laboratorio
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check tuf==7.0.1 securesystemslib==1.3.1 cryptography==50.0.2 urllib3==2.8.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validar 18 cenarios com child-process Windows e NTFS de fixture
+        shell: pwsh
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/m3-l16-signed-stage/L16SignedStage.csproj'
+          $anchor='prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json'
+          $work=Join-Path $env:RUNNER_TEMP 'gf-m3-l16-source'
+          $fixtures=Join-Path $env:RUNNER_TEMP 'gf-m3-l16-signed-fixtures'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-m3-l16-artifacts'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-m3-l16-report.json'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'L16_SDK_MISMATCH' }
+          $source=(python prototipos/autoatualizador-seguro/m3-composed/prepare_pinned_source.py $work | Select-Object -Last 1).Trim()
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $source)) { throw 'L16_PINNED_SOURCE_UNAVAILABLE' }
+          python prototipos/autoatualizador-seguro/m3-composed-3/generate_signed_fixtures.py $fixtures
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet restore $project "-p:ArtifactsPath=$out" "-p:Stage8Source=$source" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $project "-p:ArtifactsPath=$out" "-p:Stage8Source=$source" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exes=@(Get-ChildItem $out -Filter 'GF.Updater.M3.L16Tests.exe' -Recurse -File)
+          if ($exes.Count -ne 1) { throw 'L16_TEST_RUNNER_NOT_UNIQUE' }
+          & $exes[0].FullName --report $report $fixtures $anchor
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.passed -ne 18 -or $r.failed -ne 0 -or
+              !$r.signed_tuf_entry_exact_bytes_on_disk -or
+              !$r.pinned_ntfs_identity_across_one_selector_replace -or
+              !$r.real_child_process_killed -or
+              !$r.fresh_process_recovery -or
+              !$r.controlled_concurrent_staged_write_blocked -or
+              !$r.controlled_fork_and_lease_blocked -or
+              !$r.old_app_and_markers_preserved -or
+              $r.actual_multifile_transaction_proven -or
+              $r.arbitrary_selector_namespace_toctou_proven_closed -or
+              $r.independent_freshness_or_trusted_clock_proven -or
+              $r.malicious_same_user_full_rewrite_resisted -or
+              $r.power_loss_tested -or $r.product_updated_or_executed -or
+              $r.operational_gates_closed -ne 0) {
+            throw 'L16_FALSE_SECURITY_CLAIM'
+          }
+          $compile=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          $leaks=@($compile.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro[/\\]m3-l16-signed-stage' })
+          if ($leaks.Count -ne 0) { throw 'L16_PRODUCT_COMPILE_LEAK' }
+          "L16: 18 inert signed ZIP entry to NTFS staged bytes, file-ID pin across one selector File.Replace; all operational gates BLOCKED." >> $env:GITHUB_STEP_SUMMARY
+# No product build/execution, update, install, WORK, release, deploy, remote service.

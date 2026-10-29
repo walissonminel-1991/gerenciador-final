@@ -1,0 +1,233 @@
+// GF L16: a signed Stage11/Stage3 fixture entry is staged as EXACT bytes
+// under WindowsFileGuard, pinned through a SINGLE-SELECTOR File.Replace.
+// Everything is test-only. No real updater, GF launch, READY or permissions.
+using System.ComponentModel;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+internal enum L16Result { OldBlocked, NewInertObservedBlocked, UnknownBlocked }
+internal sealed record L16Selector(string Schema,string Selected,int Generation);
+internal sealed record L16Intent(string Schema,string Transaction,string Installation,
+    string EntrySha,string StagedId);
+internal sealed record L16Terminal(string Schema,string Transaction,string SelectorSha);
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L16Boundary
+{
+    private const string S="gf-l16-selector-inert/1", I="gf-l16-intent-inert/1",
+        T="gf-l16-terminal-inert/1";
+    internal static string Stage(string src)=>Path.Combine(src,"l16-authenticated-entry.fixture.txt");
+    internal static string Selector(string src)=>Path.Combine(src,"l16-active.fixture.json");
+    internal static string Intent(string src)=>Path.Combine(src,"l16-intent.fixture.json");
+    internal static string Terminal(string src)=>Path.Combine(src,"l16-terminal.fixture.json");
+    internal static string Lease(string src)=>Path.Combine(src,"l16-lease.fixture");
+    internal static string Signal(string lab)=>Path.Combine(lab,"l16-go.fixture.txt");
+    private static string Tx(string lab)=>L14Model.Tx(lab);
+
+    private static void Roots(string src,string lab)
+    { FixtureSandbox.RequireRoot(src);L14Model.RequireRoot(lab); }
+
+    private static void Create(string path,byte[] bytes)
+    {
+        using var stream=new FileStream(path,FileMode.CreateNew,FileAccess.Write,
+            FileShare.None,4096,FileOptions.WriteThrough);
+        stream.Write(bytes);stream.Flush(true);
+    }
+    private static void CreateRecord<T>(string path,T value)
+        =>Create(path,StateCodec.Encode(value));
+
+    private static T Read<T>(string src,string path,int count)
+    {
+        using var pin=WindowsFileGuard.Open(src,path);
+        byte[] data=pin.Read(4096);
+        using var doc=Json(data,4096);
+        Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
+            doc.RootElement.EnumerateObject().Count()==count,"L16_RECORD_SHAPE");
+        return StateCodec.Decode<T>(data);
+    }
+    private static L16Selector Select(string src)
+    {
+        var s=Read<L16Selector>(src,Selector(src),3);
+        Require(s.Schema==S && (s is {Selected:"old",Generation:1 or 3} ||
+            s is {Selected:"new",Generation:2}),"L16_SELECTOR_FORGED");
+        return s;
+    }
+    private static L16Intent GetIntent(string src)
+    {
+        var i=Read<L16Intent>(src,Intent(src),5);
+        Require(i.Schema==I && Hex(i.EntrySha,64) && !string.IsNullOrEmpty(i.StagedId),
+            "L16_INTENT_FORGED");
+        return i;
+    }
+    private static L16Terminal GetTerminal(string src)
+    {
+        var t=Read<L16Terminal>(src,Terminal(src),3);
+        Require(t.Schema==T && Hex(t.SelectorSha,64),"L16_TERMINAL_FORGED");
+        return t;
+    }
+
+    private sealed class SignedStage : IDisposable
+    {
+        internal readonly WindowsFileGuard Pin;
+        internal readonly L15LocalEvidence Proof;
+        internal readonly byte[] Entry;
+        internal SignedStage(WindowsFileGuard pin,L15LocalEvidence proof,byte[] entry)
+        {Pin=pin;Proof=proof;Entry=entry;}
+        public void Dispose()=>Pin.Dispose();
+    }
+
+    // Freshly rebuild existing signed Stage11/Stage3 evidence from persisted
+    // test records, then compare actual staged bytes to exact ZIP entry bytes.
+    // Pin remains open for the entire caller transaction.
+    private static SignedStage PinSignedStage(string src,string lab,string bootstrap)
+    {
+        Roots(src,lab);
+        var proof=L15Binding.Guard(lab,src,bootstrap);
+        using var zipPin=WindowsFileGuard.Open(src,L15Binding.SignedZip(src));
+        byte[] zip=zipPin.Read(ZipInspection.MaxBytes);
+        Require(Hash(zip)==proof.SignedZipSha,"L16_TUF_ZIP_FORK");
+        var content=ZipInspection.Inspect(zip,3,CancellationToken.None);
+        byte[] entry=content["bundle.fixture.txt"];
+        Require(Hash(entry)==proof.SignedEntrySha && entry.Length is >0 and <=4096,
+            "L16_SIGNED_ENTRY_FORK");
+        var pin=WindowsFileGuard.Open(src,Stage(src));
+        try
+        {
+            byte[] actual=pin.Read(4096);
+            Require(actual.AsSpan().SequenceEqual(entry),"L16_STAGED_NOT_SIGNED_BYTES");
+            pin.Recheck();
+            return new SignedStage(pin,proof,entry);
+        }
+        catch{pin.Dispose();throw;}
+    }
+
+    internal static void Prepare(string src,string lab,string bootstrap)
+    {
+        Roots(src,lab);
+        var proof=L15Binding.Guard(lab,src,bootstrap);
+        using(var zipPin=WindowsFileGuard.Open(src,L15Binding.SignedZip(src)))
+        {
+            var zip=zipPin.Read(ZipInspection.MaxBytes);
+            Require(Hash(zip)==proof.SignedZipSha,"L16_PREPARE_ZIP");
+            var parts=ZipInspection.Inspect(zip,3,CancellationToken.None);
+            var entry=parts["bundle.fixture.txt"];
+            Require(Hash(entry)==proof.SignedEntrySha,"L16_PREPARE_ENTRY");
+            Create(Stage(src),entry); // copies EXACT signed bytes, not L14.NewText
+        }
+        CreateRecord(Selector(src),new L16Selector(S,"old",1));
+        using var frozen=PinSignedStage(src,lab,bootstrap);
+        Require(frozen.Pin.Identity.Length>0,"L16_MISSING_IDENTITY");
+    }
+
+    private static void Recheck(SignedStage frozen,string src,string lab,string bootstrap)
+    {
+        frozen.Pin.Recheck();
+        Require(frozen.Pin.Read(4096).AsSpan().SequenceEqual(frozen.Entry),
+            "L16_PINNED_DRIFT");
+        var current=L15Binding.Guard(lab,src,bootstrap);
+        Require(current==frozen.Proof,"L16_STAGE3_CHANGED_BEFORE_REPLACE");
+    }
+
+    private static void SwapSelector(string src,L16Selector next,Action? cut=null)
+    {
+        Require(Select(src).Selected is "old" or "new","L16_SELECTOR");
+        string temp=Path.Combine(src,"l16-selector-temp-"+Guid.NewGuid().ToString("N")+".fixture");
+        string backup=Path.Combine(src,"l16-selector-backup-"+Guid.NewGuid().ToString("N")+".fixture");
+        CreateRecord(temp,next);
+        cut?.Invoke();
+        File.Replace(temp,Selector(src),backup); // only ONE inert selector
+        Require(Select(src)==next,"L16_SELECTOR_SWAP_MISMATCH");
+    }
+
+    internal static FileStream Exclusive(string src)
+    {
+        FixtureSandbox.RequireRoot(src);
+        return new FileStream(Lease(src),FileMode.OpenOrCreate,
+            FileAccess.ReadWrite,FileShare.None);
+    }
+
+    internal static void Perform(string src,string lab,string bootstrap,string cutpoint)
+    {
+        Roots(src,lab);
+        using var lease=Exclusive(src);
+        using var frozen=PinSignedStage(src,lab,bootstrap);
+        Require(Select(src)==new L16Selector(S,"old",1) &&
+            !File.Exists(Terminal(src)),"L16_ALREADY_ACTIVE");
+        var intent=new L16Intent(I,Tx(lab),frozen.Proof.SourceInstallationId,
+            frozen.Proof.SignedEntrySha,frozen.Pin.Identity);
+        if(!File.Exists(Intent(src)))CreateRecord(Intent(src),intent);
+        Require(GetIntent(src)==intent,"L16_INTENT_FORK");
+        void Cut(string step)
+        {
+            if(cutpoint!=step)return;
+            Console.WriteLine("CUT:"+step);Console.Out.Flush();
+            Thread.Sleep(Timeout.Infinite);
+        }
+        Cut("intent-flushed");
+        Recheck(frozen,src,lab,bootstrap);
+        // Test can observe pin under a controlled competing process. An
+        // uncooperative attacker can still race selector namespace itself.
+        if(cutpoint=="hold-resume")
+        {
+            Console.WriteLine("READY:L16-PINNED");Console.Out.Flush();
+            var watch=System.Diagnostics.Stopwatch.StartNew();
+            while(!File.Exists(Signal(lab)) &&
+                watch.Elapsed<TimeSpan.FromSeconds(15))Thread.Sleep(20);
+            Require(File.Exists(Signal(lab)),"L16_RESUME_TIMEOUT");
+        }
+        Recheck(frozen,src,lab,bootstrap);
+        Require(Select(src)==new L16Selector(S,"old",1),"L16_SELECTOR_CHANGED");
+        SwapSelector(src,new L16Selector(S,"new",2),()=>Cut("temp-flushed"));
+        // Stage bytes and physical NTFS ID are still pinned at this point.
+        Recheck(frozen,src,lab,bootstrap);
+        Cut("selector-replaced");
+        var terminal=new L16Terminal(T,Tx(lab),
+            Hash(StateCodec.Encode(Select(src))));
+        CreateRecord(Terminal(src),terminal);
+        Cut("terminal-flushed");
+    }
+
+    internal static L16Result Recover(string src,string lab,string bootstrap)
+    {
+        // No preflight attestation is an authorization to run application code.
+        try
+        {
+            Roots(src,lab);
+            using var lease=Exclusive(src);
+            using var frozen=PinSignedStage(src,lab,bootstrap);
+            var selector=Select(src);
+            if(!File.Exists(Intent(src)))
+                return selector==new L16Selector(S,"old",1) &&
+                    !File.Exists(Terminal(src)) ? L16Result.OldBlocked :
+                        L16Result.UnknownBlocked;
+            var intent=GetIntent(src);
+            Require(intent==new L16Intent(I,Tx(lab),
+                frozen.Proof.SourceInstallationId,frozen.Proof.SignedEntrySha,
+                frozen.Pin.Identity),"L16_INTENT_MISMATCH");
+            if(File.Exists(Terminal(src)))
+            {
+                var t=GetTerminal(src);
+                Require(t==new L16Terminal(T,Tx(lab),
+                    Hash(StateCodec.Encode(selector))) &&
+                    selector==new L16Selector(S,"new",2),
+                    "L16_TERMINAL_FORK");
+                Recheck(frozen,src,lab,bootstrap);
+                return L16Result.NewInertObservedBlocked;
+            }
+            if(selector==new L16Selector(S,"new",2))
+            {
+                Recheck(frozen,src,lab,bootstrap);
+                SwapSelector(src,new L16Selector(S,"old",3));
+            }
+            else Require(selector.Selected=="old","L16_UNEXPECTED_SELECTOR");
+            Recheck(frozen,src,lab,bootstrap);
+            return L16Result.OldBlocked;
+        }
+        catch(Exception ex) when(ex is Rejected or InvalidDataException or
+            IOException or UnauthorizedAccessException or JsonException or
+            Win32Exception or ArgumentException)
+        { return L16Result.UnknownBlocked; }
+    }
+}

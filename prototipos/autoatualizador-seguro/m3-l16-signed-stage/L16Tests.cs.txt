@@ -1,0 +1,381 @@
+// GF L16 test runner. Windows child process cuts, pinned stage, competing
+// writer/fork, Stage11 signed TUF + Stage3 + Stage9 + Stage2 fixtures only.
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L16Tests
+{
+    private static readonly List<object> Results=[];
+    private static int failed;
+    private static string suite="",fixtures="",bootstrap="";
+    private static bool signedExactEntry,pinHeldDuringSwap,childKilled,
+        newProcessRecovered,oldPreserved=true,toctouAttemptBlocked,
+        concurrentForkRefused;
+    private const string ChildImage="GF.Updater.M3.L16Tests.exe";
+    private static string Exe=>Environment.ProcessPath ??
+        throw new InvalidDataException("L16_MISSING_TEST_IMAGE");
+
+    private sealed class Scenario : IDisposable
+    {
+        internal readonly InertComposedCase Source=new(suite);
+        internal readonly string Lab=Path.Combine(Path.GetTempPath(),
+            "gf-u2-l14-"+Guid.NewGuid().ToString("N"));
+        internal string CandidatePath="";
+        internal byte[] Entry=[];
+        internal Scenario()
+        {
+            L14Model.Bootstrap(Lab);
+            Directory.CreateDirectory(Path.Combine(Source.Root,"operations"));
+            using var trust=new DurableEpochCache(Source.Root,Source.InstallationId,
+                File.ReadAllBytes(bootstrap),create:true);
+        }
+        internal async Task Prepare()
+        {
+            using(var trust=new DurableEpochCache(Source.Root,Source.InstallationId,
+                File.ReadAllBytes(bootstrap)))
+            {
+                var input=Directory.GetFiles(Path.Combine(fixtures,"release2"))
+                    .ToDictionary(x=>Path.GetFileName(x)!,File.ReadAllBytes,StringComparer.Ordinal);
+                DateTimeOffset now=DateTimeOffset.UtcNow;
+                var verified=await DurableTufAttempt.Get(trust,new Stage8Repository(input,now),now);
+                byte[] zip=verified.Content.ToArray();
+                var parts=ZipInspection.Inspect(zip,3,CancellationToken.None);
+                Entry=parts["bundle.fixture.txt"].ToArray();
+                var candidate=new BundleRef(2,"0.0.0.2",
+                    Hash(Entry),"linux-fixture-model");
+                var folder=Path.Combine(Source.Root,"versions",candidate.DirectoryName);
+                Directory.CreateDirectory(folder);
+                CandidatePath=Path.Combine(folder,"bundle.fixture.txt");
+                File.WriteAllBytes(CandidatePath,Entry);
+                using(var pin=WindowsFileGuard.Open(Source.Root,CandidatePath))
+                    candidate=candidate with {Identity=pin.Identity};
+                File.WriteAllBytes(L15Binding.SignedZip(Source.Root),zip);
+                var view=trust.View();
+                Require(view.Metadata.Count==4 && view.Targets>0 && view.ActiveAttempt=="",
+                    "L16_TUF_NOT_SIGNED");
+                var ops=new OperationJournal(Source.Root,Source.InstallationId);
+                var state=new PersistentState(Source.Root).Load();
+                var selector=Hash(PersistentState.ReadFixtureFile(Source.Root,
+                    Path.Combine(Source.Root,"active.fixture.json")));
+                var admitted=ops.Admit(state.Digest,selector);
+                var permit=new InertPermit(2,"0.0.0.2",Hash(zip),Hash(Entry),
+                    Hash(parts["SHA256SUMS.txt"]),view.Digest);
+                var authorized=ops.Advance(admitted,"authorized",permit:permit);
+                ops.Advance(authorized,"prepared",candidate:candidate);
+                _=G1Preselect.Prepare(Source.Root,candidate,true);
+                var cp=InertCompositeBuilder.Build(Source.Root,view,ops,null);
+                var head=new InertCompositeAnchor(Source.InstallationId,
+                    InertCompositeBuilder.Repository).CommitModelOnly(cp);
+                var bound=Stage3TufBinding.Bind(view,view,zip,candidate,head);
+                Require(bound.EntrySha==Hash(Entry) && bound.ZipSha==Hash(zip),
+                    "L16_NOT_SIGNED_TARGET");
+            }
+            L15Binding.CreateAfterVerifiedTuf(Lab,Source.Root,bootstrap);
+            L16Boundary.Prepare(Source.Root,Lab,bootstrap);
+            Require(File.ReadAllBytes(L16Boundary.Stage(Source.Root)).AsSpan()
+                .SequenceEqual(Entry),"L16_EXACT_STAGE_MISMATCH");
+            signedExactEntry=true;
+        }
+        internal void Preserved()
+        {
+            L14Model.VerifyOld(Lab);
+            using var session=new FixtureSession(Source.Root);
+            Require(session.Files.ReadSelector(Source.InstallationId).Bundle==Source.Old &&
+                session.Store.Load().Record.Confirmed==Source.Old &&
+                session.Store.Load().Record.Transaction is not
+                    {Phase:"selected" or "confirmed"},"L16_PRODUCT_SELECTOR_MOVED");
+            Source.Preserved();oldPreserved=true;
+        }
+        public void Dispose()
+        {
+            L14Model.VerifyOld(Lab);Source.Preserved();
+            Source.Dispose();Directory.Delete(Lab,true);
+        }
+    }
+
+    private static async Task<Scenario> Prepared()
+    {
+        var s=new Scenario();
+        try{await s.Prepare();return s;}
+        catch{s.Dispose();throw;}
+    }
+    private static Process Spawn(params string[] args)
+    {
+        Require(Path.GetFileName(Exe).Equals(ChildImage,StringComparison.OrdinalIgnoreCase),
+            "L16_UNEXPECTED_PROCESS");
+        var info=new ProcessStartInfo(Exe){
+            UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,
+            RedirectStandardError=true,WorkingDirectory=Path.GetTempPath()
+        };
+        foreach(string arg in args)info.ArgumentList.Add(arg);
+        return Process.Start(info) ??
+            throw new InvalidDataException("L16_CANNOT_START_CHILD");
+    }
+    private static async Task Kill(Process p)
+    {
+        if(!p.HasExited)p.Kill(entireProcessTree:true);
+        await p.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+        childKilled=true;
+    }
+    private static async Task<Process> StartCut(Scenario s,string cut)
+    {
+        var p=Spawn("--child",s.Source.Root,s.Lab,bootstrap,cut);
+        try
+        {
+            string? line=await p.StandardOutput.ReadLineAsync()
+                .WaitAsync(TimeSpan.FromSeconds(30));
+            string expected=cut=="hold-resume"?"READY:L16-PINNED":"CUT:"+cut;
+            if(line!=expected || p.HasExited)
+            {
+                string stderr=p.HasExited?await p.StandardError.ReadToEndAsync():"";
+                throw new InvalidDataException("L16_CUT_NOT_REACHED:"+line+":"+stderr);
+            }
+            return p;
+        }
+        catch{await Kill(p);p.Dispose();throw;}
+    }
+    private static async Task StopAt(Scenario s,string cut)
+    {
+        using var p=await StartCut(s,cut);await Kill(p);
+    }
+    private static async Task<L16Result> Reopen(Scenario s)
+    {
+        using var p=Spawn("--recover",s.Source.Root,s.Lab,bootstrap);
+        try
+        {
+            string? line=await p.StandardOutput.ReadLineAsync()
+                .WaitAsync(TimeSpan.FromSeconds(30));
+            await p.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            if(p.ExitCode!=0 || line is null ||
+                !line.StartsWith("RECOVERY:",StringComparison.Ordinal))
+                throw new InvalidDataException("L16_RECOVERY_CHILD_FAILED:"+line);
+            if(!Enum.TryParse<L16Result>(line["RECOVERY:".Length..],out var result))
+                throw new InvalidDataException("L16_BAD_STATUS");
+            newProcessRecovered=true;
+            return result;
+        }
+        finally{if(!p.HasExited)await Kill(p);}
+    }
+    private static void Run(string id,Action a)
+    {
+        try{a();Results.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception ex){failed++;Results.Add(new{id,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+id+" "+ex);}
+    }
+    private static async Task RunAsync(string id,Func<Task> f)
+    {
+        try{await f();Results.Add(new{id,status="passed"});Console.WriteLine("PASS "+id);}
+        catch(Exception ex){failed++;Results.Add(new{id,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+id+" "+ex);}
+    }
+    private static async Task Unknown(Scenario s,string label)
+        =>Require(await Reopen(s)==L16Result.UnknownBlocked,label);
+
+    public static async Task<int> Main(string[] args)
+    {
+        if(!OperatingSystem.IsWindows())return 2;
+        if(args.Length==5 && args[0]=="--child")
+        {
+            L16Boundary.Perform(args[1],args[2],args[3],args[4]);
+            return 0;
+        }
+        if(args.Length==4 && args[0]=="--recover")
+        {
+            Console.WriteLine("RECOVERY:"+L16Boundary.Recover(args[1],args[2],args[3]));
+            return 0;
+        }
+        if(args.Length!=4 || args[0]!="--report")return 2;
+        fixtures=Path.GetFullPath(args[2]);
+        bootstrap=Path.GetFullPath(args[3]);
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-l16-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await RunAsync("L16-01-EXACT-SIGNED-ENTRY-STAGED-NTFS",async()=>{
+                using var s=await Prepared();
+                using var pin=WindowsFileGuard.Open(s.Source.Root,L16Boundary.Stage(s.Source.Root));
+                Require(pin.Read(4096).AsSpan().SequenceEqual(s.Entry),
+                    "L16_ENTRY_NOT_IDENTICAL");
+                Require(await Reopen(s)==L16Result.OldBlocked,"L16_BASE_NOT_OLD");
+                s.Preserved();
+            });
+            await RunAsync("L16-02-STAGED-BYTES-TAMPER-REJECTED",async()=>{
+                using var s=await Prepared();
+                File.WriteAllText(L16Boundary.Stage(s.Source.Root),"L16-MUTATED-DATA\n");
+                await Unknown(s,"L16_TAMPERED_STAGED_ACCEPTED");s.Preserved();
+            });
+            await RunAsync("L16-03-SIGNED-ZIP-TAMPER-REJECTED",async()=>{
+                using var s=await Prepared();
+                File.WriteAllText(L15Binding.SignedZip(s.Source.Root),"BAD-ZIP\n");
+                await Unknown(s,"L16_TAMPERED_TUF_ACCEPTED");s.Preserved();
+            });
+            await RunAsync("L16-04-ENTRY-SOURCE-NTFS-FORK-REJECTED",async()=>{
+                using var s=await Prepared();
+                byte[] current=File.ReadAllBytes(s.CandidatePath);
+                File.Delete(s.CandidatePath);File.WriteAllBytes(s.CandidatePath,current);
+                await Unknown(s,"L16_SOURCE_ID_SWAP_ACCEPTED");s.Preserved();
+            });
+            await RunAsync("L16-05-KILL-AFTER-INTENT-RECOVER-OLD",async()=>{
+                using var s=await Prepared();
+                await StopAt(s,"intent-flushed");
+                Require(await Reopen(s)==L16Result.OldBlocked,"L16_INTENT_KILL");
+                s.Preserved();
+            });
+            await RunAsync("L16-06-KILL-AFTER-SCRATCH-RECOVER-OLD",async()=>{
+                using var s=await Prepared();
+                await StopAt(s,"temp-flushed");
+                Require(await Reopen(s)==L16Result.OldBlocked,"L16_SCRATCH_KILL");
+                s.Preserved();
+            });
+            await RunAsync("L16-07-KILL-AFTER-FILEREPLACE-RECOVER-OLD",async()=>{
+                using var s=await Prepared();
+                await StopAt(s,"selector-replaced");
+                Require(await Reopen(s)==L16Result.OldBlocked,"L16_SELECTOR_KILL");
+                Require(await Reopen(s)==L16Result.OldBlocked,"L16_ROLLBACK_NOT_IDEMPOTENT");
+                s.Preserved();
+            });
+            await RunAsync("L16-08-KILL-AFTER-TERMINAL-ONLY-OBSERVE",async()=>{
+                using var s=await Prepared();
+                await StopAt(s,"terminal-flushed");
+                Require(await Reopen(s)==L16Result.NewInertObservedBlocked &&
+                    await Reopen(s)==L16Result.NewInertObservedBlocked,
+                    "L16_TERMINAL_NOT_IDEMPOTENT");
+                s.Preserved();pinHeldDuringSwap=true;
+            });
+            await RunAsync("L16-09-SAME-BYTES-STAGE-FILE-ID-SWAP-AFTER-INTENT",async()=>{
+                using var s=await Prepared();await StopAt(s,"intent-flushed");
+                string staged=L16Boundary.Stage(s.Source.Root);
+                byte[] bytes=File.ReadAllBytes(staged);
+                File.Delete(staged);File.WriteAllBytes(staged,bytes);
+                await Unknown(s,"L16_STAGED_INODE_FORK_ACCEPTED");s.Preserved();
+            });
+            await RunAsync("L16-10-STAGED-SYMLINK-REFUSED",async()=>{
+                using var s=await Prepared();
+                string path=L16Boundary.Stage(s.Source.Root);
+                string target=Path.Combine(s.Source.Root,"l16-offpath.fixture.txt");
+                File.WriteAllBytes(target,s.Entry);
+                File.Delete(path);File.CreateSymbolicLink(path,target);
+                await Unknown(s,"L16_STAGE_REPARSE_ACCEPTED");s.Preserved();
+            });
+            await RunAsync("L16-11-INTENT-FORK-TX-REJECTED",async()=>{
+                using var s=await Prepared();await StopAt(s,"intent-flushed");
+                string path=L16Boundary.Intent(s.Source.Root);
+                byte[] data=File.ReadAllBytes(path);
+                var parsed=StateCodec.Decode<L16Intent>(data);
+                File.WriteAllBytes(path,StateCodec.Encode(parsed with {Transaction="forged"}));
+                await Unknown(s,"L16_INTENT_TX_FORK_ACCEPTED");s.Preserved();
+            });
+            await RunAsync("L16-12-TERMINAL-FORK-REJECTED",async()=>{
+                using var s=await Prepared();await StopAt(s,"terminal-flushed");
+                string path=L16Boundary.Terminal(s.Source.Root);
+                var parsed=StateCodec.Decode<L16Terminal>(File.ReadAllBytes(path));
+                File.WriteAllBytes(path,StateCodec.Encode(parsed with {
+                    SelectorSha=new string('f',64)}));
+                await Unknown(s,"L16_TERMINAL_FORK_ACCEPTED");s.Preserved();
+            });
+            await RunAsync("L16-13-SELECTOR-FORK-REJECTED",async()=>{
+                using var s=await Prepared();await StopAt(s,"selector-replaced");
+                File.WriteAllBytes(L16Boundary.Selector(s.Source.Root),
+                    StateCodec.Encode(new L16Selector("gf-l16-selector-inert/1","foreign",9)));
+                await Unknown(s,"L16_SELECTOR_FORK_ACCEPTED");s.Preserved();
+            });
+            await RunAsync("L16-14-EXCLUSIVE-LEASE-BLOCKS-CONCURRENT-RECOVERY",async()=>{
+                using var s=await Prepared();using var child=await StartCut(s,"intent-flushed");
+                try
+                {
+                    Require(L16Boundary.Recover(s.Source.Root,s.Lab,bootstrap)==
+                        L16Result.UnknownBlocked,"L16_LEASE_DID_NOT_BLOCK");
+                    concurrentForkRefused=true;
+                }finally{await Kill(child);}
+                Require(await Reopen(s)==L16Result.OldBlocked,"L16_LEASE_REOPEN");
+                s.Preserved();
+            });
+            await RunAsync("L16-15-STAGED-PIN-BLOCKS-CONCURRENT-MUTATION",async()=>{
+                using var s=await Prepared();using var child=await StartCut(s,"hold-resume");
+                try
+                {
+                    string path=L16Boundary.Stage(s.Source.Root);
+                    bool writeDenied=false,renameDenied=false;
+                    try{File.WriteAllText(path,"FORK\n");}
+                    catch(IOException){writeDenied=true;}
+                    catch(UnauthorizedAccessException){writeDenied=true;}
+                    try{File.Move(path,path+".swapped");}
+                    catch(IOException){renameDenied=true;}
+                    catch(UnauthorizedAccessException){renameDenied=true;}
+                    Require(writeDenied && renameDenied &&
+                        File.ReadAllBytes(path).AsSpan().SequenceEqual(s.Entry),
+                        "L16_STAGE_NOT_PINNED");
+                    toctouAttemptBlocked=true;
+                    File.WriteAllText(L16Boundary.Signal(s.Lab),"CONTINUE\n");
+                    await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(25));
+                    if(child.ExitCode!=0)
+                        throw new InvalidDataException("L16_RESUMED_CHILD_FAILED:"+
+                            await child.StandardError.ReadToEndAsync());
+                }finally{if(!child.HasExited)await Kill(child);}
+                Require(await Reopen(s)==L16Result.NewInertObservedBlocked,
+                    "L16_PINNED_REPLACE_NOT_OBSERVED");
+                s.Preserved();
+            });
+            await RunAsync("L16-16-FORK-OF-SIGNED-SOURCE-BEFORE-COMMIT",async()=>{
+                using var s=await Prepared();using var child=await StartCut(s,"hold-resume");
+                try
+                {
+                    File.WriteAllText(L15Binding.SignedZip(s.Source.Root),"L16-FORK-ZIP\n");
+                    File.WriteAllText(L16Boundary.Signal(s.Lab),"CONTINUE\n");
+                    await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(25));
+                    Require(child.ExitCode!=0,"L16_SOURCE_FORK_CHILD_SUCCEEDED");
+                    concurrentForkRefused=true;
+                }finally{if(!child.HasExited)await Kill(child);}
+                await Unknown(s,"L16_SOURCE_FORK_RECOVERED");
+                s.Preserved();
+            });
+            await RunAsync("L16-17-CROSS-LAB-EVIDENCE-REPLAY",async()=>{
+                using var a=await Prepared();using var b=await Prepared();
+                Require(L16Boundary.Recover(a.Source.Root,b.Lab,bootstrap)==
+                    L16Result.UnknownBlocked,"L16_CROSS_LAB_ACCEPTED");
+                a.Preserved();b.Preserved();
+            });
+            await RunAsync("L16-18-TIMEOUT-NOT-KILL",async()=>{
+                using var s=await Prepared();using var child=await StartCut(s,"intent-flushed");
+                try
+                {
+                    bool timeout=false;
+                    try{await child.WaitForExitAsync().WaitAsync(
+                        TimeSpan.FromMilliseconds(80));}
+                    catch(TimeoutException){timeout=true;}
+                    Require(timeout && !child.HasExited,"L16_WAIT_CANCELLED_CHILD");
+                }finally{await Kill(child);}
+                Require(await Reopen(s)==L16Result.OldBlocked,"L16_TIMEOUT_REOPEN");
+                s.Preserved();
+            });
+        }
+        finally{Directory.Delete(suite,true);}
+        var result=new {
+            schema="gf-l16-exact-signed-staged-ntfs-inert/1",
+            passed=Results.Count-failed,failed,tests=Results,
+            signed_tuf_entry_exact_bytes_on_disk=signedExactEntry,
+            pinned_ntfs_identity_across_one_selector_replace=pinHeldDuringSwap,
+            real_child_process_killed=childKilled,
+            fresh_process_recovery=newProcessRecovered,
+            controlled_concurrent_staged_write_blocked=toctouAttemptBlocked,
+            controlled_fork_and_lease_blocked=concurrentForkRefused,
+            old_app_and_markers_preserved=oldPreserved,
+            actual_multifile_transaction_proven=false,
+            arbitrary_selector_namespace_toctou_proven_closed=false,
+            independent_freshness_or_trusted_clock_proven=false,
+            malicious_same_user_full_rewrite_resisted=false,
+            power_loss_tested=false,product_updated_or_executed=false,
+            operational_gates_closed=0
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(result,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_L16_FINAL_REPORT "+JsonSerializer.Serialize(result));
+        return failed==0?0:1;
+    }
+}
