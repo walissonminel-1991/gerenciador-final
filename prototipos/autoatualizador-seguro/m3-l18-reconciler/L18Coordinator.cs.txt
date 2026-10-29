@@ -113,7 +113,30 @@ internal static class L18Coordinator
             "L18_EVENT_RECHECK");
         return item;
     }
-    private static (string sha,L16Selector selector) Probe(string src,
+    private sealed class PinnedFacts : IDisposable
+    {
+        private readonly WindowsFileGuard selectorPin;
+        internal string sha {get;}
+        internal L16Selector selector {get;}
+        internal string selectorIdentity {get;}
+        internal PinnedFacts(string digest,L16Selector selection,WindowsFileGuard pin)
+        {
+            sha=digest;selector=selection;selectorPin=pin;
+            selectorIdentity=pin.Identity;
+        }
+        internal void Recheck()
+        {
+            selectorPin.Recheck();
+            Require(selectorPin.Identity==selectorIdentity &&
+                StateCodec.Decode<L16Selector>(selectorPin.Read(4096))==selector,
+                "L20_SELECTOR_CHANGED_WHILE_DECIDING");
+        }
+        public void Dispose()=>selectorPin.Dispose();
+    }
+
+    // A same-user writer can still race the pathname BEFORE pin acquisition;
+    // this guard binds the subsequent decision to one observed NTFS object.
+    private static PinnedFacts Probe(string src,
         string lab,string bootstrap)
     {
         var proof=L15Binding.Guard(lab,src,bootstrap);
@@ -126,24 +149,76 @@ internal static class L18Coordinator
         using var stage=WindowsFileGuard.Open(src,L16Boundary.Stage(src));
         Require(stage.Read(4096).AsSpan().SequenceEqual(entry),
             "L18_STAGED_MISMATCH");
-        using var selectorPin=WindowsFileGuard.Open(src,L16Boundary.Selector(src));
-        byte[] selected=selectorPin.Read(4096);
-        using var doc=Json(selected,4096);
-        Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
-            doc.RootElement.EnumerateObject().Count()==3,"L18_SELECTOR_SHAPE");
-        var selector=StateCodec.Decode<L16Selector>(selected);
-        Require(selector.Schema=="gf-l16-selector-inert/1" &&
-            (selector is {Selected:"old",Generation:1 or 3} ||
-                selector is {Selected:"new",Generation:2}),"L18_SELECTOR_INVALID");
-        stage.Recheck();selectorPin.Recheck();
-        return (proof.SignedEntrySha,selector);
+        var selectorPin=WindowsFileGuard.Open(src,L16Boundary.Selector(src));
+        try
+        {
+            byte[] selected=selectorPin.Read(4096);
+            using var doc=Json(selected,4096);
+            Require(doc.RootElement.ValueKind==JsonValueKind.Object &&
+                doc.RootElement.EnumerateObject().Count()==3,"L18_SELECTOR_SHAPE");
+            var selector=StateCodec.Decode<L16Selector>(selected);
+            Require(selector.Schema=="gf-l16-selector-inert/1" &&
+                (selector is {Selected:"old",Generation:1 or 3} ||
+                    selector is {Selected:"new",Generation:2}),"L18_SELECTOR_INVALID");
+            stage.Recheck();selectorPin.Recheck();
+            return new PinnedFacts(proof.SignedEntrySha,selector,selectorPin);
+        }
+        catch { selectorPin.Dispose();throw; }
     }
+    // Local coordinator gate is distinct from the L16 owner's lease: it
+    // serializes Begin/Execute/Reconcile among cooperative coordinators, even
+    // while the owner child holds the L16 lease. Not same-user tamperproof.
+    internal static string CoordinatorGatePath(string src)
+        =>Path.Combine(src,"l20-coordinator-lease.fixture.txt");
+    internal static FileStream? TryCoordinatorGate(string src)
+    {
+        FixtureSandbox.RequireRoot(src);
+        string path=CoordinatorGatePath(src);
+        if(!File.Exists(path))
+        {
+            try
+            {
+                using var created=new FileStream(path,FileMode.CreateNew,
+                    FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough);
+                byte[] marker=System.Text.Encoding.UTF8.GetBytes(
+                    "GF-L20-COOPERATIVE-COORDINATOR-LEASE\n");
+                created.Write(marker);created.Flush(true);
+            }
+            catch(IOException) when(File.Exists(path)) { }
+        }
+        // Verify no reparse/hardlink/foreign ACL before acquiring the
+        // exclusive file lock. The close/reopen gap remains SAME-USER TOCTOU.
+        try
+        {
+            using(var pin=WindowsFileGuard.Open(src,path))
+                Require(System.Text.Encoding.UTF8.GetString(pin.Read(128))==
+                    "GF-L20-COOPERATIVE-COORDINATOR-LEASE\n",
+                    "L20_GATE_MARKER_INVALID");
+            return new FileStream(path,FileMode.Open,FileAccess.ReadWrite,
+                FileShare.None,4096,FileOptions.WriteThrough);
+        }
+        catch(Win32Exception ex) when(ex.NativeErrorCode is 32 or 33)
+        { return null; } // cooperative Windows sharing violation
+        catch(IOException ex) when((ex.HResult&0xffff) is 32 or 33)
+        { return null; }
+    }
+
     internal static void Begin(string src,string lab,string bootstrap)
     {
         Root(src,lab);
+        using var gate=TryCoordinatorGate(src);
+        Require(gate is not null,"L20_COORDINATOR_BUSY");
+        using var ownerLease=L16Boundary.Exclusive(src);
+        BeginCore(src,lab,bootstrap);
+    }
+
+    private static void BeginCore(string src,string lab,string bootstrap)
+    {
+        Root(src,lab);
         Require(!File.Exists(L16Boundary.Uncertain(src)) &&
-            Load(src,lab).Count==0,"L18_ALREADY_STARTED");
-        var facts=Probe(src,lab,bootstrap);
+            !File.Exists(RecoveryBlocked(src)) &&
+            Load(src,lab).Count==0,"L20_BEGIN_BLOCKED");
+        using var facts=Probe(src,lab,bootstrap);
         Require(facts.selector is {Selected:"old",Generation:1},
             "L18_BEGIN_NOT_OLD");
         Append(src,lab,Start,"old-observed-before-start",facts.sha);
@@ -154,12 +229,19 @@ internal static class L18Coordinator
         Append(src,lab,Staged,"exact-signed-entry-staged-id-pinned",facts.sha);
         // Persist intention BEFORE ANY owner that might modify the selector.
         Append(src,lab,Intent,"owner-may-be-launched",facts.sha);
+        facts.Recheck();
     }
     internal static async Task<L18Decision> Execute(string src,string lab,
         string bootstrap,string executable,string cutpoint,TimeSpan deadline,
         bool cutDuringRecovery=false)
     {
-        Begin(src,lab,bootstrap);
+        Root(src,lab);
+        using var gate=TryCoordinatorGate(src);
+        if(gate is null)return L18Decision.Busy;
+        // The owner hasn't started yet: pin its exclusive lease during
+        // preparation, then release it BEFORE launching the child.
+        using(var preparationLease=L16Boundary.Exclusive(src))
+            BeginCore(src,lab,bootstrap);
         Append(src,lab,Switching,"switch-can-start-only-after-intent",
             Load(src,lab)[0].TargetSha);
         Require(deadline>TimeSpan.Zero && deadline<=TimeSpan.FromMinutes(1),
@@ -209,7 +291,7 @@ internal static class L18Coordinator
             if(owner.ExitCode==0)
                 Append(src,lab,Switched,"switched-pending-reconciliation",
                     Load(src,lab)[0].TargetSha);
-            return Reconcile(src,lab,bootstrap,cutDuringRecovery);
+            return ReconcileCore(src,lab,bootstrap,cutDuringRecovery,null);
         }
         catch
         {
@@ -282,7 +364,16 @@ internal static class L18Coordinator
     }
 
     internal static L18Decision Reconcile(string src,string lab,string bootstrap,
-        bool cutAfterCheckpoint=false)
+        bool cutAfterCheckpoint=false,Action? selectorObserved=null)
+    {
+        Root(src,lab);
+        using var gate=TryCoordinatorGate(src);
+        if(gate is null)return L18Decision.Busy;
+        return ReconcileCore(src,lab,bootstrap,cutAfterCheckpoint,selectorObserved);
+    }
+
+    private static L18Decision ReconcileCore(string src,string lab,
+        string bootstrap,bool cutAfterCheckpoint,Action? selectorObserved)
     {
         Root(src,lab);
         FileStream lease;
@@ -299,13 +390,15 @@ internal static class L18Coordinator
                 var events=Load(src,lab);
                 // Do NOT evaluate events[^1] before handling empty journals.
                 // The previously authenticated L15 binding validates OLD.
-                var facts=Probe(src,lab,bootstrap);
+                using var facts=Probe(src,lab,bootstrap);
+                selectorObserved?.Invoke(); // deterministic fixture interleaving
+                facts.Recheck();
                 if(events.Count==0)
                 {
                     if(facts.selector is {Selected:"old",Generation:1} &&
                         !File.Exists(L16Boundary.Intent(src)) &&
                         !File.Exists(L16Boundary.Terminal(src)))
-                        return L18Decision.OldVerified;
+                    { facts.Recheck(); return L18Decision.OldVerified; }
                     RememberUnknown(src,lab,"no-journal-inconsistent");
                     return L18Decision.UnknownBlocked;
                 }
@@ -346,15 +439,16 @@ internal static class L18Coordinator
                 // An already classified state is idempotently observable.
                 // Conflicts after the outcome are persisted, not just returned.
                 if(last==New && newIsObserved)
-                    return L18Decision.LocalConsistentObserved;
+                { facts.Recheck();return L18Decision.LocalConsistentObserved; }
                 if(last==Old && oldIsObserved)
-                    return L18Decision.OldVerified;
+                { facts.Recheck();return L18Decision.OldVerified; }
                 if(last==Failure && outcome=="exit-code-nonzero" &&
                     oldIsObserved)
                 {
                     Append(src,lab,Reconciling,"reverify-old-after-known-failure",
                         facts.sha);
                     Append(src,lab,Old,"old-verified-after-failure",facts.sha);
+                    facts.Recheck();
                     return L18Decision.OldVerified;
                 }
 
@@ -373,16 +467,22 @@ internal static class L18Coordinator
                         Thread.Sleep(Timeout.Infinite);
                     }
                     // Re-observe after persisting intent; no blind replay.
-                    facts=Probe(src,lab,bootstrap);
+                    // Keep BOTH selector handles pinned until the decision;
+                    // a changed namespace cannot be accepted between reads.
+                    using var refreshed=Probe(src,lab,bootstrap);
+                    Require(refreshed.selectorIdentity==facts.selectorIdentity &&
+                        refreshed.selector==facts.selector,
+                        "L20_SELECTOR_IDENTITY_FORK");
                     newIsObserved=outcome=="exit-code-zero" &&
-                        facts.selector is {Selected:"new",Generation:2} &&
-                        AuxiliaryTerminalMatches(src,lab,facts.selector);
-                    oldIsObserved=facts.selector.Selected=="old" &&
-                        facts.selector.Generation is 1 or 3 &&
+                        refreshed.selector is {Selected:"new",Generation:2} &&
+                        AuxiliaryTerminalMatches(src,lab,refreshed.selector);
+                    oldIsObserved=refreshed.selector.Selected=="old" &&
+                        refreshed.selector.Generation is 1 or 3 &&
                         !File.Exists(L16Boundary.Terminal(src));
                     if(newIsObserved)
                     {
                         Append(src,lab,New,"local-fixture-consistent",facts.sha);
+                        facts.Recheck();refreshed.Recheck();
                         return L18Decision.LocalConsistentObserved;
                     }
                     if(outcome=="exit-code-nonzero" && oldIsObserved)
@@ -392,9 +492,11 @@ internal static class L18Coordinator
                         {
                             Append(src,lab,Failure,"known-owner-error-old-observed",
                                 facts.sha);
+                            facts.Recheck();refreshed.Recheck();
                             return L18Decision.FailedKnown;
                         }
                         Append(src,lab,Old,"old-reverified-after-failure",facts.sha);
+                        facts.Recheck();refreshed.Recheck();
                         return L18Decision.OldVerified;
                     }
                 }

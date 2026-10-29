@@ -1,0 +1,181 @@
+// L20: cooperative coordinator gate and pinned-selector decision tests.
+// Inert test source only: no genuine GF executable or operational READY.
+using System.Diagnostics;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L20Tests
+{
+    private static readonly List<object> Results=[];
+    private static int Failed;
+    private static string Exe=>Environment.ProcessPath ??
+        throw new InvalidDataException("L20_NO_RUNNER");
+    private static async Task Check(string name,Func<Task> test)
+    {
+        try{await test();Results.Add(new{name,status="passed"});Console.WriteLine("PASS "+name);}
+        catch(Exception ex){Failed++;Results.Add(new{name,status="failed",error=ex.ToString()});
+            Console.WriteLine("FAIL "+name+" "+ex);}
+    }
+    private static Process Spawn(params string[] args)
+    {
+        var info=new ProcessStartInfo(Exe){
+            UseShellExecute=false,CreateNoWindow=true,
+            RedirectStandardOutput=true,RedirectStandardError=true,
+            WorkingDirectory=Path.GetTempPath()
+        };
+        foreach(var arg in args)info.ArgumentList.Add(arg);
+        return Process.Start(info) ?? throw new InvalidDataException("L20_PROCESS_START");
+    }
+    private static async Task Kill(Process child)
+    {
+        if(!child.HasExited)child.Kill(entireProcessTree:true);
+        await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+    }
+    private static async Task<Process> WaitReady(Process child,string ready)
+    {
+        try
+        {
+            string? line=await child.StandardOutput.ReadLineAsync()
+                .WaitAsync(TimeSpan.FromSeconds(30));
+            Require(line==ready && !child.HasExited,"L20_GATE_CUT_NOT_REACHED:"+line);
+            return child;
+        }
+        catch {await Kill(child);child.Dispose();throw;}
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(!OperatingSystem.IsWindows())return 2;
+        if(args.Length==5 && args[0]=="--owner")
+        {
+            if(args[4]=="known-fail-before-switch")return 7;
+            L16Boundary.Perform(args[1],args[2],args[3],args[4]);return 0;
+        }
+        if(args.Length==3 && args[0]=="--gate-holder")
+        {
+            using var gate=L18Coordinator.TryCoordinatorGate(args[1]);
+            Require(gate is not null,"L20_GATE_HOLDER_CANNOT_LOCK");
+            Console.WriteLine("READY:L20-GATE");Console.Out.Flush();
+            var watch=Stopwatch.StartNew();
+            while(!File.Exists(L16Boundary.Signal(args[2])) &&
+                  watch.Elapsed<TimeSpan.FromSeconds(15))Thread.Sleep(15);
+            Require(File.Exists(L16Boundary.Signal(args[2])),"L20_GATE_HOLDER_TIMEOUT");
+            return 0;
+        }
+        if(args.Length!=4 || args[0]!="--report")return 2;
+        Require(Path.GetFileName(Exe)=="GF.Updater.M3.L18Tests.exe",
+            "L20_FIXTURE_BINARY_NAME");
+        L16Tests.fixtures=Path.GetFullPath(args[2]);
+        L16Tests.bootstrap=Path.GetFullPath(args[3]);
+        L16Tests.suite=Path.Combine(Path.GetTempPath(),
+            "gf-u2-l20-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(L16Tests.suite);
+        try
+        {
+            await Check("L20-01-RECOVERY-BLOCKER-REJECTS-BEGIN",async()=>{
+                using var s=await L16Tests.Prepared();
+                string canary=Path.Combine(s.Lab,"USER-FILE-CANARY-L20.txt");
+                File.WriteAllText(canary,"KEEP-THIS-DATA");
+                File.WriteAllText(L18Coordinator.RecoveryBlocked(s.Source.Root),
+                    "GF-L19-LOCAL-UNRECOVERABLE-JOURNAL-V1\n");
+                bool refused=false;
+                try{L18Coordinator.Begin(s.Source.Root,s.Lab,L16Tests.bootstrap);}
+                catch(Rejected){refused=true;}
+                Require(refused &&
+                    L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                        L16Tests.bootstrap)==L18Decision.UnknownBlocked &&
+                    !File.Exists(L18Coordinator.EventPath(s.Source.Root,1)) &&
+                    File.ReadAllText(canary)=="KEEP-THIS-DATA",
+                    "L20_BEGIN_IGNORED_DURABLE_UNKNOWN");
+                s.Preserved();
+            });
+            await Check("L20-02-SIMULTANEOUS-BEGIN-RECOVER-COORDINATED",async()=>{
+                using var s=await L16Tests.Prepared();
+                using var holder=await WaitReady(
+                    Spawn("--gate-holder",s.Source.Root,s.Lab),"READY:L20-GATE");
+                try
+                {
+                    bool refused=false;
+                    try{L18Coordinator.Begin(s.Source.Root,s.Lab,
+                        L16Tests.bootstrap);}
+                    catch(Rejected){refused=true;}
+                    Require(refused &&
+                        L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                            L16Tests.bootstrap)==L18Decision.Busy &&
+                        !File.Exists(L18Coordinator.EventPath(s.Source.Root,1)),
+                        "L20_CONCURRENT_COORDINATOR_NOT_SERIALIZED");
+                    File.WriteAllText(L16Boundary.Signal(s.Lab),"RELEASE-L20\n");
+                    await holder.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+                    Require(holder.ExitCode==0 &&
+                        L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                            L16Tests.bootstrap)==L18Decision.OldVerified,
+                        "L20_RELEASED_GATE_CANNOT_REOBSERVE_OLD");
+                }
+                finally{if(!holder.HasExited)await Kill(holder);}
+                s.Preserved();
+            });
+            await Check("L20-03-SELECTOR_PINNED_UNTIL_DECISION",async()=>{
+                using var s=await L16Tests.Prepared();
+                bool blockedWrite=false,blockedReplace=false,seen=false;
+                var decision=L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                    L16Tests.bootstrap,selectorObserved:()=>{
+                    seen=true;
+                    string selector=L16Boundary.Selector(s.Source.Root);
+                    byte[] current=File.ReadAllBytes(selector);
+                    string temp=Path.Combine(s.Source.Root,"l20-selector-temp.fixture");
+                    string backup=Path.Combine(s.Source.Root,"l20-selector-backup.fixture");
+                    File.WriteAllBytes(temp,current);
+                    try{File.WriteAllBytes(selector,current);}
+                    catch(IOException){blockedWrite=true;}
+                    catch(UnauthorizedAccessException){blockedWrite=true;}
+                    try{File.Replace(temp,selector,backup);}
+                    catch(IOException){blockedReplace=true;}
+                    catch(UnauthorizedAccessException){blockedReplace=true;}
+                });
+                Require(seen && blockedWrite && blockedReplace &&
+                    decision==L18Decision.OldVerified &&
+                    L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                        L16Tests.bootstrap)==L18Decision.OldVerified,
+                    "L20_SELECTOR_DECISION_LOST_NTFS_PIN");
+                s.Preserved();
+            });
+            await Check("L20-04-OWNER-LEASE-BLOCKS-CONCURRENT-BEGIN",async()=>{
+                using var s=await L16Tests.Prepared();
+                using var owner=await WaitReady(Spawn("--owner",s.Source.Root,
+                    s.Lab,L16Tests.bootstrap,"after-replace-resume"),
+                    "READY:L17-LATE");
+                try
+                {
+                    bool rejected=false;
+                    try{L18Coordinator.Begin(s.Source.Root,s.Lab,
+                        L16Tests.bootstrap);}
+                    catch(IOException){rejected=true;}
+                    catch(Rejected){rejected=true;}
+                    Require(rejected &&
+                        L18Coordinator.Reconcile(s.Source.Root,s.Lab,
+                            L16Tests.bootstrap)==L18Decision.Busy &&
+                        !File.Exists(L18Coordinator.EventPath(s.Source.Root,1)),
+                        "L20_OWNER_LEASE_WAS_BYPASSED");
+                }
+                finally{await Kill(owner);}
+                s.Preserved();
+            });
+        }
+        finally{Directory.Delete(L16Tests.suite,true);}
+        var report=new{
+            schema="gf-l20-coordinator-gate-pinned-selector-inert/1",
+            passed=Results.Count-Failed,failed=Failed,tests=Results,
+            gate_is_only_cooperative=true,
+            selector_is_pinned_during_observed_decision=true,
+            no_real_gf_operation=true,no_independent_witness=true,
+            adversarial_same_user_closed=false,power_loss_proven=false,
+            whole_disk_restore_resisted=false,operational_gates_closed=0
+        };
+        await File.WriteAllTextAsync(args[1],JsonSerializer.Serialize(report,
+            new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_L20_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return Failed==0?0:1;
+    }
+}
