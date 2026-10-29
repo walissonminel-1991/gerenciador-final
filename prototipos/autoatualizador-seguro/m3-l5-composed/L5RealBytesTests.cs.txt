@@ -1,0 +1,262 @@
+// L5 targeted NEW composition tests: actual pinned Stage11 signed refresh,
+// Stage3 binding, Stage9 operation, Stage2 intent/rollback and L4 memory CAS.
+// No candidate selection, Confirm, update executable, remote service or secret.
+using System.Text;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class L5RealBytesTests
+{
+    private static readonly List<object> results=[];
+    private static int failed;
+    private static string suite="",fixtures="",bootstrap="";
+    private static bool linkedRealSignedBytes,twoPhaseLostReply,stage3WholeBytesRequired,
+        operationMutationBlocked,stage2MutationBlocked,terminalAbsentBlocked,
+        terminalMutationBlocked,selectorPreserved=true;
+
+    private sealed class Scenario : IDisposable
+    {
+        internal readonly InertComposedCase Case=new(suite);
+        internal readonly OperationJournal Operations;
+        internal readonly InertCompositeAnchor Stage3IntentAnchor;
+        internal readonly L4AtomicWitnessMemoryFixture Witness=new();
+        private readonly byte[] rootPublic;
+        internal CompositeHead? Stage3Head;
+        internal L5FrozenProof? Bridge;
+        internal Scenario()
+        {
+            Directory.CreateDirectory(Path.Combine(Case.Root,"operations"));
+            Operations=new OperationJournal(Case.Root,Case.InstallationId);
+            Stage3IntentAnchor=new(Case.InstallationId,InertCompositeBuilder.Repository);
+            Witness.BootstrapTrustedForHarness(Case.InstallationId,
+                InertCompositeBuilder.Repository);
+            rootPublic=File.ReadAllBytes(bootstrap);
+            using var cache=new DurableEpochCache(Case.Root,
+                Case.InstallationId,rootPublic,create:true);
+        }
+        internal async Task<L5FrozenProof> Prepare()
+        {
+            using var trust=Open();
+            var inputs=Directory.GetFiles(Path.Combine(fixtures,"release2"))
+                .ToDictionary(x=>Path.GetFileName(x),File.ReadAllBytes,StringComparer.Ordinal);
+            var utc=DateTimeOffset.UtcNow;
+            var result=await DurableTufAttempt.Get(trust,
+                new Stage8Repository(inputs,utc),utc);
+            byte[] zip=result.Content.ToArray();
+            var files=ZipInspection.Inspect(zip,3,CancellationToken.None);
+            var bytes=files["bundle.fixture.txt"];
+            var candidate=new BundleRef(2,"0.0.0.2",
+                Hash(bytes),"linux-fixture-model");
+            string folder=Path.Combine(Case.Root,"versions",candidate.DirectoryName);
+            Directory.CreateDirectory(folder);
+            var f=Path.Combine(folder,"bundle.fixture.txt");
+            File.WriteAllBytes(f,bytes);
+            using(var guard=WindowsFileGuard.Open(Case.Root,f))
+                candidate=candidate with {Identity=guard.Identity};
+            var view=trust.View();
+            Require(view.Metadata.Count==4 && view.ActiveAttempt=="",
+                "L5_SIGNED_TUF_VIEW_REQUIRED");
+            var state=new PersistentState(Case.Root).Load();
+            var selector=Hash(PersistentState.ReadFixtureFile(Case.Root,
+                Path.Combine(Case.Root,"active.fixture.json")));
+            var admitted=Operations.Admit(state.Digest,selector);
+            var permit=new InertPermit(candidate.Sequence,candidate.Version,
+                Hash(zip),Hash(bytes),Hash(files["SHA256SUMS.txt"]),view.Digest);
+            var authorized=Operations.Advance(admitted,"authorized",permit:permit);
+            Operations.Advance(authorized,"prepared",candidate:candidate);
+            _=G1Preselect.Prepare(Case.Root,candidate,true);
+            var checkpoint=InertCompositeBuilder.Build(Case.Root,view,Operations,null);
+            Stage3Head=Stage3IntentAnchor.CommitModelOnly(checkpoint);
+            Bridge=L5FrozenProof.Freeze(Case.Root,rootPublic,view,zip,
+                candidate,Stage3Head,Operations,Witness);
+            CheckSelector();
+            return Bridge;
+        }
+        internal DurableEpochCache Open()
+            =>new(Case.Root,Case.InstallationId,rootPublic);
+        internal string TerminalPath()
+        {
+            var state=new PersistentState(Case.Root).Load().Record;
+            return InertCompositeBuilder.LocalStatePath(Case.Root,state.Generation);
+        }
+        internal void RollBackInert()
+        {
+            using(var session=new FixtureSession(Case.Root))
+            {
+                var result=session.Recover();
+                Require(result.Transaction?.Phase=="rolled_back" &&
+                    result.Confirmed==Case.Old,"L5_ROLLBACK_NOT_RECORDED");
+            }
+            CheckSelector();
+        }
+        internal void CheckSelector()
+        {
+            using var session=new FixtureSession(Case.Root);
+            Require(session.Files.ReadSelector(Case.InstallationId).Bundle==Case.Old
+                && session.Store.Load().Record.Confirmed==Case.Old &&
+                session.Store.Load().Record.Transaction is not
+                    {Phase:"selected" or "confirmed"},
+                "L5_EARLY_SELECTION");
+            selectorPreserved=true;
+        }
+        public void Dispose()
+        {
+            CheckSelector();
+            Case.Preserved();Case.Dispose();
+        }
+    }
+    private static void Reject(string error,Action action)
+    {
+        try {action();}
+        catch(Rejected r) when(r.Code==error){return;}
+        catch(L4Reject r) when(r.Code==error){return;}
+        throw new InvalidDataException("L5_UNSAFE_ACCEPTANCE:"+error);
+    }
+    private static void Lost(Action a)
+    {
+        try{a();}
+        catch(TimeoutException){return;}
+        throw new InvalidDataException("L5_CUTPOINT_NOT_REACHED");
+    }
+    private static async Task CaseTest(string name,Func<Task> action)
+    {
+        try{await action();results.Add(new{name,status="passed"});Console.WriteLine("PASS "+name);}
+        catch(Exception e){failed++;results.Add(new{name,status="failed",error=e.ToString()});
+            Console.WriteLine("FAIL "+name+" "+e);}
+    }
+    public static async Task<int> Main(string[] args)
+    {
+        if(args.Length!=4 || args[0]!="--report" || !OperatingSystem.IsWindows())
+            return 2;
+        fixtures=Path.GetFullPath(args[2]);
+        bootstrap=Path.GetFullPath(args[3]);
+        suite=Path.Combine(Path.GetTempPath(),"gf-u2-l5-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(suite);
+        try
+        {
+            await CaseTest("L5-01-SIGNED-STAGE3-STAGE9-STAGE2-L4-TWO-CUTPOINTS",async()=>{
+                using var s=new Scenario();
+                var bridge=await s.Prepare();
+                var stage3=bridge.BindingForNegativeFixture;
+                Require(bridge.EvidenceForNegativeFixture.Tuf
+                    .ValidatedStage3BytesDigest==Hash(StateCodec.Encode(stage3)) &&
+                    bridge.EvidenceForNegativeFixture.Composite
+                    .PreparedOperationDigest==s.Operations.Load().Digest &&
+                    bridge.EvidenceForNegativeFixture.Composite
+                    .Stage2IntentDigest==new PersistentState(s.Case.Root).Load().Digest,
+                    "L5_FULL_BYTES_NOT_COMMITTED_IN_CLAIM");
+                linkedRealSignedBytes=true;
+                Lost(()=>bridge.PublishIntentModelOnly(loseReply:true));
+                var intent=bridge.ReadCommittedIntentForFixtureOnly();
+                Require(intent is not null && s.Witness.HeadForFixtureOnly!.Sequence==1,
+                    "L5_INTENT_RECEIPT_MISSING_AFTER_LOSS");
+                s.RollBackInert();
+                var claim=bridge.PrepareTerminalClaim(intent);
+                Lost(()=>bridge.PublishTerminalModelOnly(claim,loseReply:true));
+                Require(s.Witness.HeadForFixtureOnly!.Sequence==2 &&
+                    bridge.InspectTerminal(claim)==L4Reconcile.CommittedButNotAuthorized &&
+                    s.Witness.PublishTerminal(claim).CommittedHead.Sequence==2,
+                    "L5_TERMINAL_REPLY_LOST_DOUBLE_ADVANCE");
+                twoPhaseLostReply=true;
+                s.CheckSelector();
+            });
+            await CaseTest("L5-02-STAGE3-MANIFEST-BYTES-NOT-DROPPED-BY-CAS",async()=>{
+                using var s=new Scenario();var bridge=await s.Prepare();
+                var stage3=bridge.BindingForNegativeFixture;
+                var tampered=stage3 with {ManifestSha=new string('f',64)};
+                // The L4 limited fields would all remain identical. The new
+                // full Stage3 serialized digest MUST change the committed body.
+                var changed=L5FrozenProof.EvidenceFromStage3(tampered,
+                    s.Stage3Head!,s.Operations.Load().Digest);
+                Require(bridge.EvidenceForNegativeFixture.Tuf.RootDigest==
+                    changed.Tuf.RootDigest &&
+                    bridge.EvidenceForNegativeFixture.Tuf.CandidateDigest==
+                    changed.Tuf.CandidateDigest &&
+                    bridge.EvidenceForNegativeFixture.Tuf
+                        .ValidatedStage3BytesDigest!=changed.Tuf
+                        .ValidatedStage3BytesDigest,
+                    "L5_FULL_STAGE3_DIGEST_NOT_SENSITIVE");
+                Reject("L4_INTENT_EVIDENCE_CHANGED",()=>s.Witness.PublishIntent(
+                    bridge.IntentClaim,changed));
+                Require(s.Witness.HeadForFixtureOnly!.Sequence==0,
+                    "L5_TAMPERED_STAGE3_ADVANCED");
+                stage3WholeBytesRequired=true;
+            });
+            await CaseTest("L5-03-OPERATION-JOURNAL-MOVED-AFTER-BIND",async()=>{
+                using var s=new Scenario();var bridge=await s.Prepare();
+                var before=s.Operations.Load().Record!;
+                s.Operations.Advance(before,"settled",outcome:"rolled_back",
+                    after:new string('a',64));
+                Reject("COMPOSITE_OPERATION_OR_TUF_UNBOUND",()=>
+                    bridge.PublishIntentModelOnly());
+                Require(s.Witness.HeadForFixtureOnly!.Sequence==0,
+                    "L5_OPERATION_DRIFT_ADVANCED");
+                operationMutationBlocked=true;
+            });
+            await CaseTest("L5-04-REAL-STAGE2-INTENT-BYTES-DRIFT-AFTER-BIND",async()=>{
+                using var s=new Scenario();var bridge=await s.Prepare();
+                File.AppendAllText(s.TerminalPath()," \n",Encoding.UTF8);
+                Reject("COMPOSITE_CROSS_JOURNAL_ROLLBACK_OR_FORK",()=>
+                    bridge.PublishIntentModelOnly());
+                Require(s.Witness.HeadForFixtureOnly!.Sequence==0,
+                    "L5_LOCAL_INTENT_DRIFT_ADVANCED");
+                stage2MutationBlocked=true;
+            });
+            await CaseTest("L5-05-INTENT-COMMIT-IS-NOT-LOCAL-TERMINAL",async()=>{
+                using var s=new Scenario();var bridge=await s.Prepare();
+                var intent=bridge.PublishIntentModelOnly();
+                Reject("L5_TERMINAL_NOT_SETTLED",()=>
+                    bridge.PrepareTerminalClaim(intent));
+                Require(s.Witness.HeadForFixtureOnly!.Phase=="intent" &&
+                    s.Witness.HeadForFixtureOnly!.Sequence==1,
+                    "L5_UNSETTLED_TERMINAL_ADVANCED");
+                terminalAbsentBlocked=true;
+            });
+            await CaseTest("L5-06-ROLLED_BACK-BYTES-DRIFT-AFTER-TERMINAL-CAS",async()=>{
+                using var s=new Scenario();var bridge=await s.Prepare();
+                var intent=bridge.PublishIntentModelOnly();
+                s.RollBackInert();
+                var claim=bridge.PrepareTerminalClaim(intent);
+                var committed=bridge.PublishTerminalModelOnly(claim);
+                Require(committed.CommittedHead.Sequence==2,
+                    "L5_TERMINAL_COMMIT_NOT_ESTABLISHED");
+                File.AppendAllText(s.TerminalPath()," \n",Encoding.UTF8);
+                Reject("L5_TERMINAL_BYTES_CHANGED",()=>bridge.InspectTerminal(claim));
+                Reject("L5_TERMINAL_BYTES_CHANGED",()=>
+                    bridge.PublishTerminalModelOnly(claim));
+                Require(s.Witness.HeadForFixtureOnly==committed.CommittedHead,
+                    "L5_TERMINAL_FORK_MOVED_WITNESS");
+                terminalMutationBlocked=true;
+            });
+        }
+        finally{Directory.Delete(suite,true);}
+        var report=new{schema=1,phase="L5-signed-TUF-Stage2-L4-composition-inert",
+            passed=results.Count-failed,failed,tests=results,
+            exact_stage3_signed_binding_bytes_carried=linkedRealSignedBytes,
+            both_remote_reply_loss_cutpoints_reconciled=twoPhaseLostReply,
+            stage3_unmapped_manifest_change_blocked=stage3WholeBytesRequired,
+            operation_journal_drift_blocked=operationMutationBlocked,
+            stage2_intent_byte_drift_blocked=stage2MutationBlocked,
+            intent_alone_does_not_authenticate_terminal=terminalAbsentBlocked,
+            rolled_back_terminal_byte_fork_blocked=terminalMutationBlocked,
+            old_selector_never_changed=selectorPreserved,
+            complete_tuf_signed_fixture_refresh=true,
+            actual_stage2_rollback_read=true,
+            witness_in_memory_only=true,
+            durable_independent_witness_exists=false,
+            external_receipt_signed=false,
+            real_crash_recovery_after_witness_restart=false,
+            physical_power_failure_tested=false,
+            production_key_or_service_created=false,
+            product_executed=false,product_built=false,
+            selection_authorized=false,confirmation_authorized=false,
+            operational_gates_closed=0};
+        await File.WriteAllTextAsync(args[1],
+            JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
+        Console.WriteLine("GF_L5_FINAL_REPORT "+JsonSerializer.Serialize(report));
+        return failed==0?0:1;
+    }
+}
