@@ -431,6 +431,13 @@ def main():
         candidate = observed_process(new, new_manifest["GerenciadorFinal.exe"]["sha256"])
         result["new_process"] = candidate
         result["real_gf_process_attempted"] = candidate["launch_attempted"]
+        result["minimum_readonly_health_contract_observed"] = (
+            old_observation.get("readonly_inventory_search_health", {})
+            .get("minimum_readonly_health_contract_observed") is True and
+            candidate.get("readonly_inventory_search_health", {})
+            .get("minimum_readonly_health_contract_observed") is True)
+        require(result["minimum_readonly_health_contract_observed"],
+                "READONLY_SEARCH_FUNCTIONAL_ROUNDTRIP_UNPROVEN")
         require(candidate["terminated"], "NEW_PROCESS_NOT_TERMINATED")
         # Health and shutdown are independently recorded for the REAL
         # image/window; successful limited observations never promote READY.

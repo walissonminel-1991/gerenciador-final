@@ -99,6 +99,7 @@ jobs:
               !$b.real_manifest_sha_in_l18_target -or
               !$b.real_manifest_scope_binds_installation_and_tx -or
               !$b.prepared_tuf_metadata_reverified_before_new -or
+              !$b.minimum_readonly_functional_search_verified -or
               $b.real_packet_not_bound_to_l18_target -or
               $b.production_tuf_authority -or
               $b.verified_operational_ready -or $b.phase1_complete -or
@@ -109,6 +110,7 @@ jobs:
           if (!$r.real_gf_built -or !$r.authenticated_real_package -or
               !$r.tampered_dll_rejected_before_selection -or
               !$r.real_manifest_bound_to_preflight -or
+              !$r.minimum_readonly_health_contract_observed -or
               !$r.authorization_installation -or !$r.authorization_transaction -or
               !$r.rolled_back_due_to_no_ready -or !$r.old_and_canary_preserved -or
               !$r.tuf_laboratory_test_keys_only -or
@@ -144,6 +146,7 @@ jobs:
             '* Coordenador C# L18-L22: gate unica, historico duravel, processo GF supervisionado no mesmo ensaio'
             '* RESULTADO C#: UnknownBlocked apesar de TargetSha agora conter SHA256 do manifesto TUF GF real'
             '* Metadados TUF GF real prevalidos antes de BEGIN, revalidados antes de NEW'
+            '* Busca real: editar filtro com nonce inexistente -> estado vazio -> restaurar, sem manutencao'
             '* Falta contrato READY operacional e autoridade TUF de producao'
             '* Digest do manifesto GF real vinculado ao diario L18; nao autoriza operacao real'
             '* READY real NAO demonstrado; OLD restaurada, hashes e canario intactos'

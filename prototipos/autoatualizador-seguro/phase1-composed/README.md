@@ -17,3 +17,7 @@ Além da janela, `observe_read_only_ui_controls` enumera exclusivamente os contr
 Limites intencionais: ainda não há contrato operacional autenticado de encerramento completo/READY independente, recuperação de I/O pendente, confiança de chaves de produção ou restauração após falha física. Nenhuma modificação foi feita no Program.cs ou MainForm, nem na BETA distribuída, main, PR #65, backend, credenciais ou PCs pessoais. G1–G8 permanecem BLOCKED (0/8).
 
 Critério para encerrar a Fase 1: demonstrar, no MESMO marco, saída/identidade/saúde verificável do GF real, autenticação do pacote autorizada para laboratório e recuperação conservadora, sem usar recibo local como autoridade suficiente. Não avançar para Fase 2 até que a evidência exista ou um bloqueio objetivo seja registrado.
+
+### Contrato mínimo de saúde SOMENTE LEITURA, não READY
+
+O observador em Win32, sempre restrito ao HWND/identidade do próprio GF e ao runner descartável, encontra a caixa real de pesquisa no mesmo contêiner do rótulo `Pesquisar:`. Insere um filtro aleatório que não pode corresponder a um aplicativo, observa a mensagem de lista vazia causada pelo `TextChanged → RenderPrograms` REAL e restaura o filtro. Esta verificação testa um caminho funcional de leitura/inventário além de PID, HWND, mensagem ou recibo. **Não autentica o estado dos motores, nenhuma operação de atualização, efeitos tardios, bytes carregados nem READY operacional do autoatualizador**. Se o filtro não responder ou a reversão não puder ser observada, falha a CI e NEW não é autorizada.

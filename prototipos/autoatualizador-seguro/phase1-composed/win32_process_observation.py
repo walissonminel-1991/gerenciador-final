@@ -9,6 +9,7 @@ import ctypes
 from ctypes import wintypes as w
 import hashlib
 import os
+import secrets
 import subprocess
 from pathlib import Path
 import time
@@ -42,6 +43,16 @@ _is_visible.restype = w.BOOL
 _is_enabled = _u.IsWindowEnabled
 _is_enabled.argtypes = [w.HWND]
 _is_enabled.restype = w.BOOL
+_get_parent = _u.GetParent
+_get_parent.argtypes = [w.HWND]
+_get_parent.restype = w.HWND
+_get_class = _u.GetClassNameW
+_get_class.argtypes = [w.HWND, w.LPWSTR, ctypes.c_int]
+_get_class.restype = ctypes.c_int
+_get_style = _u.GetWindowLongW
+_get_style.argtypes = [w.HWND, ctypes.c_int]
+_get_style.restype = ctypes.c_long
+
 _enum_child = _u.EnumChildWindows
 _enum_child.argtypes = [w.HWND, WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM), w.LPARAM]
 _enum_child.restype = w.BOOL
@@ -161,6 +172,103 @@ def observe_read_only_ui_controls(main_hwnd: int, expected_pid: int):
     return findings
 
 
+def read_only_search_round_trip(main_hwnd: int, expected_pid: int):
+    """Exercise the REAL WinForms inventory search, without maintenance.
+
+    This observes a functional state transition (search -> empty match ->
+    clear search), not merely PID/window presence or a same-user receipt.
+    The nonce is never sent to the network; only boolean outcomes are logged.
+    All text except static GF labels stays local and is not reported.
+    """
+    result = {"search_edit_identified": False,
+              "search_nonmatch_empty_state_observed": False,
+              "search_restored": False,
+              "baseline_inventory_nonzero": False,
+              "minimum_readonly_health_contract_observed": False}
+    callback_type = WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+    labels = []
+    edits = []
+    before_empty = False
+    empty_label = "Nenhum aplicativo corresponde à pesquisa."
+
+    def scan():
+        current = []
+        @callback_type
+        def inspect(hwnd, _):
+            owner = w.DWORD()
+            _pid_for(hwnd, ctypes.byref(owner))
+            if owner.value != expected_pid:
+                return True
+            title = ctypes.create_unicode_buffer(512)
+            _get_title(hwnd, title, len(title))
+            class_text = ctypes.create_unicode_buffer(180)
+            _get_class(hwnd, class_text, len(class_text))
+            current.append((int(hwnd), title.value, class_text.value,
+                            int(_get_parent(hwnd) or 0),
+                            bool(_get_style(hwnd, -16) & 0x10000000)))
+            return True
+        _enum_child(main_hwnd, inspect, 0)
+        return current
+
+    before = scan()
+    summary = next((x[1] for x in before if x[1].startswith("Apps: ")), "")
+    try:
+        count = int(summary.split("Apps: ", 1)[1].split()[0])
+        result["baseline_inventory_nonzero"] = count > 0
+    except (IndexError, ValueError):
+        return result
+    label = next((x for x in before if x[1] == "Pesquisar:"), None)
+    if not label or not result["baseline_inventory_nonzero"]:
+        return result
+    # Search for the ONLY WinForms EDIT with the SAME parent as "Pesquisar:".
+    # Never type into an unrelated text box or other user's process.
+    choices = [x for x in before if x[3] == label[3] and
+               "EDIT" in x[2].upper()]
+    if len(choices) != 1:
+        return result
+    edit = choices[0][0]
+    result["search_edit_identified"] = True
+    nonce = "GF-PHASE1-NO-MATCH-" + secrets.token_hex(12)
+    def set_search(text):
+        b = ctypes.create_unicode_buffer(text)
+        out = ctypes.c_size_t()
+        return bool(_send(edit, 0x000C, 0,
+                          ctypes.cast(b, ctypes.c_void_p).value,
+                          0x0002, 2500, ctypes.byref(out)))
+    try:
+        if not set_search(nonce):
+            return result
+        until = time.monotonic() + 3.0
+        while time.monotonic() < until:
+            current = scan()
+            empty = next((x for x in current if x[1] == empty_label), None)
+            edit_value = next((x for x in current if x[0] == edit), None)
+            if (empty and empty[4] and edit_value and
+                    edit_value[1] == nonce):
+                result["search_nonmatch_empty_state_observed"] = True
+                break
+            time.sleep(0.1)
+    finally:
+        if set_search(""):
+            until = time.monotonic() + 3.0
+            while time.monotonic() < until:
+                current = scan()
+                empty = next((x for x in current if x[1] == empty_label), None)
+                edit_value = next((x for x in current if x[0] == edit), None)
+                if (edit_value and edit_value[1] == "" and
+                        (not empty or not empty[4])):
+                    result["search_restored"] = True
+                    break
+                time.sleep(0.1)
+    result["minimum_readonly_health_contract_observed"] = all((
+        result["baseline_inventory_nonzero"],
+        result["search_edit_identified"],
+        result["search_nonmatch_empty_state_observed"],
+        result["search_restored"],
+    ))
+    return result
+
+
 def message_pump_ping(hwnd: int):
     if not _is_window(hwnd):
         return False
@@ -225,6 +333,10 @@ def observe_real_gf(proc, executable: Path, expected_sha: str,
                 report["actual_image_path_matches"] and
                 report["image_on_disk_sha_matches_manifest"]):
             report["read_only_ui_controls"] = observe_read_only_ui_controls(
+                hwnd, proc.pid)
+            # A real UI exercise is stronger than a static control inventory.
+            # It is still NOT operational self-updater READY.
+            report["readonly_inventory_search_health"] = read_only_search_round_trip(
                 hwnd, proc.pid)
         report["normal_close_attempts"] = 0
         # Only the verified child HWND receives WM_CLOSE, bounded twice to

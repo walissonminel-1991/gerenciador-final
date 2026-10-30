@@ -174,6 +174,7 @@ internal static partial class L18Coordinator
                 !root.GetProperty("ready_verified").GetBoolean() &&
                 !root.GetProperty("phase1_complete").GetBoolean() &&
                 root.GetProperty("authenticated_real_package").GetBoolean() &&
+                root.GetProperty("minimum_readonly_health_contract_observed").GetBoolean() &&
                 root.GetProperty("real_manifest_bound_to_preflight").GetBoolean() &&
                 root.GetProperty("authorization_installation").GetString()==installation &&
                 root.GetProperty("authorization_transaction").GetString()==tx &&
@@ -271,6 +272,7 @@ internal static class Phase1BridgeTests
                 real_manifest_sha_in_l18_target=true,
                 real_manifest_scope_binds_installation_and_tx=true,
                 prepared_tuf_metadata_reverified_before_new=true,
+                minimum_readonly_functional_search_verified=true,
                 real_packet_not_bound_to_l18_target=false,
                 production_tuf_authority=false,
                 verified_operational_ready=false,
