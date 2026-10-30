@@ -282,6 +282,8 @@ def read_only_search_round_trip(main_hwnd: int, expected_pid: int, expected_inve
     if expected_inventory_name is not None:
         result["seeded_inventory_positive_observed"] = False
         result["seeded_inventory_negative_control_observed"] = False
+        result["inventory_item_level_witness_required"] = True
+        result["owner_drawn_list_may_not_expose_witness"] = True
         def inspect_query(query, want_empty):
             if not set_search(query):
                 return False
@@ -290,17 +292,37 @@ def read_only_search_round_trip(main_hwnd: int, expected_pid: int, expected_inve
                 current = scan()
                 empty = next((x for x in current if x[1] == empty_label), None)
                 value = read_search()
-                is_empty = bool(empty and empty[4])
-                if value == query and is_empty == want_empty:
-                    return True
+                # A1: absence of the empty-state label is not evidence of
+                # a rendered row in an owner-drawn DarkProgramList. Only a
+                # separately observable, visible item-level UI element can
+                # establish positive inventory presence. Current GF list rows
+                # are owner-drawn and normally expose NO such Win32 children.
+                direct_item = any(
+                    row[1] == query and row[4] and row[0] != edit
+                    and row[2].upper().startswith("STATIC")
+                    and row[3] != label[3]
+                    for row in current)
+                if value == query:
+                    if want_empty:
+                        # Require the actual empty-state control and no item.
+                        if empty and empty[4] and not direct_item:
+                            return True
+                    else:
+                        # Fail closed if row-level UI evidence is unavailable.
+                        # This is NOT evidence that the item was absent from
+                        # GF's internal inventory.
+                        if direct_item and empty and not empty[4]:
+                            return True
                 time.sleep(0.1)
             return False
         try:
             result["seeded_inventory_positive_observed"] = inspect_query(
                 expected_inventory_name, False)
-            if result["seeded_inventory_positive_observed"]:
-                result["seeded_inventory_negative_control_observed"] = inspect_query(
-                    expected_inventory_name + "-ABSENT", True)
+            # A2: run the negative control with the SAME evaluator even if
+            # positive item evidence was missing. Neither path short-circuits
+            # because of trial mode or seed-created booleans.
+            result["seeded_inventory_negative_control_observed"] = inspect_query(
+                expected_inventory_name + "-ABSENT", True)
         finally:
             if not set_search(""):
                 result["search_restored"] = False
