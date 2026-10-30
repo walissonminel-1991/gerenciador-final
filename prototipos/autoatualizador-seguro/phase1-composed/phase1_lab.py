@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import time
+import tempfile
 
 from tuf.api.metadata import Metadata
 from securesystemslib.signer import CryptoSigner, SSlibKey
@@ -375,8 +376,16 @@ def main():
     require(args.selector_root is not None and args.handoff_token is not None,
             "COORDINATOR_HANDOFF_REQUIRED")
     selector_root = args.selector_root.resolve(strict=True)
-    require(selector_root.is_relative_to(tmp) and selector_root != tmp and
-            selector_root.is_dir() and not selector_root.is_symlink(),
+    py_temp = Path(tempfile.gettempdir()).resolve()
+    # .NET Path.GetTempPath() is not necessarily GITHUB RUNNER_TEMP.
+    # The C# L18 FixtureSandbox.RequireRoot validated this exact source;
+    # independently require its inert marker and allowed tempfile root.
+    require((selector_root.is_relative_to(tmp) and selector_root != tmp or
+             selector_root.is_relative_to(py_temp) and selector_root != py_temp) and
+            selector_root.is_dir() and not selector_root.is_symlink() and
+            selector_root.parent.name.startswith("gf-u2-") and
+            (selector_root / ".gf-u2-fixture").read_text(encoding="utf-8") ==
+            "GF-U2-INERT-STATE-TESTS-NO-PRODUCT\n",
             "COORDINATOR_SELECTOR_OUTSIDE_TEMP")
     require(len(args.handoff_token) == 32 and
             all(c in "0123456789abcdef" for c in args.handoff_token),
