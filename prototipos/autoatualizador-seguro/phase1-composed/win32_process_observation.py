@@ -238,6 +238,16 @@ def read_only_search_round_trip(main_hwnd: int, expected_pid: int):
         return bool(_send(edit, 0x000C, 0,
                           ctypes.cast(b, ctypes.c_void_p).value,
                           0x0002, 2500, ctypes.byref(out)))
+    def read_search():
+        # GetWindowTextW does not retrieve text of another process's EDIT
+        # control reliably. WM_GETTEXT is a system message marshaled by
+        # user32, with SMTO_ABORTIFHUNG and a bounded receiver buffer.
+        b = ctypes.create_unicode_buffer(128)
+        out = ctypes.c_size_t()
+        delivered = bool(_send(edit, 0x000D, len(b),
+                               ctypes.cast(b, ctypes.c_void_p).value,
+                               0x0002, 2000, ctypes.byref(out)))
+        return b.value if delivered else None
     try:
         if not set_search(nonce):
             return result
@@ -245,14 +255,13 @@ def read_only_search_round_trip(main_hwnd: int, expected_pid: int):
         while time.monotonic() < until:
             current = scan()
             empty = next((x for x in current if x[1] == empty_label), None)
-            edit_value = next((x for x in current if x[0] == edit), None)
+            edit_value = read_search()
             result["empty_state_label_found"] = result["empty_state_label_found"] or bool(empty)
             result["empty_state_style_visible"] = (
                 result["empty_state_style_visible"] or bool(empty and empty[4]))
             result["nonce_echo_observed"] = (
-                result["nonce_echo_observed"] or bool(edit_value and edit_value[1] == nonce))
-            if (empty and empty[4] and edit_value and
-                    edit_value[1] == nonce):
+                result["nonce_echo_observed"] or edit_value == nonce)
+            if empty and empty[4] and edit_value == nonce:
                 result["search_nonmatch_empty_state_observed"] = True
                 break
             time.sleep(0.1)
@@ -262,8 +271,8 @@ def read_only_search_round_trip(main_hwnd: int, expected_pid: int):
             while time.monotonic() < until:
                 current = scan()
                 empty = next((x for x in current if x[1] == empty_label), None)
-                edit_value = next((x for x in current if x[0] == edit), None)
-                if (edit_value and edit_value[1] == "" and
+                edit_value = read_search()
+                if (edit_value == "" and
                         (not empty or not empty[4])):
                     result["search_restored"] = True
                     break
