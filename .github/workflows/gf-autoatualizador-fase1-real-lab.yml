@@ -67,8 +67,8 @@ jobs:
             throw 'GF_PHASE1_HKCU_SCOPED_TRIAL_FAILED'
           }
           $r=($line.Substring('GF_PHASE1_HKCU_ADVERSARIAL '.Length) | ConvertFrom-Json)
-          if ($r.status -ne 'passed' -or $r.count -ne 3 -or
-              @($r.cases).Count -ne 3 -or
+          if ($r.status -ne 'passed' -or $r.count -ne 4 -or
+              @($r.cases).Count -ne 4 -or
               $r.scope -ne 'WINDOWS_DISPOSABLE_CI_ONLY' -or
               $r.same_user_global_isolation_proven -or
               $r.name_based_delete_toctou_eliminated -or
