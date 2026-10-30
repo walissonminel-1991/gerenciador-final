@@ -33,7 +33,7 @@ def scoped(name):
     src = Path(tempfile.mkdtemp(prefix="gf-u2-a34-", dir=tempfile.gettempdir())) / name
     src.mkdir()
     (src / ".gf-u2-fixture").write_text(
-        "GF-U2-INERT-STATE-TESTS-NO-PRODUCT\\n", encoding="utf-8")
+        "GF-U2-INERT-STATE-TESTS-NO-PRODUCT\n", encoding="utf-8")
     return src
 
 
