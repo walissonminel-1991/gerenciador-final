@@ -182,6 +182,9 @@ def read_only_search_round_trip(main_hwnd: int, expected_pid: int):
     """
     result = {"search_edit_identified": False,
               "search_nonmatch_empty_state_observed": False,
+              "empty_state_label_found": False,
+              "empty_state_style_visible": False,
+              "nonce_echo_observed": False,
               "search_restored": False,
               "baseline_inventory_nonzero": False,
               "minimum_readonly_health_contract_observed": False}
@@ -243,6 +246,11 @@ def read_only_search_round_trip(main_hwnd: int, expected_pid: int):
             current = scan()
             empty = next((x for x in current if x[1] == empty_label), None)
             edit_value = next((x for x in current if x[0] == edit), None)
+            result["empty_state_label_found"] = result["empty_state_label_found"] or bool(empty)
+            result["empty_state_style_visible"] = (
+                result["empty_state_style_visible"] or bool(empty and empty[4]))
+            result["nonce_echo_observed"] = (
+                result["nonce_echo_observed"] or bool(edit_value and edit_value[1] == nonce))
             if (empty and empty[4] and edit_value and
                     edit_value[1] == nonce):
                 result["search_nonmatch_empty_state_observed"] = True
