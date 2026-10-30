@@ -68,8 +68,39 @@ jobs:
           $new=Join-Path $env:RUNNER_TEMP 'gf-phase1-new-publish'
           $sandbox=Join-Path $env:RUNNER_TEMP 'gf-phase1-real-product-lab'
           $report=Join-Path $env:RUNNER_TEMP 'gf-phase1-real-report.json'
-          python $script --repository $root --old $old --new $new --sandbox $sandbox --report $report
-          if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_REAL_LAB_FAILED' }
+          # The SAME existing L18-L22 C# coordinator owns the gate, signed
+          # INERT fixture journal and child lifetime. Python is now its real
+          # package observer, NOT a separate stand-alone workflow phase.
+          $sourceWork=Join-Path $env:RUNNER_TEMP 'gf-phase1-pinned-source'
+          $fixtures=Join-Path $env:RUNNER_TEMP 'gf-phase1-signed-fixtures'
+          $outputs=Join-Path $env:RUNNER_TEMP 'gf-phase1-csharp-artifacts'
+          $bridgeReport=Join-Path $env:RUNNER_TEMP 'gf-phase1-csharp-bridge-report.json'
+          $anchor=Join-Path $root 'prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json'
+          $project='prototipos/autoatualizador-seguro/phase1-composed/Phase1RealBridge.csproj'
+          $stageSource=(python prototipos/autoatualizador-seguro/m3-composed/prepare_pinned_source.py $sourceWork | Select-Object -Last 1).Trim()
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $stageSource)) { throw 'GF_PHASE1_PINNED_STAGE8_SOURCE_REQUIRED' }
+          python prototipos/autoatualizador-seguro/m3-composed-3/generate_signed_fixtures.py $fixtures
+          if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_SIGNED_INERT_FIXTURES_REQUIRED' }
+          dotnet restore $project "-p:ArtifactsPath=$outputs" "-p:Stage8Source=$stageSource" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_CSHARP_RESTORE' }
+          dotnet build $project "-p:ArtifactsPath=$outputs" "-p:Stage8Source=$stageSource" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_CSHARP_BUILD' }
+          $exes=@(Get-ChildItem $outputs -Filter 'GF.Updater.M3.L18Tests.exe' -File -Recurse)
+          if ($exes.Count -ne 1) { throw 'GF_PHASE1_COORDINATOR_RUNNER_NOT_UNIQUE' }
+          $pythonExe=(Get-Command python).Source
+          & $exes[0].FullName --run $bridgeReport $fixtures $anchor $root $pythonExe (Join-Path $root $script) $old $new $sandbox $report
+          if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_COORDINATED_LAB_FAILED' }
+          $b=Get-Content $bridgeReport -Raw | ConvertFrom-Json
+          if (!$b.coordinator_l18_journal_persisted -or
+              !$b.real_gf_child_supervised_under_coordinator_gate -or
+              $b.coordinator_decision -ne 'UnknownBlocked' -or
+              !$b.packet_authentication_is_still_external_lab_python -or
+              !$b.fixture_target_is_not_real_gf_packet -or
+              !$b.real_packet_not_bound_to_l18_target -or
+              $b.verified_operational_ready -or $b.phase1_complete -or
+              $b.operational_gates_closed -ne 0) {
+            throw 'GF_PHASE1_BRIDGE_MISREPRESENTED_OPERATIONAL_SECURITY'
+          }
           $r=Get-Content $report -Raw | ConvertFrom-Json
           if (!$r.real_gf_built -or !$r.authenticated_real_package -or
               !$r.tampered_dll_rejected_before_selection -or
@@ -104,6 +135,9 @@ jobs:
             "* OLD estado UI inventario read-only: $($r.old_process.read_only_ui_controls.functional_inventory_ui_observed)"
             "* NEW estado UI inventario read-only: $($r.new_process.read_only_ui_controls.functional_inventory_ui_observed)"
             '* Observacao UI read-only nao e READY operacional e nao autoriza NEW'
+            '* Coordenador C# L18-L22: gate unica, historico duravel, processo GF supervisionado no mesmo ensaio'
+            '* RESULTADO C#: UnknownBlocked (intencional: pacote real TUF nao vinculado ao digest fixture)'
+            '* Ainda sem READY operacional ou vinculo criptografico do pacote real ao diario L18'
             '* READY real NAO demonstrado; OLD restaurada, hashes e canario intactos'
             '* FASE 1 PARCIAL; G1-G8 BLOCKED (0/8)'
             '* Nenhum upload de pacote, deploy ou integracao operacional'

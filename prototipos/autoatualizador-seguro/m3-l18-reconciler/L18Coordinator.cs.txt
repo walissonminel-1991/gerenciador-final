@@ -13,7 +13,7 @@ internal sealed record L18PhaseRecord(string Schema,string Transaction,int Seque
     string BaselineDigest);
 
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-internal static class L18Coordinator
+internal static partial class L18Coordinator
 {
     private const string Schema="gf-l18-coordinator-inert/1";
     private const string Start="old-verified", Authorizing="authorizing",

@@ -1,0 +1,170 @@
+// Phase 1 experimental BRIDGE, not a production updater or independent witness.
+// Reuses the L18-L22 coordinator gate, signed INERT fixture state machine,
+// and historical UNKNOWN policy. Separately, the existing Python-TUF real-GF
+// laboratory child verifies/observes real packages and restores OLD.
+// The fixture TUF target DOES NOT cryptographically authorize the GF package;
+// therefore the composed decision MUST REMAIN UNKNOWN, not local NEW/READY.
+using System.Diagnostics;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static partial class L18Coordinator
+{
+    internal static async Task<L18Decision> ExecuteRealLabInertOnly(
+        string src,string lab,string bootstrap,string python,string script,
+        string repository,string old,string candidate,string sandbox,string report)
+    {
+        Root(src,lab);
+        Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true",
+            "PHASE1_GITHUB_WINDOWS_ONLY");
+        string temp=Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+            throw new Rejected("PHASE1_NO_TEMP"));
+        string folder=Path.GetFullPath(sandbox);
+        Require(folder.StartsWith(temp+Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase) && !Directory.Exists(folder),
+            "PHASE1_SANDBOX_NEW_AND_TEMP_ONLY");
+        Require(Path.GetFullPath(old).StartsWith(temp+Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase) &&
+            Path.GetFullPath(candidate).StartsWith(temp+Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase),"PHASE1_PACKAGE_OUTSIDE_TEMP");
+        Require(Path.GetFullPath(script).Equals(Path.Combine(
+            Path.GetFullPath(repository),"prototipos","autoatualizador-seguro",
+            "phase1-composed","phase1_lab.py"),StringComparison.OrdinalIgnoreCase)
+            && File.Exists(script) && File.Exists(python),"PHASE1_FIXED_PYTHON_SCRIPT");
+        Require(!File.Exists(report),"PHASE1_REPORT_ALREADY_EXISTS");
+
+        // SAME gate and phase journal as L18. The L18 signed target remains
+        // a fixture; it is NOT silently substituted for the real GF package.
+        using var gate=TryCoordinatorGate(src);
+        if(gate is null)return L18Decision.Busy;
+        using(var preparationLease=L16Boundary.Exclusive(src))
+            BeginCore(src,lab,bootstrap);
+        Append(src,lab,Switching,"real-gf-lab-external-observer-only",
+            Load(src,lab)[0].TargetSha);
+        var psi=new ProcessStartInfo(Path.GetFullPath(python))
+        {
+            UseShellExecute=false,CreateNoWindow=true,
+            WorkingDirectory=Path.GetFullPath(repository)
+        };
+        foreach(string word in new[]{"--repository",repository,"--old",old,
+            "--new",candidate,"--sandbox",sandbox,"--report",report})
+            psi.ArgumentList.Add(word);
+        using Process process=Process.Start(psi) ??
+            throw new Rejected("PHASE1_CHILD_NOT_STARTED");
+        Append(src,lab,Launched,"real-lab-pid-"+process.Id.ToString(),
+            Load(src,lab)[0].TargetSha);
+        try
+        {
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(4));
+        }
+        catch(TimeoutException)
+        {
+            Append(src,lab,Deadline,"real-gf-lab-child-may-continue",
+                Load(src,lab)[0].TargetSha);
+            L16Boundary.MarkUncertain(src);
+            Append(src,lab,Unknown,"child-effects-not-proven-ended",
+                Load(src,lab)[0].TargetSha);
+            return L18Decision.UnknownBlocked;
+        }
+
+        Append(src,lab,Exited,process.ExitCode==0?"exit-code-zero":
+            "exit-code-nonzero",Load(src,lab)[0].TargetSha);
+        if(process.ExitCode!=0)
+        {
+            RememberUnknown(src,lab,"real-gf-lab-child-failed");
+            return L18Decision.UnknownBlocked;
+        }
+        // A JSON report from this same-user child is NOT a trusted READY
+        // witness and does not constitute a signed packet-to-journal binding.
+        Require(File.Exists(report),"PHASE1_RESULT_MISSING");
+        using(JsonDocument doc=Json(File.ReadAllBytes(report),32768))
+        {
+            var root=doc.RootElement;
+            Require(root.GetProperty("status").GetString()==
+                "blocked_until_real_ready_and_independent_review" &&
+                !root.GetProperty("ready_verified").GetBoolean() &&
+                !root.GetProperty("phase1_complete").GetBoolean() &&
+                root.GetProperty("authenticated_real_package").GetBoolean() &&
+                root.GetProperty("old_and_canary_preserved").GetBoolean() &&
+                root.GetProperty("rolled_back_due_to_no_ready").GetBoolean() &&
+                root.GetProperty("operational_gates_closed").GetInt32()==0,
+                "PHASE1_FALSE_SUCCESS_OR_INCOMPLETE_CHILD_REPORT");
+            var oldProc=root.GetProperty("old_process");
+            var newProc=root.GetProperty("new_process");
+            Require(oldProc.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean()
+                && newProc.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean()
+                && oldProc.GetProperty("read_only_ui_controls")
+                    .GetProperty("functional_inventory_ui_observed").GetBoolean()
+                && newProc.GetProperty("read_only_ui_controls")
+                    .GetProperty("functional_inventory_ui_observed").GetBoolean(),
+                "PHASE1_SHUTDOWN_OR_UI_NOT_DEMONSTRATED");
+        }
+
+        // L18 reconciliation sees the fixture selector OLD while a real
+        // package was briefly selected by a different LAB selector. A
+        // successful owner exit cannot independently authorize this mapping.
+        // ReconcileCore will persist UNKNOWN; never claim New or OLD as
+        // a durable unified update transaction.
+        L18Decision decision=ReconcileCore(src,lab,bootstrap,false,null);
+        Require(decision==L18Decision.UnknownBlocked,
+            "PHASE1_UNAUTHENTICATED_CROSS_PACKET_DECISION");
+        return decision;
+    }
+}
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class Phase1BridgeTests
+{
+    public static async Task<int> Main(string[] args)
+    {
+        if(!OperatingSystem.IsWindows())return 2;
+        // <report-bridge> <fixtures> <bootstrap> <repository> <python>
+        // <script> <old> <candidate> <sandbox> <report-python>
+        if(args.Length!=11 || args[0]!="--run")return 2;
+        L16Tests.fixtures=Path.GetFullPath(args[2]);
+        L16Tests.bootstrap=Path.GetFullPath(args[3]);
+        L16Tests.suite=Path.Combine(Path.GetTempPath(),
+            "gf-phase1-csharp-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(L16Tests.suite);
+        string evidence=args[1];
+        try
+        {
+            using var scenario=await L16Tests.Prepared();
+            var decision=await L18Coordinator.ExecuteRealLabInertOnly(
+                scenario.Source.Root,scenario.Lab,L16Tests.bootstrap,
+                args[5],args[6],args[4],args[7],args[8],args[9],args[10]);
+            Require(decision==L18Decision.UnknownBlocked,
+                "PHASE1_UNKNOWN_REQUIRED");
+            // Presence of an append-only UNKNOWN event is required: mere
+            // returned UnknownBlocked without durable state is not enough.
+            var events=Directory.GetFiles(scenario.Source.Root,
+                "l18-phase-*.fixture.json");
+            Require(events.Length>=8,"PHASE1_JOURNAL_TOO_SHORT");
+            var serialized=events.Select(File.ReadAllText).ToArray();
+            Require(serialized.Any(e=>e.Contains("\"Phase\":\"unknown\"",
+                StringComparison.OrdinalIgnoreCase)), "PHASE1_UNKNOWN_NOT_DURABLE");
+            scenario.Preserved();
+            var result=new{
+                schema="gf-phase1-csharp-l18-real-lab-bridge/1",
+                coordinator_l18_journal_persisted=true,
+                real_gf_child_supervised_under_coordinator_gate=true,
+                coordinator_decision=decision.ToString(),
+                packet_authentication_is_still_external_lab_python=true,
+                fixture_target_is_not_real_gf_packet=true,
+                real_packet_not_bound_to_l18_target=true,
+                verified_operational_ready=false,
+                phase1_complete=false,
+                operational_gates_closed=0
+            };
+            File.WriteAllText(evidence,JsonSerializer.Serialize(result));
+            Console.WriteLine("GF_PHASE1_CSHARP_BRIDGE "+JsonSerializer.Serialize(result));
+            return 0;
+        }
+        finally
+        {
+            Directory.Delete(L16Tests.suite,true);
+        }
+    }
+}
