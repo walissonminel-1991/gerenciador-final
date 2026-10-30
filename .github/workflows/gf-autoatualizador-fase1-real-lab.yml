@@ -147,10 +147,11 @@ jobs:
           & $exes[0].FullName --real-suite $report $fixtures $anchor $root $pythonExe $script $old $new
           if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_REAL_CRASH_CASE_FAILED' }
           $r=Get-Content $report -Raw | ConvertFrom-Json
-          if ($r.failed -ne 0 -or $r.expected_cases -ne 27 -or $r.tests.Count -ne 27 -or
+          if ($r.failed -ne 0 -or $r.expected_cases -ne 29 -or $r.tests.Count -ne 29 -or
               @($r.tests | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
               @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 0 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 27 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 28 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_EXPERIMENTAL_ACTIVATION' }).Count -ne 1 -or
               @($r.tests | Where-Object {
                 $_.test -in @('prepare-only','prepare-before-verify','prepare-after-verify','before-old-observation') -and
                 $_.no_functional_observation_on_audited_route -and
@@ -169,6 +170,27 @@ jobs:
               @($r.tests | Where-Object {
                 $_.test -eq 'before-old-observation' -and $_.local_old_may_launch_boundary_observed -and
                 !$_.data_only_verification_completed }).Count -ne 1 -or
+              @($r.tests | Where-Object {
+                $_.test -eq 'positive-trial-inventory' -and
+                $_.classification -eq 'PASS_EXPERIMENTAL_ACTIVATION' -and
+                $_.registry_to_inventory_to_ui_probed -and
+                $_.seeded_registry_inventory_proved -and !$_.missing_inventory_rejected -and
+                $_.original_live_owner_positive_recorded -and
+                $_.l18_new_generation_two_selected -and $_.real_old_and_new_functionally_observed -and
+                $_.old_and_new_bytes_preserved -and
+                $_.outcome -eq 'UnknownBlocked' -and $_.replay -eq 'UnknownBlocked' -and
+                $_.block_reason -eq 'REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED' -and
+                !$_.h1_proven -and !$_.h2_proven -and !$_.h3_global_proven -and
+                !$_.after_crash_success_proven -and !$_.operational_ready -and
+                !$_.automatic_recovery_authorized }).Count -ne 1 -or
+              @($r.tests | Where-Object {
+                $_.test -eq 'positive-trial-inventory-absent' -and
+                $_.classification -eq 'PASS_CONTAINMENT' -and
+                $_.registry_to_inventory_to_ui_probed -and !$_.seeded_registry_inventory_proved -and
+                $_.missing_inventory_rejected -and !$_.original_live_owner_positive_recorded -and
+                $_.l18_new_generation_two_selected -and $_.old_and_new_bytes_preserved -and
+                $_.outcome -eq 'UnknownBlocked' -and $_.replay -eq 'UnknownBlocked' -and
+                !$_.operational_ready -and !$_.automatic_recovery_authorized }).Count -ne 1 -or
               @($r.tests | Where-Object {
                 $_.test -eq 'retry-after-unknown-retains-both' -and
                 $_.classification -eq 'PASS_CONTAINMENT' -and
@@ -263,7 +285,9 @@ jobs:
           }
           @(
             '## Fase 1 - interrupcao real de processos, sem READY'
-            '* 27 PASS_CONTAINMENT (22 anteriores + 4 de preparacao/fronteira OLD + 1 retry apos UNKNOWN); 0 recuperacoes'
+            '* 29 casos: 28 PASS_CONTAINMENT + 1 PASS_EXPERIMENTAL_ACTIVATION, sem READY operacional nem recuperacao automatica'
+             '* Inventario HKCU inerte conhecido -> scan GF -> filtro UI positivo e negativo; ausencia do item rejeita ativacao experimental'
+             '* Ambos os casos mantem OLD/NEW, fences e seletor new/2 e reconciliam UnknownBlocked'
              '* Segundo RealOwner apos NEW real e UnknownBlocked: L20_BEGIN_BLOCKED; OLD/NEW, fences, seletor e diario intactos somente sob estado integro'
             '* PREPARE_DATA_ONLY termina antes de OLD/NEW; cortes antes/depois da verificacao permanecem UnknownBlocked'
             '* Fence OLD persistido antes da primeira observacao; guard Python de API e regressao, NAO sandbox ou autoridade global'

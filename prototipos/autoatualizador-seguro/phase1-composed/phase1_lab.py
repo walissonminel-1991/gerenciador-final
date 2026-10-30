@@ -19,6 +19,9 @@ import subprocess
 import sys
 import time
 import tempfile
+import secrets
+import winreg
+from contextlib import contextmanager, nullcontext
 
 from tuf.api.metadata import Metadata
 from securesystemslib.signer import CryptoSigner, SSlibKey
@@ -420,6 +423,38 @@ def main():
     require(False, "LEGACY_COOPERATIVE_NORMAL_DISABLED")
 
 
+@contextmanager
+def trial_registry_fixture():
+    """Inert, isolated HKCU ARP record on disposable GitHub Windows runner.
+    No uninstall command. Never replace or remove an existing registry key.
+    """
+    require(os.name == "nt" and os.environ.get("GITHUB_ACTIONS") == "true",
+            "TRIAL_REGISTRY_SCOPE")
+    name = "GF-PHASE1-INVENTORY-" + secrets.token_hex(12).upper()
+    subkey = ("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\"
+              + name)
+    rights = winreg.KEY_READ | winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey, 0, rights):
+            require(False, "TRIAL_REGISTRY_ALREADY_EXISTS")
+    except FileNotFoundError:
+        pass
+    created = False
+    try:
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, subkey, 0, rights) as key:
+            created = True
+            winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, name)
+            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.0")
+            winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "GF Phase1 inert CI")
+        yield name
+    finally:
+        if created:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey, 0, rights) as key:
+                require(winreg.QueryValueEx(key, "DisplayName")[0] == name,
+                        "TRIAL_REGISTRY_IDENTITY_CHANGED")
+            winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, subkey,
+                               access=winreg.KEY_WOW64_64KEY, reserved=0)
+
 def recovery_tool(mode, source):
     """Subordinate re-verifier/observer. Never changes the C# selector."""
     if mode == "--recovery-verify":
@@ -447,7 +482,8 @@ def recovery_tool(mode, source):
     validate_package(src / "real/new", m["files"])
     if mode == "--recovery-verify":
         return 0
-    require(mode in ("--recovery-observe", "--out-of-band-new-observe"), "RECOVERY_MODE")
+    require(mode in ("--recovery-observe", "--out-of-band-new-observe",
+                     "--recovery-observe-trial", "--recovery-observe-trial-negative"), "RECOVERY_MODE")
     if mode == "--out-of-band-new-observe":
         # Adversarial TEST ONLY: the real NEW is run directly from the
         # disposable supervisor's Python process, not from C# RealOwner.
@@ -472,7 +508,17 @@ def recovery_tool(mode, source):
                                           c["installation"], c["transaction"], c["manifestSha"])
         files = m["old_files"] if selected == "old" else m["files"]
         report_slot = selected
-    observation = observed_process(directory, files["GerenciadorFinal.exe"]["sha256"])
+    trial_mode = mode in ("--recovery-observe-trial", "--recovery-observe-trial-negative")
+    if trial_mode:
+        require(report_slot == "new" and generation == 2,
+                "TRIAL_REQUIRES_L18_SELECTED_NEW")
+    trial_context = (trial_registry_fixture() if mode == "--recovery-observe-trial"
+                     else nullcontext("GF-PHASE1-INVENTORY-" + secrets.token_hex(12).upper()))
+    with trial_context as expected_name:
+        observation = observed_process(
+            directory, files["GerenciadorFinal.exe"]["sha256"],
+            expected_inventory_name=expected_name if trial_mode else None)
+        observation["trial_registry_seed_created"] = (mode == "--recovery-observe-trial")
     # Diagnostic report does not confer recovery/READY authority on Python.
     observation.pop("pid_observed", None)
     (src / ("real-observed-" + report_slot + ".fixture.json")).write_text(
@@ -487,6 +533,13 @@ def recovery_tool(mode, source):
             not observation.get("ready_verified") and
             not observation.get("application_functional_health_verified"),
             "RECOVERY_FUNCTIONAL_OBSERVATION_UNPROVEN")
+    if trial_mode:
+        require(observation.get("trial_registry_seed_created") and
+                observation.get("readonly_inventory_search_health", {})
+                .get("seeded_inventory_positive_observed") is True and
+                observation.get("readonly_inventory_search_health", {})
+                .get("seeded_inventory_negative_control_observed") is True,
+                "TRIAL_REGISTRY_INVENTORY_HEALTH_NOT_PROVEN")
     validate_package(directory, files)
     return 0
 
@@ -495,6 +548,7 @@ if __name__ == "__main__":
     if sys.argv[1:] == ["--data-only-launch-guard-test"]:
         sys.exit(test_data_only_launch_guard())
     if len(sys.argv) == 3 and sys.argv[1] in (
-            "--recovery-verify", "--recovery-observe", "--out-of-band-new-observe"):
+            "--recovery-verify", "--recovery-observe", "--out-of-band-new-observe",
+        "--recovery-observe-trial", "--recovery-observe-trial-negative"):
         sys.exit(recovery_tool(sys.argv[1], sys.argv[2]))
     sys.exit(main())

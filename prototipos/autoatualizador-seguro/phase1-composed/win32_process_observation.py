@@ -172,7 +172,7 @@ def observe_read_only_ui_controls(main_hwnd: int, expected_pid: int):
     return findings
 
 
-def read_only_search_round_trip(main_hwnd: int, expected_pid: int):
+def read_only_search_round_trip(main_hwnd: int, expected_pid: int, expected_inventory_name=None):
     """Exercise the REAL WinForms inventory search, without maintenance.
 
     This observes a functional state transition (search -> empty match ->
@@ -277,6 +277,42 @@ def read_only_search_round_trip(main_hwnd: int, expected_pid: int):
                     result["search_restored"] = True
                     break
                 time.sleep(0.1)
+    # Independently seeded HKCU uninstall entry -> GF scan -> WinForms filter.
+    # Report boolean observations, never installed app names.
+    if expected_inventory_name is not None:
+        result["seeded_inventory_positive_observed"] = False
+        result["seeded_inventory_negative_control_observed"] = False
+        def inspect_query(query, want_empty):
+            if not set_search(query):
+                return False
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                current = scan()
+                empty = next((x for x in current if x[1] == empty_label), None)
+                value = read_search()
+                is_empty = bool(empty and empty[4])
+                if value == query and is_empty == want_empty:
+                    return True
+                time.sleep(0.1)
+            return False
+        try:
+            result["seeded_inventory_positive_observed"] = inspect_query(
+                expected_inventory_name, False)
+            if result["seeded_inventory_positive_observed"]:
+                result["seeded_inventory_negative_control_observed"] = inspect_query(
+                    expected_inventory_name + "-ABSENT", True)
+        finally:
+            if not set_search(""):
+                result["search_restored"] = False
+            else:
+                deadline = time.monotonic() + 3.0
+                restored = False
+                while time.monotonic() < deadline:
+                    if read_search() == "":
+                        restored = True
+                        break
+                    time.sleep(0.1)
+                result["search_restored"] = result["search_restored"] and restored
     result["minimum_readonly_health_contract_observed"] = all((
         result["baseline_inventory_nonzero"],
         result["search_edit_identified"],
@@ -295,7 +331,7 @@ def message_pump_ping(hwnd: int):
 
 
 def observe_real_gf(proc, executable: Path, expected_sha: str,
-                    seconds: float = 12.0):
+                    seconds: float = 12.0, expected_inventory_name=None):
     """Returns process-bound observations, NOT a WinForms READY verdict.
 
     A noninteractive Windows service session may expose no usable HWND.
@@ -354,7 +390,7 @@ def observe_real_gf(proc, executable: Path, expected_sha: str,
             # A real UI exercise is stronger than a static control inventory.
             # It is still NOT operational self-updater READY.
             report["readonly_inventory_search_health"] = read_only_search_round_trip(
-                hwnd, proc.pid)
+                hwnd, proc.pid, expected_inventory_name=expected_inventory_name)
         report["normal_close_attempts"] = 0
         # Only the verified child HWND receives WM_CLOSE, bounded twice to
         # handle the real GF's legitimate busy/async cancellation. The second

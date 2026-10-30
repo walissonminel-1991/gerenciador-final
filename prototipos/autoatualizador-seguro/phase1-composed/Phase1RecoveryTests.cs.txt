@@ -293,6 +293,97 @@ internal static class Phase1RecoveryTests
         finally{await owner.Cleanup();await recovery.Cleanup();}
     }
 
+    private static async Task<object> PositiveTrial(string[] a,bool missingFixture)
+    {
+        // A real GF registry -> inventory -> WinForms positive observation
+        // in original owner. Missing registry seed MUST NOT create New record.
+        using var s=await L16Tests.Prepared();string src=s.Source.Root;
+        var c=await Prepare(s,a);
+        using var contextPin=WindowsFileGuard.Open(src,L18Coordinator.RealContextPath(src));
+        using var pins=new RealLabPins(src,c);
+        using var owner=LabProcessJob.Create(c.OwnerJob);
+        using var recovery=LabProcessJob.Create(c.RecoveryJob);
+        try
+        {
+            using(var run=owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,
+                missingFixture?"positive-trial-negative":"positive-trial"))
+            {
+                await run.Wait();
+                Require((run.ExitCode!=0)==missingFixture,
+                    "REAL_TRIAL_OWNER_EXIT_NOT_EXPECTED:"+ReadError(src));
+                if(missingFixture)
+                    Require(ReadError(src).Contains("REAL_OBSERVER_FAILED",StringComparison.Ordinal),
+                        "REAL_TRIAL_NEGATIVE_NOT_HEALTH_REJECTION");
+            }
+            Require(Selection(src)==("new",2) &&
+                File.Exists(L18Coordinator.NewLaunchFence(src)) &&
+                File.Exists(Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt")) &&
+                owner.Active==0,"REAL_TRIAL_FENCE_OR_SELECTOR_LOST");
+            var records=Directory.GetFiles(src,"l18-phase-*.fixture.json")
+                .Order(StringComparer.Ordinal).Select(f=>
+                    StateCodec.Decode<L18PhaseRecord>(File.ReadAllBytes(f))).ToArray();
+            Require(records.Length>=7 && records.All(x=>x.TargetSha==c.ManifestSha),
+                "REAL_TRIAL_HISTORY_OR_MANIFEST_FORK");
+            bool accepted=records[^1].Phase=="new-observed" &&
+                records[^1].Detail=="real-new-experimental-trial-accepted-not-ready";
+            Require(accepted==!missingFixture &&
+                !records.Take(records.Length-1).Any(x=>x.Phase=="new-observed"),
+                "REAL_TRIAL_FALSE_COMMIT_OR_MISSING_COMMIT");
+            using(var doc=JsonDocument.Parse(File.ReadAllBytes(
+                Path.Combine(src,"real-observed-new.fixture.json"))))
+            {
+                var report=doc.RootElement;
+                var health=report.GetProperty("readonly_inventory_search_health");
+                Require(report.GetProperty("created").GetBoolean() &&
+                    report.GetProperty("terminated").GetBoolean() &&
+                    report.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean() &&
+                    !report.GetProperty("forced_cleanup_required").GetBoolean() &&
+                    report.GetProperty("actual_image_path_matches").GetBoolean() &&
+                    report.GetProperty("image_on_disk_sha_matches_manifest").GetBoolean() &&
+                    health.GetProperty("minimum_readonly_health_contract_observed").GetBoolean() &&
+                    health.GetProperty("seeded_inventory_positive_observed").GetBoolean()==!missingFixture &&
+                    !report.GetProperty("ready_verified").GetBoolean() &&
+                    !report.GetProperty("application_functional_health_verified").GetBoolean(),
+                    "REAL_TRIAL_PROBE_EVIDENCE_CONTRADICTORY");
+            }
+            using(var old=JsonDocument.Parse(File.ReadAllBytes(
+                Path.Combine(src,"real-observed-old.fixture.json"))))
+                Require(old.RootElement.GetProperty("created").GetBoolean() &&
+                    old.RootElement.GetProperty("terminated").GetBoolean() &&
+                    old.RootElement.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean(),
+                    "REAL_TRIAL_OLD_NOT_OBSERVED");
+            pins.Recheck();
+            string outcome=await Reopen(recovery,owner,src,s.Lab);
+            string reason=Reason(src);
+            Require(outcome=="UnknownBlocked" &&
+                reason=="REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED" &&
+                Selection(src)==("new",2),"REAL_TRIAL_RECONCILE_PROMOTED_ROLLBACK");
+            string replay=await Reopen(recovery,owner,src,s.Lab);
+            Require(replay=="UnknownBlocked" &&
+                Reason(src)=="REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED" &&
+                Selection(src)==("new",2),"REAL_TRIAL_REPLAY_NOT_BLOCKED");
+            pins.Recheck();s.Preserved();
+            Require(owner.Active==0 && recovery.Active==0,"REAL_TRIAL_JOB_SURVIVOR");
+            return new{test=missingFixture?"positive-trial-inventory-absent":"positive-trial-inventory",
+                status="passed",classification=missingFixture
+                    ?"PASS_CONTAINMENT":"PASS_EXPERIMENTAL_ACTIVATION",
+                outcome,replay,block_reason=reason,
+                l18_new_generation_two_selected=true,
+                real_old_and_new_functionally_observed=true,
+                registry_to_inventory_to_ui_probed=true,
+                seeded_registry_inventory_proved=!missingFixture,
+                missing_inventory_rejected=missingFixture,
+                original_live_owner_positive_recorded=accepted,
+                old_and_new_bytes_preserved=true,old_and_canary_preserved=true,
+                reconciler_new_process=true,manifest_and_object_identities_rechecked=true,
+                external_launch_blocked=false,independent_recovery_authority=false,
+                h1_proven=false,h2_proven=false,h3_global_proven=false,
+                after_crash_success_proven=false,operational_ready=false,
+                automatic_recovery_authorized=false};
+        }
+        finally{await owner.Cleanup();await recovery.Cleanup();}
+    }
+
     private static async Task<object> Scenario(string name,string[] a)
     {
         using var s=await L16Tests.Prepared();string src=s.Source.Root;
@@ -1097,11 +1188,13 @@ internal static class Phase1RecoveryTests
                     "out-of-band-new-with-old-selected",
                     "provider-late-spawn-after-reconcile",
                     "prepare-only","prepare-before-verify","prepare-after-verify","before-old-observation",
-                     "retry-after-unknown-retains-both"})
+                     "retry-after-unknown-retains-both",
+                     "positive-trial-inventory","positive-trial-inventory-absent"})
                 {
                     try{var result=name.StartsWith("prepare-",StringComparison.Ordinal) || name=="before-old-observation"
                             ?await PreparationScenario(name,a):name=="retry-after-unknown-retains-both"
-                             ?await RetryAfterUnknownRetainsBoth(a):await Scenario(name,a);
+                             ?await RetryAfterUnknownRetainsBoth(a):name is "positive-trial-inventory" or "positive-trial-inventory-absent"
+                              ?await PositiveTrial(a,name=="positive-trial-inventory-absent"):await Scenario(name,a);
                         results.Add(result);Console.WriteLine("GF_PHASE1_RECOVERY_CASE "+JsonSerializer.Serialize(result));}
                     catch(Exception e)
                     {
@@ -1111,7 +1204,7 @@ internal static class Phase1RecoveryTests
                     }
                 }
                 var report=new{schema="gf-real-process-crash-recovery-lab/1",tests=results,failed,
-                    expected_cases=27,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
+                    expected_cases=29,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
                     real_power_loss_tested=false,supervisor_loss_recovery_proven=false,
                     new_effects_quiescence_proven=false,production_tuf_authority=false};
                 File.WriteAllText(a[1],JsonSerializer.Serialize(report));
