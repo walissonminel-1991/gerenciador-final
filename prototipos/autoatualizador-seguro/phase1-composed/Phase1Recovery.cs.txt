@@ -165,6 +165,7 @@ internal static partial class L18Coordinator
         using(var lease=L16Boundary.Exclusive(src))BeginCore(src,lab,bootstrap,c.ManifestSha);
         WriteRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"old",1);
         if(cut=="after-intent")await RealCut(src,cut);
+        Append(src,lab,Switching,"real-new-selection-intent",c.ManifestSha);
         if(cut=="normal")
         {
             // The normal experiment uses the SAME retained context, NTFS pins,
@@ -175,9 +176,9 @@ internal static partial class L18Coordinator
             await RunRealObserver(src,c,"--recovery-observe");
             await job.RequireOnlyCurrentProcess();
             pins.Recheck();VerifyRealManifest(src,c);
-            Append(src,lab,Exited,"real-old-functional-normal-lab-only",c.ManifestSha);
+            // Stay in Switching: L18 must not append Exited before NEW has
+            // been selected and the first launch fence is durable.
         }
-        Append(src,lab,Switching,"real-new-selection-intent",c.ManifestSha);
         WriteRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"new",2);
         if(cut=="after-select")await RealCut(src,cut);
         // Fence BEFORE the first possible NEW execution. A crash in the gap
