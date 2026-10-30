@@ -147,10 +147,10 @@ jobs:
           & $exes[0].FullName --real-suite $report $fixtures $anchor $root $pythonExe $script $old $new
           if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_REAL_CRASH_CASE_FAILED' }
           $r=Get-Content $report -Raw | ConvertFrom-Json
-          if ($r.failed -ne 0 -or $r.expected_cases -ne 26 -or $r.tests.Count -ne 26 -or
+          if ($r.failed -ne 0 -or $r.expected_cases -ne 27 -or $r.tests.Count -ne 27 -or
               @($r.tests | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
               @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 0 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 26 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 27 -or
               @($r.tests | Where-Object {
                 $_.test -in @('prepare-only','prepare-before-verify','prepare-after-verify','before-old-observation') -and
                 $_.no_functional_observation_on_audited_route -and
@@ -169,6 +169,20 @@ jobs:
               @($r.tests | Where-Object {
                 $_.test -eq 'before-old-observation' -and $_.local_old_may_launch_boundary_observed -and
                 !$_.data_only_verification_completed }).Count -ne 1 -or
+              @($r.tests | Where-Object {
+                $_.test -eq 'retry-after-unknown-retains-both' -and
+                $_.classification -eq 'PASS_CONTAINMENT' -and
+                $_.cooperating_retry_rejected_before_launch -and
+                $_.second_owner_rejection -eq 'L20_BEGIN_BLOCKED' -and
+                $_.old_and_new_bytes_preserved -and $_.selector_unchanged -and
+                $_.fences_and_observations_unchanged -and $_.journal_unchanged -and
+                $_.unknown_replay_blocked -and
+                $_.real_gf_old_and_new_observed_before_retry -and
+                !$_.same_user_rollback_resistant -and !$_.external_launch_blocked -and
+                !$_.independent_recovery_authority -and !$_.operational_ready -and
+                !$_.unsafe_recovery_after_real_new -and
+                $_.outcome -eq 'UnknownBlocked' -and $_.replay -eq 'UnknownBlocked' -and
+                $_.block_reason -eq 'REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED' }).Count -ne 1 -or
               @($r.tests | Where-Object {
                 $_.test -eq 'provider-late-spawn-after-reconcile' -and
                 $_.classification -eq 'PASS_CONTAINMENT' -and
@@ -249,7 +263,8 @@ jobs:
           }
           @(
             '## Fase 1 - interrupcao real de processos, sem READY'
-            '* 26 PASS_CONTAINMENT (22 anteriores + 4 de preparacao/fronteira OLD); 0 recuperacoes'
+            '* 27 PASS_CONTAINMENT (22 anteriores + 4 de preparacao/fronteira OLD + 1 retry apos UNKNOWN); 0 recuperacoes'
+             '* Segundo RealOwner apos NEW real e UnknownBlocked: L20_BEGIN_BLOCKED; OLD/NEW, fences, seletor e diario intactos somente sob estado integro'
             '* PREPARE_DATA_ONLY termina antes de OLD/NEW; cortes antes/depois da verificacao permanecem UnknownBlocked'
             '* Fence OLD persistido antes da primeira observacao; guard Python de API e regressao, NAO sandbox ou autoridade global'
             '* MSI-ASYNC-ANALOGUE INERT: provider client terminated; simulated external broker creates late writer ONLY AFTER L18 returned UnknownBlocked'

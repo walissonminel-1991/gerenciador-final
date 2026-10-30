@@ -193,6 +193,104 @@ internal static class Phase1RecoveryTests
         }
         finally{await owner.Cleanup();await recovery.Cleanup();}
     }
+    private static async Task<object> RetryAfterUnknownRetainsBoth(string[] a)
+    {
+        // A second cooperative RealOwner in a new process on the same root,
+        // after GF OLD/NEW ran and reconciliation returned UnknownBlocked.
+        // This tests intact local state only, not antirollback or H1/H2/H3.
+        using var s=await L16Tests.Prepared();string src=s.Source.Root;
+        var c=await Prepare(s,a);
+        using var contextPin=WindowsFileGuard.Open(src,L18Coordinator.RealContextPath(src));
+        using var pins=new RealLabPins(src,c);
+        using var owner=LabProcessJob.Create(c.OwnerJob);
+        using var recovery=LabProcessJob.Create(c.RecoveryJob);
+        try
+        {
+            using(var first=owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,"normal"))
+            {
+                await first.Wait();
+                Require(first.ExitCode==0,"REAL_HOLD_FIRST_OWNER_FAILED:"+ReadError(src));
+            }
+            string oldObservation=Path.Combine(src,"real-observed-old.fixture.json");
+            string newObservation=Path.Combine(src,"real-observed-new.fixture.json");
+            foreach(string file in new[]{oldObservation,newObservation})
+            {
+                using var report=JsonDocument.Parse(File.ReadAllBytes(file));
+                Require(report.RootElement.GetProperty("created").GetBoolean() &&
+                    report.RootElement.GetProperty("terminated").GetBoolean() &&
+                    report.RootElement.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean(),
+                    "REAL_HOLD_REQUIRES_REAL_GF_OBSERVATION");
+            }
+            Require(Selection(src)==("new",2),"REAL_HOLD_FIRST_OWNER_NOT_NEW");
+            string outcome=await Reopen(recovery,owner,src,s.Lab);
+            string reason=Reason(src);
+            Require(outcome=="UnknownBlocked" &&
+                reason=="REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED" &&
+                owner.Active==0 && recovery.Active==0,
+                "REAL_HOLD_FIRST_UNKNOWN_NOT_ESTABLISHED");
+            string selector=Path.Combine(src,"l18-real-active.fixture.json");
+            string oldFence=Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt");
+            string newFence=L18Coordinator.NewLaunchFence(src);
+            string selectorBefore=Hash(File.ReadAllBytes(selector));
+            string oldFenceBefore=Hash(File.ReadAllBytes(oldFence));
+            string newFenceBefore=Hash(File.ReadAllBytes(newFence));
+            string oldObservedBefore=Hash(File.ReadAllBytes(oldObservation));
+            string newObservedBefore=Hash(File.ReadAllBytes(newObservation));
+            string Journals()=>string.Join("|",Directory.GetFiles(src,"l18-phase-*.fixture.json")
+                .Order(StringComparer.Ordinal).Select(x=>Hash(File.ReadAllBytes(x))));
+            string journalsBefore=Journals();
+            void CheckPackages()
+            {
+                using var check=new RealLabPins(src,c); // all pinned file bytes/NTFS identities, plus canary
+                foreach(string slot in new[]{"old","new"})
+                {
+                    string prefix="real/"+slot+"/";
+                    string[] actual=Directory.GetFiles(Path.Combine(src,"real",slot),"*",
+                        SearchOption.AllDirectories).Select(x=>
+                        Path.GetRelativePath(src,x).Replace('\\','/')).Order(StringComparer.Ordinal).ToArray();
+                    string[] expected=c.Files.Where(x=>x.Path.StartsWith(prefix,StringComparison.Ordinal))
+                        .Select(x=>x.Path).Order(StringComparer.Ordinal).ToArray();
+                    Require(actual.SequenceEqual(expected),"REAL_HOLD_PACKAGE_NAMESPACE_CHANGED");
+                }
+            }
+            CheckPackages();
+            using(var second=owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,"normal"))
+            {
+                await second.Wait();
+                string error=Path.Combine(src,"real-child-error.fixture.txt");
+                Require(second.ExitCode!=0 && File.Exists(error) &&
+                    File.ReadAllText(error).Contains("L20_BEGIN_BLOCKED",StringComparison.Ordinal),
+                    "REAL_HOLD_SECOND_OWNER_NOT_REJECTED_AT_BEGIN");
+            }
+            Require(owner.Active==0 && recovery.Active==0 &&
+                Selection(src)==("new",2) && Hash(File.ReadAllBytes(selector))==selectorBefore &&
+                Hash(File.ReadAllBytes(oldFence))==oldFenceBefore &&
+                Hash(File.ReadAllBytes(newFence))==newFenceBefore &&
+                Hash(File.ReadAllBytes(oldObservation))==oldObservedBefore &&
+                Hash(File.ReadAllBytes(newObservation))==newObservedBefore &&
+                Journals()==journalsBefore,"REAL_HOLD_RETRY_CHANGED_HISTORY_OR_OBSERVATION");
+            CheckPackages();pins.Recheck();
+            string replay=await Reopen(recovery,owner,src,s.Lab);
+            Require(replay=="UnknownBlocked" &&
+                Reason(src)=="REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED" &&
+                Selection(src)==("new",2) && Journals()==journalsBefore,
+                "REAL_HOLD_REPLAY_PROMOTED_OR_MUTATED_HISTORY");
+            CheckPackages();pins.Recheck();s.Preserved();
+            Require(owner.Active==0 && recovery.Active==0,"REAL_HOLD_JOB_SURVIVOR");
+            return new{test="retry-after-unknown-retains-both",status="passed",
+                classification="PASS_CONTAINMENT",outcome,replay,block_reason=reason,
+                cooperating_retry_rejected_before_launch=true,
+                second_owner_rejection="L20_BEGIN_BLOCKED",
+                old_and_new_bytes_preserved=true,selector_unchanged=true,
+                fences_and_observations_unchanged=true,journal_unchanged=true,
+                unknown_replay_blocked=true,same_user_rollback_resistant=false,
+                external_launch_blocked=false,independent_recovery_authority=false,
+                real_gf_old_and_new_observed_before_retry=true,
+                unsafe_recovery_after_real_new=false,operational_ready=false};
+        }
+        finally{await owner.Cleanup();await recovery.Cleanup();}
+    }
+
     private static async Task<object> Scenario(string name,string[] a)
     {
         using var s=await L16Tests.Prepared();string src=s.Source.Root;
@@ -996,10 +1094,12 @@ internal static class Phase1RecoveryTests
                     "same-user-full-state-rollback-after-new",
                     "out-of-band-new-with-old-selected",
                     "provider-late-spawn-after-reconcile",
-                    "prepare-only","prepare-before-verify","prepare-after-verify","before-old-observation"})
+                    "prepare-only","prepare-before-verify","prepare-after-verify","before-old-observation",
+                     "retry-after-unknown-retains-both"})
                 {
                     try{var result=name.StartsWith("prepare-",StringComparison.Ordinal) || name=="before-old-observation"
-                            ?await PreparationScenario(name,a):await Scenario(name,a);
+                            ?await PreparationScenario(name,a):name=="retry-after-unknown-retains-both"
+                             ?await RetryAfterUnknownRetainsBoth(a):await Scenario(name,a);
                         results.Add(result);Console.WriteLine("GF_PHASE1_RECOVERY_CASE "+JsonSerializer.Serialize(result));}
                     catch(Exception e)
                     {
@@ -1009,7 +1109,7 @@ internal static class Phase1RecoveryTests
                     }
                 }
                 var report=new{schema="gf-real-process-crash-recovery-lab/1",tests=results,failed,
-                    expected_cases=26,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
+                    expected_cases=27,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
                     real_power_loss_tested=false,supervisor_loss_recovery_proven=false,
                     new_effects_quiescence_proven=false,production_tuf_authority=false};
                 File.WriteAllText(a[1],JsonSerializer.Serialize(report));
