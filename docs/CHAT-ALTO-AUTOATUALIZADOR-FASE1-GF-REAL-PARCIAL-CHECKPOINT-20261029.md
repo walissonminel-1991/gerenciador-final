@@ -207,3 +207,12 @@ parser estrito TUF/state sobre relatório diagnóstico com tempos fracionários
 bytes, preservando o parser de segurança para manifesto/estado. A próxima CI
 exige a causa exata de cada bloqueio e exporta erros delimitados do observador;
 os cinco resultados anteriores não bastam para qualificar a causa pretendida.
+
+**Terceira CI:**
+[40990033271](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40990033271),
+commit [85a19fa](https://github.com/walissonminel-1991/gerenciador-final/commit/85a19fa63c1d8dbe8e3ad8c6a70b33cd738e65d2):
+`failure`, interrompida no primeiro caso inesperado para poupar runner. Causa
+exportada: `REAL_CONTAINED_PROCESSES_STILL_ACTIVE` antes de iniciar NEW. Logo,
+contagem do grupo do reconciliador precisa ser investigada, sem relaxar o
+assert. Adicionado diagnóstico limitado de contagens/nomes dos membros do Job
+Object, sem usar PIDs como identidade ou autorização. Nenhum PASS novo.

@@ -205,6 +205,9 @@ internal static partial class L18Coordinator
             using var owner=LabProcessJob.Open(c.OwnerJob);
             using var recovery=LabProcessJob.Open(c.RecoveryJob);recovery.RequireCurrentMember();
             // OS job accounting, NOT PID, HWND, exit code or a local receipt.
+            if(owner.Active!=0 || recovery.Active!=1)
+                File.WriteAllText(Path.Combine(src,"real-job-members.fixture.txt"),
+                    "owner: "+owner.Diagnostic()+" | recovery: "+recovery.Diagnostic());
             Require(owner.Active==0 && recovery.Active==1,"REAL_CONTAINED_PROCESSES_STILL_ACTIVE");
             using var lease=L16Boundary.Exclusive(src);
             var history=Load(src,lab);

@@ -94,7 +94,7 @@ internal static class Phase1RecoveryTests
     private static string ReadError(string src)
     {
         return string.Join(" | ",new[]{"real-child-error.fixture.txt",
-            "real-reconcile-reason.fixture.txt","real-observer-error.fixture.txt"}
+            "real-reconcile-reason.fixture.txt","real-observer-error.fixture.txt","real-job-members.fixture.txt"}
             .Select(x=>Path.Combine(src,x)).Where(File.Exists).Select(File.ReadAllText));
     }
     private static string Reason(string src)=>File.ReadAllText(Path.Combine(src,"real-reconcile-reason.fixture.txt"));
@@ -302,6 +302,7 @@ internal static class Phase1RecoveryTests
                     StringComparison.OrdinalIgnoreCase),"REAL_INPUT_OUTSIDE_RUNNER_TEMP");
             L16Tests.fixtures=Path.GetFullPath(a[2]);L16Tests.bootstrap=Path.GetFullPath(a[3]);
             L16Tests.suite=Path.Combine(Path.GetTempPath(),"gf-u2-r-"+Guid.NewGuid().ToString("N")[..8]);
+            Require(!Directory.Exists(L16Tests.suite),"REAL_SUITE_MUST_BE_FRESH");
             Directory.CreateDirectory(L16Tests.suite);
             var results=new List<object>();int failed=0;
             try
