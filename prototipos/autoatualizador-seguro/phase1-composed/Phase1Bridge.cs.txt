@@ -80,7 +80,15 @@ internal static partial class L18Coordinator
         string? message;
         try{ message=await child.StandardOutput.ReadLineAsync().WaitAsync(timeout); }
         catch(TimeoutException){throw new Rejected("PHASE1_HANDOFF_TIMED_OUT_"+expected);}
-        Require(message==expected,"PHASE1_HANDOFF_UNEXPECTED_"+expected);
+        if(message!=expected)
+        {
+            Console.Error.WriteLine("GF_PHASE1_BARRIER_DIAG "+
+                "received_tag="+(message?.Split(':')[0] ?? "<eof>")+
+                " received_len="+(message?.Length ?? -1)+
+                " expected_tag="+expected.Split(':')[0]+
+                " equal="+(message==expected));
+            throw new Rejected("PHASE1_HANDOFF_UNEXPECTED_"+expected.Split(':')[0]);
+        }
     }
 
     private static async Task SendBarrier(Process child,string command)
@@ -238,6 +246,12 @@ internal static partial class L18Coordinator
         }
         catch(Exception ex) when(ex is TimeoutException or Rejected or IOException)
         {
+            if(process.HasExited)
+            {
+                string earlyErr=await stderr;
+                Console.Error.WriteLine("GF_PHASE1_EARLY_CHILD_ERROR "+
+                    earlyErr[..Math.Min(earlyErr.Length,1600)]);
+            }
             // No fictitious success after a missing handshake, PID still
             // alive, or unobserved late effects. No blind rollback here.
             L16Boundary.MarkUncertain(src);
