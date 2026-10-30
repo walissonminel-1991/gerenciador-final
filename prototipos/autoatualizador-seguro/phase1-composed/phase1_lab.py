@@ -29,6 +29,33 @@ def require(condition, why):
         raise RuntimeError("GF_PHASE1_" + why)
 
 
+def guard_data_only_launch_apis():
+    """Reject accidental launches via these Python APIs in this verifier.
+
+    Regression guard only: NOT a sandbox, native-code barrier, durable
+    witness, or statement about other processes/the whole machine.
+    """
+    def reject(event, _args):
+        if event in ("subprocess.Popen", "os.system", "os.startfile",
+                     "os.startfile/2", "os.exec", "os.posix_spawn", "os.spawn"):
+            raise RuntimeError("GF_PHASE1_DATA_ONLY_LAUNCH_API_DENIED")
+    sys.addaudithook(reject)
+
+
+def test_data_only_launch_guard():
+    guard_data_only_launch_apis()
+    # Would create a Python child if the guard were absent; no shell, GF,
+    # maintenance or network operation. The hook runs before process creation.
+    try:
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+    except RuntimeError as exc:
+        require(str(exc) == "GF_PHASE1_DATA_ONLY_LAUNCH_API_DENIED", "WRONG_LAUNCH_GUARD")
+        print("GF_PHASE1_DATA_ONLY_LAUNCH_GUARD PASS_API_DENIAL_NOT_SANDBOX")
+        return 0
+    child.wait(timeout=10)
+    require(False, "DATA_ONLY_LAUNCH_GUARD_BYPASSED")
+
+
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -332,6 +359,8 @@ def main():
     parser.add_argument("--selector-root", type=Path)
     parser.add_argument("--handoff-token")
     args = parser.parse_args()
+    if args.preflight_only:
+        guard_data_only_launch_apis()
     require(os.name == "nt", "WINDOWS_REQUIRED")
     require(os.environ.get("GITHUB_ACTIONS") == "true" and
             os.environ.get("RUNNER_TEMP"), "DISPOSABLE_GITHUB_WINDOWS_REQUIRED")
@@ -393,6 +422,8 @@ def main():
 
 def recovery_tool(mode, source):
     """Subordinate re-verifier/observer. Never changes the C# selector."""
+    if mode == "--recovery-verify":
+        guard_data_only_launch_apis()
     require(os.name == "nt" and os.environ.get("GITHUB_ACTIONS") == "true",
             "RECOVERY_DISPOSABLE_WINDOWS_ONLY")
     src = Path(source).resolve(strict=True)
@@ -461,6 +492,8 @@ def recovery_tool(mode, source):
 
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--data-only-launch-guard-test"]:
+        sys.exit(test_data_only_launch_guard())
     if len(sys.argv) == 3 and sys.argv[1] in (
             "--recovery-verify", "--recovery-observe", "--out-of-band-new-observe"):
         sys.exit(recovery_tool(sys.argv[1], sys.argv[2]))

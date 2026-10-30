@@ -121,6 +121,78 @@ internal static class Phase1RecoveryTests
         Require(child.ExitCode==0 && File.Exists(result),"REAL_RECONCILER_FAILED:"+ReadError(src));
         return File.ReadAllText(result);
     }
+    private static async Task<object> PreparationScenario(string name,string[] a)
+    {
+        using var s=await L16Tests.Prepared();string src=s.Source.Root;
+        var c=await Prepare(s,a);
+        using var contextPin=WindowsFileGuard.Open(src,L18Coordinator.RealContextPath(src));
+        using var pins=new RealLabPins(src,c);
+        using var owner=LabProcessJob.Create(c.OwnerJob);
+        using var recovery=LabProcessJob.Create(c.RecoveryJob);
+        bool completed=name=="prepare-only",oldFenced=name=="before-old-observation";
+        string oldFence=Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt");
+        void AssertNoObservation()
+        {
+            // This assertion covers the audited owner/verifier route, not
+            // launches elsewhere. The old out-of-band test remains mandatory.
+            Require(!File.Exists(Path.Combine(src,"real-observed-old.fixture.json")) &&
+                !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")) &&
+                !File.Exists(L18Coordinator.NewLaunchFence(src)) &&
+                File.Exists(oldFence)==oldFenced && Selection(src)==("old",1),
+                "REAL_PREPARATION_CROSSED_OBSERVATION_BOUNDARY");
+        }
+        try
+        {
+            if(completed)
+            {
+                using var child=owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,name);
+                await child.Wait();
+                Require(child.ExitCode==0,"REAL_DATA_PREPARE_FAILED:"+ReadError(src));
+            }
+            else await CutOwner(owner,src,s.Lab,name);
+            Require(owner.Active==0,"REAL_PREPARE_OWNER_SURVIVOR");
+            History(src,c);AssertNoObservation();
+            var journal=Directory.GetFiles(src,"l18-phase-*.fixture.json").Order(StringComparer.Ordinal)
+                .Select(x=>StateCodec.Decode<L18PhaseRecord>(File.ReadAllBytes(x))).ToArray();
+            Require(journal.Length==(oldFenced?6:5) &&
+                !journal.Any(x=>x.Phase=="owner-launched") &&
+                journal[^1].Phase==(oldFenced?"switching":"intent-durable"),
+                "REAL_PREPARE_FALSE_LAUNCH_EVENT");
+            if(oldFenced)
+                Require(File.ReadAllText(oldFence)=="OLD-MAY-HAVE-EFFECTS\n",
+                    "REAL_OLD_PRE_OBSERVATION_FENCE_MISSING");
+            string before=Hash(File.ReadAllBytes(Path.Combine(src,"l18-real-active.fixture.json")));
+            string outcome=await Reopen(recovery,owner,src,s.Lab);
+            string reason=Reason(src);
+            string replay=await Reopen(recovery,owner,src,s.Lab);
+            // Intent cannot transition directly to Unknown in the inherited
+            // journal. Its fallback blocker intentionally dominates replay.
+            string replayReason=Reason(src);
+            Require(outcome=="UnknownBlocked" && replay=="UnknownBlocked" &&
+                reason=="REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY" &&
+                replayReason==(oldFenced?reason:"REAL_UNREADABLE_HISTORY_BLOCKED") &&
+                Hash(File.ReadAllBytes(Path.Combine(src,"l18-real-active.fixture.json")))==before,
+                "REAL_PREPARATION_BECAME_RECOVERY_AUTHORITY");
+            AssertNoObservation();History(src,c);pins.Recheck();
+            using var finalPins=new RealLabPins(src,c);
+            s.Preserved();
+            Require(owner.Active==0 && recovery.Active==0,"REAL_PREPARATION_REPLAY_SURVIVOR");
+            return new{test=name,status="passed",classification="PASS_CONTAINMENT",
+                preparation_completed_without_observation=completed,
+                data_only_verification_completed=completed || name=="prepare-after-verify",
+                preparation_interrupted=!completed && !oldFenced,
+                local_old_may_launch_boundary_observed=oldFenced,
+                no_functional_observation_on_audited_route=true,
+                no_launch_claim_scope="AUDITED_COORDINATOR_AND_PYTHON_API_GUARD_ONLY",
+                global_no_launch_proven=false,independent_recovery_authority=false,
+                unsafe_recovery_after_real_new=false,
+                interrupted_owner=!completed,normal_owner_completed_without_crash=false,
+                reconciler_new_process=true,old_and_canary_preserved=true,
+                manifest_and_object_identities_rechecked=true,
+                outcome,replay,block_reason=reason,replay_block_reason=replayReason,operational_ready=false};
+        }
+        finally{await owner.Cleanup();await recovery.Cleanup();}
+    }
     private static async Task<object> Scenario(string name,string[] a)
     {
         using var s=await L16Tests.Prepared();string src=s.Source.Root;
@@ -923,9 +995,12 @@ internal static class Phase1RecoveryTests
                     "fence-directory-before-new","joint-fence-journal-erasure",
                     "same-user-full-state-rollback-after-new",
                     "out-of-band-new-with-old-selected",
-                    "provider-late-spawn-after-reconcile"})
+                    "provider-late-spawn-after-reconcile",
+                    "prepare-only","prepare-before-verify","prepare-after-verify","before-old-observation"})
                 {
-                    try{var result=await Scenario(name,a);results.Add(result);Console.WriteLine("GF_PHASE1_RECOVERY_CASE "+JsonSerializer.Serialize(result));}
+                    try{var result=name.StartsWith("prepare-",StringComparison.Ordinal) || name=="before-old-observation"
+                            ?await PreparationScenario(name,a):await Scenario(name,a);
+                        results.Add(result);Console.WriteLine("GF_PHASE1_RECOVERY_CASE "+JsonSerializer.Serialize(result));}
                     catch(Exception e)
                     {
                         failed++;results.Add(new{test=name,status="failed",error=e.ToString()});
@@ -934,7 +1009,7 @@ internal static class Phase1RecoveryTests
                     }
                 }
                 var report=new{schema="gf-real-process-crash-recovery-lab/1",tests=results,failed,
-                    expected_cases=22,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
+                    expected_cases=26,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
                     real_power_loss_tested=false,supervisor_loss_recovery_proven=false,
                     new_effects_quiescence_proven=false,production_tuf_authority=false};
                 File.WriteAllText(a[1],JsonSerializer.Serialize(report));

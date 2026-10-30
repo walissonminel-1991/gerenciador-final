@@ -144,6 +144,20 @@ internal static partial class L18Coordinator
     }
     private static async Task RunRealObserver(string src,RealLabContext c,string mode)
     {
+        Require(mode is "--recovery-verify" or "--recovery-observe","REAL_OBSERVER_MODE");
+        // Verification treats candidate files as data. Observation is a
+        // different capability: fail BEFORE starting even the Python child
+        // unless the selected package already has its local effects fence.
+        // This is a launch-order guard, NOT independent launch authority.
+        if(mode=="--recovery-observe")
+        {
+            _=SelectedRealPath(src,c,out string slot,out _);
+            using var fence=WindowsFileGuard.Open(src,
+                slot=="old"?OldLaunchFence(src):NewLaunchFence(src));
+            Require(System.Text.Encoding.UTF8.GetString(fence.Read(128))==
+                (slot=="old"?"OLD-MAY-HAVE-EFFECTS\n":"NEW-MAY-HAVE-UNOBSERVABLE-EFFECTS\n"),
+                "REAL_OBSERVATION_REQUIRES_EFFECTS_FENCE");
+        }
         var info=new ProcessStartInfo(c.Python){UseShellExecute=false,CreateNoWindow=true,
             RedirectStandardOutput=true,RedirectStandardError=true,WorkingDirectory=c.Repository};
         foreach(var arg in new[]{c.Script,mode,src})info.ArgumentList.Add(arg);
@@ -178,14 +192,31 @@ internal static partial class L18Coordinator
         using(var lease=L16Boundary.Exclusive(src))BeginCore(src,lab,bootstrap,c.ManifestSha);
         WriteRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"old",1);
         if(cut=="after-intent")await RealCut(src,cut);
+        // Explicit data-only terminal path in the SAME owner/coordinator.
+        // No new selector, recovery state, receipt or anti-rollback claim.
+        // Intent/OLD selection are preparation writes, not product execution.
+        if(cut is "prepare-only" or "prepare-before-verify" or "prepare-after-verify")
+        {
+            if(cut=="prepare-before-verify")await RealCut(src,cut);
+            await RunRealObserver(src,c,"--recovery-verify");
+            await job.RequireOnlyCurrentProcess();
+            pins.Recheck();VerifyRealManifest(src,c);
+            RequireRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"old",1);
+            RequireRealMarkerAbsent(OldLaunchFence(src),"REAL_PREPARE_OLD_FENCED","REAL_PREPARE_OLD_MARKER_TYPE");
+            RequireRealMarkerAbsent(NewLaunchFence(src),"REAL_PREPARE_NEW_FENCED","REAL_PREPARE_NEW_MARKER_TYPE");
+            if(cut=="prepare-after-verify")await RealCut(src,cut);
+            Console.WriteLine("GF_PHASE1_PREPARE_DATA_ONLY_COMPLETE; READY=false; recovery_authority=false");
+            return; // Never fall through to functional observation.
+        }
         Append(src,lab,Switching,"real-new-selection-intent",c.ManifestSha);
-        if(cut=="normal")
+        if(cut is "normal" or "before-old-observation")
         {
             // The normal experiment uses the SAME retained context, NTFS pins,
             // L18 journal and Job Object as restarted-process reconciliation.
             // Fence OLD before observation: a crash may leave effects unknown.
             DurableRealFile(OldLaunchFence(src),
                 System.Text.Encoding.UTF8.GetBytes("OLD-MAY-HAVE-EFFECTS\n"));
+            if(cut=="before-old-observation")await RealCut(src,cut);
             await RunRealObserver(src,c,"--recovery-observe");
             await job.RequireOnlyCurrentProcess();
             pins.Recheck();VerifyRealManifest(src,c);
