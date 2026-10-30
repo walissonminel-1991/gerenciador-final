@@ -1013,3 +1013,39 @@ segredos, telemetria e PCs pessoais intocados.
 Sem WORK, merge, release, deploy ou integracao ao GF
 distribuido. **Fase 1 ABERTA, READY=false,
 G1–G8 BLOCKED (0/8).**
+
+---
+
+### CHAT ALTO — marcadores ambiguos, adulteracao conjunta e selecao NEW sem prova independente (30/10/2026)
+
+**Base tecnica/documental antes da rodada:** `a1b7904f51e9163f5b1a76d542018102cee5fecb`.
+**Unica branch alterada:** `experimento-g5-ipc-chat-alto-20261029`.
+**Commits tecnicos:**
+- `0f81e337c5358a58977ad2c396e1039b17f744c8`: marcação fail-closed para objetos de tipo errado; bloqueio de NEW selecionada com evidencia de nao-lancamento insuficiente; dois novos contraexemplos.
+- `5fd3a583caf4f62c58d382e5fc31e314b44cdc1d`: corrige a classificacao do caso `selector-locked` em Intent, preservando marcador duravel de bloqueio.
+
+**CIs e logs:**
+- [41063285183](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41063285183): `failure` historica. Os 10 primeiros cenarios passaram, mas `selector-locked` ja havia criado `RecoveryBlocked` e o teste legado ainda esperava `OldRecoveredNoReady`. A falha foi uma expectativa de teste inadequada a politica conservadora, NAO uma autorizacao para limpar o marcador.
+- [41064412191](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41064412191), job `124091955138`, commit `5fd3a583caf4f62c58d382e5fc31e314b44cdc1d`: **SUCCESS**, `GF_PHASE1_RECOVERY_REPORT failed=0, expected_cases=19`; `operational_ready=false`, `phase1_complete=false`, `operational_gates_closed=0`, `real_power_loss_tested=false`, `supervisor_loss_recovery_proven=false`, `new_effects_quiescence_proven=false`, `production_tuf_authority=false`. Resultado: **3 recuperacoes limitadas no laboratorio**, **16 contencoes**. Nenhuma das causas abaixo foi inferida apenas da CI verde: foram conferidas nas linhas individuais `GF_PHASE1_RECOVERY_CASE`.
+
+**Defeito 1 — `File.Exists` nao e prova de ausencia:**
+A documentacao oficial .NET confirma que `File.Exists` retorna `false` tambem para entradas do tipo diretorio e para alguns erros ao consultar o caminho. O reconciliador deixou de confiar no booleano para `RecoveryBlocked`, `NewLaunchFence` e `OldLaunchFence`. A funcao `RequireRealMarkerAbsent` usa `File.GetAttributes`, aceita **somente `FileNotFoundException`** como ausencia observada, rejeita diretório/reparse point e propaga erros de consulta para bloquear. Isso NAO faz leitura atomica e NAO oferece integridade contra TOCTOU/alteracoes concorrentes de namespace. Causa especifica demonstrada no novo caso `fence-directory-before-new`: `REAL_NEW_FENCE_NOT_REGULAR_FILE`, `UnknownBlocked`, sem alterar a selecao NEW.
+
+**Defeito 2 — duas historias indistinguiveis depois de NEW selecionada:**
+- Historia A: o owner falha apos mudar o seletor para NEW geracao 2, antes da escrita de `NewLaunchFence` e antes do lançamento.
+- Historia B: NEW realmente executa e termina; em seguida, outro agente com autoridade de escrita apaga tanto o fence quanto os registros finais `Launched/Exited` do diario. O diario restante continua estruturalmente valido e o seletor NEW geracao 2 parece um corte pre-lancamento.
+Sem testemunha independente de nao-execucao, **nao se pode distinguir A de B**. O reconciliador agora retorna `UnknownBlocked` por `REAL_NEW_SELECTED_NO_INDEPENDENT_NO_LAUNCH_PROOF` em ambos, em vez de restaurar OLD. A verificacao anterior de diario com launch registrado e fence ausente continua bloqueante com `REAL_LAUNCHED_NEW_JOURNAL_FENCE_MISSING`.
+
+**Provas adversariais em Windows descartavel:**
+- `selected`: owner morto apos selecionar NEW sem fence; agora `PASS_CONTAINMENT` com `REAL_NEW_SELECTED_NO_INDEPENDENT_NO_LAUNCH_PROOF`. Concorrencia do gate e integridade NTFS do OLD/canario continuam exercitadas.
+- `joint-fence-journal-erasure`: apos NEW real executar e encerrar, apaga apenas o fence de fixture e os ultimos dois registros (`Launched`, `Exited`), mantendo o diario remanescente estruturalmente valido. Retorna `UnknownBlocked`, mesma causa, sem alterar NEW.
+- `fence-directory-before-new`: apos selecionar NEW, cria um diretorio com o nome do fence (para o qual `File.Exists` devolve falso). Retorna `UnknownBlocked` com `REAL_NEW_FENCE_NOT_REGULAR_FILE`.
+- `selector-locked`: durante Intent, arquivo seletor bloqueado cria fallback conservador `RecoveryBlocked`; apos liberar a trava o marcador ainda existe. A classificacao final correta e `PASS_CONTAINMENT` com `REAL_UNREADABLE_HISTORY_BLOCKED`, e nao recuperacao.
+
+**Mudanca semantica intencional da matriz:** as recuperacoes de `recover-before-replace` e `recover-after-replace` passaram a provocar o crash do reconciliador ainda com OLD selecionada (corte `after-intent`). Portanto, embora elas continuem comprovando retomada/idempotencia do reconciliador, **nao equivalem mais as antigas provas de retorno OLD apos NEW ter sido selecionada**. Sao agora 3 `PASS_RECOVERY_LAB_ONLY` e 16 `PASS_CONTAINMENT`, num total de 19. A reducao de recuperacoes aceitas reflete maior conservadorismo, NAO uma ampliacao de READY.
+
+**Limitacoes ainda essenciais:** journal, seletor e fence continuam artefatos locais passíveis de adulteracao sob a mesma identidade de usuario; o teste conjunto remove apenas dois registros e o fence, nao simula adulteracao total de contexto, seletor, TUF ou NTFS. A verificacao de atributos e um snapshot do caminho, nao testemunha de exclusividade. Nenhum experimento demonstrou isolamento entre identidades de mesmo usuario, bytes carregados em memoria, ausencia de writers externos, quiescencia apos NEW, reboot/power-loss ou recuperacao fria. `LabProcessJob.FromInherited` ainda exige handle da testemunha supervisora original. Nunca inferir `READY` de PID, HWND, Job vazio, recibo local, exit code, hash isolado, existencia ou ausencia de arquivo.
+
+**Proxima pesquisa util:** procurar autoridade/testemunha de *no-launch* que independa de marcadores same-user e suporte falhas de processo/energia; avaliar se a arquitetura portátil/sem servico permite essa evidencia. Enquanto isso, manter NEW selecionada sem prova em `UNKNOWN/BLOCKED`; nao investir em nova cobertura de testes sem uma propriedade comprovavel especifica. Investigar tratamento transacional de marcadores e seus pais no NTFS como estudo, sem prometer contra-TOCTOU.
+
+**Preservado:** `main`, PR #65 Draft, BETA .66, infraestrutura, credenciais, telemetria e PCs pessoais. Nao houve WORK, merge, release, deploy ou integracao ao GF distribuido. **Fase 1 ABERTA, READY=false, G1–G8 BLOCKED (0/8).**
