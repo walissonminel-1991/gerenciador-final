@@ -502,6 +502,41 @@ def cleanup_trial_marker(source: Path):
 
 
 @contextmanager
+def _create_new_trial_registry_key(subkey):
+    """Own one native HKEY; winreg accepts its borrowed integer value.
+
+    PyHKEY is not publicly constructible in Python 3.13. Never wrap a raw
+    HKEY with competing ownership: RegCloseKey below is its only closer.
+    The disposition check precedes every caller write, including tests.
+    """
+    _trial_scope()
+    rights = winreg.KEY_READ | winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY
+    native = ctypes.WinDLL("advapi32", use_last_error=True)
+    create = native.RegCreateKeyExW
+    create.argtypes = [w.HANDLE, w.LPCWSTR, w.DWORD, w.LPWSTR, w.DWORD,
+                       w.DWORD, ctypes.c_void_p, ctypes.POINTER(w.HANDLE),
+                       ctypes.POINTER(w.DWORD)]
+    create.restype = w.LONG
+    close = native.RegCloseKey
+    close.argtypes = [w.HANDLE]
+    close.restype = w.LONG
+    key_handle = w.HANDLE()
+    disposition = w.DWORD()
+    rc = create(w.HANDLE(int(winreg.HKEY_CURRENT_USER)), subkey,
+                0, None, 0, rights, None,
+                ctypes.byref(key_handle), ctypes.byref(disposition))
+    require(rc == 0 and bool(key_handle),
+            "TRIAL_REGISTRY_NATIVE_CREATE_FAILED:" + str(rc))
+    try:
+        require(disposition.value == 1, "TRIAL_REGISTRY_ALREADY_EXISTS")
+        yield key_handle.value  # borrowed by winreg; no PyHKEY finalizer
+    finally:
+        rc = close(key_handle)
+        key_handle.value = None
+        require(rc == 0, "TRIAL_REGISTRY_NATIVE_CLOSE_FAILED:" + str(rc))
+
+
+@contextmanager
 def trial_registry_fixture(marker_path=None):
     """Disposable HKCU ARP record, create-new only, not a same-user sandbox.
 
@@ -524,25 +559,9 @@ def trial_registry_fixture(marker_path=None):
                        "name": name, "token": token}, marker)
             marker.flush()
             os.fsync(marker.fileno())
-    rights = winreg.KEY_READ | winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY
-    native = ctypes.WinDLL("advapi32", use_last_error=True)
-    create = native.RegCreateKeyExW
-    create.argtypes = [w.HANDLE, w.LPCWSTR, w.DWORD, w.LPWSTR, w.DWORD,
-                       w.DWORD, ctypes.c_void_p, ctypes.POINTER(w.HANDLE),
-                       ctypes.POINTER(w.DWORD)]
-    create.restype = w.LONG
-    key_handle = w.HANDLE()
-    disposition = w.DWORD()
-    rc = create(w.HANDLE(int(winreg.HKEY_CURRENT_USER)), subkey,
-                0, None, 0, rights, None,
-                ctypes.byref(key_handle), ctypes.byref(disposition))
-    require(rc == 0 and bool(key_handle),
-            "TRIAL_REGISTRY_NATIVE_CREATE_FAILED")
-    with winreg.HKEYType(key_handle.value) as key:
-        require(disposition.value == 1, "TRIAL_REGISTRY_ALREADY_EXISTS")
-        values = {"DisplayName": name, "DisplayVersion": "1.0",
-                  "Publisher": "GF Phase1 inert CI",
-                  "GFPhase1Owner": token}
+    rights = winreg.KEY_READ | winreg.KEY_WOW64_64KEY
+    with _create_new_trial_registry_key(subkey) as key:
+        values = _trial_key_values(name, token)
         try:
             for field, value in values.items():
                 winreg.SetValueEx(key, field, 0, winreg.REG_SZ, value)

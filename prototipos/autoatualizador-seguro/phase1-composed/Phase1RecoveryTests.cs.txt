@@ -293,6 +293,57 @@ internal static class Phase1RecoveryTests
         finally{await owner.Cleanup();await recovery.Cleanup();}
     }
 
+    private static async Task ObserverSupervisionTrials(string[] a)
+    {
+        // Real Python/RegCreateKeyExW/TerminateProcess, supervised by the
+        // SAME C# wait/cleanup routine as RealOwner. No GF activation here.
+        foreach(bool timeout in new[]{false,true})
+        {
+            using var s=await L16Tests.Prepared();string src=s.Source.Root;
+            var c=new RealLabContext("directed-supervision-not-transaction",
+                "","","","","",a[4],a[5],a[6],[]);
+            var info=new ProcessStartInfo(c.Python){UseShellExecute=false,CreateNoWindow=true,
+                RedirectStandardOutput=true,RedirectStandardError=true,WorkingDirectory=c.Repository};
+            foreach(string arg in new[]{Path.Combine(Path.GetDirectoryName(c.Script)!,
+                "registry_fixture_adversarial_tests.py"),"--worker",src})info.ArgumentList.Add(arg);
+            using var child=Process.Start(info) ?? throw new Rejected("A4_DIRECTED_WORKER_NOT_CREATED");
+            try
+            {
+                string? active=await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
+                Require(active=="GF_PHASE1_FIXTURE_ACTIVE","A4_DIRECTED_WORKER_NOT_ACTIVE");
+                string marker=Path.Combine(src,"trial-hkcu-owner.fixture.json");
+                using var doc=JsonDocument.Parse(File.ReadAllBytes(marker));
+                string name=Text(doc.RootElement,"name");
+                Require(name.StartsWith("GF-PHASE1-INVENTORY-",StringComparison.Ordinal) &&
+                    name.Length=="GF-PHASE1-INVENTORY-".Length+24,"A4_DIRECTED_KEY_SCOPE");
+                if(!timeout){child.Kill();await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));}
+                bool timeoutRejected=false;
+                try { _=await L18Coordinator.SuperviseRealObserver(src,c,
+                    "--recovery-observe-trial",child,TimeSpan.FromMilliseconds(100)); }
+                catch(Rejected e) when(timeout && e.Message.Contains(
+                    "REAL_OBSERVER_TIMEOUT_EFFECTS_UNKNOWN",StringComparison.Ordinal))
+                { timeoutRejected=true; }
+                Require(child.HasExited && child.ExitCode!=0 &&
+                    timeoutRejected==timeout && !File.Exists(marker),"A4_DIRECTED_CLEANUP_UNPROVEN");
+                using var hkcu=Microsoft.Win32.RegistryKey.OpenBaseKey(
+                    Microsoft.Win32.RegistryHive.CurrentUser,Microsoft.Win32.RegistryView.Registry64);
+                using var remaining=hkcu.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Uninstall\"+name);
+                Require(remaining is null,"A4_DIRECTED_REGISTRY_RESIDUE");
+                s.Preserved();
+                Console.WriteLine("GF_PHASE1_CSHARP_SUPERVISION "+JsonSerializer.Serialize(new{
+                    test=timeout?"observer-timeout-live-owner":"observer-killed-live-owner",
+                    status="passed",same_owner_cleanup_routine=true,exact_key_absent=true,
+                    marker_absent=true,timeout_rejected=timeoutRejected,
+                    operational_ready=false,automatic_recovery_authorized=false}));
+            }
+            finally
+            {
+                if(!child.HasExited)child.Kill();
+                await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            }
+        }
+    }
     private static async Task<object> PositiveTrial(string[] a,bool missingFixture)
     {
         // A real GF registry -> inventory -> WinForms positive observation
@@ -1183,6 +1234,7 @@ internal static class Phase1RecoveryTests
             var results=new List<object>();int failed=0;
             try
             {
+                await ObserverSupervisionTrials(a);
                 foreach(string name in new[]{"normal","intent","selected","recover-before-replace","recover-after-replace",
                     "launch-fence","new-live-descendant","new-exited","selector-fork","journal-torn",
                     "selector-locked","witness-lost","witness-recreated","witness-wrong-object",

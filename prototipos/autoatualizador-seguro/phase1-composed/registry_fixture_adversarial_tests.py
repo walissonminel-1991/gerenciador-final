@@ -2,9 +2,11 @@
 import json
 import os
 from pathlib import Path
+import queue
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import winreg
 
@@ -44,38 +46,34 @@ def test_atomic_existing_key_refusal():
     name = "GF-PHASE1-INVENTORY-" + value
     src = scoped("atomic")
     marker = lab.trial_marker_path(src)
-    rights = winreg.KEY_READ | winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY
-    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, subkey(name), 0, rights) as key:
-        winreg.SetValueEx(key, "UninstallString", 0, winreg.REG_SZ, "PRESERVE_ME")
     original = lab.secrets.token_hex
-    lab.secrets.token_hex = lambda count: ("A" * 24 if count == 12 else "b" * 64)
-    try:
+    # Even test setup must refuse an existing key before writing. Keep its
+    # original object handle through the assertions and exact self-delete.
+    with lab._create_new_trial_registry_key(subkey(name)) as created:
+        winreg.SetValueEx(created, "UninstallString", 0, winreg.REG_SZ, "PRESERVE_ME")
+        lab.secrets.token_hex = lambda count: ("A" * 24 if count == 12 else "b" * 64)
         try:
-            with lab.trial_registry_fixture(marker):
-                raise AssertionError("collision unexpectedly accepted")
-        except RuntimeError as error:
-            require("TRIAL_REGISTRY_ALREADY_EXISTS" in str(error),
-                    "A3_COLLISION_NOT_REFUSED")
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey(name), 0, rights) as key:
-            require(winreg.QueryValueEx(key, "UninstallString")[0] ==
-                    "PRESERVE_ME", "A3_EXISTING_DATA_REPLACED")
-            require(winreg.QueryInfoKey(key)[1] == 1,
-                    "A3_EXISTING_DATA_MODIFIED")
-    finally:
-        lab.secrets.token_hex = original
-        # Only this test-created foreign key is removed, after checking it
-        # still has the exact value written above. No prefix sweeps.
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey(name), 0, rights) as key:
-            require(winreg.QueryInfoKey(key)[1] == 1 and
-                    winreg.QueryValueEx(key, "UninstallString")[0] == "PRESERVE_ME",
+            try:
+                with lab.trial_registry_fixture(marker):
+                    raise AssertionError("collision unexpectedly accepted")
+            except RuntimeError as error:
+                require("TRIAL_REGISTRY_ALREADY_EXISTS" in str(error),
+                        "A3_COLLISION_NOT_REFUSED")
+            # Exercise supervisor rejection BEFORE test-owned teardown.
+            require(lab.cleanup_trial_marker(src) ==
+                    "HOLD_MUTATED_FIXTURE_PRESERVED" and key_exists(name),
+                    "A3_MARKER_AUTHORIZED_FOREIGN_CLEANUP")
+            require(winreg.QueryInfoKey(created)[1] == 1 and
+                    winreg.QueryValueEx(created, "UninstallString") ==
+                    ("PRESERVE_ME", winreg.REG_SZ), "A3_EXISTING_DATA_MODIFIED")
+        finally:
+            lab.secrets.token_hex = original
+            require(winreg.QueryInfoKey(created)[:2] == (0, 1) and
+                    winreg.QueryValueEx(created, "UninstallString") ==
+                    ("PRESERVE_ME", winreg.REG_SZ),
                     "A3_TEST_KEY_CHANGED_PRESERVE")
-        winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, subkey(name),
-                           access=winreg.KEY_WOW64_64KEY, reserved=0)
-    # Marker remains after an intentional collision: it is not authority to
-    # delete a pre-existing key, even if it knows the same name.
-    require(lab.cleanup_trial_marker(src) ==
-            "HOLD_MUTATED_FIXTURE_PRESERVED" or
-            not key_exists(name), "A3_MARKER_AUTHORIZED_FOREIGN_CLEANUP")
+            winreg.DeleteKeyEx(created, "", access=winreg.KEY_WOW64_64KEY,
+                               reserved=0)
     return "A3_NATIVE_EXISTING_KEY_NOT_OVERWRITTEN"
 
 
@@ -83,9 +81,7 @@ def test_delete_original_registry_handle():
     # A3: validate on REAL Windows that an opened-key HKEY, subkey=""
     # deletes that same object, rather than resolving a later path.
     name = "GF-PHASE1-INVENTORY-" + os.urandom(12).hex().upper()
-    rights = winreg.KEY_READ | winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY
-    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, subkey(name),
-                            0, rights) as created:
+    with lab._create_new_trial_registry_key(subkey(name)) as created:
         winreg.SetValueEx(created, "DisplayName", 0, winreg.REG_SZ, name)
         winreg.DeleteKeyEx(created, "", access=winreg.KEY_WOW64_64KEY,
                            reserved=0)
@@ -128,22 +124,19 @@ def test_forced_kill_supervised():
                                text=True)
     name = None
     try:
-        # Wait on bounded observable state BEFORE reading the worker pipe.
-        # A crash before the ACTIVE line must fail promptly, not hang CI.
-        until = time.monotonic() + 20
-        while time.monotonic() < until:
-            if process.poll() is not None:
-                raise AssertionError("A4_WORKER_EXITED_BEFORE_ACTIVE")
-            if lab.trial_marker_path(src).exists():
-                data = json.loads(lab.trial_marker_path(src).read_text(
-                    encoding="utf-8"))
-                name = data["name"]
-                if key_exists(name):
-                    break
-            time.sleep(0.1)
-        require(name is not None and key_exists(name), "A4_FIXTURE_NOT_ACTIVE")
-        line = process.stdout.readline().strip()
+        # Bound the pipe read itself; file existence can precede complete
+        # JSON publication and is not the worker's readiness acknowledgement.
+        lines = queue.Queue()
+        threading.Thread(target=lambda: lines.put(process.stdout.readline()),
+                         daemon=True).start()
+        try:
+            line = lines.get(timeout=20).strip()
+        except queue.Empty as error:
+            raise AssertionError("A4_WORKER_ACTIVE_TIMEOUT") from error
         require(line == "GF_PHASE1_FIXTURE_ACTIVE", "A4_WORKER_NOT_ACTIVE")
+        name = json.loads(lab.trial_marker_path(src).read_text(
+            encoding="utf-8"))["name"]
+        require(key_exists(name), "A4_FIXTURE_NOT_ACTIVE")
         process.kill()
         process.wait(timeout=10)
         require(key_exists(name), "A4_EXPECTED_FORCED_KILL_RESIDUE_NOT_FOUND")

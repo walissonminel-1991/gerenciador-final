@@ -192,15 +192,22 @@ jobs:
                     !$u.Value -and !$o.Value)
           }
           $good=('{"unsafe_recovery_after_real_new":false,"operational_ready":false}' | ConvertFrom-Json)
-          $missing=('{"operational_ready":false}' | ConvertFrom-Json)
-          $nullValue=('{"unsafe_recovery_after_real_new":null,"operational_ready":false}' | ConvertFrom-Json)
-          $stringValue=('{"unsafe_recovery_after_real_new":"false","operational_ready":false}' | ConvertFrom-Json)
-          $danger=('{"unsafe_recovery_after_real_new":true,"operational_ready":false}' | ConvertFrom-Json)
-          if (!(Test-SafetyShape $good) -or
-              (Test-SafetyShape $missing) -or (Test-SafetyShape $nullValue) -or
-              (Test-SafetyShape $stringValue) -or (Test-SafetyShape $danger)) {
-            throw 'GF_PHASE1_A5_SCHEMA_NEGATIVE_TEST_FAILED'
+          if (!(Test-SafetyShape $good)) { throw 'GF_PHASE1_A5_GOOD_SHAPE_REJECTED' }
+          $a5Rejected=0
+          foreach ($field in @('unsafe_recovery_after_real_new','operational_ready')) {
+            foreach ($variant in @('missing','null','string','true')) {
+              $bad=('{"unsafe_recovery_after_real_new":false,"operational_ready":false}' | ConvertFrom-Json)
+              switch ($variant) {
+                'missing' { $bad.PSObject.Properties.Remove($field) }
+                'null' { $bad.$field=$null }
+                'string' { $bad.$field='false' }
+                'true' { $bad.$field=$true }
+              }
+              if (Test-SafetyShape $bad) { throw "GF_PHASE1_A5_ACCEPTED_$($field)_$variant" }
+              $a5Rejected++
+            }
           }
+          Write-Host "GF_PHASE1_A5_TYPED_SCHEMA rejected=$a5Rejected expected=8 fields=2 common_predicate=true"
           if ($r.failed -ne 0 -or $r.expected_cases -ne 29 -or $r.tests.Count -ne 29 -or
               @($r.tests | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
               @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 0 -or
