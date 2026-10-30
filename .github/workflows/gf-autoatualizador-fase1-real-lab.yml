@@ -42,6 +42,22 @@ jobs:
         run: |
           python prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py --data-only-launch-guard-test
           if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_DATA_ONLY_LAUNCH_GUARD' }
+      - name: Refutar oraculo de busca A1 A2 com snapshots modelados
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $line=(python prototipos/autoatualizador-seguro/phase1-composed/search_oracle_adversarial_tests.py | Select-Object -Last 1)
+          if ($LASTEXITCODE -ne 0 -or !$line.StartsWith('GF_PHASE1_SEARCH_ORACLE_ADVERSARIAL ')) {
+            throw 'GF_PHASE1_SEARCH_ORACLE_FALSE_POSITIVE'
+          }
+          $r=($line.Substring('GF_PHASE1_SEARCH_ORACLE_ADVERSARIAL '.Length) | ConvertFrom-Json)
+          if ($r.status -ne 'passed' -or $r.count -ne 10 -or
+              $r.scope -ne 'MODELED_WIN32_SNAPSHOTS_NOT_GF' -or
+              @($r.cases).Count -ne 10 -or
+              @($r.cases | Select-Object -Unique).Count -ne 10) {
+            throw 'GF_PHASE1_SEARCH_ORACLE_NEGATIVE_GATE'
+          }
+          Write-Host $line
       - name: Confirmar exclusao dos prototipos do produto
         shell: pwsh
         run: |
@@ -150,8 +166,16 @@ jobs:
           if ($r.failed -ne 0 -or $r.expected_cases -ne 29 -or $r.tests.Count -ne 29 -or
               @($r.tests | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
               @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 0 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 28 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_EXPERIMENTAL_ACTIVATION' }).Count -ne 1 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 29 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_EXPERIMENTAL_ACTIVATION' }).Count -ne 0 -or
+              @($r.tests | Where-Object {
+                $s=$_.unsafe_recovery_after_real_new
+                $o=$_.operational_ready
+                !$_.PSObject.Properties['unsafe_recovery_after_real_new'] -or
+                !$_.PSObject.Properties['operational_ready'] -or
+                $s -isnot [bool] -or $o -isnot [bool] -or
+                $s -or $o
+              }).Count -ne 0 -or
               @($r.tests | Where-Object {
                 $_.test -in @('prepare-only','prepare-before-verify','prepare-after-verify','before-old-observation') -and
                 $_.no_functional_observation_on_audited_route -and
@@ -172,10 +196,10 @@ jobs:
                 !$_.data_only_verification_completed }).Count -ne 1 -or
               @($r.tests | Where-Object {
                 $_.test -eq 'positive-trial-inventory' -and
-                $_.classification -eq 'PASS_EXPERIMENTAL_ACTIVATION' -and
+                $_.classification -eq 'PASS_CONTAINMENT' -and
                 $_.registry_to_inventory_to_ui_probed -and
-                $_.seeded_registry_inventory_proved -and !$_.missing_inventory_rejected -and
-                $_.original_live_owner_positive_recorded -and
+                !$_.seeded_registry_inventory_proved -and !$_.missing_inventory_rejected -and
+                $_.positive_ui_proof_pending -and !$_.original_live_owner_positive_recorded -and
                 $_.l18_new_generation_two_selected -and $_.real_old_and_new_functionally_observed -and
                 $_.old_and_new_bytes_preserved -and
                 $_.outcome -eq 'UnknownBlocked' -and $_.replay -eq 'UnknownBlocked' -and
@@ -187,7 +211,8 @@ jobs:
                 $_.test -eq 'positive-trial-inventory-absent' -and
                 $_.classification -eq 'PASS_CONTAINMENT' -and
                 $_.registry_to_inventory_to_ui_probed -and !$_.seeded_registry_inventory_proved -and
-                $_.missing_inventory_rejected -and !$_.original_live_owner_positive_recorded -and
+                $_.missing_inventory_rejected -and !$_.positive_ui_proof_pending -and
+                !$_.original_live_owner_positive_recorded -and
                 $_.l18_new_generation_two_selected -and $_.old_and_new_bytes_preserved -and
                 $_.outcome -eq 'UnknownBlocked' -and $_.replay -eq 'UnknownBlocked' -and
                 !$_.operational_ready -and !$_.automatic_recovery_authorized }).Count -ne 1 -or
@@ -285,8 +310,8 @@ jobs:
           }
           @(
             '## Fase 1 - interrupcao real de processos, sem READY'
-            '* 29 casos: 28 PASS_CONTAINMENT + 1 PASS_EXPERIMENTAL_ACTIVATION, sem READY operacional nem recuperacao automatica'
-             '* Inventario HKCU inerte conhecido -> scan GF -> filtro UI positivo e negativo; ausencia do item rejeita ativacao experimental'
+            '* 29 casos: 29 PASS_CONTAINMENT; positive UI proof PENDING; sem READY operacional nem recuperacao automatica'
+             '* Item-level UI witness unavailable in owner-drawn list: no positive activation without independent visible row proof; negativo usa mesmo avaliador funcional'
              '* Ambos os casos mantem OLD/NEW, fences e seletor new/2 e reconciliam UnknownBlocked'
              '* Segundo RealOwner apos NEW real e UnknownBlocked: L20_BEGIN_BLOCKED; OLD/NEW, fences, seletor e diario intactos somente sob estado integro'
             '* PREPARE_DATA_ONLY termina antes de OLD/NEW; cortes antes/depois da verificacao permanecem UnknownBlocked'
