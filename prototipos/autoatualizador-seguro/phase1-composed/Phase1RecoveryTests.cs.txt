@@ -286,7 +286,9 @@ internal static class Phase1RecoveryTests
                 unknown_replay_blocked=true,same_user_rollback_resistant=false,
                 external_launch_blocked=false,independent_recovery_authority=false,
                 real_gf_old_and_new_observed_before_retry=true,
-                unsafe_recovery_after_real_new=false,operational_ready=false};
+                unsafe_recovery_after_real_new=false,
+                old_and_canary_preserved=true,reconciler_new_process=true,
+                manifest_and_object_identities_rechecked=true,operational_ready=false};
         }
         finally{await owner.Cleanup();await recovery.Cleanup();}
     }
