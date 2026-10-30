@@ -46,3 +46,27 @@ Exclusivamente no Windows Actions descartável e em pasta de fixture privada:
 - Se a CI falhar, diagnosticar a razão real e não contar testes que não rodaram.
 
 **Fase 1 ABERTA; READY=false; G1–G8 BLOCKED 0/8.** Sem WORK, merge, release, deploy, promoção de branch, infraestrutura ou operação no PC do usuário.
+
+---
+
+## Resultado final verificado no runner Windows
+
+**[CI 41087305170](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41087305170) — `completed/success`**, job `124171724810`, commit técnico `bf314f17b5aceb98e9f3801fce4fc3a2212c467a`.
+
+O log bruto `GF_PHASE1_RECOVERY_CASE` incluiu **22 resultados `passed`, todos `PASS_CONTAINMENT`**, nenhum `PASS_RECOVERY_LAB_ONLY`. O `GF_PHASE1_RECOVERY_REPORT` confirmou `expected_cases=22`, `failed=0`, `operational_ready=false`, `phase1_complete=false`, `operational_gates_closed=0`, `new_effects_quiescence_proven=false`, `real_power_loss_tested=false`, `supervisor_loss_recovery_proven=false`.
+
+**Novo caso `provider-late-spawn-after-reconcile`**, leitura literal do relatório:
+- `status=passed`, `classification=PASS_CONTAINMENT`;
+- `provider_client_exited_before_worker_spawn=true`;
+- `provider_worker_spawned_after_reconcile=true`;
+- `outcome=UnknownBlocked` e `replay=UnknownBlocked`;
+- `block_reason=REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED`;
+- `old_and_canary_preserved=true`, `manifest_and_object_identities_rechecked=true`, `operational_ready=false`.
+
+Os quatro testes regressivos `external-broker`, `external-broker-handoff`, `same-user-full-state-rollback-after-new` e `out-of-band-new-with-old-selected` também passaram em `UnknownBlocked` com replay bloqueado.
+
+**Ganho incremental demonstrado:** o cliente sintético terminou, mas o trabalho futuro só foi criado **depois** da primeira reconciliação. Logo, nem a saída do processo fornecedor nem a ausência de escritor existente naquela fotografia bastam como autoridade de quiescência. A distinção é mais forte do que os testes anteriores em que um escritor já estava vivo antes da reconciliação.
+
+**Limite:** não executou o Windows Installer real ou uma ação personalizada MSI de verdade. A ligação com `msidbCustomActionTypeAsync | msidbCustomActionTypeContinue = 0xC0` continua fundamentação documental da classe de risco, não prova empírica do serviço Windows Installer. `UNKNOWN` continua a escolha segura mesmo depois de o efeito inerte ser observado.
+
+**Estado preservado:** nenhuma mudança em `Phase1Recovery.cs.txt`, GF distribuído, `main`, PR #65 Draft, BETA .66, políticas de Windows, serviço ou infraestrutura. Sem WORK, merge, release ou deploy. Fase 1 **ABERTA**, READY=false, G1–G8 BLOCKED 0/8.
