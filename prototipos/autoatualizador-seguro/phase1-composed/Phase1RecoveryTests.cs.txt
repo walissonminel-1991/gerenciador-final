@@ -275,9 +275,22 @@ internal static class Phase1RecoveryTests
                     Require(intermediary.ExitCode==0,"REAL_HANDOFF_INTERMEDIARY_FAILED:"+ReadError(src));
                 }
                 string ready=Path.Combine(src,"handoff-writer-ready.fixture.txt");
+                string writerRecord="";
+                // The writer publishes this marker with FileShare.None and
+                // flushes before closing. Existence can precede readable
+                // completion: retry only ERROR_SHARING_VIOLATION (32).
+                await Until(() =>
+                {
+                    if(!File.Exists(ready))return false;
+                    try
+                    {
+                        writerRecord=File.ReadAllText(ready);
+                        return writerRecord.Length is >0 and <=12;
+                    }
+                    catch(IOException e) when((e.HResult & 0xFFFF)==32){return false;}
+                });
                 int writerPid=0;
-                Require(File.Exists(ready) &&
-                    int.TryParse(File.ReadAllText(ready),
+                Require(int.TryParse(writerRecord,
                         System.Globalization.NumberStyles.None,
                         System.Globalization.CultureInfo.InvariantCulture,out writerPid) &&
                     writerPid>0,"REAL_HANDOFF_WRITER_NOT_DISCOVERED");
