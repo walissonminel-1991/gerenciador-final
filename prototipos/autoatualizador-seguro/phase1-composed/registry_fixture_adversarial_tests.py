@@ -79,6 +79,20 @@ def test_atomic_existing_key_refusal():
     return "A3_NATIVE_EXISTING_KEY_NOT_OVERWRITTEN"
 
 
+def test_delete_original_registry_handle():
+    # A3: validate on REAL Windows that an opened-key HKEY, subkey=""
+    # deletes that same object, rather than resolving a later path.
+    name = "GF-PHASE1-INVENTORY-" + os.urandom(12).hex().upper()
+    rights = winreg.KEY_READ | winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, subkey(name),
+                            0, rights) as created:
+        winreg.SetValueEx(created, "DisplayName", 0, winreg.REG_SZ, name)
+        winreg.DeleteKeyEx(created, "", access=winreg.KEY_WOW64_64KEY,
+                           reserved=0)
+    require(not key_exists(name), "A3_RETAINED_HANDLE_DELETE_FAILED")
+    return "A3_RETAINED_HANDLE_SELF_DELETE_WINDOWS"
+
+
 def test_mutation_preserved():
     src = scoped("mutated")
     marker = lab.trial_marker_path(src)
@@ -151,6 +165,7 @@ if __name__ == "__main__":
         run_worker(Path(sys.argv[2]))
     elif len(sys.argv) == 1:
         cases = [test_atomic_existing_key_refusal(),
+                 test_delete_original_registry_handle(),
                  test_mutation_preserved(),
                  test_forced_kill_supervised()]
         print("GF_PHASE1_HKCU_ADVERSARIAL " + json.dumps(
