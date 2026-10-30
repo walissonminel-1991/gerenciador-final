@@ -382,3 +382,58 @@ ou novo contraexemplo, nem iniciar Fase 2/homologação.
 
 **Estado final: Fase 1 ABERTA; READY=false; UNKNOWN/BLOCKED para operação;
 G1–G8 BLOCKED (0/8). Missão WORK encerrada, sem encerrar a Fase 1.**
+
+---
+
+### CHAT ALTO — convergência do fluxo normal com a recuperação L18 (30/10/2026)
+
+**Base técnica revisada:** `71a40163c625683679484bd6ebba9cb4c2389077`;
+CI `40991153584` concluída com sucesso para os 11 cenários anteriores.
+**Branch única:** `experimento-g5-ipc-chat-alto-20261029`.
+
+**Problema encontrado:** antes desta rodada, o laboratório ainda possuía
+duas rotas de execução real: o velho `--run` com Python cooperativo e
+OLD→NEW→OLD, e a rota L18 de recuperação com contexto, pins, Job Object
+e fences. O velho retorno pós-NEW usava recibos/observação locais, sem
+provar ausência de efeitos tardios. Não podia representar recuperação
+transacional segura.
+
+**Implementação nesta rodada:**
+- `1b20f9ca781cf5fce0bc5fd60c8d852c82ef13ad`: adicionou cenário
+  `normal` ao próprio `RealOwner/ReconcileReal`, compartilhando contexto
+  real TUF/3, seletor durável, NTFS pins, Job Object e fences, verificando
+  GF OLD e NEW no Windows descartável sem injetar morte do owner.
+  A condição pós-NEW exige `UnknownBlocked`, com NEW histórica preservada.
+- `b2084fdb28953c835a6bf0989bf751711ee6f929`: corrigiu ordem dos
+  eventos no diário estrito L18; `Switching` precede a observação OLD,
+  e `Exited` só pode vir após `Launched` para NEW.
+- `ee21776df9a0263d239fe93a05f1a7f6d579579f`: retirou o
+  cooperativo `--run` do C# e do workflow, eliminando uma segunda
+  rota de decisão e trocando a CI por preparação/compilação + suíte unificada.
+- `c8e07396ab3ab4f731ff642c846102c1d6ca8aa7`: rejeita
+  explicitamente a antiga entrada cooperativa no observador Python.
+  Python continua subordinado ao C# para preflight TUF e observação.
+
+**CI e defeitos:** `41041347431` terminou em failure com
+`L18_TRANSITION_DENIED` na primeira implementação; a causa foi
+corrigida, sem relaxar a máquina de estados. As demais execuções
+`41041420038` e `41041894820` devem ser consultadas novamente,
+pois estavam em curso/fila durante a preparação deste registro.
+**Nenhum SUCCESS novo é declarado neste checkpoint antes de verificar
+o log e os asserts da CI final.**
+
+**Critérios do cenário normal:** sem crash do coordenador; OLD e NEW
+observados funcionalmente com saída graciosa; os dois fences presentes;
+owner termina; reconciliador **em novo processo** retorna
+`UnknownBlocked` por `REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED`,
+sem rollback cego nem promoção de NEW. Contagens esperadas depois da
+alteração: 12 cenários, sendo 5 recuperações pré-NEW e 7 contenções
+(incluindo a execução normal pós-NEW). O teste não pode alegar READY.
+
+**Limites não resolvidos:** ausência de testemunha independente de
+quiescência pós-NEW e I/O/brokers externos; perda do supervisor e pins;
+durabilidade sob reboot/power-loss; TOCTOU e bytes carregados; saúde
+integral do GF; confiança TUF de produção. R1–R6 operacionais seguem
+sem aprovação; G1–G8 continuam BLOCKED (0/8).
+A Fase 1 permanece aberta. Não houve mudança em main, PR #65 Draft,
+BETA .66, infraestrutura, credenciais, produto distribuído ou PCs pessoais.
