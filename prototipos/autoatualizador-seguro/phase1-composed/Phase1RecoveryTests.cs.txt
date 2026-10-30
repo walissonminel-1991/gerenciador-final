@@ -98,11 +98,15 @@ internal static class Phase1RecoveryTests
             .Select(x=>Path.Combine(src,x)).Where(File.Exists).Select(File.ReadAllText));
     }
     private static string Reason(string src)=>File.ReadAllText(Path.Combine(src,"real-reconcile-reason.fixture.txt"));
-    private static async Task<string> Reopen(LabProcessJob recovery,string src,string lab,string cut="none")
+    private static async Task<string> Reopen(LabProcessJob recovery,LabProcessJob? owner,string src,string lab,string cut="none")
     {
         string result=Path.Combine(src,"real-reconcile-result.fixture.txt");File.Delete(result);
         File.Delete(Path.Combine(src,"real-reconcile-reason.fixture.txt"));
-        using var child=recovery.Start(Own,"--real-reconcile",src,lab,L16Tests.bootstrap,cut);
+        // A missing owner handle MUST be a conservative block even if a new
+        // kernel Job with the identical name has been created afterward.
+        using var child=owner is null
+            ?recovery.Start(Own,"--real-reconcile",src,lab,L16Tests.bootstrap,cut,"0")
+            :recovery.StartWithWitness(owner,Own,"--real-reconcile",src,lab,L16Tests.bootstrap,cut);
         if(cut!="none")
         {
             await Until(()=>File.Exists(L18Coordinator.RealCutPath(src)) || child.Exited);
@@ -126,17 +130,21 @@ internal static class Phase1RecoveryTests
         using var owner=LabProcessJob.Create(c.OwnerJob);
         using var recovery=LabProcessJob.Create(c.RecoveryJob);
         bool blocked=name is "normal" or "new-live-descendant" or "new-exited" or "launch-fence" or
-            "selector-fork" or "journal-torn" or "witness-lost";
+            "selector-fork" or "journal-torn" or "witness-lost" or
+            "witness-recreated" or "witness-wrong-object";
         bool crashRecovery=name.StartsWith("recover-",StringComparison.Ordinal);
         string ownerCut=name switch
         {
             "intent"=>"after-intent",
+            "witness-recreated"=>"after-intent",
+            "witness-wrong-object"=>"after-intent",
             "normal"=>"normal",
             "new-live-descendant"=>"during-new",
             "new-exited"=>"after-new-exit",
             "launch-fence"=>"after-launch-fence",
             _=>"after-select"
         };
+        LabProcessJob? renamedWitness=null;
         try
         {
             if(name=="normal")
@@ -148,7 +156,8 @@ internal static class Phase1RecoveryTests
                 Require(live.ExitCode==0,"REAL_NORMAL_OWNER_FAILED:"+ReadError(src));
             }
             else await CutOwner(owner,src,s.Lab,ownerCut);
-            Require(Selection(src)==(name=="intent"?("old",1):("new",2)),"REAL_CUT_SELECTION_WRONG");
+            Require(Selection(src)==(name is "intent" or "witness-recreated" or "witness-wrong-object"
+                ?("old",1):("new",2)),"REAL_CUT_SELECTION_WRONG");
             History(src,c);
             if(name=="normal")
             {
@@ -175,7 +184,8 @@ internal static class Phase1RecoveryTests
                 // The original C# owner is gone; GF and a delayed writer remain.
                 Require(owner.Active>=2,"REAL_DESCENDANTS_NOT_SURVIVING_OWNER");
                 File.WriteAllText(Path.Combine(src,"l18-real-ready.fixture.json"),"{\"ready\":true,\"exited\":true}");
-                Require(await Reopen(recovery,src,s.Lab)=="UnknownBlocked" && Selection(src)==("new",2),
+                Require(await Reopen(recovery,name is "witness-lost" or "witness-recreated" ? null :
+                    name=="witness-wrong-object" ? recovery : owner,src,s.Lab)=="UnknownBlocked" && Selection(src)==("new",2),
                     "REAL_LIVE_DESCENDANTS_OR_FORGED_RECEIPT_ACCEPTED");
                 Require(Reason(src)=="REAL_CONTAINED_PROCESSES_STILL_ACTIVE","REAL_WRONG_LIVE_BLOCK_REASON");
                 File.WriteAllText(Path.Combine(src,"late-writer-release.fixture.txt"),"release");
@@ -203,13 +213,25 @@ internal static class Phase1RecoveryTests
             }
             if(name=="journal-torn")
                 File.WriteAllText(Directory.GetFiles(src,"l18-phase-*.fixture.json").Order(StringComparer.Ordinal).Last(),"{\"schema\":");
-            if(name=="witness-lost")owner.Dispose();
+            if(name is "witness-lost" or "witness-recreated")
+            {
+                owner.Dispose();
+                if(name=="witness-recreated")
+                {
+                    // Demonstrate the name is reusable, while the original
+                    // kernel identity is gone. Merely reopening by name must
+                    // never count as evidence for a cold recovery.
+                    renamedWitness=LabProcessJob.Create(c.OwnerJob);
+                    Require(renamedWitness.Active==0,"REAL_REPLACEMENT_JOB_NONEMPTY");
+                }
+            }
             if(name=="selected")
             {
                 using(var gate=L18Coordinator.TryCoordinatorGate(src))
                 {
                     Require(gate is not null,"REAL_TEST_GATE_UNAVAILABLE");
-                    Require(await Reopen(recovery,src,s.Lab)=="Busy" && Selection(src)==("new",2),
+                    Require(await Reopen(recovery,name is "witness-lost" or "witness-recreated" ? null :
+                    name=="witness-wrong-object" ? recovery : owner,src,s.Lab)=="Busy" && Selection(src)==("new",2),
                         "REAL_COMPETING_COORDINATOR_NOT_REFUSED");
                 }
                 leaseRefused=true;
@@ -225,7 +247,8 @@ internal static class Phase1RecoveryTests
             {
                 using(var locked=new FileStream(Path.Combine(src,"l18-real-active.fixture.json"),FileMode.Open,FileAccess.ReadWrite,FileShare.None))
                 {
-                    Require(await Reopen(recovery,src,s.Lab)=="UnknownBlocked","REAL_LOCKED_SELECTOR_ACCEPTED");
+                    Require(await Reopen(recovery,name is "witness-lost" or "witness-recreated" ? null :
+                    name=="witness-wrong-object" ? recovery : owner,src,s.Lab)=="UnknownBlocked","REAL_LOCKED_SELECTOR_ACCEPTED");
                     Require(Reason(src) is "WIN32_32" or "WIN32_33","REAL_WRONG_LOCK_BLOCK_REASON");
                 }
                 Require(Selection(src)==("new",2),"REAL_LOCKED_SELECTOR_BLINDLY_REPLACED");
@@ -233,14 +256,16 @@ internal static class Phase1RecoveryTests
             if(crashRecovery)
             {
                 string cut=name=="recover-before-replace"?"before-old-replace":"after-old-replace";
-                Require(await Reopen(recovery,src,s.Lab,cut)=="InjectedCrash","REAL_RECOVERY_CRASH_MISSING");
+                Require(await Reopen(recovery,name is "witness-lost" or "witness-recreated" ? null :
+                    name=="witness-wrong-object" ? recovery : owner,src,s.Lab,cut)=="InjectedCrash","REAL_RECOVERY_CRASH_MISSING");
                 Require(Selection(src)==(cut=="before-old-replace"?("new",2):("old",3)),
                     "REAL_RECOVERY_PARTIAL_SELECTION_WRONG");
                 Require(!File.Exists(Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt")),
                     "REAL_RECOVERY_CUT_ALREADY_LAUNCHED_OLD");
             }
             string before=Hash(File.ReadAllBytes(Path.Combine(src,"l18-real-active.fixture.json")));
-            string outcome=await Reopen(recovery,src,s.Lab);
+            string outcome=await Reopen(recovery,name is "witness-lost" or "witness-recreated" ? null :
+                    name=="witness-wrong-object" ? recovery : owner,src,s.Lab);
             Require(outcome==(blocked?"UnknownBlocked":"OldRecoveredNoReady"),
                 "REAL_UNEXPECTED_RECONCILIATION:"+name+":"+outcome+":"+ReadError(src));
             string reason=blocked?Reason(src):"none";
@@ -249,12 +274,14 @@ internal static class Phase1RecoveryTests
                 {
                     "selector-fork"=>"PHASE1_REAL_SELECTOR_WRONG_STATE",
                     "journal-torn"=>"JSON_INVALID",
-                    "witness-lost"=>"WIN32_2",
+                    "witness-lost" or "witness-recreated"=>"REAL_OWNER_WITNESS_NOT_INHERITED",
+                    "witness-wrong-object"=>"REAL_OWNER_WITNESS_OBJECT_MISMATCH",
                     _=>"REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED"
                 }),"REAL_WRONG_BLOCK_CAUSE:"+reason);
             if(name=="journal-torn")
                 Require(File.Exists(L18Coordinator.RecoveryBlocked(src)),"REAL_TORN_JOURNAL_NOT_DURABLY_BLOCKED");
-            Require(Selection(src)==(name=="intent"?("old",1):blocked?("new",2):("old",3)),
+            Require(Selection(src)==(name is "intent" or "witness-recreated" or "witness-wrong-object"
+                ?("old",1):blocked?("new",2):("old",3)),
                 "REAL_FINAL_SELECTOR_INCONSISTENT");
             if(blocked)
                 Require(Hash(File.ReadAllBytes(Path.Combine(src,"l18-real-active.fixture.json")))==before,
@@ -269,7 +296,8 @@ internal static class Phase1RecoveryTests
                     "REAL_OLD_RECOVERY_ONLY_FORCED_CLEANUP");
             }
             string journalBefore=string.Join("|",Directory.GetFiles(src,"l18-phase-*.fixture.json").Order(StringComparer.Ordinal).Select(x=>Hash(File.ReadAllBytes(x))));
-            string replay=await Reopen(recovery,src,s.Lab);
+            string replay=await Reopen(recovery,name is "witness-lost" or "witness-recreated" ? null :
+                    name=="witness-wrong-object" ? recovery : owner,src,s.Lab);
             Require(replay==(blocked?"UnknownBlocked":"OldReobservedNoReady"),"REAL_REPLAY_PROMOTED_OR_RELAUNCHED");
             if(!blocked)
                 Require(journalBefore==string.Join("|",Directory.GetFiles(src,"l18-phase-*.fixture.json").Order(StringComparer.Ordinal).Select(x=>Hash(File.ReadAllBytes(x)))),
@@ -287,7 +315,8 @@ internal static class Phase1RecoveryTests
         }
         finally
         {
-            if(name!="witness-lost")await owner.Cleanup();
+            renamedWitness?.Dispose();
+            if(name is not ("witness-lost" or "witness-recreated"))await owner.Cleanup();
             await recovery.Cleanup();
         }
     }
@@ -318,9 +347,12 @@ internal static class Phase1RecoveryTests
         {
             if(a.Length==3 && a[0]=="--real-late-writer"){await LateWriter(a[1],a[2]);return 0;}
             if(a.Length==5 && a[0]=="--real-owner"){await L18Coordinator.RealOwner(a[1],a[2],a[3],a[4]);return 0;}
-            if(a.Length==5 && a[0]=="--real-reconcile")
+            if(a.Length==6 && a[0]=="--real-reconcile")
             {
-                string result=await L18Coordinator.ReconcileReal(a[1],a[2],a[3],a[4]);
+                Require(long.TryParse(a[5],System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture,out long witness),
+                    "REAL_OWNER_WITNESS_ARGUMENT");
+                string result=await L18Coordinator.ReconcileReal(a[1],a[2],a[3],a[4],witness);
                 File.WriteAllText(Path.Combine(a[1],"real-reconcile-result.fixture.txt"),result);return 0;
             }
             Require(a.Length==9 && a[0]=="--real-suite" &&
@@ -337,7 +369,8 @@ internal static class Phase1RecoveryTests
             try
             {
                 foreach(string name in new[]{"normal","intent","selected","recover-before-replace","recover-after-replace",
-                    "launch-fence","new-live-descendant","new-exited","selector-fork","journal-torn","selector-locked","witness-lost"})
+                    "launch-fence","new-live-descendant","new-exited","selector-fork","journal-torn",
+                    "selector-locked","witness-lost","witness-recreated","witness-wrong-object"})
                 {
                     try{var result=await Scenario(name,a);results.Add(result);Console.WriteLine("GF_PHASE1_RECOVERY_CASE "+JsonSerializer.Serialize(result));}
                     catch(Exception e)
@@ -348,7 +381,7 @@ internal static class Phase1RecoveryTests
                     }
                 }
                 var report=new{schema="gf-real-process-crash-recovery-lab/1",tests=results,failed,
-                    expected_cases=12,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
+                    expected_cases=14,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
                     real_power_loss_tested=false,supervisor_loss_recovery_proven=false,
                     new_effects_quiescence_proven=false,production_tuf_authority=false};
                 File.WriteAllText(a[1],JsonSerializer.Serialize(report));

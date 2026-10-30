@@ -218,7 +218,7 @@ internal static partial class L18Coordinator
         Require(!gf.HasExited && !descendant.HasExited && job.Active>=3,"REAL_SURVIVOR_NOT_ACTIVE");
         await RealCut(src,cut);
     }
-    internal static async Task<string> ReconcileReal(string src,string lab,string bootstrap,string cut)
+    internal static async Task<string> ReconcileReal(string src,string lab,string bootstrap,string cut,long ownerWitness)
     {
         Root(src,lab);
         using var gate=TryCoordinatorGate(src);
@@ -228,7 +228,7 @@ internal static partial class L18Coordinator
             Require(!File.Exists(RecoveryBlocked(src)),"REAL_UNREADABLE_HISTORY_BLOCKED");
             var c=LoadRealContext(src,lab);
             using var contextPin=WindowsFileGuard.Open(src,RealContextPath(src));
-            using var owner=LabProcessJob.Open(c.OwnerJob);
+            using var owner=LabProcessJob.FromInherited(c.OwnerJob,ownerWitness);
             using var recovery=LabProcessJob.Open(c.RecoveryJob);recovery.RequireCurrentMember();
             // OS job accounting, NOT PID, HWND, exit code or a local receipt.
             if(owner.Active!=0 || recovery.Active!=1)
