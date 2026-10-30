@@ -436,6 +436,13 @@ def main():
             .get("minimum_readonly_health_contract_observed") is True and
             candidate.get("readonly_inventory_search_health", {})
             .get("minimum_readonly_health_contract_observed") is True)
+        if not result["minimum_readonly_health_contract_observed"]:
+            # Diagnostic boolean flags only; never include application names
+            # nor the probe nonce in logs.
+            print("GF_PHASE1_READONLY_HEALTH_FLAGS " + json.dumps({
+                "old": old_observation.get("readonly_inventory_search_health", {}),
+                "new": candidate.get("readonly_inventory_search_health", {})
+            }, sort_keys=True), file=sys.stderr)
         require(result["minimum_readonly_health_contract_observed"],
                 "READONLY_SEARCH_FUNCTIONAL_ROUNDTRIP_UNPROVEN")
         require(candidate["terminated"], "NEW_PROCESS_NOT_TERMINATED")
