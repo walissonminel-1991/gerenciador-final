@@ -218,6 +218,7 @@ internal static partial class L18Coordinator
             // Authenticate the existing signed metadata again; never re-sign or
             // infer TUF trust from context/receipt hashes. Python cannot select.
             await RunRealObserver(src,c,"--recovery-verify");
+            await recovery.RequireOnlyCurrentProcess();
             Require(owner.Active==0 && recovery.Active==1,"REAL_PROCESS_STARTED_DURING_PROBE");
             _=SelectedRealPath(src,c,out string selected,out int generation);
             Require(!File.Exists(NewLaunchFence(src)),"REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED");
@@ -244,6 +245,7 @@ internal static partial class L18Coordinator
             pins.Recheck();
             DurableRealFile(OldLaunchFence(src),System.Text.Encoding.UTF8.GetBytes("OLD-MAY-HAVE-EFFECTS\n"));
             await RunRealObserver(src,c,"--recovery-observe");
+            await recovery.RequireOnlyCurrentProcess();
             Require(recovery.Active==1 && owner.Active==0,"REAL_OLD_DESCENDANTS_STILL_ACTIVE");
             // A fresh full-byte/namespace read, in addition to retaining NTFS
             // file capabilities throughout the execution and external probe.

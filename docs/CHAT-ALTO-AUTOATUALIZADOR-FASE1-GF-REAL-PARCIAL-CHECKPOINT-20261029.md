@@ -216,3 +216,14 @@ exportada: `REAL_CONTAINED_PROCESSES_STILL_ACTIVE` antes de iniciar NEW. Logo,
 contagem do grupo do reconciliador precisa ser investigada, sem relaxar o
 assert. Adicionado diagnóstico limitado de contagens/nomes dos membros do Job
 Object, sem usar PIDs como identidade ou autorização. Nenhum PASS novo.
+
+**Quarta CI e correção objetiva da barreira:**
+[40990738787](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40990738787),
+commit [5c83d70](https://github.com/walissonminel-1991/gerenciador-final/commit/5c83d7070a96b3ca413cfaa2925649fd8ea4e3bc):
+`failure` no primeiro caso. Evidência: owner `active=0`; recovery `active=2`,
+membros `GF.Updater.M3.L18Tests,conhost`. `CREATE_NO_WINDOW` criou console
+headless, mantendo um auxiliar enquanto o reconciliador vivia. Corrigida a
+criação para `DETACHED_PROCESS|EXTENDED_STARTUPINFO_PRESENT`, preservando
+`JOB_LIST` e a exigência de somente o próprio reconciliador ativo. Nenhum
+processo é subtraído por nome. Após saída do observador Python, espera limitada
+exige desaparecimento real de qualquer membro auxiliar; se persistir, bloqueia.
