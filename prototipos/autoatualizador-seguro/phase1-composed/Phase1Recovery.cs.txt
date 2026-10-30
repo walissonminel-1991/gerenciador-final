@@ -192,6 +192,19 @@ internal static partial class L18Coordinator
             // Stay in Switching: L18 must not append Exited before NEW has
             // been selected and the first launch fence is durable.
         }
+        if(cut=="after-new-exit-state-rollback")
+        {
+            // TEST-ONLY attacker snapshot of all same-user launch decision
+            // records while OLD is still selected. It must NOT be treated as
+            // an authenticated no-launch witness by the reconciler.
+            string snapshot=Path.Combine(src,"real-pre-new-snapshot.fixture");
+            Directory.CreateDirectory(snapshot);
+            DurableRealFile(Path.Combine(snapshot,"selector-before-new.bin"),
+                File.ReadAllBytes(RealSelector(src)));
+            foreach(string journal in Directory.GetFiles(src,"l18-phase-*.fixture.json"))
+                DurableRealFile(Path.Combine(snapshot,Path.GetFileName(journal)),
+                    File.ReadAllBytes(journal));
+        }
         WriteRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"new",2);
         if(cut=="after-select")await RealCut(src,cut);
         // Fence BEFORE the first possible NEW execution. A crash in the gap
@@ -214,7 +227,7 @@ internal static partial class L18Coordinator
             RememberUnknown(src,lab,"real-new-effects-not-independently-bounded");
             return;
         }
-        if(cut=="after-new-exit")
+        if(cut is "after-new-exit" or "after-new-exit-state-rollback")
         {
             await RunRealObserver(src,c,"--recovery-observe");
             Append(src,lab,Exited,"real-new-limited-observation-complete",c.ManifestSha);
