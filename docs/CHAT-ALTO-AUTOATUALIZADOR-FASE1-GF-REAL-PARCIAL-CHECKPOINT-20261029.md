@@ -559,3 +559,77 @@ se a prova não existir.
 
 **Estado formal:** Fase 1 ABERTA, READY=false, UNKNOWN/BLOCKED
 para operação, **G1–G8 BLOCKED (0/8)**.
+
+---
+
+### CHAT ALTO — refutação de quiescência por Job vazio (30/10/2026)
+
+**Base:** `046229830cc979baa2cd3d3bb9a99c4ed578c07b`;
+branch exclusiva `experimento-g5-ipc-chat-alto-20261029`.
+
+**Componente técnico:**
+[`8d9ee9eecee8731fe4ee79c51427e25fc4892129`](https://github.com/walissonminel-1991/gerenciador-final/commit/8d9ee9eecee8731fe4ee79c51427e25fc4892129)
+acrescenta o teste adversarial `external-broker`, utilizando
+`IsProcessInJob` sobre handles do processo e dos dois Jobs (owner e
+recovery), sem usar PID como autoridade. O processo é criado pelo
+**supervisor do laboratório**, e NÃO pelo GF nem WMI real. Ele apenas
+escreve em uma fixture inerte extra, não pinada e contida no sandbox.
+Nenhum programa, dado pessoal ou recurso externo é alterado.
+
+**Defeito de compilação:** a CI inicial
+[41047573260](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41047573260)
+falhou por literal JSON mal escapado (CS1056/CS1003) no teste; não
+qualificou evidência de recuperação. A correção foi salva em
+[`6e648675b34a78e6dc76f44d9a325a82d6e1492a`](https://github.com/walissonminel-1991/gerenciador-final/commit/6e648675b34a78e6dc76f44d9a325a82d6e1492a).
+
+**CI final verificada:**
+[41047617910](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41047617910),
+commit técnico `6e648675b34a78e6dc76f44d9a325a82d6e1492a`,
+job `124035924506`, `completed/success`. Log
+`GF_PHASE1_RECOVERY_REPORT`: `failed=0`, `expected_cases=15`,
+`operational_ready=false`, `phase1_complete=false`,
+`operational_gates_closed=0`,
+`new_effects_quiescence_proven=false`,
+`supervisor_loss_recovery_proven=false`.
+Matriz: **5** `PASS_RECOVERY_LAB_ONLY` pré-NEW e
+**10** `PASS_CONTAINMENT`, inclusive o novo caso:
+`external-broker`, `external_broker_effect_observed=true`,
+`outcome=UnknownBlocked`,
+`block_reason=REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED`.
+
+**Falsificação do pressuposto:** depois que NEW real executou
+uma função read-only e saiu graciosamente, os Jobs do owner/recovery
+estavam vazios. O broker de teste foi comprovadamente **fora de ambos
+os Jobs** e permaneceu apto a escrever posteriormente numa fixture
+deliberadamente não protegida. Um recibo local `ready/all_effects_complete`
+foi fabricado para tentar enganar a reconciliação. O reconciliador em
+processo novo bloqueou antes e depois da escrita. OLD/canário permaneceram
+intactos, e o seletor não foi modificado cegamente.
+Isso refuta a promoção `Job vazio + exit code + recibo => quiescência`.
+
+**Limites exatos:** esse teste NÃO prova que o GF real delegou
+tarefas ao broker, NÃO demonstra todos os modos de I/O tardio e NÃO
+constitui prova independente de quiescência. Também NÃO dá recuperação
+fria após perda do supervisor, durabilidade após reboot/power-loss,
+atestação dos bytes carregados, autoridade TUF de produção nem
+saúde operacional integral. A existência de processos/serviços externos
+não necessariamente pode ser delimitada por um Job do atualizador.
+`REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED` continua obrigatório.
+
+**Direção técnica seguinte:** definir antes de qualquer desbloqueio
+um contrato de efeitos explicitamente enumerados/contidos ou atestados
+por autoridade realmente independente, incluindo processos externos
+e operações assíncronas; demonstrar condições de início/terminação
+sob falhas e perda de supervisão. Sem esse contrato, não implementar
+rollback pós-NEW automático, não remover fence e não encerrar a Fase 1.
+O piloto deve continuar inacessível ao produto distribuído.
+
+**Fronteiras preservadas:** alteração apenas dos arquivos
+`phase1-composed/LabProcessJob.cs.txt`,
+`phase1-composed/Phase1RecoveryTests.cs.txt`, do workflow da Fase 1
+e deste registro/README. `main`, PR #65 Draft, BETA .66,
+infraestrutura, credenciais, telemetria e PCs pessoais intocados.
+Sem WORK, merge, release ou deploy.
+
+**Resultado formal:** Fase 1 ABERTA; READY=false; operação UNKNOWN/BLOCKED;
+G1–G8 BLOCKED (0/8).

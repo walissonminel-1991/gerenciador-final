@@ -83,6 +83,23 @@ respectivos fences, e a saída normal do processo proprietário não promove
 READY. Um novo processo reconciliador deve retornar `UnknownBlocked` após
 NEW, mantendo sua seleção histórica como evidência até surgir prova suficiente.
 Não declarar rollback pós-NEW seguro. A CI exige um caso normal sem injeção
-de crash, os cinco casos pré-NEW recuperáveis e os seis bloqueios adversariais.
+de crash, os cinco casos pré-NEW recuperáveis e os dez bloqueios de contenção.
 O limite do supervisor persistente e a ausência de testemunha independente
 de I/O tardio continuam bloqueios objetivos. Nenhum fluxo operacional.
+
+### Contraexemplo de broker externo (laboratório)
+
+A matriz vigente possui **15 cenários**, sendo 5 recuperações pré-NEW
+restritas ao laboratório e 10 contenções, validados pela CI Windows
+`41047617910`. O caso `external-broker` utiliza um processo **simulado
+pelo supervisor**, que não foi criado pelo GF. O processo está fora
+dos dois Jobs testados (`IsProcessInJob` com handles do kernel) e
+modifica uma única fixture inerte não pinada após NEW terminar.
+Um recibo same-user falso `all_effects_complete` não altera a decisão.
+O reconciliador preserva `UnknownBlocked` e não restaura OLD às cegas.
+
+Um Job Object vazio é insuficiente para garantir que processos externos
+ou brokers tenham encerrado todos os efeitos. Essa é uma prova negativa
+contra uma inferência insegura, não prova de quiescência, recuperação fria,
+READY de produção, nem de uso real de brokers pelo GF. O fence NEW
+permanece obrigatório e G1–G8 continuam BLOCKED (0/8).
