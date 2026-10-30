@@ -633,3 +633,97 @@ Sem WORK, merge, release ou deploy.
 
 **Resultado formal:** Fase 1 ABERTA; READY=false; operação UNKNOWN/BLOCKED;
 G1–G8 BLOCKED (0/8).
+
+---
+
+### CHAT ALTO — Efeitos delegados apos encerramento do intermediario (16 cenarios) — 30/10/2026
+
+**Base desta rodada:** `ce128c1fb182e44b64fc82a99c0a7453704980ac`.
+**Branch unica autorizada:** `experimento-g5-ipc-chat-alto-20261029`.
+**Commits tecnicos:** `e036100f889619a641390afe943f9cf972081928`
+(criacao do contraexemplo `external-broker-handoff` e especificacao do
+contrato de escopo de efeitos),
+`ecd3f0f82f746464c8af671d3dde358577bf1360` (corrige CS0165,
+identificador de processo nao inicializado) e
+`72f7a8880ad0124cb4893a0c87faf33b27df9ef5` (corrige corrida
+de FileShare.None ao ler o marcador do escritor delegado).
+
+**Validacao:** a CI
+[41051684979](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41051684979),
+job `124049028303`, concluiu `SUCCESS` para o commit tecnico
+`72f7a8880ad0124cb4893a0c87faf33b27df9ef5`. Log inspecionado:
+`GF_PHASE1_RECOVERY_REPORT`, `failed=0`,
+`expected_cases=16`, com **5** `PASS_RECOVERY_LAB_ONLY` (pre-NEW)
+e **11** `PASS_CONTAINMENT`. `operational_ready=false`,
+`phase1_complete=false`, `operational_gates_closed=0`,
+`supervisor_loss_recovery_proven=false`,
+`new_effects_quiescence_proven=false`,
+`real_power_loss_tested=false` e
+`production_tuf_authority=false`.
+
+**Falhas intermediarias, nao aprovadas:**
+- [41050246051](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41050246051)
+  falhou no build C# (CS0165); corrigido em `ecd3f0f8`.
+- [41050490211](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41050490211)
+  compilou e aprovou os 15 casos anteriores, mas o 16o falhou por
+  `IOException`/ERROR_SHARING_VIOLATION durante leitura prematura do
+  marcador criado com FileShare.None. Corrigido em `72f7a888` com
+  espera limitada e tratamento apenas do erro 32.
+- Nenhum assert foi relaxado, e nenhuma falha foi reclassificada como READY.
+
+**Contraexemplo comprovado, limitado ao runner Windows descartavel:**
+apos NEW real ter sido observado encerrando graciosamente, um processo
+intermediario SIMULADO **pelo proprio laboratorio** inicia outro
+processo delegado tambem de laboratorio e encerra. O segundo processo
+permanece vivo e fora dos Jobs owner/recovery, conforme `IsProcessInJob`.
+Ambos os Jobs estao vazios. Um arquivo local falsificado anuncia
+`all_effects_complete=true` e `broker_exited=true`. Mesmo assim o
+reconciliador C# em processo novo registra `UnknownBlocked`, razao
+`REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED`, e preserva a selecao
+historica NEW geracao 2. Posteriormente, o delegado escreve na
+fixture inerte `external-broker-effect.fixture.txt`, comprovando
+efeito tardio apos a saida do intermediario e apos a decisao
+conservadora. O campo de evidencia
+`external_handoff_effect_observed=true` foi conferido nos logs.
+
+**Escopo e termino — contrato experimental registrado no README:**
+(i) efeitos locais do coordenador em namespace privado podem ter
+alvos, identidades e historico delimitados; (ii) descendentes
+associados aos Jobs podem ser observados, mas Job vazio nao atesta
+conclusao de I/O, brokers e efeitos de terceiros; (iii) tarefas
+delegadas a WMI/COM/servicos/agendadores/instaladores exigiriam um
+contrato especifico e uma fonte de verificacao independente,
+com inicio, recursos atingidos, autoridade, efeitos pendentes,
+quiescencia e persistencia observaveis; (iv) sem prova para uma
+classe de efeitos, o estado permanece `UNKNOWN/BLOCKED`.
+A ausencia do intermediario nao prova a ausencia de tarefas por
+ele iniciadas. Esse contrato nao implementa um READY operacional.
+
+**Limites inegociaveis:** nao houve teste de broker real criado por
+GF ou WMI nem de todas as classes de I/O externo; o contraexemplo
+simula delegacao com processos/arquivos inertes. Nenhum handle
+volatil de Job sobrevive a reboot como testemunha de continuidade.
+Nao ha prova de recuperacao fria, power-loss, efeito delegado
+duravel fora do Job, bytes carregados em memoria, autoridade TUF
+de producao ou READY independente. Nao e seguro liberar rollback
+automatico depois do fence NEW.
+
+**Proximo passo de maior valor:** realizar inventario somente-leitura
+dos efeitos REAIS do startup e dos subprocessos do GF em Windows,
+identificando explicitamente quais chamadas sao locais/read-only,
+quais podem acionar brokers/servicos e quais exigem tratamento
+especifico. Somente entao propor um contrato estreito
+e testavel de escopo para execucao de candidato; nao criar
+servico permanente, protocolo ACK same-user ou falsa testemunha.
+Estudar recuperacao fria apenas em estados com ausencia de
+lancamento demonstravel por invariantes duraveis independentes;
+na duvida permanecer BLOQUEADO.
+
+**Limites de escrita cumpridos:** apenas
+`prototipos/autoatualizador-seguro/phase1-composed/Phase1RecoveryTests.cs.txt`,
+`phase1-composed/README.md`, workflow de Fase 1 e este checkpoint.
+`main`, PR #65 Draft, BETA .66, infraestrutura, credenciais,
+telemetria, dados pessoais, PCs pessoais e GF distribuido
+nao foram alterados. Sem WORK, merge, release ou deploy.
+
+**Estado final:** Fase 1 ABERTA, READY=false, G1–G8 BLOCKED (0/8).
