@@ -385,6 +385,12 @@ def main():
                                     encoding="utf-8")
         print("GF_PHASE1_REAL_TUF_PREFLIGHT " + json.dumps(payload, sort_keys=True))
         return 0
+
+    # This Python process is a TUF preflight/recovery observer only.
+    # Any legacy cooperative normal invocation must fail explicitly.
+    require(False, "LEGACY_COOPERATIVE_NORMAL_DISABLED")
+
+
 def recovery_tool(mode, source):
     """Subordinate re-verifier/observer. Never changes the C# selector."""
     require(os.name == "nt" and os.environ.get("GITHUB_ACTIONS") == "true",
