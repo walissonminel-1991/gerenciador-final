@@ -78,11 +78,11 @@ CI `40983654046` concluída com sucesso, mas **sem atestação READY**.
   de slot efetivo OLD/NEW a partir do seletor durável L18, sem
   seletor próprio Python; retorno para OLD agora reinicia o GF real
   e exige prova funcional read-only e encerramento. CI `40986009708`
-  **em andamento no momento deste registro**.
+  **failure** (timeout após a última barreira, sem drenagem da saída padrão).
 - `b9ecaa3ceac929d7aad894a14a500efe1d5fc3a6`: drenagem
   da saída padrão do filho enquanto aguarda o término; evita possível
   deadlock quando o JSON final excede o buffer do pipe. CI
-  `40986098577` **pendente no momento deste registro**.
+  `40986098577` **completed/success** em 30/10/2026 UTC (29/10 em Fortaleza).
 
 **O que é demonstrável pelo código, não ainda pela nova CI:**
 o seletor fica no mesmo source root do diário L18; o Python
@@ -103,3 +103,26 @@ e retorno 0 isolados **não constituem READY**. Nenhum G1–G8 liberado.
 sem merge, release, deploy, Work, mudança em PC pessoal, alteração da
 main, PR #65 Draft ou BETA .66. A Fase 1 segue aberta e o status de
 transação permanece **UNKNOWN/BLOCKED** até prova auditável.
+
+**Fechamento da verificação desta rodada:**
+CI [40986098577](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40986098577)
+`completed/success`, commit técnico
+`b9ecaa3ceac929d7aad894a14a500efe1d5fc3a6`.
+Log do job `123837915813`:
+`GF_PHASE1_CHILD_COMPLETED_VERIFIED_EXIT_ZERO`;
+`GF_PHASE1_CSHARP_BRIDGE` com `coordinator_decision=UnknownBlocked`,
+`one_real_selector_coordinator_owned=true`,
+`real_selector_new_then_old_observed=true`,
+`real_manifest_sha_in_l18_target=true`,
+`minimum_readonly_functional_search_verified=true`,
+`verified_operational_ready=false`, `phase1_complete=false` e
+`operational_gates_closed=0`. O workflow aprovado exige também
+`executable_path_resolved_from_l18_selector=true`,
+`restored_old_booted_after_recovery=true`, `restored_old_process.terminated=true`
+e `restored_old_process.graceful_shutdown_verified_for_owned_process=true`.
+
+**Interpretação rigorosa:** PASS do ensaio GF real OLD→NEW→OLD com
+reexecução funcional de OLD restaurada em Windows descartável.
+**Não é PASS sob crash/restart/power-loss**, nem prova independente
+de READY, nem aprovação transacional da Fase 1 ou liberação de gates.
+Este commit apenas documental não altera os bytes técnicos aprovados.
