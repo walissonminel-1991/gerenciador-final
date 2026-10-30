@@ -193,3 +193,17 @@ ACL, whitelist de proprietários ou asserts. Revisão adicional removeu
 `taskkill /PID`: fallback agora usa o handle retido do próprio processo; Job
 Object do ensaio faz a limpeza de descendentes. Barreiras são publicadas após
 flush/close para evitar leitura antes do fim da gravação.
+
+**Segunda CI:**
+[40989081210](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40989081210),
+commit [a2c2145](https://github.com/walissonminel-1991/gerenciador-final/commit/a2c2145105525da1c13e40277f4f62ed07f96ea8):
+`failure`. ACL privada aceita, interrupção do owner executada; houve cinco
+resultados de contenção, inclusive escritor descendente com ambas as escritas
+recusadas. **Nenhuma recuperação aprovada nesta execução.** As retomadas
+retornaram UNKNOWN antes dos cortes de recuperação, sem causa exportada pelo
+processo sem console. O caso de NEW encerrada também expôs uso incorreto do
+parser estrito TUF/state sobre relatório diagnóstico com tempos fracionários
+(`JSON_INTEGER`). Ajustado apenas o parser desse diagnóstico limitado em
+bytes, preservando o parser de segurança para manifesto/estado. A próxima CI
+exige a causa exata de cada bloqueio e exporta erros delimitados do observador;
+os cinco resultados anteriores não bastam para qualificar a causa pretendida.

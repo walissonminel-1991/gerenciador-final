@@ -93,12 +93,15 @@ internal static class Phase1RecoveryTests
     }
     private static string ReadError(string src)
     {
-        string path=Path.Combine(src,"real-child-error.fixture.txt");
-        return File.Exists(path)?File.ReadAllText(path):"no-child-error";
+        return string.Join(" | ",new[]{"real-child-error.fixture.txt",
+            "real-reconcile-reason.fixture.txt","real-observer-error.fixture.txt"}
+            .Select(x=>Path.Combine(src,x)).Where(File.Exists).Select(File.ReadAllText));
     }
+    private static string Reason(string src)=>File.ReadAllText(Path.Combine(src,"real-reconcile-reason.fixture.txt"));
     private static async Task<string> Reopen(LabProcessJob recovery,string src,string lab,string cut="none")
     {
         string result=Path.Combine(src,"real-reconcile-result.fixture.txt");File.Delete(result);
+        File.Delete(Path.Combine(src,"real-reconcile-reason.fixture.txt"));
         using var child=recovery.Start(Own,"--real-reconcile",src,lab,L16Tests.bootstrap,cut);
         if(cut!="none")
         {
@@ -146,6 +149,7 @@ internal static class Phase1RecoveryTests
                 File.WriteAllText(Path.Combine(src,"l18-real-ready.fixture.json"),"{\"ready\":true,\"exited\":true}");
                 Require(await Reopen(recovery,src,s.Lab)=="UnknownBlocked" && Selection(src)==("new",2),
                     "REAL_LIVE_DESCENDANTS_OR_FORGED_RECEIPT_ACCEPTED");
+                Require(Reason(src)=="REAL_CONTAINED_PROCESSES_STILL_ACTIVE","REAL_WRONG_LIVE_BLOCK_REASON");
                 File.WriteAllText(Path.Combine(src,"late-writer-release.fixture.txt"),"release");
                 await Until(()=>File.Exists(Path.Combine(src,"late-writer-result.fixture.txt")));
                 Require(File.ReadAllText(Path.Combine(src,"late-writer-result.fixture.txt"))=="both-writes-denied",
@@ -156,7 +160,11 @@ internal static class Phase1RecoveryTests
             else Require(owner.Active==0,"REAL_OWNER_JOB_NOT_EMPTY");
             if(name=="new-exited")
             {
-                using var o=Json(File.ReadAllBytes(Path.Combine(src,"real-observed-new.fixture.json")),32768);
+                // Diagnostic timings are fractional. Do not feed an observation
+                // report into the TUF/state parser that requires unsigned integers.
+                var raw=File.ReadAllBytes(Path.Combine(src,"real-observed-new.fixture.json"));
+                Require(raw.Length is >0 and <=32768,"REAL_NEW_DIAGNOSTIC_SIZE");
+                using var o=JsonDocument.Parse(raw);
                 Require(o.RootElement.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean(),
                     "REAL_NEW_GRACEFUL_EXIT_NOT_DEMONSTRATED");
             }
@@ -188,7 +196,10 @@ internal static class Phase1RecoveryTests
             if(name=="selector-locked")
             {
                 using(var locked=new FileStream(Path.Combine(src,"l18-real-active.fixture.json"),FileMode.Open,FileAccess.ReadWrite,FileShare.None))
+                {
                     Require(await Reopen(recovery,src,s.Lab)=="UnknownBlocked","REAL_LOCKED_SELECTOR_ACCEPTED");
+                    Require(Reason(src) is "WIN32_32" or "WIN32_33","REAL_WRONG_LOCK_BLOCK_REASON");
+                }
                 Require(Selection(src)==("new",2),"REAL_LOCKED_SELECTOR_BLINDLY_REPLACED");
             }
             if(crashRecovery)
@@ -204,6 +215,17 @@ internal static class Phase1RecoveryTests
             string outcome=await Reopen(recovery,src,s.Lab);
             Require(outcome==(blocked?"UnknownBlocked":"OldRecoveredNoReady"),
                 "REAL_UNEXPECTED_RECONCILIATION:"+name+":"+outcome+":"+ReadError(src));
+            string reason=blocked?Reason(src):"none";
+            if(blocked)
+                Require(reason==(name switch
+                {
+                    "selector-fork"=>"PHASE1_REAL_SELECTOR_WRONG_STATE",
+                    "journal-torn"=>"JSON_INVALID",
+                    "witness-lost"=>"WIN32_2",
+                    _=>"REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED"
+                }),"REAL_WRONG_BLOCK_CAUSE:"+reason);
+            if(name=="journal-torn")
+                Require(File.Exists(L18Coordinator.RecoveryBlocked(src)),"REAL_TORN_JOURNAL_NOT_DURABLY_BLOCKED");
             Require(Selection(src)==(name=="intent"?("old",1):blocked?("new",2):("old",3)),
                 "REAL_FINAL_SELECTOR_INCONSISTENT");
             if(blocked)
@@ -211,7 +233,9 @@ internal static class Phase1RecoveryTests
                     "REAL_BLOCKED_RECOVERY_MOVED_SELECTOR");
             else
             {
-                using var observation=Json(File.ReadAllBytes(Path.Combine(src,"real-observed-old.fixture.json")),32768);
+                var raw=File.ReadAllBytes(Path.Combine(src,"real-observed-old.fixture.json"));
+                Require(raw.Length is >0 and <=32768,"REAL_OLD_DIAGNOSTIC_SIZE");
+                using var observation=JsonDocument.Parse(raw);
                 Require(observation.RootElement.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean() &&
                     !observation.RootElement.GetProperty("forced_cleanup_required").GetBoolean(),
                     "REAL_OLD_RECOVERY_ONLY_FORCED_CLEANUP");
@@ -230,7 +254,7 @@ internal static class Phase1RecoveryTests
                 interrupted_owner=true,reconciler_new_process=true,old_and_canary_preserved=true,
                 manifest_and_object_identities_rechecked=true,late_writer_denied=lateWriterDenied,
                 concurrent_coordinator_refused=leaseRefused,recovery_process_also_interrupted=crashRecovery,
-                outcome,replay,operational_ready=false};
+                outcome,replay,block_reason=reason,operational_ready=false};
         }
         finally
         {
@@ -286,7 +310,12 @@ internal static class Phase1RecoveryTests
                     "launch-fence","new-live-descendant","new-exited","selector-fork","journal-torn","selector-locked","witness-lost"})
                 {
                     try{var result=await Scenario(name,a);results.Add(result);Console.WriteLine("GF_PHASE1_RECOVERY_CASE "+JsonSerializer.Serialize(result));}
-                    catch(Exception e){failed++;results.Add(new{test=name,status="failed",error=e.ToString()});Console.WriteLine("GF_PHASE1_RECOVERY_FAIL "+name+" "+e);}
+                    catch(Exception e)
+                    {
+                        failed++;results.Add(new{test=name,status="failed",error=e.ToString()});
+                        Console.WriteLine("GF_PHASE1_RECOVERY_FAIL "+name+" "+e);
+                        break; // fail immediately; never call unexecuted cases passed
+                    }
                 }
                 var report=new{schema="gf-real-process-crash-recovery-lab/1",tests=results,failed,
                     expected_cases=11,operational_ready=false,phase1_complete=false,operational_gates_closed=0,

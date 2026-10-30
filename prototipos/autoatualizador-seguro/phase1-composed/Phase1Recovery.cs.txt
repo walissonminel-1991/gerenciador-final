@@ -142,6 +142,8 @@ internal static partial class L18Coordinator
         string error=await stderr;_=await stdout;
         if(child.ExitCode!=0)
         {
+            File.WriteAllText(Path.Combine(src,"real-observer-error.fixture.txt"),
+                error[..Math.Min(error.Length,2400)]);
             Console.Error.WriteLine("REAL_OBSERVER_ERROR "+error[..Math.Min(error.Length,1200)]);
             throw new Rejected("REAL_OBSERVER_FAILED");
         }
@@ -254,7 +256,15 @@ internal static partial class L18Coordinator
             InvalidOperationException or KeyNotFoundException)
         {
             RememberUnknown(src,lab,"real-recovery-evidence-insufficient");
-            Console.WriteLine("GF_PHASE1_RECOVERY_BLOCK "+e.Message);
+            string reason=e switch
+            {
+                Rejected rejected=>rejected.Code,
+                Win32Exception windows=>"WIN32_"+windows.NativeErrorCode,
+                _=>e.GetType().Name
+            };
+            // Diagnostic only; never read by the recovery decision itself.
+            File.WriteAllText(Path.Combine(src,"real-reconcile-reason.fixture.txt"),reason);
+            Console.WriteLine("GF_PHASE1_RECOVERY_BLOCK "+reason);
             return "UnknownBlocked";
         }
     }
