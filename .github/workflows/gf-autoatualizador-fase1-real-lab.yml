@@ -58,6 +58,24 @@ jobs:
             throw 'GF_PHASE1_SEARCH_ORACLE_NEGATIVE_GATE'
           }
           Write-Host $line
+      - name: Exercitar A3 A4 no HKCU do Windows descartavel
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $line=(python prototipos/autoatualizador-seguro/phase1-composed/registry_fixture_adversarial_tests.py | Select-Object -Last 1)
+          if ($LASTEXITCODE -ne 0 -or !$line.StartsWith('GF_PHASE1_HKCU_ADVERSARIAL ')) {
+            throw 'GF_PHASE1_HKCU_SCOPED_TRIAL_FAILED'
+          }
+          $r=($line.Substring('GF_PHASE1_HKCU_ADVERSARIAL '.Length) | ConvertFrom-Json)
+          if ($r.status -ne 'passed' -or $r.count -ne 3 -or
+              @($r.cases).Count -ne 3 -or
+              $r.scope -ne 'WINDOWS_DISPOSABLE_CI_ONLY' -or
+              $r.same_user_global_isolation_proven -or
+              $r.name_based_delete_toctou_eliminated -or
+              $r.operational_ready -or $r.automatic_recovery_authorized) {
+            throw 'GF_PHASE1_HKCU_CONTRAEXAMPLES_NOT_REFUTED'
+          }
+          Write-Host $line
       - name: Confirmar exclusao dos prototipos do produto
         shell: pwsh
         run: |
