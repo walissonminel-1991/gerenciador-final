@@ -168,6 +168,35 @@ internal static partial class L18Coordinator
         try{await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(80));}
         catch(TimeoutException){throw new Rejected("REAL_OBSERVER_TIMEOUT_EFFECTS_UNKNOWN");}
         string error=await stderr;_=await stdout;
+        if(mode is "--recovery-observe-trial" or "--recovery-observe-trial-negative")
+        {
+            // A4: original live owner supervises a disposable HKCU fixture.
+            // The child stages its exact marker BEFORE registry mutation.
+            // Only after observer exit, inspect/cleanup the named fixture.
+            // An inconsistent identity returns nonzero and blocks New.
+            var cleanInfo=new ProcessStartInfo(c.Python)
+            {
+                UseShellExecute=false,CreateNoWindow=true,
+                RedirectStandardOutput=true,RedirectStandardError=true,
+                WorkingDirectory=c.Repository
+            };
+            foreach(string arg in new[]{c.Script,"--trial-fixture-cleanup",src})
+                cleanInfo.ArgumentList.Add(arg);
+            using var clean=Process.Start(cleanInfo)
+                ?? throw new Rejected("REAL_TRIAL_CLEANUP_NOT_CREATED");
+            var cleanStdout=clean.StandardOutput.ReadToEndAsync();
+            var cleanStderr=clean.StandardError.ReadToEndAsync();
+            try { await clean.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20)); }
+            catch(TimeoutException)
+            {
+                throw new Rejected("REAL_TRIAL_CLEANUP_TIMEOUT_PRESERVE");
+            }
+            string cleanupResult=await cleanStdout;
+            _=await cleanStderr;
+            Require(clean.ExitCode==0 &&
+                cleanupResult.Contains("GF_PHASE1_TRIAL_CLEANUP ",StringComparison.Ordinal),
+                "REAL_TRIAL_CLEANUP_INCONCLUSIVE_PRESERVE");
+        }
         if(child.ExitCode==0 && mode=="--recovery-observe-trial")
         {
             _=SelectedRealPath(src,c,out string selected,out int generation);
