@@ -446,7 +446,8 @@ def cleanup_trial_marker(source: Path):
     """A4: supervisor cleanup, ONLY after observer exit and exact checks.
 
     A local same-user marker is not trusted cryptographic provenance; a
-    name-based deletion still has a residual replacement TOCTOU window.
+    handle-based deletion avoids deleting a newly replaced *name*, but
+    cannot prevent a same-user writer changing the opened object itself.
     On any observable ambiguity, retain the key and record a HOLD.
     """
     _trial_scope()
@@ -490,10 +491,12 @@ def cleanup_trial_marker(source: Path):
                         marker["name"], marker["token"]).items()}
         if count_subkeys != 0 or observed != expected:
             return "HOLD_MUTATED_FIXTURE_PRESERVED"
-        # No other value can be deleted. The same-user TOCTOU limitation
-        # remains explicitly unresolved; this is scoped CI cleanup only.
-        winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, subkey,
-                           access=winreg.KEY_WOW64_64KEY, reserved=0)
+        # Delete the opened registry OBJECT, not its reusable path.
+        # Equivalent to .NET RegistryKey.DeleteSubKeyTree final self-delete
+        # (RegDeleteKeyEx(openHkey, L"", view, 0)); fail closed if Windows
+        # refuses the operation. A same-user writer modifying THIS SAME
+        # object during the last check is still outside Phase 1 authority.
+        winreg.DeleteKeyEx(k, "", access=winreg.KEY_WOW64_64KEY, reserved=0)
     marker_path.unlink()
     return "CLEANED_EXACT_FIXTURE"
 
@@ -504,8 +507,8 @@ def trial_registry_fixture(marker_path=None):
 
     A3: RegCreateKeyExW returns REG_CREATED_NEW_KEY atomically. Never assume
     ownership from a preceding OpenKey absence check (race). Registry cleanup
-    by parent/name is not atomic relative to a same-user replacement; on
-    observed mutation refuse deletion and report a retained fixture.
+    by a retained handle blocks name-replacement deletion; on observable
+    same-object mutation refuse deletion and retain the fixture.
     """
     require(os.name == "nt" and os.environ.get("GITHUB_ACTIONS") == "true",
             "TRIAL_REGISTRY_SCOPE")
@@ -545,11 +548,10 @@ def trial_registry_fixture(marker_path=None):
                 winreg.SetValueEx(key, field, 0, winreg.REG_SZ, value)
             yield name
         finally:
-            # Original handle remains open; deleted/replaced objects cannot
-            # be validated using a freshly opened name. Refuse deletion on
-            # any observable deviation. This is not a complete TOCTOU
-            # defense against hostile same-user replacement between this
-            # inspection and Windows' name-based deletion.
+            # Original handle remains open; delete the same object, not a
+            # potentially substituted name. Reject observable deviations.
+            # This is not a global defense against hostile writes inside the
+            # same opened object between the last check and deletion.
             try:
                 subkeys, value_count, _ = winreg.QueryInfoKey(key)
                 observed = {winreg.EnumValue(key, i)[0]:
@@ -570,8 +572,9 @@ def trial_registry_fixture(marker_path=None):
                               for i in range(winreg.QueryInfoKey(by_name)[1])}
                     require(actual == observed,
                             "TRIAL_REGISTRY_REPLACED_PRESERVE_FOR_DIAGNOSIS")
-                winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, subkey,
-                                   access=winreg.KEY_WOW64_64KEY,
+                # Use the originally created, still-open object handle;
+                # never re-resolve a potentially replaced subkey name.
+                winreg.DeleteKeyEx(key, "", access=winreg.KEY_WOW64_64KEY,
                                    reserved=0)
             except OSError as exc:
                 raise RuntimeError("GF_PHASE1_TRIAL_REGISTRY_CLEANUP_UNPROVEN") from exc
