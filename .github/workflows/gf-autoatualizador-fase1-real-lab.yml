@@ -66,6 +66,31 @@ jobs:
             throw 'GF_PHASE1_REAL_EFFECTS_CANNOT_CONFER_READY'
           }
           Write-Host $line
+      - name: Refutar atribuicao transacional por caminho hash e identidade NTFS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $line=(python prototipos/autoatualizador-seguro/phase1-composed/effect_attribution_alias_probe.py | Select-Object -Last 1)
+          if ($LASTEXITCODE -ne 0 -or !$line -or !$line.StartsWith('GF_PHASE1_EFFECT_ATTRIBUTION_CASE ')) {
+            throw 'GF_PHASE1_EFFECT_ATTRIBUTION_NEGATIVE_TEST_FAILED'
+          }
+          $r=($line.Substring('GF_PHASE1_EFFECT_ATTRIBUTION_CASE '.Length) | ConvertFrom-Json)
+          if ($r.schema -ne 'gf-phase1-effect-attribution-alias/1' -or
+              $r.status -ne 'NEGATIVE_PROVENANCE_COUNTEREXAMPLE' -or
+              $r.scope -ne 'DISPOSABLE_WINDOWS_NTFS_HARDLINK_FIXTURE' -or
+              !$r.different_writer_processes_executed -or
+              !$r.distinct_test_transaction_origins -or
+              !$r.hardlinks_share_ntfs_file_identity -or
+              !$r.same_projected_evidence_for_distinct_origins -or
+              !$r.same_user_claim_misattributed_other_origin -or
+              @($r.observed_fields).Count -ne 6 -or
+              $r.external_authority_established -or $r.quiescence_proven -or
+              $r.automatic_recovery_permitted -or $r.operational_ready -or
+              $r.real_msi_or_provider_executed -or
+              $r.new_gf_execution -or $r.new_windows_maintenance_executed) {
+            throw 'GF_PHASE1_EFFECT_ATTRIBUTION_UNTRUSTED_CLAIM_CANNOT_AUTHORIZE'
+          }
+          Write-Host $line
       - name: Compilar duas versoes reais do GF sem publicar artefatos
         shell: pwsh
         run: |
