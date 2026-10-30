@@ -727,3 +727,100 @@ telemetria, dados pessoais, PCs pessoais e GF distribuido
 nao foram alterados. Sem WORK, merge, release ou deploy.
 
 **Estado final:** Fase 1 ABERTA, READY=false, G1–G8 BLOCKED (0/8).
+
+---
+
+### CHAT ALTO — Auditoria estaticamente fundamentada dos efeitos de inicializacao do GF (30/10/2026)
+
+**Base verificada:** `cdb524e4120bfec47cbd218c5035fe76eec87684`;
+CI [41051684979](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41051684979)
+`SUCCESS` no commit tecnico `72f7a8880ad0124cb4893a0c87faf33b27df9ef5`
+(16/16: cinco recuperacoes pre-NEW, onze contencoes).
+A CI de documentacao 41048987595 tambem foi confirmada como `SUCCESS`.
+`main` continua em `410d65e23546976db456337c71e4705f10217d36`;
+PR #65 permanece aberta em Draft e nao mesclada.
+
+**Escopo desta inspecao:** somente leitura dos arquivos reais da branch, sem
+executar o GF em computadores pessoais, sem alterar o produto ou o
+coordenador e **sem nova CI Windows**. Os caminhos abaixo sao efeitos
+possiveis por fluxo de controle e chamadas de API observadas no codigo;
+nao constituem captura runtime completa nem prova de que um broker foi
+ativado em uma execucao especifica. A CI anterior comprova interacao
+funcional limitada, nao ausencia de I/O ou de efeitos no startup.
+
+**Descoberta central:** o laboratorio em
+`phase1-composed/phase1_lab.py:254-315` invoca
+`GerenciadorFinal.exe --tray`. Em `Program.cs:18-76`, essa
+argumentacao segue o `Main` normal e cria
+`MainForm(startInTray:true)`, sem `startServices:false`;
+`Program.cs:794-835` executa `LoadInstalledAsync`,
+`BeginStartupChecks` e `RebootResidualReview.CheckAfterBootAsync`.
+A bandeja suprime a janela/convite inicial, mas NAO constitui um
+modo imutavel de inicializacao sem efeitos. O contrato de health em
+`win32_process_observation.py:175-288` exercita um filtro local
+sem clicar para instalar ou desinstalar; nao atesta todo o startup.
+
+#### Matriz de efeitos e fronteiras de delegacao
+
+| ID | Etapa e fonte verificavel | Efeito/alvo | Evidencia e autoridade | Classificacao |
+|---|---|---|---|---|
+| S01 | `Program.cs:18-34`, `DiagnosticTrace.cs:39-113` | Cria/grava diagnostico em LocalAppData/GerenciadorFinal/Diagnosticos, com fallback para TEMP; pode excluir candidato existente com mesmo nome antes de CreateNew, sob guardas de diretorio/arquivo | Escrita direta pelo GF, nao pelo coordenador L18; nao passiva | **CONFIRMADO POR CODIGO: write local** |
+| S02 | `Program.cs:655-660`, `LocalReliabilityHistory.cs:25-45,153-187` | Cria log GUID em LocalAppData/GerenciadorFinal/Historico, com append/flush | Escrita direta do processo GF e escopo fora do namespace transacional de OLD/NEW | **CONFIRMADO POR CODIGO: write local** |
+| S03 | `Program.cs:794-821,2227-2301,241-296` | Leitura de ARP HKLM/HKCU, MSIX atual via `Windows.Management.Deployment.PackageManager.FindPackagesForUser`, jogos Steam/Epic e gerenciadores Scoop/Chocolatey | Leitura via Win32/WinRT, arquivos e catalogos locais; nao demonstra que fornecedores/OS nao alterem estado interno | **CONFIRMADO: chamadas de consulta; efeito externo nao completamente atestado** |
+| S04 | `LocalMsixInventory.cs:102-139` | Instancia PackageManager, consulta MSIX e nomes/identidades | Ativacao de componentes WinRT/OS; nao equivale a instalacao | **POTENCIAL: trabalho delegado a OS** |
+| S05 | `Program.cs:821-835`, `RebootResidualReview.cs:114-160` | Lê pendencias pos-reinicio; se houver marcadores de outro boot, faz nova leitura de inventario e apaga/reescreve o proprio arquivo de pendencia, sem excluir dados residuais do usuario | Efeito condicional no armazenamento de estado do GF; nao passivo, apesar de nao ser nova limpeza automatica | **CONDICIONAL: write/delete metadados locais** |
+| S06 | `Program.cs:39-44`, `AnonymousTelemetry.cs:25-55,318-342`, `BetaRuntimePolicy.cs:4-18` | Inicializa estado de privacidade/telemetria. No perfil `GF_BETA_LOCAL` nao autoriza diagnostico colaborativo, envio nem persistencia desse caminho | Guardado por propriedade de compilacao, nao por variavel de ambiente | **INATIVO PARA ENVIO NO BUILD LOCAL; outros perfis exigem inspecao separada** |
+| S07 | `Program.cs:2508-2531`, `IntegratedSystemUi.cs:647-663`, `MemoryRamMonitor.cs:28-87` | Inicia timer periodico para observacao da RAM; consulta APIs de memoria | Consulta periodica no GF; possivel custo/concorrencia, nao atesta ausencia total de efeito | **CONFIRMADO: polling local** |
+| S08 | `MemoryRamDashboard.cs:255-310` | Ajuste de memoria de processo e cache em funcionalidade explicita/autorizada | Nao observado como disparo automatico incondicional no startup; exige politica e autorizacao de sessao | **FORA DO CAMINHO INICIAL PADRAO; manter como efeito de manutencao** |
+| S09 | `Program.cs:2508-2531`, `BetaRuntimePolicy.cs:17`, `GerenciadorAplicativos.csproj:14-36`, workflow Fase1 linhas ~47-56 | A CI compila OLD/NEW com `-p:GfBetaProfile=local`; nesse perfil `AllowsAutomaticOnlineChecks=false` | Teste do laboratorio nao exercita atualizacoes automaticas HTTP/COM por inicializacao | **COMPROVADO POR CONFIGURACAO: caminho online nao executado no modo testado** |
+| S10 | `Program.cs:2520-2531,2308-2412`, `IntegratedSystemUi.cs:665-741`, `AdvancedFeatures.cs:240-270` | Em perfil nao local, inicio pode consultar fontes HTTPS e Windows Update Agent (`Microsoft.Update.Session`, `CreateUpdateSearcher`, `Online=true`, `Search`) | Consulta e ativacao WUA/COM; sem autorizacao de instalar aqui, mas side effects internos da OS e rede nao delimitados | **POTENCIAL NO PERFIL INTERNAL; FORA DA COBERTURA DA CI LOCAL** |
+| S11 | `WinGetComDiscoveryProvider.cs:16-52`, `WinGetComReader.cs:8-51` | Processo leitor separado e COM WinGet consultivo quando descoberta de atualizacoes acionada | Nao integra `EcosystemInventory.ReadLocal` do startup: esse utiliza Scoop/Chocolatey (`EcosystemInventory.cs:75-97`) | **CAMINHO CONDICIONAL DE CONSULTA, NAO PROVADO NO STARTUP LOCAL** |
+| S12 | `AdvancedFeatures.cs:25-69`, `IntegratedSystemUi.cs:45-55` | Consultas WMI de hardware quando paginas/funcoes correspondentes sao acessadas | Ativacao de WMI/COM externa a Job e ao escopo da transacao | **SOB DEMANDA; NAO DEMONSTRADO NA OBSERVACAO DA ABA APLICATIVOS** |
+| S13 | `Program.cs:982-997,2582-2600`, `win32_process_observation.py:175-287` | Digita nonce nao correspondente e remove texto de pesquisa, modificando somente estado de interface/lista no fluxo conhecido | Funcao minima visivel externamente; nao percorre toda funcionalidade do GF | **VERIFICADO FUNCIONALMENTE NOS ENSAIOS, NAO E READY** |
+| S14 | `Program.cs:837-925`, `AnonymousTelemetry.cs:318-342`, `LocalReliabilityHistory.cs:153-196` | Encerramento cancela tarefas, fecha historico e pode salvar telemetria local sob politica/consentimento; `GF_BETA_LOCAL` recusa envio | Efeitos tambem ocorrem apos health probe; precisam do contrato de escopo | **CONDICIONAL: persistencia no encerramento** |
+
+**Nota de precisão:** `S01` e `S02` demonstram que o startup
+NAO e estritamente read-only. `S03` demonstra operacoes de leitura
+por APIs e nao implica que todas as chamadas nativas/COM tenham
+efeito nulo. `S09` impede extrapolar o ensaio BETA LOCAL para
+o perfil `internal`. `S13` verifica apenas uma interacao grafica,
+nao um contrato universal de saude.
+
+#### Contrato minimo viavel — proposta, NAO implementacao
+
+- **Limite A, antes de NEW:** coordenador deve demonstrar integridade do
+  contexto, journal, seletor e pacote, exclusividade de transacao e
+  persistencia de fence **anterior ao primeiro ponto de lancamento**.
+  Recuperacao fria desse subconjunto requer provar que o codigo nunca
+  consegue executar NEW se o fence ainda nao foi persistido, mesmo
+  diante de crash, power-loss e concorrencia. Os ensaios atuais
+  recuperam OLD apenas com supervisor e handle original; sem essa
+  testemunha, o caso frio segue BLOCKED.
+- **Limite B, health minimo do GF:** uma consulta controlada ao
+  inventario e filtro de pesquisa pode atestar funcionamento parcial
+  da UI, desde que o observador seja independente do executavel
+  e que writes locais conhecidos de inicializacao estejam previstos
+  no escopo. A UI/nonce sozinha nao atesta quiescencia nem ausencia
+  de brokers, nem autentica os bytes efetivamente carregados.
+- **Limite C, efeitos externos:** para qualquer acao via WinRT/COM,
+  WUA/WinGet, servicos e escritos fora do namespace transacional,
+  o responsavel deve fornecer inventario fechado de efeitos,
+  ponto de cancelamento/conclusao e testemunha confiavel que
+  continue valida apos falha. Um Job vazio, recibo local, ETW/USN
+  ou periodo sem novos eventos nao prova efeitos futuros ausentes.
+  Nao liberar READY ou rollback pos-NEW nesse estado.
+
+**Conclusao da rodada:** esta era uma **auditoria de efeitos baseada em
+fontes do repositorio**, nao uma etapa de desenvolvimento funcional que
+justificasse nova compilacao Windows. Nenhum codigo/CI experimental
+foi alterado, porque ja existe contraexemplo suficiente de efeitos
+externos e nao se encontrou contrato que autorizasse relaxar fences.
+A proxima prova util seria uma auditoria dinamica limitada em runner
+descartavel dos **writes locais S01/S02/S05** e de sua origem/escopo,
+sem declarar ausencia total de writes pela mera falta de eventos.
+Em separado, discutir estados frios comprovadamente PRE-LANCAMENTO,
+nunca reutilizando prova para os estados posteriores ao fence NEW.
+
+**Status preservado:** Fase 1 ABERTA, READY=false,
+`G1–G8 BLOCKED (0/8)`; `main`, PR #65 Draft, BETA .66,
+infraestrutura, credenciais e PCs pessoais intocados.
