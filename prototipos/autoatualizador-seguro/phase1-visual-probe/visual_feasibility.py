@@ -101,6 +101,9 @@ def main(executable):
     report={"schema":"gf-phase1-visual-list-feasibility/1",
             "scope":"DISPOSABLE_WINDOWS_VERIFIED_LIST_ROI_ONLY",
             "real_gf_verified":False,"owned_list_roi_verified":False,
+            "structural_list_region_found":False,
+            "verified_window_visible":False,
+            "verified_window_foreground":False,
             "positive_query_echo":False,"negative_query_echo":False,
             "pixel_samples_complete":False,"seeded_vs_absent_differ":False,
             "two_empty_controls_match":False,
@@ -149,8 +152,15 @@ def main(executable):
             if get_search(edit)!=name:
                 return report
             roi=list_region(main_hwnd,proc.pid)
-            if roi is None or not owned_and_visible(main_hwnd,proc.pid,roi):
-                report["reason"]="LIST_ROI_OR_OCCLUSION_UNVERIFIED"
+            report["structural_list_region_found"]=roi is not None
+            report["verified_window_visible"]=bool(u.IsWindowVisible(main_hwnd))
+            report["verified_window_foreground"]=(
+                int(u.GetForegroundWindow() or 0)==main_hwnd)
+            if roi is None:
+                report["reason"]="LIST_STRUCTURE_NOT_QUALIFIED"
+                return report
+            if not owned_and_visible(main_hwnd,proc.pid,roi):
+                report["reason"]="ROI_VISIBILITY_OR_OCCLUSION_UNVERIFIED"
                 return report
             report["owned_list_roi_verified"]=True
             def inspect(query):
