@@ -152,3 +152,38 @@ coerentes e que nao ocorre rollback. O controle e uma defesa adicional
 contra perda isolada do fence e **nao comprova** resistencia a adulteracao
 simultanea de diario/fence, perda de energia, recuperacao fria nem READY.
 Nao e autorizado tratar diario same-user como testemunha independente.
+
+### Prova negativa de ambiguidade depois de selecionar NEW
+
+`File.Exists(path)==false` nao distingue ausencia autentica de
+problema de acesso ou tipo errado. O reconciliador experimental passou
+a usar `File.GetAttributes` para os marcadores de bloqueio/launch;
+somente `FileNotFoundException` sinaliza ausencia observada.
+Diretorio, reparse point, arquivo presente ou erro de consulta
+bloqueiam sem autorizar OLD. Essa verificacao continua vulneravel
+a races de namespace e nao e uma testemunha independente.
+
+Mais importante: duas historias permanecem indistinguiveis sem
+testemunha externa confiavel: (1) coordenador falha apos selecionar
+NEW e antes de escrever `NewLaunchFence`; (2) NEW ja executou,
+mas outro processo com acesso suficiente removeu o fence e os
+ultimos registros `Launched/Exited` do diario. Assim, se o
+seletor persistente estiver em `NEW` geracao 2 e o fence
+nao puder ser autenticado, **bloquear** com
+`REAL_NEW_SELECTED_NO_INDEPENDENT_NO_LAUNCH_PROOF`.
+Nao relancar OLD, mesmo quando o diario remanescente e valido.
+A recuperacao limitada permanece possivel somente nos cenarios
+ainda selecionando OLD e com testemunha supervisora original;
+nao equivale a recuperacao fria apos reboot.
+
+Contraexemplos novos para Windows descartavel:
+`fence-directory-before-new` cria uma entrada-diretorio no
+nome do fence, e `joint-fence-journal-erasure` remove o fence
+e dois registros finais de fixture apos NEW real executar.
+Ambos devem terminar `UnknownBlocked` com seletor intacto.
+
+Esses controles nao resolvem falsificacao conjunta de seletor,
+contexto, diario e pacotes sob mesmo usuario ou adversario
+privilegiado. Nao constituem prova de power-loss, TOCTOU, READY,
+ausencia de brokers ou quiescencia de I/O. Fase 1 ABERTA,
+G1–G8 BLOCKED 0/8.

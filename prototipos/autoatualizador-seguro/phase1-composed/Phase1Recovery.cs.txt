@@ -43,6 +43,19 @@ internal static partial class L18Coordinator
     internal static string NewLaunchFence(string src)=>Path.Combine(src,"l18-real-new-may-have-effects.fixture.txt");
     private static string OldLaunchFence(string src)=>Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt");
     internal static string RealCutPath(string src)=>Path.Combine(src,"l18-real-cut.fixture.txt");
+    // File.Exists returns false also for inaccessible/wrong-type entries.
+    // Only FileNotFoundException is an observed absence. An inaccessible
+    // parent, directory, reparse point or other I/O fault MUST fail closed.
+    // This local check is not a durable or adversary-independent witness.
+    private static void RequireRealMarkerAbsent(string path,string presentCode,string nonFileCode)
+    {
+        FileAttributes attributes;
+        try { attributes=File.GetAttributes(path); }
+        catch(FileNotFoundException) { return; }
+        Require((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint))==0,
+            nonFileCode);
+        throw new Rejected(presentCode);
+    }
     internal static void DurableRealFile(string path,byte[] bytes)
     {
         using var writer=new FileStream(path,FileMode.CreateNew,FileAccess.Write,
@@ -225,7 +238,8 @@ internal static partial class L18Coordinator
         if(gate is null)return "Busy";
         try
         {
-            Require(!File.Exists(RecoveryBlocked(src)),"REAL_UNREADABLE_HISTORY_BLOCKED");
+            RequireRealMarkerAbsent(RecoveryBlocked(src),
+                "REAL_UNREADABLE_HISTORY_BLOCKED","REAL_RECOVERY_BLOCK_MARKER_NOT_REGULAR");
             var c=LoadRealContext(src,lab);
             using var contextPin=WindowsFileGuard.Open(src,RealContextPath(src));
             using var owner=LabProcessJob.FromInherited(c.OwnerJob,ownerWitness);
@@ -247,7 +261,9 @@ internal static partial class L18Coordinator
             await recovery.RequireOnlyCurrentProcess();
             Require(owner.Active==0 && recovery.Active==1,"REAL_PROCESS_STARTED_DURING_PROBE");
             _=SelectedRealPath(src,c,out string selected,out int generation);
-            Require(!File.Exists(NewLaunchFence(src)),"REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED");
+            RequireRealMarkerAbsent(NewLaunchFence(src),
+                "REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED",
+                "REAL_NEW_FENCE_NOT_REGULAR_FILE");
             // The fence may have been removed after a real NEW launch.
             // An intact L18 journal provides independent *negative* evidence:
             // it cannot license OLD merely because the fence is now absent.
@@ -255,12 +271,20 @@ internal static partial class L18Coordinator
             // the journal and fence together, or after physical power loss.
             Require(!history.Any(x=>x.Detail=="real-new-effects-fenced-before-create"),
                 "REAL_LAUNCHED_NEW_JOURNAL_FENCE_MISSING");
+            // Two indistinguishable histories are possible here: a genuine
+            // crash after selecting NEW but before writing the launch fence,
+            // or NEW execution followed by same-user removal of the fence and
+            // trailing journal records. Without a separate, authenticated,
+            // retained no-launch witness it is NOT safe to restore OLD.
+            Require(selected!="new","REAL_NEW_SELECTED_NO_INDEPENDENT_NO_LAUNCH_PROOF");
             if(history.Any(x=>x.Detail=="real-old-functional-lab-only"))
             {
                 Require(selected=="old" && history[^1].Phase==Unknown,"REAL_TERMINAL_SELECTOR_CONTRADICTION");
                 pins.Recheck();return "OldReobservedNoReady";
             }
-            Require(!File.Exists(OldLaunchFence(src)),"REAL_INTERRUPTED_OLD_EFFECTS_UNKNOWN");
+            RequireRealMarkerAbsent(OldLaunchFence(src),
+                "REAL_INTERRUPTED_OLD_EFFECTS_UNKNOWN",
+                "REAL_OLD_FENCE_NOT_REGULAR_FILE");
             if(history[^1].Phase==Intent)
                 Append(src,lab,Switching,"real-intent-reopened-no-new-launch",c.ManifestSha);
             if(Load(src,lab)[^1].Phase!=Reconciling)

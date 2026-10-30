@@ -96,10 +96,22 @@ jobs:
           & $exes[0].FullName --real-suite $report $fixtures $anchor $root $pythonExe $script $old $new
           if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_REAL_CRASH_CASE_FAILED' }
           $r=Get-Content $report -Raw | ConvertFrom-Json
-          if ($r.failed -ne 0 -or $r.expected_cases -ne 17 -or $r.tests.Count -ne 17 -or
+          if ($r.failed -ne 0 -or $r.expected_cases -ne 19 -or $r.tests.Count -ne 19 -or
               @($r.tests | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 5 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 12 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 4 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 15 -or
+              @($r.tests | Where-Object {
+                $_.test -eq 'selected' -and $_.outcome -eq 'UnknownBlocked' -and
+                $_.block_reason -eq 'REAL_NEW_SELECTED_NO_INDEPENDENT_NO_LAUNCH_PROOF' }).Count -ne 1 -or
+              @($r.tests | Where-Object {
+                $_.test -eq 'fence-directory-before-new' -and $_.wrong_type_marker_fail_closed -and
+                $_.outcome -eq 'UnknownBlocked' -and
+                $_.block_reason -eq 'REAL_NEW_FENCE_NOT_REGULAR_FILE' }).Count -ne 1 -or
+              @($r.tests | Where-Object {
+                $_.test -eq 'joint-fence-journal-erasure' -and
+                $_.joint_fence_journal_erasure_blocked -and
+                $_.outcome -eq 'UnknownBlocked' -and
+                $_.block_reason -eq 'REAL_NEW_SELECTED_NO_INDEPENDENT_NO_LAUNCH_PROOF' }).Count -ne 1 -or
               @($r.tests | Where-Object {
                 $_.test -eq 'launch-fence-lost-after-new' -and
                 $_.missing_launch_fence_with_new_journal_observed -and
@@ -132,8 +144,10 @@ jobs:
           }
           @(
             '## Fase 1 - interrupcao real de processos, sem READY'
-            '* 5 casos de recuperacao limitada: OLD real reiniciada, filtro exercitado e saida graciosa'
-            '* 12 contencoes: inclui fence perdido apos NEW lancada, sem tratar ausencia como PRE-LANCAMENTO'
+            '* 4 recuperacoes limitadas com selecao OLD preservada, sem promover READY'
+            '* 15 contencoes: NEW selecionada sem fence nao permite rollback sem testemunha independente'
+            '* Erro File.Exists em entrada-diretorio nao e aceito como ausencia autentica'
+            '* Fence e tail do journal removidos juntos: UNKNOWN/BLOCKED, sem inferir pre-lancamento'
             '* Jornal L18 com launch observado bloqueia restauracao mesmo sem fence fisico'
             '* Ausencia de broker intermediario nao demonstra ausencia de efeitos de um processo delegado'
             '* Broker externo e proxy LAB do supervisor; nao demonstra que GF/WMI criou broker real'
