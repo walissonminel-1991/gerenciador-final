@@ -91,7 +91,8 @@ internal static partial class L18Coordinator
         // A JSON report from this same-user child is NOT a trusted READY
         // witness and does not constitute a signed packet-to-journal binding.
         Require(File.Exists(report),"PHASE1_RESULT_MISSING");
-        using(JsonDocument doc=Json(File.ReadAllBytes(report),32768))
+        Require(new FileInfo(report).Length is >0 and <=32768,"PHASE1_REPORT_SIZE");
+        using(JsonDocument doc=JsonDocument.Parse(File.ReadAllBytes(report)))
         {
             var root=doc.RootElement;
             Require(root.GetProperty("status").GetString()==
@@ -150,7 +151,8 @@ internal static class Phase1BridgeTests
             Require(decision==L18Decision.UnknownBlocked,
                 "PHASE1_UNKNOWN_REQUIRED");
             Require(File.Exists(args[10]),"PHASE1_CHILD_REPORT_MISSING_AFTER_BRIDGE");
-            using(var real=Json(File.ReadAllBytes(args[10]),32768))
+            Require(new FileInfo(args[10]).Length is >0 and <=32768,"PHASE1_CHILD_REPORT_SIZE");
+            using(var real=JsonDocument.Parse(File.ReadAllBytes(args[10])))
             {
                 var actual=real.RootElement;
                 Require(actual.GetProperty("old_and_canary_preserved").GetBoolean() &&
