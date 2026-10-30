@@ -261,7 +261,8 @@ internal static partial class L18Coordinator
         BeginCore(src,lab,bootstrap);
     }
 
-    private static void BeginCore(string src,string lab,string bootstrap)
+    private static void BeginCore(string src,string lab,string bootstrap,
+        string? laboratoryAuthenticatedRealManifestSha=null)
     {
         Root(src,lab);
         Require(!File.Exists(L16Boundary.Uncertain(src)) &&
@@ -270,14 +271,26 @@ internal static partial class L18Coordinator
         using var facts=Probe(src,lab,bootstrap);
         Require(facts.selector is {Selected:"old",Generation:1},
             "L18_BEGIN_NOT_OLD");
-        Append(src,lab,Start,"old-observed-before-start",facts.sha);
-        Append(src,lab,Authorizing,"stage11-stage3-proof-checked",facts.sha);
-        // L16 Prepare already created staged bytes. PREPARING in this wrapper
-        // verifies that PRE-EXISTING fixture; it does not install real files.
-        Append(src,lab,Preparing,"l16-prestaged-fixture-only",facts.sha);
-        Append(src,lab,Staged,"exact-signed-entry-staged-id-pinned",facts.sha);
-        // Persist intention BEFORE ANY owner that might modify the selector.
-        Append(src,lab,Intent,"owner-may-be-launched",facts.sha);
+        // Fase 1 LAB-ONLY: the actual signed GF manifest digest becomes the
+        // *same L18 journal TargetSha* BEFORE any selector NEW transition.
+        // The existing signed inert fixture remains a separately checked
+        // prerequisite and CANNOT authorize real GF execution by itself.
+        string authorized=laboratoryAuthenticatedRealManifestSha ?? facts.sha;
+        if(laboratoryAuthenticatedRealManifestSha is not null)
+        {
+            Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+                Hex(authorized,64) && authorized!=facts.sha,
+                "PHASE1_REAL_TARGET_NOT_VALID_LAB");
+        };
+        Append(src,lab,Start,"old-observed-before-start",authorized);
+        Append(src,lab,Authorizing,laboratoryAuthenticatedRealManifestSha is null?
+            "stage11-stage3-proof-checked":"real-gf-tuf-lab-manifest-bound",authorized);
+        Append(src,lab,Preparing,laboratoryAuthenticatedRealManifestSha is null?
+            "l16-prestaged-fixture-only":"real-gf-manifest-preflight-durable",authorized);
+        Append(src,lab,Staged,laboratoryAuthenticatedRealManifestSha is null?
+            "exact-signed-entry-staged-id-pinned":"real-package-auth-preflight-pinned",authorized);
+        Append(src,lab,Intent,laboratoryAuthenticatedRealManifestSha is null?
+            "owner-may-be-launched":"real-gf-lab-may-be-launched",authorized);
         facts.Recheck();
     }
     private static string ValidateExecutionArguments(string executable,TimeSpan deadline)

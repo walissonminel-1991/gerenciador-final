@@ -96,7 +96,11 @@ jobs:
               $b.coordinator_decision -ne 'UnknownBlocked' -or
               !$b.packet_authentication_is_still_external_lab_python -or
               !$b.fixture_target_is_not_real_gf_packet -or
-              !$b.real_packet_not_bound_to_l18_target -or
+              !$b.real_manifest_sha_in_l18_target -or
+              !$b.real_manifest_scope_binds_installation_and_tx -or
+              !$b.prepared_tuf_metadata_reverified_before_new -or
+              $b.real_packet_not_bound_to_l18_target -or
+              $b.production_tuf_authority -or
               $b.verified_operational_ready -or $b.phase1_complete -or
               $b.operational_gates_closed -ne 0) {
             throw 'GF_PHASE1_BRIDGE_MISREPRESENTED_OPERATIONAL_SECURITY'
@@ -104,6 +108,8 @@ jobs:
           $r=Get-Content $report -Raw | ConvertFrom-Json
           if (!$r.real_gf_built -or !$r.authenticated_real_package -or
               !$r.tampered_dll_rejected_before_selection -or
+              !$r.real_manifest_bound_to_preflight -or
+              !$r.authorization_installation -or !$r.authorization_transaction -or
               !$r.rolled_back_due_to_no_ready -or !$r.old_and_canary_preserved -or
               !$r.tuf_laboratory_test_keys_only -or
               !$r.old_process.created -or !$r.new_process.created -or
@@ -136,8 +142,10 @@ jobs:
             "* NEW estado UI inventario read-only: $($r.new_process.read_only_ui_controls.functional_inventory_ui_observed)"
             '* Observacao UI read-only nao e READY operacional e nao autoriza NEW'
             '* Coordenador C# L18-L22: gate unica, historico duravel, processo GF supervisionado no mesmo ensaio'
-            '* RESULTADO C#: UnknownBlocked (intencional: pacote real TUF nao vinculado ao digest fixture)'
-            '* Ainda sem READY operacional ou vinculo criptografico do pacote real ao diario L18'
+            '* RESULTADO C#: UnknownBlocked apesar de TargetSha agora conter SHA256 do manifesto TUF GF real'
+            '* Metadados TUF GF real prevalidos antes de BEGIN, revalidados antes de NEW'
+            '* Falta contrato READY operacional e autoridade TUF de producao'
+            '* Digest do manifesto GF real vinculado ao diario L18; nao autoriza operacao real'
             '* READY real NAO demonstrado; OLD restaurada, hashes e canario intactos'
             '* FASE 1 PARCIAL; G1-G8 BLOCKED (0/8)'
             '* Nenhum upload de pacote, deploy ou integracao operacional'

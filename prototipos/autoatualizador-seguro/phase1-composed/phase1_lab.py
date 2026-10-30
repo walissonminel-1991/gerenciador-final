@@ -73,8 +73,13 @@ def manifest_for(directory):
             for name, path in files}
 
 
-def canonical_manifest(files):
-    return (json.dumps({"schema": "gf-real-package-lab/1",
+def canonical_manifest(files, installation, transaction):
+    require(len(installation) == 32 and len(transaction) == 32 and
+            all(c in "0123456789abcdef" for c in installation + transaction),
+            "LAB_INSTALLATION_TRANSACTION_FORMAT")
+    return (json.dumps({"schema": "gf-real-package-lab/2",
+                        "installation": installation, "transaction": transaction,
+                        "selected_before": "old",
                         "operational_installable": False,
                         "files": files},
                        sort_keys=True, separators=(",", ":")) + "\n").encode()
@@ -152,6 +157,57 @@ def tuf_sign_and_verify(repo, candidate, target_root):
     return {"manifest_sha256": digest(candidate), "root_sha256": digest(anchor),
             "targets_sha256": digest(tb), "snapshot_sha256": digest(sb),
             "timestamp_sha256": digest(ts), "test_only": True}
+
+
+def tuf_verify_prepared(repo, candidate, target_root):
+    """Verify previously produced test-only TUF metadata; DO NOT re-sign.
+
+    The real target bytes and scope are compared to the signed target AFTER
+    validating the Root/Targets/Snapshot/Timestamp chain and expiry.
+    """
+    anchor_path = repo / "prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json"
+    anchor = anchor_path.read_bytes()
+    require(digest(anchor) == "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
+            "ROOT_BOOTSTRAP_SHA")
+    root = Metadata.from_bytes(anchor)
+    root.verify_delegate("root", root)
+    now = datetime.now(timezone.utc)
+    require(root.signed.expires > now, "TUF_ROOT_EXPIRED")
+    content = {}
+    for role in ("timestamp", "snapshot", "targets"):
+        raw = (target_root / (role + ".json")).read_bytes()
+        require(len(raw) <= 524288, "TUF_ROLE_TOO_LARGE")
+        metadata = Metadata.from_bytes(raw)
+        root.verify_delegate(role, metadata)
+        require(metadata.signed.expires > now and
+                metadata.signed.version == 1, "TUF_ROLE_EXPIRED_OR_VERSION_" + role)
+        content[role] = (metadata, raw)
+    snap = content["snapshot"][1]
+    target_bytes = content["targets"][1]
+    time_meta = content["timestamp"][0].signed.snapshot_meta
+    snap_ref = content["snapshot"][0].signed.meta["targets.json"]
+    require(time_meta.length == len(snap) and
+            time_meta.hashes["sha256"] == digest(snap) and
+            time_meta.version == 1, "TUF_TIMESTAMP_LINK")
+    require(snap_ref.length == len(target_bytes) and
+            snap_ref.hashes["sha256"] == digest(target_bytes) and
+            snap_ref.version == 1, "TUF_SNAPSHOT_LINK")
+    named = "GF-LAB-REAL-PACKAGE-MANIFEST.json"
+    require(set(content["targets"][0].signed.targets.keys()) == {named},
+            "TUF_TARGET_SET")
+    target = content["targets"][0].signed.targets[named]
+    actual = (target_root / named).read_bytes()
+    require(actual == candidate and len(actual) <= 2097152 and
+            target.length == len(candidate) and
+            target.hashes["sha256"] == digest(candidate), "TUF_REAL_MANIFEST_LINK")
+    require(target.custom["gf_lab"]["operational_installable"] is False,
+            "TUF_NOT_OPERATIONAL")
+    return {"manifest_sha256": digest(candidate),
+            "root_sha256": digest(anchor),
+            "targets_sha256": digest(target_bytes),
+            "snapshot_sha256": digest(snap),
+            "timestamp_sha256": digest(content["timestamp"][1]),
+            "test_only": True}
 
 
 def validate_package(directory, verified_manifest):
@@ -243,6 +299,11 @@ def main():
     parser.add_argument("--new", required=True, type=Path)
     parser.add_argument("--sandbox", required=True, type=Path)
     parser.add_argument("--report", required=True, type=Path)
+    parser.add_argument("--auth-dir", required=True, type=Path)
+    parser.add_argument("--auth-report", required=True, type=Path)
+    parser.add_argument("--installation", required=True)
+    parser.add_argument("--transaction", required=True)
+    parser.add_argument("--preflight-only", action="store_true")
     args = parser.parse_args()
     require(os.name == "nt", "WINDOWS_REQUIRED")
     require(os.environ.get("GITHUB_ACTIONS") == "true" and
@@ -254,6 +315,50 @@ def main():
     require(args.old.resolve().is_relative_to(tmp) and
             args.new.resolve().is_relative_to(tmp), "PRODUCT_OUTPUT_MUST_BE_TEMP")
     args.report.parent.mkdir(parents=True, exist_ok=True)
+    auth_dir = args.auth_dir.resolve(strict=False)
+    require(auth_dir.is_relative_to(tmp) and auth_dir != tmp,
+            "AUTH_DIRECTORY_MUST_BE_RUNNER_TEMP")
+    # Sign and authenticate the exact GF build BEFORE any coordinator
+    # transaction event or selector change. This cannot grant production trust.
+    if args.preflight_only:
+        require(not auth_dir.exists() and not args.auth_report.exists() and
+                not sandbox.exists(), "AUTH_PREFLIGHT_NOT_FRESH")
+        old_manifest = manifest_for(args.old)
+        new_manifest = manifest_for(args.new)
+        require(old_manifest != new_manifest and
+                old_manifest["GerenciadorFinal.dll"]["sha256"] !=
+                new_manifest["GerenciadorFinal.dll"]["sha256"], "SAME_REAL_PACKAGE")
+        candidate = canonical_manifest(new_manifest, args.installation, args.transaction)
+        signed = tuf_sign_and_verify(args.repository, candidate, auth_dir)
+        verified = tuf_verify_prepared(args.repository, candidate, auth_dir)
+        require(verified["manifest_sha256"] == signed["manifest_sha256"],
+                "AUTH_PREFLIGHT_VERIFIER_DIVERGED")
+        payload = {"schema": "gf-real-lab-auth-preflight/1",
+                   "installation": args.installation,
+                   "transaction": args.transaction,
+                   "selected_before": "old",
+                   "manifest_sha256": signed["manifest_sha256"],
+                   "test_only": True,
+                   "tuf_verified": True, "no_real_process_launched": True,
+                   "operational_installable": False}
+        args.auth_report.write_text(json.dumps(payload, sort_keys=True) + "\n",
+                                    encoding="utf-8")
+        print("GF_PHASE1_REAL_TUF_PREFLIGHT " + json.dumps(payload, sort_keys=True))
+        return 0
+    require(auth_dir.is_dir() and args.auth_report.is_file(),
+            "AUTH_PREFLIGHT_MISSING")
+    auth = json.loads(args.auth_report.read_text(encoding="utf-8"))
+    require(auth == {"schema": "gf-real-lab-auth-preflight/1",
+                     "installation": args.installation,
+                     "transaction": args.transaction,
+                     "selected_before": "old",
+                     "manifest_sha256": auth.get("manifest_sha256"),
+                     "test_only": True, "tuf_verified": True,
+                     "no_real_process_launched": True,
+                     "operational_installable": False} and
+            isinstance(auth["manifest_sha256"], str) and
+            len(auth["manifest_sha256"]) == 64,
+            "AUTH_PREFLIGHT_SCOPE_INVALID")
     result = {"schema": "gf-phase1-real-package-observation/1",
               "status": "blocked_until_real_ready_and_independent_review",
               "phase1_complete": False,
@@ -284,9 +389,15 @@ def main():
         shutil.copytree(args.old, old)
         shutil.copytree(args.new, new)
         require(validate_package(old, old_manifest), "OLD_NOT_PREPARED")
-        signed = tuf_sign_and_verify(args.repository, canonical_manifest(new_manifest),
-                                     sandbox / "tuf-public-test-only")
+        expected_manifest = canonical_manifest(new_manifest, args.installation,
+                                                args.transaction)
+        signed = tuf_verify_prepared(args.repository, expected_manifest, auth_dir)
+        require(signed["manifest_sha256"] == auth["manifest_sha256"],
+                "AUTH_PREFLIGHT_MANIFEST_MISMATCH")
         result["signed_test_metadata"] = signed
+        result["real_manifest_bound_to_preflight"] = True
+        result["authorization_installation"] = args.installation
+        result["authorization_transaction"] = args.transaction
         require(validate_package(new, new_manifest), "NEW_NOT_AUTHENTICATED")
         result["authenticated_real_package"] = True
         write_selector(sandbox, "old")
