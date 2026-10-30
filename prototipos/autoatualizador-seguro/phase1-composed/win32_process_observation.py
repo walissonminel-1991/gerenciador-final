@@ -172,6 +172,28 @@ def observe_read_only_ui_controls(main_hwnd: int, expected_pid: int):
     return findings
 
 
+def search_snapshot_proves(rows, actual_text, query, want_empty, edit_hwnd,
+                           search_parent, empty_label):
+    """A1/A2: fail closed on missing/contradictory item-level evidence.
+
+    A WinForms custom owner-drawn row may have no child HWND, in which case
+    the result is UNPROVEN. The static-window case is a *necessary*, not
+    globally authenticated, item-level witness; no product change is made.
+    """
+    if actual_text != query:
+        return False
+    empty = [r for r in rows if r[1] == empty_label]
+    if len(empty) != 1:
+        return False
+    direct = [r for r in rows
+              if r[1] == query and r[4] and r[0] != edit_hwnd
+              and r[2].upper().startswith("STATIC")
+              and r[3] != search_parent]
+    # A text echo or a missing empty-state control is never item presence.
+    return (bool(empty[0][4]) and not direct) if want_empty else (
+        not empty[0][4] and len(direct) == 1)
+
+
 def read_only_search_round_trip(main_hwnd: int, expected_pid: int, expected_inventory_name=None):
     """Exercise the REAL WinForms inventory search, without maintenance.
 
@@ -292,27 +314,10 @@ def read_only_search_round_trip(main_hwnd: int, expected_pid: int, expected_inve
                 current = scan()
                 empty = next((x for x in current if x[1] == empty_label), None)
                 value = read_search()
-                # A1: absence of the empty-state label is not evidence of
-                # a rendered row in an owner-drawn DarkProgramList. Only a
-                # separately observable, visible item-level UI element can
-                # establish positive inventory presence. Current GF list rows
-                # are owner-drawn and normally expose NO such Win32 children.
-                direct_item = any(
-                    row[1] == query and row[4] and row[0] != edit
-                    and row[2].upper().startswith("STATIC")
-                    and row[3] != label[3]
-                    for row in current)
-                if value == query:
-                    if want_empty:
-                        # Require the actual empty-state control and no item.
-                        if empty and empty[4] and not direct_item:
-                            return True
-                    else:
-                        # Fail closed if row-level UI evidence is unavailable.
-                        # This is NOT evidence that the item was absent from
-                        # GF's internal inventory.
-                        if direct_item and empty and not empty[4]:
-                            return True
+                if search_snapshot_proves(
+                        current, value, query, want_empty, edit,
+                        label[3], empty_label):
+                    return True
                 time.sleep(0.1)
             return False
         try:
