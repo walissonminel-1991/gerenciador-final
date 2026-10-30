@@ -4,9 +4,9 @@
 
 ## 1. Evidência e estado
 
-- Branch exclusiva `experimento-g5-ipc-chat-alto-20261029`, HEAD técnico `e7347a0f05bef701677d4cf47dc1169dc7c09183` (somente cinco arquivos no laboratório, sem alterações no produto).
+- Branch exclusiva `experimento-g5-ipc-chat-alto-20261029`, HEAD técnico validado `fd88cd30a2dee25576fc76df6c6c6d06636e0acc` (primeiro commit `e7347a0` corrigido apenas no encaminhamento de parâmetro do adaptador Python) (somente cinco arquivos no laboratório, sem alterações no produto).
 - CI L18 prévia [41110783790](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41110783790), job 124252340866, **27/27 PASS_CONTAINMENT**, zero recuperações. Os 27 foram mantidos.
-- Nova CI [41133540540](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41133540540) para a matriz ampliada **29 casos**, incluindo positivo e negativo. **STATUS PENDENTE até inspeção do log bruto, workflow e asserções**. Não declarar sucesso antecipado.
+- Primeira CI [41133540540](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41133540540): **FAILURE** (job `124330251580`); a compilação passou, mas o primeiro caso falhou porque o adaptador Python `observed_process` não aceitava o novo argumento `expected_inventory_name`. Commit de correção `fd88cd30` alterou somente a assinatura e o encaminhamento do argumento, sem modificar coordenador, guard ou asserções. **CI final [41133853256](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41133853256), job `124331302448`, `completed/SUCCESS`, 29 casos individuais, 29 nomes únicos, 28 `PASS_CONTAINMENT`, 1 `PASS_EXPERIMENTAL_ACTIVATION`, zero falhas e zero recuperações automáticas.**
 - Fase 1 **ABERTA**, READY=false, G1–G8 BLOCKED 0/8, sem produto distribuído.
 
 ## 2. Critérios verificáveis revisados (sem antecipar Fases 2–4)
@@ -14,8 +14,8 @@
 | Fase 1 sob opção B: critério | Prova exigida | Estado |
 | --- | --- | --- |
 | Pacote e identidade | TUF de laboratório, bytes/objetos OLD/NEW, seletor único C# L18, pins NTFS, proteção TOCTOU e vínculo ao processo realmente criado | Testes de arquivo/pin/seleção existentes; **medida de bytes carregados/TOCTOU geral ainda pendente** |
-| Ciclo positivo restrito | NEW selecionada por L18; GF OLD/NEW reais executados; verificação de inventário relevante e observação externa; somente o owner original vivo registra evidência experimental; nunca operar READY por booleano isolado | **Nova candidata, CI pendente** |
-| Rejeição funcional | Sem item de Registro de teste, o mesmo caminho não pode gravar evento `new-observed` ou declarar resultado positivo | **Novo caso negativo, CI pendente** |
+| Ciclo positivo restrito | NEW selecionada por L18; GF OLD/NEW reais executados; verificação de inventário relevante e observação externa; somente o owner original vivo registra evidência experimental; nunca operar READY por booleano isolado | **Prova positiva limitada validada na CI 41133853256; NÃO READY operacional** |
+| Rejeição funcional | Sem item de Registro de teste, o mesmo caminho não pode gravar evento `new-observed` ou declarar resultado positivo | **Caso de rejeição validado na CI 41133853256** |
 | Falha/ambiguidade | ReconcileReal mantém `REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY`, fences e NEW/2 histórico sem relançar OLD; `UnknownBlocked` e retry cooperativo bloqueado | 27 contenções anteriores; replay positivo/negativo novo a confirmar |
 | Crash/reboot | A opção B dispensa **apenas** recuperação automática quando não houver história/segurança demonstradas; retenção de OLD/NEW, proibição de limpeza/rollback/retry automático e diagnóstico são obrigatórios. Não confundir crash sintético com reboot/power-loss | Histórico testado parcialmente; **reboot físico, persistência e experiência do usuário pendentes de fase/ensaio aplicável** |
 | READY operacional/G1–G8 | Qualificação de segurança Fase 2, integração Fase 3 e homologação Fase 4 | **NÃO autorizado**, `READY=false`, G1–G8 0/8 |
@@ -60,3 +60,19 @@ Não prometer que restauração manual sempre será segura. Não oferecer botõe
 **WORK somente após CI nova validada, sobre SHA técnico congelado** e questão adversarial: a prova positiva realmente atravessa HKCU→inventário→filtro, está protegida contra falsas classificações no caminho negativo, e o evento `New` experimental pode ser mal-interpretado como autorização externa de recuperação? Verificar contratos de argumento, cleanup HKCU, evento `New` vs `UnknownBlocked`, identidade da imagem e efeitos fora do Job. Revisão não modifica código e não é qualificação externa formal.
 
 **Sem** merge, release, deploy, integração produto, permissões elevadas, serviço/helper, ACL/política Windows, TPM, backend, telemetria ou PCs pessoais.
+
+## 7. Validação final e limites preservados — CI 41133853256
+
+**SHA técnico congelado para revisão adversarial:** `fd88cd30a2dee25576fc76df6c6c6d06636e0acc`. Run [41133853256](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41133853256), job `124331302448`, tentativa 1, `completed/success`.
+
+**Relatório Windows inspecionado:** exatamente **29 registros e 29 nomes de caso exclusivos**, `expected_cases=29`, `failed=0`; 28 `PASS_CONTAINMENT` e 1 `PASS_EXPERIMENTAL_ACTIVATION`. O workflow manteve os 27 casos de contenção anteriores e exigiu evidências positivas e negativas individualizadas; nenhuma asserção foi desabilitada. Zero mensagens `##[error]`.
+
+- `positive-trial-inventory`: `original_live_owner_positive_recorded=true`, `registry_to_inventory_to_ui_probed=true`, `seeded_registry_inventory_proved=true`, `l18_new_generation_two_selected=true`, `real_old_and_new_functionally_observed=true`. Também `old_and_new_bytes_preserved=true`, `old_and_canary_preserved=true`, `manifest_and_object_identities_rechecked=true`, `outcome=UnknownBlocked` e `replay=UnknownBlocked`.
+- `positive-trial-inventory-absent`: `missing_inventory_rejected=true`, `seeded_registry_inventory_proved=false`, `original_live_owner_positive_recorded=false`, com NEW/2 histórica, OLD/NEW preservados e reconciliação/replay `UnknownBlocked`.
+- Ambos: `block_reason=REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED`, `external_launch_blocked=false`, `independent_recovery_authority=false`, `h1_proven=false`, `h2_proven=false`, `h3_global_proven=false`, `after_crash_success_proven=false`, `automatic_recovery_authorized=false`, `operational_ready=false`.
+
+**Estado formal do relatório:** `phase1_complete=false`, `operational_ready=false`, `operational_gates_closed=0`, `real_power_loss_tested=false`, `supervisor_loss_recovery_proven=false`, `new_effects_quiescence_proven=false` e `production_tuf_authority=false`.
+
+**Pendências materiais:** o experimento positivo verifica UMA função relevante (HKCU ARP→inventário→pesquisa), **não** a completude de todos os motores. O observador usa caminho de imagem e SHA de disco, **não** atestação independente de bytes efetivamente carregados na memória. Históricos locais, nonce do teste e registros Python não são autoridade H1; lançamento externo H2 e efeitos delegados H3 continuam sem contenção independente. A experiência de orientação ao usuário ainda é desenho, sem UI operacional. Não habilitar retorno a OLD, promoção ou release em nenhuma condição.
+
+**Encaminhamento único:** congelar `fd88cd30` para auditoria WORK em **somente leitura**, questionando se uma entrada HKCU temporária pode gerar falso positivo de inventário, se o `New` experimental poderia ser reapresentado como autorização indevida, se houve limpeza segura e se os guards de crash/replay e pins continuam suficientes para o escopo anunciado. Só depois de avaliar contraprovas propor o próximo incremento. Não gastar WORK repetindo H1/H2/H3 genericamente.

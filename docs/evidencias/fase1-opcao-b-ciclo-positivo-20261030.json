@@ -3,9 +3,9 @@
   "date": "2026-10-30",
   "repository": "walissonminel-1991/gerenciador-final",
   "branch": "experimento-g5-ipc-chat-alto-20261029",
-  "technical_sha": "e7347a0f05bef701677d4cf47dc1169dc7c09183",
-  "ci_run": 41133540540,
-  "status": "CI_PENDING_VALIDATION",
+  "technical_sha": "fd88cd30a2dee25576fc76df6c6c6d06636e0acc",
+  "ci_run": 41133853256,
+  "status": "WINDOWS_CI_SUCCESS_VERIFIED",
   "expected_cases": 29,
   "expected_previous_containment_cases": 27,
   "expected_new_positive_cases": 1,
@@ -25,5 +25,42 @@
   "h2_proven": false,
   "h3_global_proven": false,
   "automatic_recovery_authorized": false,
-  "work_adversarial_review": "ONLY_AFTER_CI_VERIFIED"
+  "work_adversarial_review": "PREPARE_READ_ONLY_FROZEN_TECH_SHA",
+  "ci_job": 124331302448,
+  "ci_head_sha": "fd88cd30a2dee25576fc76df6c6c6d06636e0acc",
+  "ci_conclusion": "success",
+  "report_cases": 29,
+  "unique_cases": 29,
+  "pass_containment": 28,
+  "pass_experimental_activation": 1,
+  "failed": 0,
+  "first_failed_run": {
+    "id": 41133540540,
+    "job": 124330251580,
+    "cause": "Python observed_process did not forward expected_inventory_name",
+    "corrective_sha": "fd88cd30a2dee25576fc76df6c6c6d06636e0acc"
+  },
+  "positive_evidence": {
+    "case": "positive-trial-inventory",
+    "status": "passed",
+    "classification": "PASS_EXPERIMENTAL_ACTIVATION",
+    "registry_to_inventory_to_ui_probed": true,
+    "seeded_registry_inventory_proved": true,
+    "original_live_owner_positive_recorded": true,
+    "l18_new_generation_two_selected": true,
+    "real_old_and_new_functionally_observed": true,
+    "reconcile": "UnknownBlocked",
+    "replay": "UnknownBlocked",
+    "old_and_new_bytes_preserved": true
+  },
+  "negative_evidence": {
+    "case": "positive-trial-inventory-absent",
+    "status": "passed",
+    "classification": "PASS_CONTAINMENT",
+    "missing_inventory_rejected": true,
+    "original_live_owner_positive_recorded": false,
+    "reconcile": "UnknownBlocked",
+    "replay": "UnknownBlocked",
+    "old_and_new_bytes_preserved": true
+  }
 }
