@@ -125,6 +125,17 @@ internal static partial class L18Coordinator
                 "--auth-report",authReport,"--installation",installation,
                 "--transaction",tx})
                 preflight.ArgumentList.Add(word);
+            if(!begin)
+            {
+                // Recovery copies live under the existing private fixture
+                // temp, not RUNNER_TEMP's broadly writable inherited ACL.
+                FixtureSandbox.RequireRoot(src);
+                Require(Path.GetFullPath(old)==Path.Combine(src,"real","old") &&
+                    Path.GetFullPath(candidate)==Path.Combine(src,"real","new"),
+                    "REAL_PREFLIGHT_NONCANONICAL_PACKAGE");
+                preflight.ArgumentList.Add("--recovery-preflight-root");
+                preflight.ArgumentList.Add(src);
+            }
             using var prep=Process.Start(preflight) ??
                 throw new Rejected("PHASE1_PREFLIGHT_NOT_STARTED");
             Task<string> prepOut=prep.StandardOutput.ReadToEndAsync();

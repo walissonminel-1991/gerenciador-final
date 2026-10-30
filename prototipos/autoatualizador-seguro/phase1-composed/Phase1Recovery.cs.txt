@@ -148,7 +148,9 @@ internal static partial class L18Coordinator
     }
     internal static async Task RealCut(string src,string name)
     {
-        DurableRealFile(RealCutPath(src),System.Text.Encoding.UTF8.GetBytes(name));
+        string pending=RealCutPath(src)+".pending";
+        DurableRealFile(pending,System.Text.Encoding.UTF8.GetBytes(name));
+        File.Move(pending,RealCutPath(src)); // publish only after write/flush/close
         await Task.Delay(Timeout.Infinite); // killed only by retained test process handle
     }
     internal static async Task RealOwner(string src,string lab,string bootstrap,string cut)

@@ -20,7 +20,12 @@ internal static class Phase1RecoveryTests
         foreach(string file in Directory.EnumerateFiles(input))
         {
             Require((File.GetAttributes(file)&FileAttributes.ReparsePoint)==0,"REAL_SOURCE_REPARSE");
-            File.Copy(file,Path.Combine(output,Path.GetFileName(file)));
+            // Copy bytes into a fresh object inheriting the private directory's
+            // ACL; never propagate metadata/permissions from publish output.
+            using var read=new FileStream(file,FileMode.Open,FileAccess.Read,FileShare.Read);
+            using var write=new FileStream(Path.Combine(output,Path.GetFileName(file)),
+                FileMode.CreateNew,FileAccess.Write,FileShare.None);
+            read.CopyTo(write);write.Flush(true);
         }
         foreach(string dir in Directory.EnumerateDirectories(input))
         {
@@ -236,7 +241,13 @@ internal static class Phase1RecoveryTests
     private static async Task LateWriter(string src,string lab)
     {
         _=L18Coordinator.LoadRealContext(src,lab);
-        File.WriteAllText(Path.Combine(src,"late-writer-ready.fixture.txt"),"ready");
+        void Publish(string name,string text)
+        {
+            string pending=Path.Combine(src,name+".pending");
+            L18Coordinator.DurableRealFile(pending,Encoding.UTF8.GetBytes(text));
+            File.Move(pending,Path.Combine(src,name));
+        }
+        Publish("late-writer-ready.fixture.txt","ready");
         await Until(()=>File.Exists(Path.Combine(src,"late-writer-release.fixture.txt")));
         bool Denied(string file)
         {
@@ -245,7 +256,7 @@ internal static class Phase1RecoveryTests
         }
         bool old=Denied(Path.Combine(src,"real","old","GerenciadorFinal.dll"));
         bool canary=Denied(Path.Combine(src,"PERSONAL-KEEP-UNCHANGED.txt"));
-        File.WriteAllText(Path.Combine(src,"late-writer-result.fixture.txt"),old&&canary?"both-writes-denied":"WRITE-ESCAPED");
+        Publish("late-writer-result.fixture.txt",old&&canary?"both-writes-denied":"WRITE-ESCAPED");
         await Task.Delay(Timeout.Infinite);
     }
     internal static async Task<int> Entry(string[] a)

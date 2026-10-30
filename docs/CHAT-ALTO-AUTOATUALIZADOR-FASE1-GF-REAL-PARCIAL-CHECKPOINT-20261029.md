@@ -179,3 +179,17 @@ execução Windows nova ainda pendente. Esta seção será atualizada com o resu
   main, PR #65 Draft, BETA .66, infraestrutura, credenciais, telemetria ou PCs;
   sem merge, release, deploy, upload de builds ou integração operacional.
   **Fase 1 aberta; READY=false; G1–G8 BLOCKED (0/8).**
+
+**Primeira CI da missão (evidência negativa preservada):**
+[40988706524](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40988706524),
+commit [ba20288](https://github.com/walissonminel-1991/gerenciador-final/commit/ba20288be3f95a895c170dd449f7a874739cce4f):
+`failure`. Compilação Windows e ciclo normal passaram; a preparação das onze
+fixtures foi recusada com `NTFS_BROAD_WRITE`, antes de qualquer injeção. Não é
+PASS de contenção nem de recuperação. Causa: redirecionar TEMP para RUNNER_TEMP
+herdou ACL ampla. Correção: manter o temp privado original das fixtures e
+aceitar cópias **somente** nos slots canônicos de uma raiz marcada, conferida
+pelo guard NTFS existente; build original continua sob RUNNER_TEMP. Sem alterar
+ACL, whitelist de proprietários ou asserts. Revisão adicional removeu
+`taskkill /PID`: fallback agora usa o handle retido do próprio processo; Job
+Object do ensaio faz a limpeza de descendentes. Barreiras são publicadas após
+flush/close para evitar leitura antes do fim da gravação.

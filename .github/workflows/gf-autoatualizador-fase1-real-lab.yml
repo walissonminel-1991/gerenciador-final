@@ -181,10 +181,10 @@ jobs:
           $new=Join-Path $env:RUNNER_TEMP 'gf-phase1-new-publish'
           $report=Join-Path $env:RUNNER_TEMP 'gf-phase1-real-crash-report.json'
           $pythonExe=(Get-Command python).Source
-          # Align .NET/Python temp roots for this disposable step only; every
-          # real package and fixture remains strictly inside RUNNER_TEMP.
-          $env:TEMP=$env:RUNNER_TEMP
-          $env:TMP=$env:RUNNER_TEMP
+          # Retain the existing private fixture temp root. RUNNER_TEMP has
+          # broad inherited writes and is intentionally rejected by NTFS guards.
+          # Original build inputs remain in RUNNER_TEMP; copies use marked,
+          # strictly checked private fixture roots on this disposable runner.
           & $exes[0].FullName --real-suite $report $fixtures $anchor $root $pythonExe $script $old $new
           if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_REAL_CRASH_CASE_FAILED' }
           $r=Get-Content $report -Raw | ConvertFrom-Json

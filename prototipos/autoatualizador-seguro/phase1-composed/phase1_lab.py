@@ -308,9 +308,11 @@ def observed_process(directory, expected_exe_sha, seconds=12):
                 # attempted or explicitly unavailable. Force-kill is NOT proof
                 # of controlled shutdown and never authorizes NEW.
                 result["forced_cleanup_required"] = True
-                subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                               timeout=12, check=False)
+                # Use Popen's retained process HANDLE, never a PID tree kill
+                # vulnerable to exit/reuse between poll and taskkill. The
+                # recovery suite's C# Job Object contains any descendants.
+                proc.kill()
+                result["forced_cleanup_scope"] = "retained_owned_process_handle_only"
             else:
                 result["forced_cleanup_required"] = False
             try:
@@ -334,6 +336,7 @@ def main():
     parser.add_argument("--installation", required=True)
     parser.add_argument("--transaction", required=True)
     parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument("--recovery-preflight-root", type=Path)
     parser.add_argument("--selector-root", type=Path)
     parser.add_argument("--handoff-token")
     args = parser.parse_args()
@@ -344,8 +347,21 @@ def main():
     tmp = Path(os.environ["RUNNER_TEMP"]).resolve()
     require(sandbox.is_relative_to(tmp) and sandbox != tmp and not sandbox.exists(),
             "SANDBOX_MUST_BE_FRESH_UNDER_RUNNER_TEMP")
-    require(args.old.resolve().is_relative_to(tmp) and
-            args.new.resolve().is_relative_to(tmp), "PRODUCT_OUTPUT_MUST_BE_TEMP")
+    if args.recovery_preflight_root is not None:
+        src = args.recovery_preflight_root.resolve(strict=True)
+        private_temp = Path(tempfile.gettempdir()).resolve()
+        require(args.preflight_only and src.is_relative_to(private_temp) and
+                src.parent.name.startswith("gf-u2-") and
+                src.is_dir() and not src.is_symlink() and
+                (src.stat().st_file_attributes & 0x400) == 0 and
+                (src / ".gf-u2-fixture").read_text(encoding="utf-8") ==
+                "GF-U2-INERT-STATE-TESTS-NO-PRODUCT\n" and
+                args.old.resolve() == src / "real/old" and
+                args.new.resolve() == src / "real/new",
+                "RECOVERY_PREFLIGHT_NOT_CANONICAL_PRIVATE_FIXTURE")
+    else:
+        require(args.old.resolve().is_relative_to(tmp) and
+                args.new.resolve().is_relative_to(tmp), "PRODUCT_OUTPUT_MUST_BE_TEMP")
     args.report.parent.mkdir(parents=True, exist_ok=True)
     auth_dir = args.auth_dir.resolve(strict=False)
     require(auth_dir.is_relative_to(tmp) and auth_dir != tmp,
