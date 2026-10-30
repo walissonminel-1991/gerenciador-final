@@ -58,24 +58,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_BUILD_NEW' }
           if (!(Test-Path (Join-Path $old 'GerenciadorFinal.exe')) -or
               !(Test-Path (Join-Path $new 'GerenciadorFinal.exe'))) { throw 'GF_PHASE1_EXES_MISSING' }
-      - name: Compor TUF assinado teste e recuperar OLD sem READY falso
+      - name: Preparar fixtures e compilar coordenador C# para fluxo unificado
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $root=(Resolve-Path '.').Path
-          $script='prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py'
-          $old=Join-Path $env:RUNNER_TEMP 'gf-phase1-old-publish'
-          $new=Join-Path $env:RUNNER_TEMP 'gf-phase1-new-publish'
-          $sandbox=Join-Path $env:RUNNER_TEMP 'gf-phase1-real-product-lab'
-          $report=Join-Path $env:RUNNER_TEMP 'gf-phase1-real-report.json'
-          # The SAME existing L18-L22 C# coordinator owns the gate, signed
-          # INERT fixture journal and child lifetime. Python is now its real
-          # package observer, NOT a separate stand-alone workflow phase.
           $sourceWork=Join-Path $env:RUNNER_TEMP 'gf-phase1-pinned-source'
           $fixtures=Join-Path $env:RUNNER_TEMP 'gf-phase1-signed-fixtures'
           $outputs=Join-Path $env:RUNNER_TEMP 'gf-phase1-csharp-artifacts'
-          $bridgeReport=Join-Path $env:RUNNER_TEMP 'gf-phase1-csharp-bridge-report.json'
-          $anchor=Join-Path $root 'prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json'
           $project='prototipos/autoatualizador-seguro/phase1-composed/Phase1RealBridge.csproj'
           $stageSource=(python prototipos/autoatualizador-seguro/m3-composed/prepare_pinned_source.py $sourceWork | Select-Object -Last 1).Trim()
           if ($LASTEXITCODE -ne 0 -or !(Test-Path $stageSource)) { throw 'GF_PHASE1_PINNED_STAGE8_SOURCE_REQUIRED' }
@@ -85,87 +74,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_CSHARP_RESTORE' }
           dotnet build $project "-p:ArtifactsPath=$outputs" "-p:Stage8Source=$stageSource" -c Release --no-restore --nologo
           if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_CSHARP_BUILD' }
-          $exes=@(Get-ChildItem $outputs -Filter 'GF.Updater.M3.L18Tests.exe' -File -Recurse)
-          if ($exes.Count -ne 1) { throw 'GF_PHASE1_COORDINATOR_RUNNER_NOT_UNIQUE' }
-          $pythonExe=(Get-Command python).Source
-          & $exes[0].FullName --run $bridgeReport $fixtures $anchor $root $pythonExe (Join-Path $root $script) $old $new $sandbox $report
-          if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_COORDINATED_LAB_FAILED' }
-          $b=Get-Content $bridgeReport -Raw | ConvertFrom-Json
-          if (!$b.coordinator_l18_journal_persisted -or
-              !$b.real_gf_child_supervised_under_coordinator_gate -or
-              $b.coordinator_decision -ne 'UnknownBlocked' -or
-              !$b.packet_authentication_is_still_external_lab_python -or
-              !$b.fixture_target_is_not_real_gf_packet -or
-              !$b.real_manifest_sha_in_l18_target -or
-              !$b.real_manifest_scope_binds_installation_and_tx -or
-              !$b.prepared_tuf_metadata_reverified_before_new -or
-              !$b.minimum_readonly_functional_search_verified -or
-              !$b.one_real_selector_coordinator_owned -or
-              !$b.real_selector_new_then_old_observed -or
-              !$b.no_python_selector_writes -or
-              $b.real_packet_not_bound_to_l18_target -or
-              $b.production_tuf_authority -or
-              $b.verified_operational_ready -or $b.phase1_complete -or
-              $b.operational_gates_closed -ne 0) {
-            throw 'GF_PHASE1_BRIDGE_MISREPRESENTED_OPERATIONAL_SECURITY'
-          }
-          $r=Get-Content $report -Raw | ConvertFrom-Json
-          if (!$r.real_gf_built -or !$r.authenticated_real_package -or
-              !$r.tampered_dll_rejected_before_selection -or
-              !$r.real_manifest_bound_to_preflight -or
-              !$r.minimum_readonly_health_contract_observed -or
-              !$r.selector_controlled_by_l18_only -or
-              !$r.executable_path_resolved_from_l18_selector -or
-              !$r.restored_old_booted_after_recovery -or
-              !$r.restored_old_process.terminated -or
-              !$r.restored_old_process.graceful_shutdown_verified_for_owned_process -or
-              $r.selector_python_write_attempts -ne 0 -or
-              !$r.coordinator_selected_new_then_restored_old -or
-              !$r.authorization_installation -or !$r.authorization_transaction -or
-              !$r.rolled_back_due_to_no_ready -or !$r.old_and_canary_preserved -or
-              !$r.tuf_laboratory_test_keys_only -or
-              !$r.old_process.created -or !$r.new_process.created -or
-              !$r.old_process.terminated -or !$r.new_process.terminated -or
-              !$r.old_process.actual_image_path_matches -or
-              !$r.new_process.actual_image_path_matches -or
-              !$r.old_process.image_on_disk_sha_matches_manifest -or
-              !$r.new_process.image_on_disk_sha_matches_manifest -or
-              $r.old_process.application_functional_health_verified -or
-              $r.new_process.application_functional_health_verified -or
-              $r.ready_verified -or $r.phase1_complete -or
-              $r.automatic_update_authorized -or
-              $r.operational_gates_closed -ne 0 -or
-              $r.status -ne 'blocked_until_real_ready_and_independent_review') {
-            throw 'GF_PHASE1_FALSE_OPERATIONAL_SUCCESS_OR_MISSING_PROOF'
-          }
-          @(
-            '## Fase 1 - laboratorio descartavel com GF real'
-            "* Pacotes reais: OLD $($r.old_files) / NEW $($r.new_files) arquivos"
-            '* TUF Stage11 com chaves PUBLICAS de teste autenticou manifesto'
-            '* DLL modificada recusada antes da selecao'
-            "* OLD processo criado: $($r.old_process.created); NEW processo criado: $($r.new_process.created)"
-            "* NEW ainda ativo na janela limitada: $($r.new_process.still_alive_at_bound)"
-            "* OLD imagem/manifesto: $($r.old_process.actual_image_path_matches) / $($r.old_process.image_on_disk_sha_matches_manifest)"
-            "* NEW imagem/manifesto: $($r.new_process.actual_image_path_matches) / $($r.new_process.image_on_disk_sha_matches_manifest)"
-            "* OLD hwnd / mensagem / fechamento normal: $($r.old_process.main_form_hwnd_observed) / $($r.old_process.main_form_message_loop_responded) / $($r.old_process.graceful_exit_observed)"
-            "* NEW hwnd / mensagem / fechamento normal: $($r.new_process.main_form_hwnd_observed) / $($r.new_process.main_form_message_loop_responded) / $($r.new_process.graceful_exit_observed)"
-            "* Runner session: $($r.new_process.runner_session_id), desktop interativo: $($r.new_process.interactive_user_desktop_verified)"
-            "* OLD estado UI inventario read-only: $($r.old_process.read_only_ui_controls.functional_inventory_ui_observed)"
-            "* NEW estado UI inventario read-only: $($r.new_process.read_only_ui_controls.functional_inventory_ui_observed)"
-            '* Observacao UI read-only nao e READY operacional e nao autoriza NEW'
-            '* Coordenador C# L18-L22: gate unica, historico duravel, processo GF supervisionado no mesmo ensaio'
-            '* RESULTADO C#: UnknownBlocked apesar de TargetSha agora conter SHA256 do manifesto TUF GF real'
-            '* Metadados TUF GF real prevalidos antes de BEGIN, revalidados antes de NEW'
-            '* Busca real: editar filtro com nonce inexistente -> estado vazio -> restaurar, sem manutencao'
-            '* Falta contrato READY operacional e autoridade TUF de producao'
-            '* Digest do manifesto GF real vinculado ao diario L18; nao autoriza operacao real'
-            '* Apenas coordenador C# muda seletor real: OLD(1), NEW(2), OLD(3), persistido no mesmo source root L18'
-            '* Observador Python sem escrita no seletor; barreiras OLD_DONE/NEW_DONE sob gate C#'
-            '* READY operacional continua recusado (saude observada nao atesta todos os efeitos)'
-            '* READY real NAO demonstrado; OLD restaurada, hashes e canario intactos'
-            '* FASE 1 PARCIAL; G1-G8 BLOCKED (0/8)'
-            '* Nenhum upload de pacote, deploy ou integracao operacional'
-          ) | Add-Content -Path $env:GITHUB_STEP_SUMMARY
       - name: Interromper coordenadores e reconciliar GF real em processos novos
         shell: pwsh
         run: |

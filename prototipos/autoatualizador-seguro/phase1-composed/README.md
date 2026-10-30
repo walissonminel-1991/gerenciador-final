@@ -12,7 +12,7 @@ O observador Win32 **externo ao produto** consulta a identidade do executável a
 
 Além da janela, `observe_read_only_ui_controls` enumera exclusivamente os controles descendentes que pertencem ao PID do GF e retorna **somente booleanos** para textos estáticos esperados: cabeçalho do GF, campo de pesquisa, resumo de Apps com quantidade e botão habilitado `Atualizar e verificar`. Não coleta nomes de aplicativos, não interage, não registra textos pessoais e nunca executa manutenção. Esse resultado mede uma pequena fatia funcional da interface, não valida motores, rede ou recuperação.
 
-**NÃO declarar READY**: HWND, WM_NULL, PID, retorno 0 e a presença desses controles demonstram no máximo inicialização da interface, thread de mensagens, exibição de estado do inventário e encerramento, não saúde integral dos motores do GF nem consentimento real em desktop de usuário. Identidade do executável observada via caminho+hash no disco não é atestação dos bytes carregados em memória e tem TOCTOU. GitHub Actions pode rodar na sessão 0 sem acesso ao desktop interativo. A CI deve explicitar session ID, acesso a desktop, presença de HWND, resposta WM_NULL, solicitação WM_CLOSE, saída graciosa e uso de fallback. Mesmo com qualquer sinal positivo, **a seleção retorna obrigatoriamente a OLD**.
+**NÃO declarar READY**: HWND, WM_NULL, PID, retorno 0 e a presença desses controles demonstram no máximo inicialização da interface, thread de mensagens, exibição de estado do inventário e encerramento, não saúde integral dos motores do GF nem consentimento real em desktop de usuário. Identidade do executável observada via caminho+hash no disco não é atestação dos bytes carregados em memória e tem TOCTOU. GitHub Actions pode rodar na sessão 0 sem acesso ao desktop interativo. A CI deve explicitar session ID, acesso a desktop, presença de HWND, resposta WM_NULL, solicitação WM_CLOSE, saída graciosa e uso de fallback. Mesmo com qualquer sinal positivo, **NEW não recebe READY**. Após possível execução de NEW, o fence mantém a seleção histórica bloqueada, sem rollback cego. OLD só pode voltar a executar quando a reconciliação comprovar que NEW ainda não começou a produzir efeitos.
 
 Limites intencionais: ainda não há contrato operacional autenticado de encerramento completo/READY independente, recuperação de I/O pendente, confiança de chaves de produção ou restauração após falha física. Nenhuma modificação foi feita no Program.cs ou MainForm, nem na BETA distribuída, main, PR #65, backend, credenciais ou PCs pessoais. G1–G8 permanecem BLOCKED (0/8).
 
@@ -31,13 +31,17 @@ identidade de instalação, transação e SHA-256 do manifesto TUF de laboratór
 O seletor L14 permanece apenas no modelo de fixtures; não determina o GF real.
 
 O processo Python apenas lê o seletor do C#, autentica os arquivos e observa
-os processos reais, sem escrever o seletor. As barreiras locais OLD_DONE e
-NEW_DONE são cooperação temporária, não IPC autenticado ou autoridade de READY.
-O coordenador escolhe NEW depois da observação de OLD e restaura OLD depois
-da observação e encerramento do NEW.
+os processos reais, sem escrever o seletor. O antigo caminho cooperativo
+OLD_DONE/NEW_DONE foi removido da execução e do código experimental. Há apenas
+uma entrada C# para testes do pacote GF real.
 
-Os requisitos de aceitação de CI incluem diário/manifesto vinculado, estado
-final OLD, hashes, canário, pesquisa funcional read-only e fechamento gracioso.
+O ciclo normal usa o mesmo contexto durável, Job Object, pins NTFS e fences
+que a recuperação. O coordenador mede OLD, seleciona NEW e mede NEW com
+barreira persistente anterior ao lançamento. O ensaio verifica manifesto,
+diário, hashes, canário, funções read-only e encerramento, mas **mantém NEW
+bloqueada após sua execução** por ausência de prova independente de término
+dos efeitos. Nos cenários anteriores ao lançamento, a recuperação de OLD
+depende de evidências suficientes.
 Isso NÃO é atualização operacional; não prova efeitos tardios, bytes
 carregados na memória, recuperação após perda de energia nem exclusão de
 ataque do mesmo usuário.
@@ -51,8 +55,8 @@ a decisão final continua UNKNOWN, e G1–G8 permanecem BLOCKED (0/8).
 
 O executável do ensaio é escolhido pelo valor persistido no seletor
 `l18-real-active.fixture.json` do coordenador C#, e não pelo ramo
-`if old/if new` do observador. Em retorno a OLD, o laboratório **reinicia**
-os bytes reais restaurados e testa novamente o filtro funcional. Isso mede
+`if old/if new` do observador. Nos casos recuperáveis anteriores ao lançamento de NEW, o laboratório
+**reinicia** os bytes reais OLD e testa novamente o filtro funcional. Isso mede
 recuperação executável de um ciclo controlado, não resistência a falta de energia.
 
 READY só poderá ser aceito se houver, de forma conjunta e verificável:
@@ -68,3 +72,17 @@ não consiga simplesmente falsificar.
 **Qualquer requisito ausente = UNKNOWN/BLOCKED**, nunca READY por inferência.
 Este ensaio não satisfaz o contrato completo, não abre G1–G8 e não conclui
 a Fase 1.
+
+### Convergência do fluxo normal — Fase 1, implementação experimental
+
+O modo normal passou para o mesmo `RealOwner` e `ReconcileReal` dos cenários
+de interrupção, sem o antigo `--run` cooperativo. O contexto, manifesto
+TUF/3 OLD+NEW, pinagem, Job Objects e fences são idênticos. OLD é observada
+antes de selecionar NEW; ambos os lançamentos são precedidos pelos seus
+respectivos fences, e a saída normal do processo proprietário não promove
+READY. Um novo processo reconciliador deve retornar `UnknownBlocked` após
+NEW, mantendo sua seleção histórica como evidência até surgir prova suficiente.
+Não declarar rollback pós-NEW seguro. A CI exige um caso normal sem injeção
+de crash, os cinco casos pré-NEW recuperáveis e os seis bloqueios adversariais.
+O limite do supervisor persistente e a ausência de testemunha independente
+de I/O tardio continuam bloqueios objetivos. Nenhum fluxo operacional.
