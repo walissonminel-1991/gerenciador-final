@@ -376,7 +376,7 @@ internal static class Phase1RecoveryTests
                 foreach(string previous in saved)
                     File.Copy(previous,Path.Combine(src,Path.GetFileName(previous)));
                 File.Copy(Path.Combine(snapshot,"selector-before-new.bin"),
-                    L18Coordinator.RealSelector(src),overwrite:true);
+                    Path.Combine(src,"l18-real-active.fixture.json"),overwrite:true);
                 File.Delete(L18Coordinator.NewLaunchFence(src));
                 Require(Selection(src)==("old",1) &&
                     !File.Exists(L18Coordinator.NewLaunchFence(src)) &&
