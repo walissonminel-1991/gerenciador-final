@@ -54,3 +54,52 @@
 Projetar e demonstrar **um contrato mínimo de saúde e encerramento que dependa do processo GF real**, com identidade de processo e pacote vinculados e observação em ambiente Windows descartável. Nenhuma confirmação por mero `Process.Start`, PID, terminal same-user, login UI inexistente ou log sintético deve ser usada como READY. Distinguir limites de sessão não interativa Windows CI de falha do GF. Manter a troca reversível e fail-closed. Corrigir **dentro da Fase 1**, sem criar novo Lote 24 ou outras tarefas paralelas.
 
 **Próximo WORK só após candidato composto com health/shutdown/recuperação demonstrados; não consumir quota para repetir TUF/NTFS já testados.**
+
+
+---
+
+### Continuidade na mesma Fase 1 — seleção executável e recuperação (29/10/2026)
+
+**Referência recebida:** `7846514595bdc422ced7be4214427c51a672f1ff`;
+CI `40983654046` concluída com sucesso, mas **sem atestação READY**.
+
+**Commits observados na branch:**
+- `fd74fced9f6f2ea00e8a7d3bb42d697d995bb6ae`: seletor GF real
+  escrito pelo coordenador L18, comunicação OLD_DONE/NEW_DONE; CI
+  `40985184200` **failure** por interrupção prematura antes de OLD_DONE.
+- `79da466ba9b707527a1c7a698d5081e7947c8145`: diagnóstico
+  de EOF e stderr na barreira; CI `40985491980` **failure**:
+  Python rejeitou `COORDINATOR_SELECTOR_OUTSIDE_TEMP`.
+- `d47ac5942237f8f83d337fcb435b0ed56c32af93`: raiz do cenário
+  .NET validada sob marcador de fixture e diretórios temporários
+  corretos; CI `40985805701` **failure**: timeout após última
+  barreira, durante espera de encerramento do filho.
+- `6266aff1e6ad92d0ed23551447b724b3bce64ca1`: resolutor
+  de slot efetivo OLD/NEW a partir do seletor durável L18, sem
+  seletor próprio Python; retorno para OLD agora reinicia o GF real
+  e exige prova funcional read-only e encerramento. CI `40986009708`
+  **em andamento no momento deste registro**.
+- `b9ecaa3ceac929d7aad894a14a500efe1d5fc3a6`: drenagem
+  da saída padrão do filho enquanto aguarda o término; evita possível
+  deadlock quando o JSON final excede o buffer do pipe. CI
+  `40986098577` **pendente no momento deste registro**.
+
+**O que é demonstrável pelo código, não ainda pela nova CI:**
+o seletor fica no mesmo source root do diário L18; o Python
+lê `selected` e resolve `sandbox/versions/{old|new}`, em vez de
+escolher o executável por um segundo seletor. O pós-retorno procura
+reiniciar OLD, observar pesquisa funcional e saída graciosa, mantendo
+NEW bloqueada por ausência de READY. Qualquer CI com falha permanece
+falha: **não transformar UNKNOWN em sucesso por um relatório local**.
+
+**Bloqueios objetivos mantidos:** observação do código realmente
+carregado e TOCTOU; atestação externa independente de função/saúde;
+garantia de fim de I/O tardio; durabilidade de diretório e recuperação
+sob queda de energia/crash/restart; autoridade TUF de produção;
+homologação independente. PID, HWND, recibo same-user, pesquisa read-only
+e retorno 0 isolados **não constituem READY**. Nenhum G1–G8 liberado.
+
+**Proteções de escopo:** alteração restrita à branch experimental,
+sem merge, release, deploy, Work, mudança em PC pessoal, alteração da
+main, PR #65 Draft ou BETA .66. A Fase 1 segue aberta e o status de
+transação permanece **UNKNOWN/BLOCKED** até prova auditável.
