@@ -427,8 +427,79 @@ def main():
     require(False, "LEGACY_COOPERATIVE_NORMAL_DISABLED")
 
 
+def trial_marker_path(src: Path):
+    return src / "trial-hkcu-owner.fixture.json"
+
+
+def _trial_key_values(name, token):
+    return {"DisplayName": name, "DisplayVersion": "1.0",
+            "Publisher": "GF Phase1 inert CI",
+            "GFPhase1Owner": token}
+
+
+def _trial_scope():
+    require(os.name == "nt" and os.environ.get("GITHUB_ACTIONS") == "true",
+            "TRIAL_REGISTRY_SCOPE")
+
+
+def cleanup_trial_marker(source: Path):
+    """A4: supervisor cleanup, ONLY after observer exit and exact checks.
+
+    A local same-user marker is not trusted cryptographic provenance; a
+    name-based deletion still has a residual replacement TOCTOU window.
+    On any observable ambiguity, retain the key and record a HOLD.
+    """
+    _trial_scope()
+    source = Path(source).resolve(strict=True)
+    root = Path(tempfile.gettempdir()).resolve()
+    require(source.is_relative_to(root) and
+            source.parent.name.startswith("gf-u2-") and
+            (source / ".gf-u2-fixture").read_text(encoding="utf-8") ==
+            "GF-U2-INERT-STATE-TESTS-NO-PRODUCT\\n",
+            "TRIAL_CLEANUP_SOURCE_SCOPE")
+    marker_path = trial_marker_path(source)
+    if not marker_path.exists():
+        return "NO_MARKER"
+    require(marker_path.is_file() and not marker_path.is_symlink()
+            and marker_path.stat().st_size <= 4096, "TRIAL_MARKER_UNTRUSTED")
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    require(set(marker) == {"schema", "name", "token"} and
+            marker["schema"] == "gf-trial-hkcu-owner/1" and
+            isinstance(marker["name"], str) and
+            marker["name"].startswith("GF-PHASE1-INVENTORY-") and
+            len(marker["name"]) == len("GF-PHASE1-INVENTORY-") + 24 and
+            all(ch in "0123456789ABCDEF" for ch in marker["name"][len("GF-PHASE1-INVENTORY-"):]) and
+            isinstance(marker["token"], str) and len(marker["token"]) == 64 and
+            all(ch in "0123456789abcdef" for ch in marker["token"]),
+            "TRIAL_MARKER_IDENTITY_INVALID")
+    subkey = ("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\"
+              + marker["name"])
+    rights = winreg.KEY_READ | winreg.KEY_WOW64_64KEY
+    try:
+        k = winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey, 0, rights)
+    except FileNotFoundError:
+        marker_path.unlink()
+        return "NOT_CREATED"
+    with k:
+        count_subkeys, count_values, _ = winreg.QueryInfoKey(k)
+        observed = dict((name, (data, kind))
+                        for name, data, kind in
+                        (winreg.EnumValue(k, i) for i in range(count_values)))
+        expected = {k: (v, winreg.REG_SZ)
+                    for k, v in _trial_key_values(
+                        marker["name"], marker["token"]).items()}
+        if count_subkeys != 0 or observed != expected:
+            return "HOLD_MUTATED_FIXTURE_PRESERVED"
+        # No other value can be deleted. The same-user TOCTOU limitation
+        # remains explicitly unresolved; this is scoped CI cleanup only.
+        winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, subkey,
+                           access=winreg.KEY_WOW64_64KEY, reserved=0)
+    marker_path.unlink()
+    return "CLEANED_EXACT_FIXTURE"
+
+
 @contextmanager
-def trial_registry_fixture():
+def trial_registry_fixture(marker_path=None):
     """Disposable HKCU ARP record, create-new only, not a same-user sandbox.
 
     A3: RegCreateKeyExW returns REG_CREATED_NEW_KEY atomically. Never assume
@@ -442,6 +513,14 @@ def trial_registry_fixture():
     subkey = ("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\"
               + name)
     token = secrets.token_hex(32)
+    if marker_path is not None:
+        # Stage ownership BEFORE the first Registry mutation. File flushed
+        # locally; not an independent durable witness against same-user U.
+        with Path(marker_path).open("x", encoding="utf-8") as marker:
+            json.dump({"schema": "gf-trial-hkcu-owner/1",
+                       "name": name, "token": token}, marker)
+            marker.flush()
+            os.fsync(marker.fileno())
     rights = winreg.KEY_READ | winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY
     native = ctypes.WinDLL("advapi32", use_last_error=True)
     create = native.RegCreateKeyExW
@@ -555,7 +634,8 @@ def recovery_tool(mode, source):
     if trial_mode:
         require(report_slot == "new" and generation == 2,
                 "TRIAL_REQUIRES_L18_SELECTED_NEW")
-    trial_context = (trial_registry_fixture() if mode == "--recovery-observe-trial"
+    trial_context = (trial_registry_fixture(trial_marker_path(src))
+                     if mode == "--recovery-observe-trial"
                      else nullcontext("GF-PHASE1-INVENTORY-" + secrets.token_hex(12).upper()))
     with trial_context as expected_name:
         observation = observed_process(
@@ -593,6 +673,11 @@ def recovery_tool(mode, source):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--trial-fixture-cleanup":
+        result = cleanup_trial_marker(Path(sys.argv[2]))
+        print("GF_PHASE1_TRIAL_CLEANUP " + result)
+        sys.exit(0 if result in ("NO_MARKER", "NOT_CREATED",
+                                "CLEANED_EXACT_FIXTURE") else 11)
     if sys.argv[1:] == ["--data-only-launch-guard-test"]:
         sys.exit(test_data_only_launch_guard())
     if len(sys.argv) == 3 and sys.argv[1] in (
