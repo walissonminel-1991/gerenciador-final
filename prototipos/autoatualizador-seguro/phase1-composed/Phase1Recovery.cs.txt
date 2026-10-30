@@ -248,6 +248,13 @@ internal static partial class L18Coordinator
             Require(owner.Active==0 && recovery.Active==1,"REAL_PROCESS_STARTED_DURING_PROBE");
             _=SelectedRealPath(src,c,out string selected,out int generation);
             Require(!File.Exists(NewLaunchFence(src)),"REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED");
+            // The fence may have been removed after a real NEW launch.
+            // An intact L18 journal provides independent *negative* evidence:
+            // it cannot license OLD merely because the fence is now absent.
+            // This is NOT an anti-tamper proof when an adversary can rewrite
+            // the journal and fence together, or after physical power loss.
+            Require(!history.Any(x=>x.Detail=="real-new-effects-fenced-before-create"),
+                "REAL_LAUNCHED_NEW_JOURNAL_FENCE_MISSING");
             if(history.Any(x=>x.Detail=="real-old-functional-lab-only"))
             {
                 Require(selected=="old" && history[^1].Phase==Unknown,"REAL_TERMINAL_SELECTOR_CONTRADICTION");

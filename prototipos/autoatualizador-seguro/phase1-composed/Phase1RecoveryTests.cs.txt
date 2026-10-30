@@ -132,7 +132,7 @@ internal static class Phase1RecoveryTests
         bool blocked=name is "normal" or "new-live-descendant" or "new-exited" or "launch-fence" or
             "selector-fork" or "journal-torn" or "witness-lost" or
             "witness-recreated" or "witness-wrong-object" or "external-broker" or
-            "external-broker-handoff";
+            "external-broker-handoff" or "launch-fence-lost-after-new";
         bool crashRecovery=name.StartsWith("recover-",StringComparison.Ordinal);
         string ownerCut=name switch
         {
@@ -141,7 +141,8 @@ internal static class Phase1RecoveryTests
             "witness-wrong-object"=>"after-intent",
             "normal"=>"normal",
             "new-live-descendant"=>"during-new",
-            "new-exited" or "external-broker" or "external-broker-handoff"=>"after-new-exit",
+            "new-exited" or "external-broker" or "external-broker-handoff" or
+                "launch-fence-lost-after-new"=>"after-new-exit",
             "launch-fence"=>"after-launch-fence",
             _=>"after-select"
         };
@@ -181,6 +182,7 @@ internal static class Phase1RecoveryTests
             }
             bool lateWriterDenied=false,leaseRefused=false;
             bool externalBrokerEffectObserved=false,externalHandoffEffectObserved=false;
+            bool missingFenceVsJournalDetected=false;
             if(name=="new-live-descendant")
             {
                 // The original C# owner is gone; GF and a delayed writer remain.
@@ -198,7 +200,7 @@ internal static class Phase1RecoveryTests
                 await owner.Cleanup(); // intentional scope-limited cleanup, never graceful shutdown
             }
             else Require(owner.Active==0,"REAL_OWNER_JOB_NOT_EMPTY");
-            if(name is "new-exited" or "external-broker" or "external-broker-handoff")
+            if(name is "new-exited" or "external-broker" or "external-broker-handoff" or "launch-fence-lost-after-new")
             {
                 // Diagnostic timings are fractional. Do not feed an observation
                 // report into the TUF/state parser that requires unsigned integers.
@@ -336,6 +338,21 @@ internal static class Phase1RecoveryTests
                     }
                 }
             }
+            if(name=="launch-fence-lost-after-new")
+            {
+                // Negative test only: the real GF NEW has already run and
+                // exited. Deleting a single unpinned disposable fixture must
+                // NOT allow the reconciler to treat this as PRE-LAUNCH.
+                string fence=L18Coordinator.NewLaunchFence(src);
+                Require(File.Exists(fence),"REAL_LAUNCH_FENCE_NOT_CREATED");
+                Require(Directory.GetFiles(src,"l18-phase-*.fixture.json").Any(path=>
+                    StateCodec.Decode<L18PhaseRecord>(File.ReadAllBytes(path)).Detail
+                        =="real-new-effects-fenced-before-create"),
+                    "REAL_LAUNCH_EVENT_NOT_RECORDED");
+                File.Delete(fence);
+                Require(!File.Exists(fence),"REAL_TEST_FENCE_DELETE_FAILED");
+                missingFenceVsJournalDetected=true;
+            }
             if(name=="selector-fork")
             {
                 string p=Path.Combine(src,"l18-real-active.fixture.json");
@@ -406,6 +423,7 @@ internal static class Phase1RecoveryTests
                     "journal-torn"=>"JSON_INVALID",
                     "witness-lost" or "witness-recreated"=>"REAL_OWNER_WITNESS_NOT_INHERITED",
                     "witness-wrong-object"=>"REAL_OWNER_WITNESS_OBJECT_MISMATCH",
+                    "launch-fence-lost-after-new"=>"REAL_LAUNCHED_NEW_JOURNAL_FENCE_MISSING",
                     _=>"REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED"
                 }),"REAL_WRONG_BLOCK_CAUSE:"+reason);
             if(name=="journal-torn")
@@ -443,6 +461,7 @@ internal static class Phase1RecoveryTests
                 concurrent_coordinator_refused=leaseRefused,recovery_process_also_interrupted=crashRecovery,
                 external_broker_effect_observed=externalBrokerEffectObserved,
                 external_handoff_effect_observed=externalHandoffEffectObserved,
+                missing_launch_fence_with_new_journal_observed=missingFenceVsJournalDetected,
                 outcome,replay,block_reason=reason,operational_ready=false};
         }
         finally
@@ -547,7 +566,7 @@ internal static class Phase1RecoveryTests
                 foreach(string name in new[]{"normal","intent","selected","recover-before-replace","recover-after-replace",
                     "launch-fence","new-live-descendant","new-exited","selector-fork","journal-torn",
                     "selector-locked","witness-lost","witness-recreated","witness-wrong-object",
-                    "external-broker","external-broker-handoff"})
+                    "external-broker","external-broker-handoff","launch-fence-lost-after-new"})
                 {
                     try{var result=await Scenario(name,a);results.Add(result);Console.WriteLine("GF_PHASE1_RECOVERY_CASE "+JsonSerializer.Serialize(result));}
                     catch(Exception e)
@@ -558,7 +577,7 @@ internal static class Phase1RecoveryTests
                     }
                 }
                 var report=new{schema="gf-real-process-crash-recovery-lab/1",tests=results,failed,
-                    expected_cases=16,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
+                    expected_cases=17,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
                     real_power_loss_tested=false,supervisor_loss_recovery_proven=false,
                     new_effects_quiescence_proven=false,production_tuf_authority=false};
                 File.WriteAllText(a[1],JsonSerializer.Serialize(report));

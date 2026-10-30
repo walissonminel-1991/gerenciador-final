@@ -135,3 +135,20 @@ não demonstra que GF/WinGet/WMI real adotaram tal mecanismo; ele refuta a
 conclusão incorreta de que ausência do intermediário significa quiescência.
 Não utilizar novos serviços permanentes, custos, permissões elevadas ou IPC
 de mesmo usuário como autoridade operacional de READY.
+
+### Fase 1 — concordancia negativa entre diario e fence de lancamento
+
+A ausencia de `NewLaunchFence` no sistema de arquivos nao autentica
+que NEW nunca executou. O coordenador passou a verificar tambem o
+evento persistido `real-new-effects-fenced-before-create` no diario L18.
+Se NEW foi registrada como lancada e o fence nao esta mais presente,
+a reconciliacao recusa OLD com
+`REAL_LAUNCHED_NEW_JOURNAL_FENCE_MISSING` e `UnknownBlocked`.
+
+O teste adversarial `launch-fence-lost-after-new` interrompe o owner
+apos observacao funcional de NEW no Windows descartavel, apaga somente
+o fence de fixture e verifica que diario/selector OLD+NEW continuam
+coerentes e que nao ocorre rollback. O controle e uma defesa adicional
+contra perda isolada do fence e **nao comprova** resistencia a adulteracao
+simultanea de diario/fence, perda de energia, recuperacao fria nem READY.
+Nao e autorizado tratar diario same-user como testemunha independente.
