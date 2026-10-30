@@ -416,18 +416,35 @@ def recovery_tool(mode, source):
     validate_package(src / "real/new", m["files"])
     if mode == "--recovery-verify":
         return 0
-    require(mode == "--recovery-observe", "RECOVERY_MODE")
-    item = json.loads((src / "l18-real-active.fixture.json").read_bytes())
-    selected, generation = item["selected"], item["generation"]
-    require((selected, generation) in (("old", 1), ("new", 2), ("old", 3)),
-            "RECOVERY_SELECTOR_GENERATION")
-    directory = selected_real_package(src, src / "real", selected, generation,
-                                      c["installation"], c["transaction"], c["manifestSha"])
-    files = m["old_files"] if selected == "old" else m["files"]
+    require(mode in ("--recovery-observe", "--out-of-band-new-observe"), "RECOVERY_MODE")
+    if mode == "--out-of-band-new-observe":
+        # Adversarial TEST ONLY: the real NEW is run directly from the
+        # disposable supervisor's Python process, not from C# RealOwner.
+        # Proves only a coordinator bypass in this scoped lab, NOT that
+        # Windows globally allows every equivalent image to run.
+        read_coordinator_selector(src, "old", 1, c["installation"],
+                                  c["transaction"], c["manifestSha"])
+        fence = src / "l18-real-new-may-have-effects.fixture.txt"
+        require(not fence.exists() and not fence.is_symlink(),
+                "OUT_OF_BAND_NEW_FENCE_ALREADY_PRESENT")
+        directory = (src / "real/new").resolve(strict=True)
+        require(directory == src / "real/new" and directory.is_dir() and
+                not directory.is_symlink(), "OUT_OF_BAND_NEW_NOT_CANONICAL")
+        files = m["files"]
+        report_slot = "out-of-band-new"
+    else:
+        item = json.loads((src / "l18-real-active.fixture.json").read_bytes())
+        selected, generation = item["selected"], item["generation"]
+        require((selected, generation) in (("old", 1), ("new", 2), ("old", 3)),
+                "RECOVERY_SELECTOR_GENERATION")
+        directory = selected_real_package(src, src / "real", selected, generation,
+                                          c["installation"], c["transaction"], c["manifestSha"])
+        files = m["old_files"] if selected == "old" else m["files"]
+        report_slot = selected
     observation = observed_process(directory, files["GerenciadorFinal.exe"]["sha256"])
     # Diagnostic report does not confer recovery/READY authority on Python.
     observation.pop("pid_observed", None)
-    (src / ("real-observed-" + selected + ".fixture.json")).write_text(
+    (src / ("real-observed-" + report_slot + ".fixture.json")).write_text(
         json.dumps(observation, sort_keys=True) + "\n", encoding="utf-8")
     require(observation.get("created") and observation.get("terminated") and
             observation.get("actual_image_path_matches") and
@@ -444,6 +461,7 @@ def recovery_tool(mode, source):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3 and sys.argv[1] in ("--recovery-verify", "--recovery-observe"):
+    if len(sys.argv) == 3 and sys.argv[1] in (
+            "--recovery-verify", "--recovery-observe", "--out-of-band-new-observe"):
         sys.exit(recovery_tool(sys.argv[1], sys.argv[2]))
     sys.exit(main())

@@ -135,8 +135,9 @@ internal static class Phase1RecoveryTests
             "external-broker-handoff" or "launch-fence-lost-after-new" or
             "selected" or "selector-locked" or "fence-directory-before-new" or "joint-fence-journal-erasure" or
             "intent" or "recover-before-replace" or "recover-after-replace" or
-            "same-user-full-state-rollback-after-new";
+            "same-user-full-state-rollback-after-new" or "out-of-band-new-with-old-selected";
         bool counterexample=name=="same-user-full-state-rollback-after-new";
+        bool outOfBand=name=="out-of-band-new-with-old-selected";
         // Historical recover-* names now exercise conservative refusal.
         // No recovery cut is injected when no trusted no-launch authority exists.
         bool crashRecovery=false;
@@ -151,6 +152,7 @@ internal static class Phase1RecoveryTests
             "new-exited" or "external-broker" or "external-broker-handoff" or
                 "launch-fence-lost-after-new" or "joint-fence-journal-erasure"=>"after-new-exit",
             "same-user-full-state-rollback-after-new"=>"after-new-exit-state-rollback",
+            "out-of-band-new-with-old-selected"=>"after-intent",
             "launch-fence"=>"after-launch-fence",
             _=>"after-select"
         };
@@ -168,7 +170,8 @@ internal static class Phase1RecoveryTests
             else await CutOwner(owner,src,s.Lab,ownerCut);
             Require(Selection(src)==(name is "intent" or "recover-before-replace" or
                 "recover-after-replace" or "selector-locked" or "witness-recreated" or
-                "witness-wrong-object" ?("old",1):("new",2)),
+                "witness-wrong-object" or "out-of-band-new-with-old-selected"
+                ?("old",1):("new",2)),
                 "REAL_CUT_SELECTION_WRONG");
             History(src,c);
             if(name=="normal")
@@ -194,6 +197,70 @@ internal static class Phase1RecoveryTests
             bool externalBrokerEffectObserved=false,externalHandoffEffectObserved=false;
             bool missingFenceVsJournalDetected=false;
             bool markerWrongTypeObserved=false,jointEvidenceErasureObserved=false;
+            bool outOfBandNewExecutionObserved=false;
+            if(outOfBand)
+            {
+                // The real GF NEW is deliberately started OUTSIDE both C#
+                // Jobs while the retained C# owner has been killed at OLD/1.
+                // No selector NEW, launch fence or Launched event authorizes it.
+                // This is an adversarial laboratory observation, NOT READY.
+                Require(Selection(src)==("old",1) &&
+                    owner.Active==0 && recovery.Active==0 &&
+                    !File.Exists(L18Coordinator.NewLaunchFence(src)) &&
+                    !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")),
+                    "REAL_OUT_OF_BAND_PRECONDITIONS");
+                var info=new ProcessStartInfo(c.Python)
+                {
+                    UseShellExecute=false,CreateNoWindow=true,
+                    RedirectStandardOutput=true,RedirectStandardError=true,
+                    WorkingDirectory=c.Repository
+                };
+                foreach(string arg in new[]{c.Script,"--out-of-band-new-observe",src})
+                    info.ArgumentList.Add(arg);
+                using var direct=Process.Start(info) ??
+                    throw new Rejected("REAL_OUT_OF_BAND_OBSERVER_NOT_STARTED");
+                Require(!owner.ContainsProcess(direct) &&
+                    !recovery.ContainsProcess(direct),
+                    "REAL_OUT_OF_BAND_SUPERVISOR_IN_CSHARP_JOB");
+                var stdout=direct.StandardOutput.ReadToEndAsync();
+                var stderr=direct.StandardError.ReadToEndAsync();
+                try
+                {
+                    await direct.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(85));
+                }
+                catch(TimeoutException)
+                {
+                    if(!direct.HasExited)direct.Kill();
+                    await direct.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+                    throw new Rejected("REAL_OUT_OF_BAND_OBSERVATION_TIMEOUT");
+                }
+                string diagnostic=await stderr;_=await stdout;
+                Require(direct.ExitCode==0,
+                    "REAL_OUT_OF_BAND_OBSERVER_FAILED:"+
+                    diagnostic[..Math.Min(1800,diagnostic.Length)]);
+                var raw=File.ReadAllBytes(Path.Combine(
+                    src,"real-observed-out-of-band-new.fixture.json"));
+                Require(raw.Length is >0 and <=32768,"REAL_OUT_OF_BAND_DIAGNOSTIC_SIZE");
+                using(var observation=JsonDocument.Parse(raw))
+                {
+                    var o=observation.RootElement;
+                    Require(o.GetProperty("created").GetBoolean() &&
+                        o.GetProperty("terminated").GetBoolean() &&
+                        o.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean() &&
+                        !o.GetProperty("forced_cleanup_required").GetBoolean() &&
+                        o.GetProperty("readonly_inventory_search_health")
+                            .GetProperty("minimum_readonly_health_contract_observed").GetBoolean(),
+                        "REAL_OUT_OF_BAND_GF_NEW_OBSERVATION_MISSING");
+                }
+                Require(Selection(src)==("old",1) &&
+                    !File.Exists(L18Coordinator.NewLaunchFence(src)) &&
+                    !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")) &&
+                    !File.Exists(Path.Combine(src,"real-observed-old.fixture.json")) &&
+                    owner.Active==0 && recovery.Active==0,
+                    "REAL_OUT_OF_BAND_DECISION_METADATA_CHANGED");
+                History(src,c);
+                outOfBandNewExecutionObserved=true;
+            }
             if(name=="new-live-descendant")
             {
                 // The original C# owner is gone; GF and a delayed writer remain.
@@ -509,6 +576,11 @@ internal static class Phase1RecoveryTests
                     File.Exists(Path.Combine(src,"real-observed-new.fixture.json")) &&
                     !File.Exists(Path.Combine(src,"real-observed-old.fixture.json")),
                     "REAL_ROLLBACK_CONTAINMENT_NOT_DEMONSTRATED");
+            if(outOfBand)
+                Require(outOfBandNewExecutionObserved &&
+                    Selection(src)==("old",1) &&
+                    !File.Exists(Path.Combine(src,"real-observed-old.fixture.json")),
+                    "REAL_OUT_OF_BAND_NEW_NO_LAUNCH_FALSE_RECOVERY");
             string reason=blocked?Reason(src):"none";
             if(blocked)
                 Require(reason==(name switch
@@ -523,14 +595,16 @@ internal static class Phase1RecoveryTests
                     "fence-directory-before-new"=>"REAL_NEW_FENCE_NOT_REGULAR_FILE",
                     "selector-locked"=>"REAL_UNREADABLE_HISTORY_BLOCKED",
                     "intent" or "recover-before-replace" or "recover-after-replace" or
-                    "same-user-full-state-rollback-after-new"=>"REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY",
+                    "same-user-full-state-rollback-after-new" or
+                    "out-of-band-new-with-old-selected"=>"REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY",
                     _=>"REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED"
                 }),"REAL_WRONG_BLOCK_CAUSE:"+reason);
             if(name=="journal-torn")
                 Require(File.Exists(L18Coordinator.RecoveryBlocked(src)),"REAL_TORN_JOURNAL_NOT_DURABLY_BLOCKED");
             Require(Selection(src)==(name is "intent" or "recover-before-replace" or
                 "recover-after-replace" or "selector-locked" or "witness-recreated" or
-                "witness-wrong-object" or "same-user-full-state-rollback-after-new"
+                "witness-wrong-object" or "same-user-full-state-rollback-after-new" or
+                "out-of-band-new-with-old-selected"
                 ?("old",1):blocked?("new",2):("old",3)),
                 "REAL_FINAL_SELECTOR_INCONSISTENT");
             if(blocked)
@@ -560,6 +634,9 @@ internal static class Phase1RecoveryTests
                 classification=blocked?"PASS_CONTAINMENT":"PASS_RECOVERY_LAB_ONLY",
                 unsafe_recovery_after_real_new=counterexample && outcome=="OldRecoveredNoReady",
                 full_state_rollback_blocked=counterexample && outcome=="UnknownBlocked" &&
+                    reason=="REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY",
+                out_of_band_new_execution_observed=outOfBandNewExecutionObserved,
+                out_of_band_no_launch_claim_rejected=outOfBand && outcome=="UnknownBlocked" &&
                     reason=="REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY",
                 interrupted_owner=name!="normal",normal_owner_completed_without_crash=name=="normal",
                 reconciler_new_process=true,old_and_canary_preserved=true,
@@ -676,7 +753,8 @@ internal static class Phase1RecoveryTests
                     "selector-locked","witness-lost","witness-recreated","witness-wrong-object",
                     "external-broker","external-broker-handoff","launch-fence-lost-after-new",
                     "fence-directory-before-new","joint-fence-journal-erasure",
-                    "same-user-full-state-rollback-after-new"})
+                    "same-user-full-state-rollback-after-new",
+                    "out-of-band-new-with-old-selected"})
                 {
                     try{var result=await Scenario(name,a);results.Add(result);Console.WriteLine("GF_PHASE1_RECOVERY_CASE "+JsonSerializer.Serialize(result));}
                     catch(Exception e)
@@ -687,7 +765,7 @@ internal static class Phase1RecoveryTests
                     }
                 }
                 var report=new{schema="gf-real-process-crash-recovery-lab/1",tests=results,failed,
-                    expected_cases=20,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
+                    expected_cases=21,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
                     real_power_loss_tested=false,supervisor_loss_recovery_proven=false,
                     new_effects_quiescence_proven=false,production_tuf_authority=false};
                 File.WriteAllText(a[1],JsonSerializer.Serialize(report));

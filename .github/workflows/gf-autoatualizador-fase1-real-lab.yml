@@ -96,10 +96,19 @@ jobs:
           & $exes[0].FullName --real-suite $report $fixtures $anchor $root $pythonExe $script $old $new
           if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_REAL_CRASH_CASE_FAILED' }
           $r=Get-Content $report -Raw | ConvertFrom-Json
-          if ($r.failed -ne 0 -or $r.expected_cases -ne 20 -or $r.tests.Count -ne 20 -or
+          if ($r.failed -ne 0 -or $r.expected_cases -ne 21 -or $r.tests.Count -ne 21 -or
               @($r.tests | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
               @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 0 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 20 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 21 -or
+              @($r.tests | Where-Object {
+                $_.test -eq 'out-of-band-new-with-old-selected' -and
+                $_.classification -eq 'PASS_CONTAINMENT' -and
+                $_.out_of_band_new_execution_observed -and
+                $_.out_of_band_no_launch_claim_rejected -and
+                $_.outcome -eq 'UnknownBlocked' -and
+                $_.replay -eq 'UnknownBlocked' -and
+                $_.block_reason -eq 'REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY' -and
+                !$_.unsafe_recovery_after_real_new }).Count -ne 1 -or
               @($r.tests | Where-Object {
                 $_.unsafe_recovery_after_real_new -or
                 $_.outcome -in @('OldRecoveredNoReady','OldReobservedNoReady') }).Count -ne 0 -or
@@ -162,7 +171,9 @@ jobs:
           }
           @(
             '## Fase 1 - interrupcao real de processos, sem READY'
-            '* 20 PASS_CONTAINMENT; 0 PASS_RECOVERY_LAB_ONLY: nao recuperar automaticamente sem autoridade de no-launch'
+            '* 21 PASS_CONTAINMENT; 0 PASS_RECOVERY_LAB_ONLY: nao recuperar automaticamente sem autoridade de no-launch'
+            '* NOVO teste de escopo: GF NEW real executa FORA do coordenador e Jobs C#, seletor permanece OLD/1 sem fence; reconciliacao UNKNOWN/BLOCKED'
+            '* Isso refuta uma garantia global de no-launch, sem autorizar relancamento de OLD ou uma politica de execucao na maquina'
             '* Contraexemplo historico REPRODUZIDO no run 41071494214: NEW real executou, state rollback OLD/1, reconciliacao OldRecoveredNoReady antes de assert legado'
             '* Nesta rodada o mesmo rollback e agora UnknownBlocked por REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY'
             '* Cenários historicos recover-before/after agora validam recusa; NAO executam corte de recuperacao'
