@@ -133,7 +133,7 @@ internal static class Phase1RecoveryTests
             "selector-fork" or "journal-torn" or "witness-lost" or
             "witness-recreated" or "witness-wrong-object" or "external-broker" or
             "external-broker-handoff" or "launch-fence-lost-after-new" or
-            "selected" or "fence-directory-before-new" or "joint-fence-journal-erasure";
+            "selected" or "selector-locked" or "fence-directory-before-new" or "joint-fence-journal-erasure";
         bool crashRecovery=name.StartsWith("recover-",StringComparison.Ordinal);
         string ownerCut=name switch
         {
@@ -438,7 +438,9 @@ internal static class Phase1RecoveryTests
                     name=="witness-wrong-object" ? recovery : owner,src,s.Lab)=="UnknownBlocked","REAL_LOCKED_SELECTOR_ACCEPTED");
                     Require(Reason(src) is "WIN32_32" or "WIN32_33","REAL_WRONG_LOCK_BLOCK_REASON");
                 }
-                Require(Selection(src)==("old",1),"REAL_LOCKED_SELECTOR_BLINDLY_REPLACED");
+                Require(Selection(src)==("old",1) &&
+                    File.Exists(L18Coordinator.RecoveryBlocked(src)),
+                    "REAL_LOCKED_SELECTOR_MUST_PERSIST_BLOCKER");
             }
             if(crashRecovery)
             {
@@ -467,6 +469,7 @@ internal static class Phase1RecoveryTests
                     "selected" or "joint-fence-journal-erasure"=>
                         "REAL_NEW_SELECTED_NO_INDEPENDENT_NO_LAUNCH_PROOF",
                     "fence-directory-before-new"=>"REAL_NEW_FENCE_NOT_REGULAR_FILE",
+                    "selector-locked"=>"REAL_UNREADABLE_HISTORY_BLOCKED",
                     _=>"REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED"
                 }),"REAL_WRONG_BLOCK_CAUSE:"+reason);
             if(name=="journal-torn")

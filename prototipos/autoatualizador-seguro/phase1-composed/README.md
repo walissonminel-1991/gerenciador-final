@@ -187,3 +187,15 @@ contexto, diario e pacotes sob mesmo usuario ou adversario
 privilegiado. Nao constituem prova de power-loss, TOCTOU, READY,
 ausencia de brokers ou quiescencia de I/O. Fase 1 ABERTA,
 G1–G8 BLOCKED 0/8.
+
+**Ajuste de classificacao apos CI intermediaria:** no caso
+`selector-locked` agora ocorrido ainda em `Intent`, o leitor
+nao consegue abrir o seletor e escreve `RecoveryBlocked`
+(fail-closed). Liberar a trava de leitura depois NAO elimina
+esse registro, nem permite restaurar OLD automaticamente.
+O caso passou a exigir `UnknownBlocked` com
+`REAL_UNREADABLE_HISTORY_BLOCKED` e marcador preservado.
+A CI da primeira tentativa foi failure por assert legado;
+nao foi sucesso de recuperacao. Assim sao esperadas
+**3 recuperacoes limitadas e 16 contencoes** na matriz de 19,
+sem relaxar a maquina de estados ou remover evidencias.

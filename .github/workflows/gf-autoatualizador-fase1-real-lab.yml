@@ -98,8 +98,11 @@ jobs:
           $r=Get-Content $report -Raw | ConvertFrom-Json
           if ($r.failed -ne 0 -or $r.expected_cases -ne 19 -or $r.tests.Count -ne 19 -or
               @($r.tests | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 4 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 15 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 3 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 16 -or
+              @($r.tests | Where-Object {
+                $_.test -eq 'selector-locked' -and $_.outcome -eq 'UnknownBlocked' -and
+                $_.block_reason -eq 'REAL_UNREADABLE_HISTORY_BLOCKED' }).Count -ne 1 -or
               @($r.tests | Where-Object {
                 $_.test -eq 'selected' -and $_.outcome -eq 'UnknownBlocked' -and
                 $_.block_reason -eq 'REAL_NEW_SELECTED_NO_INDEPENDENT_NO_LAUNCH_PROOF' }).Count -ne 1 -or
@@ -144,8 +147,8 @@ jobs:
           }
           @(
             '## Fase 1 - interrupcao real de processos, sem READY'
-            '* 4 recuperacoes limitadas com selecao OLD preservada, sem promover READY'
-            '* 15 contencoes: NEW selecionada sem fence nao permite rollback sem testemunha independente'
+            '* 3 recuperacoes limitadas com OLD selecionada e sem evidencia ambigua de efeitos'
+            '* 16 contencoes: seletor ilegivel persiste bloqueio, e NEW sem prova nao volta a OLD'
             '* Erro File.Exists em entrada-diretorio nao e aceito como ausencia autentica'
             '* Fence e tail do journal removidos juntos: UNKNOWN/BLOCKED, sem inferir pre-lancamento'
             '* Jornal L18 com launch observado bloqueia restauracao mesmo sem fence fisico'
