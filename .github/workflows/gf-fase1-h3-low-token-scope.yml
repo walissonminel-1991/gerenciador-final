@@ -1,0 +1,58 @@
+name: GF Fase 1 - H3 fronteira local de token reduzido inerte
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/h3-token-scope/**'
+      - '.github/workflows/gf-fase1-h3-low-token-scope.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-fase1-h3-token-scope
+  cancel-in-progress: false
+jobs:
+  h3-inert-token-probe:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - name: Checkout sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python fixado
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Provar e delimitar fronteira MIC sem executar GF
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script='prototipos/autoatualizador-seguro/h3-token-scope/low_integrity_effect_probe.py'
+          $line=(python $script | Select-Object -Last 1)
+          if ($LASTEXITCODE -ne 0 -or !$line -or !$line.StartsWith('GF_PHASE1_H3_LOW_TOKEN_REPORT ')) {
+            throw 'GF_PHASE1_H3_LOW_TOKEN_TEST_NOT_PROVEN'
+          }
+          $r=($line.Substring('GF_PHASE1_H3_LOW_TOKEN_REPORT '.Length) | ConvertFrom-Json)
+          if ($r.schema -ne 'gf-phase1-h3-low-token-effects/1' -or
+              $r.status -ne 'PARTIAL_LOCAL_EFFECT_BOUNDARY_PROVEN' -or
+              $r.scope -ne 'DISPOSABLE_WINDOWS_INERT_FILE_AND_RESTRICTED_CHILD_ONLY' -or
+              !$r.restricted_token_created -or !$r.low_integrity_sid_verified_in_child -or
+              !$r.same_restricted_token_without_il_reduction_wrote_target -or
+              !$r.low_integrity_child_read_target -or !$r.low_integrity_write_denied_by_os -or
+              !$r.protected_target_unchanged_after_denied_write -or
+              !$r.unrestricted_or_higher_integrity_alternative_still_possible -or
+              $r.same_user_external_launch_blocked -or $r.provider_broker_effects_bounded -or
+              $r.h1_proven -or $r.h2_proven -or $r.h3_global_proven -or
+              $r.auto_recovery_allowed -or $r.operational_ready -or
+              $r.windows_policy_changed -or $r.acl_changed -or
+              $r.real_gf_executed -or $r.service_or_installer_executed) {
+            throw 'GF_PHASE1_H3_LOW_TOKEN_FALSE_GLOBAL_AUTHORITY'
+          }
+          Write-Host $line
+          @(
+            '## Fase 1: experimento inerte de token reduzido, nao H3 global'
+            '* Mesma origem de token, filho controle escreve em fixture; filho LOW SID 4096 le mas nao escreve'
+            '* Outro filho controle volta a escrever: isolamento local nao impede lancamento externo'
+            '* Nenhuma API de GF, MSI, WUA, MSIX, servico, ACL, politica ou TPM operada'
+            '* READY=false, H1/H2/H3 nao demonstradas, zero recuperacoes'
+          ) | Add-Content $env:GITHUB_STEP_SUMMARY
