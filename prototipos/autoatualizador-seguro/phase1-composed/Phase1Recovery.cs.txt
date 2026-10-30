@@ -165,6 +165,18 @@ internal static partial class L18Coordinator
         using(var lease=L16Boundary.Exclusive(src))BeginCore(src,lab,bootstrap,c.ManifestSha);
         WriteRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"old",1);
         if(cut=="after-intent")await RealCut(src,cut);
+        if(cut=="normal")
+        {
+            // The normal experiment uses the SAME retained context, NTFS pins,
+            // L18 journal and Job Object as restarted-process reconciliation.
+            // Fence OLD before observation: a crash may leave effects unknown.
+            DurableRealFile(OldLaunchFence(src),
+                System.Text.Encoding.UTF8.GetBytes("OLD-MAY-HAVE-EFFECTS\n"));
+            await RunRealObserver(src,c,"--recovery-observe");
+            await job.RequireOnlyCurrentProcess();
+            pins.Recheck();VerifyRealManifest(src,c);
+            Append(src,lab,Exited,"real-old-functional-normal-lab-only",c.ManifestSha);
+        }
         Append(src,lab,Switching,"real-new-selection-intent",c.ManifestSha);
         WriteRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"new",2);
         if(cut=="after-select")await RealCut(src,cut);
@@ -175,6 +187,19 @@ internal static partial class L18Coordinator
         Append(src,lab,Launched,"real-new-effects-fenced-before-create",c.ManifestSha);
         string selected=SelectedRealPath(src,c,out var slot,out _);
         Require(slot=="new","REAL_OWNER_NOT_NEW");
+        if(cut=="normal")
+        {
+            // This is NOT a safe post-NEW rollback: a successful health probe
+            // cannot establish that external/brokered effects have quiesced.
+            // Leave the launch fence and NEW selector intact for the SAME
+            // reconciler to return UnknownBlocked in a separate process.
+            await RunRealObserver(src,c,"--recovery-observe");
+            await job.RequireOnlyCurrentProcess();
+            pins.Recheck();VerifyRealManifest(src,c);
+            Append(src,lab,Exited,"real-new-functional-normal-lab-only",c.ManifestSha);
+            RememberUnknown(src,lab,"real-new-effects-not-independently-bounded");
+            return;
+        }
         if(cut=="after-new-exit")
         {
             await RunRealObserver(src,c,"--recovery-observe");

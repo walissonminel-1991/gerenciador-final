@@ -188,10 +188,14 @@ jobs:
           & $exes[0].FullName --real-suite $report $fixtures $anchor $root $pythonExe $script $old $new
           if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_REAL_CRASH_CASE_FAILED' }
           $r=Get-Content $report -Raw | ConvertFrom-Json
-          if ($r.failed -ne 0 -or $r.expected_cases -ne 11 -or $r.tests.Count -ne 11 -or
+          if ($r.failed -ne 0 -or $r.expected_cases -ne 12 -or $r.tests.Count -ne 12 -or
               @($r.tests | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
               @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 5 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 6 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 7 -or
+              @($r.tests | Where-Object { $_.test -eq 'normal' -and
+                $_.normal_owner_completed_without_crash -and
+                $_.outcome -eq 'UnknownBlocked' -and
+                $_.block_reason -eq 'REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED' }).Count -ne 1 -or
               @($r.tests | Where-Object { !$_.old_and_canary_preserved -or !$_.reconciler_new_process -or
                                          !$_.manifest_and_object_identities_rechecked -or $_.operational_ready }).Count -ne 0 -or
               $r.operational_ready -or $r.phase1_complete -or $r.operational_gates_closed -ne 0 -or
@@ -202,7 +206,8 @@ jobs:
           @(
             '## Fase 1 - interrupcao real de processos, sem READY'
             '* 5 casos de recuperacao limitada: OLD real reiniciada, filtro exercitado e saida graciosa'
-            '* 6 casos de contencao: nenhuma troca cega para OLD e nenhuma promocao de NEW'
+            '* 7 casos de contencao: inclui ciclo normal OLD/NEW com fence persistente e sem rollback inseguro'
+            '* O caminho normal e a recuperacao usam os mesmos contexto, pins, Job, seletor e fences'
             '* Reconciliacao idempotente em processos C# novos, diario L18 e seletor unico'
             '* Descendente tardio sobrevive ao coordenador; escritas em OLD/canario recusadas por handles NTFS'
             '* Grupo de processos vazio nao prova ausencia de efeitos: fence NEW permanece bloqueante'

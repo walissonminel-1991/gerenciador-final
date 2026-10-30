@@ -125,12 +125,13 @@ internal static class Phase1RecoveryTests
         using var pins=new RealLabPins(src,c); // retained through owner death and reconciliation
         using var owner=LabProcessJob.Create(c.OwnerJob);
         using var recovery=LabProcessJob.Create(c.RecoveryJob);
-        bool blocked=name is "new-live-descendant" or "new-exited" or "launch-fence" or
+        bool blocked=name is "normal" or "new-live-descendant" or "new-exited" or "launch-fence" or
             "selector-fork" or "journal-torn" or "witness-lost";
         bool crashRecovery=name.StartsWith("recover-",StringComparison.Ordinal);
         string ownerCut=name switch
         {
             "intent"=>"after-intent",
+            "normal"=>"normal",
             "new-live-descendant"=>"during-new",
             "new-exited"=>"after-new-exit",
             "launch-fence"=>"after-launch-fence",
@@ -138,9 +139,36 @@ internal static class Phase1RecoveryTests
         };
         try
         {
-            await CutOwner(owner,src,s.Lab,ownerCut);
+            if(name=="normal")
+            {
+                // Normal owner exits without an injected crash. The same
+                // durable recovery context must be usable by a NEW process.
+                using var live=owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,"normal");
+                await live.Wait();
+                Require(live.ExitCode==0,"REAL_NORMAL_OWNER_FAILED:"+ReadError(src));
+            }
+            else await CutOwner(owner,src,s.Lab,ownerCut);
             Require(Selection(src)==(name=="intent"?("old",1):("new",2)),"REAL_CUT_SELECTION_WRONG");
             History(src,c);
+            if(name=="normal")
+            {
+                foreach(string slot in new[]{"old","new"})
+                {
+                    string observationPath=Path.Combine(src,"real-observed-"+slot+".fixture.json");
+                    using var observation=JsonDocument.Parse(File.ReadAllBytes(observationPath));
+                    var o=observation.RootElement;
+                    Require(o.GetProperty("created").GetBoolean() &&
+                        o.GetProperty("terminated").GetBoolean() &&
+                        o.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean() &&
+                        !o.GetProperty("forced_cleanup_required").GetBoolean() &&
+                        o.GetProperty("readonly_inventory_search_health")
+                            .GetProperty("minimum_readonly_health_contract_observed").GetBoolean(),
+                        "REAL_NORMAL_"+slot+"_FUNCTIONAL_OBSERVATION_MISSING");
+                }
+                Require(File.Exists(L18Coordinator.NewLaunchFence(src)) &&
+                    File.Exists(Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt")),
+                    "REAL_NORMAL_BYPASSED_COMMON_FENCES");
+            }
             bool lateWriterDenied=false,leaseRefused=false;
             if(name=="new-live-descendant")
             {
@@ -251,7 +279,8 @@ internal static class Phase1RecoveryTests
             s.Preserved();
             Require(recovery.Active==0,"REAL_RECOVERY_SURVIVORS_REMAIN");
             return new{test=name,status="passed",classification=blocked?"PASS_CONTAINMENT":"PASS_RECOVERY_LAB_ONLY",
-                interrupted_owner=true,reconciler_new_process=true,old_and_canary_preserved=true,
+                interrupted_owner=name!="normal",normal_owner_completed_without_crash=name=="normal",
+                reconciler_new_process=true,old_and_canary_preserved=true,
                 manifest_and_object_identities_rechecked=true,late_writer_denied=lateWriterDenied,
                 concurrent_coordinator_refused=leaseRefused,recovery_process_also_interrupted=crashRecovery,
                 outcome,replay,block_reason=reason,operational_ready=false};
@@ -307,7 +336,7 @@ internal static class Phase1RecoveryTests
             var results=new List<object>();int failed=0;
             try
             {
-                foreach(string name in new[]{"intent","selected","recover-before-replace","recover-after-replace",
+                foreach(string name in new[]{"normal","intent","selected","recover-before-replace","recover-after-replace",
                     "launch-fence","new-live-descendant","new-exited","selector-fork","journal-torn","selector-locked","witness-lost"})
                 {
                     try{var result=await Scenario(name,a);results.Add(result);Console.WriteLine("GF_PHASE1_RECOVERY_CASE "+JsonSerializer.Serialize(result));}
@@ -319,7 +348,7 @@ internal static class Phase1RecoveryTests
                     }
                 }
                 var report=new{schema="gf-real-process-crash-recovery-lab/1",tests=results,failed,
-                    expected_cases=11,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
+                    expected_cases=12,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
                     real_power_loss_tested=false,supervisor_loss_recovery_proven=false,
                     new_effects_quiescence_proven=false,production_tuf_authority=false};
                 File.WriteAllText(a[1],JsonSerializer.Serialize(report));
