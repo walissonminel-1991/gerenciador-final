@@ -64,3 +64,46 @@ O ensaio não cria autoridade, não escreve em registro/Windows Update, não exe
 **CI nova:** [41089673054](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41089673054), associada ao commit `749ef3206eff67ea6118ef405aa6f34cb30ef0e8`. **Status ainda pendente de conferência no momento desta primeira redação.** O checkpoint precisa distinguir resultado do teste de alias do 22/22 já validado anteriormente.
 
 Fase 1 **ABERTA**, `READY=false`, G1–G8 `BLOCKED 0/8`. Sem WORK, merge, release, deploy, alteração da `main`, PR #65 Draft, BETA .66, infraestrutura, credenciais, telemetria ou PCs.
+
+---
+
+## 6. Resultado definitivo Windows: negativo de proveniência + regressão intacta
+
+[**CI 41089673054**](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41089673054) **`completed/success`**, job `124179955658`, commit técnico `749ef3206eff67ea6118ef405aa6f34cb30ef0e8`. Conferência do JSON emitido no log do job, além do status do GitHub Actions.
+
+### Teste novo, **não** incluído na contagem 22/22
+
+O log registrou uma execução `GF_PHASE1_EFFECT_ATTRIBUTION_CASE` com:
+- `status=NEGATIVE_PROVENANCE_COUNTEREXAMPLE`;
+- `different_writer_processes_executed=true`, `distinct_test_transaction_origins=true`;
+- `hardlinks_share_ntfs_file_identity=true`;
+- `same_projected_evidence_for_distinct_origins=true`;
+- `same_user_claim_misattributed_other_origin=true`;
+- `real_msi_or_provider_executed=false`, `new_windows_maintenance_executed=false`, `new_gf_execution=false`;
+- `external_authority_established=false`, `quiescence_proven=false`, `automatic_recovery_permitted=false`, `operational_ready=false`.
+
+**Significado restrito:** duas execuções distintas, ambas pertencentes ao mesmo usuário de laboratório, produziram a **mesma projeção de evidência** (`two_relative_paths`, `file_id`, `link_count`, `length`, `sha256`, `untrusted_claimed_transaction`). O teste conhece a origem de cada invocação por controle próprio, informação **não presente na projeção** consultada como suposta prova de autoria. A documentação e o ensaio refutam **essa projeção como certificado causal suficiente**, não todos os mecanismos de instrumentação do Windows. Metadados temporais, eventos ETW de kernel, rastreamento completo de processos e identidades de atividade de fornecedores não foram comparados.
+
+### Suíte anterior revalidada separadamente
+
+O log `GF_PHASE1_RECOVERY_CASE` contém **22/22 `PASS_CONTAINMENT`**; `GF_PHASE1_RECOVERY_REPORT` confirma `failed=0`, `expected_cases=22`, `operational_ready=false`, `phase1_complete=false`, `operational_gates_closed=0`, `new_effects_quiescence_proven=false`. Nenhuma recuperação automática ocorreu.
+
+- `external-broker-handoff` — `UnknownBlocked`, replay `UnknownBlocked`, `REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED`;
+- `same-user-full-state-rollback-after-new` — `UnknownBlocked`, replay `UnknownBlocked`, `REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY`;
+- `out-of-band-new-with-old-selected` — mesmo bloqueio de ausência de autoridade independente;
+- `provider-late-spawn-after-reconcile` — `UnknownBlocked`, replay `UnknownBlocked`, `REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED`.
+
+A aprovação desta CI significa que o novo teste **não regrediu** as contenções; não transforma o contraexemplo NTFS em prova de um broker real.
+
+## 7. Critérios mínimos de uma futura evidência de quiescência (não satisfeitos)
+
+Atribuição segura e quiescência são problemas diferentes e **cumulativos**. Antes de sequer discutir retorno automático a OLD, um contrato candidato teria de demonstrar:
+
+1. **Vínculo causal autorizado:** uma entidade confiável para o tipo de operação autentica instalação/transação/artefatos e o escopo exato de todos os efeitos que ela assume. `GUID`, path, File ID ou hash emitidos por processo same-user não bastam.
+2. **Cobertura e exclusividade:** cada executor relevante (código, serviço, broker, custom action, atividade externa) deve estar incluído no contrato; desvios por `CreateProcess` alternativo devem ser proibidos por enforcement ou declarados fora do escopo, impedindo alegações globais.
+3. **Estado final do provedor no mesmo domínio de confiança:** evidência não editável/retrocedível pelo usuário atesta que não há trabalho enfileirado, processos tardios nem execução futura autorizada para aquela operação; `ExitCode=0`, Job vazio e ausência momentânea de escritores não constituem tal prova.
+4. **Recuperação após crash e reinício:** cortes de `MAY_LAUNCH`, perda de helper/supervisor, reboot, atualização de estado não atômica e rollback same-user exigem interpretação fail-closed, com provas duráveis independentes.
+5. **Limites de transação e compartilhamento:** efeitos sobre objetos de múltiplas transações (inclusive hard links, componentes compartilhados, bancos de dados/registro e serviços) não podem ser indevidamente atribuídos a uma única transação só pelo endereço do efeito. Um contrato precisa lidar com concorrência e ações de terceiros.
+6. **Provas negativas reproduzíveis:** um evento ausente de ETW ou recibo não pode ser tratado como ausência de execução; o ETW documenta perda possível de eventos. Provas de quiescência exigem um mecanismo fechado e verificável, ou devem permanecer `UnknownBlocked`.
+
+**Nenhuma dessas propriedades foi homologada no autoatualizador.** A Fase 1 permanece **ABERTA**; `READY=false`; G1–G8 `BLOCKED 0/8`. O desenvolvimento funcional desta rodada restringiu-se a teste de atribuição negativo e workflow Windows; não houve implementação operacional, MSI real, helper privilegiado, merge, release, deploy ou alterações nos PCs.
