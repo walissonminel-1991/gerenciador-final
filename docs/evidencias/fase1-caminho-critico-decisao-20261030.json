@@ -1,0 +1,42 @@
+{
+  "schema": "gf-fase1-contract-decision/1",
+  "date": "2026-10-30",
+  "repo": "walissonminel-1991/gerenciador-final",
+  "branch": "experimento-g5-ipc-chat-alto-20261029",
+  "entry_head": "5d1847614fd200027ef642a27ead25ba7e9e81fc",
+  "decision": "NO_GO_FOR_POSITIVE_SUCCESS_UNDER_UNCHANGED_CONTRACT",
+  "candidate": "PORTABLE_B+A_ONE_WAY_WITH_FAIL_CLOSED/0",
+  "candidate_status": "NOT_ELIGIBLE_WITHOUT_EXPLICIT_CONTRACT_REVISION",
+  "preferred": "B_CONDITIONAL",
+  "alternative": "A_REQUIRES_AUTHORITY_AND_NEW_PERMISSION",
+  "evidence": {
+    "l18": {
+      "technical_sha": "c4c79d61c31a2af83f732983a0bc7a40cdf3c2c6",
+      "run": 41110783790,
+      "job": 124252340866,
+      "status": "success",
+      "containment": 27,
+      "recoveries": 0
+    },
+    "low": {
+      "technical_sha": "4499fef1d8e44085406d7e3ffecadaade5f545b0",
+      "run": 41114014768,
+      "job": 124263420669,
+      "status": "success",
+      "scope": "INERT_FILE_ONLY"
+    }
+  },
+  "implementation_this_round": false,
+  "new_ci_this_round": false,
+  "phase1_complete": false,
+  "ready": false,
+  "gates_closed": 0,
+  "gates_total": 8,
+  "h1": false,
+  "h2": false,
+  "h3_global": false,
+  "automatic_recovery_allowed": false,
+  "blocker": "Independent durable history + mandatory dispatch + effect quiescence not present, plus no positive application READY evidence",
+  "owner_decision": "Expressly approve B: no automatic recovery after ambiguous crash/reboot and bounded experimental READY contract (to be designed/tested), preserving OLD/NEW/UnknownBlocked; otherwise retain existing contract and approve exploration of new privileged authority.",
+  "next_action": "MAINTAINER_DECISION"
+}
