@@ -824,3 +824,103 @@ nunca reutilizando prova para os estados posteriores ao fence NEW.
 **Status preservado:** Fase 1 ABERTA, READY=false,
 `G1–G8 BLOCKED (0/8)`; `main`, PR #65 Draft, BETA .66,
 infraestrutura, credenciais e PCs pessoais intocados.
+
+---
+
+### CHAT ALTO — prova dinamica de efeitos locais no startup e limite de recuperacao fria (30/10/2026)
+
+**Base:** `93419bf6bae79817dfa88956d62e7ff82c34cd50`.
+**Commit tecnico inicial:** `d35f379f9847a9b73bed396dc936acd650f1df02`.
+**Correcao:** `0c0b02e2acb087ec18ef81f1273636a6ea95f5c7`.
+**CI final isolada:**
+[41060137516](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41060137516),
+job `124077509441`, **SUCCESS** no commit corrigido. Nenhum dos 16
+cenarios de recuperacao da CI anterior foi repetido. A ultima CI
+transacional continua sendo `41051684979` (SUCCESS, 16/16).
+
+**Instrumentacao implementada SOMENTE no laboratorio:**
+- Script `prototipos/autoatualizador-seguro/phase1-startup-effects/startup_effects_probe.py`
+  testa o executavel real `GerenciadorFinal.exe --tray` da
+  `GfBetaProfile=local` em runner Windows descartavel, construindo
+  somente uma copia do produto em `RUNNER_TEMP`.
+- Workflow separado `.github/workflows/gf-fase1-startup-effects-windows.yml`
+  possui filtros de paths independentes, `contents: read`, checkout
+  sem credenciais persistentes, SDK/Python fixados, nao publica
+  artefatos e nao executa os lotes de recuperacao.
+- Precondicoes fail-closed: CI hospedada Windows,
+  executavel publicado no `RUNNER_TEMP` e pasta
+  `%LOCALAPPDATA%/GerenciadorFinal` inexistente antes do teste.
+  Nenhum perfil com estado GF previo e modificado ou apagado.
+- O script cria uma sentinela separada dentro do espaco GF
+  descartavel e um `RevisaoReinicio.dat` propositalmente invalido,
+  ambos com hashes conhecidos. Executa GF com a mesma interface
+  e observador Win32 preexistente, valida busca real com nonce,
+  encerramento gracioso, diagnostico e historico.
+  Nao coleta nem imprime nomes de programas, caminhos do perfil,
+  stdout de processos externos ou dados pessoais.
+
+**Falha intermediaria identificada e corrigida:** a CI
+[41059920231](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41059920231)
+falhou em `ModuleNotFoundError` antes de iniciar o GF.
+Foi acrescentado somente o path da pasta `phase1-composed` para
+importar o observador existente. Nenhum assert de efeitos, isolamento,
+seguranca ou READY foi relaxado.
+
+**Evidencia do log `GF_PHASE1_STARTUP_EFFECTS_REPORT`:**
+`runner_disposable=true`; `beta_profile=local`;
+`diagnostic_local_write_observed=true`;
+`reliability_history_local_write_observed=true`;
+`unrelated_sentinel_preserved=true`;
+`invalid_pending_postboot_sentinel_preserved=true`;
+`functional_search_minimum_observed=true`;
+`valid_postboot_pending_reconciliation_tested=false`;
+`all_writes_enumerated=false`;
+`external_brokers_quiescent_proven=false`;
+`cold_recovery_proven=false`; `operational_ready=false`;
+`phase1_complete=false`; `gates_closed=0`.
+
+**Interpretacao S01/S02/S05:**
+- S01 e S02 deixaram de ser apenas deducoes estaticas: a CI observou
+  a criacao real de arquivos locais de diagnostico e historico GF,
+  com assinaturas esperadas, sem declarar que esse e todo o I/O.
+- Para S05, apenas uma pendencia **invalida** foi testada como
+  sentinela negativa: GF a rejeitou e preservou sem alterar bytes.
+  O fluxo verdadeiro de conclusao de revisao pos-reboot com arquivo
+  valido **NAO FOI TESTADO**; nao e seguro declarar S05 fechado.
+- A integridade da sentinela foi verificada por hash antes/depois.
+  O probe nao monitora globalmente Registro, disco, servicos,
+  WMI/COM, ETW, USN, I/O de kernel ou brokers externos.
+- `--tray` nao e modo read-only integral; o filtro pesquisado
+  e funcionalmente somente leitura, enquanto o startup grava
+  estado local previsto.
+
+**Analise de recuperacao fria PRE-LANCAMENTO, somente leitura:**
+`Phase1Recovery.cs.txt:158-221` seleciona OLD, registra
+Switching, seleciona NEW geracao 2, persiste `NewLaunchFence`
+antes de tentar executar NEW. Uma interrupcao antes do fence
+pode ocorrer apos a selecao NEW. A ausencia do fence, sozinha,
+nao e autenticacao de que nenhum processo conseguiu executar
+durante falha, concorrencia, interferencia same-user ou perda de
+energia. Em `ReconcileReal`, a recuperacao exige
+`LabProcessJob.FromInherited(c.OwnerJob, ownerWitness)`,
+Jobs na contagem esperada, metadados TUF do teste revalidados,
+pins NTFS, diario e ausencia dos fences de OLD/NEW.
+Sem o supervisor original, o handle kernel herdado inexiste:
+o fluxo **falha fechado**. Nao houve teste de power-loss,
+reboot, supervisor morto mais reinicio do sistema nem prova
+de exclusividade duravel para recuperar OLD autonomamente.
+
+**Decisao de engenharia:** nao promover READY, nao introduzir
+testemunha fake baseada em arquivo local, PID, Job vazio ou
+retorno zero. Nao liberar rollback pos-NEW. O proximo incremento
+de valor sera estudar o **protocolo duravel PRE-CreateProcess**
+e estados apos crash sem testemunha viva, procurando um
+invariante criptografico/persistente e um observador de
+exclusividade independente, sob adversario same-user e falha
+de energia. Se nao for possivel, continuar bloqueando.
+
+**Fronteiras:** nenhuma alteracao no executavel/codigo fonte
+distribuido, `main`, PR #65 Draft, BETA .66, Worker/D1,
+credenciais, telemetria ou computadores pessoais. Sem WORK,
+merge, release, deploy. Fase 1 ABERTA; READY=false;
+G1–G8 BLOCKED (0/8).
