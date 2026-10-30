@@ -1,6 +1,8 @@
 # GERENCIADOR FINAL — Fase 1 — Auditoria estática: compatibilidade do health-check OLD/NEW com token LOW
 
-**Data:** 2026-10-30. **Classificação:** `NO_GO_DROP_IN_LOW_HEALTHCHECK_CURRENT_CONTRACT`. Decisão restrita: **não substituir diretamente o lançamento normal do GF pelo launcher LOW inerte**, sem redimensionar contrato/desktop e sem ensaios específicos. **Não** é prova de que um GF adaptado não possa executar sob LOW.
+**Data:** 2026-10-30. **Classificação:** `NO_GO_DROP_IN_LOW_HEALTHCHECK_CURRENT_CONTRACT`. Decisão restrita: **não substituir diretamente o lançamento normal do GF pelo launcher LOW inerte**, sem provar compatibilidade das escritas do startup, desktop herdado e observação funcional. **Não** é prova de que um GF adaptado não possa executar sob LOW.
+
+**RETIFICAÇÃO TÉCNICA (30/10/2026):** a versão anterior afirmava erroneamente que `CreateProcessAsUserW` com `STARTUPINFO.lpDesktop=NULL` cria por padrão num desktop não interativo. A documentação da Microsoft confirma que **NULL herda a window station e o desktop do processo pai**. Uma string vazia tem semântica diferente. O desktop efetivo e os direitos do token LOW **não foram medidos**. Esta retificação remove a incompatibilidade de desktop presumida, mas **não altera o NO-GO restrito** por escritas do startup e compatibilidade funcional não demonstrada. Fonte: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw (parâmetro `lpStartupInfo`).
 
 ## 1. Identidade, integridade e método
 
@@ -38,7 +40,7 @@
 ## 4. Fronteira UI e isolamento: incompatibilidade específica do protótipo LOW atual
 
 - `h3-token-scope/low_integrity_effect_probe.py` usa `CreateRestrictedToken`, `SetTokenInformation(TokenIntegrityLevel)` para `S-1-16-4096`, e `CreateProcessAsUserW` com `STARTUPINFOW.lpDesktop` **não configurado**. Prova concreta: seu filho Python lê e falha ao gravar fixture, sem qualquer UI WinForms.
-- Segundo Microsoft, `CreateProcessAsUser` sem desktop explícito cria por padrão em **window station/desktop não interativo**. O observador atual, por sua vez, depende de enumerar HWND do processo na sessão/desktop acessível e mandar mensagens Win32. Logo, **não se pode simplesmente substituir o `Popen` atual pelo launcher inerte** e esperar que o health-check de HWND/pesquisa/WM_CLOSE continue equivalente. Isso é incompatibilidade do contrato **sem adaptação**, não prova de que o GF nunca criaria uma janela em outra configuração.
+- **Correção do contrato da API:** em `CreateProcessAsUserW`, `STARTUPINFO.lpDesktop=NULL` **herda window station e desktop do processo pai**, em vez de forçar desktop não interativo. Um runner com desktop não interativo transmitirá esse contexto; com desktop interativo o resultado depende das permissões do filho. O observador atual depende de HWND acessível, mensagens Win32, pesquisa e WM_CLOSE; **o ensaio inerte LOW não comprovou essa compatibilidade nem a excluiu**. Não inferir uma falha obrigatória de desktop apenas a partir de `lpDesktop=NULL`.
 - UIPI impede mensagens de processos de integridade inferior para superior. Em geral mensagens de um observador MEDIUM para um destino LOW são permitidas conforme a API, **mas isso não resolve** o isolamento de desktop, acesso ao processo, os direitos de janela ou a segurança de mensagens.
 - A Microsoft alerta que aplicações com token restrito devem usar desktop diferente do desktop padrão para reduzir ataques por mensagens contra aplicações irrestritas. A viabilidade e proteção de uma UI LOW interativa **não** foram demonstradas e não autorizam alterações em DACL/desktop/política nesta missão.
 
@@ -54,7 +56,7 @@ Fontes oficiais:
 
 **Contraexemplos futuros úteis, ainda NÃO executados:**
 - **C-HC01:** em ambiente Windows descartável e com perfil de arquivo já existente, um GF real lançado LOW não consegue completar `DiagnosticTrace.Start` e retorna antes de criar HWND, mesmo que o processo tenha sido criado. Confirma que falta uma arquitetura de observação sem escrita, não justifica suprimir diagnósticos sem outro mecanismo.
-- **C-HC02:** GF LOW com I/O local viável cria HWND em desktop diferente/inacessível e o observador não vê nonce/WM_CLOSE. Confirma desajuste entre desktops; não interpretar ausência de HWND como ausência de processo/efeitos.
+- **C-HC02 (corrigido):** medir o desktop e a window station efetivamente herdados pelo filho LOW e a acessibilidade ao observador. A ausência de HWND pode decorrer de falha anterior de diagnóstico, acesso a desktop, WinForms ou inventário; não prova automaticamente que `lpDesktop=NULL` escolheu um desktop diferente, nem ausência de efeitos.
 - **C-HC03:** interação UI funciona, mas `PackageManager`, registro ou fontes de inventário falham/retornam parcial; não aceitar `apps=0` como health e não executar maintenance para compensar.
 - **C-HC04:** uma execução GF LOW consegue observar a UI mas delega trabalho a broker/serviço externo, que mantém capacidade de modificar objetos MEDIUM após seu encerramento. Restrição LOW **não** garante que o broker herde o token nem H3 global.
 - **C-HC05:** um segundo processo NEW iniciado por U fora de LOW continua possível; H2 permanece sem despacho obrigatório.
@@ -62,3 +64,23 @@ Fontes oficiais:
 **Próximo avanço racional:** projetar primeiro um contrato distinto e falsificável de `DATA_ONLY_VERIFY` (já existente) e, **se vier autorização**, especificar um *health oracle* somente leitura e sem UI/efeitos obrigatórios **antes de qualquer inicialização gravadora**. Qualquer modo novo do GF seria alteração do produto e está **fora** da autorização atual. Não simular READY nem usar um recibo do processo LOW como autoridade. Não criar desktop, ACL, política, helper, serviço ou executar GF sob token LOW nesta rodada.
 
 **Estado inalterado:** Fase 1 **ABERTA**, `READY=false`, G1–G8 `BLOCKED 0/8`; H1, H2 e H3 global **não demonstradas**; `UnknownBlocked` e `REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY` continuam obrigatórios. Sem nova CI, WORK, merge, release, deploy, promoção, modificação do GF operacional, TPM, backend, telemetria ou PCs pessoais.
+
+## 6. Critérios falsificáveis de C-HC01 — desenho, NÃO execução
+
+**Status: `DESIGN_ONLY_NEEDS_SEPARATE_EXPLICIT_RUN_AUTHORIZATION`.** Sem execução de GF real sob LOW, criação de desktop/ACL/política Windows, nova CI ou alteração do produto.
+
+**P1 — Runner e perfil isolados:** um futuro teste deverá usar Windows descartável, GF BETA LOCAL sem endpoint remoto e diretório de perfil inicialmente sem arquivos do GF; abortar se existir estado prévio, sem apagar dados. Não presumir que alterar a variável `LOCALAPPDATA` redirecione `Environment.GetFolderPath(SpecialFolder.LocalApplicationData)` no .NET.
+
+**P2 — Confirmar execução, não apenas falha:** exigir prova de que o processo real iniciou e seu token tem SID LOW `S-1-16-4096`. Erro ao criar processo, token não verificável ou falta de capacidade de observar o filho = `INCONCLUSIVE`, nunca contenção aprovada.
+
+**P3 — Especificar as DUAS rotas diagnósticas:** `DiagnosticTrace.Start()` tenta `%LOCALAPPDATA%/GerenciadorFinal/Diagnosticos` e, se falhar, `Path.GetTempPath()`. Um C-HC01 positivo precisaria associar saída `2` e falha de ambas as gravações à restrição; o caminho `%TEMP%` e suas permissões reais não foram testados. Um único erro de escrita não demonstra que o GF parou por MIC.
+
+**P4 — Discriminar as causas:** medir saída de `Program.Main` antes de HWND, capacidade de criar janela no desktop herdado, leitura de inventário COM/WinRT e fluxo nonce → resultado vazio → limpar → `WM_CLOSE`. Resultados distintos: `DIAGNOSTIC_WRITE_DENIED`, `DESKTOP_UNAVAILABLE`, `INVENTORY_PARTIAL`, `FUNCTIONAL_OBSERVATION_PASSED`, ou `INCONCLUSIVE`. O último resultado funcional não significa READY.
+
+**P5 — Controle independente e sentinelas:** comparar com execução normal sob o mesmo contrato em perfil descartável sem contaminação entre casos; preservar sentinelas, nunca executar manutenção. O run normal de startup `41060137516` é referência relevante, mas não substitui controle com condições equivalentes. Não relaxar critérios de health para obter sucesso.
+
+**P6 — Segurança de UI:** o Windows recomenda desktop separado para aplicações com token restrito por riscos de mensagens; portanto um futuro experimento de GUI LOW exige análise de desktop/ACL/acesso e autorização nova. A API com `lpDesktop=NULL` herda contexto, mas **herdar não significa que o isolamento de UI seja seguro**.
+
+**Regra de gasto:** não repetir a CI de arquivo LOW; não iniciar GF LOW real apenas para contar um novo caso. Autorizar execução exclusivamente depois de provar que a instrumentação discrimina os cinco resultados acima e que o ensaio não altera o produto, o usuário ou as políticas Windows.
+
+**Limite preservado:** mesmo que C-HC01 consiga um health-check funcional, H1/H2/H3 globais continuam não demonstrados, `UnknownBlocked` obrigatório, Fase 1 ABERTA, READY=false, G1–G8 BLOCKED 0/8.
