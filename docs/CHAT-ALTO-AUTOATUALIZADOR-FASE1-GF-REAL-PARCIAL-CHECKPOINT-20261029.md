@@ -924,3 +924,92 @@ distribuido, `main`, PR #65 Draft, BETA .66, Worker/D1,
 credenciais, telemetria ou computadores pessoais. Sem WORK,
 merge, release, deploy. Fase 1 ABERTA; READY=false;
 G1–G8 BLOCKED (0/8).
+
+---
+
+### CHAT ALTO — confronto entre diario L18 e fence ausente apos lancamento de NEW (30/10/2026)
+
+**Base congelada:** `5b5b74ed2e638c0391c56303282c19e7f40a5966`,
+branch autorizada `experimento-g5-ipc-chat-alto-20261029`.
+**Commit tecnico:** [`fd1b5c3ffc73db00f8cadb364003b74cf862d6ad`](https://github.com/walissonminel-1991/gerenciador-final/commit/fd1b5c3ffc73db00f8cadb364003b74cf862d6ad).
+**CI Windows descartavel:** [41061006148](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41061006148),
+job `124080428273`, status `completed/success`, SHA tecnico
+`fd1b5c3ffc73db00f8cadb364003b74cf862d6ad`.
+
+**Defeito/contraexemplo:** o reconciliador tratava
+`!File.Exists(NewLaunchFence(src))` como condicao suficiente para
+prosseguir na recuperacao pre-lancamento, apos revalidar o contexto e
+a testemunha volátil. Se o fence fosse apagado isoladamente depois
+de NEW executar, o diario L18 ainda poderia conter o evento
+`real-new-effects-fenced-before-create`. Um unico arquivo ausente
+nao deve prevalecer sobre evidencia contraria de lancamento.
+
+**Correcao funcional experimental:** em
+`phase1-composed/Phase1Recovery.cs.txt`, `ReconcileReal` verifica
+tambem que o diario validado NAO possui detalhe
+`real-new-effects-fenced-before-create` antes de autorizar
+qualquer reconciliacao pre-lancamento. Em contradicao, a tentativa
+retorna `UnknownBlocked` pela razao
+`REAL_LAUNCHED_NEW_JOURNAL_FENCE_MISSING`. A verificacao anterior
+de fence fisicamente presente continua. Nao foi removida qualquer
+barreira. Sem promocoes de READY.
+
+**Ensaio de refutacao:** novo caso
+`launch-fence-lost-after-new` interrompe o owner depois da
+observacao funcional de NEW real no Windows descartavel, confirma
+a existencia do evento de lancamento no diario, exclui APENAS o
+fence de fixture criado para o teste e reinicia o reconciliador
+C# em novo processo com a testemunha original mantida.
+Verifica `UnknownBlocked` e causa especifica, seletor NEW
+geracao 2 preservado, canario/OLD intactos e replay bloqueado.
+Nenhum outro arquivo e apagado e nenhum programa distribuido
+e alterado.
+
+**Log auditado:** `GF_PHASE1_RECOVERY_REPORT`:
+`expected_cases=17`, `failed=0`,
+`operational_ready=false`, `phase1_complete=false`,
+`operational_gates_closed=0`,
+`supervisor_loss_recovery_proven=false`,
+`real_power_loss_tested=false`.
+5 cenarios `PASS_RECOVERY_LAB_ONLY` anteriores a NEW;
+12 cenarios `PASS_CONTAINMENT`, incluindo
+`launch-fence-lost-after-new`:
+`missing_launch_fence_with_new_journal_observed=true`,
+`outcome=UnknownBlocked`,
+`block_reason=REAL_LAUNCHED_NEW_JOURNAL_FENCE_MISSING`.
+As recuperacoes pre-NEW existentes nao sofreram regressao.
+
+**Limites:** este controle e uma verificacao de consistencia
+NEGATIVA entre duas fontes locais e requer diario L18 intacto.
+Ele nao e prova independente contra adulteracao conjunta de
+journal, fence ou seletor por um processo com autoridade suficiente,
+nem contra I/O tardio e brokers externos. Nao prova a ordenacao
+fisica de escrita de arquivo/diretorio ou rollback seguro apos
+queda de energia. O `FileStream.Flush(true)` local e as
+verificacoes de leitura nao substituem uma homologacao de
+power-loss ou garantia duravel de CreateProcess. A ausencia
+simultanea do fence E do registro nao basta para concluir que
+NEW nunca executou. Sem o handle original de Job, `FromInherited`
+continua bloqueando qualquer recuperacao fria.
+
+**Proxima investigacao de maior valor:** distinguir
+`File.Exists` negativo legitimo de falhas de consulta/permissao,
+testar remocao/tampering simultaneo de journal e fence apenas
+em fixtures, e estudar um estado pre-CreateProcess que seja
+conservador e verificavel mesmo diante de falha do processo
+supervisor, sem fabricar uma testemunha same-user. Se nao houver
+prova independente de exclusividade/durabilidade, preservar
+`UNKNOWN/BLOCKED`. Nao gastar CI repetindo casos sem novo
+contraexemplo concreto.
+
+**Preservacao:** arquivos alterados apenas
+`phase1-composed/Phase1Recovery.cs.txt`,
+`phase1-composed/Phase1RecoveryTests.cs.txt`,
+`phase1-composed/README.md`, workflow experimental, e
+este checkpoint. `main` mantida em
+`410d65e23546976db456337c71e4705f10217d36`,
+PR #65 aberta em Draft, BETA .66, infraestrutura,
+segredos, telemetria e PCs pessoais intocados.
+Sem WORK, merge, release, deploy ou integracao ao GF
+distribuido. **Fase 1 ABERTA, READY=false,
+G1–G8 BLOCKED (0/8).**
