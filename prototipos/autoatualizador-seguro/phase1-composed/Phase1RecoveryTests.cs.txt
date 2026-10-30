@@ -134,6 +134,7 @@ internal static class Phase1RecoveryTests
             "witness-recreated" or "witness-wrong-object" or "external-broker" or
             "external-broker-handoff" or "launch-fence-lost-after-new" or
             "selected" or "selector-locked" or "fence-directory-before-new" or "joint-fence-journal-erasure";
+        bool counterexample=name=="same-user-full-state-rollback-after-new";
         bool crashRecovery=name.StartsWith("recover-",StringComparison.Ordinal);
         string ownerCut=name switch
         {
@@ -145,6 +146,7 @@ internal static class Phase1RecoveryTests
             "new-live-descendant"=>"during-new",
             "new-exited" or "external-broker" or "external-broker-handoff" or
                 "launch-fence-lost-after-new" or "joint-fence-journal-erasure"=>"after-new-exit",
+            "same-user-full-state-rollback-after-new"=>"after-new-exit-state-rollback",
             "launch-fence"=>"after-launch-fence",
             _=>"after-select"
         };
@@ -343,6 +345,45 @@ internal static class Phase1RecoveryTests
                     }
                 }
             }
+            if(counterexample)
+            {
+                // SAME-USER ATTACK: NEW has actually executed and exited.
+                // Re-present a byte-for-byte valid prefix of the launch
+                // history, and the pre-NEW OLD/1 selector together.
+                // This is *not* a safe recovery case, regardless of outcome.
+                string snapshot=Path.Combine(src,"real-pre-new-snapshot.fixture");
+                var saved=Directory.GetFiles(snapshot,"l18-phase-*.fixture.json")
+                    .Order(StringComparer.Ordinal).ToArray();
+                Require(saved.Length>=5,"REAL_ROLLBACK_PRE_NEW_SNAPSHOT_INCOMPLETE");
+                using(var observed=JsonDocument.Parse(File.ReadAllBytes(
+                    Path.Combine(src,"real-observed-new.fixture.json"))))
+                {
+                    Require(observed.RootElement.GetProperty("created").GetBoolean() &&
+                        observed.RootElement.GetProperty("terminated").GetBoolean() &&
+                        observed.RootElement.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean(),
+                        "REAL_ROLLBACK_REQUIRES_ACTUAL_GF_NEW_EXECUTION");
+                }
+                Require(Selection(src)==("new",2) &&
+                    File.Exists(L18Coordinator.NewLaunchFence(src)) &&
+                    Directory.GetFiles(src,"l18-phase-*.fixture.json").Length>saved.Length,
+                    "REAL_ROLLBACK_NEW_LAUNCH_NOT_PERSISTED");
+                // Only the disposable test supervisor performs this tamper.
+                // Packages, signed manifests, installation IDs and Job handles
+                // remain unchanged. Remove the mutable local tail and restore
+                // both pieces of the earlier valid no-launch snapshot.
+                foreach(string live in Directory.GetFiles(src,"l18-phase-*.fixture.json"))
+                    File.Delete(live);
+                foreach(string previous in saved)
+                    File.Copy(previous,Path.Combine(src,Path.GetFileName(previous)));
+                File.Copy(Path.Combine(snapshot,"selector-before-new.bin"),
+                    L18Coordinator.RealSelector(src),overwrite:true);
+                File.Delete(L18Coordinator.NewLaunchFence(src));
+                Require(Selection(src)==("old",1) &&
+                    !File.Exists(L18Coordinator.NewLaunchFence(src)) &&
+                    Directory.GetFiles(src,"l18-phase-*.fixture.json").Length==saved.Length,
+                    "REAL_ROLLBACK_HISTORY_NOT_RESTORED");
+                History(src,c);
+            }
             if(name=="launch-fence-lost-after-new")
             {
                 // Negative test only: the real GF NEW has already run and
@@ -457,6 +498,14 @@ internal static class Phase1RecoveryTests
                     name=="witness-wrong-object" ? recovery : owner,src,s.Lab);
             Require(outcome==(blocked?"UnknownBlocked":"OldRecoveredNoReady"),
                 "REAL_UNEXPECTED_RECONCILIATION:"+name+":"+outcome+":"+ReadError(src));
+            // If this passes, the safety property is REFUTED: the same-user
+            // rollback caused the reconciler to classify a real post-NEW
+            // execution as a benign pre-launch OLD recovery. Do not count it
+            // as successful secure recovery; report the defect separately.
+            if(counterexample)
+                Require(Selection(src)==("old",1) &&
+                    File.Exists(Path.Combine(src,"real-observed-new.fixture.json")),
+                    "REAL_ROLLBACK_COUNTEREXAMPLE_NOT_REPRODUCED");
             string reason=blocked?Reason(src):"none";
             if(blocked)
                 Require(reason==(name switch
@@ -501,7 +550,10 @@ internal static class Phase1RecoveryTests
             using var finalPins=new RealLabPins(src,c);
             s.Preserved();
             Require(recovery.Active==0,"REAL_RECOVERY_SURVIVORS_REMAIN");
-            return new{test=name,status="passed",classification=blocked?"PASS_CONTAINMENT":"PASS_RECOVERY_LAB_ONLY",
+            return new{test=name,status="passed",
+                classification=counterexample?"COUNTEREXAMPLE_REPRODUCED_LAB_ONLY":
+                    blocked?"PASS_CONTAINMENT":"PASS_RECOVERY_LAB_ONLY",
+                unsafe_recovery_after_real_new=counterexample && outcome=="OldRecoveredNoReady",
                 interrupted_owner=name!="normal",normal_owner_completed_without_crash=name=="normal",
                 reconciler_new_process=true,old_and_canary_preserved=true,
                 manifest_and_object_identities_rechecked=true,late_writer_denied=lateWriterDenied,
@@ -616,7 +668,8 @@ internal static class Phase1RecoveryTests
                     "launch-fence","new-live-descendant","new-exited","selector-fork","journal-torn",
                     "selector-locked","witness-lost","witness-recreated","witness-wrong-object",
                     "external-broker","external-broker-handoff","launch-fence-lost-after-new",
-                    "fence-directory-before-new","joint-fence-journal-erasure"})
+                    "fence-directory-before-new","joint-fence-journal-erasure",
+                    "same-user-full-state-rollback-after-new"})
                 {
                     try{var result=await Scenario(name,a);results.Add(result);Console.WriteLine("GF_PHASE1_RECOVERY_CASE "+JsonSerializer.Serialize(result));}
                     catch(Exception e)
@@ -627,7 +680,7 @@ internal static class Phase1RecoveryTests
                     }
                 }
                 var report=new{schema="gf-real-process-crash-recovery-lab/1",tests=results,failed,
-                    expected_cases=19,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
+                    expected_cases=20,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
                     real_power_loss_tested=false,supervisor_loss_recovery_proven=false,
                     new_effects_quiescence_proven=false,production_tuf_authority=false};
                 File.WriteAllText(a[1],JsonSerializer.Serialize(report));
