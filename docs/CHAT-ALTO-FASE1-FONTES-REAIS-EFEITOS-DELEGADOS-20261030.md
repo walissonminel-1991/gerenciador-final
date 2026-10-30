@@ -68,3 +68,26 @@ Nenhuma alteração do produto, main, PR #65 Draft, BETA .66, Cloudflare/D1, cre
 - [Windows Installer: Synchronous and Asynchronous Custom Actions](https://learn.microsoft.com/en-us/windows/win32/msi/synchronous-and-asynchronous-custom-actions).
 - [PackageManager.AddPackageAsync](https://learn.microsoft.com/en-us/uwp/api/windows.management.deployment.packagemanager.addpackageasync).
 - [Windows Update Agent — Interfaces](https://learn.microsoft.com/en-us/windows/win32/wua_sdk/interfaces).
+
+---
+
+## 7. Resultado final verificado no runner Windows
+
+[**GitHub Actions 41082816324**](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41082816324): **`completed/success`**; job `124156095885`; commit técnico `ce9567ad40a30716398a26f8fc681db647cec7a5`. Resultado obtido do log bruto do job, não inferido do status geral da branch.
+
+A linha **efetivamente produzida pela execução** `GF_PHASE1_DELEGATED_EFFECT_SURFACE_REPORT` contém:
+- `schema=gf-phase1-delegated-effect-surfaces/1`;
+- `source_routes`: **9**, com **7 `UNBOUNDED`**, 1 `READ_ONLY_SCOPE`, 1 `OUT_OF_SCOPE_REMOTE`;
+- `fail_closed_barrier_present=true`, `out_of_scope_brokers_may_exist=true`;
+- `quiescence_proven=false`, `complete_call_graph_audited=false`, `operational_ready=false`, `production_authority=false`;
+- `new_windows_operations_executed=false`, `job_empty_proves_all_effects_complete=false`, `provider_exit_proves_all_effects_complete=false`.
+
+O relatório `GF_PHASE1_RECOVERY_REPORT` conferido no mesmo log contém **21/21 `PASS_CONTAINMENT`**, `failed=0`, **0 recuperações**, `operational_ready=false`, `phase1_complete=false`, `operational_gates_closed=0`, `new_effects_quiescence_proven=false`. Entre os casos revalidados:
+- `external-broker`: `UnknownBlocked`, replay `UnknownBlocked`, motivo `REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED`, `external_broker_effect_observed=true`;
+- `external-broker-handoff`: mesmo bloqueio e replay, `external_handoff_effect_observed=true`;
+- `same-user-full-state-rollback-after-new`: `UnknownBlocked`, replay `UnknownBlocked`, motivo `REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY`;
+- `out-of-band-new-with-old-selected`: `UnknownBlocked`, replay `UnknownBlocked`, `out_of_band_new_execution_observed=true`, motivo `REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY`.
+
+**Classificação:** CI verde prova que o verificador de âncoras selecionadas e a suíte conservadora continuam aprovados no laboratório Windows. Não prova descoberta exaustiva de todo subprocesso ou serviço, nem que MSI/WUA/MSIX/restore foram executados, nem quiescência física/durável ou READY. A política de recuperação automática permanece **bloqueada**.
+
+**Preservação:** `main`, PR #65 Draft, BETA .66, produto GF, infraestrutura, credenciais e PCs pessoais intactos. Sem merge/release/deploy/WORK. Fase 1 **ABERTA**, READY=false, G1–G8 BLOCKED 0/8.
