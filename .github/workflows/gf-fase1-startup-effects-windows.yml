@@ -1,0 +1,58 @@
+name: GF Fase 1 - efeitos locais do startup (laboratorio isolado)
+
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/phase1-startup-effects/**'
+      - '.github/workflows/gf-fase1-startup-effects-windows.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gf-phase1-startup-effects-experimental
+  cancel-in-progress: false
+
+jobs:
+  startup-effects:
+    runs-on: windows-2022
+    timeout-minutes: 18
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      GfBetaEndpoint: ''
+    steps:
+      - name: Checkout sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK .NET 10 fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Python fixado
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Compilar somente BETA LOCAL real, sem publicar artefatos
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if ((dotnet --version).Trim() -ne '10.0.402') { throw 'GF_STARTUP_SDK_MISMATCH' }
+          $target=Join-Path $env:RUNNER_TEMP 'gf-phase1-startup-betafiles'
+          if (Test-Path $target) { throw 'GF_STARTUP_TARGET_NOT_FRESH' }
+          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -p:GfBetaProfile=local -p:Version=5.13.11.66 -o $target --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'GF_STARTUP_LOCAL_BETA_PUBLISH_FAILED' }
+          if (!(Test-Path (Join-Path $target 'GerenciadorFinal.exe'))) { throw 'GF_STARTUP_EXECUTABLE_MISSING' }
+      - name: Validar writes locais e sentinelas sem executar manutencao
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=Join-Path $env:RUNNER_TEMP 'gf-phase1-startup-betafiles\GerenciadorFinal.exe'
+          python prototipos/autoatualizador-seguro/phase1-startup-effects/startup_effects_probe.py $exe
+          if ($LASTEXITCODE -ne 0) { throw 'GF_STARTUP_EFFECTS_PROBE_FAILED' }
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '* Fase 1 startup: writes em diagnostico/historico, pendencia invalida e sentinela preservadas'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '* S05 com marcador valido NAO testado; demais efeitos externos NAO atestados'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '* READY=false, Fase 1 aberta; G1-G8 BLOCKED 0/8; nenhum release/deploy'
