@@ -172,7 +172,11 @@ def child(mode,path,expected_il):
         with path.open("r+b") as f:f.write(b"X")
         return 83 # Security FAILURE: low-integrity child actually wrote.
     except OSError as ex:
-        return 0 if getattr(ex,"winerror",None)==5 else 84
+        # Python CRT file-open may map ERROR_ACCESS_DENIED to EACCES
+        # without preserving winerror. Only explicit permission denial counts.
+        denied = getattr(ex,"winerror",None)==5 or (
+            isinstance(ex,PermissionError) and ex.errno==13)
+        return 0 if denied else 84
 
 def main():
     require(os.name=="nt" and os.environ.get("GITHUB_ACTIONS")=="true",
