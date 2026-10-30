@@ -173,12 +173,14 @@ def observe_read_only_ui_controls(main_hwnd: int, expected_pid: int):
 
 
 def search_snapshot_proves(rows, actual_text, query, want_empty, edit_hwnd,
-                           search_parent, empty_label):
+                           search_parent, empty_label, inventory_list_hwnd=None):
     """A1/A2: fail closed on missing/contradictory item-level evidence.
 
-    A WinForms custom owner-drawn row may have no child HWND, in which case
-    the result is UNPROVEN. The static-window case is a *necessary*, not
-    globally authenticated, item-level witness; no product change is made.
+    In the current owner-drawn GF list, no independently identified item
+    container exposing individual rows exists. The live caller therefore
+    passes list_hwnd=None and must return UNPROVEN for positive presence.
+    A test fixture can supply a known list HWND to refute the predicate.
+    Unrelated STATIC labels cannot be mistaken for inventory rows.
     """
     if actual_text != query:
         return False
@@ -186,9 +188,11 @@ def search_snapshot_proves(rows, actual_text, query, want_empty, edit_hwnd,
     if len(empty) != 1:
         return False
     direct = [r for r in rows
-              if r[1] == query and r[4] and r[0] != edit_hwnd
-              and r[2].upper().startswith("STATIC")
-              and r[3] != search_parent]
+              if inventory_list_hwnd is not None
+              and r[1] == query and r[4] and r[0] != edit_hwnd
+              and "STATIC" in r[2].upper()
+              and r[3] == inventory_list_hwnd
+              and inventory_list_hwnd != search_parent]
     # A text echo or a missing empty-state control is never item presence.
     return (bool(empty[0][4]) and not direct) if want_empty else (
         not empty[0][4] and len(direct) == 1)
@@ -316,7 +320,7 @@ def read_only_search_round_trip(main_hwnd: int, expected_pid: int, expected_inve
                 value = read_search()
                 if search_snapshot_proves(
                         current, value, query, want_empty, edit,
-                        label[3], empty_label):
+                        label[3], empty_label, inventory_list_hwnd=None):
                     return True
                 time.sleep(0.1)
             return False
