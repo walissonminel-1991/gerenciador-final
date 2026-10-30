@@ -49,6 +49,7 @@ internal static partial class L18Coordinator
             RedirectStandardOutput=true,RedirectStandardError=true,
             WorkingDirectory=Path.GetFullPath(repository)
         };
+        psi.ArgumentList.Add(Path.GetFullPath(script));
         foreach(string word in new[]{"--repository",repository,"--old",old,
             "--new",candidate,"--sandbox",sandbox,"--report",report})
             psi.ArgumentList.Add(word);
