@@ -1,0 +1,267 @@
+{
+  "schema": "gf-phase1-launch-contract-review/1",
+  "date": "2026-10-30",
+  "timezone": "America/Fortaleza",
+  "repository": "walissonminel-1991/gerenciador-final",
+  "write_branch": "experimento-g5-ipc-chat-alto-20261029",
+  "source_head": "78bbdedc4afdc4f544bb6084e8a3386f1e3bd190",
+  "source_tree": "b2a2928ea194de0ff040899960ea6beaa9a3ed96",
+  "last_validated_technical_commit": "749ef3206eff67ea6118ef405aa6f34cb30ef0e8",
+  "review_type": "source_review_and_existing_ci_reverification",
+  "validation": {
+    "source_blob_snapshots_verified": 7,
+    "new_windows_cases_executed": 0,
+    "new_ci_runs_requested": 0,
+    "product_executed_this_round": false,
+    "privileged_component_created": false,
+    "source_code_changed": false
+  },
+  "reviewed_sources": [
+    {
+      "path": "prototipos/autoatualizador-seguro/phase1-composed/Phase1Recovery.cs.txt",
+      "blob_sha": "b19b4b977d2e56dd08f38c9e507da3deaa3ccfad"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/phase1-composed/Phase1Bridge.cs.txt",
+      "blob_sha": "cd5db299ca6259853f280444f3244058a101af1a"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/phase1-composed/LabProcessJob.cs.txt",
+      "blob_sha": "03d2cfa32cc7dbc43298e4a7569c5feda442781b"
+    },
+    {
+      "path": "prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py",
+      "blob_sha": "88b66ceba71cf0931b9cba30f0717b686557c164"
+    },
+    {
+      "path": "Program.cs",
+      "blob_sha": "589a515c302b055a55bbac52c2792f24472c526b"
+    },
+    {
+      "path": "DiagnosticTrace.cs",
+      "blob_sha": "05544869a8e6e031a6a1afbff0616a6959a07a63"
+    },
+    {
+      "path": "LocalReliabilityHistory.cs",
+      "blob_sha": "2ded3c0717726d100d4c2affabbc0050223979c1"
+    }
+  ],
+  "findings": [
+    {
+      "id": "LC01",
+      "kind": "source_trace_not_new_runtime_test",
+      "claim": "O caminho normal do RealOwner executa OLD antes de selecionar NEW e de gravar NewLaunchFence; antes de NEW nao significa preparo sem execucao do produto.",
+      "references": [
+        {
+          "path": "prototipos/autoatualizador-seguro/phase1-composed/Phase1Recovery.cs.txt",
+          "lines": [
+            179,
+            194
+          ]
+        },
+        {
+          "path": "prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py",
+          "lines": [
+            435,
+            444
+          ]
+        },
+        {
+          "path": "prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py",
+          "lines": [
+            254,
+            279
+          ]
+        }
+      ],
+      "current_safety_regression": false
+    },
+    {
+      "id": "LC02",
+      "kind": "source_trace_not_new_runtime_test",
+      "claim": "Gates em MainForm, Shown ou startServices chegam depois de gravacoes locais; --tray controla apresentacao e nao cria uma quarentena de efeitos.",
+      "references": [
+        {
+          "path": "Program.cs",
+          "lines": [
+            18,
+            66
+          ]
+        },
+        {
+          "path": "Program.cs",
+          "lines": [
+            593,
+            593
+          ]
+        },
+        {
+          "path": "Program.cs",
+          "lines": [
+            712,
+            715
+          ]
+        },
+        {
+          "path": "Program.cs",
+          "lines": [
+            794,
+            818
+          ]
+        },
+        {
+          "path": "DiagnosticTrace.cs",
+          "lines": [
+            39,
+            56
+          ]
+        },
+        {
+          "path": "DiagnosticTrace.cs",
+          "lines": [
+            70,
+            94
+          ]
+        },
+        {
+          "path": "LocalReliabilityHistory.cs",
+          "lines": [
+            25,
+            42
+          ]
+        }
+      ],
+      "current_safety_regression": false
+    },
+    {
+      "id": "LC03",
+      "kind": "source_branch_review_not_sandbox_proof",
+      "claim": "--preflight-only e --recovery-verify possuem retornos separados do observed_process; podem orientar validacao de dados sem chamar GF, mas nao fornecem autoridade duravel ou isolamento geral de I/O.",
+      "references": [
+        {
+          "path": "prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py",
+          "lines": [
+            363,
+            387
+          ]
+        },
+        {
+          "path": "prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py",
+          "lines": [
+            394,
+            419
+          ]
+        }
+      ],
+      "current_safety_regression": false
+    }
+  ],
+  "existing_ci": {
+    "run_id": 41089673054,
+    "job_id": 124179955658,
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "749ef3206eff67ea6118ef405aa6f34cb30ef0e8",
+    "run_attempt": 1,
+    "expected_cases": 22,
+    "parsed_case_records": 22,
+    "failed": 0,
+    "pass_containment": 22,
+    "pass_recovery": 0,
+    "operational_ready": false,
+    "phase1_complete": false,
+    "operational_gates_closed": 0,
+    "selected_existing_results": [
+      {
+        "test": "normal",
+        "status": "passed",
+        "classification": "PASS_CONTAINMENT",
+        "outcome": "UnknownBlocked",
+        "replay": "UnknownBlocked",
+        "block_reason": "REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED"
+      },
+      {
+        "test": "intent",
+        "status": "passed",
+        "classification": "PASS_CONTAINMENT",
+        "outcome": "UnknownBlocked",
+        "replay": "UnknownBlocked",
+        "block_reason": "REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY"
+      },
+      {
+        "test": "same-user-full-state-rollback-after-new",
+        "status": "passed",
+        "classification": "PASS_CONTAINMENT",
+        "outcome": "UnknownBlocked",
+        "replay": "UnknownBlocked",
+        "block_reason": "REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY"
+      },
+      {
+        "test": "out-of-band-new-with-old-selected",
+        "status": "passed",
+        "classification": "PASS_CONTAINMENT",
+        "outcome": "UnknownBlocked",
+        "replay": "UnknownBlocked",
+        "block_reason": "REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY"
+      },
+      {
+        "test": "provider-late-spawn-after-reconcile",
+        "status": "passed",
+        "classification": "PASS_CONTAINMENT",
+        "outcome": "UnknownBlocked",
+        "replay": "UnknownBlocked",
+        "block_reason": "REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED"
+      }
+    ],
+    "new_evidence_of_recovery": false
+  },
+  "proposed_contract": {
+    "name": "L18-GF-LAUNCH/0",
+    "status": "DOCUMENTED_NOT_IMPLEMENTED_NOT_OPERATIONAL",
+    "scope": "Lancamentos do proprio coordenador, com dominio de efeitos explicitado; nao ausencia global de execucao de NEW.",
+    "prepare": "Validacao de dados; nenhum launch de OLD/NEW como health check e nenhum carregamento de codigo candidato.",
+    "durable_witness": "Requer protecao anti-rollback e vinculo installation/tx/manifest/generation/phase; ausente no desenho atual.",
+    "first_effect_boundary": "MAY_LAUNCH protegido antes da primeira execucao possivel de codigo do pacote, nao em MainForm/Shown.",
+    "after_possible_launch": "UnknownBlocked ate prova independente de efeitos exauridos; recibo/exit/Job vazio insuficientes.",
+    "unmanaged_launch": "Nao pode ser ignorado enquanto puder atingir o mesmo dominio de efeitos."
+  },
+  "hypotheses": {
+    "H1": "NOT_ESTABLISHED_LOCAL_STATE_REPLAYABLE",
+    "H2": "NOT_ESTABLISHED_EXISTING_OUT_OF_BAND_COUNTEREXAMPLE",
+    "H3": "NOT_ESTABLISHED_EXISTING_DELEGATED_EFFECTS_COUNTEREXAMPLES"
+  },
+  "decision": "NO_GO_FOR_AUTO_OLD_RECOVERY_CURRENT_ENVELOPE",
+  "runtime_barrier_preserved": "REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY",
+  "phase1_open": true,
+  "READY": false,
+  "gates": {
+    "blocked": 8,
+    "closed": 0
+  },
+  "preserved": {
+    "pr65": {
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "head_sha": "ee73a850f6d7454ed9e81ce0f0dd35c5b8b88fcc"
+    },
+    "tuf": true,
+    "BA": true,
+    "NTFS": true,
+    "L18": true,
+    "main": true,
+    "beta66": true,
+    "infrastructure": true,
+    "credentials": true,
+    "telemetry": true,
+    "personal_pcs": true
+  },
+  "scope_limits": [
+    "Nenhum teorema de impossibilidade de todo updater portatil ou de todo desenho sem servico.",
+    "Portabilidade nao foi redefinida como ausencia de AppData.",
+    "Revisao de fonte nao comprova ausencia global de I/O, quiescencia, reboot ou power-loss.",
+    "Nenhuma nova autoridade de SO foi implementada ou ensaiada.",
+    "Nenhum provedor MSI/MSIX/WUA foi executado nesta rodada."
+  ],
+  "checkpoint": "docs/CHAT-ALTO-FASE1-CONTRATO-LANCAMENTO-L18-LIMITES-20261030.md"
+}
