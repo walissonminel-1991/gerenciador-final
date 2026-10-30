@@ -235,7 +235,7 @@ internal static class Phase1RecoveryTests
                 // Forged same-user quiescence assertion: the reconciler must
                 // ignore it even while an uncontained writer is still alive.
                 File.WriteAllText(Path.Combine(src,"real-false-quiescence.fixture.json"),
-                    "{\\"ready\\":true,\\"all_effects_complete\\":true}");
+                    """{ "ready":true, "all_effects_complete":true }""");
                 Require(await Reopen(recovery,owner,src,s.Lab)=="UnknownBlocked" &&
                     Reason(src)=="REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED" &&
                     Selection(src)==("new",2),
