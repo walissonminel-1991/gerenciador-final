@@ -35,3 +35,17 @@ Nenhum código GF distribuído, `main`, PR #65 Draft, BETA .66, infraestrutura, 
 1. Conferir conclusão da CI 41073513779, examinar `GF_PHASE1_RECOVERY_REPORT` completo e os 20 casos, especialmente `same-user-full-state-rollback-after-new`.
 2. Se falha, diagnosticar assert e corrigir somente o que for sustentado pela evidência, sem aceitar `OldRecoveredNoReady`.
 3. Se sucesso, registrar `run/job/commit` e manter Fase 1 aberta; não promover READY ou G1–G8.
+
+---
+
+## Validação definitiva Windows — resultado posterior à seção de preparação
+
+**CI [41073513779](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41073513779): completed/success.** Job **124123487779**, commit **`f250be5a32a9706551051da1b0b082f57b383d15`**. O resultado foi conferido pelo endpoint do GitHub Actions e pelo log bruto `GF_PHASE1_RECOVERY_CASE`/`GF_PHASE1_RECOVERY_REPORT` do job.
+
+- **20 de 20 casos `status=passed`, todos `PASS_CONTAINMENT`; zero `PASS_RECOVERY_LAB_ONLY`; `failed=0`.** Isso comprova apenas a contenção implementada em laboratório descartável, não recuperação transacional.
+- `same-user-full-state-rollback-after-new`: `outcome=UnknownBlocked`, `replay=UnknownBlocked`, `full_state_rollback_blocked=true`, `unsafe_recovery_after_real_new=false`, motivo `REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY`. A expectativa do workflow rejeita qualquer `OldRecoveredNoReady` e exige o 20º caso de bloqueio.
+- `intent`, `recover-before-replace` e `recover-after-replace`: todos `PASS_CONTAINMENT`, `UnknownBlocked`, motivo `REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY`. Os dois nomes `recover-*` **não injetam mais crash de recuperação** e não devem ser contados como recuperação testada.
+- `selected` e `joint-fence-journal-erasure`: `UnknownBlocked` por `REAL_NEW_SELECTED_NO_INDEPENDENT_NO_LAUNCH_PROOF`; as contenções anteriores mantidas.
+- Relatório final declara expressamente `operational_ready=false`, `phase1_complete=false`, `operational_gates_closed=0`, `real_power_loss_tested=false`, `new_effects_quiescence_proven=false`. O resultado **não** prova cold recovery, perda de supervisor, READY, TUF de produção nem quiescência de brokers.
+
+**Decisão final desta rodada:** a contraprova de aceitação insegura está preservada na CI 41071494214 (FAILURE após o reconciliador aceitar `OldRecoveredNoReady`), e a correção fail-closed está validada na CI 41073513779 (SUCCESS, 20/20 contenções). Como ainda não existe autoridade de lançamento anti-rollback independente do mesmo usuário, **nenhuma recuperação automática é autorizada**. Fase 1 **ABERTA**, READY=false, G1–G8 **BLOCKED 0/8**.
