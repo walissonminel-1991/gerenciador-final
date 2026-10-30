@@ -455,7 +455,7 @@ def cleanup_trial_marker(source: Path):
     require(source.is_relative_to(root) and
             source.parent.name.startswith("gf-u2-") and
             (source / ".gf-u2-fixture").read_text(encoding="utf-8") ==
-            "GF-U2-INERT-STATE-TESTS-NO-PRODUCT\\n",
+            "GF-U2-INERT-STATE-TESTS-NO-PRODUCT\n",
             "TRIAL_CLEANUP_SOURCE_SCOPE")
     marker_path = trial_marker_path(source)
     if not marker_path.exists():
