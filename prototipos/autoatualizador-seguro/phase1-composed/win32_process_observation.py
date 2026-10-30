@@ -39,6 +39,12 @@ _is_window.restype = w.BOOL
 _is_visible = _u.IsWindowVisible
 _is_visible.argtypes = [w.HWND]
 _is_visible.restype = w.BOOL
+_is_enabled = _u.IsWindowEnabled
+_is_enabled.argtypes = [w.HWND]
+_is_enabled.restype = w.BOOL
+_enum_child = _u.EnumChildWindows
+_enum_child.argtypes = [w.HWND, WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM), w.LPARAM]
+_enum_child.restype = w.BOOL
 _open_proc = _k.OpenProcess
 _open_proc.argtypes = [w.DWORD, w.BOOL, w.DWORD]
 _open_proc.restype = w.HANDLE
@@ -110,6 +116,51 @@ def own_main_windows(pid: int):
     return results
 
 
+def observe_read_only_ui_controls(main_hwnd: int, expected_pid: int):
+    """Classify only non-sensitive known GF UI labels from the real process.
+
+    Never enumerate or report installed application names, click controls,
+    fill inputs, read arbitrary user text or use a local log as READY.
+    """
+    findings = {"header": False, "search_label": False,
+                "apps_summary_rendered": False,
+                "update_control_present": False,
+                "update_control_enabled": False,
+                "child_windows_owned": 0,
+                "functional_inventory_ui_observed": False}
+    callback_type = WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+
+    @callback_type
+    def inspect(hwnd, _):
+        owner = w.DWORD()
+        _pid_for(hwnd, ctypes.byref(owner))
+        if owner.value != expected_pid:
+            return True
+        findings["child_windows_owned"] += 1
+        title = ctypes.create_unicode_buffer(260)
+        _get_title(hwnd, title, len(title))
+        value = title.value.strip()
+        if value == "GERENCIADOR FINAL":
+            findings["header"] = True
+        if value == "Pesquisar:":
+            findings["search_label"] = True
+        if value.startswith("Apps: ") and any(c.isdigit() for c in value[6:]):
+            findings["apps_summary_rendered"] = True
+        if value == "Atualizar e verificar":
+            findings["update_control_present"] = True
+            findings["update_control_enabled"] = bool(_is_enabled(hwnd))
+        return True
+
+    _enum_child(main_hwnd, inspect, 0)
+    findings["functional_inventory_ui_observed"] = all((
+        findings["header"], findings["search_label"],
+        findings["apps_summary_rendered"],
+        findings["update_control_present"],
+        findings["update_control_enabled"],
+    ))
+    return findings
+
+
 def message_pump_ping(hwnd: int):
     if not _is_window(hwnd):
         return False
@@ -170,6 +221,11 @@ def observe_real_gf(proc, executable: Path, expected_sha: str,
         report["startup_settle_wait_seconds"] = 10
         report["main_form_message_loop_responded"] = (
             proc.poll() is None and message_pump_ping(hwnd))
+        if (report["main_form_message_loop_responded"] and
+                report["actual_image_path_matches"] and
+                report["image_on_disk_sha_matches_manifest"]):
+            report["read_only_ui_controls"] = observe_read_only_ui_controls(
+                hwnd, proc.pid)
         report["normal_close_attempts"] = 0
         # Only the verified child HWND receives WM_CLOSE, bounded twice to
         # handle the real GF's legitimate busy/async cancellation. The second

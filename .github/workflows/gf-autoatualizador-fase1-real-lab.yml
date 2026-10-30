@@ -101,6 +101,9 @@ jobs:
             "* OLD hwnd / mensagem / fechamento normal: $($r.old_process.main_form_hwnd_observed) / $($r.old_process.main_form_message_loop_responded) / $($r.old_process.graceful_exit_observed)"
             "* NEW hwnd / mensagem / fechamento normal: $($r.new_process.main_form_hwnd_observed) / $($r.new_process.main_form_message_loop_responded) / $($r.new_process.graceful_exit_observed)"
             "* Runner session: $($r.new_process.runner_session_id), desktop interativo: $($r.new_process.interactive_user_desktop_verified)"
+            "* OLD estado UI inventario read-only: $($r.old_process.read_only_ui_controls.functional_inventory_ui_observed)"
+            "* NEW estado UI inventario read-only: $($r.new_process.read_only_ui_controls.functional_inventory_ui_observed)"
+            '* Observacao UI read-only nao e READY operacional e nao autoriza NEW'
             '* READY real NAO demonstrado; OLD restaurada, hashes e canario intactos'
             '* FASE 1 PARCIAL; G1-G8 BLOCKED (0/8)'
             '* Nenhum upload de pacote, deploy ou integracao operacional'
