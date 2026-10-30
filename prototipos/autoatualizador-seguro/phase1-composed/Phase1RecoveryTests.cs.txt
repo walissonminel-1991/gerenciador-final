@@ -309,11 +309,13 @@ internal static class Phase1RecoveryTests
                 missingFixture?"positive-trial-negative":"positive-trial"))
             {
                 await run.Wait();
-                Require((run.ExitCode!=0)==missingFixture,
-                    "REAL_TRIAL_OWNER_EXIT_NOT_EXPECTED:"+ReadError(src));
-                if(missingFixture)
-                    Require(ReadError(src).Contains("REAL_OBSERVER_FAILED",StringComparison.Ordinal),
-                        "REAL_TRIAL_NEGATIVE_NOT_HEALTH_REJECTION");
+                // A1/A2: current owner-drawn DarkProgramList does not expose
+                // item-level Win32 children. Until positive UI evidence is
+                // obtainable without changing the product, BOTH real runs
+                // must fail closed on the same functional search predicate.
+                Require(run.ExitCode!=0 &&
+                    ReadError(src).Contains("TRIAL_EXPECTED_ITEM_NOT_OBSERVED",StringComparison.Ordinal),
+                    "REAL_TRIAL_ORACLE_DID_NOT_FAIL_CLOSED:"+ReadError(src));
             }
             Require(Selection(src)==("new",2) &&
                 File.Exists(L18Coordinator.NewLaunchFence(src)) &&
@@ -326,9 +328,8 @@ internal static class Phase1RecoveryTests
                 "REAL_TRIAL_HISTORY_OR_MANIFEST_FORK");
             bool accepted=records[^1].Phase=="new-observed" &&
                 records[^1].Detail=="real-new-experimental-trial-accepted-not-ready";
-            Require(accepted==!missingFixture &&
-                !records.Take(records.Length-1).Any(x=>x.Phase=="new-observed"),
-                "REAL_TRIAL_FALSE_COMMIT_OR_MISSING_COMMIT");
+            Require(!accepted && !records.Any(x=>x.Phase=="new-observed"),
+                "REAL_TRIAL_FALSE_EXPERIMENTAL_ACTIVATION");
             using(var doc=JsonDocument.Parse(File.ReadAllBytes(
                 Path.Combine(src,"real-observed-new.fixture.json"))))
             {
@@ -341,7 +342,9 @@ internal static class Phase1RecoveryTests
                     report.GetProperty("actual_image_path_matches").GetBoolean() &&
                     report.GetProperty("image_on_disk_sha_matches_manifest").GetBoolean() &&
                     health.GetProperty("minimum_readonly_health_contract_observed").GetBoolean() &&
-                    health.GetProperty("seeded_inventory_positive_observed").GetBoolean()==!missingFixture &&
+                    !health.GetProperty("seeded_inventory_positive_observed").GetBoolean() &&
+                    health.GetProperty("seeded_inventory_negative_control_observed").GetBoolean() &&
+                    report.GetProperty("inventory_item_level_witness_required").GetBoolean() &&
                     !report.GetProperty("ready_verified").GetBoolean() &&
                     !report.GetProperty("application_functional_health_verified").GetBoolean(),
                     "REAL_TRIAL_PROBE_EVIDENCE_CONTRADICTORY");
@@ -365,13 +368,13 @@ internal static class Phase1RecoveryTests
             pins.Recheck();s.Preserved();
             Require(owner.Active==0 && recovery.Active==0,"REAL_TRIAL_JOB_SURVIVOR");
             return new{test=missingFixture?"positive-trial-inventory-absent":"positive-trial-inventory",
-                status="passed",classification=missingFixture
-                    ?"PASS_CONTAINMENT":"PASS_EXPERIMENTAL_ACTIVATION",
+                status="passed",classification="PASS_CONTAINMENT",
                 outcome,replay,block_reason=reason,
                 l18_new_generation_two_selected=true,
                 real_old_and_new_functionally_observed=true,
                 registry_to_inventory_to_ui_probed=true,
-                seeded_registry_inventory_proved=!missingFixture,
+                seeded_registry_inventory_proved=false,
+                positive_ui_proof_pending=!missingFixture,
                 missing_inventory_rejected=missingFixture,
                 original_live_owner_positive_recorded=accepted,
                 old_and_new_bytes_preserved=true,old_and_canary_preserved=true,
@@ -379,6 +382,7 @@ internal static class Phase1RecoveryTests
                 external_launch_blocked=false,independent_recovery_authority=false,
                 h1_proven=false,h2_proven=false,h3_global_proven=false,
                 after_crash_success_proven=false,operational_ready=false,
+                unsafe_recovery_after_real_new=false,
                 automatic_recovery_authorized=false};
         }
         finally{await owner.Cleanup();await recovery.Cleanup();}
