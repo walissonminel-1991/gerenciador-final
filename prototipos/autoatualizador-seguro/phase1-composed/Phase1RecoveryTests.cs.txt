@@ -131,7 +131,8 @@ internal static class Phase1RecoveryTests
         using var recovery=LabProcessJob.Create(c.RecoveryJob);
         bool blocked=name is "normal" or "new-live-descendant" or "new-exited" or "launch-fence" or
             "selector-fork" or "journal-torn" or "witness-lost" or
-            "witness-recreated" or "witness-wrong-object" or "external-broker";
+            "witness-recreated" or "witness-wrong-object" or "external-broker" or
+            "external-broker-handoff";
         bool crashRecovery=name.StartsWith("recover-",StringComparison.Ordinal);
         string ownerCut=name switch
         {
@@ -140,7 +141,7 @@ internal static class Phase1RecoveryTests
             "witness-wrong-object"=>"after-intent",
             "normal"=>"normal",
             "new-live-descendant"=>"during-new",
-            "new-exited" or "external-broker"=>"after-new-exit",
+            "new-exited" or "external-broker" or "external-broker-handoff"=>"after-new-exit",
             "launch-fence"=>"after-launch-fence",
             _=>"after-select"
         };
@@ -179,7 +180,7 @@ internal static class Phase1RecoveryTests
                     "REAL_NORMAL_BYPASSED_COMMON_FENCES");
             }
             bool lateWriterDenied=false,leaseRefused=false;
-            bool externalBrokerEffectObserved=false;
+            bool externalBrokerEffectObserved=false,externalHandoffEffectObserved=false;
             if(name=="new-live-descendant")
             {
                 // The original C# owner is gone; GF and a delayed writer remain.
@@ -197,7 +198,7 @@ internal static class Phase1RecoveryTests
                 await owner.Cleanup(); // intentional scope-limited cleanup, never graceful shutdown
             }
             else Require(owner.Active==0,"REAL_OWNER_JOB_NOT_EMPTY");
-            if(name is "new-exited" or "external-broker")
+            if(name is "new-exited" or "external-broker" or "external-broker-handoff")
             {
                 // Diagnostic timings are fractional. Do not feed an observation
                 // report into the TUF/state parser that requires unsigned integers.
@@ -247,6 +248,79 @@ internal static class Phase1RecoveryTests
                     owner.Active==0 && recovery.Active==0,
                     "REAL_UNCONTAINED_LATE_EFFECT_NOT_DEMONSTRATED");
                 externalBrokerEffectObserved=true;
+            }
+            if(name=="external-broker-handoff")
+            {
+                // Negative proof: the uncontained intermediate broker HAS EXITED
+                // but an unrelated uncontained process still holds a future
+                // fixture write. The GF application never starts this broker.
+                Require(owner.Active==0 && recovery.Active==0,
+                    "REAL_HANDOFF_JOBS_NOT_EMPTY");
+                string target=Path.Combine(src,"external-broker-effect.fixture.txt");
+                L18Coordinator.DurableRealFile(target,Encoding.UTF8.GetBytes("before\\n"));
+                var psi=new ProcessStartInfo(Own)
+                {
+                    UseShellExecute=false,CreateNoWindow=true,
+                    WorkingDirectory=Path.GetDirectoryName(Own)!
+                };
+                foreach(string arg in new[]{"--real-external-handoff-broker",src,s.Lab})
+                    psi.ArgumentList.Add(arg);
+                using(var intermediary=Process.Start(psi) ??
+                    throw new Rejected("REAL_HANDOFF_BROKER_NOT_CREATED"))
+                {
+                    Require(!owner.ContainsProcess(intermediary) &&
+                        !recovery.ContainsProcess(intermediary),
+                        "REAL_HANDOFF_INTERMEDIARY_INSIDE_JOBS");
+                    await intermediary.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30));
+                    Require(intermediary.ExitCode==0,"REAL_HANDOFF_INTERMEDIARY_FAILED:"+ReadError(src));
+                }
+                string ready=Path.Combine(src,"handoff-writer-ready.fixture.txt");
+                Require(File.Exists(ready) &&
+                    int.TryParse(File.ReadAllText(ready),
+                        System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture,out int writerPid) &&
+                    writerPid>0,"REAL_HANDOFF_WRITER_NOT_DISCOVERED");
+                // PID only acquires a stable handle for TEST cleanup, never
+                // authorizes state or proves continuity of a real updater.
+                using var writer=Process.GetProcessById(writerPid);
+                string image=writer.MainModule?.FileName ??
+                    throw new Rejected("REAL_HANDOFF_WRITER_IMAGE_MISSING");
+                Require(Path.GetFullPath(image).Equals(Path.GetFullPath(Own),
+                    StringComparison.OrdinalIgnoreCase),"REAL_HANDOFF_WRITER_IMAGE_WRONG");
+                string release=Path.Combine(src,"handoff-writer-release.fixture.txt");
+                try
+                {
+                    Require(!writer.HasExited &&
+                        !owner.ContainsProcess(writer) &&
+                        !recovery.ContainsProcess(writer) &&
+                        owner.Active==0 && recovery.Active==0 &&
+                        File.ReadAllText(target)=="before\\n",
+                        "REAL_HANDOFF_WRITER_NOT_INDEPENDENT");
+                    File.WriteAllText(Path.Combine(src,"real-false-quiescence.fixture.json"),
+                        """{ "ready":true, "all_effects_complete":true, "broker_exited":true }""");
+                    Require(await Reopen(recovery,owner,src,s.Lab)=="UnknownBlocked" &&
+                        Reason(src)=="REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED" &&
+                        Selection(src)==("new",2),"REAL_HANDOFF_FALSE_QUIESCENCE_ACCEPTED");
+                    File.WriteAllText(release,"go");
+                    await writer.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+                    Require(writer.ExitCode==0 &&
+                        File.ReadAllText(target)=="after\\n" &&
+                        owner.Active==0 && recovery.Active==0,
+                        "REAL_HANDOFF_LATE_EFFECT_NOT_DEMONSTRATED");
+                    externalHandoffEffectObserved=true;
+                }
+                finally
+                {
+                    // Only the verified laboratory test-image handle can be
+                    // cleaned up, never an arbitrary process or PID from OS.
+                    if(!writer.HasExited)
+                    {
+                        File.WriteAllText(release,"go");
+                        await Task.Delay(100);
+                        if(!writer.HasExited)writer.Kill();
+                        await writer.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+                    }
+                }
             }
             if(name=="selector-fork")
             {
@@ -354,6 +428,7 @@ internal static class Phase1RecoveryTests
                 manifest_and_object_identities_rechecked=true,late_writer_denied=lateWriterDenied,
                 concurrent_coordinator_refused=leaseRefused,recovery_process_also_interrupted=crashRecovery,
                 external_broker_effect_observed=externalBrokerEffectObserved,
+                external_handoff_effect_observed=externalHandoffEffectObserved,
                 outcome,replay,block_reason=reason,operational_ready=false};
         }
         finally
@@ -396,12 +471,43 @@ internal static class Phase1RecoveryTests
         await Until(()=>File.Exists(Path.Combine(src,"external-broker-release.fixture.txt")));
         File.WriteAllText(target,"after\\n",new UTF8Encoding(false));
     }
+    private static async Task ExternalHandoffBroker(string src,string lab)
+    {
+        // Intermediary exits while the delegated LAB writer remains alive.
+        _=L18Coordinator.LoadRealContext(src,lab);
+        Require(File.ReadAllText(Path.Combine(src,"external-broker-effect.fixture.txt"))=="before\\n",
+            "REAL_HANDOFF_INTERMEDIARY_SCOPE");
+        var psi=new ProcessStartInfo(Own)
+        {
+            UseShellExecute=false,CreateNoWindow=true,
+            WorkingDirectory=Path.GetDirectoryName(Own)!
+        };
+        foreach(string arg in new[]{"--real-external-handoff-writer",src,lab})
+            psi.ArgumentList.Add(arg);
+        using var writer=Process.Start(psi) ??
+            throw new Rejected("REAL_HANDOFF_WRITER_NOT_STARTED");
+        await Until(()=>File.Exists(Path.Combine(src,"handoff-writer-ready.fixture.txt")) || writer.HasExited);
+        Require(!writer.HasExited,"REAL_HANDOFF_WRITER_EXITED_PREMATURELY");
+    }
+    private static async Task ExternalHandoffWriter(string src,string lab)
+    {
+        _=L18Coordinator.LoadRealContext(src,lab);
+        string target=Path.Combine(src,"external-broker-effect.fixture.txt");
+        Require(File.ReadAllText(target)=="before\\n","REAL_HANDOFF_WRITER_SCOPE");
+        L18Coordinator.DurableRealFile(Path.Combine(src,"handoff-writer-ready.fixture.txt"),
+            Encoding.UTF8.GetBytes(Environment.ProcessId.ToString(
+                System.Globalization.CultureInfo.InvariantCulture)));
+        await Until(()=>File.Exists(Path.Combine(src,"handoff-writer-release.fixture.txt")));
+        File.WriteAllText(target,"after\\n",new UTF8Encoding(false));
+    }
     internal static async Task<int> Entry(string[] a)
     {
         try
         {
             if(a.Length==3 && a[0]=="--real-late-writer"){await LateWriter(a[1],a[2]);return 0;}
             if(a.Length==3 && a[0]=="--real-external-broker"){await ExternalBroker(a[1],a[2]);return 0;}
+            if(a.Length==3 && a[0]=="--real-external-handoff-broker"){await ExternalHandoffBroker(a[1],a[2]);return 0;}
+            if(a.Length==3 && a[0]=="--real-external-handoff-writer"){await ExternalHandoffWriter(a[1],a[2]);return 0;}
             if(a.Length==5 && a[0]=="--real-owner"){await L18Coordinator.RealOwner(a[1],a[2],a[3],a[4]);return 0;}
             if(a.Length==6 && a[0]=="--real-reconcile")
             {
@@ -427,7 +533,7 @@ internal static class Phase1RecoveryTests
                 foreach(string name in new[]{"normal","intent","selected","recover-before-replace","recover-after-replace",
                     "launch-fence","new-live-descendant","new-exited","selector-fork","journal-torn",
                     "selector-locked","witness-lost","witness-recreated","witness-wrong-object",
-                    "external-broker"})
+                    "external-broker","external-broker-handoff"})
                 {
                     try{var result=await Scenario(name,a);results.Add(result);Console.WriteLine("GF_PHASE1_RECOVERY_CASE "+JsonSerializer.Serialize(result));}
                     catch(Exception e)
@@ -438,7 +544,7 @@ internal static class Phase1RecoveryTests
                     }
                 }
                 var report=new{schema="gf-real-process-crash-recovery-lab/1",tests=results,failed,
-                    expected_cases=15,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
+                    expected_cases=16,operational_ready=false,phase1_complete=false,operational_gates_closed=0,
                     real_power_loss_tested=false,supervisor_loss_recovery_proven=false,
                     new_effects_quiescence_proven=false,production_tuf_authority=false};
                 File.WriteAllText(a[1],JsonSerializer.Serialize(report));

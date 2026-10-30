@@ -103,3 +103,35 @@ ou brokers tenham encerrado todos os efeitos. Essa é uma prova negativa
 contra uma inferência insegura, não prova de quiescência, recuperação fria,
 READY de produção, nem de uso real de brokers pelo GF. O fence NEW
 permanece obrigatório e G1–G8 continuam BLOCKED (0/8).
+
+### Contrato experimental de escopo de efeitos — Fase 1
+
+A atualização não pode afirmar encerramento universal de efeitos por Job vazio,
+PID, exit code, janela, recibo same-user, hash do disco ou ausência de alterações
+observadas. Para avaliação de qualquer READY posterior, cada classe de efeito
+deve declarar: (a) quem é o proprietário, (b) quais recursos podem ser alterados,
+(c) qual autoridade inicia/interrompe a operação, (d) se pode delegar a outro
+processo/serviço, (e) qual observador independente consegue estabelecer o fim,
+(f) o que persiste após crash/reboot e (g) qual ação é permitida se a prova faltar.
+
+* Escopo local do coordenador C#: manifesto, arquivos OLD/NEW, diário e seletor
+  em namespace privado com verificação de identidades/pins. Isso delimita alguns
+  writes próprios, mas não prova sozinho bytes em memória ou power-loss.
+* Descendentes de CreateProcess associados ao Job: contabilidade de membros
+  ajuda a rejeitar processos vivos; não atesta todo I/O nem tarefas externas.
+* Serviços externos, COM/WMI, agendador, instaladores, drivers e atualizações
+  do Windows: se a operação pode ser delegada e não tem contrato específico
+  independente e verificável, o estado é NAO-DELIMITADO e READY é proibido.
+* Recibos/ETW/USN locais podem auxiliar diagnóstico, não autorizar quiescência
+  de efeitos futuros, nem comprovar que todos os escritores desapareceram.
+* Recuperação sem supervisor não pode depender de handles voláteis. Sem um
+  contrato independente de término de efeitos e persistência, o reconciliador
+  deve recusar recuperação automática e preservar o fence pós-NEW.
+
+O teste external-broker-handoff acrescenta uma hipótese adversarial:
+o processo intermediário simulado pelo laboratório encerra, mas um processo
+delegado fora dos Jobs continua apto a modificar uma fixture inerte. Esse teste
+não demonstra que GF/WinGet/WMI real adotaram tal mecanismo; ele refuta a
+conclusão incorreta de que ausência do intermediário significa quiescência.
+Não utilizar novos serviços permanentes, custos, permissões elevadas ou IPC
+de mesmo usuário como autoridade operacional de READY.
