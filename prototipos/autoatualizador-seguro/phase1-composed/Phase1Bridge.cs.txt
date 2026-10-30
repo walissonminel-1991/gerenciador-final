@@ -242,7 +242,13 @@ internal static partial class L18Coordinator
             // this CI is strictly in a disposable laboratory.
             WriteRealSelector(src,installation,tx,signedTarget,"old",3);
             await SendBarrier(process,"GF_PHASE1_CONTINUE_OLD:"+token);
-            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(25));
+            // The child writes an extensive JSON diagnostic AFTER the final
+            // barrier. Drain stdout while waiting: otherwise its pipe fills,
+            // blocking child exit and falsely appearing as recovery timeout.
+            Task<string> trailingOutput=process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(105));
+            string trailing=await trailingOutput;
+            Require(trailing.Length<=65536,"PHASE1_CHILD_STDOUT_UNBOUNDED");
         }
         catch(Exception ex) when(ex is TimeoutException or Rejected or IOException)
         {
