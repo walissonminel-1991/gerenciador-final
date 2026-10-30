@@ -281,7 +281,8 @@ def selected_real_package(selector_root, versions, expected, generation,
     return chosen
 
 
-def observed_process(directory, expected_exe_sha, seconds=12):
+def observed_process(directory, expected_exe_sha, seconds=12,
+                     expected_inventory_name=None):
     """Measure HWND owner, UI message loop, graceful WM_CLOSE of *this* GF.
 
     Observation is process-bound, not application READY. If Windows runner
@@ -309,7 +310,8 @@ def observed_process(directory, expected_exe_sha, seconds=12):
                                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
         result["created"] = True
         result["pid_observed"] = proc.pid
-        observed = observe_real_gf(proc, exe, expected_exe_sha, seconds=seconds)
+        observed = observe_real_gf(proc, exe, expected_exe_sha, seconds=seconds,
+                                   expected_inventory_name=expected_inventory_name)
         result.update(observed)
         result["still_alive_at_bound"] = proc.poll() is None
         result["exit_if_early"] = proc.poll()
