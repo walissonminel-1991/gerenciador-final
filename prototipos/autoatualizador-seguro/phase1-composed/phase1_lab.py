@@ -216,17 +216,28 @@ def validate_package(directory, verified_manifest):
     return True
 
 
-def write_selector(root, selected):
-    require(selected in ("old", "new"), "SELECTOR")
-    path = root / "active.fixture.json"
-    tmp = root / "selector.pending.fixture"
-    tmp.write_text(json.dumps({"schema": "gf-real-candidate-lab/1",
-                               "selected": selected,
-                               "operational_installable": False}) + "\n",
-                   encoding="utf-8")
-    os.replace(tmp, path)
-    require(json.loads(path.read_text(encoding="utf-8"))["selected"] == selected,
-            "SELECTOR_WRITE_FAILED")
+def read_coordinator_selector(root, selected, generation, installation, transaction, signed_target):
+    """Only C# L18Coordinator writes the real selector; this observer only reads."""
+    path = root / "l18-real-active.fixture.json"
+    require(path.is_file() and not path.is_symlink(), "COORDINATOR_SELECTOR_MISSING")
+    require((path.stat().st_file_attributes & 0x400) == 0, "COORDINATOR_SELECTOR_REPARSE")
+    require(path.stat().st_size <= 2048, "COORDINATOR_SELECTOR_TOO_LARGE")
+    item = json.loads(path.read_bytes())
+    require(item == {"schema": "gf-l18-real-active-lab/1",
+                     "selected": selected, "generation": generation,
+                     "installation": installation, "transaction": transaction,
+                     "manifest_sha256": signed_target, "test_only": True,
+                     "operational_installable": False},
+            "COORDINATOR_SELECTOR_DIVERGED")
+    return True
+
+
+def coordinator_handoff(token, phase, next_action):
+    # Cooperative temporary local protocol, NOT authenticated IPC.
+    print("GF_PHASE1_BARRIER_" + phase + ":" + token, flush=True)
+    require(sys.stdin.readline().strip() ==
+            "GF_PHASE1_CONTINUE_" + next_action + ":" + token,
+            "COORDINATOR_HANDOFF_INCORRECT")
 
 
 def observed_process(directory, expected_exe_sha, seconds=12):
@@ -304,6 +315,8 @@ def main():
     parser.add_argument("--installation", required=True)
     parser.add_argument("--transaction", required=True)
     parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument("--selector-root", type=Path)
+    parser.add_argument("--handoff-token")
     args = parser.parse_args()
     require(os.name == "nt", "WINDOWS_REQUIRED")
     require(os.environ.get("GITHUB_ACTIONS") == "true" and
@@ -359,6 +372,15 @@ def main():
             isinstance(auth["manifest_sha256"], str) and
             len(auth["manifest_sha256"]) == 64,
             "AUTH_PREFLIGHT_SCOPE_INVALID")
+    require(args.selector_root is not None and args.handoff_token is not None,
+            "COORDINATOR_HANDOFF_REQUIRED")
+    selector_root = args.selector_root.resolve(strict=True)
+    require(selector_root.is_relative_to(tmp) and selector_root != tmp and
+            selector_root.is_dir() and not selector_root.is_symlink(),
+            "COORDINATOR_SELECTOR_OUTSIDE_TEMP")
+    require(len(args.handoff_token) == 32 and
+            all(c in "0123456789abcdef" for c in args.handoff_token),
+            "COORDINATOR_TOKEN_FORMAT")
     result = {"schema": "gf-phase1-real-package-observation/1",
               "status": "blocked_until_real_ready_and_independent_review",
               "phase1_complete": False,
@@ -400,7 +422,10 @@ def main():
         result["authorization_transaction"] = args.transaction
         require(validate_package(new, new_manifest), "NEW_NOT_AUTHENTICATED")
         result["authenticated_real_package"] = True
-        write_selector(sandbox, "old")
+        read_coordinator_selector(selector_root, "old", 1, args.installation,
+                                  args.transaction, signed["manifest_sha256"])
+        result["selector_controlled_by_l18_only"] = True
+        result["selector_python_write_attempts"] = 0
 
         # Negative: tamper an existing DLL IN PLACE without changing its path.
         dll = new / "GerenciadorFinal.dll"
@@ -426,7 +451,9 @@ def main():
         require(old_observation["terminated"], "OLD_PROCESS_NOT_TERMINATED")
         require(validate_package(old, old_manifest), "OLD_DRIFT_BEFORE_SWAP")
         require(validate_package(new, new_manifest), "NEW_DRIFT_BEFORE_SWAP")
-        write_selector(sandbox, "new")
+        coordinator_handoff(args.handoff_token, "OLD_DONE", "NEW")
+        read_coordinator_selector(selector_root, "new", 2, args.installation,
+                                  args.transaction, signed["manifest_sha256"])
         result["candidate_selected_in_disposable_sandbox"] = True
         candidate = observed_process(new, new_manifest["GerenciadorFinal.exe"]["sha256"])
         result["new_process"] = candidate
@@ -457,31 +484,26 @@ def main():
         require(not candidate.get("ready_verified") and not
                 candidate.get("application_functional_health_verified"),
                 "UNSUPPORTED_APP_READY_CLAIM")
-        # Crucial: the GitHub Windows service runner cannot attest a real
-        # WinForms READY. Regardless of PID, ALWAYS revert to OLD.
-        write_selector(sandbox, "old")
+        # C# alone restores OLD after observing the NEW process exit.
+        coordinator_handoff(args.handoff_token, "NEW_DONE", "OLD")
+        read_coordinator_selector(selector_root, "old", 3, args.installation,
+                                  args.transaction, signed["manifest_sha256"])
         result["rolled_back_due_to_no_ready"] = True
+        result["coordinator_selected_new_then_restored_old"] = True
         require(validate_package(old, old_manifest), "OLD_HASHES_LOST")
         require(canary.read_text(encoding="utf-8") == "DO-NOT-TOUCH-MY-DATA\n",
                 "PERSONAL_CANARY_CHANGED")
-        require(json.loads((sandbox/"active.fixture.json").read_text())["selected"]=="old",
-                "OLD_NOT_RESELECTED")
+        read_coordinator_selector(selector_root, "old", 3, args.installation,
+                                  args.transaction, signed["manifest_sha256"])
         result["old_and_canary_preserved"] = True
         result["verified_result"] = "REAL_BYTES_TUF_AUTHENTICATED_PROCESS_BOUND_OBSERVED_ROLLBACK_OLD"
         print("GF_PHASE1_LAB: real GF package TUF-verified, modified DLL rejected; "
               "real PID/image/HWND message-pump and graceful-close probed; "
               "OLD restored; operational READY NOT PROVEN")
     except BaseException as e:
-        # Recover OLD conservatively if it exists and looks intact; never
-        # promote NEW on an exception or mark successful readiness.
+        # Python has no authority to change C# selector on error.
         result["failure"] = type(e).__name__ + ": " + str(e)[:200]
-        if sandbox.is_dir() and (sandbox/"versions"/"old").is_dir():
-            try:
-                if validate_package(sandbox/"versions"/"old", old_manifest):
-                    write_selector(sandbox, "old")
-                    result["rolled_back_after_failure"] = True
-            except Exception:
-                result["recovery_unknown"] = True
+        result["recovery_unknown"] = True
         raise
     finally:
         args.report.write_text(json.dumps(result, indent=2, sort_keys=True)+"\n",

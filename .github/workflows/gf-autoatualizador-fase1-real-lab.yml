@@ -100,6 +100,9 @@ jobs:
               !$b.real_manifest_scope_binds_installation_and_tx -or
               !$b.prepared_tuf_metadata_reverified_before_new -or
               !$b.minimum_readonly_functional_search_verified -or
+              !$b.one_real_selector_coordinator_owned -or
+              !$b.real_selector_new_then_old_observed -or
+              !$b.no_python_selector_writes -or
               $b.real_packet_not_bound_to_l18_target -or
               $b.production_tuf_authority -or
               $b.verified_operational_ready -or $b.phase1_complete -or
@@ -111,6 +114,9 @@ jobs:
               !$r.tampered_dll_rejected_before_selection -or
               !$r.real_manifest_bound_to_preflight -or
               !$r.minimum_readonly_health_contract_observed -or
+              !$r.selector_controlled_by_l18_only -or
+              $r.selector_python_write_attempts -ne 0 -or
+              !$r.coordinator_selected_new_then_restored_old -or
               !$r.authorization_installation -or !$r.authorization_transaction -or
               !$r.rolled_back_due_to_no_ready -or !$r.old_and_canary_preserved -or
               !$r.tuf_laboratory_test_keys_only -or
@@ -149,6 +155,9 @@ jobs:
             '* Busca real: editar filtro com nonce inexistente -> estado vazio -> restaurar, sem manutencao'
             '* Falta contrato READY operacional e autoridade TUF de producao'
             '* Digest do manifesto GF real vinculado ao diario L18; nao autoriza operacao real'
+            '* Apenas coordenador C# muda seletor real: OLD(1), NEW(2), OLD(3), persistido no mesmo source root L18'
+            '* Observador Python sem escrita no seletor; barreiras OLD_DONE/NEW_DONE sob gate C#'
+            '* READY operacional continua recusado (saude observada nao atesta todos os efeitos)'
             '* READY real NAO demonstrado; OLD restaurada, hashes e canario intactos'
             '* FASE 1 PARCIAL; G1-G8 BLOCKED (0/8)'
             '* Nenhum upload de pacote, deploy ou integracao operacional'

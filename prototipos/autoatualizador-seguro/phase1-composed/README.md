@@ -21,3 +21,28 @@ Critério para encerrar a Fase 1: demonstrar, no MESMO marco, saída/identidade/
 ### Contrato mínimo de saúde SOMENTE LEITURA, não READY
 
 O observador em Win32, sempre restrito ao HWND/identidade do próprio GF e ao runner descartável, encontra a caixa real de pesquisa no mesmo contêiner do rótulo `Pesquisar:`. Insere um filtro aleatório que não pode corresponder a um aplicativo, observa a mensagem de lista vazia causada pelo `TextChanged → RenderPrograms` REAL e restaura o filtro. Esta verificação testa um caminho funcional de leitura/inventário além de PID, HWND, mensagem ou recibo. **Não autentica o estado dos motores, nenhuma operação de atualização, efeitos tardios, bytes carregados nem READY operacional do autoatualizador**. Se o filtro não responder ou a reversão não puder ser observada, falha a CI e NEW não é autorizada.
+
+## Fase 1 — seleção real exclusivamente pelo coordenador C# (experimento)
+
+O L18Coordinator C# mantém o ÚNICO seletor efetivo do pacote GF real,
+`src/l18-real-active.fixture.json`, sob a mesma exclusividade do diário
+L18. As transições são OLD geração 1, NEW geração 2, OLD geração 3, com
+identidade de instalação, transação e SHA-256 do manifesto TUF de laboratório.
+O seletor L14 permanece apenas no modelo de fixtures; não determina o GF real.
+
+O processo Python apenas lê o seletor do C#, autentica os arquivos e observa
+os processos reais, sem escrever o seletor. As barreiras locais OLD_DONE e
+NEW_DONE são cooperação temporária, não IPC autenticado ou autoridade de READY.
+O coordenador escolhe NEW depois da observação de OLD e restaura OLD depois
+da observação e encerramento do NEW.
+
+Os requisitos de aceitação de CI incluem diário/manifesto vinculado, estado
+final OLD, hashes, canário, pesquisa funcional read-only e fechamento gracioso.
+Isso NÃO é atualização operacional; não prova efeitos tardios, bytes
+carregados na memória, recuperação após perda de energia nem exclusão de
+ataque do mesmo usuário.
+
+READY operacional exigirá um contrato autenticado de saúde do aplicativo,
+vinculado à execução, que não se reduza a PID, HWND, log ou recibo da mesma
+identidade local. A pesquisa de inventário é evidência funcional limitada;
+a decisão final continua UNKNOWN, e G1–G8 permanecem BLOCKED (0/8).

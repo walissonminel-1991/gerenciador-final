@@ -12,6 +12,83 @@ namespace GfUpdaterFixture;
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 internal static partial class L18Coordinator
 {
+
+    // LAB-ONLY real GF selector stored INSIDE the SAME L18 source root as its
+    // journal. Never the L14 inert fixture selector or a Python-owned selector.
+    // The coordinator exclusively owns transitions while its gate is held.
+    private const string RealSelectorName="l18-real-active.fixture.json";
+    private static string RealSelector(string src)=>Path.Combine(src,RealSelectorName);
+
+    private static void RequireRealSelector(string src,string installation,string tx,
+        string sha,string selected,int generation)
+    {
+        using var pin=WindowsFileGuard.Open(src,RealSelector(src));
+        byte[] content=pin.Read(2048);
+        using var doc=JsonDocument.Parse(content);
+        var v=doc.RootElement;
+        Require(v.ValueKind==JsonValueKind.Object &&
+            v.EnumerateObject().Count()==8 &&
+            v.GetProperty("schema").GetString()=="gf-l18-real-active-lab/1" &&
+            v.GetProperty("installation").GetString()==installation &&
+            v.GetProperty("transaction").GetString()==tx &&
+            v.GetProperty("manifest_sha256").GetString()==sha &&
+            v.GetProperty("selected").GetString()==selected &&
+            v.GetProperty("generation").GetInt32()==generation &&
+            v.GetProperty("test_only").GetBoolean() &&
+            !v.GetProperty("operational_installable").GetBoolean(),
+            "PHASE1_REAL_SELECTOR_WRONG_STATE");
+        pin.Recheck();
+    }
+
+    private static void WriteRealSelector(string src,string installation,string tx,
+        string sha,string selected,int generation)
+    {
+        FixtureSandbox.RequireRoot(src);
+        Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+            (selected=="old" || selected=="new") && generation is >=1 and <=3 &&
+            Hex(sha,64),"PHASE1_REAL_SELECTOR_OUTSIDE_LAB");
+        string dest=RealSelector(src);
+        if(generation==1)
+            Require(!File.Exists(dest),"PHASE1_REAL_SELECTOR_MUST_START_ABSENT");
+        else
+            RequireRealSelector(src,installation,tx,sha,
+                generation==2?"old":"new",generation-1);
+        var item=new {
+            schema="gf-l18-real-active-lab/1",installation,transaction=tx,
+            manifest_sha256=sha,selected,generation,
+            test_only=true,operational_installable=false
+        };
+        byte[] bytes=JsonSerializer.SerializeToUtf8Bytes(item);
+        Require(bytes.Length is >0 and <=2048,"PHASE1_SELECTOR_SERIALIZATION");
+        string tmp=Path.Combine(src,"l18-real-pending-"+Guid.NewGuid().ToString("N")+".fixture.json");
+        try
+        {
+            using(var stream=new FileStream(tmp,FileMode.CreateNew,FileAccess.Write,
+                FileShare.None,4096,FileOptions.WriteThrough))
+            {
+                stream.Write(bytes);
+                stream.Flush(true);
+            }
+            File.Move(tmp,dest,generation>1);
+            RequireRealSelector(src,installation,tx,sha,selected,generation);
+        }
+        finally { if(File.Exists(tmp)) File.Delete(tmp); }
+    }
+
+    private static async Task ReadBarrier(Process child,string expected,TimeSpan timeout)
+    {
+        string? message;
+        try{ message=await child.StandardOutput.ReadLineAsync().WaitAsync(timeout); }
+        catch(TimeoutException){throw new Rejected("PHASE1_HANDOFF_TIMED_OUT_"+expected);}
+        Require(message==expected,"PHASE1_HANDOFF_UNEXPECTED_"+expected);
+    }
+
+    private static async Task SendBarrier(Process child,string command)
+    {
+        await child.StandardInput.WriteLineAsync(command);
+        await child.StandardInput.FlushAsync();
+    }
+
     internal static async Task<L18Decision> ExecuteRealLabInertOnly(
         string src,string lab,string bootstrap,string python,string script,
         string repository,string old,string candidate,string sandbox,string report)
@@ -113,44 +190,64 @@ internal static partial class L18Coordinator
             Require(Load(src,lab).All(x=>x.TargetSha==signedTarget),
                 "PHASE1_JOURNAL_WRONG_TARGET");
         }
-        Append(src,lab,Switching,"real-gf-lab-manifest-tuf-bound",
+        // From this point, the ONLY real-package selector is controlled
+        // by C#, persisted within the same src root as the L18 journal.
+        WriteRealSelector(src,installation,tx,signedTarget,"old",1);
+        Append(src,lab,Switching,"real-gf-lab-selector-old-coordinator-owned",
             Load(src,lab)[0].TargetSha);
+        string token=Guid.NewGuid().ToString("N"); // correlation only, NOT authentication
         var psi=new ProcessStartInfo(Path.GetFullPath(python))
         {
             UseShellExecute=false,CreateNoWindow=true,
             RedirectStandardOutput=true,RedirectStandardError=true,
+            RedirectStandardInput=true,
             WorkingDirectory=Path.GetFullPath(repository)
         };
         psi.ArgumentList.Add(Path.GetFullPath(script));
         foreach(string word in new[]{"--repository",repository,"--old",old,
             "--new",candidate,"--sandbox",sandbox,"--report",report,
             "--auth-dir",authDir,"--auth-report",authReport,
-            "--installation",installation,"--transaction",tx})
+            "--installation",installation,"--transaction",tx,
+            "--selector-root",src,"--handoff-token",token})
             psi.ArgumentList.Add(word);
         using Process process=Process.Start(psi) ??
             throw new Rejected("PHASE1_CHILD_NOT_STARTED");
-        Task<string> stdout=process.StandardOutput.ReadToEndAsync();
         Task<string> stderr=process.StandardError.ReadToEndAsync();
         Append(src,lab,Launched,"real-lab-pid-"+process.Id.ToString(),
             Load(src,lab)[0].TargetSha);
+        // OLD completion is observed before C# selects NEW. The Python
+        // child cannot write any selector and must await C#'s instruction.
         try
         {
-            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(4));
+            await ReadBarrier(process,"GF_PHASE1_BARRIER_OLD_DONE:"+token,
+                TimeSpan.FromSeconds(105));
+            RequireRealSelector(src,installation,tx,signedTarget,"old",1);
+            Require(Load(src,lab).All(x=>x.TargetSha==signedTarget),
+                "PHASE1_JOURNAL_CHANGED_BEFORE_SWITCH");
+            WriteRealSelector(src,installation,tx,signedTarget,"new",2);
+            await SendBarrier(process,"GF_PHASE1_CONTINUE_NEW:"+token);
+            await ReadBarrier(process,"GF_PHASE1_BARRIER_NEW_DONE:"+token,
+                TimeSpan.FromSeconds(105));
+            RequireRealSelector(src,installation,tx,signedTarget,"new",2);
+            // The NEW child has reported its graceful termination. A real
+            // operational controller cannot trust this same-user message;
+            // this CI is strictly in a disposable laboratory.
+            WriteRealSelector(src,installation,tx,signedTarget,"old",3);
+            await SendBarrier(process,"GF_PHASE1_CONTINUE_OLD:"+token);
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(25));
         }
-        catch(TimeoutException)
+        catch(Exception ex) when(ex is TimeoutException or Rejected or IOException)
         {
-            Append(src,lab,Deadline,"real-gf-lab-child-may-continue",
-                Load(src,lab)[0].TargetSha);
+            // No fictitious success after a missing handshake, PID still
+            // alive, or unobserved late effects. No blind rollback here.
             L16Boundary.MarkUncertain(src);
-            Append(src,lab,Unknown,"child-effects-not-proven-ended",
-                Load(src,lab)[0].TargetSha);
-            return L18Decision.UnknownBlocked;
+            RememberUnknown(src,lab,"real-gf-child-or-selector-unknown");
+            throw;
         }
-
         Append(src,lab,Exited,process.ExitCode==0?"exit-code-zero":
             "exit-code-nonzero",Load(src,lab)[0].TargetSha);
-        string standardOut=await stdout;
         string standardErr=await stderr;
+        RequireRealSelector(src,installation,tx,signedTarget,"old",3);
         if(process.ExitCode!=0)
         {
             RememberUnknown(src,lab,"real-gf-lab-child-failed");
@@ -176,6 +273,9 @@ internal static partial class L18Coordinator
                 root.GetProperty("authenticated_real_package").GetBoolean() &&
                 root.GetProperty("minimum_readonly_health_contract_observed").GetBoolean() &&
                 root.GetProperty("real_manifest_bound_to_preflight").GetBoolean() &&
+                root.GetProperty("selector_controlled_by_l18_only").GetBoolean() &&
+                root.GetProperty("selector_python_write_attempts").GetInt32()==0 &&
+                root.GetProperty("coordinator_selected_new_then_restored_old").GetBoolean() &&
                 root.GetProperty("authorization_installation").GetString()==installation &&
                 root.GetProperty("authorization_transaction").GetString()==tx &&
                 root.GetProperty("signed_test_metadata").GetProperty("manifest_sha256").GetString()==signedTarget &&
@@ -198,17 +298,15 @@ internal static partial class L18Coordinator
         // including UNKNOWN, before and after the child observes NEW.
         Require(Load(src,lab).All(x=>x.TargetSha==signedTarget),
             "PHASE1_REAL_TARGET_JOURNAL_DRIFT");
-        // The fixture selector remains a different local model: its OLD
-        // cannot authorize the real GF's NEW, and UNKNOWN stays mandatory.
-        // L18 reconciliation sees the fixture selector OLD while a real
-        // package was briefly selected by a different LAB selector. A
-        // successful owner exit cannot independently authorize this mapping.
-        // ReconcileCore will persist UNKNOWN; never claim New or OLD as
-        // a durable unified update transaction.
-        L18Decision decision=ReconcileCore(src,lab,bootstrap,false,null);
-        Require(decision==L18Decision.UnknownBlocked,
-            "PHASE1_UNAUTHENTICATED_CROSS_PACKET_DECISION");
-        return decision;
+        // Do NOT use L14 fixture selector to classify the REAL GF.
+        // The real selector is now singular and C#-owned. Because no
+        // operational independent READY exists, mark the same L18 journal
+        // UNKNOWN rather than asserting success based on a same-user receipt.
+        RequireRealSelector(src,installation,tx,signedTarget,"old",3);
+        RememberUnknown(src,lab,"real-gf-no-independent-operational-ready");
+        Require(Load(src,lab)[^1].Phase==Unknown,
+            "PHASE1_UNKNOWN_NOT_DURABLE");
+        return L18Decision.UnknownBlocked;
     }
 }
 
@@ -273,6 +371,9 @@ internal static class Phase1BridgeTests
                 real_manifest_scope_binds_installation_and_tx=true,
                 prepared_tuf_metadata_reverified_before_new=true,
                 minimum_readonly_functional_search_verified=true,
+                one_real_selector_coordinator_owned=true,
+                real_selector_new_then_old_observed=true,
+                no_python_selector_writes=true,
                 real_packet_not_bound_to_l18_target=false,
                 production_tuf_authority=false,
                 verified_operational_ready=false,
