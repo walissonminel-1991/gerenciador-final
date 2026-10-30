@@ -181,19 +181,32 @@ jobs:
           & $exes[0].FullName --real-suite $report $fixtures $anchor $root $pythonExe $script $old $new
           if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_REAL_CRASH_CASE_FAILED' }
           $r=Get-Content $report -Raw | ConvertFrom-Json
+          # A5: the exact same typed predicate validates the real report and
+          # adversarially malformed samples. PowerShell !$obj.field alone
+          # treats absent/null/"false" as false and is not a schema check.
+          function Test-SafetyShape($item) {
+            $u=$item.PSObject.Properties['unsafe_recovery_after_real_new']
+            $o=$item.PSObject.Properties['operational_ready']
+            return ($null -ne $u -and $null -ne $o -and
+                    $u.Value -is [bool] -and $o.Value -is [bool] -and
+                    !$u.Value -and !$o.Value)
+          }
+          $good=('{"unsafe_recovery_after_real_new":false,"operational_ready":false}' | ConvertFrom-Json)
+          $missing=('{"operational_ready":false}' | ConvertFrom-Json)
+          $nullValue=('{"unsafe_recovery_after_real_new":null,"operational_ready":false}' | ConvertFrom-Json)
+          $stringValue=('{"unsafe_recovery_after_real_new":"false","operational_ready":false}' | ConvertFrom-Json)
+          $danger=('{"unsafe_recovery_after_real_new":true,"operational_ready":false}' | ConvertFrom-Json)
+          if (!(Test-SafetyShape $good) -or
+              (Test-SafetyShape $missing) -or (Test-SafetyShape $nullValue) -or
+              (Test-SafetyShape $stringValue) -or (Test-SafetyShape $danger)) {
+            throw 'GF_PHASE1_A5_SCHEMA_NEGATIVE_TEST_FAILED'
+          }
           if ($r.failed -ne 0 -or $r.expected_cases -ne 29 -or $r.tests.Count -ne 29 -or
               @($r.tests | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
               @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 0 -or
               @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 29 -or
               @($r.tests | Where-Object { $_.classification -eq 'PASS_EXPERIMENTAL_ACTIVATION' }).Count -ne 0 -or
-              @($r.tests | Where-Object {
-                $s=$_.unsafe_recovery_after_real_new
-                $o=$_.operational_ready
-                !$_.PSObject.Properties['unsafe_recovery_after_real_new'] -or
-                !$_.PSObject.Properties['operational_ready'] -or
-                $s -isnot [bool] -or $o -isnot [bool] -or
-                $s -or $o
-              }).Count -ne 0 -or
+              @($r.tests | Where-Object { !(Test-SafetyShape $_) }).Count -ne 0 -or
               @($r.tests | Where-Object {
                 $_.test -in @('prepare-only','prepare-before-verify','prepare-after-verify','before-old-observation') -and
                 $_.no_functional_observation_on_audited_route -and
