@@ -48,3 +48,30 @@
 - Antes de propor um helper elevado, provar que a execução direta/alternativa não pode ocorrer no escopo reivindicado; caso contrário o ledger protegido de outra identidade apenas prova o que ele registrou.
 
 **Fase 1 ABERTA; READY=false; G1–G8 BLOCKED 0/8.** Não alterar main, PR #65 Draft, BETA .66, infraestrutura, credenciais, telemetria ou PCs pessoais. Sem WORK, merge, release, deploy ou integração operacional. Todas as mudanças técnicas desta rodada são fixtures de laboratório e validação de CI.
+
+
+## 5. Resultado Windows definitivo (posterior ao preparo)
+
+**CI [41078357355](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41078357355): `completed/success`**, job `124140520370`, commit técnico de laboratório `c38db307dae6973b46aa44e339c335549e54fdf3`, período do run `2026-10-30T15:11:16Z` a `15:21:13Z` (atualização final da API).
+
+O log bruto `GF_PHASE1_RECOVERY_CASE` contém **21 casos `passed`**, todos classificados **`PASS_CONTAINMENT`**. O `GF_PHASE1_RECOVERY_REPORT` declara `expected_cases=21`, `failed=0`, `operational_ready=false`, `phase1_complete=false`, `operational_gates_closed=0`, `real_power_loss_tested=false`, `supervisor_loss_recovery_proven=false`, `new_effects_quiescence_proven=false`. **0 casos `PASS_RECOVERY_LAB_ONLY`.**
+
+### Caso novo: evidência vinculada, não inferência
+
+`out-of-band-new-with-old-selected`:
+- `status=passed`, `classification=PASS_CONTAINMENT`;
+- `out_of_band_new_execution_observed=true`, `out_of_band_no_launch_claim_rejected=true`;
+- `outcome=UnknownBlocked`, `replay=UnknownBlocked`;
+- `block_reason=REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY`;
+- `old_and_canary_preserved=true`, `manifest_and_object_identities_rechecked=true`;
+- `unsafe_recovery_after_real_new=false`, `operational_ready=false`.
+
+A fixture exigiu que NEW fosse **realmente lançada pelo observador Python fora de ambos os Jobs do coordenador** e observada funcionalmente, com o seletor `OLD/1`, sem fence NEW, sem observação OLD e sem journal de lançamento do `RealOwner`. Um reconciliador C# novo e replay permaneceram bloqueados.
+
+O caso histórico `same-user-full-state-rollback-after-new` continuou `passed/UnknownBlocked/replay UnknownBlocked`, confirmando ausência de regressão no limite já validado. Não houve alteração em `Phase1Recovery.cs.txt`.
+
+**Interpretação segura:** ficou empiricamente refutado no runner descartável que o estado `OLD/1`/sem fence equivale a `nenhuma execução de NEW fora do L18`. Isso não prova que todo modo alternativo de execução ou efeito foi investigado; não é uma prova de atualização/desinstalação real, efeitos duráveis, reboot ou quiescência.
+
+**Decisão:** manter a barreira `REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY`. Qualquer hipótese de recuperação futura precisa especificar formalmente o escopo de `no-launch` e comprovar enforcement não contornável nesse escopo. Não criar um auxiliar elevado somente para proteger um ledger que outras execuções podem contornar.
+
+**Preservações conferidas:** nova escrita técnica limitada a `Phase1RecoveryTests.cs.txt`, `phase1_lab.py` e workflow de laboratório; GF distribuído, `main`, PR #65 Draft, BETA .66, infra, telemetria e PCs pessoais intocados. Fase 1 **ABERTA**, READY=false, G1–G8 BLOCKED 0/8.
