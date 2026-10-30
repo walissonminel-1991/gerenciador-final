@@ -98,14 +98,23 @@ jobs:
           $r=Get-Content $report -Raw | ConvertFrom-Json
           if ($r.failed -ne 0 -or $r.expected_cases -ne 20 -or $r.tests.Count -ne 20 -or
               @($r.tests | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 3 -or
-              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 16 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 0 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 20 -or
+              @($r.tests | Where-Object {
+                $_.unsafe_recovery_after_real_new -or
+                $_.outcome -in @('OldRecoveredNoReady','OldReobservedNoReady') }).Count -ne 0 -or
               @($r.tests | Where-Object {
                 $_.test -eq 'same-user-full-state-rollback-after-new' -and
-                $_.classification -eq 'COUNTEREXAMPLE_REPRODUCED_LAB_ONLY' -and
-                $_.unsafe_recovery_after_real_new -and
-                $_.outcome -eq 'OldRecoveredNoReady' -and
-                $_.replay -eq 'OldReobservedNoReady' }).Count -ne 1 -or
+                $_.classification -eq 'PASS_CONTAINMENT' -and
+                $_.full_state_rollback_blocked -and
+                !$_.unsafe_recovery_after_real_new -and
+                $_.outcome -eq 'UnknownBlocked' -and
+                $_.replay -eq 'UnknownBlocked' -and
+                $_.block_reason -eq 'REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY' }).Count -ne 1 -or
+              @($r.tests | Where-Object {
+                $_.test -in @('intent','recover-before-replace','recover-after-replace') -and
+                $_.outcome -eq 'UnknownBlocked' -and
+                $_.block_reason -eq 'REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY' }).Count -ne 3 -or
               @($r.tests | Where-Object {
                 $_.test -eq 'selector-locked' -and $_.outcome -eq 'UnknownBlocked' -and
                 $_.block_reason -eq 'REAL_UNREADABLE_HISTORY_BLOCKED' }).Count -ne 1 -or
@@ -153,11 +162,11 @@ jobs:
           }
           @(
             '## Fase 1 - interrupcao real de processos, sem READY'
-            '* 3 recuperacoes limitadas com OLD selecionada e sem evidencia ambigua de efeitos'
-            '* 16 contencoes: seletor ilegivel persiste bloqueio, e NEW sem prova nao volta a OLD'
-            '* CONTRAEXEMPLO INSEGURO: NEW real executou; restaurar snapshot same-user OLD/1 + diario antigo + retirar fence pode resultar em OldRecoveredNoReady'
-            '* COUNTEREXAMPLE_REPRODUCED_LAB_ONLY nao e PASS de recuperacao nem de seguranca. CI verde neste ensaio confirma DETECCAO DE FALHA, NAO PROTECAO'
-            '* Autoridade duravel de no-launch continua ausente: RECUPERACAO SAME-USER NAO APROVADA'
+            '* 20 PASS_CONTAINMENT; 0 PASS_RECOVERY_LAB_ONLY: nao recuperar automaticamente sem autoridade de no-launch'
+            '* Contraexemplo historico REPRODUZIDO no run 41071494214: NEW real executou, state rollback OLD/1, reconciliacao OldRecoveredNoReady antes de assert legado'
+            '* Nesta rodada o mesmo rollback e agora UnknownBlocked por REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY'
+            '* Cenários historicos recover-before/after agora validam recusa; NAO executam corte de recuperacao'
+            '* Autoridade duravel de no-launch ainda ausente: nenhum READY, recuperacao fria ou power-loss provado'
             '* Erro File.Exists em entrada-diretorio nao e aceito como ausencia autentica'
             '* Fence e tail do journal removidos juntos: UNKNOWN/BLOCKED, sem inferir pre-lancamento'
             '* Jornal L18 com launch observado bloqueia restauracao mesmo sem fence fisico'

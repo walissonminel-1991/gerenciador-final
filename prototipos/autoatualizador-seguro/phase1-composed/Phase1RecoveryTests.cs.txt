@@ -133,9 +133,13 @@ internal static class Phase1RecoveryTests
             "selector-fork" or "journal-torn" or "witness-lost" or
             "witness-recreated" or "witness-wrong-object" or "external-broker" or
             "external-broker-handoff" or "launch-fence-lost-after-new" or
-            "selected" or "selector-locked" or "fence-directory-before-new" or "joint-fence-journal-erasure";
+            "selected" or "selector-locked" or "fence-directory-before-new" or "joint-fence-journal-erasure" or
+            "intent" or "recover-before-replace" or "recover-after-replace" or
+            "same-user-full-state-rollback-after-new";
         bool counterexample=name=="same-user-full-state-rollback-after-new";
-        bool crashRecovery=name.StartsWith("recover-",StringComparison.Ordinal);
+        // Historical recover-* names now exercise conservative refusal.
+        // No recovery cut is injected when no trusted no-launch authority exists.
+        bool crashRecovery=false;
         string ownerCut=name switch
         {
             "intent" or "recover-before-replace" or "recover-after-replace" or
@@ -483,29 +487,28 @@ internal static class Phase1RecoveryTests
                     File.Exists(L18Coordinator.RecoveryBlocked(src)),
                     "REAL_LOCKED_SELECTOR_MUST_PERSIST_BLOCKER");
             }
-            if(crashRecovery)
+            if(name is "recover-before-replace" or "recover-after-replace")
             {
-                string cut=name=="recover-before-replace"?"before-old-replace":"after-old-replace";
-                Require(await Reopen(recovery,name is "witness-lost" or "witness-recreated" ? null :
-                    name=="witness-wrong-object" ? recovery : owner,src,s.Lab,cut)=="InjectedCrash","REAL_RECOVERY_CRASH_MISSING");
-                Require(Selection(src)==("old",1),
-                    "REAL_RECOVERY_PARTIAL_SELECTION_WRONG");
-                Require(!File.Exists(Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt")),
-                    "REAL_RECOVERY_CUT_ALREADY_LAUNCHED_OLD");
+                // A pre-NEW history is not an independent launch authority.
+                // The former crash-recovery cuts must now be unreachable:
+                // do not execute OLD and do not claim crash recovery coverage.
+                Require(Selection(src)==("old",1) &&
+                    !File.Exists(Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt")),
+                    "REAL_PRE_NEW_RECOVERY_MUST_NOT_HAVE_LAUNCHED_OLD");
             }
             string before=Hash(File.ReadAllBytes(Path.Combine(src,"l18-real-active.fixture.json")));
             string outcome=await Reopen(recovery,name is "witness-lost" or "witness-recreated" ? null :
                     name=="witness-wrong-object" ? recovery : owner,src,s.Lab);
             Require(outcome==(blocked?"UnknownBlocked":"OldRecoveredNoReady"),
                 "REAL_UNEXPECTED_RECONCILIATION:"+name+":"+outcome+":"+ReadError(src));
-            // If this passes, the safety property is REFUTED: the same-user
-            // rollback caused the reconciler to classify a real post-NEW
-            // execution as a benign pre-launch OLD recovery. Do not count it
-            // as successful secure recovery; report the defect separately.
+            // Baseline run 41071494214 demonstrated unsafe OldRecoveredNoReady.
+            // The corrected run must refuse it despite an authentic-looking
+            // OLD/1 selector and prefix journal restored after NEW executed.
             if(counterexample)
                 Require(Selection(src)==("old",1) &&
-                    File.Exists(Path.Combine(src,"real-observed-new.fixture.json")),
-                    "REAL_ROLLBACK_COUNTEREXAMPLE_NOT_REPRODUCED");
+                    File.Exists(Path.Combine(src,"real-observed-new.fixture.json")) &&
+                    !File.Exists(Path.Combine(src,"real-observed-old.fixture.json")),
+                    "REAL_ROLLBACK_CONTAINMENT_NOT_DEMONSTRATED");
             string reason=blocked?Reason(src):"none";
             if(blocked)
                 Require(reason==(name switch
@@ -519,13 +522,16 @@ internal static class Phase1RecoveryTests
                         "REAL_NEW_SELECTED_NO_INDEPENDENT_NO_LAUNCH_PROOF",
                     "fence-directory-before-new"=>"REAL_NEW_FENCE_NOT_REGULAR_FILE",
                     "selector-locked"=>"REAL_UNREADABLE_HISTORY_BLOCKED",
+                    "intent" or "recover-before-replace" or "recover-after-replace" or
+                    "same-user-full-state-rollback-after-new"=>"REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY",
                     _=>"REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED"
                 }),"REAL_WRONG_BLOCK_CAUSE:"+reason);
             if(name=="journal-torn")
                 Require(File.Exists(L18Coordinator.RecoveryBlocked(src)),"REAL_TORN_JOURNAL_NOT_DURABLY_BLOCKED");
             Require(Selection(src)==(name is "intent" or "recover-before-replace" or
                 "recover-after-replace" or "selector-locked" or "witness-recreated" or
-                "witness-wrong-object" ?("old",1):blocked?("new",2):("old",3)),
+                "witness-wrong-object" or "same-user-full-state-rollback-after-new"
+                ?("old",1):blocked?("new",2):("old",3)),
                 "REAL_FINAL_SELECTOR_INCONSISTENT");
             if(blocked)
                 Require(Hash(File.ReadAllBytes(Path.Combine(src,"l18-real-active.fixture.json")))==before,
@@ -551,9 +557,10 @@ internal static class Phase1RecoveryTests
             s.Preserved();
             Require(recovery.Active==0,"REAL_RECOVERY_SURVIVORS_REMAIN");
             return new{test=name,status="passed",
-                classification=counterexample?"COUNTEREXAMPLE_REPRODUCED_LAB_ONLY":
-                    blocked?"PASS_CONTAINMENT":"PASS_RECOVERY_LAB_ONLY",
+                classification=blocked?"PASS_CONTAINMENT":"PASS_RECOVERY_LAB_ONLY",
                 unsafe_recovery_after_real_new=counterexample && outcome=="OldRecoveredNoReady",
+                full_state_rollback_blocked=counterexample && outcome=="UnknownBlocked" &&
+                    reason=="REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY",
                 interrupted_owner=name!="normal",normal_owner_completed_without_crash=name=="normal",
                 reconciler_new_process=true,old_and_canary_preserved=true,
                 manifest_and_object_identities_rechecked=true,late_writer_denied=lateWriterDenied,

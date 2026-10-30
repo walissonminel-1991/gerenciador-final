@@ -290,6 +290,12 @@ internal static partial class L18Coordinator
             // trailing journal records. Without a separate, authenticated,
             // retained no-launch witness it is NOT safe to restore OLD.
             Require(selected!="new","REAL_NEW_SELECTED_NO_INDEPENDENT_NO_LAUNCH_PROOF");
+            // No independent durable launch authority exists in Phase 1.
+            // A same-user adversary can restore OLD/1 and a valid pre-NEW
+            // journal snapshot after NEW has actually executed. The retained
+            // laboratory Jobs and authenticated package bytes cannot prove
+            // that this history is genuine. Do not observe or relaunch OLD.
+            Require(false,"REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY");
             if(history.Any(x=>x.Detail=="real-old-functional-lab-only"))
             {
                 Require(selected=="old" && history[^1].Phase==Unknown,"REAL_TERMINAL_SELECTOR_CONTRADICTION");
