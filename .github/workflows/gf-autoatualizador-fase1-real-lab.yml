@@ -45,6 +45,27 @@ jobs:
           if (@($p.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro' }).Count -ne 0) {
             throw 'GF_PHASE1_PRODUCT_COMPILE_LEAK'
           }
+      - name: Auditar rotas reais de efeitos delegados sem executar operacoes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $line=(python prototipos/autoatualizador-seguro/phase1-composed/delegated_effect_surface_gate.py | Select-Object -Last 1)
+          if ($LASTEXITCODE -ne 0 -or !$line -or !$line.StartsWith('GF_PHASE1_DELEGATED_EFFECT_SURFACE_REPORT ')) {
+            throw 'GF_PHASE1_REAL_DELEGATED_EFFECT_SURFACE_GATE_FAILED'
+          }
+          $r=($line.Substring('GF_PHASE1_DELEGATED_EFFECT_SURFACE_REPORT '.Length) | ConvertFrom-Json)
+          if ($r.source_routes.Count -ne 9 -or $r.unbounded_delegated_effect_routes -ne 7 -or
+              $r.scope -ne 'SELECTED_REAL_PRODUCT_SOURCE_ANCHORS_ONLY' -or
+              $r.status -ne 'SOURCE_ANCHORS_REVIEWED_NOT_EFFECTS_BOUNDED' -or
+              !$r.fail_closed_barrier_present -or !$r.out_of_scope_brokers_may_exist -or
+              $r.quiescence_proven -or $r.operational_ready -or
+              $r.complete_call_graph_audited -or $r.production_authority -or
+              $r.new_windows_operations_executed -or
+              $r.job_empty_proves_all_effects_complete -or
+              $r.provider_exit_proves_all_effects_complete) {
+            throw 'GF_PHASE1_REAL_EFFECTS_CANNOT_CONFER_READY'
+          }
+          Write-Host $line
       - name: Compilar duas versoes reais do GF sem publicar artefatos
         shell: pwsh
         run: |
