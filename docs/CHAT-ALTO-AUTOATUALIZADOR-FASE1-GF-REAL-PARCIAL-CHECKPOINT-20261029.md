@@ -437,3 +437,35 @@ integral do GF; confiança TUF de produção. R1–R6 operacionais seguem
 sem aprovação; G1–G8 continuam BLOCKED (0/8).
 A Fase 1 permanece aberta. Não houve mudança em main, PR #65 Draft,
 BETA .66, infraestrutura, credenciais, produto distribuído ou PCs pessoais.
+
+**Fechamento definitivo da convergencia — CI 41041894820:**
+[CI Windows 41041894820](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41041894820)
+`completed/success` no SHA técnico
+`c8e07396ab3ab4f731ff642c846102c1d6ca8aa7`;
+job `124019005630`. Após remover o caminho cooperativo da
+execução e do código, o workflow revalidou apenas o coordenador unificado:
+`GF_PHASE1_RECOVERY_REPORT` com `failed=0`, `expected_cases=12`,
+`operational_ready=false`, `phase1_complete=false`,
+`operational_gates_closed=0`,
+`real_power_loss_tested=false` e
+`supervisor_loss_recovery_proven=false`.
+
+**Casos conferidos no log:** `normal` passou como `PASS_CONTAINMENT`,
+com owner encerrado naturalmente e bloqueio
+`REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED`; cinco resultados
+`PASS_RECOVERY_LAB_ONLY` para interrupções pré-NEW; seis outros
+`PASS_CONTAINMENT` para fence pós-NEW, descendente, saída NEW,
+fork do seletor, diário truncado e perda da testemunha.
+A CI intermediária `41041420038` também foi SUCCESS para os 12
+cenários com o fluxo cooperativo legado ainda presente; a final
+`41041894820` prova que o conjunto não depende dele.
+A CI inicial `41041347431` permanece failure histórica por
+transição L18 inválida corrigida em `b2084fdb`.
+
+**Decisão:** convergência **aprovada como ensaio experimental**.
+Fase 1 ainda ABERTA; READY=false; G1–G8 BLOCKED (0/8).
+A seleção NEW pós-efeitos permanece historicamente selecionada e
+bloqueada, sem retorno cego a OLD. Recuperação fria, crash interno
+de CreateProcess, brokers/I/O externo, durabilidade física e
+atestação de saúde independente permanecem sem prova.
+A alteração de documentação não dispara este workflow (path filter).
