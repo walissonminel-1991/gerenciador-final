@@ -46,3 +46,25 @@ READY operacional exigirá um contrato autenticado de saúde do aplicativo,
 vinculado à execução, que não se reduza a PID, HWND, log ou recibo da mesma
 identidade local. A pesquisa de inventário é evidência funcional limitada;
 a decisão final continua UNKNOWN, e G1–G8 permanecem BLOCKED (0/8).
+
+### Critérios de READY operacional — exigência separada da seleção
+
+O executável do ensaio é escolhido pelo valor persistido no seletor
+`l18-real-active.fixture.json` do coordenador C#, e não pelo ramo
+`if old/if new` do observador. Em retorno a OLD, o laboratório **reinicia**
+os bytes reais restaurados e testa novamente o filtro funcional. Isso mede
+recuperação executável de um ciclo controlado, não resistência a falta de energia.
+
+READY só poderá ser aceito se houver, de forma conjunta e verificável:
+(i) autoridade TUF apropriada, vínculo da transação e antirrollback;
+(ii) prova dos bytes efetivamente executados e isolamento da escolha até
+o startup sem TOCTOU; (iii) verificações externas de funções efetivas do GF
+além de PID/HWND/recibo local; (iv) comprovação independente de encerramento
+dos efeitos pendentes e I/O tardio; (v) recuperação idempotente em crash,
+restart e falha de energia preservando o OLD e o diário. Estas evidências
+precisam vir de origens e controles que o próprio processo candidato
+não consiga simplesmente falsificar.
+
+**Qualquer requisito ausente = UNKNOWN/BLOCKED**, nunca READY por inferência.
+Este ensaio não satisfaz o contrato completo, não abre G1–G8 e não conclui
+a Fase 1.

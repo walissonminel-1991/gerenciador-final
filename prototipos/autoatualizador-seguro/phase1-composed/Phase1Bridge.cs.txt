@@ -288,6 +288,8 @@ internal static partial class L18Coordinator
                 root.GetProperty("minimum_readonly_health_contract_observed").GetBoolean() &&
                 root.GetProperty("real_manifest_bound_to_preflight").GetBoolean() &&
                 root.GetProperty("selector_controlled_by_l18_only").GetBoolean() &&
+                root.GetProperty("executable_path_resolved_from_l18_selector").GetBoolean() &&
+                root.GetProperty("restored_old_booted_after_recovery").GetBoolean() &&
                 root.GetProperty("selector_python_write_attempts").GetInt32()==0 &&
                 root.GetProperty("coordinator_selected_new_then_restored_old").GetBoolean() &&
                 root.GetProperty("authorization_installation").GetString()==installation &&
@@ -301,6 +303,8 @@ internal static partial class L18Coordinator
             var newProc=root.GetProperty("new_process");
             Require(oldProc.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean()
                 && newProc.GetProperty("graceful_shutdown_verified_for_owned_process").GetBoolean()
+                && root.GetProperty("restored_old_process").GetProperty(
+                    "graceful_shutdown_verified_for_owned_process").GetBoolean()
                 && oldProc.GetProperty("read_only_ui_controls")
                     .GetProperty("functional_inventory_ui_observed").GetBoolean()
                 && newProc.GetProperty("read_only_ui_controls")

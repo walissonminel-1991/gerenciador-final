@@ -115,6 +115,10 @@ jobs:
               !$r.real_manifest_bound_to_preflight -or
               !$r.minimum_readonly_health_contract_observed -or
               !$r.selector_controlled_by_l18_only -or
+              !$r.executable_path_resolved_from_l18_selector -or
+              !$r.restored_old_booted_after_recovery -or
+              !$r.restored_old_process.terminated -or
+              !$r.restored_old_process.graceful_shutdown_verified_for_owned_process -or
               $r.selector_python_write_attempts -ne 0 -or
               !$r.coordinator_selected_new_then_restored_old -or
               !$r.authorization_installation -or !$r.authorization_transaction -or

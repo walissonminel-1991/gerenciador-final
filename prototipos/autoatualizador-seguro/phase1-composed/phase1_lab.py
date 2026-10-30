@@ -230,7 +230,24 @@ def read_coordinator_selector(root, selected, generation, installation, transact
                      "manifest_sha256": signed_target, "test_only": True,
                      "operational_installable": False},
             "COORDINATOR_SELECTOR_DIVERGED")
-    return True
+    return item["selected"]
+
+
+def selected_real_package(selector_root, versions, expected, generation,
+                          installation, transaction, signed_target):
+    """Derive the executable slot from the L18 selector, not an observer branch.
+
+    The expected slot is only an assertion. Source publish paths are used for
+    staging/authentication, never as authority to choose the executable.
+    """
+    selected = read_coordinator_selector(
+        selector_root, expected, generation, installation, transaction, signed_target)
+    root = versions.resolve(strict=True)
+    chosen = (root / selected).resolve(strict=True)
+    require(chosen.parent == root and chosen.name == selected and
+            chosen.is_dir() and not chosen.is_symlink(),
+            "SELECTED_PACKAGE_NOT_A_CANONICAL_SLOT")
+    return chosen
 
 
 def coordinator_handoff(token, phase, next_action):
@@ -455,16 +472,25 @@ def main():
         shutil.copyfile(args.new / "GerenciadorFinal.dll", dll)
         validate_package(new, new_manifest)
 
-        old_observation = observed_process(old, old_manifest["GerenciadorFinal.exe"]["sha256"])
+        old_selected = selected_real_package(
+            selector_root, versions, "old", 1, args.installation,
+            args.transaction, signed["manifest_sha256"])
+        require(old_selected == old.resolve(strict=True), "OLD_NOT_EFFECTIVE_SELECTOR")
+        old_observation = observed_process(
+            old_selected, old_manifest["GerenciadorFinal.exe"]["sha256"])
         result["old_process"] = old_observation
         require(old_observation["terminated"], "OLD_PROCESS_NOT_TERMINATED")
         require(validate_package(old, old_manifest), "OLD_DRIFT_BEFORE_SWAP")
         require(validate_package(new, new_manifest), "NEW_DRIFT_BEFORE_SWAP")
         coordinator_handoff(args.handoff_token, "OLD_DONE", "NEW")
-        read_coordinator_selector(selector_root, "new", 2, args.installation,
-                                  args.transaction, signed["manifest_sha256"])
+        new_selected = selected_real_package(
+            selector_root, versions, "new", 2, args.installation,
+            args.transaction, signed["manifest_sha256"])
+        require(new_selected == new.resolve(strict=True), "NEW_NOT_EFFECTIVE_SELECTOR")
         result["candidate_selected_in_disposable_sandbox"] = True
-        candidate = observed_process(new, new_manifest["GerenciadorFinal.exe"]["sha256"])
+        result["executable_path_resolved_from_l18_selector"] = True
+        candidate = observed_process(
+            new_selected, new_manifest["GerenciadorFinal.exe"]["sha256"])
         result["new_process"] = candidate
         result["real_gf_process_attempted"] = candidate["launch_attempted"]
         result["minimum_readonly_health_contract_observed"] = (
@@ -495,8 +521,21 @@ def main():
                 "UNSUPPORTED_APP_READY_CLAIM")
         # C# alone restores OLD after observing the NEW process exit.
         coordinator_handoff(args.handoff_token, "NEW_DONE", "OLD")
-        read_coordinator_selector(selector_root, "old", 3, args.installation,
-                                  args.transaction, signed["manifest_sha256"])
+        restored = selected_real_package(
+            selector_root, versions, "old", 3, args.installation,
+            args.transaction, signed["manifest_sha256"])
+        require(restored == old.resolve(strict=True), "OLD_RECOVERY_SELECTOR_INVALID")
+        # Re-launch and exercise the REAL restored OLD, rather than counting
+        # a JSON pointer/hash as proof of executable recovery.
+        recovered_observation = observed_process(
+            restored, old_manifest["GerenciadorFinal.exe"]["sha256"])
+        result["restored_old_process"] = recovered_observation
+        require(recovered_observation.get("terminated") and
+                recovered_observation.get("graceful_shutdown_verified_for_owned_process") and
+                recovered_observation.get("readonly_inventory_search_health", {})
+                .get("minimum_readonly_health_contract_observed") is True,
+                "OLD_AFTER_ROLLBACK_NOT_FUNCTIONAL")
+        result["restored_old_booted_after_recovery"] = True
         result["rolled_back_due_to_no_ready"] = True
         result["coordinator_selected_new_then_restored_old"] = True
         require(validate_package(old, old_manifest), "OLD_HASHES_LOST")
