@@ -97,34 +97,15 @@ internal static partial class L18Coordinator
         await child.StandardInput.FlushAsync();
     }
 
-    internal static async Task<L18Decision> ExecuteRealLabInertOnly(
+    // Shared with restarted-process recovery tests; no second selector/TUF engine.
+    internal static async Task<(string Installation,string Transaction,string Target,
+        string AuthDir,string AuthReport)> PrepareRealAuthorization(
         string src,string lab,string bootstrap,string python,string script,
-        string repository,string old,string candidate,string sandbox,string report)
+        string repository,string old,string candidate,string sandbox,string report,
+        bool begin=true)
     {
-        Root(src,lab);
-        Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true",
-            "PHASE1_GITHUB_WINDOWS_ONLY");
         string temp=Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
             throw new Rejected("PHASE1_NO_TEMP"));
-        string folder=Path.GetFullPath(sandbox);
-        Require(folder.StartsWith(temp+Path.DirectorySeparatorChar,
-            StringComparison.OrdinalIgnoreCase) && !Directory.Exists(folder),
-            "PHASE1_SANDBOX_NEW_AND_TEMP_ONLY");
-        Require(Path.GetFullPath(old).StartsWith(temp+Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase) &&
-            Path.GetFullPath(candidate).StartsWith(temp+Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase),"PHASE1_PACKAGE_OUTSIDE_TEMP");
-        Require(Path.GetFullPath(script).Equals(Path.Combine(
-            Path.GetFullPath(repository),"prototipos","autoatualizador-seguro",
-            "phase1-composed","phase1_lab.py"),StringComparison.OrdinalIgnoreCase)
-            && File.Exists(script) && File.Exists(python),"PHASE1_FIXED_PYTHON_SCRIPT");
-        Require(!File.Exists(report),"PHASE1_REPORT_ALREADY_EXISTS");
-
-        // The same L18 gate and phase journal now persist the REAL GF
-        // signed manifest hash before selecting NEW. No production trust:
-        // this is a disposable laboratory delegation to Python-TUF test keys.
-        using var gate=TryCoordinatorGate(src);
-        if(gate is null)return L18Decision.Busy;
         string installation=new PersistentState(src).Load().Record.InstallationId;
         string tx=L14Model.Tx(lab);
         string authDir=Path.Combine(temp,"gf-phase1-auth-"+Guid.NewGuid().ToString("N"));
@@ -188,16 +169,53 @@ internal static partial class L18Coordinator
             Require(independentlyHashed==signedTarget &&
                 manifestData.RootElement.GetProperty("installation").GetString()==installation &&
                 manifestData.RootElement.GetProperty("transaction").GetString()==tx &&
-                manifestData.RootElement.GetProperty("schema").GetString()=="gf-real-package-lab/2" &&
+                manifestData.RootElement.GetProperty("schema").GetString()=="gf-real-package-lab/3" &&
                 manifestData.RootElement.GetProperty("selected_before").GetString()=="old" &&
                 !manifestData.RootElement.GetProperty("operational_installable").GetBoolean(),
                 "PHASE1_SIGNED_MANIFEST_SCOPE_OR_DIGEST");
             // The lab signed manifest digest, not L16's inert entry digest,
             // becomes TargetSha in the original durable L18 phase journal.
-            BeginCore(src,lab,bootstrap,signedTarget);
-            Require(Load(src,lab).All(x=>x.TargetSha==signedTarget),
-                "PHASE1_JOURNAL_WRONG_TARGET");
+            if(begin)
+            {
+                BeginCore(src,lab,bootstrap,signedTarget);
+                Require(Load(src,lab).All(x=>x.TargetSha==signedTarget),
+                    "PHASE1_JOURNAL_WRONG_TARGET");
+            }
         }
+        return (installation,tx,signedTarget,authDir,authReport);
+    }
+
+    internal static async Task<L18Decision> ExecuteRealLabInertOnly(
+        string src,string lab,string bootstrap,string python,string script,
+        string repository,string old,string candidate,string sandbox,string report)
+    {
+        Root(src,lab);
+        Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true",
+            "PHASE1_GITHUB_WINDOWS_ONLY");
+        string temp=Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+            throw new Rejected("PHASE1_NO_TEMP"));
+        string folder=Path.GetFullPath(sandbox);
+        Require(folder.StartsWith(temp+Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase) && !Directory.Exists(folder),
+            "PHASE1_SANDBOX_NEW_AND_TEMP_ONLY");
+        Require(Path.GetFullPath(old).StartsWith(temp+Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase) &&
+            Path.GetFullPath(candidate).StartsWith(temp+Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase),"PHASE1_PACKAGE_OUTSIDE_TEMP");
+        Require(Path.GetFullPath(script).Equals(Path.Combine(
+            Path.GetFullPath(repository),"prototipos","autoatualizador-seguro",
+            "phase1-composed","phase1_lab.py"),StringComparison.OrdinalIgnoreCase)
+            && File.Exists(script) && File.Exists(python),"PHASE1_FIXED_PYTHON_SCRIPT");
+        Require(!File.Exists(report),"PHASE1_REPORT_ALREADY_EXISTS");
+
+        // The same L18 gate and phase journal now persist the REAL GF
+        // signed manifest hash before selecting NEW. No production trust:
+        // this is a disposable laboratory delegation to Python-TUF test keys.
+        using var gate=TryCoordinatorGate(src);
+        if(gate is null)return L18Decision.Busy;
+        var authorization=await PrepareRealAuthorization(src,lab,bootstrap,python,
+            script,repository,old,candidate,sandbox,report);
+        var (installation,tx,signedTarget,authDir,authReport)=authorization;
         // From this point, the ONLY real-package selector is controlled
         // by C#, persisted within the same src root as the L18 journal.
         WriteRealSelector(src,installation,tx,signedTarget,"old",1);
@@ -342,6 +360,8 @@ internal static class Phase1BridgeTests
         if(!OperatingSystem.IsWindows())return 2;
         // <report-bridge> <fixtures> <bootstrap> <repository> <python>
         // <script> <old> <candidate> <sandbox> <report-python>
+        if(args.Length>0 && args[0].StartsWith("--real-",StringComparison.Ordinal))
+            return await Phase1RecoveryTests.Entry(args);
         if(args.Length!=11 || args[0]!="--run")return 2;
         L16Tests.fixtures=Path.GetFullPath(args[2]);
         L16Tests.bootstrap=Path.GetFullPath(args[3]);

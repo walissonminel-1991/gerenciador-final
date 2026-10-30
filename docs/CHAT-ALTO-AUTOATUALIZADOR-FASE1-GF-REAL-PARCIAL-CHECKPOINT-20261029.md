@@ -126,3 +126,56 @@ reexecução funcional de OLD restaurada em Windows descartável.
 **Não é PASS sob crash/restart/power-loss**, nem prova independente
 de READY, nem aprovação transacional da Fase 1 ou liberação de gates.
 Este commit apenas documental não altera os bytes técnicos aprovados.
+
+---
+
+### Missão especial WORK — recuperação após interrupção de processo (29/10/2026, São Paulo)
+
+**Estado de preparação deste registro: código escrito e compilação local aprovada;
+execução Windows nova ainda pendente. Esta seção será atualizada com o resultado real.**
+
+- HEAD inicial confirmado: `7e5ac2f13ab5a0b2ce79170c9fc20f3c0f12cbd7`;
+  checkout sem alterações; desde `b9ecaa3` somente os dois commits documentais.
+- CI anterior `40986098577`: `completed/success`, vinculada a `b9ecaa3`;
+  prova exclusivamente o ciclo normal, sem interrupção.
+- Hipótese: após intenção/seleção, mas **antes do fence durável que precede
+  qualquer início possível de NEW**, um coordenador C# novo pode revalidar
+  manifesto, objetos NTFS, seleção e histórico e iniciar OLD real com segurança
+  limitada ao laboratório. Depois do fence, ausência de processos não demonstra
+  ausência de efeitos: bloquear, inclusive quando NEW saiu graciosamente.
+- Mesmos `L18Coordinator`, gate L20, diário L18 e seletor real. Nenhum seletor
+  Python nem uso do reconciliador de fixture L16 para determinar o GF real.
+- Manifesto TUF de laboratório `/3` passa a autenticar também a lista completa
+  de OLD. Reutilizada a preparação TUF existente, sem novas chaves/dependências.
+- Contexto de laboratório vincula instalação, transação, manifesto e IDs NTFS.
+  Handles sem compartilhamento WRITE/DELETE retidos durante a interrupção e
+  recuperação; revalidação completa antes/depois da execução de OLD.
+- Dois Job Objects descartáveis, sem breakaway, com handles mantidos pelo
+  supervisor do ensaio. Processo C# entra no grupo por `JOB_LIST` na criação;
+  filhos/descendentes permanecem contidos. O reconciliador consulta o kernel,
+  em vez de usar PID/HWND/ACK como prova de encerramento do grupo.
+- Fence NEW significa **efeitos desconhecidos**, mesmo se crash ocorreu antes
+  de `CreateProcess`. Perda do supervisor/job também bloqueia. Não há garantia
+  de efeitos de brokers externos, I/O pendente, reboot ou falta de energia.
+- Recuperação válida escolhe OLD pelo seletor persistido, reautentica TUF,
+  relê todos os arquivos, inicia GF real, exerce filtro read-only externo e
+  exige saída graciosa sem cleanup forçado. Resultado termina UNKNOWN para
+  READY; replay não relança nem altera o histórico de recuperação concluída.
+- Cenários planejados: intenção; seleção NEW sem launch; interrupção da
+  recuperação antes/depois do replace; fence pré-launch; NEW viva com escritor
+  descendente; NEW encerrada; fork do seletor; journal truncado; seletor travado;
+  testemunha Job perdida. Recibo READY forjado não autoriza recuperação.
+- Validações locais: .NET SDK `10.0.402`, builds Debug/Release com zero avisos
+  e erros; AST Python e YAML do workflow válidos. Não são testes Windows.
+- Arquivos técnicos: `phase1-composed/Phase1Bridge.cs.txt`,
+  `Phase1RealBridge.csproj`, `phase1_lab.py`, `Phase1Recovery.cs.txt`,
+  `Phase1RecoveryTests.cs.txt`, `LabProcessJob.cs.txt` e workflow
+  `gf-autoatualizador-fase1-real-lab.yml`; mais este checkpoint existente.
+- Limites: Job Object não é barreira de segurança contra mesmo usuário nem
+  testemunha de I/O concluído; identidade/hash no disco não medem bytes em
+  memória; pins não impedem toda adição de arquivos/brokers; flush não prova
+  persistência física de diretório. R1–R6 continuam sem qualificação operacional.
+- Restrições preservadas: somente branch autorizada; sem alteração no produto,
+  main, PR #65 Draft, BETA .66, infraestrutura, credenciais, telemetria ou PCs;
+  sem merge, release, deploy, upload de builds ou integração operacional.
+  **Fase 1 aberta; READY=false; G1–G8 BLOCKED (0/8).**

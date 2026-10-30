@@ -1,0 +1,259 @@
+// Real GF process-crash recovery, only under retained disposable lab witnesses.
+// Extends the SAME L18 coordinator, gate, journal and real selector.
+// Never calls the L16 inert selector reconciler to classify a real GF slot.
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+internal sealed record RealPinnedFile(string Path,string Sha,long Length,string Identity);
+internal sealed record RealLabContext(string Schema,string Installation,string Transaction,
+    string ManifestSha,string OwnerJob,string RecoveryJob,string Repository,string Python,
+    string Script,RealPinnedFile[] Files);
+
+internal sealed class RealLabPins : IDisposable
+{
+    private readonly List<WindowsFileGuard> pins=[];
+    internal RealLabPins(string src,RealLabContext context)
+    {
+        try
+        {
+            foreach(var item in context.Files)
+            {
+                Require(item.Path.Length is >0 and <180 && !item.Path.Contains('\\') &&
+                    !item.Path.Contains(':') && !item.Path.Split('/').Any(x=>x is "" or "." or "..") &&
+                    item.Length is >0 and <=67108864 && Hex(item.Sha,64),"REAL_PIN_PATH_OR_SIZE");
+                var pin=WindowsFileGuard.Open(src,System.IO.Path.Combine(src,item.Path));
+                pins.Add(pin);
+                byte[] bytes=pin.Read(67108864);
+                Require(pin.Identity==item.Identity && bytes.LongLength==item.Length &&
+                    Hash(bytes)==item.Sha,"REAL_PACKAGE_BYTES_OR_OBJECT_CHANGED");
+            }
+        }
+        catch{Dispose();throw;}
+    }
+    internal void Recheck(){foreach(var pin in pins)pin.Recheck();}
+    public void Dispose(){for(int i=pins.Count-1;i>=0;i--)pins[i].Dispose();pins.Clear();}
+}
+
+internal static partial class L18Coordinator
+{
+    internal static string RealContextPath(string src)=>Path.Combine(src,"l18-real-context.fixture.json");
+    internal static string NewLaunchFence(string src)=>Path.Combine(src,"l18-real-new-may-have-effects.fixture.txt");
+    private static string OldLaunchFence(string src)=>Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt");
+    internal static string RealCutPath(string src)=>Path.Combine(src,"l18-real-cut.fixture.txt");
+    internal static void DurableRealFile(string path,byte[] bytes)
+    {
+        using var writer=new FileStream(path,FileMode.CreateNew,FileAccess.Write,
+            FileShare.None,4096,FileOptions.WriteThrough);
+        writer.Write(bytes);writer.Flush(true);
+        // Local flush, NOT proof of directory durability or physical power loss.
+    }
+    internal static RealLabContext LoadRealContext(string src,string lab)
+    {
+        Root(src,lab);
+        Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true","REAL_RECOVERY_LAB_ONLY");
+        using var pin=WindowsFileGuard.Open(src,RealContextPath(src));
+        var c=StateCodec.Decode<RealLabContext>(pin.Read(524288));
+        Require(c.Schema=="gf-real-recovery-lab/1" && Hex(c.Installation,32) &&
+            Hex(c.Transaction,32) && Hex(c.ManifestSha,64) &&
+            c.Installation==new PersistentState(src).Load().Record.InstallationId &&
+            c.Transaction==L14Model.Tx(lab) &&
+            c.OwnerJob=="Local\\GF-PHASE1-"+c.Installation+"-"+c.Transaction+"-owner" &&
+            c.RecoveryJob=="Local\\GF-PHASE1-"+c.Installation+"-"+c.Transaction+"-recovery" &&
+            c.Files.Length is >80 and <2048 &&
+            c.Files.Select(x=>x.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count()==c.Files.Length &&
+            Path.GetFullPath(c.Script)==Path.Combine(Path.GetFullPath(c.Repository),
+                "prototipos","autoatualizador-seguro","phase1-composed","phase1_lab.py") &&
+            File.Exists(c.Python),"REAL_CONTEXT_IDENTITY_OR_SCOPE");
+        return c;
+    }
+    private static string SelectedRealPath(string src,RealLabContext c,out string slot,out int generation)
+    {
+        using(var pin=WindowsFileGuard.Open(src,RealSelector(src)))
+        using(var doc=Json(pin.Read(2048),2048))
+        {
+            slot=doc.RootElement.GetProperty("selected").GetString() ?? "";
+            generation=doc.RootElement.GetProperty("generation").GetInt32();
+        }
+        Require((slot,generation) is ("old",1 or 3) or ("new",2),"REAL_SELECTOR_GENERATION_FORK");
+        RequireRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,slot,generation);
+        string path=Path.Combine(src,"real",slot);
+        using var dir=WindowsFileGuard.Open(src,path,true);
+        return path;
+    }
+    private static void VerifyRealManifest(string src,RealLabContext c)
+    {
+        using var pin=WindowsFileGuard.Open(src,Path.Combine(src,"real-auth","GF-LAB-REAL-PACKAGE-MANIFEST.json"));
+        byte[] bytes=pin.Read(2097152);
+        Require(Hash(bytes)==c.ManifestSha,"REAL_TARGET_SHA_FORK");
+        using var d=Json(bytes,2097152);var manifest=d.RootElement;
+        Exact(manifest,"schema","installation","transaction","selected_before","operational_installable","files","old_files");
+        Require(Text(manifest,"schema")=="gf-real-package-lab/3" &&
+            Text(manifest,"installation")==c.Installation &&
+            Text(manifest,"transaction")==c.Transaction &&
+            Text(manifest,"selected_before")=="old" &&
+            !manifest.GetProperty("operational_installable").GetBoolean(),"REAL_MANIFEST_SCOPE_FORK");
+        foreach(string slot in new[]{"old","new"})
+        {
+            string prefix="real/"+slot+"/";
+            var files=manifest.GetProperty(slot=="old"?"old_files":"files");
+            Require(files.EnumerateObject().Count()==c.Files.Count(x=>x.Path.StartsWith(prefix,StringComparison.Ordinal)),
+                "REAL_MANIFEST_FILESET_FORK");
+            foreach(var f in files.EnumerateObject())
+            {
+                Exact(f.Value,"length","sha256");
+                var item=c.Files.SingleOrDefault(x=>x.Path==prefix+f.Name);
+                Require(item is not null && item.Length==f.Value.GetProperty("length").GetInt64() &&
+                    item.Sha==Text(f.Value,"sha256"),"REAL_MANIFEST_CONTENT_FORK");
+            }
+            // Check the actual namespace too; a list of known pinned files alone
+            // would miss an added DLL/config. Reject reparse dirs before traversal.
+            var found=new List<string>();
+            void Walk(string directory)
+            {
+                using var directoryPin=WindowsFileGuard.Open(src,directory,true);
+                foreach(string child in Directory.EnumerateFileSystemEntries(directory))
+                {
+                    Require((File.GetAttributes(child)&FileAttributes.ReparsePoint)==0,"REAL_EXTRA_REPARSE");
+                    if(Directory.Exists(child))Walk(child);
+                    else found.Add(Path.GetRelativePath(src,child).Replace('\\','/'));
+                }
+            }
+            Walk(Path.Combine(src,"real",slot));
+            Require(found.Order(StringComparer.Ordinal).SequenceEqual(
+                c.Files.Where(x=>x.Path.StartsWith(prefix,StringComparison.Ordinal)).Select(x=>x.Path).Order(StringComparer.Ordinal)),
+                "REAL_PACKAGE_EXTRA_OR_MISSING_FILE");
+        }
+        var canary=c.Files.Single(x=>x.Path=="PERSONAL-KEEP-UNCHANGED.txt");
+        Require(canary.Sha==Hash(System.Text.Encoding.UTF8.GetBytes("DO-NOT-TOUCH-MY-DATA\n")),"REAL_CANARY_BASELINE_FORK");
+    }
+    private static async Task RunRealObserver(string src,RealLabContext c,string mode)
+    {
+        var info=new ProcessStartInfo(c.Python){UseShellExecute=false,CreateNoWindow=true,
+            RedirectStandardOutput=true,RedirectStandardError=true,WorkingDirectory=c.Repository};
+        foreach(var arg in new[]{c.Script,mode,src})info.ArgumentList.Add(arg);
+        using var child=Process.Start(info) ?? throw new Rejected("REAL_OBSERVER_NOT_CREATED");
+        // This child inherits the already assigned, non-breakaway job.
+        var stdout=child.StandardOutput.ReadToEndAsync();var stderr=child.StandardError.ReadToEndAsync();
+        try{await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(80));}
+        catch(TimeoutException){throw new Rejected("REAL_OBSERVER_TIMEOUT_EFFECTS_UNKNOWN");}
+        string error=await stderr;_=await stdout;
+        if(child.ExitCode!=0)
+        {
+            Console.Error.WriteLine("REAL_OBSERVER_ERROR "+error[..Math.Min(error.Length,1200)]);
+            throw new Rejected("REAL_OBSERVER_FAILED");
+        }
+    }
+    internal static async Task RealCut(string src,string name)
+    {
+        DurableRealFile(RealCutPath(src),System.Text.Encoding.UTF8.GetBytes(name));
+        await Task.Delay(Timeout.Infinite); // killed only by retained test process handle
+    }
+    internal static async Task RealOwner(string src,string lab,string bootstrap,string cut)
+    {
+        var c=LoadRealContext(src,lab);
+        using var contextPin=WindowsFileGuard.Open(src,RealContextPath(src));
+        using var gate=TryCoordinatorGate(src);Require(gate is not null,"REAL_OWNER_BUSY");
+        using var job=LabProcessJob.Open(c.OwnerJob);job.RequireCurrentMember();
+        using var pins=new RealLabPins(src,c);VerifyRealManifest(src,c);
+        using(var lease=L16Boundary.Exclusive(src))BeginCore(src,lab,bootstrap,c.ManifestSha);
+        WriteRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"old",1);
+        if(cut=="after-intent")await RealCut(src,cut);
+        Append(src,lab,Switching,"real-new-selection-intent",c.ManifestSha);
+        WriteRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"new",2);
+        if(cut=="after-select")await RealCut(src,cut);
+        // Fence BEFORE the first possible NEW execution. A crash in the gap
+        // remains unknown even if no child was actually created.
+        DurableRealFile(NewLaunchFence(src),System.Text.Encoding.UTF8.GetBytes("NEW-MAY-HAVE-UNOBSERVABLE-EFFECTS\n"));
+        if(cut=="after-launch-fence")await RealCut(src,cut);
+        Append(src,lab,Launched,"real-new-effects-fenced-before-create",c.ManifestSha);
+        string selected=SelectedRealPath(src,c,out var slot,out _);
+        Require(slot=="new","REAL_OWNER_NOT_NEW");
+        if(cut=="after-new-exit")
+        {
+            await RunRealObserver(src,c,"--recovery-observe");
+            Append(src,lab,Exited,"real-new-limited-observation-complete",c.ManifestSha);
+            await RealCut(src,cut);
+        }
+        Require(cut=="during-new","REAL_UNKNOWN_CUT");
+        using var gf=Process.Start(new ProcessStartInfo(Path.Combine(selected,"GerenciadorFinal.exe"))
+            {UseShellExecute=false,WorkingDirectory=selected,ArgumentList={"--tray"}})
+            ?? throw new Rejected("REAL_NEW_NOT_CREATED");
+        var helper=new ProcessStartInfo(Environment.ProcessPath!){UseShellExecute=false};
+        foreach(string a in new[]{"--real-late-writer",src,lab})helper.ArgumentList.Add(a);
+        using var descendant=Process.Start(helper) ?? throw new Rejected("REAL_WRITER_NOT_CREATED");
+        await Phase1RecoveryTests.Until(()=>File.Exists(Path.Combine(src,"late-writer-ready.fixture.txt")));
+        Require(!gf.HasExited && !descendant.HasExited && job.Active>=3,"REAL_SURVIVOR_NOT_ACTIVE");
+        await RealCut(src,cut);
+    }
+    internal static async Task<string> ReconcileReal(string src,string lab,string bootstrap,string cut)
+    {
+        Root(src,lab);
+        using var gate=TryCoordinatorGate(src);
+        if(gate is null)return "Busy";
+        try
+        {
+            Require(!File.Exists(RecoveryBlocked(src)),"REAL_UNREADABLE_HISTORY_BLOCKED");
+            var c=LoadRealContext(src,lab);
+            using var contextPin=WindowsFileGuard.Open(src,RealContextPath(src));
+            using var owner=LabProcessJob.Open(c.OwnerJob);
+            using var recovery=LabProcessJob.Open(c.RecoveryJob);recovery.RequireCurrentMember();
+            // OS job accounting, NOT PID, HWND, exit code or a local receipt.
+            Require(owner.Active==0 && recovery.Active==1,"REAL_CONTAINED_PROCESSES_STILL_ACTIVE");
+            using var lease=L16Boundary.Exclusive(src);
+            var history=Load(src,lab);
+            Require(history.Count>=5 && history.All(x=>x.TargetSha==c.ManifestSha),"REAL_JOURNAL_TARGET_FORK");
+            using(var fixture=Probe(src,lab,bootstrap))
+                Require(fixture.stagedIdentity==history[0].StagedIdentity,"REAL_STAGE_OBJECT_FORK");
+            using var pins=new RealLabPins(src,c);VerifyRealManifest(src,c);
+            // Authenticate the existing signed metadata again; never re-sign or
+            // infer TUF trust from context/receipt hashes. Python cannot select.
+            await RunRealObserver(src,c,"--recovery-verify");
+            Require(owner.Active==0 && recovery.Active==1,"REAL_PROCESS_STARTED_DURING_PROBE");
+            _=SelectedRealPath(src,c,out string selected,out int generation);
+            Require(!File.Exists(NewLaunchFence(src)),"REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED");
+            if(history.Any(x=>x.Detail=="real-old-functional-lab-only"))
+            {
+                Require(selected=="old" && history[^1].Phase==Unknown,"REAL_TERMINAL_SELECTOR_CONTRADICTION");
+                pins.Recheck();return "OldReobservedNoReady";
+            }
+            Require(!File.Exists(OldLaunchFence(src)),"REAL_INTERRUPTED_OLD_EFFECTS_UNKNOWN");
+            if(history[^1].Phase==Intent)
+                Append(src,lab,Switching,"real-intent-reopened-no-new-launch",c.ManifestSha);
+            if(Load(src,lab)[^1].Phase!=Reconciling)
+            {
+                RememberUnknown(src,lab,"real-process-crash-under-reconciliation");
+                Append(src,lab,Reconciling,"real-old-restore-intent",c.ManifestSha);
+            }
+            if(cut=="before-old-replace")await RealCut(src,cut);
+            if(selected=="new")
+                WriteRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"old",3);
+            _=SelectedRealPath(src,c,out selected,out generation);
+            Require(selected=="old","REAL_RESTORE_DID_NOT_SELECT_OLD");
+            Append(src,lab,Reconciling,"real-old-selector-revalidated",c.ManifestSha);
+            if(cut=="after-old-replace")await RealCut(src,cut);
+            pins.Recheck();
+            DurableRealFile(OldLaunchFence(src),System.Text.Encoding.UTF8.GetBytes("OLD-MAY-HAVE-EFFECTS\n"));
+            await RunRealObserver(src,c,"--recovery-observe");
+            Require(recovery.Active==1 && owner.Active==0,"REAL_OLD_DESCENDANTS_STILL_ACTIVE");
+            // A fresh full-byte/namespace read, in addition to retaining NTFS
+            // file capabilities throughout the execution and external probe.
+            using var finalPins=new RealLabPins(src,c);VerifyRealManifest(src,c);
+            _=SelectedRealPath(src,c,out selected,out _);
+            Require(selected=="old","REAL_SELECTOR_CHANGED_DURING_OLD");
+            Append(src,lab,Old,"real-old-functional-lab-only",c.ManifestSha);
+            RememberUnknown(src,lab,"real-old-restored-ready-still-unproven");
+            return "OldRecoveredNoReady";
+        }
+        catch(Exception e) when(e is Rejected or IOException or Win32Exception or
+            JsonException or UnauthorizedAccessException or InvalidDataException or
+            InvalidOperationException or KeyNotFoundException)
+        {
+            RememberUnknown(src,lab,"real-recovery-evidence-insufficient");
+            Console.WriteLine("GF_PHASE1_RECOVERY_BLOCK "+e.Message);
+            return "UnknownBlocked";
+        }
+    }
+}

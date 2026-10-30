@@ -21,7 +21,7 @@
     <Compile Include="../m3-composed-3/Stage3Binding.cs.txt" />
     <Compile Include="../m3-l14-recovery/L14Model.cs.txt" />
     <Compile Include="../m3-l15-bound/L15Binding.cs.txt" />
-    <Compile Include="../m3-l16-signed-stage/L16Boundary.cs.txt;../m3-l16-signed-stage/L16Tests.cs.txt;../m3-l18-reconciler/L18Coordinator.cs.txt;../m3-l18-reconciler/L18Tests.cs.txt;../m3-l19-reconcile/L19Tests.cs.txt;../m3-l20-barrier/L20Tests.cs.txt;../m3-l21-stage-pin/L21Tests.cs.txt;../m3-l22-old-pin/L22Tests.cs.txt;Phase1Bridge.cs.txt" />
+    <Compile Include="../m3-l16-signed-stage/L16Boundary.cs.txt;../m3-l16-signed-stage/L16Tests.cs.txt;../m3-l18-reconciler/L18Coordinator.cs.txt;../m3-l18-reconciler/L18Tests.cs.txt;../m3-l19-reconcile/L19Tests.cs.txt;../m3-l20-barrier/L20Tests.cs.txt;../m3-l21-stage-pin/L21Tests.cs.txt;../m3-l22-old-pin/L22Tests.cs.txt;Phase1Bridge.cs.txt;Phase1Recovery.cs.txt;Phase1RecoveryTests.cs.txt;LabProcessJob.cs.txt" />
     <PackageReference Include="BouncyCastle.Cryptography" Version="[2.7.0]" />
   </ItemGroup>
   <Target Name="RequirePinnedFixtureSource" BeforeTargets="PrepareForBuild">

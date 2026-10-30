@@ -166,4 +166,48 @@ jobs:
             '* FASE 1 PARCIAL; G1-G8 BLOCKED (0/8)'
             '* Nenhum upload de pacote, deploy ou integracao operacional'
           ) | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+      - name: Interromper coordenadores e reconciliar GF real em processos novos
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=(Resolve-Path '.').Path
+          $outputs=Join-Path $env:RUNNER_TEMP 'gf-phase1-csharp-artifacts'
+          $exes=@(Get-ChildItem $outputs -Filter 'GF.Updater.M3.L18Tests.exe' -File -Recurse)
+          if ($exes.Count -ne 1) { throw 'GF_PHASE1_RECOVERY_RUNNER_NOT_UNIQUE' }
+          $fixtures=Join-Path $env:RUNNER_TEMP 'gf-phase1-signed-fixtures'
+          $anchor=Join-Path $root 'prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json'
+          $script=Join-Path $root 'prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py'
+          $old=Join-Path $env:RUNNER_TEMP 'gf-phase1-old-publish'
+          $new=Join-Path $env:RUNNER_TEMP 'gf-phase1-new-publish'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-phase1-real-crash-report.json'
+          $pythonExe=(Get-Command python).Source
+          # Align .NET/Python temp roots for this disposable step only; every
+          # real package and fixture remains strictly inside RUNNER_TEMP.
+          $env:TEMP=$env:RUNNER_TEMP
+          $env:TMP=$env:RUNNER_TEMP
+          & $exes[0].FullName --real-suite $report $fixtures $anchor $root $pythonExe $script $old $new
+          if ($LASTEXITCODE -ne 0) { throw 'GF_PHASE1_REAL_CRASH_CASE_FAILED' }
+          $r=Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.failed -ne 0 -or $r.expected_cases -ne 11 -or $r.tests.Count -ne 11 -or
+              @($r.tests | Where-Object { $_.status -ne 'passed' }).Count -ne 0 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_RECOVERY_LAB_ONLY' }).Count -ne 5 -or
+              @($r.tests | Where-Object { $_.classification -eq 'PASS_CONTAINMENT' }).Count -ne 6 -or
+              @($r.tests | Where-Object { !$_.old_and_canary_preserved -or !$_.reconciler_new_process -or
+                                         !$_.manifest_and_object_identities_rechecked -or $_.operational_ready }).Count -ne 0 -or
+              $r.operational_ready -or $r.phase1_complete -or $r.operational_gates_closed -ne 0 -or
+              $r.real_power_loss_tested -or $r.supervisor_loss_recovery_proven -or
+              $r.new_effects_quiescence_proven -or $r.production_tuf_authority) {
+            throw 'GF_PHASE1_CRASH_FALSE_READY_OR_INCOMPLETE_EVIDENCE'
+          }
+          @(
+            '## Fase 1 - interrupcao real de processos, sem READY'
+            '* 5 casos de recuperacao limitada: OLD real reiniciada, filtro exercitado e saida graciosa'
+            '* 6 casos de contencao: nenhuma troca cega para OLD e nenhuma promocao de NEW'
+            '* Reconciliacao idempotente em processos C# novos, diario L18 e seletor unico'
+            '* Descendente tardio sobrevive ao coordenador; escritas em OLD/canario recusadas por handles NTFS'
+            '* Grupo de processos vazio nao prova ausencia de efeitos: fence NEW permanece bloqueante'
+            '* Crash do coordenador/reconciliador nao equivale a reboot nem queda de energia'
+            '* Testemunha supervisora perdida, journal truncado e seletor contraditorio: UNKNOWN/BLOCKED'
+            '* Fase 1 aberta; READY recusado; G1-G8 BLOCKED (0/8)'
+          ) | Add-Content -Path $env:GITHUB_STEP_SUMMARY
 # No downloadable GF builds, secrets, releases, production updater or READY claim.

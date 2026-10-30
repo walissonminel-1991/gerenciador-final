@@ -74,11 +74,12 @@ def manifest_for(directory):
             for name, path in files}
 
 
-def canonical_manifest(files, installation, transaction):
+def canonical_manifest(files, installation, transaction, old_files):
     require(len(installation) == 32 and len(transaction) == 32 and
             all(c in "0123456789abcdef" for c in installation + transaction),
             "LAB_INSTALLATION_TRANSACTION_FORMAT")
-    return (json.dumps({"schema": "gf-real-package-lab/2",
+    return (json.dumps({"schema": "gf-real-package-lab/3",
+                        "old_files": old_files,
                         "installation": installation, "transaction": transaction,
                         "selected_before": "old",
                         "operational_installable": False,
@@ -359,7 +360,7 @@ def main():
         require(old_manifest != new_manifest and
                 old_manifest["GerenciadorFinal.dll"]["sha256"] !=
                 new_manifest["GerenciadorFinal.dll"]["sha256"], "SAME_REAL_PACKAGE")
-        candidate = canonical_manifest(new_manifest, args.installation, args.transaction)
+        candidate = canonical_manifest(new_manifest, args.installation, args.transaction, old_manifest)
         signed = tuf_sign_and_verify(args.repository, candidate, auth_dir)
         verified = tuf_verify_prepared(args.repository, candidate, auth_dir)
         require(verified["manifest_sha256"] == signed["manifest_sha256"],
@@ -438,7 +439,7 @@ def main():
         shutil.copytree(args.new, new)
         require(validate_package(old, old_manifest), "OLD_NOT_PREPARED")
         expected_manifest = canonical_manifest(new_manifest, args.installation,
-                                                args.transaction)
+                                                args.transaction, old_manifest)
         signed = tuf_verify_prepared(args.repository, expected_manifest, auth_dir)
         require(signed["manifest_sha256"] == auth["manifest_sha256"],
                 "AUTH_PREFLIGHT_MANIFEST_MISMATCH")
@@ -560,5 +561,59 @@ def main():
     return 0
 
 
+def recovery_tool(mode, source):
+    """Subordinate re-verifier/observer. Never changes the C# selector."""
+    require(os.name == "nt" and os.environ.get("GITHUB_ACTIONS") == "true",
+            "RECOVERY_DISPOSABLE_WINDOWS_ONLY")
+    src = Path(source).resolve(strict=True)
+    tmp = Path(tempfile.gettempdir()).resolve()
+    require(src.is_relative_to(tmp) and src.parent.name.startswith("gf-u2-") and
+            (src / ".gf-u2-fixture").read_text(encoding="utf-8") ==
+            "GF-U2-INERT-STATE-TESTS-NO-PRODUCT\n", "RECOVERY_SOURCE_SCOPE")
+    context_path = src / "l18-real-context.fixture.json"
+    require(context_path.stat().st_size <= 524288, "RECOVERY_CONTEXT_SIZE")
+    c = json.loads(context_path.read_bytes())
+    auth_dir = src / "real-auth"
+    raw = (auth_dir / "GF-LAB-REAL-PACKAGE-MANIFEST.json").read_bytes()
+    m = json.loads(raw)
+    require(m["schema"] == "gf-real-package-lab/3" and
+            m["installation"] == c["installation"] and
+            m["transaction"] == c["transaction"] and
+            digest(raw) == c["manifestSha"] and
+            m["operational_installable"] is False, "RECOVERY_MANIFEST_SCOPE")
+    tuf_verify_prepared(Path(c["repository"]), raw, auth_dir)
+    validate_package(src / "real/old", m["old_files"])
+    validate_package(src / "real/new", m["files"])
+    if mode == "--recovery-verify":
+        return 0
+    require(mode == "--recovery-observe", "RECOVERY_MODE")
+    item = json.loads((src / "l18-real-active.fixture.json").read_bytes())
+    selected, generation = item["selected"], item["generation"]
+    require((selected, generation) in (("old", 1), ("new", 2), ("old", 3)),
+            "RECOVERY_SELECTOR_GENERATION")
+    directory = selected_real_package(src, src / "real", selected, generation,
+                                      c["installation"], c["transaction"], c["manifestSha"])
+    files = m["old_files"] if selected == "old" else m["files"]
+    observation = observed_process(directory, files["GerenciadorFinal.exe"]["sha256"])
+    # Diagnostic report does not confer recovery/READY authority on Python.
+    observation.pop("pid_observed", None)
+    (src / ("real-observed-" + selected + ".fixture.json")).write_text(
+        json.dumps(observation, sort_keys=True) + "\n", encoding="utf-8")
+    require(observation.get("created") and observation.get("terminated") and
+            observation.get("actual_image_path_matches") and
+            observation.get("image_on_disk_sha_matches_manifest") and
+            observation.get("graceful_shutdown_verified_for_owned_process") and
+            not observation.get("forced_cleanup_required") and
+            observation.get("readonly_inventory_search_health", {})
+            .get("minimum_readonly_health_contract_observed") is True and
+            not observation.get("ready_verified") and
+            not observation.get("application_functional_health_verified"),
+            "RECOVERY_FUNCTIONAL_OBSERVATION_UNPROVEN")
+    validate_package(directory, files)
+    return 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] in ("--recovery-verify", "--recovery-observe"):
+        sys.exit(recovery_tool(sys.argv[1], sys.argv[2]))
     sys.exit(main())
