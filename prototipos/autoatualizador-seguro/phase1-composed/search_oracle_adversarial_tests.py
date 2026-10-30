@@ -19,9 +19,9 @@ def snapshot(*, empty_exists=True, empty_visible=False, item_exists=False,
                      "STATIC", item_parent, item_visible))
     return rows
 
-def run_case(name, rows, query, want_empty, expected):
+def run_case(name, rows, query, want_empty, expected, list_hwnd=100):
     outcome = search_snapshot_proves(rows, query, query, want_empty,
-                                    EDIT, PARENT, EMPTY)
+                                    EDIT, PARENT, EMPTY, list_hwnd)
     if outcome is not expected:
         raise AssertionError(name + ": false classification " + str(outcome))
     return name
@@ -35,6 +35,9 @@ cases.append(run_case("A1_stale_wrong_item", snapshot(item_exists=True, wrong_it
                       NAME, False, False))
 cases.append(run_case("A1_actual_visible_item",
                       snapshot(item_exists=True), NAME, False, True))
+cases.append(run_case("A1_unbound_static_is_not_item",
+                      snapshot(item_exists=True), NAME, False, False,
+                      list_hwnd=None))
 cases.append(run_case("A1_missing_item_control",
                       snapshot(item_exists=True, item_visible=False),
                       NAME, False, False))
