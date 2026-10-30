@@ -126,7 +126,7 @@ internal static class Phase1BridgeTests
         L16Tests.fixtures=Path.GetFullPath(args[2]);
         L16Tests.bootstrap=Path.GetFullPath(args[3]);
         L16Tests.suite=Path.Combine(Path.GetTempPath(),
-            "gf-phase1-csharp-"+Guid.NewGuid().ToString("N"));
+            "gf-u2-phase1-csharp-"+Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(L16Tests.suite);
         string evidence=args[1];
         try
