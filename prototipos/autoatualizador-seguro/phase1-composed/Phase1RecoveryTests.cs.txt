@@ -344,7 +344,7 @@ internal static class Phase1RecoveryTests
                     health.GetProperty("minimum_readonly_health_contract_observed").GetBoolean() &&
                     !health.GetProperty("seeded_inventory_positive_observed").GetBoolean() &&
                     health.GetProperty("seeded_inventory_negative_control_observed").GetBoolean() &&
-                    report.GetProperty("inventory_item_level_witness_required").GetBoolean() &&
+                    health.GetProperty("inventory_item_level_witness_required").GetBoolean() &&
                     !report.GetProperty("ready_verified").GetBoolean() &&
                     !report.GetProperty("application_functional_health_verified").GetBoolean(),
                     "REAL_TRIAL_PROBE_EVIDENCE_CONTRADICTORY");
