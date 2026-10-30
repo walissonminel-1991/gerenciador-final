@@ -13,6 +13,8 @@ import subprocess
 import sys
 import time
 
+# Reuse the exact existing Win32/UI observer; do not duplicate observers.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "phase1-composed"))
 from win32_process_observation import observe_real_gf
 
 
