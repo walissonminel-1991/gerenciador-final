@@ -46,6 +46,7 @@ internal static partial class L18Coordinator
         var psi=new ProcessStartInfo(Path.GetFullPath(python))
         {
             UseShellExecute=false,CreateNoWindow=true,
+            RedirectStandardOutput=true,RedirectStandardError=true,
             WorkingDirectory=Path.GetFullPath(repository)
         };
         foreach(string word in new[]{"--repository",repository,"--old",old,
@@ -53,6 +54,8 @@ internal static partial class L18Coordinator
             psi.ArgumentList.Add(word);
         using Process process=Process.Start(psi) ??
             throw new Rejected("PHASE1_CHILD_NOT_STARTED");
+        Task<string> stdout=process.StandardOutput.ReadToEndAsync();
+        Task<string> stderr=process.StandardError.ReadToEndAsync();
         Append(src,lab,Launched,"real-lab-pid-"+process.Id.ToString(),
             Load(src,lab)[0].TargetSha);
         try
@@ -71,11 +74,19 @@ internal static partial class L18Coordinator
 
         Append(src,lab,Exited,process.ExitCode==0?"exit-code-zero":
             "exit-code-nonzero",Load(src,lab)[0].TargetSha);
+        string standardOut=await stdout;
+        string standardErr=await stderr;
         if(process.ExitCode!=0)
         {
             RememberUnknown(src,lab,"real-gf-lab-child-failed");
-            return L18Decision.UnknownBlocked;
+            Console.Error.WriteLine("GF_PHASE1_CHILD_DIAGNOSTIC "+
+                standardErr[..Math.Min(standardErr.Length,1800)]);
+            throw new Rejected("PHASE1_CHILD_FAILED_EXIT_"+process.ExitCode);
         }
+        // A successful subordinate report is independently required, not
+        // inferred from a persisted UNKNOWN alone.
+        Require(File.Exists(report),"PHASE1_RESULT_MISSING");
+        Console.WriteLine("GF_PHASE1_CHILD_COMPLETED_VERIFIED_EXIT_ZERO");
         // A JSON report from this same-user child is NOT a trusted READY
         // witness and does not constitute a signed packet-to-journal binding.
         Require(File.Exists(report),"PHASE1_RESULT_MISSING");
@@ -126,7 +137,7 @@ internal static class Phase1BridgeTests
         L16Tests.fixtures=Path.GetFullPath(args[2]);
         L16Tests.bootstrap=Path.GetFullPath(args[3]);
         L16Tests.suite=Path.Combine(Path.GetTempPath(),
-            "gf-u2-phase1-csharp-"+Guid.NewGuid().ToString("N"));
+            "gf-phase1-csharp-"+Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(L16Tests.suite);
         string evidence=args[1];
         try
@@ -137,6 +148,16 @@ internal static class Phase1BridgeTests
                 args[5],args[6],args[4],args[7],args[8],args[9],args[10]);
             Require(decision==L18Decision.UnknownBlocked,
                 "PHASE1_UNKNOWN_REQUIRED");
+            Require(File.Exists(args[10]),"PHASE1_CHILD_REPORT_MISSING_AFTER_BRIDGE");
+            using(var real=Json(File.ReadAllBytes(args[10]),32768))
+            {
+                var actual=real.RootElement;
+                Require(actual.GetProperty("old_and_canary_preserved").GetBoolean() &&
+                    actual.GetProperty("authenticated_real_package").GetBoolean() &&
+                    actual.GetProperty("rolled_back_due_to_no_ready").GetBoolean() &&
+                    !actual.GetProperty("ready_verified").GetBoolean(),
+                    "PHASE1_REAL_REPORT_INCOMPLETE");
+            }
             // Presence of an append-only UNKNOWN event is required: mere
             // returned UnknownBlocked without durable state is not enough.
             var events=Directory.GetFiles(scenario.Source.Root,
