@@ -20,6 +20,8 @@ import sys
 import time
 import tempfile
 import secrets
+import ctypes
+from ctypes import wintypes as w
 import winreg
 from contextlib import contextmanager, nullcontext
 
@@ -427,35 +429,74 @@ def main():
 
 @contextmanager
 def trial_registry_fixture():
-    """Inert, isolated HKCU ARP record on disposable GitHub Windows runner.
-    No uninstall command. Never replace or remove an existing registry key.
+    """Disposable HKCU ARP record, create-new only, not a same-user sandbox.
+
+    A3: RegCreateKeyExW returns REG_CREATED_NEW_KEY atomically. Never assume
+    ownership from a preceding OpenKey absence check (race). Registry cleanup
+    by parent/name is not atomic relative to a same-user replacement; on
+    observed mutation refuse deletion and report a retained fixture.
     """
     require(os.name == "nt" and os.environ.get("GITHUB_ACTIONS") == "true",
             "TRIAL_REGISTRY_SCOPE")
     name = "GF-PHASE1-INVENTORY-" + secrets.token_hex(12).upper()
     subkey = ("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\"
               + name)
+    token = secrets.token_hex(32)
     rights = winreg.KEY_READ | winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey, 0, rights):
-            require(False, "TRIAL_REGISTRY_ALREADY_EXISTS")
-    except FileNotFoundError:
-        pass
-    created = False
-    try:
-        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, subkey, 0, rights) as key:
-            created = True
-            winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, name)
-            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.0")
-            winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "GF Phase1 inert CI")
-        yield name
-    finally:
-        if created:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey, 0, rights) as key:
-                require(winreg.QueryValueEx(key, "DisplayName")[0] == name,
-                        "TRIAL_REGISTRY_IDENTITY_CHANGED")
-            winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, subkey,
-                               access=winreg.KEY_WOW64_64KEY, reserved=0)
+    native = ctypes.WinDLL("advapi32", use_last_error=True)
+    create = native.RegCreateKeyExW
+    create.argtypes = [w.HANDLE, w.LPCWSTR, w.DWORD, w.LPWSTR, w.DWORD,
+                       w.DWORD, ctypes.c_void_p, ctypes.POINTER(w.HANDLE),
+                       ctypes.POINTER(w.DWORD)]
+    create.restype = w.LONG
+    key_handle = w.HANDLE()
+    disposition = w.DWORD()
+    rc = create(w.HANDLE(int(winreg.HKEY_CURRENT_USER)), subkey,
+                0, None, 0, rights, None,
+                ctypes.byref(key_handle), ctypes.byref(disposition))
+    require(rc == 0 and bool(key_handle),
+            "TRIAL_REGISTRY_NATIVE_CREATE_FAILED")
+    with winreg.HKEYType(key_handle.value) as key:
+        require(disposition.value == 1, "TRIAL_REGISTRY_ALREADY_EXISTS")
+        values = {"DisplayName": name, "DisplayVersion": "1.0",
+                  "Publisher": "GF Phase1 inert CI",
+                  "GFPhase1Owner": token}
+        try:
+            for field, value in values.items():
+                winreg.SetValueEx(key, field, 0, winreg.REG_SZ, value)
+            yield name
+        finally:
+            # Original handle remains open; deleted/replaced objects cannot
+            # be validated using a freshly opened name. Refuse deletion on
+            # any observable deviation. This is not a complete TOCTOU
+            # defense against hostile same-user replacement between this
+            # inspection and Windows' name-based deletion.
+            try:
+                subkeys, value_count, _ = winreg.QueryInfoKey(key)
+                observed = {winreg.EnumValue(key, i)[0]:
+                            (winreg.EnumValue(key, i)[1],
+                             winreg.EnumValue(key, i)[2])
+                            for i in range(value_count)}
+                require(subkeys == 0 and
+                        observed == {k: (v, winreg.REG_SZ)
+                                     for k, v in values.items()},
+                        "TRIAL_REGISTRY_MUTATED_PRESERVE_FOR_DIAGNOSIS")
+                # Fresh re-open is a second consistency check, not an
+                # anti-replacement authority; do not claim otherwise.
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                    subkey, 0, rights) as by_name:
+                    actual = {winreg.EnumValue(by_name, i)[0]:
+                              (winreg.EnumValue(by_name, i)[1],
+                               winreg.EnumValue(by_name, i)[2])
+                              for i in range(winreg.QueryInfoKey(by_name)[1])}
+                    require(actual == observed,
+                            "TRIAL_REGISTRY_REPLACED_PRESERVE_FOR_DIAGNOSIS")
+                winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, subkey,
+                                   access=winreg.KEY_WOW64_64KEY,
+                                   reserved=0)
+            except OSError as exc:
+                raise RuntimeError("GF_PHASE1_TRIAL_REGISTRY_CLEANUP_UNPROVEN") from exc
+
 
 def recovery_tool(mode, source):
     """Subordinate re-verifier/observer. Never changes the C# selector."""
@@ -536,12 +577,17 @@ def recovery_tool(mode, source):
             not observation.get("application_functional_health_verified"),
             "RECOVERY_FUNCTIONAL_OBSERVATION_UNPROVEN")
     if trial_mode:
-        require(observation.get("trial_registry_seed_created") and
-                observation.get("readonly_inventory_search_health", {})
-                .get("seeded_inventory_positive_observed") is True and
-                observation.get("readonly_inventory_search_health", {})
-                .get("seeded_inventory_negative_control_observed") is True,
-                "TRIAL_REGISTRY_INVENTORY_HEALTH_NOT_PROVEN")
+        health = observation.get("readonly_inventory_search_health", {})
+        # A2: the SAME functional oracle applies to seeded and unseeded
+        # trials; the setup flag never grants/denies the health verdict.
+        # Reject the unseeded positive as inconsistent, not as healthy.
+        if (mode == "--recovery-observe-trial-negative" and
+                health.get("seeded_inventory_positive_observed") is True):
+            require(False, "TRIAL_UNSEEDED_ITEM_UNEXPECTEDLY_VISIBLE")
+        require(health.get("seeded_inventory_positive_observed") is True,
+                "TRIAL_EXPECTED_ITEM_NOT_OBSERVED")
+        require(health.get("seeded_inventory_negative_control_observed") is True,
+                "TRIAL_NEGATIVE_SEARCH_CONTROL_NOT_OBSERVED")
     validate_package(directory, files)
     return 0
 
