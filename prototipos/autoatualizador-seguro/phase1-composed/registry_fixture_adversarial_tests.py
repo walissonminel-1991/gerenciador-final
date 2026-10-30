@@ -114,13 +114,22 @@ def test_forced_kill_supervised():
                                text=True)
     name = None
     try:
-        # Windows runner only. This bounded read is preceded by guaranteed
-        # creation of an on-disk marker and an ACTIVE line inside the fixture.
+        # Wait on bounded observable state BEFORE reading the worker pipe.
+        # A crash before the ACTIVE line must fail promptly, not hang CI.
+        until = time.monotonic() + 20
+        while time.monotonic() < until:
+            if process.poll() is not None:
+                raise AssertionError("A4_WORKER_EXITED_BEFORE_ACTIVE")
+            if lab.trial_marker_path(src).exists():
+                data = json.loads(lab.trial_marker_path(src).read_text(
+                    encoding="utf-8"))
+                name = data["name"]
+                if key_exists(name):
+                    break
+            time.sleep(0.1)
+        require(name is not None and key_exists(name), "A4_FIXTURE_NOT_ACTIVE")
         line = process.stdout.readline().strip()
         require(line == "GF_PHASE1_FIXTURE_ACTIVE", "A4_WORKER_NOT_ACTIVE")
-        data = json.loads(lab.trial_marker_path(src).read_text(encoding="utf-8"))
-        name = data["name"]
-        require(key_exists(name), "A4_FIXTURE_NOT_ACTIVE")
         process.kill()
         process.wait(timeout=10)
         require(key_exists(name), "A4_EXPECTED_FORCED_KILL_RESIDUE_NOT_FOUND")
