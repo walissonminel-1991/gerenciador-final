@@ -469,3 +469,93 @@ bloqueada, sem retorno cego a OLD. Recuperação fria, crash interno
 de CreateProcess, brokers/I/O externo, durabilidade física e
 atestação de saúde independente permanecem sem prova.
 A alteração de documentação não dispara este workflow (path filter).
+
+
+---
+
+### CHAT ALTO — continuidade de identidade de Job e perda de supervisor (30/10/2026)
+
+**Base antes deste experimento:** `570444d04943c3183fd2fcf113ccfd5c87297d11`.
+**Commit técnico implementado:**
+[`582bef32c123544d085cfdb7440fe2eee1142725`](https://github.com/walissonminel-1991/gerenciador-final/commit/582bef32c123544d085cfdb7440fe2eee1142725).
+**CI Windows descartável:**
+[41046050267](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41046050267),
+`completed/success`, job `124030292406`. Log `GF_PHASE1_RECOVERY_REPORT`:
+`failed=0`, `expected_cases=14`, `operational_ready=false`,
+`phase1_complete=false`, `operational_gates_closed=0`,
+`supervisor_loss_recovery_proven=false`,
+`new_effects_quiescence_proven=false`, `real_power_loss_tested=false`.
+
+**Contraexemplo investigado:** `OpenJobObjectW(name)` e
+`ActiveProcessCount == 0` não comprovam a continuidade da identidade do
+Job Object criado pelo supervisor. Após perda dos handles, outro objeto
+pode ser criado com o **mesmo nome**. O nome é localizador, não atestado
+de identidade. Não se deve recuperar OLD ao ver apenas um Job vazio.
+
+**Correção experimental:**
+- `LabProcessJob.StartWithWitness` duplica o handle original do owner,
+  herdável exclusivamente pela criação do reconciliador C# com
+  `PROC_THREAD_ATTRIBUTE_HANDLE_LIST`, junto de `JOB_LIST`.
+- `ReconcileReal` exige um handle herdado não nulo, inspeciona a
+  política do objeto e utiliza `CompareObjectHandles` entre o objeto
+  herdado e o objeto aberto por nome. A decisão consulta o handle
+  **original**, não substitui por um objeto recém-criado de mesmo nome.
+- Sem o handle original, a reconciliação acrescenta UNKNOWN/registro
+  conservador e retorna `UnknownBlocked`. Uma identidade divergente
+  também bloqueia; nenhuma destas falhas autoriza selecionar OLD ou NEW.
+- Os cinco cenários pré-lançamento de NEW continuam recuperáveis **somente
+  quando o supervisor de laboratório preserva e transmite a testemunha
+  original**. Não há mecanismo de recuperação fria autônoma.
+
+**Matriz final: 14 cenários**, **5** `PASS_RECOVERY_LAB_ONLY` e
+**9** `PASS_CONTAINMENT`. Resultados novos e reproduzidos nos logs:
+- `witness-recreated`: owner interrompido antes do lançamento de NEW,
+  objeto original fechado, novo Job criado com o mesmo nome e sem o
+  handle original herdado. Resultado `UnknownBlocked`, razão
+  `REAL_OWNER_WITNESS_NOT_INHERITED`, seletor OLD geração 1 intacto.
+- `witness-wrong-object`: handle herdado aponta ao Job do reconciliador,
+  diferente do Job owner. Resultado `UnknownBlocked`, razão
+  `REAL_OWNER_WITNESS_OBJECT_MISMATCH`, OLD geração 1 intacta.
+- `witness-lost`: permanece `UnknownBlocked` e agora exige
+  `REAL_OWNER_WITNESS_NOT_INHERITED`.
+- Caso `normal` pós-NEW permanece `UnknownBlocked` por
+  `REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED`, sem rollback cego.
+
+**Interpretação rigorosa:** PASS do controle de **continuidade do objeto
+kernel durante a vida de uma testemunha supervisora** e de perda
+fail-closed. A nova prova não autentica a identidade do supervisor perante
+outro processo malicioso do mesmo usuário que controle argumentos/handles;
+não equivale a protocolo IPC autenticado, prova de I/O concluído,
+recuperação fria, reboot ou power-loss. Handle e nomes de Jobs são
+capabilities voláteis do laboratório, nunca confiança persistente
+de produção. A perda completa do supervisor continua sendo bloqueio,
+não sucesso de recuperação.
+
+**Efeitos pós-NEW:** a documentação do Windows indica que filhos normais
+seguem o Job por padrão, mas processos iniciados por intermediários
+externos (como WMI) não são automaticamente abrangidos e o Job Object
+não atesta término de todo I/O ou efeitos de brokers. Não é seguro
+inferir quiescência de Job vazio, exit code 0, HWND ou recibo local.
+O fence NEW permanece ativo e a versão NEW histórica não é substituída
+às cegas. Nenhuma nova transição operacional é autorizada.
+
+**Arquivos alterados nesta rodada:** exclusivamente
+`phase1-composed/LabProcessJob.cs.txt`,
+`phase1-composed/Phase1Recovery.cs.txt`,
+`phase1-composed/Phase1RecoveryTests.cs.txt` e
+`.github/workflows/gf-autoatualizador-fase1-real-lab.yml`,
+além desta atualização documental. Nenhum arquivo fonte do GF
+distribuído, main, PR #65 Draft, BETA .66, infraestrutura, credenciais
+ou PC pessoal foi alterado. Sem merge, release ou deploy.
+
+**Próximo experimento proposto para CHAT ALTO:** distinguir a execução
+de um processo completamente contido no laboratório de effects/brokers
+externos por um contrato de quiescência independente e verificável
+que sobreviva aos limites de processo; avaliar se um supervisor confiável
+e recuperável pode existir **sem serviço permanente, servidor externo,
+comandos remotos nem custos**. Não construir um pseudo-protocolo de READY
+com recibos do mesmo usuário. Testar contraexemplos e preservar bloqueio
+se a prova não existir.
+
+**Estado formal:** Fase 1 ABERTA, READY=false, UNKNOWN/BLOCKED
+para operação, **G1–G8 BLOCKED (0/8)**.
