@@ -67,7 +67,11 @@ jobs:
           $ErrorActionPreference='Stop'
           $exe=Join-Path $env:RUNNER_TEMP 'gf-e2e-old\GerenciadorFinal.exe'
           $proc=Start-Process -FilePath $exe -ArgumentList '--gf-e2e-draft-acquire' -WorkingDirectory (Split-Path $exe) -PassThru -Wait
-          if ($proc.ExitCode -ne 0) { throw "GF_E2E_OLD_SELF_ACQUIRE_FAILED exit=$($proc.ExitCode)" }
+          if ($proc.ExitCode -ne 0) {
+            $failure=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-acquire-failure.json'
+            if (Test-Path $failure) { Write-Host "GF_E2E_OLD_ACQUISITION_DIAGNOSTIC $(Get-Content $failure -Raw)" }
+            throw "GF_E2E_OLD_SELF_ACQUIRE_FAILED exit=$($proc.ExitCode)"
+          }
           $proof=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-acquire-report.json'
           if (!(Test-Path $proof)) { throw 'GF_E2E_OLD_SELF_ACQUIRE_EVIDENCE_MISSING' }
           $r=Get-Content $proof -Raw | ConvertFrom-Json

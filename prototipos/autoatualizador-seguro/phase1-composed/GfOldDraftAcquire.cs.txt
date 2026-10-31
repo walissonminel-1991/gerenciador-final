@@ -66,9 +66,11 @@ internal static class GfOldDraftAcquire
     {
         using var req = Get(endpoint, token, metadata: true);
         using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
-        Require(resp.StatusCode == HttpStatusCode.OK &&
-                resp.RequestMessage?.RequestUri == endpoint &&
-                resp.Headers.Location is null, "METADATA_STATUS_OR_REDIRECT");
+        Require(resp.StatusCode == HttpStatusCode.OK,
+                "METADATA_HTTP_STATUS_" + ((int)resp.StatusCode).ToString(
+                    System.Globalization.CultureInfo.InvariantCulture));
+        Require(resp.RequestMessage?.RequestUri == endpoint &&
+                resp.Headers.Location is null, "METADATA_ORIGIN_OR_REDIRECT");
         var type = resp.Content.Headers.ContentType?.MediaType;
         Require(type is "application/json" or "application/vnd.github+json",
                 "METADATA_CONTENT_TYPE");
@@ -242,7 +244,23 @@ internal static class GfOldDraftAcquire
         {
             // Never record URL (could include signed CDN query) or bearer token.
             // The incomplete file remains for scoped runner diagnostics.
-            Console.Error.WriteLine("GF_E2E_OLD_ACQUIRE_BLOCKED " + e.GetType().Name);
+            string reason = e is InvalidDataException
+                ? e.Message : e is HttpRequestException httpEx && httpEx.StatusCode is not null
+                ? "HTTP_" + ((int)httpEx.StatusCode.Value).ToString(
+                    System.Globalization.CultureInfo.InvariantCulture)
+                : e.GetType().Name;
+            if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
+            {
+                try
+                {
+                    string temp = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
+                    if (Directory.Exists(temp))
+                        File.WriteAllText(Path.Combine(temp, "gf-e2e-old-acquire-failure.json"),
+                            JsonSerializer.Serialize(new { schema = "gf-e2e-old-blocked/1", reason,
+                                no_token_logged = true, no_auto_recovery = true }));
+                }
+                catch (IOException) { }
+            }
             return 8;
         }
     }
