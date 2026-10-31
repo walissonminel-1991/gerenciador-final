@@ -266,7 +266,7 @@ internal static class AppServices
                 Publisher = app.Publisher,
                 InventoryOnly = true,
                 InventorySource = app.Stale ? "MSIX — leitura anterior, presença não confirmada" : "Aplicativo empacotado (MSIX)",
-                InventoryId = "MSIX|" + app.PackageName,
+                InventoryId = LocalMsixInventory.InventoryId(app),
                 VerifiedMsixIdentity = app.RecipeEligible,
                 MsixPackageFamilyName = app.PackageFamilyName,
                 CatalogIdentity = verified?.Id ?? "",
