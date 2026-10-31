@@ -504,8 +504,17 @@ internal static class Phase1RecoveryTests
             Require(outcome=="UnknownBlocked" && Selection(src)==("new",2),
                 "REAL_BETWEEN_MOVES_RECOVERY_NOT_HOLD:"+outcome);
             string reason=Reason(src);
+            // The SAME L18 RememberUnknown normally appends a durable
+            // phase=unknown record to a valid journal. Its l19 fallback
+            // blocker exists ONLY for unreadable/incomplete journals; it
+            // must not be required in this intact-journal case.
+            History(src,c);
+            var journal=Directory.GetFiles(src,"l18-phase-*.fixture.json")
+                .Order(StringComparer.Ordinal).ToArray();
+            var last=StateCodec.Decode<L18PhaseRecord>(
+                File.ReadAllBytes(journal[^1]));
             Require(reason=="REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED" &&
-                File.Exists(L18Coordinator.RecoveryBlocked(src)) &&
+                last.Phase=="unknown" &&
                 !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")),
                 "REAL_BETWEEN_MOVES_WRONG_CONTAINMENT:"+reason);
             cutStage="replay_two";
