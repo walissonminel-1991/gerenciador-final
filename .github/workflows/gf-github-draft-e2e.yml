@@ -163,6 +163,8 @@ jobs:
           $selected=Join-Path $env:RUNNER_TEMP 'gf-e2e-selected-new-ready.json'
           $uiClosed=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-ui-closed.json'
           $loopExited=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-message-loop-exited.json'
+          $nativeVisible=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-normal-preclose-win32.json'
+          if ((Test-Path $nativeVisible)) { throw 'GF_E2E_NORMAL_PRE_CLOSE_NOT_FRESH' }
           if ((Test-Path $shown) -or (Test-Path $proof) -or (Test-Path $failure) -or
               (Test-Path $selected) -or (Test-Path $uiClosed) -or (Test-Path $loopExited) -or
               (Test-Path (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download'))) {
@@ -196,8 +198,61 @@ jobs:
           '@
           $capture | python -
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_OLD_LAB_PRESTART_BASELINE_FAILED' }
-          $proc=Start-Process -FilePath $exe -ArgumentList '--tray' -WorkingDirectory (Split-Path $exe) -PassThru
+          # One real GF OLD instance, normally opened (NO --tray), is reused
+          # by the existing LIVE L18 selected NEW/2 and physical-cut scenario.
+          # This removes the previously untested tray-only startup dependency.
+          $proc=Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
           try {
+            # Inspect the NATIVE visible MainForm before any authorized close.
+            # Independent Win32 calls; no ShowWindow, no synthetic UI receipts,
+            # no attempt to influence L18 selector/journal or process lifetime.
+            $env:GF_E2E_NATIVE_OLD_PID="$($proc.Id)"
+            $observe=@'
+          import hashlib,json,os,sys,time
+          from pathlib import Path
+          work=Path(os.environ["GITHUB_WORKSPACE"]).resolve(strict=True)
+          sys.path.insert(0,str(work/"prototipos"/"autoatualizador-seguro"/"phase1-composed"))
+          from win32_process_observation import (
+              own_main_windows,process_image_path,message_pump_ping,desktop_observation
+          )
+          from http_cut_gui_observer import consent_dialogs_for_pid
+          runner=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+          exe=(runner/"gf-e2e-old"/"GerenciadorFinal.exe").resolve(strict=True)
+          target=runner/"gf-e2e-old-normal-preclose-win32.json"
+          assert not target.exists() and exe.parent==runner/"gf-e2e-old"
+          pid=int(os.environ["GF_E2E_NATIVE_OLD_PID"])
+          deadline=time.monotonic()+40
+          window=None
+          while time.monotonic()<deadline:
+              windows=own_main_windows(pid)
+              if len(windows)==1 and windows[0]["visible"]:
+                  hwnd=windows[0]["hwnd"]
+                  actual=process_image_path(pid)
+                  if (actual is not None and os.path.samefile(actual,exe)
+                          and message_pump_ping(hwnd)
+                          and not consent_dialogs_for_pid(pid)):
+                      window=hwnd
+                      break
+              time.sleep(0.12)
+          assert window is not None,"GF_E2E_NORMAL_MAINFORM_NATIVE_VISIBLE_MISSING"
+          assert desktop_observation()["interactive_user_desktop_verified"]
+          with target.open("x",encoding="utf-8") as out:
+              json.dump({"schema":"gf-e2e-old-normal-preclose-win32/1",
+                  "old_process_id":pid,"native_mainform_visible":True,
+                  "owned_process_image_verified":True,"message_pump_responded":True,
+                  "no_tray_argument":True,"no_showwindow_called":True,
+                  "no_privacy_modal_observed":True,"test_only":True,
+                  "operational_ready":False},out,sort_keys=True)
+              out.flush();os.fsync(out.fileno())
+          print("GF_E2E_NORMAL_OLD_PRE_CLOSE_WIN32_PASS "
+                "mainform=natively_visible+responsive original_old=true "
+                "no_tray=true no_showwindow=true READY=false",flush=True)
+          '@
+            $observe | python -u -
+            if ($LASTEXITCODE -ne 0 -or !(Test-Path $nativeVisible)) {
+              throw 'GF_E2E_NORMAL_MAINFORM_PRE_CLOSE_WIN32_FAILURE'
+            }
+
             $deadline=[DateTime]::UtcNow.AddMinutes(9)
             while ([DateTime]::UtcNow -lt $deadline) {
               if ((Test-Path $failure) -or $proc.HasExited) { break }
@@ -215,6 +270,17 @@ jobs:
                 $w.operational_ready) { throw 'GF_E2E_MAINFORM_MARKER_INVALID' }
             if (!(Test-Path $proof)) { throw 'GF_E2E_STARTUP_REMOTE_DOWNLOAD_NOT_COMPLETED' }
             if (!(Test-Path $selected)) { throw 'GF_E2E_L18_NEW_2_FENCE_BEFORE_OLD_EXIT_NOT_PROVEN' }
+            $normalProof=Get-Content -LiteralPath $nativeVisible -Raw | ConvertFrom-Json
+            if ($normalProof.schema -ne 'gf-e2e-old-normal-preclose-win32/1' -or
+                $normalProof.old_process_id -ne $proc.Id -or
+                !$normalProof.native_mainform_visible -or
+                !$normalProof.owned_process_image_verified -or
+                !$normalProof.message_pump_responded -or
+                !$normalProof.no_tray_argument -or !$normalProof.no_showwindow_called -or
+                !$normalProof.no_privacy_modal_observed -or
+                !$normalProof.test_only -or $normalProof.operational_ready) {
+              throw 'GF_E2E_NORMAL_MAINFORM_INDEPENDENT_PROOF_INVALID'
+            }
             $selectedProof=Get-Content $selected -Raw | ConvertFrom-Json
             if ($selectedProof.schema -ne 'gf-e2e-selected-new-ready/1' -or
                 $selectedProof.selector -ne 'new' -or $selectedProof.generation -ne 2 -or
@@ -243,6 +309,7 @@ jobs:
             # the original OLD process handle through its observed exit.
             # The L18 completion report is checked later, not by the OLD.
             Write-Host 'GF_E2E_OLD_EXIT_BEFORE_SAME_L18_SELECTED_NEW selector=new/2 original_old_exit=0 READY=false'
+            Write-Host 'GF_E2E_NORMAL_MAINFORM_SELECTED_CLOSE_PASS native_ui_before_close=true l18_selector=new/2 launch_fence=true FormClosed=true MessageLoopExited=true OLD_exit0=true READY=false'
           }
           finally {
             if (!$proc.HasExited) {
