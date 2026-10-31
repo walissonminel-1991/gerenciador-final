@@ -200,7 +200,15 @@ internal static class GfGithubWeeklyUpdate
         throw new InvalidDataException("GF_GITHUB_UPDATE_TOO_MANY_REDIRECTS");
     }
 
-    internal static async Task<UpdateResult> RunAsync(bool force = false)
+    internal static async Task<int> SmokeAsync()
+    {
+        var first = await RunAsync(install: false);
+        if (first.Code == "ALREADY_CHECKING") return 31;
+        var second = await RunAsync(install: false);
+        return second.Code == "WEEKLY_NOT_DUE" ? 0 : 32;
+    }
+
+    internal static async Task<UpdateResult> RunAsync(bool force = false, bool install = true)
     {
         if (!await Mutex.WaitAsync(0))
             return new("ALREADY_CHECKING", "Uma verificação do GF já está em andamento.");
@@ -217,6 +225,9 @@ internal static class GfGithubWeeklyUpdate
             if (release is null)
                 return new("NO_NEW_STABLE_RELEASE",
                     "GF: nenhuma versão estável mais recente no GitHub.");
+            if (!install)
+                return new("NEW_RELEASE_READ_ONLY",
+                    "Nova versão pública detectada em consulta somente leitura.");
             // Download + install path remains PRIVATE and will require
             // independent review before this source is allowed in public GF.
             await GfPrivateFunctionalUpdate.PrepareOfficialReleaseAsync(

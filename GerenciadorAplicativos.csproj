@@ -75,6 +75,7 @@
   <ItemGroup Condition="'$(GfSelfUpdatePrivate)' == 'true'">
     <Compile Include="prototipos/autoatualizador-seguro/phase1-composed/GfPrivateSelfUpdateProbe.cs.txt" />
     <Compile Include="prototipos/autoatualizador-seguro/phase1-composed/GfPrivateFunctionalUpdate.cs.txt" />
+    <Compile Include="prototipos/autoatualizador-seguro/phase1-composed/GfGithubWeeklyUpdate.cs.txt" />
   </ItemGroup>
   <Target Name="ValidateGfPrivateSelfUpdate" BeforeTargets="CoreCompile"
           Condition="'$(GfSelfUpdatePrivate)' == 'true'">

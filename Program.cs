@@ -42,6 +42,16 @@ internal static class Program
                 return 22;
             }
         }
+        if (args.Length == 4 && args[0] == "--gf-private-github-worker")
+        {
+            try { return GfPrivateFunctionalUpdate.RunGithubWorker(args); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                       InvalidOperationException or System.ComponentModel.Win32Exception or
+                       ArgumentException)
+            { return 24; }
+        }
+        if (args.Length == 1 && args[0] == "--gf-private-weekly-smoke")
+            return GfGithubWeeklyUpdate.SmokeAsync().GetAwaiter().GetResult();
         if (args.Length == 2 && args[0] == "--gf-private-update-worker")
         {
             try { return GfPrivateFunctionalUpdate.RunWorker(args); }
@@ -836,6 +846,42 @@ internal sealed partial class MainForm : Form
     }
 
     private readonly Action? _startupOnlineProbe;
+#if GF_PRIVATE_SELF_UPDATE
+    private void RequestGracefulCloseForSelfUpdate()
+    {
+        if (IsDisposed || Disposing || !IsHandleCreated) return;
+        var poll = new System.Windows.Forms.Timer { Interval = 400 };
+        int checks = 0;
+        poll.Tick += (_, _) =>
+        {
+            checks++;
+            if (IsDisposed || Disposing || checks > 225)
+            {
+                poll.Stop(); poll.Dispose();
+                return;
+            }
+            if (_busy || _betaClose.IsWaiting || _betaClose.IsClosing) return;
+            poll.Stop(); poll.Dispose();
+            Close(); // Normal WinForms shutdown, never Kill.
+        };
+        poll.Start();
+    }
+
+    private async Task CheckGfWeeklyAtStartupAsync()
+    {
+        if (GfPrivateFunctionalUpdate.LabEnabled) return;
+        var result = await GfGithubWeeklyUpdate.RunAsync();
+        if (IsDisposed || Disposing) return;
+        if (result.Code != "WEEKLY_NOT_DUE")
+        {
+            Status(result.Message);
+            Log("GF autoatualização semanal: " + result.Code);
+            DiagnosticTrace.Write("GF.AUTOUPDATE.WEEKLY estado=" + result.Code);
+        }
+        if (result.WorkerStarted)
+            RequestGracefulCloseForSelfUpdate();
+    }
+#endif
 
 #if GF_E2E_LAB
     internal bool LabMayCloseForVerifiedHandoff =>
@@ -1005,7 +1051,14 @@ internal sealed partial class MainForm : Form
             await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync,
                 quietStartup: true);
             if (!IsDisposed)
+            {
                 BeginStartupChecks();
+#if GF_PRIVATE_SELF_UPDATE
+                // Every opening checks local UTC schedule; network only after 7 days.
+                // No background Windows service, no login and no GitHub token.
+                _ = CheckGfWeeklyAtStartupAsync();
+#endif
+            }
             try
             {
                 var rebootReports = new List<string>();
@@ -1189,13 +1242,13 @@ internal sealed partial class MainForm : Form
                 }
                 else
                 {
-                    var result = await GfPrivateSelfUpdateProbe.CheckAsync();
+                    var result = await GfGithubWeeklyUpdate.RunAsync(force: true);
                     if (IsDisposed || Disposing) return;
                     Status(result.Message);
-                    Log("Autoatualização GF (teste privado): " + result.Code +
-                        "; instalação bloqueada; READY=false.");
-                    DiagnosticTrace.Write("GF.AUTOUPDATE.PROBE estado=" + result.Code +
-                        " instalacao=BLOCKED");
+                    Log("GF autoatualização pelo GitHub: " + result.Code);
+                    DiagnosticTrace.Write("GF.AUTOUPDATE.GITHUB estado=" + result.Code);
+                    if (result.WorkerStarted)
+                        RequestGracefulCloseForSelfUpdate();
                 }
             }
             catch (Exception ex) when (ex is IOException or HttpRequestException or
@@ -1212,7 +1265,7 @@ internal sealed partial class MainForm : Form
             }
         };
         _toolTips.SetToolTip(checkGf,
-            "Consulta pública e sem credenciais. Não baixa nem instala pacotes.");
+            "Verifica o Release estável oficial do GF no GitHub; o modo privado também permite testar a instalação.");
         panel.Controls.Add(checkGf, 2, 0);
         panel.SetRowSpan(checkGf, 2);
 #endif
