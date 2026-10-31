@@ -51,6 +51,6 @@ jobs:
           $env:GITHUB_ACTIONS='false'
           $env:GITHUB_REPOSITORY=''
           $env:RUNNER_TEMP=''
-          & $privateExe --gf-private-update-smoke
-          if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_NORMAL_PROBE_FAILED' }
+          $smoke=Start-Process -FilePath $privateExe -ArgumentList '--gf-private-update-smoke' -Wait -PassThru
+          if ($smoke.ExitCode -ne 0) { throw "PRIVATE_NORMAL_PROBE_FAILED_CODE_$($smoke.ExitCode)" }
           Write-Host 'GF_PRIVATE_UPDATE_TOKEN_FREE_READONLY_PASS READY=false no_download=true no_install=true'
