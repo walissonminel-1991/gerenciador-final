@@ -14,6 +14,17 @@ internal sealed record LocalMsixObservation(LocalMsixApp? App, bool Launchable =
 
 internal static class LocalMsixInventory
 {
+    // PackageName sozinho não identifica o editor: a FamilyName contém o
+    // PublisherId e distingue famílias que coexistem com o mesmo nome técnico.
+    // Para fixtures legadas sem FamilyName, manter uma identidade consultiva
+    // pelo nome; nenhuma identidade sintética ganha elegibilidade de receita.
+    internal static string IdentityKey(LocalMsixApp app) =>
+        string.IsNullOrWhiteSpace(app.PackageFamilyName)
+            ? "name:" + app.PackageName : "family:" + app.PackageFamilyName;
+
+    internal static string InventoryId(LocalMsixApp app) => "MSIX|" +
+        (string.IsNullOrWhiteSpace(app.PackageFamilyName) ? app.PackageName : app.PackageFamilyName);
+
     private static readonly Dictionary<string, string> Known = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Microsoft.WindowsTerminal"] = "Windows Terminal",
@@ -156,10 +167,11 @@ internal static class LocalMsixInventory
                     if (observation.Launchable) launchable++;
                     var candidate = observation.App;
                     if (candidate is null) { filtered++; continue; }
-                    if (found.TryGetValue(candidate.PackageName, out var previous) &&
+                    string identity = IdentityKey(candidate);
+                    if (found.TryGetValue(identity, out var previous) &&
                         Matching.CompareVersions(candidate.Version, previous.Version) is <= 0)
                         continue;
-                    found[candidate.PackageName] = candidate;
+                    found[identity] = candidate;
                 }
                 catch (Exception)
                 {

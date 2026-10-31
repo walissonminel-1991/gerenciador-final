@@ -22,8 +22,8 @@ internal sealed class LocalMsixSnapshot
                 return result with { Items = lastComplete.ToArray() };
             }
             var current = result.Items.Select(x => x with { RecipeEligible = false }).ToList();
-            var observed = current.Select(x => x.PackageName).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            current.AddRange(lastComplete.Where(x => !observed.Contains(x.PackageName))
+            var observed = current.Select(LocalMsixInventory.IdentityKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            current.AddRange(lastComplete.Where(x => !observed.Contains(LocalMsixInventory.IdentityKey(x)))
                 .Select(x => x with { Stale = true, RecipeEligible = false }));
             return result with { Items = current.ToArray() };
         }
