@@ -43,4 +43,34 @@ jobs:
           $project='prototipos/autoatualizador-seguro/github-metadata-lab/GF.GithubMetadataLab.csproj'
           dotnet run --project $project --configuration Release --no-launch-profile
           if ($LASTEXITCODE -ne 0) { throw 'GF_METADATA_LAB_TESTS_FAILED' }
+      - name: Consultar GitHub REAL, sem baixar pacote ou publicar Release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/github-metadata-lab/GF.GithubMetadataLab.csproj'
+          $line=(dotnet run --project $project --configuration Release --no-launch-profile -- --live | Select-Object -Last 1)
+          if ($LASTEXITCODE -ne 0 -or !$line -or !$line.StartsWith('GF_GITHUB_LIVE_ORIGIN ')) {
+            throw 'GF_LIVE_GITHUB_ORIGIN_QUERY_FAILED_CLOSED'
+          }
+          $r=($line.Substring('GF_GITHUB_LIVE_ORIGIN '.Length) | ConvertFrom-Json)
+          if ($r.schema -ne 'gf-github-live-origin-preflight/1' -or
+              $r.repository -ne 'walissonminel-1991/gerenciador-final' -or
+              !$r.actual_https_request -or
+              $r.gate -notin @('BLOCKED_NO_GITHUB_RELEASE',
+                               'BLOCKED_NO_AUTHORIZED_TEST_ORIGIN',
+                               'BLOCKED_METADATA_NOT_AUTHENTICATED_PACKAGE') -or
+              $r.package_origin_authorized -or $r.downloaded_gf_packages -ne 0 -or
+              $r.executed_gf_packages -ne 0 -or $r.live_asset_authentication -or
+              $r.old_to_new_applied -or $r.operational_ready -or
+              $r.automatic_recovery_authorized) {
+            throw 'GF_LIVE_GITHUB_ORIGIN_SCOPE_VIOLATION'
+          }
+          Write-Host $line
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value @(
+            '## GF autoatualizacao real — etapa 1 (origem GitHub)'
+            "- HTTPS GitHub real: $($r.observed_state)"
+            "- Bloqueio de homologacao: $($r.gate)"
+            '- Sem origem aprovada e autenticada: nenhum download ou troca OLD/NEW'
+            '- CI verde indica somente preflight de origem, NAO ponta a ponta'
+          )
 # No installer, release, deploy, telemetry, trust promotion or product integration.

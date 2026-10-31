@@ -50,8 +50,48 @@ internal static class Program
         return await GitHubReleaseDiscovery.CheckAsync(client, new Version(5, 13, 11, 65));
     }
 
-    public static async Task<int> Main()
+    // Step 1 only: probe the real GitHub API on a disposable Windows CI runner.
+    // Release metadata cannot authorize binaries, installation or rollback.
+    private static async Task<int> LiveOriginProbe()
     {
+        using var client = GitHubReleaseDiscovery.CreateStrictClient();
+        var observed = await GitHubReleaseDiscovery.CheckAsync(
+            client, new Version(5, 13, 11, 65));
+        var gate = observed.State switch
+        {
+            DiscoveryState.NoPublishedRelease => "BLOCKED_NO_GITHUB_RELEASE",
+            DiscoveryState.NoNewVersion => "BLOCKED_NO_AUTHORIZED_TEST_ORIGIN",
+            DiscoveryState.NewVersionMetadataOnly => "BLOCKED_METADATA_NOT_AUTHENTICATED_PACKAGE",
+            _ => "BLOCKED_REMOTE_OR_INVALID_METADATA"
+        };
+        Console.WriteLine("GF_GITHUB_LIVE_ORIGIN " +
+            JsonSerializer.Serialize(new
+            {
+                schema = "gf-github-live-origin-preflight/1",
+                repository = GitHubReleaseDiscovery.Repository,
+                endpoint = GitHubReleaseDiscovery.Endpoint,
+                old_version = "5.13.11.65",
+                observed_state = observed.State.ToString(),
+                gate,
+                actual_https_request = true,
+                package_origin_authorized = false,
+                downloaded_gf_packages = 0,
+                executed_gf_packages = 0,
+                live_asset_authentication = false,
+                old_to_new_applied = false,
+                operational_ready = false,
+                automatic_recovery_authorized = false
+            }));
+        return observed.State is DiscoveryState.RemoteUnavailable or
+            DiscoveryState.UntrustedMetadataBlocked ? 3 : 0;
+    }
+
+    public static async Task<int> Main(string[] args)
+    {
+        if (args.Length == 1 && args[0] == "--live")
+            return await LiveOriginProbe();
+        if (args.Length != 0)
+            throw new ArgumentException("UNSUPPORTED_LAB_MODE");
         Assert(GitHubReleaseDiscovery.Repository == "walissonminel-1991/gerenciador-final", "fixed_repo");
         Assert(GitHubReleaseDiscovery.Endpoint ==
             "https://api.github.com/repos/walissonminel-1991/gerenciador-final/releases/latest", "fixed_endpoint");
