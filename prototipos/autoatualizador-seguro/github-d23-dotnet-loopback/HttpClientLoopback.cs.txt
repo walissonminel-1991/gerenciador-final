@@ -9,7 +9,7 @@ using System.Text.Json;
 
 // D2.3 experimental: real .NET HttpClient, inert payload, numeric loopback only.
 // No executable downloads, operational TUF authority, installation or recovery.
-internal static class Program
+internal static partial class Program
 {
     const string Host = "127.0.0.1";
     const string LocalPath = "/inert-only";
@@ -17,7 +17,7 @@ internal static class Program
     const string FinalName = "inert.fixture.bin";
     const int MaximumBytes = 131072;
     static readonly byte[] Payload = Encoding.ASCII.GetBytes(
-        "GF-D23-INERT-TEXT-NOT-A-ZIP-DLL-OR-EXECUTABLE\n");
+        "GF-D1-INERT-PAYLOAD-NOT-A-ZIP-OR-EXECUTABLE\n");
     static readonly byte[] Digest = SHA256.HashData(Payload);
     const string ExpectedRelease =
         "https://github.com/walissonminel-1991/gerenciador-final/releases/download/"
@@ -122,18 +122,24 @@ internal static class Program
         }
     }
 
-    static void Verify(string file)
+    static void Verify(string file) => Verify(file,Payload.Length,Digest);
+
+    static void Verify(string file,int authorizedLength,byte[] authorizedauthorizedDigest)
     {
         var info = new FileInfo(file);
-        if (info.Length != Payload.Length || info.Length > MaximumBytes ||
+        if (info.Length != authorizedLength || info.Length > MaximumBytes ||
             (info.Attributes & FileAttributes.ReparsePoint) != 0)
             throw new InvalidDataException("READBACK_LENGTH_OR_LINK");
         using var stream = File.Open(file,FileMode.Open,FileAccess.Read,FileShare.Read);
-        if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(stream),Digest))
+        if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(stream),authorizedDigest))
             throw new InvalidDataException("READBACK_SHA");
     }
 
-    static async Task Stage(int port,string identity,string folder,CancellationToken ct)
+    static Task Stage(int port,string identity,string folder,CancellationToken ct)
+        => Stage(port,identity,folder,ct,Payload.Length,Digest);
+
+    static async Task Stage(int port,string identity,string folder,CancellationToken ct,
+        int authorizedLength,byte[] authorizedauthorizedDigest)
     {
         if (identity != ExpectedRelease || port is < 1 or > 65535)
             throw new InvalidDataException("RELEASE_IDENTITY");
@@ -184,7 +190,7 @@ internal static class Program
                 response.Headers.Location != null ||
                 response.Headers.TransferEncodingChunked == true ||
                 response.Content.Headers.ContentEncoding.Count != 0 ||
-                response.Content.Headers.ContentLength != Payload.Length ||
+                response.Content.Headers.ContentLength != authorizedLength ||
                 response.Content.Headers.ContentType?.MediaType !=
                     "application/octet-stream" ||
                 response.Headers.Any(x => !x.Key.Equals("Connection",
@@ -205,22 +211,22 @@ internal static class Program
                         var n = await remote.ReadAsync(buffer.AsMemory(0,4096),ct);
                         if (n == 0) break;
                         total = checked(total+n);
-                        if (total > Payload.Length || total > MaximumBytes)
+                        if (total > authorizedLength || total > MaximumBytes)
                             throw new InvalidDataException("BODY_EXCEEDS_SIGNED_SIZE");
                         hasher.AppendData(buffer,0,n);
                         await output.WriteAsync(buffer.AsMemory(0,n),ct);
                     }
-                    if (total != Payload.Length ||
+                    if (total != authorizedLength ||
                         !CryptographicOperations.FixedTimeEquals(
-                            hasher.GetHashAndReset(),Digest))
+                            hasher.GetHashAndReset(),authorizedDigest))
                         throw new InvalidDataException("BODY_DIGEST_MISMATCH");
                     output.Flush(flushToDisk:true);
                 }
                 finally { ArrayPool<byte>.Shared.Return(buffer); }
             }
-            Verify(tmp);
+            Verify(tmp,authorizedLength,authorizedDigest);
             File.Move(tmp,final,overwrite:false);
-            Verify(final);
+            Verify(final,authorizedLength,authorizedDigest);
             ok=true;
         }
         finally
@@ -233,8 +239,12 @@ internal static class Program
         }
     }
 
-    static async Task<int> Main()
+    static async Task<int> Main(string[] args)
     {
+#if D24_INTEGRATION
+        if (args.Length > 0 && args[0] == "--d24")
+            return await RunD24(args);
+#endif
         if (!OperatingSystem.IsWindows() ||
             Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") return 2;
         var temp = Environment.GetEnvironmentVariable("RUNNER_TEMP");
