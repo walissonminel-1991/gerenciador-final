@@ -252,14 +252,19 @@ internal static class GfOldDraftAcquire
                 Path.GetFileName(bridge) == "GF.Updater.M3.L18Tests.exe",
                 "L18_TEST_BRIDGE_OR_TUF_MISSING");
         string fixtures = Path.Combine(runner, "gf-e2e-signed-fixtures");
+        bool guiL18=Environment.GetEnvironmentVariable("GF_E2E_GUI_NORMAL_L18_PROOF")=="1";
         string old = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
-        string download = Path.Combine(runner, "gf-e2e-github-download");
-        string extracted = Path.Combine(runner, "gf-e2e-authenticated-new");
-        string report = Path.Combine(runner, "gf-e2e-real-flow-report.json");
+        string download = Path.Combine(runner, guiL18
+            ? "gf-e2e-github-normal-l18-download" : "gf-e2e-github-download");
+        string extracted = Path.Combine(runner, guiL18
+            ? "gf-e2e-github-normal-l18-authenticated-new" : "gf-e2e-authenticated-new");
+        string report = Path.Combine(runner, guiL18
+            ? "gf-e2e-github-normal-l18-flow-report.json" : "gf-e2e-real-flow-report.json");
         Require(Directory.Exists(fixtures) && Directory.Exists(old) &&
                 Directory.Exists(download) && !Directory.Exists(extracted) &&
                 !File.Exists(report) &&
-                old.Equals(Path.Combine(runner, "gf-e2e-old"),
+                old.Equals(Path.Combine(runner, guiL18
+                    ? "gf-e2e-github-normal-l18-old" : "gf-e2e-old"),
                            StringComparison.OrdinalIgnoreCase),
                 "L18_SOURCE_DESTINATION_OR_REPORT_NOT_FRESH");
 
@@ -412,7 +417,9 @@ internal static class GfOldDraftAcquire
                 normal.GetProperty("old_and_canary_preserved").GetBoolean() &&
                 normal.GetProperty("manifest_and_object_identities_rechecked").GetBoolean(),
                 "L18_NORMAL_NOT_CONTAINED_OR_DATA_NOT_PRESERVED");
-        File.WriteAllText(Path.Combine(runner, "gf-e2e-old-l18-handoff-report.json"),
+        File.WriteAllText(Path.Combine(runner, guiL18
+                ? "gf-e2e-github-normal-l18-handoff-report.json"
+                : "gf-e2e-old-l18-handoff-report.json"),
             JsonSerializer.Serialize(new {
                 schema = "gf-e2e-old-owns-l18-handoff/2",
                 initiated_by_gf_old_mainform = true,
@@ -430,6 +437,8 @@ internal static class GfOldDraftAcquire
     {
         string stage="guard";
         bool normalSuccess=Environment.GetEnvironmentVariable("GF_E2E_GUI_NORMAL_SUCCESS")=="1";
+        bool guiL18=normalSuccess &&
+            Environment.GetEnvironmentVariable("GF_E2E_GUI_NORMAL_L18_PROOF")=="1";
         bool httpCutNegative=Environment.GetEnvironmentVariable("GF_E2E_HTTP_CUT_NEGATIVE")=="1";
         bool guiNegative=httpCutNegative &&
             Environment.GetEnvironmentVariable("GF_E2E_HTTP_UI_NEGATIVE")=="1";
@@ -453,17 +462,20 @@ internal static class GfOldDraftAcquire
             var runner = Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!);
             Require(!(guiNegative && normalGuiNegative),
                 "HTTP_GUI_NEGATIVE_MODES_MUTUALLY_EXCLUSIVE");
+            Require(Environment.GetEnvironmentVariable("GF_E2E_GUI_NORMAL_L18_PROOF")!="1" ||
+                guiL18, "NORMAL_GUI_L18_MUST_START_FROM_NORMAL_GUI");
             if(normalSuccess)
                 Require(!httpCutNegative &&
                     Environment.GetEnvironmentVariable("GF_E2E_STARTUP_DRAFT_PROBE")=="1" &&
-                    Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18")!="1" &&
+                    (Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18")=="1")==guiL18 &&
                     Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE")!="1" &&
                     Environment.GetEnvironmentVariable("GF_E2E_SELECTED_NEW_CONTINUATION")!="1" &&
                     Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")!="1" &&
                     Environment.GetEnvironmentVariable("GF_E2E_LIVE_INSTALL_SWAP")!="1",
-                    "GUI_SUCCESS_MUST_NOT_HANDOFF");
-            string dest = Path.GetFullPath(Path.Combine(runner, normalSuccess
-                ? "gf-e2e-github-normal-download"
+                    "GUI_SUCCESS_MUST_NOT_SWAP_OR_CLOSE");
+            string dest = Path.GetFullPath(Path.Combine(runner, guiL18
+                ? "gf-e2e-github-normal-l18-download"
+                : normalSuccess ? "gf-e2e-github-normal-download"
                 : normalGuiNegative ? "gf-e2e-http-normal-download"
                 : guiNegative ? "gf-e2e-http-ui-download"
                 : httpCutNegative ? "gf-e2e-http-cut-download"
@@ -509,8 +521,9 @@ internal static class GfOldDraftAcquire
                 operational_ready = false,
                 automatic_recovery_authorized = false
             };
-            File.WriteAllText(Path.Combine(runner, normalSuccess
-                    ? "gf-e2e-github-normal-acquire-report.json"
+            File.WriteAllText(Path.Combine(runner, guiL18
+                    ? "gf-e2e-github-normal-l18-acquire-report.json"
+                    : normalSuccess ? "gf-e2e-github-normal-acquire-report.json"
                     : "gf-e2e-old-acquire-report.json"),
                 JsonSerializer.Serialize(evidence));
             if (Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18") == "1")
@@ -544,8 +557,9 @@ internal static class GfOldDraftAcquire
                 {
                     string temp = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
                     if (Directory.Exists(temp))
-                        File.WriteAllText(Path.Combine(temp, normalSuccess
-                            ? "gf-e2e-github-normal-failure.json"
+                        File.WriteAllText(Path.Combine(temp, guiL18
+                            ? "gf-e2e-github-normal-l18-failure.json"
+                            : normalSuccess ? "gf-e2e-github-normal-failure.json"
                             : normalGuiNegative ? "gf-e2e-http-normal-failure.json"
                             : guiNegative ? "gf-e2e-http-ui-failure.json"
                             : httpCutNegative ? "gf-e2e-http-cut-failure.json"

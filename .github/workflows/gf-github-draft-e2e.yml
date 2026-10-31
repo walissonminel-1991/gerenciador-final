@@ -684,4 +684,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ./prototipos/autoatualizador-seguro/phase1-composed/github_normal_gui_success.ps1
+      - name: OLD normal autentica Draft e executa L18 normal focused sem fechar GUI ou trocar instalacao
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./prototipos/autoatualizador-seguro/phase1-composed/github_normal_gui_success.ps1 -L18
 # Only three TEST TUF metadata role assets are refreshed in the existing Draft. Never publish it or change executable ZIP/manifest.

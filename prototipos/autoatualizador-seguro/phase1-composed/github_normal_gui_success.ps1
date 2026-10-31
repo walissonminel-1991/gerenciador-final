@@ -1,18 +1,26 @@
-# Normal startup positive path, disposable Windows only. No L18, retry or READY.
+# Normal startup success, optional existing L18 focused containment; no READY.
+param([switch]$L18)
 $ErrorActionPreference='Stop'
+$env:GF_E2E_TEST_L18=if ($L18) { '1' } else { '0' }
 if ($env:GITHUB_ACTIONS -ne 'true' -or
     $env:GITHUB_REPOSITORY -ne 'walissonminel-1991/gerenciador-final') {
   throw 'GF_NORMAL_SUCCESS_DISPOSABLE_ONLY'
 }
 $root=$env:RUNNER_TEMP
 $old=Join-Path $root 'gf-e2e-old-preserved'
-$copy=Join-Path $root 'gf-e2e-github-normal-old'
-$download=Join-Path $root 'gf-e2e-github-normal-download'
-$extracted=Join-Path $root 'gf-e2e-github-normal-extracted'
-$shown=Join-Path $root 'gf-e2e-github-normal-startup-shown.json'
-$receipt=Join-Path $root 'gf-e2e-github-normal-acquire-report.json'
-$failure=Join-Path $root 'gf-e2e-github-normal-failure.json'
-$ui=Join-Path $root 'gf-e2e-github-normal-ui-observed.json'
+$prefix=if ($L18) { 'gf-e2e-github-normal-l18' } else { 'gf-e2e-github-normal' }
+$copy=Join-Path $root ($prefix+'-old')
+$download=Join-Path $root ($prefix+'-download')
+$extracted=Join-Path $root ($prefix+'-extracted')
+$shown=Join-Path $root ($prefix+'-startup-shown.json')
+$receipt=Join-Path $root ($prefix+'-acquire-report.json')
+$failure=Join-Path $root ($prefix+'-failure.json')
+$ui=Join-Path $root ($prefix+'-ui-observed.json')
+$l18Flow=Join-Path $root 'gf-e2e-github-normal-l18-flow-report.json'
+$l18Handoff=Join-Path $root 'gf-e2e-github-normal-l18-handoff-report.json'
+if ($L18 -and !(Test-Path $env:GF_E2E_L18_EXE)) {
+  throw 'GF_NORMAL_L18_EXISTING_COORDINATOR_MISSING'
+}
 $canary=Join-Path $root 'gf-e2e-install-data\PERSONAL-KEEP-UNCHANGED.txt'
 $fixture=(Get-Content (Join-Path $root 'gf-e2e-real-flow-report.json') -Raw | ConvertFrom-Json).root
 $selector=Join-Path $fixture 'l18-real-active.fixture.json'
@@ -28,7 +36,7 @@ import hashlib,json,os,shutil
 from pathlib import Path
 r=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
 old=r/"gf-e2e-old-preserved"
-copy=r/"gf-e2e-github-normal-old"
+copy=r/("gf-e2e-github-normal-l18-old" if os.environ.get("GF_E2E_TEST_L18")=="1" else "gf-e2e-github-normal-old")
 baseline=json.loads((r/"gf-e2e-old-prestart-files.json").read_bytes())
 def digest(path):
     result={}
@@ -48,12 +56,14 @@ print("GF_E2E_GITHUB_NORMAL_OLD_COPY_PASS files=284")
 '@
 $copyAndAudit | python -
 if ($LASTEXITCODE -ne 0) { throw 'GF_NORMAL_SUCCESS_COPY_INTEGRITY_FAILURE' }
-$env:GF_E2E_HANDOFF_L18='0'
+$env:GF_E2E_HANDOFF_L18=if ($L18) { '1' } else { '0' }
 $env:GF_E2E_SELF_GRACEFUL_CLOSE='0'
 $env:GF_E2E_SELECTED_NEW_CONTINUATION='0'
 $env:GF_E2E_LIVE_INSTALL_SWAP='0'
 $env:GF_E2E_SWAP_CUT_AFTER_OLD_MOVE='0'
-python -u 'prototipos/autoatualizador-seguro/phase1-composed/github_normal_gui_success_observer.py'
+$observerArgs=@('prototipos/autoatualizador-seguro/phase1-composed/github_normal_gui_success_observer.py')
+if ($L18) { $observerArgs+='--l18' }
+python -u @observerArgs
 if ($LASTEXITCODE -ne 0) { throw 'GF_NORMAL_SUCCESS_REAL_GUI_NOT_HEALTHY' }
 $verify=@'
 import hashlib,json,os
@@ -72,9 +82,9 @@ def digest(path):
                  "sha256":hashlib.sha256(p.read_bytes()).hexdigest()}
     return found
 assert digest(r/"gf-e2e-old-preserved")==baseline
-assert digest(r/"gf-e2e-github-normal-old")==baseline
+assert digest(r/(("gf-e2e-github-normal-l18" if os.environ.get("GF_E2E_TEST_L18")=="1" else "gf-e2e-github-normal")+"-old"))==baseline
 assert len(baseline)==284
-dl=r/"gf-e2e-github-normal-download"
+dl=r/(("gf-e2e-github-normal-l18" if os.environ.get("GF_E2E_TEST_L18")=="1" else "gf-e2e-github-normal")+"-download")
 assert len(list(dl.iterdir()))==5
 for name,size,sha in (
  ("gf-e2e-new-win-x64.zip",57695630,"3eadafed91c4090ea56c9e9be8175f8ece8acf05d9c7fda9f97db7644a33011e"),
@@ -82,15 +92,29 @@ for name,size,sha in (
     item=dl/name
     assert item.is_file() and item.stat().st_size==size
     assert hashlib.sha256(item.read_bytes()).hexdigest()==sha
-ui=json.loads((r/"gf-e2e-github-normal-ui-observed.json").read_bytes())
-assert ui["schema"]=="gf-e2e-github-normal-mainform-healthy/1"
+l18=os.environ.get("GF_E2E_TEST_L18")=="1"
+ui=json.loads((r/(("gf-e2e-github-normal-l18" if l18 else "gf-e2e-github-normal")+"-ui-observed.json")).read_bytes())
+assert ui["schema"]==("gf-e2e-github-normal-l18-mainform/1" if l18 else "gf-e2e-github-normal-mainform-healthy/1")
 for key in ("normal_open_no_tray","no_showwindow","visible_during_download",
  "original_mainform_shown","draft_download_completed","old_alive_after_download",
  "image_verified","mainform_visible","message_pump_responsive",
  "inventory_nonzero","search_empty_and_restored","consent_unchanged","test_only"):
     assert ui[key] is True,key
-for key in ("new_executed","l18_handoff","retry","rollback","cleanup","operational_ready"):
+for key in ("new_executed","retry","rollback","cleanup","operational_ready"):
     assert ui[key] is False,key
+assert ui["l18_handoff"] is l18
+if l18:
+    flow=json.loads((r/"gf-e2e-github-normal-l18-flow-report.json").read_bytes())
+    handoff=json.loads((r/"gf-e2e-github-normal-l18-handoff-report.json").read_bytes())
+    assert flow["schema"]=="gf-real-single-normal-lab/1"
+    assert flow["passed"]==1 and flow["failed"]==0
+    assert flow["result"]["outcome"]=="UnknownBlocked"
+    assert flow["result"]["replay"]=="UnknownBlocked"
+    assert flow["operational_ready"] is False
+    assert flow["recovery_authorized"] is False
+    assert handoff["same_l18_coordinator_invoked_by_old"] is True
+    assert handoff["tuf_child_verified_download"] is True
+    assert handoff["operational_ready"] is False
 assert (r/"gf-e2e-install-data"/"PERSONAL-KEEP-UNCHANGED.txt").read_bytes()==b"DO-NOT-TOUCH-MY-DATA\n"
 assert not (r/"gf-e2e-old").exists()
 assert not (r/"gf-e2e-live-install-transition.json").exists()
@@ -109,5 +133,19 @@ if ((Get-FileHash $selector -Algorithm SHA256).Hash -ne $selectorHash -or
     (Get-FileHash $canary -Algorithm SHA256).Hash -ne $canaryHash) {
   throw 'GF_NORMAL_SUCCESS_SELECTOR_OR_CANARY_MUTATED'
 }
-Write-Host 'GF_E2E_GITHUB_NORMAL_MAINFORM_PASS complete_remote_draft=true TUF_verified=true normal_UI_healthy=true L18_not_invoked=true READY=false'
+if ($L18) {
+  $flow=(Get-Content $l18Flow -Raw | ConvertFrom-Json)
+  $handoff=(Get-Content $l18Handoff -Raw | ConvertFrom-Json)
+  if ($flow.schema -ne 'gf-real-single-normal-lab/1' -or
+      $flow.result.outcome -ne 'UnknownBlocked' -or $flow.result.replay -ne 'UnknownBlocked' -or
+      $flow.operational_ready -or $flow.recovery_authorized -or
+      !$handoff.same_l18_coordinator_invoked_by_old -or
+      !$handoff.tuf_child_verified_download -or
+      $handoff.operational_ready -or $handoff.automatic_recovery_authorized) {
+    throw 'GF_NORMAL_L18_SAME_COORDINATOR_NOT_PROVEN'
+  }
+  Write-Host 'GF_E2E_GITHUB_NORMAL_L18_PASS normal_ui=true authenticated_zip=true existing_l18=true outcome=UnknownBlocked old_open=true rollback=false cleanup=false READY=false'
+} else {
+  Write-Host 'GF_E2E_GITHUB_NORMAL_MAINFORM_PASS complete_remote_draft=true TUF_verified=true normal_UI_healthy=true L18_not_invoked=true READY=false'
+}
 Add-Content $env:GITHUB_STEP_SUMMARY 'GF OLD 5.13.11.65 normal native MainForm.Shown downloaded authentic private Draft ZIP/manifest via same .NET HttpClient. Real UI stayed visible before completion and responsive with inventory/search after. Independent ZIP/manifest SHA-256 and existing Python TUF verified 284 extracted files. OLD 284-file tree, canary and L18 selector unchanged; no NEW execution, handoff, retry, rollback, cleanup or READY. BETA LOCAL Windows runner only, no consent override or production release.'
