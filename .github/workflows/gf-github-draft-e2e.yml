@@ -6,7 +6,7 @@ on:
       - '.github/workflows/gf-github-draft-e2e.yml'
       - 'prototipos/autoatualizador-seguro/phase1-composed/GfOldDraftAcquire.cs.txt'
 permissions:
-  contents: read
+  contents: write # Access to existing Draft requires a write-capable ephemeral GitHub token.
 concurrency:
   group: gf-e2e-existing-draft-old-initiated
   cancel-in-progress: false
@@ -59,6 +59,48 @@ jobs:
           $oldVersion=[System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $old 'GerenciadorFinal.dll')).Version.ToString()
           if ($oldVersion -ne '5.13.11.65') { throw 'GF_E2E_OLD_VERSION_MISMATCH' }
           Write-Host "GF_E2E_OLD_EXE_BUILD version=$oldVersion ephemeral_lab_mode=true"
+      - name: Renovar metadados TUF de TESTE da Draft existente, sem trocar ZIP ou manifesto
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='gf-e2e-c5057bbbaf1d'
+          $expectedArchiveId=694233137
+          $expectedManifestId=694233139
+          $release=(& gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,tagName,assets | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or !$release.isDraft -or $release.tagName -ne $tag -or @($release.assets).Count -ne 5) {
+            throw 'GF_E2E_EXISTING_DRAFT_NOT_AUTHORIZED'
+          }
+          $zip=@($release.assets | Where-Object { $_.name -eq 'gf-e2e-new-win-x64.zip' })
+          $manifest=@($release.assets | Where-Object { $_.name -eq 'GF-LAB-REAL-PACKAGE-MANIFEST.json' })
+          if ($zip.Count -ne 1 -or $zip[0].id -ne $expectedArchiveId -or
+              $zip[0].size -ne 57695630 -or $manifest.Count -ne 1 -or
+              $manifest[0].id -ne $expectedManifestId -or $manifest[0].size -ne 72618) {
+            throw 'GF_E2E_PINNED_ARCHIVE_OR_MANIFEST_ASSET_MISSING'
+          }
+          $inputFolder=Join-Path $env:RUNNER_TEMP 'gf-e2e-draft-manifest-input'
+          $rolesFolder=Join-Path $env:RUNNER_TEMP 'gf-e2e-refresh-roles'
+          if ((Test-Path $inputFolder) -or (Test-Path $rolesFolder)) { throw 'GF_E2E_REFRESH_NOT_FRESH' }
+          New-Item -ItemType Directory -Path $inputFolder | Out-Null
+          & gh release download $tag --repo $env:GITHUB_REPOSITORY --dir $inputFolder --pattern 'GF-LAB-REAL-PACKAGE-MANIFEST.json'
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_MANIFEST_DOWNLOAD_FAILED' }
+          $manifestPath=Join-Path $inputFolder 'GF-LAB-REAL-PACKAGE-MANIFEST.json'
+          $sha=(Get-FileHash $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne 'a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d') { throw 'GF_E2E_MANIFEST_HASH_NOT_PINNED' }
+          python prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py refresh --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --manifest-file $manifestPath --target $rolesFolder
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_TEST_TUF_REFRESH_FAILED' }
+          $roles=@('targets.json','snapshot.json','timestamp.json') | ForEach-Object { Join-Path $rolesFolder $_ }
+          & gh release upload $tag @roles --repo $env:GITHUB_REPOSITORY --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_TUF_DRAFT_METADATA_UPLOAD_FAILED' }
+          $after=(& gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,tagName,assets | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or !$after.isDraft -or $after.tagName -ne $tag -or
+              @($after.assets).Count -ne 5 -or
+              @($after.assets | Where-Object {$_.name -eq 'gf-e2e-new-win-x64.zip' -and $_.id -eq $expectedArchiveId}).Count -ne 1 -or
+              @($after.assets | Where-Object {$_.name -eq 'GF-LAB-REAL-PACKAGE-MANIFEST.json' -and $_.id -eq $expectedManifestId}).Count -ne 1) {
+            throw 'GF_E2E_DRAFT_METADATA_REFRESH_CHANGED_PACKAGE'
+          }
+          Write-Host 'GF_E2E_EXISTING_DRAFT_TUF_ROLES_FRESH release_id=429695537 test_only=true zip_and_target_unchanged=true'
       - name: O proprio GF OLD consulta GitHub Draft e baixa os cinco assets via HttpClient
         env:
           GH_TOKEN: ${{ github.token }}
@@ -153,4 +195,4 @@ jobs:
           $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
           python $script negative --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --target (Join-Path $env:RUNNER_TEMP 'gf-e2e-negatives') --lab-old-variant
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_PACKAGE_NEGATIVES_FAILED' }
-# No Draft creation, mutation, release publication, telemetry, backend or personal PC operations.
+# Only three TEST TUF metadata role assets are refreshed in the existing Draft. Never publish it or change executable ZIP/manifest.
