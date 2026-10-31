@@ -528,6 +528,108 @@ jobs:
             throw 'GF_E2E_MISSING_INSTALL_DIAGNOSTIC_UNPROVEN_HOLD'
           }
           Add-Content $env:GITHUB_STEP_SUMMARY 'Read-only diagnostic: after the original L18 owner cut between moves and two UnknownBlocked reconciliations, GF-UPDATE-HOLD-001 provides a Portuguese user-readable external notice; original executable path absent, OLD/NEW 284 files each preserved, no automatic repair/rollback/retry/cleanup, READY=false.'
+      - name: Seis negativos OLD NEW e canario nao podem produzir afirmacao falsa
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $verify=@'
+          import hashlib,json,os
+          from pathlib import Path
+          runner=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+          assert os.environ["GITHUB_ACTIONS"]=="true" and os.environ[
+              "GITHUB_REPOSITORY"]=="walissonminel-1991/gerenciador-final"
+          evidence=json.loads((runner/"gf-e2e-guidance-negative-results.json").read_bytes())
+          assert evidence["schema"]=="gf-e2e-guidance-integrity-negatives/1"
+          assert evidence["expected_cases"]==6 and evidence["failed"]==0
+          assert evidence["real_backup_untouched"] and evidence["real_staging_untouched"]
+          assert evidence["canary_untouched"] and evidence["original_selector_unchanged"]
+          assert evidence["test_only"] and evidence["operational_ready"] is False
+          assert evidence["recovery_proven"] is False
+          cases=evidence["cases"]
+          expected={
+              "old-modified":"REAL_GUIDANCE_OLD_BYTES_INVALID",
+              "old-missing":"REAL_GUIDANCE_OLD_FILESET_INVALID",
+              "new-modified":"REAL_GUIDANCE_NEW_BYTES_INVALID",
+              "new-missing":"REAL_GUIDANCE_NEW_FILESET_INVALID",
+              "canary-modified":"REAL_GUIDANCE_CANARY_INVALID",
+              "canary-missing":"REAL_GUIDANCE_CANARY_INVALID"
+          }
+          assert len(cases)==6 and {case["case"] for case in cases}==set(expected)
+          def digest(root):
+              assert root.is_dir() and not root.is_symlink() and root.resolve(strict=True)==root
+              found={}
+              for directory,dirs,files in os.walk(root,followlinks=False):
+                  for name in dirs+files:
+                      item=Path(directory)/name
+                      assert not item.is_symlink() and not item.stat().st_file_attributes&0x400
+                  for name in files:
+                      p=Path(directory)/name
+                      found[p.relative_to(root).as_posix()]={
+                          "length":p.stat().st_size,
+                          "sha256":hashlib.sha256(p.read_bytes()).hexdigest()}
+              return found
+          baseline=json.loads((runner/"gf-e2e-old-prestart-files.json").read_bytes())
+          raw=(runner/"gf-e2e-github-download"/"GF-LAB-REAL-PACKAGE-MANIFEST.json").read_bytes()
+          assert hashlib.sha256(raw).hexdigest()==(
+              "a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d")
+          manifest=json.loads(raw)
+          assert manifest["operational_installable"] is False
+          old=runner/"gf-e2e-old-preserved"
+          new=runner/"gf-e2e-authenticated-new"
+          canary=runner/"gf-e2e-install-data"/"PERSONAL-KEEP-UNCHANGED.txt"
+          selected_src=Path(json.loads((runner/"gf-e2e-real-flow-report.json").read_bytes())["root"])
+          selector=selected_src/"l18-real-active.fixture.json"
+          selector_before=hashlib.sha256(selector.read_bytes()).hexdigest()
+          assert digest(old)==baseline and digest(new)==manifest["files"]
+          assert canary.read_bytes()==b"DO-NOT-TOUCH-MY-DATA\n"
+          for case in cases:
+              name=case["case"];bad=runner/("gf-e2e-guidance-negative-"+name)
+              assert bad.is_dir() and bad.resolve(strict=True)==bad and not bad.is_symlink()
+              assert case["blocked"] is True and case["reason"]==expected[name]
+              assert case["positive_preservation_claim_written"] is False
+              assert case["isolated_lab_copy_only"] is True
+              assert case["rollback"] is False and case["retry"] is False
+              assert case["cleanup"] is False and case["operational_ready"] is False
+              assert not (bad/"gf-e2e-installation-missing-guidance.txt").exists()
+              assert not (bad/"gf-e2e-installation-missing-guidance.json").exists()
+              if name.startswith("old-"):
+                  changed=digest(bad/"old-copy")
+                  expected_copy=baseline
+              elif name.startswith("new-"):
+                  changed=digest(bad/"new-copy")
+                  expected_copy=manifest["files"]
+              else:
+                  sample=bad/"canary-copy.txt"
+                  if name.endswith("missing"):
+                      assert not sample.exists()
+                  else:
+                      assert sample.is_file() and sample.read_bytes()!=canary.read_bytes()
+                  continue
+              missing=set(expected_copy)-set(changed)
+              unexpected=set(changed)-set(expected_copy)
+              altered={k for k in set(changed)&set(expected_copy)
+                       if changed[k]!=expected_copy[k]}
+              assert not unexpected
+              if name.endswith("missing"):
+                  assert len(missing)==1 and not altered
+              else:
+                  assert not missing and len(altered)==1
+          assert digest(old)==baseline and digest(new)==manifest["files"]
+          assert canary.read_bytes()==b"DO-NOT-TOUCH-MY-DATA\n"
+          assert hashlib.sha256(selector.read_bytes()).hexdigest()==selector_before
+          assert not (runner/"gf-e2e-old").exists()
+          print("GF_E2E_GUIDANCE_NEGATIVES_INDEPENDENT_PASS "
+                "old_modified=BLOCK old_missing=BLOCK "
+                "new_modified=BLOCK new_missing=BLOCK "
+                "canary_modified=BLOCK canary_missing=BLOCK "
+                "false_preservation_claims=0 original_bytes_unchanged=true "
+                "selector=new/2 rollback=false cleanup=false READY=false")
+          '@
+          $verify | python -
+          if ($LASTEXITCODE -ne 0) {
+            throw 'GF_E2E_GUIDANCE_INTEGRITY_NEGATIVES_FAILED_HOLD'
+          }
+          Add-Content $env:GITHUB_STEP_SUMMARY 'Six isolated negative file-set/byte tests of the SAME L18 Portuguese HOLD diagnostic refused positive preservation statements on tampered or missing OLD, NEW and canary; original 284+284 files, canary, selector new/2 intact, no rollback/retry/cleanup/READY.'
       - name: Negativos de pacote real adulterado e transferencia incompleta
         shell: pwsh
         run: |

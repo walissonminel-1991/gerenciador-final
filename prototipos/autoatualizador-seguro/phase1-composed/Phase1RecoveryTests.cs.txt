@@ -439,6 +439,200 @@ internal static class Phase1RecoveryTests
         finally{await owner.Cleanup();await recovery.Cleanup();}
     }
 
+    // Reuse the SAME signed/pinned real package context that the L18 owner
+    // validated. This read-only gate checks the ACTUAL portable OLD backup,
+    // staged NEW and data canary before claiming their preservation.
+    // It does not classify recovery or grant READY. All paths are runner-only.
+    private static void RequireGuidancePhysicalIntegrity(
+        RealLabContext c,string backup,string incoming,string canary)
+    {
+        Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+            Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==
+                "walissonminel-1991/gerenciador-final",
+            "REAL_GUIDANCE_RUNNER_ONLY");
+        string runner=Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+            throw new Rejected("REAL_GUIDANCE_RUNNER_MISSING"));
+        void Check(string dir,string prefix,string family)
+        {
+            string full=Path.GetFullPath(dir);
+            Require(full.StartsWith(runner.TrimEnd(Path.DirectorySeparatorChar)+
+                    Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(full) &&
+                (File.GetAttributes(full)&FileAttributes.ReparsePoint)==0,
+                "REAL_GUIDANCE_"+family+"_DIRECTORY_INVALID");
+            var expected=c.Files.Where(x=>x.Path.StartsWith(prefix,StringComparison.Ordinal))
+                .ToArray();
+            Require(expected.Length>80,"REAL_GUIDANCE_"+family+"_EXPECTED_EMPTY");
+            var actual=new List<string>();
+            void Walk(string current)
+            {
+                foreach(string item in Directory.EnumerateFileSystemEntries(current))
+                {
+                    Require((File.GetAttributes(item)&FileAttributes.ReparsePoint)==0,
+                        "REAL_GUIDANCE_"+family+"_REPARSE_DENIED");
+                    if(Directory.Exists(item))Walk(item);
+                    else actual.Add(Path.GetRelativePath(full,item).Replace('\\','/'));
+                }
+            }
+            Walk(full);
+            Require(actual.Count==expected.Length &&
+                actual.Order(StringComparer.Ordinal).SequenceEqual(
+                    expected.Select(x=>x.Path[prefix.Length..])
+                        .Order(StringComparer.Ordinal)),
+                "REAL_GUIDANCE_"+family+"_FILESET_INVALID");
+            foreach(var file in expected)
+            {
+                string rel=file.Path[prefix.Length..].Replace('/',
+                    Path.DirectorySeparatorChar);
+                string candidate=Path.Combine(full,rel);
+                using var stream=new FileStream(candidate,FileMode.Open,FileAccess.Read,
+                    FileShare.Read);
+                Require(stream.Length==file.Length &&
+                    Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream))
+                        .Equals(file.Sha,StringComparison.OrdinalIgnoreCase),
+                    "REAL_GUIDANCE_"+family+"_BYTES_INVALID");
+            }
+        }
+        Check(backup,"real/old/","OLD");
+        Check(incoming,"real/new/","NEW");
+        Require(Path.GetFullPath(canary).StartsWith(
+                runner.TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase) &&
+            File.Exists(canary) &&
+            (File.GetAttributes(canary)&FileAttributes.ReparsePoint)==0 &&
+            File.ReadAllBytes(canary).AsSpan().SequenceEqual(
+                Encoding.UTF8.GetBytes("DO-NOT-TOUCH-MY-DATA\n")),
+            "REAL_GUIDANCE_CANARY_INVALID");
+    }
+
+    private static void WriteVerifiedHoldGuidance(RealLabContext c,
+        string backup,string incoming,string canary,string outputDir)
+    {
+        // No positive preservation record is written if ONE byte or file
+        // is absent or changed. This exact gate is exercised by the negative
+        // cases below on isolated copies, not by touching the real backup.
+        RequireGuidancePhysicalIntegrity(c,backup,incoming,canary);
+        Require(Directory.Exists(outputDir) &&
+            Path.GetFullPath(outputDir).StartsWith(
+                Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!).
+                    TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase),
+            "REAL_GUIDANCE_OUTPUT_OUTSIDE_RUNNER");
+            const string code="GF-UPDATE-HOLD-001";
+            const string guidance=
+                "O Gerenciador Final não conseguiu terminar a atualização.\n"+
+                "O programa não pode ser aberto com segurança nesta instalação.\n"+
+                "Por segurança, nenhuma tentativa de reparo ou restauração foi feita.\n"+
+                "Os arquivos anteriores e o pacote novo foram preservados neste teste.\n"+
+                "Não apague pastas do programa nem tente reinstalá-lo por cima.\n"+
+                "Peça orientação ao responsável pelo Gerenciador Final.\n"+
+                "Informe o código GF-UPDATE-HOLD-001.\n"+
+                "Ainda não há uma recuperação segura comprovada.\n";
+            var userNotice=new{
+                schema="gf-e2e-installation-missing-guidance/1",
+                diagnostic_code=code,language="pt-BR",
+                condition="original-executable-path-absent-after-first-move",
+                classification="UnknownBlocked",selector="new",generation=2,
+                old_backup_preserved=true,new_staging_preserved=true,
+                canary_preserved=true,original_path_missing=true,
+                guidance_text=guidance,
+                guidance_delivery="external-test-diagnostic-not-app-ui",
+                automatic_rollback_allowed=false,automatic_retry_allowed=false,
+                cleanup_allowed=false,application_started=false,
+                recovery_proven=false,operational_ready=false,test_only=true
+            };
+            L18Coordinator.DurableRealFile(Path.Combine(outputDir,
+                    "gf-e2e-installation-missing-guidance.txt"),
+                new UTF8Encoding(false).GetBytes(guidance));
+            L18Coordinator.DurableRealFile(Path.Combine(outputDir,
+                    "gf-e2e-installation-missing-guidance.json"),
+                JsonSerializer.SerializeToUtf8Bytes(userNotice));
+    }
+
+    private static object[] VerifyGuidanceNegativeCopies(RealLabContext c,
+        string runner,string backup,string incoming,string canary)
+    {
+        // Only disposable COPIES of actual authenticated package files.
+        // Never modify original backup/staging/canary or L18 selector.
+        string oldRel=c.Files.Where(x=>x.Path.StartsWith("real/old/",StringComparison.Ordinal))
+            .OrderBy(x=>x.Length).First().Path["real/old/".Length..];
+        string newRel=c.Files.Where(x=>x.Path.StartsWith("real/new/",StringComparison.Ordinal))
+            .OrderBy(x=>x.Length).First().Path["real/new/".Length..];
+        var evidence=new List<object>();
+        foreach(string name in new[]{"old-modified","old-missing","new-modified",
+            "new-missing","canary-modified","canary-missing"})
+        {
+            string outputDir=Path.Combine(runner,"gf-e2e-guidance-negative-"+name);
+            Require(!Directory.Exists(outputDir) && !File.Exists(outputDir),
+                "REAL_GUIDANCE_NEGATIVE_NOT_FRESH");
+            Directory.CreateDirectory(outputDir);
+            string testOld=backup,testNew=incoming,testCanary=canary;
+            string expectedFamily=name.StartsWith("old-",StringComparison.Ordinal)
+                ?"REAL_GUIDANCE_OLD_":name.StartsWith("new-",StringComparison.Ordinal)
+                ?"REAL_GUIDANCE_NEW_":"REAL_GUIDANCE_CANARY_";
+            if(name.StartsWith("old-",StringComparison.Ordinal))
+            {
+                testOld=Path.Combine(outputDir,"old-copy");
+                CopyTree(backup,testOld);
+                string target=Path.Combine(testOld,oldRel.Replace('/',
+                    Path.DirectorySeparatorChar));
+                if(name.EndsWith("missing",StringComparison.Ordinal))File.Delete(target);
+                else
+                {
+                    using var writable=new FileStream(target,FileMode.Open,FileAccess.ReadWrite,
+                        FileShare.None);
+                    int b=writable.ReadByte();Require(b>=0,"REAL_GUIDANCE_TEST_EMPTY_OLD");
+                    writable.Position=0;writable.WriteByte((byte)(b^0x01));writable.Flush(true);
+                }
+            }
+            else if(name.StartsWith("new-",StringComparison.Ordinal))
+            {
+                testNew=Path.Combine(outputDir,"new-copy");
+                CopyTree(incoming,testNew);
+                string target=Path.Combine(testNew,newRel.Replace('/',
+                    Path.DirectorySeparatorChar));
+                if(name.EndsWith("missing",StringComparison.Ordinal))File.Delete(target);
+                else
+                {
+                    using var writable=new FileStream(target,FileMode.Open,FileAccess.ReadWrite,
+                        FileShare.None);
+                    int b=writable.ReadByte();Require(b>=0,"REAL_GUIDANCE_TEST_EMPTY_NEW");
+                    writable.Position=0;writable.WriteByte((byte)(b^0x01));writable.Flush(true);
+                }
+            }
+            else
+            {
+                testCanary=Path.Combine(outputDir,"canary-copy.txt");
+                if(name=="canary-modified")
+                    File.WriteAllText(testCanary,"DO-NOT-TOUCH-MY-DATA-CHANGED
+",
+                        new UTF8Encoding(false));
+                // canary-missing deliberately leaves the isolated file absent
+            }
+            bool rejected=false;string reason="";
+            try{WriteVerifiedHoldGuidance(c,testOld,testNew,testCanary,outputDir);}
+            catch(Rejected x) when(x.Code.StartsWith(expectedFamily,
+                StringComparison.Ordinal))
+            {
+                rejected=true;reason=x.Code;
+            }
+            Require(rejected &&
+                !File.Exists(Path.Combine(outputDir,
+                    "gf-e2e-installation-missing-guidance.txt")) &&
+                !File.Exists(Path.Combine(outputDir,
+                    "gf-e2e-installation-missing-guidance.json")),
+                "REAL_GUIDANCE_NEGATIVE_FALSE_PRESERVATION_"+name);
+            evidence.Add(new{
+                @case=name,blocked=true,reason,
+                positive_preservation_claim_written=false,
+                isolated_lab_copy_only=true,rollback=false,retry=false,
+                cleanup=false,operational_ready=false
+            });
+        }
+        RequireGuidancePhysicalIntegrity(c,backup,incoming,canary);
+        return evidence.ToArray();
+    }
+
     // Single controlled CUT of the existing L18 REAL portable install swap.
     // The original UI-started OLD and the existing selected NEW/2 fence must
     // already be established before RealOwner moves OLD into its backup.
@@ -554,35 +748,23 @@ internal static class Phase1RecoveryTests
                 File.ReadAllText(canary,new UTF8Encoding(false))==
                     "DO-NOT-TOUCH-MY-DATA\n",
                 "REAL_MISSING_INSTALL_GUIDANCE_NOT_AUTHORIZED");
-            const string code="GF-UPDATE-HOLD-001";
-            const string guidance=
-                "O Gerenciador Final não conseguiu terminar a atualização.\n"+
-                "O programa não pode ser aberto com segurança nesta instalação.\n"+
-                "Por segurança, nenhuma tentativa de reparo ou restauração foi feita.\n"+
-                "Os arquivos anteriores e o pacote novo foram preservados neste teste.\n"+
-                "Não apague pastas do programa nem tente reinstalá-lo por cima.\n"+
-                "Peça orientação ao responsável pelo Gerenciador Final.\n"+
-                "Informe o código GF-UPDATE-HOLD-001.\n"+
-                "Ainda não há uma recuperação segura comprovada.\n";
-            var userNotice=new{
-                schema="gf-e2e-installation-missing-guidance/1",
-                diagnostic_code=code,language="pt-BR",
-                condition="original-executable-path-absent-after-first-move",
-                classification="UnknownBlocked",selector="new",generation=2,
-                old_backup_preserved=true,new_staging_preserved=true,
-                canary_preserved=true,original_path_missing=true,
-                guidance_text=guidance,
-                guidance_delivery="external-test-diagnostic-not-app-ui",
-                automatic_rollback_allowed=false,automatic_retry_allowed=false,
-                cleanup_allowed=false,application_started=false,
-                recovery_proven=false,operational_ready=false,test_only=true
-            };
+            WriteVerifiedHoldGuidance(c,backup,incoming,canary,runner);
+            var guidanceNegatives=VerifyGuidanceNegativeCopies(c,runner,backup,incoming,canary);
+            Require(guidanceNegatives.Length==6,
+                "REAL_GUIDANCE_NEGATIVE_COVERAGE_INCOMPLETE");
             L18Coordinator.DurableRealFile(Path.Combine(runner,
-                    "gf-e2e-installation-missing-guidance.txt"),
-                new UTF8Encoding(false).GetBytes(guidance));
-            L18Coordinator.DurableRealFile(Path.Combine(runner,
-                    "gf-e2e-installation-missing-guidance.json"),
-                JsonSerializer.SerializeToUtf8Bytes(userNotice));
+                    "gf-e2e-guidance-negative-results.json"),
+                JsonSerializer.SerializeToUtf8Bytes(new{
+                    schema="gf-e2e-guidance-integrity-negatives/1",
+                    cases=guidanceNegatives,expected_cases=6,failed=0,
+                    real_backup_untouched=true,real_staging_untouched=true,
+                    canary_untouched=true,original_selector_unchanged=true,
+                    recovery_proven=false,operational_ready=false,test_only=true
+                }));
+            Console.WriteLine("GF_E2E_GUIDANCE_NEGATIVE_GATES "
+                +"old=MODIFIED+MISSING new=MODIFIED+MISSING "
+                +"canary=MODIFIED+MISSING rejected=6/6 "
+                +"false_preservation_claims=0 READY=false");
             Console.WriteLine("GF_E2E_MISSING_INSTALL_DIAGNOSTIC "
                 +"code=GF-UPDATE-HOLD-001 language=pt-BR "
                 +"original_path=ABSENT guidance=EXTERNAL_TEST_NOTICE "
