@@ -45,7 +45,7 @@ jobs:
           $r=$line.Substring('GF_GITHUB_AUTH_D1_LAB '.Length) | ConvertFrom-Json
           if ($r.schema -ne 'gf-github-auth-d1-lab/1' -or $r.status -ne 'passed' -or
               !$r.positive_inert_contract -or
-              $r.adversarial_rejected -ne 32 -or $r.unique_adversarial_cases -ne 32 -or
+              $r.adversarial_rejected -ne 33 -or $r.unique_adversarial_cases -ne 33 -or
               $r.scope -ne 'PUBLIC_TEST_TUF_CHAIN_AND_INERT_PAYLOAD_ONLY' -or
               $r.metadata_source -ne 'PINNED_LOCAL_TEST_ROOT' -or
               $r.github_live_requests -ne 0 -or $r.product_changes -or

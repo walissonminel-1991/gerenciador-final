@@ -321,7 +321,7 @@ def run():
             "product_changes":False,"downloaded_real_executable":False,
             "installer_launched":False,"can_install":False,
             "operational_ready":False,"automatic_recovery_authorized":False}
-    require(result["adversarial_rejected"] == 32 and
+    require(result["adversarial_rejected"] == 33 and
             result["adversarial_rejected"] == result["unique_adversarial_cases"],
             "EXPECTED_NEGATIVE_MATRIX")
     print("GF_GITHUB_AUTH_D1_LAB "+json.dumps(result,sort_keys=True))
