@@ -23,6 +23,38 @@ def require(ok, code):
         raise RuntimeError(code)
 
 
+
+def consent_dialogs_for_pid(pid):
+    """Read-only check: separate real first-run privacy prompt from update failure."""
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    from ctypes import wintypes as w
+    callback = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+    get_owner = user32.GetWindowThreadProcessId
+    get_owner.argtypes = [w.HWND, ctypes.POINTER(w.DWORD)]
+    get_owner.restype = w.DWORD
+    get_text = user32.GetWindowTextW
+    get_text.argtypes = [w.HWND, w.LPWSTR, ctypes.c_int]
+    get_text.restype = ctypes.c_int
+    is_visible = user32.IsWindowVisible
+    is_visible.argtypes = [w.HWND]
+    is_visible.restype = w.BOOL
+    enum = user32.EnumWindows
+    enum.argtypes = [callback, w.LPARAM]
+    enum.restype = w.BOOL
+    seen = []
+    @callback
+    def visit(hwnd, _):
+        owner = w.DWORD()
+        get_owner(hwnd, ctypes.byref(owner))
+        if owner.value == pid and is_visible(hwnd):
+            title = ctypes.create_unicode_buffer(256)
+            get_text(hwnd, title, len(title))
+            if title.value == "Privacidade e diagnóstico colaborativo":
+                seen.append(int(hwnd))
+        return True
+    enum(visit, 0)
+    return seen
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--exe", type=Path, required=True)
@@ -30,6 +62,8 @@ def main():
     p.add_argument("--failure", type=Path, required=True)
     p.add_argument("--transport", type=Path, required=True)
     p.add_argument("--result", type=Path, required=True)
+    p.add_argument("--normal", action="store_true",
+                   help="Normal MainForm launch without --tray or ShowWindow")
     args = p.parse_args()
     require(os.name == "nt" and os.environ.get("GITHUB_ACTIONS") == "true"
             and os.environ.get("GITHUB_REPOSITORY") ==
@@ -37,7 +71,8 @@ def main():
             "GUI_TEST_DISPOSABLE_RUNNER_ONLY")
     runner = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
     image = args.exe.resolve(strict=True)
-    require(image.parent == runner / "gf-e2e-http-ui-old" and
+    require(image.parent == runner / ("gf-e2e-http-normal-old" if args.normal
+                                       else "gf-e2e-http-ui-old") and
             image.name == "GerenciadorFinal.exe", "GUI_TEST_OLD_NOT_ISOLATED")
     require(args.shown.parent == runner and args.failure.parent == runner
             and args.transport.parent == runner and args.result.parent == runner,
@@ -48,14 +83,23 @@ def main():
     env = dict(os.environ)
     env["GF_E2E_STARTUP_DRAFT_PROBE"] = "1"
     env["GF_E2E_HTTP_CUT_NEGATIVE"] = "1"
-    env["GF_E2E_HTTP_UI_NEGATIVE"] = "1"
+    env["GF_E2E_HTTP_UI_NEGATIVE"] = "0" if args.normal else "1"
+    env["GF_E2E_HTTP_UI_NORMAL_NEGATIVE"] = "1" if args.normal else "0"
     for key in ("GF_E2E_HANDOFF_L18", "GF_E2E_SELF_GRACEFUL_CLOSE",
                 "GF_E2E_SELECTED_NEW_CONTINUATION",
                 "GF_E2E_SWAP_CUT_AFTER_OLD_MOVE"):
         env[key] = "0"
     require(env.get("GF_E2E_HTTP_CUT_PORT", "").isdigit(),
             "GUI_TEST_HTTP_LOOPBACK_NOT_PINNED")
-    proc = subprocess.Popen([str(image), "--tray"], cwd=str(image.parent),
+    # Do not hide or artificially show the MainForm in the normal case.
+    require(not args.normal or os.environ.get("LOCALAPPDATA"),
+            "NORMAL_FIRST_RUN_LOCAL_APP_DATA_UNAVAILABLE")
+    consent_file = (Path(os.environ["LOCALAPPDATA"]) /
+                    "GerenciadorFinal" / "Privacidade" / "consentimento-v1.json") if args.normal else None
+    if args.normal:
+        require(not consent_file.exists(), "NORMAL_FIRST_RUN_CONSENT_ALREADY_STORED")
+    proc = subprocess.Popen([str(image)] if args.normal else
+                            [str(image), "--tray"], cwd=str(image.parent),
                             env=env, stdin=subprocess.DEVNULL,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
@@ -64,6 +108,11 @@ def main():
         deadline = time.monotonic() + 100
         while time.monotonic() < deadline:
             require(proc.poll() is None, "GF_OLD_EXITED_DURING_DOWNLOAD_FAILURE")
+            if args.normal:
+                require(not consent_dialogs_for_pid(proc.pid),
+                        "NORMAL_FIRST_RUN_CONSENT_MODAL_PRESENT_NOT_HTTP_FAILURE")
+                require(not consent_file.exists(),
+                        "NORMAL_FIRST_RUN_CONSENT_PREFERENCE_CHANGED")
             if args.failure.exists() and args.transport.exists() and args.shown.exists():
                 break
             time.sleep(0.15)
@@ -113,9 +162,9 @@ def main():
                 and os.path.samefile(real_image, image)
                 and hashlib.sha256(image.read_bytes()).hexdigest() == image_hash,
                 "GUI_PROCESS_IMAGE_IDENTITY_UNPROVEN")
-        # Start in tray to suppress modal first-run consent, then reveal the
-        # OWNED main HWND for a strict visible-window test. Test-only Win32 UI
-        # operation; no GF installation or recovery action.
+        # In normal mode the OWNED window must be natively visible;
+        # do NOT use ShowWindow or tray startup. In the older lab case
+        # preserve the existing presentation-only ShowWindow step.
         user32 = ctypes.WinDLL("user32", use_last_error=True)
         show = user32.ShowWindow
         show.argtypes = [ctypes.c_void_p, ctypes.c_int]
@@ -123,8 +172,15 @@ def main():
         is_visible = user32.IsWindowVisible
         is_visible.argtypes = [ctypes.c_void_p]
         is_visible.restype = ctypes.c_bool
-        show(hwnd, 5)  # SW_SHOW, on the verified process-owned window ONLY.
-        require(bool(is_visible(hwnd)), "GUI_GF_OLD_NOT_VISIBLE_AFTER_ERROR")
+        if not args.normal:
+            show(hwnd, 5)  # Earlier --tray lab case only.
+        require(bool(is_visible(hwnd)),
+                "NORMAL_MAINFORM_NOT_VISIBLE_WITHOUT_INTERVENTION"
+                if args.normal else "GUI_GF_OLD_NOT_VISIBLE_AFTER_ERROR")
+        if args.normal:
+            require(not consent_dialogs_for_pid(proc.pid) and
+                    not consent_file.exists(),
+                    "NORMAL_FIRST_RUN_CONSENT_MODAL_OR_PREFERENCE_CHANGED")
         require(message_pump_ping(hwnd), "GUI_GF_OLD_NOT_RESPONDING_AFTER_ERROR")
         # Allow background asynchronous registry inventory startup to settle.
         deadline = time.monotonic() + 25
@@ -151,7 +207,8 @@ def main():
         require(desktop["interactive_user_desktop_verified"],
                 "GUI_NOT_INTERACTIVE_DESKTOP")
         report = {
-            "schema": "gf-e2e-http-cut-mainform-healthy/1",
+            "schema": ("gf-e2e-http-cut-mainform-normal/1" if args.normal
+                       else "gf-e2e-http-cut-mainform-healthy/1"),
             "real_mainform_shown": True,
             "real_network_tcp_disconnect_observed": True,
             "original_old_process_alive_after_failure": True,
@@ -162,6 +219,11 @@ def main():
             "readonly_search_nonmatch_seen": True,
             "readonly_search_restored": True,
             "old_ui_healthy_after_http_cut": True,
+            "normal_launch_without_tray": bool(args.normal),
+            "no_forced_showwindow": bool(args.normal),
+            "local_beta_consent_dialog_not_required": bool(args.normal),
+            "consent_dialog_seen": False,
+            "consent_preference_untouched": bool(args.normal and not consent_file.exists()) if args.normal else False,
             "new_executed": False,
             "l18_handoff_called": False,
             "retry_authorized": False,
@@ -175,7 +237,8 @@ def main():
             output.flush()
             os.fsync(output.fileno())
         verified = True
-        print("GF_E2E_MAINFORM_HTTP_CUT_HEALTH_PASS "
+        print(("GF_E2E_NORMAL_MAINFORM_HTTP_CUT_HEALTH_PASS " if args.normal
+               else "GF_E2E_MAINFORM_HTTP_CUT_HEALTH_PASS ")
               "tcp_disconnect=REAL_LOOPBACK mainform=VISIBLE+RESPONSIVE "
               "inventory=NONZERO search=EMPTY+RESTORED "
               "GF_OLD_still_running=true NEW_executed=false "
