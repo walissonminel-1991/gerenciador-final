@@ -176,6 +176,18 @@ print("GF_E2E_INSTALL_FOCUSED_NORMAL_OLD_PASS native_mainform=true responsive=tr
         $kinds=if ($tokens.Count -gt 0) { $tokens -join ',' } else { 'NO_ALLOWLISTED_CODE' }
         Write-Host "GF_PIN_L18_SANITIZED_ERROR file=$($e.Name) bytes=$($e.Length) codes=$kinds READY=false"
       }
+      $focused=Join-Path $root 'gf-e2e-ntfs-focused-error-sanitized.json'
+      if (Test-Path -LiteralPath $focused) {
+        $diag=Get-Content -LiteralPath $focused -Raw | ConvertFrom-Json
+        if ($diag.schema -ne 'gf-e2e-l18-ntfs-focused-error/1' -or
+            $diag.operational_ready -or !$diag.test_only) {
+          throw 'GF_PIN_FOCUSED_DIAGNOSTIC_SCHEMA_INVALID'
+        }
+        $codes=if (@($diag.codes).Count -gt 0) { @($diag.codes) -join ',' } else { 'NONE' }
+        Write-Host "GF_PIN_FOCUSED_L18_FAILURE class=$($diag.exception_type) base=$($diag.base_exception_type) reason=$($diag.safe_message) codes=$codes retained=$($diag.owner_fixture_retained) READY=false"
+      } else {
+        Write-Host 'GF_PIN_FOCUSED_L18_FAILURE record=ABSENT READY=false'
+      }
       if ($labErrors.Count -eq 0) {
         Write-Host 'GF_PIN_L18_SANITIZED_ERROR files=NONE code=NO_OWNER_OBSERVER_DIAGNOSTIC READY=false'
       }

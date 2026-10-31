@@ -2089,6 +2089,47 @@ internal static class Phase1RecoveryTests
         }
         catch(Exception e)
         {
+            // Only the disposable original L18 install-focused NTFS probe.
+            // The focused CLI's a[1] is a REPORT PATH, not the fixture
+            // directory; the legacy fixture-only catch below cannot record
+            // a focused coordinator failure. Emit allowlisted codes ONLY.
+            // Never include message bodies, paths, token values or stack.
+            if(a.Length==10 && a[0]=="--real-install-focused" &&
+                Environment.GetEnvironmentVariable("GF_E2E_NTFS_PIN_LAUNCH")=="1" &&
+                Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+                Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==
+                    "walissonminel-1991/gerenciador-final")
+            {
+                try
+                {
+                    string runner=Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+                        throw new IOException("MISSING_DISPOSABLE_RUNNER");
+                    if(Directory.Exists(runner) && Path.IsPathFullyQualified(runner))
+                    {
+                        string[] codes=System.Text.RegularExpressions.Regex.Matches(
+                            e.ToString(),
+                            @"(?:GF_PHASE1_|GF_NTFS_|REAL_)[A-Z][A-Z0-9_]{3,105}")
+                            .Select(m=>m.Value).Distinct(StringComparer.Ordinal)
+                            .Take(12).ToArray();
+                        string message=System.Text.RegularExpressions.Regex.IsMatch(
+                            e.Message,@"\A[A-Z][A-Z0-9_:-]{0,140}\z")
+                            ?e.Message:"REDACTED";
+                        File.WriteAllText(Path.Combine(runner,
+                            "gf-e2e-ntfs-focused-error-sanitized.json"),
+                            JsonSerializer.Serialize(new{
+                                schema="gf-e2e-l18-ntfs-focused-error/1",
+                                exception_type=e.GetType().Name,
+                                base_exception_type=e.GetBaseException().GetType().Name,
+                                safe_message=message,
+                                codes,
+                                owner_fixture_retained=L16Tests.PostExitRetainedRoot is not null,
+                                test_only=true,operational_ready=false
+                            }));
+                    }
+                }
+                catch(Exception)
+                { /* Diagnostics never affect containment or recovery. */ }
+            }
             if(a.Length>=3 && a[0]!="--real-suite")
             {
                 try
