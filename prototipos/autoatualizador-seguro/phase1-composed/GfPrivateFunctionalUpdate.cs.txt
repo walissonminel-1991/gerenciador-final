@@ -354,6 +354,7 @@ internal static class GfPrivateFunctionalUpdate
             UseShellExecute = false, WorkingDirectory = old
         });
         Require(next is not null, "OFFICIAL_NEW_START_FAILED");
+        int newPid = next!.Id; // Snapshot BEFORE using(next) disposes its handle.
         File.WriteAllText(Path.Combine(work, "phase.txt"), "NEW_STARTED");
         // A created PID alone is insufficient. Wait for the real WinForms main
         // window before recording successful startup; retain the OLD backup.
@@ -386,7 +387,7 @@ internal static class GfPrivateFunctionalUpdate
             {
                 schema = "gf-private-github-update/1",
                 installed_version = target.ToString(),
-                new_pid = next.Id, ready = false
+                new_pid = newPid, ready = false
             }));
         return 0;
     }
