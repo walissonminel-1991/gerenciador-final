@@ -638,12 +638,16 @@ internal static class Phase1RecoveryTests
     // The original UI-started OLD and the existing selected NEW/2 fence must
     // already be established before RealOwner moves OLD into its backup.
     // The SAME LabProcessJob kill handle cuts after exactly ONE directory move.
-    private static async Task<object> PhysicalInstallBetweenMovesCut(string[] a)
+    private static async Task<object> PhysicalInstallBetweenMovesCut(string[] a,bool afterSecond=false)
     {
         Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
             Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==
                 "walissonminel-1991/gerenciador-final" &&
-            Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")=="1" &&
+            (afterSecond
+                ? Environment.GetEnvironmentVariable("GF_E2E_CUT_AFTER_SECOND_MOVE")=="1" &&
+                  Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")!="1"
+                : Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")=="1" &&
+                  Environment.GetEnvironmentVariable("GF_E2E_CUT_AFTER_SECOND_MOVE")!="1") &&
             Environment.GetEnvironmentVariable("GF_E2E_POST_OWNER_PERSISTENCE")=="1",
             "REAL_BETWEEN_MOVES_CUT_RUNNER_ONLY");
         using var s=await L16Tests.Prepared();
@@ -660,13 +664,20 @@ internal static class Phase1RecoveryTests
             incoming=Path.Combine(runner,"gf-e2e-authenticated-new"),
             canary=Path.Combine(runner,"gf-e2e-install-data","PERSONAL-KEEP-UNCHANGED.txt"),
             installedReceipt=Path.Combine(runner,"gf-e2e-live-install-transition.json");
-        string cut="between-install-moves";
+        string cut=afterSecond?"after-second-install-move-before-new-observe":
+            "between-install-moves";
+        bool PhysicalLayout() => Directory.Exists(backup) &&
+            (afterSecond
+                ? Directory.Exists(live) && !File.Exists(live) &&
+                  !Directory.Exists(incoming) && !File.Exists(incoming)
+                : !Directory.Exists(live) && !File.Exists(live) &&
+                  Directory.Exists(incoming));
         bool killed=false;
         string cutStage="before_owner_start";
         try
         {
             using var child=owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,
-                "handoff-install-cut",a[9]);
+                afterSecond?"handoff-install-after-second-cut":"handoff-install-cut",a[9]);
             // The marker is published by the REAL coordinator only AFTER
             // Directory.Move(live,backup) returned. The owner must still be
             // alive and blocked BEFORE the second move can happen.
@@ -677,22 +688,20 @@ internal static class Phase1RecoveryTests
                 Selection(src)==("new",2) &&
                 File.Exists(L18Coordinator.NewLaunchFence(src)) &&
                 File.Exists(Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt")) &&
-                !Directory.Exists(live) && !File.Exists(live) &&
-                Directory.Exists(backup) && Directory.Exists(incoming) &&
+                PhysicalLayout() &&
                 !File.Exists(installedReceipt) &&
                 !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")) &&
                 File.ReadAllText(canary,new UTF8Encoding(false))==
                     "DO-NOT-TOUCH-MY-DATA\n",
-                "REAL_BETWEEN_MOVES_PREKILL_GAP_UNPROVEN");
+                "REAL_INSTALL_CUT_PREKILL_PHYSICAL_LAYOUT_UNPROVEN");
             cutStage="cut_seen_killing_owner";
             await child.KillOnlyThisProcess();
             Require(child.ExitCode==91,"REAL_BETWEEN_MOVES_WRONG_KILL_EXIT");
             killed=true;
             cutStage="owner_killed_replay_one";
             // A killed process cannot continue to the second rename.
-            Require(!Directory.Exists(live) && Directory.Exists(backup) &&
-                Directory.Exists(incoming) && !File.Exists(installedReceipt),
-                "REAL_BETWEEN_MOVES_SECOND_MOVE_OCCURRED");
+            Require(PhysicalLayout() && !File.Exists(installedReceipt),
+                "REAL_INSTALL_CUT_LAYOUT_CHANGED_AFTER_KILL");
             var before=Hash(File.ReadAllBytes(Path.Combine(src,
                 "l18-real-active.fixture.json")));
             string outcome=await Reopen(recovery,owner,src,s.Lab);
@@ -717,11 +726,10 @@ internal static class Phase1RecoveryTests
             Require(replay=="UnknownBlocked" &&
                 Hash(File.ReadAllBytes(Path.Combine(src,
                     "l18-real-active.fixture.json")))==before &&
-                !Directory.Exists(live) && Directory.Exists(backup) &&
-                Directory.Exists(incoming) && !File.Exists(installedReceipt) &&
+                PhysicalLayout() && !File.Exists(installedReceipt) &&
                 File.ReadAllText(canary,new UTF8Encoding(false))==
                     "DO-NOT-TOUCH-MY-DATA\n",
-                "REAL_BETWEEN_MOVES_REPLAY_MUTATED_INSTALL");
+                "REAL_INSTALL_CUT_REPLAY_MUTATED_INSTALL");
             cutStage="checking_pins_and_jobs";
             pins.Recheck();
             // Reopening the SAME L18 reconciler already revalidated TUF,
@@ -734,11 +742,12 @@ internal static class Phase1RecoveryTests
             // User-readable diagnosis ONLY AFTER the original L18 has
             // independently classified both attempts UnknownBlocked and the
             // full OLD/NEW pins, selector and personal canary have survived.
-            // GF.exe is absent from its original location; this laboratory
-            // diagnostic is an external text notice, NEVER a GF popup,
-            // a recovery witness, or an invitation to retry the swap.
-            Require(!Directory.Exists(live) && !File.Exists(live) &&
-                Directory.Exists(backup) && Directory.Exists(incoming) &&
+            // Missing-install guidance applies ONLY to the first-move gap.
+            // After the second move the installed NEW exists; suppress any
+            // misleading missing-executable guidance or UI instructions.
+            if(!afterSecond)
+            {
+            Require(PhysicalLayout() &&
                 !File.Exists(installedReceipt) &&
                 Selection(src)==("new",2) &&
                 File.Exists(L18Coordinator.NewLaunchFence(src)) &&
@@ -770,17 +779,37 @@ internal static class Phase1RecoveryTests
                 +"code=GF-UPDATE-HOLD-001 language=pt-BR "
                 +"original_path=ABSENT guidance=EXTERNAL_TEST_NOTICE "
                 +"rollback=false retry=false cleanup=false READY=false");
+            }
+            else
+            {
+                Require(PhysicalLayout() &&
+                    File.Exists(Path.Combine(live,"GerenciadorFinal.exe")) &&
+                    !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")) &&
+                    !File.Exists(installedReceipt) &&
+                    outcome=="UnknownBlocked" && replay=="UnknownBlocked" &&
+                    File.ReadAllText(canary,new UTF8Encoding(false))==
+                        "DO-NOT-TOUCH-MY-DATA\n",
+                    "REAL_AFTER_SECOND_MOVE_NOT_CONTAINED");
+                Console.WriteLine("GF_E2E_AFTER_SECOND_MOVE_CUT_L18_HOLD "
+                    +"OLD=BACKUP NEW=ORIGINAL_PATH selector=new/2 "
+                    +"new_observation=ABSENT owner_killed=91 "
+                    +"rollback=false cleanup=false retry=false READY=false");
+            }
             return new{
-                schema="gf-e2e-interrupted-physical-swap-l18/1",
-                scenario="between-install-moves",
+                schema=afterSecond?"gf-e2e-after-second-move-cut-l18/1":
+                    "gf-e2e-interrupted-physical-swap-l18/1",
+                scenario=cut,
                 root=src,owner_exited_by_retained_process_handle=killed,
                 owner_exit_code=91,selector="new",generation=2,
-                first_directory_move_completed=true,second_directory_move_executed=false,
-                old_present_in_backup=true,new_present_in_staging=true,
-                original_executable_path_absent=true,personal_canary_untouched=true,
+                first_directory_move_completed=true,second_directory_move_executed=afterSecond,
+                old_present_in_backup=true,new_present_in_staging=!afterSecond,
+                installed_new_present_at_original_path=afterSecond,
+                original_executable_path_absent=!afterSecond,personal_canary_untouched=true,
                 old_and_new_fixture_pins_rechecked=true,
                 new_executable_not_launched_after_cut=true,
                 installed_receipt_absent=true,
+                functional_new_observation_absent=true,
+                no_new_process_launched_after_install_cut=true,
                 outcome,replay,reason,
                 rollback_authorized=false,rollback_performed=false,
                 automatic_retry_authorized=false,cleanup_performed=false,
@@ -1669,7 +1698,7 @@ internal static class Phase1RecoveryTests
             }
             Require(((a.Length==9 && (a[0]=="--real-suite" ||
                     a[0]=="--real-normal-focused")) ||
-                    (a.Length==10 && a[0] is "--real-handoff-focused" or "--real-install-focused" or "--real-install-cut-focused")) &&
+                    (a.Length==10 && a[0] is "--real-handoff-focused" or "--real-install-focused" or "--real-install-cut-focused" or "--real-install-after-second-cut-focused")) &&
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
                 Path.GetFileName(Own)=="GF.Updater.M3.L18Tests.exe","REAL_SUITE_ARGUMENTS");
             foreach(string p in a.Skip(7).Take(2))
@@ -1679,19 +1708,25 @@ internal static class Phase1RecoveryTests
             L16Tests.suite=Path.Combine(Path.GetTempPath(),"gf-u2-r-"+Guid.NewGuid().ToString("N")[..8]);
             Require(!Directory.Exists(L16Tests.suite),"REAL_SUITE_MUST_BE_FRESH");
             Directory.CreateDirectory(L16Tests.suite);
-            if(a[0]=="--real-install-cut-focused")
+            if(a[0] is "--real-install-cut-focused" or "--real-install-after-second-cut-focused")
             {
                 try
                 {
                     Require(int.TryParse(a[9],System.Globalization.NumberStyles.None,
                         System.Globalization.CultureInfo.InvariantCulture,out int oldPid) &&
                         oldPid>0,"REAL_BETWEEN_MOVES_ORIGINAL_PID_REQUIRED");
-                    var proof=await PhysicalInstallBetweenMovesCut(a);
+                    bool afterSecond=a[0]=="--real-install-after-second-cut-focused";
+                    var proof=await PhysicalInstallBetweenMovesCut(a,afterSecond);
                     File.WriteAllText(a[1],JsonSerializer.Serialize(proof));
-                    Console.WriteLine("GF_E2E_BETWEEN_MOVES_L18_HOLD "
-                        +"owner_killed=91 selector=new/2 OLD=BACKUP NEW=STAGED "
-                        +"original_path=ABSENT replay=UnknownBlocked "
-                        +"rollback=false cleanup=false READY=false");
+                    Console.WriteLine(afterSecond
+                        ? "GF_E2E_AFTER_SECOND_INSTALL_MOVE_L18_HOLD owner_killed=91 "
+                          +"selector=new/2 NEW=ORIGINAL_PATH OLD=BACKUP "
+                          +"new_observer=NOT_STARTED replay=UnknownBlocked "
+                          +"rollback=false cleanup=false READY=false"
+                        : "GF_E2E_BETWEEN_MOVES_L18_HOLD "
+                          +"owner_killed=91 selector=new/2 OLD=BACKUP NEW=STAGED "
+                          +"original_path=ABSENT replay=UnknownBlocked "
+                          +"rollback=false cleanup=false READY=false");
                     return 0;
                 }
                 finally

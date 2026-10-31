@@ -796,3 +796,40 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ./prototipos/autoatualizador-seguro/phase1-composed/github_install_focused_normal.ps1
+
+
+  gf-after-second-move-cut-focused:
+    name: Corte L18 depois da segunda renomeacao, ANTES do NEW observado em Windows descartavel
+    needs: gf-normal-install-focused
+    if: github.repository == 'walissonminel-1991/gerenciador-final' && github.ref == 'refs/heads/experimento-g5-ipc-chat-alto-20261029'
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      GF_BETA_ENDPOINT: ''
+    steps:
+      - name: Checkout de fonte experimental sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK .NET 10 do mesmo OLD fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.402'
+      - name: Python 3.13 do verificador TUF e observador Win32
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Instalar apenas TUF Python fixado para esta prova
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check tuf==7.0.1 securesystemslib==1.3.1 cryptography==50.0.2 urllib3==2.8.0
+          if ($LASTEXITCODE -ne 0) { throw 'GF_INSTALL_FOCUSED_PYTHON_DEPENDENCY_FAILED' }
+      - name: OLD normal instala NEW, corta L18 apos segunda renomeacao e prova UnknownBlocked
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./prototipos/autoatualizador-seguro/phase1-composed/github_install_focused_normal.ps1 -AfterSecondCut

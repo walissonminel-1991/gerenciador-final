@@ -328,6 +328,12 @@ internal static class GfOldDraftAcquire
                 WorkingDirectory = repoRoot
             };
             string l18Mode=
+                Environment.GetEnvironmentVariable("GF_E2E_CUT_AFTER_SECOND_MOVE")=="1" &&
+                Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")!="1" &&
+                Environment.GetEnvironmentVariable("GF_E2E_LIVE_INSTALL_SWAP")=="1" &&
+                Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+                Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==Repo
+                ? "--real-install-after-second-cut-focused" :
                 Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")=="1" &&
                 Environment.GetEnvironmentVariable("GF_E2E_LIVE_INSTALL_SWAP")=="1" &&
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&

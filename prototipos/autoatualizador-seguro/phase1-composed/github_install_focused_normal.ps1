@@ -1,3 +1,6 @@
+# Existing positive scenario, plus one exclusively negative CUT after second
+# physical rename before NEW observation, both via SAME L18 coordinator.
+param([switch]$AfterSecondCut)
 # ONE independent positive scenario: normal GF OLD -> original L18 install-focused.
 # Only windows-2022 disposable runner. No rollback/retry/cleanup/READY.
 $ErrorActionPreference='Stop'
@@ -45,6 +48,7 @@ $env:GF_E2E_SELF_GRACEFUL_CLOSE='1'
 $env:GF_E2E_SELECTED_NEW_CONTINUATION='1'
 $env:GF_E2E_LIVE_INSTALL_SWAP='1'
 $env:GF_E2E_SWAP_CUT_AFTER_OLD_MOVE='0'
+$env:GF_E2E_CUT_AFTER_SECOND_MOVE=if ($AfterSecondCut) { '1' } else { '0' }
 $env:GF_E2E_POST_OWNER_PERSISTENCE='1'
 $env:GF_E2E_GUI_NORMAL_SUCCESS='0'
 $env:GF_E2E_GUI_NORMAL_L18_PROOF='0'
@@ -142,6 +146,108 @@ finally {
   }
   $proc.Dispose()
 }
+
+if ($AfterSecondCut) {
+  $cutReport=Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
+  if ($cutReport.schema -ne 'gf-e2e-after-second-move-cut-l18/1' -or
+      $cutReport.scenario -ne 'after-second-install-move-before-new-observe' -or
+      !$cutReport.owner_exited_by_retained_process_handle -or
+      $cutReport.owner_exit_code -ne 91 -or
+      $cutReport.selector -ne 'new' -or $cutReport.generation -ne 2 -or
+      !$cutReport.first_directory_move_completed -or
+      !$cutReport.second_directory_move_executed -or
+      !$cutReport.old_present_in_backup -or
+      !$cutReport.installed_new_present_at_original_path -or
+      $cutReport.new_present_in_staging -or
+      $cutReport.original_executable_path_absent -or
+      !$cutReport.installed_receipt_absent -or
+      !$cutReport.functional_new_observation_absent -or
+      !$cutReport.no_new_process_launched_after_install_cut -or
+      $cutReport.outcome -ne 'UnknownBlocked' -or
+      $cutReport.replay -ne 'UnknownBlocked' -or
+      $cutReport.rollback_authorized -or $cutReport.rollback_performed -or
+      $cutReport.automatic_retry_authorized -or $cutReport.cleanup_performed -or
+      $cutReport.operational_ready) {
+    throw 'GF_AFTER_SECOND_MOVE_CUT_SAME_L18_REPORT_INVALID'
+  }
+  $retained=Join-Path $root 'gf-e2e-old-preserved'
+  $download=Join-Path $root 'gf-e2e-github-download'
+  $independentNew=Join-Path $root 'gf-e2e-after-second-move-independent-new'
+  python prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py verify --repo . --old $retained --downloaded $download --extracted $independentNew --lab-old-variant
+  if ($LASTEXITCODE -ne 0) { throw 'GF_AFTER_SECOND_MOVE_CUT_TUF_REJECTED' }
+  $verify=@'
+import hashlib,json,os
+from pathlib import Path
+r=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+live=r/"gf-e2e-old"
+backup=r/"gf-e2e-old-preserved"
+staging=r/"gf-e2e-authenticated-new"
+new=r/"gf-e2e-after-second-move-independent-new"
+def snap(root):
+    assert root.is_dir() and not root.is_symlink()
+    found={}
+    for directory,dirs,files in os.walk(root,followlinks=False):
+        for name in dirs+files:
+            p=Path(directory)/name
+            assert not p.is_symlink() and not (p.stat().st_file_attributes&0x400)
+        for name in files:
+            p=Path(directory)/name
+            found[p.relative_to(root).as_posix()]=[p.stat().st_size,hashlib.sha256(p.read_bytes()).hexdigest()]
+    return found
+before=json.loads((r/"gf-e2e-install-focused-old-baseline.json").read_bytes())
+assert snap(backup)==before and len(before)==284
+installed=snap(live)
+assert installed==snap(new) and len(installed)==284
+assert not staging.exists()
+assert (r/"gf-e2e-install-data"/"PERSONAL-KEEP-UNCHANGED.txt").read_bytes()==b"DO-NOT-TOUCH-MY-DATA\n"
+assert not (r/"gf-e2e-live-install-transition.json").exists()
+assert not (r/"gf-e2e-old-l18-handoff-report.json").exists()
+assert not (r/"gf-e2e-postexit-selected-root.json").exists()
+dl=r/"gf-e2e-github-download"
+assert len(list(dl.iterdir()))==5
+for name,size,digest in [
+    ("gf-e2e-new-win-x64.zip",57695630,"3eadafed91c4090ea56c9e9be8175f8ece8acf05d9c7fda9f97db7644a33011e"),
+    ("GF-LAB-REAL-PACKAGE-MANIFEST.json",72618,"a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d")]:
+    f=dl/name
+    assert f.stat().st_size==size and hashlib.sha256(f.read_bytes()).hexdigest()==digest
+report=json.loads((r/"gf-e2e-real-flow-report.json").read_bytes())
+src=Path(report["root"]).resolve(strict=True)
+assert src.is_dir() and src!=live and src!=backup
+state=json.loads((src/"l18-real-active.fixture.json").read_bytes())
+assert state["selected"]=="new" and state["generation"]==2
+trans=(src/"real-auth"/"GF-LAB-REAL-PACKAGE-MANIFEST.json").read_bytes()
+m=json.loads(trans)
+assert m["schema"]=="gf-real-package-lab/3" and m["operational_installable"] is False
+assert m["installation"]==state["installation"]
+assert m["transaction"]==state["transaction"]
+assert state["manifest_sha256"]==hashlib.sha256(trans).hexdigest()
+assert len(m["files"])==284 and len(m["old_files"])==284
+assert (src/"l18-real-new-may-have-effects.fixture.txt").is_file()
+assert (src/"l18-real-old-may-have-effects.fixture.txt").is_file()
+marker=(src/"l18-real-cut.fixture.txt")
+# L18 publishes its cut marker before the retained JobObject kills owner.
+assert marker.is_file() and marker.read_text()=="after-second-install-move-before-new-observe"
+assert not (src/"real-observed-new.fixture.json").exists()
+assert not (r/"gf-e2e-live-install-transition.json").exists()
+assert report["outcome"]=="UnknownBlocked" and report["replay"]=="UnknownBlocked"
+assert report["reason"]=="REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED"
+assert report["operational_ready"] is False
+print("GF_E2E_AFTER_SECOND_MOVE_CUT_BYTES_PASS "
+      "OLD_backup=284 NEW_installed_original_path=284 "
+      "NEW_bytes_equal_TUF=true second_rename_complete=true "
+      "new_observer_absent=true installed_receipt_absent=true "
+      "selector=new/2 replay=UnknownBlocked canary=UNCHANGED "
+      "rollback=false recovery=false cleanup=false retry=false READY=false",flush=True)
+'@
+  $verify | python -u -
+  if ($LASTEXITCODE -ne 0) { throw 'GF_AFTER_SECOND_MOVE_CUT_PHYSICAL_OR_L18_EVIDENCE_INVALID' }
+  $v=[System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $old 'GerenciadorFinal.dll')).Version.ToString()
+  if ($v -ne '5.13.11.66') { throw 'GF_AFTER_SECOND_MOVE_CUT_INSTALLED_NEW_VERSION_WRONG' }
+  Write-Host 'GF_E2E_AFTER_SECOND_MOVE_CUT_PASS old_normal=true new_installed=true new_not_started=true owner_killed=91 L18=UnknownBlocked replay=UnknownBlocked HOLD=true READY=false'
+  Add-Content $env:GITHUB_STEP_SUMMARY 'Independent second-move cut Windows runner: GF OLD native normal MainForm authenticates Draft and closes gracefully with L18 NEW/2 fence; after OLD was backed up and authenticated NEW installed at ORIGINAL portable path, same L18 owner was cut (exit91) before installed NEW observer and before swap receipt; two reconciliations UnknownBlocked/HOLD. Independent Python-TUF and SHA256 of all 284 installed NEW and 284 retained OLD, selector/journal/fences/canary preserved. No rollback/retry/cleanup/READY.'
+  return
+}
+
 $flow=Get-Content $report -Raw | ConvertFrom-Json
 if ($flow.schema -ne 'gf-real-l18-installed-new-handoff/1' -or
     $flow.scenario -ne 'handoff-install' -or $flow.passed -ne 1 -or $flow.failed -ne 0 -or
