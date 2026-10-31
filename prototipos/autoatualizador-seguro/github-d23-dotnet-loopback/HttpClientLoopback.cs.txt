@@ -6,6 +6,8 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 // D2.3 experimental: real .NET HttpClient, inert payload, numeric loopback only.
 // No executable downloads, operational TUF authority, installation or recovery.
@@ -136,6 +138,33 @@ internal static partial class Program
         using var stream = File.Open(file,FileMode.Open,FileAccess.Read,FileShare.Read);
         if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(stream),authorizedDigest))
             throw new InvalidDataException("READBACK_SHA");
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct NativeFileInfo
+    {
+        public uint Attributes;
+        public System.Runtime.InteropServices.ComTypes.FILETIME Creation;
+        public System.Runtime.InteropServices.ComTypes.FILETIME Access;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWrite;
+        public uint VolumeSerial;
+        public uint SizeHigh;
+        public uint SizeLow;
+        public uint LinkCount;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+
+    [DllImport("kernel32.dll",SetLastError=true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool GetFileInformationByHandle(SafeFileHandle handle,
+        out NativeFileInfo info);
+
+    static (uint Volume,uint High,uint Low) FileIdentity(SafeFileHandle handle)
+    {
+        if (!GetFileInformationByHandle(handle,out var id))
+            throw new IOException("CANARY_FILE_ID_UNAVAILABLE");
+        return (id.VolumeSerial,id.FileIndexHigh,id.FileIndexLow);
     }
 
     // Asynchronous readback participates in the same acquisition deadline.
@@ -291,14 +320,28 @@ internal static partial class Program
         var good=0;
         var bad=0;
         var accepted=0;
+        var failedAccepted=0;
+        var canariesPreserved=0;
         try
         {
             async Task Trial(string label, Reply reply,bool positive,
-                bool cancelled=false,string? identity=null)
+                bool cancelled=false,string? identity=null,string? preexisting=null)
             {
                 await using var server = new LoopbackServer(reply);
                 var stage = System.IO.Path.Combine(lab,"test-"+label);
                 Directory.CreateDirectory(stage);
+                var canaryContent=Encoding.ASCII.GetBytes("PRESERVE_"+label);
+                string? canaryPath=null;
+                FileStream? pinnedCanary=null;
+                (uint Volume,uint High,uint Low)? originalId=null;
+                if (preexisting!=null)
+                {
+                    canaryPath=System.IO.Path.Combine(stage,preexisting);
+                    File.WriteAllBytes(canaryPath,canaryContent);
+                    pinnedCanary=new FileStream(canaryPath,FileMode.Open,
+                        FileAccess.Read,FileShare.ReadWrite | FileShare.Delete);
+                    originalId=FileIdentity(pinnedCanary.SafeFileHandle);
+                }
                 try
                 {
                     using var cts = new CancellationTokenSource();
@@ -314,14 +357,32 @@ internal static partial class Program
                         ex is InvalidDataException or HttpRequestException or
                             OperationCanceledException or IOException)
                     {
-                        if (File.Exists(System.IO.Path.Combine(stage,FinalName)))
+                        if (preexisting!=FinalName &&
+                            File.Exists(System.IO.Path.Combine(stage,FinalName)))
                             throw new Exception("FALSE_FINAL_FILE_"+label);
+                        if (canaryPath!=null)
+                        {
+                            using var after=new FileStream(canaryPath,FileMode.Open,
+                                FileAccess.Read,FileShare.ReadWrite | FileShare.Delete);
+                            if (FileIdentity(after.SafeFileHandle)!=originalId ||
+                                !File.ReadAllBytes(canaryPath).SequenceEqual(canaryContent))
+                                throw new Exception("CANARY_IDENTITY_OR_BYTES_CHANGED_"+label);
+                            canariesPreserved++;
+                        }
+                        if (label.StartsWith("deadline-",StringComparison.Ordinal) &&
+                            !File.Exists(System.IO.Path.Combine(stage,PartName)))
+                            throw new Exception("DEADLINE_FAILED_TO_RETAIN_PARTIAL_"+label);
                         bad++;
                     }
                 }
                 finally
                 {
+                    // Always count accepted connections, including rejected streams.
                     accepted += server.Accepts;
+                    if (!positive) failedAccepted += server.Accepts;
+                    pinnedCanary?.Dispose();
+                    // Only runner-created test directories are cleaned after
+                    // validating canary identity. Stage() never deletes by name.
                     Directory.Delete(stage,recursive:true);
                 }
             }
@@ -351,15 +412,28 @@ internal static partial class Program
                 false,cancelled:true);
             await Trial("foreign-identity",new Reply(),false,
                 identity:"https://evil.invalid/rogue.zip");
+            await Trial("preexisting-partial",new Reply(),false,
+                preexisting:PartName);
+            await Trial("preexisting-final",new Reply(),false,
+                preexisting:FinalName);
+            await Trial("deadline-body-paused",
+                new Reply(DelayBeforeBodyMs:3500),false);
+            await Trial("deadline-slow-trickle",
+                new Reply(Fragment:1,DelayPerChunkMs:300),false);
 
-            if (good != 3 || bad != 25 ||
+            if (good != 3 || bad != 29 ||
+                canariesPreserved != 2 || failedAccepted != 28 ||
                 File.ReadAllText(sentinel)!="PERSONAL_DATA_PRESERVED" ||
-                accepted != 27)
+                accepted != 31)
                 throw new Exception("TEST_MATRIX_OR_SCOPE_INCOMPLETE");
             var report=new {
                 schema="gf-d23-dotnet-httpclient-loopback/1",status="passed",
                 positive_inert_streams=good,negative_cases_rejected=bad,
                 loopback_connections_observed=accepted,
+                failed_loopback_connections_observed=failedAccepted,
+                preserved_preexisting_file_ids=canariesPreserved,
+                complete_acquisition_deadline_tested=true,
+                failure_preserves_unknown_file_identity=true,
                 http_client="dotnet10-System.Net.Http.HttpClient",
                 only_numeric_loopback_connection=true,
                 redirects_disabled=true,cancellation_tests_included=true,
