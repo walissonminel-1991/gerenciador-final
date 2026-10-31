@@ -245,7 +245,19 @@ jobs:
           $report=Join-Path $folder 'applied.json'
           $until=[DateTime]::UtcNow.AddSeconds(60)
           while (!(Test-Path -LiteralPath $report) -and [DateTime]::UtcNow -lt $until) { Start-Sleep -Milliseconds 250 }
-          if (!(Test-Path -LiteralPath $report)) { throw 'PRIVATE_GITHUB_WORKER_NO_HEALTH_RECEIPT' }
+          if (!(Test-Path -LiteralPath $report)) {
+            $phase='MISSING'
+            $phaseFile=Join-Path $folder 'phase.txt'
+            if (Test-Path -LiteralPath $phaseFile) { $phase=Get-Content -LiteralPath $phaseFile -Raw }
+            $errorType='NONE'
+            $errorFile=Join-Path $folder 'worker-error-category.txt'
+            if (Test-Path -LiteralPath $errorFile) { $errorType=Get-Content -LiteralPath $errorFile -Raw }
+            $oldExists=Test-Path -LiteralPath $retained
+            $stageExists=Test-Path -LiteralPath (Join-Path $folder 'stage')
+            $backupExists=Test-Path -LiteralPath (Join-Path $folder 'old-preserved')
+            Write-Host "GF_GITHUB_WORKER_DIAGNOSTIC phase=$phase failure_category=$errorType original_present=$oldExists staged_present=$stageExists backup_present=$backupExists READY=false"
+            throw 'PRIVATE_GITHUB_WORKER_NO_HEALTH_RECEIPT'
+          }
           $json=Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
           if ($json.schema -ne 'gf-private-github-update/1' -or $json.ready -or $json.installed_version -ne '5.13.11.66') { throw 'PRIVATE_GITHUB_WORKER_RECEIPT_INVALID' }
           $actual=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $retained 'GerenciadorFinal.dll')).Version.ToString()

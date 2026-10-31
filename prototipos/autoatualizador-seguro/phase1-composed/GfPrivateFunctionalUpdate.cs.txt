@@ -285,6 +285,24 @@ internal static class GfPrivateFunctionalUpdate
         Require(File.Exists(handshake), "OFFICIAL_WORKER_HANDSHAKE_TIMEOUT");
     }
 
+    internal static void RecordGithubWorkerFailure(string exceptionName)
+    {
+        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
+            Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") != Repo ||
+            Environment.GetEnvironmentVariable("GF_PRIVATE_FUNCTIONAL_LAB") != "1")
+            return;
+        try
+        {
+            var folder = Directory.GetParent(Path.GetFullPath(AppContext.BaseDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))?.FullName;
+            if (folder is not null && Directory.Exists(folder))
+                File.WriteAllText(Path.Combine(folder, "worker-error-category.txt"),
+                    exceptionName);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
     internal static int RunGithubWorker(string[] args)
     {
         Require(args.Length == 4 && args[0] == "--gf-private-github-worker",
@@ -325,14 +343,18 @@ internal static class GfPrivateFunctionalUpdate
         // old exit from a PID alone. The parent waits for this handshake.
         File.WriteAllText(handshake, "OLD_HANDLE_RETAINED");
         if (!owned.WaitForExit(120_000)) return 15;
+        File.WriteAllText(Path.Combine(work, "phase.txt"), "OLD_EXITED");
         Directory.Move(old, backup);
+        File.WriteAllText(Path.Combine(work, "phase.txt"), "OLD_PRESERVED");
         Directory.Move(stage, old);
+        File.WriteAllText(Path.Combine(work, "phase.txt"), "NEW_INSTALLED");
         var next = Process.Start(new ProcessStartInfo(
             Path.Combine(old, "GerenciadorFinal.exe"))
         {
             UseShellExecute = false, WorkingDirectory = old
         });
         Require(next is not null, "OFFICIAL_NEW_START_FAILED");
+        File.WriteAllText(Path.Combine(work, "phase.txt"), "NEW_STARTED");
         // A created PID alone is insufficient. Wait for the real WinForms main
         // window before recording successful startup; retain the OLD backup.
         var deadline = Stopwatch.StartNew();
@@ -352,8 +374,13 @@ internal static class GfPrivateFunctionalUpdate
                 }
                 Thread.Sleep(250);
             }
-            if (!opened) return 26;
+            if (!opened)
+            {
+                File.WriteAllText(Path.Combine(work, "phase.txt"), "NEW_WINDOW_NOT_OBSERVED");
+                return 26;
+            }
         }
+        File.WriteAllText(Path.Combine(work, "phase.txt"), "NEW_WINDOW_OBSERVED");
         File.WriteAllText(Path.Combine(work, "applied.json"),
             JsonSerializer.Serialize(new
             {

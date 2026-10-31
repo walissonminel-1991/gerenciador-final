@@ -60,7 +60,11 @@ internal static class Program
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                        InvalidOperationException or System.ComponentModel.Win32Exception or
                        ArgumentException)
-            { return 24; }
+            {
+                // Only disposable CI: capture the category, never personal paths.
+                GfPrivateFunctionalUpdate.RecordGithubWorkerFailure(ex.GetType().Name);
+                return 24;
+            }
         }
         if (args.Length == 1 && args[0] == "--gf-private-weekly-smoke")
             return GfGithubWeeklyUpdate.SmokeAsync().GetAwaiter().GetResult();
