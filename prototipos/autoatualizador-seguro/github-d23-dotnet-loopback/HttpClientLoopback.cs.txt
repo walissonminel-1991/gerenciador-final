@@ -306,8 +306,12 @@ internal static partial class Program
     static async Task<int> Main(string[] args)
     {
 #if D24_INTEGRATION
-        if (args.Length > 0 && args[0] == "--d24")
-            return await RunD24(args);
+        if (args.Length > 0 && args[0] == "--d242")
+            return await RunD242(args);
+        if (args.Length > 0 && args[0] == "--d242-selftest")
+            return RunD242SelfTest();
+        // Direct C# handoff from D2.4 is permanently disabled.
+        if (args.Length > 0) return 12;
 #endif
         if (!OperatingSystem.IsWindows() ||
             Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") return 2;
