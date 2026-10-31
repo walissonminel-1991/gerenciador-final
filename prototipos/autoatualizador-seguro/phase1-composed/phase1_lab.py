@@ -298,6 +298,37 @@ def observed_process(directory, expected_exe_sha, seconds=12,
     require(exe.is_file() and not exe.is_symlink() and
             file_hash(exe) == expected_exe_sha,
             "GF_EXECUTABLE_BYTES_CHANGED_BEFORE_SPAWN")
+    if (os.environ.get("GF_E2E_POSTHASH_TAMPER_TEST") == "1" and
+            directory.resolve(strict=True) ==
+            (Path(os.environ["RUNNER_TEMP"]) / "gf-e2e-old").resolve(strict=True)):
+        # Adversarial Windows CI ONLY. This runs AFTER the last pre-Popen
+        # SHA256 validation above and BEFORE the existing Popen below.
+        # Deliberately demonstrate the remaining filename TOCTOU gap;
+        # NOT an installation/recovery operation or new launcher.
+        require(os.environ.get("GITHUB_ACTIONS") == "true" and
+                os.environ.get("GITHUB_REPOSITORY") ==
+                "walissonminel-1991/gerenciador-final" and
+                os.environ.get("GF_E2E_L18_OBSERVE_INSTALLED_NEW") == "1" and
+                os.environ.get("GF_E2E_PRELAUNCH_TAMPER_TEST") != "1",
+                "GF_POSTHASH_MUTATION_NOT_DISPOSABLE_NEW")
+        with exe.open("ab") as changed:
+            changed.write(b"\xa5")
+            changed.flush()
+            os.fsync(changed.fileno())
+        actual_sha = file_hash(exe)
+        require(actual_sha != expected_exe_sha and
+                exe.is_file() and not exe.is_symlink(),
+                "GF_POSTHASH_MUTATION_NOT_VERIFIED")
+        runner = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+        with (runner / "gf-e2e-installed-new-posthash-mutated.json").open("x", encoding="utf-8") as f:
+            json.dump({"schema":"gf-e2e-posthash-pre-Popen-mutation/1",
+                       "last_prelaunch_hash_was_original":True,
+                       "change_after_last_hash_before_popen":True,
+                       "mutation":"append-one-byte",
+                       "actual_sha256":actual_sha,"expected_sha256":expected_exe_sha,
+                       "test_only":True,"operational_ready":False},f)
+            f.flush()
+            os.fsync(f.fileno())
     start = time.monotonic()
     env = dict(os.environ)
     env["GfBetaEndpoint"] = ""
@@ -338,6 +369,18 @@ def observed_process(directory, expected_exe_sha, seconds=12,
         observed = observe_real_gf(proc, exe, expected_exe_sha, seconds=seconds,
                                    expected_inventory_name=expected_inventory_name)
         result.update(observed)
+        if os.environ.get("GF_E2E_POSTHASH_TAMPER_TEST") == "1" and (
+                directory.resolve(strict=True) ==
+                (Path(os.environ["RUNNER_TEMP"]) / "gf-e2e-old").resolve(strict=True)):
+            # Evidence is bound to the real Popen process handle and the
+            # external Win32 image path check, not a local receipt alone.
+            require(result["created"] and
+                    observed.get("actual_image_path_matches") is True and
+                    observed.get("image_on_disk_sha_matches_manifest") is False,
+                    "GF_POSTHASH_PROCESS_IDENTITY_OR_BYTE_MISMATCH_NOT_PROVEN")
+            result["posthash_windows_process_created"] = True
+            result["posthash_image_path_from_win32_matches"] = True
+            result["posthash_disk_hash_not_authenticated"] = True
         result["still_alive_at_bound"] = proc.poll() is None
         result["exit_if_early"] = proc.poll()
         result["graceful_shutdown_verified_for_owned_process"] = (

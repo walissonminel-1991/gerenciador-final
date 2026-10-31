@@ -867,6 +867,9 @@ internal static class Phase1RecoveryTests
         using var recovery=LabProcessJob.Create(c.RecoveryJob);
         bool prelaunchTamper=name=="handoff-install" &&
             Environment.GetEnvironmentVariable("GF_E2E_PRELAUNCH_TAMPER_TEST")=="1";
+        bool posthashTamper=name=="handoff-install" &&
+            Environment.GetEnvironmentVariable("GF_E2E_POSTHASH_TAMPER_TEST")=="1" &&
+            Environment.GetEnvironmentVariable("GF_E2E_PRELAUNCH_TAMPER_TEST")!="1";
         bool blocked=name is "normal" or "handoff" or "handoff-install" or "new-live-descendant" or "new-exited" or "launch-fence" or
             "selector-fork" or "journal-torn" or "witness-lost" or
             "witness-recreated" or "witness-wrong-object" or "external-broker" or
@@ -967,6 +970,77 @@ internal static class Phase1RecoveryTests
                         outcome=tamperOutcome,replay=tamperReplay,operational_ready=false,
                         recovery_authorized=false,automatic_retry=false,
                         rollback=false,cleanup=false,test_only=true
+                    };
+                }
+                if(posthashTamper)
+                {
+                    string err=ReadError(src);
+                    string runner=Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+                        throw new Rejected("GF_POSTHASH_TAMPER_RUNNER_MISSING");
+                    string evidence=Path.Combine(runner,"gf-e2e-installed-new-posthash-mutated.json");
+                    string observation=Path.Combine(src,"real-observed-new.fixture.json");
+                    Require(live.ExitCode!=0 &&
+                        err.Contains("RECOVERY_FUNCTIONAL_OBSERVATION_UNPROVEN",
+                            StringComparison.Ordinal) &&
+                        File.Exists(evidence) && File.Exists(observation) &&
+                        Directory.Exists(Path.Combine(runner,"gf-e2e-old")) &&
+                        Directory.Exists(Path.Combine(runner,"gf-e2e-old-preserved")) &&
+                        Selection(src)==("new",2) &&
+                        File.Exists(L18Coordinator.NewLaunchFence(src)),
+                        "GF_POSTHASH_TAMPER_WAS_NOT_CREATED_AND_REJECTED:"+err);
+                    using(var o=JsonDocument.Parse(File.ReadAllBytes(observation)))
+                    {
+                        var d=o.RootElement;
+                        Require(d.GetProperty("created").GetBoolean() &&
+                            d.GetProperty("terminated").GetBoolean() &&
+                            d.GetProperty("actual_image_path_matches").GetBoolean() &&
+                            !d.GetProperty("image_on_disk_sha_matches_manifest").GetBoolean() &&
+                            d.GetProperty("posthash_windows_process_created").GetBoolean() &&
+                            d.GetProperty("posthash_image_path_from_win32_matches").GetBoolean() &&
+                            d.GetProperty("posthash_disk_hash_not_authenticated").GetBoolean() &&
+                            !d.GetProperty("ready_verified").GetBoolean() &&
+                            !d.GetProperty("application_functional_health_verified").GetBoolean(),
+                            "GF_POSTHASH_PROCESS_CREATED_WITH_MISMATCH_NOT_OBSERVED");
+                    }
+                    using(var marker=JsonDocument.Parse(File.ReadAllBytes(evidence)))
+                        Require(marker.RootElement.GetProperty("schema").GetString()==
+                                "gf-e2e-posthash-pre-Popen-mutation/1" &&
+                            marker.RootElement.GetProperty("last_prelaunch_hash_was_original").GetBoolean() &&
+                            marker.RootElement.GetProperty("change_after_last_hash_before_popen").GetBoolean() &&
+                            !marker.RootElement.GetProperty("operational_ready").GetBoolean(),
+                            "GF_POSTHASH_TAMPER_MARKER_CONTRADICTORY");
+                    string originalSelector=Hash(File.ReadAllBytes(Path.Combine(src,
+                        "l18-real-active.fixture.json")));
+                    string posthashOutcome=await Reopen(recovery,owner,src,s.Lab);
+                    string posthashReplay=await Reopen(recovery,owner,src,s.Lab);
+                    Require(posthashOutcome=="UnknownBlocked" &&
+                        posthashReplay=="UnknownBlocked" &&
+                        Hash(File.ReadAllBytes(Path.Combine(src,
+                            "l18-real-active.fixture.json")))==originalSelector &&
+                        Selection(src)==("new",2) &&
+                        !File.Exists(Path.Combine(runner,
+                            "gf-e2e-postexit-selected-root.json")),
+                        "GF_POSTHASH_TAMPER_HOLD_NOT_PRESERVED");
+                    History(src,c);
+                    pins.Recheck();
+                    using(var samePins=new RealLabPins(src,c))samePins.Recheck();
+                    s.Preserved();
+                    Require(recovery.Active==0 && owner.Active==0,
+                        "GF_POSTHASH_TAMPER_OWNER_OR_RECOVERY_STILL_ACTIVE");
+                    return new{
+                        scenario="handoff-install-posthash-byte-mutation",
+                        root=src,
+                        last_hash_passed_before_mutation=true,
+                        posthash_byte_mutation_before_popen=true,
+                        altered_new_process_was_created=true,
+                        win32_process_image_path_matches_installed_exe=true,
+                        postcreation_disk_hash_does_not_match_manifest=true,
+                        rejected_after_process_creation=true,
+                        selected="new",generation=2,
+                        old_backup_preserved=true,new_installed_preserved=true,
+                        outcome=posthashOutcome,replay=posthashReplay,
+                        recovery_authorized=false,automatic_retry=false,
+                        rollback=false,cleanup=false,operational_ready=false,test_only=true
                     };
                 }
                 Require(live.ExitCode==0,"REAL_NORMAL_OWNER_FAILED:"+ReadError(src));
@@ -1760,7 +1834,7 @@ internal static class Phase1RecoveryTests
             }
             Require(((a.Length==9 && (a[0]=="--real-suite" ||
                     a[0]=="--real-normal-focused")) ||
-                    (a.Length==10 && a[0] is "--real-handoff-focused" or "--real-install-focused" or "--real-install-tamper-focused" or "--real-install-cut-focused" or "--real-install-after-second-cut-focused")) &&
+                    (a.Length==10 && a[0] is "--real-handoff-focused" or "--real-install-focused" or "--real-install-tamper-focused" or "--real-install-posthash-focused" or "--real-install-cut-focused" or "--real-install-after-second-cut-focused")) &&
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
                 Path.GetFileName(Own)=="GF.Updater.M3.L18Tests.exe","REAL_SUITE_ARGUMENTS");
             foreach(string p in a.Skip(7).Take(2))
@@ -1802,10 +1876,11 @@ internal static class Phase1RecoveryTests
                         Directory.Delete(L16Tests.suite,true);
                 }
             }
-            if(a[0] is "--real-handoff-focused" or "--real-install-focused" or "--real-install-tamper-focused")
+            if(a[0] is "--real-handoff-focused" or "--real-install-focused" or "--real-install-tamper-focused" or "--real-install-posthash-focused")
             {
                 bool tamper=a[0]=="--real-install-tamper-focused";
-                bool installationSwap=a[0] is "--real-install-focused" or "--real-install-tamper-focused";
+                bool posthash=a[0]=="--real-install-posthash-focused";
+                bool installationSwap=a[0] is "--real-install-focused" or "--real-install-tamper-focused" or "--real-install-posthash-focused";
                 try
                 {
                     Require(int.TryParse(a[9],System.Globalization.NumberStyles.None,
@@ -1833,6 +1908,33 @@ internal static class Phase1RecoveryTests
                         Console.WriteLine("GF_E2E_PRELAUNCH_TAMPER_L18_DENIED "
                             +"after_signed_install=true executable_hash=REJECTED "
                             +"new_process=NOT_CREATED selector=new/2 "
+                            +"outcome=UnknownBlocked replay=UnknownBlocked READY=false");
+                        return 0;
+                    }
+                    if(posthash)
+                    {
+                        var v=JsonSerializer.SerializeToElement(selected);
+                        Require(v.GetProperty("scenario").GetString()==
+                                "handoff-install-posthash-byte-mutation" &&
+                            v.GetProperty("altered_new_process_was_created").GetBoolean() &&
+                            v.GetProperty("win32_process_image_path_matches_installed_exe").GetBoolean() &&
+                            v.GetProperty("postcreation_disk_hash_does_not_match_manifest").GetBoolean() &&
+                            v.GetProperty("rejected_after_process_creation").GetBoolean() &&
+                            v.GetProperty("outcome").GetString()=="UnknownBlocked" &&
+                            v.GetProperty("replay").GetString()=="UnknownBlocked" &&
+                            !v.GetProperty("operational_ready").GetBoolean(),
+                            "GF_POSTHASH_TAMPER_COUNTEREXAMPLE_NOT_PROVEN");
+                        File.WriteAllText(a[1],JsonSerializer.Serialize(new{
+                            schema="gf-e2e-posthash-process-created-counterexample/1",
+                            scenario="handoff-install-posthash-byte-mutation",
+                            result=selected,passed=1,failed=0,
+                            recovery_authorized=false,operational_ready=false,test_only=true
+                        }));
+                        Console.WriteLine("GF_E2E_POSTHASH_COUNTEREXAMPLE_L18_HOLD "
+                            +"last_hash=PASSED then_mutation=ONE_BYTE "
+                            +"Popen=CREATED image_path=WINDOWS_VERIFIED "
+                            +"postcreation_sha=DIFFERENT "
+                            +"observation=REJECTED_AFTER_CREATE "
                             +"outcome=UnknownBlocked replay=UnknownBlocked READY=false");
                         return 0;
                     }

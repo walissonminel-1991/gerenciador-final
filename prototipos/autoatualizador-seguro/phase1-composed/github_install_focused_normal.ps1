@@ -1,7 +1,9 @@
 # Existing positive scenario, plus one exclusively negative CUT after second
 # physical rename before NEW observation, both via SAME L18 coordinator.
-param([switch]$AfterSecondCut,[switch]$TamperPrelaunch)
-if ($AfterSecondCut -and $TamperPrelaunch) { throw 'GF_TEST_MODES_EXCLUSIVE' }
+param([switch]$AfterSecondCut,[switch]$TamperPrelaunch,[switch]$TamperPosthash)
+if ((@($AfterSecondCut.IsPresent,$TamperPrelaunch.IsPresent,$TamperPosthash.IsPresent) | Where-Object { $_ } | Measure-Object).Count -gt 1) {
+  throw 'GF_TEST_MODES_EXCLUSIVE'
+}
 # ONE independent positive scenario: normal GF OLD -> original L18 install-focused.
 # Only windows-2022 disposable runner. No rollback/retry/cleanup/READY.
 $ErrorActionPreference='Stop'
@@ -51,6 +53,7 @@ $env:GF_E2E_LIVE_INSTALL_SWAP='1'
 $env:GF_E2E_SWAP_CUT_AFTER_OLD_MOVE='0'
 $env:GF_E2E_CUT_AFTER_SECOND_MOVE=if ($AfterSecondCut) { '1' } else { '0' }
 $env:GF_E2E_PRELAUNCH_TAMPER_TEST=if ($TamperPrelaunch) { '1' } else { '0' }
+$env:GF_E2E_POSTHASH_TAMPER_TEST=if ($TamperPosthash) { '1' } else { '0' }
 $env:GF_E2E_POST_OWNER_PERSISTENCE='1'
 $env:GF_E2E_GUI_NORMAL_SUCCESS='0'
 $env:GF_E2E_GUI_NORMAL_L18_PROOF='0'
@@ -341,6 +344,103 @@ print("GF_E2E_TAMPER_PRELAUNCH_BYTES_PASS "
   if ($LASTEXITCODE -ne 0) { throw 'GF_PRELAUNCH_TAMPER_INDEPENDENT_EVIDENCE_FAILED' }
   Write-Host 'GF_E2E_TAMPER_PRELAUNCH_PASS old_normal=true signed_install=true mutated_exe_rejected_before_launch=true no_new_process=true L18=UnknownBlocked replay=UnknownBlocked READY=false'
   Add-Content $env:GITHUB_STEP_SUMMARY 'Single adversarial prelaunch byte-mutation test: after original OLD closed and NEW was TUF-validated and installed, one byte appended to installed NEW EXE between full package validation and actual Popen. Original L18 selected NEW/2 observer blocked on immediate prelaunch SHA256 check BEFORE Popen, with external Popen marker absent; two reconciliations UnknownBlocked/HOLD. Independent TUF extraction verifies all other 283 NEW bytes, exact one-byte executable mutation, full 284-file OLD backup and canary. No rollback/recovery/retry/cleanup/READY. The remaining hash-to-CreateProcess TOCTOU gap is NOT solved.'
+  return
+}
+
+
+if ($TamperPosthash) {
+  $flow=Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
+  if ($flow.schema -ne 'gf-e2e-posthash-process-created-counterexample/1' -or
+      $flow.scenario -ne 'handoff-install-posthash-byte-mutation' -or
+      $flow.passed -ne 1 -or $flow.failed -ne 0 -or $flow.recovery_authorized -or
+      $flow.operational_ready -or
+      !$flow.result.altered_new_process_was_created -or
+      !$flow.result.win32_process_image_path_matches_installed_exe -or
+      !$flow.result.postcreation_disk_hash_does_not_match_manifest -or
+      !$flow.result.rejected_after_process_creation -or
+      $flow.result.outcome -ne 'UnknownBlocked' -or
+      $flow.result.replay -ne 'UnknownBlocked' -or
+      $flow.result.operational_ready -or $flow.result.recovery_authorized) {
+    throw 'GF_POSTHASH_COUNTEREXAMPLE_L18_NOT_PROVEN'
+  }
+  $retained=Join-Path $root 'gf-e2e-old-preserved'
+  $independent=Join-Path $root 'gf-e2e-posthash-independent-auth-new'
+  $download=Join-Path $root 'gf-e2e-github-download'
+  python prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py verify --repo . --old $retained --downloaded $download --extracted $independent --lab-old-variant
+  if ($LASTEXITCODE -ne 0) { throw 'GF_POSTHASH_INDEPENDENT_TUF_FAILED' }
+  $verify=@'
+import hashlib,json,os
+from pathlib import Path
+r=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+def snap(folder):
+    assert folder.is_dir() and not folder.is_symlink()
+    found={}
+    for directory,dirs,files in os.walk(folder,followlinks=False):
+        for name in dirs+files:
+            p=Path(directory)/name
+            assert not p.is_symlink() and not (p.stat().st_file_attributes&0x400)
+        for name in files:
+            p=Path(directory)/name
+            found[p.relative_to(folder).as_posix()]=[p.stat().st_size,hashlib.sha256(p.read_bytes()).hexdigest()]
+    return found
+baseline=json.loads((r/"gf-e2e-install-focused-old-baseline.json").read_bytes())
+old=snap(r/"gf-e2e-old-preserved")
+assert old==baseline and len(old)==284
+signed=snap(r/"gf-e2e-posthash-independent-auth-new")
+installed=snap(r/"gf-e2e-old")
+assert len(installed)==len(signed)==284
+difference=sorted(p for p in signed if signed[p]!=installed[p])
+assert difference==["GerenciadorFinal.exe"]
+assert installed["GerenciadorFinal.exe"][0]==signed["GerenciadorFinal.exe"][0]+1
+assert (r/"gf-e2e-install-data"/"PERSONAL-KEEP-UNCHANGED.txt").read_bytes()==b"DO-NOT-TOUCH-MY-DATA\n"
+m=json.loads((r/"gf-e2e-installed-new-posthash-mutated.json").read_bytes())
+assert m["schema"]=="gf-e2e-posthash-pre-Popen-mutation/1"
+assert m["last_prelaunch_hash_was_original"] is True
+assert m["change_after_last_hash_before_popen"] is True
+assert m["mutation"]=="append-one-byte"
+assert m["actual_sha256"]==installed["GerenciadorFinal.exe"][1]
+assert m["expected_sha256"]==signed["GerenciadorFinal.exe"][1]
+flow=json.loads((r/"gf-e2e-real-flow-report.json").read_bytes())
+assert flow["result"]["outcome"]=="UnknownBlocked" and flow["result"]["replay"]=="UnknownBlocked"
+root=Path(flow["result"]["root"]).resolve(strict=True)
+obs=json.loads((root/"real-observed-new.fixture.json").read_bytes())
+assert obs["created"] is True and obs["terminated"] is True
+assert obs["actual_image_path_matches"] is True
+assert obs["image_on_disk_sha_matches_manifest"] is False
+assert obs["posthash_windows_process_created"] is True
+assert obs["posthash_image_path_from_win32_matches"] is True
+assert obs["posthash_disk_hash_not_authenticated"] is True
+assert obs["ready_verified"] is False and obs["application_functional_health_verified"] is False
+assert "RECOVERY_FUNCTIONAL_OBSERVATION_UNPROVEN" in (root/"real-observer-error.fixture.txt").read_text()
+selector=json.loads((root/"l18-real-active.fixture.json").read_bytes())
+assert selector["selected"]=="new" and selector["generation"]==2
+assert (root/"l18-real-new-may-have-effects.fixture.txt").is_file()
+manifest=(root/"real-auth"/"GF-LAB-REAL-PACKAGE-MANIFEST.json").read_bytes()
+signed_manifest=json.loads(manifest)
+assert signed_manifest["schema"]=="gf-real-package-lab/3"
+assert signed_manifest["operational_installable"] is False
+assert signed_manifest["installation"]==selector["installation"] and signed_manifest["transaction"]==selector["transaction"]
+assert selector["manifest_sha256"]==hashlib.sha256(manifest).hexdigest()
+assert len(signed_manifest["files"])==len(signed_manifest["old_files"])==284
+assert not (r/"gf-e2e-postexit-selected-root.json").exists()
+dl=r/"gf-e2e-github-download"
+assert len(list(dl.iterdir()))==5
+for name,size,sha in [
+ ("gf-e2e-new-win-x64.zip",57695630,"3eadafed91c4090ea56c9e9be8175f8ece8acf05d9c7fda9f97db7644a33011e"),
+ ("GF-LAB-REAL-PACKAGE-MANIFEST.json",72618,"a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d")]:
+    p=dl/name
+    assert p.stat().st_size==size and hashlib.sha256(p.read_bytes()).hexdigest()==sha
+print("GF_E2E_POSTHASH_COUNTEREXAMPLE_BYTES_PASS "
+      "last_hash=PASSED mutation=EXE_PLUS_1_BYTE posthash_popen=CREATED "
+      "win32_image_path=VERIFIED postcreation_hash=DIFFERENT "
+      "rejected_after_launch=true installed_new=284 old_backup=284 "
+      "canary=UNCHANGED outcome=UnknownBlocked replay=UnknownBlocked "
+      "rollback=false recovery=false cleanup=false retry=false READY=false",flush=True)
+'@
+  $verify | python -u -
+  if ($LASTEXITCODE -ne 0) { throw 'GF_POSTHASH_COUNTEREXAMPLE_INDEPENDENT_EVIDENCE_FAILED' }
+  Write-Host 'GF_E2E_POSTHASH_COUNTEREXAMPLE_PASS normal_old=true signed_install=true hash_was_original_then_mutated=true NEW_process_created=true postlaunch_sha_rejected=true L18=UnknownBlocked replay=UnknownBlocked READY=false'
+  Add-Content $env:GITHUB_STEP_SUMMARY 'Single posthash TOCTOU counterexample on disposable Windows: normal OLD authenticates and installs NEW via same L18; after last pre-Popen SHA256 check, EXE gains ONE byte. Existing Popen creates actual Windows GF process at original install path; Win32 image-path observation matches, postcreation disk SHA differs, observer rejects only AFTER process creation and retains HOLD/UnknownBlocked through two reconciliations. Independent TUF comparison confirms one-byte difference solely in NEW executable, all other 283 NEW files and 284 OLD files preserved. This does NOT prove mapped-memory bytes or production exploitability. No rollback/recovery/retry/cleanup/READY.'
   return
 }
 
