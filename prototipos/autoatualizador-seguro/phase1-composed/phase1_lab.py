@@ -363,23 +363,54 @@ def _ntfs_read_pin(exe, expected_sha):
                     == start_id, "GF_NTFS_PIN_ID_CHANGED_BEFORE_ATTACK")
             write_denied=False
             rename_denied=False
+            write_error=None
+            rename_error=None
             try:
                 with exe.open("ab") as f:
                     f.write(b"\xa5")
                     f.flush()
             except OSError as exc:
                 write_denied=getattr(exc,"winerror",None) in (5,32)
+                write_error={"class":type(exc).__name__,
+                             "winerror":getattr(exc,"winerror",None),
+                             "errno":getattr(exc,"errno",None)}
             # The sole negative test never creates a replacement directory
             # or performs any updater cleanup/recovery.
             try:
                 os.rename(exe, exe.with_name("GerenciadorFinal.exe.rename-probe"))
             except OSError as exc:
                 rename_denied=getattr(exc,"winerror",None) in (5,32)
+                rename_error={"class":type(exc).__name__,
+                              "winerror":getattr(exc,"winerror",None),
+                              "errno":getattr(exc,"errno",None)}
             evidence["write_denied"]=write_denied
             evidence["rename_denied"]=rename_denied
+            # Read-only, bounded evidence written BEFORE the existing
+            # conservative Require. A denial is not inferred from a marker.
+            # Error strings and absolute/private paths are never written.
+            obj_unchanged=pinned_hash()==expected_sha
+            try:
+                path_unchanged=file_hash(exe)==expected_sha
+            except OSError:
+                path_unchanged=False
+            runner=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+            with (runner/"gf-e2e-ntfs-pin-attack-diagnostic.json").open(
+                    "x",encoding="utf-8") as diagnostic:
+                json.dump({
+                    "schema":"gf-e2e-ntfs-pin-attack-diagnostic/1",
+                    "write_denied_by_existing_winerror_rule":write_denied,
+                    "rename_denied_by_existing_winerror_rule":rename_denied,
+                    "write_error":write_error,"rename_error":rename_error,
+                    "pinned_hash_unchanged":obj_unchanged,
+                    "path_hash_unchanged":path_unchanged,
+                    "rename_probe_exists":exe.with_name(
+                        "GerenciadorFinal.exe.rename-probe").exists(),
+                    "test_only":True,"operational_ready":False
+                },diagnostic,sort_keys=True)
+                diagnostic.flush()
+                os.fsync(diagnostic.fileno())
             require(write_denied and rename_denied and
-                    pinned_hash()==expected_sha and
-                    file_hash(exe)==expected_sha,
+                    obj_unchanged and path_unchanged,
                     "GF_NTFS_PIN_WRITE_OR_RENAME_NOT_DENIED")
             evidence["file_id_after_attempts"] = _ntfs_handle_identity(
                 msvcrt.get_osfhandle(pinned.fileno()))

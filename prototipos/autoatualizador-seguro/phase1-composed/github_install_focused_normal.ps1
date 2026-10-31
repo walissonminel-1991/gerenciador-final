@@ -176,6 +176,17 @@ print("GF_E2E_INSTALL_FOCUSED_NORMAL_OLD_PASS native_mainform=true responsive=tr
         $kinds=if ($tokens.Count -gt 0) { $tokens -join ',' } else { 'NO_ALLOWLISTED_CODE' }
         Write-Host "GF_PIN_L18_SANITIZED_ERROR file=$($e.Name) bytes=$($e.Length) codes=$kinds READY=false"
       }
+      $attack=Join-Path $root 'gf-e2e-ntfs-pin-attack-diagnostic.json'
+      if (Test-Path -LiteralPath $attack) {
+        $a=Get-Content -LiteralPath $attack -Raw | ConvertFrom-Json
+        if ($a.schema -ne 'gf-e2e-ntfs-pin-attack-diagnostic/1' -or
+            $a.operational_ready -or !$a.test_only) {
+          throw 'GF_PIN_ATTACK_DIAGNOSTIC_SCHEMA_INVALID'
+        }
+        Write-Host "GF_PIN_ATTACK_OBSERVATION write_denied=$($a.write_denied_by_existing_winerror_rule) write_class=$($a.write_error.class) write_winerror=$($a.write_error.winerror) write_errno=$($a.write_error.errno) rename_denied=$($a.rename_denied_by_existing_winerror_rule) rename_class=$($a.rename_error.class) rename_winerror=$($a.rename_error.winerror) rename_errno=$($a.rename_error.errno) pinned_unchanged=$($a.pinned_hash_unchanged) path_unchanged=$($a.path_hash_unchanged) rename_probe_exists=$($a.rename_probe_exists) READY=false"
+      } else {
+        Write-Host 'GF_PIN_ATTACK_OBSERVATION record=ABSENT READY=false'
+      }
       $focused=Join-Path $root 'gf-e2e-ntfs-focused-error-sanitized.json'
       if (Test-Path -LiteralPath $focused) {
         $diag=Get-Content -LiteralPath $focused -Raw | ConvertFrom-Json
