@@ -937,9 +937,9 @@ internal static class Phase1RecoveryTests
                             "GF_PRELAUNCH_TAMPER_PROOF_INVALID");
                     var originalSelector=Hash(File.ReadAllBytes(Path.Combine(src,
                         "l18-real-active.fixture.json")));
-                    var outcome=await Reopen(recovery,owner,src,s.Lab);
-                    var replay=await Reopen(recovery,owner,src,s.Lab);
-                    Require(outcome=="UnknownBlocked" && replay=="UnknownBlocked" &&
+                    var tamperOutcome=await Reopen(recovery,owner,src,s.Lab);
+                    var tamperReplay=await Reopen(recovery,owner,src,s.Lab);
+                    Require(tamperOutcome=="UnknownBlocked" && tamperReplay=="UnknownBlocked" &&
                         Hash(File.ReadAllBytes(Path.Combine(src,
                             "l18-real-active.fixture.json")))==originalSelector &&
                         Selection(src)==("new",2) &&
@@ -964,7 +964,7 @@ internal static class Phase1RecoveryTests
                         original_old_backup_preserved=true,
                         real_new_process_creation_prevented=true,
                         installed_new_terminated_with_hold=true,
-                        outcome,replay,operational_ready=false,
+                        outcome=tamperOutcome,replay=tamperReplay,operational_ready=false,
                         recovery_authorized=false,automatic_retry=false,
                         rollback=false,cleanup=false,test_only=true
                     };
