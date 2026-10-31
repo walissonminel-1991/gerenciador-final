@@ -1,9 +1,7 @@
-"""D2.4 orchestrator: actual D0 C# parser -> Python-TUF -> shared .NET D2.3.
+"""D2.4.2: exercise single C# coordinator -> embedded Python-TUF -> same D2.3 Stage.
 
-All signatures are made by PUBLIC test-only keys already in this repo.
-The interprocess handoff is NOT secure from same-user tampering. In particular
-the standalone C# helper can be invoked with public known bytes and SHA without
-calling TUF; the matrix deliberately demonstrates this counterexample.
+All input bytes and private test signer seeds are PUBLIC. This proves the
+intended logical gate, not security from another process running as same user.
 """
 from __future__ import annotations
 import json
@@ -13,196 +11,190 @@ import subprocess
 import sys
 import tempfile
 
-from tuf.api import exceptions
-
 HERE=Path(__file__).resolve().parent
 for folder in ("github-d2-inert","github-trust-lab","github-crossprocess-lab",
                "github-auth-lab"):
     sys.path.insert(0,str(HERE.parent/folder))
-from d2_inert_lab import verify_d0_tuf
 from d11_persistent_lab import release_roles
 from d12_crossprocess_lab import release_fixture
 from d1_release_manifest_lab import (
-    ANCHOR, ASSET, ARCH, PAYLOAD, D1Rejected, create_manifest, digest,
-    encode_manifest, load_generator, require
+    ANCHOR,D1Rejected,create_manifest,digest,encode_manifest,load_generator,
+    require,PAYLOAD
 )
 
-NAME="GF-RELEASE-MANIFEST.json"
 TAG="v5.13.11.66"
 OLD="5.13.11.65"
 
-def run_bridge(exe, root, data, approved_hash, tag=TAG, installed=OLD, label="x"):
-    child=root/("bridge-"+label)
-    child.mkdir()
-    manifest=child/NAME
-    manifest.write_bytes(data)
-    process=subprocess.run([str(exe),"--d24",str(manifest),approved_hash,tag,installed],
-        check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-        stdin=subprocess.DEVNULL,text=True,timeout=20)
-    lines=[s for s in process.stdout.splitlines()
-           if s.startswith("GF_D24_BRIDGE ")]
-    require(len(lines)==1,"BRIDGE_RESULT_COUNT_"+label)
-    result=json.loads(lines[0][len("GF_D24_BRIDGE "):])
-    require(set(result)=={"schema","authority","status","reason",
-             "loopback_connections","staged_inert_bytes","production_authority",
-             "handoff_secure_against_same_user","can_install",
-             "operational_ready","automatic_recovery_authorized"} and
-            result["schema"]=="gf-d24-dotnet-handoff/1" and
-            result["authority"]=="PUBLIC_TEST_ONLY" and
-            result["production_authority"] is False and
-            result["handoff_secure_against_same_user"] is False and
-            result["can_install"] is False and
-            result["operational_ready"] is False and
-            result["automatic_recovery_authorized"] is False,
-            "UNSAFE_BRIDGE_REPORT_"+label)
-    return result
+def invoke(exe,root,case,installed=OLD,tag=TAG,legacy=False,env=None):
+    args=[str(exe)]
+    if legacy:
+        args += ["--d24",str(case/"GF-RELEASE-MANIFEST.json"),
+                 digest((case/"GF-RELEASE-MANIFEST.json").read_bytes()),
+                 tag,installed]
+    else:
+        args += ["--d242",str(case)]
+    child=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                         stdin=subprocess.DEVNULL,text=True,timeout=28,env=env)
+    if legacy:
+        require(child.returncode != 0 and
+                "GF_D242_COORDINATOR " not in child.stdout,
+                "LEGACY_DIRECT_STAGE_WAS_NOT_DISABLED")
+        return None
+    require(child.returncode==0,"COORDINATOR_CRASH_"+case.name)
+    lines=[s for s in child.stdout.splitlines()
+           if s.startswith("GF_D242_COORDINATOR ")]
+    require(len(lines)==1,"COORDINATOR_REPORT_COUNT_"+case.name)
+    r=json.loads(lines[0][len("GF_D242_COORDINATOR "):])
+    require(set(r)=={
+        "schema","status","reason","tuf_child_launched",
+        "tuf_in_session_validated","staged_inert_bytes","loopback_connections",
+        "reused_dotnet_d23_stage","old_d24_direct_handoff_allowed",
+        "same_user_process_isolation_proven","production_authority",
+        "can_install","operational_ready","automatic_recovery_authorized"
+    } and
+    r["schema"]=="gf-d242-session-coordinator/1" and
+    r["reused_dotnet_d23_stage"] is True and
+    r["old_d24_direct_handoff_allowed"] is False and
+    r["same_user_process_isolation_proven"] is False and
+    r["production_authority"] is False and
+    r["can_install"] is False and
+    r["operational_ready"] is False and
+    r["automatic_recovery_authorized"] is False,
+    "COORDINATOR_FALSE_AUTHORITY_"+case.name)
+    return r
 
-def main(d0_exe,d24_exe):
+def main(d0_exe,coordinator):
     require(sys.platform=="win32" and
             os.environ.get("GITHUB_ACTIONS")=="true" and
-            os.environ.get("RUNNER_TEMP"),"D24_WINDOWS_RUNNER_ONLY")
-    tmp=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+            os.environ.get("RUNNER_TEMP"),"DISPOSABLE_WINDOWS_ONLY")
+    runner=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
     d0_exe=Path(d0_exe).resolve(strict=True)
-    d24_exe=Path(d24_exe).resolve(strict=True)
-    require(all(x.is_relative_to(tmp) for x in (d0_exe,d24_exe)) and
+    coordinator=Path(coordinator).resolve(strict=True)
+    require(all(p.is_relative_to(runner) for p in (d0_exe,coordinator)) and
             d0_exe.name=="GF.D11.D0Probe.exe" and
-            d24_exe.name=="GF.D24.InertChainLab.exe",
-            "D24_EXECUTABLE_SCOPE")
+            coordinator.name=="GF.D24.InertChainLab.exe",
+            "EXPERIMENTAL_BINARIES_ONLY")
     require(digest(ANCHOR.read_bytes())==
             "a76278c5a75b80c11f3ef7b5b559ac747fd0bc386b0d53e0940e57d33d6f676e",
-            "D24_PUBLIC_TEST_ROOT_PIN")
-    sign=load_generator()
-    original=encode_manifest(create_manifest(TAG))
-    roles=release_roles(sign,1,original)
-    published=release_fixture(TAG)
-    preflight_denials=[]
-    bridge_denials=[]
-    with tempfile.TemporaryDirectory(dir=tmp,prefix="gf-d24-") as directory:
-        root=Path(directory)
-        def preflight(label,raw=original,chain=roles,release=published,installed=OLD,
-                      expect_success=False):
-            location=root/("verify-"+label)
-            location.mkdir()
-            try:
-                value=verify_d0_tuf(d0_exe,location,raw,chain,release,installed)
-                require(value==TAG,"D0_D1_TUF_TAG_MISMATCH")
-            except (D1Rejected,exceptions.RepositoryError,
-                    exceptions.DownloadError,OSError,ValueError):
-                require(not expect_success,"TRUE_FIXTURE_DENIED_"+label)
-                preflight_denials.append(label)
-                return False
-            require(expect_success,"FALSE_AUTH_ACCEPT_"+label)
-            return True
+            "PUBLIC_ROOT_PIN")
+    generator=load_generator()
+    authentic=encode_manifest(create_manifest(TAG))
+    roles=release_roles(generator,1,authentic)
+    release=release_fixture(TAG)
+    positive=[]
+    rejected=[]
+    with tempfile.TemporaryDirectory(dir=runner,prefix="gf-d242-samples-") as tmp:
+        root=Path(tmp)
+        def fixture(name,manifest=authentic,role_files=roles,release_bytes=release):
+            # Directory name is deliberately constrained by the coordinator.
+            child=Path(tempfile.mkdtemp(dir=runner,prefix="gf-d242-"+name+"-"))
+            (child/"GF-RELEASE-MANIFEST.json").write_bytes(manifest)
+            (child/"release.json").write_bytes(release_bytes)
+            for key,body in role_files.items():
+                (child/key).write_bytes(body)
+            return child
 
-        # The bridge is only called after a valid Python-TUF + D0 gate.
-        require(preflight("main",expect_success=True),
-                "PUBLIC_TEST_TUF_NOT_AUTHENTICATED")
-        positive=run_bridge(d24_exe,root,original,digest(original),
-                            label="authenticated")
-        require(positive["status"]=="accepted_inert_test_only" and
-                positive["staged_inert_bytes"] is True and
-                positive["loopback_connections"]==1,
-                "D24_AUTHENTICATED_INERT_TRANSFER_FAILED")
-
-        # Negative matrix for the TUF/D0 stage: must NOT call .NET.
-        preflight("wrong-release-tag",release=release_fixture("v5.13.11.67"))
-        preflight("draft-release",release=release_fixture(TAG,draft=True))
-        base_asset=json.loads(published)["assets"][0]
-        preflight("asset-name",release=release_fixture(TAG,assets=[
-            {**base_asset,"name":"evil.zip"}]))
-        preflight("asset-size",release=release_fixture(TAG,assets=[
-            {**base_asset,"size":99999}]))
-        preflight("asset-external-url",release=release_fixture(TAG,assets=[
-            {**base_asset,"browser_download_url":"https://evil.invalid/asset"}]))
-        preflight("manifest-bytes-modified",raw=original+b" ")
-        altered=dict(roles)
-        altered["targets.json"]=roles["targets.json"]+b"X"
-        preflight("targets-corrupted",chain=altered)
-        preflight("timestamp-expired",
-                  chain=release_roles(sign,1,original,expired=True))
-        preflight("bad-platform-signed",raw=encode_manifest({
-            **create_manifest(TAG),"architecture":"win-arm64"}),
-            chain=release_roles(sign,1,encode_manifest({
-                **create_manifest(TAG),"architecture":"win-arm64"})))
-        preflight("wrong-repository-signed",raw=encode_manifest({
-            **create_manifest(TAG),"repository":"evil/elsewhere"}),
-            chain=release_roles(sign,1,encode_manifest({
-                **create_manifest(TAG),"repository":"evil/elsewhere"})))
-        preflight("no-upgrade",installed=TAG)
-        without_time=dict(roles);without_time.pop("timestamp.json")
-        preflight("timestamp-absent",chain=without_time)
-
-        def reject_bridge(label,manifest,approved_hash=None,tag=TAG,installed=OLD):
-            result=run_bridge(d24_exe,root,manifest,
-                              approved_hash if approved_hash is not None else digest(manifest),
-                              tag,installed,label)
+        def deny(name,manifest=authentic,role_files=roles,release_bytes=release,
+                 env=None):
+            case=fixture(name,manifest,role_files,release_bytes)
+            result=invoke(coordinator,root,case,env=env)
             require(result["status"]=="rejected" and
+                    result["tuf_in_session_validated"] is False and
                     result["staged_inert_bytes"] is False and
                     result["loopback_connections"]==0,
-                    "D24_BRIDGE_FALSE_ACCEPT_"+label)
-            bridge_denials.append(label)
+                    "FALSE_ACCEPT_"+name)
+            rejected.append(name)
 
-        reject_bridge("handoff-sha-pin-wrong",original,approved_hash="0"*64)
-        reject_bridge("manifest-modified-after-tuf",original+b" ",
-                      approved_hash=digest(original))
-        reject_bridge("tag-mismatch",original,tag="v5.13.11.67")
-        reject_bridge("installed-version-mismatch",original,installed=TAG)
-        reject_bridge("manifest-wrong-architecture",encode_manifest({
-            **create_manifest(TAG),"architecture":"win-arm64"}))
-        reject_bridge("manifest-wrong-repository",encode_manifest({
-            **create_manifest(TAG),"repository":"evil/elsewhere"}))
-        reject_bridge("manifest-wrong-asset",encode_manifest({
-            **create_manifest(TAG),"asset":"../../evil.exe"}))
-        reject_bridge("manifest-wrong-sha",encode_manifest({
-            **create_manifest(TAG),"sha256":"0"*64}))
-        reject_bridge("manifest-wrong-length",encode_manifest({
-            **create_manifest(TAG),"length":len(PAYLOAD)+1}))
-        reject_bridge("manifest-test-flag-disabled",encode_manifest({
-            **create_manifest(TAG),"test_only":False}))
-        reject_bridge("manifest-install-flag-enabled",encode_manifest({
-            **create_manifest(TAG),"operational_installable":True}))
-        reject_bridge("manifest-extra-field",encode_manifest({
-            **create_manifest(TAG),"download_url":"https://evil.invalid/a"}))
-        reject_bridge("manifest-missing-field",encode_manifest({
-            k:v for k,v in create_manifest(TAG).items() if k!="sha256"}))
-        dup=original.replace(b'"sha256":',b'"sha256":"0","sha256":',1)
-        reject_bridge("manifest-duplicate-field",dup)
+        valid=fixture("valid")
+        good=invoke(coordinator,root,valid)
+        require(good["status"]=="accepted_inert_test_only" and
+                good["tuf_child_launched"] is True and
+                good["tuf_in_session_validated"] is True and
+                good["staged_inert_bytes"] is True and
+                good["loopback_connections"]==1,"VALID_CHAIN_FAILED")
+        positive.append("valid")
+        # A second invocation into the same materialized trust directory
+        # must not silently rebootstrap as a fresh first-use session.
+        replay=invoke(coordinator,root,valid)
+        require(replay["status"]=="rejected" and
+                replay["loopback_connections"]==0 and
+                replay["staged_inert_bytes"] is False,
+                "REPLAYED_SESSION_ACCEPTED")
+        rejected.append("replay-session")
 
-        # Explicit counterexample: A same-user caller can directly present
-        # the publicly known lab manifest + its hash to .NET, skipping Python-TUF.
-        bypass=run_bridge(d24_exe,root,original,digest(original),label="bypass-tuf")
-        require(bypass["status"]=="accepted_inert_test_only" and
-                bypass["staged_inert_bytes"] is True and
-                bypass["loopback_connections"]==1,
-                "D24_HANDOFF_BYPASS_NOT_DEMONSTRATED")
-        require(len(preflight_denials)==12 and
-                len(bridge_denials)==14 and
-                len(set(preflight_denials))==12 and
-                len(set(bridge_denials))==14,"D24_CASE_MATRIX")
-        report={
-            "schema":"gf-github-d24-inert-integrated/1",
-            "status":"passed",
-            "orchestrated_d0_tuf_dotnet_inert_staging":True,
-            "authenticated_inert_preflight_positive":1,
-            "tuf_d0_negative_cases_rejected":len(preflight_denials),
-            "dotnet_handoff_negative_cases_rejected":len(bridge_denials),
-            "shared_dotnet_d23_transport_source":True,
-            "standalone_handoff_without_tuf_accepted":True,
-            "standalone_bypass_is_security_counterexample":True,
-            "secure_cross_process_authority_proven":False,
-            "same_user_rollback_protection_proven":False,
-            "same_user_toctou_resistance_proven":False,
-            "public_test_signer_only":True,
-            "real_network_requests":0,
-            "real_executable_downloads":0,
-            "installations":0,
-            "product_modified":False,
-            "operational_ready":False,
+        # Explicit old direct invocation, now no staging path at all.
+        invoke(coordinator,root,valid,legacy=True)
+        rejected.append("legacy-direct-handoff")
+        bad_manifest=authentic+b" "
+        deny("whitespace-rehashed",manifest=bad_manifest)
+        deny("tag-mismatch",release_bytes=release_fixture("v5.13.11.67"))
+        deny("release-draft",release_bytes=release_fixture(TAG,draft=True))
+        asset=json.loads(release)["assets"][0]
+        deny("asset-name",release_bytes=release_fixture(TAG,assets=[
+            {**asset,"name":"evil.zip"}]))
+        deny("asset-length",release_bytes=release_fixture(TAG,assets=[
+            {**asset,"size":999}]))
+        deny("asset-external",release_bytes=release_fixture(TAG,assets=[
+            {**asset,"browser_download_url":"https://evil.invalid/x"}]))
+        invalid=dict(roles);invalid["targets.json"]=roles["targets.json"]+b"x"
+        deny("targets-tampered",role_files=invalid)
+        deny("timestamp-expired",
+             role_files=release_roles(generator,1,authentic,expired=True))
+        missing=dict(roles);missing.pop("timestamp.json")
+        deny("missing-verifier-input",role_files=missing)
+        changed=encode_manifest({**create_manifest(TAG),"architecture":"win-arm64"})
+        deny("signed-wrong-platform",manifest=changed,
+             role_files=release_roles(generator,1,changed))
+        changed=encode_manifest({**create_manifest(TAG),"repository":"evil/elsewhere"})
+        deny("signed-wrong-repository",manifest=changed,
+             role_files=release_roles(generator,1,changed))
+        dup=authentic.replace(b'"sha256":',b'"sha256":"0","sha256":',1)
+        deny("duplicate-manifest-key",manifest=dup)
+        missing_py=dict(os.environ)
+        missing_py["PATH"]=""
+        deny("no-python-validator",env=missing_py)
+
+        # The embedded verifier is the only one invoked; stdout from an
+        # external caller is not an input. Unit-test the parser with fake,
+        # stale, mismatched, absent and duplicate authorization receipts.
+        test=subprocess.run([str(coordinator),"--d242-selftest"],
+            stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,text=True,timeout=12)
+        require(test.returncode==0,"RECEIPT_PARSER_SELFTEST_FAILED")
+        line=[s for s in test.stdout.splitlines()
+              if s.startswith("GF_D242_RECEIPT_SELFTEST ")]
+        require(len(line)==1,"RECEIPT_SELFTEST_MISSING")
+        receipt=json.loads(line[0][len("GF_D242_RECEIPT_SELFTEST "):])
+        require(receipt=={
+            "schema":"gf-d242-receipt-selftest/1","status":"passed",
+            "synthetic_receipts_rejected":7,"stages_started":0,
             "automatic_recovery_authorized":False
+        },"FAKE_OR_REPLAY_RECEIPT_WAS_ACCEPTED")
+        require(len(positive)==1 and len(rejected)==14 and
+                len(set(rejected))==14,"NEGATIVE_MATRIX")
+        report={
+            "schema":"gf-d242-csharp-owned-tuf-session/1",
+            "status":"passed",
+            "positive_inert_sessions":len(positive),
+            "negative_sessions_rejected":len(rejected),
+            "synthetic_receipts_rejected":receipt["synthetic_receipts_rejected"],
+            "embedded_tuf_validator_source":True,
+            "csharp_owns_child_and_stage":True,
+            "old_direct_manifest_sha_handoff_rejected":True,
+            "bootstrap_single_pinned_snapshot_used":True,
+            "shared_dotnet_d23_transport":True,
+            "session_replay_rejected":True,
+            "secure_against_same_user_process_replacement":False,
+            "persistent_tuf_history_rollback_proven":False,
+            "same_user_ntfs_toctou_proven":False,
+            "test_signer_public_only":True,
+            "external_requests":0,"downloaded_executables":0,
+            "installations":0,"product_modified":False,
+            "operational_ready":False,"automatic_recovery_authorized":False
         }
-        print("GF_D24_RESULT "+json.dumps(report,sort_keys=True))
+        print("GF_D242_RESULT "+json.dumps(report,sort_keys=True))
     return 0
 
 if __name__=="__main__":
-    require(len(sys.argv)==3,"D24_CLI")
-    raise SystemExit(main(sys.argv[1],sys.argv[2]))
+    require(len(sys.argv)==3,"D242_CLI")
+    raise SystemExit(main(Path(sys.argv[1]),Path(sys.argv[2])))
