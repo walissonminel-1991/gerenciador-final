@@ -159,11 +159,25 @@ print("GF_E2E_INSTALL_FOCUSED_NORMAL_OLD_PASS native_mainform=true responsive=tr
           }
         }
       }
+      # The actual L18 Entry catch writes real-child-error.fixture.txt;
+      # the previous diagnostic looked for a NONEXISTENT real-owner-error.
+      # Emit ONLY allowlisted machine-readable tokens and exception classes;
+      # never output file paths, stack frames, environment, downloaded assets
+      # or a raw traceback. This is not a recovery witness.
       $labErrors=@(Get-ChildItem -LiteralPath $root -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -eq 'real-observer-error.fixture.txt' -or $_.Name -eq 'real-owner-error.fixture.txt' } |
-        Select-Object -First 5)
+        Where-Object { $_.Name -in @('real-child-error.fixture.txt',
+          'real-observer-error.fixture.txt','real-reconcile-reason.fixture.txt') } |
+        Select-Object -First 6)
       foreach($e in $labErrors) {
-        Write-Host "GF_PIN_L18_ERROR file=$($e.Name) text=$((Get-Content $e.FullName -Raw).Substring(0,[Math]::Min(280,(Get-Item $e.FullName).Length)))"
+        $raw=[System.IO.File]::ReadAllText($e.FullName)
+        $tokens=@([regex]::Matches($raw,
+          'GF_PHASE1_[A-Z][A-Z0-9_]{3,100}|GF_NTFS_[A-Z][A-Z0-9_]{3,100}|REAL_[A-Z][A-Z0-9_]{3,100}|(?:TypeError|AttributeError|RuntimeError|PermissionError|OSError|FileNotFoundError|TimeoutError|WinError\\s*\\d{1,5})') |
+          ForEach-Object { $_.Value } | Select-Object -Unique -First 12)
+        $kinds=if ($tokens.Count -gt 0) { $tokens -join ',' } else { 'NO_ALLOWLISTED_CODE' }
+        Write-Host "GF_PIN_L18_SANITIZED_ERROR file=$($e.Name) bytes=$($e.Length) codes=$kinds READY=false"
+      }
+      if ($labErrors.Count -eq 0) {
+        Write-Host 'GF_PIN_L18_SANITIZED_ERROR files=NONE code=NO_OWNER_OBSERVER_DIAGNOSTIC READY=false'
       }
     }
     throw 'GF_INSTALL_FOCUSED_HANDOFF_NOT_PROVEN'
