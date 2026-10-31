@@ -23,3 +23,5 @@ sem baixar, instalar, substituir, fazer rollback ou alterar o GF. Não é atuali
 **Situação real em 30/10/2026:** a consulta ao GitHub retornou zero Releases publicadas. Não há atualização que este canal possa oferecer.
 
 A linha experimental B+A, TUF/NTFS/TOCTOU, G1–G8 e as provas de contenção existentes permanecem intactas. Este protótipo não redefine os gates operacionais e não conclui a Fase 1.
+
+**Isolamento:** fontes de teste ficam como `.cs.txt`, explicitamente incluídas só no `.csproj` do laboratório. Não entram no glob `**/*.cs` do aplicativo.

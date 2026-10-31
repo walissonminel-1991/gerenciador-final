@@ -34,7 +34,7 @@ jobs:
             throw 'GF_METADATA_LAB_LEAK_IN_PRODUCT'
           }
           $files=Get-ChildItem 'prototipos/autoatualizador-seguro/github-metadata-lab' -File
-          if (@($files | Where-Object {$_.Extension -notin @('.cs','.csproj','.md')}).Count -ne 0) {
+          if (@($files | Where-Object {$_.Extension -notin @('.txt','.csproj','.md')}).Count -ne 0) {
             throw 'GF_METADATA_LAB_UNEXPECTED_PAYLOAD'
           }
       - name: Validar consulta GitHub e recusas sem rede

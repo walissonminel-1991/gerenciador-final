@@ -10,7 +10,7 @@
     <IsPackable>false</IsPackable><IsPublishable>false</IsPublishable>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="GitHubReleaseDiscovery.cs" />
-    <Compile Include="Tests.cs" />
+    <Compile Include="GitHubReleaseDiscovery.cs.txt" />
+    <Compile Include="Tests.cs.txt" />
   </ItemGroup>
 </Project>
