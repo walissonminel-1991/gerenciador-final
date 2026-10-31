@@ -334,7 +334,7 @@ internal static class GfOldDraftAcquire
             }));
     }
 
-    internal static async Task<int> Run()
+    internal static async Task<int> Run(Action? afterVerifiedLabHandoff = null)
     {
         try
         {
@@ -385,7 +385,14 @@ internal static class GfOldDraftAcquire
             File.WriteAllText(Path.Combine(runner, "gf-e2e-old-acquire-report.json"),
                 JsonSerializer.Serialize(evidence));
             if (Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18") == "1")
+            {
                 await HandoffAuthenticatedDownloadToL18Async(runner);
+                // The completed, fail-closed L18 normal scenario leaves
+                // UnknownBlocked: request a graceful OLD window exit ONLY
+                // in the disposable laboratory, after the report is durable.
+                if (Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE") == "1")
+                    afterVerifiedLabHandoff?.Invoke();
+            }
             return 0;
         }
         catch (Exception e) when (e is HttpRequestException or IOException or

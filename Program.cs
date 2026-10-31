@@ -102,7 +102,38 @@ internal static class Program
                             file.Write(bytes);
                             file.Flush(true);
                         }
-                        _ = Task.Run(GfOldDraftAcquire.Run);
+                        // Only a verified, completed lab handoff can ask the
+                        // ORIGINAL GF OLD form to close. The window's own
+                        // FormClosing policy remains authoritative.
+                        _ = Task.Run(() => GfOldDraftAcquire.Run(() =>
+                        {
+                            if (Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE") != "1" ||
+                                mainWindow.IsDisposed || !mainWindow.IsHandleCreated)
+                                return;
+                            try
+                            {
+                                mainWindow.BeginInvoke((Action)(() =>
+                                {
+                                    if (mainWindow.IsDisposed || mainWindow.Disposing) return;
+                                    var closePoll = new System.Windows.Forms.Timer { Interval = 400 };
+                                    int attempts = 0;
+                                    closePoll.Tick += (_, _) =>
+                                    {
+                                        attempts++;
+                                        if (mainWindow.IsDisposed || mainWindow.Disposing || attempts > 150)
+                                        {
+                                            closePoll.Stop(); closePoll.Dispose();
+                                            return; // Preserve HOLD: CI will fail.
+                                        }
+                                        if (!mainWindow.LabMayCloseForVerifiedHandoff) return;
+                                        closePoll.Stop(); closePoll.Dispose();
+                                        mainWindow.Close(); // Normal WinForms path, no kill.
+                                    };
+                                    closePoll.Start();
+                                }));
+                            }
+                            catch (InvalidOperationException) { /* No exit claim. */ }
+                        }));
                     }
                     catch (IOException)
                     {
@@ -112,7 +143,62 @@ internal static class Program
                     catch (UnauthorizedAccessException) { }
                 };
             }
+            // Observed on the ORIGINAL UI thread after a legitimate Close,
+            // never from a test fixture or an arbitrary PID.
+            if (Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE") == "1")
+            {
+                mainWindow.FormClosed += (_, e) =>
+                {
+                    try
+                    {
+                        string runner = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
+                        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
+                            Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") !=
+                                "walissonminel-1991/gerenciador-final" ||
+                            !Directory.Exists(runner) ||
+                            !File.Exists(Path.Combine(runner,"gf-e2e-old-l18-handoff-report.json")))
+                            return;
+                        using var receipt = new FileStream(
+                            Path.Combine(runner,"gf-e2e-old-ui-closed.json"),FileMode.CreateNew,
+                            FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough);
+                        byte[] bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
+                            schema = "gf-e2e-old-form-closed/1",
+                            form_closed_event = true,
+                            close_reason = e.CloseReason.ToString(),
+                            test_only = true, operational_ready = false
+                        });
+                        receipt.Write(bytes); receipt.Flush(true);
+                    }
+                    catch (IOException) { /* Never claim proof on a write failure. */ }
+                    catch (UnauthorizedAccessException) { }
+                };
+            }
             Application.Run(mainWindow);
+            // Only emitted AFTER the real message loop ends, not when close
+            // is merely requested. Independent CI must also observe exit=0.
+            if (Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE") == "1" &&
+                Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" &&
+                Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") ==
+                    "walissonminel-1991/gerenciador-final")
+            {
+                string runner = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
+                string verifiedHandoff = Path.Combine(runner, "gf-e2e-old-l18-handoff-report.json");
+                if (Directory.Exists(runner) && File.Exists(verifiedHandoff) &&
+                    File.Exists(Path.Combine(runner, "gf-e2e-old-ui-closed.json")))
+                {
+                    string evidencePath = Path.Combine(runner, "gf-e2e-old-message-loop-exited.json");
+                    using var receipt = new FileStream(evidencePath, FileMode.CreateNew,
+                        FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough);
+                    byte[] evidence = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
+                        schema = "gf-e2e-old-message-loop-exited/1",
+                        application_run_returned = true,
+                        verified_handoff_preceded_close = true,
+                        test_only = true,
+                        operational_ready = false
+                    });
+                    receipt.Write(evidence); receipt.Flush(true);
+                }
+            }
 #else
             Application.Run(new MainForm(startInTray: startInTray));
 #endif
@@ -704,6 +790,11 @@ internal sealed partial class MainForm : Form
 
     private readonly Action? _startupOnlineProbe;
 
+#if GF_E2E_LAB
+    internal bool LabMayCloseForVerifiedHandoff =>
+        !_busy && !_betaClose.IsWaiting && !IsDisposed && !Disposing;
+
+#endif
     public MainForm(bool startServices = true, bool startInTray = false, Action? startupOnlineProbe = null)
     {
         _startupOnlineProbe = startupOnlineProbe;
