@@ -1,0 +1,235 @@
+// Experimental normal PRIVATE build only. Sole source: public official GitHub Releases.
+// First delivery: scheduled discovery, zip acquisition, and functional handoff.
+// Publisher authenticity / TUF not yet homologated: NEVER distribute this binary.
+using System.Net;
+using System.Net.Http.Headers;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json;
+
+namespace GerenciadorAplicativos;
+
+internal static class GfGithubWeeklyUpdate
+{
+    internal sealed record UpdateResult(string Code, string Message, bool WorkerStarted = false);
+    internal sealed record Release(Version Version, long AssetId, long AssetLength, string Sha256);
+    private const string Repo = "walissonminel-1991/gerenciador-final";
+    private const string AssetName = "GerenciadorFinal-win-x64.zip";
+    private static readonly Uri Latest = new("https://api.github.com/repos/" + Repo + "/releases/latest");
+    private static readonly SemaphoreSlim Mutex = new(1, 1);
+    private static readonly TimeSpan Frequency = TimeSpan.FromDays(7);
+    // This is a UTC timestamp of the LAST ATTEMPT, never of the last process
+    // start. User devices that were switched off check on their next opening.
+    private static string StatePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "GerenciadorFinal", "autoatualizacao", "ultima-consulta.json");
+
+    private static void Require(bool ok, string reason)
+    {
+        if (!ok) throw new InvalidDataException("GF_GITHUB_UPDATE_" + reason);
+    }
+
+    private static bool Due(DateTimeOffset now)
+    {
+        try
+        {
+            using var state = JsonDocument.Parse(File.ReadAllBytes(StatePath));
+            var root = state.RootElement;
+            if (root.GetProperty("schema").GetString() != "gf-weekly-update/1")
+                return true;
+            var utc = root.GetProperty("last_attempt_utc").GetDateTimeOffset();
+            // A clock adjustment to the future must not permanently suppress checks.
+            return utc > now || now - utc >= Frequency;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                   JsonException or FormatException or InvalidOperationException or
+                                   KeyNotFoundException)
+        {
+            return true;
+        }
+    }
+
+    private static void RecordAttempt(DateTimeOffset now)
+    {
+        string file = StatePath;
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        string temp = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var stream = new FileStream(temp, FileMode.CreateNew,
+                       FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                JsonSerializer.Serialize(stream, new {
+                    schema = "gf-weekly-update/1", last_attempt_utc = now });
+                stream.Flush(true);
+            }
+            File.Move(temp, file, overwrite: true);
+        }
+        finally
+        {
+            try { if (File.Exists(temp)) File.Delete(temp); }
+            catch (IOException) { }
+        }
+    }
+
+    private static HttpClient Client()
+    {
+        var handler = new SocketsHttpHandler {
+            AllowAutoRedirect = false,
+            UseCookies = false, UseProxy = true,
+            AutomaticDecompression = DecompressionMethods.None,
+            ConnectTimeout = TimeSpan.FromSeconds(12)
+        };
+        return new HttpClient(handler, disposeHandler: true) {
+            Timeout = TimeSpan.FromMinutes(5) };
+    }
+
+    private static async Task<Release?> FindReleaseAsync(HttpClient client)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, Latest);
+        request.Headers.UserAgent.ParseAdd("GerenciadorFinal-Update/1");
+        request.Headers.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        using var response = await client.SendAsync(request,
+            HttpCompletionOption.ResponseHeadersRead);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        Require(response.StatusCode == HttpStatusCode.OK &&
+                response.Headers.Location is null &&
+                response.RequestMessage?.RequestUri == Latest &&
+                response.Content.Headers.ContentLength is null or <= 131_072,
+                "RELEASE_HTTP_OR_SIZE");
+        using var data = new MemoryStream();
+        await using (var body = await response.Content.ReadAsStreamAsync())
+        {
+            var buffer = new byte[8192];
+            int n;
+            while ((n = await body.ReadAsync(buffer)) > 0)
+            {
+                Require(data.Length + n <= 131_072, "METADATA_TOO_LARGE");
+                data.Write(buffer, 0, n);
+            }
+        }
+        using var json = JsonDocument.Parse(data.ToArray(),
+            new JsonDocumentOptions { MaxDepth = 9 });
+        var root = json.RootElement;
+        Require(root.GetProperty("draft").ValueKind == JsonValueKind.False &&
+                root.GetProperty("prerelease").ValueKind == JsonValueKind.False &&
+                root.GetProperty("published_at").ValueKind == JsonValueKind.String,
+                "NOT_STABLE_PUBLIC_RELEASE");
+        string tag = root.GetProperty("tag_name").GetString() ?? "";
+        if (tag.StartsWith('v')) tag = tag[1..];
+        Require(tag.Length is >= 7 and <= 32 &&
+                tag.Count(ch => ch == '.') == 3 &&
+                tag.All(ch => char.IsAsciiDigit(ch) || ch == '.') &&
+                Version.TryParse(tag, out _), "RELEASE_VERSION_INVALID");
+        var version = Version.Parse(tag);
+        var current = Assembly.GetExecutingAssembly().GetName().Version;
+        Require(current is not null, "INSTALLED_VERSION_MISSING");
+        if (version <= current) return null;
+        var assets = root.GetProperty("assets");
+        Require(assets.ValueKind == JsonValueKind.Array && assets.GetArrayLength() <= 30,
+                "ASSETS_INVALID");
+        var matches = assets.EnumerateArray()
+            .Where(x => x.GetProperty("name").GetString() == AssetName).ToArray();
+        Require(matches.Length == 1, "ZIP_ASSET_MISSING_OR_DUPLICATE");
+        var asset = matches[0];
+        long id = asset.GetProperty("id").GetInt64();
+        long bytes = asset.GetProperty("size").GetInt64();
+        string digest = asset.GetProperty("digest").GetString() ?? "";
+        Require(id > 0 && bytes is > 0 and <= 250_000_000 &&
+                digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) &&
+                digest.Length == 71 && digest[7..].All(char.IsAsciiHexDigit),
+                "ASSET_SIZE_OR_DIGEST");
+        return new Release(version, id, bytes, digest[7..]);
+    }
+
+    internal static async Task<string> DownloadAssetAsync(Release release, string destination)
+    {
+        using var http = Client();
+        var endpoint = new Uri("https://api.github.com/repos/" + Repo +
+                               "/releases/assets/" + release.AssetId);
+        Uri uri = endpoint;
+        for (int redirect = 0; redirect < 5; redirect++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            request.Headers.UserAgent.ParseAdd("GerenciadorFinal-Update/1");
+            request.Headers.Accept.Add(
+                new MediaTypeWithQualityHeaderValue("application/octet-stream"));
+            using var response = await http.SendAsync(request,
+                HttpCompletionOption.ResponseHeadersRead);
+            if (response.StatusCode is HttpStatusCode.Redirect or
+                HttpStatusCode.MovedPermanently or HttpStatusCode.RedirectMethod or
+                HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect)
+            {
+                Uri? next = response.Headers.Location;
+                Require(next is { IsAbsoluteUri: true } &&
+                        next.Scheme == Uri.UriSchemeHttps &&
+                        (next.Host == "release-assets.githubusercontent.com" ||
+                         next.Host == "objects.githubusercontent.com"),
+                        "UNTRUSTED_RELEASE_REDIRECT");
+                uri = next;
+                continue;
+            }
+            Require(response.StatusCode == HttpStatusCode.OK &&
+                    response.Content.Headers.ContentLength == release.AssetLength,
+                    "RELEASE_ASSET_HTTP_OR_SIZE");
+            long received = 0;
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            await using (var file = new FileStream(destination, FileMode.CreateNew,
+                           FileAccess.Write, FileShare.None, 65536, FileOptions.WriteThrough))
+            await using (var body = await response.Content.ReadAsStreamAsync())
+            {
+                var buffer = new byte[65536];
+                int n;
+                while ((n = await body.ReadAsync(buffer)) > 0)
+                {
+                    received += n;
+                    Require(received <= release.AssetLength, "RELEASE_ASSET_OVERRUN");
+                    hash.AppendData(buffer, 0, n);
+                    await file.WriteAsync(buffer.AsMemory(0,n));
+                }
+                await file.FlushAsync();
+                file.Flush(true);
+            }
+            Require(received == release.AssetLength &&
+                    Convert.ToHexString(hash.GetHashAndReset()).Equals(
+                        release.Sha256, StringComparison.OrdinalIgnoreCase),
+                    "RELEASE_ASSET_DIGEST_MISMATCH");
+            return destination;
+        }
+        throw new InvalidDataException("GF_GITHUB_UPDATE_TOO_MANY_REDIRECTS");
+    }
+
+    internal static async Task<UpdateResult> RunAsync(bool force = false)
+    {
+        if (!await Mutex.WaitAsync(0))
+            return new("ALREADY_CHECKING", "Uma verificação do GF já está em andamento.");
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (!force && !Due(now))
+                return new("WEEKLY_NOT_DUE", "Próxima consulta semanal ainda não necessária.");
+            // Avoid hammering GitHub after restart; persist BEFORE network.
+            // If persistence fails, fail closed rather than checking continuously.
+            RecordAttempt(now);
+            using var http = Client();
+            Release? release = await FindReleaseAsync(http);
+            if (release is null)
+                return new("NO_NEW_STABLE_RELEASE",
+                    "GF: nenhuma versão estável mais recente no GitHub.");
+            // Download + install path remains PRIVATE and will require
+            // independent review before this source is allowed in public GF.
+            await GfPrivateFunctionalUpdate.PrepareOfficialReleaseAsync(
+                release, DownloadAssetAsync);
+            return new("UPDATE_PREPARED",
+                "GF: atualização baixada. Reiniciando para concluir.", WorkerStarted: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                     HttpRequestException or JsonException or InvalidOperationException or
+                     System.Security.Cryptography.CryptographicException)
+        {
+            return new("CHECK_BLOCKED", "GF: não foi possível concluir a verificação.");
+        }
+        finally { Mutex.Release(); }
+    }
+}
