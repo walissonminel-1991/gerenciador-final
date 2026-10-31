@@ -6,6 +6,8 @@ on:
       - 'Program.cs'
       - 'GerenciadorAplicativos.csproj'
       - 'prototipos/autoatualizador-seguro/phase1-composed/GfPrivateSelfUpdateProbe.cs.txt'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/GfPrivateFunctionalUpdate.cs.txt'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/private_functional_feed.py'
       - '.github/workflows/gf-private-selfupdate-normal.yml'
 permissions:
   contents: read
@@ -54,3 +56,114 @@ jobs:
           $smoke=Start-Process -FilePath $privateExe -ArgumentList '--gf-private-update-smoke' -Wait -PassThru
           if ($smoke.ExitCode -ne 0) { throw "PRIVATE_NORMAL_PROBE_FAILED_CODE_$($smoke.ExitCode)" }
           Write-Host 'GF_PRIVATE_UPDATE_TOKEN_FREE_READONLY_PASS READY=false no_download=true no_install=true'
+
+  functional-old-to-new:
+    name: Functional-first GF .65 to .66 on disposable Windows
+    if: github.repository == 'walissonminel-1991/gerenciador-final'
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      GF_BETA_ENDPOINT: ''
+      GF_PRIVATE_FUNCTIONAL_LAB: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.402'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Compile REAL GF OLD and NEW in private normal mode, never E2E
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $old=Join-Path $env:RUNNER_TEMP 'gf-private-e2e-old'
+          $new=Join-Path $env:RUNNER_TEMP 'gf-private-e2e-payload'
+          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:GfBetaProfile=local -p:GfSelfUpdatePrivate=true -p:GfE2eLab=false -p:Version=5.13.11.65 -o $old --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_FUNCTIONAL_BUILD_OLD_FAILED' }
+          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:GfBetaProfile=local -p:GfSelfUpdatePrivate=true -p:GfE2eLab=false -p:Version=5.13.11.66 -o $new --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_FUNCTIONAL_BUILD_NEW_FAILED' }
+          $oldV=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $old 'GerenciadorFinal.dll')).Version.ToString()
+          $newV=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $new 'GerenciadorFinal.dll')).Version.ToString()
+          if ($oldV -ne '5.13.11.65' -or $newV -ne '5.13.11.66') { throw 'PRIVATE_FUNCTIONAL_VERSION_BUILD_WRONG' }
+          Write-Host 'GF_PRIVATE_FUNCTIONAL_BUILDS_PASS old=5.13.11.65 new=5.13.11.66 normal_build=true no_e2e=true'
+      - name: Generate .66 ZIP, serve private localhost feed, run OLD and verify installed NEW
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=$env:RUNNER_TEMP
+          $old=Join-Path $root 'gf-private-e2e-old'
+          $new=Join-Path $root 'gf-private-e2e-payload'
+          $zip=Join-Path $root 'gf-private-e2e-new.zip'
+          $ready=Join-Path $root 'gf-private-e2e-port.txt'
+          $done=Join-Path $root 'gf-private-e2e-applied.json'
+          $py=@'
+          import sys,zipfile
+          from pathlib import Path
+          src=Path(sys.argv[1]).resolve(strict=True)
+          target=Path(sys.argv[2])
+          assert not target.exists()
+          with zipfile.ZipFile(target,'x',compression=zipfile.ZIP_DEFLATED,compresslevel=1) as archive:
+              for item in sorted(src.rglob('*')):
+                  if item.is_file():
+                      archive.write(item,item.relative_to(src).as_posix())
+          print("GF_PRIVATE_FUNCTIONAL_ZIP_CREATED",flush=True)
+          '@
+          $py | python - $new $zip
+          if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_FUNCTIONAL_ZIP_FAILED' }
+          $serverScript=Join-Path $env:GITHUB_WORKSPACE 'prototipos/autoatualizador-seguro/phase1-composed/private_functional_feed.py'
+          $pythonExe=(Get-Command python).Source
+          $server=Start-Process -FilePath $pythonExe -ArgumentList @('-u',('"' + $serverScript + '"'),('"' + $root + '"')) -PassThru -WindowStyle Hidden
+          $until=[DateTime]::UtcNow.AddSeconds(25)
+          while (!(Test-Path -LiteralPath $ready) -and [DateTime]::UtcNow -lt $until) {
+            if ($server.HasExited) { throw 'PRIVATE_FUNCTIONAL_FEED_DIED' }
+            Start-Sleep -Milliseconds 150
+          }
+          if (!(Test-Path -LiteralPath $ready)) { throw 'PRIVATE_FUNCTIONAL_FEED_NOT_READY' }
+          $port=[int]([System.IO.File]::ReadAllText($ready))
+          if ($port -lt 1024 -or $port -gt 65535) { throw 'PRIVATE_FUNCTIONAL_FEED_PORT_INVALID' }
+          $env:GF_PRIVATE_FUNCTIONAL_FEED="http://127.0.0.1:$port/feed.json"
+          $exe=Join-Path $old 'GerenciadorFinal.exe'
+          $parent=Start-Process -FilePath $exe -WorkingDirectory $old -ArgumentList '--gf-private-update-functional' -PassThru -Wait
+          if ($parent.ExitCode -ne 0) { throw "PRIVATE_FUNCTIONAL_OLD_FAILED_$($parent.ExitCode)" }
+          $until=[DateTime]::UtcNow.AddSeconds(100)
+          while (!(Test-Path -LiteralPath $done) -and [DateTime]::UtcNow -lt $until) {
+            Start-Sleep -Milliseconds 250
+          }
+          if (!(Test-Path -LiteralPath $done)) { throw 'PRIVATE_FUNCTIONAL_WORKER_NO_COMPLETION' }
+          $info=Get-Content -LiteralPath $done -Raw | ConvertFrom-Json
+          if ($info.schema -ne 'gf-private-functional-transition/1' -or $info.ready -or !$info.test_only -or
+              $info.old_version -ne '5.13.11.65' -or $info.new_version -ne '5.13.11.66' -or
+              !$info.installed_at_original_path) { throw 'PRIVATE_FUNCTIONAL_WORKER_REPORT_INVALID' }
+          $current=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $old 'GerenciadorFinal.dll')).Version.ToString()
+          $preserved=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $root 'gf-private-e2e-old-preserved/GerenciadorFinal.dll')).Version.ToString()
+          if ($current -ne '5.13.11.66' -or $preserved -ne '5.13.11.65') { throw 'PRIVATE_FUNCTIONAL_INSTALLED_VERSION_WRONG' }
+          $health=@'
+          import json,os,sys,time
+          from pathlib import Path
+          src=Path(sys.argv[1]).resolve(strict=True)
+          repo=Path(os.environ["GITHUB_WORKSPACE"]).resolve(strict=True)
+          sys.path.insert(0,str(repo/"prototipos"/"autoatualizador-seguro"/"phase1-composed"))
+          from win32_process_observation import own_main_windows,process_image_path,message_pump_ping
+          marker=json.loads((src/"gf-private-e2e-applied.json").read_text(encoding="utf-8"))
+          pid=marker["started_pid"]
+          expected=src/"gf-private-e2e-old"/"GerenciadorFinal.exe"
+          deadline=time.monotonic()+45
+          ok=False
+          while time.monotonic()<deadline:
+              w=own_main_windows(pid)
+              image=process_image_path(pid)
+              if (image and os.path.samefile(image,expected)
+                      and any(x["visible"] and message_pump_ping(x["hwnd"]) for x in w)):
+                  ok=True
+                  break
+              time.sleep(.2)
+          assert ok,"NEW_UI_NOT_FUNCTIONAL"
+          print("GF_PRIVATE_FUNCTIONAL_E2E_PASS old=5.13.11.65 new=5.13.11.66 downloaded_zip=true old_exited=true new_installed_original_path=true new_real_gui_responsive=true local_lab_only=true READY=false",flush=True)
+          '@
+          $health | python - $root
+          if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_FUNCTIONAL_NEW_HEALTH_FAILED' }
