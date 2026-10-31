@@ -26,7 +26,8 @@ internal static partial class Program
     sealed record Reply(int Status = 200, string? Length = null,
         string? MediaType = null, byte[]? Body = null, int Fragment = 4096,
         int CutAfter = -1, int DelayBeforeHeadersMs = 0,
-        int DelayBeforeBodyMs = 0, bool OmitLength = false,
+        int DelayBeforeBodyMs = 0, int DelayPerChunkMs = 0,
+        bool OmitLength = false,
         bool ExtraHeader = false, bool Encoded = false,
         bool TransferChunked = false, bool Location = false);
 
@@ -102,6 +103,8 @@ internal static partial class Program
                     await stream.WriteAsync(body.AsMemory(i,Math.Min(chunk,size-i)),
                         closing.Token);
                     await stream.FlushAsync(closing.Token);
+                    if (r.DelayPerChunkMs > 0)
+                        await Task.Delay(r.DelayPerChunkMs,closing.Token);
                 }
             }
             catch (Exception ex) when (ex is IOException or SocketException or
@@ -135,6 +138,40 @@ internal static partial class Program
             throw new InvalidDataException("READBACK_SHA");
     }
 
+    // Asynchronous readback participates in the same acquisition deadline.
+    // This does not make synchronous Windows rename atomic versus an attacker.
+    static async Task VerifyAsync(string file,int expectedLength,
+        byte[] expectedDigest,CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var info = new FileInfo(file);
+        if (info.Length != expectedLength || info.Length > MaximumBytes ||
+            (info.Attributes & FileAttributes.ReparsePoint) != 0)
+            throw new InvalidDataException("READBACK_LENGTH_OR_LINK");
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        await using var input = new FileStream(file,FileMode.Open,
+            FileAccess.Read,FileShare.Read,4096,FileOptions.Asynchronous);
+        var buffer = ArrayPool<byte>.Shared.Rent(4096);
+        var length = 0;
+        try
+        {
+            int n;
+            while ((n = await input.ReadAsync(buffer.AsMemory(0,4096),token)) != 0)
+            {
+                length = checked(length + n);
+                if (length > expectedLength || length > MaximumBytes)
+                    throw new InvalidDataException("READBACK_EXCEEDS_LENGTH");
+                hasher.AppendData(buffer,0,n);
+            }
+            token.ThrowIfCancellationRequested();
+            if (length != expectedLength ||
+                !CryptographicOperations.FixedTimeEquals(
+                    hasher.GetHashAndReset(),expectedDigest))
+                throw new InvalidDataException("READBACK_DIGEST");
+        }
+        finally { ArrayPool<byte>.Shared.Return(buffer); }
+    }
+
     static Task Stage(int port,string identity,string folder,CancellationToken ct)
         => Stage(port,identity,folder,ct,Payload.Length,Digest);
 
@@ -143,6 +180,10 @@ internal static partial class Program
     {
         if (identity != ExpectedRelease || port is < 1 or > 65535)
             throw new InvalidDataException("RELEASE_IDENTITY");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TimeSpan.FromSeconds(2));
+        var token = deadline.Token;
+        token.ThrowIfCancellationRequested();
         var handler = new SocketsHttpHandler
         {
             AllowAutoRedirect = false,
@@ -180,11 +221,9 @@ internal static partial class Program
         req.Headers.AcceptEncoding.Clear();
         var tmp = System.IO.Path.Combine(folder,PartName);
         var final = System.IO.Path.Combine(folder,FinalName);
-        var ok = false;
-        try
         {
             using var response = await http.SendAsync(req,
-                HttpCompletionOption.ResponseHeadersRead,ct);
+                HttpCompletionOption.ResponseHeadersRead,token);
             if (response.StatusCode != HttpStatusCode.OK ||
                 response.Version != HttpVersion.Version11 ||
                 response.Headers.Location != null ||
@@ -200,7 +239,7 @@ internal static partial class Program
             var total = 0;
             await using (var output = new FileStream(tmp,FileMode.CreateNew,
                 FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough))
-            await using (var remote = await response.Content.ReadAsStreamAsync(ct))
+            await using (var remote = await response.Content.ReadAsStreamAsync(token))
             {
                 using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
                 var buffer = ArrayPool<byte>.Shared.Rent(4096);
@@ -208,34 +247,30 @@ internal static partial class Program
                 {
                     while (true)
                     {
-                        var n = await remote.ReadAsync(buffer.AsMemory(0,4096),ct);
+                        var n = await remote.ReadAsync(buffer.AsMemory(0,4096),token);
                         if (n == 0) break;
                         total = checked(total+n);
                         if (total > authorizedLength || total > MaximumBytes)
                             throw new InvalidDataException("BODY_EXCEEDS_SIGNED_SIZE");
                         hasher.AppendData(buffer,0,n);
-                        await output.WriteAsync(buffer.AsMemory(0,n),ct);
+                        await output.WriteAsync(buffer.AsMemory(0,n),token);
                     }
                     if (total != authorizedLength ||
                         !CryptographicOperations.FixedTimeEquals(
                             hasher.GetHashAndReset(),authorizedDigest))
                         throw new InvalidDataException("BODY_DIGEST_MISMATCH");
+                    token.ThrowIfCancellationRequested();
                     output.Flush(flushToDisk:true);
                 }
                 finally { ArrayPool<byte>.Shared.Return(buffer); }
             }
-            Verify(tmp,authorizedLength,authorizedDigest);
+            await VerifyAsync(tmp,authorizedLength,authorizedDigest,token);
+            token.ThrowIfCancellationRequested();
             File.Move(tmp,final,overwrite:false);
-            Verify(final,authorizedLength,authorizedDigest);
-            ok=true;
-        }
-        finally
-        {
-            if (!ok)
-            {
-                if (File.Exists(tmp)) File.Delete(tmp);
-                if (File.Exists(final)) File.Delete(final);
-            }
+            await VerifyAsync(final,authorizedLength,authorizedDigest,token);
+            // A failed attempt does not delete by name: either name could now
+            // identify a preexisting or concurrently replaced object.
+            // Preserve ambiguous artifacts for HOLD/diagnostic disposition.
         }
     }
 
