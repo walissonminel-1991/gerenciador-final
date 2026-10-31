@@ -169,7 +169,7 @@ jobs:
                 !$h.test_only -or $h.operational_ready -or $h.automatic_recovery_authorized) {
               throw 'GF_E2E_AUTONOMOUS_L18_HANDOFF_REPORT_INVALID'
             }
-            Write-Host 'GF_E2E_GF_OLD_MAINFORM_SHOWN_TUF_AND_EXISTING_L18_COMPLETE all_29=PASS_CONTAINMENT ready=false'
+            Write-Host 'GF_E2E_GF_OLD_MAINFORM_SHOWN_TUF_AND_EXISTING_L18_COMPLETE focused_normal=PASS_CONTAINMENT ready=false'
           }
           finally {
             if (!$proc.HasExited) {
@@ -216,10 +216,10 @@ jobs:
           $handoff=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-l18-handoff-report.json'
           if (!(Test-Path $report) -or !(Test-Path $handoff)) { throw 'GF_E2E_L18_OLD_HANDOFF_MISSING' }
           $h=Get-Content $handoff -Raw | ConvertFrom-Json
-          if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/1' -or
+          if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/2' -or
               !$h.initiated_by_gf_old_mainform -or !$h.tuf_child_verified_download -or
               !$h.same_l18_coordinator_invoked_by_old -or
-              $h.l18_cases -ne 29 -or $h.normal_outcome -ne 'UnknownBlocked' -or
+              $h.l18_cases -ne 1 -or $h.normal_outcome -ne 'UnknownBlocked' -or
               !$h.test_only -or $h.operational_ready -or $h.automatic_recovery_authorized) {
             throw 'GF_E2E_OLD_HANDOFF_INCONCLUSIVE'
           }
