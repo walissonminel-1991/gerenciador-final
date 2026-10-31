@@ -45,10 +45,12 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
+          $privateExe=Join-Path $env:RUNNER_TEMP 'gf-normal-private/GerenciadorFinal.exe'
+          if (!(Test-Path -LiteralPath $privateExe)) { throw 'PRIVATE_BINARY_ABSENT' }
           $env:GH_TOKEN=''
           $env:GITHUB_ACTIONS='false'
           $env:GITHUB_REPOSITORY=''
           $env:RUNNER_TEMP=''
-          & "$env:TEMP/gf-normal-private/GerenciadorFinal.exe" --gf-private-update-smoke
+          & $privateExe --gf-private-update-smoke
           if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_NORMAL_PROBE_FAILED' }
           Write-Host 'GF_PRIVATE_UPDATE_TOKEN_FREE_READONLY_PASS READY=false no_download=true no_install=true'
