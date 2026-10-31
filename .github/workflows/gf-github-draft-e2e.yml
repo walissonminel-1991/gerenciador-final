@@ -6,6 +6,10 @@ on:
       - '.github/workflows/gf-github-draft-e2e.yml'
       - 'prototipos/autoatualizador-seguro/phase1-composed/GfOldDraftAcquire.cs.txt'
       - 'prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/Phase1RecoveryTests.cs.txt'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/Phase1Recovery.cs.txt'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py'
+      - 'prototipos/autoatualizador-seguro/m3-l16-signed-stage/L16Tests.cs.txt'
 permissions:
   contents: write # Access to existing Draft requires a write-capable ephemeral GitHub token.
 concurrency:
