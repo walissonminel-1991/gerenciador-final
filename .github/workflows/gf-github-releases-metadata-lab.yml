@@ -1,0 +1,46 @@
+name: GF - descoberta GitHub Releases sem instalacao (laboratorio)
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/github-metadata-lab/**'
+      - '.github/workflows/gf-github-releases-metadata-lab.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-github-metadata-lab
+  cancel-in-progress: false
+jobs:
+  github-release-metadata-only:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    env:
+      DOTNET_NOLOGO: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - name: Checkout sem credenciais
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Isolamento do GF e ausência de instaladores
+        shell: pwsh
+        run: |
+          $p=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          if (@($p.Items.Compile | Where-Object { $_.Identity -match 'prototipos[/\\]autoatualizador-seguro' }).Count -ne 0) {
+            throw 'GF_METADATA_LAB_LEAK_IN_PRODUCT'
+          }
+          $files=Get-ChildItem 'prototipos/autoatualizador-seguro/github-metadata-lab' -File
+          if (@($files | Where-Object {$_.Extension -notin @('.cs','.csproj','.md')}).Count -ne 0) {
+            throw 'GF_METADATA_LAB_UNEXPECTED_PAYLOAD'
+          }
+      - name: Validar consulta GitHub e recusas sem rede
+        shell: pwsh
+        run: |
+          $project='prototipos/autoatualizador-seguro/github-metadata-lab/GF.GithubMetadataLab.csproj'
+          dotnet run --project $project --configuration Release --no-launch-profile
+          if ($LASTEXITCODE -ne 0) { throw 'GF_METADATA_LAB_TESTS_FAILED' }
+# No installer, release, deploy, telemetry, trust promotion or product integration.
