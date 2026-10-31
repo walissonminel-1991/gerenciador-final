@@ -1,0 +1,135 @@
+using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
+
+// Compiled ONLY with D24_INTEGRATION. The signature/authenticity verdict comes
+// from the separate Python-TUF lab; this is an UNTRUSTED handoff, not a secure
+// same-user IPC boundary or an authorization for executable updates.
+internal static partial class Program
+{
+    static async Task<int> RunD24(string[] args)
+    {
+        var outcome="rejected";
+        var reason="INVALID_HANDOFF";
+        var accepted=0;
+        var prepared=false;
+        var reportBase=new {
+            schema="gf-d24-dotnet-handoff/1",
+            authority="PUBLIC_TEST_ONLY",
+            production_authority=false,
+            handoff_secure_against_same_user=false,
+            can_install=false,
+            operational_ready=false,
+            automatic_recovery_authorized=false
+        };
+        var root=Environment.GetEnvironmentVariable("RUNNER_TEMP");
+        if (!OperatingSystem.IsWindows() ||
+            Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true" ||
+            string.IsNullOrWhiteSpace(root))
+            return 3;
+        string? lab=null;
+        try
+        {
+            if (args.Length!=5) throw new InvalidDataException("HANDOFF_ARG_COUNT");
+            var path=System.IO.Path.GetFullPath(args[1]);
+            var temp=System.IO.Path.GetFullPath(root);
+            if (!path.StartsWith(temp.TrimEnd(System.IO.Path.DirectorySeparatorChar)+
+                System.IO.Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)
+                || System.IO.Path.GetFileName(path)!="GF-RELEASE-MANIFEST.json")
+                throw new InvalidDataException("MANIFEST_OUTSIDE_LAB");
+            var file=new FileInfo(path);
+            if (!file.Exists || file.Length is < 1 or > 65536 ||
+                (file.Attributes & FileAttributes.ReparsePoint)!=0)
+                throw new InvalidDataException("MANIFEST_FILE_INVALID");
+            var raw=await File.ReadAllBytesAsync(path);
+            if (args[2].Length!=64 ||
+                !string.Equals(Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant(),
+                               args[2],StringComparison.Ordinal))
+                throw new InvalidDataException("TUF_HANDOFF_BYTES_CHANGED");
+            using var document=JsonDocument.Parse(raw,new JsonDocumentOptions {
+                AllowTrailingCommas=false,CommentHandling=JsonCommentHandling.Disallow,
+                MaxDepth=8
+            });
+            if (document.RootElement.ValueKind!=JsonValueKind.Object)
+                throw new InvalidDataException("MANIFEST_NOT_OBJECT");
+            var fields=new Dictionary<string,JsonElement>(StringComparer.Ordinal);
+            foreach(var property in document.RootElement.EnumerateObject())
+            {
+                if (!fields.TryAdd(property.Name,property.Value))
+                    throw new InvalidDataException("MANIFEST_DUPLICATE_FIELD");
+            }
+            string[] names={"schema","repository","channel","tag","version",
+                "architecture","asset","length","sha256","test_only",
+                "operational_installable"};
+            if (fields.Count!=names.Length || names.Any(x=>!fields.ContainsKey(x)))
+                throw new InvalidDataException("MANIFEST_FIELD_SET");
+            string S(string k)
+            {
+                if (fields[k].ValueKind!=JsonValueKind.String)
+                    throw new InvalidDataException("MANIFEST_TYPE_"+k);
+                return fields[k].GetString()!;
+            }
+            var approvedLength=fields["length"];
+            if (approvedLength.ValueKind!=JsonValueKind.Number ||
+                !approvedLength.TryGetInt32(out var n) || n!=Payload.Length)
+                throw new InvalidDataException("MANIFEST_PAYLOAD_LENGTH");
+            if (fields["test_only"].ValueKind!=JsonValueKind.True ||
+                fields["operational_installable"].ValueKind!=JsonValueKind.False ||
+                S("schema")!="gf-github-release-auth-lab/1" ||
+                S("repository")!="walissonminel-1991/gerenciador-final" ||
+                S("channel")!="stable" ||
+                S("architecture")!="win-x64" ||
+                S("tag")!=args[3] || args[3]!="v5.13.11.66" ||
+                S("version")!="5.13.11.66" ||
+                args[4]!="5.13.11.65" ||
+                S("asset")!="GerenciadorFinal-portable-win-x64.zip" ||
+                S("sha256")!=Convert.ToHexString(Digest).ToLowerInvariant())
+                throw new InvalidDataException("MANIFEST_UNAUTHORIZED_FIELDS");
+
+            // TEST-ONLY now. This cannot verify TUF signatures itself; the
+            // manifest hash argument is the output of earlier Python-TUF work.
+            // Run the EXACT D2.3 HttpClient transport class, with no copy.
+            lab=System.IO.Path.Combine(root,"gf-d24-"+Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(lab);
+            var sentinel=System.IO.Path.Combine(lab,"outside-stage.fixture.txt");
+            await File.WriteAllTextAsync(sentinel,"PRESERVED\n");
+            var stage=System.IO.Path.Combine(lab,"stage");
+            Directory.CreateDirectory(stage);
+            await using(var server=new LoopbackServer(new Reply(Fragment:7)))
+            {
+                await Stage(server.Port,ExpectedRelease,stage,CancellationToken.None,
+                            n,Convert.FromHexString(S("sha256")));
+                accepted=server.Accepts;
+            }
+            Verify(System.IO.Path.Combine(stage,FinalName),n,
+                    Convert.FromHexString(S("sha256")));
+            if (await File.ReadAllTextAsync(sentinel)!="PRESERVED\n" ||
+                accepted!=1)
+                throw new InvalidDataException("D24_SENTINEL_OR_SOCKET_COUNT");
+            prepared=true;
+            outcome="accepted_inert_test_only";
+            reason="PUBLIC_TEST_MANIFEST_EQUALS_INERT_BYTES";
+        }
+        catch (Exception e) when (e is InvalidDataException or JsonException or
+            FormatException or OverflowException or IOException)
+        {
+            reason=e.GetType().Name;
+        }
+        finally
+        {
+            if (lab!=null && Directory.Exists(lab))
+                Directory.Delete(lab,recursive:true);
+        }
+        Console.WriteLine("GF_D24_BRIDGE "+JsonSerializer.Serialize(new {
+            reportBase.schema,reportBase.authority,
+            status=outcome,reason,
+            loopback_connections=accepted,
+            staged_inert_bytes=prepared,
+            reportBase.production_authority,
+            reportBase.handoff_secure_against_same_user,
+            reportBase.can_install,reportBase.operational_ready,
+            reportBase.automatic_recovery_authorized
+        }));
+        return 0;
+    }
+}
