@@ -1,0 +1,297 @@
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+
+// D2.4.3: observations only; NEVER invokes Stage, installs, selects or recovers.
+// Cooperative named mutex protects ordinary concurrent lab attempts, NOT a
+// same-user security principal nor durable antirollback storage.
+internal static partial class Program
+{
+    static string RootFromRunner()
+    {
+        var root=Environment.GetEnvironmentVariable("RUNNER_TEMP");
+        if (!OperatingSystem.IsWindows() ||
+            Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true" ||
+            string.IsNullOrWhiteSpace(root))
+            throw new InvalidDataException("D243_DISPOSABLE_WINDOWS_ONLY");
+        return Path.GetFullPath(root);
+    }
+
+    static string RequireUnlinkedUnderRunner(string value,string prefix)
+    {
+        var runner=RootFromRunner();
+        var path=Path.GetFullPath(value);
+        if (!path.StartsWith(runner.TrimEnd(Path.DirectorySeparatorChar)+
+                Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase) ||
+            !Path.GetFileName(path).StartsWith(prefix,StringComparison.Ordinal))
+            throw new InvalidDataException("D243_PATH_SCOPE");
+        // Observations are conservative, not race-free. All ancestors below
+        // RUNNER_TEMP are checked; later replacements are still possible.
+        var relative=Path.GetRelativePath(runner,path);
+        var segment=runner;
+        foreach(var part in relative.Split(Path.DirectorySeparatorChar))
+        {
+            if(part is "" or "." or ".." || part.Contains(':'))
+                throw new InvalidDataException("D243_PATH_COMPONENT");
+            segment=Path.Combine(segment,part);
+            var info=new DirectoryInfo(segment);
+            if (!info.Exists || (info.Attributes & FileAttributes.ReparsePoint)!=0)
+                throw new InvalidDataException("D243_ANCESTOR_REPARSE_OR_UNKNOWN");
+        }
+        return path;
+    }
+
+    static string PersistentValidatorSource()
+    {
+        using var input=typeof(Program).Assembly.GetManifestResourceStream(
+            "GF.D243.PersistentChild")
+            ?? throw new InvalidDataException("D243_EMBEDDED_CHILD_MISSING");
+        using var reader=new StreamReader(input,Encoding.UTF8);
+        var source=reader.ReadToEnd();
+        if(source.Length is < 1000 or > 20000 ||
+           !source.Contains("from d11_persistent_lab import observe",StringComparison.Ordinal))
+            throw new InvalidDataException("D243_CHILD_RESOURCE_INVALID");
+        return source;
+    }
+
+    static async Task<(int Exit,string Output)> RunPersistentTufChild(
+        string fixture,string session,string probe,string trust,CancellationToken ct)
+    {
+        var psi=new ProcessStartInfo {
+            FileName="python",WorkingDirectory=fixture,UseShellExecute=false,
+            RedirectStandardOutput=true,RedirectStandardError=true,
+            CreateNoWindow=true
+        };
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add(PersistentValidatorSource());
+        foreach(var value in new[]{"--d243-child",fixture,session,probe,trust})
+            psi.ArgumentList.Add(value);
+        using var process=Process.Start(psi)
+            ?? throw new InvalidDataException("D243_CHILD_PROCESS_MISSING");
+        using var limit=CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(TimeSpan.FromSeconds(15));
+        try
+        {
+            var outputTask=process.StandardOutput.ReadToEndAsync(limit.Token);
+            var errorTask=process.StandardError.ReadToEndAsync(limit.Token);
+            await process.WaitForExitAsync(limit.Token);
+            var output=await outputTask;
+            var error=await errorTask;
+            if(output.Length>4096 || error.Length>4096)
+                throw new InvalidDataException("D243_CHILD_OUTPUT_BOUND");
+            return (process.ExitCode,output);
+        }
+        catch(OperationCanceledException)
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree:true);
+            throw;
+        }
+    }
+
+    static bool ValidPersistentReceipt(string raw,string session,string hash,
+        string tag,int expectedVersion)
+    {
+        try
+        {
+            using var document=JsonDocument.Parse(raw,new JsonDocumentOptions {
+                AllowTrailingCommas=false,CommentHandling=JsonCommentHandling.Disallow,
+                MaxDepth=5
+            });
+            var obj=document.RootElement;
+            if(obj.ValueKind!=JsonValueKind.Object)return false;
+            var dict=new Dictionary<string,JsonElement>(StringComparer.Ordinal);
+            foreach(var field in obj.EnumerateObject())
+                if(!dict.TryAdd(field.Name,field.Value))return false;
+            var names=new[]{"schema","session","manifest_sha256","tag","roles",
+                "tuf_observed_test_only","production_authority","can_install",
+                "operational_ready","automatic_recovery_authorized"};
+            if(dict.Count!=names.Length || names.Any(x=>!dict.ContainsKey(x)))
+                return false;
+            bool S(string k,string v)=>dict[k].ValueKind==JsonValueKind.String &&
+                dict[k].GetString()==v;
+            if(!S("schema","gf-d243-persistent-tuf-child/1") ||
+                !S("session",session) || !S("manifest_sha256",hash) ||
+                !S("tag",tag) ||
+                dict["tuf_observed_test_only"].ValueKind!=JsonValueKind.True ||
+                dict["production_authority"].ValueKind!=JsonValueKind.False ||
+                dict["can_install"].ValueKind!=JsonValueKind.False ||
+                dict["operational_ready"].ValueKind!=JsonValueKind.False ||
+                dict["automatic_recovery_authorized"].ValueKind!=JsonValueKind.False)
+                return false;
+            if(dict["roles"].ValueKind!=JsonValueKind.Array ||
+                dict["roles"].GetArrayLength()!=4)return false;
+            var roles=dict["roles"].EnumerateArray().ToArray();
+            return roles.All((x)=>x.ValueKind==JsonValueKind.Number) &&
+                roles[0].GetInt32()==1 &&
+                roles.Skip(1).All(x=>x.GetInt32()==expectedVersion);
+        }
+        catch(Exception e) when(e is JsonException or InvalidOperationException
+            or FormatException or OverflowException){return false;}
+    }
+
+    static async Task<int> RunD243(string[] args)
+    {
+        var status="unknown_hold";
+        var reason="UNPROVEN_TRUST_STATE";
+        var childStarted=false;
+        var authenticated=false;
+        var noStage=true;
+        var lockHeld=false;
+        var version=0;
+        Mutex? mutex=null;
+        try
+        {
+            if(args.Length!=3)throw new InvalidDataException("D243_ARGUMENTS");
+            var fixture=RequireUnlinkedUnderRunner(args[1],"gf-d243-fixture-");
+            var trusted=RequireUnlinkedUnderRunner(args[2],"gf-d243-trust-");
+            var d0=Path.Combine(RootFromRunner(),"gf-d24-d0","GF.D11.D0Probe.exe");
+            if(!File.Exists(d0))throw new InvalidDataException("D243_D0_MISSING");
+            var manifestPath=Path.Combine(fixture,"GF-RELEASE-MANIFEST.json");
+            var manifestInfo=new FileInfo(manifestPath);
+            if(!manifestInfo.Exists || manifestInfo.Length is < 1 or > 65536 ||
+                (manifestInfo.Attributes & FileAttributes.ReparsePoint)!=0)
+                throw new InvalidDataException("D243_MANIFEST_UNKNOWN");
+            var snapshot=await File.ReadAllBytesAsync(manifestPath);
+            using var parsed=JsonDocument.Parse(snapshot);
+            if(!parsed.RootElement.TryGetProperty("tag",out var tagValue) ||
+               tagValue.ValueKind!=JsonValueKind.String)
+                throw new InvalidDataException("D243_MISSING_TAG");
+            var tag=tagValue.GetString()!;
+            if(tag!="v5.13.11.66" && tag!="v5.13.11.67")
+                throw new InvalidDataException("D243_TEST_TAG");
+            version=tag.EndsWith("66",StringComparison.Ordinal)?1:2;
+            var key=Convert.ToHexString(SHA256.HashData(
+                Encoding.UTF8.GetBytes(trusted.ToUpperInvariant())));
+            mutex=new Mutex(false,@"Local\GF_D243_"+key[..32]);
+            try {lockHeld=mutex.WaitOne(0);}
+            catch(AbandonedMutexException)
+            {
+                // History could have been interrupted in a critical section.
+                // Remain HOLD, preserve files, never silently recover.
+                reason="D243_ABANDONED_LOCK_HOLD";
+                lockHeld=true;
+                return Report();
+            }
+            if(!lockHeld)
+            {
+                reason="D243_CONCURRENT_SESSION_HOLD";
+                return Report();
+            }
+            Console.WriteLine("GF_D243_LOCK_HELD");
+            Console.Out.Flush();
+            var delay=Environment.GetEnvironmentVariable("GF_D243_TEST_HOLD_MS");
+            if(delay!=null && int.TryParse(delay,out var ms) && ms is > 0 and <= 3000)
+                await Task.Delay(ms);
+            var session=Convert.ToHexString(RandomNumberGenerator.GetBytes(16))
+                .ToLowerInvariant();
+            childStarted=true;
+            var (exit,stdout)=await RunPersistentTufChild(
+                fixture,session,d0,trusted,CancellationToken.None);
+            if(exit!=0)throw new InvalidDataException("D243_TUF_HISTORY_REJECTED");
+            var records=stdout.Split('\n',StringSplitOptions.RemoveEmptyEntries);
+            if(records.Length!=1 ||
+               !records[0].StartsWith("GF_D243_VERIFIED ",StringComparison.Ordinal))
+                throw new InvalidDataException("D243_CHILD_RECEIPT_COUNT");
+            var current=await File.ReadAllBytesAsync(manifestPath);
+            if(!CryptographicOperations.FixedTimeEquals(
+                SHA256.HashData(current),SHA256.HashData(snapshot)) ||
+               !ValidPersistentReceipt(records[0]["GF_D243_VERIFIED ".Length..].TrimEnd('\r'),
+                session,Convert.ToHexString(SHA256.HashData(snapshot)).ToLowerInvariant(),
+                tag,version))
+                throw new InvalidDataException("D243_MANIFEST_OR_RECEIPT_RACE");
+            authenticated=true;
+            status="inert_trust_observed_blocked";
+            reason="PERSISTENT_TEST_TUF_ONLY_NO_STAGE";
+        }
+        catch(Exception e) when(e is InvalidDataException or IOException or
+            UnauthorizedAccessException or JsonException or ArgumentException or
+            Win32Exception or OperationCanceledException)
+        {
+            reason=e.GetType().Name;
+        }
+        finally
+        {
+            if(lockHeld) mutex?.ReleaseMutex();
+            mutex?.Dispose();
+        }
+        return Report();
+
+        int Report()
+        {
+            Console.WriteLine("GF_D243_OBSERVATION "+JsonSerializer.Serialize(new {
+                schema="gf-d243-persistent-coordinator/1",
+                status,reason,child_launched=childStarted,
+                test_tuf_observed=authenticated,
+                observed_role_generation=authenticated?version:0,
+                staged_inert_bytes=false,
+                network_requests=0,
+                can_install=false,operational_ready=false,
+                automatic_recovery_authorized=false,
+                same_user_rollback_resistant=false,
+                same_user_ntfs_toctou_proven=false,
+                cooperative_lock_only=true,
+                abandoned_lock_recovery_authorized=false
+            }));
+            return 0;
+        }
+    }
+
+    static async Task<int> RunD243Probe(string[] args)
+    {
+        var status="unknown_hold";
+        var reason="UNKNOWN_IDENTITY";
+        var observed=false;
+        try
+        {
+            if(args.Length!=3)throw new InvalidDataException("D243_PROBE_ARGS");
+            var root=RequireUnlinkedUnderRunner(args[1],"gf-d243-probe-");
+            if(args[2]!="data.fixture.txt")
+                throw new InvalidDataException("D243_PROBE_FIXED_NAME");
+            var full=Path.Combine(root,args[2]);
+            var attr=File.GetAttributes(full);
+            if((attr & FileAttributes.ReparsePoint)!=0)
+                throw new InvalidDataException("D243_TARGET_REPARSE");
+            await using var held=new FileStream(full,FileMode.Open,FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,4096,FileOptions.Asynchronous);
+            var first=FileIdentity(held.SafeFileHandle);
+            if(!GetFileInformationByHandle(held.SafeFileHandle,out var info) ||
+               info.LinkCount != 1)
+                throw new InvalidDataException("D243_HARDLINK_UNKNOWN");
+            Console.WriteLine("GF_D243_PROBE_HANDLE_OPEN");
+            Console.Out.Flush();
+            var pause=Environment.GetEnvironmentVariable("GF_D243_PROBE_HOLD_MS");
+            if(pause!=null && int.TryParse(pause,out var ms) && ms is > 0 and <= 3000)
+                await Task.Delay(ms);
+            var attrAfter=File.GetAttributes(full);
+            if((attrAfter & FileAttributes.ReparsePoint)!=0)
+                throw new InvalidDataException("D243_TARGET_BECAME_REPARSE");
+            await using var again=new FileStream(full,FileMode.Open,FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,4096,FileOptions.Asynchronous);
+            if(FileIdentity(again.SafeFileHandle)!=first)
+                throw new InvalidDataException("D243_OBJECT_IDENTITY_CHANGED");
+            var a=SHA256.HashData(held);
+            var b=SHA256.HashData(again);
+            if(!CryptographicOperations.FixedTimeEquals(a,b))
+                throw new InvalidDataException("D243_BYTES_CHANGED");
+            observed=true;
+            status="inert_observed_blocked";
+            reason="HANDLE_IDENTITY_STABLE_TEST_ONLY";
+        }
+        catch(Exception e) when(e is InvalidDataException or IOException or
+            UnauthorizedAccessException or ArgumentException or
+            FileNotFoundException or DirectoryNotFoundException)
+        {
+            reason=e.GetType().Name;
+        }
+        Console.WriteLine("GF_D243_NTFS "+JsonSerializer.Serialize(new{
+            schema="gf-d243-ntfs-observer/1",status,reason,
+            stable_inert_handle_observed=observed,
+            can_install=false,can_delete=false,
+            automatic_recovery_authorized=false,
+            ntfs_same_user_resistance_proven=false
+        }));
+        return 0;
+    }
+}
