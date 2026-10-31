@@ -109,9 +109,11 @@ internal static class Phase1RecoveryTests
             :recovery.StartWithWitness(owner,Own,"--real-reconcile",src,lab,L16Tests.bootstrap,cut);
         if(cut!="none")
         {
+            cutStage="awaiting_cut_marker";
             await Until(()=>File.Exists(L18Coordinator.RealCutPath(src)) || child.Exited);
             Require(!child.Exited && File.ReadAllText(L18Coordinator.RealCutPath(src))==cut,
                 "REAL_RECONCILE_CUT_UNREACHED:"+ReadError(src));
+            cutStage="cut_seen_killing_owner";
             await child.KillOnlyThisProcess();
             Require(child.ExitCode==91,"REAL_RECONCILE_CUT_WRONG_EXIT");
             File.Delete(L18Coordinator.RealCutPath(src));
@@ -164,6 +166,7 @@ internal static class Phase1RecoveryTests
             string before=Hash(File.ReadAllBytes(Path.Combine(src,"l18-real-active.fixture.json")));
             string outcome=await Reopen(recovery,owner,src,s.Lab);
             string reason=Reason(src);
+            cutStage="replay_two";
             string replay=await Reopen(recovery,owner,src,s.Lab);
             // Intent cannot transition directly to Unknown in the inherited
             // journal. Its fallback blocker intentionally dominates replay.
@@ -467,6 +470,7 @@ internal static class Phase1RecoveryTests
             installedReceipt=Path.Combine(runner,"gf-e2e-live-install-transition.json");
         string cut="between-install-moves";
         bool killed=false;
+        string cutStage="before_owner_start";
         try
         {
             using var child=owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,
@@ -490,6 +494,7 @@ internal static class Phase1RecoveryTests
             await child.KillOnlyThisProcess();
             Require(child.ExitCode==91,"REAL_BETWEEN_MOVES_WRONG_KILL_EXIT");
             killed=true;
+            cutStage="owner_killed_replay_one";
             // A killed process cannot continue to the second rename.
             Require(!Directory.Exists(live) && Directory.Exists(backup) &&
                 Directory.Exists(incoming) && !File.Exists(installedReceipt),
@@ -513,6 +518,7 @@ internal static class Phase1RecoveryTests
                 File.ReadAllText(canary,new UTF8Encoding(false))==
                     "DO-NOT-TOUCH-MY-DATA\n",
                 "REAL_BETWEEN_MOVES_REPLAY_MUTATED_INSTALL");
+            cutStage="checking_pins_and_jobs";
             pins.Recheck();
             // Reopening the SAME L18 reconciler already revalidated TUF,
             // manifest and exact package identities with its RealLabPins.
@@ -537,6 +543,26 @@ internal static class Phase1RecoveryTests
                 automatic_retry_authorized=false,cleanup_performed=false,
                 test_only=true,operational_ready=false
             };
+        }
+        catch(Exception ex)
+        {
+            // Strictly runner-scoped diagnostic; never dump URLs, tokens or
+            // stack traces. This is NOT recovery evidence or authorization.
+            try
+            {
+                string reason=ex is Rejected rejected ? rejected.Code :
+                    ex.GetType().Name;
+                var diag=JsonSerializer.SerializeToUtf8Bytes(new{
+                    schema="gf-e2e-cut-failure-diagnostic/1",
+                    stage=cutStage,reason,owner_killed=killed,
+                    selector_test_only=true,operational_ready=false
+                });
+                L18Coordinator.DurableRealFile(Path.Combine(runner,
+                    "gf-e2e-cut-failure-diagnostic.json"),diag);
+            }
+            catch(IOException){ /* Cannot turn failed test into success. */ }
+            catch(UnauthorizedAccessException){ }
+            throw;
         }
         finally
         {

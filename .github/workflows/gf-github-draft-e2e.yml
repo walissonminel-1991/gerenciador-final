@@ -282,7 +282,31 @@ jobs:
           $report=Join-Path $runner 'gf-e2e-real-flow-report.json'
           $original=Join-Path $runner 'gf-e2e-original-l18-process.json'
           $deadline=[DateTime]::UtcNow.AddMinutes(4)
+          $diagnostic=Join-Path $runner 'gf-e2e-cut-failure-diagnostic.json'
           while ([DateTime]::UtcNow -lt $deadline -and !(Test-Path $report)) {
+            if (Test-Path $diagnostic) {
+              $diag=Get-Content -LiteralPath $diagnostic -Raw | ConvertFrom-Json
+              Write-Host "GF_E2E_CUT_INCONCLUSIVE_DIAGNOSTIC stage=$($diag.stage) reason=$($diag.reason) killed=$($diag.owner_killed)"
+              throw 'GF_E2E_BETWEEN_MOVES_COORDINATOR_FAILED_CLOSED'
+            }
+            if (Test-Path $original) {
+              $ownerProof=Get-Content -LiteralPath $original -Raw | ConvertFrom-Json
+              $owner=Get-Process -Id ([int]$ownerProof.process_id) -ErrorAction SilentlyContinue
+              if ($null -eq $owner) {
+                Start-Sleep -Milliseconds 400
+                if (!(Test-Path $report)) {
+                  if (Test-Path $diagnostic) {
+                    $diag=Get-Content -LiteralPath $diagnostic -Raw | ConvertFrom-Json
+                    Write-Host "GF_E2E_CUT_INCONCLUSIVE_DIAGNOSTIC stage=$($diag.stage) reason=$($diag.reason) killed=$($diag.owner_killed)"
+                  }
+                  throw 'GF_E2E_L18_EXITED_WITHOUT_BETWEEN_MOVES_PROOF_HOLD'
+                }
+              }
+              elseif ($owner.StartTime.ToUniversalTime().Ticks -ne
+                  [long]$ownerProof.process_start_utc_ticks) {
+                throw 'GF_E2E_L18_OWNER_IDENTITY_CHANGED_HOLD'
+              }
+            }
             Start-Sleep -Milliseconds 200
           }
           if (!(Test-Path $report) -or !(Test-Path $original)) {
