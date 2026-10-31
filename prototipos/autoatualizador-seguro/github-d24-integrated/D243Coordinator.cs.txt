@@ -190,7 +190,14 @@ internal static partial class Program
             childStarted=true;
             var (exit,stdout)=RunPersistentTufChild(
                 fixture,session,d0,trusted,CancellationToken.None).GetAwaiter().GetResult();
-            if(exit!=0)throw new InvalidDataException("D243_TUF_HISTORY_REJECTED");
+            if(exit!=0)
+            {
+                var rejectCode=stdout.Split('\n',StringSplitOptions.RemoveEmptyEntries)
+                    .FirstOrDefault(x=>x.StartsWith("GF_D243_REJECT ",StringComparison.Ordinal));
+                throw new InvalidDataException(rejectCode is null
+                    ? "D243_TUF_HISTORY_REJECTED"
+                    : rejectCode.Trim()[..Math.Min(rejectCode.Trim().Length,100)]);
+            }
             var records=stdout.Split('\n',StringSplitOptions.RemoveEmptyEntries);
             if(records.Length!=1 ||
                !records[0].StartsWith("GF_D243_VERIFIED ",StringComparison.Ordinal))
@@ -210,7 +217,7 @@ internal static partial class Program
             UnauthorizedAccessException or JsonException or ArgumentException or
             Win32Exception or OperationCanceledException)
         {
-            reason=e.GetType().Name;
+            reason=e.Message.Length>120?e.Message[..120]:e.Message;
         }
         finally
         {
