@@ -1,10 +1,7 @@
 name: GF - origem Draft e ciclo GF real em Windows descartavel
+# Single-use Draft pilot; no further automatic publication from branch pushes.
 on:
-  push:
-    branches: [experimento-g5-ipc-chat-alto-20261029]
-    paths:
-      - '.github/workflows/gf-github-draft-e2e.yml'
-      - 'prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
+  workflow_dispatch:
 permissions:
   contents: write # Exclusivamente para criar Release DRAFT de teste na propria CI
 concurrency:
@@ -20,7 +17,6 @@ jobs:
       DOTNET_NOLOGO: '1'
       PYTHONDONTWRITEBYTECODE: '1'
       GF_BETA_ENDPOINT: ''
-      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout experimental sem credenciais persistentes
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -62,6 +58,8 @@ jobs:
           python $script prepare --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --new (Join-Path $env:RUNNER_TEMP 'gf-e2e-build-new') --target (Join-Path $env:RUNNER_TEMP 'gf-e2e-upload-work')
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_PREPARE_OR_TUF_FAILED' }
       - name: Criar APENAS Release DRAFT, anexar pacote real e metadados TUF
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
@@ -81,6 +79,8 @@ jobs:
           Write-Host "GF_E2E_DRAFT_CREATED tag=$tag draft=true assets=5"
           "GF_E2E_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: DETECTAR origem em GitHub autenticado, baixar pacote real Draft
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
@@ -102,13 +102,6 @@ jobs:
           $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
           python $script verify --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --extracted (Join-Path $env:RUNNER_TEMP 'gf-e2e-authenticated-new')
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_DOWNLOADED_PACKAGE_NOT_AUTHENTIC' }
-      - name: Rejeitar pacote adulterado e transferencia incompleta sem executar NEW
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
-          python $script negative --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --target (Join-Path $env:RUNNER_TEMP 'gf-e2e-negatives')
-          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_NEGATIVE_REJECTION_FAILED' }
       - name: Reusar seletor unico C# L18 e ensaio GF REAL OLD para NEW
         shell: pwsh
         run: |
@@ -156,4 +149,11 @@ jobs:
             '- NEW nao e READY: HOLD/UnknownBlocked permanece; nenhuma recuperacao automaticamente autorizada'
             '- Necessario qualificar se GF antigo detecta atualizacao por codigo proprio; este fluxo ainda e orquestrado pelo laboratorio'
           )
+      - name: Rejeitar pacote adulterado e transferencia incompleta sem executar NEW
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
+          python $script negative --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --target (Join-Path $env:RUNNER_TEMP 'gf-e2e-negatives')
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_NEGATIVE_REJECTION_FAILED' }
 # No publishing. Draft only. No merge, installer, telemetry, Cloudflare, or personal PCs.
