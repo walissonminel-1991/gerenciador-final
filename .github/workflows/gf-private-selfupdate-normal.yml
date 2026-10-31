@@ -128,7 +128,10 @@ jobs:
           if ($port -lt 1024 -or $port -gt 65535) { throw 'PRIVATE_FUNCTIONAL_FEED_PORT_INVALID' }
           $env:GF_PRIVATE_FUNCTIONAL_FEED="http://127.0.0.1:$port/feed.json"
           $exe=Join-Path $old 'GerenciadorFinal.exe'
-          $parent=Start-Process -FilePath $exe -WorkingDirectory $old -ArgumentList '--gf-private-update-functional' -PassThru -Wait
+          $parent=Start-Process -FilePath $exe -WorkingDirectory $old -ArgumentList '--gf-private-update-functional' -PassThru
+          # Start-Process -Wait waits for descendants too. The NEW GUI is
+          # intentionally long-lived; wait ONLY for the original OLD handle.
+          if (!$parent.WaitForExit(90000)) { throw 'PRIVATE_FUNCTIONAL_OLD_TIMEOUT' }
           if ($parent.ExitCode -ne 0) { throw "PRIVATE_FUNCTIONAL_OLD_FAILED_$($parent.ExitCode)" }
           $until=[DateTime]::UtcNow.AddSeconds(100)
           while (!(Test-Path -LiteralPath $done) -and [DateTime]::UtcNow -lt $until) {
