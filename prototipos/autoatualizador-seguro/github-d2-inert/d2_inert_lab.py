@@ -157,7 +157,7 @@ def acquire_and_stage(signed_manifest, source, stage, runner, url, *,
                 except OSError:
                     pass
 
-def verify_d0_tuf(exe,root,manifest,roles,release,installed):
+def verify_d0_tuf(exe,root,manifest,roles,release,installed,*,bootstrap_bytes=None):
     rf=root/"release.json"
     require(not rf.exists(),"D2_RELEASE_FIXTURE_EXISTS")
     rf.write_bytes(release)
@@ -167,7 +167,7 @@ def verify_d0_tuf(exe,root,manifest,roles,release,installed):
     trust=root/"tuf"
     trust.mkdir()
     u=Updater(str(trust),URL,target_dir=str(trust/"targets"),
-              target_base_url=URL,fetcher=fetcher,bootstrap=ANCHOR.read_bytes())
+              target_base_url=URL,fetcher=fetcher,bootstrap=(bootstrap_bytes if bootstrap_bytes is not None else ANCHOR.read_bytes()))
     u.refresh()
     target=u.get_targetinfo(TARGET_NAME)
     require(target is not None and target.length==len(manifest)
