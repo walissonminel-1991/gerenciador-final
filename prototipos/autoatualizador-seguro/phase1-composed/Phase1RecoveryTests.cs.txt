@@ -1304,9 +1304,9 @@ internal static class Phase1RecoveryTests
             Directory.CreateDirectory(L16Tests.suite);
             if(a[0] is "--real-handoff-focused" or "--real-install-focused")
             {
+                bool installationSwap=a[0]=="--real-install-focused";
                 try
                 {
-                    bool installationSwap=a[0]=="--real-install-focused";
                     Require(int.TryParse(a[9],System.Globalization.NumberStyles.None,
                         System.Globalization.CultureInfo.InvariantCulture,out int oldPid) && oldPid>0,
                         "REAL_HANDOFF_ORIGINAL_PID");
