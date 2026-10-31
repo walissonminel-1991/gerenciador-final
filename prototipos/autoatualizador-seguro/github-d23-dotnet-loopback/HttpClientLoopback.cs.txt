@@ -1,0 +1,335 @@
+using System.Buffers;
+using System.Globalization;
+using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+
+// D2.3 experimental: real .NET HttpClient, inert payload, numeric loopback only.
+// No executable downloads, operational TUF authority, installation or recovery.
+internal static class Program
+{
+    const string Host = "127.0.0.1";
+    const string LocalPath = "/inert-only";
+    const string PartName = "inert.partial";
+    const string FinalName = "inert.fixture.bin";
+    const int MaximumBytes = 131072;
+    static readonly byte[] Payload = Encoding.ASCII.GetBytes(
+        "GF-D23-INERT-TEXT-NOT-A-ZIP-DLL-OR-EXECUTABLE\n");
+    static readonly byte[] Digest = SHA256.HashData(Payload);
+    const string ExpectedRelease =
+        "https://github.com/walissonminel-1991/gerenciador-final/releases/download/"
+        + "v5.13.11.66/GerenciadorFinal-portable-win-x64.zip";
+
+    sealed record Reply(int Status = 200, string? Length = null,
+        string? MediaType = null, byte[]? Body = null, int Fragment = 4096,
+        int CutAfter = -1, int DelayBeforeHeadersMs = 0,
+        int DelayBeforeBodyMs = 0, bool OmitLength = false,
+        bool ExtraHeader = false, bool Encoded = false,
+        bool TransferChunked = false, bool Location = false);
+
+    sealed class LoopbackServer : IAsyncDisposable
+    {
+        readonly TcpListener listener;
+        readonly CancellationTokenSource closing = new();
+        readonly Task serving;
+        public int Port { get; }
+        public int Accepts { get; private set; }
+
+        public LoopbackServer(Reply reply)
+        {
+            listener = new TcpListener(IPAddress.Loopback,0);
+            listener.Start(1);
+            Port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            serving = Serve(reply);
+        }
+
+        async Task Serve(Reply r)
+        {
+            try
+            {
+                using var client = await listener.AcceptTcpClientAsync(closing.Token);
+                Accepts++;
+                if (!IPAddress.IsLoopback(((IPEndPoint)client.Client.RemoteEndPoint!).Address))
+                    throw new InvalidOperationException("NON_LOOPBACK_PEER");
+                using var stream = client.GetStream();
+                var request = new byte[2048];
+                var count = 0;
+                while (count < request.Length)
+                {
+                    var n = await stream.ReadAsync(request.AsMemory(count),closing.Token);
+                    if (n == 0) return;
+                    count += n;
+                    if (Encoding.ASCII.GetString(request,0,count).Contains("\r\n\r\n",
+                        StringComparison.Ordinal)) break;
+                }
+                if (!Encoding.ASCII.GetString(request,0,count).StartsWith(
+                    "GET " + LocalPath + " HTTP/1.1\r\n",StringComparison.Ordinal))
+                    return;
+                if (r.DelayBeforeHeadersMs > 0)
+                    await Task.Delay(r.DelayBeforeHeadersMs,closing.Token);
+                var body = r.Body ?? Payload;
+                var length = r.Length ?? body.Length.ToString(CultureInfo.InvariantCulture);
+                var reason = r.Status switch
+                {
+                    200 => "OK", 206 => "Partial Content", 301 => "Moved",
+                    302 => "Found", 307 => "Temporary Redirect",
+                    308 => "Permanent Redirect", 404 => "Not Found",
+                    429 => "Too Many Requests", 500 => "Server Error", _ => "Other"
+                };
+                var response = new StringBuilder()
+                    .Append("HTTP/1.1 ").Append(r.Status).Append(" ")
+                    .Append(reason).Append("\r\n")
+                    .Append("Content-Type: ")
+                    .Append(r.MediaType ?? "application/octet-stream").Append("\r\n");
+                if (!r.OmitLength) response.Append("Content-Length: ")
+                    .Append(length).Append("\r\n");
+                if (r.ExtraHeader) response.Append("X-Unexpected: yes\r\n");
+                if (r.Encoded) response.Append("Content-Encoding: gzip\r\n");
+                if (r.TransferChunked) response.Append("Transfer-Encoding: chunked\r\n");
+                if (r.Location) response.Append("Location: https://evil.invalid/a\r\n");
+                response.Append("Connection: close\r\n\r\n");
+                await stream.WriteAsync(Encoding.ASCII.GetBytes(response.ToString()),
+                    closing.Token);
+                if (r.DelayBeforeBodyMs > 0)
+                    await Task.Delay(r.DelayBeforeBodyMs,closing.Token);
+                var size = r.CutAfter < 0 ? body.Length : Math.Min(r.CutAfter,body.Length);
+                var chunk = Math.Clamp(r.Fragment,1,4096);
+                for (var i=0; i<size; i+=chunk)
+                {
+                    await stream.WriteAsync(body.AsMemory(i,Math.Min(chunk,size-i)),
+                        closing.Token);
+                    await stream.FlushAsync(closing.Token);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or SocketException or
+                OperationCanceledException or ObjectDisposedException)
+            {
+                // Client abort or cancellation on an intentionally hostile fixture.
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            closing.Cancel();
+            listener.Stop();
+            try { await serving.WaitAsync(TimeSpan.FromSeconds(3)); }
+            catch (Exception ex) when (ex is OperationCanceledException or
+                ObjectDisposedException or SocketException or TimeoutException) { }
+            closing.Dispose();
+        }
+    }
+
+    static void Verify(string file)
+    {
+        var info = new FileInfo(file);
+        if (info.Length != Payload.Length || info.Length > MaximumBytes ||
+            (info.Attributes & FileAttributes.ReparsePoint) != 0)
+            throw new InvalidDataException("READBACK_LENGTH_OR_LINK");
+        using var stream = File.Open(file,FileMode.Open,FileAccess.Read,FileShare.Read);
+        if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(stream),Digest))
+            throw new InvalidDataException("READBACK_SHA");
+    }
+
+    static async Task Stage(int port,string identity,string folder,CancellationToken ct)
+    {
+        if (identity != ExpectedRelease || port is < 1 or > 65535)
+            throw new InvalidDataException("RELEASE_IDENTITY");
+        var handler = new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            UseProxy = false,
+            UseCookies = false,
+            AutomaticDecompression = DecompressionMethods.None,
+            UseDefaultCredentials = false,
+            ConnectCallback = async (context,token) =>
+            {
+                if (context.DnsEndPoint.Host != Host || context.DnsEndPoint.Port != port)
+                    throw new InvalidDataException("NON_LOOPBACK_DESTINATION");
+                var socket = new Socket(AddressFamily.InterNetwork,SocketType.Stream,
+                    ProtocolType.Tcp);
+                try
+                {
+                    await socket.ConnectAsync(new IPEndPoint(IPAddress.Loopback,port),token);
+                    if (!((IPEndPoint)socket.RemoteEndPoint!).Address.Equals(
+                        IPAddress.Loopback))
+                        throw new InvalidDataException("NON_LOOPBACK_REMOTE");
+                    return new NetworkStream(socket,ownsSocket:true);
+                }
+                catch { socket.Dispose(); throw; }
+            }
+        };
+        using var http = new HttpClient(handler,disposeHandler:true)
+        { Timeout = TimeSpan.FromSeconds(2) };
+        var requestUri = new Uri("http://" + Host + ":" +
+            port.ToString(CultureInfo.InvariantCulture) + LocalPath);
+        using var req = new HttpRequestMessage(HttpMethod.Get,requestUri)
+        {
+            Version = HttpVersion.Version11,
+            VersionPolicy = HttpVersionPolicy.RequestVersionExact
+        };
+        req.Headers.AcceptEncoding.Clear();
+        var tmp = System.IO.Path.Combine(folder,PartName);
+        var final = System.IO.Path.Combine(folder,FinalName);
+        var ok = false;
+        try
+        {
+            using var response = await http.SendAsync(req,
+                HttpCompletionOption.ResponseHeadersRead,ct);
+            if (response.StatusCode != HttpStatusCode.OK ||
+                response.Version != HttpVersion.Version11 ||
+                response.Headers.Location != null ||
+                response.Headers.TransferEncodingChunked == true ||
+                response.Content.Headers.ContentEncoding.Count != 0 ||
+                response.Content.Headers.ContentLength != Payload.Length ||
+                response.Content.Headers.ContentType?.MediaType !=
+                    "application/octet-stream" ||
+                response.Headers.Any(x => !x.Key.Equals("Connection",
+                    StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidDataException("HTTP_RESPONSE_NOT_AUTHORIZED");
+
+            var total = 0;
+            await using (var output = new FileStream(tmp,FileMode.CreateNew,
+                FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough))
+            await using (var remote = await response.Content.ReadAsStreamAsync(ct))
+            {
+                using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                var buffer = ArrayPool<byte>.Shared.Rent(4096);
+                try
+                {
+                    while (true)
+                    {
+                        var n = await remote.ReadAsync(buffer.AsMemory(0,4096),ct);
+                        if (n == 0) break;
+                        total = checked(total+n);
+                        if (total > Payload.Length || total > MaximumBytes)
+                            throw new InvalidDataException("BODY_EXCEEDS_SIGNED_SIZE");
+                        hasher.AppendData(buffer,0,n);
+                        await output.WriteAsync(buffer.AsMemory(0,n),ct);
+                    }
+                    if (total != Payload.Length ||
+                        !CryptographicOperations.FixedTimeEquals(
+                            hasher.GetHashAndReset(),Digest))
+                        throw new InvalidDataException("BODY_DIGEST_MISMATCH");
+                    output.Flush(flushToDisk:true);
+                }
+                finally { ArrayPool<byte>.Shared.Return(buffer); }
+            }
+            Verify(tmp);
+            File.Move(tmp,final,overwrite:false);
+            Verify(final);
+            ok=true;
+        }
+        finally
+        {
+            if (!ok)
+            {
+                if (File.Exists(tmp)) File.Delete(tmp);
+                if (File.Exists(final)) File.Delete(final);
+            }
+        }
+    }
+
+    static async Task<int> Main()
+    {
+        if (!OperatingSystem.IsWindows() ||
+            Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") return 2;
+        var temp = Environment.GetEnvironmentVariable("RUNNER_TEMP");
+        if (string.IsNullOrWhiteSpace(temp) || !Directory.Exists(temp)) return 3;
+        var lab = System.IO.Path.Combine(temp,"gf-d23-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(lab);
+        var sentinel = System.IO.Path.Combine(lab,"personal-fixture.txt");
+        File.WriteAllText(sentinel,"PERSONAL_DATA_PRESERVED");
+        var good=0;
+        var bad=0;
+        var accepted=0;
+        try
+        {
+            async Task Trial(string label, Reply reply,bool positive,
+                bool cancelled=false,string? identity=null)
+            {
+                await using var server = new LoopbackServer(reply);
+                var stage = System.IO.Path.Combine(lab,"test-"+label);
+                Directory.CreateDirectory(stage);
+                try
+                {
+                    using var cts = new CancellationTokenSource();
+                    if (cancelled) cts.CancelAfter(TimeSpan.FromMilliseconds(120));
+                    try
+                    {
+                        await Stage(server.Port,identity??ExpectedRelease,stage,cts.Token);
+                        if (!positive) throw new Exception("FALSE_ACCEPT_"+label);
+                        Verify(System.IO.Path.Combine(stage,FinalName));
+                        good++;
+                    }
+                    catch (Exception ex) when (!positive &&
+                        ex is InvalidDataException or HttpRequestException or
+                            OperationCanceledException or IOException)
+                    {
+                        if (File.Exists(System.IO.Path.Combine(stage,FinalName)))
+                            throw new Exception("FALSE_FINAL_FILE_"+label);
+                        bad++;
+                    }
+                }
+                finally
+                {
+                    accepted += server.Accepts;
+                    Directory.Delete(stage,recursive:true);
+                }
+            }
+
+            foreach(var part in new[]{1,7,4096})
+                await Trial("valid-"+part,new Reply(Fragment:part),true);
+            foreach(var status in new[]{301,302,307,308,206,404,429,500})
+                await Trial("status-"+status,new Reply(Status:status),false);
+            await Trial("html",new Reply(MediaType:"text/html"),false);
+            await Trial("missing-length",new Reply(OmitLength:true),false);
+            await Trial("short-length",new Reply(Length:(Payload.Length-1).ToString()),false);
+            await Trial("long-length",new Reply(Length:(Payload.Length+1).ToString()),false);
+            await Trial("zero-length",new Reply(Length:"0"),false);
+            await Trial("negative-length",new Reply(Length:"-1"),false);
+            await Trial("text-length",new Reply(Length:"unknown"),false);
+            await Trial("huge-length",new Reply(Length:(MaximumBytes+1).ToString()),false);
+            await Trial("encoded",new Reply(Encoded:true),false);
+            await Trial("chunked",new Reply(TransferChunked:true),false);
+            await Trial("location-on-200",new Reply(Location:true),false);
+            await Trial("unexpected-header",new Reply(ExtraHeader:true),false);
+            await Trial("truncated",new Reply(CutAfter:Payload.Length-2),false);
+            var modified=Payload.ToArray(); modified[0]^=1;
+            await Trial("changed-same-length",new Reply(Body:modified),false);
+            await Trial("cancel-before-headers",new Reply(DelayBeforeHeadersMs:450),
+                false,cancelled:true);
+            await Trial("cancel-before-body",new Reply(DelayBeforeBodyMs:450),
+                false,cancelled:true);
+            await Trial("foreign-identity",new Reply(),false,
+                identity:"https://evil.invalid/rogue.zip");
+
+            if (good != 3 || bad != 26 ||
+                File.ReadAllText(sentinel)!="PERSONAL_DATA_PRESERVED" ||
+                accepted != 28)
+                throw new Exception("TEST_MATRIX_OR_SCOPE_INCOMPLETE");
+            var report=new {
+                schema="gf-d23-dotnet-httpclient-loopback/1",status="passed",
+                positive_inert_streams=good,negative_cases_rejected=bad,
+                loopback_connections_observed=accepted,
+                http_client="dotnet10-System.Net.Http.HttpClient",
+                only_numeric_loopback_connection=true,
+                redirects_disabled=true,cancellation_tests_included=true,
+                inert_sha256_readback_verified=true,
+                outside_staging_sentinel_preserved=true,
+                d0_d1_tuf_chain_verified_in_dotnet_lab=false,
+                production_trust_root=false,github_asset_redirect_supported=false,
+                tls_or_real_github_tested=false,
+                same_user_toctou_resistance_proven=false,
+                full_history_rollback_resistance_proven=false,
+                real_executable_downloads=0,installations=0,product_modified=false,
+                operational_ready=false,automatic_recovery_authorized=false
+            };
+            Console.WriteLine("GF_D23_RESULT "+JsonSerializer.Serialize(report));
+            return 0;
+        }
+        finally { Directory.Delete(lab,recursive:true); }
+    }
+}
