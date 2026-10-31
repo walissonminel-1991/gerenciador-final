@@ -259,6 +259,8 @@ internal static partial class Program
             if(!GetFileInformationByHandle(held.SafeFileHandle,out var info) ||
                info.LinkCount != 1)
                 throw new InvalidDataException("D243_HARDLINK_UNKNOWN");
+            var originalHash=SHA256.HashData(held);
+            held.Position=0;
             Console.WriteLine("GF_D243_PROBE_HANDLE_OPEN");
             Console.Out.Flush();
             var pause=Environment.GetEnvironmentVariable("GF_D243_PROBE_HOLD_MS");
@@ -273,7 +275,8 @@ internal static partial class Program
                 throw new InvalidDataException("D243_OBJECT_IDENTITY_CHANGED");
             var a=SHA256.HashData(held);
             var b=SHA256.HashData(again);
-            if(!CryptographicOperations.FixedTimeEquals(a,b))
+            if(!CryptographicOperations.FixedTimeEquals(a,originalHash) ||
+               !CryptographicOperations.FixedTimeEquals(a,b))
                 throw new InvalidDataException("D243_BYTES_CHANGED");
             observed=true;
             status="inert_observed_blocked";
