@@ -14,5 +14,7 @@
     <Compile Include="../github-d23-dotnet-loopback/HttpClientLoopback.cs.txt" />
     <Compile Include="D24Handoff.cs.txt" />
     <EmbeddedResource Include="d242_tuf_child.py" LogicalName="GF.D242.TufChild" />
+    <EmbeddedResource Include="d243_persistent_child.py" LogicalName="GF.D243.PersistentChild" />
+    <Compile Include="D243Coordinator.cs.txt" />
   </ItemGroup>
 </Project>
