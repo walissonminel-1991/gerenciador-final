@@ -143,7 +143,8 @@ internal static class Program
             UseProxy = false,
             UseCookies = false,
             AutomaticDecompression = DecompressionMethods.None,
-            UseDefaultCredentials = false,
+            Credentials = null,
+            PreAuthenticate = false,
             ConnectCallback = async (context,token) =>
             {
                 if (context.DnsEndPoint.Host != Host || context.DnsEndPoint.Port != port)
