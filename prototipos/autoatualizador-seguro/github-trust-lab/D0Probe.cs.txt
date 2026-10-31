@@ -1,0 +1,23 @@
+using System.Text.Json;
+using GfReleaseMetadataLab;
+internal static class D0Probe
+{
+    static int Main(string[] a)
+    {
+        if (a.Length != 2 || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true") return 2;
+        var dir=Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")??"");
+        var file=Path.GetFullPath(a[0]);
+        if (!file.StartsWith(dir.TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase) || !File.Exists(file) ||
+            new FileInfo(file).Length > 524288 ||
+            !GitHubReleaseDiscovery.ParseVersion(a[1],out var version)) return 3;
+        var finding=GitHubReleaseDiscovery.EvaluateJson(File.ReadAllBytes(file),version);
+        Console.WriteLine("GF_D11_D0 "+JsonSerializer.Serialize(new {
+            schema="gf-d11-d0/1", source=GitHubReleaseDiscovery.Endpoint,
+            state=finding.State.ToString(), tag=finding.Version, read_only=true,
+            can_install=finding.CanInstall, ready=finding.Ready,
+            recovery=finding.AuthorizeRecovery
+        }));
+        return 0;
+    }
+}
