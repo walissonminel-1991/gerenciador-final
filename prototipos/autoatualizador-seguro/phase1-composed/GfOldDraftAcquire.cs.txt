@@ -222,8 +222,11 @@ internal static class GfOldDraftAcquire
                     !File.Exists(dest) &&
                     Path.GetDirectoryName(dest) == runner, "DOWNLOAD_DESTINATION_NOT_FRESH");
             using var http = Client();
+            // Draft tags are not reliably resolvable through releases/tags.
+            // Read the authorized existing Draft by its pinned numeric ID.
             var endpoint = new Uri("https://api.github.com/repos/" + Repo +
-                                   "/releases/tags/" + Tag);
+                                   "/releases/" + ReleaseId.ToString(
+                                       System.Globalization.CultureInfo.InvariantCulture));
             var assets = CheckMetadata(await ReadJson(http, endpoint, token));
             Directory.CreateDirectory(dest);
             foreach (var asset in Allowed)
