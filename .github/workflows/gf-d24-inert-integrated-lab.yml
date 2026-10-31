@@ -6,6 +6,7 @@ on:
       - 'prototipos/autoatualizador-seguro/github-d24-integrated/**'
       - '.github/workflows/gf-d24-inert-integrated-lab.yml'
       - 'prototipos/autoatualizador-seguro/github-d23-dotnet-loopback/HttpClientLoopback.cs.txt'
+      - 'prototipos/autoatualizador-seguro/github-d2-inert/d2_inert_lab.py'
 permissions:
   contents: read
 concurrency:
@@ -72,24 +73,29 @@ jobs:
             throw 'D24_TEST_INCOMPLETE'
           }
           $r=$line.Substring('GF_D24_RESULT '.Length) | ConvertFrom-Json
-          if ($r.schema -ne 'gf-github-d24-inert-integrated/1' -or
+          Write-Host $line
+          if ($r.schema -ne 'gf-d242-csharp-owned-tuf-session/1' -or
               $r.status -ne 'passed' -or
-              !$r.orchestrated_d0_tuf_dotnet_inert_staging -or
-              $r.authenticated_inert_preflight_positive -ne 1 -or
-              $r.tuf_d0_negative_cases_rejected -ne 12 -or
-              $r.dotnet_handoff_negative_cases_rejected -ne 14 -or
-              !$r.shared_dotnet_d23_transport_source -or
-              !$r.standalone_handoff_without_tuf_accepted -or
-              !$r.standalone_bypass_is_security_counterexample -or
-              $r.secure_cross_process_authority_proven -or
-              $r.same_user_rollback_protection_proven -or
-              $r.same_user_toctou_resistance_proven -or
-              !$r.public_test_signer_only -or
-              $r.real_network_requests -ne 0 -or
-              $r.real_executable_downloads -ne 0 -or
-              $r.installations -ne 0 -or $r.product_modified -or
-              $r.operational_ready -or $r.automatic_recovery_authorized) {
-            throw 'D24_UNSUPPORTED_SECURITY_CONCLUSION'
+              $r.positive_inert_sessions -ne 1 -or
+              $r.negative_sessions_rejected -ne 15 -or
+              $r.synthetic_receipts_rejected -ne 7 -or
+              !$r.embedded_tuf_validator_source -or
+              !$r.csharp_owns_child_and_stage -or
+              !$r.old_direct_manifest_sha_handoff_rejected -or
+              !$r.bootstrap_single_pinned_snapshot_used -or
+              !$r.shared_dotnet_d23_transport -or
+              !$r.session_replay_rejected -or
+              $r.secure_against_same_user_process_replacement -or
+              $r.persistent_tuf_history_rollback_proven -or
+              $r.same_user_ntfs_toctou_proven -or
+              !$r.test_signer_public_only -or
+              $r.external_requests -ne 0 -or
+              $r.downloaded_executables -ne 0 -or
+              $r.installations -ne 0 -or
+              $r.product_modified -or
+              $r.operational_ready -or
+              $r.automatic_recovery_authorized) {
+            throw 'D242_UNSUPPORTED_SECURITY_CONCLUSION'
           }
           Write-Host $line
 # No product change, GitHub release, downloader, installer, recovery, merge or deploy.
