@@ -604,8 +604,7 @@ internal static class Phase1RecoveryTests
             {
                 testCanary=Path.Combine(outputDir,"canary-copy.txt");
                 if(name=="canary-modified")
-                    File.WriteAllText(testCanary,"DO-NOT-TOUCH-MY-DATA-CHANGED
-",
+                    File.WriteAllText(testCanary,"DO-NOT-TOUCH-MY-DATA-CHANGED\n",
                         new UTF8Encoding(false));
                 // canary-missing deliberately leaves the isolated file absent
             }
