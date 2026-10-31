@@ -128,10 +128,57 @@ jobs:
           if ($port -lt 1024 -or $port -gt 65535) { throw 'PRIVATE_FUNCTIONAL_FEED_PORT_INVALID' }
           $env:GF_PRIVATE_FUNCTIONAL_FEED="http://127.0.0.1:$port/feed.json"
           $exe=Join-Path $old 'GerenciadorFinal.exe'
-          $parent=Start-Process -FilePath $exe -WorkingDirectory $old -ArgumentList '--gf-private-update-functional' -PassThru
-          # Start-Process -Wait waits for descendants too. The NEW GUI is
-          # intentionally long-lived; wait ONLY for the original OLD handle.
-          if (!$parent.WaitForExit(90000)) { throw 'PRIVATE_FUNCTIONAL_OLD_TIMEOUT' }
+          $parent=Start-Process -FilePath $exe -WorkingDirectory $old -PassThru
+          $click=@'
+          import ctypes,os,sys,time
+          from pathlib import Path
+          repo=Path(os.environ["GITHUB_WORKSPACE"]).resolve(strict=True)
+          sys.path.insert(0,str(repo/"prototipos"/"autoatualizador-seguro"/"phase1-composed"))
+          from win32_process_observation import own_main_windows,message_pump_ping
+          pid=int(sys.argv[1])
+          u=ctypes.WinDLL("user32",use_last_error=True)
+          CB=ctypes.WINFUNCTYPE(ctypes.c_int,ctypes.c_void_p,ctypes.c_ssize_t)
+          enum=u.EnumChildWindows
+          enum.argtypes=[ctypes.c_void_p,CB,ctypes.c_ssize_t]
+          enum.restype=ctypes.c_int
+          get=u.GetWindowTextW
+          get.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_int]
+          get.restype=ctypes.c_int
+          send=u.SendMessageTimeoutW
+          send.argtypes=[ctypes.c_void_p,ctypes.c_uint,ctypes.c_size_t,
+                         ctypes.c_ssize_t,ctypes.c_uint,ctypes.c_uint,
+                         ctypes.POINTER(ctypes.c_size_t)]
+          send.restype=ctypes.c_ssize_t
+          until=time.monotonic()+45
+          buttons=[]
+          while time.monotonic()<until:
+              windows=[w for w in own_main_windows(pid)
+                       if w["visible"] and message_pump_ping(w["hwnd"])]
+              if len(windows)!=1:
+                  time.sleep(.25)
+                  continue
+              buttons.clear()
+              @CB
+              def visit(hwnd,_):
+                  text=ctypes.create_unicode_buffer(128)
+                  get(hwnd,text,len(text))
+                  if text.value=="Verificar GF":
+                      buttons.append(hwnd)
+                  return 1
+              enum(windows[0]["hwnd"],visit,0)
+              if len(buttons)==1:
+                  break
+              time.sleep(.25)
+          assert len(buttons)==1,"NORMAL_OLD_SELF_UPDATE_BUTTON_NOT_FOUND"
+          result=ctypes.c_size_t()
+          assert send(buttons[0],0x00F5,0,0,0x0002,2500,
+                      ctypes.byref(result)), "NORMAL_OLD_SELF_UPDATE_CLICK_FAILED"
+          print("GF_PRIVATE_FUNCTIONAL_OLD_GUI_CLICK_PASS visible_normal_old=true button=Verificar_GF READY=false",flush=True)
+          '@
+          $click | python - $parent.Id
+          if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_FUNCTIONAL_OLD_UI_CLICK_UNPROVEN' }
+          # Wait only for the ORIGINAL OLD. A proper NEW GUI must remain alive.
+          if (!$parent.WaitForExit(120000)) { throw 'PRIVATE_FUNCTIONAL_OLD_TIMEOUT' }
           if ($parent.ExitCode -ne 0) { throw "PRIVATE_FUNCTIONAL_OLD_FAILED_$($parent.ExitCode)" }
           $until=[DateTime]::UtcNow.AddSeconds(100)
           while (!(Test-Path -LiteralPath $done) -and [DateTime]::UtcNow -lt $until) {
