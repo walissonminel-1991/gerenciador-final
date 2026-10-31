@@ -1,0 +1,9 @@
+# D2 — aquisição e preparo com bytes INERTES autenticados (laboratório)
+
+Objetivo: adicionar à sequência D0 → D1/D1.2 um **fluxo de aquisição e preparação de dados fictícios**, não o autoatualizador do GF distribuído. O verificador TUF usa o bootstrap de teste e as sementes Ed25519 públicas Stage11. A origem GitHub é uma Release fictícia lida pelo **parser C# D0 original**; os campos nome, tamanho e URL do asset não concedem autoridade criptográfica.
+
+O código valida o manifesto via python-tuf e o contrato D1. Em seguida, lê bytes inertes exclusivamente de uma fonte **em memória**, impondo limites de blocos, total, SHA-256 e tamanho. O resultado é guardado dentro de pasta temporária restrita a RUNNER_TEMP com nome de destino `inert-authorized.fixture.bin`; **não** cria ZIP executável, não faz extração, não abre URL, não altera PATH/Registro nem invoca instalação. Releitura após escrita e após renomeação verifica integridade; falhas tentam limpar os temporários do teste.
+
+Negativos incluem conteúdo adulterado/truncado, diferença de mesmo tamanho, bytes extras, origem inesperada ou redirect, nomes e caminhos inaceitáveis, preexistência de destino/temporário, corrupção após escrita, corrupção após releitura, origem enorme, tentativa fora da pasta e divergências entre Release D0 e manifesto TUF.
+
+**Limites importantes:** os hashes e tamanhos são autenticados exclusivamente sob raiz de **teste cujas chaves privadas são públicas**; não constituem autoridade real de publicação. O teste de mutação entre verificações detecta alterações específicas, mas **não prova ausência universal de TOCTOU**, contenção contra outros processos do mesmo usuário, ataques a junctions/handle swaps, durabilidade por crash, antirrollback H1 ou identidade dos bytes posteriormente executados. Não há aquisições de redes reais ou simulação de canal HTTPS seguro. Nenhuma recuperação automática ou integração ao produto. Fase 1 ABERTA, READY=false, G1–G8 BLOCKED 0/8.
