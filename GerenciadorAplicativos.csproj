@@ -67,6 +67,13 @@
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
     <PackageReference Include="Microsoft.WindowsPackageManager.ComInterop" Version="1.29.380" GeneratePathProperty="true" />
   </ItemGroup>
+  <!-- Optional isolated lab-only entrypoint; never included in normal GF builds. -->
+  <PropertyGroup Condition="'$(GfE2eLab)' == 'true'">
+    <DefineConstants>$(DefineConstants);GF_E2E_LAB</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(GfE2eLab)' == 'true'">
+    <Compile Include="prototipos/autoatualizador-seguro/phase1-composed/GfOldDraftAcquire.cs.txt" />
+  </ItemGroup>
   <Import Project="BetaTelemetryPolicy.props" />
   <Target Name="ValidateGfBetaEndpoint" BeforeTargets="CoreCompile">
     <ItemGroup>

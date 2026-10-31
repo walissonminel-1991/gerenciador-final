@@ -17,6 +17,11 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+#if GF_E2E_LAB
+        // Only test-mode GF OLD on disposable GitHub Windows Actions.
+        if (args.Length == 1 && args[0] == "--gf-e2e-draft-acquire")
+            return GfOldDraftAcquire.Run().GetAwaiter().GetResult();
+#endif
         if (args.Length == 1 && args[0] == WinGetComProcessCatalog.Argument)
             return Task.Run(WinGetComReader.Run).GetAwaiter().GetResult(); // COM reader owns an MTA thread
         // O trabalhador elevado executa comandos sem criar janelas auxiliares.

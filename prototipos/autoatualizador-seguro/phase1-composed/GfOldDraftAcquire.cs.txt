@@ -1,0 +1,249 @@
+// Experimental, opt-in GF OLD entrypoint, compiled only with GfE2eLab=true.
+// Never compiled into distributed GF. Do not infer production authenticity or READY.
+using System.Net;
+using System.Net.Http.Headers;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json;
+
+namespace GerenciadorAplicativos;
+
+internal static class GfOldDraftAcquire
+{
+    private const string Repo = "walissonminel-1991/gerenciador-final";
+    private const string Tag = "gf-e2e-c5057bbbaf1d";
+    private const long ReleaseId = 429695537;
+    private const string ZipSha = "3eadafed91c4090ea56c9e9be8175f8ece8acf05d9c7fda9f97db7644a33011e";
+    private const string ManifestSha = "a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d";
+    private sealed record Asset(string Name, long Id, long Length, string? Sha);
+    private static readonly Asset[] Allowed =
+    [
+        new("gf-e2e-new-win-x64.zip", 694233137, 57695630, ZipSha),
+        new("GF-LAB-REAL-PACKAGE-MANIFEST.json", 694233139, 72618, ManifestSha),
+        new("snapshot.json", 694233140, 467, null),
+        new("targets.json", 694233141, 562, null),
+        new("timestamp.json", 694233142, 469, null)
+    ];
+
+    private static void Require(bool ok, string reason)
+    {
+        if (!ok) throw new InvalidDataException("GF_E2E_OLD_" + reason);
+    }
+
+    private static HttpClient Client()
+    {
+        var handler = new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            UseCookies = false,
+            UseProxy = false,
+            AutomaticDecompression = DecompressionMethods.None,
+            Credentials = null,
+            ConnectTimeout = TimeSpan.FromSeconds(20)
+        };
+        return new HttpClient(handler, disposeHandler: true)
+        {
+            Timeout = TimeSpan.FromMinutes(4)
+        };
+    }
+
+    private static HttpRequestMessage Get(Uri uri, string? token, bool metadata)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.UserAgent.ParseAdd("GerenciadorFinal-E2E-Lab/1");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(
+            metadata ? "application/vnd.github+json" : "application/octet-stream"));
+        request.Headers.AcceptEncoding.Clear();
+        if (token is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            request.Headers.TryAddWithoutValidation("X-GitHub-Api-Version", "2022-11-28");
+        }
+        return request;
+    }
+
+    private static async Task<byte[]> ReadJson(HttpClient http, Uri endpoint, string token)
+    {
+        using var req = Get(endpoint, token, metadata: true);
+        using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+        Require(resp.StatusCode == HttpStatusCode.OK &&
+                resp.RequestMessage?.RequestUri == endpoint &&
+                resp.Headers.Location is null, "METADATA_STATUS_OR_REDIRECT");
+        var type = resp.Content.Headers.ContentType?.MediaType;
+        Require(type is "application/json" or "application/vnd.github+json",
+                "METADATA_CONTENT_TYPE");
+        Require(resp.Content.Headers.ContentLength is null or <= 524288,
+                "METADATA_TOO_LARGE");
+        await using var body = await resp.Content.ReadAsStreamAsync();
+        using var output = new MemoryStream();
+        byte[] buffer = new byte[8192];
+        int n;
+        while ((n = await body.ReadAsync(buffer)) > 0)
+        {
+            Require(output.Length + n <= 524288, "METADATA_UNBOUNDED");
+            output.Write(buffer, 0, n);
+        }
+        return output.ToArray();
+    }
+
+    private static void CheckMetadata(byte[] raw)
+    {
+        using var doc = JsonDocument.Parse(raw, new JsonDocumentOptions
+        {
+            AllowTrailingCommas = false,
+            CommentHandling = JsonCommentHandling.Disallow,
+            MaxDepth = 12
+        });
+        var root = doc.RootElement;
+        Require(root.ValueKind == JsonValueKind.Object &&
+                root.GetProperty("id").GetInt64() == ReleaseId &&
+                root.GetProperty("tag_name").GetString() == Tag &&
+                root.GetProperty("draft").ValueKind == JsonValueKind.True &&
+                root.GetProperty("published_at").ValueKind == JsonValueKind.Null,
+                "DRAFT_RELEASE_IDENTITY");
+        var assets = root.GetProperty("assets");
+        Require(assets.ValueKind == JsonValueKind.Array &&
+                assets.GetArrayLength() == Allowed.Length, "ASSET_COUNT");
+        var found = new HashSet<long>();
+        foreach (var entry in assets.EnumerateArray())
+        {
+            var id = entry.GetProperty("id").GetInt64();
+            var size = entry.GetProperty("size").GetInt64();
+            var name = entry.GetProperty("name").GetString();
+            Require(Allowed.Any(a => a.Id == id && a.Name == name && a.Length == size) &&
+                    found.Add(id), "ASSET_ID_OR_SIZE");
+        }
+        Require(found.Count == Allowed.Length, "ASSET_SET");
+    }
+
+    private static bool IsApprovedCdn(Uri uri) =>
+        uri.Scheme == Uri.UriSchemeHttps &&
+        uri.UserInfo.Length == 0 &&
+        uri.Port == 443 &&
+        (uri.Host.Equals("release-assets.githubusercontent.com", StringComparison.OrdinalIgnoreCase) ||
+         uri.Host.Equals("objects.githubusercontent.com", StringComparison.OrdinalIgnoreCase));
+
+    private static async Task FetchAsset(HttpClient http, Asset asset, string token, string target)
+    {
+        var url = new Uri("https://api.github.com/repos/" + Repo + "/releases/assets/" +
+                          asset.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        using var original = Get(url, token, metadata: false);
+        using var initial = await http.SendAsync(original, HttpCompletionOption.ResponseHeadersRead);
+        Require(initial.RequestMessage?.RequestUri == url, "ASSET_API_ORIGIN");
+        HttpResponseMessage response = initial;
+        HttpRequestMessage? redirectedRequest = null;
+        HttpResponseMessage? redirectedResponse = null;
+        try
+        {
+            if (initial.StatusCode == HttpStatusCode.Found ||
+                initial.StatusCode == HttpStatusCode.TemporaryRedirect)
+            {
+                Uri? location = initial.Headers.Location;
+                Require(location is not null && location.IsAbsoluteUri &&
+                        IsApprovedCdn(location), "ASSET_REDIRECT_NOT_TRUSTED");
+                // The bearer token must NEVER follow the redirect to the CDN.
+                redirectedRequest = Get(location!, null, metadata: false);
+                redirectedResponse = await http.SendAsync(redirectedRequest,
+                    HttpCompletionOption.ResponseHeadersRead);
+                response = redirectedResponse;
+                Require(response.RequestMessage?.RequestUri == location,
+                        "CDN_UNEXPECTED_REDIRECT");
+            }
+            Require(response.StatusCode == HttpStatusCode.OK &&
+                    response.Headers.Location is null, "ASSET_HTTP_NOT_OK");
+            Require(response.Content.Headers.ContentLength is null ||
+                    response.Content.Headers.ContentLength == asset.Length,
+                    "ASSET_CONTENT_LENGTH");
+            Require(response.Content.Headers.ContentEncoding.Count == 0,
+                    "ASSET_CONTENT_ENCODING");
+            var mediaType = response.Content.Headers.ContentType?.MediaType;
+            Require(mediaType is not ("application/json" or "text/html"),
+                    "ASSET_JSON_OR_HTML_BODY");
+            await using var remote = await response.Content.ReadAsStreamAsync();
+            await using var output = new FileStream(target, FileMode.CreateNew,
+                FileAccess.Write, FileShare.None, 65536, FileOptions.WriteThrough);
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            long length = 0;
+            var buffer = new byte[65536];
+            int n;
+            while ((n = await remote.ReadAsync(buffer)) > 0)
+            {
+                length = checked(length + n);
+                Require(length <= asset.Length, "ASSET_OVERRUN");
+                hash.AppendData(buffer, 0, n);
+                await output.WriteAsync(buffer.AsMemory(0, n));
+            }
+            Require(length == asset.Length, "ASSET_INCOMPLETE");
+            string sha = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+            if (asset.Sha is not null)
+                Require(CryptographicOperations.FixedTimeEquals(
+                    Convert.FromHexString(sha), Convert.FromHexString(asset.Sha)),
+                    "ASSET_PINNED_HASH_MISMATCH");
+            output.Flush(flushToDisk: true);
+        }
+        finally
+        {
+            redirectedResponse?.Dispose();
+            redirectedRequest?.Dispose();
+        }
+    }
+
+    internal static async Task<int> Run()
+    {
+        try
+        {
+            // Lab mode is absent from normal binaries; the additional guards
+            // ensure a test-mode binary cannot run on personal Windows machines.
+            Require(OperatingSystem.IsWindows() &&
+                    Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" &&
+                    Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") == Repo &&
+                    !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RUNNER_TEMP")),
+                    "DISPOSABLE_RUNNER_ONLY");
+            var current = AssemblyName.GetAssemblyName(
+                Path.Combine(AppContext.BaseDirectory, "GerenciadorFinal.dll")).Version;
+            Require(current == new Version(5, 13, 11, 65),
+                    "OLD_EXECUTABLE_VERSION_MISMATCH");
+            string token = Environment.GetEnvironmentVariable("GH_TOKEN") ?? "";
+            Require(token.Length >= 20 && token.Length <= 2048, "EPHEMERAL_GITHUB_TOKEN_MISSING");
+            var runner = Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!);
+            string dest = Path.GetFullPath(Path.Combine(runner, "gf-e2e-github-download"));
+            Require(Directory.Exists(runner) && !Directory.Exists(dest) &&
+                    !File.Exists(dest) &&
+                    Path.GetDirectoryName(dest) == runner, "DOWNLOAD_DESTINATION_NOT_FRESH");
+            using var http = Client();
+            var endpoint = new Uri("https://api.github.com/repos/" + Repo +
+                                   "/releases/tags/" + Tag);
+            CheckMetadata(await ReadJson(http, endpoint, token));
+            Directory.CreateDirectory(dest);
+            foreach (var asset in Allowed)
+                await FetchAsset(http, asset, token, Path.Combine(dest, asset.Name));
+            Require(Directory.GetFiles(dest).Length == Allowed.Length, "EXTRA_DOWNLOAD_FILE");
+            var evidence = new
+            {
+                schema = "gf-e2e-old-github-draft/1",
+                observed_version = current!.ToString(),
+                draft_release_id = ReleaseId,
+                draft_tag = Tag,
+                downloaded_file_count = Allowed.Length,
+                real_dotnet_httpclient = true,
+                initiated_by_gf_old_executable = true,
+                downloaded_archive_sha256 = ZipSha,
+                test_only = true,
+                operational_ready = false,
+                automatic_recovery_authorized = false
+            };
+            File.WriteAllText(Path.Combine(runner, "gf-e2e-old-acquire-report.json"),
+                JsonSerializer.Serialize(evidence));
+            return 0;
+        }
+        catch (Exception e) when (e is HttpRequestException or IOException or
+                  InvalidDataException or JsonException or UnauthorizedAccessException or
+                  OperationCanceledException or System.Security.SecurityException)
+        {
+            // Never record URL (could include signed CDN query) or bearer token.
+            // The incomplete file remains for scoped runner diagnostics.
+            Console.Error.WriteLine("GF_E2E_OLD_ACQUIRE_BLOCKED " + e.GetType().Name);
+            return 8;
+        }
+    }
+}
