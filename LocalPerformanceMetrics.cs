@@ -3,7 +3,7 @@ using System.Globalization;
 
 namespace GerenciadorAplicativos;
 
-internal enum PerformanceStage { Startup, Inventory, Updates, ResidualDiscovery, ResidualClassification, ResidualFilter, ResidualInspection }
+internal enum PerformanceStage { Startup, InitialInventoryLoad, Inventory, Updates, ResidualDiscovery, ResidualClassification, ResidualFilter, ResidualInspection }
 internal sealed record PerformanceSample(PerformanceStage Stage, double DurationMs, long AllocatedBytes,
     long? WorkingBefore, long? WorkingAfter, long? PeakSession, long ManagedBefore, long ManagedAfter, double? CpuMs)
 {

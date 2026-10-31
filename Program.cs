@@ -812,8 +812,12 @@ internal sealed partial class MainForm : Form
             if (!startInTray) OfferAnonymousDiagnosticConsent(firstRun: true);
             // Na abertura, a lista ainda esta vazia: nao animar barra de
             // progresso nem alternar Enabled/Visible de dezenas de controles.
-            await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync,
-                quietStartup: true);
+            // P5: Startup termina ao abrir a janela; a primeira lista ainda
+            // depende de Registro/MSIX/disco e renderizacao. Medir a tentativa
+            // de carga separadamente, sem incluir o dialogo de consentimento.
+            using (LocalPerformanceMetrics.Measure(PerformanceStage.InitialInventoryLoad))
+                await ExecuteAsync("Carregando programas instalados...", LoadInstalledAsync,
+                    quietStartup: true);
             if (!IsDisposed)
                 BeginStartupChecks();
             try
