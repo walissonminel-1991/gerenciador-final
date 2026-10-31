@@ -102,20 +102,53 @@ jobs:
             throw 'GF_E2E_DRAFT_METADATA_REFRESH_CHANGED_PACKAGE'
           }
           Write-Host 'GF_E2E_EXISTING_DRAFT_TUF_ROLES_FRESH release_id=429695537 test_only=true zip_and_target_unchanged=true'
-      - name: O proprio GF OLD consulta GitHub Draft e baixa os cinco assets via HttpClient
+      - name: Startup real MainForm.Shown do GF OLD inicia download autonomo de Draft
         env:
           GH_TOKEN: ${{ github.token }}
+          GF_E2E_STARTUP_DRAFT_PROBE: '1'
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $exe=Join-Path $env:RUNNER_TEMP 'gf-e2e-old\GerenciadorFinal.exe'
-          $proc=Start-Process -FilePath $exe -ArgumentList '--gf-e2e-draft-acquire' -WorkingDirectory (Split-Path $exe) -PassThru -Wait
-          if ($proc.ExitCode -ne 0) {
-            $failure=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-acquire-failure.json'
-            if (Test-Path $failure) { Write-Host "GF_E2E_OLD_ACQUISITION_DIAGNOSTIC $(Get-Content $failure -Raw)" }
-            throw "GF_E2E_OLD_SELF_ACQUIRE_FAILED exit=$($proc.ExitCode)"
-          }
+          $shown=Join-Path $env:RUNNER_TEMP 'gf-e2e-startup-shown.json'
           $proof=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-acquire-report.json'
+          $failure=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-acquire-failure.json'
+          if ((Test-Path $shown) -or (Test-Path $proof) -or (Test-Path $failure) -or
+              (Test-Path (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download'))) {
+            throw 'GF_E2E_STARTUP_ALREADY_TRIED'
+          }
+          $proc=Start-Process -FilePath $exe -ArgumentList '--tray' -WorkingDirectory (Split-Path $exe) -PassThru
+          try {
+            $deadline=[DateTime]::UtcNow.AddMinutes(4)
+            while ([DateTime]::UtcNow -lt $deadline) {
+              if ((Test-Path $proof) -or (Test-Path $failure) -or $proc.HasExited) { break }
+              Start-Sleep -Milliseconds 250
+            }
+            if (Test-Path $failure) {
+              Write-Host "GF_E2E_OLD_ACQUISITION_DIAGNOSTIC $(Get-Content $failure -Raw)"
+              throw 'GF_E2E_STARTUP_DOWNLOAD_FAILED_CLOSED'
+            }
+            if (!(Test-Path $shown)) { throw 'GF_E2E_REAL_MAINFORM_STARTUP_NOT_PROVEN' }
+            $w=Get-Content $shown -Raw | ConvertFrom-Json
+            if ($w.schema -ne 'gf-e2e-startup-shown/1' -or
+                $w.startup_event -ne 'MainForm.Shown' -or
+                !$w.real_mainform_handle_created -or !$w.test_only -or
+                $w.operational_ready) { throw 'GF_E2E_MAINFORM_MARKER_INVALID' }
+            if (!(Test-Path $proof)) { throw 'GF_E2E_STARTUP_REMOTE_DOWNLOAD_NOT_COMPLETED' }
+            Write-Host 'GF_E2E_REAL_OLD_MAINFORM_SHOWN_INVOKED_DRAFT_DOWNLOAD test_only=true'
+          }
+          finally {
+            if (!$proc.HasExited) {
+              $requested=$proc.CloseMainWindow()
+              if (!$proc.WaitForExit(12000)) {
+                # Cleanup ONLY our disposable child. Not evidence of graceful close.
+                $proc.Kill()
+                $proc.WaitForExit(12000) | Out-Null
+                Write-Host 'GF_E2E_STARTUP_CHILD_TEST_CLEANUP_ONLY; graceful_exit_not_claimed=true'
+              }
+            }
+            $proc.Dispose()
+          }
           if (!(Test-Path $proof)) { throw 'GF_E2E_OLD_SELF_ACQUIRE_EVIDENCE_MISSING' }
           $r=Get-Content $proof -Raw | ConvertFrom-Json
           if ($r.schema -ne 'gf-e2e-old-github-draft/1' -or

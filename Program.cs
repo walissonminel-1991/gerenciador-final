@@ -68,7 +68,54 @@ internal static class Program
             };
             bool startInTray = args.Length is 1 or 2 && args.Contains("--tray", StringComparer.Ordinal)
                 && args.All(x => x is "--tray" or "--post-reboot");
+#if GF_E2E_LAB
+            var mainWindow = new MainForm(startInTray: startInTray);
+            if (Environment.GetEnvironmentVariable("GF_E2E_STARTUP_DRAFT_PROBE") == "1")
+            {
+                // A REAL MainForm.Shown event initiates the same test-only .NET
+                // Draft client. No additional selector, updater or recovery path.
+                // Nothing here exists in a normal GF binary.
+                mainWindow.Shown += (_, _) =>
+                {
+                    if (mainWindow.IsDisposed || !mainWindow.IsHandleCreated ||
+                        Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
+                        Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") !=
+                            "walissonminel-1991/gerenciador-final")
+                        return;
+                    try
+                    {
+                        string runner = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
+                        if (!Directory.Exists(runner)) return;
+                        string marker = Path.Combine(runner, "gf-e2e-startup-shown.json");
+                        using (var file = new FileStream(marker, FileMode.CreateNew,
+                            FileAccess.Write, FileShare.None))
+                        {
+                            byte[] bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new
+                            {
+                                schema = "gf-e2e-startup-shown/1",
+                                startup_event = "MainForm.Shown",
+                                process_image = "GerenciadorFinal.exe",
+                                real_mainform_handle_created = true,
+                                test_only = true,
+                                operational_ready = false
+                            });
+                            file.Write(bytes);
+                            file.Flush(true);
+                        }
+                        _ = Task.Run(GfOldDraftAcquire.Run);
+                    }
+                    catch (IOException)
+                    {
+                        // No fallback, retry, external updater or popup.
+                        // The CI requires both proofs to exist.
+                    }
+                    catch (UnauthorizedAccessException) { }
+                };
+            }
+            Application.Run(mainWindow);
+#else
             Application.Run(new MainForm(startInTray: startInTray));
+#endif
             DiagnosticTrace.Write("APP.ENCERRAMENTO_NORMAL");
             return 0;
         }
