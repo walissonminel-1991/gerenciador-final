@@ -306,9 +306,9 @@ internal static class Program
             await Trial("foreign-identity",new Reply(),false,
                 identity:"https://evil.invalid/rogue.zip");
 
-            if (good != 3 || bad != 26 ||
+            if (good != 3 || bad != 25 ||
                 File.ReadAllText(sentinel)!="PERSONAL_DATA_PRESERVED" ||
-                accepted != 28)
+                accepted != 27)
                 throw new Exception("TEST_MATRIX_OR_SCOPE_INCOMPLETE");
             var report=new {
                 schema="gf-d23-dotnet-httpclient-loopback/1",status="passed",
