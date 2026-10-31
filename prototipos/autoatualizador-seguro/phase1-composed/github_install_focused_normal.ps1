@@ -1,7 +1,7 @@
 # Existing positive scenario, plus one exclusively negative CUT after second
 # physical rename before NEW observation, both via SAME L18 coordinator.
-param([switch]$AfterSecondCut,[switch]$TamperPrelaunch,[switch]$TamperPosthash)
-if ((@($AfterSecondCut.IsPresent,$TamperPrelaunch.IsPresent,$TamperPosthash.IsPresent) | Where-Object { $_ } | Measure-Object).Count -gt 1) {
+param([switch]$AfterSecondCut,[switch]$TamperPrelaunch,[switch]$TamperPosthash,[switch]$PinNtfsLaunch)
+if ((@($AfterSecondCut.IsPresent,$TamperPrelaunch.IsPresent,$TamperPosthash.IsPresent,$PinNtfsLaunch.IsPresent) | Where-Object { $_ } | Measure-Object).Count -gt 1) {
   throw 'GF_TEST_MODES_EXCLUSIVE'
 }
 # ONE independent positive scenario: normal GF OLD -> original L18 install-focused.
@@ -54,6 +54,7 @@ $env:GF_E2E_SWAP_CUT_AFTER_OLD_MOVE='0'
 $env:GF_E2E_CUT_AFTER_SECOND_MOVE=if ($AfterSecondCut) { '1' } else { '0' }
 $env:GF_E2E_PRELAUNCH_TAMPER_TEST=if ($TamperPrelaunch) { '1' } else { '0' }
 $env:GF_E2E_POSTHASH_TAMPER_TEST=if ($TamperPosthash) { '1' } else { '0' }
+$env:GF_E2E_NTFS_PIN_LAUNCH=if ($PinNtfsLaunch) { '1' } else { '0' }
 $env:GF_E2E_POST_OWNER_PERSISTENCE='1'
 $env:GF_E2E_GUI_NORMAL_SUCCESS='0'
 $env:GF_E2E_GUI_NORMAL_L18_PROOF='0'
@@ -534,5 +535,51 @@ $independent | python -u -
 if ($LASTEXITCODE -ne 0) { throw 'GF_INSTALL_FOCUSED_INDEPENDENT_BYTES_FAILED' }
 $newVersion=[System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $old 'GerenciadorFinal.dll')).Version.ToString()
 if ($newVersion -ne '5.13.11.66') { throw 'GF_INSTALL_FOCUSED_INSTALLED_VERSION_WRONG' }
+
+if ($PinNtfsLaunch) {
+  # This is an independent proof following the already-existing TUF/byte
+  # validation. Any untrusted/missing local receipt remains a hard failure;
+  # the receipt is not update authority or READY.
+  $ntfsProof=@'
+import hashlib,json,os
+from pathlib import Path
+r=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+pin=json.loads((r/"gf-e2e-ntfs-read-pin-launch.json").read_bytes())
+assert pin["schema"]=="gf-e2e-ntfs-read-pin-launch/1"
+assert pin["pinned_file_object_hash_verified"] is True
+assert pin["share_mode"]=="FILE_SHARE_READ_ONLY"
+assert pin["write_denied"] is True and pin["rename_denied"] is True
+assert pin["file_id"]==pin["file_id_after_attempts"]
+assert pin["pin_covers_popen"] is True
+assert pin["process_created_by_original_popen"] is True
+assert pin["functional_observation_succeeded"] is True
+assert pin["pinned_id_unchanged_after_process"] is True
+assert pin["pinned_hash_unchanged_after_process"] is True
+assert pin["operational_ready"] is False
+source=json.loads((r/"gf-e2e-postexit-selected-root.json").read_bytes())["root"]
+observed=json.loads((Path(source)/"real-observed-new.fixture.json").read_bytes())
+for key in ["ntfs_pin_object_id_unchanged","ntfs_pin_write_denied",
+            "ntfs_pin_rename_denied","ntfs_pin_held_across_popen",
+            "created","terminated","actual_image_path_matches",
+            "image_on_disk_sha_matches_manifest"]:
+    assert observed[key] is True,key
+assert observed["readonly_inventory_search_health"]["minimum_readonly_health_contract_observed"] is True
+exe=r/"gf-e2e-old"/"GerenciadorFinal.exe"
+assert not exe.with_name("GerenciadorFinal.exe.rename-probe").exists()
+with exe.open("rb") as f:
+    sha=hashlib.file_digest(f,"sha256").hexdigest()
+assert sha==pin["original_exe_sha256"]
+print("GF_E2E_NTFS_PIN_INDEPENDENT_PASS "
+      "open_file_object_id=STABLE read_only_share=true "
+      "concurrent_append=DENIED concurrent_rename=DENIED "
+      "pin_continued_through_Popen=true original_NEW_created=true "
+      "functional_observation=true installed_bytes_still_authenticated=true "
+      "no_recovery=true no_rollback=true no_retry=true READY=false",flush=True)
+'@
+  $ntfsProof | python -u -
+  if ($LASTEXITCODE -ne 0) { throw 'GF_NTFS_PIN_INDEPENDENT_PROOF_FAILED' }
+  Write-Host 'GF_E2E_NTFS_PIN_WINDOWS_PASS original_old_normal=true original_new_installed=true read_only_object_pin=true concurrent_write_delete_denied=true legit_NEW_executed=true HOLD=true READY=false'
+  Add-Content $env:GITHUB_STEP_SUMMARY 'Pinned NTFS file object laboratory proof: FILE_SHARE_READ-only open HANDLE stayed live across SHA256, append/rename denial and original Popen; NEW legitimately created and passed Win32/UI read-only observation. Both old and signed NEW (284 files each), canary intact. Does NOT prove TOCTOU closure against preexisting writable handles, other objects or mapped image bytes; no READY/recovery/rollback/retry.'
+}
 Write-Host 'GF_E2E_NORMAL_INSTALLED_NEW_PASS old_normal=true new_version=5.13.11.66 installed_executed=true L18=same HOLD=true READY=false'
 Add-Content $env:GITHUB_STEP_SUMMARY 'Fresh second Windows runner (after existing cut negative): real OLD opened normally, downloaded and TUF-authenticated same private Draft; existing L18 --real-install-focused fenced NEW/2, gracefully closed OLD, installed authenticated NEW at original portable path, launched and functionally observed installed NEW, preserved OLD backup and canary, returned UnknownBlocked/HOLD. Independent TUF/file-set comparison (284+284). No recovery, rollback, cleanup, retry, READY or production promotion.'

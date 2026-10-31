@@ -283,8 +283,164 @@ def selected_real_package(selector_root, versions, expected, generation,
     return chosen
 
 
+
+class _NtfsByHandleInformation(ctypes.Structure):
+    _fields_ = [
+        ("dwFileAttributes", w.DWORD), ("ftCreationTime", w.FILETIME),
+        ("ftLastAccessTime", w.FILETIME), ("ftLastWriteTime", w.FILETIME),
+        ("dwVolumeSerialNumber", w.DWORD), ("nFileSizeHigh", w.DWORD),
+        ("nFileSizeLow", w.DWORD), ("nNumberOfLinks", w.DWORD),
+        ("nFileIndexHigh", w.DWORD), ("nFileIndexLow", w.DWORD)]
+
+
+def _ntfs_handle_identity(handle):
+    """Actual file-object volume/index from the still-held Windows HANDLE."""
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.GetFileInformationByHandle.argtypes = [
+        w.HANDLE, ctypes.POINTER(_NtfsByHandleInformation)]
+    kernel.GetFileInformationByHandle.restype = w.BOOL
+    item = _NtfsByHandleInformation()
+    require(kernel.GetFileInformationByHandle(w.HANDLE(handle),
+        ctypes.byref(item)), "GF_PIN_NTFS_FILE_ID_READ_FAILED")
+    return [int(item.dwVolumeSerialNumber),
+            (int(item.nFileIndexHigh) << 32) | int(item.nFileIndexLow)]
+
+
+@contextmanager
+def _ntfs_read_pin(exe, expected_sha):
+    """LAB ONLY: deny new WRITE and DELETE opens while holding the same file
+    object through hash, mutation attempts and the original Popen call.
+    A Windows FILE_SHARE_READ handle is NOT proof of mapped image bytes,
+    preexisting writable handles or a solution to all TOCTOU cases.
+    """
+    import msvcrt
+    require(os.name == "nt" and os.environ.get("GITHUB_ACTIONS") == "true"
+            and os.environ.get("GITHUB_REPOSITORY") ==
+            "walissonminel-1991/gerenciador-final"
+            and os.environ.get("GF_E2E_L18_OBSERVE_INSTALLED_NEW") == "1"
+            and os.environ.get("GF_E2E_LIVE_INSTALL_SWAP") == "1"
+            and os.environ.get("GF_E2E_PRELAUNCH_TAMPER_TEST") != "1"
+            and os.environ.get("GF_E2E_POSTHASH_TAMPER_TEST") != "1"
+            and exe.is_file() and not exe.is_symlink(),
+            "GF_NTFS_PIN_NOT_ALLOWED_OR_NOT_REGULAR_INSTALLED_NEW")
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    api.CreateFileW.argtypes = [w.LPCWSTR,w.DWORD,w.DWORD,w.LPVOID,w.DWORD,w.DWORD,w.HANDLE]
+    api.CreateFileW.restype = w.HANDLE
+    api.CloseHandle.argtypes = [w.HANDLE]
+    api.CloseHandle.restype = w.BOOL
+    # GENERIC_READ, FILE_SHARE_READ ONLY (no FILE_SHARE_WRITE or DELETE),
+    # OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL.
+    raw = api.CreateFileW(str(exe), 0x80000000, 0x00000001, None, 3, 0x80, None)
+    require(raw is not None and raw != ctypes.c_void_p(-1).value,
+            "GF_NTFS_PIN_CREATEFILE_FAILED")
+    try:
+        fd = msvcrt.open_osfhandle(raw, os.O_RDONLY | os.O_BINARY)
+    except BaseException:
+        api.CloseHandle(w.HANDLE(raw))
+        raise
+    with os.fdopen(fd, "rb") as pinned:
+        start_id = _ntfs_handle_identity(msvcrt.get_osfhandle(pinned.fileno()))
+        def pinned_hash():
+            pinned.seek(0)
+            digest = hashlib.sha256()
+            while True:
+                chunk = pinned.read(1024*1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+            return digest.hexdigest()
+        require(pinned_hash() == expected_sha,
+                "GF_NTFS_PIN_HASH_OF_OPEN_OBJECT_MISMATCH")
+        evidence = {"schema":"gf-e2e-ntfs-read-pin-launch/1",
+                    "file_id": start_id, "original_exe_sha256":expected_sha,
+                    "pinned_file_object_hash_verified":True,
+                    "share_mode":"FILE_SHARE_READ_ONLY",
+                    "pin_covers_popen":False,
+                    "write_denied":False, "rename_denied":False,
+                    "test_only":True,"operational_ready":False}
+        def adversarial_attempts():
+            require(_ntfs_handle_identity(msvcrt.get_osfhandle(pinned.fileno()))
+                    == start_id, "GF_NTFS_PIN_ID_CHANGED_BEFORE_ATTACK")
+            write_denied=False
+            rename_denied=False
+            try:
+                with exe.open("ab") as f:
+                    f.write(b"\xa5")
+                    f.flush()
+            except OSError as exc:
+                write_denied=getattr(exc,"winerror",None) in (5,32)
+            # The sole negative test never creates a replacement directory
+            # or performs any updater cleanup/recovery.
+            try:
+                os.rename(exe, exe.with_name("GerenciadorFinal.exe.rename-probe"))
+            except OSError as exc:
+                rename_denied=getattr(exc,"winerror",None) in (5,32)
+            evidence["write_denied"]=write_denied
+            evidence["rename_denied"]=rename_denied
+            require(write_denied and rename_denied and
+                    pinned_hash()==expected_sha and
+                    file_hash(exe)==expected_sha,
+                    "GF_NTFS_PIN_WRITE_OR_RENAME_NOT_DENIED")
+            evidence["file_id_after_attempts"] = _ntfs_handle_identity(
+                msvcrt.get_osfhandle(pinned.fileno()))
+        yield evidence, adversarial_attempts, pinned_hash, start_id, pinned
+        require(pinned_hash()==expected_sha and
+                _ntfs_handle_identity(msvcrt.get_osfhandle(pinned.fileno()))==
+                start_id, "GF_NTFS_PIN_OBJECT_CHANGED_BEFORE_RELEASE")
+
+
 def observed_process(directory, expected_exe_sha, seconds=12,
                      expected_inventory_name=None):
+    """Same original observer, optionally holding a native NTFS file handle."""
+    selected_new = (
+        os.environ.get("GF_E2E_NTFS_PIN_LAUNCH")=="1" and
+        os.environ.get("GF_E2E_L18_OBSERVE_INSTALLED_NEW")=="1" and
+        directory.resolve(strict=True) ==
+        (Path(os.environ["RUNNER_TEMP"]) / "gf-e2e-old").resolve(strict=True))
+    if not selected_new:
+        return _observed_process_core(
+            directory, expected_exe_sha, seconds, expected_inventory_name)
+    with _ntfs_read_pin(directory / "GerenciadorFinal.exe", expected_exe_sha) as pins:
+        report, attack, pinned_hash, start_id, pinned = pins
+        observed = _observed_process_core(
+            directory,expected_exe_sha,seconds,expected_inventory_name,
+            pre_popen_pin_probe=attack)
+        require(observed.get("created") and observed.get("terminated") and
+                observed.get("graceful_shutdown_verified_for_owned_process") and
+                observed.get("actual_image_path_matches") and
+                observed.get("image_on_disk_sha_matches_manifest") and
+                observed.get("readonly_inventory_search_health",{}).get(
+                    "minimum_readonly_health_contract_observed") is True and
+                observed.get("pin_probe_attempts_done") is True and
+                pinned_hash()==expected_exe_sha and
+                _ntfs_handle_identity(
+                    __import__("msvcrt").get_osfhandle(pinned.fileno()))==start_id,
+                "GF_NTFS_PIN_BLOCKED_LEGITIMATE_GF_OR_CHANGED_BYTES")
+        report.update({"pin_covers_popen":True,
+            "process_created_by_original_popen":True,
+            "functional_observation_succeeded":True,
+            "pinned_id_unchanged_after_process":True,
+            "pinned_hash_unchanged_after_process":True})
+        require(report["write_denied"] and report["rename_denied"],
+                "GF_NTFS_PIN_DID_NOT_DENY_BOTH_ATTACKS")
+        runner=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+        with (runner/"gf-e2e-ntfs-read-pin-launch.json").open("x",encoding="utf-8") as f:
+            json.dump(report,f,sort_keys=True)
+            f.flush();os.fsync(f.fileno())
+        observed.update({"ntfs_pin_object_id_unchanged":True,
+                         "ntfs_pin_write_denied":True,
+                         "ntfs_pin_rename_denied":True,
+                         "ntfs_pin_held_across_popen":True})
+        print("GF_E2E_NTFS_PIN_LAUNCH_PASS "
+              "pinned_object=true share=READ_ONLY write_denied=true "
+              "rename_denied=true original_Popen_created=true "
+              "same_pinned_object=true functional_NEW=true READY=false",
+              flush=True)
+        return observed
+
+
+def _observed_process_core(directory, expected_exe_sha, seconds=12,
+                     expected_inventory_name=None, pre_popen_pin_probe=None):
     """Measure HWND owner, UI message loop, graceful WM_CLOSE of *this* GF.
 
     Observation is process-bound, not application READY. If Windows runner
@@ -329,6 +485,10 @@ def observed_process(directory, expected_exe_sha, seconds=12,
                        "test_only":True,"operational_ready":False},f)
             f.flush()
             os.fsync(f.fileno())
+    if pre_popen_pin_probe is not None:
+        # Must run AFTER original last SHA256, BEFORE original Popen,
+        # while the wrapper owns the native handle of the pinned object.
+        pre_popen_pin_probe()
     start = time.monotonic()
     env = dict(os.environ)
     env["GfBetaEndpoint"] = ""
@@ -366,6 +526,8 @@ def observed_process(directory, expected_exe_sha, seconds=12,
                                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
         result["created"] = True
         result["pid_observed"] = proc.pid
+        if pre_popen_pin_probe is not None:
+            result["pin_probe_attempts_done"] = True
         observed = observe_real_gf(proc, exe, expected_exe_sha, seconds=seconds,
                                    expected_inventory_name=expected_inventory_name)
         result.update(observed)
