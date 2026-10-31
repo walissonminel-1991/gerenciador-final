@@ -304,6 +304,11 @@ internal static class GfOldDraftAcquire
                 WorkingDirectory = repoRoot
             };
             string l18Mode=
+                Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")=="1" &&
+                Environment.GetEnvironmentVariable("GF_E2E_LIVE_INSTALL_SWAP")=="1" &&
+                Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+                Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==Repo
+                ? "--real-install-cut-focused" :
                 Environment.GetEnvironmentVariable("GF_E2E_LIVE_INSTALL_SWAP")=="1"
                 ? "--real-install-focused" : "--real-handoff-focused";
             foreach (string arg in new []{l18Mode,report,fixtures,

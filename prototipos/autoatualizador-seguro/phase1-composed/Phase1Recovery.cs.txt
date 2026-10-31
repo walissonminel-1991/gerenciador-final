@@ -273,7 +273,7 @@ internal static partial class L18Coordinator
     // surviving directory for HOLD, with NO rollback or automatic cleanup.
     // The authority to enter here is the live SAME L18 owner with NEW/2
     // already selected and fenced, not a separate filesystem selector.
-    private static void SwapRealInstalledPackageAfterOldExit(string src,RealLabContext c)
+    private static async Task SwapRealInstalledPackageAfterOldExit(string src,RealLabContext c,bool cutBetweenMoves=false)
     {
         Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
             Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==
@@ -345,6 +345,22 @@ internal static partial class L18Coordinator
             // OLD is no longer running: the caller waited on the OPENED,
             // identity-checked kernel handle and rechecked exit code zero.
             Directory.Move(live,retained);
+            // This is the PRECISE gap. The existing L18 RealCut publishes
+            // its durable cut marker then blocks until the retained
+            // LabProcessJob handle terminates ONLY this owner (exit=91).
+            // Never write a successful-swap receipt, never attempt rollback.
+            if(cutBetweenMoves)
+            {
+                Require(Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")=="1" &&
+                    Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+                    Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==
+                        "walissonminel-1991/gerenciador-final" &&
+                    !Directory.Exists(live) && Directory.Exists(retained) &&
+                    Directory.Exists(incoming) && !File.Exists(receipt),
+                    "REAL_INSTALL_CUT_NOT_IN_EXACT_GAP");
+                await RealCut(src,"between-install-moves");
+                throw new Rejected("REAL_INSTALL_CUT_MUST_NEVER_RESUME");
+            }
             // On failure the OLD directory stays preserved under retained.
             // NEVER auto-restore on unknown effects or replay.
             Directory.Move(incoming,live);
@@ -370,9 +386,9 @@ internal static partial class L18Coordinator
         // BEFORE signalling the selector barrier, retain its kernel handle
         // across exit, and prove the real image path. A numeric PID by itself
         // never authorizes launch, recovery, or READY.
-        using Process? originalOld = cut is "handoff" or "handoff-install"
+        using Process? originalOld = cut is "handoff" or "handoff-install" or "handoff-install-cut"
             ? Process.GetProcessById(originalOldPid) : null;
-        if(cut is "handoff" or "handoff-install")
+        if(cut is "handoff" or "handoff-install" or "handoff-install-cut")
         {
             string originalImage=Path.Combine(
                 Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
@@ -408,7 +424,7 @@ internal static partial class L18Coordinator
             return; // Never fall through to functional observation.
         }
         Append(src,lab,Switching,"real-new-selection-intent",c.ManifestSha);
-        if(cut is "normal" or "handoff" or "handoff-install" or "before-old-observation" or "positive-trial" or "positive-trial-negative")
+        if(cut is "normal" or "handoff" or "handoff-install" or "handoff-install-cut" or "before-old-observation" or "positive-trial" or "positive-trial-negative")
         {
             // The normal experiment uses the SAME retained context, NTFS pins,
             // L18 journal and Job Object as restarted-process reconciliation.
@@ -444,7 +460,7 @@ internal static partial class L18Coordinator
         Append(src,lab,Launched,"real-new-effects-fenced-before-create",c.ManifestSha);
         string selected=SelectedRealPath(src,c,out var slot,out _);
         Require(slot=="new","REAL_OWNER_NOT_NEW");
-        if(cut is "handoff" or "handoff-install")
+        if(cut is "handoff" or "handoff-install" or "handoff-install-cut")
         {
             Require(originalOld is not null && !originalOld.HasExited &&
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
@@ -488,9 +504,10 @@ internal static partial class L18Coordinator
                     old_exit_code=0,selector="new",generation=2,
                     test_only=true,operational_ready=false
                 }));
-            if(cut=="handoff-install")
+            if(cut is "handoff-install" or "handoff-install-cut")
             {
-                SwapRealInstalledPackageAfterOldExit(src,c);
+                await SwapRealInstalledPackageAfterOldExit(src,c,
+                    cutBetweenMoves:cut=="handoff-install-cut");
                 RequireRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"new",2);
                 pins.Recheck();VerifyRealManifest(src,c);
             }

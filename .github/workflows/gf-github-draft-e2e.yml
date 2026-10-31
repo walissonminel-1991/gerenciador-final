@@ -135,6 +135,7 @@ jobs:
           GF_E2E_SELECTED_NEW_CONTINUATION: '1'
           GF_E2E_LIVE_INSTALL_SWAP: '1'
           GF_E2E_POST_OWNER_PERSISTENCE: '1'
+          GF_E2E_SWAP_CUT_AFTER_OLD_MOVE: '1'
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
@@ -273,199 +274,115 @@ jobs:
           $newVersion=[System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $env:RUNNER_TEMP 'gf-e2e-independent-authenticated-new\GerenciadorFinal.dll')).Version.ToString()
           if ($newVersion -ne '5.13.11.66') { throw 'GF_E2E_DOWNLOADED_VERSION_NOT_NEWER' }
           Write-Host "GF_E2E_REAL_REMOTE_VERSIONS old=5.13.11.65 new=$newVersion"
-      - name: Comprovar observacao da sessao NEW pelo proprio seletor L18 depois de OLD
+      - name: Interrupcao real ENTRE renomeacoes - contencao L18, estado e bytes preservados
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $report=Join-Path $env:RUNNER_TEMP 'gf-e2e-real-flow-report.json'
-          $handoff=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-l18-handoff-report.json'
-          $marker=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-exit-before-new-observation.json'
+          $runner=$env:RUNNER_TEMP
+          $report=Join-Path $runner 'gf-e2e-real-flow-report.json'
+          $original=Join-Path $runner 'gf-e2e-original-l18-process.json'
           $deadline=[DateTime]::UtcNow.AddMinutes(4)
-          while ([DateTime]::UtcNow -lt $deadline -and
-                 (!(Test-Path $handoff) -or !(Test-Path $report))) {
-            Start-Sleep -Milliseconds 250
+          while ([DateTime]::UtcNow -lt $deadline -and !(Test-Path $report)) {
+            Start-Sleep -Milliseconds 200
           }
-          if (!(Test-Path $report) -or !(Test-Path $handoff) -or !(Test-Path $marker)) {
-            throw 'GF_E2E_SELECTED_NEW_SAME_L18_REPORT_UNPROVEN_HOLD'
+          if (!(Test-Path $report) -or !(Test-Path $original)) {
+            throw 'GF_E2E_BETWEEN_MOVES_OWNER_REPORT_OR_IDENTITY_MISSING_HOLD'
           }
-          $h=Get-Content $handoff -Raw | ConvertFrom-Json
-          $m=Get-Content $marker -Raw | ConvertFrom-Json
-          $r=Get-Content $report -Raw | ConvertFrom-Json
-          $t=$r.result
-          if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/4' -or
-              !$h.initiated_by_gf_old_mainform -or
-              !$h.tuf_child_verified_download -or
-              !$h.same_l18_coordinator_invoked_by_old -or
-              $h.l18_cases -ne 1 -or
-              $h.case_classification -ne 'PASS_CONTAINMENT' -or
-              $h.normal_outcome -ne 'UnknownBlocked' -or
-              !$h.original_old_exited_before_selected_new_observation -or
-              $h.same_selector_new_generation -ne 2 -or
-              !$h.single_live_l18_selector_session_proved -or
-              !$h.physically_updated_original_installation -or
-              !$h.test_only -or $h.operational_ready -or $h.automatic_recovery_authorized) {
-            throw 'GF_E2E_L18_HANDOFF_V4_INVALID_HOLD'
+          $id=Get-Content -LiteralPath $original -Raw | ConvertFrom-Json
+          if ($id.schema -ne 'gf-e2e-original-l18-process/1' -or
+              $id.process_id -le 0 -or $id.process_start_utc_ticks -le 0 -or
+              !$id.test_only -or $id.operational_ready) {
+            throw 'GF_E2E_BETWEEN_MOVES_L18_IDENTITY_INVALID_HOLD'
           }
-          if ($m.schema -ne 'gf-e2e-old-exited-before-l18-new-observation/1' -or
-              !$m.process_handle_wait_completed -or $m.old_exit_code -ne 0 -or
-              $m.selector -ne 'new' -or $m.generation -ne 2 -or
-              !$m.test_only -or $m.operational_ready) {
-            throw 'GF_E2E_L18_PROCESS_HANDLE_OLD_EXIT_UNPROVEN_HOLD'
+          $deadline=[DateTime]::UtcNow.AddSeconds(45)
+          while ([DateTime]::UtcNow -lt $deadline) {
+            $running=Get-Process -Id ([int]$id.process_id) -ErrorAction SilentlyContinue
+            if ($null -eq $running) { break }
+            if ($running.StartTime.ToUniversalTime().Ticks -ne [long]$id.process_start_utc_ticks) {
+              throw 'GF_E2E_BETWEEN_MOVES_L18_PID_REUSED_HOLD'
+            }
+            Start-Sleep -Milliseconds 100
           }
-          if ($r.schema -ne 'gf-real-l18-installed-new-handoff/1' -or
-              $r.scenario -ne 'handoff-install' -or $r.failed -ne 0 -or $r.passed -ne 1 -or
-              !$r.single_live_l18_selector_session_proved -or
-              $r.operational_ready -or $r.phase1_complete -or $r.recovery_authorized -or
-              $r.production_tuf_authority -or
-              $t.test -ne 'handoff-install' -or $t.status -ne 'passed' -or
-              $t.classification -ne 'PASS_CONTAINMENT' -or
-              $t.outcome -ne 'UnknownBlocked' -or $t.replay -ne 'UnknownBlocked' -or
-              !$t.selected_new_after_original_old_exit -or
-              !$t.single_l18_selector_new_session_observed -or
-              !$t.physically_updated_original_installation -or
-              !$t.normal_owner_completed_without_crash -or
-              !$t.old_and_canary_preserved -or
-              !$t.manifest_and_object_identities_rechecked -or $t.operational_ready) {
-            throw 'GF_E2E_L18_SINGLE_SELECTED_NEW_OBSERVATION_UNPROVEN_HOLD'
-          }
-          # Validate the PHYSICAL Windows installation roots against the
-          # ORIGINAL immutable Draft manifest. This is independent of the
-          # L18 local fixture report and does not launch any GF process.
-          $proof=@'
+          if ($null -ne $running) { throw 'GF_E2E_BETWEEN_MOVES_SUPERVISOR_STILL_ACTIVE_HOLD' }
+          # Independent from local runner booleans: re-read the EXACT same
+          # original L18 selector, journal, fence and directories after exit.
+          $check=@'
           import hashlib, json, os
           from pathlib import Path
           runner=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
-          source=runner/"gf-e2e-github-download"/"GF-LAB-REAL-PACKAGE-MANIFEST.json"
-          raw=source.read_bytes()
+          raw=(runner/"gf-e2e-github-download"/"GF-LAB-REAL-PACKAGE-MANIFEST.json").read_bytes()
           assert hashlib.sha256(raw).hexdigest()=="a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d"
-          m=json.loads(raw)
-          assert m["schema"]=="gf-real-package-lab/3" and m["operational_installable"] is False
+          signed=json.loads(raw)
+          assert signed["schema"]=="gf-real-package-lab/3" and signed["operational_installable"] is False
+          result=json.loads((runner/"gf-e2e-real-flow-report.json").read_bytes())
+          assert result["schema"]=="gf-e2e-interrupted-physical-swap-l18/1"
+          assert result["scenario"]=="between-install-moves"
+          assert result["owner_exited_by_retained_process_handle"] is True
+          assert result["owner_exit_code"]==91
+          assert result["selector"]=="new" and result["generation"]==2
+          assert result["first_directory_move_completed"] is True
+          assert result["second_directory_move_executed"] is False
+          assert result["old_present_in_backup"] is True
+          assert result["new_present_in_staging"] is True
+          assert result["original_executable_path_absent"] is True
+          assert result["personal_canary_untouched"] is True
+          assert result["old_and_new_fixture_pins_rechecked"] is True
+          assert result["new_executable_not_launched_after_cut"] is True
+          assert result["installed_receipt_absent"] is True
+          assert result["outcome"]=="UnknownBlocked" and result["replay"]=="UnknownBlocked"
+          assert result["reason"]=="REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED"
+          assert result["rollback_authorized"] is False
+          assert result["rollback_performed"] is False
+          assert result["automatic_retry_authorized"] is False
+          assert result["cleanup_performed"] is False
+          assert result["test_only"] is True and result["operational_ready"] is False
+          src=Path(result["root"]).resolve(strict=True)
+          assert src.is_dir() and src.parent.name.startswith("gf-u2-r-")
+          assert (src/".gf-u2-fixture").read_text()=="GF-U2-INERT-STATE-TESTS-NO-PRODUCT\n"
+          selected=json.loads((src/"l18-real-active.fixture.json").read_bytes())
+          context=json.loads((src/"l18-real-context.fixture.json").read_bytes())
+          assert selected["schema"]=="gf-l18-real-active-lab/1"
+          assert selected["selected"]=="new" and selected["generation"]==2
+          assert selected["installation"]==context["installation"]
+          assert selected["transaction"]==context["transaction"]
+          assert selected["manifest_sha256"]==context["manifestSha"]
+          assert selected["test_only"] is True and selected["operational_installable"] is False
+          assert (src/"l18-real-new-may-have-effects.fixture.txt").is_file()
+          assert (src/"l18-real-old-may-have-effects.fixture.txt").is_file()
+          assert (src/"real-recovery-blocked.fixture.txt").is_file() or any(
+              p.is_file() and "blocked" in p.name for p in src.iterdir())
+          assert not (src/"real-observed-new.fixture.json").exists()
+          assert not (runner/"gf-e2e-live-install-transition.json").exists()
+          assert not (runner/"gf-e2e-old").exists()
           def check(root,expected):
               assert root.is_dir() and not root.is_symlink() and root.resolve(strict=True)==root
-              names={}
-              for dirpath, dirs, files in os.walk(root,followlinks=False):
-                  for d in dirs:
-                      p=Path(dirpath)/d
+              actual={}
+              for parent,dirs,files in os.walk(root,followlinks=False):
+                  for name in dirs+files:
+                      p=Path(parent)/name
                       assert not p.is_symlink() and not p.stat().st_file_attributes&0x400
-                  for f in files:
-                      p=Path(dirpath)/f
-                      assert not p.is_symlink() and not p.stat().st_file_attributes&0x400
-                      rel=p.relative_to(root).as_posix()
-                      names[rel]={"length":p.stat().st_size,
-                                  "sha256":hashlib.sha256(p.read_bytes()).hexdigest()}
-              assert names==expected
-          check(runner/"gf-e2e-old",m["files"])
-          # The signed Draft OLD file set intentionally differs from the
-          # GF_E2E_LAB build; use the fresh BEFORE-start captured baseline
-          # to show exact byte and object-set preservation, never as trust.
-          old_prestart=json.loads((runner/"gf-e2e-old-prestart-files.json").read_bytes())
-          check(runner/"gf-e2e-old-preserved",old_prestart)
-          canary=runner/"gf-e2e-install-data"/"PERSONAL-KEEP-UNCHANGED.txt"
-          assert canary.read_bytes()==b"DO-NOT-TOUCH-MY-DATA\n"
-          print("GF_E2E_INSTALLED_NEW_BYTES_IN_ORIGINAL_PORTABLE_PATH verified=true")
-          print("GF_E2E_OLD_BACKUP_AND_DATA_PRESERVED verified=true")
+                  for name in files:
+                      p=Path(parent)/name
+                      actual[p.relative_to(root).as_posix()]={
+                          "length":p.stat().st_size,
+                          "sha256":hashlib.sha256(p.read_bytes()).hexdigest()}
+              assert actual==expected, "FILESET_HASH_OR_PRESERVATION_MISMATCH"
+              return len(actual)
+          baseline=json.loads((runner/"gf-e2e-old-prestart-files.json").read_bytes())
+          old_count=check(runner/"gf-e2e-old-preserved",baseline)
+          new_count=check(runner/"gf-e2e-authenticated-new",signed["files"])
+          assert old_count==284 and new_count==284
+          data=runner/"gf-e2e-install-data"/"PERSONAL-KEEP-UNCHANGED.txt"
+          assert data.read_bytes()==b"DO-NOT-TOUCH-MY-DATA\n"
+          print("GF_E2E_PHYSICAL_GAP_EXACTLY_BETWEEN_MOVES old_files="+str(old_count)+
+                " new_files="+str(new_count)+" original_path=ABSENT")
+          print("GF_E2E_CUT_L18_REPLAY_HOLD original_selector=new/2 "
+                "outcome=UnknownBlocked replay=UnknownBlocked "
+                "rollback=false retry=false cleanup=false READY=false")
           '@
-          $proof | python -
-          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_REAL_PORTABLE_INSTALL_FILESET_OR_CANARY_INVALID_HOLD' }
-          Write-Host 'GF_E2E_REAL_PORTABLE_INSTALL_UPDATED_BY_SAME_L18 selector=new/2 original_install=NEW backup=OLD data=UNCHANGED UI=FUNCTIONAL_READONLY HOLD=UnknownBlocked READY=false'
-          Add-Content $env:GITHUB_STEP_SUMMARY 'Original portable GF OLD path was physically replaced with authenticated NEW only by SAME L18 new/2, after original OLD exit=0; verified old backup and data-canary preserved; selected observer launched new from original install path, HOLD/UnknownBlocked; READY=false.'
-      - name: Persistencia de new/2 e interface funcional APOS encerramento do L18 original
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          $runner=[System.IO.Path]::GetFullPath($env:RUNNER_TEMP)
-          $procRef=Join-Path $runner 'gf-e2e-original-l18-process.json'
-          $sourceRef=Join-Path $runner 'gf-e2e-postexit-selected-root.json'
-          $installReceipt=Join-Path $runner 'gf-e2e-live-install-transition.json'
-          $completedReport=Join-Path $runner 'gf-e2e-real-flow-report.json'
-          if (!(Test-Path $procRef) -or !(Test-Path $sourceRef) -or
-              !(Test-Path $installReceipt) -or !(Test-Path $completedReport)) {
-            throw 'GF_E2E_POSTEXIT_MISSING_ORIGINAL_L18_OR_SELECTOR_HOLD'
-          }
-          $process=Get-Content $procRef -Raw | ConvertFrom-Json
-          $source=Get-Content $sourceRef -Raw | ConvertFrom-Json
-          if ($process.schema -ne 'gf-e2e-original-l18-process/1' -or
-              $process.process_id -le 0 -or $process.process_start_utc_ticks -le 0 -or
-              !$process.test_only -or $process.operational_ready -or
-              $source.schema -ne 'gf-e2e-postexit-selected-root/1' -or
-              $source.selector -ne 'new' -or $source.generation -ne 2 -or
-              !$source.retained_from_same_l18 -or !$source.test_only -or
-              $source.operational_ready -or $source.recovery_authorized) {
-            throw 'GF_E2E_POSTEXIT_REFERENCE_INVALID_HOLD'
-          }
-          # Observe the ORIGINAL coordinator process identity, never an
-          # unrelated process with a reused PID. A mismatched process blocks.
-          $deadline=[DateTime]::UtcNow.AddSeconds(75)
-          while ([DateTime]::UtcNow -lt $deadline) {
-            $still=Get-Process -Id ([int]$process.process_id) -ErrorAction SilentlyContinue
-            if ($null -eq $still) { break }
-            if ($still.StartTime.ToUniversalTime().Ticks -ne
-                [long]$process.process_start_utc_ticks) {
-              throw 'GF_E2E_POSTEXIT_PROCESS_PID_REUSED_HOLD'
-            }
-            Start-Sleep -Milliseconds 200
-          }
-          if ($null -ne $still) { throw 'GF_E2E_ORIGINAL_L18_STILL_RUNNING_HOLD' }
-          $root=[System.IO.Path]::GetFullPath([string]$source.root)
-          $tmp=[System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
-          if (!$root.StartsWith($tmp.TrimEnd([char]'\')+[char]'\',
-              [System.StringComparison]::OrdinalIgnoreCase) -or
-              !(Test-Path (Join-Path $root '.gf-u2-fixture')) -or
-              !(Test-Path (Join-Path $root 'l18-real-active.fixture.json')) -or
-              !(Test-Path (Join-Path $root 'l18-real-new-may-have-effects.fixture.txt'))) {
-            throw 'GF_E2E_POSTEXIT_ORIGINAL_L18_STATE_MISSING_HOLD'
-          }
-          $selector=Join-Path $root 'l18-real-active.fixture.json'
-          $beforeDigest=(Get-FileHash -LiteralPath $selector -Algorithm SHA256).Hash
-          $state=Get-Content -LiteralPath $selector -Raw | ConvertFrom-Json
-          $context=Get-Content -LiteralPath (Join-Path $root 'l18-real-context.fixture.json') -Raw | ConvertFrom-Json
-          if ($state.schema -ne 'gf-l18-real-active-lab/1' -or
-              $state.selected -ne 'new' -or $state.generation -ne 2 -or
-              $state.installation -ne $context.Installation -or
-              $state.transaction -ne $context.Transaction -or
-              $state.manifest_sha256 -ne $context.ManifestSha -or
-              !$state.test_only -or $state.operational_installable) {
-            throw 'GF_E2E_POSTEXIT_ORIGINAL_SELECTOR_NOT_NEW2_HOLD'
-          }
-          Write-Host 'GF_E2E_ORIGINAL_L18_PROCESS_EXITED original_identity_checked=true'
-          Write-Host 'GF_E2E_ORIGINAL_SELECTOR_PERSISTED_AFTER_L18_EXIT selected=new/2 HOLD=true READY=false'
-          # Reuse precisely the EXISTING L18 selected-package Python
-          # observer, with no newly invented selector/launcher. This is a
-          # single bounded post-exit UI test, NOT automatic retry/recovery.
-          $env:GF_E2E_L18_OBSERVE_INSTALLED_NEW='1'
-          $env:GF_E2E_POST_EXIT_SELECTED_OBSERVE='1'
-          $env:GF_E2E_STARTUP_DRAFT_PROBE='0'
-          $env:GF_E2E_SELECTED_NEW_CONTINUATION='0'
-          $env:GF_E2E_HANDOFF_L18='0'
-          try {
-            python prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py --recovery-observe $root
-            if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_POSTEXIT_SELECTED_OBSERVER_REJECTED_HOLD' }
-          }
-          finally {
-            Remove-Item Env:GF_E2E_L18_OBSERVE_INSTALLED_NEW -ErrorAction SilentlyContinue
-            Remove-Item Env:GF_E2E_POST_EXIT_SELECTED_OBSERVE -ErrorAction SilentlyContinue
-          }
-          $afterDigest=(Get-FileHash -LiteralPath $selector -Algorithm SHA256).Hash
-          $observation=Join-Path $runner 'gf-e2e-postexit-selected-new-ui.json'
-          if ($beforeDigest -ne $afterDigest -or !(Test-Path $observation)) {
-            throw 'GF_E2E_POSTEXIT_SELECTOR_MUTATED_OR_UI_UNPROVEN_HOLD'
-          }
-          $proof=Get-Content -LiteralPath $observation -Raw | ConvertFrom-Json
-          if ($proof.schema -ne 'gf-e2e-postexit-selected-new-ui/1' -or
-              $proof.selector -ne 'new' -or $proof.generation -ne 2 -or
-              !$proof.new_started_from_original_portable_install_path -or
-              !$proof.exact_new_executable_hash_checked -or
-              !$proof.readonly_functional_ui_observed -or
-              !$proof.graceful_exit_observed -or !$proof.test_only -or
-              $proof.operational_ready -or $proof.automatic_recovery_authorized) {
-            throw 'GF_E2E_POSTEXIT_FUNCTIONAL_OR_CONTAINMENT_UNPROVEN_HOLD'
-          }
-          # No OLD cleanup, reselect, rollback, READY or migration occurs.
-          # Verify again in the existing independent file-set verification
-          # flow above; this step proves the selector wasn't deleted by
-          # L18's test harness and survives ONE coordinator exit.
-          Write-Host 'GF_E2E_POSTEXIT_PERSISTENCE_PROVEN selector=new/2 install=5.13.11.66 UI=FUNCTIONAL_READONLY original_coordinator=EXITED old_preserved=true READY=false'
-          Add-Content $env:GITHUB_STEP_SUMMARY 'POST-EXIT proof: original L18 coordinator exited; original same L18 selector new/2 survived and was unchanged; existing selector-gated observer launched one bounded functional NEW UI from original portable install; OLD backup intact; HOLD/UnknownBlocked, READY=false.'
+          $check | python -
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_BETWEEN_MOVES_INDEPENDENT_VERIFICATION_FAILED_HOLD' }
+          Add-Content $env:GITHUB_STEP_SUMMARY 'HOLD proof in disposable runner: real L18 owner killed by retained process handle exit 91 after first directory rename, before second. Original executable path missing, OLD 284 files retained, NEW 284 files still staged, canary unchanged, selector new/2 and fences survive, reconciler plus replay UnknownBlocked. No rollback/retry/cleanup/READY.'
       - name: Negativos de pacote real adulterado e transferencia incompleta
         shell: pwsh
         run: |

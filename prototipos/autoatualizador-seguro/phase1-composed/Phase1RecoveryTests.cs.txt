@@ -439,6 +439,114 @@ internal static class Phase1RecoveryTests
         finally{await owner.Cleanup();await recovery.Cleanup();}
     }
 
+    // Single controlled CUT of the existing L18 REAL portable install swap.
+    // The original UI-started OLD and the existing selected NEW/2 fence must
+    // already be established before RealOwner moves OLD into its backup.
+    // The SAME LabProcessJob kill handle cuts after exactly ONE directory move.
+    private static async Task<object> PhysicalInstallBetweenMovesCut(string[] a)
+    {
+        Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+            Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==
+                "walissonminel-1991/gerenciador-final" &&
+            Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")=="1" &&
+            Environment.GetEnvironmentVariable("GF_E2E_POST_OWNER_PERSISTENCE")=="1",
+            "REAL_BETWEEN_MOVES_CUT_RUNNER_ONLY");
+        using var s=await L16Tests.Prepared();
+        string src=s.Source.Root;
+        var c=await Prepare(s,a);
+        using var contextPin=WindowsFileGuard.Open(src,L18Coordinator.RealContextPath(src));
+        using var pins=new RealLabPins(src,c);
+        using var owner=LabProcessJob.Create(c.OwnerJob);
+        using var recovery=LabProcessJob.Create(c.RecoveryJob);
+        L16Tests.PostExitRetainedRoot=src; // retain SAME selector, journal, pins evidence
+        string runner=Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!);
+        string live=Path.Combine(runner,"gf-e2e-old"),
+            backup=Path.Combine(runner,"gf-e2e-old-preserved"),
+            incoming=Path.Combine(runner,"gf-e2e-authenticated-new"),
+            canary=Path.Combine(runner,"gf-e2e-install-data","PERSONAL-KEEP-UNCHANGED.txt"),
+            installedReceipt=Path.Combine(runner,"gf-e2e-live-install-transition.json");
+        string cut="between-install-moves";
+        bool killed=false;
+        try
+        {
+            using var child=owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,
+                "handoff-install-cut",a[9]);
+            // The marker is published by the REAL coordinator only AFTER
+            // Directory.Move(live,backup) returned. The owner must still be
+            // alive and blocked BEFORE the second move can happen.
+            await Until(()=>File.Exists(L18Coordinator.RealCutPath(src)) || child.Exited);
+            Require(!child.Exited &&
+                File.ReadAllText(L18Coordinator.RealCutPath(src))==cut &&
+                Selection(src)==("new",2) &&
+                File.Exists(L18Coordinator.NewLaunchFence(src)) &&
+                File.Exists(Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt")) &&
+                !Directory.Exists(live) && !File.Exists(live) &&
+                Directory.Exists(backup) && Directory.Exists(incoming) &&
+                !File.Exists(installedReceipt) &&
+                !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")) &&
+                File.ReadAllText(canary,new UTF8Encoding(false))==
+                    "DO-NOT-TOUCH-MY-DATA\n",
+                "REAL_BETWEEN_MOVES_PREKILL_GAP_UNPROVEN");
+            await child.KillOnlyThisProcess();
+            Require(child.ExitCode==91,"REAL_BETWEEN_MOVES_WRONG_KILL_EXIT");
+            killed=true;
+            // A killed process cannot continue to the second rename.
+            Require(!Directory.Exists(live) && Directory.Exists(backup) &&
+                Directory.Exists(incoming) && !File.Exists(installedReceipt),
+                "REAL_BETWEEN_MOVES_SECOND_MOVE_OCCURRED");
+            var before=Hash(File.ReadAllBytes(Path.Combine(src,
+                "l18-real-active.fixture.json")));
+            string outcome=await Reopen(recovery,owner,src,s.Lab);
+            Require(outcome=="UnknownBlocked" && Selection(src)==("new",2),
+                "REAL_BETWEEN_MOVES_RECOVERY_NOT_HOLD:"+outcome);
+            string reason=Reason(src);
+            Require(reason=="REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED" &&
+                File.Exists(L18Coordinator.RecoveryBlocked(src)) &&
+                !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")),
+                "REAL_BETWEEN_MOVES_WRONG_CONTAINMENT:"+reason);
+            string replay=await Reopen(recovery,owner,src,s.Lab);
+            Require(replay=="UnknownBlocked" &&
+                Hash(File.ReadAllBytes(Path.Combine(src,
+                    "l18-real-active.fixture.json")))==before &&
+                !Directory.Exists(live) && Directory.Exists(backup) &&
+                Directory.Exists(incoming) && !File.Exists(installedReceipt) &&
+                File.ReadAllText(canary,new UTF8Encoding(false))==
+                    "DO-NOT-TOUCH-MY-DATA\n",
+                "REAL_BETWEEN_MOVES_REPLAY_MUTATED_INSTALL");
+            pins.Recheck();
+            // Reopening the SAME L18 reconciler already revalidated TUF,
+            // manifest and exact package identities with its RealLabPins.
+            using(var independentPins=new RealLabPins(src,c))
+                independentPins.Recheck();
+            s.Preserved();
+            Require(owner.Active==0 && recovery.Active==0,
+                "REAL_BETWEEN_MOVES_CHILDREN_STILL_LIVE");
+            return new{
+                schema="gf-e2e-interrupted-physical-swap-l18/1",
+                scenario="between-install-moves",
+                root=src,owner_exited_by_retained_process_handle=killed,
+                owner_exit_code=91,selector="new",generation=2,
+                first_directory_move_completed=true,second_directory_move_executed=false,
+                old_present_in_backup=true,new_present_in_staging=true,
+                original_executable_path_absent=true,personal_canary_untouched=true,
+                old_and_new_fixture_pins_rechecked=true,
+                new_executable_not_launched_after_cut=true,
+                installed_receipt_absent=true,
+                outcome,replay,reason,
+                rollback_authorized=false,rollback_performed=false,
+                automatic_retry_authorized=false,cleanup_performed=false,
+                test_only=true,operational_ready=false
+            };
+        }
+        finally
+        {
+            // No recovery, rollback or filesystem cleanup in this test.
+            // Only a surviving child would be contained by existing Jobs.
+            if(!killed && owner.Active!=0)await owner.Cleanup();
+            if(recovery.Active!=0)await recovery.Cleanup();
+        }
+    }
+
     private static async Task<object> Scenario(string name,string[] a)
     {
         using var s=await L16Tests.Prepared();string src=s.Source.Root;
@@ -1274,7 +1382,7 @@ internal static class Phase1RecoveryTests
             if(a.Length==3 && a[0]=="--real-provider-writer"){await ProviderWriter(a[1],a[2]);return 0;}
             if(a.Length==5 && a[0]=="--real-owner"){await L18Coordinator.RealOwner(a[1],a[2],a[3],a[4]);return 0;}
             if(a.Length==6 && a[0]=="--real-owner" &&
-                a[4] is "handoff" or "handoff-install")
+                a[4] is "handoff" or "handoff-install" or "handoff-install-cut")
             {
                 Require(int.TryParse(a[5],System.Globalization.NumberStyles.None,
                     System.Globalization.CultureInfo.InvariantCulture,out int originalPid) &&
@@ -1292,7 +1400,7 @@ internal static class Phase1RecoveryTests
             }
             Require(((a.Length==9 && (a[0]=="--real-suite" ||
                     a[0]=="--real-normal-focused")) ||
-                    (a.Length==10 && a[0] is "--real-handoff-focused" or "--real-install-focused")) &&
+                    (a.Length==10 && a[0] is "--real-handoff-focused" or "--real-install-focused" or "--real-install-cut-focused")) &&
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
                 Path.GetFileName(Own)=="GF.Updater.M3.L18Tests.exe","REAL_SUITE_ARGUMENTS");
             foreach(string p in a.Skip(7).Take(2))
@@ -1302,6 +1410,32 @@ internal static class Phase1RecoveryTests
             L16Tests.suite=Path.Combine(Path.GetTempPath(),"gf-u2-r-"+Guid.NewGuid().ToString("N")[..8]);
             Require(!Directory.Exists(L16Tests.suite),"REAL_SUITE_MUST_BE_FRESH");
             Directory.CreateDirectory(L16Tests.suite);
+            if(a[0]=="--real-install-cut-focused")
+            {
+                try
+                {
+                    Require(int.TryParse(a[9],System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture,out int oldPid) &&
+                        oldPid>0,"REAL_BETWEEN_MOVES_ORIGINAL_PID_REQUIRED");
+                    var proof=await PhysicalInstallBetweenMovesCut(a);
+                    File.WriteAllText(a[1],JsonSerializer.Serialize(proof));
+                    Console.WriteLine("GF_E2E_BETWEEN_MOVES_L18_HOLD "
+                        +"owner_killed=91 selector=new/2 OLD=BACKUP NEW=STAGED "
+                        +"original_path=ABSENT replay=UnknownBlocked "
+                        +"rollback=false cleanup=false READY=false");
+                    return 0;
+                }
+                finally
+                {
+                    // Preserve the EXACT original fixture and filesystem gap
+                    // until independent same-runner CI inspection.
+                    if(!(Environment.GetEnvironmentVariable("GF_E2E_POST_OWNER_PERSISTENCE")=="1" &&
+                        Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+                        Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==
+                            "walissonminel-1991/gerenciador-final"))
+                        Directory.Delete(L16Tests.suite,true);
+                }
+            }
             if(a[0] is "--real-handoff-focused" or "--real-install-focused")
             {
                 bool installationSwap=a[0]=="--real-install-focused";
