@@ -1221,7 +1221,8 @@ internal static class Phase1RecoveryTests
                 string result=await L18Coordinator.ReconcileReal(a[1],a[2],a[3],a[4],witness);
                 File.WriteAllText(Path.Combine(a[1],"real-reconcile-result.fixture.txt"),result);return 0;
             }
-            Require(a.Length==9 && a[0]=="--real-suite" &&
+            Require(a.Length==9 && (a[0]=="--real-suite" ||
+                    a[0]=="--real-normal-focused") &&
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
                 Path.GetFileName(Own)=="GF.Updater.M3.L18Tests.exe","REAL_SUITE_ARGUMENTS");
             foreach(string p in a.Skip(7))
@@ -1231,6 +1232,39 @@ internal static class Phase1RecoveryTests
             L16Tests.suite=Path.Combine(Path.GetTempPath(),"gf-u2-r-"+Guid.NewGuid().ToString("N")[..8]);
             Require(!Directory.Exists(L16Tests.suite),"REAL_SUITE_MUST_BE_FRESH");
             Directory.CreateDirectory(L16Tests.suite);
+            // Focused transition: the same RealOwner, selector, Job, journal,
+            // pins and reconciler used in the 29-case regression, without
+            // repeating all the adversarial cases for each application startup.
+            if(a[0]=="--real-normal-focused")
+            {
+                try
+                {
+                    var normal=await Scenario("normal",a);
+                    var e=JsonSerializer.SerializeToElement(normal);
+                    Require(e.GetProperty("test").GetString()=="normal" &&
+                        e.GetProperty("status").GetString()=="passed" &&
+                        e.GetProperty("classification").GetString()=="PASS_CONTAINMENT" &&
+                        e.GetProperty("normal_owner_completed_without_crash").GetBoolean() &&
+                        e.GetProperty("reconciler_new_process").GetBoolean() &&
+                        e.GetProperty("old_and_canary_preserved").GetBoolean() &&
+                        e.GetProperty("manifest_and_object_identities_rechecked").GetBoolean() &&
+                        e.GetProperty("outcome").GetString()=="UnknownBlocked" &&
+                        e.GetProperty("replay").GetString()=="UnknownBlocked" &&
+                        !e.GetProperty("operational_ready").GetBoolean(),
+                        "REAL_FOCUSED_NORMAL_NOT_CONTAINED");
+                    var report=new{
+                        schema="gf-real-single-normal-lab/1",
+                        scenario="normal",result=normal,
+                        passed=1,failed=0,operational_ready=false,
+                        recovery_authorized=false,
+                        independent_recovery_authority=false,
+                        phase1_complete=false,production_tuf_authority=false};
+                    File.WriteAllText(a[1],JsonSerializer.Serialize(report));
+                    Console.WriteLine("GF_PHASE1_FOCUSED_NORMAL "+JsonSerializer.Serialize(report));
+                    return 0;
+                }
+                finally {Directory.Delete(L16Tests.suite,true);}
+            }
             var results=new List<object>();int failed=0;
             try
             {

@@ -141,7 +141,7 @@ jobs:
           }
           $proc=Start-Process -FilePath $exe -ArgumentList '--tray' -WorkingDirectory (Split-Path $exe) -PassThru
           try {
-            $deadline=[DateTime]::UtcNow.AddMinutes(23)
+            $deadline=[DateTime]::UtcNow.AddMinutes(9)
             while ([DateTime]::UtcNow -lt $deadline) {
               if ((Test-Path $handoff) -or (Test-Path $failure) -or $proc.HasExited) { break }
               Start-Sleep -Milliseconds 250
@@ -159,11 +159,11 @@ jobs:
             if (!(Test-Path $proof)) { throw 'GF_E2E_STARTUP_REMOTE_DOWNLOAD_NOT_COMPLETED' }
             if (!(Test-Path $handoff)) { throw 'GF_E2E_OLD_TO_L18_AUTONOMOUS_HANDOFF_NOT_PROVEN' }
             $h=Get-Content $handoff -Raw | ConvertFrom-Json
-            if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/1' -or
+            if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/2' -or
                 !$h.initiated_by_gf_old_mainform -or
                 !$h.tuf_child_verified_download -or
                 !$h.same_l18_coordinator_invoked_by_old -or
-                $h.l18_cases -ne 29 -or
+                $h.l18_cases -ne 1 -or
                 $h.case_classification -ne 'PASS_CONTAINMENT' -or
                 $h.normal_outcome -ne 'UnknownBlocked' -or
                 !$h.test_only -or $h.operational_ready -or $h.automatic_recovery_authorized) {
@@ -224,23 +224,28 @@ jobs:
             throw 'GF_E2E_OLD_HANDOFF_INCONCLUSIVE'
           }
           $r=Get-Content $report -Raw | ConvertFrom-Json
-          $normal=@($r.tests | Where-Object { $_.test -eq 'normal' })
-          if ($r.failed -ne 0 -or $r.expected_cases -ne 29 -or @($r.tests).Count -ne 29 -or
-              $normal.Count -ne 1 -or $normal[0].status -ne 'passed' -or
-              !$normal[0].normal_owner_completed_without_crash -or
-              !$normal[0].manifest_and_object_identities_rechecked -or
-              !$normal[0].old_and_canary_preserved -or
-              $normal[0].outcome -ne 'UnknownBlocked' -or
-              @($r.tests | Where-Object {$_.classification -ne 'PASS_CONTAINMENT'}).Count -ne 0 -or
-              $r.operational_ready -or $r.phase1_complete -or $r.production_tuf_authority) {
+          $normal=$r.result
+          if ($r.schema -ne 'gf-real-single-normal-lab/1' -or
+              $r.scenario -ne 'normal' -or $r.failed -ne 0 -or $r.passed -ne 1 -or
+              $normal.test -ne 'normal' -or $normal.status -ne 'passed' -or
+              !$normal.normal_owner_completed_without_crash -or
+              !$normal.manifest_and_object_identities_rechecked -or
+              !$normal.old_and_canary_preserved -or
+              !$normal.reconciler_new_process -or
+              $normal.outcome -ne 'UnknownBlocked' -or
+              $normal.replay -ne 'UnknownBlocked' -or
+              $normal.classification -ne 'PASS_CONTAINMENT' -or
+              $r.operational_ready -or $r.phase1_complete -or
+              $r.recovery_authorized -or $r.independent_recovery_authority -or
+              $r.production_tuf_authority) {
             throw 'GF_E2E_L18_CONTAINMENT_OR_AUTHORIZATION_FAILED'
           }
-          Write-Host 'GF_E2E_OLD_OWNED_PYTHON_TUF_AND_L18 old=5.13.11.65 new=5.13.11.66 cases=29 containment_only=true ready=false'
+          Write-Host 'GF_E2E_OLD_OWNED_PYTHON_TUF_AND_L18 old=5.13.11.65 new=5.13.11.66 focused_normal=PASS_CONTAINMENT ready=false'
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value @(
             '## GF OLD real dirigiu o fluxo de laboratorio .NET -> TUF -> C# L18'
             '- MainForm.Shown (somente GF_E2E_LAB e GITHUB_ACTIONS) iniciou cliente .NET, TUF e coordenador C# L18.'
-            '- CI prepos somente o executable L18 e fixtures; nao iniciou a matriz.'
-            '- C# L18 unico executou OLD/NEW reais, 29 casos PASS_CONTAINMENT e UnknownBlocked.'
+            '- CI preparou o executavel L18 e fixtures; nao executou transicao alguma.'
+            '- O GF OLD iniciou UM ensaio normal OLD/NEW pelo mesmo C# L18; PASS_CONTAINMENT e UnknownBlocked. A matriz completa 29/29 ja passou na CI 41168060868.'
             '- Nao e autoatualizacao operacional; READY e rollback automatico bloqueados.'
           )
       - name: Negativos de pacote real adulterado e transferencia incompleta

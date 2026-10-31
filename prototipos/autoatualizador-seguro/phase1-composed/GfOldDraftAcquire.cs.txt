@@ -292,35 +292,41 @@ internal static class GfOldDraftAcquire
 
         // Invoke the SAME tested L18 process coordinator with the original
         // 9-argument real-suite command line and unchanged fixture sources.
-        await RunScopedChild(bridge, TimeSpan.FromMinutes(19),
-            "--real-suite", report, fixtures, anchor, repoRoot,
+        await RunScopedChild(bridge, TimeSpan.FromMinutes(6),
+            "--real-normal-focused", report, fixtures, anchor, repoRoot,
             python, script, old, extracted);
 
+        // Validate a single real transition using the SAME C# L18 scenario.
+        // All 29 adversarial regression scenarios were tested separately.
         using var reportDocument = JsonDocument.Parse(File.ReadAllBytes(report));
         JsonElement r = reportDocument.RootElement;
-        var cases = r.GetProperty("tests");
+        JsonElement normal = r.GetProperty("result");
         Require(r.GetProperty("schema").GetString() ==
-                    "gf-real-process-crash-recovery-lab/1" &&
+                    "gf-real-single-normal-lab/1" &&
+                r.GetProperty("scenario").GetString() == "normal" &&
+                r.GetProperty("passed").GetInt32() == 1 &&
                 r.GetProperty("failed").GetInt32() == 0 &&
-                r.GetProperty("expected_cases").GetInt32() == 29 &&
-                cases.GetArrayLength() == 29 &&
-                cases.EnumerateArray().All(t =>
-                    t.GetProperty("classification").GetString() == "PASS_CONTAINMENT") &&
                 !r.GetProperty("operational_ready").GetBoolean() &&
+                !r.GetProperty("recovery_authorized").GetBoolean() &&
+                !r.GetProperty("independent_recovery_authority").GetBoolean() &&
                 !r.GetProperty("phase1_complete").GetBoolean() &&
-                cases.EnumerateArray().Any(t =>
-                    t.GetProperty("test").GetString() == "normal" &&
-                    t.GetProperty("outcome").GetString() == "UnknownBlocked" &&
-                    t.GetProperty("old_and_canary_preserved").GetBoolean() &&
-                    t.GetProperty("manifest_and_object_identities_rechecked").GetBoolean()),
-                "L18_NOT_CONTAINED_OR_DATA_NOT_PRESERVED");
+                normal.GetProperty("test").GetString() == "normal" &&
+                normal.GetProperty("status").GetString() == "passed" &&
+                normal.GetProperty("classification").GetString() == "PASS_CONTAINMENT" &&
+                normal.GetProperty("outcome").GetString() == "UnknownBlocked" &&
+                normal.GetProperty("replay").GetString() == "UnknownBlocked" &&
+                normal.GetProperty("normal_owner_completed_without_crash").GetBoolean() &&
+                normal.GetProperty("reconciler_new_process").GetBoolean() &&
+                normal.GetProperty("old_and_canary_preserved").GetBoolean() &&
+                normal.GetProperty("manifest_and_object_identities_rechecked").GetBoolean(),
+                "L18_NORMAL_NOT_CONTAINED_OR_DATA_NOT_PRESERVED");
         File.WriteAllText(Path.Combine(runner, "gf-e2e-old-l18-handoff-report.json"),
             JsonSerializer.Serialize(new {
-                schema = "gf-e2e-old-owns-l18-handoff/1",
+                schema = "gf-e2e-old-owns-l18-handoff/2",
                 initiated_by_gf_old_mainform = true,
                 tuf_child_verified_download = true,
                 same_l18_coordinator_invoked_by_old = true,
-                l18_cases = 29,
+                l18_cases = 1,
                 case_classification = "PASS_CONTAINMENT",
                 normal_outcome = "UnknownBlocked",
                 test_only = true, operational_ready = false,
