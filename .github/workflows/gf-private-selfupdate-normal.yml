@@ -258,6 +258,16 @@ jobs:
             Write-Host "GF_GITHUB_WORKER_DIAGNOSTIC phase=$phase failure_category=$errorType original_present=$oldExists staged_present=$stageExists backup_present=$backupExists READY=false"
             throw 'PRIVATE_GITHUB_WORKER_NO_HEALTH_RECEIPT'
           }
+          $api=Join-Path $folder 'github-protocol.json'
+          if (!(Test-Path -LiteralPath $api)) { throw 'GF_GITHUB_PROTOCOL_PROOF_MISSING' }
+          $a=Get-Content -LiteralPath $api -Raw | ConvertFrom-Json
+          if ($a.schema -ne 'gf-private-github-protocol/1' -or
+              !$a.public_stable_release_parsed -or !$a.github_redirect_followed -or
+              !$a.asset_sha256_verified -or !$a.wrong_sha256_rejected -or
+              !$a.worker_started -or !$a.test_only -or $a.ready) {
+            throw 'GF_GITHUB_PROTOCOL_VALIDATION_FAILED'
+          }
+          Write-Host 'GF_GITHUB_PROTOCOL_PASS official_api_urls=true metadata=true stable_release=true asset_302=true sha256=true tampered_rejected=true no_token=true fixture_only=true READY=false'
           $json=Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
           if ($json.schema -ne 'gf-private-github-update/1' -or $json.ready -or $json.installed_version -ne '5.13.11.66') { throw 'PRIVATE_GITHUB_WORKER_RECEIPT_INVALID' }
           $actual=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $retained 'GerenciadorFinal.dll')).Version.ToString()

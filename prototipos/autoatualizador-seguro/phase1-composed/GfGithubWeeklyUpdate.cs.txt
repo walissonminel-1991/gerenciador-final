@@ -6,6 +6,8 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text;
+using System.Diagnostics;
 
 namespace GerenciadorAplicativos;
 
@@ -146,6 +148,14 @@ internal static class GfGithubWeeklyUpdate
     internal static async Task<string> DownloadAssetAsync(Release release, string destination)
     {
         using var http = Client();
+        return await DownloadAssetWithClientAsync(release, destination, http);
+    }
+
+    // The EXACT production asset download loop is reused by the isolated
+    // GitHub-protocol fixture: no second downloader or parallel update engine.
+    private static async Task<string> DownloadAssetWithClientAsync(
+        Release release, string destination, HttpClient http)
+    {
         var endpoint = new Uri("https://api.github.com/repos/" + Repo +
                                "/releases/assets/" + release.AssetId);
         Uri uri = endpoint;
@@ -199,6 +209,131 @@ internal static class GfGithubWeeklyUpdate
             return destination;
         }
         throw new InvalidDataException("GF_GITHUB_UPDATE_TOO_MANY_REDIRECTS");
+    }
+
+    // Not a second channel: this handler never opens a socket. It models
+    // public GitHub Releases JSON -> GitHub asset endpoint 302 -> CDN ZIP.
+    // The ordinary Get Latest / DownloadAsset methods use the real GitHub URLs.
+    private sealed class CiGithubProtocolHandler(string archive, string sha256)
+        : HttpMessageHandler
+    {
+        internal int MetadataRequests;
+        internal int AssetRequests;
+        internal int RedirectedDownloads;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Uri uri = request.RequestUri ??
+                throw new InvalidDataException("GF_FIXTURE_REQUEST_MISSING");
+            HttpResponseMessage response;
+            if (uri == Latest)
+            {
+                MetadataRequests++;
+                var metadata = new
+                {
+                    tag_name = "v5.13.11.66", draft = false, prerelease = false,
+                    published_at = "2026-10-31T00:00:00Z",
+                    assets = new[]
+                    {
+                        new { name = AssetName, id = 7654321, size = new FileInfo(archive).Length,
+                              digest = "sha256:" + sha256 }
+                    }
+                };
+                response = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(metadata),
+                        Encoding.UTF8, "application/json")
+                };
+            }
+            else if (uri == new Uri("https://api.github.com/repos/" + Repo +
+                                     "/releases/assets/7654321"))
+            {
+                AssetRequests++;
+                response = new HttpResponseMessage(HttpStatusCode.Found);
+                response.Headers.Location = new Uri(
+                    "https://release-assets.githubusercontent.com/gf-test-owned-zip");
+            }
+            else if (uri == new Uri(
+                         "https://release-assets.githubusercontent.com/gf-test-owned-zip"))
+            {
+                RedirectedDownloads++;
+                response = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StreamContent(File.OpenRead(archive))
+                };
+                response.Content.Headers.ContentType =
+                    new MediaTypeHeaderValue("application/octet-stream");
+            }
+            else
+            {
+                throw new InvalidDataException("GF_FIXTURE_UNEXPECTED_GITHUB_URL");
+            }
+            response.RequestMessage = request;
+            return Task.FromResult(response);
+        }
+    }
+
+    // CI-only. Tests the REAL production parser + downloader against
+    // identical GitHub URL shapes, not against an invented update domain.
+    // No public release, token, remote upload or user computer is involved.
+    internal static async Task RunGithubProtocolFixtureAsync()
+    {
+        if (!GfPrivateFunctionalUpdate.LabEnabled ||
+            Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") != Repo)
+            throw new InvalidOperationException("GF_PROTOCOL_FIXTURE_CI_ONLY");
+        string root = Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+            throw new InvalidOperationException("GF_PROTOCOL_FIXTURE_RUNNER_MISSING");
+        string archive = Path.Combine(root, "gf-private-e2e-new.zip");
+        if (!File.Exists(archive))
+            throw new FileNotFoundException("GF_PROTOCOL_FIXTURE_ARCHIVE_MISSING");
+        string digest;
+        using (var stream = File.OpenRead(archive))
+            digest = Convert.ToHexString(SHA256.HashData(stream));
+        using var fake = new CiGithubProtocolHandler(archive, digest);
+        using var http = new HttpClient(fake, disposeHandler: false)
+        {
+            Timeout = TimeSpan.FromMinutes(5)
+        };
+        Release release = await FindReleaseAsync(http) ??
+            throw new InvalidDataException("GF_PROTOCOL_FIXTURE_RELEASE_UNDETECTED");
+        if (release.Version != new Version(5,13,11,66))
+            throw new InvalidDataException("GF_PROTOCOL_FIXTURE_VERSION");
+        // Negative: an incorrect digest is detected BEFORE extraction/worker.
+        var tampered = release with { Sha256 = new string('0', 64) };
+        bool rejected = false;
+        string bad = Path.Combine(root, "gf-private-github-protocol-rejected.zip");
+        try { await DownloadAssetWithClientAsync(tampered, bad, http); }
+        catch (InvalidDataException e) when (
+            e.Message.Contains("RELEASE_ASSET_DIGEST_MISMATCH", StringComparison.Ordinal))
+        { rejected = true; }
+        if (!rejected)
+            throw new InvalidDataException("GF_PROTOCOL_FIXTURE_BAD_SHA_NOT_REJECTED");
+
+        await GfPrivateFunctionalUpdate.PrepareOfficialReleaseAsync(
+            release, (r, destination) =>
+                DownloadAssetWithClientAsync(r, destination, http));
+        if (fake.MetadataRequests != 1 || fake.AssetRequests != 2 ||
+            fake.RedirectedDownloads != 2)
+            throw new InvalidDataException("GF_PROTOCOL_FIXTURE_REQUEST_COUNTS");
+        // Record only test outcome codes; the real installation receipt is
+        // independently created by the external GF worker after NEW UI.
+        string old = Path.GetFullPath(AppContext.BaseDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string workspace = Path.Combine(Directory.GetParent(old)!.FullName,
+            "." + Path.GetFileName(old) + "-gfupdate-5.13.11.66");
+        File.WriteAllText(Path.Combine(workspace, "github-protocol.json"),
+            JsonSerializer.Serialize(new
+            {
+                schema = "gf-private-github-protocol/1",
+                public_stable_release_parsed = true,
+                github_redirect_followed = true,
+                asset_sha256_verified = true,
+                wrong_sha256_rejected = rejected,
+                worker_started = true,
+                test_only = true, ready = false
+            }));
     }
 
     internal static async Task<int> SmokeAsync()

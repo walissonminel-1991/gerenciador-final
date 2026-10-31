@@ -46,7 +46,7 @@ internal static class Program
         {
             try
             {
-                GfPrivateFunctionalUpdate.PrepareOfficialFixtureAsync()
+                GfGithubWeeklyUpdate.RunGithubProtocolFixtureAsync()
                     .GetAwaiter().GetResult();
                 return 0;
             }
