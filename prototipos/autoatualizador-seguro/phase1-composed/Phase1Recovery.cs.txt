@@ -265,9 +265,27 @@ internal static partial class L18Coordinator
         File.Move(pending,RealCutPath(src)); // publish only after write/flush/close
         await Task.Delay(Timeout.Infinite); // killed only by retained test process handle
     }
-    internal static async Task RealOwner(string src,string lab,string bootstrap,string cut)
+    internal static async Task RealOwner(string src,string lab,string bootstrap,string cut,int originalOldPid=0)
     {
         var c=LoadRealContext(src,lab);
+        // For the focused live handoff ONLY: open the original OLD process
+        // BEFORE signalling the selector barrier, retain its kernel handle
+        // across exit, and prove the real image path. A numeric PID by itself
+        // never authorizes launch, recovery, or READY.
+        using Process? originalOld = cut=="handoff"
+            ? Process.GetProcessById(originalOldPid) : null;
+        if(cut=="handoff")
+        {
+            string originalImage=Path.Combine(
+                Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+                    throw new Rejected("REAL_HANDOFF_RUNNER_TEMP_MISSING"),
+                "gf-e2e-old","GerenciadorFinal.exe");
+            Require(originalOld is not null && !originalOld.HasExited &&
+                Path.GetFullPath(originalOld.MainModule?.FileName ?? "").Equals(
+                    Path.GetFullPath(originalImage),StringComparison.OrdinalIgnoreCase),
+                "REAL_HANDOFF_ORIGINAL_OLD_HANDLE_OR_IMAGE");
+            _=originalOld.Handle;
+        }
         using var contextPin=WindowsFileGuard.Open(src,RealContextPath(src));
         using var gate=TryCoordinatorGate(src);Require(gate is not null,"REAL_OWNER_BUSY");
         using var job=LabProcessJob.Open(c.OwnerJob);job.RequireCurrentMember();
@@ -292,7 +310,7 @@ internal static partial class L18Coordinator
             return; // Never fall through to functional observation.
         }
         Append(src,lab,Switching,"real-new-selection-intent",c.ManifestSha);
-        if(cut is "normal" or "before-old-observation" or "positive-trial" or "positive-trial-negative")
+        if(cut is "normal" or "handoff" or "before-old-observation" or "positive-trial" or "positive-trial-negative")
         {
             // The normal experiment uses the SAME retained context, NTFS pins,
             // L18 journal and Job Object as restarted-process reconciliation.
@@ -328,6 +346,55 @@ internal static partial class L18Coordinator
         Append(src,lab,Launched,"real-new-effects-fenced-before-create",c.ManifestSha);
         string selected=SelectedRealPath(src,c,out var slot,out _);
         Require(slot=="new","REAL_OWNER_NOT_NEW");
+        if(cut=="handoff")
+        {
+            Require(originalOld is not null && !originalOld.HasExited &&
+                Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+                Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==
+                    "walissonminel-1991/gerenciador-final",
+                "REAL_HANDOFF_ORIGINAL_OLD_EXITED_EARLY");
+            string runner=Environment.GetEnvironmentVariable("RUNNER_TEMP")!;
+            // Coordinator owns the original NEW/2 selector, journal and
+            // effects fence. This marker only coordinates OLD shutdown;
+            // the authority for the first NEW launch remains the LIVE owner.
+            DurableRealFile(Path.Combine(runner,"gf-e2e-selected-new-ready.json"),
+                JsonSerializer.SerializeToUtf8Bytes(new{
+                    schema="gf-e2e-selected-new-ready/1",
+                    selector="new",generation=2,launch_fenced=true,
+                    l18_live_owner=true,test_only=true,operational_ready=false
+                }));
+            try
+            {
+                await originalOld.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(75));
+            }
+            catch(TimeoutException)
+            {
+                throw new Rejected("REAL_HANDOFF_ORIGINAL_OLD_EXIT_TIMEOUT_HOLD");
+            }
+            Require(originalOld.HasExited && originalOld.ExitCode==0 &&
+                File.Exists(Path.Combine(runner,"gf-e2e-old-ui-closed.json")) &&
+                File.Exists(Path.Combine(runner,"gf-e2e-old-message-loop-exited.json")),
+                "REAL_HANDOFF_ORIGINAL_OLD_NOT_GRACEFUL");
+            using(var receipt=JsonDocument.Parse(File.ReadAllBytes(
+                Path.Combine(runner,"gf-e2e-old-message-loop-exited.json"))))
+                Require(receipt.RootElement.GetProperty("application_run_returned").GetBoolean() &&
+                    receipt.RootElement.GetProperty("selected_new_fenced_before_close").GetBoolean() &&
+                    !receipt.RootElement.GetProperty("operational_ready").GetBoolean(),
+                    "REAL_HANDOFF_OLD_LOOP_RECEIPT_INVALID");
+            RequireRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"new",2);
+            pins.Recheck();VerifyRealManifest(src,c);
+            DurableRealFile(Path.Combine(runner,"gf-e2e-old-exit-before-new-observation.json"),
+                JsonSerializer.SerializeToUtf8Bytes(new{
+                    schema="gf-e2e-old-exited-before-l18-new-observation/1",
+                    process_handle_wait_completed=true,
+                    old_exit_code=0,selector="new",generation=2,
+                    test_only=true,operational_ready=false
+                }));
+            // EXACT SAME L18/Python selected-package observer used by normal.
+            // It creates one verified NEW process from the selector (NEW/2),
+            // checks its real WinForms UI for a bounded session, then closes
+            // the owned test process normally; no independent CI launch.
+        }
         if(cut is "positive-trial" or "positive-trial-negative")
         {
             // Experimental B: ONLY the still-live original owner may record
@@ -352,7 +419,7 @@ internal static partial class L18Coordinator
             Console.WriteLine("GF_PHASE1_TRIAL_NEW_POSITIVE; READY=false; recovery=false; operational=false");
             return;
         }
-        if(cut=="normal")
+        if(cut is "normal" or "handoff")
         {
             // This is NOT a safe post-NEW rollback: a successful health probe
             // cannot establish that external/brokered effects have quiesced.
@@ -361,6 +428,7 @@ internal static partial class L18Coordinator
             await RunRealObserver(src,c,"--recovery-observe");
             await job.RequireOnlyCurrentProcess();
             pins.Recheck();VerifyRealManifest(src,c);
+            RequireRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"new",2);
             Append(src,lab,Exited,"real-new-functional-normal-lab-only",c.ManifestSha);
             RememberUnknown(src,lab,"real-new-effects-not-independently-bounded");
             return;

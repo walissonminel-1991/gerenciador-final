@@ -128,6 +128,7 @@ jobs:
           GF_E2E_STARTUP_DRAFT_PROBE: '1'
           GF_E2E_HANDOFF_L18: '1'
           GF_E2E_SELF_GRACEFUL_CLOSE: '1'
+          GF_E2E_SELECTED_NEW_CONTINUATION: '1'
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
@@ -136,10 +137,11 @@ jobs:
           $proof=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-acquire-report.json'
           $failure=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-acquire-failure.json'
           $handoff=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-l18-handoff-report.json'
+          $selected=Join-Path $env:RUNNER_TEMP 'gf-e2e-selected-new-ready.json'
           $uiClosed=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-ui-closed.json'
           $loopExited=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-message-loop-exited.json'
           if ((Test-Path $shown) -or (Test-Path $proof) -or (Test-Path $failure) -or
-              (Test-Path $uiClosed) -or (Test-Path $loopExited) -or
+              (Test-Path $selected) -or (Test-Path $uiClosed) -or (Test-Path $loopExited) -or
               (Test-Path (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download'))) {
             throw 'GF_E2E_STARTUP_ALREADY_TRIED'
           }
@@ -161,7 +163,14 @@ jobs:
                 !$w.real_mainform_handle_created -or !$w.test_only -or
                 $w.operational_ready) { throw 'GF_E2E_MAINFORM_MARKER_INVALID' }
             if (!(Test-Path $proof)) { throw 'GF_E2E_STARTUP_REMOTE_DOWNLOAD_NOT_COMPLETED' }
-            if (!(Test-Path $handoff)) { throw 'GF_E2E_OLD_TO_L18_AUTONOMOUS_HANDOFF_NOT_PROVEN' }
+            if (!(Test-Path $selected)) { throw 'GF_E2E_L18_NEW_2_FENCE_BEFORE_OLD_EXIT_NOT_PROVEN' }
+            $selectedProof=Get-Content $selected -Raw | ConvertFrom-Json
+            if ($selectedProof.schema -ne 'gf-e2e-selected-new-ready/1' -or
+                $selectedProof.selector -ne 'new' -or $selectedProof.generation -ne 2 -or
+                !$selectedProof.launch_fenced -or !$selectedProof.l18_live_owner -or
+                !$selectedProof.test_only -or $selectedProof.operational_ready) {
+              throw 'GF_E2E_L18_PRELAUNCH_BARRIER_INVALID'
+            }
             if (!$proc.HasExited) { throw 'GF_E2E_ORIGINAL_OLD_DID_NOT_EXIT_NORMALLY' }
             if ($proc.ExitCode -ne 0) { throw "GF_E2E_ORIGINAL_OLD_EXIT_CODE_$($proc.ExitCode)" }
             if (!(Test-Path $uiClosed) -or !(Test-Path $loopExited)) { throw 'GF_E2E_ORIGINAL_OLD_GRACEFUL_MESSAGE_LOOP_NOT_PROVEN' }
@@ -173,23 +182,16 @@ jobs:
                 !$uiProof.test_only -or $uiProof.operational_ready -or
                 $loopProof.schema -ne 'gf-e2e-old-message-loop-exited/1' -or
                 !$loopProof.application_run_returned -or
-                !$loopProof.verified_handoff_preceded_close -or
+                $loopProof.verified_handoff_preceded_close -or
+                !$loopProof.selected_new_fenced_before_close -or
                 !$loopProof.test_only -or $loopProof.operational_ready) {
               throw 'GF_E2E_ORIGINAL_OLD_CLOSE_EVIDENCE_INVALID'
             }
             Write-Host 'GF_E2E_ORIGINAL_OLD_GRACEFUL_EXIT proof=FormClosed+Application.Run+ExitCode0 forced_cleanup=false ready=false'
-            $h=Get-Content $handoff -Raw | ConvertFrom-Json
-            if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/2' -or
-                !$h.initiated_by_gf_old_mainform -or
-                !$h.tuf_child_verified_download -or
-                !$h.same_l18_coordinator_invoked_by_old -or
-                $h.l18_cases -ne 1 -or
-                $h.case_classification -ne 'PASS_CONTAINMENT' -or
-                $h.normal_outcome -ne 'UnknownBlocked' -or
-                !$h.test_only -or $h.operational_ready -or $h.automatic_recovery_authorized) {
-              throw 'GF_E2E_AUTONOMOUS_L18_HANDOFF_REPORT_INVALID'
-            }
-            Write-Host 'GF_E2E_GF_OLD_MAINFORM_SHOWN_TUF_AND_EXISTING_L18_COMPLETE focused_normal=PASS_CONTAINMENT ready=false original_old_exit=0'
+            # NEW is not launched until the SAME L18 live owner has held
+            # the original OLD process handle through its observed exit.
+            # The L18 completion report is checked later, not by the OLD.
+            Write-Host 'GF_E2E_OLD_EXIT_BEFORE_SAME_L18_SELECTED_NEW selector=new/2 original_old_exit=0 READY=false'
           }
           finally {
             if (!$proc.HasExited) {
@@ -229,131 +231,61 @@ jobs:
           $newVersion=[System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $env:RUNNER_TEMP 'gf-e2e-independent-authenticated-new\GerenciadorFinal.dll')).Version.ToString()
           if ($newVersion -ne '5.13.11.66') { throw 'GF_E2E_DOWNLOADED_VERSION_NOT_NEWER' }
           Write-Host "GF_E2E_REAL_REMOTE_VERSIONS old=5.13.11.65 new=$newVersion"
-      - name: Conferir sem relancar coordenador L18 que o proprio OLD executou
+      - name: Comprovar observacao da sessao NEW pelo proprio seletor L18 depois de OLD
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $report=Join-Path $env:RUNNER_TEMP 'gf-e2e-real-flow-report.json'
           $handoff=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-l18-handoff-report.json'
-          if (!(Test-Path $report) -or !(Test-Path $handoff)) { throw 'GF_E2E_L18_OLD_HANDOFF_MISSING' }
+          $marker=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-exit-before-new-observation.json'
+          $deadline=[DateTime]::UtcNow.AddMinutes(4)
+          while ([DateTime]::UtcNow -lt $deadline -and
+                 (!(Test-Path $handoff) -or !(Test-Path $report))) {
+            Start-Sleep -Milliseconds 250
+          }
+          if (!(Test-Path $report) -or !(Test-Path $handoff) -or !(Test-Path $marker)) {
+            throw 'GF_E2E_SELECTED_NEW_SAME_L18_REPORT_UNPROVEN_HOLD'
+          }
           $h=Get-Content $handoff -Raw | ConvertFrom-Json
-          if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/2' -or
-              !$h.initiated_by_gf_old_mainform -or !$h.tuf_child_verified_download -or
-              !$h.same_l18_coordinator_invoked_by_old -or
-              $h.l18_cases -ne 1 -or $h.normal_outcome -ne 'UnknownBlocked' -or
-              !$h.test_only -or $h.operational_ready -or $h.automatic_recovery_authorized) {
-            throw 'GF_E2E_OLD_HANDOFF_INCONCLUSIVE'
-          }
+          $m=Get-Content $marker -Raw | ConvertFrom-Json
           $r=Get-Content $report -Raw | ConvertFrom-Json
-          $normal=$r.result
-          if ($r.schema -ne 'gf-real-single-normal-lab/1' -or
-              $r.scenario -ne 'normal' -or $r.failed -ne 0 -or $r.passed -ne 1 -or
-              $normal.test -ne 'normal' -or $normal.status -ne 'passed' -or
-              !$normal.normal_owner_completed_without_crash -or
-              !$normal.manifest_and_object_identities_rechecked -or
-              !$normal.old_and_canary_preserved -or
-              !$normal.reconciler_new_process -or
-              $normal.outcome -ne 'UnknownBlocked' -or
-              $normal.replay -ne 'UnknownBlocked' -or
-              $normal.classification -ne 'PASS_CONTAINMENT' -or
-              $r.operational_ready -or $r.phase1_complete -or
-              $r.recovery_authorized -or $r.independent_recovery_authority -or
-              $r.production_tuf_authority) {
-            throw 'GF_E2E_L18_CONTAINMENT_OR_AUTHORIZATION_FAILED'
+          $t=$r.result
+          if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/3' -or
+              !$h.initiated_by_gf_old_mainform -or
+              !$h.tuf_child_verified_download -or
+              !$h.same_l18_coordinator_invoked_by_old -or
+              $h.l18_cases -ne 1 -or
+              $h.case_classification -ne 'PASS_CONTAINMENT' -or
+              $h.normal_outcome -ne 'UnknownBlocked' -or
+              !$h.original_old_exited_before_selected_new_observation -or
+              $h.same_selector_new_generation -ne 2 -or
+              !$h.single_live_l18_selector_session_proved -or
+              !$h.test_only -or $h.operational_ready -or $h.automatic_recovery_authorized) {
+            throw 'GF_E2E_L18_HANDOFF_V3_INVALID_HOLD'
           }
-          Write-Host 'GF_E2E_OLD_OWNED_PYTHON_TUF_AND_L18 old=5.13.11.65 new=5.13.11.66 focused_normal=PASS_CONTAINMENT ready=false'
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value @(
-            '## GF OLD real dirigiu o fluxo de laboratorio .NET -> TUF -> C# L18'
-            '- MainForm.Shown (somente GF_E2E_LAB e GITHUB_ACTIONS) iniciou cliente .NET, TUF e coordenador C# L18.'
-            '- CI preparou o executavel L18 e fixtures; nao executou transicao alguma.'
-            '- O GF OLD iniciou UM ensaio normal OLD/NEW pelo mesmo C# L18; PASS_CONTAINMENT e UnknownBlocked. A matriz completa 29/29 ja passou na CI 41168060868.'
-            '- Nao e autoatualizacao operacional; READY e rollback automatico bloqueados.'
-          )
-      - name: Observar NEW autenticado com UI real apos saida graciosa do OLD
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          $python = @'
-          import hashlib
-          import importlib.util
-          import json
-          import os
-          import subprocess
-          import sys
-          from pathlib import Path
-
-          runner = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
-          repo = Path(os.environ["GITHUB_WORKSPACE"]).resolve(strict=True)
-          app = runner / "gf-e2e-independent-authenticated-new"
-          exe = app / "GerenciadorFinal.exe"
-          manifest_file = runner / "gf-e2e-github-download" / "GF-LAB-REAL-PACKAGE-MANIFEST.json"
-          old_exit = runner / "gf-e2e-old-message-loop-exited.json"
-          handoff = runner / "gf-e2e-old-l18-handoff-report.json"
-          assert os.name == "nt" and os.environ.get("GITHUB_ACTIONS") == "true"
-          assert os.environ.get("GITHUB_REPOSITORY") == "walissonminel-1991/gerenciador-final"
-          assert old_exit.is_file() and handoff.is_file() and exe.is_file()
-          assert app.resolve(strict=True) == app and app.is_relative_to(runner)
-          payload = manifest_file.read_bytes()
-          assert hashlib.sha256(payload).hexdigest() == "a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d"
-          expected_sha = json.loads(payload)["files"]["GerenciadorFinal.exe"]["sha256"]
-          assert hashlib.sha256(exe.read_bytes()).hexdigest() == expected_sha
-          source = repo / "prototipos/autoatualizador-seguro/phase1-composed/win32_process_observation.py"
-          spec = importlib.util.spec_from_file_location("gf_existing_win32_observer", source)
-          assert spec and spec.loader
-          observer = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(observer)
-          env = dict(os.environ)
-          env["GF_E2E_STARTUP_DRAFT_PROBE"] = "0"
-          env["GF_E2E_HANDOFF_L18"] = "0"
-          env["GF_E2E_SELF_GRACEFUL_CLOSE"] = "0"
-          env.pop("GH_TOKEN", None)
-          env.pop("GITHUB_TOKEN", None)
-          proc = subprocess.Popen([str(exe)], cwd=str(app), env=env)
-          try:
-              obs = observer.observe_real_gf(proc, exe, expected_sha, seconds=16.0)
-              # Existing Win32 read-only observer, not a new updater. The
-              # positive UI claim requires a visible real main window,
-              # responsive message pump and functional search round trip.
-              good = all((
-                  obs.get("actual_image_path_matches") is True,
-                  obs.get("image_on_disk_sha_matches_manifest") is True,
-                  obs.get("main_form_hwnd_observed") is True,
-                  obs.get("main_form_owner_pid_matches") is True,
-                  obs.get("main_form_visible") is True,
-                  obs.get("main_form_message_loop_responded") is True,
-                  obs.get("readonly_inventory_search_health", {}).get(
-                      "minimum_readonly_health_contract_observed") is True,
-                  obs.get("graceful_exit_observed") is True,
-                  obs.get("ready_verified") is False,
-                  obs.get("application_functional_health_verified") is False,
-              ))
-              report = {
-                  "schema": "gf-e2e-post-old-new-visible-ui/1",
-                  "new_version": "5.13.11.66",
-                  "independent_new_session_after_old_exit": True,
-                  "new_image_sha_from_signed_manifest": True,
-                  "new_mainform_visible": bool(obs.get("main_form_visible")),
-                  "new_hwnd_owned_by_launched_process": bool(obs.get("main_form_owner_pid_matches")),
-                  "new_ui_search_roundtrip": bool(obs.get("readonly_inventory_search_health", {}).get(
-                      "minimum_readonly_health_contract_observed")),
-                  "new_graceful_exit": bool(obs.get("graceful_exit_observed")),
-                  "positive_visible_ui_proved": bool(good),
-                  "single_live_l18_selector_session_proved": False,
-                  "operational_ready": False, "test_only": True,
-              }
-              (runner / "gf-e2e-post-old-new-ui-report.json").write_text(
-                  json.dumps(report, sort_keys=True), encoding="utf-8")
-              print("GF_E2E_NEW_VISIBLE_UI_OBSERVER " + json.dumps(report, sort_keys=True))
-              if not good:
-                  raise RuntimeError("GF_E2E_NEW_VISIBLE_UI_HEALTH_UNPROVEN_HOLD")
-          finally:
-              if proc.poll() is None:
-                  # Cleanup ONLY the independent, just-launched test child.
-                  proc.kill()
-                  proc.wait(timeout=20)
-          '@
-          $python | python -
-          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_NEW_VISIBLE_UI_UNPROVEN_HOLD' }
+          if ($m.schema -ne 'gf-e2e-old-exited-before-l18-new-observation/1' -or
+              !$m.process_handle_wait_completed -or $m.old_exit_code -ne 0 -or
+              $m.selector -ne 'new' -or $m.generation -ne 2 -or
+              !$m.test_only -or $m.operational_ready) {
+            throw 'GF_E2E_L18_PROCESS_HANDLE_OLD_EXIT_UNPROVEN_HOLD'
+          }
+          if ($r.schema -ne 'gf-real-l18-selected-new-handoff/1' -or
+              $r.scenario -ne 'handoff' -or $r.failed -ne 0 -or $r.passed -ne 1 -or
+              !$r.single_live_l18_selector_session_proved -or
+              $r.operational_ready -or $r.phase1_complete -or $r.recovery_authorized -or
+              $r.production_tuf_authority -or
+              $t.test -ne 'handoff' -or $t.status -ne 'passed' -or
+              $t.classification -ne 'PASS_CONTAINMENT' -or
+              $t.outcome -ne 'UnknownBlocked' -or $t.replay -ne 'UnknownBlocked' -or
+              !$t.selected_new_after_original_old_exit -or
+              !$t.single_l18_selector_new_session_observed -or
+              !$t.normal_owner_completed_without_crash -or
+              !$t.old_and_canary_preserved -or
+              !$t.manifest_and_object_identities_rechecked -or $t.operational_ready) {
+            throw 'GF_E2E_L18_SINGLE_SELECTED_NEW_OBSERVATION_UNPROVEN_HOLD'
+          }
+          Write-Host 'GF_E2E_SELECTED_NEW_BY_SAME_L18_AFTER_OLD_EXIT selector=new/2 UI=FUNCTIONAL_READONLY original_old_exit=0 containment=UnknownBlocked ready=false independent_new_launch=false'
+          Add-Content $env:GITHUB_STEP_SUMMARY 'GF OLD original closed with exit=0 before SAME live L18 selected NEW/2 launched the real NEW process; UI observed; HOLD/UnknownBlocked; READY=false. No independent NEW launch.'
       - name: Negativos de pacote real adulterado e transferencia incompleta
         shell: pwsh
         run: |

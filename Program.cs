@@ -155,9 +155,14 @@ internal static class Program
                         if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
                             Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") !=
                                 "walissonminel-1991/gerenciador-final" ||
-                            !Directory.Exists(runner) ||
-                            !File.Exists(Path.Combine(runner,"gf-e2e-old-l18-handoff-report.json")))
+                            !Directory.Exists(runner))
                             return;
+                        bool isContinuation =
+                            Environment.GetEnvironmentVariable("GF_E2E_SELECTED_NEW_CONTINUATION")=="1";
+                        string needed=isContinuation
+                            ?"gf-e2e-selected-new-ready.json"
+                            :"gf-e2e-old-l18-handoff-report.json";
+                        if(!File.Exists(Path.Combine(runner,needed)))return;
                         using var receipt = new FileStream(
                             Path.Combine(runner,"gf-e2e-old-ui-closed.json"),FileMode.CreateNew,
                             FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough);
@@ -182,7 +187,11 @@ internal static class Program
                     "walissonminel-1991/gerenciador-final")
             {
                 string runner = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
-                string verifiedHandoff = Path.Combine(runner, "gf-e2e-old-l18-handoff-report.json");
+                bool isContinuation =
+                    Environment.GetEnvironmentVariable("GF_E2E_SELECTED_NEW_CONTINUATION")=="1";
+                string verifiedHandoff = Path.Combine(runner,isContinuation
+                    ?"gf-e2e-selected-new-ready.json"
+                    :"gf-e2e-old-l18-handoff-report.json");
                 if (Directory.Exists(runner) && File.Exists(verifiedHandoff) &&
                     File.Exists(Path.Combine(runner, "gf-e2e-old-ui-closed.json")))
                 {
@@ -192,7 +201,8 @@ internal static class Program
                     byte[] evidence = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
                         schema = "gf-e2e-old-message-loop-exited/1",
                         application_run_returned = true,
-                        verified_handoff_preceded_close = true,
+                        verified_handoff_preceded_close = !isContinuation,
+                        selected_new_fenced_before_close = isContinuation,
                         test_only = true,
                         operational_ready = false
                     });

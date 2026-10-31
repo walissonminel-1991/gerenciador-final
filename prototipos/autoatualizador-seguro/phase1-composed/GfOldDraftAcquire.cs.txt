@@ -290,6 +290,51 @@ internal static class GfOldDraftAcquire
                     new Version(5,13,11,66),
                 "L18_NEW_NOT_TUF_VERIFIED_OR_WRONG_VERSION");
 
+        if (Environment.GetEnvironmentVariable("GF_E2E_SELECTED_NEW_CONTINUATION") == "1")
+        {
+            // TEST ONLY: the original OLD must exit before the LIVE L18
+            // owner executes the first selected NEW/2. Start the same L18
+            // process, do NOT wait for the completed recovery report while
+            // keeping OLD's WinForms message loop alive.
+            var psi = new ProcessStartInfo(bridge)
+            {
+                UseShellExecute = false, CreateNoWindow = true,
+                WorkingDirectory = repoRoot
+            };
+            foreach (string arg in new []{"--real-handoff-focused",report,fixtures,
+                anchor,repoRoot,python,script,old,extracted,
+                Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture)})
+                psi.ArgumentList.Add(arg);
+            psi.Environment.Remove("GH_TOKEN");
+            psi.Environment.Remove("GITHUB_TOKEN");
+            psi.Environment["GF_E2E_STARTUP_DRAFT_PROBE"]="0";
+            psi.Environment["GF_E2E_HANDOFF_L18"]="0";
+            psi.Environment["GF_E2E_SELECTED_NEW_CONTINUATION"]="0";
+            using var bridgeChild = Process.Start(psi);
+            Require(bridgeChild is not null,"L18_SELECTED_NEW_BRIDGE_NOT_CREATED");
+            string selectedReady=Path.Combine(runner,"gf-e2e-selected-new-ready.json");
+            var deadline=Stopwatch.StartNew();
+            while(!File.Exists(selectedReady) && deadline.Elapsed<TimeSpan.FromMinutes(3))
+            {
+                Require(!bridgeChild.HasExited,"L18_SELECTED_NEW_BRIDGE_EXITED_BEFORE_ARM");
+                await Task.Delay(150);
+            }
+            Require(File.Exists(selectedReady) && !bridgeChild.HasExited,
+                "L18_SELECTED_NEW_BARRIER_UNPROVEN");
+            using var ready=JsonDocument.Parse(File.ReadAllBytes(selectedReady));
+            Require(ready.RootElement.GetProperty("schema").GetString() ==
+                    "gf-e2e-selected-new-ready/1" &&
+                ready.RootElement.GetProperty("selector").GetString()=="new" &&
+                ready.RootElement.GetProperty("generation").GetInt32()==2 &&
+                ready.RootElement.GetProperty("launch_fenced").GetBoolean() &&
+                ready.RootElement.GetProperty("l18_live_owner").GetBoolean() &&
+                !ready.RootElement.GetProperty("operational_ready").GetBoolean(),
+                "L18_SELECTED_NEW_BARRIER_INVALID");
+            // Return to the UI callback so ORIGINAL OLD closes gracefully.
+            // The still-live L18 process owns all later NEW observation.
+            return;
+        }
+
         // Invoke the SAME tested L18 process coordinator with the original
         // 9-argument real-suite command line and unchanged fixture sources.
         await RunScopedChild(bridge, TimeSpan.FromMinutes(6),
@@ -390,7 +435,9 @@ internal static class GfOldDraftAcquire
                 // The completed, fail-closed L18 normal scenario leaves
                 // UnknownBlocked: request a graceful OLD window exit ONLY
                 // in the disposable laboratory, after the report is durable.
-                if (Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE") == "1")
+                if (Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE") == "1" &&
+                    (Environment.GetEnvironmentVariable("GF_E2E_SELECTED_NEW_CONTINUATION") == "1" ||
+                     File.Exists(Path.Combine(runner,"gf-e2e-old-l18-handoff-report.json"))))
                     afterVerifiedLabHandoff?.Invoke();
             }
             return 0;

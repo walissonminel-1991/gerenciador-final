@@ -447,7 +447,7 @@ internal static class Phase1RecoveryTests
         using var pins=new RealLabPins(src,c); // retained through owner death and reconciliation
         using var owner=LabProcessJob.Create(c.OwnerJob);
         using var recovery=LabProcessJob.Create(c.RecoveryJob);
-        bool blocked=name is "normal" or "new-live-descendant" or "new-exited" or "launch-fence" or
+        bool blocked=name is "normal" or "handoff" or "new-live-descendant" or "new-exited" or "launch-fence" or
             "selector-fork" or "journal-torn" or "witness-lost" or
             "witness-recreated" or "witness-wrong-object" or "external-broker" or
             "external-broker-handoff" or "provider-late-spawn-after-reconcile" or "launch-fence-lost-after-new" or
@@ -466,6 +466,7 @@ internal static class Phase1RecoveryTests
             "witness-recreated"=>"after-intent",
             "witness-wrong-object"=>"after-intent",
             "normal"=>"normal",
+            "handoff"=>"handoff",
             "new-live-descendant"=>"during-new",
             "new-exited" or "external-broker" or "external-broker-handoff" or
                 "provider-late-spawn-after-reconcile" or "launch-fence-lost-after-new" or "joint-fence-journal-erasure"=>"after-new-exit",
@@ -477,11 +478,15 @@ internal static class Phase1RecoveryTests
         LabProcessJob? renamedWitness=null;
         try
         {
-            if(name=="normal")
+            if(name is "normal" or "handoff")
             {
-                // Normal owner exits without an injected crash. The same
-                // durable recovery context must be usable by a NEW process.
-                using var live=owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,"normal");
+                // Live owner executes the SAME real OLD/NEW transition.
+                // For handoff it retains the original GF OLD PROCESS handle
+                // before exposing NEW/2, and waits for its graceful exit.
+                using var live=name=="handoff"
+                    ?owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,
+                        "handoff",a[9])
+                    :owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,"normal");
                 await live.Wait();
                 Require(live.ExitCode==0,"REAL_NORMAL_OWNER_FAILED:"+ReadError(src));
             }
@@ -492,7 +497,7 @@ internal static class Phase1RecoveryTests
                 ?("old",1):("new",2)),
                 "REAL_CUT_SELECTION_WRONG");
             History(src,c);
-            if(name=="normal")
+            if(name is "normal" or "handoff")
             {
                 foreach(string slot in new[]{"old","new"})
                 {
@@ -510,6 +515,24 @@ internal static class Phase1RecoveryTests
                 Require(File.Exists(L18Coordinator.NewLaunchFence(src)) &&
                     File.Exists(Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt")),
                     "REAL_NORMAL_BYPASSED_COMMON_FENCES");
+                if(name=="handoff")
+                {
+                    string runner=Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+                        throw new Rejected("REAL_HANDOFF_RUNNER_MISSING");
+                    using var ready=JsonDocument.Parse(File.ReadAllBytes(
+                        Path.Combine(runner,"gf-e2e-selected-new-ready.json")));
+                    using var oldExit=JsonDocument.Parse(File.ReadAllBytes(
+                        Path.Combine(runner,"gf-e2e-old-exit-before-new-observation.json")));
+                    Require(ready.RootElement.GetProperty("selector").GetString()=="new" &&
+                        ready.RootElement.GetProperty("generation").GetInt32()==2 &&
+                        ready.RootElement.GetProperty("launch_fenced").GetBoolean() &&
+                        oldExit.RootElement.GetProperty("process_handle_wait_completed").GetBoolean() &&
+                        oldExit.RootElement.GetProperty("old_exit_code").GetInt32()==0 &&
+                        oldExit.RootElement.GetProperty("selector").GetString()=="new" &&
+                        oldExit.RootElement.GetProperty("generation").GetInt32()==2 &&
+                        Selection(src)==("new",2),
+                        "REAL_HANDOFF_SELECTOR_OR_OLD_EXIT_MISMATCH");
+                }
             }
             bool lateWriterDenied=false,leaseRefused=false;
             bool externalBrokerEffectObserved=false,externalHandoffEffectObserved=false;
@@ -1069,7 +1092,10 @@ internal static class Phase1RecoveryTests
                 out_of_band_new_execution_observed=outOfBandNewExecutionObserved,
                 out_of_band_no_launch_claim_rejected=outOfBand && outcome=="UnknownBlocked" &&
                     reason=="REAL_NO_INDEPENDENT_NO_LAUNCH_AUTHORITY",
-                interrupted_owner=name!="normal",normal_owner_completed_without_crash=name=="normal",
+                interrupted_owner=name is not ("normal" or "handoff"),
+                normal_owner_completed_without_crash=name is "normal" or "handoff",
+                selected_new_after_original_old_exit=name=="handoff",
+                single_l18_selector_new_session_observed=name=="handoff",
                 reconciler_new_process=true,old_and_canary_preserved=true,
                 manifest_and_object_identities_rechecked=true,late_writer_denied=lateWriterDenied,
                 concurrent_coordinator_refused=leaseRefused,recovery_process_also_interrupted=crashRecovery,
@@ -1213,6 +1239,14 @@ internal static class Phase1RecoveryTests
             if(a.Length==3 && a[0]=="--real-provider-broker"){await ProviderBroker(a[1],a[2]);return 0;}
             if(a.Length==3 && a[0]=="--real-provider-writer"){await ProviderWriter(a[1],a[2]);return 0;}
             if(a.Length==5 && a[0]=="--real-owner"){await L18Coordinator.RealOwner(a[1],a[2],a[3],a[4]);return 0;}
+            if(a.Length==6 && a[0]=="--real-owner" && a[4]=="handoff")
+            {
+                Require(int.TryParse(a[5],System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture,out int originalPid) &&
+                    originalPid>0,"REAL_HANDOFF_PID_FORMAT");
+                await L18Coordinator.RealOwner(a[1],a[2],a[3],a[4],originalPid);
+                return 0;
+            }
             if(a.Length==6 && a[0]=="--real-reconcile")
             {
                 Require(long.TryParse(a[5],System.Globalization.NumberStyles.None,
@@ -1221,17 +1255,65 @@ internal static class Phase1RecoveryTests
                 string result=await L18Coordinator.ReconcileReal(a[1],a[2],a[3],a[4],witness);
                 File.WriteAllText(Path.Combine(a[1],"real-reconcile-result.fixture.txt"),result);return 0;
             }
-            Require(a.Length==9 && (a[0]=="--real-suite" ||
-                    a[0]=="--real-normal-focused") &&
+            Require(((a.Length==9 && (a[0]=="--real-suite" ||
+                    a[0]=="--real-normal-focused")) ||
+                    (a.Length==10 && a[0]=="--real-handoff-focused")) &&
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
                 Path.GetFileName(Own)=="GF.Updater.M3.L18Tests.exe","REAL_SUITE_ARGUMENTS");
-            foreach(string p in a.Skip(7))
+            foreach(string p in a.Skip(7).Take(2))
                 Require(Path.GetFullPath(p).StartsWith(Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!)+Path.DirectorySeparatorChar,
                     StringComparison.OrdinalIgnoreCase),"REAL_INPUT_OUTSIDE_RUNNER_TEMP");
             L16Tests.fixtures=Path.GetFullPath(a[2]);L16Tests.bootstrap=Path.GetFullPath(a[3]);
             L16Tests.suite=Path.Combine(Path.GetTempPath(),"gf-u2-r-"+Guid.NewGuid().ToString("N")[..8]);
             Require(!Directory.Exists(L16Tests.suite),"REAL_SUITE_MUST_BE_FRESH");
             Directory.CreateDirectory(L16Tests.suite);
+            if(a[0]=="--real-handoff-focused")
+            {
+                try
+                {
+                    Require(int.TryParse(a[9],System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture,out int oldPid) && oldPid>0,
+                        "REAL_HANDOFF_ORIGINAL_PID");
+                    var selected=await Scenario("handoff",a);
+                    var o=JsonSerializer.SerializeToElement(selected);
+                    Require(o.GetProperty("classification").GetString()=="PASS_CONTAINMENT" &&
+                        o.GetProperty("outcome").GetString()=="UnknownBlocked" &&
+                        o.GetProperty("replay").GetString()=="UnknownBlocked" &&
+                        o.GetProperty("selected_new_after_original_old_exit").GetBoolean() &&
+                        o.GetProperty("single_l18_selector_new_session_observed").GetBoolean() &&
+                        o.GetProperty("old_and_canary_preserved").GetBoolean() &&
+                        o.GetProperty("manifest_and_object_identities_rechecked").GetBoolean() &&
+                        o.GetProperty("normal_owner_completed_without_crash").GetBoolean() &&
+                        !o.GetProperty("operational_ready").GetBoolean(),
+                        "REAL_HANDOFF_SELECTED_NEW_OBSERVATION_UNPROVEN");
+                    var report=new{
+                        schema="gf-real-l18-selected-new-handoff/1",scenario="handoff",result=selected,
+                        passed=1,failed=0,operational_ready=false,phase1_complete=false,
+                        recovery_authorized=false,production_tuf_authority=false,
+                        single_live_l18_selector_session_proved=true};
+                    File.WriteAllText(a[1],JsonSerializer.Serialize(report));
+                    // This report is a CI witness only, never L18 recovery authority.
+                    string runner=Environment.GetEnvironmentVariable("RUNNER_TEMP")!;
+                    File.WriteAllText(Path.Combine(runner,"gf-e2e-old-l18-handoff-report.json"),
+                        JsonSerializer.Serialize(new{
+                            schema="gf-e2e-old-owns-l18-handoff/3",
+                            initiated_by_gf_old_mainform=true,
+                            tuf_child_verified_download=true,
+                            same_l18_coordinator_invoked_by_old=true,
+                            l18_cases=1,case_classification="PASS_CONTAINMENT",
+                            normal_outcome="UnknownBlocked",
+                            original_old_exited_before_selected_new_observation=true,
+                            same_selector_new_generation=2,
+                            single_live_l18_selector_session_proved=true,
+                            test_only=true,operational_ready=false,
+                            automatic_recovery_authorized=false
+                        }));
+                    Console.WriteLine("GF_E2E_L18_SELECTED_NEW_AFTER_ORIGINAL_OLD_EXIT "
+                        +"selected=new/2 UI=FUNCTIONAL_READONLY HOLD=true READY=false");
+                    return 0;
+                }
+                finally {Directory.Delete(L16Tests.suite,true);}
+            }
             // Focused transition: the same RealOwner, selector, Job, journal,
             // pins and reconciler used in the 29-case regression, without
             // repeating all the adversarial cases for each application startup.
