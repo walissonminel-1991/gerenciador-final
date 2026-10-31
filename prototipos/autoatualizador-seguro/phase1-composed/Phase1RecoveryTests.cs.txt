@@ -1680,7 +1680,7 @@ internal static class Phase1RecoveryTests
             if(a.Length==3 && a[0]=="--real-provider-writer"){await ProviderWriter(a[1],a[2]);return 0;}
             if(a.Length==5 && a[0]=="--real-owner"){await L18Coordinator.RealOwner(a[1],a[2],a[3],a[4]);return 0;}
             if(a.Length==6 && a[0]=="--real-owner" &&
-                a[4] is "handoff" or "handoff-install" or "handoff-install-cut")
+                a[4] is "handoff" or "handoff-install" or "handoff-install-cut" or "handoff-install-after-second-cut")
             {
                 Require(int.TryParse(a[5],System.Globalization.NumberStyles.None,
                     System.Globalization.CultureInfo.InvariantCulture,out int originalPid) &&
