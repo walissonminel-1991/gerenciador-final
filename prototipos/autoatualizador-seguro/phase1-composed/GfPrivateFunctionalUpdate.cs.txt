@@ -1,0 +1,234 @@
+// GF functional-first demonstration ONLY. This file is compiled solely into
+// GfSelfUpdatePrivate=true (local profile), never the distributed GF build.
+// Uses a locally generated .66 ZIP served on 127.0.0.1 in disposable CI.
+// SHA256 here catches transfer errors but DOES NOT authenticate a publisher.
+// Release security integration remains a separate required milestone.
+using System.Diagnostics;
+using System.Globalization;
+using System.IO.Compression;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text.Json;
+
+namespace GerenciadorAplicativos;
+
+internal static class GfPrivateFunctionalUpdate
+{
+    private const string Repo = "walissonminel-1991/gerenciador-final";
+    private const string OldName = "gf-private-e2e-old";
+    private const string NewName = "gf-private-e2e-stage";
+    private const string WorkerName = "gf-private-e2e-worker";
+    private const string PreservedName = "gf-private-e2e-old-preserved";
+    private const string DownloadName = "gf-private-e2e-download.zip";
+    private const string FinishedName = "gf-private-e2e-applied.json";
+
+    internal static bool LabEnabled =>
+        OperatingSystem.IsWindows() &&
+        Environment.GetEnvironmentVariable("GF_PRIVATE_FUNCTIONAL_LAB") == "1" &&
+        Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" &&
+        Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") == Repo &&
+        Environment.GetEnvironmentVariable("GF_PRIVATE_FUNCTIONAL_FEED") is { Length: > 0 };
+
+    private static string Root()
+    {
+        if (!LabEnabled) throw new InvalidOperationException("PRIVATE_FUNCTIONAL_LAB_ONLY");
+        string value = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
+        if (string.IsNullOrWhiteSpace(value) || !Directory.Exists(value))
+            throw new InvalidOperationException("PRIVATE_FUNCTIONAL_RUNNER_REQUIRED");
+        return Path.GetFullPath(value);
+    }
+
+    private static string At(string root, string name) => Path.Combine(root, name);
+
+    private static Uri Feed()
+    {
+        string value = Environment.GetEnvironmentVariable("GF_PRIVATE_FUNCTIONAL_FEED")!;
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+            uri.Scheme != Uri.UriSchemeHttp || uri.Host != "127.0.0.1" ||
+            uri.AbsolutePath != "/feed.json" || uri.Query.Length != 0 ||
+            uri.Fragment.Length != 0 || uri.Port is < 1024 or > 65535)
+            throw new InvalidOperationException("PRIVATE_FUNCTIONAL_LOOPBACK_ONLY");
+        return uri;
+    }
+
+    private static void Require(bool condition, string code)
+    {
+        if (!condition) throw new InvalidOperationException(code);
+    }
+
+    private static void CopyFolder(string src, string dest)
+    {
+        Require(Directory.Exists(src) && !Directory.Exists(dest), "WORKER_COPY_NOT_FRESH");
+        Directory.CreateDirectory(dest);
+        foreach (var file in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(src, file);
+            string target = Path.Combine(dest, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, overwrite: false);
+        }
+    }
+
+    internal static async Task<string> DownloadStageAndLaunchWorkerAsync()
+    {
+        string root = Root();
+        var feed = Feed();
+        string old = At(root, OldName);
+        string stage = At(root, NewName);
+        string worker = At(root, WorkerName);
+        string preserved = At(root, PreservedName);
+        string archive = At(root, DownloadName);
+        string complete = At(root, FinishedName);
+        Require(Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(
+                    Path.DirectorySeparatorChar).Equals(old,
+                    StringComparison.OrdinalIgnoreCase),
+                "OLD_NOT_ORIGINAL_TEST_INSTALL");
+        Require(!File.Exists(archive) && !File.Exists(complete) &&
+                !Directory.Exists(stage) && !Directory.Exists(worker) &&
+                !Directory.Exists(preserved), "TEST_DESTINATION_NOT_FRESH");
+        Require(File.Exists(At(old, "GerenciadorFinal.exe")), "OLD_MISSING");
+        var current = typeof(Program).Assembly.GetName().Version;
+        Require(current == new Version(5,13,11,65), "OLD_VERSION_WRONG");
+
+        // The ONLY update URL is the CI-owned loopback fixture. The public
+        // GitHub listing is never allowed to authorize this functional demo.
+        using var handler = new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false, UseProxy = false, UseCookies = false,
+            ConnectTimeout = TimeSpan.FromSeconds(10)
+        };
+        using var http = new HttpClient(handler, disposeHandler: true)
+        {
+            Timeout = TimeSpan.FromMinutes(4)
+        };
+        using var metadataResponse = await http.GetAsync(feed,
+            HttpCompletionOption.ResponseHeadersRead);
+        Require(metadataResponse.StatusCode == HttpStatusCode.OK &&
+                metadataResponse.Headers.Location is null &&
+                metadataResponse.Content.Headers.ContentLength is null or <= 4096,
+                "FEED_HTTP_INVALID");
+        byte[] json = await metadataResponse.Content.ReadAsByteArrayAsync();
+        Require(json.Length > 0 && json.Length <= 4096, "FEED_SIZE_INVALID");
+        using var doc = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 5 });
+        var rootJson = doc.RootElement;
+        Require(rootJson.GetProperty("schema").GetString() ==
+                "gf-private-functional-feed/1" &&
+                rootJson.GetProperty("version").GetString() == "5.13.11.66" &&
+                rootJson.GetProperty("archive").GetString() == "gf-new.zip",
+                "FEED_SCHEMA_INVALID");
+        string digest = rootJson.GetProperty("sha256").GetString() ?? "";
+        Require(digest.Length == 64 &&
+                digest.All(ch => char.IsAsciiHexDigit(ch)), "FEED_DIGEST_INVALID");
+
+        using var packageResponse = await http.GetAsync(
+            new Uri(feed, "/gf-new.zip"), HttpCompletionOption.ResponseHeadersRead);
+        Require(packageResponse.StatusCode == HttpStatusCode.OK &&
+                packageResponse.Headers.Location is null &&
+                packageResponse.Content.Headers.ContentLength is null or <= 250_000_000,
+                "ARCHIVE_HTTP_INVALID");
+        await using (var file = new FileStream(archive, FileMode.CreateNew,
+                     FileAccess.Write, FileShare.None))
+        await using (var network = await packageResponse.Content.ReadAsStreamAsync())
+        {
+            var buffer = new byte[65536];
+            long total = 0;
+            int n;
+            while ((n = await network.ReadAsync(buffer)) > 0)
+            {
+                total += n;
+                Require(total <= 250_000_000, "ARCHIVE_TOO_LARGE");
+                await file.WriteAsync(buffer.AsMemory(0, n));
+            }
+            await file.FlushAsync();
+            file.Flush(true);
+        }
+        using (var file = File.OpenRead(archive))
+        {
+            string actual = Convert.ToHexString(SHA256.HashData(file));
+            Require(string.Equals(actual, digest, StringComparison.OrdinalIgnoreCase),
+                    "ARCHIVE_DIGEST_MISMATCH");
+        }
+        // This is a bounded TEST ZIP, not an authenticated production target.
+        using (var zip = ZipFile.OpenRead(archive))
+        {
+            Require(zip.Entries.Count is > 40 and <= 1100, "ARCHIVE_ENTRIES_INVALID");
+            long total = 0;
+            foreach (var entry in zip.Entries)
+            {
+                total += entry.Length;
+                Require(total <= 700_000_000, "ARCHIVE_EXPANSION_LIMIT");
+            }
+        }
+        ZipFile.ExtractToDirectory(archive, stage, overwriteFiles: false);
+        Require(File.Exists(At(stage, "GerenciadorFinal.exe")) &&
+                File.Exists(At(stage, "GerenciadorFinal.dll")),
+                "NEW_FILES_MISSING");
+        var next = System.Reflection.AssemblyName.GetAssemblyName(
+            At(stage, "GerenciadorFinal.dll")).Version;
+        Require(next == new Version(5,13,11,66), "NEW_VERSION_WRONG");
+        // Helper is a SECOND COPY OF THE SAME GF private binary, not an
+        // independent launcher implementation, and lives outside OLD/NEW.
+        CopyFolder(old, worker);
+        string helperExe = At(worker, "GerenciadorFinal.exe");
+        var psi = new ProcessStartInfo(helperExe)
+        {
+            UseShellExecute = false, CreateNoWindow = true,
+            WorkingDirectory = worker
+        };
+        psi.ArgumentList.Add("--gf-private-update-worker");
+        psi.ArgumentList.Add(Process.GetCurrentProcess().Id.ToString(
+            CultureInfo.InvariantCulture));
+        var started = Process.Start(psi);
+        Require(started is not null, "TEST_WORKER_NOT_CREATED");
+        return "WORKER_STARTED";
+    }
+
+    internal static int RunWorker(string[] args)
+    {
+        // First check the same loopback/CI-only guard; refuse manual invocation.
+        string root = Root();
+        Require(args.Length == 2 && int.TryParse(args[1], out int oldPid) &&
+                oldPid > 0 && oldPid != Environment.ProcessId, "WORKER_ARGS_INVALID");
+        string old = At(root, OldName);
+        string stage = At(root, NewName);
+        string backup = At(root, PreservedName);
+        string marker = At(root, FinishedName);
+        Require(Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(
+                    Path.DirectorySeparatorChar).Equals(At(root, WorkerName),
+                    StringComparison.OrdinalIgnoreCase), "WORKER_NOT_SEPARATE_COPY");
+        Require(!Directory.Exists(backup) && !File.Exists(marker) &&
+                Directory.Exists(old) && Directory.Exists(stage) &&
+                System.Reflection.AssemblyName.GetAssemblyName(
+                    At(stage, "GerenciadorFinal.dll")).Version ==
+                new Version(5,13,11,66), "STAGE_NOT_READY");
+        try
+        {
+            using var proc = Process.GetProcessById(oldPid);
+            if (!proc.WaitForExit(120_000))
+                return 15; // NEVER move while OLD may still be alive.
+        }
+        catch (ArgumentException)
+        {
+            return 16; // No proof of the original process: block, do not move.
+        }
+        // Do NOT rollback or delete anything in the functional-first test.
+        // A failure leaves both paths and the reason for later diagnosis.
+        Directory.Move(old, backup);
+        Directory.Move(stage, old);
+        var start = new ProcessStartInfo(At(old, "GerenciadorFinal.exe"))
+        {
+            UseShellExecute = false, WorkingDirectory = old
+        };
+        var newer = Process.Start(start);
+        Require(newer is not null, "NEW_NOT_CREATED");
+        // CI checks file version and real WinForms HWND; marker alone is NEVER
+        // a success/READY witness.
+        File.WriteAllText(marker, JsonSerializer.Serialize(new
+        {
+            schema="gf-private-functional-transition/1", old_version="5.13.11.65",
+            new_version="5.13.11.66", started_pid=newer.Id,
+            installed_at_original_path=true, test_only=true, ready=false
+        }));
+        return 0;
+    }
+}
