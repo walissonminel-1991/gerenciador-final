@@ -171,7 +171,8 @@ internal static class GfGithubWeeklyUpdate
                 continue;
             }
             Require(response.StatusCode == HttpStatusCode.OK &&
-                    response.Content.Headers.ContentLength == release.AssetLength,
+                    (response.Content.Headers.ContentLength is null ||
+                     response.Content.Headers.ContentLength == release.AssetLength),
                     "RELEASE_ASSET_HTTP_OR_SIZE");
             long received = 0;
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);

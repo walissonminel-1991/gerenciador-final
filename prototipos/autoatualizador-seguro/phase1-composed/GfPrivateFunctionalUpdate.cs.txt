@@ -313,6 +313,27 @@ internal static class GfPrivateFunctionalUpdate
             UseShellExecute = false, WorkingDirectory = old
         });
         Require(next is not null, "OFFICIAL_NEW_START_FAILED");
+        // A created PID alone is insufficient. Wait for the real WinForms main
+        // window before recording successful startup; retain the OLD backup.
+        var deadline = Stopwatch.StartNew();
+        bool opened = false;
+        using (next)
+        {
+            while (deadline.Elapsed < TimeSpan.FromSeconds(45))
+            {
+                if (next.HasExited) break;
+                next.Refresh();
+                if (next.MainWindowHandle != IntPtr.Zero &&
+                    next.MainWindowTitle.StartsWith("Gerenciador Final",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    opened = true;
+                    break;
+                }
+                Thread.Sleep(250);
+            }
+            if (!opened) return 26;
+        }
         File.WriteAllText(Path.Combine(work, "applied.json"),
             JsonSerializer.Serialize(new
             {
