@@ -116,6 +116,15 @@ internal static class Work11ProgressTests
         check((await Attempt(0,true,cancel:c=>c.Cancel())).Progress.Stage == UpdateStage.Cancelled,"W11 cancelar antes do lancamento cinza");
         check((await Attempt(0,true,launch:()=>throw new Win32Exception(1223))).Progress.Stage == UpdateStage.AuthorizationDeclined,
             "W11 recusa UAC antes do processo permanece explicitamente recusada");
+        using (var token = new CancellationTokenSource())
+        {
+            var pendingStore = new UpdateOperationStore(); var pending = pendingStore.Begin(App(),"2.0")!;
+            var result = await new UpdateLaunchGate().RunAsync(()=>Task.FromResult(true),
+                ()=>{token.Cancel();return Task.FromResult(0);},()=>Task.FromResult(true),token.Token,pending.Report);
+            pending.Complete(result);
+            check(pending.Snapshot.Progress.Stage == UpdateStage.Pending && pendingStore.Begin(App(),"2.0") is null,
+                "W11 cancelamento depois de lancar nao afirma encerramento nem autoriza repeticao");
+        }
         check((await Attempt(0,true,launch:()=>throw new Win32Exception(1223), startedProof:true)).Progress.Stage == UpdateStage.Pending,
             "U8 ERROR_CANCELLED apos inicio comprovado nao finge recusa UAC");
         {
@@ -131,15 +140,6 @@ internal static class Work11ProgressTests
                 !result.AuthorizationDeclined && pending.Snapshot.Progress.Stage == UpdateStage.Pending &&
                 pendingStore.Begin(App(),"2.0") is null,
                 "U8 lancamento confirmado mais cancelamento tardio retém bloqueio de repeticao");
-        }
-        using (var token = new CancellationTokenSource())
-        {
-            var pendingStore = new UpdateOperationStore(); var pending = pendingStore.Begin(App(),"2.0")!;
-            var result = await new UpdateLaunchGate().RunAsync(()=>Task.FromResult(true),
-                ()=>{token.Cancel();return Task.FromResult(0);},()=>Task.FromResult(true),token.Token,pending.Report);
-            pending.Complete(result);
-            check(pending.Snapshot.Progress.Stage == UpdateStage.Pending && pendingStore.Begin(App(),"2.0") is null,
-                "W11 cancelamento depois de lancar nao afirma encerramento nem autoriza repeticao");
         }
         foreach (var stage in new[] {UpdateStage.VerifyingIntegrity,UpdateStage.ValidatingSignature})
         {
