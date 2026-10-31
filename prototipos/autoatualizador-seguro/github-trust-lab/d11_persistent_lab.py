@@ -19,7 +19,7 @@ from tuf.api import exceptions
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "github-auth-lab"))
 from d1_release_manifest_lab import (
     ANCHOR, ARCH, PAYLOAD, TARGET_NAME, D1Rejected, create_manifest,
-    encode_manifest, load_generator, sign, digest, check_release, require
+    encode_manifest, load_generator, sign, digest, validate_contract, require
 )
 URL = "https://gf-d11-test.invalid/"
 D0_SOURCE = "https://api.github.com/repos/walissonminel-1991/gerenciador-final/releases/latest"
@@ -33,7 +33,8 @@ class FixtureFetcher(FetcherInterface):
         name = info.path.lstrip("/")
         require(info.scheme == "https" and info.hostname == "gf-d11-test.invalid"
                 and info.port is None and not info.query and not info.fragment
-                and name in {"timestamp.json", "snapshot.json", "targets.json"},
+                and (name in {"timestamp.json", "snapshot.json", "targets.json"} or
+                 (name.endswith(".root.json") and name[:-10].isdigit())),
                 "FETCHER_OUT_OF_SCOPE")
         self.requested.append(name)
         if name not in self.items:
@@ -93,12 +94,12 @@ def observe(trust,anchor,roles,manifest,discovery,installed):
             "PERSISTENT_TUF_TARGET_MISMATCH")
     require(discovery["state"]=="NewVersionMetadataOnly" and
             type(discovery["tag"]) is str,"D0_NOT_CANDIDATE")
-    result=check_release(ANCHOR.read_bytes(),
-          {"timestamp":roles["timestamp.json"],"snapshot":roles["snapshot.json"],
-           "targets":roles["targets.json"]},manifest,
-          discovery["tag"],installed,ARCH,PAYLOAD)
-    require(result["tuf_verified"] is True and
-            result["production_authority"] is False and
+    # TUF Updater has already authenticated persisted roles and bound the
+    # target digest/size. Reuse D1's strict signed-manifest field contract.
+    # D1's single-attempt verifier hardcodes role version 1 and MUST NOT be
+    # invoked with version 2 as a substitute for persistent TUF state.
+    result=validate_contract(manifest,discovery["tag"],installed,ARCH,PAYLOAD)
+    require(result["contract_valid"] is True and
             result["can_install"] is False and
             result["operational_ready"] is False and
             result["automatic_recovery_authorized"] is False,"D1_NEVER_INSTALL")
