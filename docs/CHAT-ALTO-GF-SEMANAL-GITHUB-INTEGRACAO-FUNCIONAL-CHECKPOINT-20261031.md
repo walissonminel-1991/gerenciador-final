@@ -2,7 +2,7 @@
 
 **Data:** 2026-10-31. **Objetivo único:** ao abrir, consultar a cada 7 dias somente GitHub Releases oficial, comparar versão, baixar o ZIP portátil se mais novo, verificar integridade, encerrar OLD, substituir silenciosamente e reabrir NEW.
 
-**Branch única:** `experimento-g5-ipc-chat-alto-20261029`. **HEAD técnico deste checkpoint:** `f77aecc316e121acafdc3cbfc7f2dbb5e3e208a1`. **READY=false; ainda não distribuível.** Não editar `main`, PR #65, BETA .66, Draft privada `429695537` ou seus assets.
+**Branch única:** `experimento-g5-ipc-chat-alto-20261029`. **HEAD técnico funcional aprovado:** `137b8494b595c702970043af04a85cdd4aae632f`. **READY=false; ainda não distribuível.** Não editar `main`, PR #65, BETA .66, Draft privada `429695537` ou seus assets.
 
 ## Código desenvolvido
 
@@ -20,9 +20,23 @@
 3. [CI 41230997752](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41230997752) — **FAILURE somente no novo teste de trabalhador do ramo GitHub**: a regressão do fluxo GUI anterior passou, mas não surgiu recibo `gf-private-github-update/1` após a execução de `--gf-private-github-fixture`. Causa ainda indeterminada nessa CI; **não classificar como aprovado**.
 4. Instrumentação mínima no mesmo trabalhador registra `phase.txt` e categoria de exceção apenas em CI, sem caminhos privados. [CI diagnóstica 41231343813](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41231343813) disparada para distinguir falha de swap, de launch ou de observação NEW; **resultado pendente na última consulta**.
 
+## Correção funcional posterior — CONCLUÍDA e comprovada
+
+A [CI Windows 41231564032](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41231564032), SHA técnico `137b8494b595c702970043af04a85cdd4aae632f`, terminou **SUCCESS em ambos os jobs**. Registros reais:
+
+```text
+GF_PRIVATE_FUNCTIONAL_OLD_GUI_CLICK_PASS visible_normal_old=true button=Verificar_GF READY=false
+GF_PRIVATE_FUNCTIONAL_E2E_PASS old=5.13.11.65 new=5.13.11.66 downloaded_zip=true old_exited=true new_installed_original_path=true new_real_gui_responsive=true local_lab_only=true READY=false
+GF_GITHUB_WORKER_FUNCTIONAL_PASS new=5.13.11.66 original_path=true backup_preserved=true mainform_verified=true fixture_only=true READY=false
+```
+
+A falha da CI 41230997752 foi localizada com observação mínima em [CI 41231343813](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41231343813): fase `NEW_WINDOW_OBSERVED`, erro `InvalidOperationException`. O NEW já estava instalado, seu backup OLD preservado e a janela observada; o próprio código do coordenador descartava o `Process` com `using(next)` e depois tentava ler `next.Id` para escrever o recibo. A correção única capturou `newPid` ANTES do descarte, comprovada na CI canônica acima. Não houve relaxamento de autenticação ou de fechamento.
+
+A prova de consulta semanal e persistência local também passou na mesma CI. Portanto **o impedimento B1 foi resolvido**; segue pendente apenas o Release público real para teste extremo a extremo do canal único e, posteriormente, os controles de segurança pré-distribuição. `READY=false`.
+
 ## Bloqueios concretos, sem desvio de objetivo
 
-- **B1:** terminar a validação funcional do trabalhador do ramo GitHub, corrigindo somente a falha observada em `41230997752`, repetir regressão dirigida e comprovar NEW visível.
+- **B1 RESOLVIDO:** trabalhador do ramo GitHub instalou NEW, preservou OLD e confirmou janela na CI 41231564032.
 - **B2:** não há Release público no repositório. A única entrada atual é a Draft privada `429695537` (tag `gf-e2e-c5057bbbaf1d`) que não pode ser acessada sem autenticação; **nenhuma publicação de teste foi autorizada**. Logo, o caminho GitHub oficial está implementado, mas a prova positiva de download de Release público depende de uma publicação estável com o asset `GerenciadorFinal-win-x64.zip` e o digest SHA-256. Não inventar prova dessa etapa.
 - **B3:** depois de comprovar funcionamento pelo canal oficial, completar e revisar antes da distribuição autenticação de editor/assinaturas, proteção contra alterações indevidas, recuperação e política de privilégios para instalações em diretórios protegidos. Não ampliar essa frente antes do ciclo funcional.
 
