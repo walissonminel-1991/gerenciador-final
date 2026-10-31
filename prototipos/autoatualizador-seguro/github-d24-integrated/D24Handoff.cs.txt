@@ -97,9 +97,16 @@ internal static partial class Program
             Directory.CreateDirectory(stage);
             await using(var server=new LoopbackServer(new Reply(Fragment:7)))
             {
-                await Stage(server.Port,ExpectedRelease,stage,CancellationToken.None,
-                            n,Convert.FromHexString(S("sha256")));
-                accepted=server.Accepts;
+                try
+                {
+                    await Stage(server.Port,ExpectedRelease,stage,
+                        CancellationToken.None,n,Convert.FromHexString(S("sha256")));
+                }
+                finally
+                {
+                    // Record connections even when Stage fails after TCP connect.
+                    accepted=server.Accepts;
+                }
             }
             Verify(System.IO.Path.Combine(stage,FinalName),n,
                     Convert.FromHexString(S("sha256")));
