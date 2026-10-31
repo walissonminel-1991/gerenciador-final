@@ -170,8 +170,8 @@ def main(d0_exe,coordinator):
             "synthetic_receipts_rejected":7,"stages_started":0,
             "automatic_recovery_authorized":False
         },"FAKE_OR_REPLAY_RECEIPT_WAS_ACCEPTED")
-        require(len(positive)==1 and len(rejected)==14 and
-                len(set(rejected))==14,"NEGATIVE_MATRIX")
+        require(len(positive)==1 and len(rejected)==15 and
+                len(set(rejected))==15,"NEGATIVE_MATRIX")
         report={
             "schema":"gf-d242-csharp-owned-tuf-session/1",
             "status":"passed",
