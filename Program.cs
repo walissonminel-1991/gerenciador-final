@@ -27,6 +27,28 @@ internal static class Program
         // Read only; it never authorizes, downloads or installs a package.
         if (args.Length == 1 && args[0] == "--gf-private-update-smoke")
             return GfPrivateSelfUpdateProbe.SmokeAsync().GetAwaiter().GetResult();
+        if (args.Length == 1 && args[0] == "--gf-private-update-functional")
+        {
+            try
+            {
+                return GfPrivateFunctionalUpdate.DownloadStageAndLaunchWorkerAsync()
+                    .GetAwaiter().GetResult() == "WORKER_STARTED" ? 0 : 21;
+            }
+            catch (Exception ex) when (ex is IOException or HttpRequestException or
+                       InvalidOperationException or UnauthorizedAccessException or
+                       System.IO.InvalidDataException or JsonException or
+                       System.Security.Cryptography.CryptographicException)
+            {
+                return 22;
+            }
+        }
+        if (args.Length == 2 && args[0] == "--gf-private-update-worker")
+        {
+            try { return GfPrivateFunctionalUpdate.RunWorker(args); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                          InvalidOperationException or System.ComponentModel.Win32Exception)
+            { return 23; }
+        }
 #endif
         if (args.Length == 1 && args[0] == WinGetComProcessCatalog.Argument)
             return Task.Run(WinGetComReader.Run).GetAwaiter().GetResult(); // COM reader owns an MTA thread
@@ -1141,13 +1163,47 @@ internal sealed partial class MainForm : Form
             Status("Consultando atualização do GF...");
             try
             {
-                var result = await GfPrivateSelfUpdateProbe.CheckAsync();
-                if (IsDisposed || Disposing) return;
-                Status(result.Message);
-                Log("Autoatualização GF (teste privado): " + result.Code +
-                    "; instalação bloqueada; READY=false.");
-                DiagnosticTrace.Write("GF.AUTOUPDATE.PROBE estado=" + result.Code +
-                    " instalacao=BLOCKED");
+                if (GfPrivateFunctionalUpdate.LabEnabled)
+                {
+                    // Only this disposable CI variant may perform the FIRST
+                    // functional cycle before production security hardening.
+                    string code = await GfPrivateFunctionalUpdate.DownloadStageAndLaunchWorkerAsync();
+                    if (IsDisposed || Disposing) return;
+                    Status("GF: atualização de teste preparada. Encerrando o OLD...");
+                    Log("GF: coordenador funcional de teste iniciado; READY=false.");
+                    var closePoll = new System.Windows.Forms.Timer { Interval = 500 };
+                    int polls = 0;
+                    closePoll.Tick += (_, _) =>
+                    {
+                        polls++;
+                        if (IsDisposed || Disposing || polls > 180)
+                        {
+                            closePoll.Stop(); closePoll.Dispose();
+                            return;
+                        }
+                        if (_busy || _betaClose.IsWaiting) return;
+                        closePoll.Stop(); closePoll.Dispose();
+                        Close();
+                    };
+                    closePoll.Start();
+                }
+                else
+                {
+                    var result = await GfPrivateSelfUpdateProbe.CheckAsync();
+                    if (IsDisposed || Disposing) return;
+                    Status(result.Message);
+                    Log("Autoatualização GF (teste privado): " + result.Code +
+                        "; instalação bloqueada; READY=false.");
+                    DiagnosticTrace.Write("GF.AUTOUPDATE.PROBE estado=" + result.Code +
+                        " instalacao=BLOCKED");
+                }
+            }
+            catch (Exception ex) when (ex is IOException or HttpRequestException or
+                                          InvalidOperationException or UnauthorizedAccessException or
+                                          System.IO.InvalidDataException or JsonException)
+            {
+                if (!IsDisposed) Status("GF: teste de atualização bloqueado; nenhum pacote instalado.");
+                DiagnosticTrace.Write("GF.AUTOUPDATE.PRIVATE_FAIL type=" + ex.GetType().Name);
             }
             finally
             {
