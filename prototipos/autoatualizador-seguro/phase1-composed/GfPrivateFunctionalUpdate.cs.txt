@@ -195,6 +195,134 @@ internal static class GfPrivateFunctionalUpdate
         return "WORKER_STARTED";
     }
 
+    // Same functional coordinator pattern proven by CI 41229672721.
+    // This path uses the OFFICIAL GitHub public release and never requires a
+    // local HTTP server, a GitHub token, or Python on the user's machine.
+    // Still PRIVATE-only until publisher authenticity/recovery are homologated.
+    internal static async Task PrepareOfficialReleaseAsync(
+        GfGithubWeeklyUpdate.Release release,
+        Func<GfGithubWeeklyUpdate.Release, string, Task<string>> acquire)
+    {
+        string old = Path.GetFullPath(AppContext.BaseDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string name = Path.GetFileName(old);
+        string parent = Directory.GetParent(old)?.FullName
+            ?? throw new InvalidOperationException("GF_UPDATE_INSTALL_ROOT_MISSING");
+        Require(File.Exists(Path.Combine(old, "GerenciadorFinal.exe")) &&
+                File.Exists(Path.Combine(old, "GerenciadorFinal.dll")),
+                "OFFICIAL_OLD_FILES_MISSING");
+        var current = typeof(Program).Assembly.GetName().Version;
+        Require(current is not null && release.Version > current,
+                "OFFICIAL_VERSION_NOT_GREATER");
+        string workspace = Path.Combine(parent,
+            "." + name + "-gfupdate-" + release.Version.ToString());
+        Require(!Directory.Exists(workspace) && !File.Exists(workspace),
+                "OFFICIAL_WORKSPACE_ALREADY_EXISTS");
+        Directory.CreateDirectory(workspace);
+        string stage = Path.Combine(workspace, "stage");
+        string worker = Path.Combine(workspace, "worker");
+        string package = Path.Combine(workspace, "package.zip");
+        await acquire(release, package);
+        using (var zip = ZipFile.OpenRead(package))
+        {
+            Require(zip.Entries.Count is > 40 and <= 1100,
+                    "OFFICIAL_ZIP_ENTRY_COUNT");
+            long total = 0;
+            foreach (var item in zip.Entries)
+            {
+                total += item.Length;
+                Require(total <= 700_000_000,
+                    "OFFICIAL_ZIP_UNPACKED_LIMIT");
+            }
+        }
+        ZipFile.ExtractToDirectory(package, stage, overwriteFiles: false);
+        Require(File.Exists(Path.Combine(stage,"GerenciadorFinal.exe")) &&
+                File.Exists(Path.Combine(stage,"GerenciadorFinal.dll")) &&
+                System.Reflection.AssemblyName.GetAssemblyName(
+                    Path.Combine(stage,"GerenciadorFinal.dll")).Version == release.Version,
+                "OFFICIAL_NEW_VERSION_INVALID");
+        CopyFolder(old, worker);
+        string helper = Path.Combine(worker, "GerenciadorFinal.exe");
+        var start = new ProcessStartInfo(helper)
+        {
+            UseShellExecute = false, CreateNoWindow = true,
+            WorkingDirectory = worker
+        };
+        start.ArgumentList.Add("--gf-private-github-worker");
+        start.ArgumentList.Add(Environment.ProcessId.ToString(
+            CultureInfo.InvariantCulture));
+        start.ArgumentList.Add(old);
+        start.ArgumentList.Add(release.Version.ToString());
+        using var proc = Process.Start(start);
+        Require(proc is not null, "OFFICIAL_WORKER_NOT_CREATED");
+        string handshake = Path.Combine(workspace, "attached.flag");
+        var wait = Stopwatch.StartNew();
+        while (!File.Exists(handshake) && wait.Elapsed < TimeSpan.FromSeconds(20))
+        {
+            Require(!proc!.HasExited, "OFFICIAL_WORKER_EXITED_EARLY");
+            await Task.Delay(100);
+        }
+        Require(File.Exists(handshake), "OFFICIAL_WORKER_HANDSHAKE_TIMEOUT");
+    }
+
+    internal static int RunGithubWorker(string[] args)
+    {
+        Require(args.Length == 4 && args[0] == "--gf-private-github-worker",
+                "OFFICIAL_WORKER_ARGS");
+        string work = Directory.GetParent(
+            Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(
+                Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))?.FullName
+            ?? throw new InvalidOperationException("OFFICIAL_WORKSPACE_MISSING");
+        int pid = 0;
+        Require(int.TryParse(args[1], NumberStyles.None,
+                    CultureInfo.InvariantCulture, out pid) &&
+                pid > 0 && pid != Environment.ProcessId,
+                "OFFICIAL_WORKER_PID");
+        string old = Path.GetFullPath(args[2]).TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string parent = Directory.GetParent(old)?.FullName
+            ?? throw new InvalidOperationException("OFFICIAL_OLD_PARENT");
+        Require(Directory.GetParent(work)?.FullName.Equals(
+                    parent, StringComparison.OrdinalIgnoreCase) == true &&
+                Path.GetFileName(work).StartsWith(
+                    "." + Path.GetFileName(old) + "-gfupdate-",
+                    StringComparison.OrdinalIgnoreCase),
+                "OFFICIAL_WORKSPACE_NOT_SIBLING");
+        var target = Version.Parse(args[3]);
+        var current = typeof(Program).Assembly.GetName().Version;
+        Require(current is not null && target > current,
+                "OFFICIAL_NOT_NEWER_THAN_WORKER");
+        string stage = Path.Combine(work, "stage");
+        string backup = Path.Combine(work, "old-preserved");
+        string handshake = Path.Combine(work, "attached.flag");
+        Require(!Directory.Exists(backup) && !File.Exists(handshake) &&
+                Directory.Exists(old) && Directory.Exists(stage) &&
+                System.Reflection.AssemblyName.GetAssemblyName(
+                    Path.Combine(stage,"GerenciadorFinal.dll")).Version == target,
+                "OFFICIAL_WORKER_STATE_INVALID");
+        using var owned = Process.GetProcessById(pid);
+        // Retain the ORIGINAL OLD process HANDLE before it exits. Never infer
+        // old exit from a PID alone. The parent waits for this handshake.
+        File.WriteAllText(handshake, "OLD_HANDLE_RETAINED");
+        if (!owned.WaitForExit(120_000)) return 15;
+        Directory.Move(old, backup);
+        Directory.Move(stage, old);
+        var next = Process.Start(new ProcessStartInfo(
+            Path.Combine(old, "GerenciadorFinal.exe"))
+        {
+            UseShellExecute = false, WorkingDirectory = old
+        });
+        Require(next is not null, "OFFICIAL_NEW_START_FAILED");
+        File.WriteAllText(Path.Combine(work, "applied.json"),
+            JsonSerializer.Serialize(new
+            {
+                schema = "gf-private-github-update/1",
+                installed_version = target.ToString(),
+                new_pid = next.Id, ready = false
+            }));
+        return 0;
+    }
+
     internal static int RunWorker(string[] args)
     {
         // First check the same loopback/CI-only guard; refuse manual invocation.
