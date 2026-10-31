@@ -68,8 +68,8 @@ jobs:
           $tag='gf-e2e-c5057bbbaf1d'
           $expectedArchiveId=694233137
           $expectedManifestId=694233139
-          $release=(& gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,tagName,assets | ConvertFrom-Json)
-          if ($LASTEXITCODE -ne 0 -or !$release.isDraft -or $release.tagName -ne $tag -or @($release.assets).Count -ne 5) {
+          $release=(& gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or !$release.draft -or $release.tag_name -ne $tag -or @($release.assets).Count -ne 5) {
             throw 'GF_E2E_EXISTING_DRAFT_NOT_AUTHORIZED'
           }
           $zip=@($release.assets | Where-Object { $_.name -eq 'gf-e2e-new-win-x64.zip' })
@@ -93,8 +93,8 @@ jobs:
           $roles=@('targets.json','snapshot.json','timestamp.json') | ForEach-Object { Join-Path $rolesFolder $_ }
           & gh release upload $tag @roles --repo $env:GITHUB_REPOSITORY --clobber
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_TUF_DRAFT_METADATA_UPLOAD_FAILED' }
-          $after=(& gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,tagName,assets | ConvertFrom-Json)
-          if ($LASTEXITCODE -ne 0 -or !$after.isDraft -or $after.tagName -ne $tag -or
+          $after=(& gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or !$after.draft -or $after.tag_name -ne $tag -or
               @($after.assets).Count -ne 5 -or
               @($after.assets | Where-Object {$_.name -eq 'gf-e2e-new-win-x64.zip' -and $_.id -eq $expectedArchiveId}).Count -ne 1 -or
               @($after.assets | Where-Object {$_.name -eq 'GF-LAB-REAL-PACKAGE-MANIFEST.json' -and $_.id -eq $expectedManifestId}).Count -ne 1) {
