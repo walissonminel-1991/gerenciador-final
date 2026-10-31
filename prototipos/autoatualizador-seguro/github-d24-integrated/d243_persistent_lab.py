@@ -48,7 +48,7 @@ def check_observation(o,ok):
             o["cooperative_lock_only"] is True and
             o["abandoned_lock_recovery_authorized"] is False and
             o["status"]==("inert_trust_observed_blocked" if ok else "unknown_hold") and
-            o["test_tuf_observed"] is ok,"D243_FALSE_TRUST_CLAIM")
+            o["test_tuf_observed"] is ok,"D243_FALSE_TRUST_CLAIM_"+json.dumps(o,sort_keys=True))
     return o
 
 def check_ntfs(r,ok):
