@@ -16,7 +16,7 @@ def stop(code):
 
 def read_bounded(path, maximum):
     if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= maximum:
-        stop("INPUT_UNKNOWN")
+        stop("INPUT_UNKNOWN_"+path.name)
     return path.read_bytes()
 
 def run():
