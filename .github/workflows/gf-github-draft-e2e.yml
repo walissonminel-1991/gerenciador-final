@@ -413,6 +413,121 @@ jobs:
           $check | python -
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_BETWEEN_MOVES_INDEPENDENT_VERIFICATION_FAILED_HOLD' }
           Add-Content $env:GITHUB_STEP_SUMMARY 'HOLD proof in disposable runner: real L18 owner killed by retained process handle exit 91 after first directory rename, before second. Original executable path missing, OLD 284 files retained, NEW 284 files still staged, canary unchanged, selector new/2 and fences survive, reconciler plus replay UnknownBlocked. No rollback/retry/cleanup/READY.'
+      - name: Diagnostico legivel de caminho ausente, somente leitura e sem recuperacao
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          # This is a read-only, runner-only review of the SAME L18 test
+          # outcome. It does not invoke GF, reconcile, rollback or cleanup.
+          $read=@'
+          import hashlib, json, os
+          from pathlib import Path
+          runner=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+          assert os.environ["GITHUB_ACTIONS"]=="true"
+          assert os.environ["GITHUB_REPOSITORY"]=="walissonminel-1991/gerenciador-final"
+          report=json.loads((runner/"gf-e2e-real-flow-report.json").read_bytes())
+          assert report["scenario"]=="between-install-moves"
+          assert report["outcome"]=="UnknownBlocked" and report["replay"]=="UnknownBlocked"
+          assert report["rollback_authorized"] is False
+          assert report["automatic_retry_authorized"] is False
+          assert report["cleanup_performed"] is False and report["operational_ready"] is False
+          root=Path(report["root"]).resolve(strict=True)
+          assert root.is_dir() and root.parent.name.startswith("gf-u2-r-")
+          assert (root/".gf-u2-fixture").read_text()=="GF-U2-INERT-STATE-TESTS-NO-PRODUCT\n"
+          selector=json.loads((root/"l18-real-active.fixture.json").read_bytes())
+          assert selector["selected"]=="new" and selector["generation"]==2
+          assert (root/"l18-real-new-may-have-effects.fixture.txt").is_file()
+          assert (root/"l18-real-old-may-have-effects.fixture.txt").is_file()
+          assert (root/"real-reconcile-reason.fixture.txt").read_text().strip()==(
+              "REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED")
+          assert not (root/"real-observed-new.fixture.json").exists()
+          assert not (runner/"gf-e2e-old").exists()
+          assert not (runner/"gf-e2e-live-install-transition.json").exists()
+          def digest(rootdir):
+              assert rootdir.is_dir() and not rootdir.is_symlink()
+              assert rootdir.resolve(strict=True)==rootdir
+              entries={}
+              for directory, dirs, files in os.walk(rootdir,followlinks=False):
+                  for name in dirs+files:
+                      p=Path(directory)/name
+                      assert not p.is_symlink() and not p.stat().st_file_attributes&0x400
+                  for name in files:
+                      p=Path(directory)/name
+                      entries[p.relative_to(rootdir).as_posix()]={
+                          "length":p.stat().st_size,
+                          "sha256":hashlib.sha256(p.read_bytes()).hexdigest()}
+              return entries
+          baseline=json.loads((runner/"gf-e2e-old-prestart-files.json").read_bytes())
+          signed_bytes=(runner/"gf-e2e-github-download"/"GF-LAB-REAL-PACKAGE-MANIFEST.json").read_bytes()
+          assert hashlib.sha256(signed_bytes).hexdigest()==(
+              "a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d")
+          signed=json.loads(signed_bytes)
+          assert signed["operational_installable"] is False
+          backup=runner/"gf-e2e-old-preserved"
+          staged=runner/"gf-e2e-authenticated-new"
+          before_old=digest(backup)
+          before_new=digest(staged)
+          assert len(before_old)==284 and before_old==baseline
+          assert len(before_new)==284 and before_new==signed["files"]
+          canary=runner/"gf-e2e-install-data"/"PERSONAL-KEEP-UNCHANGED.txt"
+          before_canary=canary.read_bytes()
+          assert before_canary==b"DO-NOT-TOUCH-MY-DATA\n"
+          selected_file=root/"l18-real-active.fixture.json"
+          before_selected=hashlib.sha256(selected_file.read_bytes()).hexdigest()
+          txt=runner/"gf-e2e-installation-missing-guidance.txt"
+          json_file=runner/"gf-e2e-installation-missing-guidance.json"
+          assert txt.is_file() and json_file.is_file()
+          assert not txt.is_symlink() and not json_file.is_symlink()
+          notice=json.loads(json_file.read_bytes())
+          expected=(
+              "O Gerenciador Final não conseguiu terminar a atualização.\n"
+              "O programa não pode ser aberto com segurança nesta instalação.\n"
+              "Por segurança, nenhuma tentativa de reparo ou restauração foi feita.\n"
+              "Os arquivos anteriores e o pacote novo foram preservados neste teste.\n"
+              "Não apague pastas do programa nem tente reinstalá-lo por cima.\n"
+              "Peça orientação ao responsável pelo Gerenciador Final.\n"
+              "Informe o código GF-UPDATE-HOLD-001.\n"
+              "Ainda não há uma recuperação segura comprovada.\n"
+          )
+          assert txt.read_text(encoding="utf-8")==expected
+          assert notice=={
+              "schema":"gf-e2e-installation-missing-guidance/1",
+              "diagnostic_code":"GF-UPDATE-HOLD-001",
+              "language":"pt-BR",
+              "condition":"original-executable-path-absent-after-first-move",
+              "classification":"UnknownBlocked",
+              "selector":"new","generation":2,
+              "old_backup_preserved":True,
+              "new_staging_preserved":True,
+              "canary_preserved":True,
+              "original_path_missing":True,
+              "guidance_text":expected,
+              "guidance_delivery":"external-test-diagnostic-not-app-ui",
+              "automatic_rollback_allowed":False,
+              "automatic_retry_allowed":False,
+              "cleanup_allowed":False,
+              "application_started":False,
+              "recovery_proven":False,
+              "operational_ready":False,
+              "test_only":True,
+          }
+          assert before_old==digest(backup) and before_new==digest(staged)
+          assert canary.read_bytes()==before_canary
+          assert hashlib.sha256(selected_file.read_bytes()).hexdigest()==before_selected
+          assert not (runner/"gf-e2e-old").exists()
+          print("GF_E2E_MISSING_INSTALL_READONLY_VERIFIED "
+                "code=GF-UPDATE-HOLD-001 old_files=284 new_files=284 "
+                "canary=UNCHANGED selected=new/2 original_path=ABSENT "
+                "no_recovery_no_retry_no_cleanup=true READY=false")
+          print("GF_E2E_USER_GUIDANCE_PT_BR_START")
+          print(expected,end="")
+          print("GF_E2E_USER_GUIDANCE_PT_BR_END")
+          '@
+          $read | python -
+          if ($LASTEXITCODE -ne 0) {
+            throw 'GF_E2E_MISSING_INSTALL_DIAGNOSTIC_UNPROVEN_HOLD'
+          }
+          Add-Content $env:GITHUB_STEP_SUMMARY 'Read-only diagnostic: after the original L18 owner cut between moves and two UnknownBlocked reconciliations, GF-UPDATE-HOLD-001 provides a Portuguese user-readable external notice; original executable path absent, OLD/NEW 284 files each preserved, no automatic repair/rollback/retry/cleanup, READY=false.'
       - name: Negativos de pacote real adulterado e transferencia incompleta
         shell: pwsh
         run: |

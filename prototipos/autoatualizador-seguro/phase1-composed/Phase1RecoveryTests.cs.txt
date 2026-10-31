@@ -536,6 +536,57 @@ internal static class Phase1RecoveryTests
             s.Preserved();
             Require(owner.Active==0 && recovery.Active==0,
                 "REAL_BETWEEN_MOVES_CHILDREN_STILL_LIVE");
+            // User-readable diagnosis ONLY AFTER the original L18 has
+            // independently classified both attempts UnknownBlocked and the
+            // full OLD/NEW pins, selector and personal canary have survived.
+            // GF.exe is absent from its original location; this laboratory
+            // diagnostic is an external text notice, NEVER a GF popup,
+            // a recovery witness, or an invitation to retry the swap.
+            Require(!Directory.Exists(live) && !File.Exists(live) &&
+                Directory.Exists(backup) && Directory.Exists(incoming) &&
+                !File.Exists(installedReceipt) &&
+                Selection(src)==("new",2) &&
+                File.Exists(L18Coordinator.NewLaunchFence(src)) &&
+                File.Exists(Path.Combine(src,"l18-real-old-may-have-effects.fixture.txt")) &&
+                !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")) &&
+                outcome=="UnknownBlocked" && replay=="UnknownBlocked" &&
+                Reason(src)=="REAL_NEW_EFFECTS_NOT_INDEPENDENTLY_BOUNDED" &&
+                File.ReadAllText(canary,new UTF8Encoding(false))==
+                    "DO-NOT-TOUCH-MY-DATA\n",
+                "REAL_MISSING_INSTALL_GUIDANCE_NOT_AUTHORIZED");
+            const string code="GF-UPDATE-HOLD-001";
+            const string guidance=
+                "O Gerenciador Final não conseguiu terminar a atualização.\n"+
+                "O programa não pode ser aberto com segurança nesta instalação.\n"+
+                "Por segurança, nenhuma tentativa de reparo ou restauração foi feita.\n"+
+                "Os arquivos anteriores e o pacote novo foram preservados neste teste.\n"+
+                "Não apague pastas do programa nem tente reinstalá-lo por cima.\n"+
+                "Peça orientação ao responsável pelo Gerenciador Final.\n"+
+                "Informe o código GF-UPDATE-HOLD-001.\n"+
+                "Ainda não há uma recuperação segura comprovada.\n";
+            var userNotice=new{
+                schema="gf-e2e-installation-missing-guidance/1",
+                diagnostic_code=code,language="pt-BR",
+                condition="original-executable-path-absent-after-first-move",
+                classification="UnknownBlocked",selector="new",generation=2,
+                old_backup_preserved=true,new_staging_preserved=true,
+                canary_preserved=true,original_path_missing=true,
+                guidance_text=guidance,
+                guidance_delivery="external-test-diagnostic-not-app-ui",
+                automatic_rollback_allowed=false,automatic_retry_allowed=false,
+                cleanup_allowed=false,application_started=false,
+                recovery_proven=false,operational_ready=false,test_only=true
+            };
+            L18Coordinator.DurableRealFile(Path.Combine(runner,
+                    "gf-e2e-installation-missing-guidance.txt"),
+                new UTF8Encoding(false).GetBytes(guidance));
+            L18Coordinator.DurableRealFile(Path.Combine(runner,
+                    "gf-e2e-installation-missing-guidance.json"),
+                JsonSerializer.SerializeToUtf8Bytes(userNotice));
+            Console.WriteLine("GF_E2E_MISSING_INSTALL_DIAGNOSTIC "
+                +"code=GF-UPDATE-HOLD-001 language=pt-BR "
+                +"original_path=ABSENT guidance=EXTERNAL_TEST_NOTICE "
+                +"rollback=false retry=false cleanup=false READY=false");
             return new{
                 schema="gf-e2e-interrupted-physical-swap-l18/1",
                 scenario="between-install-moves",
