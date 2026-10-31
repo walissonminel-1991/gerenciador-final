@@ -199,7 +199,8 @@ internal static class GfPrivateFunctionalUpdate
     {
         // First check the same loopback/CI-only guard; refuse manual invocation.
         string root = Root();
-        Require(args.Length == 2 && int.TryParse(args[1], out int oldPid) &&
+        int oldPid = 0;
+        Require(args.Length == 2 && int.TryParse(args[1], out oldPid) &&
                 oldPid > 0 && oldPid != Environment.ProcessId, "WORKER_ARGS_INVALID");
         string old = At(root, OldName);
         string stage = At(root, NewName);
