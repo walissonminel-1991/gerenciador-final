@@ -117,6 +117,9 @@ def run(d0,coordinator):
         cache_state={name:(trusted/name).stat().st_size if (trusted/name).is_file() else None
                      for name in ("root.json","timestamp.json","snapshot.json","targets.json")}
         print("GF_D243_CACHE_AFTER_V1 "+json.dumps(cache_state,sort_keys=True),flush=True)
+        cache_links={name:(os.readlink(trusted/name) if (trusted/name).is_symlink()
+                     else None) for name in cache_state}
+        print("GF_D243_LINKS_AFTER_V1 "+json.dumps(cache_links,sort_keys=True),flush=True)
         snapshot=case/"saved-v1-trust"
         shutil.copytree(trusted,snapshot)
         # Lock contention: one C# process holds cooperative mutex; second
