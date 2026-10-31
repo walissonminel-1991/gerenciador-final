@@ -154,6 +154,34 @@ jobs:
               (Test-Path (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download'))) {
             throw 'GF_E2E_STARTUP_ALREADY_TRIED'
           }
+          # The disposable GF OLD executable has lab-specific bytes,
+          # deliberately different from the immutable Draft's OLD manifest.
+          # Capture its ACTUAL complete pre-start file set for preservation
+          # comparison. This local baseline is NOT update trust authority.
+          $capture=@'
+          import hashlib,json,os
+          from pathlib import Path
+          runner=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+          root=runner/"gf-e2e-old"
+          assert root.is_dir() and root.resolve(strict=True)==root
+          inventory={}
+          for directory,subdirs,files in os.walk(root,followlinks=False):
+              for name in subdirs+files:
+                  path=Path(directory)/name
+                  assert not path.is_symlink() and not path.stat().st_file_attributes&0x400
+              for filename in files:
+                  p=Path(directory)/filename
+                  inventory[p.relative_to(root).as_posix()]={
+                      "length":p.stat().st_size,
+                      "sha256":hashlib.sha256(p.read_bytes()).hexdigest()}
+          assert len(inventory)>80 and "GerenciadorFinal.exe" in inventory
+          target=runner/"gf-e2e-old-prestart-files.json"
+          with target.open("x",encoding="utf8") as stream:
+              json.dump(inventory,stream,sort_keys=True)
+          print("GF_E2E_OLD_LAB_PRESTART_BASELINE files="+str(len(inventory)))
+          '@
+          $capture | python -
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_OLD_LAB_PRESTART_BASELINE_FAILED' }
           $proc=Start-Process -FilePath $exe -ArgumentList '--tray' -WorkingDirectory (Split-Path $exe) -PassThru
           try {
             $deadline=[DateTime]::UtcNow.AddMinutes(9)
@@ -271,7 +299,7 @@ jobs:
               !$h.single_live_l18_selector_session_proved -or
               !$h.physically_updated_original_installation -or
               !$h.test_only -or $h.operational_ready -or $h.automatic_recovery_authorized) {
-            throw 'GF_E2E_L18_HANDOFF_V3_INVALID_HOLD'
+            throw 'GF_E2E_L18_HANDOFF_V4_INVALID_HOLD'
           }
           if ($m.schema -ne 'gf-e2e-old-exited-before-l18-new-observation/1' -or
               !$m.process_handle_wait_completed -or $m.old_exit_code -ne 0 -or
@@ -322,7 +350,11 @@ jobs:
                                   "sha256":hashlib.sha256(p.read_bytes()).hexdigest()}
               assert names==expected
           check(runner/"gf-e2e-old",m["files"])
-          check(runner/"gf-e2e-old-preserved",m["old_files"])
+          # The signed Draft OLD file set intentionally differs from the
+          # GF_E2E_LAB build; use the fresh BEFORE-start captured baseline
+          # to show exact byte and object-set preservation, never as trust.
+          old_prestart=json.loads((runner/"gf-e2e-old-prestart-files.json").read_bytes())
+          check(runner/"gf-e2e-old-preserved",old_prestart)
           canary=runner/"gf-e2e-install-data"/"PERSONAL-KEEP-UNCHANGED.txt"
           assert canary.read_bytes()==b"DO-NOT-TOUCH-MY-DATA\n"
           print("GF_E2E_INSTALLED_NEW_BYTES_IN_ORIGINAL_PORTABLE_PATH verified=true")

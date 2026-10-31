@@ -203,7 +203,7 @@ internal static class GfOldDraftAcquire
     // This is a lab-only owner of the existing Python-TUF -> C# L18 test
     // sequence, never a second selector/transaction or production update path.
     // The runner must prepare the PINNED bridge and signed fixtures in advance.
-    private static async Task HandoffAuthenticatedDownloadToL18Async(string runner)
+    private static async Task HandoffAuthenticatedDownloadToL18Async(string runner, Action<string> recordStage)
     {
         Require(Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18") == "1" &&
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" &&
@@ -280,6 +280,7 @@ internal static class GfOldDraftAcquire
         // The OLD application, not the CI shell, invokes the TEST TUF verifier.
         // It cannot execute NEW before Python-TUF has authenticated the ZIP
         // and all 284 decompressed files.
+        recordStage("tuf_verify");
         await RunScopedChild(python, TimeSpan.FromMinutes(4),
             tufScript, "verify", "--repo", repoRoot, "--old", old,
             "--downloaded", download, "--extracted", extracted,
@@ -290,6 +291,7 @@ internal static class GfOldDraftAcquire
                     new Version(5,13,11,66),
                 "L18_NEW_NOT_TUF_VERIFIED_OR_WRONG_VERSION");
 
+        recordStage("tuf_verified");
         if (Environment.GetEnvironmentVariable("GF_E2E_SELECTED_NEW_CONTINUATION") == "1")
         {
             // TEST ONLY: the original OLD must exit before the LIVE L18
@@ -313,8 +315,10 @@ internal static class GfOldDraftAcquire
             psi.Environment["GF_E2E_STARTUP_DRAFT_PROBE"]="0";
             psi.Environment["GF_E2E_HANDOFF_L18"]="0";
             psi.Environment["GF_E2E_SELECTED_NEW_CONTINUATION"]="0";
+            recordStage("l18_bridge_start");
             using var bridgeChild = Process.Start(psi);
             Require(bridgeChild is not null,"L18_SELECTED_NEW_BRIDGE_NOT_CREATED");
+            recordStage("l18_selector_wait");
             string selectedReady=Path.Combine(runner,"gf-e2e-selected-new-ready.json");
             var deadline=Stopwatch.StartNew();
             while(!File.Exists(selectedReady) && deadline.Elapsed<TimeSpan.FromMinutes(3))
@@ -384,6 +388,7 @@ internal static class GfOldDraftAcquire
 
     internal static async Task<int> Run(Action? afterVerifiedLabHandoff = null)
     {
+        string stage="guard";
         try
         {
             // Lab mode is absent from normal binaries; the additional guards
@@ -410,12 +415,15 @@ internal static class GfOldDraftAcquire
             var endpoint = new Uri("https://api.github.com/repos/" + Repo +
                                    "/releases/" + ReleaseId.ToString(
                                        System.Globalization.CultureInfo.InvariantCulture));
+            stage="draft_metadata";
             var assets = CheckMetadata(await ReadJson(http, endpoint, token));
+            stage="asset_download";
             Directory.CreateDirectory(dest);
             foreach (var asset in Allowed)
                 await FetchAsset(http, asset, assets[asset.Name], token,
                                  Path.Combine(dest, asset.Name));
             Require(Directory.GetFiles(dest).Length == Allowed.Length, "EXTRA_DOWNLOAD_FILE");
+            stage="acquisition_report";
             var evidence = new
             {
                 schema = "gf-e2e-old-github-draft/1",
@@ -434,7 +442,8 @@ internal static class GfOldDraftAcquire
                 JsonSerializer.Serialize(evidence));
             if (Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18") == "1")
             {
-                await HandoffAuthenticatedDownloadToL18Async(runner);
+                stage="handoff_entered";
+                await HandoffAuthenticatedDownloadToL18Async(runner, value=>stage=value);
                 // The completed, fail-closed L18 normal scenario leaves
                 // UnknownBlocked: request a graceful OLD window exit ONLY
                 // in the disposable laboratory, after the report is durable.
@@ -463,7 +472,8 @@ internal static class GfOldDraftAcquire
                     string temp = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
                     if (Directory.Exists(temp))
                         File.WriteAllText(Path.Combine(temp, "gf-e2e-old-acquire-failure.json"),
-                            JsonSerializer.Serialize(new { schema = "gf-e2e-old-blocked/1", reason,
+                            JsonSerializer.Serialize(new { schema = "gf-e2e-old-blocked/2", reason,
+                                stage, io_hresult = e is IOException ? e.HResult : 0,
                                 no_token_logged = true, no_auto_recovery = true }));
                 }
                 catch (IOException) { }
