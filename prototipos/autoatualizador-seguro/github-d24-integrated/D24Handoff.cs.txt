@@ -66,7 +66,7 @@ internal static partial class Program
             return S("schema","gf-github-release-auth-lab/1") &&
                 S("repository","walissonminel-1991/gerenciador-final") &&
                 S("channel","stable") && S("tag","v5.13.11.66") &&
-                S("version","5.13.11.66.0") &&
+                S("version","5.13.11.66") &&
                 S("architecture","win-x64") &&
                 S("asset","GerenciadorFinal-portable-win-x64.zip") &&
                 S("sha256",Convert.ToHexString(Digest).ToLowerInvariant()) &&
