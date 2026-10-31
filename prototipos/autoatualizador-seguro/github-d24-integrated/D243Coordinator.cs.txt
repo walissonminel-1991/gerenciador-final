@@ -137,7 +137,6 @@ internal static partial class Program
         var reason="UNPROVEN_TRUST_STATE";
         var childStarted=false;
         var authenticated=false;
-        var noStage=true;
         var lockHeld=false;
         var version=0;
         Mutex? mutex=null;
