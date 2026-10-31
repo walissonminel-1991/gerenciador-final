@@ -373,8 +373,14 @@ jobs:
           assert selected["test_only"] is True and selected["operational_installable"] is False
           assert (src/"l18-real-new-may-have-effects.fixture.txt").is_file()
           assert (src/"l18-real-old-may-have-effects.fixture.txt").is_file()
-          assert (src/"real-recovery-blocked.fixture.txt").is_file() or any(
-              p.is_file() and "blocked" in p.name for p in src.iterdir())
+          # The valid L18 journal records phase=unknown. The L19 fallback
+          # marker is reserved for damaged/unreadable journals, not required
+          # for a successful durable Unknown append.
+          records=sorted(src.glob("l18-phase-*.fixture.json"))
+          assert len(records)>=5
+          terminal=json.loads(records[-1].read_bytes())
+          assert terminal["phase"]=="unknown" or terminal.get("Phase")=="unknown"
+          assert not (src/"l19-recovery-blocked.fixture.txt").exists()
           assert not (src/"real-observed-new.fixture.json").exists()
           assert not (runner/"gf-e2e-live-install-transition.json").exists()
           assert not (runner/"gf-e2e-old").exists()
