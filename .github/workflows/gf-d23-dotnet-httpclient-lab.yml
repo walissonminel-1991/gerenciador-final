@@ -57,7 +57,12 @@ jobs:
           if ($r.schema -ne 'gf-d23-dotnet-httpclient-loopback/1' -or
               $r.status -ne 'passed' -or
               $r.positive_inert_streams -ne 3 -or
-              $r.negative_cases_rejected -ne 25 -or
+              $r.negative_cases_rejected -ne 29 -or
+              $r.loopback_connections_observed -ne 31 -or
+              $r.failed_loopback_connections_observed -ne 28 -or
+              $r.preserved_preexisting_file_ids -ne 2 -or
+              !$r.complete_acquisition_deadline_tested -or
+              !$r.failure_preserves_unknown_file_identity -or
               $r.loopback_connections_observed -ne 27 -or
               $r.http_client -ne 'dotnet10-System.Net.Http.HttpClient' -or
               !$r.only_numeric_loopback_connection -or
