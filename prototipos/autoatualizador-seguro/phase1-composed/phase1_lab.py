@@ -312,7 +312,11 @@ def observed_process(directory, expected_exe_sha, seconds=12,
         # The real GF's --tray mode suppresses first-start modal consent.
         # The HWND may be hidden, but a responsive message loop is observable.
         # Never use a diagnostic log/terminal receipt as a health witness.
-        if os.environ.get("GF_E2E_PRELAUNCH_TAMPER_TEST") == "1":
+        if (os.environ.get("GF_E2E_PRELAUNCH_TAMPER_TEST") == "1" and
+                directory.resolve(strict=True) ==
+                (Path(os.environ["RUNNER_TEMP"]) / "gf-e2e-old").resolve(strict=True)):
+            # Monitor ONLY installed NEW. Initial OLD fixture observation is
+            # not the adversarial target and must remain functional.
             # The failed prelaunch-hash gate must prevent this point entirely.
             # A marker is NOT permission to launch or infer READY.
             runner = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
@@ -730,7 +734,8 @@ def recovery_tool(mode, source):
             "recovery_authorized": False, "operational_ready": False,
             "test_only": True
         }, "POST_L18_SELECTED_SOURCE_MISMATCH")
-    if os.environ.get("GF_E2E_PRELAUNCH_TAMPER_TEST") == "1":
+    if (os.environ.get("GF_E2E_PRELAUNCH_TAMPER_TEST") == "1" and
+            observed_installed_new):
         # One adversarial single-byte mutation AFTER signed full-package
         # validation of the live installation, BEFORE the same selected NEW
         # observer gets to Popen. Never run on a personal Windows computer.
