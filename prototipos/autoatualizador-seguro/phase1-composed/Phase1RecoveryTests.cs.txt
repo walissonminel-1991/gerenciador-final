@@ -109,11 +109,9 @@ internal static class Phase1RecoveryTests
             :recovery.StartWithWitness(owner,Own,"--real-reconcile",src,lab,L16Tests.bootstrap,cut);
         if(cut!="none")
         {
-            cutStage="awaiting_cut_marker";
             await Until(()=>File.Exists(L18Coordinator.RealCutPath(src)) || child.Exited);
             Require(!child.Exited && File.ReadAllText(L18Coordinator.RealCutPath(src))==cut,
                 "REAL_RECONCILE_CUT_UNREACHED:"+ReadError(src));
-            cutStage="cut_seen_killing_owner";
             await child.KillOnlyThisProcess();
             Require(child.ExitCode==91,"REAL_RECONCILE_CUT_WRONG_EXIT");
             File.Delete(L18Coordinator.RealCutPath(src));
@@ -166,7 +164,6 @@ internal static class Phase1RecoveryTests
             string before=Hash(File.ReadAllBytes(Path.Combine(src,"l18-real-active.fixture.json")));
             string outcome=await Reopen(recovery,owner,src,s.Lab);
             string reason=Reason(src);
-            cutStage="replay_two";
             string replay=await Reopen(recovery,owner,src,s.Lab);
             // Intent cannot transition directly to Unknown in the inherited
             // journal. Its fallback blocker intentionally dominates replay.
@@ -478,6 +475,7 @@ internal static class Phase1RecoveryTests
             // The marker is published by the REAL coordinator only AFTER
             // Directory.Move(live,backup) returned. The owner must still be
             // alive and blocked BEFORE the second move can happen.
+            cutStage="awaiting_cut_marker";
             await Until(()=>File.Exists(L18Coordinator.RealCutPath(src)) || child.Exited);
             Require(!child.Exited &&
                 File.ReadAllText(L18Coordinator.RealCutPath(src))==cut &&
@@ -491,6 +489,7 @@ internal static class Phase1RecoveryTests
                 File.ReadAllText(canary,new UTF8Encoding(false))==
                     "DO-NOT-TOUCH-MY-DATA\n",
                 "REAL_BETWEEN_MOVES_PREKILL_GAP_UNPROVEN");
+            cutStage="cut_seen_killing_owner";
             await child.KillOnlyThisProcess();
             Require(child.ExitCode==91,"REAL_BETWEEN_MOVES_WRONG_KILL_EXIT");
             killed=true;
@@ -509,6 +508,7 @@ internal static class Phase1RecoveryTests
                 File.Exists(L18Coordinator.RecoveryBlocked(src)) &&
                 !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")),
                 "REAL_BETWEEN_MOVES_WRONG_CONTAINMENT:"+reason);
+            cutStage="replay_two";
             string replay=await Reopen(recovery,owner,src,s.Lab);
             Require(replay=="UnknownBlocked" &&
                 Hash(File.ReadAllBytes(Path.Combine(src,
