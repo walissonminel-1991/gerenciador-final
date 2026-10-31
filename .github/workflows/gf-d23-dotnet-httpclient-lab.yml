@@ -1,0 +1,79 @@
+name: GF D2.3 - HttpClient .NET loopback inerte
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/github-d23-dotnet-loopback/**'
+      - '.github/workflows/gf-d23-dotnet-httpclient-lab.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-d23-dotnet-loopback
+  cancel-in-progress: false
+jobs:
+  windows-dotnet-loopback:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    env:
+      DOTNET_NOLOGO: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      GF_BETA_ENDPOINT: ''
+    steps:
+      - name: Checkout sem credenciais
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK .NET 10 fixado
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Verificar separacao do codigo principal
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $p=dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json
+          if (@($p.Items.Compile | Where-Object {$_.Identity -match 'prototipos[/\\]autoatualizador-seguro'}).Count -ne 0) {
+            throw 'D23_SOURCE_LEAK_IN_GF'
+          }
+      - name: Build do laboratorio CSharp isolado
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $dir=Join-Path $env:RUNNER_TEMP 'gf-d23-dotnet'
+          dotnet build prototipos/autoatualizador-seguro/github-d23-dotnet-loopback/GF.D23.HttpClientLab.csproj -c Release -r win-x64 --self-contained false -o $dir --nologo
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path (Join-Path $dir 'GF.D23.HttpClientLab.exe'))) {
+            throw 'D23_BUILD_FAILED'
+          }
+      - name: Testar HttpClient real em loopback
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=Join-Path $env:RUNNER_TEMP 'gf-d23-dotnet\GF.D23.HttpClientLab.exe'
+          $line=(& $exe | Select-Object -Last 1)
+          if ($LASTEXITCODE -ne 0 -or !$line -or !$line.StartsWith('GF_D23_RESULT ')) {
+            throw 'D23_SUITE_NOT_COMPLETED'
+          }
+          $r=$line.Substring('GF_D23_RESULT '.Length) | ConvertFrom-Json
+          if ($r.schema -ne 'gf-d23-dotnet-httpclient-loopback/1' -or
+              $r.status -ne 'passed' -or
+              $r.positive_inert_streams -ne 3 -or
+              $r.negative_cases_rejected -ne 25 -or
+              $r.loopback_connections_observed -ne 27 -or
+              $r.http_client -ne 'dotnet10-System.Net.Http.HttpClient' -or
+              !$r.only_numeric_loopback_connection -or
+              !$r.redirects_disabled -or
+              !$r.cancellation_tests_included -or
+              !$r.inert_sha256_readback_verified -or
+              !$r.outside_staging_sentinel_preserved -or
+              $r.d0_d1_tuf_chain_verified_in_dotnet_lab -or
+              $r.production_trust_root -or $r.github_asset_redirect_supported -or
+              $r.tls_or_real_github_tested -or
+              $r.same_user_toctou_resistance_proven -or
+              $r.full_history_rollback_resistance_proven -or
+              $r.real_executable_downloads -ne 0 -or
+              $r.installations -ne 0 -or $r.product_modified -or
+              $r.operational_ready -or $r.automatic_recovery_authorized) {
+            throw 'D23_FALSE_OPERATIONAL_AUTHORITY'
+          }
+          Write-Host $line
+# No external GET, installer, GF integration, Release, merge, deploy or recovery.
