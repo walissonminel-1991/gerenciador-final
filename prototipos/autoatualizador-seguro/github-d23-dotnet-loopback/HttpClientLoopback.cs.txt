@@ -124,7 +124,7 @@ internal static partial class Program
 
     static void Verify(string file) => Verify(file,Payload.Length,Digest);
 
-    static void Verify(string file,int authorizedLength,byte[] authorizedauthorizedDigest)
+    static void Verify(string file,int authorizedLength,byte[] authorizedDigest)
     {
         var info = new FileInfo(file);
         if (info.Length != authorizedLength || info.Length > MaximumBytes ||
@@ -139,7 +139,7 @@ internal static partial class Program
         => Stage(port,identity,folder,ct,Payload.Length,Digest);
 
     static async Task Stage(int port,string identity,string folder,CancellationToken ct,
-        int authorizedLength,byte[] authorizedauthorizedDigest)
+        int authorizedLength,byte[] authorizedDigest)
     {
         if (identity != ExpectedRelease || port is < 1 or > 65535)
             throw new InvalidDataException("RELEASE_IDENTITY");
