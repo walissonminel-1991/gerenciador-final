@@ -157,17 +157,6 @@ def acquire_and_stage(signed_manifest, source, stage, runner, url, *,
                 except OSError:
                     pass
 
-def verified_lab_manifest(exe,root,manifest,roles,release, installed="5.13.11.65"):
-    """Bind exact C# D0 fixture decision to TUF-authenticated manifest bytes."""
-    release_file=root/"release.json"
-    release_file.write_bytes(release)
-    d0,body=actual_d0(exe,release_file,installed)
-    inspect_release(body,d0,manifest)
-    trust=root/"tuf-trust"
-    trust.mkdir(exist_ok=False)
-    with FixtureFetcher(roles) as unused:
-        pass
-
 def verify_d0_tuf(exe,root,manifest,roles,release,installed):
     rf=root/"release.json"
     require(not rf.exists(),"D2_RELEASE_FIXTURE_EXISTS")
