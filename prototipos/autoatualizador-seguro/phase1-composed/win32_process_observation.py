@@ -361,8 +361,152 @@ def message_pump_ping(hwnd: int):
     return bool(_send(hwnd, 0, 0, 0, 0x0002, 1500, ctypes.byref(outcome)))
 
 
+
+def sample_owned_mapped_main_image(proc, executable: Path):
+    """Bounded read-only sample of OWN NEW's mapped PE. Never full-byte proof.
+
+    Only the retained Popen process HANDLE is used. No arbitrary process,
+    private memory, raw bytes, paths or addresses are written to evidence.
+    """
+    report = {"schema": "gf-ntfs-owned-mapped-pe-sample/1",
+              "main_module_path_matches": False,
+              "entrypoint_section_executable": False,
+              "mapped_region_mem_image": False,
+              "header64_matches_disk": False,
+              "entrypoint16_matches_disk": False,
+              "sample_bytes_read": 0,
+              "all_executable_bytes_verified": False,
+              "mapped_object_identity_verified": False,
+              "operational_ready": False, "test_only": True}
+    if (os.name != "nt" or os.environ.get("GITHUB_ACTIONS") != "true"
+            or os.environ.get("GITHUB_REPOSITORY") !=
+            "walissonminel-1991/gerenciador-final"
+            or os.environ.get("GF_E2E_NTFS_PIN_LAUNCH") != "1"
+            or os.environ.get("GF_E2E_L18_OBSERVE_INSTALLED_NEW") != "1"
+            or proc.poll() is not None or not executable.is_file()):
+        report["reason"] = "LAB_GUARD_OR_CHILD_NOT_LIVE"
+        return report
+    try:
+        import struct
+        process = w.HANDLE(int(proc._handle))
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        enum = psapi.EnumProcessModulesEx
+        enum.argtypes = [w.HANDLE, ctypes.POINTER(w.HANDLE), w.DWORD,
+                         ctypes.POINTER(w.DWORD), w.DWORD]
+        enum.restype = w.BOOL
+        module_name = psapi.GetModuleFileNameExW
+        module_name.argtypes = [w.HANDLE, w.HANDLE, w.LPWSTR, w.DWORD]
+        module_name.restype = w.DWORD
+        handles = (w.HANDLE * 128)()
+        needed = w.DWORD()
+        if not enum(process, handles, ctypes.sizeof(handles),
+                    ctypes.byref(needed), 0x03):
+            report["reason"] = "ENUM_MODULES_UNAVAILABLE"
+            return report
+        if needed.value > ctypes.sizeof(handles):
+            report["reason"] = "MODULE_LIST_BOUND_EXCEEDED"
+            return report
+        base = None
+        for i in range(needed.value // ctypes.sizeof(w.HANDLE)):
+            name = ctypes.create_unicode_buffer(32768)
+            if module_name(process, handles[i], name, len(name)):
+                try:
+                    if os.path.samefile(name.value, executable):
+                        base = int(handles[i])
+                        break
+                except (OSError, ValueError):
+                    pass
+        if base is None:
+            report["reason"] = "MAIN_MODULE_PATH_NOT_VERIFIED"
+            return report
+        report["main_module_path_matches"] = True
+
+        # 4 KiB maximum of PE header and 16 disk bytes at native entry RVA.
+        with executable.open("rb") as disk:
+            hdr = disk.read(4096)
+            if len(hdr) < 128 or hdr[:2] != b"MZ":
+                report["reason"] = "PE_DOS_HEADER_UNAVAILABLE"
+                return report
+            pe = struct.unpack_from("<I", hdr, 60)[0]
+            if pe + 44 > len(hdr) or hdr[pe:pe+4] != bytes((80,69,0,0)):
+                report["reason"] = "PE_SIGNATURE_UNAVAILABLE"
+                return report
+            count = struct.unpack_from("<H", hdr, pe + 6)[0]
+            optional_size = struct.unpack_from("<H", hdr, pe + 20)[0]
+            section_start = pe + 24 + optional_size
+            entry_rva = struct.unpack_from("<I", hdr, pe + 40)[0]
+            if (not 1 <= count <= 96 or entry_rva == 0 or
+                    section_start + count * 40 > len(hdr)):
+                report["reason"] = "PE_TABLE_BOUND_INVALID"
+                return report
+            disk_entry_offset = None
+            for i in range(count):
+                pos = section_start + i*40
+                virtual_size, rva, raw_size, raw_offset = struct.unpack_from(
+                    "<IIII", hdr, pos+8)
+                flags = struct.unpack_from("<I", hdr, pos+36)[0]
+                if (flags & 0x20000000 and rva <= entry_rva and
+                        entry_rva + 16 <= rva + min(virtual_size, raw_size)):
+                    disk_entry_offset = raw_offset + entry_rva - rva
+                    break
+            if disk_entry_offset is None:
+                report["reason"] = "ENTRYPOINT_NOT_IN_EXECUTABLE_RAW_SECTION"
+                return report
+            report["entrypoint_section_executable"] = True
+            disk.seek(disk_entry_offset)
+            entry_disk = disk.read(16)
+            if len(entry_disk) != 16:
+                report["reason"] = "ENTRYPOINT_DISK_SAMPLE_UNAVAILABLE"
+                return report
+
+        class MBI(ctypes.Structure):
+            _fields_ = [("BaseAddress", w.LPVOID),
+                        ("AllocationBase", w.LPVOID),
+                        ("AllocationProtect", w.DWORD),
+                        ("RegionSize", ctypes.c_size_t),
+                        ("State", w.DWORD), ("Protect", w.DWORD),
+                        ("Type", w.DWORD)]
+        query = _k.VirtualQueryEx
+        query.argtypes = [w.HANDLE, w.LPVOID, ctypes.POINTER(MBI),
+                          ctypes.c_size_t]
+        query.restype = ctypes.c_size_t
+        info = MBI()
+        if query(process, ctypes.c_void_p(base+entry_rva),
+                 ctypes.byref(info), ctypes.sizeof(info)) != ctypes.sizeof(info):
+            report["reason"] = "MEMORY_REGION_UNAVAILABLE"
+            return report
+        report["mapped_region_mem_image"] = info.Type == 0x01000000
+        read = _k.ReadProcessMemory
+        read.argtypes = [w.HANDLE, w.LPVOID, w.LPVOID, ctypes.c_size_t,
+                         ctypes.POINTER(ctypes.c_size_t)]
+        read.restype = w.BOOL
+        def read_sample(address, size):
+            buf = ctypes.create_string_buffer(size)
+            got = ctypes.c_size_t()
+            if (not read(process, ctypes.c_void_p(address), buf, size,
+                         ctypes.byref(got)) or got.value != size):
+                return None
+            return buf.raw
+        header_mem = read_sample(base, 64)
+        entry_mem = read_sample(base+entry_rva, 16)
+        if header_mem is None or entry_mem is None:
+            report["reason"] = "OWN_IMAGE_MEMORY_READ_UNAVAILABLE"
+            return report
+        report["sample_bytes_read"] = 80
+        report["header64_matches_disk"] = header_mem == hdr[:64]
+        report["entrypoint16_matches_disk"] = entry_mem == entry_disk
+        # PE relocations, in-memory changes and 80-byte sampling preclude a
+        # total image/TOCTOU claim even when both booleans are true.
+        report["reason"] = "BOUNDED_IMAGE_SAMPLE_ONLY"
+        return report
+    except (OSError, ValueError, AttributeError, TypeError, OverflowError):
+        report["reason"] = "NATIVE_PROBE_UNAVAILABLE"
+        return report
+
+
 def observe_real_gf(proc, executable: Path, expected_sha: str,
-                    seconds: float = 12.0, expected_inventory_name=None):
+                    seconds: float = 12.0, expected_inventory_name=None,
+                    mapped_pe_sample=False):
     """Returns process-bound observations, NOT a WinForms READY verdict.
 
     A noninteractive Windows service session may expose no usable HWND.
@@ -413,6 +557,9 @@ def observe_real_gf(proc, executable: Path, expected_sha: str,
         report["startup_settle_wait_seconds"] = 10
         report["main_form_message_loop_responded"] = (
             proc.poll() is None and message_pump_ping(hwnd))
+        if mapped_pe_sample:
+            report["mapped_main_image_sample"] = sample_owned_mapped_main_image(
+                proc, executable)
         if (report["main_form_message_loop_responded"] and
                 report["actual_image_path_matches"] and
                 report["image_on_disk_sha_matches_manifest"]):

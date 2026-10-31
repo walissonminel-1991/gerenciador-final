@@ -644,6 +644,19 @@ for key in ["ntfs_pin_object_id_unchanged","ntfs_pin_write_denied",
             "image_on_disk_sha_matches_manifest"]:
     assert observed[key] is True,key
 assert observed["readonly_inventory_search_health"]["minimum_readonly_health_contract_observed"] is True
+sample=observed["mapped_main_image_sample"]
+assert sample["schema"]=="gf-ntfs-owned-mapped-pe-sample/1"
+for field in ("main_module_path_matches","entrypoint_section_executable",
+              "mapped_region_mem_image","header64_matches_disk",
+              "entrypoint16_matches_disk"):
+    assert sample[field] is True,field
+assert sample["sample_bytes_read"]==80
+assert sample["all_executable_bytes_verified"] is False
+assert sample["mapped_object_identity_verified"] is False
+assert sample["operational_ready"] is False and sample["test_only"] is True
+print("GF_E2E_OWNED_MEM_IMAGE_SAMPLE_PASS module_path=true MEM_IMAGE=true "
+      "header_64_equal=true entrypoint_16_equal=true bytes_sampled=80 "
+      "full_image_proven=false READY=false",flush=True)
 exe=r/"gf-e2e-old"/"GerenciadorFinal.exe"
 assert not exe.with_name("GerenciadorFinal.exe.rename-probe").exists()
 with exe.open("rb") as f:

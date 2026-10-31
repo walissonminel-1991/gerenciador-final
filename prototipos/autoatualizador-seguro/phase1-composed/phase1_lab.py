@@ -456,6 +456,19 @@ def observed_process(directory, expected_exe_sha, seconds=12,
         observed = _observed_process_core(
             directory,expected_exe_sha,seconds,expected_inventory_name,
             pre_popen_pin_probe=attack)
+        sample = observed.get("mapped_main_image_sample", {})
+        # Extra 80-byte memory witness only: no claim for entire mapped code.
+        require(sample.get("schema") == "gf-ntfs-owned-mapped-pe-sample/1"
+                and sample.get("main_module_path_matches") is True
+                and sample.get("entrypoint_section_executable") is True
+                and sample.get("mapped_region_mem_image") is True
+                and sample.get("header64_matches_disk") is True
+                and sample.get("entrypoint16_matches_disk") is True
+                and sample.get("sample_bytes_read") == 80
+                and sample.get("all_executable_bytes_verified") is False
+                and sample.get("mapped_object_identity_verified") is False
+                and sample.get("operational_ready") is False,
+                "GF_NTFS_PIN_MAPPED_IMAGE_SAMPLE_NOT_PROVEN")
         require(observed.get("created") and observed.get("terminated") and
                 observed.get("graceful_shutdown_verified_for_owned_process") and
                 observed.get("actual_image_path_matches") and
@@ -580,7 +593,8 @@ def _observed_process_core(directory, expected_exe_sha, seconds=12,
         if pre_popen_pin_probe is not None:
             result["pin_probe_attempts_done"] = True
         observed = observe_real_gf(proc, exe, expected_exe_sha, seconds=seconds,
-                                   expected_inventory_name=expected_inventory_name)
+                                   expected_inventory_name=expected_inventory_name,
+                                   mapped_pe_sample=pre_popen_pin_probe is not None)
         result.update(observed)
         if os.environ.get("GF_E2E_POSTHASH_TAMPER_TEST") == "1" and (
                 directory.resolve(strict=True) ==
