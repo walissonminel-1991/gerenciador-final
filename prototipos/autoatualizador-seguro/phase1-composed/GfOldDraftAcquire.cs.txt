@@ -20,9 +20,9 @@ internal static class GfOldDraftAcquire
     [
         new("gf-e2e-new-win-x64.zip", 694233137, 57695630, ZipSha),
         new("GF-LAB-REAL-PACKAGE-MANIFEST.json", 694233139, 72618, ManifestSha),
-        new("snapshot.json", 694233140, 467, null),
-        new("targets.json", 694233141, 562, null),
-        new("timestamp.json", 694233142, 469, null)
+        new("snapshot.json", 0, 467, null),
+        new("targets.json", 0, 562, null),
+        new("timestamp.json", 0, 469, null)
     ];
 
     private static void Require(bool ok, string reason)
@@ -88,7 +88,7 @@ internal static class GfOldDraftAcquire
         return output.ToArray();
     }
 
-    private static void CheckMetadata(byte[] raw)
+    private static Dictionary<string,long> CheckMetadata(byte[] raw)
     {
         using var doc = JsonDocument.Parse(raw, new JsonDocumentOptions
         {
@@ -107,15 +107,23 @@ internal static class GfOldDraftAcquire
         Require(assets.ValueKind == JsonValueKind.Array &&
                 assets.GetArrayLength() == Allowed.Length, "ASSET_COUNT");
         var found = new HashSet<long>();
+        var chosen = new Dictionary<string,long>(StringComparer.Ordinal);
         foreach (var entry in assets.EnumerateArray())
         {
-            var id = entry.GetProperty("id").GetInt64();
-            var size = entry.GetProperty("size").GetInt64();
-            var name = entry.GetProperty("name").GetString();
-            Require(Allowed.Any(a => a.Id == id && a.Name == name && a.Length == size) &&
-                    found.Add(id), "ASSET_ID_OR_SIZE");
+            long id = entry.GetProperty("id").GetInt64();
+            long size = entry.GetProperty("size").GetInt64();
+            string? name = entry.GetProperty("name").GetString();
+            Require(id > 0 && found.Add(id) && name is not null,
+                    "ASSET_ID_OR_NAME");
+            var declared = Allowed.SingleOrDefault(a => a.Name == name);
+            Require(declared is not null && declared.Length == size &&
+                    (declared.Id == 0 || declared.Id == id),
+                    "ASSET_ID_OR_SIZE");
+            chosen.Add(name!,id);
         }
-        Require(found.Count == Allowed.Length, "ASSET_SET");
+        Require(found.Count == Allowed.Length &&
+                chosen.Count == Allowed.Length, "ASSET_SET");
+        return chosen;
     }
 
     private static bool IsApprovedCdn(Uri uri) =>
@@ -125,10 +133,11 @@ internal static class GfOldDraftAcquire
         (uri.Host.Equals("release-assets.githubusercontent.com", StringComparison.OrdinalIgnoreCase) ||
          uri.Host.Equals("objects.githubusercontent.com", StringComparison.OrdinalIgnoreCase));
 
-    private static async Task FetchAsset(HttpClient http, Asset asset, string token, string target)
+    private static async Task FetchAsset(HttpClient http, Asset asset, long assetId,
+                                         string token, string target)
     {
         var url = new Uri("https://api.github.com/repos/" + Repo + "/releases/assets/" +
-                          asset.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                          assetId.ToString(System.Globalization.CultureInfo.InvariantCulture));
         using var original = Get(url, token, metadata: false);
         using var initial = await http.SendAsync(original, HttpCompletionOption.ResponseHeadersRead);
         Require(initial.RequestMessage?.RequestUri == url, "ASSET_API_ORIGIN");
@@ -215,10 +224,11 @@ internal static class GfOldDraftAcquire
             using var http = Client();
             var endpoint = new Uri("https://api.github.com/repos/" + Repo +
                                    "/releases/tags/" + Tag);
-            CheckMetadata(await ReadJson(http, endpoint, token));
+            var assets = CheckMetadata(await ReadJson(http, endpoint, token));
             Directory.CreateDirectory(dest);
             foreach (var asset in Allowed)
-                await FetchAsset(http, asset, token, Path.Combine(dest, asset.Name));
+                await FetchAsset(http, asset, assets[asset.Name], token,
+                                 Path.Combine(dest, asset.Name));
             Require(Directory.GetFiles(dest).Length == Allowed.Length, "EXTRA_DOWNLOAD_FILE");
             var evidence = new
             {

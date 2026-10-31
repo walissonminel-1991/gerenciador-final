@@ -225,22 +225,61 @@ def negative(module, repo, old, downloaded, base, lab_old_variant=False):
     }, sort_keys=True))
 
 
+
+def refresh_test_only_roles(module, repo, source, dest):
+    """Refresh ONLY test TUF role metadata for the same pinned Draft manifest.
+
+    The manifest and executable are immutable in this operation. These keys
+    are public testing keys; version-one metadata is fresh-runner-only and
+    must never be used as a production trust update.
+    """
+    require(source.is_file() and not dest.exists(), "REFRESH_SOURCE_OR_TARGET")
+    data = source.read_bytes()
+    require(digest(data) == "a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d", "REFRESH_PINNED_MANIFEST_SHA")
+    document = json.loads(data)
+    require(document["schema"] == "gf-real-package-lab/3" and
+            document["operational_installable"] is False and
+            document["selected_before"] == "old" and
+            document["installation"] == INSTALLATION and
+            document["transaction"] == TRANSACTION and
+            data == module.canonical_manifest(document["files"],
+                                               INSTALLATION, TRANSACTION,
+                                               document["old_files"]),
+            "REFRESH_SIGNED_MANIFEST_SCOPE")
+    result = module.tuf_sign_and_verify(repo, data, dest)
+    module.tuf_verify_prepared(repo, data, dest)
+    require(result["manifest_sha256"] == "a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d" and
+            (dest / NAMES[0]).read_bytes() == data,
+            "REFRESH_CHANGED_TARGET")
+    print("GF_DRAFT_TUF_REFRESHED " + json.dumps({
+        "manifest_sha256": result["manifest_sha256"],
+        "roles": ["targets.json", "snapshot.json", "timestamp.json"],
+        "test_only": True, "production_tuf": False,
+        "release_was_published": False, "package_modified": False
+    }, sort_keys=True))
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=["prepare", "verify", "negative"])
+    parser.add_argument("mode", choices=["prepare", "verify", "negative", "refresh"])
     parser.add_argument("--repo", type=Path, required=True)
     parser.add_argument("--old", type=Path, required=True)
     parser.add_argument("--new", type=Path)
     parser.add_argument("--target", type=Path)
     parser.add_argument("--downloaded", type=Path)
     parser.add_argument("--extracted", type=Path)
+    parser.add_argument("--manifest-file", type=Path)
     parser.add_argument("--lab-old-variant", action="store_true")
     args = parser.parse_args()
     guard()
     repo = args.repo.resolve(strict=True)
     old = temp_path(args.old)
     module = phase1(repo)
-    if args.mode == "prepare":
+    if args.mode == "refresh":
+        require(args.manifest_file is not None and args.target is not None,
+                "REFRESH_ARGS")
+        refresh_test_only_roles(module, repo, temp_path(args.manifest_file),
+                                temp_path(args.target))
+    elif args.mode == "prepare":
         require(args.new is not None and args.target is not None, "PREPARE_ARGS")
         prepare(module, repo, old, temp_path(args.new), temp_path(args.target))
     elif args.mode == "verify":
