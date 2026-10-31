@@ -689,5 +689,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ./prototipos/autoatualizador-seguro/phase1-composed/github_normal_gui_success.ps1 -L18
+          ./prototipos/autoatualizador-seguro/phase1-composed/github_normal_gui_success.ps1 -L18 -DenyClose
 # Only three TEST TUF metadata role assets are refreshed in the existing Draft. Never publish it or change executable ZIP/manifest.

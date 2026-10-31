@@ -439,6 +439,8 @@ internal static class GfOldDraftAcquire
         bool normalSuccess=Environment.GetEnvironmentVariable("GF_E2E_GUI_NORMAL_SUCCESS")=="1";
         bool guiL18=normalSuccess &&
             Environment.GetEnvironmentVariable("GF_E2E_GUI_NORMAL_L18_PROOF")=="1";
+        bool denyUnknownClose=guiL18 &&
+            Environment.GetEnvironmentVariable("GF_E2E_GUI_NORMAL_L18_DENY_CLOSE")=="1";
         bool httpCutNegative=Environment.GetEnvironmentVariable("GF_E2E_HTTP_CUT_NEGATIVE")=="1";
         bool guiNegative=httpCutNegative &&
             Environment.GetEnvironmentVariable("GF_E2E_HTTP_UI_NEGATIVE")=="1";
@@ -464,15 +466,18 @@ internal static class GfOldDraftAcquire
                 "HTTP_GUI_NEGATIVE_MODES_MUTUALLY_EXCLUSIVE");
             Require(Environment.GetEnvironmentVariable("GF_E2E_GUI_NORMAL_L18_PROOF")!="1" ||
                 guiL18, "NORMAL_GUI_L18_MUST_START_FROM_NORMAL_GUI");
+            Require(Environment.GetEnvironmentVariable("GF_E2E_GUI_NORMAL_L18_DENY_CLOSE")!="1" ||
+                (denyUnknownClose && Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE")=="1"),
+                "UNKNOWN_CLOSE_PROBE_REQUIRES_EXPLICIT_CLOSE_REQUEST");
             if(normalSuccess)
                 Require(!httpCutNegative &&
                     Environment.GetEnvironmentVariable("GF_E2E_STARTUP_DRAFT_PROBE")=="1" &&
                     (Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18")=="1")==guiL18 &&
-                    Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE")!="1" &&
+                    (Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE")=="1")==denyUnknownClose &&
                     Environment.GetEnvironmentVariable("GF_E2E_SELECTED_NEW_CONTINUATION")!="1" &&
                     Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")!="1" &&
                     Environment.GetEnvironmentVariable("GF_E2E_LIVE_INSTALL_SWAP")!="1",
-                    "GUI_SUCCESS_MUST_NOT_SWAP_OR_CLOSE");
+                    "GUI_SUCCESS_MUST_NOT_SWAP_OR_UNAUTHORIZED_CLOSE");
             string dest = Path.GetFullPath(Path.Combine(runner, guiL18
                 ? "gf-e2e-github-normal-l18-download"
                 : normalSuccess ? "gf-e2e-github-normal-download"
@@ -530,12 +535,38 @@ internal static class GfOldDraftAcquire
             {
                 stage="handoff_entered";
                 await HandoffAuthenticatedDownloadToL18Async(runner, value=>stage=value);
-                // The completed, fail-closed L18 normal scenario leaves
-                // UnknownBlocked: request a graceful OLD window exit ONLY
-                // in the disposable laboratory, after the report is durable.
-                if (Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE") == "1" &&
-                    (Environment.GetEnvironmentVariable("GF_E2E_SELECTED_NEW_CONTINUATION") == "1" ||
-                     File.Exists(Path.Combine(runner,"gf-e2e-old-l18-handoff-report.json"))))
+                // Fail closed: a normal L18 receipt (including one left by a
+                // previous CI step) is never authority to close the OLD UI.
+                // Only the fenced selected-NEW continuation may request close.
+                if (denyUnknownClose)
+                {
+                    stage="l18_unknown_close_gate";
+                    string scope=Path.Combine(runner,
+                        "gf-e2e-github-normal-l18-handoff-report.json");
+                    Require(File.Exists(scope),"UNKNOWN_CLOSE_DENIAL_REPORT_MISSING");
+                    using var doc=JsonDocument.Parse(File.ReadAllBytes(scope));
+                    JsonElement status=doc.RootElement;
+                    Require(status.GetProperty("schema").GetString()=="gf-e2e-old-owns-l18-handoff/2" &&
+                        status.GetProperty("normal_outcome").GetString()=="UnknownBlocked" &&
+                        !status.GetProperty("operational_ready").GetBoolean() &&
+                        !status.GetProperty("automatic_recovery_authorized").GetBoolean(),
+                        "UNKNOWN_CLOSE_DENIAL_STATE_UNPROVEN");
+                    stage="l18_unknown_close_denied";
+                    using var file=new FileStream(Path.Combine(runner,
+                        "gf-e2e-github-normal-l18-close-denied.json"),
+                        FileMode.CreateNew,FileAccess.Write,FileShare.None,
+                        4096,FileOptions.WriteThrough);
+                    byte[] bytes=JsonSerializer.SerializeToUtf8Bytes(new{
+                        schema="gf-e2e-l18-unknown-close-denied/1",
+                        explicitly_requested=true,outcome="UnknownBlocked",
+                        close_callback_invoked=false,
+                        reason="UNKNOWN_IS_CONTAINMENT_NOT_CLOSE_AUTHORITY",
+                        test_only=true,operational_ready=false
+                    });
+                    file.Write(bytes);file.Flush(true);
+                }
+                else if (Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE")=="1" &&
+                         Environment.GetEnvironmentVariable("GF_E2E_SELECTED_NEW_CONTINUATION")=="1")
                     afterVerifiedLabHandoff?.Invoke();
             }
             return 0;

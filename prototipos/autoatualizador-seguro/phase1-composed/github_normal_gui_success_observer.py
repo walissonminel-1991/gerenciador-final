@@ -16,7 +16,8 @@ def main():
     must(os.name=="nt" and os.environ.get("GITHUB_ACTIONS")=="true"
          and os.environ.get("GITHUB_REPOSITORY")=="walissonminel-1991/gerenciador-final",
          "NORMAL_SUCCESS_RUNNER_ONLY")
-    l18=sys.argv[1:]==["--l18"]
+    l18=sys.argv[1:] in (["--l18"],["--l18","--deny-close"])
+    deny_close=sys.argv[1:]==["--l18","--deny-close"]
     must(not sys.argv[1:] or l18,"NORMAL_GUI_INVALID_ARGS")
     runner=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
     prefix="gf-e2e-github-normal-l18" if l18 else "gf-e2e-github-normal"
@@ -28,9 +29,12 @@ def main():
     result=runner/(prefix+"-ui-observed.json")
     l18_result=runner/"gf-e2e-github-normal-l18-flow-report.json"
     l18_proof=runner/"gf-e2e-github-normal-l18-handoff-report.json"
+    denial=runner/"gf-e2e-github-normal-l18-close-denied.json"
     if l18:
         must(not l18_result.exists() and not l18_proof.exists(),
              "NORMAL_L18_PROOF_NOT_FRESH")
+    if deny_close:
+        must(not denial.exists(),"NORMAL_L18_DENIAL_NOT_FRESH")
     must(not any(p.exists() for p in (shown,downloaded,failure,result)),"NORMAL_SUCCESS_RECEIPTS_NOT_FRESH")
     consent=Path(os.environ["LOCALAPPDATA"])/"GerenciadorFinal"/"Privacidade"/"consentimento-v1.json"
     must(not consent.exists(),"NORMAL_SUCCESS_EXISTING_CONSENT")
@@ -39,11 +43,12 @@ def main():
     env.update({"GF_E2E_STARTUP_DRAFT_PROBE":"1",
                 "GF_E2E_GUI_NORMAL_SUCCESS":"1",
                 "GF_E2E_GUI_NORMAL_L18_PROOF":"1" if l18 else "0",
+                "GF_E2E_GUI_NORMAL_L18_DENY_CLOSE":"1" if deny_close else "0",
                 "GF_E2E_HTTP_CUT_NEGATIVE":"0",
                 "GF_E2E_HTTP_UI_NEGATIVE":"0",
                 "GF_E2E_HTTP_UI_NORMAL_NEGATIVE":"0",
                 "GF_E2E_HANDOFF_L18":"1" if l18 else "0",
-                "GF_E2E_SELF_GRACEFUL_CLOSE":"0",
+                "GF_E2E_SELF_GRACEFUL_CLOSE":"1" if deny_close else "0",
                 "GF_E2E_SELECTED_NEW_CONTINUATION":"0",
                 "GF_E2E_SWAP_CUT_AFTER_OLD_MOVE":"0",
                 "GF_E2E_LIVE_INSTALL_SWAP":"0"})
@@ -124,6 +129,29 @@ def main():
                  and proof.get("operational_ready") is False
                  and proof.get("automatic_recovery_authorized") is False,
                  "NORMAL_L18_SAME_COORDINATOR_CONTAINMENT_UNPROVEN")
+        if deny_close:
+            deadline=time.monotonic()+12
+            while time.monotonic()<deadline and not denial.exists():
+                must(proc.poll() is None,"NORMAL_L18_OLD_CLOSED_ON_UNKNOWN")
+                time.sleep(0.1)
+            must(denial.exists(),"NORMAL_L18_EXPLICIT_DENIAL_MISSING")
+            denied=json.loads(denial.read_bytes())
+            must(denied=={
+                "schema":"gf-e2e-l18-unknown-close-denied/1",
+                "explicitly_requested":True,"outcome":"UnknownBlocked",
+                "close_callback_invoked":False,
+                "reason":"UNKNOWN_IS_CONTAINMENT_NOT_CLOSE_AUTHORITY",
+                "test_only":True,"operational_ready":False
+            },"NORMAL_L18_DENIAL_INVALID")
+            # The receipt is not a GUI-health proof: independently observe
+            # multiple message-pump cycles after denial on the same HWND.
+            for _ in range(12):
+                must(proc.poll() is None,"NORMAL_L18_OLD_CLOSED_AFTER_DENIAL")
+                windows=own_main_windows(proc.pid)
+                must(len(windows)==1 and windows[0]["visible"]
+                     and message_pump_ping(windows[0]["hwnd"]),
+                     "NORMAL_L18_OLD_NOT_HEALTHY_AFTER_DENIAL")
+                time.sleep(0.25)
         must(proc.poll() is None,"NORMAL_SUCCESS_OLD_EXITED_AFTER_DOWNLOAD")
         windows=own_main_windows(proc.pid)
         must(len(windows)==1 and windows[0]["visible"],"NORMAL_SUCCESS_MAINFORM_NOT_NATIVE_VISIBLE")
@@ -162,7 +190,8 @@ def main():
                 "image_verified":True,"mainform_visible":True,
                 "message_pump_responsive":True,"inventory_nonzero":True,
                 "search_empty_and_restored":True,"consent_unchanged":True,
-                "new_executed":False,"l18_handoff":l18,"retry":False,
+                "new_executed":False,"l18_handoff":l18,
+                "unknown_close_requested_and_denied":deny_close,"retry":False,
                 "rollback":False,"cleanup":False,"operational_ready":False,
                 "test_only":True}
         with result.open("x",encoding="utf-8") as out:
@@ -173,7 +202,9 @@ def main():
                "GF_E2E_GITHUB_NORMAL_MAINFORM_HEALTH_PASS ") +
               "real_draft=COMPLETE normal_gui=VISIBLE+RESPONSIVE "
               "inventory=NONZERO search=EMPTY+RESTORED " +
-              ("OLD_running=true L18=UnknownBlocked installed_NEW_not_executed=true READY=false"
+              ("OLD_running=true L18=UnknownBlocked close_request=DENIED installed_NEW_not_executed=true READY=false"
+               if deny_close else
+               "OLD_running=true L18=UnknownBlocked installed_NEW_not_executed=true READY=false"
                if l18 else "OLD_running=true NEW_executed=false L18_not_invoked=true READY=false"),
               flush=True)
     finally:

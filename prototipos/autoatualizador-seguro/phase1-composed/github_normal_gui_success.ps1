@@ -1,6 +1,7 @@
 # Normal startup success, optional existing L18 focused containment; no READY.
-param([switch]$L18)
+param([switch]$L18,[switch]$DenyClose)
 $ErrorActionPreference='Stop'
+if ($DenyClose -and !$L18) { throw 'GF_L18_DENY_CLOSE_REQUIRES_L18' }
 $env:GF_E2E_TEST_L18=if ($L18) { '1' } else { '0' }
 if ($env:GITHUB_ACTIONS -ne 'true' -or
     $env:GITHUB_REPOSITORY -ne 'walissonminel-1991/gerenciador-final') {
@@ -18,6 +19,8 @@ $failure=Join-Path $root ($prefix+'-failure.json')
 $ui=Join-Path $root ($prefix+'-ui-observed.json')
 $l18Flow=Join-Path $root 'gf-e2e-github-normal-l18-flow-report.json'
 $l18Handoff=Join-Path $root 'gf-e2e-github-normal-l18-handoff-report.json'
+$closeDenied=Join-Path $root 'gf-e2e-github-normal-l18-close-denied.json'
+if ($DenyClose -and (Test-Path $closeDenied)) { throw 'GF_L18_DENIAL_NOT_FRESH' }
 if ($L18 -and !(Test-Path $env:GF_E2E_L18_EXE)) {
   throw 'GF_NORMAL_L18_EXISTING_COORDINATOR_MISSING'
 }
@@ -57,12 +60,14 @@ print("GF_E2E_GITHUB_NORMAL_OLD_COPY_PASS files=284")
 $copyAndAudit | python -
 if ($LASTEXITCODE -ne 0) { throw 'GF_NORMAL_SUCCESS_COPY_INTEGRITY_FAILURE' }
 $env:GF_E2E_HANDOFF_L18=if ($L18) { '1' } else { '0' }
-$env:GF_E2E_SELF_GRACEFUL_CLOSE='0'
+$env:GF_E2E_SELF_GRACEFUL_CLOSE=if ($DenyClose) { '1' } else { '0' }
+$env:GF_E2E_GUI_NORMAL_L18_DENY_CLOSE=if ($DenyClose) { '1' } else { '0' }
 $env:GF_E2E_SELECTED_NEW_CONTINUATION='0'
 $env:GF_E2E_LIVE_INSTALL_SWAP='0'
 $env:GF_E2E_SWAP_CUT_AFTER_OLD_MOVE='0'
 $observerArgs=@('prototipos/autoatualizador-seguro/phase1-composed/github_normal_gui_success_observer.py')
 if ($L18) { $observerArgs+='--l18' }
+if ($DenyClose) { $observerArgs+='--deny-close' }
 python -u @observerArgs
 if ($LASTEXITCODE -ne 0) { throw 'GF_NORMAL_SUCCESS_REAL_GUI_NOT_HEALTHY' }
 $verify=@'
@@ -103,6 +108,12 @@ for key in ("normal_open_no_tray","no_showwindow","visible_during_download",
 for key in ("new_executed","retry","rollback","cleanup","operational_ready"):
     assert ui[key] is False,key
 assert ui["l18_handoff"] is l18
+deny=os.environ.get("GF_E2E_GUI_NORMAL_L18_DENY_CLOSE")=="1"
+assert ui["unknown_close_requested_and_denied"] is deny
+if deny:
+    denied=json.loads((r/"gf-e2e-github-normal-l18-close-denied.json").read_bytes())
+    assert denied["outcome"]=="UnknownBlocked" and denied["explicitly_requested"] is True
+    assert denied["close_callback_invoked"] is False and denied["operational_ready"] is False
 if l18:
     flow=json.loads((r/"gf-e2e-github-normal-l18-flow-report.json").read_bytes())
     handoff=json.loads((r/"gf-e2e-github-normal-l18-handoff-report.json").read_bytes())
@@ -144,7 +155,16 @@ if ($L18) {
       $handoff.operational_ready -or $handoff.automatic_recovery_authorized) {
     throw 'GF_NORMAL_L18_SAME_COORDINATOR_NOT_PROVEN'
   }
-  Write-Host 'GF_E2E_GITHUB_NORMAL_L18_PASS normal_ui=true authenticated_zip=true existing_l18=true outcome=UnknownBlocked old_open=true rollback=false cleanup=false READY=false'
+  if ($DenyClose) {
+    $denied=(Get-Content $closeDenied -Raw | ConvertFrom-Json)
+    if (!$denied.explicitly_requested -or $denied.outcome -ne 'UnknownBlocked' -or
+        $denied.close_callback_invoked -or $denied.operational_ready) {
+      throw 'GF_L18_DENY_CLOSE_RECEIPT_INVALID'
+    }
+    Write-Host 'GF_E2E_GITHUB_NORMAL_L18_DENY_CLOSE_PASS requested=true outcome=UnknownBlocked close_denied=true old_healthy_after_denial=true NEW_not_installed=true READY=false'
+  } else {
+    Write-Host 'GF_E2E_GITHUB_NORMAL_L18_PASS normal_ui=true authenticated_zip=true existing_l18=true outcome=UnknownBlocked old_open=true rollback=false cleanup=false READY=false'
+  }
 } else {
   Write-Host 'GF_E2E_GITHUB_NORMAL_MAINFORM_PASS complete_remote_draft=true TUF_verified=true normal_UI_healthy=true L18_not_invoked=true READY=false'
 }
