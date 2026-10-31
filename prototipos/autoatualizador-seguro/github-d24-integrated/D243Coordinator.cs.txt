@@ -178,22 +178,24 @@ internal static partial class Program
                 reason="D243_CONCURRENT_SESSION_HOLD";
                 return Report();
             }
+            // Mutex ownership is thread-affine; keep this critical section
+            // synchronous until the same thread releases the mutex.
             Console.WriteLine("GF_D243_LOCK_HELD");
             Console.Out.Flush();
             var delay=Environment.GetEnvironmentVariable("GF_D243_TEST_HOLD_MS");
             if(delay!=null && int.TryParse(delay,out var ms) && ms is > 0 and <= 3000)
-                await Task.Delay(ms);
+                Thread.Sleep(ms);
             var session=Convert.ToHexString(RandomNumberGenerator.GetBytes(16))
                 .ToLowerInvariant();
             childStarted=true;
-            var (exit,stdout)=await RunPersistentTufChild(
-                fixture,session,d0,trusted,CancellationToken.None);
+            var (exit,stdout)=RunPersistentTufChild(
+                fixture,session,d0,trusted,CancellationToken.None).GetAwaiter().GetResult();
             if(exit!=0)throw new InvalidDataException("D243_TUF_HISTORY_REJECTED");
             var records=stdout.Split('\n',StringSplitOptions.RemoveEmptyEntries);
             if(records.Length!=1 ||
                !records[0].StartsWith("GF_D243_VERIFIED ",StringComparison.Ordinal))
                 throw new InvalidDataException("D243_CHILD_RECEIPT_COUNT");
-            var current=await File.ReadAllBytesAsync(manifestPath);
+            var current=File.ReadAllBytes(manifestPath);
             if(!CryptographicOperations.FixedTimeEquals(
                 SHA256.HashData(current),SHA256.HashData(snapshot)) ||
                !ValidPersistentReceipt(records[0]["GF_D243_VERIFIED ".Length..].TrimEnd('\r'),
