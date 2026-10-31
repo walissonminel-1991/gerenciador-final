@@ -7,6 +7,7 @@ on:
       - 'GerenciadorAplicativos.csproj'
       - 'prototipos/autoatualizador-seguro/phase1-composed/GfPrivateSelfUpdateProbe.cs.txt'
       - 'prototipos/autoatualizador-seguro/phase1-composed/GfPrivateFunctionalUpdate.cs.txt'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/GfGithubWeeklyUpdate.cs.txt'
       - 'prototipos/autoatualizador-seguro/phase1-composed/private_functional_feed.py'
       - '.github/workflows/gf-private-selfupdate-normal.yml'
 permissions:
@@ -56,6 +57,23 @@ jobs:
           $smoke=Start-Process -FilePath $privateExe -ArgumentList '--gf-private-update-smoke' -Wait -PassThru
           if ($smoke.ExitCode -ne 0) { throw "PRIVATE_NORMAL_PROBE_FAILED_CODE_$($smoke.ExitCode)" }
           Write-Host 'GF_PRIVATE_UPDATE_TOKEN_FREE_READONLY_PASS READY=false no_download=true no_install=true'
+      - name: Weekly GitHub release check persists and suppresses repeat inside seven days
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=Join-Path $env:RUNNER_TEMP 'gf-normal-private/GerenciadorFinal.exe'
+          $env:GH_TOKEN=''
+          $env:GITHUB_ACTIONS='false'
+          $env:GITHUB_REPOSITORY=''
+          $env:GF_PRIVATE_FUNCTIONAL_LAB=''
+          $state=Join-Path $env:LOCALAPPDATA 'GerenciadorFinal/autoatualizacao/ultima-consulta.json'
+          if (Test-Path $state) { throw 'WEEKLY_SMOKE_NOT_FRESH' }
+          $check=Start-Process -FilePath $exe -ArgumentList '--gf-private-weekly-smoke' -PassThru -Wait
+          if ($check.ExitCode -ne 0) { throw "GF_WEEKLY_SMOKE_FAILED_$($check.ExitCode)" }
+          if (!(Test-Path $state)) { throw 'GF_WEEKLY_PERSISTENCE_MISSING' }
+          $saved=Get-Content -LiteralPath $state -Raw | ConvertFrom-Json
+          if ($saved.schema -ne 'gf-weekly-update/1' -or !$saved.last_attempt_utc) { throw 'GF_WEEKLY_PERSISTENCE_INVALID' }
+          Write-Host 'GF_GITHUB_WEEKLY_PASS official_releases_only=true interval=7days persisted=true token_free=true private_only=true READY=false'
 
   functional-old-to-new:
     name: Functional-first GF .65 to .66 on disposable Windows
