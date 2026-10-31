@@ -36,7 +36,7 @@ internal static class Program
             }
             catch (Exception ex) when (ex is IOException or HttpRequestException or
                        InvalidOperationException or UnauthorizedAccessException or
-                       System.IO.InvalidDataException or JsonException or
+                       System.IO.InvalidDataException or System.Text.Json.JsonException or
                        System.Security.Cryptography.CryptographicException)
             {
                 return 22;
@@ -1200,7 +1200,7 @@ internal sealed partial class MainForm : Form
             }
             catch (Exception ex) when (ex is IOException or HttpRequestException or
                                           InvalidOperationException or UnauthorizedAccessException or
-                                          System.IO.InvalidDataException or JsonException)
+                                          System.IO.InvalidDataException or System.Text.Json.JsonException)
             {
                 if (!IsDisposed) Status("GF: teste de atualização bloqueado; nenhum pacote instalado.");
                 DiagnosticTrace.Write("GF.AUTOUPDATE.PRIVATE_FAIL type=" + ex.GetType().Name);
