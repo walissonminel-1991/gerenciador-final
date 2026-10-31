@@ -865,6 +865,8 @@ internal static class Phase1RecoveryTests
         using var pins=new RealLabPins(src,c); // retained through owner death and reconciliation
         using var owner=LabProcessJob.Create(c.OwnerJob);
         using var recovery=LabProcessJob.Create(c.RecoveryJob);
+        bool prelaunchTamper=name=="handoff-install" &&
+            Environment.GetEnvironmentVariable("GF_E2E_PRELAUNCH_TAMPER_TEST")=="1";
         bool blocked=name is "normal" or "handoff" or "handoff-install" or "new-live-descendant" or "new-exited" or "launch-fence" or
             "selector-fork" or "journal-torn" or "witness-lost" or
             "witness-recreated" or "witness-wrong-object" or "external-broker" or
@@ -907,6 +909,66 @@ internal static class Phase1RecoveryTests
                         name,a[9])
                     :owner.Start(Own,"--real-owner",src,s.Lab,L16Tests.bootstrap,"normal");
                 await live.Wait();
+                if(prelaunchTamper)
+                {
+                    string err=ReadError(src);
+                    string runner=Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+                        throw new Rejected("GF_PRELAUNCH_TAMPER_RUNNER_MISSING");
+                    string install=Path.Combine(runner,"gf-e2e-old");
+                    string backup=Path.Combine(runner,"gf-e2e-old-preserved");
+                    string evidence=Path.Combine(runner,"gf-e2e-installed-new-prelaunch-mutated.json");
+                    Require(live.ExitCode!=0 &&
+                        err.Contains("GF_EXECUTABLE_BYTES_CHANGED_BEFORE_SPAWN",
+                            StringComparison.Ordinal) &&
+                        File.Exists(evidence) &&
+                        Directory.Exists(install) && Directory.Exists(backup) &&
+                        !File.Exists(Path.Combine(runner,"gf-e2e-new-popen-reached.json")) &&
+                        !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")) &&
+                        Selection(src)==("new",2) &&
+                        File.Exists(L18Coordinator.NewLaunchFence(src)) &&
+                        !File.Exists(Path.Combine(src,"l18-real-cut.fixture.txt")),
+                        "GF_PRELAUNCH_TAMPER_WAS_NOT_REFUSED_BEFORE_PROCESS_CREATE:"+err);
+                    using(var mutated=JsonDocument.Parse(File.ReadAllBytes(evidence)))
+                        Require(mutated.RootElement.GetProperty("schema").GetString()==
+                                "gf-e2e-installed-prelaunch-tampered/1" &&
+                            mutated.RootElement.GetProperty("validated_installed_package_before_mutation").GetBoolean() &&
+                            mutated.RootElement.GetProperty("mutation").GetString()=="append-one-byte" &&
+                            !mutated.RootElement.GetProperty("operational_ready").GetBoolean(),
+                            "GF_PRELAUNCH_TAMPER_PROOF_INVALID");
+                    var originalSelector=Hash(File.ReadAllBytes(Path.Combine(src,
+                        "l18-real-active.fixture.json")));
+                    var outcome=await Reopen(recovery,owner,src,s.Lab);
+                    var replay=await Reopen(recovery,owner,src,s.Lab);
+                    Require(outcome=="UnknownBlocked" && replay=="UnknownBlocked" &&
+                        Hash(File.ReadAllBytes(Path.Combine(src,
+                            "l18-real-active.fixture.json")))==originalSelector &&
+                        Selection(src)==("new",2) &&
+                        !File.Exists(Path.Combine(src,"real-observed-new.fixture.json")) &&
+                        !File.Exists(Path.Combine(runner,"gf-e2e-new-popen-reached.json")) &&
+                        !File.Exists(Path.Combine(runner,"gf-e2e-postexit-selected-root.json")),
+                        "GF_PRELAUNCH_TAMPER_RECOVERY_NOT_BLOCKED");
+                    History(src,c);
+                    pins.Recheck();
+                    using(var identical=new RealLabPins(src,c))identical.Recheck();
+                    s.Preserved();
+                    Require(recovery.Active==0 && owner.Active==0,
+                        "GF_PRELAUNCH_TAMPER_CHILDREN_STILL_ACTIVE");
+                    return new{
+                        scenario="handoff-install-prelaunch-byte-mutation",
+                        root=src,
+                        expected_refusal="GF_EXECUTABLE_BYTES_CHANGED_BEFORE_SPAWN",
+                        tampered_after_full_tuf_installed_validation=true,
+                        executable_prelaunch_hash_rejected=true,
+                        selected="new",generation=2,
+                        original_portable_new_directory_preserved=true,
+                        original_old_backup_preserved=true,
+                        real_new_process_creation_prevented=true,
+                        installed_new_terminated_with_hold=true,
+                        outcome,replay,operational_ready=false,
+                        recovery_authorized=false,automatic_retry=false,
+                        rollback=false,cleanup=false,test_only=true
+                    };
+                }
                 Require(live.ExitCode==0,"REAL_NORMAL_OWNER_FAILED:"+ReadError(src));
             }
             else await CutOwner(owner,src,s.Lab,ownerCut);
@@ -1698,7 +1760,7 @@ internal static class Phase1RecoveryTests
             }
             Require(((a.Length==9 && (a[0]=="--real-suite" ||
                     a[0]=="--real-normal-focused")) ||
-                    (a.Length==10 && a[0] is "--real-handoff-focused" or "--real-install-focused" or "--real-install-cut-focused" or "--real-install-after-second-cut-focused")) &&
+                    (a.Length==10 && a[0] is "--real-handoff-focused" or "--real-install-focused" or "--real-install-tamper-focused" or "--real-install-cut-focused" or "--real-install-after-second-cut-focused")) &&
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
                 Path.GetFileName(Own)=="GF.Updater.M3.L18Tests.exe","REAL_SUITE_ARGUMENTS");
             foreach(string p in a.Skip(7).Take(2))
@@ -1740,15 +1802,40 @@ internal static class Phase1RecoveryTests
                         Directory.Delete(L16Tests.suite,true);
                 }
             }
-            if(a[0] is "--real-handoff-focused" or "--real-install-focused")
+            if(a[0] is "--real-handoff-focused" or "--real-install-focused" or "--real-install-tamper-focused")
             {
-                bool installationSwap=a[0]=="--real-install-focused";
+                bool tamper=a[0]=="--real-install-tamper-focused";
+                bool installationSwap=a[0] is "--real-install-focused" or "--real-install-tamper-focused";
                 try
                 {
                     Require(int.TryParse(a[9],System.Globalization.NumberStyles.None,
                         System.Globalization.CultureInfo.InvariantCulture,out int oldPid) && oldPid>0,
                         "REAL_HANDOFF_ORIGINAL_PID");
                     var selected=await Scenario(installationSwap?"handoff-install":"handoff",a);
+                    if(tamper)
+                    {
+                        var data=JsonSerializer.SerializeToElement(selected);
+                        Require(data.GetProperty("scenario").GetString()==
+                                "handoff-install-prelaunch-byte-mutation" &&
+                            data.GetProperty("executable_prelaunch_hash_rejected").GetBoolean() &&
+                            data.GetProperty("real_new_process_creation_prevented").GetBoolean() &&
+                            data.GetProperty("outcome").GetString()=="UnknownBlocked" &&
+                            data.GetProperty("replay").GetString()=="UnknownBlocked" &&
+                            !data.GetProperty("operational_ready").GetBoolean(),
+                            "GF_PRELAUNCH_TAMPER_UNSAFE_VERDICT");
+                        File.WriteAllText(a[1],JsonSerializer.Serialize(new{
+                            schema="gf-e2e-prelaunch-byte-tamper-hold/1",
+                            scenario="handoff-install-prelaunch-byte-mutation",
+                            result=selected,passed=1,failed=0,
+                            recovery_authorized=false,operational_ready=false,
+                            test_only=true
+                        }));
+                        Console.WriteLine("GF_E2E_PRELAUNCH_TAMPER_L18_DENIED "
+                            +"after_signed_install=true executable_hash=REJECTED "
+                            +"new_process=NOT_CREATED selector=new/2 "
+                            +"outcome=UnknownBlocked replay=UnknownBlocked READY=false");
+                        return 0;
+                    }
                     var o=JsonSerializer.SerializeToElement(selected);
                     Require(o.GetProperty("classification").GetString()=="PASS_CONTAINMENT" &&
                         o.GetProperty("outcome").GetString()=="UnknownBlocked" &&

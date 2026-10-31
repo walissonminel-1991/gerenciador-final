@@ -1,6 +1,7 @@
 # Existing positive scenario, plus one exclusively negative CUT after second
 # physical rename before NEW observation, both via SAME L18 coordinator.
-param([switch]$AfterSecondCut)
+param([switch]$AfterSecondCut,[switch]$TamperPrelaunch)
+if ($AfterSecondCut -and $TamperPrelaunch) { throw 'GF_TEST_MODES_EXCLUSIVE' }
 # ONE independent positive scenario: normal GF OLD -> original L18 install-focused.
 # Only windows-2022 disposable runner. No rollback/retry/cleanup/READY.
 $ErrorActionPreference='Stop'
@@ -49,6 +50,7 @@ $env:GF_E2E_SELECTED_NEW_CONTINUATION='1'
 $env:GF_E2E_LIVE_INSTALL_SWAP='1'
 $env:GF_E2E_SWAP_CUT_AFTER_OLD_MOVE='0'
 $env:GF_E2E_CUT_AFTER_SECOND_MOVE=if ($AfterSecondCut) { '1' } else { '0' }
+$env:GF_E2E_PRELAUNCH_TAMPER_TEST=if ($TamperPrelaunch) { '1' } else { '0' }
 $env:GF_E2E_POST_OWNER_PERSISTENCE='1'
 $env:GF_E2E_GUI_NORMAL_SUCCESS='0'
 $env:GF_E2E_GUI_NORMAL_L18_PROOF='0'
@@ -245,6 +247,100 @@ print("GF_E2E_AFTER_SECOND_MOVE_CUT_BYTES_PASS "
   if ($v -ne '5.13.11.66') { throw 'GF_AFTER_SECOND_MOVE_CUT_INSTALLED_NEW_VERSION_WRONG' }
   Write-Host 'GF_E2E_AFTER_SECOND_MOVE_CUT_PASS old_normal=true new_installed=true new_not_started=true owner_killed=91 L18=UnknownBlocked replay=UnknownBlocked HOLD=true READY=false'
   Add-Content $env:GITHUB_STEP_SUMMARY 'Independent second-move cut Windows runner: GF OLD native normal MainForm authenticates Draft and closes gracefully with L18 NEW/2 fence; after OLD was backed up and authenticated NEW installed at ORIGINAL portable path, same L18 owner was cut (exit91) before installed NEW observer and before swap receipt; two reconciliations UnknownBlocked/HOLD. Independent Python-TUF and SHA256 of all 284 installed NEW and 284 retained OLD, selector/journal/fences/canary preserved. No rollback/retry/cleanup/READY.'
+  return
+}
+
+
+if ($TamperPrelaunch) {
+  $flow=Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
+  if ($flow.schema -ne 'gf-e2e-prelaunch-byte-tamper-hold/1' -or
+      $flow.scenario -ne 'handoff-install-prelaunch-byte-mutation' -or
+      $flow.passed -ne 1 -or $flow.failed -ne 0 -or $flow.operational_ready -or
+      $flow.recovery_authorized -or !$flow.result.executable_prelaunch_hash_rejected -or
+      !$flow.result.real_new_process_creation_prevented -or
+      $flow.result.outcome -ne 'UnknownBlocked' -or
+      $flow.result.replay -ne 'UnknownBlocked' -or
+      $flow.result.operational_ready -or $flow.result.recovery_authorized -or
+      !$flow.result.tampered_after_full_tuf_installed_validation) {
+    throw 'GF_PRELAUNCH_TAMPER_L18_HOLD_NOT_PROVEN'
+  }
+  $retained=Join-Path $root 'gf-e2e-old-preserved'
+  $newExtract=Join-Path $root 'gf-e2e-prelaunch-independent-auth-new'
+  $download=Join-Path $root 'gf-e2e-github-download'
+  python prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py verify --repo . --old $retained --downloaded $download --extracted $newExtract --lab-old-variant
+  if ($LASTEXITCODE -ne 0) { throw 'GF_PRELAUNCH_TAMPER_INDEPENDENT_TUF_FAILED' }
+  $verify=@'
+import hashlib,json,os
+from pathlib import Path
+r=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+def snap(folder):
+    assert folder.is_dir() and not folder.is_symlink()
+    found={}
+    for directory,dirs,files in os.walk(folder,followlinks=False):
+        for name in dirs+files:
+            p=Path(directory)/name
+            assert not p.is_symlink() and not (p.stat().st_file_attributes&0x400)
+        for name in files:
+            p=Path(directory)/name
+            found[p.relative_to(folder).as_posix()]=[p.stat().st_size,hashlib.sha256(p.read_bytes()).hexdigest()]
+    return found
+baseline=json.loads((r/"gf-e2e-install-focused-old-baseline.json").read_bytes())
+old=snap(r/"gf-e2e-old-preserved")
+assert old==baseline and len(old)==284
+signed=snap(r/"gf-e2e-prelaunch-independent-auth-new")
+installed=snap(r/"gf-e2e-old")
+assert len(installed)==len(signed)==284
+difference=[p for p in signed if signed[p]!=installed[p]]
+assert difference==["GerenciadorFinal.exe"] or sorted(difference)==["GerenciadorFinal.exe"]
+assert installed["GerenciadorFinal.exe"][0]==signed["GerenciadorFinal.exe"][0]+1
+assert (r/"gf-e2e-install-data"/"PERSONAL-KEEP-UNCHANGED.txt").read_bytes()==b"DO-NOT-TOUCH-MY-DATA\n"
+assert not (r/"gf-e2e-new-popen-reached.json").exists()
+assert not (r/"gf-e2e-postexit-selected-root.json").exists()
+assert (r/"gf-e2e-live-install-transition.json").is_file()
+marker=json.loads((r/"gf-e2e-installed-new-prelaunch-mutated.json").read_bytes())
+assert marker["schema"]=="gf-e2e-installed-prelaunch-tampered/1"
+assert marker["validated_installed_package_before_mutation"] is True
+assert marker["mutation"]=="append-one-byte"
+assert marker["actual_sha256"]==installed["GerenciadorFinal.exe"][1]
+assert marker["expected_sha256"]==signed["GerenciadorFinal.exe"][1]
+result=json.loads((r/"gf-e2e-real-flow-report.json").read_bytes())["result"]
+assert result["scenario"]=="handoff-install-prelaunch-byte-mutation"
+assert result["real_new_process_creation_prevented"] is True
+root=Path(result["root"]).resolve(strict=True)
+assert root.is_dir()
+assert not (root/"real-observed-new.fixture.json").exists()
+assert (root/"real-observer-error.fixture.txt").is_file()
+assert "GF_EXECUTABLE_BYTES_CHANGED_BEFORE_SPAWN" in (root/"real-observer-error.fixture.txt").read_text()
+assert not (root/"l18-real-cut.fixture.txt").exists()
+state=json.loads((root/"l18-real-active.fixture.json").read_bytes())
+assert state["selected"]=="new" and state["generation"]==2
+assert (root/"l18-real-new-may-have-effects.fixture.txt").is_file()
+transaction=(root/"real-auth"/"GF-LAB-REAL-PACKAGE-MANIFEST.json").read_bytes()
+m=json.loads(transaction)
+assert m["schema"]=="gf-real-package-lab/3" and m["operational_installable"] is False
+assert m["installation"]==state["installation"]
+assert m["transaction"]==state["transaction"]
+assert state["manifest_sha256"]==hashlib.sha256(transaction).hexdigest()
+assert len(m["files"])==len(m["old_files"])==284
+dl=r/"gf-e2e-github-download"
+assert len(list(dl.iterdir()))==5
+for name,size,digest in [
+    ("gf-e2e-new-win-x64.zip",57695630,"3eadafed91c4090ea56c9e9be8175f8ece8acf05d9c7fda9f97db7644a33011e"),
+    ("GF-LAB-REAL-PACKAGE-MANIFEST.json",72618,"a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d")]:
+    p=dl/name
+    assert p.stat().st_size==size and hashlib.sha256(p.read_bytes()).hexdigest()==digest
+print("GF_E2E_TAMPER_PRELAUNCH_BYTES_PASS "
+      "signed_new=284 installed_new=284 difference=ONLY_EXE_PLUS_1_BYTE "
+      "selected=new/2 prelaunch_sha256=REJECTED "
+      "new_popen_not_reached=true observed_new_absent=true "
+      "OLD_backup=284 canary=UNCHANGED "
+      "reconciliations=UnknownBlocked+UnknownBlocked "
+      "rollback=false recovery=false cleanup=false retry=false READY=false",flush=True)
+'@
+  $verify | python -u -
+  if ($LASTEXITCODE -ne 0) { throw 'GF_PRELAUNCH_TAMPER_INDEPENDENT_EVIDENCE_FAILED' }
+  Write-Host 'GF_E2E_TAMPER_PRELAUNCH_PASS old_normal=true signed_install=true mutated_exe_rejected_before_launch=true no_new_process=true L18=UnknownBlocked replay=UnknownBlocked READY=false'
+  Add-Content $env:GITHUB_STEP_SUMMARY 'Single adversarial prelaunch byte-mutation test: after original OLD closed and NEW was TUF-validated and installed, one byte appended to installed NEW EXE between full package validation and actual Popen. Original L18 selected NEW/2 observer blocked on immediate prelaunch SHA256 check BEFORE Popen, with external Popen marker absent; two reconciliations UnknownBlocked/HOLD. Independent TUF extraction verifies all other 283 NEW bytes, exact one-byte executable mutation, full 284-file OLD backup and canary. No rollback/recovery/retry/cleanup/READY. The remaining hash-to-CreateProcess TOCTOU gap is NOT solved.'
   return
 }
 

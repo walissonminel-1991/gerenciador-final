@@ -292,6 +292,12 @@ def observed_process(directory, expected_exe_sha, seconds=12,
     """
     from win32_process_observation import observe_real_gf
     exe = directory / "GerenciadorFinal.exe"
+    # Revalidate exact expected executable bytes immediately before Popen.
+    # This is a bounded laboratory prelaunch check, NOT a TOCTOU guarantee:
+    # same-user replacement after this hash is still an open concern.
+    require(exe.is_file() and not exe.is_symlink() and
+            file_hash(exe) == expected_exe_sha,
+            "GF_EXECUTABLE_BYTES_CHANGED_BEFORE_SPAWN")
     start = time.monotonic()
     env = dict(os.environ)
     env["GfBetaEndpoint"] = ""
@@ -306,6 +312,19 @@ def observed_process(directory, expected_exe_sha, seconds=12,
         # The real GF's --tray mode suppresses first-start modal consent.
         # The HWND may be hidden, but a responsive message loop is observable.
         # Never use a diagnostic log/terminal receipt as a health witness.
+        if os.environ.get("GF_E2E_PRELAUNCH_TAMPER_TEST") == "1":
+            # The failed prelaunch-hash gate must prevent this point entirely.
+            # A marker is NOT permission to launch or infer READY.
+            runner = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+            require(os.environ.get("GITHUB_ACTIONS") == "true" and
+                    os.environ.get("GITHUB_REPOSITORY") ==
+                    "walissonminel-1991/gerenciador-final",
+                    "GF_TAMPER_PROBE_NOT_DISPOSABLE")
+            with (runner / "gf-e2e-new-popen-reached.json").open("x", encoding="utf-8") as f:
+                json.dump({"schema":"gf-e2e-prelaunch-new-popen-reached/1",
+                           "test_only":True,"operational_ready":False}, f)
+                f.flush()
+                os.fsync(f.fileno())
         proc = subprocess.Popen([str(exe), "--tray"], cwd=str(directory),
                                 env=env, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -711,6 +730,37 @@ def recovery_tool(mode, source):
             "recovery_authorized": False, "operational_ready": False,
             "test_only": True
         }, "POST_L18_SELECTED_SOURCE_MISMATCH")
+    if os.environ.get("GF_E2E_PRELAUNCH_TAMPER_TEST") == "1":
+        # One adversarial single-byte mutation AFTER signed full-package
+        # validation of the live installation, BEFORE the same selected NEW
+        # observer gets to Popen. Never run on a personal Windows computer.
+        require(observed_installed_new and mode == "--recovery-observe" and
+                report_slot == "new" and generation == 2 and
+                os.environ.get("GITHUB_ACTIONS") == "true" and
+                os.environ.get("GITHUB_REPOSITORY") ==
+                "walissonminel-1991/gerenciador-final",
+                "GF_PRELAUNCH_MUTATION_SCOPE_DENIED")
+        target = directory / "GerenciadorFinal.exe"
+        expected = files["GerenciadorFinal.exe"]["sha256"]
+        require(target.is_file() and not target.is_symlink() and
+                file_hash(target) == expected,
+                "GF_PRELAUNCH_INITIAL_INSTALLED_EXE_UNTRUSTED")
+        with target.open("ab") as f:
+            f.write(b"\xa5")
+            f.flush()
+            os.fsync(f.fileno())
+        actual = file_hash(target)
+        require(actual != expected, "GF_PRELAUNCH_MUTATION_DID_NOT_CHANGE_BYTES")
+        runner = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+        with (runner / "gf-e2e-installed-new-prelaunch-mutated.json").open("x", encoding="utf-8") as f:
+            json.dump({"schema":"gf-e2e-installed-prelaunch-tampered/1",
+                       "validated_installed_package_before_mutation":True,
+                       "mutation":"append-one-byte","actual_sha256":actual,
+                       "expected_sha256":expected,
+                       "same_selected_new_observer":True,
+                       "test_only":True,"operational_ready":False},f)
+            f.flush()
+            os.fsync(f.fileno())
     trial_mode = mode in ("--recovery-observe-trial", "--recovery-observe-trial-negative")
     if trial_mode:
         require(report_slot == "new" and generation == 2,
