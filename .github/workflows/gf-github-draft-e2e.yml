@@ -6,6 +6,8 @@ on:
       - '.github/workflows/gf-github-draft-e2e.yml'
       - 'prototipos/autoatualizador-seguro/phase1-composed/GfOldDraftAcquire.cs.txt'
       - 'prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/http_cut_server.py'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/http_cut_negative.ps1'
       - 'prototipos/autoatualizador-seguro/phase1-composed/Phase1RecoveryTests.cs.txt'
       - 'prototipos/autoatualizador-seguro/phase1-composed/Phase1Recovery.cs.txt'
       - 'prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py'
@@ -652,4 +654,10 @@ jobs:
           $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
           python $script negative --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old-preserved') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --target (Join-Path $env:RUNNER_TEMP 'gf-e2e-negatives') --lab-old-variant
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_PACKAGE_NEGATIVES_FAILED' }
+      - name: Interromper conexao HTTP real de ZIP autenticado durante HttpClient do GF OLD
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./prototipos/autoatualizador-seguro/phase1-composed/http_cut_negative.ps1
 # Only three TEST TUF metadata role assets are refreshed in the existing Draft. Never publish it or change executable ZIP/manifest.

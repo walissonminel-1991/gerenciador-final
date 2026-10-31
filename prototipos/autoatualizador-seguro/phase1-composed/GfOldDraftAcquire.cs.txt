@@ -137,9 +137,28 @@ internal static class GfOldDraftAcquire
     private static async Task FetchAsset(HttpClient http, Asset asset, long assetId,
                                          string token, string target)
     {
-        var url = new Uri("https://api.github.com/repos/" + Repo + "/releases/assets/" +
-                          assetId.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        using var original = Get(url, token, metadata: false);
+        bool cutProbe=asset.Name=="gf-e2e-new-win-x64.zip" &&
+            Environment.GetEnvironmentVariable("GF_E2E_HTTP_CUT_NEGATIVE")=="1" &&
+            Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+            Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==Repo;
+        Uri url;
+        if(cutProbe)
+        {
+            Require(int.TryParse(Environment.GetEnvironmentVariable("GF_E2E_HTTP_CUT_PORT"),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,out int port) &&
+                port>=1024 && port<=65535, "HTTP_CUT_LOOPBACK_PORT_INVALID");
+            url=new Uri("http://127.0.0.1:"+port.ToString(
+                System.Globalization.CultureInfo.InvariantCulture)+
+                "/gf-e2e-new-win-x64.zip");
+            Require(url.IsLoopback && url.Host=="127.0.0.1" && url.Scheme=="http" &&
+                url.UserInfo.Length==0,"HTTP_CUT_ENDPOINT_NOT_LOOPBACK");
+        }
+        else
+            url = new Uri("https://api.github.com/repos/" + Repo + "/releases/assets/" +
+                assetId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        // Bearer token is never sent to loopback or CDN.
+        using var original = Get(url,cutProbe?null:token, metadata: false);
         using var initial = await http.SendAsync(original, HttpCompletionOption.ResponseHeadersRead);
         Require(initial.RequestMessage?.RequestUri == url, "ASSET_API_ORIGIN");
         HttpResponseMessage response = initial;
@@ -410,6 +429,7 @@ internal static class GfOldDraftAcquire
     internal static async Task<int> Run(Action? afterVerifiedLabHandoff = null)
     {
         string stage="guard";
+        bool httpCutNegative=Environment.GetEnvironmentVariable("GF_E2E_HTTP_CUT_NEGATIVE")=="1";
         try
         {
             // Lab mode is absent from normal binaries; the additional guards
@@ -426,7 +446,14 @@ internal static class GfOldDraftAcquire
             string token = Environment.GetEnvironmentVariable("GH_TOKEN") ?? "";
             Require(token.Length >= 20 && token.Length <= 2048, "EPHEMERAL_GITHUB_TOKEN_MISSING");
             var runner = Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!);
-            string dest = Path.GetFullPath(Path.Combine(runner, "gf-e2e-github-download"));
+            string dest = Path.GetFullPath(Path.Combine(runner, httpCutNegative
+                ? "gf-e2e-http-cut-download" : "gf-e2e-github-download"));
+            if(httpCutNegative)
+                Require(Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18")!="1" &&
+                    Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE")!="1" &&
+                    Environment.GetEnvironmentVariable("GF_E2E_SELECTED_NEW_CONTINUATION")!="1" &&
+                    Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")!="1",
+                    "HTTP_CUT_MUST_NEVER_HANDOFF");
             Require(Directory.Exists(runner) && !Directory.Exists(dest) &&
                     !File.Exists(dest) &&
                     Path.GetDirectoryName(dest) == runner, "DOWNLOAD_DESTINATION_NOT_FRESH");
@@ -441,8 +468,11 @@ internal static class GfOldDraftAcquire
             stage="asset_download";
             Directory.CreateDirectory(dest);
             foreach (var asset in Allowed)
+            {
                 await FetchAsset(http, asset, assets[asset.Name], token,
-                                 Path.Combine(dest, asset.Name));
+                    Path.Combine(dest, asset.Name));
+                Require(!httpCutNegative,"HTTP_CUT_UNEXPECTED_COMPLETE_ZIP");
+            }
             Require(Directory.GetFiles(dest).Length == Allowed.Length, "EXTRA_DOWNLOAD_FILE");
             stage="acquisition_report";
             var evidence = new
@@ -492,13 +522,19 @@ internal static class GfOldDraftAcquire
                 {
                     string temp = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
                     if (Directory.Exists(temp))
-                        File.WriteAllText(Path.Combine(temp, "gf-e2e-old-acquire-failure.json"),
+                        File.WriteAllText(Path.Combine(temp, httpCutNegative
+                            ? "gf-e2e-http-cut-failure.json" : "gf-e2e-old-acquire-failure.json"),
                             JsonSerializer.Serialize(new { schema = "gf-e2e-old-blocked/2", reason,
                                 stage, io_hresult = e is IOException ? e.HResult : 0,
                                 no_token_logged = true, no_auto_recovery = true }));
                 }
                 catch (IOException) { }
             }
+            if(httpCutNegative)
+                Console.WriteLine("GF_E2E_HTTP_CUT_OLD_BLOCKED "
+                    +"stage="+stage+" failure_category="+
+                    (e is IOException ? "IO" : e is HttpRequestException ? "HTTP" : "OTHER")
+                    +" NEW_executed=false READY=false");
             return 8;
         }
     }
