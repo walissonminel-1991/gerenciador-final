@@ -238,7 +238,7 @@ def main():
             os.fsync(output.fileno())
         verified = True
         print(("GF_E2E_NORMAL_MAINFORM_HTTP_CUT_HEALTH_PASS " if args.normal
-               else "GF_E2E_MAINFORM_HTTP_CUT_HEALTH_PASS ")
+               else "GF_E2E_MAINFORM_HTTP_CUT_HEALTH_PASS ") +
               "tcp_disconnect=REAL_LOOPBACK mainform=VISIBLE+RESPONSIVE "
               "inventory=NONZERO search=EMPTY+RESTORED "
               "GF_OLD_still_running=true NEW_executed=false "
