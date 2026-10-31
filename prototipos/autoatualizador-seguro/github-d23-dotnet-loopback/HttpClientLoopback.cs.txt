@@ -306,6 +306,10 @@ internal static partial class Program
     static async Task<int> Main(string[] args)
     {
 #if D24_INTEGRATION
+        if (args.Length > 0 && args[0] == "--d243")
+            return await RunD243(args);
+        if (args.Length > 0 && args[0] == "--d243-probe")
+            return await RunD243Probe(args);
         if (args.Length > 0 && args[0] == "--d242")
             return await RunD242(args);
         if (args.Length > 0 && args[0] == "--d242-selftest")
