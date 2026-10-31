@@ -46,7 +46,7 @@ jobs:
           }
           $project='prototipos/autoatualizador-seguro/github-trust-lab/GF.D11.D0Probe.csproj'
           $output=Join-Path $env:RUNNER_TEMP 'gf-d11-d0'
-          dotnet publish $project -c Release -r win-x64 --self-contained false -o $output --nologo
+          dotnet build $project -c Release -r win-x64 --self-contained false -o $output --nologo
           if ($LASTEXITCODE -ne 0 -or !(Test-Path (Join-Path $output 'GF.D11.D0Probe.exe'))) {
             throw 'GF_D11_BUILD'
           }
