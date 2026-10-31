@@ -910,6 +910,20 @@ Check(vivaldi.ActiveDependents.Contains("Proton Pass") &&
 Check(!HistoricalResidualAudit.IsRuleInstalled(vivaldi,
           new[] { new ProgramEntry { Name = "Brave" } }),
     "Outro navegador sem dependente ativo nao mascara a revisao historica de Vivaldi");
+Check(HistoricalResidualAudit.IsRuleInstalled(vivaldi,
+          new[] { new ProgramEntry { Name = "Vivaldi 7.6.3797.67" } }) &&
+      HistoricalResidualAudit.IsRuleInstalled(vivaldi,
+          new[] { new ProgramEntry { Name = "Proton Pass v1.32.0" } }),
+    "R6 ARP com versao numerica preserva instalacao e dependente ainda presentes");
+Check(!HistoricalResidualAudit.IsRuleInstalled(vivaldi,
+          new[] { new ProgramEntry { Name = "Vivaldi Mail 7.6.3797.67" } }) &&
+      !HistoricalResidualAudit.IsRuleInstalled(vivaldi,
+          new[] { new ProgramEntry { Name = "Vivaldi 7.6.3797.67 Extension" } }),
+    "R6 nome semelhante e sufixo nao comprovado nao mascaram catalogo historico");
+var foobarRule = HistoricalResidualAudit.Rules.Single(r => r.Id == "foobar2000");
+Check(HistoricalResidualAudit.IsRuleInstalled(foobarRule,
+          new[] { new ProgramEntry { Name = "foobar2000 2.24 (x64)" } }),
+    "R6 programa com versao e arquitetura continua protegido pela auditoria historica");
 Check(HistoricalResidualAudit.Rules.Any(r => r.Id == "utorrent-web" &&
     r.Folders.Contains(@"StartMenu\uTorrent Web")),
     "Atalhos uTorrent Web reconhecidos no menu Iniciar");

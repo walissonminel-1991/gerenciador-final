@@ -171,13 +171,30 @@ internal static class HistoricalResidualAudit
             System.Security.SecurityException or ArgumentException) { budget.MarkIncomplete(); return null; }
     }
 
+    private static bool MatchesInstalledName(string installed, string alias)
+    {
+        if (installed.Equals(alias, StringComparison.OrdinalIgnoreCase) ||
+            installed.StartsWith(alias + " (", StringComparison.OrdinalIgnoreCase)) return true;
+        // Uma entrada ARP pode trazer a versão no DisplayName. Ela ainda
+        // protege dados do programa/dependente ativo; nome parecido sem versão
+        // comprovada (ex.: "Vivaldi Mail") não deve mascarar a auditoria.
+        if (!installed.StartsWith(alias + " ", StringComparison.OrdinalIgnoreCase)) return false;
+        string suffix = installed[(alias.Length + 1)..];
+        if (suffix.Length is < 3 or > 48) return false;
+        if (suffix[0] is 'v' or 'V') suffix = suffix[1..];
+        int separator = suffix.IndexOf(' ');
+        string numeric = separator < 0 ? suffix : suffix[..separator];
+        if (!Version.TryParse(numeric, out _)) return false;
+        return separator < 0 || suffix[(separator + 1)..] is
+            "(x64)" or "(x86)" or "(64-bit)" or "(32-bit)";
+    }
+
     internal static bool IsRuleInstalled(Rule rule, IReadOnlyCollection<ProgramEntry> inventory)
     {
         // Uma integracao pode continuar ativa por meio de outro aplicativo.
         // A presenca de qualquer dependente impede sinalizar um vestigio.
         return inventory.Any(app => rule.InstalledNames.Concat(rule.ActiveDependents)
-            .Any(alias => app.Name.Equals(alias, StringComparison.OrdinalIgnoreCase) ||
-                app.Name.StartsWith(alias + " (", StringComparison.OrdinalIgnoreCase)));
+            .Any(alias => MatchesInstalledName(app.Name, alias)));
     }
 
     internal static ResidualReportSet Inspect(
