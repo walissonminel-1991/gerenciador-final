@@ -285,7 +285,7 @@ internal static class GfGithubWeeklyUpdate
             throw new InvalidOperationException("GF_PROTOCOL_FIXTURE_CI_ONLY");
         string root = Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
             throw new InvalidOperationException("GF_PROTOCOL_FIXTURE_RUNNER_MISSING");
-        string archive = Path.Combine(root, "gf-private-e2e-new.zip");
+        string archive = Path.Combine(root, AssetName);
         if (!File.Exists(archive))
             throw new FileNotFoundException("GF_PROTOCOL_FIXTURE_ARCHIVE_MISSING");
         string digest;

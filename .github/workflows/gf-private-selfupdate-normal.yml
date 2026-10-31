@@ -133,6 +133,11 @@ jobs:
           '@
           $py | python - $new $zip
           if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_FUNCTIONAL_ZIP_FAILED' }
+          # Generate the EXACT future GitHub Release asset name, flat at ZIP root.
+          # Do not publish it or upload artifacts; this is a disposable fixture.
+          $releaseZip=Join-Path $root 'GerenciadorFinal-win-x64.zip'
+          if (Test-Path -LiteralPath $releaseZip) { throw 'GF_OFFICIAL_NAME_ARCHIVE_NOT_FRESH' }
+          Copy-Item -LiteralPath $zip -Destination $releaseZip
           $serverScript=Join-Path $env:GITHUB_WORKSPACE 'prototipos/autoatualizador-seguro/phase1-composed/private_functional_feed.py'
           $pythonExe=(Get-Command python).Source
           $server=Start-Process -FilePath $pythonExe -ArgumentList @('-u',('"' + $serverScript + '"'),('"' + $root + '"')) -PassThru -WindowStyle Hidden
