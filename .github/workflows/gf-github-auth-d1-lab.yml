@@ -1,0 +1,58 @@
+name: GF - D1 TUF autenticar manifesto GitHub (laboratorio)
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'prototipos/autoatualizador-seguro/github-auth-lab/**'
+      - '.github/workflows/gf-github-auth-d1-lab.yml'
+permissions:
+  contents: read
+concurrency:
+  group: gf-github-auth-d1-disposable
+  cancel-in-progress: false
+jobs:
+  d1-test-only-signature:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - name: Checkout sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python 3.13 fixado
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Dependencias TUF do laboratorio fixadas
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check tuf==7.0.1 securesystemslib==1.3.1 cryptography==50.0.2 urllib3==2.8.0
+          if ($LASTEXITCODE -ne 0) { throw 'GF_D1_DEPENDENCIES' }
+      - name: Testar isolamento do produto e vetores TUF adversariais
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $main=Get-Content GerenciadorAplicativos.csproj -Raw
+          if ($main -match 'github-auth-lab') { throw 'GF_D1_PRODUCT_REFERENCE_LEAK' }
+          $exe='prototipos/autoatualizador-seguro/github-auth-lab/d1_release_manifest_lab.py'
+          $line=(python $exe | Select-Object -Last 1)
+          if ($LASTEXITCODE -ne 0 -or !$line -or !$line.StartsWith('GF_GITHUB_AUTH_D1_LAB ')) {
+            throw 'GF_D1_TESTS_NOT_EXECUTED'
+          }
+          $r=$line.Substring('GF_GITHUB_AUTH_D1_LAB '.Length) | ConvertFrom-Json
+          if ($r.schema -ne 'gf-github-auth-d1-lab/1' -or $r.status -ne 'passed' -or
+              !$r.positive_inert_contract -or
+              $r.adversarial_rejected -ne 32 -or $r.unique_adversarial_cases -ne 32 -or
+              $r.scope -ne 'PUBLIC_TEST_TUF_CHAIN_AND_INERT_PAYLOAD_ONLY' -or
+              $r.metadata_source -ne 'PINNED_LOCAL_TEST_ROOT' -or
+              $r.github_live_requests -ne 0 -or $r.product_changes -or
+              $r.downloaded_real_executable -or $r.installer_launched -or
+              $r.can_install -or $r.operational_ready -or
+              $r.automatic_recovery_authorized) {
+            throw 'GF_D1_FALSE_SIGNED_AUTHORITY'
+          }
+          Write-Host $line
+# No GF build, package publishing, executable retrieval, staging, installation or READY.
