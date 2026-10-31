@@ -45,7 +45,7 @@ internal static partial class GitHubReleaseDiscovery
         var m = StrictTag().Match(text);
         if (!m.Success)
             return false;
-        int[] components = ["a", "b", "c", "d"].Where(n => m.Groups[n].Success)
+        int[] components = new[] { "a", "b", "c", "d" }.Where(n => m.Groups[n].Success)
             .Select(n => int.Parse(m.Groups[n].Value, CultureInfo.InvariantCulture)).ToArray();
         if (components.Any(v => v > 65535))
             return false;
