@@ -129,10 +129,19 @@ jobs:
           GF_E2E_HANDOFF_L18: '1'
           GF_E2E_SELF_GRACEFUL_CLOSE: '1'
           GF_E2E_SELECTED_NEW_CONTINUATION: '1'
+          GF_E2E_LIVE_INSTALL_SWAP: '1'
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $exe=Join-Path $env:RUNNER_TEMP 'gf-e2e-old\GerenciadorFinal.exe'
+          $private=Join-Path $env:RUNNER_TEMP 'gf-e2e-install-data'
+          $preserved=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-preserved'
+          if ((Test-Path $private) -or (Test-Path $preserved)) {
+            throw 'GF_E2E_INSTALL_ROOTS_MUST_BE_FRESH'
+          }
+          [System.IO.Directory]::CreateDirectory($private) | Out-Null
+          [System.IO.File]::WriteAllText((Join-Path $private 'PERSONAL-KEEP-UNCHANGED.txt'),
+            ("DO-NOT-TOUCH-MY-DATA" + [char]10), [System.Text.UTF8Encoding]::new($false))
           $shown=Join-Path $env:RUNNER_TEMP 'gf-e2e-startup-shown.json'
           $proof=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-acquire-report.json'
           $failure=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-acquire-failure.json'
@@ -226,7 +235,7 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
-          python $script verify --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --extracted (Join-Path $env:RUNNER_TEMP 'gf-e2e-independent-authenticated-new') --lab-old-variant
+          python $script verify --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old-preserved') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --extracted (Join-Path $env:RUNNER_TEMP 'gf-e2e-independent-authenticated-new') --lab-old-variant
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_OLD_DOWNLOADED_NEW_NOT_AUTHENTIC' }
           $newVersion=[System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $env:RUNNER_TEMP 'gf-e2e-independent-authenticated-new\GerenciadorFinal.dll')).Version.ToString()
           if ($newVersion -ne '5.13.11.66') { throw 'GF_E2E_DOWNLOADED_VERSION_NOT_NEWER' }
@@ -250,7 +259,7 @@ jobs:
           $m=Get-Content $marker -Raw | ConvertFrom-Json
           $r=Get-Content $report -Raw | ConvertFrom-Json
           $t=$r.result
-          if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/3' -or
+          if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/4' -or
               !$h.initiated_by_gf_old_mainform -or
               !$h.tuf_child_verified_download -or
               !$h.same_l18_coordinator_invoked_by_old -or
@@ -260,6 +269,7 @@ jobs:
               !$h.original_old_exited_before_selected_new_observation -or
               $h.same_selector_new_generation -ne 2 -or
               !$h.single_live_l18_selector_session_proved -or
+              !$h.physically_updated_original_installation -or
               !$h.test_only -or $h.operational_ready -or $h.automatic_recovery_authorized) {
             throw 'GF_E2E_L18_HANDOFF_V3_INVALID_HOLD'
           }
@@ -269,28 +279,64 @@ jobs:
               !$m.test_only -or $m.operational_ready) {
             throw 'GF_E2E_L18_PROCESS_HANDLE_OLD_EXIT_UNPROVEN_HOLD'
           }
-          if ($r.schema -ne 'gf-real-l18-selected-new-handoff/1' -or
-              $r.scenario -ne 'handoff' -or $r.failed -ne 0 -or $r.passed -ne 1 -or
+          if ($r.schema -ne 'gf-real-l18-installed-new-handoff/1' -or
+              $r.scenario -ne 'handoff-install' -or $r.failed -ne 0 -or $r.passed -ne 1 -or
               !$r.single_live_l18_selector_session_proved -or
               $r.operational_ready -or $r.phase1_complete -or $r.recovery_authorized -or
               $r.production_tuf_authority -or
-              $t.test -ne 'handoff' -or $t.status -ne 'passed' -or
+              $t.test -ne 'handoff-install' -or $t.status -ne 'passed' -or
               $t.classification -ne 'PASS_CONTAINMENT' -or
               $t.outcome -ne 'UnknownBlocked' -or $t.replay -ne 'UnknownBlocked' -or
               !$t.selected_new_after_original_old_exit -or
               !$t.single_l18_selector_new_session_observed -or
+              !$t.physically_updated_original_installation -or
               !$t.normal_owner_completed_without_crash -or
               !$t.old_and_canary_preserved -or
               !$t.manifest_and_object_identities_rechecked -or $t.operational_ready) {
             throw 'GF_E2E_L18_SINGLE_SELECTED_NEW_OBSERVATION_UNPROVEN_HOLD'
           }
-          Write-Host 'GF_E2E_SELECTED_NEW_BY_SAME_L18_AFTER_OLD_EXIT selector=new/2 UI=FUNCTIONAL_READONLY original_old_exit=0 containment=UnknownBlocked ready=false independent_new_launch=false'
-          Add-Content $env:GITHUB_STEP_SUMMARY 'GF OLD original closed with exit=0 before SAME live L18 selected NEW/2 launched the real NEW process; UI observed; HOLD/UnknownBlocked; READY=false. No independent NEW launch.'
+          # Validate the PHYSICAL Windows installation roots against the
+          # ORIGINAL immutable Draft manifest. This is independent of the
+          # L18 local fixture report and does not launch any GF process.
+          $proof=@'
+          import hashlib, json, os
+          from pathlib import Path
+          runner=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+          source=runner/"gf-e2e-github-download"/"GF-LAB-REAL-PACKAGE-MANIFEST.json"
+          raw=source.read_bytes()
+          assert hashlib.sha256(raw).hexdigest()=="a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d"
+          m=json.loads(raw)
+          assert m["schema"]=="gf-real-package-lab/3" and m["operational_installable"] is False
+          def check(root,expected):
+              assert root.is_dir() and not root.is_symlink() and root.resolve(strict=True)==root
+              names={}
+              for dirpath, dirs, files in os.walk(root,followlinks=False):
+                  for d in dirs:
+                      p=Path(dirpath)/d
+                      assert not p.is_symlink() and not p.stat().st_file_attributes&0x400
+                  for f in files:
+                      p=Path(dirpath)/f
+                      assert not p.is_symlink() and not p.stat().st_file_attributes&0x400
+                      rel=p.relative_to(root).as_posix()
+                      names[rel]={"length":p.stat().st_size,
+                                  "sha256":hashlib.sha256(p.read_bytes()).hexdigest()}
+              assert names==expected
+          check(runner/"gf-e2e-old",m["files"])
+          check(runner/"gf-e2e-old-preserved",m["old_files"])
+          canary=runner/"gf-e2e-install-data"/"PERSONAL-KEEP-UNCHANGED.txt"
+          assert canary.read_bytes()==b"DO-NOT-TOUCH-MY-DATA\n"
+          print("GF_E2E_INSTALLED_NEW_BYTES_IN_ORIGINAL_PORTABLE_PATH verified=true")
+          print("GF_E2E_OLD_BACKUP_AND_DATA_PRESERVED verified=true")
+          '@
+          $proof | python -
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_REAL_PORTABLE_INSTALL_FILESET_OR_CANARY_INVALID_HOLD' }
+          Write-Host 'GF_E2E_REAL_PORTABLE_INSTALL_UPDATED_BY_SAME_L18 selector=new/2 original_install=NEW backup=OLD data=UNCHANGED UI=FUNCTIONAL_READONLY HOLD=UnknownBlocked READY=false'
+          Add-Content $env:GITHUB_STEP_SUMMARY 'Original portable GF OLD path was physically replaced with authenticated NEW only by SAME L18 new/2, after original OLD exit=0; verified old backup and data-canary preserved; selected observer launched new from original install path, HOLD/UnknownBlocked; READY=false.'
       - name: Negativos de pacote real adulterado e transferencia incompleta
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
-          python $script negative --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --target (Join-Path $env:RUNNER_TEMP 'gf-e2e-negatives') --lab-old-variant
+          python $script negative --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old-preserved') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --target (Join-Path $env:RUNNER_TEMP 'gf-e2e-negatives') --lab-old-variant
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_PACKAGE_NEGATIVES_FAILED' }
 # Only three TEST TUF metadata role assets are refreshed in the existing Draft. Never publish it or change executable ZIP/manifest.

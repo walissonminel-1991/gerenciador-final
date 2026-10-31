@@ -142,7 +142,8 @@ internal static partial class L18Coordinator
         var canary=c.Files.Single(x=>x.Path=="PERSONAL-KEEP-UNCHANGED.txt");
         Require(canary.Sha==Hash(System.Text.Encoding.UTF8.GetBytes("DO-NOT-TOUCH-MY-DATA\n")),"REAL_CANARY_BASELINE_FORK");
     }
-    private static async Task RunRealObserver(string src,RealLabContext c,string mode)
+    private static async Task RunRealObserver(string src,RealLabContext c,string mode,
+        bool observeInstalledNew=false)
     {
         Require(mode is "--recovery-verify" or "--recovery-observe" or
             "--recovery-observe-trial" or "--recovery-observe-trial-negative","REAL_OBSERVER_MODE");
@@ -162,6 +163,8 @@ internal static partial class L18Coordinator
         var info=new ProcessStartInfo(c.Python){UseShellExecute=false,CreateNoWindow=true,
             RedirectStandardOutput=true,RedirectStandardError=true,WorkingDirectory=c.Repository};
         foreach(var arg in new[]{c.Script,mode,src})info.ArgumentList.Add(arg);
+        info.Environment["GF_E2E_L18_OBSERVE_INSTALLED_NEW"]=
+            observeInstalledNew?"1":"0";
         using var child=Process.Start(info) ?? throw new Rejected("REAL_OBSERVER_NOT_CREATED");
         string error=await SuperviseRealObserver(src,c,mode,child,TimeSpan.FromSeconds(80));
         if(child.ExitCode==0 && mode=="--recovery-observe-trial")
@@ -265,6 +268,101 @@ internal static partial class L18Coordinator
         File.Move(pending,RealCutPath(src)); // publish only after write/flush/close
         await Task.Delay(Timeout.Infinite); // killed only by retained test process handle
     }
+    // Physically swap the actual portable GF installation under RUNNER_TEMP.
+    // This is an irreversible TEST-ONLY mutation; failure preserves every
+    // surviving directory for HOLD, with NO rollback or automatic cleanup.
+    // The authority to enter here is the live SAME L18 owner with NEW/2
+    // already selected and fenced, not a separate filesystem selector.
+    private static void SwapRealInstalledPackageAfterOldExit(string src,RealLabContext c)
+    {
+        Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+            Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==
+                "walissonminel-1991/gerenciador-final",
+            "REAL_INSTALL_SWAP_NOT_DISPOSABLE_RUNNER");
+        string runner=Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+            throw new Rejected("REAL_INSTALL_RUNNER_MISSING"));
+        string live=Path.Combine(runner,"gf-e2e-old");
+        string retained=Path.Combine(runner,"gf-e2e-old-preserved");
+        string incoming=Path.Combine(runner,"gf-e2e-authenticated-new");
+        string data=Path.Combine(runner,"gf-e2e-install-data","PERSONAL-KEEP-UNCHANGED.txt");
+        string receipt=Path.Combine(runner,"gf-e2e-live-install-transition.json");
+        Require(Directory.Exists(runner) && Directory.Exists(live) &&
+            Directory.Exists(incoming) && !Directory.Exists(retained) &&
+            !File.Exists(retained) && !File.Exists(receipt) &&
+            File.Exists(data) &&
+            File.ReadAllText(data,new System.Text.UTF8Encoding(false))==
+                "DO-NOT-TOUCH-MY-DATA\n",
+            "REAL_INSTALL_SWAP_PATHS_OR_CANARY");
+        using(var dataPin=new FileStream(data,FileMode.Open,FileAccess.Read,
+            FileShare.Read))
+        {
+            Require(dataPin.Length==21 &&
+                System.Text.Encoding.UTF8.GetString(
+                    new BinaryReader(dataPin).ReadBytes(21))=="DO-NOT-TOUCH-MY-DATA\n",
+                "REAL_INSTALL_DATA_CANARY_NOT_PINNED");
+            // Exact full file-set comparison against the SAME L18 signed
+            // manifest and retained NTFS pins. No links or extra files.
+            void CheckPackage(string root,string expectedPrefix)
+            {
+                var expected=c.Files.Where(f=>f.Path.StartsWith(expectedPrefix,
+                    StringComparison.Ordinal)).ToArray();
+                Require(expected.Length>80 && Directory.Exists(root) &&
+                    (File.GetAttributes(root)&FileAttributes.ReparsePoint)==0,
+                    "REAL_INSTALL_PACKAGE_DIRECTORY_INVALID");
+                var actual=new List<string>();
+                void Walk(string current)
+                {
+                    foreach(string entry in Directory.EnumerateFileSystemEntries(current))
+                    {
+                        Require((File.GetAttributes(entry)&FileAttributes.ReparsePoint)==0,
+                            "REAL_INSTALL_REPARSE_DENIED");
+                        if(Directory.Exists(entry))Walk(entry);
+                        else actual.Add(Path.GetRelativePath(root,entry).Replace('\\','/'));
+                    }
+                }
+                Walk(root);
+                Require(actual.Count==expected.Length &&
+                    actual.Order(StringComparer.Ordinal).SequenceEqual(expected
+                        .Select(f=>f.Path[expectedPrefix.Length..])
+                        .Order(StringComparer.Ordinal)),
+                    "REAL_INSTALL_PACKAGE_FILESET_MISMATCH");
+                foreach(var file in expected)
+                {
+                    string rel=file.Path[expectedPrefix.Length..].Replace('/',
+                        Path.DirectorySeparatorChar);
+                    string dest=Path.Combine(root,rel);
+                    using var stream=new FileStream(dest,FileMode.Open,FileAccess.Read,
+                        FileShare.Read);
+                    Require(stream.Length==file.Length &&
+                        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream))
+                            .Equals(file.Sha,StringComparison.OrdinalIgnoreCase),
+                        "REAL_INSTALL_PACKAGE_BYTES_NOT_PINNED");
+                }
+            }
+            RequireRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"new",2);
+            CheckPackage(live,"real/old/");
+            CheckPackage(incoming,"real/new/");
+            // OLD is no longer running: the caller waited on the OPENED,
+            // identity-checked kernel handle and rechecked exit code zero.
+            Directory.Move(live,retained);
+            // On failure the OLD directory stays preserved under retained.
+            // NEVER auto-restore on unknown effects or replay.
+            Directory.Move(incoming,live);
+            CheckPackage(retained,"real/old/");
+            CheckPackage(live,"real/new/");
+            Require(File.ReadAllText(data,new System.Text.UTF8Encoding(false))==
+                    "DO-NOT-TOUCH-MY-DATA\n",
+                "REAL_INSTALL_DATA_CHANGED");
+        }
+        DurableRealFile(receipt,JsonSerializer.SerializeToUtf8Bytes(new{
+            schema="gf-e2e-live-portable-install/1",
+            physically_installed_new_at_original_old_path=true,
+            retained_old_bytes=true,private_data_canary_unchanged=true,
+            selected="new",generation=2,install_path_under_runner_temp=true,
+            no_rollback_performed=true,test_only=true,operational_ready=false
+        }));
+    }
+
     internal static async Task RealOwner(string src,string lab,string bootstrap,string cut,int originalOldPid=0)
     {
         var c=LoadRealContext(src,lab);
@@ -272,9 +370,9 @@ internal static partial class L18Coordinator
         // BEFORE signalling the selector barrier, retain its kernel handle
         // across exit, and prove the real image path. A numeric PID by itself
         // never authorizes launch, recovery, or READY.
-        using Process? originalOld = cut=="handoff"
+        using Process? originalOld = cut is "handoff" or "handoff-install"
             ? Process.GetProcessById(originalOldPid) : null;
-        if(cut=="handoff")
+        if(cut is "handoff" or "handoff-install")
         {
             string originalImage=Path.Combine(
                 Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
@@ -310,7 +408,7 @@ internal static partial class L18Coordinator
             return; // Never fall through to functional observation.
         }
         Append(src,lab,Switching,"real-new-selection-intent",c.ManifestSha);
-        if(cut is "normal" or "handoff" or "before-old-observation" or "positive-trial" or "positive-trial-negative")
+        if(cut is "normal" or "handoff" or "handoff-install" or "before-old-observation" or "positive-trial" or "positive-trial-negative")
         {
             // The normal experiment uses the SAME retained context, NTFS pins,
             // L18 journal and Job Object as restarted-process reconciliation.
@@ -346,7 +444,7 @@ internal static partial class L18Coordinator
         Append(src,lab,Launched,"real-new-effects-fenced-before-create",c.ManifestSha);
         string selected=SelectedRealPath(src,c,out var slot,out _);
         Require(slot=="new","REAL_OWNER_NOT_NEW");
-        if(cut=="handoff")
+        if(cut is "handoff" or "handoff-install")
         {
             Require(originalOld is not null && !originalOld.HasExited &&
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
@@ -390,10 +488,16 @@ internal static partial class L18Coordinator
                     old_exit_code=0,selector="new",generation=2,
                     test_only=true,operational_ready=false
                 }));
-            // EXACT SAME L18/Python selected-package observer used by normal.
-            // It creates one verified NEW process from the selector (NEW/2),
-            // checks its real WinForms UI for a bounded session, then closes
-            // the owned test process normally; no independent CI launch.
+            if(cut=="handoff-install")
+            {
+                SwapRealInstalledPackageAfterOldExit(src,c);
+                RequireRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"new",2);
+                pins.Recheck();VerifyRealManifest(src,c);
+            }
+            // SAME selected NEW/2 observer. In handoff-install mode ONLY,
+            // it runs the authenticated bytes now physically installed at
+            // the original portable GF location, NOT the fixture slot.
+            // It still checks selection and the package in phase1_lab.py.
         }
         if(cut is "positive-trial" or "positive-trial-negative")
         {
@@ -419,13 +523,14 @@ internal static partial class L18Coordinator
             Console.WriteLine("GF_PHASE1_TRIAL_NEW_POSITIVE; READY=false; recovery=false; operational=false");
             return;
         }
-        if(cut is "normal" or "handoff")
+        if(cut is "normal" or "handoff" or "handoff-install")
         {
             // This is NOT a safe post-NEW rollback: a successful health probe
             // cannot establish that external/brokered effects have quiesced.
             // Leave the launch fence and NEW selector intact for the SAME
             // reconciler to return UnknownBlocked in a separate process.
-            await RunRealObserver(src,c,"--recovery-observe");
+            await RunRealObserver(src,c,"--recovery-observe",
+                observeInstalledNew:cut=="handoff-install");
             await job.RequireOnlyCurrentProcess();
             pins.Recheck();VerifyRealManifest(src,c);
             RequireRealSelector(src,c.Installation,c.Transaction,c.ManifestSha,"new",2);

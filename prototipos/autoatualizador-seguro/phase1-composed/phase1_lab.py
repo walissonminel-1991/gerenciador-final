@@ -652,6 +652,43 @@ def recovery_tool(mode, source):
                                           c["installation"], c["transaction"], c["manifestSha"])
         files = m["old_files"] if selected == "old" else m["files"]
         report_slot = selected
+    observed_installed_new = False
+    if os.environ.get("GF_E2E_L18_OBSERVE_INSTALLED_NEW") == "1":
+        # SAME L18 selected-package observer; no independent executable.
+        require(mode == "--recovery-observe" and report_slot == "new"
+                and generation == 2 and
+                os.environ.get("GITHUB_REPOSITORY") ==
+                "walissonminel-1991/gerenciador-final",
+                "LIVE_INSTALL_OBSERVER_NOT_SELECTED_NEW")
+        read_coordinator_selector(src, "new", 2, c["installation"],
+                                  c["transaction"], c["manifestSha"])
+        runner = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+        live = runner / "gf-e2e-old"
+        backup = runner / "gf-e2e-old-preserved"
+        receipt = runner / "gf-e2e-live-install-transition.json"
+        canary = runner / "gf-e2e-install-data" / "PERSONAL-KEEP-UNCHANGED.txt"
+        require(live.is_dir() and not live.is_symlink() and
+                live.resolve(strict=True) == live and
+                backup.is_dir() and not backup.is_symlink() and
+                backup.resolve(strict=True) == backup and
+                receipt.is_file() and not receipt.is_symlink() and
+                canary.read_bytes() == b"DO-NOT-TOUCH-MY-DATA\n",
+                "LIVE_INSTALL_DIRECTORY_OR_DATA_MISSING")
+        staged = json.loads(receipt.read_bytes())
+        require(staged == {
+            "schema": "gf-e2e-live-portable-install/1",
+            "physically_installed_new_at_original_old_path": True,
+            "retained_old_bytes": True,
+            "private_data_canary_unchanged": True,
+            "selected": "new", "generation": 2,
+            "install_path_under_runner_temp": True,
+            "no_rollback_performed": True, "test_only": True,
+            "operational_ready": False,
+        }, "LIVE_INSTALL_RECEIPT_CONTRADICTORY")
+        validate_package(backup, m["old_files"])
+        validate_package(live, m["files"])
+        directory = live
+        observed_installed_new = True
     trial_mode = mode in ("--recovery-observe-trial", "--recovery-observe-trial-negative")
     if trial_mode:
         require(report_slot == "new" and generation == 2,
@@ -664,6 +701,7 @@ def recovery_tool(mode, source):
             directory, files["GerenciadorFinal.exe"]["sha256"],
             expected_inventory_name=expected_name if trial_mode else None)
         observation["trial_registry_seed_created"] = (mode == "--recovery-observe-trial")
+        observation["observed_from_live_installation"] = observed_installed_new
     # Diagnostic report does not confer recovery/READY authority on Python.
     observation.pop("pid_observed", None)
     (src / ("real-observed-" + report_slot + ".fixture.json")).write_text(
