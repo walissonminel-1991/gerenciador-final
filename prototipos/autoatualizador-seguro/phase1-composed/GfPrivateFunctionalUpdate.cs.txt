@@ -195,6 +195,26 @@ internal static class GfPrivateFunctionalUpdate
         return "WORKER_STARTED";
     }
 
+    // Same coordinator as GitHub public Release; only TEST source is copied
+    // from a local CI-generated ZIP, with no external download or release.
+    internal static Task PrepareOfficialFixtureAsync()
+    {
+        Require(LabEnabled, "OFFICIAL_FIXTURE_RUNNER_ONLY");
+        string archive = Path.Combine(Root(), "gf-private-e2e-new.zip");
+        Require(File.Exists(archive), "OFFICIAL_FIXTURE_PACKAGE_MISSING");
+        long size = new FileInfo(archive).Length;
+        string digest;
+        using (var stream = File.OpenRead(archive))
+            digest = Convert.ToHexString(SHA256.HashData(stream));
+        var release = new GfGithubWeeklyUpdate.Release(
+            new Version(5,13,11,66), 1, size, digest);
+        return PrepareOfficialReleaseAsync(release, (_, destination) =>
+        {
+            File.Copy(archive, destination, overwrite: false);
+            return Task.FromResult(destination);
+        });
+    }
+
     // Same functional coordinator pattern proven by CI 41229672721.
     // This path uses the OFFICIAL GitHub public release and never requires a
     // local HTTP server, a GitHub token, or Python on the user's machine.

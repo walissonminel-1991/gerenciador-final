@@ -235,3 +235,20 @@ jobs:
           '@
           $health | python - $root
           if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_FUNCTIONAL_NEW_HEALTH_FAILED' }
+
+          # Validate the NEW GitHub-release coordinator with a local .66 asset.
+          # This tests the real installed-folder swap without publishing a Release.
+          $retained=Join-Path $root 'gf-private-e2e-old-preserved'
+          $fixture=Start-Process -FilePath (Join-Path $retained 'GerenciadorFinal.exe') -WorkingDirectory $retained -ArgumentList '--gf-private-github-fixture' -PassThru
+          if (!$fixture.WaitForExit(100000) -or $fixture.ExitCode -ne 0) { throw "PRIVATE_GITHUB_WORKER_FIXTURE_FAILED_$($fixture.ExitCode)" }
+          $folder=Join-Path $root '.gf-private-e2e-old-preserved-gfupdate-5.13.11.66'
+          $report=Join-Path $folder 'applied.json'
+          $until=[DateTime]::UtcNow.AddSeconds(60)
+          while (!(Test-Path -LiteralPath $report) -and [DateTime]::UtcNow -lt $until) { Start-Sleep -Milliseconds 250 }
+          if (!(Test-Path -LiteralPath $report)) { throw 'PRIVATE_GITHUB_WORKER_NO_HEALTH_RECEIPT' }
+          $json=Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
+          if ($json.schema -ne 'gf-private-github-update/1' -or $json.ready -or $json.installed_version -ne '5.13.11.66') { throw 'PRIVATE_GITHUB_WORKER_RECEIPT_INVALID' }
+          $actual=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $retained 'GerenciadorFinal.dll')).Version.ToString()
+          $oldRetained=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $folder 'old-preserved/GerenciadorFinal.dll')).Version.ToString()
+          if ($actual -ne '5.13.11.66' -or $oldRetained -ne '5.13.11.65') { throw 'PRIVATE_GITHUB_WORKER_INSTALLED_VERSION_WRONG' }
+          Write-Host 'GF_GITHUB_WORKER_FUNCTIONAL_PASS new=5.13.11.66 original_path=true backup_preserved=true mainform_verified=true fixture_only=true READY=false'

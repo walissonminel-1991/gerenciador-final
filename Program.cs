@@ -42,6 +42,18 @@ internal static class Program
                 return 22;
             }
         }
+        if (args.Length == 1 && args[0] == "--gf-private-github-fixture")
+        {
+            try
+            {
+                GfPrivateFunctionalUpdate.PrepareOfficialFixtureAsync()
+                    .GetAwaiter().GetResult();
+                return 0;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or
+                                           UnauthorizedAccessException)
+            { return 25; }
+        }
         if (args.Length == 4 && args[0] == "--gf-private-github-worker")
         {
             try { return GfPrivateFunctionalUpdate.RunGithubWorker(args); }
