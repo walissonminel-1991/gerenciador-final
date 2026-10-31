@@ -114,6 +114,9 @@ def run(d0,coordinator):
         first=check_observation(execute(coordinator,"--d243",v1,trusted),True)
         require(first["observed_role_generation"]==1,"D243_INITIAL_GENERATION")
         # Snapshot of SAME-USER trust state is intentionally available to attacker.
+        cache_state={name:(trusted/name).stat().st_size if (trusted/name).is_file() else None
+                     for name in ("root.json","timestamp.json","snapshot.json","targets.json")}
+        print("GF_D243_CACHE_AFTER_V1 "+json.dumps(cache_state,sort_keys=True),flush=True)
         snapshot=case/"saved-v1-trust"
         shutil.copytree(trusted,snapshot)
         # Lock contention: one C# process holds cooperative mutex; second
