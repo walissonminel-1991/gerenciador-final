@@ -318,6 +318,22 @@ internal static class GfOldDraftAcquire
             recordStage("l18_bridge_start");
             using var bridgeChild = Process.Start(psi);
             Require(bridgeChild is not null,"L18_SELECTED_NEW_BRIDGE_NOT_CREATED");
+            if (Environment.GetEnvironmentVariable("GF_E2E_POST_OWNER_PERSISTENCE") == "1")
+            {
+                // A process-identity diagnostic only. CI later compares
+                // the start time to avoid mistaking PID reuse for L18 exit.
+                // Neither this record nor process exit grants READY.
+                using var diag=new FileStream(Path.Combine(runner,
+                    "gf-e2e-original-l18-process.json"),FileMode.CreateNew,
+                    FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough);
+                byte[] bytes=JsonSerializer.SerializeToUtf8Bytes(new{
+                    schema="gf-e2e-original-l18-process/1",
+                    process_id=bridgeChild!.Id,
+                    process_start_utc_ticks=bridgeChild.StartTime.ToUniversalTime().Ticks,
+                    test_only=true,operational_ready=false
+                });
+                diag.Write(bytes);diag.Flush(true);
+            }
             recordStage("l18_selector_wait");
             string selectedReady=Path.Combine(runner,"gf-e2e-selected-new-ready.json");
             var deadline=Stopwatch.StartNew();

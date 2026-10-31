@@ -689,6 +689,28 @@ def recovery_tool(mode, source):
         validate_package(live, m["files"])
         directory = live
         observed_installed_new = True
+    post_l18_selected_observation = (
+        os.environ.get("GF_E2E_POST_EXIT_SELECTED_OBSERVE") == "1")
+    if post_l18_selected_observation:
+        # POST-EXIT laboratory check uses the EXISTING, selector-gated
+        # observer. It is NOT a free-form launcher and MUST reject any
+        # selected slot other than the authenticated NEW/2. It runs one
+        # bounded UI session after the original coordinator exits.
+        require(observed_installed_new and mode == "--recovery-observe"
+                and report_slot == "new" and generation == 2,
+                "POST_L18_NOT_NEW2_SELECTED")
+        runner = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+        p = runner / "gf-e2e-postexit-selected-root.json"
+        require(p.is_file() and not p.is_symlink(),
+                "POST_L18_ORIGINAL_SELECTOR_POINTER_MISSING")
+        retained = json.loads(p.read_bytes())
+        require(retained == {
+            "schema": "gf-e2e-postexit-selected-root/1",
+            "root": str(src), "selector": "new", "generation": 2,
+            "retained_from_same_l18": True,
+            "recovery_authorized": False, "operational_ready": False,
+            "test_only": True
+        }, "POST_L18_SELECTED_SOURCE_MISMATCH")
     trial_mode = mode in ("--recovery-observe-trial", "--recovery-observe-trial-negative")
     if trial_mode:
         require(report_slot == "new" and generation == 2,
@@ -729,6 +751,30 @@ def recovery_tool(mode, source):
         require(health.get("seeded_inventory_negative_control_observed") is True,
                 "TRIAL_NEGATIVE_SEARCH_CONTROL_NOT_OBSERVED")
     validate_package(directory, files)
+    if post_l18_selected_observation:
+        result_path = Path(os.environ["RUNNER_TEMP"]) / (
+            "gf-e2e-postexit-selected-new-ui.json")
+        require(not result_path.exists() and
+                observation.get("observed_from_live_installation") is True and
+                observation.get("actual_image_path_matches") is True and
+                observation.get("image_on_disk_sha_matches_manifest") is True and
+                observation.get("graceful_shutdown_verified_for_owned_process") is True and
+                observation.get("readonly_inventory_search_health", {}).get(
+                    "minimum_readonly_health_contract_observed") is True,
+                "POST_L18_FUNCTIONAL_HEALTH_NOT_OBSERVED")
+        result_path.write_text(json.dumps({
+            "schema": "gf-e2e-postexit-selected-new-ui/1",
+            "selector": "new", "generation": 2,
+            "new_started_from_original_portable_install_path": True,
+            "exact_new_executable_hash_checked": True,
+            "readonly_functional_ui_observed": True,
+            "graceful_exit_observed": True,
+            "test_only": True, "operational_ready": False,
+            "automatic_recovery_authorized": False,
+        }, sort_keys=True), encoding="utf-8")
+        print("GF_E2E_POST_L18_SELECTED_NEW_FUNCTIONAL "
+              "selector=new/2 install=NEW ui=READONLY_HEALTHY "
+              "independent_unselected_launch=false HOLD=true READY=false")
     return 0
 
 

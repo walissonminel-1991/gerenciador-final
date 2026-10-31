@@ -130,6 +130,7 @@ jobs:
           GF_E2E_SELF_GRACEFUL_CLOSE: '1'
           GF_E2E_SELECTED_NEW_CONTINUATION: '1'
           GF_E2E_LIVE_INSTALL_SWAP: '1'
+          GF_E2E_POST_OWNER_PERSISTENCE: '1'
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
@@ -364,6 +365,103 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_REAL_PORTABLE_INSTALL_FILESET_OR_CANARY_INVALID_HOLD' }
           Write-Host 'GF_E2E_REAL_PORTABLE_INSTALL_UPDATED_BY_SAME_L18 selector=new/2 original_install=NEW backup=OLD data=UNCHANGED UI=FUNCTIONAL_READONLY HOLD=UnknownBlocked READY=false'
           Add-Content $env:GITHUB_STEP_SUMMARY 'Original portable GF OLD path was physically replaced with authenticated NEW only by SAME L18 new/2, after original OLD exit=0; verified old backup and data-canary preserved; selected observer launched new from original install path, HOLD/UnknownBlocked; READY=false.'
+      - name: Persistencia de new/2 e interface funcional APOS encerramento do L18 original
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $runner=[System.IO.Path]::GetFullPath($env:RUNNER_TEMP)
+          $procRef=Join-Path $runner 'gf-e2e-original-l18-process.json'
+          $sourceRef=Join-Path $runner 'gf-e2e-postexit-selected-root.json'
+          $installReceipt=Join-Path $runner 'gf-e2e-live-install-transition.json'
+          $completedReport=Join-Path $runner 'gf-e2e-real-flow-report.json'
+          if (!(Test-Path $procRef) -or !(Test-Path $sourceRef) -or
+              !(Test-Path $installReceipt) -or !(Test-Path $completedReport)) {
+            throw 'GF_E2E_POSTEXIT_MISSING_ORIGINAL_L18_OR_SELECTOR_HOLD'
+          }
+          $process=Get-Content $procRef -Raw | ConvertFrom-Json
+          $source=Get-Content $sourceRef -Raw | ConvertFrom-Json
+          if ($process.schema -ne 'gf-e2e-original-l18-process/1' -or
+              $process.process_id -le 0 -or $process.process_start_utc_ticks -le 0 -or
+              !$process.test_only -or $process.operational_ready -or
+              $source.schema -ne 'gf-e2e-postexit-selected-root/1' -or
+              $source.selector -ne 'new' -or $source.generation -ne 2 -or
+              !$source.retained_from_same_l18 -or !$source.test_only -or
+              $source.operational_ready -or $source.recovery_authorized) {
+            throw 'GF_E2E_POSTEXIT_REFERENCE_INVALID_HOLD'
+          }
+          # Observe the ORIGINAL coordinator process identity, never an
+          # unrelated process with a reused PID. A mismatched process blocks.
+          $deadline=[DateTime]::UtcNow.AddSeconds(75)
+          while ([DateTime]::UtcNow -lt $deadline) {
+            $still=Get-Process -Id ([int]$process.process_id) -ErrorAction SilentlyContinue
+            if ($null -eq $still) { break }
+            if ($still.StartTime.ToUniversalTime().Ticks -ne
+                [long]$process.process_start_utc_ticks) {
+              throw 'GF_E2E_POSTEXIT_PROCESS_PID_REUSED_HOLD'
+            }
+            Start-Sleep -Milliseconds 200
+          }
+          if ($null -ne $still) { throw 'GF_E2E_ORIGINAL_L18_STILL_RUNNING_HOLD' }
+          $root=[System.IO.Path]::GetFullPath([string]$source.root)
+          $tmp=[System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
+          if (!$root.StartsWith($tmp.TrimEnd([char]'\')+[char]'\',
+              [System.StringComparison]::OrdinalIgnoreCase) -or
+              !(Test-Path (Join-Path $root '.gf-u2-fixture')) -or
+              !(Test-Path (Join-Path $root 'l18-real-active.fixture.json')) -or
+              !(Test-Path (Join-Path $root 'l18-real-new-may-have-effects.fixture.txt'))) {
+            throw 'GF_E2E_POSTEXIT_ORIGINAL_L18_STATE_MISSING_HOLD'
+          }
+          $selector=Join-Path $root 'l18-real-active.fixture.json'
+          $beforeDigest=(Get-FileHash -LiteralPath $selector -Algorithm SHA256).Hash
+          $state=Get-Content -LiteralPath $selector -Raw | ConvertFrom-Json
+          $context=Get-Content -LiteralPath (Join-Path $root 'l18-real-context.fixture.json') -Raw | ConvertFrom-Json
+          if ($state.schema -ne 'gf-l18-real-active-lab/1' -or
+              $state.selected -ne 'new' -or $state.generation -ne 2 -or
+              $state.installation -ne $context.Installation -or
+              $state.transaction -ne $context.Transaction -or
+              $state.manifest_sha256 -ne $context.ManifestSha -or
+              !$state.test_only -or $state.operational_installable) {
+            throw 'GF_E2E_POSTEXIT_ORIGINAL_SELECTOR_NOT_NEW2_HOLD'
+          }
+          Write-Host 'GF_E2E_ORIGINAL_L18_PROCESS_EXITED original_identity_checked=true'
+          Write-Host 'GF_E2E_ORIGINAL_SELECTOR_PERSISTED_AFTER_L18_EXIT selected=new/2 HOLD=true READY=false'
+          # Reuse precisely the EXISTING L18 selected-package Python
+          # observer, with no newly invented selector/launcher. This is a
+          # single bounded post-exit UI test, NOT automatic retry/recovery.
+          $env:GF_E2E_L18_OBSERVE_INSTALLED_NEW='1'
+          $env:GF_E2E_POST_EXIT_SELECTED_OBSERVE='1'
+          $env:GF_E2E_STARTUP_DRAFT_PROBE='0'
+          $env:GF_E2E_SELECTED_NEW_CONTINUATION='0'
+          $env:GF_E2E_HANDOFF_L18='0'
+          try {
+            python prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py --recovery-observe $root
+            if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_POSTEXIT_SELECTED_OBSERVER_REJECTED_HOLD' }
+          }
+          finally {
+            Remove-Item Env:GF_E2E_L18_OBSERVE_INSTALLED_NEW -ErrorAction SilentlyContinue
+            Remove-Item Env:GF_E2E_POST_EXIT_SELECTED_OBSERVE -ErrorAction SilentlyContinue
+          }
+          $afterDigest=(Get-FileHash -LiteralPath $selector -Algorithm SHA256).Hash
+          $observation=Join-Path $runner 'gf-e2e-postexit-selected-new-ui.json'
+          if ($beforeDigest -ne $afterDigest -or !(Test-Path $observation)) {
+            throw 'GF_E2E_POSTEXIT_SELECTOR_MUTATED_OR_UI_UNPROVEN_HOLD'
+          }
+          $proof=Get-Content -LiteralPath $observation -Raw | ConvertFrom-Json
+          if ($proof.schema -ne 'gf-e2e-postexit-selected-new-ui/1' -or
+              $proof.selector -ne 'new' -or $proof.generation -ne 2 -or
+              !$proof.new_started_from_original_portable_install_path -or
+              !$proof.exact_new_executable_hash_checked -or
+              !$proof.readonly_functional_ui_observed -or
+              !$proof.graceful_exit_observed -or !$proof.test_only -or
+              $proof.operational_ready -or $proof.automatic_recovery_authorized) {
+            throw 'GF_E2E_POSTEXIT_FUNCTIONAL_OR_CONTAINMENT_UNPROVEN_HOLD'
+          }
+          # No OLD cleanup, reselect, rollback, READY or migration occurs.
+          # Verify again in the existing independent file-set verification
+          # flow above; this step proves the selector wasn't deleted by
+          # L18's test harness and survives ONE coordinator exit.
+          Write-Host 'GF_E2E_POSTEXIT_PERSISTENCE_PROVEN selector=new/2 install=5.13.11.66 UI=FUNCTIONAL_READONLY original_coordinator=EXITED old_preserved=true READY=false'
+          Add-Content $env:GITHUB_STEP_SUMMARY 'POST-EXIT proof: original L18 coordinator exited; original same L18 selector new/2 survived and was unchanged; existing selector-gated observer launched one bounded functional NEW UI from original portable install; OLD backup intact; HOLD/UnknownBlocked, READY=false.'
       - name: Negativos de pacote real adulterado e transferencia incompleta
         shell: pwsh
         run: |

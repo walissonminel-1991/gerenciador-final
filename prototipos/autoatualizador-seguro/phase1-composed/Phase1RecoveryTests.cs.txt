@@ -443,6 +443,18 @@ internal static class Phase1RecoveryTests
     {
         using var s=await L16Tests.Prepared();string src=s.Source.Root;
         var c=await Prepare(s,a);
+        if(name=="handoff-install" &&
+            Environment.GetEnvironmentVariable("GF_E2E_POST_OWNER_PERSISTENCE")=="1" &&
+            Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+            Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==
+                "walissonminel-1991/gerenciador-final")
+        {
+            // The SAME fixture that RealOwner, the selector and ReconcileReal
+            // actually used must survive the owner process exit. Retaining
+            // it is test evidence only, never a durable recovery witness.
+            Require(L16Tests.PostExitRetainedRoot is null,"REAL_POSTEXIT_ALREADY_RETAINED");
+            L16Tests.PostExitRetainedRoot=src;
+        }
         using var contextPin=WindowsFileGuard.Open(src,L18Coordinator.RealContextPath(src));
         using var pins=new RealLabPins(src,c); // retained through owner death and reconciliation
         using var owner=LabProcessJob.Create(c.OwnerJob);
@@ -1320,6 +1332,29 @@ internal static class Phase1RecoveryTests
                         recovery_authorized=false,production_tuf_authority=false,
                         single_live_l18_selector_session_proved=true};
                     File.WriteAllText(a[1],JsonSerializer.Serialize(report));
+                    if(installationSwap &&
+                        Environment.GetEnvironmentVariable("GF_E2E_POST_OWNER_PERSISTENCE")=="1")
+                    {
+                        string retained=L16Tests.PostExitRetainedRoot ??
+                            throw new Rejected("REAL_POSTEXIT_SOURCE_NOT_RETAINED");
+                        Require(Directory.Exists(retained) &&
+                            File.Exists(Path.Combine(retained,"l18-real-active.fixture.json")) &&
+                            File.Exists(Path.Combine(retained,"l18-real-new-may-have-effects.fixture.txt")),
+                            "REAL_POSTEXIT_SELECTOR_OR_FENCE_MISSING");
+                        string runnerTemp=Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+                            throw new Rejected("REAL_POSTEXIT_RUNNER_NOT_PRESENT");
+                        // Only a pointer to the same file system selector for
+                        // the follow-up test, never an alternative selection.
+                        L18Coordinator.DurableRealFile(
+                            Path.Combine(runnerTemp,"gf-e2e-postexit-selected-root.json"),
+                            JsonSerializer.SerializeToUtf8Bytes(new{
+                                schema="gf-e2e-postexit-selected-root/1",
+                                root=retained,selector="new",generation=2,
+                                retained_from_same_l18=true,
+                                recovery_authorized=false,operational_ready=false,
+                                test_only=true
+                            }));
+                    }
                     // This report is a CI witness only, never L18 recovery authority.
                     string runner=Environment.GetEnvironmentVariable("RUNNER_TEMP")!;
                     File.WriteAllText(Path.Combine(runner,"gf-e2e-old-l18-handoff-report.json"),
@@ -1343,7 +1378,17 @@ internal static class Phase1RecoveryTests
                         +" original_portable_install_swapped="+installationSwap);
                     return 0;
                 }
-                finally {Directory.Delete(L16Tests.suite,true);}
+                finally
+                {
+                    // Do not erase the exact L18 selector before the post-exit
+                    // CI witness can read it. Runner-temp is reclaimed by CI.
+                    if(!(installationSwap &&
+                        Environment.GetEnvironmentVariable("GF_E2E_POST_OWNER_PERSISTENCE")=="1" &&
+                        Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+                        Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==
+                            "walissonminel-1991/gerenciador-final"))
+                        Directory.Delete(L16Tests.suite,true);
+                }
             }
             // Focused transition: the same RealOwner, selector, Job, journal,
             // pins and reconciler used in the 29-case regression, without
