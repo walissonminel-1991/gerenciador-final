@@ -68,11 +68,18 @@ jobs:
           $d0=Join-Path $env:RUNNER_TEMP 'gf-d24-d0\GF.D11.D0Probe.exe'
           $exe=Join-Path $env:RUNNER_TEMP 'gf-d24-bridge\GF.D24.InertChainLab.exe'
           $script='prototipos/autoatualizador-seguro/github-d24-integrated/d24_chain_lab.py'
-          $line=(python $script $d0 $exe | Select-Object -Last 1)
-          if ($LASTEXITCODE -ne 0 -or !$line -or !$line.StartsWith('GF_D24_RESULT ')) {
-            throw 'D24_TEST_INCOMPLETE'
+          $out=Join-Path $env:RUNNER_TEMP 'd242-stdout.txt'
+          $err=Join-Path $env:RUNNER_TEMP 'd242-stderr.txt'
+          python $script $d0 $exe 1> $out 2> $err
+          $exitCode=$LASTEXITCODE
+          Get-Content $out | ForEach-Object { Write-Host $_ }
+          if ($exitCode -ne 0) {
+            Get-Content $err | ForEach-Object { Write-Host $_ }
+            throw 'D242_TEST_INCOMPLETE'
           }
-          $r=$line.Substring('GF_D24_RESULT '.Length) | ConvertFrom-Json
+          $line=(Get-Content $out | Where-Object { $_.StartsWith('GF_D242_RESULT ') } | Select-Object -Last 1)
+          if (!$line) { throw 'D242_RESULT_MISSING' }
+          $r=$line.Substring('GF_D242_RESULT '.Length) | ConvertFrom-Json
           Write-Host $line
           if ($r.schema -ne 'gf-d242-csharp-owned-tuf-session/1' -or
               $r.status -ne 'passed' -or
