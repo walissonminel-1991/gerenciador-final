@@ -2922,7 +2922,7 @@ internal sealed partial class MainForm : Form
                             await WindowsTerminalUpdater.CurrentUserVersionAsync(wait.Token) == before,
                         async () => { await Task.Run(() => WindowsTerminalUpdater.DeployAsync(bundle, Status, wait.Token, () => installerStarted = true)); return 0; },
                         async () => await UpdateInstallationContract.ConfirmAfterAsync(async () =>
-                            await WindowsTerminalUpdater.CurrentUserVersionAsync(wait.Token) is Version installed && installed >= targetVersion, wait.Token), wait.Token, operation.Report);
+                            await WindowsTerminalUpdater.CurrentUserVersionAsync(wait.Token) is Version installed && installed >= targetVersion, wait.Token), wait.Token, operation.Report, () => installerStarted);
                 }
                 finally { _deploymentWaitCts = null; if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar"; }
                 operation.Complete(result);
@@ -3079,7 +3079,8 @@ internal sealed partial class MainForm : Form
                     () => Task.Run(() => VerifiedUpdaters.LaunchAsync(recipe, verifiedInstaller, Status, () => installerStarted = true, wait.Token)),
                     async () => await UpdateInstallationContract.ConfirmAfterAsync(async () =>
                         VerifiedUpdaters.ConfirmInstallation(recipe, entry, await Task.Run(AppServices.GetInstalledPrograms).WaitAsync(TimeSpan.FromSeconds(12), wait.Token)), wait.Token),
-                    wait.Token, progress: operation.Report);
+                    wait.Token, progress: operation.Report,
+                    hasConfirmedInstallerStart: () => installerStarted);
                 _deploymentWaitCts = null;
                 if (_checkUpdatesButton is not null) _checkUpdatesButton.Text = "Atualizar e verificar";
                 operation.Complete(result);
@@ -3117,9 +3118,14 @@ internal sealed partial class MainForm : Form
             }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
             {
-                operation.Finish(UpdateStage.AuthorizationDeclined);
-                Log("Autorização UAC cancelada; nenhum instalador concluído.");
-                Status("Atualização cancelada pelo Windows.");
+                operation.Finish(installerStarted ? UpdateStage.Pending : UpdateStage.AuthorizationDeclined,
+                    reason: installerStarted
+                        ? "O instalador foi iniciado; confira a versão antes de tentar novamente."
+                        : "Autorização UAC recusada antes do início.");
+                Log(installerStarted
+                    ? "Windows retornou cancelamento após iniciar instalador; resultado pendente, não repetir."
+                    : "Autorização UAC recusada antes da execução do instalador.");
+                Status(operation.Snapshot.Details);
             }
             catch (Exception ex)
             {

@@ -94,12 +94,13 @@ internal static class Work11ProgressTests
         check(store.Begin(reconstructed,"2.0") is null,"W11 snapshot antigo nao repete alvo confirmado");
 
         async Task<UpdateOperationSnapshot> Attempt(int exit, bool confirm, Action<CancellationTokenSource>? cancel = null,
-            Func<Task<int>>? launch = null, bool valid = true)
+            Func<Task<int>>? launch = null, bool valid = true, bool startedProof = false)
         {
             var op = new UpdateOperationStore().Begin(App(),"2.0")!;
             using var token = new CancellationTokenSource(); cancel?.Invoke(token);
             var result = await new UpdateLaunchGate().RunAsync(() => Task.FromResult(valid),
-                launch ?? (() => Task.FromResult(exit)), () => Task.FromResult(confirm), token.Token,op.Report);
+                launch ?? (() => Task.FromResult(exit)), () => Task.FromResult(confirm), token.Token,
+                op.Report, () => startedProof);
             op.Complete(result); return op.Snapshot;
         }
         check((await Attempt(0,true)).Progress.Stage == UpdateStage.Confirmed,"W11 retorno zero e versao comprovada confirma");
@@ -114,7 +115,23 @@ internal static class Work11ProgressTests
         check((await Attempt(0,true, valid:false)).Progress.Stage == UpdateStage.Blocked,"W11 identidade incompativel bloqueia");
         check((await Attempt(0,true,cancel:c=>c.Cancel())).Progress.Stage == UpdateStage.Cancelled,"W11 cancelar antes do lancamento cinza");
         check((await Attempt(0,true,launch:()=>throw new Win32Exception(1223))).Progress.Stage == UpdateStage.AuthorizationDeclined,
-            "W11 recusa UAC difere de cancelamento do download");
+            "W11 recusa UAC antes do processo permanece explicitamente recusada");
+        check((await Attempt(0,true,launch:()=>throw new Win32Exception(1223), startedProof:true)).Progress.Stage == UpdateStage.Pending,
+            "U8 ERROR_CANCELLED apos inicio comprovado nao finge recusa UAC");
+        {
+            var pendingStore = new UpdateOperationStore();
+            var pending = pendingStore.Begin(App(),"2.0")!;
+            var result = await new UpdateLaunchGate().RunAsync(
+                () => Task.FromResult(true),
+                () => throw new Win32Exception(1223),
+                () => Task.FromResult(true), progress:pending.Report,
+                hasConfirmedInstallerStart:() => true);
+            pending.Complete(result);
+            check(result.State == UpdateAttemptState.Indeterminate &&
+                !result.AuthorizationDeclined && pending.Snapshot.Progress.Stage == UpdateStage.Pending &&
+                pendingStore.Begin(App(),"2.0") is null,
+                "U8 lancamento confirmado mais cancelamento tardio retém bloqueio de repeticao");
+        }
         using (var token = new CancellationTokenSource())
         {
             var pendingStore = new UpdateOperationStore(); var pending = pendingStore.Begin(App(),"2.0")!;
