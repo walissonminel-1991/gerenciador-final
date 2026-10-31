@@ -11,6 +11,8 @@ on:
       - 'prototipos/autoatualizador-seguro/phase1-composed/http_cut_gui_observer.py'
       - 'prototipos/autoatualizador-seguro/phase1-composed/http_cut_gui_negative.ps1'
       - 'prototipos/autoatualizador-seguro/phase1-composed/http_cut_normal_negative.ps1'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/github_normal_gui_success.ps1'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/github_normal_gui_success_observer.py'
       - 'Program.cs'
       - 'prototipos/autoatualizador-seguro/phase1-composed/Phase1RecoveryTests.cs.txt'
       - 'prototipos/autoatualizador-seguro/phase1-composed/Phase1Recovery.cs.txt'
@@ -676,4 +678,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ./prototipos/autoatualizador-seguro/phase1-composed/http_cut_normal_negative.ps1
+      - name: Abertura NORMAL GF OLD baixa Draft real completo e permanece funcional
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./prototipos/autoatualizador-seguro/phase1-composed/github_normal_gui_success.ps1
 # Only three TEST TUF metadata role assets are refreshed in the existing Draft. Never publish it or change executable ZIP/manifest.

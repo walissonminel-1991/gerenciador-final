@@ -87,7 +87,9 @@ internal static class Program
                         string runner = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
                         if (!Directory.Exists(runner)) return;
                         string marker = Path.Combine(runner,
-                            Environment.GetEnvironmentVariable("GF_E2E_HTTP_UI_NORMAL_NEGATIVE")=="1"
+                            Environment.GetEnvironmentVariable("GF_E2E_GUI_NORMAL_SUCCESS")=="1"
+                            ? "gf-e2e-github-normal-startup-shown.json"
+                            : Environment.GetEnvironmentVariable("GF_E2E_HTTP_UI_NORMAL_NEGATIVE")=="1"
                             ? "gf-e2e-http-normal-startup-shown.json"
                             : Environment.GetEnvironmentVariable("GF_E2E_HTTP_UI_NEGATIVE")=="1"
                             ? "gf-e2e-http-ui-startup-shown.json"

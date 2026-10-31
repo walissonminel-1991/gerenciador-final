@@ -429,6 +429,7 @@ internal static class GfOldDraftAcquire
     internal static async Task<int> Run(Action? afterVerifiedLabHandoff = null)
     {
         string stage="guard";
+        bool normalSuccess=Environment.GetEnvironmentVariable("GF_E2E_GUI_NORMAL_SUCCESS")=="1";
         bool httpCutNegative=Environment.GetEnvironmentVariable("GF_E2E_HTTP_CUT_NEGATIVE")=="1";
         bool guiNegative=httpCutNegative &&
             Environment.GetEnvironmentVariable("GF_E2E_HTTP_UI_NEGATIVE")=="1";
@@ -452,8 +453,18 @@ internal static class GfOldDraftAcquire
             var runner = Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!);
             Require(!(guiNegative && normalGuiNegative),
                 "HTTP_GUI_NEGATIVE_MODES_MUTUALLY_EXCLUSIVE");
-            string dest = Path.GetFullPath(Path.Combine(runner, normalGuiNegative
-                ? "gf-e2e-http-normal-download"
+            if(normalSuccess)
+                Require(!httpCutNegative &&
+                    Environment.GetEnvironmentVariable("GF_E2E_STARTUP_DRAFT_PROBE")=="1" &&
+                    Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18")!="1" &&
+                    Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE")!="1" &&
+                    Environment.GetEnvironmentVariable("GF_E2E_SELECTED_NEW_CONTINUATION")!="1" &&
+                    Environment.GetEnvironmentVariable("GF_E2E_SWAP_CUT_AFTER_OLD_MOVE")!="1" &&
+                    Environment.GetEnvironmentVariable("GF_E2E_LIVE_INSTALL_SWAP")!="1",
+                    "GUI_SUCCESS_MUST_NOT_HANDOFF");
+            string dest = Path.GetFullPath(Path.Combine(runner, normalSuccess
+                ? "gf-e2e-github-normal-download"
+                : normalGuiNegative ? "gf-e2e-http-normal-download"
                 : guiNegative ? "gf-e2e-http-ui-download"
                 : httpCutNegative ? "gf-e2e-http-cut-download"
                 : "gf-e2e-github-download"));
@@ -498,7 +509,9 @@ internal static class GfOldDraftAcquire
                 operational_ready = false,
                 automatic_recovery_authorized = false
             };
-            File.WriteAllText(Path.Combine(runner, "gf-e2e-old-acquire-report.json"),
+            File.WriteAllText(Path.Combine(runner, normalSuccess
+                    ? "gf-e2e-github-normal-acquire-report.json"
+                    : "gf-e2e-old-acquire-report.json"),
                 JsonSerializer.Serialize(evidence));
             if (Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18") == "1")
             {
@@ -531,8 +544,9 @@ internal static class GfOldDraftAcquire
                 {
                     string temp = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
                     if (Directory.Exists(temp))
-                        File.WriteAllText(Path.Combine(temp, normalGuiNegative
-                            ? "gf-e2e-http-normal-failure.json"
+                        File.WriteAllText(Path.Combine(temp, normalSuccess
+                            ? "gf-e2e-github-normal-failure.json"
+                            : normalGuiNegative ? "gf-e2e-http-normal-failure.json"
                             : guiNegative ? "gf-e2e-http-ui-failure.json"
                             : httpCutNegative ? "gf-e2e-http-cut-failure.json"
                             : "gf-e2e-old-acquire-failure.json"),
