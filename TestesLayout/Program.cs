@@ -216,6 +216,15 @@ internal static class LayoutTests
         Console.WriteLine("OK: Inicializacao em todas as resolucoes >=720p, DPI 100/125/150/200%.");
         TestStartupBounds();
         TestWorkspaceProportions();
+        var p5Samples = new List<PerformanceSample>();
+        using (LocalPerformanceMetrics.Measure(PerformanceStage.InitialInventoryLoad, p5Samples.Add))
+            System.Threading.Thread.SpinWait(10000);
+        if (p5Samples.Count != 1 || p5Samples[0].Stage != PerformanceStage.InitialInventoryLoad ||
+            p5Samples[0].DurationMs < 0 || p5Samples[0].AllocatedBytes < 0 ||
+            !p5Samples[0].Format().Contains("DESEMPENHO.LOCAL etapa=InitialInventoryLoad", StringComparison.Ordinal) ||
+            !p5Samples[0].Format().Contains("cpu_ms=", StringComparison.Ordinal))
+            throw new Exception("P5 medicao inicial deve produzir um registro agregado e sem dados privados.");
+        Console.WriteLine("OK P5 primeira tentativa de inventario tem metrica agregada propria");
         TestRamHistoryAndSampling();
         TestSafeMemoryPolicyAndLogCache();
         TestSamplingCadence();
