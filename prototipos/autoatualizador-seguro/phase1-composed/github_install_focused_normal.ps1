@@ -201,7 +201,18 @@ assert root["recovery_authorized"] is False and root["operational_ready"] is Fal
 source=Path(root["root"]).resolve(strict=True)
 selector=json.loads((source/"l18-real-active.fixture.json").read_bytes())
 assert selector["selected"]=="new" and selector["generation"]==2
-assert selector["manifest_sha256"]=="a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d"
+# L18 TargetSha is the digest of its separately signed, transaction-bound
+# REAL-LAB manifest, NOT the immutable original Draft package manifest.
+# Pin the actual canonical transaction manifest bytes to L18 selector.
+lab_bytes=(source/"real-auth"/"GF-LAB-REAL-PACKAGE-MANIFEST.json").read_bytes()
+lab_sha=hashlib.sha256(lab_bytes).hexdigest()
+lab=json.loads(lab_bytes)
+assert lab["schema"]=="gf-real-package-lab/3"
+assert lab["selected_before"]=="old" and lab["operational_installable"] is False
+assert lab["installation"]==selector["installation"]
+assert lab["transaction"]==selector["transaction"]
+assert len(lab["files"])==284 and len(lab["old_files"])==284
+assert selector["manifest_sha256"]==lab_sha
 assert (source/"l18-real-new-may-have-effects.fixture.txt").is_file()
 observe=json.loads((source/"real-observed-new.fixture.json").read_bytes())
 assert observe["observed_from_live_installation"] is True
