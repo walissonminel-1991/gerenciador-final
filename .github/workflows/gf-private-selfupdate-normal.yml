@@ -1,0 +1,54 @@
+name: GF private self-update - normal-build token-free query
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - 'Program.cs'
+      - 'GerenciadorAplicativos.csproj'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/GfPrivateSelfUpdateProbe.cs.txt'
+      - '.github/workflows/gf-private-selfupdate-normal.yml'
+permissions:
+  contents: read
+jobs:
+  normal-private-query:
+    if: github.repository == 'walissonminel-1991/gerenciador-final'
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      GF_BETA_ENDPOINT: ''
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.402'
+      - name: Guardar isolamento da compilacao publica e excluir E2E da privada
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $public=(dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json).Items.Compile
+          if (@($public | Where-Object { $_.Identity -match 'GfPrivateSelfUpdateProbe|GfOldDraftAcquire' }).Count -ne 0) { throw 'PRIVATE_SOURCE_IN_PUBLIC_PRODUCT' }
+          $private=(dotnet msbuild GerenciadorAplicativos.csproj -p:GfSelfUpdatePrivate=true -getItem:Compile | ConvertFrom-Json).Items.Compile
+          if (@($private | Where-Object { $_.Identity -match 'GfPrivateSelfUpdateProbe' }).Count -ne 1) { throw 'NORMAL_PRIVATE_CLIENT_NOT_INCLUDED' }
+          if (@($private | Where-Object { $_.Identity -match 'GfOldDraftAcquire' }).Count -ne 0) { throw 'E2E_CODE_IN_PRIVATE_CLIENT' }
+          Write-Host 'GF_PRIVATE_UPDATE_NORMAL_SOURCE_PASS no_e2e=true normal_private=true public_unchanged=true'
+      - name: Compilar GF normal privado com acao de consulta real
+        shell: pwsh
+        run: |
+          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:GfBetaProfile=local -p:GfSelfUpdatePrivate=true -p:GfE2eLab=false -p:Version=5.13.11.65 -o "$env:RUNNER_TEMP/gf-normal-private" --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_NORMAL_BUILD_FAILED' }
+          Write-Host 'GF_PRIVATE_UPDATE_NORMAL_BUILD_PASS'
+      - name: Consultar endpoint publico sem token nem ambiente E2E, nunca instalar
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $env:GH_TOKEN=''
+          $env:GITHUB_ACTIONS='false'
+          $env:GITHUB_REPOSITORY=''
+          $env:RUNNER_TEMP=''
+          & "$env:TEMP/gf-normal-private/GerenciadorFinal.exe" --gf-private-update-smoke
+          if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_NORMAL_PROBE_FAILED' }
+          Write-Host 'GF_PRIVATE_UPDATE_TOKEN_FREE_READONLY_PASS READY=false no_download=true no_install=true'

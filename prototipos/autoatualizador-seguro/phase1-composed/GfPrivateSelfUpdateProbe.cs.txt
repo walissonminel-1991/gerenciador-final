@@ -1,0 +1,122 @@
+// Included ONLY by -p:GfSelfUpdatePrivate=true in the NORMAL GF application.
+// No GitHub token, CI environment, package trust promotion, launch or install.
+using System.Globalization;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Reflection;
+using System.Text.Json;
+
+namespace GerenciadorAplicativos;
+
+internal static class GfPrivateSelfUpdateProbe
+{
+    internal sealed record Result(string Code, string Message);
+
+    private static readonly Uri Releases = new(
+        "https://api.github.com/repos/walissonminel-1991/gerenciador-final/releases/latest");
+
+    internal static async Task<Result> CheckAsync(CancellationToken cancellation = default)
+    {
+        // GitHub release METADATA is public but not an authority to install.
+        // The signed update channel and TUF binding are required in step 2.
+        try
+        {
+            using var handler = new SocketsHttpHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+                UseProxy = true,
+                AutomaticDecompression = DecompressionMethods.None,
+                ConnectTimeout = TimeSpan.FromSeconds(10)
+            };
+            using var http = new HttpClient(handler, disposeHandler: true)
+            { Timeout = TimeSpan.FromSeconds(20) };
+            using var request = new HttpRequestMessage(HttpMethod.Get, Releases);
+            request.Headers.UserAgent.ParseAdd("GerenciadorFinal-PrivateUpdateProbe/1");
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(
+                "application/vnd.github+json"));
+            using var response = await http.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, cancellation);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return new("NO_PUBLIC_RELEASE",
+                    "Não há versão pública disponível para atualização do GF.");
+            if (response.StatusCode != HttpStatusCode.OK ||
+                response.Headers.Location is not null ||
+                response.RequestMessage?.RequestUri != Releases)
+                return new("CHANNEL_UNAVAILABLE",
+                    "Canal de atualização indisponível; nada foi instalado.");
+            if (response.Content.Headers.ContentLength > 131072)
+                return new("METADATA_REJECTED",
+                    "Metadados maiores que o limite permitido; nada foi instalado.");
+            var media = response.Content.Headers.ContentType?.MediaType;
+            if (media != "application/json" &&
+                media != "application/vnd.github+json")
+                return new("METADATA_REJECTED",
+                    "Resposta inesperada do canal; nada foi instalado.");
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellation);
+            using var bounded = new MemoryStream();
+            var buffer = new byte[8192];
+            int n;
+            while ((n = await stream.ReadAsync(buffer, cancellation)) != 0)
+            {
+                if (bounded.Length + n > 131072)
+                    return new("METADATA_REJECTED",
+                        "Metadados excedem o limite permitido; nada foi instalado.");
+                bounded.Write(buffer, 0, n);
+            }
+            using var doc = JsonDocument.Parse(bounded.ToArray(),
+                new JsonDocumentOptions { MaxDepth = 8 });
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("draft", out var draft) ||
+                draft.ValueKind != JsonValueKind.False ||
+                !root.TryGetProperty("prerelease", out var pre) ||
+                pre.ValueKind != JsonValueKind.False ||
+                !root.TryGetProperty("published_at", out var published) ||
+                published.ValueKind != JsonValueKind.String ||
+                !root.TryGetProperty("tag_name", out var tagElement) ||
+                tagElement.ValueKind != JsonValueKind.String)
+                return new("METADATA_REJECTED",
+                    "Metadados da versão inválidos; nada foi instalado.");
+            string tag = tagElement.GetString() ?? "";
+            string versionText = tag.StartsWith('v') ? tag[1..] : tag;
+            if (versionText.Length > 32 || versionText.Length < 7 ||
+                versionText.Count(c => c == '.') != 3 ||
+                !versionText.All(c => char.IsAsciiDigit(c) || c == '.') ||
+                !Version.TryParse(versionText, out var candidate) ||
+                candidate is null)
+                return new("METADATA_REJECTED",
+                    "Versão publicada em formato inesperado; nada foi instalado.");
+            var current = Assembly.GetExecutingAssembly().GetName().Version;
+            if (current is null)
+                return new("VERSION_UNKNOWN",
+                    "Não foi possível identificar a versão instalada.");
+            if (candidate <= current)
+                return new("UP_TO_DATE",
+                    "Nenhuma atualização mais recente do GF foi publicada.");
+            return new("CANDIDATE_NOT_AUTHENTICATED",
+                "Nova versão " + candidate.ToString() +
+                " encontrada. Instalação bloqueada até validação assinada.");
+        }
+        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
+        {
+            return new("CHANNEL_TIMEOUT", "Consulta excedeu o tempo limite; nada foi instalado.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or
+                                   UnauthorizedAccessException or JsonException)
+        {
+            return new("CHANNEL_UNAVAILABLE",
+                "Não foi possível consultar o canal; nada foi instalado.");
+        }
+    }
+
+    internal static async Task<int> SmokeAsync()
+    {
+        // Invoked in disposable Windows with no E2E symbols or GH credentials.
+        // Any classified status is a safe read-only outcome; no installation API.
+        var result = await CheckAsync();
+        return result.Code is "NO_PUBLIC_RELEASE" or "CHANNEL_UNAVAILABLE" or
+            "CHANNEL_TIMEOUT" or "METADATA_REJECTED" or "UP_TO_DATE" or
+            "CANDIDATE_NOT_AUTHENTICATED" or "VERSION_UNKNOWN" ? 0 : 13;
+    }
+}

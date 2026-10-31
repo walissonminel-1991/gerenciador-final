@@ -67,6 +67,21 @@
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
     <PackageReference Include="Microsoft.WindowsPackageManager.ComInterop" Version="1.29.380" GeneratePathProperty="true" />
   </ItemGroup>
+  <!-- First operational bridge in a NORMAL private build. No CI-only E2E code,
+       publication, autonomous launch, recovery or package installation. -->
+  <PropertyGroup Condition="'$(GfSelfUpdatePrivate)' == 'true'">
+    <DefineConstants>$(DefineConstants);GF_PRIVATE_SELF_UPDATE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(GfSelfUpdatePrivate)' == 'true'">
+    <Compile Include="prototipos/autoatualizador-seguro/phase1-composed/GfPrivateSelfUpdateProbe.cs.txt" />
+  </ItemGroup>
+  <Target Name="ValidateGfPrivateSelfUpdate" BeforeTargets="CoreCompile"
+          Condition="'$(GfSelfUpdatePrivate)' == 'true'">
+    <Error Condition="'$(GfBetaProfile)' != 'local'"
+      Text="GF_PRIVATE_UPDATE_LOCAL_ONLY: no public or internal profile." />
+    <Error Condition="'$(GfE2eLab)' == 'true'"
+      Text="GF_PRIVATE_UPDATE_E2E_COMBINATION_FORBIDDEN." />
+  </Target>
   <!-- Optional isolated lab-only entrypoint; never included in normal GF builds. -->
   <PropertyGroup Condition="'$(GfE2eLab)' == 'true'">
     <DefineConstants>$(DefineConstants);GF_E2E_LAB</DefineConstants>

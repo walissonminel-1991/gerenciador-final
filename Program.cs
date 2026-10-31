@@ -22,6 +22,12 @@ internal static class Program
         if (args.Length == 1 && args[0] == "--gf-e2e-draft-acquire")
             return GfOldDraftAcquire.Run().GetAwaiter().GetResult();
 #endif
+#if GF_PRIVATE_SELF_UPDATE
+        // Private normal-build smoke: same token-free client as the UI button.
+        // Read only; it never authorizes, downloads or installs a package.
+        if (args.Length == 1 && args[0] == "--gf-private-update-smoke")
+            return GfPrivateSelfUpdateProbe.SmokeAsync().GetAwaiter().GetResult();
+#endif
         if (args.Length == 1 && args[0] == WinGetComProcessCatalog.Argument)
             return Task.Run(WinGetComReader.Run).GetAwaiter().GetResult(); // COM reader owns an MTA thread
         // O trabalhador elevado executa comandos sem criar janelas auxiliares.
@@ -1117,6 +1123,42 @@ internal sealed partial class MainForm : Form
         panel.Controls.Add(_privacyStatusButton, 2, 0);
         panel.SetRowSpan(_privacyStatusButton, 2);
         RefreshPrivacyStatus();
+#endif
+#if GF_PRIVATE_SELF_UPDATE
+        // Explicit action in a normal private build, never a CI-only startup
+        // hook; a release listing is UNTRUSTED and cannot authorize install.
+        panel.ColumnStyles[2].Width = 166;
+        var checkGf = CreateSecondaryButton("Verificar GF");
+        checkGf.Name = "PrivateSelfUpdateCheck";
+        checkGf.Dock = DockStyle.Fill;
+        checkGf.Margin = new Padding(3, 7, 2, 7);
+        bool checking = false;
+        checkGf.Click += async (_, _) =>
+        {
+            if (checking || _betaClose.IsClosing || IsDisposed) return;
+            checking = true;
+            checkGf.Enabled = false;
+            Status("Consultando atualização do GF...");
+            try
+            {
+                var result = await GfPrivateSelfUpdateProbe.CheckAsync();
+                if (IsDisposed || Disposing) return;
+                Status(result.Message);
+                Log("Autoatualização GF (teste privado): " + result.Code +
+                    "; instalação bloqueada; READY=false.");
+                DiagnosticTrace.Write("GF.AUTOUPDATE.PROBE estado=" + result.Code +
+                    " instalacao=BLOCKED");
+            }
+            finally
+            {
+                checking = false;
+                if (!checkGf.IsDisposed) checkGf.Enabled = true;
+            }
+        };
+        _toolTips.SetToolTip(checkGf,
+            "Consulta pública e sem credenciais. Não baixa nem instala pacotes.");
+        panel.Controls.Add(checkGf, 2, 0);
+        panel.SetRowSpan(checkGf, 2);
 #endif
         return panel;
     }
