@@ -21,6 +21,7 @@ internal static class GfPrivateFunctionalUpdate
     private const string PreservedName = "gf-private-e2e-old-preserved";
     private const string DownloadName = "gf-private-e2e-download.zip";
     private const string FinishedName = "gf-private-e2e-applied.json";
+    private const string AttachedName = "gf-private-e2e-worker-attached.flag";
 
     internal static bool LabEnabled =>
         OperatingSystem.IsWindows() &&
@@ -84,6 +85,7 @@ internal static class GfPrivateFunctionalUpdate
                     StringComparison.OrdinalIgnoreCase),
                 "OLD_NOT_ORIGINAL_TEST_INSTALL");
         Require(!File.Exists(archive) && !File.Exists(complete) &&
+                !File.Exists(At(root, AttachedName)) &&
                 !Directory.Exists(stage) && !Directory.Exists(worker) &&
                 !Directory.Exists(preserved), "TEST_DESTINATION_NOT_FRESH");
         Require(File.Exists(At(old, "GerenciadorFinal.exe")), "OLD_MISSING");
@@ -180,6 +182,16 @@ internal static class GfPrivateFunctionalUpdate
             CultureInfo.InvariantCulture));
         var started = Process.Start(psi);
         Require(started is not null, "TEST_WORKER_NOT_CREATED");
+        // Keep the original OLD process alive until its own worker has
+        // acquired a retained process handle: no PID-reuse or exit race.
+        string attached = At(root, AttachedName);
+        var until = Stopwatch.StartNew();
+        while (!File.Exists(attached) && until.Elapsed < TimeSpan.FromSeconds(15))
+        {
+            Require(!started!.HasExited, "WORKER_EXITED_BEFORE_ATTACH");
+            await Task.Delay(100);
+        }
+        Require(File.Exists(attached), "WORKER_HANDSHAKE_NOT_PROVEN");
         return "WORKER_STARTED";
     }
 
@@ -204,6 +216,7 @@ internal static class GfPrivateFunctionalUpdate
         try
         {
             using var proc = Process.GetProcessById(oldPid);
+            File.WriteAllText(At(root, AttachedName), "OWNED_OLD_HANDLE_READY");
             if (!proc.WaitForExit(120_000))
                 return 15; // NEVER move while OLD may still be alive.
         }
