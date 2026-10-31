@@ -102,10 +102,31 @@ jobs:
             throw 'GF_E2E_DRAFT_METADATA_REFRESH_CHANGED_PACKAGE'
           }
           Write-Host 'GF_E2E_EXISTING_DRAFT_TUF_ROLES_FRESH release_id=429695537 test_only=true zip_and_target_unchanged=true'
+      - name: Preparar ponte L18 existente e fixtures assinadas antes de abrir o GF OLD
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $sourceWork=Join-Path $env:RUNNER_TEMP 'gf-e2e-pinned-source'
+          $fixtures=Join-Path $env:RUNNER_TEMP 'gf-e2e-signed-fixtures'
+          $outputs=Join-Path $env:RUNNER_TEMP 'gf-e2e-csharp-artifacts'
+          $project='prototipos/autoatualizador-seguro/phase1-composed/Phase1RealBridge.csproj'
+          $stageSource=(python prototipos/autoatualizador-seguro/m3-composed/prepare_pinned_source.py $sourceWork | Select-Object -Last 1).Trim()
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $stageSource)) { throw 'GF_E2E_PINNED_SOURCE_REQUIRED' }
+          python prototipos/autoatualizador-seguro/m3-composed-3/generate_signed_fixtures.py $fixtures
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_SIGNED_FIXTURES_REQUIRED' }
+          dotnet restore $project "-p:ArtifactsPath=$outputs" "-p:Stage8Source=$stageSource" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_COORDINATOR_RESTORE' }
+          dotnet build $project "-p:ArtifactsPath=$outputs" "-p:Stage8Source=$stageSource" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_COORDINATOR_BUILD' }
+          $exes=@(Get-ChildItem $outputs -Filter 'GF.Updater.M3.L18Tests.exe' -File -Recurse)
+          if ($exes.Count -ne 1) { throw 'GF_E2E_COORDINATOR_NOT_UNIQUE' }
+          "GF_E2E_L18_EXE=$($exes[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host 'GF_E2E_L18_EXISTING_COORDINATOR_PREPARED before_gf_old_start=true'
       - name: Startup real MainForm.Shown do GF OLD inicia download autonomo de Draft
         env:
           GH_TOKEN: ${{ github.token }}
           GF_E2E_STARTUP_DRAFT_PROBE: '1'
+          GF_E2E_HANDOFF_L18: '1'
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
@@ -113,15 +134,16 @@ jobs:
           $shown=Join-Path $env:RUNNER_TEMP 'gf-e2e-startup-shown.json'
           $proof=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-acquire-report.json'
           $failure=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-acquire-failure.json'
+          $handoff=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-l18-handoff-report.json'
           if ((Test-Path $shown) -or (Test-Path $proof) -or (Test-Path $failure) -or
               (Test-Path (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download'))) {
             throw 'GF_E2E_STARTUP_ALREADY_TRIED'
           }
           $proc=Start-Process -FilePath $exe -ArgumentList '--tray' -WorkingDirectory (Split-Path $exe) -PassThru
           try {
-            $deadline=[DateTime]::UtcNow.AddMinutes(4)
+            $deadline=[DateTime]::UtcNow.AddMinutes(23)
             while ([DateTime]::UtcNow -lt $deadline) {
-              if ((Test-Path $proof) -or (Test-Path $failure) -or $proc.HasExited) { break }
+              if ((Test-Path $handoff) -or (Test-Path $failure) -or $proc.HasExited) { break }
               Start-Sleep -Milliseconds 250
             }
             if (Test-Path $failure) {
@@ -135,7 +157,19 @@ jobs:
                 !$w.real_mainform_handle_created -or !$w.test_only -or
                 $w.operational_ready) { throw 'GF_E2E_MAINFORM_MARKER_INVALID' }
             if (!(Test-Path $proof)) { throw 'GF_E2E_STARTUP_REMOTE_DOWNLOAD_NOT_COMPLETED' }
-            Write-Host 'GF_E2E_REAL_OLD_MAINFORM_SHOWN_INVOKED_DRAFT_DOWNLOAD test_only=true'
+            if (!(Test-Path $handoff)) { throw 'GF_E2E_OLD_TO_L18_AUTONOMOUS_HANDOFF_NOT_PROVEN' }
+            $h=Get-Content $handoff -Raw | ConvertFrom-Json
+            if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/1' -or
+                !$h.initiated_by_gf_old_mainform -or
+                !$h.tuf_child_verified_download -or
+                !$h.same_l18_coordinator_invoked_by_old -or
+                $h.l18_cases -ne 29 -or
+                $h.case_classification -ne 'PASS_CONTAINMENT' -or
+                $h.normal_outcome -ne 'UnknownBlocked' -or
+                !$h.test_only -or $h.operational_ready -or $h.automatic_recovery_authorized) {
+              throw 'GF_E2E_AUTONOMOUS_L18_HANDOFF_REPORT_INVALID'
+            }
+            Write-Host 'GF_E2E_GF_OLD_MAINFORM_SHOWN_TUF_AND_EXISTING_L18_COMPLETE all_29=PASS_CONTAINMENT ready=false'
           }
           finally {
             if (!$proc.HasExited) {
@@ -169,40 +203,28 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
-          python $script verify --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --extracted (Join-Path $env:RUNNER_TEMP 'gf-e2e-authenticated-new') --lab-old-variant
+          python $script verify --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --extracted (Join-Path $env:RUNNER_TEMP 'gf-e2e-independent-authenticated-new') --lab-old-variant
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_OLD_DOWNLOADED_NEW_NOT_AUTHENTIC' }
-          $newVersion=[System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $env:RUNNER_TEMP 'gf-e2e-authenticated-new\GerenciadorFinal.dll')).Version.ToString()
+          $newVersion=[System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $env:RUNNER_TEMP 'gf-e2e-independent-authenticated-new\GerenciadorFinal.dll')).Version.ToString()
           if ($newVersion -ne '5.13.11.66') { throw 'GF_E2E_DOWNLOADED_VERSION_NOT_NEWER' }
           Write-Host "GF_E2E_REAL_REMOTE_VERSIONS old=5.13.11.65 new=$newVersion"
-      - name: Mesmo coordenador C# L18 executa OLD e NEW vindos do GitHub
+      - name: Conferir sem relancar coordenador L18 que o proprio OLD executou
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $sourceWork=Join-Path $env:RUNNER_TEMP 'gf-e2e-pinned-source'
-          $fixtures=Join-Path $env:RUNNER_TEMP 'gf-e2e-signed-fixtures'
-          $outputs=Join-Path $env:RUNNER_TEMP 'gf-e2e-csharp-artifacts'
-          $project='prototipos/autoatualizador-seguro/phase1-composed/Phase1RealBridge.csproj'
-          $stageSource=(python prototipos/autoatualizador-seguro/m3-composed/prepare_pinned_source.py $sourceWork | Select-Object -Last 1).Trim()
-          if ($LASTEXITCODE -ne 0 -or !(Test-Path $stageSource)) { throw 'GF_E2E_PINNED_SOURCE_REQUIRED' }
-          python prototipos/autoatualizador-seguro/m3-composed-3/generate_signed_fixtures.py $fixtures
-          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_SIGNED_FIXTURES_REQUIRED' }
-          dotnet restore $project "-p:ArtifactsPath=$outputs" "-p:Stage8Source=$stageSource" --locked-mode --nologo
-          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_COORDINATOR_RESTORE' }
-          dotnet build $project "-p:ArtifactsPath=$outputs" "-p:Stage8Source=$stageSource" -c Release --no-restore --nologo
-          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_COORDINATOR_BUILD' }
-          $exes=@(Get-ChildItem $outputs -Filter 'GF.Updater.M3.L18Tests.exe' -File -Recurse)
-          if ($exes.Count -ne 1) { throw 'GF_E2E_COORDINATOR_NOT_UNIQUE' }
-          $root=(Resolve-Path '.').Path
-          $anchor=Join-Path $root 'prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json'
-          $script=Join-Path $root 'prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py'
-          $old=Join-Path $env:RUNNER_TEMP 'gf-e2e-old'
-          $new=Join-Path $env:RUNNER_TEMP 'gf-e2e-authenticated-new'
           $report=Join-Path $env:RUNNER_TEMP 'gf-e2e-real-flow-report.json'
-          $pythonExe=(Get-Command python).Source
-          & $exes[0].FullName --real-suite $report $fixtures $anchor $root $pythonExe $script $old $new
-          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_REAL_L18_SUITE_FAILED' }
+          $handoff=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-l18-handoff-report.json'
+          if (!(Test-Path $report) -or !(Test-Path $handoff)) { throw 'GF_E2E_L18_OLD_HANDOFF_MISSING' }
+          $h=Get-Content $handoff -Raw | ConvertFrom-Json
+          if ($h.schema -ne 'gf-e2e-old-owns-l18-handoff/1' -or
+              !$h.initiated_by_gf_old_mainform -or !$h.tuf_child_verified_download -or
+              !$h.same_l18_coordinator_invoked_by_old -or
+              $h.l18_cases -ne 29 -or $h.normal_outcome -ne 'UnknownBlocked' -or
+              !$h.test_only -or $h.operational_ready -or $h.automatic_recovery_authorized) {
+            throw 'GF_E2E_OLD_HANDOFF_INCONCLUSIVE'
+          }
           $r=Get-Content $report -Raw | ConvertFrom-Json
-          $normal=@($r.tests | Where-Object {$_.test -eq 'normal'})
+          $normal=@($r.tests | Where-Object { $_.test -eq 'normal' })
           if ($r.failed -ne 0 -or $r.expected_cases -ne 29 -or @($r.tests).Count -ne 29 -or
               $normal.Count -ne 1 -or $normal[0].status -ne 'passed' -or
               !$normal[0].normal_owner_completed_without_crash -or
@@ -211,16 +233,15 @@ jobs:
               $normal[0].outcome -ne 'UnknownBlocked' -or
               @($r.tests | Where-Object {$_.classification -ne 'PASS_CONTAINMENT'}).Count -ne 0 -or
               $r.operational_ready -or $r.phase1_complete -or $r.production_tuf_authority) {
-            throw 'GF_E2E_REAL_HOLD_OR_FUNCTIONAL_PROOF_FAILED'
+            throw 'GF_E2E_L18_CONTAINMENT_OR_AUTHORIZATION_FAILED'
           }
-          Write-Host 'GF_E2E_GF_OLD_STARTS_DOWNLOAD_DOTNET_AND_L18_RUNS_NEW old=5.13.11.65 new=5.13.11.66 all_29=PASS_CONTAINMENT ready=false'
+          Write-Host 'GF_E2E_OLD_OWNED_PYTHON_TUF_AND_L18 old=5.13.11.65 new=5.13.11.66 cases=29 containment_only=true ready=false'
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value @(
-            '## GF OLD iniciou consulta e download do GitHub Draft via .NET'
-            '- OLD real test-only 5.13.11.65 iniciou o cliente e baixou os cinco assets com o proprio executavel.'
-            '- Python-TUF laboratorio autenticou o NEW e verificou o ZIP e arquivos antes de encaminhar ao L18.'
-            '- L18 unico executou OLD/NEW reais na matriz de 29 casos; HOLD/UnknownBlocked preservado.'
-            '- Este e um subcomando de LAB do OLD e NAO atualizacao automatica na interface normal.'
-            '- READY operacional e recuperacao automatica permanecem proibidos.'
+            '## GF OLD real dirigiu o fluxo de laboratorio .NET -> TUF -> C# L18'
+            '- MainForm.Shown (somente GF_E2E_LAB e GITHUB_ACTIONS) iniciou cliente .NET, TUF e coordenador C# L18.'
+            '- CI prepos somente o executable L18 e fixtures; nao iniciou a matriz.'
+            '- C# L18 unico executou OLD/NEW reais, 29 casos PASS_CONTAINMENT e UnknownBlocked.'
+            '- Nao e autoatualizacao operacional; READY e rollback automatico bloqueados.'
           )
       - name: Negativos de pacote real adulterado e transferencia incompleta
         shell: pwsh

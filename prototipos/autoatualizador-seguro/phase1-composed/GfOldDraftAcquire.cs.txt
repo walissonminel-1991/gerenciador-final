@@ -3,6 +3,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Reflection;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -199,6 +200,134 @@ internal static class GfOldDraftAcquire
         }
     }
 
+    // This is a lab-only owner of the existing Python-TUF -> C# L18 test
+    // sequence, never a second selector/transaction or production update path.
+    // The runner must prepare the PINNED bridge and signed fixtures in advance.
+    private static async Task HandoffAuthenticatedDownloadToL18Async(string runner)
+    {
+        Require(Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18") == "1" &&
+                Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" &&
+                Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") == Repo,
+                "L18_HANDOFF_UNAUTHORIZED");
+        string repoRoot = Path.GetFullPath(
+            Environment.GetEnvironmentVariable("GITHUB_WORKSPACE") ?? "");
+        Require(Directory.Exists(repoRoot) &&
+                File.Exists(Path.Combine(repoRoot, "GerenciadorAplicativos.csproj")),
+                "L18_WORKSPACE_NOT_PINNED");
+        string pythonRoot = Path.GetFullPath(
+            Environment.GetEnvironmentVariable("pythonLocation") ?? "");
+        string python = Path.Combine(pythonRoot, "python.exe");
+        string script = Path.Combine(repoRoot, "prototipos", "autoatualizador-seguro",
+                                    "phase1-composed", "phase1_lab.py");
+        string tufScript = Path.Combine(repoRoot, "prototipos",
+                    "autoatualizador-seguro", "phase1-composed", "github_draft_package.py");
+        string anchor = Path.Combine(repoRoot, "prototipos",
+                    "autoatualizador-seguro", "fixtures", "bootstrap.test-only.json");
+        string bridge = Path.GetFullPath(
+            Environment.GetEnvironmentVariable("GF_E2E_L18_EXE") ?? "");
+        string rootPrefix = Path.TrimEndingDirectorySeparator(runner) +
+                            Path.DirectorySeparatorChar;
+        Require(File.Exists(python) && File.Exists(script) && File.Exists(tufScript) &&
+                File.Exists(anchor) && File.Exists(bridge) &&
+                bridge.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) &&
+                Path.GetFileName(bridge) == "GF.Updater.M3.L18Tests.exe",
+                "L18_TEST_BRIDGE_OR_TUF_MISSING");
+        string fixtures = Path.Combine(runner, "gf-e2e-signed-fixtures");
+        string old = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
+        string download = Path.Combine(runner, "gf-e2e-github-download");
+        string extracted = Path.Combine(runner, "gf-e2e-authenticated-new");
+        string report = Path.Combine(runner, "gf-e2e-real-flow-report.json");
+        Require(Directory.Exists(fixtures) && Directory.Exists(old) &&
+                Directory.Exists(download) && !Directory.Exists(extracted) &&
+                !File.Exists(report) &&
+                old.Equals(Path.Combine(runner, "gf-e2e-old"),
+                           StringComparison.OrdinalIgnoreCase),
+                "L18_SOURCE_DESTINATION_OR_REPORT_NOT_FRESH");
+
+        async Task RunScopedChild(string image, TimeSpan timeout, params string[] args)
+        {
+            var psi = new ProcessStartInfo(image)
+            {
+                UseShellExecute = false, CreateNoWindow = true,
+                WorkingDirectory = repoRoot
+            };
+            foreach (string arg in args) psi.ArgumentList.Add(arg);
+            // Never forward the draft-reading bearer token to Python or L18.
+            psi.Environment.Remove("GH_TOKEN");
+            psi.Environment.Remove("GITHUB_TOKEN");
+            // L18 observers spawn real OLD and NEW, whose startup hook must
+            // NOT re-enter the lab downloader recursively.
+            psi.Environment["GF_E2E_STARTUP_DRAFT_PROBE"] = "0";
+            psi.Environment["GF_E2E_HANDOFF_L18"] = "0";
+            using var child = Process.Start(psi);
+            Require(child is not null, "L18_VERIFIER_OR_COORDINATOR_NOT_STARTED");
+            try
+            {
+                await child!.WaitForExitAsync().WaitAsync(timeout);
+                Require(child.ExitCode == 0, "L18_VERIFIER_OR_COORDINATOR_REJECTED");
+            }
+            catch (TimeoutException)
+            {
+                if (!child!.HasExited)
+                {
+                    child.Kill(entireProcessTree: true);
+                    await child.WaitForExitAsync();
+                }
+                throw new InvalidDataException("GF_E2E_OLD_L18_CHILD_TIMEOUT_BLOCKED");
+            }
+        }
+
+        // The OLD application, not the CI shell, invokes the TEST TUF verifier.
+        // It cannot execute NEW before Python-TUF has authenticated the ZIP
+        // and all 284 decompressed files.
+        await RunScopedChild(python, TimeSpan.FromMinutes(4),
+            tufScript, "verify", "--repo", repoRoot, "--old", old,
+            "--downloaded", download, "--extracted", extracted,
+            "--lab-old-variant");
+        Require(File.Exists(Path.Combine(extracted, "GerenciadorFinal.exe")) &&
+                AssemblyName.GetAssemblyName(
+                    Path.Combine(extracted, "GerenciadorFinal.dll")).Version ==
+                    new Version(5,13,11,66),
+                "L18_NEW_NOT_TUF_VERIFIED_OR_WRONG_VERSION");
+
+        // Invoke the SAME tested L18 process coordinator with the original
+        // 9-argument real-suite command line and unchanged fixture sources.
+        await RunScopedChild(bridge, TimeSpan.FromMinutes(19),
+            "--real-suite", report, fixtures, anchor, repoRoot,
+            python, script, old, extracted);
+
+        using var reportDocument = JsonDocument.Parse(File.ReadAllBytes(report));
+        JsonElement r = reportDocument.RootElement;
+        var cases = r.GetProperty("tests");
+        Require(r.GetProperty("schema").GetString() ==
+                    "gf-real-process-crash-recovery-lab/1" &&
+                r.GetProperty("failed").GetInt32() == 0 &&
+                r.GetProperty("expected_cases").GetInt32() == 29 &&
+                cases.GetArrayLength() == 29 &&
+                cases.EnumerateArray().All(t =>
+                    t.GetProperty("classification").GetString() == "PASS_CONTAINMENT") &&
+                !r.GetProperty("operational_ready").GetBoolean() &&
+                !r.GetProperty("phase1_complete").GetBoolean() &&
+                cases.EnumerateArray().Any(t =>
+                    t.GetProperty("test").GetString() == "normal" &&
+                    t.GetProperty("outcome").GetString() == "UnknownBlocked" &&
+                    t.GetProperty("old_and_canary_preserved").GetBoolean() &&
+                    t.GetProperty("manifest_and_object_identities_rechecked").GetBoolean()),
+                "L18_NOT_CONTAINED_OR_DATA_NOT_PRESERVED");
+        File.WriteAllText(Path.Combine(runner, "gf-e2e-old-l18-handoff-report.json"),
+            JsonSerializer.Serialize(new {
+                schema = "gf-e2e-old-owns-l18-handoff/1",
+                initiated_by_gf_old_mainform = true,
+                tuf_child_verified_download = true,
+                same_l18_coordinator_invoked_by_old = true,
+                l18_cases = 29,
+                case_classification = "PASS_CONTAINMENT",
+                normal_outcome = "UnknownBlocked",
+                test_only = true, operational_ready = false,
+                automatic_recovery_authorized = false
+            }));
+    }
+
     internal static async Task<int> Run()
     {
         try
@@ -249,6 +378,8 @@ internal static class GfOldDraftAcquire
             };
             File.WriteAllText(Path.Combine(runner, "gf-e2e-old-acquire-report.json"),
                 JsonSerializer.Serialize(evidence));
+            if (Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18") == "1")
+                await HandoffAuthenticatedDownloadToL18Async(runner);
             return 0;
         }
         catch (Exception e) when (e is HttpRequestException or IOException or
