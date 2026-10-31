@@ -68,7 +68,24 @@ def run():
         stop("PARTIAL_TRUST_HISTORY")
     if any(existing):
         for name in ("root.json","timestamp.json","snapshot.json","targets.json"):
-            _=read_bounded(trusted/name,524288)
+            entry=trusted/name
+            if name=="root.json" and entry.is_symlink():
+                # python-tuf writes root.json as a relative link to its versioned
+                # root_history/1.root.json cache on Windows. This is NOT a
+                # general symlink permission; every different target is HOLD.
+                expected="root_history/1.root.json"
+                actual=os.readlink(entry).replace("\\","/")
+                history=trusted/"root_history"
+                target=history/"1.root.json"
+                if (actual!=expected or not history.is_dir() or
+                    history.is_symlink() or target.is_symlink() or
+                    not target.is_file() or target.resolve(strict=True)!=
+                    entry.resolve(strict=True) or
+                    not target.resolve(strict=True).is_relative_to(trusted)):
+                    stop("ROOT_HISTORY_LINK_NOT_PINNED")
+                _=read_bounded(target,524288)
+            else:
+                _=read_bounded(entry,524288)
     # d11 observe -> original C# D0 parser, original python-tuf Updater,
     # strict D1 test manifest. No second TUF client.
     discovery=discover(d0,fixture,tag,old=installed)
