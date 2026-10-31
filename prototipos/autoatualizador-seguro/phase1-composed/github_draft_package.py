@@ -140,7 +140,7 @@ def safe_unpack(module, signed_files, path, destination):
     module.validate_package(destination, signed_files)
 
 
-def verify(module, repo, old, downloaded, extracted):
+def verify(module, repo, old, downloaded, extracted, lab_old_variant=False):
     require(downloaded.is_dir() and old.is_dir(), "VERIFICATION_SOURCE_MISSING")
     for name in (*NAMES, ARCHIVE):
         require((downloaded / name).is_file(), "DRAFT_ASSET_MISSING_" + name)
@@ -159,20 +159,33 @@ def verify(module, repo, old, downloaded, extracted):
                                                 INSTALLATION, TRANSACTION,
                                                 manifest["old_files"]),
             "MANIFEST_NONCANONICAL")
-    module.validate_package(old, manifest["old_files"])
+    # An opt-in GF OLD detector build has an extra, test-only source module.
+    # Its exact OLD bytes are bound separately by the EXISTING L18
+    # PrepareRealAuthorization transaction, not by this historic Draft target.
+    # The archived NEW remains authenticated by the already signed Draft TUF
+    # target; never reinterpret the Draft's OLD hashes as authorizing this OLD.
+    if lab_old_variant:
+        current_old = module.manifest_for(old)
+        require(current_old != manifest["old_files"] and
+                current_old["GerenciadorFinal.dll"]["sha256"] !=
+                manifest["old_files"]["GerenciadorFinal.dll"]["sha256"],
+                "LAB_OLD_VARIANT_NOT_DISTINCT")
+    else:
+        module.validate_package(old, manifest["old_files"])
     safe_unpack(module, manifest["files"], downloaded / ARCHIVE, extracted)
     print("GF_DRAFT_AUTHENTICATED " + json.dumps({
         "source": "github_draft_release_assets",
         "tuf_manifest_sha256": proof["manifest_sha256"],
         "downloaded_archive_sha256": module.file_hash(downloaded / ARCHIVE),
         "extracted_files": len(manifest["files"]),
-        "old_files_preserved": True, "new_executable_on_disk_verified": True,
+        "old_files_preserved": True, "lab_old_requires_l18_binding": lab_old_variant,
+        "new_executable_on_disk_verified": True,
         "test_only": True, "operational_ready": False,
     }, sort_keys=True))
     return manifest
 
 
-def negative(module, repo, old, downloaded, base):
+def negative(module, repo, old, downloaded, base, lab_old_variant=False):
     # Both negatives use the exact downloaded asset bytes, NEVER another fake
     # executable. A partial copy represents an interrupted transfer.
     require(not base.exists(), "NEGATIVE_BASE_PREEXISTS")
@@ -197,7 +210,8 @@ def negative(module, repo, old, downloaded, base):
         else:
             (directory / ARCHIVE).write_bytes(binary[:len(binary) // 2])
         try:
-            verify(module, repo, old, directory, base / (mode + "-extracted"))
+            verify(module, repo, old, directory, base / (mode + "-extracted"),
+                   lab_old_variant=lab_old_variant)
         except (RuntimeError, ValueError, KeyError, OSError, zipfile.BadZipFile,
                 zipfile.LargeZipFile, EOFError, zlib.error) as exc:
             failures.append({"case": mode, "rejected": True,
@@ -220,6 +234,7 @@ def main():
     parser.add_argument("--target", type=Path)
     parser.add_argument("--downloaded", type=Path)
     parser.add_argument("--extracted", type=Path)
+    parser.add_argument("--lab-old-variant", action="store_true")
     args = parser.parse_args()
     guard()
     repo = args.repo.resolve(strict=True)
@@ -230,10 +245,12 @@ def main():
         prepare(module, repo, old, temp_path(args.new), temp_path(args.target))
     elif args.mode == "verify":
         require(args.downloaded is not None and args.extracted is not None, "VERIFY_ARGS")
-        verify(module, repo, old, temp_path(args.downloaded), temp_path(args.extracted))
+        verify(module, repo, old, temp_path(args.downloaded), temp_path(args.extracted),
+               lab_old_variant=args.lab_old_variant)
     else:
         require(args.downloaded is not None and args.target is not None, "NEGATIVE_ARGS")
-        negative(module, repo, old, temp_path(args.downloaded), temp_path(args.target))
+        negative(module, repo, old, temp_path(args.downloaded), temp_path(args.target),
+                 lab_old_variant=args.lab_old_variant)
 
 
 if __name__ == "__main__":
