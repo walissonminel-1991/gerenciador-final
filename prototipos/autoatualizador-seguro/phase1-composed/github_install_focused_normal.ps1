@@ -11,6 +11,25 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or
     $env:GITHUB_REPOSITORY -ne 'walissonminel-1991/gerenciador-final') {
   throw 'GF_INSTALL_FOCUSED_DISPOSABLE_ONLY'
 }
+if ($PinNtfsLaunch) {
+  $source='prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py'
+  python -m py_compile $source
+  if ($LASTEXITCODE -ne 0) { throw 'GF_NTFS_PIN_PYTHON_SYNTAX_FAIL' }
+  $verifyImport=@'
+import ctypes,importlib.util,sys
+from pathlib import Path
+source=Path("prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py").resolve(strict=True)
+sys.path.insert(0,str(source.parent))
+spec=importlib.util.spec_from_file_location("gf_ntfs_preflight",source)
+m=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+assert hasattr(m,"_ntfs_read_pin") and hasattr(m,"observed_process")
+assert hasattr(ctypes.wintypes,"FILETIME")
+print("GF_NTFS_PIN_IMPORT_PREFLIGHT_PASS",flush=True)
+'@
+  $verifyImport | python -u -
+  if ($LASTEXITCODE -ne 0) { throw 'GF_NTFS_PIN_PYTHON_RUNTIME_IMPORT_FAIL' }
+}
 $root=$env:RUNNER_TEMP
 $old=Join-Path $root 'gf-e2e-old'
 $private=Join-Path $root 'gf-e2e-install-data'
@@ -115,7 +134,7 @@ print("GF_E2E_INSTALL_FOCUSED_NORMAL_OLD_PASS native_mainform=true responsive=tr
 '@
   $observe | python -u -
   if ($LASTEXITCODE -ne 0 -or !(Test-Path $window)) { throw 'GF_INSTALL_FOCUSED_NORMAL_WINDOW_UNPROVEN' }
-  $deadline=[DateTime]::UtcNow.AddMinutes(9)
+  $deadline=[DateTime]::UtcNow.AddMinutes($(if ($PinNtfsLaunch) { 4 } else { 9 }))
   while ([DateTime]::UtcNow -lt $deadline) {
     if (Test-Path $failure) { throw "GF_INSTALL_FOCUSED_OLD_FAILURE $(Get-Content $failure -Raw)" }
     $proc.Refresh()
@@ -124,6 +143,29 @@ print("GF_E2E_INSTALL_FOCUSED_NORMAL_OLD_PASS native_mainform=true responsive=tr
   }
   if (!$proc.HasExited -or !(Test-Path $report) -or $proc.ExitCode -ne 0 -or
       !(Test-Path $selected) -or !(Test-Path $closed) -or !(Test-Path $loop)) {
+    if ($PinNtfsLaunch) {
+      Write-Host "GF_PIN_HANDOFF_DIAGNOSTIC old_exited=$($proc.HasExited) selected=$(Test-Path $selected) report=$(Test-Path $report) closed=$(Test-Path $closed) loop=$(Test-Path $loop) READY=false"
+      foreach($file in @('gf-e2e-original-l18-process.json',
+          'gf-e2e-startup-shown.json','gf-e2e-old-acquire-failure.json',
+          'gf-e2e-selected-new-ready.json','gf-e2e-real-flow-report.json')) {
+        $candidate=Join-Path $root $file
+        if (Test-Path $candidate) {
+          $bytes=(Get-Item -LiteralPath $candidate).Length
+          Write-Host "GF_PIN_HANDOFF_FILE name=$file bytes=$bytes"
+          if ($file -eq 'gf-e2e-original-l18-process.json') {
+            $bridgeDiag=Get-Content $candidate -Raw | ConvertFrom-Json
+            $bridgeLive=Get-Process -Id $bridgeDiag.process_id -ErrorAction SilentlyContinue
+            Write-Host "GF_PIN_L18_PROCESS alive=$($null -ne $bridgeLive) READY=false"
+          }
+        }
+      }
+      $labErrors=@(Get-ChildItem -LiteralPath $root -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -eq 'real-observer-error.fixture.txt' -or $_.Name -eq 'real-owner-error.fixture.txt' } |
+        Select-Object -First 5)
+      foreach($e in $labErrors) {
+        Write-Host "GF_PIN_L18_ERROR file=$($e.Name) text=$((Get-Content $e.FullName -Raw).Substring(0,[Math]::Min(280,(Get-Item $e.FullName).Length)))"
+      }
+    }
     throw 'GF_INSTALL_FOCUSED_HANDOFF_NOT_PROVEN'
   }
   $barrier=Get-Content $selected -Raw | ConvertFrom-Json
