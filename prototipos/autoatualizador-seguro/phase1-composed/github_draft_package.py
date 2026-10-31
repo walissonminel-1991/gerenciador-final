@@ -235,7 +235,7 @@ def refresh_test_only_roles(module, repo, source, dest):
     """
     require(source.is_file() and not dest.exists(), "REFRESH_SOURCE_OR_TARGET")
     data = source.read_bytes()
-    require(digest(data) == "a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d", "REFRESH_PINNED_MANIFEST_SHA")
+    require(module.digest(data) == "a00de694e4418582e4e91231dc9f9bdd10ef541425479e1ce7e54477709f6e4d", "REFRESH_PINNED_MANIFEST_SHA")
     document = json.loads(data)
     require(document["schema"] == "gf-real-package-lab/3" and
             document["operational_installable"] is False and
