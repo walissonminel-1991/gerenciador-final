@@ -446,8 +446,12 @@ internal static class GfOldDraftAcquire
             string token = Environment.GetEnvironmentVariable("GH_TOKEN") ?? "";
             Require(token.Length >= 20 && token.Length <= 2048, "EPHEMERAL_GITHUB_TOKEN_MISSING");
             var runner = Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!);
-            string dest = Path.GetFullPath(Path.Combine(runner, httpCutNegative
-                ? "gf-e2e-http-cut-download" : "gf-e2e-github-download"));
+            bool guiNegative=httpCutNegative &&
+                Environment.GetEnvironmentVariable("GF_E2E_HTTP_UI_NEGATIVE")=="1";
+            string dest = Path.GetFullPath(Path.Combine(runner, guiNegative
+                ? "gf-e2e-http-ui-download"
+                : httpCutNegative ? "gf-e2e-http-cut-download"
+                : "gf-e2e-github-download"));
             if(httpCutNegative)
                 Require(Environment.GetEnvironmentVariable("GF_E2E_HANDOFF_L18")!="1" &&
                     Environment.GetEnvironmentVariable("GF_E2E_SELF_GRACEFUL_CLOSE")!="1" &&
@@ -522,8 +526,10 @@ internal static class GfOldDraftAcquire
                 {
                     string temp = Environment.GetEnvironmentVariable("RUNNER_TEMP") ?? "";
                     if (Directory.Exists(temp))
-                        File.WriteAllText(Path.Combine(temp, httpCutNegative
-                            ? "gf-e2e-http-cut-failure.json" : "gf-e2e-old-acquire-failure.json"),
+                        File.WriteAllText(Path.Combine(temp, guiNegative
+                            ? "gf-e2e-http-ui-failure.json"
+                            : httpCutNegative ? "gf-e2e-http-cut-failure.json"
+                            : "gf-e2e-old-acquire-failure.json"),
                             JsonSerializer.Serialize(new { schema = "gf-e2e-old-blocked/2", reason,
                                 stage, io_hresult = e is IOException ? e.HResult : 0,
                                 no_token_logged = true, no_auto_recovery = true }));

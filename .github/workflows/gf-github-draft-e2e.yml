@@ -8,6 +8,9 @@ on:
       - 'prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
       - 'prototipos/autoatualizador-seguro/phase1-composed/http_cut_server.py'
       - 'prototipos/autoatualizador-seguro/phase1-composed/http_cut_negative.ps1'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/http_cut_gui_observer.py'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/http_cut_gui_negative.ps1'
+      - 'Program.cs'
       - 'prototipos/autoatualizador-seguro/phase1-composed/Phase1RecoveryTests.cs.txt'
       - 'prototipos/autoatualizador-seguro/phase1-composed/Phase1Recovery.cs.txt'
       - 'prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py'
@@ -660,4 +663,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ./prototipos/autoatualizador-seguro/phase1-composed/http_cut_negative.ps1
+      - name: MainForm real do GF OLD continua funcional apos desconexao HTTP do ZIP
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./prototipos/autoatualizador-seguro/phase1-composed/http_cut_gui_negative.ps1
 # Only three TEST TUF metadata role assets are refreshed in the existing Draft. Never publish it or change executable ZIP/manifest.
