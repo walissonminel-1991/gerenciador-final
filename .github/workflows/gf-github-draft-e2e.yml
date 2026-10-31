@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/gf-github-draft-e2e.yml'
       - 'prototipos/autoatualizador-seguro/phase1-composed/GfOldDraftAcquire.cs.txt'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
 permissions:
   contents: write # Access to existing Draft requires a write-capable ephemeral GitHub token.
 concurrency:
