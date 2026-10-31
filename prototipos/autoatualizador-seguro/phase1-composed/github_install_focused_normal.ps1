@@ -626,6 +626,7 @@ r=Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
 pin=json.loads((r/"gf-e2e-ntfs-read-pin-launch.json").read_bytes())
 assert pin["schema"]=="gf-e2e-ntfs-read-pin-launch/1"
 assert pin["pinned_file_object_hash_verified"] is True
+assert pin["prepin_append_open_allowed"] is True
 assert pin["share_mode"]=="FILE_SHARE_READ_ONLY"
 assert pin["write_denied"] is True and pin["rename_denied"] is True
 assert pin["file_id"]==pin["file_id_after_attempts"]

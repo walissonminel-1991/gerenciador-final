@@ -354,6 +354,7 @@ def _ntfs_read_pin(exe, expected_sha):
         evidence = {"schema":"gf-e2e-ntfs-read-pin-launch/1",
                     "file_id": start_id, "original_exe_sha256":expected_sha,
                     "pinned_file_object_hash_verified":True,
+                    "prepin_append_open_allowed":True,
                     "share_mode":"FILE_SHARE_READ_ONLY",
                     "pin_covers_popen":False,
                     "write_denied":False, "rename_denied":False,
@@ -370,7 +371,15 @@ def _ntfs_read_pin(exe, expected_sha):
                     f.write(b"\xa5")
                     f.flush()
             except OSError as exc:
-                write_denied=getattr(exc,"winerror",None) in (5,32)
+                # Python 3.13 on Windows reports CRT append-open
+                # sharing denial as PermissionError(errno=EACCES=13) with
+                # winerror=None, while os.rename supplies WinError 32.
+                # Accept ONLY this observed specific condition, and ONLY
+                # with pre-pin append-open success and unchanged hashes.
+                code=getattr(exc,"winerror",None)
+                write_denied=(code in (5,32) or
+                    (code is None and isinstance(exc,PermissionError) and
+                     getattr(exc,"errno",None)==13))
                 write_error={"class":type(exc).__name__,
                              "winerror":getattr(exc,"winerror",None),
                              "errno":getattr(exc,"errno",None)}
@@ -431,7 +440,18 @@ def observed_process(directory, expected_exe_sha, seconds=12,
     if not selected_new:
         return _observed_process_core(
             directory, expected_exe_sha, seconds, expected_inventory_name)
-    with _ntfs_read_pin(directory / "GerenciadorFinal.exe", expected_exe_sha) as pins:
+    # Negative-control authorization: prove that append-open (NO bytes
+    # written) is permitted before pinning, on this same installed EXE.
+    # Any denial during the pin cannot be credited to an existing read-only
+    # ACL. Preserve hashes and do not modify the signed package.
+    unpinned_exe=directory / "GerenciadorFinal.exe"
+    require(unpinned_exe.is_file() and not unpinned_exe.is_symlink(),
+            "GF_NTFS_PIN_PRECHECK_NOT_REGULAR_EXE")
+    with unpinned_exe.open("ab"):
+        pass
+    require(file_hash(unpinned_exe)==expected_exe_sha,
+            "GF_NTFS_PIN_PRECHECK_MUTATED_EXE")
+    with _ntfs_read_pin(unpinned_exe, expected_exe_sha) as pins:
         report, attack, pinned_hash, start_id, pinned = pins
         observed = _observed_process_core(
             directory,expected_exe_sha,seconds,expected_inventory_name,
