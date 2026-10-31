@@ -269,7 +269,22 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
-          python $script verify --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old-preserved') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --extracted (Join-Path $env:RUNNER_TEMP 'gf-e2e-independent-authenticated-new') --lab-old-variant
+          # The ORIGINAL L18 owner runs asynchronously after GF OLD exits.
+          # Do not mistake a not-yet-created backup for failed TUF
+          # authentication: observe the FIRST directory move before
+          # reading OLD for verification. This is bounded READ-ONLY
+          # synchronization, never retry/rollback of the update.
+          $backupOld=Join-Path $env:RUNNER_TEMP 'gf-e2e-old-preserved'
+          $deadline=[DateTime]::UtcNow.AddSeconds(100)
+          while (!(Test-Path -LiteralPath $backupOld -PathType Container) -and
+                 [DateTime]::UtcNow -lt $deadline) {
+            Start-Sleep -Milliseconds 250
+          }
+          if (!(Test-Path -LiteralPath $backupOld -PathType Container)) {
+            throw 'GF_E2E_OLD_BACKUP_FIRST_MOVE_NOT_OBSERVED_HOLD'
+          }
+          Write-Host 'GF_E2E_FIRST_DIRECTORY_MOVE_OBSERVED old_backup_present=true retry=false'
+          python $script verify --repo . --old $backupOld --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --extracted (Join-Path $env:RUNNER_TEMP 'gf-e2e-independent-authenticated-new') --lab-old-variant
           if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_OLD_DOWNLOADED_NEW_NOT_AUTHENTIC' }
           $newVersion=[System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $env:RUNNER_TEMP 'gf-e2e-independent-authenticated-new\GerenciadorFinal.dll')).Version.ToString()
           if ($newVersion -ne '5.13.11.66') { throw 'GF_E2E_DOWNLOADED_VERSION_NOT_NEWER' }
