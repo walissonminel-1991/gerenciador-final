@@ -105,6 +105,11 @@ internal static class Work10IntegratedCleanupTests
             RebootResidualReview.IsLaterBoot(boot,
                 RebootResidualReview.BootUtcTicks(DateTimeOffset.Parse("2026-10-23T16:00:00Z"), 120_000)),
             "W13 segunda conferencia exige boot diferente, nao reabertura da janela");
+        // Mesmo boot: 15:00 / 60 min -> 14:00; relogio recua 10 min,
+        // uptime avanca 5 min: 14:55 / 65 min -> 13:50. Nao e reboot.
+        check(!RebootResidualReview.IsLaterBoot(boot,
+                RebootResidualReview.BootUtcTicks(DateTimeOffset.Parse("2026-10-23T14:55:00Z"), 3900_000)),
+            "R7 retrocesso do relogio sem reinicio nao consome revisao pendente");
 
         check(RebootResidualReview.IsRetryable(new("f1", "file", ResidualItemState.Failed,
                 "sharing_violation", 32)) &&
