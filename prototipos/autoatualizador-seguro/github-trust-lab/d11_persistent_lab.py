@@ -5,6 +5,7 @@ LAB ONLY. Test signing keys are public; no product updater authorization.
 from __future__ import annotations
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -143,47 +144,55 @@ def run(exe):
                     for k in ("root","timestamp","snapshot","targets")),
                 "TRUST_METADATA_NOT_PERSISTED")
 
+        # Each adversarial attempt starts from the EXACT successful version-2
+        # cache, so a failed refresh cannot poison later trials' trust floor.
+        def attack(roles,manifest,discovery,installed):
+            with tempfile.TemporaryDirectory(dir=tmp,prefix="gf-d11-attack-") as clone:
+                saved=Path(clone)/"trusted"
+                shutil.copytree(trust,saved)
+                return observe(saved,None,roles,manifest,discovery,installed)
         denied=[]
-        reject(lambda:observe(trust,None,r1,p66,d66,"5.13.11.65"),
+        r3=release_roles(g,3,p67)
+        reject(lambda:attack(r1,p66,d66,"5.13.11.65"),
                "timestamp-rollback",denied)
-        mixed=dict(r2);mixed["snapshot.json"]=r1["snapshot.json"]
-        reject(lambda:observe(trust,None,mixed,p67,d67,"5.13.11.65"),
+        mixed=dict(r3);mixed["snapshot.json"]=r1["snapshot.json"]
+        reject(lambda:attack(mixed,p67,d67,"5.13.11.65"),
                "snapshot-mix-and-match",denied)
-        mixed=dict(r2);mixed["targets.json"]=r1["targets.json"]
-        reject(lambda:observe(trust,None,mixed,p67,d67,"5.13.11.65"),
+        mixed=dict(r3);mixed["targets.json"]=r1["targets.json"]
+        reject(lambda:attack(mixed,p67,d67,"5.13.11.65"),
                "targets-mix-and-match",denied)
-        reject(lambda:observe(trust,None,r2,p66,d67,"5.13.11.65"),
+        reject(lambda:attack(r2,p66,d67,"5.13.11.65"),
                "signed-manifest-stale",denied)
         wrong=discover(exe,work,"v5.13.11.68")
-        reject(lambda:observe(trust,None,r2,p67,wrong,"5.13.11.65"),
+        reject(lambda:attack(r2,p67,wrong,"5.13.11.65"),
                "D0-D1-tag-mismatch",denied)
         draft=discover(exe,work,"v5.13.11.67",draft=True)
-        reject(lambda:observe(trust,None,r2,p67,draft,"5.13.11.65"),
+        reject(lambda:attack(r2,p67,draft,"5.13.11.65"),
                "D0-draft",denied)
         dup=discover(exe,work,"v5.13.11.67",duplicate=True)
-        reject(lambda:observe(trust,None,r2,p67,dup,"5.13.11.65"),
+        reject(lambda:attack(r2,p67,dup,"5.13.11.65"),
                "D0-duplicate-key",denied)
         same=discover(exe,work,"v5.13.11.65")
-        reject(lambda:observe(trust,None,r2,p67,same,"5.13.11.65"),
+        reject(lambda:attack(r2,p67,same,"5.13.11.65"),
                "D0-not-new",denied)
         expired=release_roles(g,3,p67,expired=True)
-        reject(lambda:observe(trust,None,expired,p67,d67,"5.13.11.65"),
+        reject(lambda:attack(expired,p67,d67,"5.13.11.65"),
                "timestamp-expired",denied)
         absent=dict(r2);absent.pop("timestamp.json")
-        reject(lambda:observe(trust,None,absent,p67,d67,"5.13.11.65"),
+        reject(lambda:attack(absent,p67,d67,"5.13.11.65"),
                "timestamp-missing",denied)
-        altered=dict(r2);altered["targets.json"]+=b"x"
-        reject(lambda:observe(trust,None,altered,p67,d67,"5.13.11.65"),
+        altered=dict(r3);altered["targets.json"]+=b"x"
+        reject(lambda:attack(altered,p67,d67,"5.13.11.65"),
                "targets-altered",denied)
         a=encode_manifest({**create_manifest("v5.13.11.67"),
                            "architecture":"win-arm64"})
-        reject(lambda:observe(trust,None,release_roles(g,3,a),a,d67,"5.13.11.65"),
+        reject(lambda:attack(release_roles(g,3,a),a,d67,"5.13.11.65"),
                "signed-wrong-architecture",denied)
         b=encode_manifest({**create_manifest("v5.13.11.67"),
                            "repository":"evil/other"})
-        reject(lambda:observe(trust,None,release_roles(g,3,b),b,d67,"5.13.11.65"),
+        reject(lambda:attack(release_roles(g,3,b),b,d67,"5.13.11.65"),
                "signed-wrong-repo",denied)
-        reject(lambda:observe(trust,None,r2,p67,d67,"v5.13.11.68"),
+        reject(lambda:attack(r2,p67,d67,"v5.13.11.68"),
                "signed-downgrade",denied)
         require(len(denied)==14 and len(set(denied))==14,"NEGATIVE_COUNT")
         out={"schema":"gf-github-d11-persist/1","status":"passed",
