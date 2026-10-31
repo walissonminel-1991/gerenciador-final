@@ -1,142 +1,276 @@
-using System.Text.Json;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
-// Compiled ONLY with D24_INTEGRATION. The signature/authenticity verdict comes
-// from the separate Python-TUF lab; this is an UNTRUSTED handoff, not a secure
-// same-user IPC boundary or an authorization for executable updates.
+// D2.4.2: C# owns ONE laboratory validation + staging session.
+// Python TUF source is embedded in this assembly; no caller-supplied verdict,
+// manifest hash, tag, session token, verifier path, or "ready" flag authorizes
+// staging. This is still NOT a same-user protected IPC/security boundary.
 internal static partial class Program
 {
-    static async Task<int> RunD24(string[] args)
+    static readonly string[] ReceiptFields = {
+        "schema","session","manifest_sha256","tag","installed",
+        "tuf_verified_test_only","production_authority","can_install",
+        "operational_ready","automatic_recovery_authorized"
+    };
+    static readonly string[] ManifestFields = {
+        "schema","repository","channel","tag","version","architecture",
+        "asset","length","sha256","test_only","operational_installable"
+    };
+
+    static bool ValidChildReceipt(string raw,string session,string digest)
     {
-        var outcome="rejected";
-        var reason="INVALID_HANDOFF";
-        var accepted=0;
-        var prepared=false;
-        var reportBase=new {
-            schema="gf-d24-dotnet-handoff/1",
-            authority="PUBLIC_TEST_ONLY",
-            production_authority=false,
-            handoff_secure_against_same_user=false,
-            can_install=false,
-            operational_ready=false,
-            automatic_recovery_authorized=false
+        try
+        {
+            using var parsed=JsonDocument.Parse(raw,
+                new JsonDocumentOptions {AllowTrailingCommas=false,
+                    CommentHandling=JsonCommentHandling.Disallow,MaxDepth=5});
+            if(parsed.RootElement.ValueKind!=JsonValueKind.Object) return false;
+            var items=new Dictionary<string,JsonElement>(StringComparer.Ordinal);
+            foreach(var p in parsed.RootElement.EnumerateObject())
+                if(!items.TryAdd(p.Name,p.Value)) return false;
+            if(items.Count!=ReceiptFields.Length ||
+                ReceiptFields.Any(k=>!items.ContainsKey(k))) return false;
+            bool S(string k,string expected) => items[k].ValueKind==JsonValueKind.String &&
+                string.Equals(items[k].GetString(),expected,StringComparison.Ordinal);
+            return S("schema","gf-d242-tuf-child/1") &&
+                S("session",session) && S("manifest_sha256",digest) &&
+                S("tag","v5.13.11.66") && S("installed","5.13.11.65") &&
+                items["tuf_verified_test_only"].ValueKind==JsonValueKind.True &&
+                items["production_authority"].ValueKind==JsonValueKind.False &&
+                items["can_install"].ValueKind==JsonValueKind.False &&
+                items["operational_ready"].ValueKind==JsonValueKind.False &&
+                items["automatic_recovery_authorized"].ValueKind==JsonValueKind.False;
+        }
+        catch(JsonException) {return false;}
+    }
+
+    static bool ValidManifestBytes(byte[] bytes)
+    {
+        if(bytes.Length is < 1 or > 65536) return false;
+        try
+        {
+            using var parsed=JsonDocument.Parse(bytes,
+                new JsonDocumentOptions {AllowTrailingCommas=false,
+                    CommentHandling=JsonCommentHandling.Disallow,MaxDepth=8});
+            if(parsed.RootElement.ValueKind!=JsonValueKind.Object) return false;
+            var items=new Dictionary<string,JsonElement>(StringComparer.Ordinal);
+            foreach(var p in parsed.RootElement.EnumerateObject())
+                if(!items.TryAdd(p.Name,p.Value)) return false;
+            if(items.Count!=ManifestFields.Length ||
+                ManifestFields.Any(k=>!items.ContainsKey(k))) return false;
+            bool S(string k,string expected) => items[k].ValueKind==JsonValueKind.String &&
+                string.Equals(items[k].GetString(),expected,StringComparison.Ordinal);
+            return S("schema","gf-github-release-auth-lab/1") &&
+                S("repository","walissonminel-1991/gerenciador-final") &&
+                S("channel","stable") && S("tag","v5.13.11.66") &&
+                S("version","5.13.11.66.0") &&
+                S("architecture","win-x64") &&
+                S("asset","GerenciadorFinal-portable-win-x64.zip") &&
+                S("sha256",Convert.ToHexString(Digest).ToLowerInvariant()) &&
+                items["length"].ValueKind==JsonValueKind.Number &&
+                items["length"].TryGetInt32(out var length) &&
+                length==Payload.Length &&
+                items["test_only"].ValueKind==JsonValueKind.True &&
+                items["operational_installable"].ValueKind==JsonValueKind.False;
+        }
+        catch(JsonException) {return false;}
+    }
+
+    static string ValidatorSource()
+    {
+        using var stream=typeof(Program).Assembly.GetManifestResourceStream(
+            "GF.D242.TufChild") ?? throw new InvalidDataException("EMBEDDED_TUF_ABSENT");
+        using var reader=new StreamReader(stream,Encoding.UTF8);
+        var code=reader.ReadToEnd();
+        if(code.Length is < 300 or > 16000 ||
+            !code.Contains("verify_d0_tuf(",StringComparison.Ordinal))
+            throw new InvalidDataException("EMBEDDED_TUF_INVALID");
+        return code;
+    }
+
+    static async Task<(int Exit,string Stdout)> RunTufChild(
+        string directory,string session,string d0,CancellationToken ct)
+    {
+        var psi=new ProcessStartInfo {
+            FileName="python",
+            UseShellExecute=false,
+            CreateNoWindow=true,
+            RedirectStandardOutput=true,
+            RedirectStandardError=true,
+            WorkingDirectory=directory
         };
-        var root=Environment.GetEnvironmentVariable("RUNNER_TEMP");
-        if (!OperatingSystem.IsWindows() ||
-            Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true" ||
-            string.IsNullOrWhiteSpace(root))
+        // No external verifier path or caller-controlled signature receipt.
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add(ValidatorSource());
+        psi.ArgumentList.Add("--d242-child");
+        psi.ArgumentList.Add(directory);
+        psi.ArgumentList.Add(session);
+        psi.ArgumentList.Add(d0);
+        using var child=Process.Start(psi)
+            ?? throw new InvalidDataException("TUF_CHILD_NOT_STARTED");
+        using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        try
+        {
+            var standardOut=child.StandardOutput.ReadToEndAsync(timeout.Token);
+            var standardErr=child.StandardError.ReadToEndAsync(timeout.Token);
+            await child.WaitForExitAsync(timeout.Token);
+            var output=await standardOut;
+            var errors=await standardErr;
+            if(output.Length>4096 || errors.Length>4096)
+                throw new InvalidDataException("CHILD_OUTPUT_TOO_LONG");
+            return (child.ExitCode,output);
+        }
+        catch(OperationCanceledException)
+        {
+            if(!child.HasExited) child.Kill(entireProcessTree:true);
+            throw;
+        }
+    }
+
+    static async Task<int> RunD242(string[] args)
+    {
+        if(!OperatingSystem.IsWindows() ||
+           Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true")
             return 3;
+        var root=Environment.GetEnvironmentVariable("RUNNER_TEMP");
+        if(string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            return 3;
+
+        var outcome="rejected";
+        var cause="NO_VALIDATION";
+        var childStarted=false;
+        var childSucceeded=false;
+        var prepared=false;
+        var connections=0;
         string? lab=null;
         try
         {
-            if (args.Length!=5) throw new InvalidDataException("HANDOFF_ARG_COUNT");
-            var path=System.IO.Path.GetFullPath(args[1]);
-            var temp=System.IO.Path.GetFullPath(root);
-            if (!path.StartsWith(temp.TrimEnd(System.IO.Path.DirectorySeparatorChar)+
-                System.IO.Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase)
-                || System.IO.Path.GetFileName(path)!="GF-RELEASE-MANIFEST.json")
-                throw new InvalidDataException("MANIFEST_OUTSIDE_LAB");
-            var file=new FileInfo(path);
-            if (!file.Exists || file.Length is < 1 or > 65536 ||
-                (file.Attributes & FileAttributes.ReparsePoint)!=0)
-                throw new InvalidDataException("MANIFEST_FILE_INVALID");
-            var raw=await File.ReadAllBytesAsync(path);
-            if (args[2].Length!=64 ||
-                !string.Equals(Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant(),
-                               args[2],StringComparison.Ordinal))
-                throw new InvalidDataException("TUF_HANDOFF_BYTES_CHANGED");
-            using var document=JsonDocument.Parse(raw,new JsonDocumentOptions {
-                AllowTrailingCommas=false,CommentHandling=JsonCommentHandling.Disallow,
-                MaxDepth=8
-            });
-            if (document.RootElement.ValueKind!=JsonValueKind.Object)
-                throw new InvalidDataException("MANIFEST_NOT_OBJECT");
-            var fields=new Dictionary<string,JsonElement>(StringComparer.Ordinal);
-            foreach(var property in document.RootElement.EnumerateObject())
-            {
-                if (!fields.TryAdd(property.Name,property.Value))
-                    throw new InvalidDataException("MANIFEST_DUPLICATE_FIELD");
-            }
-            string[] names={"schema","repository","channel","tag","version",
-                "architecture","asset","length","sha256","test_only",
-                "operational_installable"};
-            if (fields.Count!=names.Length || names.Any(x=>!fields.ContainsKey(x)))
-                throw new InvalidDataException("MANIFEST_FIELD_SET");
-            string S(string k)
-            {
-                if (fields[k].ValueKind!=JsonValueKind.String)
-                    throw new InvalidDataException("MANIFEST_TYPE_"+k);
-                return fields[k].GetString()!;
-            }
-            var approvedLength=fields["length"];
-            if (approvedLength.ValueKind!=JsonValueKind.Number ||
-                !approvedLength.TryGetInt32(out var n) || n!=Payload.Length)
-                throw new InvalidDataException("MANIFEST_PAYLOAD_LENGTH");
-            if (fields["test_only"].ValueKind!=JsonValueKind.True ||
-                fields["operational_installable"].ValueKind!=JsonValueKind.False ||
-                S("schema")!="gf-github-release-auth-lab/1" ||
-                S("repository")!="walissonminel-1991/gerenciador-final" ||
-                S("channel")!="stable" ||
-                S("architecture")!="win-x64" ||
-                S("tag")!=args[3] || args[3]!="v5.13.11.66" ||
-                S("version")!="5.13.11.66" ||
-                args[4]!="5.13.11.65" ||
-                S("asset")!="GerenciadorFinal-portable-win-x64.zip" ||
-                S("sha256")!=Convert.ToHexString(Digest).ToLowerInvariant())
-                throw new InvalidDataException("MANIFEST_UNAUTHORIZED_FIELDS");
+            if(args.Length!=2) throw new InvalidDataException("EXTERNAL_AUTH_ARGS_DENIED");
+            var runner=Path.GetFullPath(root);
+            var fixtures=Path.GetFullPath(args[1]);
+            if(!fixtures.StartsWith(runner.TrimEnd(Path.DirectorySeparatorChar)+
+                Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase) ||
+               !Path.GetFileName(fixtures).StartsWith("gf-d242-",StringComparison.Ordinal))
+                throw new InvalidDataException("FIXTURE_DIRECTORY_NOT_ALLOWED");
+            var dirInfo=new DirectoryInfo(fixtures);
+            if(!dirInfo.Exists ||
+               (dirInfo.Attributes & FileAttributes.ReparsePoint)!=0)
+                throw new InvalidDataException("REPARSE_FIXTURE_DIRECTORY");
+            var d0=Path.Combine(runner,"gf-d24-d0","GF.D11.D0Probe.exe");
+            if(!File.Exists(d0)) throw new InvalidDataException("D0_PROBE_MISSING");
+            var manifestPath=Path.Combine(fixtures,"GF-RELEASE-MANIFEST.json");
+            var manifestInfo=new FileInfo(manifestPath);
+            if(!manifestInfo.Exists || manifestInfo.Length is < 1 or > 65536 ||
+                (manifestInfo.Attributes & FileAttributes.ReparsePoint)!=0)
+                throw new InvalidDataException("MANIFEST_NOT_PRESENT");
 
-            // TEST-ONLY now. This cannot verify TUF signatures itself; the
-            // manifest hash argument is the output of earlier Python-TUF work.
-            // Run the EXACT D2.3 HttpClient transport class, with no copy.
-            lab=System.IO.Path.Combine(root,"gf-d24-"+Guid.NewGuid().ToString("N"));
+            // Random session correlates one child output with this invocation,
+            // not a secret or same-user authentication token.
+            var session=Convert.ToHexString(RandomNumberGenerator.GetBytes(16))
+                .ToLowerInvariant();
+            childStarted=true;
+            var (exit,stdout)=await RunTufChild(fixtures,session,d0,
+                                                  CancellationToken.None);
+            if(exit!=0) throw new InvalidDataException("TUF_CHILD_REJECTED");
+            var lines=stdout.Split('\n',StringSplitOptions.RemoveEmptyEntries);
+            if(lines.Length!=1 ||
+               !lines[0].StartsWith("GF_D242_VERIFIED ",StringComparison.Ordinal))
+                throw new InvalidDataException("TUF_RECEIPT_MISSING_OR_DUPLICATE");
+
+            // Snapshot exactly the bytes later parsed and used for staging.
+            var bytes=await File.ReadAllBytesAsync(manifestPath);
+            var hash=Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            if(!ValidChildReceipt(lines[0]["GF_D242_VERIFIED ".Length..].TrimEnd('\r'),
+                                  session,hash) || !ValidManifestBytes(bytes))
+                throw new InvalidDataException("TUF_RECEIPT_OR_MANIFEST_MISMATCH");
+            childSucceeded=true;
+
+            // No second downloader. D2.3 shared Stage is reached exclusively
+            // after the child has completed the in-session TUF/D0 checks.
+            lab=Path.Combine(runner,"gf-d242-stage-"+Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(lab);
-            var sentinel=System.IO.Path.Combine(lab,"outside-stage.fixture.txt");
-            await File.WriteAllTextAsync(sentinel,"PRESERVED\n");
-            var stage=System.IO.Path.Combine(lab,"stage");
+            var stage=Path.Combine(lab,"stage");
             Directory.CreateDirectory(stage);
             await using(var server=new LoopbackServer(new Reply(Fragment:7)))
             {
                 try
                 {
                     await Stage(server.Port,ExpectedRelease,stage,
-                        CancellationToken.None,n,Convert.FromHexString(S("sha256")));
+                        CancellationToken.None,Payload.Length,Digest);
                 }
-                finally
-                {
-                    // Record connections even when Stage fails after TCP connect.
-                    accepted=server.Accepts;
-                }
+                finally { connections=server.Accepts; }
             }
-            Verify(System.IO.Path.Combine(stage,FinalName),n,
-                    Convert.FromHexString(S("sha256")));
-            if (await File.ReadAllTextAsync(sentinel)!="PRESERVED\n" ||
-                accepted!=1)
-                throw new InvalidDataException("D24_SENTINEL_OR_SOCKET_COUNT");
+            await VerifyAsync(Path.Combine(stage,FinalName),Payload.Length,Digest,
+                              CancellationToken.None);
+            if(connections!=1) throw new InvalidDataException("INERT_SOCKET_COUNT");
             prepared=true;
             outcome="accepted_inert_test_only";
-            reason="PUBLIC_TEST_MANIFEST_EQUALS_INERT_BYTES";
+            cause="IN_SESSION_D0_TUF_PASSED";
         }
-        catch (Exception e) when (e is InvalidDataException or JsonException or
-            FormatException or OverflowException or IOException)
+        catch(Exception e) when (e is InvalidDataException or IOException or
+            JsonException or OperationCanceledException or Win32Exception or
+            UnauthorizedAccessException or ArgumentException)
         {
-            reason=e.GetType().Name;
+            cause=e.GetType().Name;
         }
         finally
         {
-            if (lab!=null && Directory.Exists(lab))
-                Directory.Delete(lab,recursive:true);
+            // Lab stage is created by this coordinator; NEVER use Stage to
+            // delete arbitrary preexisting names on failures.
+            if(lab!=null && Directory.Exists(lab)) Directory.Delete(lab,true);
         }
-        Console.WriteLine("GF_D24_BRIDGE "+JsonSerializer.Serialize(new {
-            reportBase.schema,reportBase.authority,
-            status=outcome,reason,
-            loopback_connections=accepted,
+        Console.WriteLine("GF_D242_COORDINATOR "+JsonSerializer.Serialize(new {
+            schema="gf-d242-session-coordinator/1",
+            status=outcome,reason=cause,
+            tuf_child_launched=childStarted,
+            tuf_in_session_validated=childSucceeded,
             staged_inert_bytes=prepared,
-            reportBase.production_authority,
-            reportBase.handoff_secure_against_same_user,
-            reportBase.can_install,reportBase.operational_ready,
-            reportBase.automatic_recovery_authorized
+            loopback_connections=connections,
+            reused_dotnet_d23_stage=true,
+            old_d24_direct_handoff_allowed=false,
+            same_user_process_isolation_proven=false,
+            production_authority=false,
+            can_install=false,operational_ready=false,
+            automatic_recovery_authorized=false
         }));
         return 0;
+    }
+
+    static int RunD242SelfTest()
+    {
+        var session="a1b2c3d4e5f60123456789abcdef0123";
+        var hash=new string('0',64);
+        var sample=new Dictionary<string,object> {
+            ["schema"]="gf-d242-tuf-child/1",["session"]=session,
+            ["manifest_sha256"]=hash,["tag"]="v5.13.11.66",
+            ["installed"]="5.13.11.65",["tuf_verified_test_only"]=true,
+            ["production_authority"]=false,["can_install"]=false,
+            ["operational_ready"]=false,["automatic_recovery_authorized"]=false
+        };
+        var valid=JsonSerializer.Serialize(sample);
+        var rejected=0;
+        if(!ValidChildReceipt(valid,session,hash)) return 19;
+        if(!ValidChildReceipt(valid,"b"+session[1..],hash)) rejected++;
+        if(!ValidChildReceipt(valid,session,new string('1',64))) rejected++;
+        var extra=new Dictionary<string,object>(sample){["extra"]=true};
+        if(!ValidChildReceipt(JsonSerializer.Serialize(extra),session,hash)) rejected++;
+        var fake=new Dictionary<string,object>(sample){["tuf_verified_test_only"]=false};
+        if(!ValidChildReceipt(JsonSerializer.Serialize(fake),session,hash)) rejected++;
+        var missing=new Dictionary<string,object>(sample);missing.Remove("session");
+        if(!ValidChildReceipt(JsonSerializer.Serialize(missing),session,hash)) rejected++;
+        if(!ValidChildReceipt("{\"schema\":1}",session,hash)) rejected++;
+        if(!ValidChildReceipt(valid.Replace("\"can_install\":false",
+             "\"can_install\":false,\"can_install\":false"),session,hash)) rejected++;
+        Console.WriteLine("GF_D242_RECEIPT_SELFTEST "+JsonSerializer.Serialize(new {
+            schema="gf-d242-receipt-selftest/1",
+            status=rejected==7?"passed":"failed",
+            synthetic_receipts_rejected=rejected,
+            stages_started=0,automatic_recovery_authorized=false
+        }));
+        return rejected==7?0:20;
     }
 }
