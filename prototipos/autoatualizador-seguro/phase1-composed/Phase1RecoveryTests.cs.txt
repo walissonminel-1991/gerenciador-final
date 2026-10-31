@@ -512,11 +512,13 @@ internal static class Phase1RecoveryTests
         // is absent or changed. This exact gate is exercised by the negative
         // cases below on isolated copies, not by touching the real backup.
         RequireGuidancePhysicalIntegrity(c,backup,incoming,canary);
-        Require(Directory.Exists(outputDir) &&
-            Path.GetFullPath(outputDir).StartsWith(
-                Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!).
-                    TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase),
+        string runner=Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!)
+            .TrimEnd(Path.DirectorySeparatorChar);
+        string output=Path.GetFullPath(outputDir).TrimEnd(Path.DirectorySeparatorChar);
+        Require(Directory.Exists(output) &&
+            (output.Equals(runner,StringComparison.OrdinalIgnoreCase) ||
+             output.StartsWith(runner+Path.DirectorySeparatorChar,
+                 StringComparison.OrdinalIgnoreCase)),
             "REAL_GUIDANCE_OUTPUT_OUTSIDE_RUNNER");
             const string code="GF-UPDATE-HOLD-001";
             const string guidance=
