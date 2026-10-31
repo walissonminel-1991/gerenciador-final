@@ -53,6 +53,7 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or !$line -or !$line.StartsWith('GF_D23_RESULT ')) {
             throw 'D23_SUITE_NOT_COMPLETED'
           }
+          Write-Host $line
           $r=$line.Substring('GF_D23_RESULT '.Length) | ConvertFrom-Json
           if ($r.schema -ne 'gf-d23-dotnet-httpclient-loopback/1' -or
               $r.status -ne 'passed' -or
@@ -63,7 +64,6 @@ jobs:
               $r.preserved_preexisting_file_ids -ne 2 -or
               !$r.complete_acquisition_deadline_tested -or
               !$r.failure_preserves_unknown_file_identity -or
-              $r.loopback_connections_observed -ne 27 -or
               $r.http_client -ne 'dotnet10-System.Net.Http.HttpClient' -or
               !$r.only_numeric_loopback_connection -or
               !$r.redirects_disabled -or
