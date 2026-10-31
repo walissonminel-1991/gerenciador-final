@@ -1,0 +1,159 @@
+name: GF - origem Draft e ciclo GF real em Windows descartavel
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - '.github/workflows/gf-github-draft-e2e.yml'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
+permissions:
+  contents: write # Exclusivamente para criar Release DRAFT de teste na propria CI
+concurrency:
+  group: gf-e2e-draft-test-only
+  cancel-in-progress: false
+jobs:
+  draft-release-real-gf:
+    if: github.repository == 'walissonminel-1991/gerenciador-final' && github.ref == 'refs/heads/experimento-g5-ipc-chat-alto-20261029'
+    runs-on: windows-2022
+    timeout-minutes: 75
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      GF_BETA_ENDPOINT: ''
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout experimental sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SDK .NET 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.402'
+      - name: Python 3.13
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Dependencias TUF de TESTE ja existentes
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check tuf==7.0.1 securesystemslib==1.3.1 cryptography==50.0.2 urllib3==2.8.0
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_PYTHON_TUF_DEPENDENCIES' }
+      - name: Compilar GF OLD e NEW reais e conferir versoes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $old=Join-Path $env:RUNNER_TEMP 'gf-e2e-old'
+          $new=Join-Path $env:RUNNER_TEMP 'gf-e2e-build-new'
+          if ((Test-Path $old) -or (Test-Path $new)) { throw 'GF_E2E_NOT_FRESH' }
+          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -p:GfBetaProfile=local -p:Version=5.13.11.65 -o $old --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_OLD_BUILD_FAILED' }
+          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -p:GfBetaProfile=local -p:Version=5.13.11.66 -o $new --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_NEW_BUILD_FAILED' }
+          $o=[System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $old 'GerenciadorFinal.dll')).Version.ToString()
+          $n=[System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $new 'GerenciadorFinal.dll')).Version.ToString()
+          if ($o -ne '5.13.11.65' -or $n -ne '5.13.11.66') { throw "GF_E2E_VERSION_MISMATCH old=$o new=$n" }
+          Write-Host "GF_E2E_VERSIONS old=$o new=$n"
+      - name: Assinar manifesto original do pacote real com Python-TUF LAB e empacotar
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
+          python $script prepare --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --new (Join-Path $env:RUNNER_TEMP 'gf-e2e-build-new') --target (Join-Path $env:RUNNER_TEMP 'gf-e2e-upload-work')
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_PREPARE_OR_TUF_FAILED' }
+      - name: Criar APENAS Release DRAFT, anexar pacote real e metadados TUF
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag="gf-e2e-$($env:GITHUB_SHA.Substring(0,12))"
+          $existing=(& gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft 2>$null)
+          if ($LASTEXITCODE -eq 0) { throw 'GF_E2E_RELEASE_ALREADY_EXISTS_PRESERVE' }
+          $source=Join-Path $env:RUNNER_TEMP 'gf-e2e-upload-work\upload'
+          $assets=@(Get-ChildItem $source -File | Sort-Object Name)
+          $expected=@('GF-LAB-REAL-PACKAGE-MANIFEST.json','gf-e2e-new-win-x64.zip','snapshot.json','targets.json','timestamp.json')
+          if ($assets.Count -ne 5 -or (Compare-Object @($assets.Name | Sort-Object) @($expected | Sort-Object))) { throw 'GF_E2E_ASSET_SET' }
+          & gh release create $tag @($assets.FullName) --repo $env:GITHUB_REPOSITORY --draft --target $env:GITHUB_SHA --title "GF HOMOLOGACAO DESCARTAVEL - NAO PUBLICAR - $tag" --notes 'SOMENTE TESTE. Executaveis reais de laboratorio. TUF com chaves publicas de TESTE. Proibido distribuicao, publicacao, instalacao em PCs reais, merge ou READY.'
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_DRAFT_CREATION_FAILED' }
+          $metadata=(& gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,tagName,assets | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or !$metadata.isDraft -or $metadata.tagName -ne $tag -or @($metadata.assets).Count -ne 5 -or (Compare-Object @($metadata.assets.name | Sort-Object) @($expected | Sort-Object))) {
+            throw 'GF_E2E_DRAFT_NOT_PROVEN_STOP'
+          }
+          Write-Host "GF_E2E_DRAFT_CREATED tag=$tag draft=true assets=5"
+          "GF_E2E_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: DETECTAR origem em GitHub autenticado, baixar pacote real Draft
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag=$env:GF_E2E_TAG
+          $metadata=(& gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,tagName,assets | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or !$metadata.isDraft -or $metadata.tagName -ne $tag) { throw 'GF_E2E_DETECTION_NOT_DRAFT' }
+          $download=Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download'
+          if (Test-Path $download) { throw 'GF_E2E_DOWNLOAD_PREEXISTS' }
+          New-Item -ItemType Directory -Path $download | Out-Null
+          & gh release download $tag --repo $env:GITHUB_REPOSITORY --dir $download
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_GITHUB_DOWNLOAD_FAILED' }
+          $files=@(Get-ChildItem $download -File)
+          if ($files.Count -ne 5) { throw 'GF_E2E_DOWNLOAD_ASSET_COUNT' }
+          Write-Host "GF_E2E_GITHUB_DETECTED_DOWNLOADED draft=true assets=$($files.Count) hosted_binary=true"
+      - name: Validar TUF recebido ANTES de descompactar ou executar NEW
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
+          python $script verify --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --extracted (Join-Path $env:RUNNER_TEMP 'gf-e2e-authenticated-new')
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_DOWNLOADED_PACKAGE_NOT_AUTHENTIC' }
+      - name: Rejeitar pacote adulterado e transferencia incompleta sem executar NEW
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script='prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py'
+          python $script negative --repo . --old (Join-Path $env:RUNNER_TEMP 'gf-e2e-old') --downloaded (Join-Path $env:RUNNER_TEMP 'gf-e2e-github-download') --target (Join-Path $env:RUNNER_TEMP 'gf-e2e-negatives')
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_NEGATIVE_REJECTION_FAILED' }
+      - name: Reusar seletor unico C# L18 e ensaio GF REAL OLD para NEW
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $sourceWork=Join-Path $env:RUNNER_TEMP 'gf-e2e-pinned-source'
+          $fixtures=Join-Path $env:RUNNER_TEMP 'gf-e2e-signed-fixtures'
+          $outputs=Join-Path $env:RUNNER_TEMP 'gf-e2e-csharp-artifacts'
+          $project='prototipos/autoatualizador-seguro/phase1-composed/Phase1RealBridge.csproj'
+          $stageSource=(python prototipos/autoatualizador-seguro/m3-composed/prepare_pinned_source.py $sourceWork | Select-Object -Last 1).Trim()
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $stageSource)) { throw 'GF_E2E_STAGE8_SOURCE' }
+          python prototipos/autoatualizador-seguro/m3-composed-3/generate_signed_fixtures.py $fixtures
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_SIGNED_FIXTURES' }
+          dotnet restore $project "-p:ArtifactsPath=$outputs" "-p:Stage8Source=$stageSource" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_CSHARP_RESTORE' }
+          dotnet build $project "-p:ArtifactsPath=$outputs" "-p:Stage8Source=$stageSource" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_CSHARP_BUILD' }
+          $exes=@(Get-ChildItem $outputs -Filter 'GF.Updater.M3.L18Tests.exe' -File -Recurse)
+          if ($exes.Count -ne 1) { throw 'GF_E2E_CSHARP_COORDINATOR_AMBIGUOUS' }
+          $root=(Resolve-Path '.').Path
+          $anchor=Join-Path $root 'prototipos/autoatualizador-seguro/fixtures/bootstrap.test-only.json'
+          $script=Join-Path $root 'prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py'
+          $old=Join-Path $env:RUNNER_TEMP 'gf-e2e-old'
+          $new=Join-Path $env:RUNNER_TEMP 'gf-e2e-authenticated-new'
+          $report=Join-Path $env:RUNNER_TEMP 'gf-e2e-real-flow-report.json'
+          $pythonExe=(Get-Command python).Source
+          & $exes[0].FullName --real-suite $report $fixtures $anchor $root $pythonExe $script $old $new
+          if ($LASTEXITCODE -ne 0) { throw 'GF_E2E_REAL_FLOW_FAILED' }
+          $r=(Get-Content $report -Raw | ConvertFrom-Json)
+          $normal=@($r.tests | Where-Object { $_.test -eq 'normal' })
+          if ($r.failed -ne 0 -or $r.expected_cases -ne 29 -or @($r.tests).Count -ne 29 -or
+              $normal.Count -ne 1 -or $normal[0].status -ne 'passed' -or
+              !$normal[0].normal_owner_completed_without_crash -or
+              !$normal[0].manifest_and_object_identities_rechecked -or
+              $normal[0].outcome -ne 'UnknownBlocked' -or
+              $r.operational_ready -or $r.phase1_complete -or $r.production_tuf_authority) {
+            throw 'GF_E2E_REAL_NORMAL_AND_HOLD_PROOF_FAILED'
+          }
+          Write-Host "GF_E2E_REAL_L18_FLOW old=5.13.11.65 new=5.13.11.66 source=GITHUB_DRAFT_DOWNLOAD scenario=normal result=PASS_CONTAINMENT hold=UnknownBlocked ready=false"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value @(
+            '## GF real - GitHub Draft para OLD/NEW Windows descartavel'
+            '- Fonte: Release privada em rascunho, pacote NEW baixado novamente com credenciais efemeras'
+            '- Validados metadados TUF laboratorio preassinados e bytes de TODOS os arquivos NEW'
+            '- C# L18 usou OLD 5.13.11.65 e NEW 5.13.11.66 recebido do GitHub'
+            '- Ensaio normal real OLD/NEW e matriz transacional: 29 casos, resultado sujeito a observacao de logs'
+            '- NEW nao e READY: HOLD/UnknownBlocked permanece; nenhuma recuperacao automaticamente autorizada'
+            '- Necessario qualificar se GF antigo detecta atualizacao por codigo proprio; este fluxo ainda e orquestrado pelo laboratorio'
+          )
+# No publishing. Draft only. No merge, installer, telemetry, Cloudflare, or personal PCs.
