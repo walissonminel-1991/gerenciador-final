@@ -1,15 +1,23 @@
-# GERENCIADOR FINAL — D2.4: integração D0 → TUF de teste → .NET D2.3
+# GERENCIADOR FINAL — D2.4.2: coordenador C# controla o laboratório inerte
 
-Este é um fluxo **orquestrado em laboratório Windows descartável**, não um autoatualizador operacional.
+Escopo: **Windows GitHub Actions descartável**, raiz TUF de TESTE com seeds públicas; **não é um autoatualizador operacional**.
 
-O controlador `d24_chain_lab.py` reutiliza diretamente `verify_d0_tuf` da D2, que executa o mesmo parser **C# D0** e verifica com python-tuf os metadados assinados por **chaves públicas de TESTE**. Apenas depois de um resultado positivo o controlador envia ao executável C# o caminho do manifesto, seu SHA-256 e a versão instalada/candidata. A ponte C# lê novamente o arquivo, confere os campos contra um contrato estrito de teste, revalida SHA-256 de bytes inertes e usa **exatamente o mesmo transportador HttpClient .NET da D2.3**, por inclusão de fonte única em `GF.D24.InertChainLab.csproj`. Não há um segundo downloader.
+## Única entrada para preparar bytes
 
-O transporte real fica restrito a 127.0.0.1. A URL GitHub Releases é uma **identidade lógica** de arquivo fictício; não é acessada. Tudo se limita a bytes de texto, diretórios descartáveis e raiz TUF de teste, sem instalador, binário oficial ou publicação.
+O executável `GF.D24.InertChainLab.exe` aceita `--d242 <diretório-de-fixtures>`. A antiga entrada `--d24 <manifesto> <sha> <tag> <versão>` foi desativada e **não permite preparo**. O coordenador C# cria um identificador de sessão, inicia um processo Python como filho, e utiliza código Python de verificação incorporado como `EmbeddedResource` ao próprio projeto .NET (`d242_tuf_child.py`), fornecido com `python -c`.
 
-## Limites e contraexemplo obrigatório
+O validador filho reaproveita `verify_d0_tuf` e o parser **C# original D0** do laboratório, além do python-tuf. Ele lê o bootstrap TUF em um snapshot de bytes limitado, verifica o SHA-256 pinado da raiz pública e fornece **esses mesmos bytes** ao verificador, sem nova abertura do arquivo de bootstrap. Somente após autenticar os metadados TUF de TESTE e comparar a Release fictícia com o manifesto inerte o filho emite um recibo estruturado para sua sessão.
 
-**A passagem entre Python e C# NÃO é uma autoridade segura:** um atacante do mesmo usuário pode chamar diretamente o C# com o manifesto de teste e seu hash conhecidos, sem executar o TUF. O laboratório **demonstra explicitamente essa aceitação**. Portanto, mesmo com CI verde, `secure_cross_process_authority_proven=false`. Este é um resultado para orientar a arquitetura futura, não um defeito autorizado para o produto.
+O coordenador exige sucesso e saída única do processo filho, schema exato, sessão, tag, digest de manifesto refeito sobre os bytes relidos, versão instalada e flags de segurança explícitas. Revalida os campos do manifesto no seu snapshot em memória e então chama **o mesmo `Stage` .NET D2.3**, sem criar um segundo transportador. A rede é exclusivamente `127.0.0.1`; o arquivo é **texto inerte**, não ZIP/EXE. A preparação não autoriza instalação.
 
-O componente C# não verifica assinaturas TUF por conta própria; a validação ocorre no controlador Python em ambiente confiável **apenas para fins de teste**. Chaves de teste derivadas de seeds públicas não concedem autenticidade de software. H1 rollback integral, H2, H3, NTFS/TOCTOU same-user, Crash/Power-loss, TLS real, redirects CDN e READY continuam bloqueados.
+## Matriz adversarial
 
-O projeto principal, main, PR #65 Draft, BETA .66 e Cloudflare não podem ser alterados. Sem releases, merge, deploy, executáveis reais, recuperação automática ou modificações de dados pessoais.
+`d24_chain_lab.py` exige: 1 sessão positiva, **15 negativas**, inclusive chamada direta antiga, replay da fixture após trust store criado, manifesto com whitespace e digest novo sem correspondente assinatura TUF, Release errada/draft/assets adulterados, Targets modificado, Timestamp expirado/ausente, repositório e arquitetura assinados incorretos, chave duplicada e interpreter Python indisponível. `--d242-selftest` não prepara bytes e rejeita 7 recibos sintéticos inválidos (sessão/hash discordantes, replay por outra sessão, campos faltantes/extra, tipo e chave duplicada).
+
+O C# não aceita um recibo ou hash arbitrário como argumento de autorização. Contudo, o resultado de sucesso no laboratório **não comprova proteção contra um processo malicioso executado pela mesma conta Windows**, por exemplo substituindo o interpretador Python, bibliotecas, arquivos ou o próprio binário do coordenador. A sessão aleatória não é uma chave de assinatura, e o recibo não constitui IPC autenticado contra esse adversário. As chaves TUF usadas são publicamente deriváveis; não são de produção.
+
+## Limites preservados
+
+O trust store de cada fixture ainda é um bootstrap isolado: D2.4.3 tratará histórico persistente, rollback e controles NTFS. H1/H2/H3 e TOCTOU same-user não foram provados. O protocolo real de GitHub, TLS, CDN, redirects legítimos e dados executáveis não são utilizados. A D2.4.1 mantém a política conservadora de não excluir por nome arquivos de identidade desconhecida e seu deadline cooperativo; nenhuma recuperação automática é feita.
+
+**Fase 1 ABERTA, READY=false, G1–G8 BLOCKED 0/8, HOLD como contenção, zero recuperações automáticas.** Não tocar em main, PR #65 Draft, BETA .66, Cloudflare ou GF distribuído; sem instalação, release, merge ou deploy.
