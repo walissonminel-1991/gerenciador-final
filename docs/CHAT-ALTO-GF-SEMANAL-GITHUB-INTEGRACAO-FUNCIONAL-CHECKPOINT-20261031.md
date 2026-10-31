@@ -34,6 +34,31 @@ A falha da CI 41230997752 foi localizada com observação mínima em [CI 4123134
 
 A prova de consulta semanal e persistência local também passou na mesma CI. Portanto **o impedimento B1 foi resolvido**; segue pendente apenas o Release público real para teste extremo a extremo do canal único e, posteriormente, os controles de segurança pré-distribuição. `READY=false`.
 
+## Continuidade 31/10 — protocolo GitHub e nome final do ZIP comprovados (sem publicação)
+
+**SHA técnico `3008d2b508039b338b077a3555cef9707ab2c580`.**
+**[CI Windows 41232138030](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/41232138030): SUCCESS, 2/2 jobs.**
+
+O teste chama o **mesmo analisador de Release e o mesmo downloader C#** usados no caminho privado de produção, substituindo somente as respostas de rede em memória na CI, com URLs idênticas às da API oficial:
+
+- `GET https://api.github.com/repos/walissonminel-1991/gerenciador-final/releases/latest`, resposta simulada de Release público estável `v5.13.11.66`, asset exato `GerenciadorFinal-win-x64.zip`, tamanho e SHA-256;
+- `GET .../releases/assets/<id>`, resposta simulada `302` para o host oficial `release-assets.githubusercontent.com`, download do ZIP .66 construído na CI;
+- o SHA-256 correto permite preparar o pacote, enquanto o SHA-256 incorreto é rejeitado **antes de iniciar trabalhador ou instalar**;
+- o trabalhador do GF confirma OLD encerrado, backup OLD preservado, NEW no caminho original e **janela principal NEW aberta**.
+
+Registros reais encontrados no log do job funcional:
+
+```text
+GF_PRIVATE_FUNCTIONAL_OLD_GUI_CLICK_PASS visible_normal_old=true button=Verificar_GF READY=false
+GF_PRIVATE_FUNCTIONAL_E2E_PASS old=5.13.11.65 new=5.13.11.66 downloaded_zip=true old_exited=true new_installed_original_path=true new_real_gui_responsive=true local_lab_only=true READY=false
+GF_GITHUB_PROTOCOL_PASS official_api_urls=true metadata=true stable_release=true asset_302=true sha256=true tampered_rejected=true no_token=true fixture_only=true READY=false
+GF_GITHUB_WORKER_FUNCTIONAL_PASS new=5.13.11.66 original_path=true backup_preserved=true mainform_verified=true fixture_only=true READY=false
+```
+
+A regressão confirmou também persistência do intervalo de sete dias e consulta sem token. **O ZIP do teste tem o nome exato do futuro asset estável, com executável e DLL na raiz; não foi publicado nem disponibilizado como Release.**
+
+**Limite fundamental:** esse teste substitui respostas do GitHub por dados controlados na memória. Ele prova o *código do protocolo*, não prova download HTTPS de um **Release público real do projeto**. Na conferência desta rodada, o repositório ainda possui somente a Draft privada `429695537`, sem Release público. A publicação depende de autorização expressa e não foi feita. `READY=false`. A distribuição seguirá bloqueada até concluir, depois da prova funcional real, as camadas de segurança adequadas.
+
 ## Bloqueios concretos, sem desvio de objetivo
 
 - **B1 RESOLVIDO:** trabalhador do ramo GitHub instalou NEW, preservou OLD e confirmou janela na CI 41231564032.
