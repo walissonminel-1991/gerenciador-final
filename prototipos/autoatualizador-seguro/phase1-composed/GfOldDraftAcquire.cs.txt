@@ -430,6 +430,8 @@ internal static class GfOldDraftAcquire
     {
         string stage="guard";
         bool httpCutNegative=Environment.GetEnvironmentVariable("GF_E2E_HTTP_CUT_NEGATIVE")=="1";
+        bool guiNegative=httpCutNegative &&
+            Environment.GetEnvironmentVariable("GF_E2E_HTTP_UI_NEGATIVE")=="1";
         try
         {
             // Lab mode is absent from normal binaries; the additional guards
@@ -446,8 +448,6 @@ internal static class GfOldDraftAcquire
             string token = Environment.GetEnvironmentVariable("GH_TOKEN") ?? "";
             Require(token.Length >= 20 && token.Length <= 2048, "EPHEMERAL_GITHUB_TOKEN_MISSING");
             var runner = Path.GetFullPath(Environment.GetEnvironmentVariable("RUNNER_TEMP")!);
-            bool guiNegative=httpCutNegative &&
-                Environment.GetEnvironmentVariable("GF_E2E_HTTP_UI_NEGATIVE")=="1";
             string dest = Path.GetFullPath(Path.Combine(runner, guiNegative
                 ? "gf-e2e-http-ui-download"
                 : httpCutNegative ? "gf-e2e-http-cut-download"
