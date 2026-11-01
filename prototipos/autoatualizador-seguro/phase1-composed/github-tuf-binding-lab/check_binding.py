@@ -8,6 +8,7 @@ No L18 launch, no updates, no release mutation and no artifact upload.
 from __future__ import annotations
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
@@ -179,10 +180,14 @@ def main() -> None:
 
     def l18_gate(bundle: Path, out: str, *, accepted: bool,
                  zip_sha: str = expected_zip_hash,
-                 manifest_sha: str = target_sha) -> None:
-        proof = run([str(l18), "--real-github-tuf-inert", str(old),
+                 manifest_sha: str = target_sha,
+                 old_path: Path = old,
+                 installation: str = "a" * 32,
+                 transaction: str = "b" * 32) -> None:
+        proof = run([str(l18), "--real-github-tuf-inert", str(old_path),
                      str(bundle), str(scratch / out), str(repo),
-                     sys.executable, zip_sha, manifest_sha],
+                     sys.executable, zip_sha, manifest_sha,
+                     installation, transaction],
                     success=accepted)
         if accepted:
             require("GF_GITHUB_TUF_L18_INERT_PASS " in proof,
@@ -201,6 +206,50 @@ def main() -> None:
     l18_gate(verified, "l18-negative-wrong-manifest-digest", accepted=False,
              manifest_sha="0" * 64)
 
+    # ID arguments are local proposals only. The signed test manifest must
+    # agree with the immutable expected fixture identity; neither argument
+    # confers the right to begin a transaction.
+    l18_gate(verified, "l18-wrong-installation", accepted=False,
+             installation="c" * 32)
+    l18_gate(verified, "l18-wrong-transaction", accepted=False,
+             transaction="d" * 32)
+
+    # The same signed NEW cannot authorize a different OLD.
+    # Mutation is performed ONLY on a copied, disposable OLD.
+    different_old = scratch / "l18-foreign-old"
+    shutil.copytree(old, different_old)
+    old_dll = different_old / "GerenciadorFinal.dll"
+    require(old_dll.is_file(), "OLD_TEST_DLL_ABSENT")
+    with old_dll.open("r+b") as file:
+        file.seek(128)
+        previous = file.read(1)
+        require(len(previous) == 1, "OLD_TEST_DLL_SHORT")
+        file.seek(128)
+        file.write(bytes([previous[0] ^ 0x01]))
+    l18_gate(verified, "l18-negative-foreign-old", accepted=False,
+             old_path=different_old)
+
+    # An unexpected OLD file is also incompatible, even when its normal
+    # files and the new package are otherwise identical.
+    extra_old = scratch / "l18-extra-old"
+    shutil.copytree(old, extra_old)
+    (extra_old / "unexpected-other-program.dll").write_bytes(b"untrusted")
+    l18_gate(verified, "l18-negative-extra-old-file", accepted=False,
+             old_path=extra_old)
+
+    # A locally edited manifest and its recalculated hash are NOT TUF
+    # authority: signed targets still bind to the original manifest bytes.
+    local_bundle = make_bundle("negative-local-reauthed-manifest")
+    local_file = local_bundle / "GF-LAB-REAL-PACKAGE-MANIFEST.json"
+    document = json.loads(local_file.read_text(encoding="utf-8"))
+    require(document["installation"] == "a" * 32, "TEST_ID_UNEXPECTED")
+    document["installation"] = "c" * 32
+    local_file.write_text(json.dumps(document, sort_keys=True,
+                                     separators=(",", ":")),
+                          encoding="utf-8")
+    l18_gate(local_bundle, "l18-negative-local-authority", accepted=False,
+             manifest_sha=digest(local_file), installation="c" * 32)
+
     require(not any(scratch.rglob("l18-phase-*.fixture.json")),
             "L18_INERT_CREATED_JOURNAL")
     # No swap, NEW execution or worker; this proof grants no install authority.
@@ -209,7 +258,7 @@ def main() -> None:
             not any(scratch.rglob("applied.json")) and
             not any(scratch.rglob("l18-real-active.fixture.json")),
             "UNAUTHORIZED_INSTALL_MARKER")
-    print("GF_GITHUB_TUF_L18_GATE_MATRIX_PASS positive=DATA_ONLY bad_zip=REJECTED missing_manifest=REJECTED missing_targets=REJECTED forged_targets=REJECTED wrong_zip_sha=REJECTED wrong_manifest_sha=REJECTED selector=false journal=false NEW=false READY=false", flush=True)
+    print("GF_GITHUB_TUF_L18_GATE_MATRIX_PASS positive=DATA_ONLY bad_zip=REJECTED missing_manifest=REJECTED missing_targets=REJECTED forged_targets=REJECTED wrong_zip_sha=REJECTED wrong_manifest_sha=REJECTED wrong_installation=REJECTED wrong_transaction=REJECTED mutated_OLD=REJECTED extra_OLD=REJECTED local_resign=REJECTED selector=false journal=false NEW=false READY=false", flush=True)
     print("GF_GITHUB_TUF_BINDING_PASS " +
           "same_downloaded_zip_sha=true signed_file_set=true " +
           "tuf_test_root_only=true zip_sha_in_tuf_target=false " +
