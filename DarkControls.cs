@@ -168,6 +168,13 @@ internal sealed class DarkVScrollBar : Control
 
 internal static class AppRowGeometry
 {
+    // Uma linha com reticencias: o tooltip da lista preserva nome/versao
+    // completos. WordBreak em uma faixa de 29px podia ocultar a segunda linha.
+    internal const TextFormatFlags TitleTextFlags =
+        TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix;
+    internal const TextFormatFlags DetailTextFlags =
+        TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix;
+
     // Em cartões estreitos, reaproveitar a segunda linha; nos largos, ocupar a lacuna antes dos botões.
     public static Rectangle OperationArea(Rectangle bounds, int prefix = 0)
     {

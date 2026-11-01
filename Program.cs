@@ -1301,7 +1301,7 @@ internal sealed partial class MainForm : Form
         if (hasOperation && e.Bounds.Width >= 940) width = Math.Max(18, operationArea.Left - left - 12);
         TextRenderer.DrawText(e.Graphics, item.Name, _rowTitle,
             new Rectangle(left, e.Bounds.Top + 5, width, 29), selected ? Accent : Ink,
-            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            AppRowGeometry.TitleTextFlags);
         string? updateAction=item.IsUpdate?VerifiedUpdaters.GetPrimaryAction(item):null;
         string details = item.UpdateRequiresReview
             ? "Fontes ou identidade exigem revisão · detalhes ao apontar o mouse"
@@ -1326,7 +1326,7 @@ internal sealed partial class MainForm : Form
         TextRenderer.DrawText(e.Graphics, details, _rowInfo,
             new Rectangle(left, e.Bounds.Top + 34, width, 28),
             item.IsUpdate ? updateAction is "update" or "terminal" ? Color.FromArgb(133, 221, 176) : Color.FromArgb(231, 199, 135) : Muted,
-            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            AppRowGeometry.DetailTextFlags);
 
         if (uninstall is not null) DrawUninstallOperation(e.Graphics, operationArea, uninstall);
         else if (operation is not null) DrawUpdateOperation(e.Graphics, operationArea, operation);

@@ -7,9 +7,44 @@ namespace GerenciadorAplicativos;
 // O mesmo cartao virtualizado da lista de Aplicativos, mas SEM acoes de
 // instalacao/desinstalacao. Desenha apenas linhas visiveis mesmo com milhares
 // de associacoes, evitando centenas de controles no computador fraco.
+// Geometria unica de desenho, seleção por indice, tooltip e rolagem dos
+// drivers. Escalas sintéticas cobertas pelos testes; DPI fisico ainda aberto.
+internal static class DriverRowGeometry
+{
+    internal static int Scale(int pixels, int dpi) =>
+        (int)Math.Ceiling(pixels * Math.Max(1d, dpi / 96d));
+
+    internal static int Height(int dpi) => Scale(73, dpi);
+
+    internal static Rectangle Card(Rectangle row, int dpi) =>
+        new(row.Left + Scale(4, dpi), row.Top + Scale(3, dpi),
+            Math.Max(1, row.Width - Scale(9, dpi)),
+            Math.Max(1, row.Height - Scale(6, dpi)));
+
+    internal static Rectangle Emblem(Rectangle row, int dpi) =>
+        new(row.Left + Scale(18, dpi), row.Top + Scale(21, dpi),
+            Scale(31, dpi), Scale(31, dpi));
+
+    internal static bool ShowStatus(Rectangle row, int dpi) =>
+        row.Width >= Scale(570, dpi);
+
+    internal static Rectangle Text(Rectangle row, int dpi, int top, int height)
+    {
+        int left = row.Left + Scale(62, dpi);
+        int statusWidth = ShowStatus(row, dpi) ? Scale(142, dpi) : 0;
+        int available = Math.Max(1, row.Right - left - statusWidth - Scale(14, dpi));
+        return new Rectangle(left, row.Top + Scale(top, dpi), available,
+            Scale(height, dpi));
+    }
+
+    internal static Rectangle Status(Rectangle row, int dpi) =>
+        new(row.Right - Scale(138, dpi), row.Top + Scale(22, dpi),
+            Scale(123, dpi), Scale(26, dpi));
+}
+
 internal sealed class DarkDriverList : Control
 {
-    private const int RowHeight = 73;
+    private int RowHeight => DriverRowGeometry.Height(DeviceDpi);
     private readonly List<DriverInventoryEntry> _items = new();
     private readonly DarkVScrollBar _scrollbar = new();
     private readonly WheelDeltaAccumulator _wheel = new();
@@ -43,6 +78,7 @@ internal sealed class DarkDriverList : Control
         };
         Controls.Add(_scrollbar);
         Resize += (_, _) => UpdateMetrics();
+        DpiChangedAfterParent += (_, _) => UpdateMetrics();
     }
 
     internal void SetItems(IEnumerable<DriverInventoryEntry> items)
@@ -99,8 +135,8 @@ internal sealed class DarkDriverList : Control
 
     private void DrawCard(Graphics canvas, Rectangle bounds, DriverInventoryEntry item, bool selected)
     {
-        Rectangle card = new(bounds.Left + 4, bounds.Top + 3,
-            Math.Max(1, bounds.Width - 9), bounds.Height - 6);
+        int dpi = DeviceDpi;
+        Rectangle card = DriverRowGeometry.Card(bounds, dpi);
         canvas.SmoothingMode = SmoothingMode.AntiAlias;
         using (var path = ModernButton.RoundRect(card, 8))
         using (var background = new SolidBrush(selected
@@ -118,7 +154,7 @@ internal sealed class DarkDriverList : Control
             canvas.FillRectangle(accent, card.Left + 1, card.Top + 12, 4, card.Height - 24);
         }
 
-        Rectangle emblem = new(bounds.Left + 18, bounds.Top + 21, 31, 31);
+        Rectangle emblem = DriverRowGeometry.Emblem(bounds, dpi);
         using (var emblemBrush = new SolidBrush(Color.FromArgb(54, 67, 81)))
             canvas.FillEllipse(emblemBrush, emblem);
         string initial = string.IsNullOrWhiteSpace(item.DeviceName)
@@ -127,35 +163,32 @@ internal sealed class DarkDriverList : Control
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
             TextFormatFlags.NoPrefix);
 
-        int left = bounds.Left + 62;
-        bool showStatus = bounds.Width >= 570;
-        int statusWidth = showStatus ? 142 : 0;
-        int available = Math.Max(20, bounds.Right - left - statusWidth - 14);
+        bool showStatus = DriverRowGeometry.ShowStatus(bounds, dpi);
         Color muted = Color.FromArgb(167, 181, 196);
         const TextFormatFlags single = TextFormatFlags.SingleLine |
             TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix |
             TextFormatFlags.VerticalCenter;
         TextRenderer.DrawText(canvas,
             string.IsNullOrWhiteSpace(item.DeviceName) ? "Dispositivo não identificado" : item.DeviceName,
-            _titleFont, new Rectangle(left, bounds.Top + 5, available, 22),
+            _titleFont, DriverRowGeometry.Text(bounds, dpi, 5, 22),
             selected ? Color.FromArgb(111, 184, 255) : ForeColor, single);
         string provider = string.IsNullOrWhiteSpace(item.Provider)
             ? "Fornecedor não informado" : item.Provider;
         string version = string.IsNullOrWhiteSpace(item.Version)
             ? "não informada" : item.Version;
         TextRenderer.DrawText(canvas, "Versão: " + version + "  ·  " + provider,
-            _detailsFont, new Rectangle(left, bounds.Top + 28, available, 19),
+            _detailsFont, DriverRowGeometry.Text(bounds, dpi, 28, 19),
             muted, single);
         string inf = string.IsNullOrWhiteSpace(item.InfName)
             ? "não informado" : item.InfName;
         string second = "INF: " + inf + "  ·  Assinatura (Windows): " + item.SignatureLabel;
         if (!showStatus) second += "  ·  " + item.PresenceLabel;
         TextRenderer.DrawText(canvas, second, _detailsFont,
-            new Rectangle(left, bounds.Top + 46, available, 19), muted, single);
+            DriverRowGeometry.Text(bounds, dpi, 48, 19), muted, single);
 
         if (showStatus)
         {
-            Rectangle pill = new(bounds.Right - 138, bounds.Top + 22, 123, 26);
+            Rectangle pill = DriverRowGeometry.Status(bounds, dpi);
             Color fill = item.Present switch
             {
                 true => Color.FromArgb(44, 95, 82),
