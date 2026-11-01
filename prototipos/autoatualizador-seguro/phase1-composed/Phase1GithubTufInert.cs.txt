@@ -68,7 +68,16 @@ internal static class Phase1GithubTufInert
              File.Exists(python),"GH_L18_INERT_PYTHON");
         string old=Under(a[1],runner,true), bundle=Under(a[2],runner,true);
         string extracted=Under(a[3],runner,false);
-        string stateRoot=Under(a[10],runner,true), labRoot=Under(a[11],runner,true);
+        // L14 and PersistentState deliberately require OS GetTempPath(),
+        // which may differ from RUNNER_TEMP on hosted Windows images.
+        // These two fixture-only roots are direct children of the OS temp
+        // directory, still under the disposable CI guard above.
+        string osTemp=Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath()));
+        string stateRoot=Under(a[10],osTemp,true), labRoot=Under(a[11],osTemp,true);
+        Require(Path.GetFileName(stateRoot).StartsWith("gf-u2-github-binding-",StringComparison.Ordinal) &&
+            Path.GetFileName(labRoot).StartsWith("gf-u2-l14-",StringComparison.Ordinal) &&
+            Path.GetDirectoryName(labRoot)==osTemp,
+            "GH_L18_INERT_TEST_ROOTS_ONLY");
         Require(Directory.Exists(old) && Directory.Exists(bundle) &&
             !Directory.Exists(extracted) && !File.Exists(extracted) &&
             a[6].Length==64 && a[7].Length==64 &&
