@@ -59,11 +59,9 @@ def main() -> None:
             os.getenv("GITHUB_REPOSITORY") == REPO and
             os.getenv("GF_GITHUB_TUF_ONLY") == "1", "DISPOSABLE_WINDOWS_ONLY")
     runner = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
-    # Existing FixtureSandbox and L14Model use .NET Path.GetTempPath().
-    # Keep both the C# fixture root and its L14 lab directly in RUNNER_TEMP,
-    # never in a personal profile. This override is limited to this job.
-    os.environ["TMP"] = str(runner)
-    os.environ["TEMP"] = str(runner)
+    # Do NOT override OS TEMP/TMP with RUNNER_TEMP: hosted Windows runner's
+    # broad-write ACL would be rejected by WindowsFileGuard. Retain the
+    # runtime's native per-user OS temp and its existing private ACL.
     repo = Path(os.environ["GITHUB_WORKSPACE"]).resolve(strict=True)
     script = repo / "prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py"
     require(script.is_file() and a.probe.is_file() and a.l18.is_file(), "EXISTING_SOURCES_MISSING")
