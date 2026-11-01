@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/gf-github-tuf-binding-inert.yml'
       - 'prototipos/autoatualizador-seguro/phase1-composed/github-tuf-binding-lab/**'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/GfGithubWeeklyUpdate.cs.txt'
 
 permissions:
   contents: read
