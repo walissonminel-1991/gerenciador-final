@@ -14,7 +14,8 @@ internal sealed class UpdateLaunchGate
 {
     private int attempted;
     internal async Task<UpdateAttemptResult> RunAsync(Func<Task<bool>> revalidate,
-        Func<Task<int>> launch, Func<Task<bool>> confirm, CancellationToken token = default, Action<UpdateProgress>? progress = null)
+        Func<Task<int>> launch, Func<Task<bool>> confirm, CancellationToken token = default,
+        Action<UpdateProgress>? progress = null, Func<bool>? hasConfirmedInstallerStart = null)
     {
         if (Interlocked.Exchange(ref attempted, 1) != 0)
             return new(UpdateAttemptState.AlreadyAttempted);
@@ -43,10 +44,12 @@ internal sealed class UpdateLaunchGate
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
-            // Correção já isolada na PR #47: uma falha posterior do inventário
-            // não pode transformar instalação iniciada em recusa do UAC.
-            return new(installerReturned ? UpdateAttemptState.Indeterminate : UpdateAttemptState.Cancelled,
-                AuthorizationDeclined: !installerReturned);
+            // A recusa só é confirmada quando a chamada não produziu processo.
+            // Um processo já iniciado pode continuar mesmo se uma API posterior
+            // devolver ERROR_CANCELLED. Nesse caso, nunca liberar repetição.
+            bool started = installerReturned || hasConfirmedInstallerStart?.Invoke() == true;
+            return new(started ? UpdateAttemptState.Indeterminate : UpdateAttemptState.Cancelled,
+                AuthorizationDeclined: !started);
         }
         catch (UpdateInstallerFailureException ex) { return new(UpdateAttemptState.Failed, ex.ExitCode); }
         catch (TimeoutException) { return new(UpdateAttemptState.Indeterminate); }

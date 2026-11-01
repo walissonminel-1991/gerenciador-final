@@ -19,7 +19,9 @@ internal static class RebootResidualReview
     internal static long BootUtcTicks(DateTimeOffset now, long uptimeMs) =>
         now.UtcTicks - TimeSpan.FromMilliseconds(Math.Clamp(uptimeMs, 0, (long)TimeSpan.FromDays(365).TotalMilliseconds)).Ticks;
     internal static bool IsLaterBoot(long stored, long current) =>
-        stored > 0 && Math.Abs(current - stored) > TimeSpan.FromMinutes(2).Ticks;
+        // Um retrocesso no relogio do mesmo boot nao autoriza consumir revisao.
+        // Na duvida a revisao passiva permanece pendente, sem exclusao.
+        stored > 0 && current > stored && current - stored > TimeSpan.FromMinutes(2).Ticks;
     internal static bool IsRetryable(ResidualItemResult item) =>
         item.Error is 32 or 33 || item.Reason.Contains("sharing_violation", StringComparison.Ordinal);
     internal static bool ProviderRequiresRestart(UninstallOutcome outcome) =>

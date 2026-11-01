@@ -430,6 +430,19 @@ internal sealed class DarkProgramList : Control
         finally { e.Graphics.Clip = original; original.Dispose(); }
     }
 
+    // A mudanca de hover altera apenas os botoes da linha anterior/atual.
+    // Reinvalidar toda a viewport a cada passagem pelo cursor repintava
+    // todas as entradas visiveis (inclusive em 1440x900 e 2560x1440).
+    private void InvalidateActionRow(ProgramEntry? item)
+    {
+        if (item is null) return;
+        int index = _items.IndexOf(item);
+        if (index < 0) return;
+        var rect = new Rectangle(0, index * _itemHeight - _scrollOffset,
+            ClientSize.Width, _itemHeight);
+        if (rect.IntersectsWith(ClientRectangle)) Invalidate(rect);
+    }
+
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
@@ -450,22 +463,25 @@ internal sealed class DarkProgramList : Control
         var (item, action) = HitAction(e.Location);
         if (!ReferenceEquals(item, _hoverItem) || _hoverAction != action)
         {
+            var previous = _hoverItem;
             _hoverItem = item;
             _hoverAction = action;
             Cursor = item is null ? Cursors.Default : Cursors.Hand;
-            Invalidate();
+            InvalidateActionRow(previous);
+            if (!ReferenceEquals(previous, item)) InvalidateActionRow(item);
         }
     }
 
     protected override void OnMouseLeave(EventArgs e)
     {
         base.OnMouseLeave(e);
+        var previous = _hoverItem;
         _hoverItem = null;
         _hoverAction = "";
         _tipRow = -1;
         _itemTips.SetToolTip(this, "");
         Cursor = Cursors.Default;
-        Invalidate();
+        InvalidateActionRow(previous);
     }
 
     protected override void OnMouseDown(MouseEventArgs e)

@@ -219,6 +219,16 @@ internal static class LayoutTests
         V52DpiActionLayoutTests.Run();
         TestStartupBounds();
         TestWorkspaceProportions();
+        var p5Samples = new List<PerformanceSample>();
+        using (LocalPerformanceMetrics.Measure(PerformanceStage.InitialInventoryLoad, p5Samples.Add))
+            System.Threading.Thread.SpinWait(10000);
+        if (p5Samples.Count != 1 || p5Samples[0].Stage != PerformanceStage.InitialInventoryLoad ||
+            p5Samples[0].DurationMs < 0 || p5Samples[0].AllocatedBytes < 0 ||
+            !p5Samples[0].Format().Contains("DESEMPENHO.LOCAL etapa=InitialInventoryLoad", StringComparison.Ordinal) ||
+            !p5Samples[0].Format().Contains("cpu_ms=", StringComparison.Ordinal))
+            throw new Exception("P5 medicao inicial deve produzir um registro agregado e sem dados privados.");
+        Console.WriteLine("OK P5 primeira tentativa de inventario tem metrica agregada propria");
+        TestHoverRepaintBounds();
         TestRamHistoryAndSampling();
         TestSafeMemoryPolicyAndLogCache();
         TestSamplingCadence();
@@ -809,6 +819,53 @@ internal static class LayoutTests
         using var signal = new WindowsLowMemorySignal();
         _ = signal.IsLow(); // disponibilidade é opcional, não exige admin.
         Console.WriteLine("OK: política de pressão persistente, cooldown, log próprio e limite de cache.");
+    }
+
+    private static void TestHoverRepaintBounds()
+    {
+        // Viewports equivalentes a listas em janelas menores/maiores:
+        // a passagem do cursor por um botao deve invalidar somente a linha.
+        // Evita atribuir resultados de DPI fisico aos runners descartaveis.
+        var mouseMove = typeof(DarkProgramList).GetMethod("OnMouseMove",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            ?? throw new Exception("V5 manipulador de movimento ausente.");
+        var mouseLeave = typeof(DarkProgramList).GetMethod("OnMouseLeave",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            ?? throw new Exception("V5 manipulador de saida ausente.");
+        foreach (int width in new[] { 600, 1000 })
+        {
+            using var host = new Form { ClientSize = new Size(width, 260), ShowInTaskbar = false };
+            using var list = new DarkProgramList { Dock = DockStyle.Fill, ItemHeight = 66 };
+            host.Controls.Add(list);
+            list.SetItems(new[]
+            {
+                new ProgramEntry { Name = "Ferramenta sintética A", CanUninstall = true },
+                new ProgramEntry { Name = "Ferramenta sintética B", CanUninstall = true }
+            });
+            host.Show();
+            Application.DoEvents();
+            var invalidated = new List<Rectangle>();
+            list.Invalidated += (_, e) => invalidated.Add(e.InvalidRect);
+            int x = AppRowGeometry.UninstallButton(
+                new Rectangle(0, 0, list.ClientSize.Width, list.ItemHeight)).Left + 12;
+            void Hover(int y)
+            {
+                mouseMove.Invoke(list, new object[] { new MouseEventArgs(MouseButtons.None, 0, x, y, 0) });
+            }
+            Hover(28);
+            if (invalidated.Count == 0 || invalidated.Any(rect => rect.Height > list.ItemHeight))
+                throw new Exception($"V5 hover inicial redesenhou toda a viewport: {width}");
+            invalidated.Clear();
+            Hover(list.ItemHeight + 28);
+            if (invalidated.Count < 2 || invalidated.Any(rect => rect.Height > list.ItemHeight))
+                throw new Exception($"V5 mudança de hover não limitou as duas linhas: {width}");
+            invalidated.Clear();
+            mouseLeave.Invoke(list, new object[] { EventArgs.Empty });
+            if (invalidated.Count == 0 || invalidated.Any(rect => rect.Height > list.ItemHeight))
+                throw new Exception($"V5 saída do hover redesenhou toda a viewport: {width}");
+            host.Close();
+        }
+        Console.WriteLine("OK V5 hover de botoes invalida somente linhas afetadas em viewports 600/1000");
     }
 
     private static void TestRamHistoryAndSampling()
