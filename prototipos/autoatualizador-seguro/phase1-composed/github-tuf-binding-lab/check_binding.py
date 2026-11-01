@@ -51,6 +51,7 @@ def main() -> None:
     p.add_argument("--old", type=Path, required=True)
     p.add_argument("--new", type=Path, required=True)
     p.add_argument("--probe", type=Path, required=True)
+    p.add_argument("--l18", type=Path, required=True)
     a = p.parse_args()
     require(os.name == "nt" and os.getenv("GITHUB_ACTIONS") == "true" and
             os.getenv("GITHUB_REPOSITORY") == REPO and
@@ -58,7 +59,7 @@ def main() -> None:
     runner = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
     repo = Path(os.environ["GITHUB_WORKSPACE"]).resolve(strict=True)
     script = repo / "prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py"
-    require(script.is_file() and a.probe.is_file(), "EXISTING_SOURCES_MISSING")
+    require(script.is_file() and a.probe.is_file() and a.l18.is_file(), "EXISTING_SOURCES_MISSING")
 
     def scoped(path: Path) -> Path:
         resolved = path.resolve(strict=True)
@@ -66,7 +67,7 @@ def main() -> None:
                 "RUNNER_SCOPE")
         return resolved
 
-    old, new, probe = scoped(a.old), scoped(a.new), scoped(a.probe)
+    old, new, probe, l18 = scoped(a.old), scoped(a.new), scoped(a.probe), scoped(a.l18)
     scratch = runner / "gf-github-tuf-byte-bridge-only"
     require(not scratch.exists(), "SCRATCH_NOT_FRESH")
     scratch.mkdir()
@@ -172,11 +173,43 @@ def main() -> None:
     require(not verify(forged, "negative-forged-extracted", success=False),
             "BAD_SIGNED_TARGETS_NOT_REJECTED")
 
-    # Never start OLD, NEW, L18 or a worker. Even local receipts must be absent.
+    # Run only the data-only mode of the EXISTING L18 executable.
+    # The same TUF test-root and file-set are reverified by this entrypoint.
+    target_sha = digest(verified / "GF-LAB-REAL-PACKAGE-MANIFEST.json")
+
+    def l18_gate(bundle: Path, out: str, *, accepted: bool,
+                 zip_sha: str = expected_zip_hash,
+                 manifest_sha: str = target_sha) -> None:
+        proof = run([str(l18), "--real-github-tuf-inert", str(old),
+                     str(bundle), str(scratch / out), str(repo),
+                     sys.executable, zip_sha, manifest_sha],
+                    success=accepted)
+        if accepted:
+            require("GF_GITHUB_TUF_L18_INERT_PASS " in proof,
+                    "L18_INERT_RECEIPT_NOT_PROVEN")
+        else:
+            require(not (scratch / out / "GerenciadorFinal.exe").exists(),
+                    "L18_NEGATIVE_ACCEPTED_NEW")
+
+    l18_gate(verified, "l18-positive-extracted", accepted=True)
+    l18_gate(changed, "l18-negative-bad-zip", accepted=False)
+    l18_gate(no_manifest, "l18-negative-no-manifest", accepted=False)
+    l18_gate(no_targets, "l18-negative-no-targets", accepted=False)
+    l18_gate(forged, "l18-negative-forged-targets", accepted=False)
+    l18_gate(verified, "l18-negative-wrong-zip-digest", accepted=False,
+             zip_sha="0" * 64)
+    l18_gate(verified, "l18-negative-wrong-manifest-digest", accepted=False,
+             manifest_sha="0" * 64)
+
+    require(not any(scratch.rglob("l18-phase-*.fixture.json")),
+            "L18_INERT_CREATED_JOURNAL")
+    # No swap, NEW execution or worker; this proof grants no install authority.
+    # Never start OLD, NEW or a worker. Even local receipts must be absent.
     require(not any(scratch.rglob("attached.flag")) and
             not any(scratch.rglob("applied.json")) and
             not any(scratch.rglob("l18-real-active.fixture.json")),
             "UNAUTHORIZED_INSTALL_MARKER")
+    print("GF_GITHUB_TUF_L18_GATE_MATRIX_PASS positive=DATA_ONLY bad_zip=REJECTED missing_manifest=REJECTED missing_targets=REJECTED forged_targets=REJECTED wrong_zip_sha=REJECTED wrong_manifest_sha=REJECTED selector=false journal=false NEW=false READY=false", flush=True)
     print("GF_GITHUB_TUF_BINDING_PASS " +
           "same_downloaded_zip_sha=true signed_file_set=true " +
           "tuf_test_root_only=true zip_sha_in_tuf_target=false " +
