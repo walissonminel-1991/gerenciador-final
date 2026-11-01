@@ -5,6 +5,9 @@ on:
     paths:
       - '.github/workflows/gf-github-tuf-binding-inert.yml'
       - 'prototipos/autoatualizador-seguro/phase1-composed/github-tuf-binding-lab/**'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/Phase1GithubTufInert.cs.txt'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/Phase1RecoveryTests.cs.txt'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/Phase1RealBridge.csproj'
       - 'prototipos/autoatualizador-seguro/phase1-composed/GfGithubWeeklyUpdate.cs.txt'
 
 permissions:
@@ -15,7 +18,7 @@ jobs:
     name: Existing C# GitHub client to TUF file-set, no L18
     if: github.repository == 'walissonminel-1991/gerenciador-final' && github.ref == 'refs/heads/experimento-g5-ipc-chat-alto-20261029'
     runs-on: windows-2022
-    timeout-minutes: 40
+    timeout-minutes: 55
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
@@ -79,6 +82,23 @@ jobs:
             throw 'G5_TUF_PROBE_EXE_MISSING'
           }
           Write-Host 'GF_GITHUB_TUF_TEST_ASSEMBLY_PASS source=EXISTING_CSHARP no_install_worker=true no_L18=true'
+      - name: Compile the SAME existing L18 coordinator in a separate non-publishable project
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $sourceWork=Join-Path $env:RUNNER_TEMP 'gf-github-tuf-pinned-stage8'
+          $outputs=Join-Path $env:RUNNER_TEMP 'gf-github-tuf-l18-build'
+          $project='prototipos/autoatualizador-seguro/phase1-composed/Phase1RealBridge.csproj'
+          $stage=(python prototipos/autoatualizador-seguro/m3-composed/prepare_pinned_source.py $sourceWork | Select-Object -Last 1).Trim()
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $stage)) { throw 'GH_TUF_L18_PINNED_SOURCE_REQUIRED' }
+          dotnet restore $project "-p:ArtifactsPath=$outputs" "-p:Stage8Source=$stage" --locked-mode --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'GH_TUF_L18_RESTORE_FAILED' }
+          dotnet build $project "-p:ArtifactsPath=$outputs" "-p:Stage8Source=$stage" -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'GH_TUF_L18_BUILD_FAILED' }
+          $exes=@(Get-ChildItem $outputs -Filter 'GF.Updater.M3.L18Tests.exe' -File -Recurse)
+          if ($exes.Count -ne 1) { throw 'GH_TUF_L18_EXE_NOT_UNIQUE' }
+          "GH_TUF_L18_EXE=$($exes[0].FullName)" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host 'GF_GITHUB_TUF_L18_BUILD_PASS same_coordinator=true test_only=true no_realowner=true READY=false'
       - name: Bind identical C# downloaded ZIP to verified TUF target files; negative tests
         shell: pwsh
         run: |
@@ -87,6 +107,7 @@ jobs:
           $old=Join-Path $env:RUNNER_TEMP 'gf-github-tuf-old'
           $new=Join-Path $env:RUNNER_TEMP 'gf-github-tuf-new'
           $probe=Join-Path $env:RUNNER_TEMP 'gf-github-tuf-probe/GfGithubTufBindingLab.exe'
-          python $script --old $old --new $new --probe $probe
+          if (!(Test-Path -LiteralPath $env:GH_TUF_L18_EXE)) { throw "GH_TUF_L18_REQUIRED" }
+          python $script --old $old --new $new --probe $probe --l18 $env:GH_TUF_L18_EXE
           if ($LASTEXITCODE -ne 0) { throw 'G5_GITHUB_TUF_BYTES_NOT_AUTHENTICATED' }
-          Write-Host 'GF_GITHUB_TUF_FINAL_PASS source=SIMULATED_GITHUB file_set=SIGNED_TEST_TUF no_install=true no_l18=true no_release=true READY=false'
+          Write-Host 'GF_GITHUB_TUF_FINAL_PASS source=SIMULATED_GITHUB file_set=SIGNED_TEST_TUF l18_inert_handoff=true no_install=true no_realowner=true no_release=true READY=false'
