@@ -283,6 +283,31 @@ def main() -> None:
 
     l18_gate(verified, "l18-positive-extracted", accepted=True)
 
+    # Abrupt process exit AFTER authenticated TUF but BEFORE any persistent
+    # L18 context or authorization write. No real crash/recovery claim:
+    # this is an intentional lab-only process cut and must remain blocked.
+    cut_env = dict(os.environ)
+    cut_env["GF_GITHUB_TUF_INERT_CUT_AFTER_TUF"] = "1"
+    last = state / "ledger" / "0000000000000002.fixture.json"
+    before_cut = digest(last)
+    cut = subprocess.run(
+        [str(l18), "--real-github-tuf-inert", str(old), str(verified),
+         str(scratch / "l18-precommit-cut-extracted"), str(repo),
+         sys.executable, expected_zip_hash, target_sha,
+         "a" * 32, "b" * 32, str(state), str(lab)],
+        capture_output=True, text=True, check=False, timeout=270,
+        encoding="utf-8", errors="replace", env=cut_env)
+    require(cut.returncode == 29 and
+            "GF_GITHUB_TUF_INERT_PRECOMMIT_CUT " in cut.stdout and
+            digest(last) == before_cut and
+            not any(state.rglob("l18-phase-*.fixture.json")) and
+            not any(state.rglob("l18-real-active.fixture.json")) and
+            not any(scratch.rglob("l18-phase-*.fixture.json")),
+            "PRECOMMIT_PROCESS_CUT_NOT_CONTAINED")
+    print("GF_GITHUB_TUF_PRECOMMIT_CUT_PASS abrupt_exit=29 "
+          "auth_verified=true journal=false selector=false "
+          "resume_authority=false NEW=false READY=false", flush=True)
+
     # After the preflight PROCESS ENDS, no handle remains. Replacing the
     # last ledger name with a new file object containing identical bytes
     # becomes possible. This deliberately proves a missing CROSS-PROCESS
