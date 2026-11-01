@@ -2,7 +2,7 @@
 
 ## Decisão vigente — 01/11/2026
 
-Não haverá programa de distribuição antecipada ou recrutamento externo para a edição em preparação. O projeto permanece em validação controlada, sem aprovação para liberar coleta, envio remoto ou execução de autoatualizador. O perfil local atual mantém o diagnóstico colaborativo e as consultas automáticas na abertura desativados. [Decisão de canal único](docs/DECISAO-CANAL-UNICO-20261101.md).
+Não haverá programa de distribuição antecipada ou recrutamento externo para a edição em preparação. O projeto permanece em validação controlada, sem aprovação para liberar coleta, envio remoto ou execução de autoatualizador. O perfil local atual mantém o diagnóstico colaborativo e as consultas automáticas na abertura desativados. [Decisão de canal único (registro no GitHub)](https://github.com/walissonminel-1991/gerenciador-final/blob/30297b991c26c5363585a9d2eab73afd3b6b141e/docs/DECISAO-CANAL-UNICO-20261101.md).
 
 As seções abaixo preservam a descrição técnica e jurídica de propostas anteriores, inclusive documentos e identificadores chamados BETA. Elas **não constituem instruções vigentes de implantação, nem consentimento, autorização de compartilhamento ou promessa de distribuição**. Os bloqueios de build e de endpoint permanecem intactos.
 
