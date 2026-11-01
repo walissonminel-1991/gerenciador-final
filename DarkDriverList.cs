@@ -12,6 +12,7 @@ internal sealed class DarkDriverList : Control
     private const int RowHeight = 73;
     private readonly List<DriverInventoryEntry> _items = new();
     private readonly DarkVScrollBar _scrollbar = new();
+    private readonly WheelDeltaAccumulator _wheel = new();
     private readonly ToolTip _tips = new() { InitialDelay = 450, AutoPopDelay = 12000 };
     private readonly Font _titleFont = new("Segoe UI", 10f, FontStyle.Bold);
     private readonly Font _detailsFont = new("Segoe UI", 8.8f);
@@ -220,7 +221,10 @@ internal sealed class DarkDriverList : Control
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
-        _scrollbar.Value -= Math.Sign(e.Delta) * RowHeight * 3;
+        int notches = _wheel.Consume(e.Delta);
+        if (notches != 0)
+            _scrollbar.Value = (int)Math.Clamp((long)_scrollbar.Value - (long)notches * RowHeight * 3,
+                0, _scrollbar.MaximumValue);
     }
 
     protected override bool IsInputKey(Keys keyData) =>

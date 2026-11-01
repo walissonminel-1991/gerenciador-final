@@ -44,6 +44,21 @@ internal static class WheelScrollTests
         Wheel(list, 30);
         Check(listBar.Value == 0, "inversao de entalhe deve retornar ao topo");
 
+        // A aba DRIVERS utiliza lista virtualizada propria e deve
+        // manter a mesma proporcionalidade sem executar acao em drivers.
+        using var drivers = new DarkDriverList { Size = new Size(800, 260) };
+        drivers.SetItems(Enumerable.Range(0, 80).Select(i => new DriverInventoryEntry(
+            "TEST\\\\ID" + i, "Driver fixture " + i, "Fabricante sintético",
+            "1.2.3." + i, "oem" + i + ".inf", true, null)));
+        var driverBar = drivers.Controls.OfType<DarkVScrollBar>().Single();
+        Check(driverBar.MaximumValue > 600, "fixture de drivers nao tem rolagem");
+        for (int i = 0; i < 2; i++) Wheel(drivers, -40);
+        Check(driverBar.Value == 0, "drivers nao devem amplificar deltas parciais");
+        Wheel(drivers, -40);
+        Check(driverBar.Value == 3 * 73, "drivers devem acumular -120 e rolar tres linhas");
+        for (int i = 0; i < 3; i++) Wheel(drivers, 40);
+        Check(driverBar.Value == 0, "drivers devem retornar sem salto na inversao");
+
         using var flow = new DarkScrollableFlow { Size = new Size(300, 220) };
         flow.Content.Controls.Add(new Panel { Size = new Size(210, 850) });
         flow.Reflow();
@@ -55,6 +70,6 @@ internal static class WheelScrollTests
         Check(flowBar.Value == 85, "painel deve acumular -120 e rolar 85 px");
         Wheel(flow.Controls.OfType<Panel>().Single(), 120);
         Check(flowBar.Value == 0, "painel e viewport devem compartilhar o acumulador");
-        Console.WriteLine("OK V5: rolagem proporcional com deltas parciais e inversao na lista e nos paineis.");
+        Console.WriteLine("OK V5: rolagem proporcional com deltas parciais e inversao nas listas de aplicativos/drivers e paineis.");
     }
 }
