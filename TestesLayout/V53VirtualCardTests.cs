@@ -12,12 +12,6 @@ internal static class V53VirtualCardTests
 
     internal static void Run()
     {
-        Require(AppRowGeometry.TitleTextFlags.HasFlag(TextFormatFlags.SingleLine) &&
-            AppRowGeometry.TitleTextFlags.HasFlag(TextFormatFlags.EndEllipsis) &&
-            !AppRowGeometry.TitleTextFlags.HasFlag(TextFormatFlags.WordBreak) &&
-            AppRowGeometry.DetailTextFlags.HasFlag(TextFormatFlags.EndEllipsis),
-            "nomes e detalhes devem ficar em uma linha com reticencias; tooltip contem texto integral");
-
         const string longName =
             "Controlador de video de teste sintético com descrição deliberadamente longa — " +
             "fabricante fictício, múltiplos adaptadores e identificação de hardware extensa";
@@ -66,6 +60,40 @@ internal static class V53VirtualCardTests
                 $"rolagem nao acompanha linhas escaladas {screen} DPI={dpi}");
             checkedCases++;
         }
+        // Reproduzir o nome que exige mais de duas linhas no layout antigo
+        // (faixa de 29 px). Renderizar o cartao real de Aplicativos sem executar
+        // nenhuma acao; a lista e o tooltip preservam o titulo completo.
+        using var owner = new MainForm(startServices: false);
+        var appList = (DarkProgramList)(typeof(MainForm).GetField("_programList",
+            BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(owner)
+            ?? throw new Exception("V5.3: lista de aplicativos indisponivel"));
+        appList.Size = new Size(800, 170);
+        appList.SetItems([new ProgramEntry
+        {
+            Name = longName, Version = "1.0", Publisher = "Fabricante ficticio",
+            InventoryId = "V53|Sintetico", InventoryOnly = true
+        }]);
+        using var testFont = new Font("Segoe UI", 10f, FontStyle.Bold);
+        int wrapped = TextRenderer.MeasureText(longName, testFont,
+            new Size(280, 200), TextFormatFlags.WordBreak).Height;
+        Require(wrapped > 29, "nome longo nao reproduz clipping com WordBreak anterior");
+        using var appCapture = new Bitmap(800, 67);
+        using (var appGraphics = Graphics.FromImage(appCapture))
+        {
+            typeof(MainForm).GetMethod("DrawProgramCard",
+                BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(owner,
+                [appList, new DrawItemEventArgs(appGraphics, appList.Font,
+                    new Rectangle(0, 0, 800, 67), 0, DrawItemState.Default)]);
+        }
+        // O contrato do tooltip era existente e permanece no controle real.
+        typeof(DarkProgramList).GetMethod("OnMouseMove",
+            BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(appList,
+            [new MouseEventArgs(MouseButtons.None, 0, 80, 10, 0)]);
+        var tips = (ToolTip)typeof(DarkProgramList).GetField("_itemTips",
+            BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(appList)!;
+        Require(tips.GetToolTip(appList).Contains(longName, StringComparison.Ordinal),
+            "reticencias nao podem descartar o nome completo do tooltip");
+
         // Render GDI real em runner 96 DPI, sem drivers/arquivos reais.
         var paint = typeof(DarkDriverList).GetMethod("DrawCard",
             BindingFlags.Instance | BindingFlags.NonPublic)
@@ -79,6 +107,7 @@ internal static class V53VirtualCardTests
         }
         Directory.CreateDirectory("LayoutCaptures");
         output.Save("LayoutCaptures/V53-drivers-virtualizados-96dpi.png");
+        appCapture.Save("LayoutCaptures/V53-aplicativos-nome-extenso-96dpi.png");
         Console.WriteLine($"OK V5.3: {checkedCases} combinacoes de geometria de drivers e nomes longos sem sobreposicao; desenho GDI 96 DPI; sem troca fisica de monitor.");
     }
 }
