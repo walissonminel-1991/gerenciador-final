@@ -191,6 +191,19 @@ internal static class Phase1GithubTufInert
             _=await error; // do not log raw stderr (may contain test paths)
             Require(proc.ExitCode==0 && stdout.Contains("GF_DRAFT_AUTHENTICATED ",
                 StringComparison.Ordinal),"GH_L18_INERT_TUF_DENIED");
+            // Synthetic abrupt process termination at the precise data-only
+            // boundary. There is no L18 context, selector, phase journal,
+            // installer or NEW launch to resume. The OS closes every handle.
+            // NEVER enable this cut except in the disposable CI-only mode.
+            if(Environment.GetEnvironmentVariable(
+                "GF_GITHUB_TUF_INERT_CUT_AFTER_TUF")=="1")
+            {
+                Console.WriteLine("GF_GITHUB_TUF_INERT_PRECOMMIT_CUT " +
+                    "tuf_checked=true context=false selector=false " +
+                    "journal=false NEW=false READY=false");
+                Console.Out.Flush();
+                Environment.Exit(29);
+            }
             // Recheck pinned bytes after the authenticator, and check its
             // target against the exact extracted file set without any launch.
             Require(HashStream(pins[0])==actualZip &&
