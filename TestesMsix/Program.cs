@@ -221,6 +221,34 @@ Check(packageFailure.Items.Count == 1 && packageFailure.Items[0].Version == "4.0
     packageFailure.Seen == 3 && packageFailure.Failures == 1 && packageFailure.Launchable == 2 &&
     packageFailure.FailureStage == "package",
     "MSIX: falha em um pacote não perde outros apps nem transforma leitura em completa");
+// I7: duas famílias de editores diferentes podem usar o MESMO PackageName.
+// A observação de versão maior, não assinada pelo editor reconhecido, nunca
+// deve ocultar a instalação Microsoft, nem o snapshot pode perder a outra família.
+var genuineTerminal = terminal! with { PackageFamilyName = "Microsoft.WindowsTerminal_8wekyb3d8bbwe" };
+var lookalikeTerminal = LocalMsixInventory.Describe("Microsoft.WindowsTerminal", "fakepublisher",
+    "Windows Terminal", "Unknown Publisher", false, false, true, 99, 0, 0, 0)!
+    with { PackageFamilyName = "Microsoft.WindowsTerminal_fakepublisher" };
+var collision = LocalMsixInventory.ReadPackages(new[] { genuineTerminal, lookalikeTerminal },
+    x => new LocalMsixObservation(x, true));
+Check(collision.Items.Count == 2 && collision.Failures == 0 &&
+    collision.Items.Single(x => x.RecipeEligible).Version == genuineTerminal.Version &&
+    collision.Items.Single(x => !x.RecipeEligible).Version == "99.0.0.0" &&
+    LocalMsixInventory.InventoryId(genuineTerminal) != LocalMsixInventory.InventoryId(lookalikeTerminal) &&
+    LocalMsixInventory.ConfirmedMicrosoftVersion(collision, "Microsoft.WindowsTerminal")?.ToString() == genuineTerminal.Version,
+    "I7 MSIX nao perde pacote Microsoft quando homonimo de outro publisher tem versao maior");
+var collisionSnapshot = new LocalMsixSnapshot();
+collisionSnapshot.Read(() => collision);
+var partialCollision = collisionSnapshot.Read(() => new([lookalikeTerminal], 2, "ok", Failures: 1));
+Check(partialCollision.Items.Count == 2 && partialCollision.Items.All(x => !x.RecipeEligible) &&
+    partialCollision.Items.Single(x => x.PackageFamilyName == genuineTerminal.PackageFamilyName).Stale &&
+    !partialCollision.Items.Single(x => x.PackageFamilyName == lookalikeTerminal.PackageFamilyName).Stale &&
+    LocalMsixInventory.ConfirmedMicrosoftVersion(partialCollision, "Microsoft.WindowsTerminal") is null,
+    "I7 MSIX parcial retém outra família como stale sem promover receitas");
+var versionsOfSameFamily = LocalMsixInventory.ReadPackages(new[] {
+    genuineTerminal, genuineTerminal with { Version = "1.25.0.0" } },
+    x => new LocalMsixObservation(x, true));
+Check(versionsOfSameFamily.Items.Count == 1 && versionsOfSameFamily.Items[0].Version == "1.25.0.0",
+    "I7 MSIX mesma família conserva só versão mais recente");
 var limited = LocalMsixInventory.ReadPackages(Enumerable.Range(1, 2402),
     _ => new LocalMsixObservation(null));
 Check(limited.Seen == 2401 && limited.Filtered == 2400 && limited.Failures == 1 &&
