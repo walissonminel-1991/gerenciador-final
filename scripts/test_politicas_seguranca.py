@@ -16,6 +16,20 @@ APPROVED_WORKFLOWS = frozenset({
     "triagem-diagnostico-github.yml",
 })
 
+# Estes nove ensaios foram preservados em seus commits/branches historicos,
+# mas NAO participam da linha integrada de CI. Reintroducao requer revisao.
+RETIRED_LAB_WORKFLOWS = frozenset({
+    "autoatualizador-etapa2-isolado.yml",
+    "autoatualizador-etapa3-isolado.yml",
+    "autoatualizador-etapa4-isolado.yml",
+    "autoatualizador-etapa5-isolado.yml",
+    "autoatualizador-etapa8-isolado.yml",
+    "autoatualizador-etapa9-isolado.yml",
+    "autoatualizador-etapa10-laboratorio.yml",
+    "autoatualizador-etapa11-isolado.yml",
+    "autoatualizador-etapa12-isolado.yml",
+})
+
 
 def workflow_inventory(folder: Path) -> set[str]:
     return {p.name for p in folder.iterdir()
@@ -123,6 +137,26 @@ class PoliticasDeSeguranca(unittest.TestCase):
             (folder / "build-windows.yml").unlink()
             self.assertFalse(workflow_inventory_matches(folder,
                 APPROVED_WORKFLOWS | frozenset({added})))
+
+    def test_ensaios_historicos_nao_sao_ci_ativa(self):
+        self.assertEqual(len(RETIRED_LAB_WORKFLOWS), 9)
+        self.assertFalse(APPROVED_WORKFLOWS & RETIRED_LAB_WORKFLOWS)
+        folder = ROOT / ".github/workflows"
+        self.assertFalse(workflow_inventory(folder) & RETIRED_LAB_WORKFLOWS,
+            "Ensaio historico reativado sem nova revisao de seguranca")
+        # Negative: reinstalar qualquer um dos nove YAML sem revisar a
+        # allowlist deve reprovar o gate, inclusive extensoes .yml.
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            for name in APPROVED_WORKFLOWS:
+                (fixture / name).write_text("name: fixture\n", encoding="utf-8")
+            for retired in RETIRED_LAB_WORKFLOWS:
+                path = fixture / retired
+                path.write_text("name: fixture\n", encoding="utf-8")
+                self.assertFalse(workflow_inventory_matches(
+                    fixture, APPROVED_WORKFLOWS), retired)
+                path.unlink()
 
     def test_documentacao_nao_tem_links_relativos_quebrados(self):
         self.assertEqual(missing_markdown_targets(ROOT), [])
