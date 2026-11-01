@@ -1,0 +1,91 @@
+name: GF G5 - GitHub ZIP to test TUF signed bytes (inert)
+on:
+  push:
+    branches: [experimento-g5-ipc-chat-alto-20261029]
+    paths:
+      - '.github/workflows/gf-github-tuf-binding-inert.yml'
+      - 'prototipos/autoatualizador-seguro/phase1-composed/github-tuf-binding-lab/**'
+
+permissions:
+  contents: read
+
+jobs:
+  github-tuf-byte-binding-only:
+    name: Existing C# GitHub client to TUF file-set, no L18
+    if: github.repository == 'walissonminel-1991/gerenciador-final' && github.ref == 'refs/heads/experimento-g5-ipc-chat-alto-20261029'
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      GF_BETA_ENDPOINT: ''
+      GF_GITHUB_TUF_ONLY: '1'
+    steps:
+      - name: Checkout read-only, no stored GitHub token
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fixed .NET 10 SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.402'
+      - name: Fixed Python 3.13
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - name: Install existing test-only Python TUF dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check tuf==7.0.1 securesystemslib==1.3.1 cryptography==50.0.2 urllib3==2.8.0
+          if ($LASTEXITCODE -ne 0) { throw 'G5_TUF_TEST_DEPENDENCIES_FAILED' }
+      - name: Prove no test source or worker is in the regular GF build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $public=(dotnet msbuild GerenciadorAplicativos.csproj -getItem:Compile | ConvertFrom-Json).Items.Compile
+          if (@($public | Where-Object { $_.Identity -match 'GithubTufBindingLab|GfGithubWeeklyUpdate|GfOldDraftAcquire' }).Count -ne 0) {
+            throw 'G5_GITHUB_TUF_SOURCE_LEAKED_IN_PUBLIC_GF'
+          }
+          $private=(dotnet msbuild GerenciadorAplicativos.csproj -p:GfSelfUpdatePrivate=true -getItem:Compile | ConvertFrom-Json).Items.Compile
+          if (@($private | Where-Object { $_.Identity -match 'GithubTufBindingLab|GfOldDraftAcquire' }).Count -ne 0) {
+            throw 'G5_GITHUB_TUF_SOURCE_LEAKED_IN_PRIVATE_GF'
+          }
+          Write-Host 'GF_GITHUB_TUF_BUILD_ISOLATION_PASS public_unchanged=true private_unchanged=true separate_laboratory_only=true READY=false'
+      - name: Build disposable GF OLD and NEW only, no updater enabled
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $old=Join-Path $env:RUNNER_TEMP 'gf-github-tuf-old'
+          $new=Join-Path $env:RUNNER_TEMP 'gf-github-tuf-new'
+          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:GfBetaProfile=local -p:GfSelfUpdatePrivate=false -p:GfE2eLab=false -p:Version=5.13.11.65 -o $old --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'G5_TUF_OLD_BUILD_FAILED' }
+          dotnet publish GerenciadorAplicativos.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:GfBetaProfile=local -p:GfSelfUpdatePrivate=false -p:GfE2eLab=false -p:Version=5.13.11.66 -o $new --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'G5_TUF_NEW_BUILD_FAILED' }
+          $vOld=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $old 'GerenciadorFinal.dll')).Version.ToString()
+          $vNew=[Reflection.AssemblyName]::GetAssemblyName((Join-Path $new 'GerenciadorFinal.dll')).Version.ToString()
+          if ($vOld -ne '5.13.11.65' -or $vNew -ne '5.13.11.66') { throw 'G5_TUF_VERSION_WRONG' }
+          Write-Host 'GF_GITHUB_TUF_SYNTHETIC_BUILDS_PASS old=5.13.11.65 new=5.13.11.66 normal_product_sources=true no_lab_launch=true'
+      - name: Compile separate C# existing downloader with inert worker stub
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $project='prototipos/autoatualizador-seguro/phase1-composed/github-tuf-binding-lab/GithubTufBindingLab.csproj'
+          $out=Join-Path $env:RUNNER_TEMP 'gf-github-tuf-probe'
+          dotnet build $project -c Release -o $out --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'G5_TUF_PROBE_BUILD_FAILED' }
+          if (!(Test-Path (Join-Path $out 'GfGithubTufBindingLab.exe'))) {
+            throw 'G5_TUF_PROBE_EXE_MISSING'
+          }
+          Write-Host 'GF_GITHUB_TUF_TEST_ASSEMBLY_PASS source=EXISTING_CSHARP no_install_worker=true no_L18=true'
+      - name: Bind identical C# downloaded ZIP to verified TUF target files; negative tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script='prototipos/autoatualizador-seguro/phase1-composed/github-tuf-binding-lab/check_binding.py'
+          $old=Join-Path $env:RUNNER_TEMP 'gf-github-tuf-old'
+          $new=Join-Path $env:RUNNER_TEMP 'gf-github-tuf-new'
+          $probe=Join-Path $env:RUNNER_TEMP 'gf-github-tuf-probe/GfGithubTufBindingLab.exe'
+          python $script --old $old --new $new --probe $probe
+          if ($LASTEXITCODE -ne 0) { throw 'G5_GITHUB_TUF_BYTES_NOT_AUTHENTICATED' }
+          Write-Host 'GF_GITHUB_TUF_FINAL_PASS source=SIMULATED_GITHUB file_set=SIGNED_TEST_TUF no_install=true no_l18=true no_release=true READY=false'
