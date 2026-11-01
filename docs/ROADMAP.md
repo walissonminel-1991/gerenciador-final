@@ -47,19 +47,19 @@ Os estados abaixo registram suas respectivas datas/etapas. A situação atual é
 
 ### Validação anterior — WORK11
 
-**v5.13.11.53 TESTE — WORK11 aprovada na [CI 40028404988](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40028404988), fonte 78424b8e.** Progresso individual real, instalação indeterminada, resultados distintos e preservados no inventário. Atualizadores 186/186, resíduos 576/576, mutações 17/17; 36 combinações novas de UI. Pacote x64 e 280 hashes conferidos fora do runner. [Relatório e limites](historico/missoes/MISSAO-WORK11.md). Homologação física .53 pendente; progresso preservado **27/42**.
+**v5.13.11.53 TESTE — WORK11 aprovada na [CI 40028404988](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40028404988), fonte 78424b8e.** Progresso individual real, instalação indeterminada, resultados distintos e preservados no inventário. Atualizadores 186/186, resíduos 576/576, mutações 17/17; 36 combinações novas de UI. Pacote x64 e 280 hashes conferidos fora do runner. [Relatório e limites](MISSAO-WORK11.md). Homologação física .53 pendente; progresso preservado **27/42**.
 
 ### Validação anterior — WORK10
 
-**v5.13.11.52 TESTE — WORK10 aprovada na [CI 40021841254](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254), fonte c200ab25.** Limpeza residual integrada à desinstalação, confirmação única, executor consolidado, UAC e diagnóstico. Pacote com 280 hashes conferidos; 576/576 testes de resíduos e 14/14 mutações rejeitadas. [Relatório e limites](historico/missoes/MISSAO-WORK10.md). R4 avançou na implementação/regressões; U8/R7/R4 físicos permanecem abertos. Progresso 27/42.
+**v5.13.11.52 TESTE — WORK10 aprovada na [CI 40021841254](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40021841254), fonte c200ab25.** Limpeza residual integrada à desinstalação, confirmação única, executor consolidado, UAC e diagnóstico. Pacote com 280 hashes conferidos; 576/576 testes de resíduos e 14/14 mutações rejeitadas. [Relatório e limites](MISSAO-WORK10.md). R4 avançou na implementação/regressões; U8/R7/R4 físicos permanecem abertos. Progresso 27/42.
 
 ### Validação anterior — WORK9 parte 2
 
-**v5.13.11.49 TESTE — WORK9 parte 2 aprovada na [CI 39987151553](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553), fonte dba59231.** Pacote x64 com 280 hashes conferidos; consolidação e regressões sem novo checkpoint. [Relatório da Parte 2](historico/missoes/MISSAO-WORK9-PARTE2.md) e [roteiro físico vigente](TESTE-CONSOLIDADO.md). U8/R7/R4 permanecem abertos; progresso 27/42.
+**v5.13.11.49 TESTE — WORK9 parte 2 aprovada na [CI 39987151553](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39987151553), fonte dba59231.** Pacote x64 com 280 hashes conferidos; consolidação e regressões sem novo checkpoint. [Relatório da Parte 2](MISSAO-WORK9-PARTE2.md) e [roteiro físico vigente](TESTE-CONSOLIDADO.md). U8/R7/R4 permanecem abertos; progresso 27/42.
 
 ### Última validação anterior — Parte 1
 
-**v5.13.11.48 TESTE — WORK9 parte 1: 13 causas corrigidas e 42 controles novos aprovados no Windows; [CI final 39980934418](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418) e pacote portátil conferido. Homologação física pendente. Progresso preservado: 27/42 (64,3%). [Relatório, evidências, desempenho e próximo teste](historico/missoes/MISSAO-WORK9-PARTE1.md).**
+**v5.13.11.48 TESTE — WORK9 parte 1: 13 causas corrigidas e 42 controles novos aprovados no Windows; [CI final 39980934418](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39980934418) e pacote portátil conferido. Homologação física pendente. Progresso preservado: 27/42 (64,3%). [Relatório, evidências, desempenho e próximo teste](MISSAO-WORK9-PARTE1.md).**
 Os percentuais representam checkpoints; não medem segurança nem prontidão de release.
 
 ## Estado histórico — MISSÃO WORK 6: atualização, desinstalação e resíduos
@@ -98,7 +98,7 @@ não aumentou a cobertura de aplicativos nem de atualizações.
 
 ## Estado histórico — MISSÃO WORK 5
 
-[Auditoria e matriz dos nove produtos](historico/missoes/MISSAO-WORK5.md): contrato WinGet desligado,
+[Auditoria e matriz dos nove produtos](MISSAO-WORK5.md): contrato WinGet desligado,
 sem executor COM/CLI. Cinco produtos com novas consultas HTTPS; evidências e
 conflitos multifontes preservados, instalação direta bloqueada quando houver revisão.
 Progresso real por fontes e diagnóstico de contexto/etapas com perfil de teste temporário.
@@ -317,13 +317,13 @@ habilita manutenção destrutiva; não altera a contagem de checkpoints.
 
 ## Lote 2 — drivers somente leitura
 
-Implementação, evidências e limites em [MISSAO-LOTE2](historico/missoes/MISSAO-LOTE2.md).
+Implementação, evidências e limites em [MISSAO-LOTE2](MISSAO-LOTE2.md).
 D2/G1/G2/R6 continuam abertos. Consultas, histórico, assinatura de INF e
 nomes semelhantes não autorizam manutenção. Nenhum PC pessoal acessado.
 
 ## Lote 3 — segurança e desempenho
 
-[Relatório técnico](historico/missoes/MISSAO-LOTE3.md): correções de estado após início do
+[Relatório técnico](MISSAO-LOTE3.md): correções de estado após início do
 fornecedor, posse atômica de proteção, prévia de log limitada, buffer de
 download reutilizado e contrato de composição do pacote. Investigação AVG
 com evidências de assinatura/hash e sem varredura ou diagnóstico conclusivo.

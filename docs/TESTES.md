@@ -145,7 +145,7 @@ dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release --no-build 
 
 Mutações ocorrem em cópias descartáveis; erro de compilação não conta como
 mutação rejeitada. O benchmark usa dados sintéticos e não mede velocidade de
-disco nem RAM residente. [Método comparativo WORK9](historico/missoes/MISSAO-WORK9-PARTE1.md).
+disco nem RAM residente. [Método comparativo WORK9](MISSAO-WORK9-PARTE1.md).
 
 ## Pacote e integrações externas
 
@@ -184,7 +184,7 @@ Não executar testes sintéticos destrutivos nos PCs pessoais.
 ## Resultados e limites
 
 Resultados de cada revisão, falhas anteriores e evidências ficam nos relatórios
-[WORK9 parte 1](historico/missoes/MISSAO-WORK9-PARTE1.md) e [parte 2](historico/missoes/MISSAO-WORK9-PARTE2.md).
+[WORK9 parte 1](MISSAO-WORK9-PARTE1.md) e [parte 2](MISSAO-WORK9-PARTE2.md).
 A regressão principal usa Windows Server 2022, e os jobs de drivers também
 Windows Server 2025: não comprova execução física no PC FORTE/FRACO,
 compatibilidade universal do Windows 10/11 nem aprovação pelo AVG. O tema do
@@ -487,7 +487,7 @@ continuam abertos, roadmap **26/42 (61,9%)**.
    requer revisão. Novos produtos oferecem consulta/site/orientação, nunca instalador genérico.
 5. Registrar somente contagens e códigos COBERTURA_ATUALIZACAO, especialmente fonte 5
    (GameInput); não compartilhar inventário bruto. Etapa 0 significa identidade não reconhecida,
-   não ausência comprovada de instalação. Legenda completa em [MISSÃO WORK 5](historico/missoes/MISSAO-WORK5.md).
+   não ausência comprovada de instalação. Legenda completa em [MISSÃO WORK 5](MISSAO-WORK5.md).
 6. Sem rede: inventário utilizável, fontes indisponíveis explícitas e nenhuma instalação.
    Fechar/reabrir, minimizar/restaurar e comparar fontes/RAM/CPU com baseline .32.
 7. Se houver alerta, janela inesperada, UAC, dependência ou fechamento: parar, guardar evento

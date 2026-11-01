@@ -106,6 +106,6 @@ Limites por aplicativo: 5.000 entradas, 256 MiB, profundidade 16 e orçamento de
 | `f9ff3265` | Executor único distribuído, seis cartões e confirmação com resumo inicial |
 | `c200ab25` | Interrupção por falha de diagnóstico e identificação das visões do Registro |
 
-R4 avançou na implementação integrada, exclusão efetiva, confirmação, permissões e regressões nativas. Continua aberto para homologação física/cobertura. R7 e U8 também permanecem abertos para os testes reais previstos nos computadores. O roadmap conserva **27/42 (64,3%)**. [Próximo roteiro objetivo](../../TESTE-CONSOLIDADO.md).
+R4 avançou na implementação integrada, exclusão efetiva, confirmação, permissões e regressões nativas. Continua aberto para homologação física/cobertura. R7 e U8 também permanecem abertos para os testes reais previstos nos computadores. O roadmap conserva **27/42 (64,3%)**. [Próximo roteiro objetivo](TESTE-CONSOLIDADO.md).
 
 Referências de API: [RegDeleteKeyTransacted](https://learn.microsoft.com/en-us/windows/desktop/api/winreg/nf-winreg-regdeletekeytransacteda), [RegOpenKeyEx](https://learn.microsoft.com/pt-br/windows/win32/api/winreg/nf-winreg-regopenkeyexw). Os testes acima demonstram o comportamento usado pelo produto no ambiente descartável.

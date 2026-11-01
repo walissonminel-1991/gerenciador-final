@@ -101,9 +101,9 @@ hashes/tamanhos dos dois binários coincidem com o pacote. Status NotSigned,
 sem signatário ou certificado embutido, scan_performed=false,
 sample_submitted=false, avg_validation=pending. Isso não é scanner/atestado AVG.
 
-[Registro durável dos jobs, artefatos, hashes, controles e limites](../../evidencias/lote4-ci-40234268549.json).
+[Registro durável dos jobs, artefatos, hashes, controles e limites](evidencias/lote4-ci-40234268549.json).
 O registro aponta a fonte técnica testada. Commits posteriores de evidência
-não alteram essa fonte/pacote selecionado. [Roteiro posterior](../../TESTE-CONSOLIDADO.md)
+não alteram essa fonte/pacote selecionado. [Roteiro posterior](TESTE-CONSOLIDADO.md)
 e documentação atualizados; nenhum checkpoint físico fechado.
 
 Reconferência independente da base herdada, sem executar: ZIP Lote 3 final
@@ -128,7 +128,7 @@ homologam os PCs, cobertura universal, desempenho residente ou AVG.
 GF continua sem assinatura; a evidência antivírus declara ausência de scanner
 e envio de amostra. Nenhuma proteção foi desabilitada ou contornada.
 
-[Roteiro físico posterior](../../TESTE-CONSOLIDADO.md): apenas operações já necessárias,
+[Roteiro físico posterior](TESTE-CONSOLIDADO.md): apenas operações já necessárias,
 sem reinstalar aplicativos antigos, provocar reboot ou repetir limpezas para
 produzir trabalho. Nenhum acesso/modificação nos PCs pessoais, merge, release
 estável ou promoção da PR #40 nesta missão.

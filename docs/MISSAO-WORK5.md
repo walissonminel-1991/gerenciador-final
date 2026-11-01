@@ -175,7 +175,7 @@ Tempos de fixtures são custo do teste; não se extrapolam para os PCs.
 
 Ainda não há medição real da .33 nos PCs, aprovação AVG, COM/CLI real, validação visual
 física de todos os DPI ou explicação individual definitiva dos seis registros privados.
-[Próxima bateria, PC FORTE depois PC FRACO](../../TESTES.md#próxima-bateria-33--somente-consultas).
+[Próxima bateria, PC FORTE depois PC FRACO](TESTES.md#próxima-bateria-33--somente-consultas).
 Este checkpoint fecha a investigação disponível, não o portão presencial.
 Roadmap permanece **26/42 (61,9%)**; R4 e G1–G5 bloqueados.
 
@@ -215,4 +215,4 @@ Os commits posteriores desta homologação são documentais. O pacote escolhido 
 código final testado; não reutiliza pacote .31/.32. PR #40 continua Draft e main preservada.
 Roadmap **26/42**, zero checkpoints novos; o avanço é implementação/verificação consultiva,
 não conclusão de U6 ou dos portões físicos. Limpeza de resíduos e operações de drivers
-continuam bloqueadas. [Bateria objetiva PC FORTE e PC FRACO](../../TESTES.md#próxima-bateria-33--somente-consultas).
+continuam bloqueadas. [Bateria objetiva PC FORTE e PC FRACO](TESTES.md#próxima-bateria-33--somente-consultas).

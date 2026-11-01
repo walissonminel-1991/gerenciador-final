@@ -54,7 +54,7 @@ Base medida com `git ls-tree -r -l 473a9558`: **254 arquivos / 2.780.038 bytes**
 de conteúdo versionado, sem contar objetos históricos nem arquivos ignorados.
 98 fontes C# na raiz (1.084.288 bytes), 50 fontes de testes (530.087), 56 arquivos
 em docs (566.183) e dois recursos binários (394.166). O inventário completo é
-reproduzível pelo comando; [classificação e referências](../../ORGANIZACAO-REPOSITORIO.md).
+reproduzível pelo comando; [classificação e referências](ORGANIZACAO-REPOSITORIO.md).
 
 Foram conferidos curingas do SDK, exclusões Compile, GF_PROGRESSIVE, fontes
 vinculadas dos testes, recursos JSON incorporados, reflexão, scripts, workflows
@@ -64,7 +64,7 @@ O protótipo Node é usado pela CI e não foi confundido com serviço ativo.
 
 Nove documentos foram consolidados, com conteúdo preservado, âncoras, hash
 original e URL do arquivo no checkpoint anterior, em
-[TESTES-HISTORICOS-PC-FRACO](../../TESTES-HISTORICOS-PC-FRACO.md): seis relatórios
+[TESTES-HISTORICOS-PC-FRACO](TESTES-HISTORICOS-PC-FRACO.md): seis relatórios
 TESTE-PC-FRACO de 20/10 e 21/10 (.18/.19/.20/.21/.23), checklist .17 e planos
 .23/.24. Referências do changelog e roteiro .17 foram atualizadas. O roteiro
 TESTE-CONSOLIDADO foi atualizado; missões, decisões de segurança e evidências
@@ -157,7 +157,7 @@ limitado àquele benchmark ABBA, com os mesmos resultados e limites de cobertura
 
 Os 50 mil respeitam limite de 30 mil examinados; os demais continuam declarados
 não examinados. Redução de alocação 12,7–12,8% não é redução de RAM residente de
-todo o aplicativo. [Amostras, ambiente e método](../../benchmarks/WORK9-classificacao.json).
+todo o aplicativo. [Amostras, ambiente e método](benchmarks/WORK9-classificacao.json).
 
 Baseline do portátil aprovado da Parte 1: ZIP **58.967.981 bytes**,
 **151.285.646 bytes extraídos**, 274 arquivos, 268 DLLs. Maiores componentes:
@@ -205,7 +205,7 @@ navegação tardia da Parte 1. Conteúdo escuro e layout em runners não comprov
 que todas as decorações nativas/barras/diálogos sejam escuros em Windows real;
 revisão visual física permanece. Program.cs ainda concentra UI/orquestração e
 AppServices; separação ampla foi evitada porque exigiria nova rodada funcional.
-[Próxima bateria física mínima](../../TESTE-CONSOLIDADO.md).
+[Próxima bateria física mínima](TESTE-CONSOLIDADO.md).
 
 ## Checkpoint de retomada
 

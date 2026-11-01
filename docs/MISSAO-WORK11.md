@@ -139,6 +139,6 @@ permanente elegível, worker UAC e proteções pessoais continuam no mesmo fluxo
 Drivers, energia, reparos e Windows Update não foram modificados. Roadmap
 permanece **27/42**, com U8/R7/R4 físicos abertos. Sem merge ou release estável.
 
-O próximo teste é o [roteiro consolidado](../../TESTE-CONSOLIDADO.md): Notepad++
+O próximo teste é o [roteiro consolidado](TESTE-CONSOLIDADO.md): Notepad++
 8.9.1 → 8.9.8.1, depois SumatraPDF 3.5 → 3.6.1, já preparados no PC FORTE.
 Não reinstalar versões antigas e não repetir a atualização do 7-Zip.

@@ -20,7 +20,7 @@
 - Candidata integrada [PR #59](https://github.com/walissonminel-1991/gerenciador-final/pull/59) com [CI Windows 40241712164](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164) **aprovada tecnicamente** (repetição segura do job de mirrors). [ZIP x64](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40241712164/artifacts/12618005183) com 284 hashes verificados externamente, SHA-256 `7d659b35319e2389c6266ef4fcee25e1733f0f5fa9c36558a0e38e66b12919c9`. Não constitui release estável ou homologação física.
 - Combina histórico local, drivers consultivos e UI dos lotes 1–4 com catálogos MSI/NSIS/Inno, WinGet COM somente leitura, Scoop/Chocolatey consultivos e regras de execução verificadas WORK14–WORK17.
 - Mantém estados Pending/Indeterminate pós-execução, UAC por decisão do usuário, proteção de dados compartilhados, verificações de hash/assinatura e não exclusão sob ambiguidade.
-- Ver [relatório e pendências](docs/MISSAO-INTEGRACAO.md), [WORK17](docs/historico/missoes/MISSAO-WORK17.md), [Lote 4](docs/historico/missoes/MISSAO-LOTE4.md). Roadmap inalterado 27/42.
+- Ver [relatório e pendências](docs/MISSAO-INTEGRACAO.md), [WORK17](docs/MISSAO-WORK17.md), [Lote 4](docs/MISSAO-LOTE4.md). Roadmap inalterado 27/42.
 
 ## 5.13.11.63 TESTE — Lote 4: consolidação (25/10/2026)
 
@@ -28,7 +28,7 @@
 - Histórico / relatório usa rolagem escura, quebra de linha, Fechar/Enter/Esc, decoração escura quando suportada e ajuste à área útil. Texto completo e exportação TXT preservados.
 - DarkLogView reserva a largura da barra antes do editor Fill; evita sobrepor texto e barra nos relatórios, inclusive Drivers.
 - Cenário real WinForms em 520×360 e 770×530 e controle negativo em checkout descartável com implementação anterior; código de saída e marca final obrigatórios na CI.
-- Corrigidos guia de testes, roteiro físico, SDK exato e referências da candidata. Nenhum checkpoint físico/AVG concluído; 27/42. [Evidências e limites](docs/historico/missoes/MISSAO-LOTE4.md).
+- Corrigidos guia de testes, roteiro físico, SDK exato e referências da candidata. Nenhum checkpoint físico/AVG concluído; 27/42. [Evidências e limites](docs/MISSAO-LOTE4.md).
 
 ## 5.13.11.59 TESTE — descoberta automática (24/10/2026)
 
@@ -39,7 +39,7 @@
 - Fechamento normal exige consentimento e identidade/usuário do processo; alteração de arquitetura, dados compartilhados, duplicações e resultado incerto bloqueiam execução ou repetição.
 - Desinstalação NSIS genérica com prova de motor, produto e assinaturas; mantém fallback interativo, SIM/NÃO residual, dados pessoais e recuperação da WORK12.
 - YAML limitado e sem aliases; download com HTTPS público, validação de DNS, hash, assinatura e identidade. SQLite do Windows, sem novo banco/serviço instalado; YamlDotNet MIT incluído no aviso de terceiros.
-- Testes sintéticos adversariais e validação de catálogo/manifestos/binários oficiais sem executar instaladores. [Relatório](docs/historico/missoes/MISSAO-WORK13.md); homologação física pendente.
+- Testes sintéticos adversariais e validação de catálogo/manifestos/binários oficiais sem executar instaladores. [Relatório](docs/MISSAO-WORK13.md); homologação física pendente.
 
 ## 5.13.11.58 TESTE — WORK13 (24/10/2026)
 
@@ -49,7 +49,7 @@
 - Cancelamento imediatamente antes da execução impede o lançamento. Após executar, cancelar interrompe a espera e deixa resultado inconclusivo, sem matar o instalador ou repetir automaticamente.
 - Consultas MSIX com prazo e uma chamada em andamento; verificação Authenticode e espera fora da UI. Estrutura e publisher MSIX exatos, além do hash e confiança exigida pelo Windows.
 - Corrige páginas oficiais dos servidores Plex/Jellyfin; Acrobat, Proton divergente, pacotes protegidos e WinGet real preservam suas restrições.
-- Metadados de candidata e última aprovada separados e verificados automaticamente. U8/R7/R4 sem homologação física; [relatório WORK13](docs/historico/missoes/MISSAO-WORK13.md).
+- Metadados de candidata e última aprovada separados e verificados automaticamente. U8/R7/R4 sem homologação física; [relatório WORK13](docs/MISSAO-WORK13.md).
 
 ## 5.13.11.57 TESTE — WORK12 (24/10/2026)
 
@@ -62,11 +62,11 @@
 
 ## v5.13.11.49 TESTE — WORK9: consolidação, pacote e CI
 
-- Preserva as 13 causas corrigidas e 42 controles adversariais da Parte 1, registrados em [WORK9 parte 1](docs/historico/missoes/MISSAO-WORK9-PARTE1.md); U8/R7/R4 continuam sem homologação física.
+- Preserva as 13 causas corrigidas e 42 controles adversariais da Parte 1, registrados em [WORK9 parte 1](docs/MISSAO-WORK9-PARTE1.md); U8/R7/R4 continuam sem homologação física.
 - Portátil inclui licença GF, privacidade, guia e avisos originais dos runtimes. Conferência independente exige origem, versão, AMD64, self-contained e cobertura exata de hashes antes do upload; onze testes sintéticos do pacote, incluindo links internos dos documentos.
 - Retira três leitores de sistema comprovadamente sem uso; preserva implementações atuais e testes. Reduz repetições na CI sem retirar asserções; SDK compartilhado por global.json, permissões e NuGetAudit mantidos.
 - Consolida nove relatórios/planos PC FRACO com hashes e referências históricas; corrige README/roteiro/privacidade e preserva os dados do benchmark em JSON compacto.
-- Numeração sequencial de candidata, sem avanço do roadmap (27/42), merge, release estável ou operação nos PCs pessoais. O resultado efetivo da CI e o pacote aprovado ficam em [WORK9 parte 2](docs/historico/missoes/MISSAO-WORK9-PARTE2.md).
+- Numeração sequencial de candidata, sem avanço do roadmap (27/42), merge, release estável ou operação nos PCs pessoais. O resultado efetivo da CI e o pacote aprovado ficam em [WORK9 parte 2](docs/MISSAO-WORK9-PARTE2.md).
 
 ## v5.13.11.48 TESTE — limpeza específica Notepad++/SumatraPDF e atualização silenciosa
 
@@ -133,7 +133,7 @@
 - RAM: revalidação de PID, início e caminho no mesmo handle usado no ajuste; exclusão mútua das operações. Nenhum working set real é alterado pelos testes.
 - CI: pacote portátil depende das regressões Windows e da política de segurança. Teste de reparo passa a selecionar a grade correta sem retirar exigências de cartões/largura.
 - CI final do código `616b184f` aprovada: 18/18 controles novos de identidade + 20 existentes; 159/159 multifontes, 127/127 atualizador, 482/482 resíduos/desinstalação, 10/10 mutações, 47/47 MSIX, 30/30 encerramento e 132 combinações de layout. [Pacote `0de83072` conferido](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/39868589692/artifacts/12465616744), 273 hashes verificados; sem execução local do binário Windows.
-- Roadmap 27/42 (64,3%); U8/R7/R4 e validações físicas permanecem abertos. [Evidências e limitações](docs/historico/missoes/MISSAO-WORK7-RESULTADO.md).
+- Roadmap 27/42 (64,3%); U8/R7/R4 e validações físicas permanecem abertos. [Evidências e limitações](docs/MISSAO-WORK7-RESULTADO.md).
 
 ## v5.13.11.41 TESTE — ajustes apos testes reais PC FORTE (CI pendente)
 - Reparo e rede: manter tres cartoes por linha quando a largura comportar, sem limite de 316 px nem faixas laterais vazias; colunas se adaptam a janelas pequenas. Acoes e salvaguardas permanecem iguais.
@@ -243,9 +243,9 @@ CI Windows aprovada no código final `9c411fb`: compilação x64, regressões co
 
 Cinco produtos recebem fontes HTTPS fixas: EA app, FanControl, Jellyfin Server, K-Lite Mega e Plex Media Server, sem novas receitas de instalação. Proton prioriza feed oficial Windows estável/rollout completo e preserva changelog desktop e índice comunitário divergentes. O feed observado ainda oferecia 1.42.0; changelog 1.43.0 não prova distribuição Windows. A fusão preserva evidências, origem, instante e incertezas, separa contexto/identidade e bloqueia instaladores diretos quando requer revisão. FanControl aceita revisões inteiras; migração principal Jellyfin continua consultiva. Barra de consulta conta fontes concluídas, cancelamento preservado, resultado parcial explícito.
 
-Contrato WinGet isolado, sem implementação COM/CLI ou fallback; desligado mesmo com opt-in de produção. Diagnóstico opt-in inspeciona apenas presença de App Installer/alias/PATH do usuário atual, sem executar WinGet, reparar ou elevar. Sem novas dependências/telemetria/IPC. Script de criação de instalador deixa de oferecer instalação de SDK/Inno por WinGet. [Auditoria histórica, testes, matriz dos nove e roteiro](docs/historico/missoes/MISSAO-WORK5.md). Roadmap 26/42; PC FORTE, PC FRACO e AVG pendentes.
+Contrato WinGet isolado, sem implementação COM/CLI ou fallback; desligado mesmo com opt-in de produção. Diagnóstico opt-in inspeciona apenas presença de App Installer/alias/PATH do usuário atual, sem executar WinGet, reparar ou elevar. Sem novas dependências/telemetria/IPC. Script de criação de instalador deixa de oferecer instalação de SDK/Inno por WinGet. [Auditoria histórica, testes, matriz dos nove e roteiro](docs/MISSAO-WORK5.md). Roadmap 26/42; PC FORTE, PC FRACO e AVG pendentes.
 
-Código `.33` `7ba87d9`: três Actions aprovadas, 127/127 multifontes, 97/97 instaladores, 360/360 resíduos, 41/41 MSIX, 132 combinações de layout; pacote com 273 hashes conferidos sem execução. [Relatório e links](docs/historico/missoes/MISSAO-WORK5.md#ci-final-e-pacote-conferido).
+Código `.33` `7ba87d9`: três Actions aprovadas, 127/127 multifontes, 97/97 instaladores, 360/360 resíduos, 41/41 MSIX, 132 combinações de layout; pacote com 273 hashes conferidos sem execução. [Relatório e links](docs/MISSAO-WORK5.md#ci-final-e-pacote-conferido).
 
 ## v5.13.11.32 — auditoria local estruturada de limpeza (TESTE; CI aprovada)
 

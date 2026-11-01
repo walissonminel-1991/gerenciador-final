@@ -1,6 +1,6 @@
 # WORK16 — expansão estrutural do ecossistema
 
-Base: PR #51, `f179dbabe78d0d42c4112a283040c5c781f109f0`. Auditoria anterior à implementação: [WORK16-AUDITORIA.md](../../WORK16-AUDITORIA.md). Nenhuma PR anterior foi integrada à main. Candidata .61 aprovada na [CI 40184303904](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904), fonte `cdc6de0d58d69807841fd38beacbcd8ad4461ea4` e build PR `f549eb1fbc167f282dba441fb93cff9f87877dab`. [Portátil x64 TESTE selecionado](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904/artifacts/12596105758).
+Base: PR #51, `f179dbabe78d0d42c4112a283040c5c781f109f0`. Auditoria anterior à implementação: [WORK16-AUDITORIA.md](WORK16-AUDITORIA.md). Nenhuma PR anterior foi integrada à main. Candidata .61 aprovada na [CI 40184303904](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904), fonte `cdc6de0d58d69807841fd38beacbcd8ad4461ea4` e build PR `f549eb1fbc167f282dba441fb93cff9f87877dab`. [Portátil x64 TESTE selecionado](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40184303904/artifacts/12596105758).
 
 ## Implementação funcional
 
@@ -34,7 +34,7 @@ O SHA-1 lido em RELEASES Squirrel é verificação de consistência do formato l
 
 `scripts/measure_work16.py` compila o **mesmo probe** contra a base imutável e a candidata em cópias descartáveis. Mede separadamente seleção de manifestos, consultas SQLite por identidade, leitura de pacotes e seleção de desinstalação Squirrel. A assinatura do último conjunto é explicitamente simulada. Os denominadores não podem ser somados como se fossem aplicativos reais.
 
-A [matriz reproduzida contra #51](../../benchmarks/WORK16-comparacao.json) foi obtida na CI Windows, em subamostras distintas. Não somar os denominadores como programas físicos:
+A [matriz reproduzida contra #51](benchmarks/WORK16-comparacao.json) foi obtida na CI Windows, em subamostras distintas. Não somar os denominadores como programas físicos:
 
 | Indicador de componente | Antes | Depois | Denominador / limite |
 |---|---:|---:|---|

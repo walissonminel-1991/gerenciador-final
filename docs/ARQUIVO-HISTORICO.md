@@ -1,23 +1,21 @@
 # Arquivo histórico do GERENCIADOR FINAL
 
-**Material de referência e pesquisa — não equivale ao estado vigente, à homologação de uma versão nem à autorização para execução.**
+**Biblioteca de referência — não substitui o estado operacional, os testes físicos ou uma homologação.**
 
-Esta página facilita localizar missões anteriores sem misturá-las às decisões e verificações atuais. Os documentos originais permanecem no histórico Git; os relatórios arquivados continuam acessíveis nesta árvore, com os links internos atualizados.
+Esta biblioteca facilita pesquisar relatórios antigos sem perder seus vínculos. **Nove relatórios foram movidos** para uma pasta de arquivo e **13 continuam em seus caminhos originais**, pois são referenciados por testes de metadados ou pelo registro estruturado `docs/PROGRESSO.json`. Todos os 22 aparecem no índice.
 
 ## Navegação
 
-- [Missões antigas por lote, WORK e resíduos](historico/missoes/README.md) — índice dos 22 relatórios reorganizados.
-- [Roadmap funcional](ROADMAP.md) — referência para o progresso e pendências.
-- [Roteiros e testes](TESTES.md) — consultar junto com a versão e o SHA específicos.
-- [Checkpoint da integração](WORK-INTEGRACAO-CHECKPOINT.md) — documento de sua própria etapa; conferir a PR correspondente.
-- [Checkpoint histórico do autoatualizador](WORK-AUTOATUALIZADOR-CHECKPOINT.md) — não confundir com a branch experimental G5 posterior.
-- [Evidências técnicas](evidencias/) e [benchmarks](benchmarks/) — mantidos nos caminhos originais.
+- [Missões históricas: 9 arquivadas, 13 preservadas no local original](historico/missoes/README.md)
+- [Roadmap](ROADMAP.md) e [Testes](TESTES.md) — conferir sempre a data, branch e commit de cada resultado
+- [Checkpoint da integração](WORK-INTEGRACAO-CHECKPOINT.md)
+- [Checkpoint do autoatualizador na PR #65](WORK-AUTOATUALIZADOR-CHECKPOINT.md)
+- [Evidências](evidencias/) e [benchmarks](benchmarks/) — preservados nos diretórios originais
 
-## Regras de uso
+## Política de consulta
 
-1. **Consultar, não executar por presunção.** Instruções de missões antigas não substituem os critérios atuais de autorização, consentimento ou segurança.
-2. **Achar o contexto antes de comparar.** Conferir data, branch, SHA e CI citados pelo relatório; um resultado experimental não comprova comportamento em PC real.
-3. **Preservar a prova.** Evidências, matrizes, artefatos TUF/NTFS/L18, autorização, recuperação e consentimento não foram movidos nem apagados nesta reorganização.
-4. **Retomada.** A PR documental parte da PR #75 Draft no SHA `4452f75c84527882977ce7d75b459ee35d5cde2a`; esta movimentação não altera `main`, a PR #65, o autoatualizador ou o roadmap 27/42.
-
-Para documentos externos que citavam os nomes antigos, os links Markdown da árvore reorganizada foram ajustados na mesma mudança. Referências de commits históricos continuam consultáveis pelo SHA original.
+- Relatórios de uma missão antiga servem como pesquisa e não autorizam novas operações no PC do usuário.
+- Os links internos dos documentos movidos e os links externos afetados foram reescritos para os novos endereços.
+- Documentos exigidos por `scripts/test_pacote.py` e caminhos armazenados em `docs/PROGRESSO.json` **não foram relocados**; não enfraquecemos os testes nem reescrevemos o registro de progresso.
+- Evidências, TUF/NTFS/L18, consentimento, rollback, versões e fontes permanecem intactos.
+- A proposta documental deriva da PR #75 Draft no SHA `4452f75c84527882977ce7d75b459ee35d5cde2a`; `main`, PR #65, G5 e roadmap 27/42 não foram alterados.
