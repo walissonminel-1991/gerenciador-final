@@ -621,9 +621,10 @@ internal static partial class L18Coordinator
         pinnedTargets.Position=0;
         using var role=JsonDocument.Parse(pinnedTargets);
         var targets=role.RootElement.GetProperty("signed").GetProperty("targets");
+        JsonElement target=default;
         Require(targets.ValueKind==JsonValueKind.Object &&
             targets.EnumerateObject().Count()==1 &&
-            targets.TryGetProperty(targetName,out var target),
+            targets.TryGetProperty(targetName,out target),
             "GH_L18_PREVERIFIED_BRIDGE_SIGNED_TARGET_MISSING");
         var hashes=target.GetProperty("hashes");
         Require(hashes.EnumerateObject().Count()==1 &&
