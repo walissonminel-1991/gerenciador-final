@@ -377,6 +377,7 @@ internal static class Phase1GithubTufInert
                     if(continuous=="drop")
                     {
                         retained[0].Handle.Dispose();
+                        Console.Error.WriteLine("GF_GITHUB_TUF_CONTINUOUS_PIN_LOST_BLOCK READY=false");
                         Require(false,"GH_L18_CONTINUOUS_PIN_LOST");
                     }
                     // The actual security decision comes solely from fresh

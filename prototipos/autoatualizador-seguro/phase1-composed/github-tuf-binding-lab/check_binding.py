@@ -359,7 +359,7 @@ def main() -> None:
     continuous("unsigned-namespace", "normal", "namespace", 19,
                "GF_GITHUB_TUF_L18_INERT_BLOCKED")
     continuous("lost-handle", "drop", "none", 19,
-               "GH_L18_CONTINUOUS_PIN_LOST")
+               "GF_GITHUB_TUF_CONTINUOUS_PIN_LOST_BLOCK READY=false")
     continuous("pre-decision-process-cut", "cut", "none", 39,
                "GF_GITHUB_TUF_INERT_CONTINUOUS_BARRIER ")
 
