@@ -267,7 +267,11 @@ def main() -> None:
                      str(persistent), str(lab_root)],
                     success=accepted)
         if accepted:
-            require("GF_GITHUB_TUF_L18_INERT_PASS " in proof and
+            require("GF_GITHUB_TUF_L18_SIGNED_IDENTITY_PASS " in proof and
+                    "target_sha_source=AUTHENTICATED_TUF_TARGETS" in proof and
+                    "local_sign=false" in proof and
+                    "durable_receipt=false" in proof and
+                    "GF_GITHUB_TUF_L18_INERT_PASS " in proof and
                     "ledger_object_swap=REJECTED" in proof and
                     "manifest_object_swap=REJECTED" in proof and
                     "multigeneration_ledger_pinned=true" in proof and
@@ -551,6 +555,10 @@ def main() -> None:
             not any(scratch.rglob("applied.json")) and
             not any(scratch.rglob("l18-real-active.fixture.json")),
             "UNAUTHORIZED_INSTALL_MARKER")
+    print("GF_GITHUB_TUF_L18_SIGNED_TARGET_BINDING_PASS " +
+          "source=AUTHENTICATED_TUF_TARGETS signer_reused=false " +
+          "in_memory_only=true no_begin=true no_realowner=true " +
+          "selector=false journal=false NEW=false READY=false", flush=True)
     print("GF_GITHUB_TUF_CONTINUOUS_MATRIX_PASS held_bytes=BLOCKED unsigned_namespace=REJECTED lost_handle=REJECTED predecision_cut=BLOCKED stdin_is_not_authority=true selector=false journal=false NEW=false READY=false", flush=True)
     print("GF_GITHUB_TUF_L18_GATE_MATRIX_PASS positive=DATA_ONLY bad_zip=REJECTED missing_manifest=REJECTED missing_targets=REJECTED forged_targets=REJECTED wrong_zip_sha=REJECTED wrong_manifest_sha=REJECTED wrong_installation=REJECTED wrong_transaction=REJECTED mutated_OLD=REJECTED extra_OLD=REJECTED local_resign=REJECTED persistent_installation=REJECTED persistent_transaction=REJECTED trust_floor_replay=REJECTED ledger_tamper=REJECTED short_history_replay=REJECTED forged_chain_link=REJECTED expired_tuf=REJECTED ledger_object_swap=REJECTED manifest_object_swap=REJECTED selector=false journal=false NEW=false READY=false", flush=True)
     print("GF_GITHUB_TUF_BINDING_PASS " +
