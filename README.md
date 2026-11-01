@@ -14,7 +14,7 @@ Destino privado `walissonminel-1991/gf-beta-entregas` criado (D1). D2 (workflow/
 
 ![Prévia da identidade visual GF](Assets/GerenciadorFinal-preview.png)
 
-**Registro histórico da candidata TESTE v5.13.11.66 — canal experimental cancelado; NÃO DISTRIBUIR.**
+**Candidata TESTE: v5.13.11.66 — registro histórico de laboratório; NÃO DISTRIBUIR.**
 [PR #65 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/65): [Etapa 7 concluída](docs/WORK-INTEGRACAO-ETAPA7-CORRECOES.md),
 [defeitos corrigidos](docs/WORK-INTEGRACAO-DEFEITOS.md) no escopo técnico demonstrado.
 Fonte `6df95fdd776644cd4b248b5cea61108974ca9ce9`, [CI Windows](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40675784213) e
