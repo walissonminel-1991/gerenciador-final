@@ -267,7 +267,10 @@ def main() -> None:
                      str(persistent), str(lab_root)],
                     success=accepted)
         if accepted:
-            require("GF_GITHUB_TUF_L18_CONSUMPTION_PASS " in proof and
+            require("GF_GITHUB_TUF_L18_SAME_COORDINATOR_BRIDGE_PASS " in proof and
+                    "type=L18Coordinator" in proof and
+                    "no_begin=true" in proof and
+                    "GF_GITHUB_TUF_L18_CONSUMPTION_PASS " in proof and
                     "source=PREVIOUSLY_AUTHENTICATED_TUF_TARGETS" in proof and
                     "no_authdir=true" in proof and
                     "no_authreport=true" in proof and
@@ -309,6 +312,26 @@ def main() -> None:
             "FORGED_LOCAL_INPUT_ACCEPTED")
     print("GF_GITHUB_TUF_L18_FORGED_INPUT_PASS " +
           "local_target_sha=REJECTED no_signed_authority_from_local=true " +
+          "READY=false", flush=True)
+
+
+    # Prove that the new partial L18Coordinator bridge independently rejects
+    # a locally forged SHA even after the original TUF verifier succeeded.
+    bridge_env = dict(os.environ)
+    bridge_env["GF_GITHUB_TUF_INERT_BRIDGE_FORGED"] = "1"
+    bridge_try = subprocess.run(
+        [str(l18), "--real-github-tuf-inert", str(old), str(verified),
+         str(scratch / "l18-bridge-forged-target"), str(repo),
+         sys.executable, expected_zip_hash, target_sha,
+         "a" * 32, "b" * 32, str(state), str(lab)],
+        capture_output=True, text=True, check=False, timeout=270,
+        encoding="utf-8", errors="replace", env=bridge_env)
+    require(bridge_try.returncode == 19 and
+            "GF_GITHUB_TUF_L18_INERT_BLOCKED " in bridge_try.stderr and
+            "GF_GITHUB_TUF_L18_SAME_COORDINATOR_BRIDGE_PASS " not in bridge_try.stdout,
+            "BRIDGE_FORGED_SHA_ACCEPTED")
+    print("GF_GITHUB_TUF_L18_SAME_COORDINATOR_NEGATIVE_PASS " +
+          "local_forgery=REJECTED begin=false journal=false NEW=false " +
           "READY=false", flush=True)
 
     # One continuous, in-process L18 test. Python controls only the timing:
@@ -579,6 +602,11 @@ def main() -> None:
             not any(scratch.rglob("applied.json")) and
             not any(scratch.rglob("l18-real-active.fixture.json")),
             "UNAUTHORIZED_INSTALL_MARKER")
+    print("GF_GITHUB_TUF_L18_SAME_COORDINATOR_CONTRACT_PASS " +
+          "l18_partial_type=VERIFIED original_signed_target=DATA_ONLY " +
+          "forged_target=REJECTED no_auth_report=true no_begin=true " +
+          "no_realowner=true selector=false journal=false NEW=false READY=false",
+          flush=True)
     print("GF_GITHUB_TUF_L18_DATA_ONLY_CONSUMPTION_MATRIX_PASS " +
           "original_tuf_target=ACCEPTED_FOR_DATA_ONLY " +
           "forged_local_target=REJECTED no_local_sign=true " +

@@ -549,6 +549,24 @@ internal static class Phase1GithubTufInert
                 admitted.TargetSha==identity.TargetSha &&
                 admitted.TargetsRoleSha==identity.TargetsRoleSha,
                 "GH_L18_INERT_DATA_ONLY_INPUT_FORK");
+
+            // Exactly the same L18Coordinator partial type as BeginCore;
+            // this DATA-ONLY adapter cannot invoke that operational method.
+            string bridgeCandidateSha=identity.TargetSha;
+            if(Environment.GetEnvironmentVariable("GF_GITHUB_TUF_INERT_BRIDGE_FORGED")=="1")
+                bridgeCandidateSha=new string('e',64);
+            var bridge=L18Coordinator.InspectPreverifiedTargetForDataOnlyLab(
+                stateRoot,labRoot,identity.TargetName,bridgeCandidateSha,
+                identity.TargetsRoleSha,identity.LedgerDigest,pins[1],pins[2]);
+            Require(bridge.Installation==admitted.Installation &&
+                bridge.Transaction==admitted.Transaction &&
+                bridge.TargetSha==admitted.TargetSha &&
+                bridge.TargetsRoleSha==admitted.TargetsRoleSha,
+                "GH_L18_INERT_L18_COORDINATOR_DATA_BRIDGE_FORK");
+            Console.WriteLine("GF_GITHUB_TUF_L18_SAME_COORDINATOR_BRIDGE_PASS " +
+                "type=L18Coordinator target=PREVERIFIED_TUF_TARGET " +
+                "only_data=true no_sign=true no_begin=true no_realowner=true " +
+                "selector=false journal=false NEW=false READY=false");
             Console.WriteLine("GF_GITHUB_TUF_L18_CONSUMPTION_PASS " +
                 "source=PREVIOUSLY_AUTHENTICATED_TUF_TARGETS " +
                 "target_sha_from_signed_role=true no_local_sign=true " +
@@ -567,5 +585,66 @@ internal static class Phase1GithubTufInert
                 "zip_same_bytes=true old_new_signed_files=true persisted_fixture_ids_match=true multigeneration_ledger_pinned=true trust_floor_not_rolled_back=true latest_ledger_object_swap=REJECTED ledger_object_swap=REJECTED manifest_object_swap=REJECTED worker=false " +
                 "selector=false journal=false NEW_not_started=true READY=false");
         } finally {foreach(var f in pins)f.Dispose();}
+    }
+}
+
+
+// This partial is compiled ONLY by the existing non-publishable L18 tests
+// project. It deliberately has no methods for executing, signing, journaling,
+// persisting authorization, selecting a slot, or running NEW.
+internal sealed record L18InertPreverifiedTargetData(
+    string Installation,string Transaction,string TargetSha,string TargetsRoleSha);
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static partial class L18Coordinator
+{
+    internal static L18InertPreverifiedTargetData InspectPreverifiedTargetForDataOnlyLab(
+        string src,string lab,string targetName,string proposedTargetSha,
+        string proposedTargetsRoleSha,string proposedLedgerDigest,
+        FileStream pinnedManifest,FileStream pinnedTargets)
+    {
+        Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+            Environment.GetEnvironmentVariable("GF_GITHUB_TUF_ONLY")=="1",
+            "GH_L18_PREVERIFIED_BRIDGE_LAB_ONLY");
+        FixtureSandbox.RequireRoot(src);
+        L14Model.RequireRoot(lab);
+        Require(targetName=="GF-LAB-REAL-PACKAGE-MANIFEST.json" &&
+            Hex(proposedTargetSha,64) && Hex(proposedTargetsRoleSha,64),
+            "GH_L18_PREVERIFIED_BRIDGE_TARGET_SCOPE");
+        pinnedManifest.Position=0;
+        string actualSha=Convert.ToHexString(
+            SHA256.HashData(pinnedManifest)).ToLowerInvariant();
+        pinnedManifest.Position=0;
+        pinnedTargets.Position=0;
+        string actualRoleSha=Convert.ToHexString(
+            SHA256.HashData(pinnedTargets)).ToLowerInvariant();
+        pinnedTargets.Position=0;
+        using var role=JsonDocument.Parse(pinnedTargets);
+        var targets=role.RootElement.GetProperty("signed").GetProperty("targets");
+        Require(targets.ValueKind==JsonValueKind.Object &&
+            targets.EnumerateObject().Count()==1 &&
+            targets.TryGetProperty(targetName,out var target),
+            "GH_L18_PREVERIFIED_BRIDGE_SIGNED_TARGET_MISSING");
+        var hashes=target.GetProperty("hashes");
+        Require(hashes.EnumerateObject().Count()==1 &&
+            hashes.GetProperty("sha256").GetString()==actualSha &&
+            target.GetProperty("length").GetInt64()==pinnedManifest.Length &&
+            proposedTargetSha==actualSha &&
+            proposedTargetsRoleSha==actualRoleSha,
+            "GH_L18_PREVERIFIED_BRIDGE_SIGNED_SHA_FORK");
+        pinnedTargets.Position=0;
+        var local=new PersistentState(src).Load();
+        Require(local.Digest==proposedLedgerDigest &&
+            local.Record.InstallationId.Length==32 &&
+            L14Model.Tx(lab).Length==32 &&
+            !File.Exists(RealContextPath(src)) &&
+            !File.Exists(Path.Combine(src,"l18-real-active.fixture.json")) &&
+            !Directory.EnumerateFiles(src,"l18-phase-*.fixture.json").Any(),
+            "GH_L18_PREVERIFIED_BRIDGE_LOCAL_OR_TRANSACTION_FORK");
+        // The caller has already authenticated signatures via Python-TUF.
+        // This method independently re-reads signed *data*, but does not
+        // claim to verify TUF itself and creates no authorization capability.
+        return new(local.Record.InstallationId,L14Model.Tx(lab),
+            actualSha,actualRoleSha);
     }
 }
