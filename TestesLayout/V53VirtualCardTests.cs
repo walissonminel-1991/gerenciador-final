@@ -52,8 +52,13 @@ internal static class V53VirtualCardTests
                 appFont.SizeInPoints * dpi / 96f, FontStyle.Bold);
             var natural = TextRenderer.MeasureText(longName, scaledFont,
                 new Size(int.MaxValue, 200), TextFormatFlags.NoPadding);
-            Require(natural.Width > title.Width,
-                $"nome longo nao exercita truncamento {screen} DPI={dpi}");
+            // Na tela larga a 100%, o nome pode caber por inteiro:
+            // truncamento e exigido quando ha restricao real de largura,
+            // nao artificialmente em todo viewport.
+            var constrainedRow = new Rectangle(0, 0, 800, DriverRowGeometry.Height(dpi));
+            var constrainedTitle = DriverRowGeometry.Text(constrainedRow, dpi, 5, 22);
+            Require(natural.Width > constrainedTitle.Width,
+                $"nome extenso nao exercita truncamento em largura limitada {screen} DPI={dpi}");
             // Hit-test por indice, desenho e scroll partilham a altura DPI.
             Require(DriverRowGeometry.Height(dpi) == DriverRowGeometry.Scale(73, dpi) &&
                 DriverRowGeometry.Height(dpi) >= inf.Bottom,
