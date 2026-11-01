@@ -255,8 +255,10 @@ def main() -> None:
                      str(persistent), str(lab_root)],
                     success=accepted)
         if accepted:
-            require("GF_GITHUB_TUF_L18_INERT_PASS " in proof,
-                    "L18_INERT_RECEIPT_NOT_PROVEN")
+            require("GF_GITHUB_TUF_L18_INERT_PASS " in proof and
+                    "ledger_object_swap=REJECTED" in proof and
+                    "manifest_object_swap=REJECTED" in proof,
+                    "L18_INERT_RECEIPT_OR_NTFS_PIN_NOT_PROVEN")
         else:
             # A late identity rejection may leave authenticated files in the
             # runner's isolated extraction directory. Extraction is NOT
@@ -385,7 +387,7 @@ def main() -> None:
             not any(scratch.rglob("applied.json")) and
             not any(scratch.rglob("l18-real-active.fixture.json")),
             "UNAUTHORIZED_INSTALL_MARKER")
-    print("GF_GITHUB_TUF_L18_GATE_MATRIX_PASS positive=DATA_ONLY bad_zip=REJECTED missing_manifest=REJECTED missing_targets=REJECTED forged_targets=REJECTED wrong_zip_sha=REJECTED wrong_manifest_sha=REJECTED wrong_installation=REJECTED wrong_transaction=REJECTED mutated_OLD=REJECTED extra_OLD=REJECTED local_resign=REJECTED persistent_installation=REJECTED persistent_transaction=REJECTED trust_floor_replay=REJECTED ledger_tamper=REJECTED expired_tuf=REJECTED selector=false journal=false NEW=false READY=false", flush=True)
+    print("GF_GITHUB_TUF_L18_GATE_MATRIX_PASS positive=DATA_ONLY bad_zip=REJECTED missing_manifest=REJECTED missing_targets=REJECTED forged_targets=REJECTED wrong_zip_sha=REJECTED wrong_manifest_sha=REJECTED wrong_installation=REJECTED wrong_transaction=REJECTED mutated_OLD=REJECTED extra_OLD=REJECTED local_resign=REJECTED persistent_installation=REJECTED persistent_transaction=REJECTED trust_floor_replay=REJECTED ledger_tamper=REJECTED expired_tuf=REJECTED ledger_object_swap=REJECTED manifest_object_swap=REJECTED selector=false journal=false NEW=false READY=false", flush=True)
     print("GF_GITHUB_TUF_BINDING_PASS " +
           "same_downloaded_zip_sha=true signed_file_set=true " +
           "tuf_test_root_only=true zip_sha_in_tuf_target=false " +
