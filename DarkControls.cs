@@ -228,6 +228,7 @@ internal sealed class DarkProgramList : Control
         if (_operationTimer is not null) RefreshOperations();
     }
     private readonly DarkVScrollBar _scrollbar = new();
+    private readonly WheelDeltaAccumulator _wheel = new();
     private int _selectedIndex = -1;
     private int _scrollOffset;
     private int _itemHeight = 72;
@@ -518,7 +519,10 @@ internal sealed class DarkProgramList : Control
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
-        _scrollbar.Value -= Math.Sign(e.Delta) * _itemHeight * 3;
+        int notches = _wheel.Consume(e.Delta);
+        if (notches != 0)
+            _scrollbar.Value = (int)Math.Clamp((long)_scrollbar.Value - (long)notches * _itemHeight * 3,
+                0, _scrollbar.MaximumValue);
     }
 
     protected override bool IsInputKey(Keys keyData)
@@ -753,6 +757,7 @@ internal sealed class DarkScrollableFlow : UserControl
     private readonly Panel _viewport;
     private readonly FlowLayoutPanel _flow;
     private readonly DarkVScrollBar _scroll;
+    private readonly WheelDeltaAccumulator _wheel = new();
     private bool _arranging;
 
     // Um unico scroll pertence a pagina externa. Componentes embutidos
@@ -791,8 +796,8 @@ internal sealed class DarkScrollableFlow : UserControl
         _viewport.Resize += (_, _) => Reflow();
         _flow.ControlAdded += (_, e) => { if (e.Control is not null) TrackFocus(e.Control); Reflow(); };
         _flow.ControlRemoved += (_, _) => Reflow();
-        _viewport.MouseWheel += (_, e) => _scroll.Value -= Math.Sign(e.Delta) * 85;
-        _flow.MouseWheel += (_, e) => _scroll.Value -= Math.Sign(e.Delta) * 85;
+        _viewport.MouseWheel += (_, e) => ScrollFromWheel(e);
+        _flow.MouseWheel += (_, e) => ScrollFromWheel(e);
         Resize += (_, _) => Reflow();
         VisibleChanged += (_, _) =>
         {
@@ -800,6 +805,14 @@ internal sealed class DarkScrollableFlow : UserControl
             Reflow();
         };
         DpiChangedAfterParent += (_, _) => Reflow();
+    }
+
+    private void ScrollFromWheel(MouseEventArgs e)
+    {
+        int notches = _wheel.Consume(e.Delta);
+        if (notches != 0)
+            _scroll.Value = (int)Math.Clamp((long)_scroll.Value - (long)notches * 85,
+                0, _scroll.MaximumValue);
     }
 
     private void TrackFocus(Control control)

@@ -44,6 +44,7 @@ internal static class LayoutTests
         }
         Work9InventoryTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
         Work9NavigationTests.Run((ok, label) => { if (!ok) throw new Exception(label); Console.WriteLine("OK " + label); });
+        WheelScrollTests.Run();
         Work11ProgressLayoutTests.Run();
         Work16EcosystemUiTests.Run();
         Work12UninstallLayoutTests.Run();
