@@ -1807,6 +1807,18 @@ internal static class Phase1RecoveryTests
     {
         try
         {
+            // Data-only lab entry; no L18 selector, journal, swap or worker.
+            // Keep separate from all owner/reconcile modes.
+            if(a.Length>0 && a[0]=="--real-github-tuf-inert")
+            {
+                try { await Phase1GithubTufInert.Run(a); return 0; }
+                catch(Exception e) {
+                    // Never expose private paths, signed URLs or input bytes.
+                    Console.Error.WriteLine("GF_GITHUB_TUF_L18_INERT_BLOCKED " +
+                        e.GetType().Name + " READY=false");
+                    return 19;
+                }
+            }
             if(a.Length==3 && a[0]=="--real-late-writer"){await LateWriter(a[1],a[2]);return 0;}
             if(a.Length==3 && a[0]=="--real-external-broker"){await ExternalBroker(a[1],a[2]);return 0;}
             if(a.Length==3 && a[0]=="--real-external-handoff-broker"){await ExternalHandoffBroker(a[1],a[2]);return 0;}
