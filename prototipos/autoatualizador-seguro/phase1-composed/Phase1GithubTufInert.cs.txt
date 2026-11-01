@@ -46,7 +46,7 @@ internal static class Phase1GithubTufInert
     }
     internal static async Task Run(string[] a)
     {
-        Require(a.Length==10 && a[0]=="--real-github-tuf-inert" &&
+        Require(a.Length==12 && a[0]=="--real-github-tuf-inert" &&
             OperatingSystem.IsWindows() &&
             Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
             Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==Repo &&
@@ -68,6 +68,7 @@ internal static class Phase1GithubTufInert
              File.Exists(python),"GH_L18_INERT_PYTHON");
         string old=Under(a[1],runner,true), bundle=Under(a[2],runner,true);
         string extracted=Under(a[3],runner,false);
+        string stateRoot=Under(a[10],runner,true), labRoot=Under(a[11],runner,true);
         Require(Directory.Exists(old) && Directory.Exists(bundle) &&
             !Directory.Exists(extracted) && !File.Exists(extracted) &&
             a[6].Length==64 && a[7].Length==64 &&
@@ -130,6 +131,36 @@ internal static class Phase1GithubTufInert
                 root.GetProperty("transaction").GetString()==a[9] &&
                 a[8]==new string('a',32) && a[9]==new string('b',32),
                 "GH_L18_INERT_SIGNED_SCOPE");
+            // Local context is decoded by the EXISTING L18 persistent
+            // ledger parser. These values are test-only fixture state, NOT
+            // publisher authority, recovery permission, or a launch ticket.
+            // The signed manifest and trusted local IDs must agree; a caller
+            // supplied ID, a receipt, or local SHA cannot substitute either.
+            L14Model.RequireRoot(labRoot);
+            var loaded=new PersistentState(stateRoot).Load().Record;
+            Require(loaded.InstallationId==a[8] &&
+                L14Model.Tx(labRoot)==a[9] &&
+                loaded.Generation>=1 && loaded.Transaction is null &&
+                loaded.Confirmed.Sequence==1 &&
+                loaded.Trust.ApprovedSequence==1,
+                "GH_L18_INERT_PERSISTENT_IDENTITY_OR_TRANSACTION");
+            // Confront the trusted floor with the TUF roles that Python-TUF
+            // already authenticated. Reject replay/rollback; do not create
+            // any new signature or advance the persistent floor.
+            int RoleVersion(int index)
+            {
+                pins[index].Position=0;
+                using var role=JsonDocument.Parse(pins[index]);
+                int version=role.RootElement.GetProperty("signed")
+                    .GetProperty("version").GetInt32();
+                pins[index].Position=0;
+                return version;
+            }
+            Require(loaded.Trust.Root==1 &&
+                loaded.Trust.Targets<=RoleVersion(2) &&
+                loaded.Trust.Snapshot<=RoleVersion(3) &&
+                loaded.Trust.Timestamp<=RoleVersion(4),
+                "GH_L18_INERT_TRUST_FLOOR_ROLLBACK");
             // Reuse the same data-only file-set proof for BOTH OLD and NEW.
             // The previously signed OLD identity must match the actual OLD
             // bytes; a locally re-signed NEW must never confer OLD authority.
@@ -170,7 +201,7 @@ internal static class Phase1GithubTufInert
             // The same L18 test executable has accepted only DATA-ONLY input.
             Console.WriteLine("GF_GITHUB_TUF_L18_INERT_PASS " +
                 "l18_executable=EXISTING tif=TEST_ONLY signed_manifest=true " +
-                "zip_same_bytes=true old_new_signed_files=true signed_fixture_ids_match=true worker=false " +
+                "zip_same_bytes=true old_new_signed_files=true persistent_fixture_ids_match=true trust_floor_not_rolled_back=true worker=false " +
                 "selector=false journal=false NEW_not_started=true READY=false");
         } finally {foreach(var f in pins)f.Dispose();}
     }
