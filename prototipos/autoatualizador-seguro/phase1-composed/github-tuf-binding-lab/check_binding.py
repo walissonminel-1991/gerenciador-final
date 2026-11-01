@@ -220,9 +220,21 @@ def main() -> None:
                    "sha256": hashlib.sha256(p).hexdigest()}
         if bad_checksum:
             wrapped["sha256"] = "0" * 64
-        (ledger / "0000000000000001.fixture.json").write_text(
-            json.dumps(wrapped, separators=(",", ":"), sort_keys=True),
-            encoding="utf-8")
+        first = json.dumps(wrapped, separators=(",", ":"), sort_keys=True).encode()
+        (ledger / "0000000000000001.fixture.json").write_bytes(first)
+        # A genuine second generation in the existing StateCodec format.
+        # This is a metadata-only checkpoint: no release approval, swap, or
+        # transaction, and the previous digest binds the full first WRAPPER.
+        second = json.loads(json.dumps(payload))
+        second["generation"] = 2
+        second["previousDigest"] = hashlib.sha256(first).hexdigest()
+        second["trust"]["lastObservedUtc"] = "2026-11-01T00:00:01Z"
+        raw2 = json.dumps(second, separators=(",", ":"), sort_keys=True).encode()
+        wrapped2 = {"schema": "gf-state-fixture/2",
+                    "payload": base64.b64encode(raw2).decode("ascii"),
+                    "sha256": hashlib.sha256(raw2).hexdigest()}
+        (ledger / "0000000000000002.fixture.json").write_bytes(
+            json.dumps(wrapped2, separators=(",", ":"), sort_keys=True).encode())
         if fake_receipt:
             (root / "local-authorized-receipt.json").write_text(
                 '{"schema":"untrusted-local","authorized":true,"READY":true}',
@@ -257,7 +269,9 @@ def main() -> None:
         if accepted:
             require("GF_GITHUB_TUF_L18_INERT_PASS " in proof and
                     "ledger_object_swap=REJECTED" in proof and
-                    "manifest_object_swap=REJECTED" in proof,
+                    "manifest_object_swap=REJECTED" in proof and
+                    "multigeneration_ledger_pinned=true" in proof and
+                    "latest_ledger_object_swap=REJECTED" in proof,
                     "L18_INERT_RECEIPT_OR_NTFS_PIN_NOT_PROVEN")
         else:
             # A late identity rejection may leave authenticated files in the
@@ -268,6 +282,23 @@ def main() -> None:
                     "L18_NEGATIVE_ACCEPTED_NEW")
 
     l18_gate(verified, "l18-positive-extracted", accepted=True)
+
+    # After the preflight PROCESS ENDS, no handle remains. Replacing the
+    # last ledger name with a new file object containing identical bytes
+    # becomes possible. This deliberately proves a missing CROSS-PROCESS
+    # witness; it cannot grant permission to launch or recover.
+    last = state / "ledger" / "0000000000000002.fixture.json"
+    replacement = state / "ledger" / "0000000000000002.fixture.json.unpinned"
+    require(not replacement.exists(), "UNPINNED_TEST_NOT_FRESH")
+    shutil.copyfile(last, replacement)
+    require(digest(last) == digest(replacement), "UNPINNED_BYTES_DIFFER")
+    replacement.replace(last)  # Windows will fail this while a pin is alive.
+    require(digest(last) == hashlib.sha256(
+        last.read_bytes()).hexdigest(), "POST_EXIT_LEDGER_CHANGED")
+    print("GF_GITHUB_TUF_POST_EXIT_PIN_GONE same_bytes_replacement=ALLOWED "
+          "independent_replay_witness=false operational_admission=BLOCKED "
+          "READY=false", flush=True)
+
     l18_gate(changed, "l18-negative-bad-zip", accepted=False)
     l18_gate(no_manifest, "l18-negative-no-manifest", accepted=False)
     l18_gate(no_targets, "l18-negative-no-targets", accepted=False)
@@ -332,6 +363,28 @@ def main() -> None:
     stale_floor = persistent_fixture("rollback-floor", timestamp_floor=2)
     l18_gate(verified, "l18-replayed-metadata", accepted=False,
              persistent=stale_floor)
+    # An attacker could replay one coherent old generation after all
+    # handles close. This LAB-ONLY fixture requires 2 generations and must
+    # fail closed if one is removed, but that is NOT a durable external
+    # anti-replay guarantee against replay of a longer coherent history.
+    replayed = persistent_fixture("coherent-first-generation-replay")
+    (replayed / "ledger" / "0000000000000002.fixture.json").unlink()
+    l18_gate(verified, "l18-coherent-short-replay", accepted=False,
+             persistent=replayed)
+    # A second generation with a valid wrapper but incorrect link must fail.
+    broken_link = persistent_fixture("chain-link-forged")
+    tail = broken_link / "ledger" / "0000000000000002.fixture.json"
+    wrapper = json.loads(tail.read_text(encoding="utf-8"))
+    payload2 = json.loads(base64.b64decode(wrapper["payload"]))
+    payload2["previousDigest"] = "f" * 64
+    raw2 = json.dumps(payload2, separators=(",", ":"), sort_keys=True).encode()
+    wrapper["payload"] = base64.b64encode(raw2).decode("ascii")
+    wrapper["sha256"] = hashlib.sha256(raw2).hexdigest()
+    tail.write_text(json.dumps(wrapper, separators=(",", ":"), sort_keys=True),
+                    encoding="utf-8")
+    l18_gate(verified, "l18-coherent-wrapper-bad-chain", accepted=False,
+             persistent=broken_link)
+
     damaged_ledger = persistent_fixture("ledger-corrupt", bad_checksum=True)
     l18_gate(verified, "l18-ledger-checksum-bad", accepted=False,
              persistent=damaged_ledger)
@@ -387,7 +440,7 @@ def main() -> None:
             not any(scratch.rglob("applied.json")) and
             not any(scratch.rglob("l18-real-active.fixture.json")),
             "UNAUTHORIZED_INSTALL_MARKER")
-    print("GF_GITHUB_TUF_L18_GATE_MATRIX_PASS positive=DATA_ONLY bad_zip=REJECTED missing_manifest=REJECTED missing_targets=REJECTED forged_targets=REJECTED wrong_zip_sha=REJECTED wrong_manifest_sha=REJECTED wrong_installation=REJECTED wrong_transaction=REJECTED mutated_OLD=REJECTED extra_OLD=REJECTED local_resign=REJECTED persistent_installation=REJECTED persistent_transaction=REJECTED trust_floor_replay=REJECTED ledger_tamper=REJECTED expired_tuf=REJECTED ledger_object_swap=REJECTED manifest_object_swap=REJECTED selector=false journal=false NEW=false READY=false", flush=True)
+    print("GF_GITHUB_TUF_L18_GATE_MATRIX_PASS positive=DATA_ONLY bad_zip=REJECTED missing_manifest=REJECTED missing_targets=REJECTED forged_targets=REJECTED wrong_zip_sha=REJECTED wrong_manifest_sha=REJECTED wrong_installation=REJECTED wrong_transaction=REJECTED mutated_OLD=REJECTED extra_OLD=REJECTED local_resign=REJECTED persistent_installation=REJECTED persistent_transaction=REJECTED trust_floor_replay=REJECTED ledger_tamper=REJECTED short_history_replay=REJECTED forged_chain_link=REJECTED expired_tuf=REJECTED ledger_object_swap=REJECTED manifest_object_swap=REJECTED selector=false journal=false NEW=false READY=false", flush=True)
     print("GF_GITHUB_TUF_BINDING_PASS " +
           "same_downloaded_zip_sha=true signed_file_set=true " +
           "tuf_test_root_only=true zip_sha_in_tuf_target=false " +
