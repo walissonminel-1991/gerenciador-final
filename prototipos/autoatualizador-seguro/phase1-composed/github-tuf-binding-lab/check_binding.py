@@ -180,6 +180,16 @@ def main() -> None:
     require(not verify(forged, "negative-forged-extracted", success=False),
             "BAD_SIGNED_TARGETS_NOT_REJECTED")
 
+    # Derive the real .NET temporary directory from PowerShell's .NET runtime.
+    # The existing L14/FixtureSandbox contracts require this root, which
+    # can differ from GitHub RUNNER_TEMP. Both are disposable runner storage.
+    os_temp_text = run(
+        ["pwsh", "-NoProfile", "-NonInteractive", "-Command",
+         "[System.IO.Path]::GetTempPath()"], success=True).strip()
+    os_temp = Path(os_temp_text).resolve(strict=True)
+    require(os_temp.is_dir() and os_temp.is_absolute() and
+            len(os_temp.parts) >= 2, "DOTNET_OS_TEMP_ROOT_INVALID")
+
     # Bootstrap a disposable, versioned, LOCAL state fixture with the same
     # schema consumed by PersistentState.Load. It does not authenticate a
     # publisher or authorize L18's BeginCore. No bootstrap signer is used.
@@ -187,7 +197,7 @@ def main() -> None:
                            timestamp_floor: int = 1,
                            bad_checksum: bool = False,
                            fake_receipt: bool = False) -> Path:
-        root = runner / ("gf-u2-github-binding-" + name)
+        root = os_temp / ("gf-u2-github-binding-" + name)
         require(not root.exists(), "PERSISTENT_TEST_ROOT_EXISTS")
         root.mkdir()
         (root / ".gf-u2-fixture").write_text(
@@ -222,7 +232,7 @@ def main() -> None:
         return root
 
     state = persistent_fixture("positive")
-    lab = runner / ("gf-u2-l14-" + "b" * 32)
+    lab = os_temp / ("gf-u2-l14-" + "b" * 32)
     require(not lab.exists(), "L14_TEST_ROOT_EXISTS")
     lab.mkdir()
     (lab / ".gf-u2-fixture").write_text(
@@ -325,7 +335,7 @@ def main() -> None:
     damaged_ledger = persistent_fixture("ledger-corrupt", bad_checksum=True)
     l18_gate(verified, "l18-ledger-checksum-bad", accepted=False,
              persistent=damaged_ledger)
-    other_lab = runner / ("gf-u2-l14-" + "d" * 32)
+    other_lab = os_temp / ("gf-u2-l14-" + "d" * 32)
     require(not other_lab.exists(), "OTHER_L14_ROOT_EXISTS")
     other_lab.mkdir()
     (other_lab / ".gf-u2-fixture").write_text(
