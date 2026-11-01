@@ -46,7 +46,7 @@ internal static class Phase1GithubTufInert
     }
     internal static async Task Run(string[] a)
     {
-        Require(a.Length==8 && a[0]=="--real-github-tuf-inert" &&
+        Require(a.Length==10 && a[0]=="--real-github-tuf-inert" &&
             OperatingSystem.IsWindows() &&
             Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
             Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==Repo &&
@@ -71,7 +71,10 @@ internal static class Phase1GithubTufInert
         Require(Directory.Exists(old) && Directory.Exists(bundle) &&
             !Directory.Exists(extracted) && !File.Exists(extracted) &&
             a[6].Length==64 && a[7].Length==64 &&
-            a[6].All(Uri.IsHexDigit) && a[7].All(Uri.IsHexDigit),
+            a[6].All(Uri.IsHexDigit) && a[7].All(Uri.IsHexDigit) &&
+            a[8].Length==32 && a[9].Length==32 &&
+            a[8].All(c=>c is >= '0' and <= '9' or >= 'a' and <= 'f') &&
+            a[9].All(c=>c is >= '0' and <= '9' or >= 'a' and <= 'f'),
             "GH_L18_INERT_ARGUMENTS");
         var pins=new List<FileStream>();
         try {
@@ -123,33 +126,42 @@ internal static class Phase1GithubTufInert
             Require(root.GetProperty("schema").GetString()=="gf-real-package-lab/3" &&
                 root.GetProperty("selected_before").GetString()=="old" &&
                 !root.GetProperty("operational_installable").GetBoolean() &&
-                root.GetProperty("installation").GetString()==new string('a',32) &&
-                root.GetProperty("transaction").GetString()==new string('b',32),
+                root.GetProperty("installation").GetString()==a[8] &&
+                root.GetProperty("transaction").GetString()==a[9] &&
+                a[8]==new string('a',32) && a[9]==new string('b',32),
                 "GH_L18_INERT_SIGNED_SCOPE");
-            var files=root.GetProperty("files");
-            Require(files.ValueKind==JsonValueKind.Object &&
-                files.EnumerateObject().Count()>40,"GH_L18_INERT_FILE_SET_INVALID");
-            string[] names=Directory.EnumerateFiles(extracted,"*",SearchOption.AllDirectories)
-                .Select(p=>Path.GetRelativePath(extracted,p).Replace('\\','/'))
-                .Order(StringComparer.Ordinal).ToArray();
-            string[] signed=files.EnumerateObject().Select(p=>p.Name)
-                .Order(StringComparer.Ordinal).ToArray();
-            Require(names.SequenceEqual(signed,StringComparer.Ordinal),
-                "GH_L18_INERT_FILE_SET_FORK");
-            foreach(string rel in signed) {
-                string full=Path.GetFullPath(Path.Combine(extracted,
-                    rel.Replace('/',Path.DirectorySeparatorChar)));
-                Require(full.StartsWith(extracted+Path.DirectorySeparatorChar,
-                    StringComparison.OrdinalIgnoreCase) &&
-                    (File.GetAttributes(full)&FileAttributes.ReparsePoint)==0,
-                    "GH_L18_INERT_FILE_PATH");
-                var info=files.GetProperty(rel);
-                using var f=Pin(full,67_108_864);
-                Require(f.Length==info.GetProperty("length").GetInt64() &&
-                    HashStream(f).Equals(info.GetProperty("sha256").GetString(),
-                        StringComparison.OrdinalIgnoreCase),
-                    "GH_L18_INERT_SIGNED_FILE_CHANGED");
+            // Reuse the same data-only file-set proof for BOTH OLD and NEW.
+            // The previously signed OLD identity must match the actual OLD
+            // bytes; a locally re-signed NEW must never confer OLD authority.
+            void CheckSignedTree(string directory,JsonElement files,string label)
+            {
+                Require(files.ValueKind==JsonValueKind.Object &&
+                    files.EnumerateObject().Count()>40,
+                    "GH_L18_INERT_"+label+"_SET_INVALID");
+                string[] names=Directory.EnumerateFiles(directory,"*",SearchOption.AllDirectories)
+                    .Select(p=>Path.GetRelativePath(directory,p).Replace('\\','/'))
+                    .Order(StringComparer.Ordinal).ToArray();
+                string[] signed=files.EnumerateObject().Select(p=>p.Name)
+                    .Order(StringComparer.Ordinal).ToArray();
+                Require(names.SequenceEqual(signed,StringComparer.Ordinal),
+                    "GH_L18_INERT_"+label+"_SET_FORK");
+                foreach(string rel in signed) {
+                    string full=Path.GetFullPath(Path.Combine(directory,
+                        rel.Replace('/',Path.DirectorySeparatorChar)));
+                    Require(full.StartsWith(directory+Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase) &&
+                        (File.GetAttributes(full)&FileAttributes.ReparsePoint)==0,
+                        "GH_L18_INERT_"+label+"_PATH");
+                    var info=files.GetProperty(rel);
+                    using var f=Pin(full,67_108_864);
+                    Require(f.Length==info.GetProperty("length").GetInt64() &&
+                        HashStream(f).Equals(info.GetProperty("sha256").GetString(),
+                            StringComparison.OrdinalIgnoreCase),
+                        "GH_L18_INERT_"+label+"_SIGNED_FILE_CHANGED");
+                }
             }
+            CheckSignedTree(old,root.GetProperty("old_files"),"OLD");
+            CheckSignedTree(extracted,root.GetProperty("files"),"NEW");
             var version=AssemblyName.GetAssemblyName(
                 Path.Combine(extracted,"GerenciadorFinal.dll")).Version;
             Require(version==new Version(5,13,11,66),
@@ -158,7 +170,7 @@ internal static class Phase1GithubTufInert
             // The same L18 test executable has accepted only DATA-ONLY input.
             Console.WriteLine("GF_GITHUB_TUF_L18_INERT_PASS " +
                 "l18_executable=EXISTING tif=TEST_ONLY signed_manifest=true " +
-                "zip_same_bytes=true files_full_set=true worker=false " +
+                "zip_same_bytes=true old_new_signed_files=true signed_fixture_ids_match=true worker=false " +
                 "selector=false journal=false NEW_not_started=true READY=false");
         } finally {foreach(var f in pins)f.Dispose();}
     }
