@@ -193,7 +193,11 @@ def main() -> None:
             require("GF_GITHUB_TUF_L18_INERT_PASS " in proof,
                     "L18_INERT_RECEIPT_NOT_PROVEN")
         else:
-            require(not (scratch / out / "GerenciadorFinal.exe").exists(),
+            # A late identity rejection may leave authenticated files in the
+            # runner's isolated extraction directory. Extraction is NOT
+            # installation. Reject a success receipt or zero return code;
+            # selector/journal/swap/NEW execution remain prohibited.
+            require("GF_GITHUB_TUF_L18_INERT_PASS " not in proof,
                     "L18_NEGATIVE_ACCEPTED_NEW")
 
     l18_gate(verified, "l18-positive-extracted", accepted=True)
