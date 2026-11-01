@@ -44,6 +44,14 @@ internal static class Phase1GithubTufInert
         file.Position=0;
         return sha;
     }
+    // This is a DATA-ONLY projection of the publisher-signed target
+    // identity into the existing L18 laboratory process. It is never a
+    // launch ticket, local re-signature, durable receipt or real authorization.
+    private sealed record InertTufTargetBinding(
+        string TargetName,string TargetSha,long TargetLength,
+        string TargetsRoleSha,string Installation,string Transaction,
+        string LedgerDigest);
+
     // A snapshot of every ledger generation, not just generation 1.
     // Hold NTFS file IDs and ancestor names throughout the same process.
     // This does NOT prevent an attacker replaying a coherent history AFTER
@@ -209,6 +217,42 @@ internal static class Phase1GithubTufInert
             Require(HashStream(pins[0])==actualZip &&
                 HashStream(pins[1])==actualManifest,
                 "GH_L18_INERT_PIN_CHANGED");
+            // Python-TUF validated the TEST root, signatures, expiry and
+            // timestamp -> snapshot -> targets linkage on pinned bytes.
+            // Read the signed target identity, not a caller-provided/local
+            // manifest digest. The C# process owns the same pinned roles.
+            const string authenticatedPrefix="GF_DRAFT_AUTHENTICATED ";
+            string[] authenticLines=stdout.Split('\n')
+                .Where(x=>x.StartsWith(authenticatedPrefix,
+                    StringComparison.Ordinal)).ToArray();
+            Require(authenticLines.Length==1,
+                "GH_L18_TUF_AUTHENTICATOR_OUTPUT_AMBIGUOUS");
+            using var authenticatorProof=JsonDocument.Parse(
+                authenticLines[0][authenticatedPrefix.Length..]);
+            using var signedTargetsDoc=JsonDocument.Parse(pins[2]);
+            var signedTargets=signedTargetsDoc.RootElement
+                .GetProperty("signed").GetProperty("targets");
+            Require(signedTargets.ValueKind==JsonValueKind.Object &&
+                signedTargets.EnumerateObject().Count()==1 &&
+                signedTargets.TryGetProperty(Manifest,out var targetDescription),
+                "GH_L18_TUF_SIGNED_TARGET_SET");
+            var targetHashes=targetDescription.GetProperty("hashes");
+            Require(targetHashes.EnumerateObject().Count()==1,
+                "GH_L18_TUF_SIGNED_TARGET_HASH_ALGORITHM");
+            string targetSha=targetHashes.GetProperty("sha256").GetString() ?? "";
+            long targetLength=targetDescription.GetProperty("length").GetInt64();
+            var verifiedOutput=authenticatorProof.RootElement;
+            Require(Hex(targetSha,64) &&
+                targetLength==pins[1].Length && targetSha==actualManifest &&
+                targetSha==a[7].ToLowerInvariant() &&
+                verifiedOutput.GetProperty("tuf_manifest_sha256")
+                    .GetString()==targetSha &&
+                verifiedOutput.GetProperty("downloaded_archive_sha256")
+                    .GetString()==actualZip &&
+                verifiedOutput.GetProperty("test_only").GetBoolean() &&
+                !verifiedOutput.GetProperty("operational_ready").GetBoolean(),
+                "GH_L18_TUF_TARGET_NOT_AUTHENTICATED");
+            string signedTargetsRoleSha=HashStream(pins[2]);
             using var doc=JsonDocument.Parse(pins[1]);
             var root=doc.RootElement;
             Require(root.GetProperty("schema").GetString()=="gf-real-package-lab/3" &&
@@ -234,7 +278,8 @@ internal static class Phase1GithubTufInert
             }
             try
             {
-            var loaded=new PersistentState(stateRoot).Load().Record;
+            var loadedState=new PersistentState(stateRoot).Load();
+            var loaded=loadedState.Record;
             Require(loaded.InstallationId==a[8] &&
                 L14Model.Tx(labRoot)==a[9] &&
                 loaded.Generation==ledger.Count && loaded.Transaction is null &&
@@ -266,6 +311,20 @@ internal static class Phase1GithubTufInert
                     (reason.Code.Length<100 ? reason.Code : "INVALID"));
                 throw;
             }
+            // Read-only typed binding: its TargetSha comes from the
+            // authenticated TUF target, NOT from a newly signed local file.
+            var identity=new InertTufTargetBinding(
+                Manifest,targetSha,targetLength,signedTargetsRoleSha,
+                a[8],a[9],new PersistentState(stateRoot).Load().Digest);
+            Require(identity.TargetName==Manifest &&
+                identity.TargetSha==actualManifest &&
+                identity.TargetLength==pins[1].Length &&
+                identity.TargetsRoleSha==HashStream(pins[2]) &&
+                identity.Installation==root.GetProperty("installation")
+                    .GetString() &&
+                identity.Transaction==root.GetProperty("transaction")
+                    .GetString(),
+                "GH_L18_INERT_AUTHENTICATED_BINDING_FORK");
             // Reuse the same data-only file-set proof for BOTH OLD and NEW.
             // The previously signed OLD identity must match the actual OLD
             // bytes; a locally re-signed NEW must never confer OLD authority.
@@ -414,6 +473,12 @@ internal static class Phase1GithubTufInert
                     Require(pins.Select(HashStream)
                             .SequenceEqual(originalRoles,StringComparer.Ordinal),
                         "GH_L18_CONTINUOUS_TUF_OBJECT_CHANGED");
+                    Require(identity.TargetSha==HashStream(pins[1]) &&
+                        identity.TargetsRoleSha==HashStream(pins[2]) &&
+                        identity.LedgerDigest==finalState.Digest &&
+                        identity.Installation==finalState.Record.InstallationId &&
+                        identity.Transaction==L14Model.Tx(labRoot),
+                        "GH_L18_CONTINUOUS_SIGNED_IDENTITY_FORK");
                     Console.WriteLine("GF_GITHUB_TUF_INERT_CONTINUOUS_PASS " +
                         "same_process=true tuf_preverified=true held_old_new=true " +
                         "ledger_multigeneration=true tx_rechecked=true " +
@@ -425,6 +490,15 @@ internal static class Phase1GithubTufInert
                     foreach(var item in retained)item.Handle.Dispose();
                 }
             }
+            Require(identity.TargetSha==HashStream(pins[1]) &&
+                identity.TargetsRoleSha==HashStream(pins[2]) &&
+                identity.LedgerDigest==new PersistentState(stateRoot).Load().Digest,
+                "GH_L18_TUF_TARGET_OR_LOCAL_STATE_FORK");
+            Console.WriteLine("GF_GITHUB_TUF_L18_SIGNED_IDENTITY_PASS " +
+                "target_sha_source=AUTHENTICATED_TUF_TARGETS " +
+                "manifest_bytes_same=true installation_transaction_bound=true " +
+                "local_sign=false durable_receipt=false worker=false " +
+                "selector=false journal=false NEW=false READY=false");
             // This is NOT PrepareRealAuthorization, RealOwner or a selector.
             // The same L18 test executable has accepted only DATA-ONLY input.
             Console.WriteLine("GF_GITHUB_TUF_L18_INERT_PASS " +
