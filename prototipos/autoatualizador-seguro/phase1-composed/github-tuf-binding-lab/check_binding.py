@@ -314,13 +314,18 @@ def main() -> None:
             if mode != "cut":
                 if mutation == "bytes":
                     target = out_path / "GerenciadorFinal.dll"
+                    require(target.is_file(), "CONTINUOUS_NEW_DLL_NOT_FOUND")
                     denied = False
                     try:
                         with target.open("r+b"):
                             pass  # never write to authentic NEW
                     except OSError as exc:
-                        denied = getattr(exc, "winerror", None) in (5, 32, 33)
-                    require(denied, "CONTINUOUS_NEW_WRITE_NOT_DENIED")
+                        # CRT _wopen can translate a sharing violation into
+                        # errno=EACCES without populating exc.winerror.
+                        denied = isinstance(exc, PermissionError) or (
+                            getattr(exc, "winerror", None) in (5, 32, 33))
+                    require(denied and target.is_file(),
+                            "CONTINUOUS_NEW_WRITE_NOT_DENIED")
                 elif mutation == "namespace":
                     (out_path / "unexpected.dll").write_bytes(b"unsigned")
                 elif mutation != "none":
