@@ -6,7 +6,7 @@ Main `410d65e23546976db456337c71e4705f10217d36`; PR #40 aberta em Draft,
 HEAD `ef13aef49083f357f6a14f4de46f8bc976dbd830`. Base cumulativa escolhida:
 Lote 3 `8f8d1c8fb109ba4956876b398f02dee6ce70f2e3`,
 [CI 40231535067 aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40231535067).
-Lotes [1](MISSAO-LOTE1.md), [2](MISSAO-LOTE2.md) e [3](MISSAO-LOTE3.md)
+Lotes [1](historico/missoes/MISSAO-LOTE1.md), [2](MISSAO-LOTE2.md) e [3](MISSAO-LOTE3.md)
 estão na ancestralidade; não houve merge de PR.
 
 Branch `work-lote4-consolidacao`, [PR #57 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/57),

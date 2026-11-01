@@ -94,11 +94,11 @@ build ou teste de produto foi executado na consolidação.
 WORK18 (.65): executar também `dotnet run --project TestesAtualizador -c Release -- --work18`,
 `dotnet run --project TestesLayout -c Release -- --work18` e `python scripts/measure_work18.py`.
 As 28 fixtures comparam o mesmo cenário contra a integração .64 imutável; seis mutações adicionais
-verificam os novos contratos. [Matriz, evidências e pendências](MISSAO-WORK18.md).
+verificam os novos contratos. [Matriz, evidências e pendências](historico/missoes/MISSAO-WORK18.md).
 Nenhum teste instala programas nos PCs FORTE/FRACO; elegibilidade anterior ao payload não é autorização final.
 
 Este é o procedimento técnico da candidata .65 WORK18, com [CI Windows aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887)
-e ZIP verificado externamente; [evidências WORK18](MISSAO-WORK18.md). Todas as regressões da [integração .64](MISSAO-INTEGRACAO.md) foram preservadas.
+e ZIP verificado externamente; [evidências WORK18](historico/missoes/MISSAO-WORK18.md). Todas as regressões da [integração .64](MISSAO-INTEGRACAO.md) foram preservadas.
 A aprovação é técnica e não substitui homologação AVG ou testes nos PCs. CI e dados sintéticos não
 substituem homologação nos PCs. O [roteiro físico mínimo](TESTE-CONSOLIDADO.md)
 é separado dos testes automatizados.
@@ -263,7 +263,7 @@ Critérios: sem mutação do Windows, consultas canceladas não modificam listas
 
 As simulações WORK 6 e as três Actions passaram, mas a .35 **não** foi executada ainda no PC do usuário. Em primeira sessão, manter AVG ativo, selecionar perfil PC FORTE, verificar inventário, consultar atualizações e navegar pelas telas; não instalar, desinstalar ou excluir resíduos. Preservar diagnóstico local e encaminhar privadamente se houver diferença importante, UAC inesperado ou bloqueio AVG. O teste de instalação real (U8) e de desinstalação (R7) só deverá ocorrer separadamente, em ambiente descartável/autorizado, e R4 permanece proibido nesta candidata.
 
-[Resultado da MISSÃO WORK 6, evidências e critérios](MISSAO-WORK6-RESULTADO.md).
+[Resultado da MISSÃO WORK 6, evidências e critérios](historico/missoes/MISSAO-WORK6-RESULTADO.md).
 
 ## Avanço validado — U6 encerrado, 27/42 (64,3%)
 

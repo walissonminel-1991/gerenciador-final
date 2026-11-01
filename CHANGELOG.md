@@ -13,7 +13,7 @@
 - NSIS/Inno/MSI/WiX com modo interativo explícito podem oferecer **Acompanhar** quando parâmetros somente silenciosos não forem aceitos; flags remotas são descartadas, Custom/Upgrade/Repair/InstallLocation continuam recusados.
 - Major upgrade de MSI obrigatório também para nome exato quando ProductCode muda; versão superior, UpgradeCode do manifesto e editor do assinante são conferidos.
 - Motivos na linha de atualização e códigos COM específicos, sem executar WinGet ou reparar o ambiente.
-- [Relatório, matriz e CI](docs/MISSAO-WORK18.md). CI [40252100887](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887) aprovada; 8 novos cenários, 36/36 mutações rejeitadas e pacote com 284 hashes verificados fora do runner. Sem nova medição física, release estável ou mudança do roadmap 27/42.
+- [Relatório, matriz e CI](docs/historico/missoes/MISSAO-WORK18.md). CI [40252100887](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887) aprovada; 8 novos cenários, 36/36 mutações rejeitadas e pacote com 284 hashes verificados fora do runner. Sem nova medição física, release estável ou mudança do roadmap 27/42.
 
 ## 5.13.11.64 TESTE — integração Lotes 1–4 + WORK14–WORK17 (25/10/2026)
 
@@ -58,7 +58,7 @@
 - Consulta do Registro com direitos mínimos; erros por hive/visão. Nenhuma mudança de ACL. Dados pessoais, compartilhamentos e alvos sem prova anterior preservados.
 - QuietUninstallString revalidado; NSIS Notepad++ x86/x64, SumatraPDF 3.6.1 e Inno comprovado. Unlocker sem contrato permanece interativo.
 - Cancelamento/timeout de processos reais separados; recuperação de pendências e resumo ao restaurar da bandeja. Reinício somente com motivo técnico; pós-boot permanece somente leitura.
-- Regressões Windows e mutações novas em fixtures descartáveis. [Relatório WORK12](docs/MISSAO-WORK12.md); a [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40) identifica a CI aprovada e o artefato. U8/R7/R4 físicos permanecem pendentes.
+- Regressões Windows e mutações novas em fixtures descartáveis. [Relatório WORK12](docs/historico/missoes/MISSAO-WORK12.md); a [PR #40](https://github.com/walissonminel-1991/gerenciador-final/pull/40) identifica a CI aprovada e o artefato. U8/R7/R4 físicos permanecem pendentes.
 
 ## v5.13.11.49 TESTE — WORK9: consolidação, pacote e CI
 
@@ -214,7 +214,7 @@ Botão **Atualizar e verificar** unifica inventário local e versões HTTPS; a e
 
 ## v5.13.11.35 TESTE — MISSÃO WORK 6 (CI aprovada, validação física pendente)
 
-Fluxos de atualizações, desinstalação e prévia de resíduos reforçados: revalidação de autorização, uma tentativa de lançamento, fontes parciais preservadas como revisão, pacote MSIX retido até fim do fornecedor, parser estrito para MSI/EXE, vínculo ao registro de instalação, ausência confirmada por leituras completas, proteção de arquivos e cadeia de diretórios nas prévias. Novo lote de testes de fluxo e 10/10 controles adversariais por mutação, além da suíte regressiva. CI Windows em 39708331526, build em 39708331528 e política em 39708331607 aprovadas. **Não houve instalações, desinstalações ou exclusões reais**, nem validação presencial da .35; U8/R7/R4 continuam abertos. Detalhes em [docs/MISSAO-WORK6-RESULTADO.md](docs/MISSAO-WORK6-RESULTADO.md). Roadmap 27/42.
+Fluxos de atualizações, desinstalação e prévia de resíduos reforçados: revalidação de autorização, uma tentativa de lançamento, fontes parciais preservadas como revisão, pacote MSIX retido até fim do fornecedor, parser estrito para MSI/EXE, vínculo ao registro de instalação, ausência confirmada por leituras completas, proteção de arquivos e cadeia de diretórios nas prévias. Novo lote de testes de fluxo e 10/10 controles adversariais por mutação, além da suíte regressiva. CI Windows em 39708331526, build em 39708331528 e política em 39708331607 aprovadas. **Não houve instalações, desinstalações ou exclusões reais**, nem validação presencial da .35; U8/R7/R4 continuam abertos. Detalhes em [docs/MISSAO-WORK6-RESULTADO.md](docs/historico/missoes/MISSAO-WORK6-RESULTADO.md). Roadmap 27/42.
 
 
 ## 21/10/2026 — U6 concluído, 27/42 (documentação e teste, sem nova build)
@@ -370,7 +370,7 @@ Registro sanitizado de falhas e limites na descoberta de resíduos; interface e 
 - Revisão avançada preserva falhas/limites; decisão exige conferência de integrações e recusa reinstalação. Cinco entradas de exclusão continuam bloqueadas.
 - 310/310 verificações de resíduos na consolidação anterior à troca de versão; investigação testada nas oito resoluções de 800×600 a 4K, além da matriz geral de 132 combinações. Falhas de espera de animação e descarte duplo foram corrigidas, sem reduzir asserções.
 
-[Relatório completo](docs/MISSAO-WORK3-v5.13.11.17.md) · [benchmarks e limites](docs/BENCHMARKS-WORK3.md) · [checklist PC fraco](docs/TESTES-HISTORICOS-PC-FRACO.md#registro-7) · [roteiro de histórico extenso](docs/TESTES-RESIDUOS-v5.13.11.17.md). Validações finais, commit de integração, ZIP e SHA-256 registrados na PR #40 após conferência. Pacote de testes sem assinatura; sem merge/release estável, envio remoto ou exclusão de resíduos. Roadmap funcional mantido em 26/42: hardware real e R4 continuam pendentes.
+[Relatório completo](docs/historico/missoes/MISSAO-WORK3-v5.13.11.17.md) · [benchmarks e limites](docs/BENCHMARKS-WORK3.md) · [checklist PC fraco](docs/TESTES-HISTORICOS-PC-FRACO.md#registro-7) · [roteiro de histórico extenso](docs/TESTES-RESIDUOS-v5.13.11.17.md). Validações finais, commit de integração, ZIP e SHA-256 registrados na PR #40 após conferência. Pacote de testes sem assinatura; sem merge/release estável, envio remoto ou exclusão de resíduos. Roadmap funcional mantido em 26/42: hardware real e R4 continuam pendentes.
 
 ## v5.13.11.16 — integridade e segurança da análise de resíduos (TESTE)
 
@@ -381,7 +381,7 @@ Registro sanitizado de falhas e limites na descoberta de resíduos; interface e 
 - Cinco pontos internos de exclusão permanecem bloqueados e cobertos por testes, incluindo fixtures Windows de ACL negada, junction, hard links e mudança de arquivo. Não foram alteradas receitas de atualização oficial nem habilitado envio remoto.
 - 38 workflows históricos reforçados: Actions em SHA oficial e checkout sem persistência de credenciais. Nomes únicos dos três checks atuais; documentação de proteção administrativa da main ainda pendente do proprietário.
 
-[Relatório, limites e continuidade](docs/MISSAO-WORK2-v5.13.11.16.md) · [Roteiro nos PCs](docs/TESTES-RESIDUOS-v5.13.11.16.md). Resultados finais de CI, origem/commit e integridade do ZIP vinculados na PR #40; pacote experimental sem assinatura. Roadmap funcional permanece 26/42, com exclusão suspensa.
+[Relatório, limites e continuidade](docs/historico/missoes/MISSAO-WORK2-v5.13.11.16.md) · [Roteiro nos PCs](docs/TESTES-RESIDUOS-v5.13.11.16.md). Resultados finais de CI, origem/commit e integridade do ZIP vinculados na PR #40; pacote experimental sem assinatura. Roadmap funcional permanece 26/42, com exclusão suspensa.
 
 ## v5.13.11.15 — descoberta, preservação e prévia de resíduos (TESTE)
 
@@ -392,7 +392,7 @@ Registro sanitizado de falhas e limites na descoberta de resíduos; interface e 
 - Testes negativos adicionais, fontes limitadas/canceláveis, classificação com milhares de evidências e regressão da interface. Correção do validador histórico que rejeitava o nome curto VLC.
 - Consentimento continua apenas local; sem envio remoto, merge na main, release estável ou nova funcionalidade de drivers. Desinstaladores oficiais continuam exigindo confirmação e têm sua própria política de dados.
 
-Validação e limites: [missão de resíduos](docs/MISSAO-RESIDUOS-v5.13.11.15.md). Consultar os três workflows da revisão exata antes de usar o artefato; testes reais de desempenho, AVG, ACL/junctions e manutenção destrutiva continuam pendentes.
+Validação e limites: [missão de resíduos](docs/historico/missoes/MISSAO-RESIDUOS-v5.13.11.15.md). Consultar os três workflows da revisão exata antes de usar o artefato; testes reais de desempenho, AVG, ACL/junctions e manutenção destrutiva continuam pendentes.
 
 
 ## v5.13.11.14 — resíduos WinMerge após teste real (TESTE)
