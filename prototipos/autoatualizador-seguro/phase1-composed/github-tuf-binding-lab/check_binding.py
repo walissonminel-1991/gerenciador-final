@@ -191,7 +191,7 @@ def main() -> None:
         require(not root.exists(), "PERSISTENT_TEST_ROOT_EXISTS")
         root.mkdir()
         (root / ".gf-u2-fixture").write_text(
-            "GF-U2-INERT-STATE-TESTS-NO-PRODUCT\\n", encoding="utf-8")
+            "GF-U2-INERT-STATE-TESTS-NO-PRODUCT\n", encoding="utf-8")
         ledger = root / "ledger"
         ledger.mkdir()
         payload = {
@@ -226,7 +226,7 @@ def main() -> None:
     require(not lab.exists(), "L14_TEST_ROOT_EXISTS")
     lab.mkdir()
     (lab / ".gf-u2-fixture").write_text(
-        "GF-U2-L14-ONLY-DISPOSABLE-TEXT\\n", encoding="utf-8")
+        "GF-U2-L14-ONLY-DISPOSABLE-TEXT\n", encoding="utf-8")
 
     # Run only the data-only mode of the EXISTING L18 executable.
     # The same TUF test-root and file-set are reverified by this entrypoint.
@@ -329,7 +329,7 @@ def main() -> None:
     require(not other_lab.exists(), "OTHER_L14_ROOT_EXISTS")
     other_lab.mkdir()
     (other_lab / ".gf-u2-fixture").write_text(
-        "GF-U2-L14-ONLY-DISPOSABLE-TEXT\\n", encoding="utf-8")
+        "GF-U2-L14-ONLY-DISPOSABLE-TEXT\n", encoding="utf-8")
     l18_gate(verified, "l18-persisted-tx-fork", accepted=False,
              lab_root=other_lab)
 
