@@ -16,6 +16,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../GfGithubWeeklyUpdate.cs.txt" />
-    <Compile Include="GithubTufBindingLab.cs" />
+    <Compile Include="GithubTufBindingLab.cs.txt" />
   </ItemGroup>
 </Project>
