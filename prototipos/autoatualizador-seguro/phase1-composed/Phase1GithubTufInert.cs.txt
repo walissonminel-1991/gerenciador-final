@@ -325,6 +325,105 @@ internal static class Phase1GithubTufInert
                 Path.Combine(extracted,"GerenciadorFinal.dll")).Version;
             Require(version==new Version(5,13,11,66),
                 "GH_L18_INERT_NEW_VERSION_WRONG");
+            // A synthetic same-process handoff barrier. Standard input
+            // synchronizes a disposable test; it is NEVER an authority.
+            // Keep the exact OLD/NEW file objects open across the barrier.
+            string? continuous=Environment.GetEnvironmentVariable(
+                "GF_GITHUB_TUF_INERT_CONTINUOUS");
+            if(continuous is not null)
+            {
+                Require(continuous is "normal" or "drop" or "cut",
+                    "GH_L18_CONTINUOUS_MODE_DENIED");
+                var retained=new List<(string Path,FileStream Handle,long Length,string Sha)>();
+                try
+                {
+                    foreach(var pair in new[]{
+                        (Directory:old, Signed:root.GetProperty("old_files")),
+                        (Directory:extracted, Signed:root.GetProperty("files"))})
+                    {
+                        foreach(var entry in pair.Signed.EnumerateObject())
+                        {
+                            string full=Path.GetFullPath(Path.Combine(
+                                pair.Directory,
+                                entry.Name.Replace('/',Path.DirectorySeparatorChar)));
+                            Require(full.StartsWith(pair.Directory+Path.DirectorySeparatorChar,
+                                StringComparison.OrdinalIgnoreCase),
+                                "GH_L18_CONTINUOUS_PATH_ESCAPE");
+                            var handle=Pin(full,67_108_864);
+                            retained.Add((full,handle,
+                                entry.Value.GetProperty("length").GetInt64(),
+                                entry.Value.GetProperty("sha256").GetString() ?? ""));
+                            Require(handle.Length==retained[^1].Length &&
+                                HashStream(handle).Equals(retained[^1].Sha,
+                                    StringComparison.OrdinalIgnoreCase),
+                                "GH_L18_CONTINUOUS_INITIAL_BYTES");
+                        }
+                    }
+                    var initialState=new PersistentState(stateRoot).Load();
+                    string[] originalRoles=pins.Select(HashStream).ToArray();
+                    ledger.Recheck();
+                    // This marker is only an ephemeral synchronization point.
+                    Console.WriteLine("GF_GITHUB_TUF_INERT_CONTINUOUS_BARRIER " +
+                        "pinned=true decision=false journal=false selector=false READY=false");
+                    Console.Out.Flush();
+                    if(continuous=="cut")
+                    {
+                        Environment.Exit(39);
+                    }
+                    string? signal=await Console.In.ReadLineAsync()
+                        .WaitAsync(TimeSpan.FromSeconds(90));
+                    Require(signal=="resume",
+                        "GH_L18_CONTINUOUS_UNTRUSTED_SIGNAL");
+                    if(continuous=="drop")
+                    {
+                        retained[0].Handle.Dispose();
+                        Require(false,"GH_L18_CONTINUOUS_PIN_LOST");
+                    }
+                    // The actual security decision comes solely from fresh
+                    // verification of trusted data, not from stdin or a receipt.
+                    foreach(var pair in new[]{
+                        (Directory:old,Signed:root.GetProperty("old_files")),
+                        (Directory:extracted,Signed:root.GetProperty("files"))})
+                    {
+                        string[] names=Directory.EnumerateFiles(pair.Directory,
+                                "*",SearchOption.AllDirectories)
+                            .Select(x=>Path.GetRelativePath(pair.Directory,x)
+                                .Replace('\\','/'))
+                            .Order(StringComparer.Ordinal).ToArray();
+                        string[] signed=pair.Signed.EnumerateObject()
+                            .Select(x=>x.Name).Order(StringComparer.Ordinal).ToArray();
+                        Require(names.SequenceEqual(signed,StringComparer.Ordinal),
+                            "GH_L18_CONTINUOUS_NAMESPACE_CHANGED");
+                    }
+                    foreach(var item in retained)
+                    {
+                        Require((File.GetAttributes(item.Path)&FileAttributes.ReparsePoint)==0 &&
+                            item.Handle.Length==item.Length &&
+                            HashStream(item.Handle).Equals(item.Sha,
+                                StringComparison.OrdinalIgnoreCase),
+                            "GH_L18_CONTINUOUS_FINAL_BYTES");
+                    }
+                    ledger.Recheck();
+                    var finalState=new PersistentState(stateRoot).Load();
+                    Require(finalState.Digest==initialState.Digest &&
+                        finalState.Record.InstallationId==a[8] &&
+                        finalState.Record.Generation==ledger.Count &&
+                        L14Model.Tx(labRoot)==a[9],
+                        "GH_L18_CONTINUOUS_STATE_OR_TX_CHANGED");
+                    Require(pins.Select(HashStream)
+                            .SequenceEqual(originalRoles,StringComparer.Ordinal),
+                        "GH_L18_CONTINUOUS_TUF_OBJECT_CHANGED");
+                    Console.WriteLine("GF_GITHUB_TUF_INERT_CONTINUOUS_PASS " +
+                        "same_process=true tuf_preverified=true held_old_new=true " +
+                        "ledger_multigeneration=true tx_rechecked=true " +
+                        "no_authority_from_stdin=true selector=false journal=false " +
+                        "NEW=false READY=false");
+                }
+                finally
+                {
+                    foreach(var item in retained)item.Handle.Dispose();
+                }
+            }
             // This is NOT PrepareRealAuthorization, RealOwner or a selector.
             // The same L18 test executable has accepted only DATA-ONLY input.
             Console.WriteLine("GF_GITHUB_TUF_L18_INERT_PASS " +

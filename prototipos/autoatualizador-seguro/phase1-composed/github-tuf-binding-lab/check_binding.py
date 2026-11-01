@@ -283,6 +283,87 @@ def main() -> None:
 
     l18_gate(verified, "l18-positive-extracted", accepted=True)
 
+    # One continuous, in-process L18 test. Python controls only the timing:
+    # sending "resume" is not an approval or a durable receipt. The C#
+    # verifier must decide exclusively from previously trusted TUF data,
+    # pinned OLD/NEW, ledger and L14 transaction in the same process.
+    def continuous(case: str, mode: str, mutation: str,
+                   expected_exit: int, expected_marker: str) -> None:
+        out_path = scratch / ("continuous-" + case)
+        before = digest(state / "ledger" / "0000000000000002.fixture.json")
+        env = dict(os.environ)
+        env["GF_GITHUB_TUF_INERT_CONTINUOUS"] = mode
+        argv = [str(l18), "--real-github-tuf-inert", str(old), str(verified),
+                str(out_path), str(repo), sys.executable, expected_zip_hash,
+                target_sha, "a" * 32, "b" * 32, str(state), str(lab)]
+        child = subprocess.Popen(
+            argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True, bufsize=1,
+            encoding="utf-8", errors="replace", env=env)
+        try:
+            observed = []
+            while True:
+                line = child.stdout.readline()
+                if not line:
+                    raise RuntimeError("CONTINUOUS_BARRIER_NOT_REACHED:" +
+                                       case + ":" + str(child.poll()))
+                observed.append(line)
+                if "GF_GITHUB_TUF_INERT_CONTINUOUS_BARRIER " in line:
+                    break
+                require(len(observed) <= 12, "CONTINUOUS_UNEXPECTED_CHATTER")
+            if mode != "cut":
+                if mutation == "bytes":
+                    target = out_path / "GerenciadorFinal.dll"
+                    denied = False
+                    try:
+                        with target.open("r+b"):
+                            pass  # never write to authentic NEW
+                    except OSError as exc:
+                        denied = getattr(exc, "winerror", None) in (5, 32, 33)
+                    require(denied, "CONTINUOUS_NEW_WRITE_NOT_DENIED")
+                elif mutation == "namespace":
+                    (out_path / "unexpected.dll").write_bytes(b"unsigned")
+                elif mutation != "none":
+                    raise RuntimeError("CONTINUOUS_MUTATION_UNSUPPORTED")
+                child.stdin.write("resume\n")
+                child.stdin.flush()
+            child.stdin.close()
+            final_stdout = "".join(observed) + child.stdout.read()
+            final_stderr = child.stderr.read()
+            code = child.wait(timeout=270)
+            require(code == expected_exit and expected_marker in
+                    (final_stdout + final_stderr),
+                    "CONTINUOUS_UNEXPECTED_EXIT_" + case +
+                    "_RC" + str(code))
+            require(digest(state / "ledger" / "0000000000000002.fixture.json") ==
+                    before and
+                    not any(scratch.rglob("l18-phase-*.fixture.json")) and
+                    not any(state.rglob("l18-real-active.fixture.json")),
+                    "CONTINUOUS_CREATED_AUTHORITY_" + case)
+            if code != 0:
+                require("GF_GITHUB_TUF_INERT_CONTINUOUS_PASS " not in final_stdout,
+                        "CONTINUOUS_NEGATIVE_ACCEPTED_" + case)
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=30)
+            child.stdout.close()
+            child.stderr.close()
+        print("GF_GITHUB_TUF_CONTINUOUS_CASE " + case +
+              " expected_exit=" + str(expected_exit) +
+              " decision=" + ("DATA_ONLY" if expected_exit == 0 else "BLOCKED") +
+              " READY=false", flush=True)
+
+    continuous("pin-byte-denial", "normal", "bytes", 0,
+               "GF_GITHUB_TUF_INERT_CONTINUOUS_PASS ")
+    continuous("unsigned-namespace", "normal", "namespace", 19,
+               "GF_GITHUB_TUF_L18_INERT_BLOCKED")
+    continuous("lost-handle", "drop", "none", 19,
+               "GH_L18_CONTINUOUS_PIN_LOST")
+    continuous("pre-decision-process-cut", "cut", "none", 39,
+               "GF_GITHUB_TUF_INERT_CONTINUOUS_BARRIER ")
+
+
     # Abrupt process exit AFTER authenticated TUF but BEFORE any persistent
     # L18 context or authorization write. No real crash/recovery claim:
     # this is an intentional lab-only process cut and must remain blocked.
@@ -465,6 +546,7 @@ def main() -> None:
             not any(scratch.rglob("applied.json")) and
             not any(scratch.rglob("l18-real-active.fixture.json")),
             "UNAUTHORIZED_INSTALL_MARKER")
+    print("GF_GITHUB_TUF_CONTINUOUS_MATRIX_PASS held_bytes=BLOCKED unsigned_namespace=REJECTED lost_handle=REJECTED predecision_cut=BLOCKED stdin_is_not_authority=true selector=false journal=false NEW=false READY=false", flush=True)
     print("GF_GITHUB_TUF_L18_GATE_MATRIX_PASS positive=DATA_ONLY bad_zip=REJECTED missing_manifest=REJECTED missing_targets=REJECTED forged_targets=REJECTED wrong_zip_sha=REJECTED wrong_manifest_sha=REJECTED wrong_installation=REJECTED wrong_transaction=REJECTED mutated_OLD=REJECTED extra_OLD=REJECTED local_resign=REJECTED persistent_installation=REJECTED persistent_transaction=REJECTED trust_floor_replay=REJECTED ledger_tamper=REJECTED short_history_replay=REJECTED forged_chain_link=REJECTED expired_tuf=REJECTED ledger_object_swap=REJECTED manifest_object_swap=REJECTED selector=false journal=false NEW=false READY=false", flush=True)
     print("GF_GITHUB_TUF_BINDING_PASS " +
           "same_downloaded_zip_sha=true signed_file_set=true " +
