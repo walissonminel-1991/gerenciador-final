@@ -52,6 +52,45 @@ internal static class Phase1GithubTufInert
         string TargetsRoleSha,string Installation,string Transaction,
         string LedgerDigest);
 
+
+    // Inert counterpart to the DATA PORTION of PrepareRealAuthorization.
+    // It has NO AuthDir, AuthReport, BeginCore, sign operation or launch right.
+    // The caller must first authenticate TUF and its target with the
+    // existing Python verifier, while keeping the same bytes pinned.
+    private sealed record InertL18DataOnlyInput(
+        string Installation,string Transaction,string TargetSha,
+        string TargetsRoleSha);
+
+    private static InertL18DataOnlyInput ConsumeVerifiedTufTargetDataOnly(
+        InertTufTargetBinding candidate,JsonElement signedScope,
+        FileStream pinnedManifest,FileStream pinnedTargets,
+        PinnedLedger ledger,string stateRoot,string labRoot)
+    {
+        ledger.Recheck();
+        var local=new PersistentState(stateRoot).Load();
+        Require(candidate.TargetName==Manifest &&
+            Hex(candidate.TargetSha,64) &&
+            candidate.TargetLength==pinnedManifest.Length &&
+            candidate.TargetSha==HashStream(pinnedManifest) &&
+            candidate.TargetsRoleSha==HashStream(pinnedTargets) &&
+            candidate.LedgerDigest==local.Digest &&
+            local.Record.Generation==ledger.Count &&
+            candidate.Installation==local.Record.InstallationId &&
+            candidate.Installation==signedScope.GetProperty("installation")
+                .GetString() &&
+            candidate.Transaction==L14Model.Tx(labRoot) &&
+            candidate.Transaction==signedScope.GetProperty("transaction")
+                .GetString() &&
+            !signedScope.GetProperty("operational_installable").GetBoolean() &&
+            !File.Exists(Path.Combine(stateRoot,"l18-real-active.fixture.json")) &&
+            !Directory.EnumerateFiles(stateRoot,"l18-phase-*.fixture.json").Any(),
+            "GH_L18_INERT_EXTERNAL_TARGET_CONSUMPTION_BLOCKED");
+        // This typed value cannot act as an authorization capability. It is
+        // deliberately PRIVATE, not serializable or usable by RealOwner.
+        return new(candidate.Installation,candidate.Transaction,
+            candidate.TargetSha,candidate.TargetsRoleSha);
+    }
+
     // A snapshot of every ledger generation, not just generation 1.
     // Hold NTFS file IDs and ancestor names throughout the same process.
     // This does NOT prevent an attacker replaying a coherent history AFTER
@@ -495,6 +534,27 @@ internal static class Phase1GithubTufInert
                 identity.TargetsRoleSha==HashStream(pins[2]) &&
                 identity.LedgerDigest==new PersistentState(stateRoot).Load().Digest,
                 "GH_L18_TUF_TARGET_OR_LOCAL_STATE_FORK");
+            var candidate=identity;
+            if(Environment.GetEnvironmentVariable("GF_GITHUB_TUF_INERT_FORGED_DATA")=="1")
+            {
+                // Adversarial test: a local process fabricates an otherwise
+                // correctly structured TargetSha after TUF verification.
+                // No extra signature is generated. Consumption MUST reject.
+                candidate=identity with {TargetSha=new string('f',64)};
+            }
+            var admitted=ConsumeVerifiedTufTargetDataOnly(candidate,root,
+                pins[1],pins[2],ledger,stateRoot,labRoot);
+            Require(admitted.Installation==identity.Installation &&
+                admitted.Transaction==identity.Transaction &&
+                admitted.TargetSha==identity.TargetSha &&
+                admitted.TargetsRoleSha==identity.TargetsRoleSha,
+                "GH_L18_INERT_DATA_ONLY_INPUT_FORK");
+            Console.WriteLine("GF_GITHUB_TUF_L18_CONSUMPTION_PASS " +
+                "source=PREVIOUSLY_AUTHENTICATED_TUF_TARGETS " +
+                "target_sha_from_signed_role=true no_local_sign=true " +
+                "no_authdir=true no_authreport=true no_begin=true " +
+                "no_realowner=true non_serializable=true " +
+                "selector=false journal=false NEW=false READY=false");
             Console.WriteLine("GF_GITHUB_TUF_L18_SIGNED_IDENTITY_PASS " +
                 "target_sha_source=AUTHENTICATED_TUF_TARGETS " +
                 "manifest_bytes_same=true installation_transaction_bound=true " +

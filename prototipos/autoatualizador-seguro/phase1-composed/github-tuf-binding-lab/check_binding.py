@@ -267,7 +267,12 @@ def main() -> None:
                      str(persistent), str(lab_root)],
                     success=accepted)
         if accepted:
-            require("GF_GITHUB_TUF_L18_SIGNED_IDENTITY_PASS " in proof and
+            require("GF_GITHUB_TUF_L18_CONSUMPTION_PASS " in proof and
+                    "source=PREVIOUSLY_AUTHENTICATED_TUF_TARGETS" in proof and
+                    "no_authdir=true" in proof and
+                    "no_authreport=true" in proof and
+                    "no_begin=true" in proof and
+                    "GF_GITHUB_TUF_L18_SIGNED_IDENTITY_PASS " in proof and
                     "target_sha_source=AUTHENTICATED_TUF_TARGETS" in proof and
                     "local_sign=false" in proof and
                     "durable_receipt=false" in proof and
@@ -286,6 +291,25 @@ def main() -> None:
                     "L18_NEGATIVE_ACCEPTED_NEW")
 
     l18_gate(verified, "l18-positive-extracted", accepted=True)
+
+    # Negative: a local same-user caller can fabricate a matching-looking
+    # record, but cannot turn its forged SHA into TUF signed authority.
+    forged_env = dict(os.environ)
+    forged_env["GF_GITHUB_TUF_INERT_FORGED_DATA"] = "1"
+    forged_result = subprocess.run(
+        [str(l18), "--real-github-tuf-inert", str(old), str(verified),
+         str(scratch / "l18-forged-data-only"), str(repo), sys.executable,
+         expected_zip_hash, target_sha, "a" * 32, "b" * 32,
+         str(state), str(lab)],
+        capture_output=True, text=True, check=False, timeout=270,
+        encoding="utf-8", errors="replace", env=forged_env)
+    require(forged_result.returncode == 19 and
+            "GF_GITHUB_TUF_L18_INERT_BLOCKED " in forged_result.stderr and
+            "GF_GITHUB_TUF_L18_CONSUMPTION_PASS " not in forged_result.stdout,
+            "FORGED_LOCAL_INPUT_ACCEPTED")
+    print("GF_GITHUB_TUF_L18_FORGED_INPUT_PASS " +
+          "local_target_sha=REJECTED no_signed_authority_from_local=true " +
+          "READY=false", flush=True)
 
     # One continuous, in-process L18 test. Python controls only the timing:
     # sending "resume" is not an approval or a durable receipt. The C#
@@ -555,6 +579,10 @@ def main() -> None:
             not any(scratch.rglob("applied.json")) and
             not any(scratch.rglob("l18-real-active.fixture.json")),
             "UNAUTHORIZED_INSTALL_MARKER")
+    print("GF_GITHUB_TUF_L18_DATA_ONLY_CONSUMPTION_MATRIX_PASS " +
+          "original_tuf_target=ACCEPTED_FOR_DATA_ONLY " +
+          "forged_local_target=REJECTED no_local_sign=true " +
+          "no_begin=true no_realowner=true READY=false", flush=True)
     print("GF_GITHUB_TUF_L18_SIGNED_TARGET_BINDING_PASS " +
           "source=AUTHENTICATED_TUF_TARGETS signer_reused=false " +
           "in_memory_only=true no_begin=true no_realowner=true " +
