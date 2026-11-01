@@ -154,6 +154,8 @@ internal static class Phase1GithubTufInert
                      e.Message.Length<80 ? e.Message : "INVALID"));
                 throw;
             }
+            try
+            {
             var loaded=new PersistentState(stateRoot).Load().Record;
             Require(loaded.InstallationId==a[8] &&
                 L14Model.Tx(labRoot)==a[9] &&
@@ -178,6 +180,14 @@ internal static class Phase1GithubTufInert
                 loaded.Trust.Snapshot<=RoleVersion(3) &&
                 loaded.Trust.Timestamp<=RoleVersion(4),
                 "GH_L18_INERT_TRUST_FLOOR_ROLLBACK");
+            }
+            catch(Rejected reason)
+            {
+                // Rejected.Code is a static internal validation code.
+                Console.Error.WriteLine("GF_GITHUB_TUF_STATE_SCOPE_BLOCK "+
+                    (reason.Code.Length<100 ? reason.Code : "INVALID"));
+                throw;
+            }
             // Reuse the same data-only file-set proof for BOTH OLD and NEW.
             // The previously signed OLD identity must match the actual OLD
             // bytes; a locally re-signed NEW must never confer OLD authority.
