@@ -1040,13 +1040,14 @@ internal sealed partial class MainForm : Form
         // Distribuir os quatro comandos em duas linhas somente quando
         // necessário; a busca permanece numa faixa separada, sem botões
         // deslocados para o canto direito.
-        bool? lastCompactActions = null;
+        AppActionLayout? lastActionLayout = null;
         void FitActionRows()
         {
-            double scale = Math.Max(1.0, root.DeviceDpi / 96d);
-            bool compact = root.ClientSize.Width < (int)Math.Ceiling(745 * scale);
-            if (lastCompactActions == compact) return;
-            lastCompactActions = compact;
+            var metrics = AppActionLayout.Measure(root.ClientSize.Width, root.DeviceDpi);
+            if (!metrics.NeedsReflow(lastActionLayout)) return;
+            lastActionLayout = metrics;
+            double scale = metrics.Dpi / 96d;
+            bool compact = metrics.Compact;
             var buttons = new Button[]
             {
                 _checkUpdatesButton, _selectManyButton,
@@ -1059,7 +1060,7 @@ internal sealed partial class MainForm : Form
                 actions.RowStyles.Clear();
                 if (compact)
                 {
-                    root.RowStyles[1].Height = (int)Math.Ceiling(76 * scale);
+                    root.RowStyles[1].Height = metrics.RowHeight;
                     actions.RowCount = 2;
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
@@ -1078,7 +1079,7 @@ internal sealed partial class MainForm : Form
                 }
                 else
                 {
-                    root.RowStyles[1].Height = (int)Math.Ceiling(44 * scale);
+                    root.RowStyles[1].Height = metrics.RowHeight;
                     actions.RowCount = 1;
                     actions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
                     int[] widths = { 222, 161, 196, 132 };
@@ -1100,6 +1101,7 @@ internal sealed partial class MainForm : Form
             finally { actions.ResumeLayout(true); root.ResumeLayout(true); }
         }
         root.SizeChanged += (_, _) => FitActionRows();
+        root.DpiChangedAfterParent += (_, _) => FitActionRows();
         FitActionRows();
 
         var heading = new TableLayoutPanel

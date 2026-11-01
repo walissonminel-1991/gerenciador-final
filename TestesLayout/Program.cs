@@ -215,6 +215,7 @@ internal static class LayoutTests
             }
         }
         Console.WriteLine("OK: Inicializacao em todas as resolucoes >=720p, DPI 100/125/150/200%.");
+        V52DpiActionLayoutTests.Run();
         TestStartupBounds();
         TestWorkspaceProportions();
         TestRamHistoryAndSampling();
