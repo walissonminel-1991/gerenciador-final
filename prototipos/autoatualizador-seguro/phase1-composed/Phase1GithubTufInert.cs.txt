@@ -145,7 +145,15 @@ internal static class Phase1GithubTufInert
             // publisher authority, recovery permission, or a launch ticket.
             // The signed manifest and trusted local IDs must agree; a caller
             // supplied ID, a receipt, or local SHA cannot substitute either.
-            L14Model.RequireRoot(labRoot);
+            try { L14Model.RequireRoot(labRoot); }
+            catch(InvalidDataException e)
+            {
+                // Only a static L14 error code, no path, SID or secrets.
+                Console.Error.WriteLine("GF_GITHUB_TUF_L14_SCOPE_BLOCK " +
+                    (e.Message.StartsWith("L14_",StringComparison.Ordinal) &&
+                     e.Message.Length<80 ? e.Message : "INVALID"));
+                throw;
+            }
             var loaded=new PersistentState(stateRoot).Load().Record;
             Require(loaded.InstallationId==a[8] &&
                 L14Model.Tx(labRoot)==a[9] &&
