@@ -86,6 +86,13 @@ internal static class Phase1GithubTufInert
             a[8].All(c=>c is >= '0' and <= '9' or >= 'a' and <= 'f') &&
             a[9].All(c=>c is >= '0' and <= '9' or >= 'a' and <= 'f'),
             "GH_L18_INERT_ARGUMENTS");
+        // A live NTFS capability holds the actual persisted ledger object
+        // from before TUF verification to the end of the data-only decision.
+        // Unlike a local digest/receipt it also pins ancestor identities.
+        string ledgerPath=Path.Combine(stateRoot,"ledger","0000000000000001.fixture.json");
+        using var ledgerPin=WindowsFileGuard.Open(stateRoot,ledgerPath);
+        byte[] ledgerBefore=ledgerPin.Read(StateCodec.MaxRecordBytes);
+        string ledgerObjectId=ledgerPin.Identity;
         var pins=new List<FileStream>();
         try {
             // Retain read-only handles throughout Python-TUF authentication,
@@ -220,6 +227,31 @@ internal static class Phase1GithubTufInert
             }
             CheckSignedTree(old,root.GetProperty("old_files"),"OLD");
             CheckSignedTree(extracted,root.GetProperty("files"),"NEW");
+            // Same bytes under a different NTFS file object MUST NOT
+            // replace a pinned ledger or signed manifest. These attempts
+            // operate only on disposable CI fixture paths; no ACL is changed.
+            // If the OS unexpectedly permits replacement, fail the proof.
+            static void RequireDeniedReplacement(string original,byte[] bytes)
+            {
+                string candidate=original+".ntfs-object-replace-inert";
+                Require(!File.Exists(candidate),"GH_L18_INERT_REPLACE_NOT_FRESH");
+                File.WriteAllBytes(candidate,bytes);
+                bool refused=false;
+                try { File.Move(candidate,original,overwrite:true); }
+                catch(IOException) { refused=true; }
+                catch(UnauthorizedAccessException) { refused=true; }
+                finally { if(File.Exists(candidate))File.Delete(candidate); }
+                Require(refused,"GH_L18_INERT_OBJECT_REPLACEMENT_ALLOWED");
+            }
+            RequireDeniedReplacement(ledgerPath,ledgerBefore);
+            RequireDeniedReplacement(Path.Combine(bundle,Manifest),
+                JsonSerializer.SerializeToUtf8Bytes(root)); // same semantic payload, distinct object
+            Require(ledgerPin.Identity==ledgerObjectId &&
+                ledgerPin.Read(StateCodec.MaxRecordBytes).AsSpan()
+                    .SequenceEqual(ledgerBefore),
+                "GH_L18_INERT_LEDGER_ID_OR_BYTES_CHANGED");
+            Require(HashStream(pins[1])==actualManifest,
+                "GH_L18_INERT_MANIFEST_CHANGED_AFTER_DENIED_SWAP");
             var version=AssemblyName.GetAssemblyName(
                 Path.Combine(extracted,"GerenciadorFinal.dll")).Version;
             Require(version==new Version(5,13,11,66),
@@ -228,7 +260,7 @@ internal static class Phase1GithubTufInert
             // The same L18 test executable has accepted only DATA-ONLY input.
             Console.WriteLine("GF_GITHUB_TUF_L18_INERT_PASS " +
                 "l18_executable=EXISTING tif=TEST_ONLY signed_manifest=true " +
-                "zip_same_bytes=true old_new_signed_files=true persistent_fixture_ids_match=true trust_floor_not_rolled_back=true worker=false " +
+                "zip_same_bytes=true old_new_signed_files=true persisted_fixture_ids_match=true trust_floor_not_rolled_back=true ledger_object_swap=REJECTED manifest_object_swap=REJECTED worker=false " +
                 "selector=false journal=false NEW_not_started=true READY=false");
         } finally {foreach(var f in pins)f.Dispose();}
     }
