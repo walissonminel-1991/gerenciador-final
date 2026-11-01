@@ -7,14 +7,49 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Cada novo fluxo exige inclusao explicita e revisao de finalidade/seguranca.
-# A politica nao congela o numero de testes ou impede um fluxo legitimo futuro.
-APPROVED_WORKFLOWS = frozenset({
+# Lista revisada, nunca descoberta dinamicamente como fonte de autorizacao.
+# Os 9 ensaios do autoatualizador sao somente push em branches de laboratorio;
+# nao publicam pacotes e nao recebem credenciais persistentes. A revisao de
+# gatilho, escopo e permissoes fica documentada no teste abaixo.
+CORE_WORKFLOWS = frozenset({
     "build-windows.yml",
     "integridade-externa.yml",
     "validar-candidata-windows.yml",
     "triagem-diagnostico-github.yml",
 })
+
+# Nome -> (branch push exclusiva, pasta de fixtures permitida no filtro paths).
+# Qualquer novo fluxo, trigger ou mudanca de branch exige nova revisao explicita.
+EXPERIMENTAL_UPDATER_WORKFLOWS = {
+    "autoatualizador-etapa2-isolado.yml": (
+        "work-autoatualizador-etapa2-validacao-20261028",
+        "prototipos/autoatualizador-seguro/**"),
+    "autoatualizador-etapa3-isolado.yml": (
+        "work-autoatualizador-etapa3-validacao-20261028",
+        "prototipos/autoatualizador-seguro/stage3/**"),
+    "autoatualizador-etapa4-isolado.yml": (
+        "work-autoatualizador-etapa4-validacao-20261028",
+        "prototipos/autoatualizador-seguro/stage4/**"),
+    "autoatualizador-etapa5-isolado.yml": (
+        "work-autoatualizador-etapa5-validacao-20261028",
+        "prototipos/autoatualizador-seguro/stage5/**"),
+    "autoatualizador-etapa8-isolado.yml": (
+        "work-autoatualizador-etapa8-validacao-20261028",
+        "prototipos/autoatualizador-seguro/stage8/**"),
+    "autoatualizador-etapa9-isolado.yml": (
+        "work-autoatualizador-etapa9-validacao-20261028",
+        "prototipos/autoatualizador-seguro/stage9/**"),
+    "autoatualizador-etapa10-laboratorio.yml": (
+        "work-autoatualizador-etapa10-validacao-20261029",
+        "prototipos/autoatualizador-seguro/stage10/**"),
+    "autoatualizador-etapa11-isolado.yml": (
+        "work-autoatualizador-etapa11-validacao-20261029",
+        "prototipos/autoatualizador-seguro/stage11/**"),
+    "autoatualizador-etapa12-isolado.yml": (
+        "work-autoatualizador-etapa12-validacao-20261029",
+        "prototipos/autoatualizador-seguro/stage12/**"),
+}
+APPROVED_WORKFLOWS = CORE_WORKFLOWS | frozenset(EXPERIMENTAL_UPDATER_WORKFLOWS)
 
 
 def workflow_inventory(folder: Path) -> set[str]:
@@ -24,6 +59,21 @@ def workflow_inventory(folder: Path) -> set[str]:
 
 def workflow_inventory_matches(folder: Path, approved: frozenset[str]) -> bool:
     return workflow_inventory(folder) == approved
+
+
+def experimental_push_is_restricted(code: str, filename: str,
+                                    branch: str, source_scope: str) -> bool:
+    # Examina apenas o bloco on: top-level; inserir pull_request, schedule,
+    # workflow_dispatch ou ampliar paths nao passa silenciosamente.
+    trigger = re.search(r"(?ms)^on:\r?\n(.*?)(?=^[A-Za-z][\w-]*:|\Z)", code)
+    expected = (
+        "  push:\n"
+        f"    branches: [{branch}]\n"
+        "    paths:\n"
+        f"      - {source_scope}\n"
+        f"      - .github/workflows/{filename}"
+    )
+    return trigger is not None and trigger.group(1).strip() == expected.strip()
 
 
 def missing_markdown_targets(root: Path) -> list[tuple[str, str]]:
@@ -85,6 +135,43 @@ class PoliticasDeSeguranca(unittest.TestCase):
         self.assertIn("name: Regressões Windows", read(".github/workflows/validar-candidata-windows.yml"))
         self.assertIn("name: Compilação Windows x64", read(".github/workflows/build-windows.yml"))
         self.assertIn("name: Política de segurança e privacidade", read(".github/workflows/triagem-diagnostico-github.yml"))
+
+    def test_workflows_autoatualizador_aprovados_continuam_isolados(self):
+        self.assertEqual(len(EXPERIMENTAL_UPDATER_WORKFLOWS), 9)
+        for name, (branch, source_scope) in EXPERIMENTAL_UPDATER_WORKFLOWS.items():
+            with self.subTest(workflow=name):
+                code = read(".github/workflows/" + name)
+                self.assertTrue(experimental_push_is_restricted(
+                    code, name, branch, source_scope),
+                    f"{name}: trigger/branch/paths mudaram sem revisao")
+                self.assertIn("permissions:\n  contents: read", code)
+                self.assertIn("persist-credentials: false", code)
+                for forbidden in (
+                    "secrets.", "GITHUB_TOKEN", "id-token: write",
+                    "attestations: write", "contents: write", "issues: write",
+                    "pull-requests: write", "write-all",
+                    "actions/upload-artifact@", "actions/download-artifact@",
+                    "actions/attest@", "gh release ", "git push ",
+                ):
+                    self.assertNotIn(forbidden, code, name)
+
+                # Controles negativos: um trigger novo, branch diferente ou
+                # filtro de pasta ampliado exigem nova aprovacão explícita.
+                self.assertFalse(experimental_push_is_restricted(
+                    code.replace("  push:\n", "  pull_request:\n", 1),
+                    name, branch, source_scope))
+                self.assertFalse(experimental_push_is_restricted(
+                    code.replace(f"branches: [{branch}]",
+                                 "branches: [main]", 1),
+                    name, branch, source_scope))
+                self.assertFalse(experimental_push_is_restricted(
+                    code.replace(f"      - {source_scope}\n",
+                                 "      - **\n", 1),
+                    name, branch, source_scope))
+                self.assertFalse(experimental_push_is_restricted(
+                    code.replace("  push:\n",
+                                 "  workflow_dispatch:\n  push:\n", 1),
+                    name, branch, source_scope))
 
     def test_work7_pacote_exige_regressoes_e_politicas(self):
         build = read(".github/workflows/build-windows.yml")
