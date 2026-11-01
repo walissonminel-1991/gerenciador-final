@@ -93,7 +93,7 @@ Classificação sintética, sem leitura/exclusão de arquivos reais ou rede. Mes
 
 Mudança: reutilizar o nome já normalizado do grupo e agrupar locais uma única vez. Hashes dos relatórios, incluindo decisões/evidências, ficaram iguais nas 112 amostras medidas. A carga de 50.000 mantém o limite de 30.000 entradas e informa 20.000 não examinadas; a otimização não oculta esse limite.
 
-[Dados brutos, CPU, memória, hashes das fontes e método reproduzível](benchmarks/WORK9-classificacao.json). O comando do harness é `dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --benchmark-work9`; usar exatamente o mesmo harness nos dois códigos.
+[Dados brutos, CPU, memória, hashes das fontes e método reproduzível](../../benchmarks/WORK9-classificacao.json). O comando do harness é `dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release -- --benchmark-work9`; usar exatamente o mesmo harness nos dois códigos.
 
 Alocação não equivale à RAM residente do GF. Não houve comparação física antes/depois de inicialização, inventário, consulta de fontes, disco ou consumo ocioso nos dois PCs. Os logs da .48 fornecem uma referência histórica do PC FORTE, não uma comparação com a nova candidata. Leituras de presença anteriores à exclusão continuam deliberadamente sem cache.
 

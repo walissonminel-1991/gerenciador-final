@@ -179,7 +179,7 @@ Os hashes e tamanhos dos dois arquivos coincidem com o pacote. EXE e DLL têm
 versão 5.13.11.59, status NotSigned e nenhum signatário. scan_performed=false,
 sample_submitted=false e avg_validation=pending foram reconferidos.
 
-[Registro durável dos metadados e limites](evidencias/lote3-ci-40230495565.json).
+[Registro durável dos metadados e limites](../../evidencias/lote3-ci-40230495565.json).
 É uma observação técnica, sem assinatura de atestação. O registro aponta
 explicitamente o SHA testado; commits posteriores de documentação não mudam
 o código auditado. O estado da CI do HEAD final fica também na PR #56.

@@ -4,7 +4,7 @@ Este roteiro **não foi executado para a integração .64**. A [CI integrada](ht
 está tecnicamente aprovada e o ZIP teve seus hashes conferidos fora do runner;
 [relatório](MISSAO-INTEGRACAO.md) e [PR #59 Draft](https://github.com/walissonminel-1991/gerenciador-final/pull/59).
 A aprovação não substitui avaliação de AVG nem a homologação física; a .63 anterior
-segue registrada em [MISSAO-LOTE4](MISSAO-LOTE4.md).
+segue registrada em [MISSAO-LOTE4](historico/missoes/MISSAO-LOTE4.md).
 A PR #40 e a main permanecem separadas.
 
 ## Preparação

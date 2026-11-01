@@ -42,7 +42,7 @@ Contagens: entradas são itens visitados na descoberta (ou evidências recebidas
 
 C aprovado nos três workflows (política 39508752193, Windows 39508751898, build 39508752010), incluindo interface parcial vazia e novas regressões de classificação. Nove verificações Python e dez testes Node locais aprovados após reforço dos workflows.
 
-43 workflows auditados; 38 históricos corrigidos com Actions fixadas em SHA oficial e checkout sem persistência de credenciais. YAMLs analisados com parser, todas as configurações confirmadas. Três checks atuais recebem nomes únicos para futura exigência em proteção de branch. Dependabot e auditoria NuGet bloqueante mantidos; sem pacotes de terceiros declarados nos projetos. Main segue sem proteção/rulesets e auto merge desativado; integração não lê endpoint administrativo (403). Configuração exigida do proprietário detalhada em [Segurança GitHub](SEGURANCA-GITHUB-WORK2.md). Nenhuma configuração administrativa alterada.
+43 workflows auditados; 38 históricos corrigidos com Actions fixadas em SHA oficial e checkout sem persistência de credenciais. YAMLs analisados com parser, todas as configurações confirmadas. Três checks atuais recebem nomes únicos para futura exigência em proteção de branch. Dependabot e auditoria NuGet bloqueante mantidos; sem pacotes de terceiros declarados nos projetos. Main segue sem proteção/rulesets e auto merge desativado; integração não lê endpoint administrativo (403). Configuração exigida do proprietário detalhada em [Segurança GitHub](../../SEGURANCA-GITHUB-WORK2.md). Nenhuma configuração administrativa alterada.
 
 
 ## Consolidação da candidata

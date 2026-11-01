@@ -30,7 +30,7 @@ M2 aprovado nos três workflows (39524480844, 39524480823, 39524480812). Cache d
 
 Instrumentação agrega tempo, alocações globais, heap, RAM e CPU do processo, somente no diagnóstico local. Medida de Startup termina antes do consentimento; descoberta inclui classificação e também gera sua medição específica. Fontes novas de informação pessoal não são consultadas. Sem amostragem contínua extra nem GC forçada no aplicativo.
 
-[Benchmarks](BENCHMARKS-WORK3.md): base .16 e M3 executados sequencialmente com mesmo runtime/fixture; 500/1.000 aplicativos, 5.000/10.000 candidatos e 50.000 evidências. Maior cobertura custa alocações adicionais; não declarar melhoria percentual de velocidade nem extrapolar para o PC FRACO. Nos dois motores, 50.000 evidências excedem o teto de 30.000, e as 20.000 não avaliadas ficam explícitas.
+[Benchmarks](../../BENCHMARKS-WORK3.md): base .16 e M3 executados sequencialmente com mesmo runtime/fixture; 500/1.000 aplicativos, 5.000/10.000 candidatos e 50.000 evidências. Maior cobertura custa alocações adicionais; não declarar melhoria percentual de velocidade nem extrapolar para o PC FRACO. Nos dois motores, 50.000 evidências excedem o teto de 30.000, e as 20.000 não avaliadas ficam explícitas.
 
 ## M4 — interface progressiva
 

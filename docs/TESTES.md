@@ -94,11 +94,11 @@ build ou teste de produto foi executado na consolidação.
 WORK18 (.65): executar também `dotnet run --project TestesAtualizador -c Release -- --work18`,
 `dotnet run --project TestesLayout -c Release -- --work18` e `python scripts/measure_work18.py`.
 As 28 fixtures comparam o mesmo cenário contra a integração .64 imutável; seis mutações adicionais
-verificam os novos contratos. [Matriz, evidências e pendências](MISSAO-WORK18.md).
+verificam os novos contratos. [Matriz, evidências e pendências](historico/missoes/MISSAO-WORK18.md).
 Nenhum teste instala programas nos PCs FORTE/FRACO; elegibilidade anterior ao payload não é autorização final.
 
 Este é o procedimento técnico da candidata .65 WORK18, com [CI Windows aprovada](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40252100887)
-e ZIP verificado externamente; [evidências WORK18](MISSAO-WORK18.md). Todas as regressões da [integração .64](MISSAO-INTEGRACAO.md) foram preservadas.
+e ZIP verificado externamente; [evidências WORK18](historico/missoes/MISSAO-WORK18.md). Todas as regressões da [integração .64](MISSAO-INTEGRACAO.md) foram preservadas.
 A aprovação é técnica e não substitui homologação AVG ou testes nos PCs. CI e dados sintéticos não
 substituem homologação nos PCs. O [roteiro físico mínimo](TESTE-CONSOLIDADO.md)
 é separado dos testes automatizados.
@@ -145,7 +145,7 @@ dotnet run --project TestesResiduos/TestesResiduos.csproj -c Release --no-build 
 
 Mutações ocorrem em cópias descartáveis; erro de compilação não conta como
 mutação rejeitada. O benchmark usa dados sintéticos e não mede velocidade de
-disco nem RAM residente. [Método comparativo WORK9](MISSAO-WORK9-PARTE1.md).
+disco nem RAM residente. [Método comparativo WORK9](historico/missoes/MISSAO-WORK9-PARTE1.md).
 
 ## Pacote e integrações externas
 
@@ -184,7 +184,7 @@ Não executar testes sintéticos destrutivos nos PCs pessoais.
 ## Resultados e limites
 
 Resultados de cada revisão, falhas anteriores e evidências ficam nos relatórios
-[WORK9 parte 1](MISSAO-WORK9-PARTE1.md) e [parte 2](MISSAO-WORK9-PARTE2.md).
+[WORK9 parte 1](historico/missoes/MISSAO-WORK9-PARTE1.md) e [parte 2](historico/missoes/MISSAO-WORK9-PARTE2.md).
 A regressão principal usa Windows Server 2022, e os jobs de drivers também
 Windows Server 2025: não comprova execução física no PC FORTE/FRACO,
 compatibilidade universal do Windows 10/11 nem aprovação pelo AVG. O tema do
@@ -263,7 +263,7 @@ Critérios: sem mutação do Windows, consultas canceladas não modificam listas
 
 As simulações WORK 6 e as três Actions passaram, mas a .35 **não** foi executada ainda no PC do usuário. Em primeira sessão, manter AVG ativo, selecionar perfil PC FORTE, verificar inventário, consultar atualizações e navegar pelas telas; não instalar, desinstalar ou excluir resíduos. Preservar diagnóstico local e encaminhar privadamente se houver diferença importante, UAC inesperado ou bloqueio AVG. O teste de instalação real (U8) e de desinstalação (R7) só deverá ocorrer separadamente, em ambiente descartável/autorizado, e R4 permanece proibido nesta candidata.
 
-[Resultado da MISSÃO WORK 6, evidências e critérios](MISSAO-WORK6-RESULTADO.md).
+[Resultado da MISSÃO WORK 6, evidências e critérios](historico/missoes/MISSAO-WORK6-RESULTADO.md).
 
 ## Avanço validado — U6 encerrado, 27/42 (64,3%)
 
@@ -487,7 +487,7 @@ continuam abertos, roadmap **26/42 (61,9%)**.
    requer revisão. Novos produtos oferecem consulta/site/orientação, nunca instalador genérico.
 5. Registrar somente contagens e códigos COBERTURA_ATUALIZACAO, especialmente fonte 5
    (GameInput); não compartilhar inventário bruto. Etapa 0 significa identidade não reconhecida,
-   não ausência comprovada de instalação. Legenda completa em [MISSÃO WORK 5](MISSAO-WORK5.md).
+   não ausência comprovada de instalação. Legenda completa em [MISSÃO WORK 5](historico/missoes/MISSAO-WORK5.md).
 6. Sem rede: inventário utilizável, fontes indisponíveis explícitas e nenhuma instalação.
    Fechar/reabrir, minimizar/restaurar e comparar fontes/RAM/CPU com baseline .32.
 7. Se houver alerta, janela inesperada, UAC, dependência ou fechamento: parar, guardar evento

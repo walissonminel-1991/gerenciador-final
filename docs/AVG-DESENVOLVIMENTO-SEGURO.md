@@ -58,7 +58,7 @@ Get-Content .\SHA256SUMS.txt | Select-String GerenciadorFinal.exe
 
 ## Investigação Lote 3 — somente evidência técnica
 
-[Relatório do Lote 3](MISSAO-LOTE3.md) e [PR #56](https://github.com/walissonminel-1991/gerenciador-final/pull/56).
+[Relatório do Lote 3](historico/missoes/MISSAO-LOTE3.md) e [PR #56](https://github.com/walissonminel-1991/gerenciador-final/pull/56).
 Erros Windows 225/226 passam a explicar bloqueio antivírus sem atribuir fabricante;
 erros 5/32 continuam separados. A CI registra origem, hash e assinatura do
 produto em JSON separado, explicitamente marcado sem varredura e AVG pendente.

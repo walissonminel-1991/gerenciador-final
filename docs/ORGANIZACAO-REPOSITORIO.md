@@ -40,7 +40,7 @@ somente Etapa 8; não iniciada. Roadmap **27/42**, sem homologação física/AVG
 | Testes e CI | [TESTES](TESTES.md) e [Actions atuais/históricas](ACTIONS-ATUAIS-E-HISTORICAS.md) |
 | Futuro teste físico manual | [Plano mínimo da avaliação 4](WORK-INTEGRACAO-ETAPA4-AVALIACAO.md#7-testes-físicos-mínimos-futuros--pc-forte), reaproveitando [E1–E5](WORK-PRE-BETA-ETAPA6-EVIDENCIAS-FISICAS.md); sem execução agora |
 | AVG, privacidade e distribuição | [AVG](AVG-DESENVOLVIMENTO-SEGURO.md), [PRIVACY](../PRIVACY.md), [contrato de publicação](PUBLICACAO.md) e [homologação conectada separada](BETA-66-HOMOLOGACAO-CONECTADA.md) |
-| Missões anteriores | [Pré-BETA encerrada](WORK-PRE-BETA-ETAPA7-DECISAO.md), [WORK18](MISSAO-WORK18.md), [integração .64](MISSAO-INTEGRACAO.md), [WORK9 parte 1](MISSAO-WORK9-PARTE1.md) e [parte 2](MISSAO-WORK9-PARTE2.md) |
+| Missões anteriores | [Pré-BETA encerrada](WORK-PRE-BETA-ETAPA7-DECISAO.md), [WORK18](historico/missoes/MISSAO-WORK18.md), [integração .64](MISSAO-INTEGRACAO.md), [WORK9 parte 1](historico/missoes/MISSAO-WORK9-PARTE1.md) e [parte 2](historico/missoes/MISSAO-WORK9-PARTE2.md) |
 
 Este documento permanece o índice de organização; não criar um segundo índice
 por build. README apresenta o produto; checkpoint/matriz governam a missão.

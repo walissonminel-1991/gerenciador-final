@@ -24,7 +24,7 @@ Resumo residual e confirmação mostram escopo previsto, pastas com identidade a
 
 ## Matriz antes/depois
 
-A execução Windows de `python scripts/measure_work14.py` compara probes idênticos contra a base imutável e a candidata. A comparação final [CI 40155841005](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005) passou; [JSON completo](benchmarks/WORK14-comparacao.json), SHA-256 do ZIP de evidências `f28b4c0c474cd9d92f7a9201a396fcb400f18498e0cc86c9b7dd9fd3810860cd`, conferido fora do runner. Artefato de matriz `12584800071`; fonte `89672f5e`, build `f3bcfe15`. A amostra cobre configurações sintéticas de instalação, não o inventário dos PCs e não um número universal de programas.
+A execução Windows de `python scripts/measure_work14.py` compara probes idênticos contra a base imutável e a candidata. A comparação final [CI 40155841005](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/40155841005) passou; [JSON completo](../../benchmarks/WORK14-comparacao.json), SHA-256 do ZIP de evidências `f28b4c0c474cd9d92f7a9201a396fcb400f18498e0cc86c9b7dd9fd3810860cd`, conferido fora do runner. Artefato de matriz `12584800071`; fonte `89672f5e`, build `f3bcfe15`. A amostra cobre configurações sintéticas de instalação, não o inventário dos PCs e não um número universal de programas.
 
 | Medida e denominador | Antes #49 | Depois .60 |
 | --- | ---: | ---: |
