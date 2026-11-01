@@ -7,6 +7,7 @@ No L18 launch, no updates, no release mutation and no artifact upload.
 """
 from __future__ import annotations
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -58,6 +59,11 @@ def main() -> None:
             os.getenv("GITHUB_REPOSITORY") == REPO and
             os.getenv("GF_GITHUB_TUF_ONLY") == "1", "DISPOSABLE_WINDOWS_ONLY")
     runner = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+    # Existing FixtureSandbox and L14Model use .NET Path.GetTempPath().
+    # Keep both the C# fixture root and its L14 lab directly in RUNNER_TEMP,
+    # never in a personal profile. This override is limited to this job.
+    os.environ["TMP"] = str(runner)
+    os.environ["TEMP"] = str(runner)
     repo = Path(os.environ["GITHUB_WORKSPACE"]).resolve(strict=True)
     script = repo / "prototipos/autoatualizador-seguro/phase1-composed/github_draft_package.py"
     require(script.is_file() and a.probe.is_file() and a.l18.is_file(), "EXISTING_SOURCES_MISSING")
@@ -174,6 +180,54 @@ def main() -> None:
     require(not verify(forged, "negative-forged-extracted", success=False),
             "BAD_SIGNED_TARGETS_NOT_REJECTED")
 
+    # Bootstrap a disposable, versioned, LOCAL state fixture with the same
+    # schema consumed by PersistentState.Load. It does not authenticate a
+    # publisher or authorize L18's BeginCore. No bootstrap signer is used.
+    def persistent_fixture(name: str, *, installation: str = "a" * 32,
+                           timestamp_floor: int = 1,
+                           bad_checksum: bool = False,
+                           fake_receipt: bool = False) -> Path:
+        root = runner / ("gf-u2-github-binding-" + name)
+        require(not root.exists(), "PERSISTENT_TEST_ROOT_EXISTS")
+        root.mkdir()
+        (root / ".gf-u2-fixture").write_text(
+            "GF-U2-INERT-STATE-TESTS-NO-PRODUCT\\n", encoding="utf-8")
+        ledger = root / "ledger"
+        ledger.mkdir()
+        payload = {
+            "schema": "gf-state-fixture/2", "installationId": installation,
+            "generation": 1, "previousDigest": "0" * 64,
+            "trust": {"root": 1, "timestamp": timestamp_floor,
+                      "snapshot": 1, "targets": 1, "approvedSequence": 1,
+                      "highestVersion": "0.0.0.1",
+                      "lastObservedUtc": "2026-11-01T00:00:00Z",
+                      "metadata": {}},
+            "confirmed": {"sequence": 1, "version": "0.0.0.1",
+                          "sha256": "1" * 64, "identity": "lab-old"},
+            "transaction": None
+        }
+        p = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+        wrapped = {"schema": "gf-state-fixture/2",
+                   "payload": base64.b64encode(p).decode("ascii"),
+                   "sha256": hashlib.sha256(p).hexdigest()}
+        if bad_checksum:
+            wrapped["sha256"] = "0" * 64
+        (ledger / "0000000000000001.fixture.json").write_text(
+            json.dumps(wrapped, separators=(",", ":"), sort_keys=True),
+            encoding="utf-8")
+        if fake_receipt:
+            (root / "local-authorized-receipt.json").write_text(
+                '{"schema":"untrusted-local","authorized":true,"READY":true}',
+                encoding="utf-8")
+        return root
+
+    state = persistent_fixture("positive")
+    lab = runner / ("gf-u2-l14-" + "b" * 32)
+    require(not lab.exists(), "L14_TEST_ROOT_EXISTS")
+    lab.mkdir()
+    (lab / ".gf-u2-fixture").write_text(
+        "GF-U2-L14-ONLY-DISPOSABLE-TEXT\\n", encoding="utf-8")
+
     # Run only the data-only mode of the EXISTING L18 executable.
     # The same TUF test-root and file-set are reverified by this entrypoint.
     target_sha = digest(verified / "GF-LAB-REAL-PACKAGE-MANIFEST.json")
@@ -183,11 +237,14 @@ def main() -> None:
                  manifest_sha: str = target_sha,
                  old_path: Path = old,
                  installation: str = "a" * 32,
-                 transaction: str = "b" * 32) -> None:
+                 transaction: str = "b" * 32,
+                 persistent: Path = state,
+                 lab_root: Path = lab) -> None:
         proof = run([str(l18), "--real-github-tuf-inert", str(old_path),
                      str(bundle), str(scratch / out), str(repo),
                      sys.executable, zip_sha, manifest_sha,
-                     installation, transaction],
+                     installation, transaction,
+                     str(persistent), str(lab_root)],
                     success=accepted)
         if accepted:
             require("GF_GITHUB_TUF_L18_INERT_PASS " in proof,
@@ -254,6 +311,64 @@ def main() -> None:
     l18_gate(local_bundle, "l18-negative-local-authority", accepted=False,
              manifest_sha=digest(local_file), installation="c" * 32)
 
+    # Existing C# PersistentState.Load must match BOTH signed identity and
+    # the independently parsed L14 local transaction. A fake same-user
+    # receipt is not a TUF authorization and cannot override either.
+    bad_install_state = persistent_fixture(
+        "foreign-installation", installation="c" * 32,
+        fake_receipt=True)
+    l18_gate(verified, "l18-state-installation-fork", accepted=False,
+             persistent=bad_install_state)
+    stale_floor = persistent_fixture("rollback-floor", timestamp_floor=2)
+    l18_gate(verified, "l18-replayed-metadata", accepted=False,
+             persistent=stale_floor)
+    damaged_ledger = persistent_fixture("ledger-corrupt", bad_checksum=True)
+    l18_gate(verified, "l18-ledger-checksum-bad", accepted=False,
+             persistent=damaged_ledger)
+    other_lab = runner / ("gf-u2-l14-" + "d" * 32)
+    require(not other_lab.exists(), "OTHER_L14_ROOT_EXISTS")
+    other_lab.mkdir()
+    (other_lab / ".gf-u2-fixture").write_text(
+        "GF-U2-L14-ONLY-DISPOSABLE-TEXT\\n", encoding="utf-8")
+    l18_gate(verified, "l18-persisted-tx-fork", accepted=False,
+             lab_root=other_lab)
+
+    # No role is re-signed. The original existing TUF verifier must also
+    # reject the previously valid metadata at a forged FUTURE observation
+    # time after its signed expiration.
+    import importlib.util
+    from datetime import datetime, timezone, timedelta
+    spec = importlib.util.spec_from_file_location(
+        "gf_github_tuf_expiry_inert",
+        repo / "prototipos/autoatualizador-seguro/phase1-composed/phase1_lab.py")
+    require(spec is not None and spec.loader is not None, "TUF_SOURCE_UNAVAILABLE")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    expires = []
+    for name in ("timestamp.json", "snapshot.json", "targets.json"):
+        role = json.loads((verified / name).read_text(encoding="utf-8"))
+        expires.append(datetime.fromisoformat(
+            role["signed"]["expires"].replace("Z", "+00:00")))
+    future = max(expires) + timedelta(days=1)
+    native_datetime = module.datetime
+    class FutureClock(native_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return future if tz == timezone.utc else future.astimezone(tz)
+    module.datetime = FutureClock
+    try:
+        try:
+            module.tuf_verify_prepared(
+                repo, (verified / "GF-LAB-REAL-PACKAGE-MANIFEST.json").read_bytes(),
+                verified)
+        except Exception:
+            expired_rejected = True
+        else:
+            expired_rejected = False
+        require(expired_rejected, "EXPIRED_TUF_METADATA_ACCEPTED")
+    finally:
+        module.datetime = native_datetime
+
     require(not any(scratch.rglob("l18-phase-*.fixture.json")),
             "L18_INERT_CREATED_JOURNAL")
     # No swap, NEW execution or worker; this proof grants no install authority.
@@ -262,7 +377,7 @@ def main() -> None:
             not any(scratch.rglob("applied.json")) and
             not any(scratch.rglob("l18-real-active.fixture.json")),
             "UNAUTHORIZED_INSTALL_MARKER")
-    print("GF_GITHUB_TUF_L18_GATE_MATRIX_PASS positive=DATA_ONLY bad_zip=REJECTED missing_manifest=REJECTED missing_targets=REJECTED forged_targets=REJECTED wrong_zip_sha=REJECTED wrong_manifest_sha=REJECTED wrong_installation=REJECTED wrong_transaction=REJECTED mutated_OLD=REJECTED extra_OLD=REJECTED local_resign=REJECTED selector=false journal=false NEW=false READY=false", flush=True)
+    print("GF_GITHUB_TUF_L18_GATE_MATRIX_PASS positive=DATA_ONLY bad_zip=REJECTED missing_manifest=REJECTED missing_targets=REJECTED forged_targets=REJECTED wrong_zip_sha=REJECTED wrong_manifest_sha=REJECTED wrong_installation=REJECTED wrong_transaction=REJECTED mutated_OLD=REJECTED extra_OLD=REJECTED local_resign=REJECTED persistent_installation=REJECTED persistent_transaction=REJECTED trust_floor_replay=REJECTED ledger_tamper=REJECTED expired_tuf=REJECTED selector=false journal=false NEW=false READY=false", flush=True)
     print("GF_GITHUB_TUF_BINDING_PASS " +
           "same_downloaded_zip_sha=true signed_file_set=true " +
           "tuf_test_root_only=true zip_sha_in_tuf_target=false " +
