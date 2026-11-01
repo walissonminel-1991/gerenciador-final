@@ -232,9 +232,10 @@ internal static class Phase1GithubTufInert
             using var signedTargetsDoc=JsonDocument.Parse(pins[2]);
             var signedTargets=signedTargetsDoc.RootElement
                 .GetProperty("signed").GetProperty("targets");
+            JsonElement targetDescription=default;
             Require(signedTargets.ValueKind==JsonValueKind.Object &&
                 signedTargets.EnumerateObject().Count()==1 &&
-                signedTargets.TryGetProperty(Manifest,out var targetDescription),
+                signedTargets.TryGetProperty(Manifest,out targetDescription),
                 "GH_L18_TUF_SIGNED_TARGET_SET");
             var targetHashes=targetDescription.GetProperty("hashes");
             Require(targetHashes.EnumerateObject().Count()==1,
