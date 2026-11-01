@@ -1,5 +1,11 @@
 # Privacidade
 
+## Decisão vigente — 01/11/2026
+
+Não haverá programa de distribuição antecipada ou recrutamento externo para a edição em preparação. O projeto permanece em validação controlada, sem aprovação para liberar coleta, envio remoto ou execução de autoatualizador. O perfil local atual mantém o diagnóstico colaborativo e as consultas automáticas na abertura desativados. [Decisão de canal único](docs/DECISAO-CANAL-UNICO-20261101.md).
+
+As seções abaixo preservam a descrição técnica e jurídica de propostas anteriores, inclusive documentos e identificadores chamados BETA. Elas **não constituem instruções vigentes de implantação, nem consentimento, autorização de compartilhamento ou promessa de distribuição**. Os bloqueios de build e de endpoint permanecem intactos.
+
 ## Edição local da integração — Etapa 7, 28/10/2026
 
 A compilação padrão da candidata .66 usa o perfil local. O GF não coleta nem
