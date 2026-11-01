@@ -245,7 +245,7 @@ internal static class Phase1GithubTufInert
             }
             RequireDeniedReplacement(ledgerPath,ledgerBefore);
             RequireDeniedReplacement(Path.Combine(bundle,Manifest),
-                JsonSerializer.SerializeToUtf8Bytes(root)); // same semantic payload, distinct object
+                File.ReadAllBytes(Path.Combine(bundle,Manifest))); // exactly the same bytes
             Require(ledgerPin.Identity==ledgerObjectId &&
                 ledgerPin.Read(StateCodec.MaxRecordBytes).AsSpan()
                     .SequenceEqual(ledgerBefore),
