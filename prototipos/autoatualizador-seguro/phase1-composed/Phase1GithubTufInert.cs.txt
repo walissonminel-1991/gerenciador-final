@@ -1,0 +1,165 @@
+// Data-only PRE-HANDOFF gate inside the EXISTING L18 laboratory executable.
+// NEVER enters L18 RealOwner, writes a selector/journal, or grants launch/READY.
+// It invokes the existing Python-TUF verifier with the received ZIP pinned
+// read-only, then rechecks the test-only signed manifest and full file set.
+using System.Diagnostics;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json;
+using static GfUpdaterFixture.StrictMetadata;
+namespace GfUpdaterFixture;
+
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+internal static class Phase1GithubTufInert
+{
+    private const string Repo="walissonminel-1991/gerenciador-final";
+    private const string Archive="gf-e2e-new-win-x64.zip";
+    private const string Manifest="GF-LAB-REAL-PACKAGE-MANIFEST.json";
+    private static readonly string[] Roles=[Manifest,"targets.json","snapshot.json","timestamp.json"];
+
+    private static string Under(string path,string runner,bool exists)
+    {
+        string full=Path.GetFullPath(path);
+        Require(full.StartsWith(runner+Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase),"GH_L18_INERT_RUNNER_SCOPE");
+        if(exists)Require(File.Exists(full)||Directory.Exists(full),
+            "GH_L18_INERT_PATH_ABSENT");
+        return full;
+    }
+    private static FileStream Pin(string path,long limit)
+    {
+        Require(File.Exists(path) && (File.GetAttributes(path)&FileAttributes.ReparsePoint)==0,
+            "GH_L18_INERT_REPARSE_OR_ABSENT");
+        var file=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read);
+        try {
+            Require(file.Length is >0 && file.Length<=limit,
+                "GH_L18_INERT_LENGTH_INVALID");
+            return file;
+        } catch {file.Dispose();throw;}
+    }
+    private static string HashStream(FileStream file)
+    {
+        file.Position=0;
+        string sha=Convert.ToHexString(SHA256.HashData(file)).ToLowerInvariant();
+        file.Position=0;
+        return sha;
+    }
+    internal static async Task Run(string[] a)
+    {
+        Require(a.Length==8 && a[0]=="--real-github-tuf-inert" &&
+            OperatingSystem.IsWindows() &&
+            Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true" &&
+            Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")==Repo &&
+            Environment.GetEnvironmentVariable("GF_GITHUB_TUF_ONLY")=="1" &&
+            Path.GetFileName(Environment.ProcessPath)=="GF.Updater.M3.L18Tests.exe",
+            "GH_L18_INERT_CI_ONLY");
+        string runner=Path.TrimEndingDirectorySeparator(Path.GetFullPath(
+            Environment.GetEnvironmentVariable("RUNNER_TEMP") ??
+            throw new Rejected("GH_L18_INERT_RUNNER_REQUIRED")));
+        string repository=Path.GetFullPath(a[4]);
+        Require(repository==Path.GetFullPath(
+            Environment.GetEnvironmentVariable("GITHUB_WORKSPACE") ?? "") &&
+            File.Exists(Path.Combine(repository,"GerenciadorAplicativos.csproj")),
+            "GH_L18_INERT_REPOSITORY");
+        string python=Path.GetFullPath(a[5]);
+        Require(python.Equals(Path.Combine(
+             Environment.GetEnvironmentVariable("pythonLocation") ?? "",
+             "python.exe"),StringComparison.OrdinalIgnoreCase) &&
+             File.Exists(python),"GH_L18_INERT_PYTHON");
+        string old=Under(a[1],runner,true), bundle=Under(a[2],runner,true);
+        string extracted=Under(a[3],runner,false);
+        Require(Directory.Exists(old) && Directory.Exists(bundle) &&
+            !Directory.Exists(extracted) && !File.Exists(extracted) &&
+            a[6].Length==64 && a[7].Length==64 &&
+            a[6].All(Uri.IsHexDigit) && a[7].All(Uri.IsHexDigit),
+            "GH_L18_INERT_ARGUMENTS");
+        var pins=new List<FileStream>();
+        try {
+            // Retain read-only handles throughout Python-TUF authentication,
+            // refusing concurrent overwrite/delete; this alone is NOT the
+            // production L18 NTFS no-follow/object-identity proof.
+            foreach(string name in new[]{Archive}.Concat(Roles))
+                pins.Add(Pin(Path.Combine(bundle,name),name==Archive?250_000_000:2_097_152));
+            string actualZip=HashStream(pins[0]);
+            string actualManifest=HashStream(pins[1]);
+            Require(actualZip.Equals(a[6],StringComparison.OrdinalIgnoreCase),
+                "GH_L18_INERT_ZIP_MISMATCH");
+            Require(actualManifest.Equals(a[7],StringComparison.OrdinalIgnoreCase),
+                "GH_L18_INERT_MANIFEST_MISMATCH");
+            string verifier=Path.Combine(repository,"prototipos",
+                "autoatualizador-seguro","phase1-composed","github_draft_package.py");
+            Require(File.Exists(verifier),"GH_L18_INERT_TUF_VERIFIER_ABSENT");
+            var psi=new ProcessStartInfo(python) {
+                UseShellExecute=false,CreateNoWindow=true,
+                RedirectStandardOutput=true,RedirectStandardError=true,
+                WorkingDirectory=repository
+            };
+            foreach(string arg in new[]{verifier,"verify","--repo",repository,
+                "--old",old,"--downloaded",bundle,"--extracted",extracted})
+                psi.ArgumentList.Add(arg);
+            // The verifier never needs an OAuth token.
+            psi.Environment.Remove("GH_TOKEN");
+            psi.Environment.Remove("GITHUB_TOKEN");
+            using var proc=Process.Start(psi) ??
+                throw new Rejected("GH_L18_INERT_VERIFIER_NOT_STARTED");
+            Task<string> output=proc.StandardOutput.ReadToEndAsync();
+            Task<string> error=proc.StandardError.ReadToEndAsync();
+            try {await proc.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(4));}
+            catch(TimeoutException) {
+                if(!proc.HasExited){proc.Kill(entireProcessTree:true);await proc.WaitForExitAsync();}
+                throw new Rejected("GH_L18_INERT_TUF_TIMEOUT");
+            }
+            string stdout=await output;
+            _=await error; // do not log raw stderr (may contain test paths)
+            Require(proc.ExitCode==0 && stdout.Contains("GF_DRAFT_AUTHENTICATED ",
+                StringComparison.Ordinal),"GH_L18_INERT_TUF_DENIED");
+            // Recheck pinned bytes after the authenticator, and check its
+            // target against the exact extracted file set without any launch.
+            Require(HashStream(pins[0])==actualZip &&
+                HashStream(pins[1])==actualManifest,
+                "GH_L18_INERT_PIN_CHANGED");
+            using var doc=JsonDocument.Parse(pins[1]);
+            var root=doc.RootElement;
+            Require(root.GetProperty("schema").GetString()=="gf-real-package-lab/3" &&
+                root.GetProperty("selected_before").GetString()=="old" &&
+                !root.GetProperty("operational_installable").GetBoolean() &&
+                root.GetProperty("installation").GetString()==new string('a',32) &&
+                root.GetProperty("transaction").GetString()==new string('b',32),
+                "GH_L18_INERT_SIGNED_SCOPE");
+            var files=root.GetProperty("files");
+            Require(files.ValueKind==JsonValueKind.Object &&
+                files.EnumerateObject().Count()>40,"GH_L18_INERT_FILE_SET_INVALID");
+            string[] names=Directory.EnumerateFiles(extracted,"*",SearchOption.AllDirectories)
+                .Select(p=>Path.GetRelativePath(extracted,p).Replace('\\','/'))
+                .Order(StringComparer.Ordinal).ToArray();
+            string[] signed=files.EnumerateObject().Select(p=>p.Name)
+                .Order(StringComparer.Ordinal).ToArray();
+            Require(names.SequenceEqual(signed,StringComparer.Ordinal),
+                "GH_L18_INERT_FILE_SET_FORK");
+            foreach(string rel in signed) {
+                string full=Path.GetFullPath(Path.Combine(extracted,
+                    rel.Replace('/',Path.DirectorySeparatorChar)));
+                Require(full.StartsWith(extracted+Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase) &&
+                    (File.GetAttributes(full)&FileAttributes.ReparsePoint)==0,
+                    "GH_L18_INERT_FILE_PATH");
+                var info=files.GetProperty(rel);
+                using var f=Pin(full,67_108_864);
+                Require(f.Length==info.GetProperty("length").GetInt64() &&
+                    HashStream(f).Equals(info.GetProperty("sha256").GetString(),
+                        StringComparison.OrdinalIgnoreCase),
+                    "GH_L18_INERT_SIGNED_FILE_CHANGED");
+            }
+            var version=AssemblyName.GetAssemblyName(
+                Path.Combine(extracted,"GerenciadorFinal.dll")).Version;
+            Require(version==new Version(5,13,11,66),
+                "GH_L18_INERT_NEW_VERSION_WRONG");
+            // This is NOT PrepareRealAuthorization, RealOwner or a selector.
+            // The same L18 test executable has accepted only DATA-ONLY input.
+            Console.WriteLine("GF_GITHUB_TUF_L18_INERT_PASS " +
+                "l18_executable=EXISTING tif=TEST_ONLY signed_manifest=true " +
+                "zip_same_bytes=true files_full_set=true worker=false " +
+                "selector=false journal=false NEW_not_started=true READY=false");
+        } finally {foreach(var f in pins)f.Dispose();}
+    }
+}
