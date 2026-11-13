@@ -59,6 +59,16 @@ internal static class DriverReadOnlyReport
                 text.AppendLine($"  Fornecedor: {match.Offer.Provider}; modelo: {match.Offer.Model}; data informada: {match.Offer.VersionDate:yyyy-MM-dd}.");
                 text.AppendLine($"  Instância PnP: {match.DeviceId}; HardwareID exato: {match.Offer.HardwareId}.");
                 text.AppendLine($"  Identidade da oferta WUA: {match.Offer.UpdateId}, revisão {match.Offer.Revision}.");
+                if (match.Offer.EntryAudit is { } audit)
+                {
+                    text.AppendLine($"  WUA4 — entradas da oferta: {audit.State}; {audit.Entries.Count} registros válidos observados.");
+                    if (match.MatchingWuaEntry is { } specific)
+                    {
+                        text.AppendLine($"  Entrada WUA vinculada por identificador exato: {specific.HardwareOrCompatibleId}; classe: {specific.DriverClass}; fornecedor: {specific.Provider}; modelo: {specific.Model}.");
+                        text.AppendLine($"  Estado e problema informados pela entrada WUA: {specific.DeviceStatus} / {specific.DeviceProblemNumber}; não são prova de identidade da instância física.");
+                    }
+                    text.AppendLine("  As entradas WUA não fornecem DriverVer numérico, arquitetura/TargetOSVersion do INF, ranking ou bytes do pacote.");
+                }
                 text.AppendLine($"  Classe informada: {(string.IsNullOrWhiteSpace(match.Offer.DriverClass) ? "não informada" : match.Offer.DriverClass)}; fabricante: {(string.IsNullOrWhiteSpace(match.Offer.Manufacturer) ? "não informado" : match.Offer.Manufacturer)}.");
                 if (match.Installed is { } current)
                 {
