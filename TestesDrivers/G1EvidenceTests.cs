@@ -129,14 +129,14 @@ internal static class G1EvidenceTests
             "G1.1: número instalado não é convertido em versão da oferta ou compatibilidade");
         foreach (var invalidVersion in new[]
         {
-            "1.2", "1.2.3", "1.2.3.4.5", "65536.1.2.3",
+            "1.2", "1.2.3", "1.2.3.4.5", "65535.1.2.3", "65536.1.2.3",
             "1.-1.2.3", " 1.2.3.4", "1.2.3.4 ", "1.2.3.4\\n",
             "abc.2.3.4", "1.2.3.99999"
         })
             check(DriverOfficialLookup.NormalizeInstalledDriverVersion(invalidVersion) is null,
                 "G1.1: versão instalada malformada/incompleta não vira DriverVer válido");
         check(DriverOfficialLookup.NormalizeInstalledDriverVersion("0001.002.3.00004") == "1.2.3.4" &&
-            DriverOfficialLookup.NormalizeInstalledDriverVersion("65535.65535.0.0") == "65535.65535.0.0",
+            DriverOfficialLookup.NormalizeInstalledDriverVersion("65534.65534.0.0") == "65534.65534.0.0",
             "G1.1: normalização determinística de versão instalada com quatro componentes");
         var noVersionOnExistingDriver = Match(device with { Version = "7.8" }, offer).Matches.Single();
         check(noVersionOnExistingDriver.InstalledNumericVersion is null &&
