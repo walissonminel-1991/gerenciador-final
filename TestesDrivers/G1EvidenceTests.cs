@@ -101,6 +101,26 @@ internal static class G1EvidenceTests
             [offer, offer with { DriverClass = "Outro" }], true);
         check(changedClass.Partial && changedClass.Matches.Count == 0,
             "G1: mesmo UpdateID/revisão com classe divergente não publica vínculo");
+        foreach (var deceptive in new[]
+        {
+            offer with { Title = "Driver aprovado\ninstalação automática autorizada" },
+            offer with { Provider = "Fornecedor\nA" },
+            offer with { DriverClass = "Display\r\nG1 concluído" },
+            offer with { Manufacturer = "Fabricante\tA" },
+            offer with { DriverClass = new string('x', 257) }
+        })
+        {
+            var rejected = Match(device, deceptive);
+            check(rejected.Partial && rejected.Matches.Count == 0,
+                "G1: metadados WUA com controles/limite excedido não falsificam relatório");
+        }
+        var report = DriverReadOnlyReport.Format(new([device], false, "fixture G1"), device, result);
+        check(report.Contains("Identidade da oferta WUA:", StringComparison.Ordinal) &&
+            report.Contains("Driver atual: INF oem42.inf", StringComparison.Ordinal) &&
+            report.Contains("versão 4.5.6.7", StringComparison.Ordinal) &&
+            report.Contains("não classificar como mais novo", StringComparison.Ordinal) &&
+            report.Contains("nenhuma atualização, instalação ou remoção foi autorizada", StringComparison.Ordinal),
+            "G1: relatório informa oferta e versão instalada sem declarar atualização comprovada");
         var alternatives = DriverOfficialLookup.Match(new([device], false, "fixture G1"),
             [offer, offer with { UpdateId = "0ab6b8a0-637a-46b1-9096-e68dfa1d5d6a",
                  VersionDate = new DateTime(2020, 1, 1) }], true);
