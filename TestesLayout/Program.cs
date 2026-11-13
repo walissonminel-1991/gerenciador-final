@@ -322,6 +322,9 @@ internal static class LayoutTests
                 b.AccessibleDescription?.Contains("indeterminada", StringComparison.Ordinal) == true) ||
             Descendants(placeholder).OfType<Button>().Any(b => b.Text == "Não confirmados"))
             throw new Exception("Filtro DRIVERS deve caber inteiro e explicar os casos incertos.");
+        if (!Descendants(placeholder).OfType<Button>().Any(b =>
+                b.Text == "Falhas PnP" && b.AccessibleName.Contains("Problemas PnP")))
+            throw new Exception("Filtro de falhas PnP ausente.");
         // BETA: sem botao permanente no cabecalho. Revogacao acessivel pela bandeja.
         if (Descendants(form).OfType<Button>().Any(b => b.Name == "PrivacyStatusButton"))
             throw new Exception("BETA nao pode mostrar botao permanente de coleta no cabecalho.");
@@ -341,6 +344,7 @@ internal static class LayoutTests
         if (DriverListFilters.Apply(fakeDrivers, "Todos", "").Length != 184 ||
             DriverListFilters.Apply(fakeDrivers, "Presentes", "").Length != 62 ||
             DriverListFilters.Apply(fakeDrivers, "Não confirmados", "").Length != 122 ||
+            DriverListFilters.Apply(fakeDrivers, "Problemas", "").Length != 0 ||
             DriverListFilters.Apply(fakeDrivers, "Todos", "oem18.inf").Length != 1 ||
             DriverListFilters.Apply(fakeDrivers, "Todos", fakeDrivers[183].DeviceId).Length != 1 ||
             DriverListFilters.Apply(fakeDrivers, "Todos", "fabricante DE TESTE").Length != 184)
@@ -589,7 +593,7 @@ internal static class LayoutTests
                     var mobileFilter = Descendants(placeholder).OfType<ComboBox>()
                         .SingleOrDefault(c => c.Name == "DriverCompactFilter");
                     if (mobileFilter is null || mobileFilter.Visible != tinyDrivers ||
-                        mobileFilter.Items.Count != 3)
+                        mobileFilter.Items.Count != 4)
                         throw new Exception($"Filtro compacto DRIVERS inacessivel: {name} {resolution}");
                     if (Descendants(placeholder).OfType<DataGridView>().Any() ||
                         Descendants(placeholder).OfType<Button>().Any(b =>
