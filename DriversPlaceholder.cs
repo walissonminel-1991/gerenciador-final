@@ -191,9 +191,16 @@ internal sealed partial class MainForm
 
         IReadOnlyList<DriverInventoryEntry>? snapshot = null;
         DriverInventoryResult? lastResult = null;
+        long inventoryGeneration = 0;
         investigate.Click += (_, _) =>
         {
-            if (lastResult is not null) ShowDriverReadOnlyReport(lastResult, list.SelectedItem);
+            if (lastResult is not { } captured) return;
+            var selection = list.SelectedItem;
+            var guard = new DriverReportPublicationGuard(captured, selection, inventoryGeneration);
+            ShowDriverReadOnlyReport(captured, selection,
+                () => guard.IsCurrent(lastResult, list.SelectedItem, inventoryGeneration),
+                (token, result) => guard.CanPublish(lastResult, list.SelectedItem,
+                    inventoryGeneration, token, result));
         };
         string activeFilter = "Todos";
         void Render()
@@ -265,6 +272,9 @@ internal sealed partial class MainForm
                 return;
             }
             var token = driverQuery.Begin(TimeSpan.FromSeconds(20));
+            // Invalida relatórios antigos antes da próxima leitura nativa,
+            // inclusive se ela falhar, cancelar ou terminar fora de ordem.
+            inventoryGeneration++;
             resultPublished = false;
             refresh.Text = "Cancelar";
             investigate.Enabled = false;
