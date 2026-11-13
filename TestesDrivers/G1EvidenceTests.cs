@@ -121,6 +121,47 @@ internal static class G1EvidenceTests
             report.Contains("não classificar como mais novo", StringComparison.Ordinal) &&
             report.Contains("nenhuma atualização, instalação ou remoção foi autorizada", StringComparison.Ordinal),
             "G1: relatório informa oferta e versão instalada sem declarar atualização comprovada");
+        // G1.1: versão WMI instalada só é normalizada com quatro componentes
+        // DriverVer válidos; oferta WUA permanece sem versão numérica.
+        check(link.InstalledNumericVersion == "4.5.6.7" &&
+            link.OfferedNumericVersion is null && !link.OfferedNumericVersionProven &&
+            !link.IsNewerProven && !link.TargetOsArchitectureProven,
+            "G1.1: número instalado não é convertido em versão da oferta ou compatibilidade");
+        foreach (var invalidVersion in new[]
+        {
+            "1.2", "1.2.3", "1.2.3.4.5", "65536.1.2.3",
+            "1.-1.2.3", " 1.2.3.4", "1.2.3.4 ", "1.2.3.4\\n",
+            "abc.2.3.4", "1.2.3.99999"
+        })
+            check(DriverOfficialLookup.NormalizeInstalledDriverVersion(invalidVersion) is null,
+                "G1.1: versão instalada malformada/incompleta não vira DriverVer válido");
+        check(DriverOfficialLookup.NormalizeInstalledDriverVersion("0001.002.3.00004") == "1.2.3.4" &&
+            DriverOfficialLookup.NormalizeInstalledDriverVersion("65535.65535.0.0") == "65535.65535.0.0",
+            "G1.1: normalização determinística de versão instalada com quatro componentes");
+        var noVersionOnExistingDriver = Match(device with { Version = "7.8" }, offer).Matches.Single();
+        check(noVersionOnExistingDriver.InstalledNumericVersion is null &&
+            noVersionOnExistingDriver.OfferedNumericVersion is null &&
+            !noVersionOnExistingDriver.CanInstall,
+            "G1.1: versão WMI parcial continua consultiva e não autoriza instalação");
+        var fakeContext = new DriverOfficialSearchContext("Windows Update", true,
+            "10.0.26100", "X64", new DateTimeOffset(2026, 11, 13, 16, 0, 0, TimeSpan.Zero));
+        var contextualized = result with { SearchContext = fakeContext };
+        var contextualReport = DriverReadOnlyReport.Format(
+            new([device], false, "fixture G1.1"), device, contextualized);
+        check(contextualReport.Contains("Windows 10.0.26100", StringComparison.Ordinal) &&
+            contextualReport.Contains("arquitetura do SO X64", StringComparison.Ordinal) &&
+            contextualReport.Contains("NÃO a arquitetura ou compatibilidade certificada", StringComparison.Ordinal) &&
+            contextualReport.Contains("SOMENTE do driver instalado: 4.5.6.7", StringComparison.Ordinal) &&
+            contextualReport.Contains("driver oferecido: NÃO DISPONÍVEL", StringComparison.Ordinal) &&
+            !fakeContext.PackageOsArchitectureValidated &&
+            !link.TargetOsArchitectureProven && !link.CanInstall,
+            "G1.1: arquitetura/build do host não prova requisitos do pacote remoto");
+        var host = DriverOfficialLookup.HostContextForSuccessfulSearch(online: false);
+        check(host.Source == "Windows Update" && !host.Online &&
+            !string.IsNullOrWhiteSpace(host.HostArchitecture) &&
+            !string.IsNullOrWhiteSpace(host.HostOsVersion) &&
+            !host.PackageOsArchitectureValidated,
+            "G1.1: contexto do Windows é observado sem inferir certificação do pacote");
         var alternatives = DriverOfficialLookup.Match(new([device], false, "fixture G1"),
             [offer, offer with { UpdateId = "0ab6b8a0-637a-46b1-9096-e68dfa1d5d6a",
                  VersionDate = new DateTime(2020, 1, 1) }], true);
