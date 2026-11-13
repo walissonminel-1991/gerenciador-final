@@ -40,6 +40,12 @@ internal static class DriverOfficialLookup
     internal const string Criteria = "IsInstalled=0 and IsHidden=0 and Type='Driver'";
     internal static bool ValidHardwareId(string? id) => DriverInventory.ValidHardwareId(id);
 
+    // Campos do WUA são dados para apresentação; rejeitar controles que
+    // poderiam simular linhas de diagnóstico no relatório local.
+    private static bool SafeText(string? value, bool required, int maxLength) =>
+        value is not null && value.Length <= maxLength && !value.Any(char.IsControl) &&
+        (!required || !string.IsNullOrWhiteSpace(value));
+
     internal static DriverOfficialResult Match(DriverInventoryResult inventory,
         IReadOnlyList<DriverOfficialOffer> offers, bool successful)
     {
@@ -62,9 +68,11 @@ internal static class DriverOfficialLookup
         {
             var offer = group.First();
             if (!Guid.TryParseExact(offer.UpdateId, "D", out var id) || id == Guid.Empty || offer.Revision < 1 ||
-                !ValidHardwareId(offer.HardwareId) || string.IsNullOrWhiteSpace(offer.Provider) ||
-                string.IsNullOrWhiteSpace(offer.Model) || string.IsNullOrWhiteSpace(offer.Title) ||
-                offer.Title.Length > 2000 || !offer.VersionDate.HasValue || offer.VersionDate.Value == DateTime.MinValue ||
+                !ValidHardwareId(offer.HardwareId) ||
+                !SafeText(offer.Provider, true, 256) || !SafeText(offer.Model, true, 256) ||
+                !SafeText(offer.Title, true, 2000) ||
+                !SafeText(offer.DriverClass, false, 256) || !SafeText(offer.Manufacturer, false, 256) ||
+                !offer.VersionDate.HasValue || offer.VersionDate.Value == DateTime.MinValue ||
                 group.Distinct().Count() != 1)
             { unmatched += group.Count(); partial = true; continue; }
             var exact = devices.Where(d => d.DeviceId.Length > 0 && d.Present == true &&
@@ -97,8 +105,8 @@ internal static class DriverOfficialLookup
             return device.PnpProblemCode == 28 && string.IsNullOrWhiteSpace(device.InfName) &&
                 string.IsNullOrWhiteSpace(device.Version) &&
                 string.IsNullOrWhiteSpace(device.Provider) && device.Signed is null;
-        return DriverPackageLinks.IsValidInf(device.InfName) &&
-            !string.IsNullOrWhiteSpace(device.Provider) &&
+        return device.InfName is not null && DriverPackageLinks.IsValidInf(device.InfName) &&
+            SafeText(device.Provider, true, 256) &&
             Version.TryParse(device.Version, out _) &&
             (device.PackageEvidence is null ||
                 (device.PackageEvidence.State == DriverStoreState.Mapped &&
