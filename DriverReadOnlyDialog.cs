@@ -11,7 +11,9 @@ internal sealed partial class MainForm
     private void ShowDriverReadOnlyReport(DriverInventoryResult inventory, DriverInventoryEntry? selected,
         Func<bool> isCurrent, Func<CancellationToken, DriverOfficialResult, bool> canPublishOfficial,
         Func<CancellationToken, DriverInfVerificationResult, bool> canPublishInf,
-        Action<Action?> onInvalidationChanged)
+        Action<Action?> onInvalidationChanged,
+        Func<CancellationToken, Task<DriverOfficialResult>>? officialReadForTest = null,
+        Func<CancellationToken, Task<DriverInfVerificationResult>>? infReadForTest = null)
     {
         using var dialog = new Form
         {
@@ -60,12 +62,13 @@ internal sealed partial class MainForm
         CancellationTokenSource? current = null;
         bool canVerify = selected?.PackageEvidence?.State == DriverStoreState.Mapped;
         bool obsolete = false;
+        bool closing = false;
         const string obsoleteText = "DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\n" +
             "Inventário ou seleção alterados. Feche esta janela e abra uma nova investigação. " +
             "Nenhum resultado antigo será publicado.";
         void CheckCurrent()
         {
-            if (dialog.IsDisposed || obsolete) return;
+            if (dialog.IsDisposed || closing || obsolete) return;
             // O diálogo é modal, mas eventos de inventário/seleção ainda
             // podem invalidar a fotografia; não confundir foco com validade.
             if (isCurrent()) return;
@@ -103,7 +106,7 @@ internal sealed partial class MainForm
             try
             {
                 bool accepted = await read(source.Token);
-                if (!dialog.IsDisposed)
+                if (!dialog.IsDisposed && !closing)
                 {
                     Render();
                     CheckCurrent();
@@ -115,7 +118,7 @@ internal sealed partial class MainForm
             }
             catch (OperationCanceledException)
             {
-                if (!dialog.IsDisposed)
+                if (!dialog.IsDisposed && !closing)
                 {
                     CheckCurrent();
                     if (!obsolete)
@@ -124,7 +127,7 @@ internal sealed partial class MainForm
             }
             catch (Exception ex)
             {
-                if (!dialog.IsDisposed)
+                if (!dialog.IsDisposed && !closing)
                 {
                     CheckCurrent();
                     if (!obsolete)
@@ -134,7 +137,7 @@ internal sealed partial class MainForm
             finally
             {
                 current = null;
-                if (!dialog.IsDisposed)
+                if (!dialog.IsDisposed && !closing)
                 {
                     button.Text = label;
                     CheckCurrent();
@@ -146,13 +149,14 @@ internal sealed partial class MainForm
         officialButton.Click += async (_, _) =>
         {
             if (current is null && _driverOfficialReadTask is { IsCompleted: false })
-            { status.Text = "Consulta nativa anterior ainda encerrando; resultado preservado."; return; }
+            { CheckCurrent(); if (!obsolete) status.Text = "Consulta nativa anterior ainda encerrando; resultado preservado."; return; }
             await Run(officialButton, async token =>
             {
-                _driverOfficialReadTask = DriverOfficialLookup.Start(inventory, token);
+                _driverOfficialReadTask = officialReadForTest is null
+                    ? DriverOfficialLookup.Start(inventory, token) : officialReadForTest(token);
                 var result = await _driverOfficialReadTask.WaitAsync(token);
                 token.ThrowIfCancellationRequested();
-                if (dialog.IsDisposed || !canPublishOfficial(token, result)) return false;
+                if (dialog.IsDisposed || closing || !canPublishOfficial(token, result)) return false;
                 official = result;
                 return true;
             }, TimeSpan.FromSeconds(90));
@@ -160,20 +164,28 @@ internal sealed partial class MainForm
         verifyButton.Click += async (_, _) =>
         {
             if (current is null && _driverInfReadTask is { IsCompleted: false })
-            { status.Text = "Verificação nativa anterior ainda encerrando; resultado preservado."; return; }
+            { CheckCurrent(); if (!obsolete) status.Text = "Verificação nativa anterior ainda encerrando; resultado preservado."; return; }
             if (selected?.PackageEvidence is not { } package) return;
             await Run(verifyButton, async token =>
             {
-                _driverInfReadTask = Task.Run(() => DriverInfVerification.Verify(package, token));
+                _driverInfReadTask = infReadForTest is null
+                    ? Task.Run(() => DriverInfVerification.Verify(package, token))
+                    : infReadForTest(token);
                 var result = await _driverInfReadTask.WaitAsync(token);
                 token.ThrowIfCancellationRequested();
-                if (dialog.IsDisposed || !canPublishInf(token, result)) return false;
+                if (dialog.IsDisposed || closing || !canPublishInf(token, result)) return false;
                 verification = result;
                 return true;
             }, TimeSpan.FromSeconds(25));
         };
         close.Click += (_, _) => dialog.Close();
-        dialog.FormClosed += (_, _) => current?.Cancel();
+        dialog.FormClosed += (_, _) =>
+        {
+            closing = true;
+            current?.Cancel();
+            official = null;
+            verification = null;
+        };
         Render();
         dialog.Shown += (_, _) => officialButton.Focus();
         onInvalidationChanged(CheckCurrent);
