@@ -8,7 +8,8 @@ internal sealed partial class MainForm
     private Task<DriverOfficialResult>? _driverOfficialReadTask;
     private Task<DriverInfVerificationResult>? _driverInfReadTask;
 
-    private void ShowDriverReadOnlyReport(DriverInventoryResult inventory, DriverInventoryEntry? selected)
+    private void ShowDriverReadOnlyReport(DriverInventoryResult inventory, DriverInventoryEntry? selected,
+        Func<bool> isCurrent, Func<CancellationToken, DriverOfficialResult, bool> canPublishOfficial)
     {
         using var dialog = new Form
         {
@@ -58,10 +59,22 @@ internal sealed partial class MainForm
         bool canVerify = selected?.PackageEvidence?.State == DriverStoreState.Mapped;
         verifyButton.Enabled = canVerify;
         officialButton.Enabled = !inventory.Partial && inventory.Items.Count > 0;
-        void Render() { if (!body.IsDisposed) body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification)); }
+        void Render()
+        {
+            if (body.IsDisposed) return;
+            if (!isCurrent())
+                body.SetText("DRIVERS — INVESTIGAÇÃO SOMENTE LEITURA\r\nInventário ou seleção alterados. Feche esta janela e abra uma nova investigação. Nenhum resultado antigo será publicado.");
+            else body.SetText(DriverReadOnlyReport.Format(inventory, selected, official, verification));
+        }
         async Task Run(Button button, Func<CancellationToken, Task> read, TimeSpan timeout)
         {
             if (current is not null) { current.Cancel(); return; }
+            if (!isCurrent())
+            {
+                Render();
+                status.Text = "Inventário ou seleção alterados; abra nova investigação.";
+                return;
+            }
             using var source = new CancellationTokenSource(timeout);
             current = source;
             string label = button.Text;
@@ -69,7 +82,17 @@ internal sealed partial class MainForm
             officialButton.Enabled = button == officialButton;
             verifyButton.Enabled = button == verifyButton;
             status.Text = "Consultando em segundo plano… Nenhuma instalação ou remoção.";
-            try { await read(source.Token); if (!dialog.IsDisposed) { Render(); status.Text = "Consulta encerrada. Resultados consultivos; nenhuma alteração em drivers."; } }
+            try
+            {
+                await read(source.Token);
+                if (!dialog.IsDisposed)
+                {
+                    Render();
+                    status.Text = isCurrent()
+                        ? "Consulta encerrada. Resultados consultivos; nenhuma alteração em drivers."
+                        : "Resultado atrasado descartado: inventário ou seleção alterados.";
+                }
+            }
             catch (OperationCanceledException)
             { if (!dialog.IsDisposed) status.Text = "Consulta cancelada ou prazo esgotado; resultado anterior preservado."; }
             catch (Exception ex)
@@ -94,7 +117,8 @@ internal sealed partial class MainForm
                 _driverOfficialReadTask = DriverOfficialLookup.Start(inventory, token);
                 var result = await _driverOfficialReadTask.WaitAsync(token);
                 token.ThrowIfCancellationRequested();
-                if (!dialog.IsDisposed) official = result;
+                if (!dialog.IsDisposed && canPublishOfficial(token, result))
+                    official = result;
             }, TimeSpan.FromSeconds(90));
         };
         verifyButton.Click += async (_, _) =>
@@ -107,7 +131,7 @@ internal sealed partial class MainForm
                 _driverInfReadTask = Task.Run(() => DriverInfVerification.Verify(package, token));
                 var result = await _driverInfReadTask.WaitAsync(token);
                 token.ThrowIfCancellationRequested();
-                if (!dialog.IsDisposed) verification = result;
+                if (!dialog.IsDisposed && isCurrent()) verification = result;
             }, TimeSpan.FromSeconds(25));
         };
         close.Click += (_, _) => dialog.Close();
