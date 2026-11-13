@@ -23,6 +23,9 @@ internal static class DriverReadOnlyReport
             text.AppendLine("ID da instância: " + selected.DeviceId);
             text.AppendLine("IDs de hardware: " + (selected.HardwareIds.Count == 0 ? "não fornecidos" : string.Join("; ", selected.HardwareIds)));
             text.AppendLine($"Versão instalada (WMI): {selected.Version}; INF: {selected.InfName}; {selected.PresenceLabel}.");
+            text.AppendLine("Diagnóstico PnP do Windows: " + selected.PnpStatusLabel + ".");
+            if (selected.WithoutSignedDriverAssociation)
+                text.AppendLine("Sem linha de driver assinado associada nesta leitura. Não significa pacote removível nem prova de versão disponível.");
             text.AppendLine(selected.PackageEvidence?.Label ?? "Vínculo de pacote indisponível.");
             text.AppendLine("Relato de assinatura WMI: " + selected.SignatureLabel + " (não é a verificação abaixo).");
             foreach (var change in selected.WindowsEvents)
