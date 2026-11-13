@@ -315,9 +315,9 @@ internal static class G1EvidenceTests
             category with { CategoryId = "invalid-guid" },
             category with { CategoryId = Guid.Empty.ToString("D") },
             category with { Type = "" },
-            category with { Type = "Product\\nFORJADO" },
+            category with { Type = "Product\nFORJADO" },
             category with { Name = "" },
-            category with { Name = "Nome\\rAlterado" }
+            category with { Name = "Nome\rAlterado" }
         })
             check(DriverOfficialLookup.AuditRelations(offer.UpdateId, [], [badCategory]).State ==
                 DriverOfficialRelationsState.Inconclusive,
