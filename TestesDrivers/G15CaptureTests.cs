@@ -207,7 +207,7 @@ internal static class G15CaptureTests
             "G1.5: Item nulo não cria entrada artificial");
 
         var corruptEntry = Fixture();
-        corruptEntry.entry.DriverProblemNumberForInvalid();
+        corruptEntry.entry.DeviceProblemNumber = "invalid-integer";
         var corruptOffer = DriverOfficialLookup.CaptureOffer(corruptEntry.update, CancellationToken.None);
         check(corruptOffer?.EntryAudit?.State == DriverOfficialEntryState.Inconclusive &&
             Correlate(corruptOffer) is { Partial: true, Matches.Count: 0 },
@@ -259,6 +259,4 @@ internal static class G15CaptureTests
             "G1.5: falha de uma das ofertas não publica subconjunto previamente válido");
     }
 
-    private static void DriverProblemNumberForInvalid(this Entry entry) =>
-        entry.DeviceProblemNumber = "invalid-integer";
 }
