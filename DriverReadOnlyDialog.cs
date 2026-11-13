@@ -13,7 +13,8 @@ internal sealed partial class MainForm
         Func<CancellationToken, DriverInfVerificationResult, bool> canPublishInf,
         Action<Action?> onInvalidationChanged,
         Func<CancellationToken, Task<DriverOfficialResult>>? officialReadForTest = null,
-        Func<CancellationToken, Task<DriverInfVerificationResult>>? infReadForTest = null)
+        Func<CancellationToken, Task<DriverInfVerificationResult>>? infReadForTest = null,
+        TimeSpan? timeoutForTest = null)
     {
         using var dialog = new Form
         {
@@ -159,7 +160,7 @@ internal sealed partial class MainForm
                 if (dialog.IsDisposed || closing || !canPublishOfficial(token, result)) return false;
                 official = result;
                 return true;
-            }, TimeSpan.FromSeconds(90));
+            }, timeoutForTest ?? TimeSpan.FromSeconds(90));
         };
         verifyButton.Click += async (_, _) =>
         {
@@ -176,7 +177,7 @@ internal sealed partial class MainForm
                 if (dialog.IsDisposed || closing || !canPublishInf(token, result)) return false;
                 verification = result;
                 return true;
-            }, TimeSpan.FromSeconds(25));
+            }, timeoutForTest ?? TimeSpan.FromSeconds(25));
         };
         close.Click += (_, _) => dialog.Close();
         dialog.FormClosed += (_, _) =>
