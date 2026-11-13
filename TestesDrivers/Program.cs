@@ -125,6 +125,17 @@ Check(!new DriverInfVerificationResult(DriverInfTrust.VerifiedInf).CanInstall &&
     linksWithProblemDevices.Packages.Count == 1 &&
     linksWithProblemDevices.WithoutInf == 0,
     "PnP: dispositivos sem driver nao inflacionam o Store nem habilitam instalacao");
+Check(DriverHistory.Snapshot(new(syntheticPnp, false, "fixture")).Count == 1,
+    "PnP: historico v1 nao inventa associacoes para dispositivos sem driver");
+bool refusedEmptyHistory = false;
+try
+{
+    DriverHistory.Snapshot(new(syntheticPnp.Where(x => x.WithoutSignedDriverAssociation).ToArray(),
+        false, "fixture"));
+}
+catch (InvalidDataException) { refusedEmptyHistory = true; }
+Check(refusedEmptyHistory,
+    "PnP: consulta so com dispositivos sem driver preserva historico anterior");
 ReadOnlyDriverTests.Run(Check);
 Stage2DriverTests.Run(Check);
 DiagnosticFailureTests.Run(Check);
