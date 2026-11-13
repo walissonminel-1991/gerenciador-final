@@ -280,6 +280,7 @@ internal sealed partial class MainForm
                 resultPublished = true;
                 Render();
                 var links = DriverPackageLinks.Analyze(result);
+                var signedEntries = result.Items.Where(x => !x.WithoutSignedDriverAssociation).ToArray();
                 state.Text = $"{result.Status}: {result.Items.Count} dispositivos/associações, " +
                     $"{result.Items.Count(x => x.HasPnpProblem)} com código PnP, " +
                     $"{result.Items.Count(x => x.WithoutSignedDriverAssociation)} sem driver associado, " +
@@ -297,17 +298,17 @@ internal sealed partial class MainForm
                         ("parcial", store.Partial ? 1 : 0));
                 DiagnosticTrace.Write($"DRIVERS.INVENTARIO quantidade={result.Items.Count} parcial={result.Partial}");
                 TestDiagnosticDetail.Record("DRIVERS",
-                    ("associacoes", result.Items.Count),
-                    ("ids_unicos", result.Items.Select(x => x.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count()),
-                    ("sem_nome", result.Items.Count(x => string.IsNullOrWhiteSpace(x.DeviceName))),
-                    ("sem_fornecedor", result.Items.Count(x => string.IsNullOrWhiteSpace(x.Provider))),
-                    ("sem_versao", result.Items.Count(x => string.IsNullOrWhiteSpace(x.Version))),
-                    ("versao_incomum", result.Items.Count(x => !string.IsNullOrWhiteSpace(x.Version) &&
+                    ("associacoes", signedEntries.Length),
+                    ("ids_unicos", signedEntries.Select(x => x.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count()),
+                    ("sem_nome", signedEntries.Count(x => string.IsNullOrWhiteSpace(x.DeviceName))),
+                    ("sem_fornecedor", signedEntries.Count(x => string.IsNullOrWhiteSpace(x.Provider))),
+                    ("sem_versao", signedEntries.Count(x => string.IsNullOrWhiteSpace(x.Version))),
+                    ("versao_incomum", signedEntries.Count(x => !string.IsNullOrWhiteSpace(x.Version) &&
                         !Version.TryParse(x.Version, out _))),
                     ("sem_inf", links.WithoutInf),
-                    ("assinatura_indeterminada", result.Items.Count(x => !x.Signed.HasValue)),
-                    ("presenca_indeterminada", result.Items.Count(x => !x.Present.HasValue)),
-                    ("nao_presentes", result.Items.Count(x => x.Present == false)),
+                    ("assinatura_indeterminada", signedEntries.Count(x => !x.Signed.HasValue)),
+                    ("presenca_indeterminada", signedEntries.Count(x => !x.Present.HasValue)),
+                    ("nao_presentes", signedEntries.Count(x => x.Present == false)),
                     ("parcial", result.Partial ? 1 : 0));
                 var recorded = await Task.Run(() => DriverHistory.Record(
                     DriverHistory.DefaultPath, result, DateTimeOffset.UtcNow));
