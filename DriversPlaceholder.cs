@@ -200,6 +200,8 @@ internal sealed partial class MainForm
             ShowDriverReadOnlyReport(captured, selection,
                 () => guard.IsCurrent(lastResult, list.SelectedItem, inventoryGeneration),
                 (token, result) => guard.CanPublish(lastResult, list.SelectedItem,
+                    inventoryGeneration, token, result),
+                (token, result) => guard.CanPublishInf(lastResult, list.SelectedItem,
                     inventoryGeneration, token, result));
         };
         string activeFilter = "Todos";
