@@ -19,6 +19,18 @@ internal static class DriverReadOnlyDialogTemporalTests
                 new DateTime(2026, 10, 25, 12, 34, 56), DriverInstallOutcome.Failed)]
         };
         var inventory = new DriverInventoryResult([device], false, "fotografia G1.10");
+        // Seleção e troca de filtro emitem invalidação sem polling.
+        using (var list = new DarkDriverList())
+        {
+            int changes = 0;
+            list.SelectionChanged += (_, _) => changes++;
+            list.SetItems([device]);
+            typeof(DarkDriverList).GetMethod("SelectIndex",
+                BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(list, [0]);
+            list.SetItems([]);
+            if (changes != 2)
+                throw new Exception("G1.10: seleção/filtro não notificaram invalidação visual.");
+        }
         var method = typeof(MainForm).GetMethod("ShowDriverReadOnlyReport",
             BindingFlags.Instance | BindingFlags.NonPublic)!;
         DriverOfficialResult fake = FakeOfficial(device);
