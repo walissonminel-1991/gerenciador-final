@@ -219,7 +219,7 @@ internal static class G1EvidenceTests
         foreach (var malformedEntry in new[]
         {
             firstEntry with { HardwareOrCompatibleId = @"PCI\VEN_1234&DEV_5678*" },
-            firstEntry with { DriverClass = "Display\\nINCORRETO" },
+            firstEntry with { DriverClass = "Display\nINCORRETO" },
             firstEntry with { Model = "" },
             firstEntry with { Provider = "" },
             firstEntry with { VersionDate = default },
