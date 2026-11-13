@@ -140,6 +140,7 @@ ReadOnlyDriverTests.Run(Check);
 Stage2DriverTests.Run(Check);
 G1EvidenceTests.Run(Check);
 G15CaptureTests.Run(Check);
+G16SessionTests.Run(Check);
 DiagnosticFailureTests.Run(Check);
 var a = new DriverInventoryEntry("PCI\\ONE", "Video", "Vendor", "1.0", "oem1.inf", true, null);
 var b = a with { DeviceId = "PCI\\TWO", DeviceName = "Outro dispositivo" };
