@@ -42,6 +42,16 @@ A seleção é uma **instância PnP**, não um índice ou nome localizado. Mesmo
 
 Esses ensaios validam a lógica pura de decisão usada pela UI; **não constituem homologação visual ou resposta WUA real positiva**. Os runners anteriores encontraram zero ofertas.
 
+## 5.1 Regressão G1.8 encontrada e correção isolada
+
+A primeira CI do SHA documental `36dc6a438c0b5016ca65ebbee8729716c0c5c804` identificou um contraexemplo **real da suíte visual**, não falha de compilação do aplicativo: [Windows 43523633975](https://github.com/walissonminel-1991/gerenciador-final/actions/runs/43523633975), job `Regressões Windows`, parou em `TestesLayout/DriverReadOnlyDialogTests.cs:72` com `System.Reflection.TargetParameterCountException`. A fixture usava `GetMethod(...).Invoke(owner, [inventory, device])` enquanto a nova assinatura real do diálogo exige duas callbacks adicionais. Os jobs drivers Windows 2022/2025 estavam **SUCCESS**, com 26 testes G1.8 em cada runner; política e consentimento também **SUCCESS**. A compilação x64 final foi ignorada por falha de dependência; logo **a CI NÃO estava aprovada globalmente**.
+
+A menor correção foi **somente na fixture** `TestesLayout/DriverReadOnlyDialogTests.cs`: o `Invoke` agora recebe callbacks fortemente tipadas derivadas do `DriverReportPublicationGuard` com a mesma fotografia e geração da fixture. Nenhuma checagem visual de 500×340/790×510, rolagem, botões ou conteúdo foi removida. Não alterar a produção para satisfazer uma reflexão desatualizada.
+
+A validação desta correção exige **uma NOVA CI Windows completa e uma CI de integridade no SHA posterior**, sem aproveitar a execução inicial com `failure`.
+
+---
+
 ## 5. CI obrigatória no SHA FINAL deste checkpoint
 
 Antes de aprovar a etapa, exigir `completed/SUCCESS` de:
