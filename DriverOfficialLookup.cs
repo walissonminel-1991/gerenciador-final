@@ -30,7 +30,7 @@ internal sealed record DriverOfficialMatch(DriverOfficialOffer Offer, string Dev
     internal DriverOfficialInstalledEvidence? Installed { get; init; }
     internal bool ProviderMatchesInstalled => Installed is { WithoutSignedDriverAssociation: false } current &&
         current.Provider.Equals(Offer.Provider, StringComparison.OrdinalIgnoreCase);
-    // INF DriverVer utiliza quatro componentes (cada um de 0 a 65535).
+    // INF DriverVer utiliza quatro componentes (cada um de 0 a 65534).
     // Normalização é SOMENTE da versão WMI instalada; a oferta WUA não a fornece.
     internal string? InstalledNumericVersion =>
         DriverOfficialLookup.NormalizeInstalledDriverVersion(Installed?.Version);
@@ -65,7 +65,7 @@ internal static class DriverOfficialLookup
         var components = version.Split('.');
         if (components.Length != 4 || components.Any(s => s.Length is < 1 or > 5 ||
                 !ushort.TryParse(s, System.Globalization.NumberStyles.None,
-                    System.Globalization.CultureInfo.InvariantCulture, out _)))
+                    System.Globalization.CultureInfo.InvariantCulture, out var part) || part >= 65535))
             return null;
         return string.Join(".", components.Select(s => ushort.Parse(s,
             System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture)
